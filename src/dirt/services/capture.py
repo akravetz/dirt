@@ -30,6 +30,8 @@ def _open_camera(device: int) -> cv2.VideoCapture | None:
         logger.error("Failed to open camera device %d", device)
         return None
 
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
     cap.set(cv2.CAP_PROP_AUTO_WB, 0)
     cap.set(cv2.CAP_PROP_WB_TEMPERATURE, settings.camera_white_balance)
     cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)  # Manual
