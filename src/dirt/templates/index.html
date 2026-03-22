@@ -18,6 +18,20 @@
             padding: 2rem;
         }
         h1 { margin-bottom: 1rem; font-size: 1.5rem; }
+        .header {
+            width: 100%;
+            max-width: 960px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        .header a {
+            color: #888;
+            text-decoration: none;
+            font-size: 0.85rem;
+        }
+        .header a:hover { color: #e0e0e0; }
         .feed-container {
             max-width: 960px;
             width: 100%;
@@ -43,7 +57,10 @@
     </style>
 </head>
 <body>
-    <h1>Dirt</h1>
+    <div class="header">
+        <h1>Dirt</h1>
+        <a href="/logout">Log out</a>
+    </div>
     <div class="feed-container">
         <div hx-get="/feed/image" hx-trigger="load, every 5s" hx-swap="innerHTML">
             <div class="no-feed">Waiting for first snapshot...</div>

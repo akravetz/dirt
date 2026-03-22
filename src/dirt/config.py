@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     snapshot_dir: str = "snapshots"
     capture_interval: int = 30
     camera_device: int = 0
+    secret_key: str = "change-me-in-production"
 
 
 settings = Settings()

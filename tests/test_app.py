@@ -1,14 +1,24 @@
+from unittest.mock import patch
+
 import pytest
 from httpx import ASGITransport, AsyncClient
-
-from dirt.app import app
 
 
 @pytest.fixture
 async def client():
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac
+    with patch("dirt.services.capture.capture_loop"):
+        from dirt.app import app
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(
+            transport=transport, base_url="http://test", follow_redirects=False
+        ) as ac:
+            # Authenticate
+            login = await ac.post(
+                "/login", data={"username": "admin", "password": "changeme"}
+            )
+            ac.cookies = login.cookies
+            yield ac
 
 
 async def test_index_returns_200(client: AsyncClient):

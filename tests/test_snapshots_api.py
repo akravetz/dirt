@@ -35,7 +35,13 @@ async def client(db_engine):
 
         app.dependency_overrides[get_session] = _get_session
         transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        async with AsyncClient(
+            transport=transport, base_url="http://test", follow_redirects=False
+        ) as ac:
+            login = await ac.post(
+                "/login", data={"username": "admin", "password": "changeme"}
+            )
+            ac.cookies = login.cookies
             yield ac
         app.dependency_overrides.clear()
 
