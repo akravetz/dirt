@@ -1,0 +1,19 @@
+# Environment
+.env
+.venv/
+__pycache__/
+*.pyc
+
+# Database
+*.db
+
+# Snapshots
+snapshots/
+
+# IDE
+.idea/
+.vscode/
+
+# Distribution
+dist/
+*.egg-info/
