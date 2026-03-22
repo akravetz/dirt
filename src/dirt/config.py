@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     camera_gain: int = 0  # Sensor gain (0-255, lower=less amplification)
     camera_target_brightness: int = 150  # Target mean brightness (0-255)
     secret_key: str = "change-me-in-production"
+    mcp_bearer_token: str = "change-me-in-production"
 
 
 settings = Settings()

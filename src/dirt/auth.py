@@ -35,10 +35,16 @@ def get_current_user(request: Request) -> str | None:
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app, exclude_prefixes: list[str] | None = None) -> None:
+        super().__init__(app)
+        self._exclude_prefixes = tuple(exclude_prefixes or [])
+
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
-        if request.url.path in PUBLIC_PATHS:
+        if request.url.path in PUBLIC_PATHS or request.url.path.startswith(
+            self._exclude_prefixes
+        ):
             return await call_next(request)
 
         user = get_current_user(request)

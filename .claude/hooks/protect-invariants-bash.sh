@@ -3,7 +3,7 @@
 # Prevents bypassing the Edit/Write hook via sed, echo, tee, python, etc.
 # Protected: tests/invariants/, .githooks/
 
-INPUT=$(cat /dev/stdin)
+INPUT=$(cat)
 COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
 
 PROTECTED_PATHS='(tests/invariants/|tests\/invariants\/|\.githooks/|\.githooks\/)'

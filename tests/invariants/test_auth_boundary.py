@@ -29,6 +29,10 @@ FRAMEWORK_PATHS = {
     "/redoc",
 }
 
+# Paths that use bearer token auth instead of cookie/session auth.
+# These are excluded from the cookie-auth test and validated separately.
+BEARER_AUTH_PREFIXES = ("/mcp",)
+
 
 def _get_app_routes():
     """Collect all application-defined routes (excluding framework-generated ones)."""
@@ -39,6 +43,8 @@ def _get_app_routes():
     for route in app.routes:
         path = getattr(route, "path", None)
         if path is None or path in FRAMEWORK_PATHS:
+            continue
+        if any(path.startswith(prefix) for prefix in BEARER_AUTH_PREFIXES):
             continue
         methods = getattr(route, "methods", {"GET"})
         for method in methods:
@@ -90,3 +96,25 @@ async def test_unauthenticated_request_is_blocked(
             f"{method} {path} redirected to {response.headers['location']} "
             f"instead of /login"
         )
+
+
+async def test_mcp_rejects_unauthenticated_requests(
+    unauthenticated_client: AsyncClient,
+):
+    """MCP endpoint must return 401 when no bearer token is provided."""
+    response = await unauthenticated_client.get("/mcp/")
+    assert response.status_code == 401, (
+        f"GET /mcp/ returned {response.status_code} instead of 401. "
+        f"MCP endpoint must require bearer token authentication."
+    )
+
+
+async def test_mcp_rejects_invalid_bearer_token(unauthenticated_client: AsyncClient):
+    """MCP endpoint must return 401 for an invalid bearer token."""
+    response = await unauthenticated_client.get(
+        "/mcp/", headers={"Authorization": "Bearer wrong-token"}
+    )
+    assert response.status_code == 401, (
+        f"GET /mcp/ with invalid token returned {response.status_code} instead of 401. "
+        f"MCP endpoint must reject invalid bearer tokens."
+    )

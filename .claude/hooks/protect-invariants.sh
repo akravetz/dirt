@@ -3,7 +3,7 @@
 # - tests/invariants/ — human-owned invariant tests
 # - .githooks/ — pre-commit hooks (sacred boundary)
 
-INPUT=$(cat /dev/stdin)
+INPUT=$(cat)
 FILE=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
 
 if [[ "$FILE" == *"tests/invariants/"* ]]; then
