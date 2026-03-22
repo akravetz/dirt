@@ -3,7 +3,8 @@ from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt.config import settings
-from dirt.models.snapshot import Snapshot  # noqa: F401 — registers table with SQLModel
+from dirt.models.sensor_reading import SensorReading  # noqa: F401
+from dirt.models.snapshot import Snapshot  # noqa: F401
 
 engine = create_async_engine(settings.database_url)
 

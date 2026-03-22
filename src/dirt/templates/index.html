@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dirt — Live Feed</title>
+    <title>Dirt — Dashboard</title>
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -16,15 +17,16 @@
             flex-direction: column;
             align-items: center;
             padding: 2rem;
+            gap: 1.5rem;
         }
-        h1 { margin-bottom: 1rem; font-size: 1.5rem; }
+        h1 { font-size: 1.5rem; }
+        h2 { font-size: 1.1rem; color: #ccc; }
         .header {
             width: 100%;
             max-width: 960px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 1rem;
         }
         .header a {
             color: #888;
@@ -32,12 +34,19 @@
             font-size: 0.85rem;
         }
         .header a:hover { color: #e0e0e0; }
-        .feed-container {
+        .card {
             max-width: 960px;
             width: 100%;
             background: #2a2a2a;
             border-radius: 8px;
             overflow: hidden;
+        }
+        .card-header {
+            padding: 0.75rem 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #333;
         }
         .feed-container img {
             width: 100%;
@@ -54,6 +63,50 @@
             text-align: center;
             color: #666;
         }
+        .range-buttons {
+            display: flex;
+            gap: 0.25rem;
+        }
+        .range-btn {
+            padding: 0.3rem 0.6rem;
+            border: 1px solid #555;
+            border-radius: 4px;
+            background: transparent;
+            color: #aaa;
+            font-size: 0.75rem;
+            cursor: pointer;
+        }
+        .range-btn:hover { border-color: #888; color: #e0e0e0; }
+        .range-btn.active {
+            background: #4a9eff;
+            border-color: #4a9eff;
+            color: #fff;
+        }
+        .chart-container {
+            padding: 1rem 1rem 0 1rem;
+            height: 200px;
+        }
+        .chart-container + .chart-container {
+            padding-top: 0;
+        }
+        .current-stats {
+            display: flex;
+            gap: 2rem;
+            padding: 0.75rem 1rem;
+            border-top: 1px solid #333;
+        }
+        .stat {
+            display: flex;
+            flex-direction: column;
+        }
+        .stat-value {
+            font-size: 1.4rem;
+            font-weight: 600;
+        }
+        .stat-label {
+            font-size: 0.75rem;
+            color: #888;
+        }
     </style>
 </head>
 <body>
@@ -61,7 +114,12 @@
         <h1>Dirt</h1>
         <a href="/logout">Log out</a>
     </div>
-    <div class="feed-container">
+
+    <!-- Live Feed -->
+    <div class="card feed-container">
+        <div class="card-header">
+            <h2>Live Feed</h2>
+        </div>
         <div hx-get="/feed/image" hx-trigger="load, every 5s" hx-swap="innerHTML">
             <div class="no-feed">Waiting for first snapshot...</div>
         </div>
@@ -71,5 +129,227 @@
              hx-swap="innerHTML">
         </div>
     </div>
+
+    <!-- Sensor Dashboard -->
+    <div class="card">
+        <div class="card-header">
+            <h2>Environment</h2>
+            <div class="range-buttons">
+                <button class="range-btn" onclick="loadChart('1h')">1h</button>
+                <button class="range-btn active" onclick="loadChart('24h')">24h</button>
+                <button class="range-btn" onclick="loadChart('7d')">7d</button>
+                <button class="range-btn" onclick="loadChart('30d')">30d</button>
+            </div>
+        </div>
+        <div class="chart-container">
+            <canvas id="temp-chart"></canvas>
+        </div>
+        <div class="chart-container">
+            <canvas id="hum-chart"></canvas>
+        </div>
+        <div hx-get="/sensors/current"
+             hx-trigger="load, every 30s"
+             hx-swap="innerHTML">
+        </div>
+    </div>
+
+    <script>
+        let tempChart = null;
+        let humChart = null;
+
+        // Crosshair plugin — draws a vertical white line at hover position
+        const crosshairPlugin = {
+            id: 'crosshair',
+            afterDraw(chart) {
+                if (chart._crosshairX == null) return;
+                const ctx = chart.ctx;
+                const yAxis = chart.scales.y;
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(chart._crosshairX, yAxis.top);
+                ctx.lineTo(chart._crosshairX, yAxis.bottom);
+                ctx.lineWidth = 1;
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+                ctx.stroke();
+                ctx.restore();
+            }
+        };
+        Chart.register(crosshairPlugin);
+
+        // Sync hover between two charts
+        function syncCharts(sourceChart, targetChart, event) {
+            const rect = sourceChart.canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const elements = sourceChart.getElementsAtEventForMode(
+                event, 'index', { intersect: false }, false
+            );
+
+            if (elements.length > 0) {
+                const dataIndex = elements[0].index;
+                // Set crosshair on both
+                sourceChart._crosshairX = elements[0].element.x;
+                sourceChart.update('none');
+
+                // Trigger tooltip + crosshair on target
+                const targetMeta = targetChart.getDatasetMeta(0);
+                if (targetMeta.data[dataIndex]) {
+                    targetChart._crosshairX = targetMeta.data[dataIndex].x;
+                    targetChart.tooltip.setActiveElements(
+                        [{ datasetIndex: 0, index: dataIndex }],
+                        { x: targetMeta.data[dataIndex].x, y: targetMeta.data[dataIndex].y }
+                    );
+                    targetChart.update('none');
+                }
+
+                // Show tooltip on source too
+                sourceChart.tooltip.setActiveElements(
+                    [{ datasetIndex: 0, index: dataIndex }],
+                    { x: elements[0].element.x, y: elements[0].element.y }
+                );
+                sourceChart.update('none');
+            }
+        }
+
+        function clearCrosshairs() {
+            if (tempChart) { tempChart._crosshairX = null; tempChart.tooltip.setActiveElements([], {}); tempChart.update('none'); }
+            if (humChart) { humChart._crosshairX = null; humChart.tooltip.setActiveElements([], {}); humChart.update('none'); }
+        }
+
+        const xTickCallback = function(val) {
+            const label = this.getLabelForValue(val);
+            const d = new Date(label);
+            if (isNaN(d)) return label;
+            return d.toLocaleString([], {
+                month: 'short', day: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+            });
+        };
+
+        function formatTooltipDate(isoString) {
+            const d = new Date(isoString);
+            if (isNaN(d)) return isoString;
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            let h = d.getHours();
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            h = h % 12 || 12;
+            const min = String(d.getMinutes()).padStart(2, '0');
+            const sec = String(d.getSeconds()).padStart(2, '0');
+            return `${mm}/${dd} ${h}:${min}:${sec} ${ampm}`;
+        }
+
+        const sharedTooltip = {
+            backgroundColor: '#333',
+            titleColor: '#e0e0e0',
+            bodyColor: '#e0e0e0',
+            enabled: true,
+            mode: 'index',
+            intersect: false,
+            callbacks: {
+                title: function(items) {
+                    if (!items.length) return '';
+                    return formatTooltipDate(items[0].label);
+                }
+            },
+        };
+
+        function makeChartConfig(label, data, labels, color, bgColor, yTitle, opts) {
+            return {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: label,
+                        data: data,
+                        borderColor: color,
+                        backgroundColor: bgColor,
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        fill: true,
+                        tension: 0.3,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { labels: { color: '#aaa', font: { size: 11 } } },
+                        tooltip: sharedTooltip,
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                color: '#666',
+                                maxTicksLimit: 8,
+                                maxRotation: 0,
+                                display: opts.showXLabels,
+                                callback: xTickCallback,
+                            },
+                            grid: { color: '#333' },
+                        },
+                        y: {
+                            position: 'left',
+                            title: { display: true, text: yTitle, color: color },
+                            ticks: { color: color },
+                            grid: { color: '#333' },
+                            ...(opts.yMin !== undefined && { min: opts.yMin }),
+                            ...(opts.yMax !== undefined && { max: opts.yMax }),
+                        }
+                    },
+                    onHover: () => {},  // Replaced after chart creation
+                }
+            };
+        }
+
+        function loadChart(range) {
+            document.querySelectorAll('.range-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.textContent === range);
+            });
+
+            fetch(`/api/sensors/readings?range=${range}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (tempChart) {
+                        tempChart.data.labels = data.labels;
+                        tempChart.data.datasets[0].data = data.temperature;
+                        tempChart.update();
+                        humChart.data.labels = data.labels;
+                        humChart.data.datasets[0].data = data.humidity;
+                        humChart.update();
+                        return;
+                    }
+
+                    tempChart = new Chart(
+                        document.getElementById('temp-chart'),
+                        makeChartConfig(
+                            'Temperature (°F)', data.temperature, data.labels,
+                            '#ff8c42', 'rgba(255, 140, 66, 0.15)', '°F',
+                            { showXLabels: false }
+                        )
+                    );
+
+                    humChart = new Chart(
+                        document.getElementById('hum-chart'),
+                        makeChartConfig(
+                            'Humidity (%)', data.humidity, data.labels,
+                            '#42a5f5', 'rgba(66, 165, 245, 0.15)', '%',
+                            { showXLabels: true, yMin: 0, yMax: 100 }
+                        )
+                    );
+
+                    // Wire up cross-chart sync
+                    const tempCanvas = document.getElementById('temp-chart');
+                    const humCanvas = document.getElementById('hum-chart');
+
+                    tempCanvas.addEventListener('mousemove', e => syncCharts(tempChart, humChart, e));
+                    humCanvas.addEventListener('mousemove', e => syncCharts(humChart, tempChart, e));
+                    tempCanvas.addEventListener('mouseleave', clearCrosshairs);
+                    humCanvas.addEventListener('mouseleave', clearCrosshairs);
+                });
+        }
+
+        loadChart('24h');
+    </script>
 </body>
 </html>
