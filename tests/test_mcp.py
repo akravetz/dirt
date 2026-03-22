@@ -62,8 +62,8 @@ async def test_mcp_no_cookie_auth_redirect(full_app_client: AsyncClient):
 
 
 async def test_get_latest_snapshot_empty_db(db_engine):
-    async with AsyncSession(db_engine) as session:
-        result = await get_latest_snapshot(session)
+    with patch("dirt.services.snapshots.engine", db_engine):
+        result = await get_latest_snapshot()
     assert result is None
 
 
@@ -77,8 +77,8 @@ async def test_get_latest_snapshot_returns_most_recent(db_engine):
         )
         await session.commit()
 
-    async with AsyncSession(db_engine) as session:
-        result = await get_latest_snapshot(session)
+    with patch("dirt.services.snapshots.engine", db_engine):
+        result = await get_latest_snapshot()
     assert result is not None
     assert result.file_path == "/new.jpg"
 

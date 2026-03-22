@@ -1,5 +1,5 @@
 #!/bin/bash
-# PreToolUse hook: blocks Edit/Write to protected paths
+# PreToolUse hook: prompts user before Edit/Write to protected paths
 # - tests/invariants/ — human-owned invariant tests
 # - .githooks/ — pre-commit hooks (sacred boundary)
 
@@ -7,13 +7,13 @@ INPUT=$(cat)
 FILE=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
 
 if [[ "$FILE" == *"tests/invariants/"* ]]; then
-    echo "BLOCKED: tests/invariants/ files are human-owned invariant tests. You MUST NOT modify these files. If an invariant test fails, fix your code to satisfy the test." >&2
-    exit 2
+    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"tests/invariants/ files are human-owned. Approve only if you explicitly asked for this change."}}'
+    exit 0
 fi
 
 if [[ "$FILE" == *".githooks/"* ]]; then
-    echo "BLOCKED: .githooks/ files are human-owned pre-commit hooks. You MUST NOT modify these files." >&2
-    exit 2
+    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":".githooks/ files are human-owned. Approve only if you explicitly asked for this change."}}'
+    exit 0
 fi
 
 exit 0

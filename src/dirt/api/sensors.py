@@ -1,31 +1,24 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Query
 from fastapi.responses import HTMLResponse, JSONResponse
-from sqlmodel.ext.asyncio.session import AsyncSession
 
-from dirt.db import get_session
 from dirt.services.readings import get_latest_reading, get_sensor_history
 
 router = APIRouter(tags=["sensors"])
 
-_get_session = Depends(get_session)
-
 
 @router.get("/api/sensors/readings")
 async def sensor_readings(
-    session: AsyncSession = _get_session,
     range: str = Query(default="24h", pattern="^(1h|24h|7d|30d)$"),
 ) -> JSONResponse:
     """Return sensor data as JSON for Chart.js."""
-    data = await get_sensor_history(session, range)
+    data = await get_sensor_history(range)
     return JSONResponse(data)
 
 
 @router.get("/sensors/current", response_class=HTMLResponse)
-async def current_readings(
-    session: AsyncSession = _get_session,
-) -> HTMLResponse:
+async def current_readings() -> HTMLResponse:
     """HTMX fragment showing the latest sensor values."""
-    reading = await get_latest_reading(session)
+    reading = await get_latest_reading()
     if reading is None:
         return HTMLResponse('<div class="current-stats">No sensor data available</div>')
     return HTMLResponse(

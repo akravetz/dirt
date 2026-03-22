@@ -3,7 +3,6 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
-from sqlalchemy.ext.asyncio import AsyncEngine
 from starlette.applications import Starlette
 
 from dirt.mcp.auth import BearerTokenMiddleware
@@ -12,7 +11,6 @@ from dirt.mcp.tools import _register_tools
 
 def create_mcp_app(
     *,
-    db_engine: AsyncEngine | None = None,
     stateless: bool = False,
     transport_security: Any = None,
 ) -> tuple[Starlette, Callable]:
@@ -32,7 +30,7 @@ def create_mcp_app(
         stateless_http=stateless,
         **kwargs,
     )
-    _register_tools(server, db_engine=db_engine)
+    _register_tools(server)
 
     app = server.streamable_http_app()
     app.add_middleware(BearerTokenMiddleware)

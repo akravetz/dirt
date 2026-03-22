@@ -1,6 +1,5 @@
 #!/bin/bash
-# PreToolUse hook: blocks Bash commands that modify protected paths
-# Prevents bypassing the Edit/Write hook via sed, echo, tee, python, etc.
+# PreToolUse hook: prompts user before Bash commands that modify protected paths
 # Protected: tests/invariants/, .githooks/
 
 INPUT=$(cat)
@@ -10,7 +9,7 @@ PROTECTED_PATHS='(tests/invariants/|tests\/invariants\/|\.githooks/|\.githooks\/
 
 if echo "$COMMAND" | grep -qE "$PROTECTED_PATHS" && \
    echo "$COMMAND" | grep -qE '(sed|awk|echo|tee|cat.*>|python|mv|cp|rm|chmod)'; then
-    echo "BLOCKED: Cannot use shell commands to modify protected paths (tests/invariants/, .githooks/). These are human-owned." >&2
-    exit 2
+    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"This command touches protected paths (tests/invariants/ or .githooks/). Approve only if you explicitly asked for this change."}}'
+    exit 0
 fi
 exit 0

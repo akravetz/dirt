@@ -1,22 +1,14 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
-from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
-from dirt.db import get_session
-from dirt.models.snapshot import Snapshot
+from dirt.services.snapshots import get_latest_snapshot
 
 router = APIRouter(prefix="/feed", tags=["feed"])
 
-_get_session = Depends(get_session)
-
 
 @router.get("/image", response_class=HTMLResponse)
-async def feed_image(session: AsyncSession = _get_session) -> HTMLResponse:
-    result = await session.exec(
-        select(Snapshot).order_by(Snapshot.timestamp.desc()).limit(1)
-    )
-    snapshot = result.first()
+async def feed_image() -> HTMLResponse:
+    snapshot = await get_latest_snapshot()
     if snapshot is None:
         return HTMLResponse('<div class="no-feed">Waiting for first snapshot...</div>')
     ts = int(snapshot.timestamp.timestamp())
@@ -24,11 +16,8 @@ async def feed_image(session: AsyncSession = _get_session) -> HTMLResponse:
 
 
 @router.get("/status", response_class=HTMLResponse)
-async def feed_status(session: AsyncSession = _get_session) -> HTMLResponse:
-    result = await session.exec(
-        select(Snapshot).order_by(Snapshot.timestamp.desc()).limit(1)
-    )
-    snapshot = result.first()
+async def feed_status() -> HTMLResponse:
+    snapshot = await get_latest_snapshot()
     if snapshot is None:
         return HTMLResponse("No snapshots yet")
     ts_str = snapshot.timestamp.strftime("%Y-%m-%d %H:%M:%S UTC")

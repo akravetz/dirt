@@ -22,18 +22,13 @@ async def db_engine(tmp_path):
 
 @pytest.fixture
 async def client(db_engine):
-    async def _get_session():
-        async with AsyncSession(db_engine) as session:
-            yield session
-
     with (
         patch("dirt.services.capture.capture_loop"),
         patch("dirt.db.engine", db_engine),
+        patch("dirt.services.snapshots.engine", db_engine),
     ):
         from dirt.app import app
-        from dirt.db import get_session
 
-        app.dependency_overrides[get_session] = _get_session
         transport = ASGITransport(app=app)
         async with AsyncClient(
             transport=transport, base_url="http://test", follow_redirects=False
@@ -43,7 +38,6 @@ async def client(db_engine):
             )
             ac.cookies = login.cookies
             yield ac
-        app.dependency_overrides.clear()
 
 
 async def test_latest_snapshot_404_when_empty(client: AsyncClient):
