@@ -23,6 +23,8 @@ dev = [
     "pytest-asyncio>=0.25",
     "httpx>=0.28",
     "ruff>=0.11",
+    "pytestarch>=4.0.1",
+    "pytest-playwright-asyncio>=0.7.2",
 ]
 
 [build-system]
@@ -35,6 +37,7 @@ packages = ["src/dirt"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+asyncio_default_test_loop_scope = "session"
 
 [tool.ruff]
 src = ["src"]

@@ -54,6 +54,7 @@ This creates a GitHub issue with our standard template and the correct epic labe
 | [sensor-monitoring](sensor-monitoring/README.md) | blocked (hardware) | high |
 | [dashboard](dashboard/README.md) | planning | medium |
 | [mcp-server](mcp-server/README.md) | planning | medium |
+| [testing-boundaries](testing-boundaries/README.md) | complete | high |
 
 ## Rules for Claude
 
