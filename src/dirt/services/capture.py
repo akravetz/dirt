@@ -123,6 +123,12 @@ def _release_camera() -> None:
         logger.info("Camera released")
 
 
+async def capture_frame() -> bytes | None:
+    """Capture a single JPEG frame from the camera. Does not save to disk or DB."""
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, _auto_expose_and_capture)
+
+
 async def capture_snapshot() -> Snapshot | None:
     """Capture a snapshot, save to disk, and record in the database."""
     snapshot_dir = Path(settings.snapshot_dir)
