@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     auth_password: str = "changeme"
     database_url: str = "sqlite+aiosqlite:///dirt.db"
     snapshot_dir: str = "snapshots"
+    capture_interval: int = 30
+    camera_device: int = 0
 
 
 settings = Settings()

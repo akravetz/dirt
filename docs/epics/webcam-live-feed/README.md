@@ -1,6 +1,6 @@
 # Epic: Webcam Capture & Live Feed
 
-Status: planning
+Status: complete
 Priority: high
 Created: 2026-03-22
 

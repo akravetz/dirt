@@ -49,7 +49,7 @@ This creates a GitHub issue with our standard template and the correct epic labe
 
 | Epic | Status | Priority |
 |------|--------|----------|
-| [webcam-live-feed](webcam-live-feed/README.md) | planning | high |
+| [webcam-live-feed](webcam-live-feed/README.md) | complete | high |
 | [auth](auth/README.md) | planning | medium |
 | [sensor-monitoring](sensor-monitoring/README.md) | blocked (hardware) | high |
 | [dashboard](dashboard/README.md) | planning | medium |
