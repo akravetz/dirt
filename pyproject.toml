@@ -25,6 +25,7 @@ dev = [
     "ruff>=0.11",
     "pytestarch>=4.0.1",
     "pytest-playwright-asyncio>=0.7.2",
+    "pytest-testmon>=2.2.0",
 ]
 
 [build-system]

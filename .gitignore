@@ -14,6 +14,15 @@ snapshots/
 .idea/
 .vscode/
 
+# Testing
+.testmondata
+
+# Playwright MCP
+.playwright-mcp/
+
+# Screenshots (temp)
+*.png
+
 # Distribution
 dist/
 *.egg-info/

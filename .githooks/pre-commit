@@ -1,0 +1,13 @@
+#!/bin/bash
+set -e
+
+echo "=== Pre-commit: ruff check ==="
+uv run ruff check src/ tests/
+
+echo "=== Pre-commit: ruff format ==="
+uv run ruff format --check src/ tests/
+
+echo "=== Pre-commit: pytest (testmon) ==="
+uv run pytest --testmon -x -q
+
+echo "=== All checks passed ==="
