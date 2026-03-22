@@ -20,6 +20,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Lint**: `uv run ruff check src/ tests/`
 - **Format**: `uv run ruff format src/ tests/`
 - **Add dependency**: `uv add <package>` (dev: `uv add --optional dev <package>`)
+- **Firmware test**: `cd firmware && pio test -e native` (runs on host, no hardware needed)
+- **Firmware build**: `cd firmware && pio run -e nano`
+- **Firmware upload**: `cd firmware && pio run -e nano -t upload`
 
 ## Documentation (Progressive Disclosure)
 
