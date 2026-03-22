@@ -15,7 +15,9 @@ class Settings(BaseSettings):
     auth_password: str = "changeme"
     database_url: str = "sqlite+aiosqlite:///dirt.db"
     snapshot_dir: str = "snapshots"
-    capture_interval: int = 30
+    capture_interval: int = 900  # 15 minutes
+    archive_dir: str = "archives"
+    archive_retention_days: int = 7
     camera_device: int = 0
     secret_key: str = "change-me-in-production"
 

@@ -14,6 +14,7 @@ from dirt.api.snapshots import router as snapshots_router
 from dirt.auth import AuthMiddleware
 from dirt.config import TEMPLATES_DIR
 from dirt.db import engine, init_db
+from dirt.services.archive import archive_loop
 from dirt.services.capture import capture_loop
 from dirt.services.seed import seed_sensor_data
 
@@ -24,10 +25,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     async with AsyncSession(engine) as session:
         await seed_sensor_data(session)
     stop_event = asyncio.Event()
-    task = asyncio.create_task(capture_loop(stop_event))
+    capture_task = asyncio.create_task(capture_loop(stop_event))
+    archive_task = asyncio.create_task(archive_loop(stop_event))
     yield
     stop_event.set()
-    await task
+    await capture_task
+    await archive_task
 
 
 app = FastAPI(title="Dirt", lifespan=lifespan)
