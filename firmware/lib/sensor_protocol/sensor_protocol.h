@@ -10,10 +10,8 @@ struct SensorData {
     float humidity_pct;
     int co2_ppm;
     int soil_moisture_raw;
-    bool reservoir_low;
-    bool reservoir_half;
-    bool reservoir_full;
-    bool co2_ready;  // false during MH-Z19B warmup
+    bool reservoir_has_water;  // true = water detected at low sensor
+    bool co2_ready;            // false during MH-Z19B warmup
 };
 
 // Convert Celsius to Fahrenheit
@@ -28,10 +26,6 @@ float calculate_vpd(float temp_c, float humidity_pct);
 // dry_value = ADC reading in dry air (higher)
 // wet_value = ADC reading submerged (lower)
 float soil_moisture_to_pct(int raw, int dry_value, int wet_value);
-
-// Determine reservoir level string from 3 binary sensors
-// Returns: "empty", "low", "half", "full"
-const char* reservoir_level_str(bool low, bool half, bool full);
 
 // Validate sensor readings are within plausible ranges
 bool validate_temperature(float temp_c);

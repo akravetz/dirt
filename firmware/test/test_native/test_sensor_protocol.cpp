@@ -41,13 +41,26 @@ void test_soil_moisture_to_pct() {
     TEST_ASSERT_FLOAT_WITHIN(0.1, 0.0, soil_moisture_to_pct(900, 800, 400));
 }
 
-void test_reservoir_level_str() {
-    TEST_ASSERT_EQUAL_STRING("empty", reservoir_level_str(false, false, false));
-    TEST_ASSERT_EQUAL_STRING("low", reservoir_level_str(true, false, false));
-    TEST_ASSERT_EQUAL_STRING("half", reservoir_level_str(true, true, false));
-    TEST_ASSERT_EQUAL_STRING("full", reservoir_level_str(true, true, true));
-    // Edge case: only full triggered (shouldn't happen, but handle it)
-    TEST_ASSERT_EQUAL_STRING("full", reservoir_level_str(false, false, true));
+void test_reservoir_low_logic() {
+    // reservoir_has_water=true means sensor detects water → not low
+    // reservoir_has_water=false means no water at sensor → reservoir is low
+    SensorData data = {};
+    data.temperature_c = 25.0;
+    data.humidity_pct = 50.0;
+    data.co2_ready = false;
+    data.soil_moisture_raw = 600;
+
+    char buf[256];
+
+    // Water present → reservoir_low: false
+    data.reservoir_has_water = true;
+    encode_json(&data, buf, sizeof(buf), 800, 400);
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"reservoir_low\":false"));
+
+    // No water → reservoir_low: true
+    data.reservoir_has_water = false;
+    encode_json(&data, buf, sizeof(buf), 800, 400);
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"reservoir_low\":true"));
 }
 
 void test_validate_temperature() {
@@ -81,9 +94,7 @@ void test_encode_json() {
     data.co2_ppm = 812;
     data.co2_ready = true;
     data.soil_moisture_raw = 600;
-    data.reservoir_low = true;
-    data.reservoir_half = true;
-    data.reservoir_full = false;
+    data.reservoir_has_water = true;
 
     char buf[256];
     int len = encode_json(&data, buf, sizeof(buf), 800, 400);
@@ -93,9 +104,8 @@ void test_encode_json() {
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"humidity_pct\""));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"co2_ppm\""));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"soil_moisture_pct\""));
-    TEST_ASSERT_NOT_NULL(strstr(buf, "\"reservoir_level\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"reservoir_low\""));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"vpd\""));
-    TEST_ASSERT_NOT_NULL(strstr(buf, "\"half\""));
     // Ends with newline
     TEST_ASSERT_EQUAL('\n', buf[len - 1]);
 }
@@ -134,7 +144,7 @@ int main() {
     RUN_TEST(test_celsius_to_fahrenheit);
     RUN_TEST(test_vpd_calculation);
     RUN_TEST(test_soil_moisture_to_pct);
-    RUN_TEST(test_reservoir_level_str);
+    RUN_TEST(test_reservoir_low_logic);
     RUN_TEST(test_validate_temperature);
     RUN_TEST(test_validate_humidity);
     RUN_TEST(test_validate_co2);

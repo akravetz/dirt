@@ -24,8 +24,6 @@ void setup() {
 
     pinMode(SOIL_MOISTURE_PIN, INPUT);
     pinMode(RESERVOIR_LOW_PIN, INPUT_PULLUP);
-    pinMode(RESERVOIR_HALF_PIN, INPUT_PULLUP);
-    pinMode(RESERVOIR_FULL_PIN, INPUT_PULLUP);
 
     startTime = millis();
 }
@@ -55,10 +53,9 @@ void loop() {
     // Soil moisture — analog read
     data.soil_moisture_raw = analogRead(SOIL_MOISTURE_PIN);
 
-    // Reservoir level — non-contact capacitive sensors (active LOW)
-    data.reservoir_low = !digitalRead(RESERVOIR_LOW_PIN);
-    data.reservoir_half = !digitalRead(RESERVOIR_HALF_PIN);
-    data.reservoir_full = !digitalRead(RESERVOIR_FULL_PIN);
+    // Reservoir — non-contact capacitive sensor (active LOW)
+    // When sensor detects water: pin LOW → digitalRead = 0 → !0 = true
+    data.reservoir_has_water = !digitalRead(RESERVOIR_LOW_PIN);
 
     // Encode and send
     char buf[256];

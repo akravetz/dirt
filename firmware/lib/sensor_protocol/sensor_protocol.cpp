@@ -22,13 +22,6 @@ float soil_moisture_to_pct(int raw, int dry_value, int wet_value) {
     return pct;
 }
 
-const char* reservoir_level_str(bool low, bool half, bool full) {
-    if (full) return "full";
-    if (half) return "half";
-    if (low) return "low";
-    return "empty";
-}
-
 bool validate_temperature(float temp_c) {
     return temp_c >= -40.0f && temp_c <= 80.0f;
 }
@@ -60,8 +53,7 @@ int encode_json(const SensorData* data, char* buf, int buf_size,
         data->soil_moisture_raw, dry_value, wet_value);
     doc["soil_moisture_pct"] = round1(soil_pct);
 
-    doc["reservoir_level"] = reservoir_level_str(
-        data->reservoir_low, data->reservoir_half, data->reservoir_full);
+    doc["reservoir_low"] = !data->reservoir_has_water;
 
     float vpd = calculate_vpd(data->temperature_c, data->humidity_pct);
     if (vpd >= 0) {

@@ -11,8 +11,6 @@
 #define SOIL_MOISTURE_PIN A0
 
 #define RESERVOIR_LOW_PIN 7
-#define RESERVOIR_HALF_PIN 8
-#define RESERVOIR_FULL_PIN 9
 
 // --- Timing ---
 #define SENSOR_READ_INTERVAL_MS 10000  // 10 seconds
