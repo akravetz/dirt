@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     camera_exposure: int = 15  # Initial manual exposure (3-2047)
     camera_gain: int = 0  # Sensor gain (0-255, lower=less amplification)
     camera_target_brightness: int = 150  # Target mean brightness (0-255)
+    serial_port: str = "/dev/ttyUSB0"
+    serial_baud: int = 9600
+    sensor_poll_interval: int = 20  # seconds
     secret_key: str = "change-me-in-production"
     mcp_bearer_token: str = "change-me-in-production"
 
