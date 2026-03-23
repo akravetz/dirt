@@ -157,9 +157,46 @@
         let tempChart = null;
         let humChart = null;
 
-        // Crosshair plugin — draws a vertical white line at hover position
+        // Crosshair plugin — uses Chart.js afterEvent for mouse + touch support
         const crosshairPlugin = {
             id: 'crosshair',
+            afterEvent(chart, args) {
+                const event = args.event;
+                if (event.type === 'mouseout') {
+                    chart._crosshairX = null;
+                    // Clear paired chart too
+                    const other = chart._pairedChart;
+                    if (other) {
+                        other._crosshairX = null;
+                        other.tooltip.setActiveElements([], {});
+                        other.update('none');
+                    }
+                    return;
+                }
+                if (event.type !== 'mousemove' && event.type !== 'click') return;
+
+                const elements = chart.getElementsAtEventForMode(
+                    event, 'index', { intersect: false }, false
+                );
+                if (elements.length === 0) return;
+
+                const dataIndex = elements[0].index;
+                chart._crosshairX = elements[0].element.x;
+
+                // Sync paired chart
+                const other = chart._pairedChart;
+                if (other) {
+                    const otherMeta = other.getDatasetMeta(0);
+                    if (otherMeta.data[dataIndex]) {
+                        other._crosshairX = otherMeta.data[dataIndex].x;
+                        other.tooltip.setActiveElements(
+                            [{ datasetIndex: 0, index: dataIndex }],
+                            { x: otherMeta.data[dataIndex].x, y: otherMeta.data[dataIndex].y }
+                        );
+                        other.update('none');
+                    }
+                }
+            },
             afterDraw(chart) {
                 if (chart._crosshairX == null) return;
                 const ctx = chart.ctx;
@@ -175,45 +212,6 @@
             }
         };
         Chart.register(crosshairPlugin);
-
-        // Sync hover between two charts
-        function syncCharts(sourceChart, targetChart, event) {
-            const rect = sourceChart.canvas.getBoundingClientRect();
-            const x = event.clientX - rect.left;
-            const elements = sourceChart.getElementsAtEventForMode(
-                event, 'index', { intersect: false }, false
-            );
-
-            if (elements.length > 0) {
-                const dataIndex = elements[0].index;
-                // Set crosshair on both
-                sourceChart._crosshairX = elements[0].element.x;
-                sourceChart.update('none');
-
-                // Trigger tooltip + crosshair on target
-                const targetMeta = targetChart.getDatasetMeta(0);
-                if (targetMeta.data[dataIndex]) {
-                    targetChart._crosshairX = targetMeta.data[dataIndex].x;
-                    targetChart.tooltip.setActiveElements(
-                        [{ datasetIndex: 0, index: dataIndex }],
-                        { x: targetMeta.data[dataIndex].x, y: targetMeta.data[dataIndex].y }
-                    );
-                    targetChart.update('none');
-                }
-
-                // Show tooltip on source too
-                sourceChart.tooltip.setActiveElements(
-                    [{ datasetIndex: 0, index: dataIndex }],
-                    { x: elements[0].element.x, y: elements[0].element.y }
-                );
-                sourceChart.update('none');
-            }
-        }
-
-        function clearCrosshairs() {
-            if (tempChart) { tempChart._crosshairX = null; tempChart.tooltip.setActiveElements([], {}); tempChart.update('none'); }
-            if (humChart) { humChart._crosshairX = null; humChart.tooltip.setActiveElements([], {}); humChart.update('none'); }
-        }
 
         const xTickCallback = function(val) {
             const label = this.getLabelForValue(val);
@@ -325,7 +323,7 @@
                         makeChartConfig(
                             'Temperature (°F)', data.temperature, data.labels,
                             '#ff8c42', 'rgba(255, 140, 66, 0.15)', '°F',
-                            { showXLabels: false }
+                            { showXLabels: false, yMin: 50, yMax: 100 }
                         )
                     );
 
@@ -338,14 +336,9 @@
                         )
                     );
 
-                    // Wire up cross-chart sync
-                    const tempCanvas = document.getElementById('temp-chart');
-                    const humCanvas = document.getElementById('hum-chart');
-
-                    tempCanvas.addEventListener('mousemove', e => syncCharts(tempChart, humChart, e));
-                    humCanvas.addEventListener('mousemove', e => syncCharts(humChart, tempChart, e));
-                    tempCanvas.addEventListener('mouseleave', clearCrosshairs);
-                    humCanvas.addEventListener('mouseleave', clearCrosshairs);
+                    // Pair charts for crosshair sync
+                    tempChart._pairedChart = humChart;
+                    humChart._pairedChart = tempChart;
                 });
         }
 
