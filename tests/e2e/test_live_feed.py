@@ -12,7 +12,7 @@ async def test_live_feed_has_status(app_server: str, authenticated_page: Page):
 
 
 async def test_live_feed_has_htmx_polling(app_server: str, authenticated_page: Page):
-    """The feed container should have HTMX polling configured."""
-    feed_div = authenticated_page.locator('[hx-get="/feed/image"]')
-    await expect(feed_div).to_be_visible()
-    await expect(feed_div).to_have_attribute("hx-trigger", "load, every 5s")
+    """The live feed image should self-refresh via HTMX."""
+    feed_img = authenticated_page.get_by_role("img", name="Live feed")
+    await expect(feed_img).to_be_visible()
+    await expect(feed_img).to_have_attribute("hx-trigger", "load delay:15s")

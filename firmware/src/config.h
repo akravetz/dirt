@@ -1,6 +1,13 @@
 #ifndef DIRT_CONFIG_H
 #define DIRT_CONFIG_H
 
+// --- Sensor Feature Flags ---
+// Comment out a line to disable that sensor.
+#define ENABLE_DHT22
+// #define ENABLE_MHZ19B
+// #define ENABLE_SOIL_MOISTURE
+// #define ENABLE_RESERVOIR
+
 // --- Pin Definitions ---
 #define DHT_PIN 6
 #define DHT_TYPE DHT22

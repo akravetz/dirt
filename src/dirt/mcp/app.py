@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
 
 from dirt.mcp.auth import BearerTokenMiddleware
@@ -21,14 +22,15 @@ def create_mcp_app(
         enter the context manager to start the MCP session manager before
         the app can handle requests.
     """
-    kwargs: dict[str, Any] = {}
-    if transport_security is not None:
-        kwargs["transport_security"] = transport_security
+    if transport_security is None:
+        transport_security = TransportSecuritySettings(
+            enable_dns_rebinding_protection=False,
+        )
     server = FastMCP(
         "dirt",
         streamable_http_path="/",
         stateless_http=stateless,
-        **kwargs,
+        transport_security=transport_security,
     )
     _register_tools(server)
 
