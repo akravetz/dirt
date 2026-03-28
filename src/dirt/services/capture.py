@@ -48,6 +48,15 @@ def _open_camera(device: int) -> cv2.VideoCapture | None:
     return cap
 
 
+def _apply_clahe(frame):
+    """Apply CLAHE to the luminance channel to cut haze and boost local contrast."""
+    lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
+    lum, a, b = cv2.split(lab)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    lum = clahe.apply(lum)
+    return cv2.cvtColor(cv2.merge([lum, a, b]), cv2.COLOR_LAB2BGR)
+
+
 def _auto_expose_and_capture() -> bytes | None:
     """Capture a frame, auto-tuning exposure to hit target brightness.
 
@@ -75,7 +84,13 @@ def _auto_expose_and_capture() -> bytes | None:
             _camera = None
             return None
 
-        brightness = float(np.mean(frame))
+        # Use Otsu's method to find the foreground (bright) cluster and
+        # meter exposure based on that, ignoring dark regions (e.g. black pails)
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        threshold, _ = cv2.threshold(gray, 0, 255, cv2.THRESH_OTSU)
+        foreground = gray[gray >= threshold]
+        fg_mean = np.mean(foreground) if len(foreground) > 0 else np.mean(gray)
+        brightness = float(fg_mean)
         diff = brightness - target
 
         if abs(diff) <= BRIGHTNESS_TOLERANCE:
@@ -85,6 +100,8 @@ def _auto_expose_and_capture() -> bytes | None:
                 brightness,
                 i,
             )
+            frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+            frame = _apply_clahe(frame)
             _, buf = cv2.imencode(".jpg", frame)
             return buf.tobytes()
 
@@ -112,6 +129,8 @@ def _auto_expose_and_capture() -> bytes | None:
         _current_exposure,
         brightness,
     )
+    frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+    frame = _apply_clahe(frame)
     _, buf = cv2.imencode(".jpg", frame)
     return buf.tobytes()
 

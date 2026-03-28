@@ -1,7 +1,11 @@
 from fastapi import APIRouter, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from dirt.services.readings import get_latest_reading, get_sensor_history
+from dirt.services.readings import (
+    get_latest_reading,
+    get_sensor_history,
+    is_sensor_stale,
+)
 
 router = APIRouter(tags=["sensors"])
 
@@ -21,7 +25,17 @@ async def current_readings() -> HTMLResponse:
     reading = await get_latest_reading()
     if reading is None:
         return HTMLResponse('<div class="current-stats">No sensor data available</div>')
+    stale = await is_sensor_stale()
+    warning = ""
+    if stale:
+        warning = (
+            '<div style="background:#a33;color:#fff;padding:0.5rem 1rem;'
+            'font-size:0.85rem;border-radius:4px;margin:0.5rem 1rem;">'
+            "⚠ Sensor may be stuck — readings unchanged. "
+            "Check the DHT22 connection.</div>"
+        )
     return HTMLResponse(
+        f"{warning}"
         f'<div class="current-stats">'
         f'<div class="stat">'
         f'<span class="stat-value">{reading.temperature_f:.1f}°F</span>'

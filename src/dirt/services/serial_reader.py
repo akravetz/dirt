@@ -12,6 +12,9 @@ from dirt.models.sensor_reading import SensorReading
 
 logger = logging.getLogger(__name__)
 
+# After this many identical readings in a row, log a warning.
+STALE_THRESHOLD = 10
+
 
 def _read_line(ser: serial.Serial) -> dict | None:
     """Read a single JSON line from the serial port. Returns parsed dict or None."""
@@ -52,6 +55,9 @@ async def serial_reader_loop(stop_event: asyncio.Event) -> None:
 
     loop = asyncio.get_running_loop()
     ser = None
+    last_temp: float | None = None
+    last_hum: float | None = None
+    stale_count = 0
 
     while not stop_event.is_set():
         try:
@@ -63,11 +69,45 @@ async def serial_reader_loop(stop_event: asyncio.Event) -> None:
 
             data = await loop.run_in_executor(None, _read_line, ser)
             if data and "temperature_f" in data and "humidity_pct" in data:
+                temp = data["temperature_f"]
+                hum = data["humidity_pct"]
+
+                # Staleness detection
+                if temp == last_temp and hum == last_hum:
+                    stale_count += 1
+                    if stale_count == STALE_THRESHOLD:
+                        logger.warning(
+                            "SENSOR STALE: %d identical readings in a row "
+                            "(%.1f°F, %.1f%%). Sensor may be stuck or "
+                            "disconnected.",
+                            stale_count,
+                            temp,
+                            hum,
+                        )
+                    elif stale_count > STALE_THRESHOLD and stale_count % 50 == 0:
+                        logger.warning(
+                            "SENSOR STILL STALE: %d identical readings "
+                            "(%.1f°F, %.1f%%)",
+                            stale_count,
+                            temp,
+                            hum,
+                        )
+                else:
+                    if stale_count >= STALE_THRESHOLD:
+                        logger.info(
+                            "Sensor recovered after %d stale readings",
+                            stale_count,
+                        )
+                    stale_count = 0
+
+                last_temp = temp
+                last_hum = hum
+
                 await _save_reading(data)
                 logger.debug(
                     "Saved reading: %.1f°F, %.1f%%",
-                    data["temperature_f"],
-                    data["humidity_pct"],
+                    temp,
+                    hum,
                 )
 
             # Wait for the poll interval, but stop early if signaled

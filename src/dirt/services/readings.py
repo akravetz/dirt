@@ -59,6 +59,22 @@ async def get_latest_reading() -> SensorReading | None:
         return result.first()
 
 
+async def is_sensor_stale(threshold: int = 10) -> bool:
+    """Check if the last N readings all have identical temp and humidity."""
+    async with AsyncSession(engine) as session:
+        result = await session.exec(
+            select(SensorReading)
+            .order_by(SensorReading.timestamp.desc())
+            .limit(threshold)
+        )
+        rows = result.all()
+    if len(rows) < threshold:
+        return False
+    temps = {r.temperature_f for r in rows}
+    hums = {r.humidity_pct for r in rows}
+    return len(temps) == 1 and len(hums) == 1
+
+
 async def get_sensor_history(range_key: str) -> dict[str, list]:
     """Return sensor history as {labels, temperature, humidity} for a time range."""
     delta = RANGE_DELTAS[range_key]
