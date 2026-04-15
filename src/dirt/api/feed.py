@@ -1,8 +1,12 @@
+from zoneinfo import ZoneInfo
+
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse, Response
 
 from dirt.services.capture import capture_frame
 from dirt.services.snapshots import get_latest_snapshot
+
+_MT = ZoneInfo("America/Denver")
 
 router = APIRouter(prefix="/feed", tags=["feed"])
 
@@ -30,5 +34,6 @@ async def feed_status() -> HTMLResponse:
     snapshot = await get_latest_snapshot()
     if snapshot is None:
         return HTMLResponse("No snapshots yet")
-    ts_str = snapshot.timestamp.strftime("%Y-%m-%d %H:%M:%S UTC")
+    ts_mt = snapshot.timestamp.astimezone(_MT)
+    ts_str = ts_mt.strftime("%Y-%m-%d %I:%M:%S %p MT")
     return HTMLResponse(f"Last capture: {ts_str}")

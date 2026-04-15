@@ -8,6 +8,7 @@ from fastapi.templating import Jinja2Templates
 
 from dirt.api.auth import router as auth_router
 from dirt.api.feed import router as feed_router
+from dirt.api.ingest import router as ingest_router
 from dirt.api.sensors import router as sensors_router
 from dirt.api.snapshots import router as snapshots_router
 from dirt.auth import AuthMiddleware
@@ -37,11 +38,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Dirt", lifespan=lifespan)
-app.add_middleware(AuthMiddleware, exclude_prefixes=["/mcp"])
+app.add_middleware(AuthMiddleware, exclude_prefixes=["/mcp", "/api/ingest"])
 app.include_router(auth_router)
 app.include_router(snapshots_router)
 app.include_router(feed_router)
 app.include_router(sensors_router)
+app.include_router(ingest_router)
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
 app.mount("/mcp", _mcp_app)
 

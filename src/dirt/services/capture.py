@@ -23,13 +23,33 @@ BRIGHTNESS_TOLERANCE = 15
 MAX_ADJUST_ITERATIONS = 8
 
 
-def _open_camera(device: int) -> cv2.VideoCapture | None:
+def _resolve_device_index(device: str) -> int:
+    """Resolve a /dev/videoN path or symlink to an integer index for OpenCV."""
+    from pathlib import Path
+
+    real = str(Path(device).resolve())
+    # Extract N from /dev/videoN
+    if real.startswith("/dev/video"):
+        try:
+            return int(real.removeprefix("/dev/video"))
+        except ValueError:
+            pass
+    raise ValueError(f"Cannot resolve device index from {device} (resolved to {real})")
+
+
+def _open_camera(device: str) -> cv2.VideoCapture | None:
     """Open the camera and configure settings."""
-    cap = cv2.VideoCapture(device)
+    try:
+        idx = _resolve_device_index(device)
+    except ValueError:
+        logger.error("Failed to resolve camera device %s", device)
+        return None
+    cap = cv2.VideoCapture(idx, cv2.CAP_V4L2)
     if not cap.isOpened():
-        logger.error("Failed to open camera device %d", device)
+        logger.error("Failed to open camera device %s", device)
         return None
 
+    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
     cap.set(cv2.CAP_PROP_AUTO_WB, 0)
@@ -39,7 +59,7 @@ def _open_camera(device: int) -> cv2.VideoCapture | None:
     cap.set(cv2.CAP_PROP_EXPOSURE, _current_exposure)
 
     logger.info(
-        "Camera opened: device=%d, wb=%dK, exposure=%d, gain=%d",
+        "Camera opened: device=%s, wb=%dK, exposure=%d, gain=%d",
         device,
         settings.camera_white_balance,
         _current_exposure,
@@ -80,7 +100,8 @@ def _auto_expose_and_capture() -> bytes | None:
         ret, frame = _camera.read()
         if not ret:
             logger.error("Failed to read frame, reopening camera")
-            _camera.release()
+            if _camera is not None:
+                _camera.release()
             _camera = None
             return None
 
@@ -178,7 +199,7 @@ async def capture_snapshot() -> Snapshot | None:
 async def capture_loop(stop_event: asyncio.Event) -> None:
     """Continuously capture snapshots at the configured interval."""
     logger.info(
-        "Starting capture loop (interval=%ds, device=%d, wb=%dK, target_brightness=%d)",
+        "Starting capture loop (interval=%ds, device=%s, wb=%dK, target_brightness=%d)",
         settings.capture_interval,
         settings.camera_device,
         settings.camera_white_balance,

@@ -147,6 +147,9 @@
         <div class="chart-container">
             <canvas id="hum-chart"></canvas>
         </div>
+        <div class="chart-container">
+            <canvas id="vpd-chart"></canvas>
+        </div>
         <div hx-get="/sensors/current"
              hx-trigger="load, every 30s"
              hx-swap="innerHTML">
@@ -156,6 +159,10 @@
     <script>
         let tempChart = null;
         let humChart = null;
+        let vpdChart = null;
+
+        // All synced charts — crosshair plugin syncs across all of them
+        const syncedCharts = [];
 
         // Crosshair plugin — uses Chart.js afterEvent for mouse + touch support
         const crosshairPlugin = {
@@ -164,13 +171,12 @@
                 const event = args.event;
                 if (event.type === 'mouseout') {
                     chart._crosshairX = null;
-                    // Clear paired chart too
-                    const other = chart._pairedChart;
-                    if (other) {
+                    syncedCharts.forEach(other => {
+                        if (other === chart) return;
                         other._crosshairX = null;
                         other.tooltip.setActiveElements([], {});
                         other.update('none');
-                    }
+                    });
                     return;
                 }
                 if (event.type !== 'mousemove' && event.type !== 'click') return;
@@ -183,9 +189,9 @@
                 const dataIndex = elements[0].index;
                 chart._crosshairX = elements[0].element.x;
 
-                // Sync paired chart
-                const other = chart._pairedChart;
-                if (other) {
+                // Sync all other charts
+                syncedCharts.forEach(other => {
+                    if (other === chart) return;
                     const otherMeta = other.getDatasetMeta(0);
                     if (otherMeta.data[dataIndex]) {
                         other._crosshairX = otherMeta.data[dataIndex].x;
@@ -195,7 +201,7 @@
                         );
                         other.update('none');
                     }
-                }
+                });
             },
             afterDraw(chart) {
                 if (chart._crosshairX == null) return;
@@ -213,11 +219,14 @@
         };
         Chart.register(crosshairPlugin);
 
+        const TZ = 'America/Denver';
+
         const xTickCallback = function(val) {
             const label = this.getLabelForValue(val);
             const d = new Date(label);
             if (isNaN(d)) return label;
             return d.toLocaleString([], {
+                timeZone: TZ,
                 month: 'short', day: 'numeric',
                 hour: '2-digit', minute: '2-digit'
             });
@@ -226,14 +235,12 @@
         function formatTooltipDate(isoString) {
             const d = new Date(isoString);
             if (isNaN(d)) return isoString;
-            const mm = String(d.getMonth() + 1).padStart(2, '0');
-            const dd = String(d.getDate()).padStart(2, '0');
-            let h = d.getHours();
-            const ampm = h >= 12 ? 'PM' : 'AM';
-            h = h % 12 || 12;
-            const min = String(d.getMinutes()).padStart(2, '0');
-            const sec = String(d.getSeconds()).padStart(2, '0');
-            return `${mm}/${dd} ${h}:${min}:${sec} ${ampm}`;
+            return d.toLocaleString('en-US', {
+                timeZone: TZ,
+                month: '2-digit', day: '2-digit',
+                hour: 'numeric', minute: '2-digit', second: '2-digit',
+                hour12: true
+            });
         }
 
         const sharedTooltip = {
@@ -308,20 +315,27 @@
             fetch(`/api/sensors/readings?range=${range}`)
                 .then(r => r.json())
                 .then(data => {
+                    const temp = data.temperature_f || { labels: [], values: [] };
+                    const hum = data.humidity_pct || { labels: [], values: [] };
+                    const vpd = data.vpd_kpa || { labels: [], values: [] };
+
                     if (tempChart) {
-                        tempChart.data.labels = data.labels;
-                        tempChart.data.datasets[0].data = data.temperature;
+                        tempChart.data.labels = temp.labels;
+                        tempChart.data.datasets[0].data = temp.values;
                         tempChart.update();
-                        humChart.data.labels = data.labels;
-                        humChart.data.datasets[0].data = data.humidity;
+                        humChart.data.labels = hum.labels;
+                        humChart.data.datasets[0].data = hum.values;
                         humChart.update();
+                        vpdChart.data.labels = vpd.labels;
+                        vpdChart.data.datasets[0].data = vpd.values;
+                        vpdChart.update();
                         return;
                     }
 
                     tempChart = new Chart(
                         document.getElementById('temp-chart'),
                         makeChartConfig(
-                            'Temperature (°F)', data.temperature, data.labels,
+                            'Temperature (°F)', temp.values, temp.labels,
                             '#ff8c42', 'rgba(255, 140, 66, 0.15)', '°F',
                             { showXLabels: false, yMin: 50, yMax: 100 }
                         )
@@ -330,15 +344,23 @@
                     humChart = new Chart(
                         document.getElementById('hum-chart'),
                         makeChartConfig(
-                            'Humidity (%)', data.humidity, data.labels,
+                            'Humidity (%)', hum.values, hum.labels,
                             '#42a5f5', 'rgba(66, 165, 245, 0.15)', '%',
-                            { showXLabels: true, yMin: 0, yMax: 100 }
+                            { showXLabels: false, yMin: 0, yMax: 100 }
                         )
                     );
 
-                    // Pair charts for crosshair sync
-                    tempChart._pairedChart = humChart;
-                    humChart._pairedChart = tempChart;
+                    vpdChart = new Chart(
+                        document.getElementById('vpd-chart'),
+                        makeChartConfig(
+                            'VPD (kPa)', vpd.values, vpd.labels,
+                            '#66bb6a', 'rgba(102, 187, 106, 0.15)', 'kPa',
+                            { showXLabels: true, yMin: 0, yMax: 3 }
+                        )
+                    );
+
+                    // Register all charts for crosshair sync
+                    syncedCharts.push(tempChart, humChart, vpdChart);
                 });
         }
 

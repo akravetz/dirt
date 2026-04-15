@@ -22,7 +22,7 @@ We also evaluated the reservoir level sensor. The JSN-SR04T ultrasonic sensor ha
 - **Board:** Arduino Nano clone (ELEGOO, CH340 USB-serial, ~$6)
 - **Temp/Humidity:** DHT22 / AM2302 — digital single-wire on D6, 10kΩ pull-up (±0.5°C, ±2% RH)
 - **CO2:** MH-Z19B NDIR — UART via SoftwareSerial on D2/D3 (0-5000 ppm)
-- **Soil Moisture:** Capacitive v2.0 — analog on A0 (edges coated with conformal coating)
+- **Soil Moisture:** Capacitive v1.2 — analog on A0 (edges coated with conformal coating). _Superseded 2026-04-12: soil moisture moved to per-plant ESP32-C3 nodes — see [distributed sensor architecture decision](../../wiki/decisions/2026-04-12-distributed-sensor-architecture.md)._
 - **Reservoir Level:** 3× XKC-Y25-T12V — non-contact capacitive, digital on D7/D8/D9, mounted at low/half/full on outside of reservoir wall
 
 ### Data Protocol

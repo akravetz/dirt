@@ -31,7 +31,7 @@ FRAMEWORK_PATHS = {
 
 # Paths that use bearer token auth instead of cookie/session auth.
 # These are excluded from the cookie-auth test and validated separately.
-BEARER_AUTH_PREFIXES = ("/mcp",)
+BEARER_AUTH_PREFIXES = ("/mcp", "/api/ingest")
 
 
 def _get_app_routes():

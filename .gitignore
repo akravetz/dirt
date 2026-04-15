@@ -6,6 +6,7 @@ __pycache__/
 
 # Database
 *.db
+dirt.db.bak-*
 
 # Snapshots
 snapshots/
@@ -25,7 +26,14 @@ snapshots/
 
 # Firmware build artifacts
 firmware/.pio/
+firmware/plant_node/.pio/
+
+# Firmware secrets (WiFi creds, OTA password, ingest token)
+firmware/plant_node/src/secrets.h
 
 # Distribution
 dist/
 *.egg-info/
+
+# Scratch / sandbox (see CLAUDE.md)
+debug/

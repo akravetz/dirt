@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import json
 import logging
+import math
 
 import serial
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -12,8 +13,41 @@ from dirt.models.sensor_reading import SensorReading
 
 logger = logging.getLogger(__name__)
 
-# After this many identical readings in a row, log a warning.
-STALE_THRESHOLD = 10
+
+def _c_to_f(celsius: float) -> float:
+    return celsius * 9 / 5 + 32
+
+
+def _saturation_vapor_pressure_kpa(temp_c: float) -> float:
+    """Tetens formula for saturation vapor pressure (kPa) at the given temp (°C)."""
+    return 0.6108 * math.exp(17.27 * temp_c / (temp_c + 237.3))
+
+
+def _vpd_kpa(temp_c: float, rh_pct: float) -> float:
+    """Vapor pressure deficit (kPa) from temperature and relative humidity."""
+    svp = _saturation_vapor_pressure_kpa(temp_c)
+    return svp * (1 - rh_pct / 100)
+
+
+def _dew_point_c(temp_c: float, rh_pct: float) -> float:
+    """Dew point (°C) via the Magnus formula."""
+    a, b = 17.27, 237.7
+    gamma = (a * temp_c) / (b + temp_c) + math.log(max(rh_pct, 0.01) / 100)
+    return (b * gamma) / (a - gamma)
+
+
+def _derive_metrics(data: dict) -> dict[str, float]:
+    """Given a raw reading from the Arduino, return the full metric dict."""
+    temp_c = float(data["temperature_c"])
+    hum = float(data["humidity_pct"])
+    pres = float(data["pressure_hpa"])
+    return {
+        "temperature_f": _c_to_f(temp_c),
+        "humidity_pct": hum,
+        "pressure_hpa": pres,
+        "vpd_kpa": _vpd_kpa(temp_c, hum),
+        "dew_point_f": _c_to_f(_dew_point_c(temp_c, hum)),
+    }
 
 
 def _read_line(ser: serial.Serial) -> dict | None:
@@ -28,15 +62,15 @@ def _read_line(ser: serial.Serial) -> dict | None:
         return None
 
 
-async def _save_reading(data: dict) -> None:
-    """Save a parsed sensor reading to the database."""
-    reading = SensorReading(
-        temperature_f=data["temperature_f"],
-        humidity_pct=data["humidity_pct"],
-        source="arduino",
-    )
+async def _save_reading(metrics: dict[str, float]) -> None:
+    """Save a full set of metrics as individual rows."""
     async with AsyncSession(engine) as session:
-        session.add(reading)
+        for name, value in metrics.items():
+            session.add(
+                SensorReading(
+                    location="tent", metric=name, value=value, source="arduino"
+                )
+            )
         await session.commit()
 
 
@@ -54,10 +88,7 @@ async def serial_reader_loop(stop_event: asyncio.Event) -> None:
     )
 
     loop = asyncio.get_running_loop()
-    ser = None
-    last_temp: float | None = None
-    last_hum: float | None = None
-    stale_count = 0
+    ser: serial.Serial | None = None
 
     while not stop_event.is_set():
         try:
@@ -68,49 +99,25 @@ async def serial_reader_loop(stop_event: asyncio.Event) -> None:
                 logger.info("Serial port opened: %s", port)
 
             data = await loop.run_in_executor(None, _read_line, ser)
-            if data and "temperature_f" in data and "humidity_pct" in data:
-                temp = data["temperature_f"]
-                hum = data["humidity_pct"]
-
-                # Staleness detection
-                if temp == last_temp and hum == last_hum:
-                    stale_count += 1
-                    if stale_count == STALE_THRESHOLD:
-                        logger.warning(
-                            "SENSOR STALE: %d identical readings in a row "
-                            "(%.1f°F, %.1f%%). Sensor may be stuck or "
-                            "disconnected.",
-                            stale_count,
-                            temp,
-                            hum,
-                        )
-                    elif stale_count > STALE_THRESHOLD and stale_count % 50 == 0:
-                        logger.warning(
-                            "SENSOR STILL STALE: %d identical readings "
-                            "(%.1f°F, %.1f%%)",
-                            stale_count,
-                            temp,
-                            hum,
-                        )
+            if data and all(
+                k in data for k in ("temperature_c", "humidity_pct", "pressure_hpa")
+            ):
+                try:
+                    metrics = _derive_metrics(data)
+                except (KeyError, ValueError, TypeError) as e:
+                    logger.warning("Could not derive metrics from %r: %s", data, e)
                 else:
-                    if stale_count >= STALE_THRESHOLD:
-                        logger.info(
-                            "Sensor recovered after %d stale readings",
-                            stale_count,
-                        )
-                    stale_count = 0
+                    await _save_reading(metrics)
+                    logger.debug(
+                        "Saved reading: %.1f°F, %.1f%%, %.1fhPa, VPD=%.2fkPa",
+                        metrics["temperature_f"],
+                        metrics["humidity_pct"],
+                        metrics["pressure_hpa"],
+                        metrics["vpd_kpa"],
+                    )
+            elif data and "error" in data:
+                logger.warning("Arduino reported error: %s", data["error"])
 
-                last_temp = temp
-                last_hum = hum
-
-                await _save_reading(data)
-                logger.debug(
-                    "Saved reading: %.1f°F, %.1f%%",
-                    temp,
-                    hum,
-                )
-
-            # Wait for the poll interval, but stop early if signaled
             with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(stop_event.wait(), timeout=interval)
 

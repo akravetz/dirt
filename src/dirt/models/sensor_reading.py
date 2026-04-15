@@ -10,6 +10,7 @@ def _utcnow() -> datetime:
 class SensorReading(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     timestamp: datetime = Field(default_factory=_utcnow, index=True)
-    temperature_f: float
-    humidity_pct: float
-    source: str = "mock"
+    location: str = Field(index=True)  # "tent", "plant-a", "plant-b", ...
+    metric: str = Field(index=True)
+    value: float
+    source: str = "arduino"

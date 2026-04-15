@@ -3,6 +3,8 @@ from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt.config import settings
+from dirt.models.sensor_calibration import SensorCalibration  # noqa: F401
+from dirt.models.sensor_node import SensorNode  # noqa: F401
 from dirt.models.sensor_reading import SensorReading  # noqa: F401
 from dirt.models.snapshot import Snapshot  # noqa: F401
 
