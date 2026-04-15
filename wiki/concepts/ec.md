@@ -4,7 +4,7 @@ type: concept
 sources: []
 related: [wiki/environment/nutrients.md, wiki/concepts/nutrient-burn.md, wiki/concepts/ph-lockout.md, wiki/concepts/coco-coir.md]
 created: 2026-04-12
-updated: 2026-04-12
+updated: 2026-04-15
 ---
 
 # EC — Electrical Conductivity
@@ -20,20 +20,23 @@ EC (Electrical Conductivity) measures the total dissolved salt concentration in 
 | ppm (700 scale) | Parts per million (Hanna/EU) | ppm = EC × 700 |
 | TDS | Total Dissolved Solids | Usually same as ppm |
 
-**This grow uses a TDS-3 meter** which reads in ppm (500 scale). To convert: EC = ppm ÷ 500.
+**This grow uses a TDS-3 meter** which reads in ppm (500 scale). HM Digital ships all their pocket TDS meters (TDS-3, TDS-4, COM-100) with the NaCl conversion factor baked in — there is no toggle on the unit. To convert: EC = ppm ÷ 500.
 
 Example: 920 ppm ÷ 500 = EC 1.84.
 
-## Targets by Stage (Canna Coco A+B)
+## Targets by Stage (Canna Coco A+B, Autopot reservoir)
+
+These are **autopot reservoir** targets (continuous feed). Hand-feed EC runs ~20–30% higher than reservoir EC because flush-through dilutes the effective root-zone concentration. Reservoir EC ≈ what the plants are actually drinking.
 
 | Stage | Target EC | Target ppm (500) | Notes |
 |-------|-----------|-------------------|-------|
 | Seedling | 0.4–0.6 | 200–300 | Very dilute; coco has some buffered nutrients |
-| Early veg | 0.8–1.0 | 400–500 | **Current target** |
-| Mid veg | 1.0–1.4 | 500–700 | After topping recovery |
-| Late veg | 1.2–1.6 | 600–800 | Pre-flower ramp |
-| Flower | 1.4–1.8 | 700–900 | Peak nutrient demand |
-| Late flower / flush | 0.0 | 0 | Plain pH 5.8 water |
+| Early veg / post-topping | 0.8–1.0 | 400–500 | **Current target.** Lean low during wound recovery. |
+| Mid veg | 1.0–1.2 | 500–600 | Canopy filling the SCROG |
+| Late veg | 1.2–1.4 | 600–700 | Pre-flower ramp |
+| Early/Mid flower | 1.4–1.6 | 700–800 | Peak nutrient demand |
+| Late flower | 1.2–1.4 | 600–700 | Taper |
+| Final flush | 0.0 | 0 | Plain pH 5.8 water |
 
 ## How to Measure
 

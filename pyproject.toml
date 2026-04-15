@@ -17,6 +17,8 @@ dependencies = [
     "mcp[cli]>=1.9",
     "pyserial>=3.5",
     "pillow>=12.2.0",
+    "deepgram-sdk>=6.1.1",
+    "sounddevice>=0.5.5",
 ]
 
 [project.optional-dependencies]

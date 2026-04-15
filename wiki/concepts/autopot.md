@@ -4,7 +4,7 @@ type: concept
 sources: [raw/chat-history/bible.md, raw/chat-history/all-chat-summary.md]
 related: [wiki/concepts/coco-coir.md, wiki/environment/nutrients.md, wiki/decisions/2026-04-11-reservoir-stand.md]
 created: 2026-04-06
-updated: 2026-04-12
+updated: 2026-04-15
 ---
 
 # Autopot System
@@ -97,6 +97,51 @@ Once activated:
 
 **Week-away capability:** 100L reservoir gives ~10–12 days at peak flower — plan travel around this window.
 
+## Ongoing Drainage / Cleaning Cadence
+
+Autopot is continuous-feed with no runoff, which creates three distinct maintenance needs that hand-watering doesn't have. Missing any of them leads to silent problems (root rot, pH drift, salt accumulation).
+
+### 1. Tray drydown — weekly
+
+The AquaValve keeps ~1–2 cm of nutrient solution in the tray at all times. Continuous wet = anaerobic root zone = root rot risk. Roots need oxygen as much as water.
+
+**Procedure — close all float valves for 24–48 hours once per week:**
+- Plant drinks the tray dry, then pulls moisture from the coco via transpiration.
+- Tray bottom goes visibly dry; coco surface goes pale-brown.
+- Reopen valves; normal cycle resumes.
+
+Autopot's own guidance recommends this weekly. Coco wicks fast, so 48 hours gives a genuine dry-back at the root zone during peak veg/flower.
+
+### 2. Reservoir change — weekly to 10-day
+
+Topping off is not sufficient. Over days, the solution degrades:
+
+- **pH creep** — typically drifts upward; by day 7 expect 0.2–0.4 pH shift from fresh.
+- **Salt precipitation** — dissolved nutrients fall out of solution, especially calcium phosphate if pH drifts high.
+- **Biological growth** — algae (if any light reaches the tank), bacteria/fungi in warm water regardless.
+- **Selective uptake drift** — plants pull N:P:K in different ratios than the mix provides; what's left over is no longer balanced.
+
+**Full change every 7 days (baseline) or up to 10 days** if the reservoir is opaque, cool, and measured pH/EC are still in range. Process: drain remaining solution (siphon or dump), quick rinse with clean tap water, refill with fresh Canna mix.
+
+Canna's own recommendation is weekly. Do not reuse leftovers as starter.
+
+### 3. Top-water flush — every 2–4 weeks
+
+Unlike hand-watering, autopot delivers from below with **zero runoff**, so there is no flush cycle pushing accumulated salts out of the coco. Salts build up in the medium and can form a visible white crust on the coco surface.
+
+**Every 2–4 weeks, hand-water from the top** with plain pH 5.8 water (or very weak Canna at EC 0.4) — ~500ml per pot. Measure runoff EC from the tray: if significantly higher than the reservoir, buildup was real. Close valves afterward to let the (now full) tray dry back — this doubles as the weekly drydown.
+
+### Suggested weekly rhythm
+
+| Day | Action |
+|-----|--------|
+| Mon | Reservoir change (drain + refill fresh) |
+| Tue–Sat | Plants drinking; top off reservoir as level drops |
+| Sun | Close valves → tray drydown (24–48h) |
+| Mon | Reopen valves + next reservoir change |
+
+Every 2–4 weeks, insert a top-water flush on any day. Log each drydown and reservoir change in the day's daily entry so drift over time is traceable.
+
 ## pH/EC Targets
 - pH: 5.5–6.0 (target 5.8) — GH pH Down required every fill (Denver tap pH 8.5+)
-- EC: 0.8–1.0 early veg → 1.6–2.0 flower
+- EC: 0.8–1.0 early veg → 1.6–2.0 flower. See [EC concept](ec.md) for full autopot reservoir chart.

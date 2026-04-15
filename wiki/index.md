@@ -1,7 +1,7 @@
 ---
 title: Index
 type: index
-updated: 2026-04-14
+updated: 2026-04-15
 ---
 
 # Grow Wiki Index
@@ -38,6 +38,7 @@ updated: 2026-04-14
 - [ESP32-C3 Per-Plant Nodes](hardware/esp32-plant-nodes.md) — Wireless soil moisture nodes (A/B/C/D); plant-a live, b/c/d pending more sensors
 - [Humidifier Control](hardware/humidifier-control.md) — Raydrop 4L + G3MB-202P SSR; closed-loop RH via Arduino Nano DHT22; hardware en route 2026-04-15
 - [PTZ Camera (OBSBOT Tiny 2 Lite + daemon)](hardware/ptz-camera.md) — Programmable gimbal + zoom; persistent C++ daemon + `scripts/camera` CLI; per-plant presets calibrated
+- [Jabra Speak 410](hardware/jabra.md) — USB speakerphone for voice I/O; Nova-3 STT + Aura-2 TTS pilot proven; production `channels/voice.py` pending
 
 ## Concepts
 - [Anthocyanin](concepts/anthocyanin.md) — Purple expression: genetic vs. environmental

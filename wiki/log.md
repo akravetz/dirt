@@ -2,7 +2,7 @@
 title: Activity Log
 type: log
 created: 2026-04-06
-updated: 2026-04-14
+updated: 2026-04-15
 order: chronological — oldest entries at top, newest appended at bottom. Do NOT insert entries out of date order.
 ---
 
@@ -242,3 +242,32 @@ order: chronological — oldest entries at top, newest appended at bottom. Do NO
 - **Config** at `~/.config/dirt/camera.json` (template at `config/camera.json.example`): sign map + presets. Sign map encodes mount-specific axis-sign conventions, derived empirically during calibration.
 - **systemd user service** (`systemd/dirt-camera.service`) enabled + started. `loginctl enable-linger akcom` set so the daemon runs at boot without login. User-crontab entry added for weekly `logrotate` (Sundays 03:00, 4-week retention, copytruncate-safe).
 - New hardware page: [`hardware/ptz-camera.md`](hardware/ptz-camera.md). Documents the CLI, daemon, protocol, known quirks, and physical specs.
+
+## [2026-04-15] Jabra Speak 410 deployed; voice pilot proven end-to-end
+- Jabra plugged into the RSHTECH USB hub. Appears as ALSA card 2, sounddevice index 6.
+- PCM volume maxed to 100% (was 55% out of the box); persisted via `sudo alsactl store 2`.
+- Pilot script `debug/deepgram_roundtrip.py` ships: Nova-3 streaming STT from Jabra mic → hardcoded Aura-2 TTS response. Deliberately NOT wired to `claude -p` yet per user direction (agent shape under review).
+- Transcripts are clean over tent fan noise — no noise suppression layer needed for the pilot.
+- New deps: `deepgram-sdk`, `sounddevice`. System package `libportaudio2` also required.
+- `DEEPGRAM_API_KEY` slot added to `.env.example`.
+- **Three gotchas discovered, all filed:**
+  - Deepgram SDK v6 wants string literals `"true"`/`"false"` for bool-shaped query params; Python `True`/`False` causes HTTP 400.
+  - Jabra Speak 410 firmware bug (Red Hat bugzilla #766714): hardware always clocks at 48 kHz regardless of negotiated rate. Sending 16 kHz plays 3× fast. Workaround: always 48 kHz on playback side.
+  - Jabra playback is stereo-only (FL/FR) while mic is mono. TTS output must be duplicated to stereo before `sd.play`.
+- New pages: [`hardware/jabra.md`](hardware/jabra.md) (operator-facing) and [`debug/jabra.md`](../debug/jabra.md) (agent handoff for productionizing `channels/voice.py`).
+
+## [2026-04-15] query-filed | Autopot ongoing drainage cadence (drydown + reservoir change + top-flush)
+- User asked about "drain cadence" on the autopot. Autopot has zero runoff by design, so three distinct maintenance cycles are needed that hand-watering never required. Previously undocumented in the concept page.
+- **Tray drydown — weekly.** Close float valves 24–48h once/week so trays go dry and roots get oxygen. Continuous wet tray = anaerobic root zone = root rot risk.
+- **Reservoir change — 7–10 day cycle.** Full drain + refill, not just top-off. pH drifts, nutrients precipitate, biology grows, selective uptake skews the ratio.
+- **Top-water flush — every 2–4 weeks.** 500ml plain pH 5.8 water per pot from above to push accumulated salts out. Measure runoff EC to detect buildup.
+- Suggested weekly rhythm: Mon reservoir change → Tue–Sat drinking → Sun drydown → Mon next change.
+- Updated: [`concepts/autopot.md`](concepts/autopot.md).
+
+## [2026-04-15] query-filed | Autopot reservoir pH/EC targets + TDS-3 factor resolved
+- User confirmed autopot activation today (reservoir filled, valves about to open).
+- **Resolved pending question from 2026-04-11:** TDS-3 meter uses NaCl / 500 scale (factor 0.5). HM Digital ships all pocket TDS meters with this baked in; no toggle on the unit. So `EC (mS/cm) = ppm / 500`. The 920 ppm reading on 2026-04-11 = EC 1.84 (correct).
+- **Reframed EC targets as autopot reservoir targets.** Continuous feed means reservoir EC ≈ effective root-zone EC, where hand-feed EC runs 20–30% higher (flush-through dilutes). Existing target (0.8–1.0 for early veg) was already autopot-safe.
+- Added post-stress guidance: sit at low end of band during topping / LST / transplant recovery — plants repairing tissue don't tolerate hot nutrients.
+- Added Canna mix-order clarifier: A first, stir, then B. Never combine undiluted (calcium phosphate precipitation). pH correction happens **after** Canna is mixed, not before.
+- Updated: [`environment/nutrients.md`](environment/nutrients.md), [`concepts/ec.md`](concepts/ec.md).
