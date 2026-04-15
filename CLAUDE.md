@@ -34,6 +34,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Wiki lint**: `uv run scripts/lint.py`
 - **EXIF date extraction**: `uv run scripts/exif_date.py <file_or_directory>`
 
+### PTZ Camera
+
+- **Go to a preset**: `scripts/camera look <overview|plant_a|plant_b|plant_c|plant_d|home>`
+- **Relative move** (user-frame): `scripts/camera nudge left 5` or compound `scripts/camera nudge left=3 up=2`
+- **Zoom**: `scripts/camera zoom +0.2` (relative) or `scripts/camera zoom-to 1.5` (absolute)
+- **Current state**: `scripts/camera where` (adds `--json` for structured output)
+- **Daemon status**: `systemctl --user status dirt-camera` / `journalctl --user -u dirt-camera -f`
+- **Full operational spec**: `wiki/hardware/ptz-camera.md`. Do NOT bypass the CLI by calling the daemon's socket directly or running debug/obsbot_* binaries — the CLI handles user-frame translation, preset lookup, and error reporting.
+
 ## Documentation (Progressive Disclosure)
 
 This file is the discovery layer. Read deeper docs before starting work in an area.

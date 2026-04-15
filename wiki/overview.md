@@ -93,7 +93,8 @@ updated: 2026-04-14
 | **Plant-B/C/D ESP32-C3 nodes** | Blocked | Waiting on more working sensors — current pack had 3/5 DOA |
 | **CO2 sensor** (MH-Z19B) | Planned | Not yet deployed |
 | **Reservoir level** (XKC-Y25-T12V) | Planned | Not yet deployed |
-| **PTZ camera** | Planning | Epic: `ptz-camera` |
+| **Humidifier control** (Raydrop 4L + G3MB-202P SSR) | Hardware en route (ETA 2026-04-15) | Closed-loop RH control from Arduino Nano DHT22. See `hardware/humidifier-control.md`. |
+| **PTZ camera** (OBSBOT Tiny 2 Lite) | Online (2026-04-15) | Persistent C++ daemon + `scripts/camera` CLI. Per-plant presets calibrated. See `hardware/ptz-camera.md`. |
 | **Live audio** | Planning | Epic: `live-audio` |
 
 ## Denver Water Notes

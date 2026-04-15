@@ -1,0 +1,24 @@
+{
+  "_comment": "Dirt camera config. Copy to ~/.config/dirt/camera.json.",
+
+  "sign_map": {
+    "_comment": "user-frame direction -> motor-frame axis + sign. Derived empirically 2026-04-14 at current mount.",
+    "left":  {"axis": "yaw",   "sign":  1},
+    "right": {"axis": "yaw",   "sign": -1},
+    "up":    {"axis": "pitch", "sign":  1},
+    "down":  {"axis": "pitch", "sign": -1}
+  },
+
+  "presets": {
+    "overview": {"pitch": -50, "yaw": -25, "zoom": 1.0, "description": "All 4 plants visible"},
+    "plant_a":  {"pitch": -38, "yaw": -55, "zoom": 1.5, "description": "Plant A close-up (yellow)"},
+    "plant_b":  {"pitch": -60, "yaw": -22, "zoom": 1.4, "description": "Plant B close-up (orange)"},
+    "plant_c":  {"pitch": -47, "yaw":  10, "zoom": 1.5, "description": "Plant C close-up (pink)"},
+    "plant_d":  {"pitch": -35, "yaw": -24, "zoom": 1.5, "description": "Plant D close-up (blue)"}
+  },
+
+  "defaults": {
+    "nudge_degrees": 5,
+    "zoom_step": 0.2
+  }
+}

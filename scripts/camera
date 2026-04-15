@@ -1,0 +1,392 @@
+#!/usr/bin/env python3
+"""dirt camera CLI — thin client for the dirt-camera-daemon.
+
+Commands:
+    camera nudge <dir>[=<deg>] ...     # compound: camera nudge left=5 up=3
+    camera nudge left 5                 # simple form also accepted
+    camera look <preset>                # overview | plant_a | .. | home
+    camera zoom <+/-delta>              # e.g. +0.2, -0.2 (relative)
+    camera zoom-to <absolute>           # 1.0 .. 2.0
+    camera where [--json]
+    camera home                         # alias for `look overview`
+
+Config: ~/.config/dirt/camera.json (see config/camera.json.example).
+Socket: $XDG_RUNTIME_DIR/dirt-camera.sock (or /tmp/dirt-camera.sock).
+
+The CLI is stateless. All gimbal state lives in the daemon. If the daemon
+isn't running, the CLI exits with a friendly message.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import socket
+import sys
+from pathlib import Path
+from typing import Any
+
+
+# ---------- config ----------
+
+def config_path() -> Path:
+    return Path.home() / ".config" / "dirt" / "camera.json"
+
+
+def socket_path() -> str:
+    # Explicit override wins (useful for tests, alternate deployments).
+    explicit = os.environ.get("DIRT_CAMERA_SOCKET")
+    if explicit:
+        return explicit
+    xdg = os.environ.get("XDG_RUNTIME_DIR")
+    if xdg:
+        return f"{xdg}/dirt-camera.sock"
+    return "/tmp/dirt-camera.sock"
+
+
+def _strip_comments(obj: Any) -> Any:
+    """Recursively remove dict keys starting with '_' (our comment convention)."""
+    if isinstance(obj, dict):
+        return {k: _strip_comments(v) for k, v in obj.items() if not k.startswith("_")}
+    if isinstance(obj, list):
+        return [_strip_comments(x) for x in obj]
+    return obj
+
+
+def load_config() -> dict[str, Any]:
+    p = config_path()
+    if not p.exists():
+        sys.exit(
+            f"camera: config not found at {p}\n"
+            f"  run: cp config/camera.json.example {p}"
+        )
+    with open(p) as f:
+        cfg = _strip_comments(json.load(f))
+    # minimal validation
+    for key in ("sign_map", "presets"):
+        if key not in cfg:
+            sys.exit(f"camera: config missing required key: {key}")
+    return cfg
+
+
+# ---------- daemon RPC ----------
+
+def rpc(line: str) -> dict[str, Any]:
+    """Send one line; return parsed response.
+
+    Response format: `STATUS [k=v ...]`. Returns dict with `_status` set.
+    """
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        sock.connect(socket_path())
+    except (FileNotFoundError, ConnectionRefusedError):
+        sys.exit(
+            "camera: daemon isn't running\n"
+            "  start with: systemctl --user start dirt-camera\n"
+            f"  or run directly: services/camera-daemon/dirt-camera-daemon"
+        )
+    try:
+        sock.sendall((line + "\n").encode())
+        buf = b""
+        while not buf.endswith(b"\n"):
+            chunk = sock.recv(4096)
+            if not chunk:
+                break
+            buf += chunk
+    finally:
+        sock.close()
+
+    resp = buf.decode().strip()
+    return parse_response(resp)
+
+
+def parse_response(line: str) -> dict[str, Any]:
+    if not line:
+        return {"_status": "empty"}
+    toks = line.split()
+    result: dict[str, Any] = {"_status": toks[0]}
+    for kv in toks[1:]:
+        if "=" not in kv:
+            continue
+        k, v = kv.split("=", 1)
+        if v == "true":
+            result[k] = True
+        elif v == "false":
+            result[k] = False
+        else:
+            try:
+                result[k] = float(v) if "." in v else int(v)
+            except ValueError:
+                result[k] = v
+    return result
+
+
+# ---------- user-frame <-> motor-frame ----------
+
+def apply_direction_deltas(
+    cfg: dict[str, Any],
+    cur_pitch: float,
+    cur_yaw: float,
+    deltas: dict[str, int],
+) -> tuple[float, float]:
+    """Given current motor pitch/yaw and user-frame direction deltas (e.g. {'left': 5}),
+    compute the new motor pitch/yaw target.
+
+    Multiple directions are additive. Opposing directions cancel.
+    """
+    sign_map = cfg["sign_map"]
+    pitch_delta = 0.0
+    yaw_delta = 0.0
+    for direction, degrees in deltas.items():
+        if direction not in sign_map:
+            sys.exit(f"camera: unknown direction: {direction}")
+        entry = sign_map[direction]
+        signed = degrees * entry["sign"]
+        if entry["axis"] == "pitch":
+            pitch_delta += signed
+        elif entry["axis"] == "yaw":
+            yaw_delta += signed
+        else:
+            sys.exit(f"camera: invalid axis in sign_map: {entry['axis']}")
+    return cur_pitch + pitch_delta, cur_yaw + yaw_delta
+
+
+def parse_nudge_args(tokens: list[str]) -> dict[str, int]:
+    """Parse `left 5 up 3` OR `left=5 up=3` into {'left': 5, 'up': 3}."""
+    out: dict[str, int] = {}
+    i = 0
+    while i < len(tokens):
+        t = tokens[i]
+        if "=" in t:
+            k, v = t.split("=", 1)
+            out[k] = int(v)
+            i += 1
+        else:
+            # expect `direction degrees`
+            if i + 1 >= len(tokens):
+                sys.exit(f"camera: nudge: missing degrees for '{t}'")
+            out[t] = int(tokens[i + 1])
+            i += 2
+    return out
+
+
+# ---------- output formatting ----------
+
+def pointing_relative(cfg: dict[str, Any], pitch: float, yaw: float) -> str:
+    """Describe current gimbal position relative to overview in user-frame terms."""
+    overview = cfg["presets"].get("overview")
+    if not overview:
+        return f"motor_pitch={pitch:.0f}, motor_yaw={yaw:.0f}"
+    dp = pitch - overview["pitch"]
+    dy = yaw - overview["yaw"]
+    sign_map = cfg["sign_map"]
+
+    # Find user-direction name for each axis.
+    def dir_for(axis: str, positive: bool) -> str:
+        for name, entry in sign_map.items():
+            if entry["axis"] == axis and (entry["sign"] > 0) == positive:
+                return name
+        return f"{axis}?"
+
+    parts = []
+    if abs(dp) >= 1:
+        name = dir_for("pitch", dp > 0)
+        parts.append(f"{name} {abs(dp):.0f}°")
+    if abs(dy) >= 1:
+        name = dir_for("yaw", dy > 0)
+        parts.append(f"{name} {abs(dy):.0f}°")
+    if not parts:
+        return "at overview"
+    return ", ".join(parts) + " (from overview)"
+
+
+def find_preset_match(cfg: dict[str, Any], pitch: float, yaw: float, zoom: float,
+                      tol: float = 2.0) -> str | None:
+    """Approximate match: is current state within `tol` degrees of a preset?"""
+    best = None
+    best_err = None
+    for name, p in cfg["presets"].items():
+        dp = abs(pitch - p["pitch"])
+        dy = abs(yaw - p["yaw"])
+        dz = abs(zoom - p.get("zoom", 1.0))
+        if dp <= tol and dy <= tol and dz <= 0.2:
+            err = dp + dy + dz * 10
+            if best_err is None or err < best_err:
+                best_err = err
+                best = name
+    return best
+
+
+def format_where(cfg: dict[str, Any], state: dict[str, Any]) -> str:
+    if state.get("camera_connected") is False:
+        return "camera: disconnected"
+    pitch = state.get("motor_pitch", 0.0)
+    yaw = state.get("motor_yaw", 0.0)
+    zoom = state.get("zoom", 0.0)
+    lines = [
+        f"pointing:      {pointing_relative(cfg, pitch, yaw)}",
+        f"zoom:          {zoom:.2f}x",
+    ]
+    preset = find_preset_match(cfg, pitch, yaw, zoom)
+    if preset:
+        lines.append(f"preset match:  {preset} (approx, within ~2°)")
+    else:
+        lines.append(f"preset match:  none")
+    lines.append(f"motor:         pitch={pitch:.1f}° yaw={yaw:.1f}°")
+    return "\n".join(lines)
+
+
+def print_move_result(cfg: dict[str, Any], r: dict[str, Any], applied_desc: str) -> None:
+    status = r.get("_status", "?")
+    if status == "ok":
+        print(f"✓ {applied_desc}")
+    elif status == "limit_reached":
+        req_p = r.get("requested_pitch", "?")
+        req_y = r.get("requested_yaw", "?")
+        got_p = r.get("motor_pitch", "?")
+        got_y = r.get("motor_yaw", "?")
+        print(f"⚠ limit reached: asked for ({req_p}, {req_y}), got ({got_p}, {got_y})")
+    elif status == "disconnected":
+        print("✗ camera disconnected")
+    else:
+        print(f"✗ {status}: {r}")
+    if r.get("retries", 0) > 0:
+        print(f"  (retried {r['retries']}x due to partial move)")
+
+
+# ---------- commands ----------
+
+def cmd_where(cfg: dict[str, Any], args: argparse.Namespace) -> int:
+    state = rpc("get_state")
+    if args.json:
+        print(json.dumps(state, indent=2))
+    else:
+        print(format_where(cfg, state))
+    return 0 if state.get("_status") == "ok" else 1
+
+
+def cmd_nudge(cfg: dict[str, Any], args: argparse.Namespace) -> int:
+    deltas = parse_nudge_args(args.args)
+    if not deltas:
+        sys.exit("camera: nudge needs at least one direction (e.g. `left 5`)")
+
+    state = rpc("get_state")
+    if state.get("_status") != "ok":
+        sys.exit(f"camera: get_state failed: {state}")
+    cur_pitch = state["motor_pitch"]
+    cur_yaw = state["motor_yaw"]
+
+    # Separate zoom nudges from axis nudges
+    zoom_delta = 0.0
+    axis_deltas: dict[str, int] = {}
+    for k, v in deltas.items():
+        if k == "zoom":
+            zoom_delta += float(v) / 10 if abs(v) > 1 else float(v)
+            # allow "zoom=+0.2" (fractional) OR "zoom 0.2"; if int-parse in parse_nudge_args,
+            # user probably meant 0.2. We'll document accepting +/- floats for zoom.
+        else:
+            axis_deltas[k] = v
+
+    new_pitch, new_yaw = apply_direction_deltas(cfg, cur_pitch, cur_yaw, axis_deltas)
+
+    # Issue moves
+    if axis_deltas:
+        r = rpc(f"move_motor {new_pitch:.2f} {new_yaw:.2f}")
+        desc = ", ".join(f"{k} {v}°" for k, v in axis_deltas.items())
+        print_move_result(cfg, r, f"nudged {desc}")
+    if zoom_delta:
+        cur_zoom = state.get("zoom", 1.0)
+        new_zoom = cur_zoom + zoom_delta
+        r = rpc(f"set_zoom {new_zoom:.2f}")
+        print(f"  zoom: {cur_zoom:.2f} → {r.get('zoom', '?')}x")
+    return 0
+
+
+def cmd_look(cfg: dict[str, Any], args: argparse.Namespace) -> int:
+    name = args.preset
+    if name == "home":
+        name = "overview"
+    if name not in cfg["presets"]:
+        sys.exit(f"camera: unknown preset: {name}. "
+                 f"Known: {', '.join(cfg['presets'].keys())}")
+    p = cfg["presets"][name]
+    # Compound: pitch/yaw in one call, zoom in a separate call.
+    mr = rpc(f"move_motor {p['pitch']:.2f} {p['yaw']:.2f}")
+    zr = rpc(f"set_zoom {p['zoom']:.2f}")
+    print_move_result(cfg, mr, f"looking at {name}")
+    if zr.get("_status") != "ok":
+        print(f"  ✗ zoom: {zr}")
+    return 0 if mr.get("_status") in ("ok", "limit_reached") else 1
+
+
+def cmd_zoom(cfg: dict[str, Any], args: argparse.Namespace) -> int:
+    state = rpc("get_state")
+    if state.get("_status") != "ok":
+        sys.exit(f"camera: get_state failed: {state}")
+    cur = state.get("zoom", 1.0)
+    # args.delta is something like "+0.2" or "-0.2"
+    delta = float(args.delta)
+    new_zoom = max(1.0, min(2.0, cur + delta))
+    r = rpc(f"set_zoom {new_zoom:.2f}")
+    print(f"zoom: {cur:.2f} → {r.get('zoom', '?')}x")
+    return 0
+
+
+def cmd_zoom_to(cfg: dict[str, Any], args: argparse.Namespace) -> int:
+    r = rpc(f"set_zoom {args.absolute:.2f}")
+    print(f"zoom: → {r.get('zoom', '?')}x")
+    if r.get("zoom_capped"):
+        print("  (capped at 2.0)")
+    return 0
+
+
+def cmd_home(cfg: dict[str, Any], args: argparse.Namespace) -> int:
+    class A: pass
+    a = A(); a.preset = "overview"
+    return cmd_look(cfg, a)
+
+
+# ---------- argparse ----------
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(prog="camera", description=__doc__.splitlines()[0])
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    n = sub.add_parser("nudge", help="relative move in user-frame (left/right/up/down)")
+    n.add_argument("args", nargs="+",
+                   help="direction + degrees, e.g. `left 5` or `left=5 up=3`")
+    n.set_defaults(func=cmd_nudge)
+
+    l = sub.add_parser("look", help="go to a preset")
+    l.add_argument("preset", help="overview | plant_a | plant_b | plant_c | plant_d | home")
+    l.set_defaults(func=cmd_look)
+
+    z = sub.add_parser("zoom", help="relative zoom (e.g. +0.2 or -0.2)")
+    z.add_argument("delta", help="signed float, e.g. +0.2")
+    z.set_defaults(func=cmd_zoom)
+
+    zt = sub.add_parser("zoom-to", help="absolute zoom (1.0 to 2.0)")
+    zt.add_argument("absolute", type=float)
+    zt.set_defaults(func=cmd_zoom_to)
+
+    w = sub.add_parser("where", help="current state")
+    w.add_argument("--json", action="store_true", help="emit JSON")
+    w.set_defaults(func=cmd_where)
+
+    h = sub.add_parser("home", help="alias for `look overview`")
+    h.set_defaults(func=cmd_home)
+
+    return p
+
+
+def main() -> int:
+    parser = build_parser()
+    args = parser.parse_args()
+    cfg = load_config()
+    return args.func(cfg, args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

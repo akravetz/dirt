@@ -36,6 +36,8 @@ updated: 2026-04-14
 
 ## Hardware
 - [ESP32-C3 Per-Plant Nodes](hardware/esp32-plant-nodes.md) — Wireless soil moisture nodes (A/B/C/D); plant-a live, b/c/d pending more sensors
+- [Humidifier Control](hardware/humidifier-control.md) — Raydrop 4L + G3MB-202P SSR; closed-loop RH via Arduino Nano DHT22; hardware en route 2026-04-15
+- [PTZ Camera (OBSBOT Tiny 2 Lite + daemon)](hardware/ptz-camera.md) — Programmable gimbal + zoom; persistent C++ daemon + `scripts/camera` CLI; per-plant presets calibrated
 
 ## Concepts
 - [Anthocyanin](concepts/anthocyanin.md) — Purple expression: genetic vs. environmental
@@ -68,3 +70,4 @@ updated: 2026-04-14
 - [Agent Runtime — Shell-Out to Claude Code CLI (2026-04-14)](decisions/2026-04-14-agent-runtime-shell-out.md) — Use `claude -p` subprocess to leverage Max subscription instead of API billing
 - [ESP32-C3 GPIO3 + IDF ADC (2026-04-14)](decisions/2026-04-14-esp32-c3-gpio3-adc.md) — GPIO3 over GPIO4 (JTAG conflict); `adc1_get_raw()` over Arduino `analogRead()` (WiFi instability)
 - [Server-Side Auto-Calibration (2026-04-14)](decisions/2026-04-14-server-side-auto-calibration.md) — Calibration lives in DB, auto-widens extrema per (location, metric); firmware sends raw only
+- [Humidifier Closed-Loop Control (2026-04-14)](decisions/2026-04-14-humidifier-relay-control.md) — Raydrop 4L + G3MB-202P SSR, bang-bang hysteresis from Arduino Nano DHT22

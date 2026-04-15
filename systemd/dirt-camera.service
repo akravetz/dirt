@@ -1,0 +1,20 @@
+[Unit]
+Description=Dirt camera daemon (OBSBOT SDK wrapper)
+Documentation=file://%h/code/dirt/services/camera-daemon/README.md
+After=default.target
+
+[Service]
+Type=simple
+# %h expands to the user's home directory in user units.
+ExecStart=%h/code/dirt/services/camera-daemon/dirt-camera-daemon
+Restart=on-failure
+RestartSec=5s
+# Kill signal: give the daemon 10s to unlink its socket and release the SDK.
+KillSignal=SIGTERM
+TimeoutStopSec=10s
+
+# Security hardening (user service). Keep minimal to avoid breaking SDK USB access.
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

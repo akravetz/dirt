@@ -28,6 +28,9 @@ snapshots/
 firmware/.pio/
 firmware/plant_node/.pio/
 
+# Camera daemon compiled binary (build output, not source)
+services/camera-daemon/dirt-camera-daemon
+
 # Firmware secrets (WiFi creds, OTA password, ingest token)
 firmware/plant_node/src/secrets.h
 

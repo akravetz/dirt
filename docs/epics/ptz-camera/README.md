@@ -1,8 +1,25 @@
 # Epic: PTZ Camera Integration
 
-Status: planning
+Status: partial — camera control shipped; FastAPI/MCP/UI integration remaining
 Priority: high
 Created: 2026-04-12
+Last updated: 2026-04-15
+
+## What's Shipped
+
+- **OBSBOT Tiny 2 Lite** deployed and operational (SN RMOWLHI1203JLY, fw 6.2.7.4).
+- **`dirt-camera-daemon`** at `services/camera-daemon/` — persistent C++ SDK wrapper. Auto-retry for partial-move, hotplug recovery, runs as systemd user service, vendored libdev version-controlled.
+- **`scripts/camera`** CLI — user-frame commands (`look`, `nudge`, `zoom`, `where`). Config at `~/.config/dirt/camera.json`.
+- **Per-plant presets** calibrated (A/B/C/D + overview) with colored-sticker identification.
+- See [`wiki/hardware/ptz-camera.md`](../../../wiki/hardware/ptz-camera.md) for the full operational spec.
+
+## What's Still Out
+
+- **Image capture via the daemon** — currently captures still use the OpenCV path in `src/dirt/services/capture.py`. The daemon does PTZ only.
+- **FastAPI integration** — no endpoint wraps the daemon yet. Web clients can't pan/tilt/zoom through the app.
+- **MCP tools** — `go_to_preset`, `move_camera`, `get_camera_position`, `capture_photo` not yet exposed to Claude Desktop.
+- **Web UI PTZ panel** — no directional pad, no preset buttons, no live preview coupled to PTZ.
+- **Automated daily capture at presets** — cycle through all 5 presets once per day, drop frames into `raw/photos/` with preset-named filenames for wiki ingestion.
 
 ## Goal
 
