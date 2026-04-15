@@ -18,11 +18,6 @@ class Settings(BaseSettings):
     capture_interval: int = 300  # 5 minutes
     archive_dir: str = "archives"
     archive_retention_days: int = 7
-    camera_device: str = "/dev/webcam"
-    camera_white_balance: int = 3000  # Fixed WB temp in Kelvin (2000-6500)
-    camera_exposure: int = 15  # Initial manual exposure (3-2047)
-    camera_gain: int = 0  # Sensor gain (0-255, lower=less amplification)
-    camera_target_brightness: int = 160  # Target mean brightness (0-255)
     serial_port: str = "/dev/ttyArduino"
     serial_baud: int = 9600
     sensor_poll_interval: int = 20  # seconds

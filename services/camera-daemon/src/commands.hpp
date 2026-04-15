@@ -8,6 +8,8 @@
 //   get_state                         -> ok motor_pitch=... motor_yaw=... imu_pitch=... imu_yaw=... zoom=... camera_connected=...
 //   move_motor <pitch> <yaw>          -> ok|limit_reached|disconnected|error motor_pitch=... motor_yaw=... retries=<int> sdk_rc=<int>
 //   set_zoom <zoom>                   -> ok|error zoom=... sdk_rc=<int>
+//   capture                           -> ok path=<abspath> bytes=<N> width=<W> height=<H> age_ms=<M> capture_ms=<D>
+//                                     -> error <reason>
 //
 // move_motor implements auto-retry with step-through: if the achieved position
 // differs from commanded by more than 1°, the dispatcher retries by stepping
@@ -22,11 +24,12 @@
 namespace dirt {
 
 class SdkWrapper;
+class CaptureService;
 class Logger;
 
 class CommandDispatcher {
 public:
-    CommandDispatcher(SdkWrapper* sdk, Logger* logger);
+    CommandDispatcher(SdkWrapper* sdk, CaptureService* capture, Logger* logger);
 
     // Parse and execute a single line. Returns the response line (no trailing newline).
     // Empty input returns empty output. Never throws.
@@ -39,11 +42,13 @@ private:
     std::string handle_resync();
     std::string handle_move_motor(float pitch, float yaw);
     std::string handle_set_zoom(float zoom);
+    std::string handle_capture();
 
     std::string format_state_tail();
     std::string error(const std::string& msg);
 
     SdkWrapper* sdk_;
+    CaptureService* capture_;
     Logger* log_;
     std::chrono::steady_clock::time_point started_at_;
 };

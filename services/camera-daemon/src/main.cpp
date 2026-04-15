@@ -8,6 +8,7 @@
 // Default log:     $HOME/.local/state/dirt/camera.log
 //                  (auto-creates parent directory)
 
+#include "capture.hpp"
 #include "commands.hpp"
 #include "logger.hpp"
 #include "sdk_wrapper.hpp"
@@ -81,7 +82,13 @@ int main(int argc, char* argv[]) {
         logger.warn("no camera at startup — will retry via tick()");
     }
 
-    dirt::CommandDispatcher dispatcher(&sdk, &logger);
+    dirt::CaptureService capture(&logger);
+    dirt::CaptureConfig cap_cfg;  // defaults: /dev/webcam, 1920x1080, 5fps, 3000K
+    if (!capture.start(cap_cfg)) {
+        logger.warn("capture: start failed — `capture` command will error until restart");
+    }
+
+    dirt::CommandDispatcher dispatcher(&sdk, &capture, &logger);
     dirt::Server server(socket_path, &dispatcher, &logger);
     g_server = &server;
 
@@ -113,6 +120,7 @@ int main(int argc, char* argv[]) {
     logger.info("shutting down");
     g_stop.store(true);
     tick_thread.join();
+    capture.stop();
     sdk.stop();
     logger.info("clean exit");
     return 0;

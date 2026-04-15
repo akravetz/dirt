@@ -4,7 +4,7 @@ type: overview
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/index.md, wiki/plants/plant-a.md, wiki/plants/plant-b.md, wiki/plants/plant-c.md, wiki/plants/plant-d.md]
 created: 2026-04-06
-updated: 2026-04-14
+updated: 2026-04-15
 ---
 
 # Grow Overview
@@ -87,7 +87,6 @@ updated: 2026-04-14
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| **Webcam** (Logitech C920) | Online | Live feed via dirt web app |
 | **Arduino Nano + DHT22** | Online | Temp/humidity readings via USB serial |
 | **Plant-A ESP32-C3 node** | Online (2026-04-14) | GPIO3 capacitive v1.2; POSTs to `/api/ingest/sensors` every 30s; OTA-ready. See `hardware/esp32-plant-nodes.md`. |
 | **Plant-B/C/D ESP32-C3 nodes** | Blocked | Waiting on more working sensors — current pack had 3/5 DOA |

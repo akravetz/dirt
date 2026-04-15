@@ -1,4 +1,5 @@
 #include "commands.hpp"
+#include "capture.hpp"
 #include "logger.hpp"
 #include "sdk_wrapper.hpp"
 
@@ -32,8 +33,9 @@ std::string fmt_float(float v) {
 
 } // anonymous namespace
 
-CommandDispatcher::CommandDispatcher(SdkWrapper* sdk, Logger* logger)
-    : sdk_(sdk), log_(logger), started_at_(std::chrono::steady_clock::now()) {}
+CommandDispatcher::CommandDispatcher(SdkWrapper* sdk, CaptureService* capture, Logger* logger)
+    : sdk_(sdk), capture_(capture), log_(logger),
+      started_at_(std::chrono::steady_clock::now()) {}
 
 std::string CommandDispatcher::error(const std::string& msg) {
     return "error msg=" + msg;
@@ -135,6 +137,19 @@ std::string CommandDispatcher::handle_move_motor(float target_pitch, float targe
     return s;
 }
 
+std::string CommandDispatcher::handle_capture() {
+    if (!capture_) return error("capture_not_initialized");
+    CaptureResult r = capture_->capture_to_file();
+    if (!r.ok) return "error " + r.error;
+    std::string s = "ok path=" + r.path;
+    s += " bytes=" + std::to_string(r.bytes);
+    s += " width=" + std::to_string(r.width);
+    s += " height=" + std::to_string(r.height);
+    s += " age_ms=" + std::to_string(r.age_ms);
+    s += " capture_ms=" + std::to_string(r.capture_ms);
+    return s;
+}
+
 std::string CommandDispatcher::handle_set_zoom(float target) {
     if (!sdk_->is_connected()) {
         return "disconnected" + format_state_tail();
@@ -184,6 +199,8 @@ std::string CommandDispatcher::dispatch(const std::string& line) {
                 float z = std::stof(toks[1]);
                 resp = handle_set_zoom(z);
             }
+        } else if (toks[0] == "capture") {
+            resp = handle_capture();
         } else {
             resp = error("unknown_op_" + toks[0]);
         }

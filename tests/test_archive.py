@@ -4,11 +4,11 @@ Critical safety invariant: JPEGs must never be deleted unless a valid
 video file exists with the expected frame count.
 """
 
+import base64
 from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
-import numpy as np
 import pytest
 
 from dirt.services.archive import (
@@ -20,22 +20,34 @@ from dirt.services.archive import (
     run_ffmpeg,
 )
 
+# Tiny (8x8, all-black) valid JPEG. ffmpeg treats each copy as one frame in
+# an image-sequence input, which is all the archive tests need.
+_TINY_JPEG = base64.b64decode(
+    "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAIBAQEBAQIBAQECAgICAgQDAgICAgUEBAMEBgUGBgYF"
+    "BgYGBwkIBgcJBwYGCAsICQoKCgoKBggLDAsKDAkKCgr/2wBDAQICAgICAgUDAwUKBwYHCgoKCgoK"
+    "CgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgr/wAARCAAIAAgDASIA"
+    "AhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQA"
+    "AAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3"
+    "ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWm"
+    "p6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEA"
+    "AwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSEx"
+    "BhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElK"
+    "U1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3"
+    "uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD+f+ii"
+    "igD/2Q=="
+)
+
 
 def _create_test_jpegs(
     snapshot_dir: Path, target_date: date, count: int = 5
 ) -> list[Path]:
-    """Create minimal valid JPEG files for testing."""
-    import cv2
-
+    """Create valid JPEG files for testing. ffmpeg only counts frames, not content."""
     snapshot_dir.mkdir(parents=True, exist_ok=True)
     jpegs = []
     for i in range(count):
-        # Create a small colored frame (different color each frame)
-        frame = np.full((48, 64, 3), (i * 40) % 256, dtype=np.uint8)
-        _, buf = cv2.imencode(".jpg", frame)
         name = f"snapshot_{target_date.strftime('%Y%m%d')}_{i:02d}0000.jpg"
         path = snapshot_dir / name
-        path.write_bytes(buf.tobytes())
+        path.write_bytes(_TINY_JPEG)
         jpegs.append(path)
     return jpegs
 
