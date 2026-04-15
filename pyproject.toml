@@ -17,6 +17,7 @@ dependencies = [
     "itsdangerous>=2.2.0",
     "mcp[cli]>=1.9",
     "pyserial>=3.5",
+    "pillow>=12.2.0",
 ]
 
 [project.optional-dependencies]
@@ -28,6 +29,8 @@ dev = [
     "pytestarch>=4.0.1",
     "pytest-playwright-asyncio>=0.7.2",
     "pytest-testmon>=2.2.0",
+    "schemdraw>=0.22",
+    "matplotlib>=3.10.8",
 ]
 
 [build-system]
