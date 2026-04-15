@@ -37,3 +37,11 @@ dist/
 
 # Scratch / sandbox (see CLAUDE.md)
 debug/
+
+# Binary archives (raw photos, generated timelapses, derived reports)
+raw/photos/
+archives/
+outputs/
+
+# macOS Finder metadata
+.DS_Store
