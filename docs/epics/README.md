@@ -56,6 +56,9 @@ This creates a GitHub issue with our standard template and the correct epic labe
 | [mcp-server](mcp-server/README.md) | planning | medium |
 | [testing-boundaries](testing-boundaries/README.md) | complete | high |
 | [sensor-hardware](sensor-hardware/README.md) | planning | high |
+| [ptz-camera](ptz-camera/README.md) | planning | high |
+| [live-audio](live-audio/README.md) | planning | medium |
+| [telegram-bot](telegram-bot/README.md) | planning | high |
 
 ## Rules for Claude
 
