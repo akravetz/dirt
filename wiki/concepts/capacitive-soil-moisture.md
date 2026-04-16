@@ -1,15 +1,15 @@
 ---
-title: "Concept — Capacitive Soil Moisture Sensors (v1.2)"
+title: "Concept — Capacitive Soil Moisture Sensors (v1.2 + v2.0)"
 type: concept
 sources: []
 related: [wiki/hardware/esp32-plant-nodes.md, wiki/decisions/2026-04-14-server-side-auto-calibration.md]
 created: 2026-04-14
-updated: 2026-04-14
+updated: 2026-04-16
 ---
 
 # Capacitive Soil Moisture Sensors
 
-The generic "Capacitive Analog Soil Moisture Sensor v1.2" sold on Amazon/AliExpress is a 555-timer-based oscillator that turns soil moisture into an analog voltage. Same PCB design, many different sellers; output behavior is broadly consistent across clones.
+The generic "Capacitive Analog Soil Moisture Sensor" sold on Amazon/AliExpress is a 555-timer-based oscillator that turns soil moisture into an analog voltage. Same PCB shape across many different sellers; output behavior is broadly consistent across clones but varies by generation (v1.2 vs v2.0).
 
 ## How It Works
 
@@ -19,13 +19,31 @@ The generic "Capacitive Analog Soil Moisture Sensor v1.2" sold on Amazon/AliExpr
 4. A comparator circuit converts the oscillator frequency into a DC voltage on AOUT.
 5. **Higher moisture = lower AOUT voltage.** This is counterintuitive and catches people off guard.
 
-## Expected Voltage Ranges (3.3V supply)
+## v1.2 vs v2.0
 
-| Condition | AOUT (rough) | Raw ADC (12-bit, 11dB atten) |
+Both versions use the same 555-timer principle, but the onboard electronics differ:
+
+| Aspect | v1.2 | v2.0 |
 |---|---|---|
-| Dry air | ~2.0–2.5V | ~2500–3100 |
-| Field-capacity coco | ~1.0–1.5V | ~1250–1850 |
-| Submerged (probe in water, up to insertion line) | ~0.4–0.6V | ~500–750 |
+| Voltage regulation | No onboard regulator — runs directly off VCC. Switching 3.3V/5V needs a solder-jumper swap. | LDO regulator (662K / XC6206 family) auto-adapts to **3.3–5.5V** input. |
+| AOUT range (claimed) | ~0–3.0 V | ~0–2.3 V (per some resellers) |
+| AOUT range (measured, this grow) | ~0.4–2.5 V | **~0.9–2.76 V** (confirmed with multimeter 2026-04-16) |
+| PCB coating | Typically uncoated | Typically ships with water-resistant coating |
+| Oscillator | TLC555 variant at ~1.5 MHz, 34% duty | Similar, sometimes cheaper 555 clones |
+
+**The "v2.0 caps at 2.3 V" claim in some reseller docs doesn't match our hardware.** Our v2.0 sensors output up to 2.76 V in dry air. Amazon/AliExpress clone "v2.0" boards vary — don't trust the reseller datasheet; confirm with a multimeter.
+
+**For this grow:** plant-a and plant-d are on v1.2; plant-b and plant-c are on v2.0. The server-side auto-calibration normalizes over the voltage-range differences, so cross-plant wet% comparisons work correctly even with mixed hardware. Raw ADC values are **not** cross-comparable.
+
+## Expected Voltage Ranges (3.3V supply, measured on this grow)
+
+| Condition | v1.2 AOUT | v1.2 raw ADC | v2.0 AOUT | v2.0 raw ADC |
+|---|---|---|---|---|
+| Dry air | ~2.0–2.5 V | ~2500–2850 | ~2.7–2.8 V | **~3800–3900** (see ADC quirk below) |
+| Field-capacity coco | ~1.0–1.5 V | ~1250–1850 | ~1.4–1.8 V | ~1500–2100 |
+| Submerged to insertion line | ~0.1–0.5 V | ~150–650 | ~0.9–1.1 V | ~1380–1400 |
+
+**ESP32-C3 ADC non-linearity note:** the C3's ADC1 at 11 dB attenuation over-reports by 200–400 counts above ~2.5 V input. A v2.0 sensor outputting a real 2.76 V (multimeter-verified) reads as raw **~3800** (not the linear-math ~3425). This is expected and documented — do not interpret raw 3800 on a v2.0 sensor as a floating-pin fault. Floating pins usually rail at 4095 and are persistent; real 3800 readings drop cleanly when the sensor hits water.
 
 These are ballpark; each unit varies ±15%. Calibrate per sensor (or use [server-side auto-calibration](../decisions/2026-04-14-server-side-auto-calibration.md)).
 

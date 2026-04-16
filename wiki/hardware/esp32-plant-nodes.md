@@ -4,7 +4,7 @@ type: hardware
 sources: []
 related: [wiki/decisions/2026-04-12-distributed-sensor-architecture.md, wiki/decisions/2026-04-14-esp32-c3-gpio3-adc.md, wiki/decisions/2026-04-14-server-side-auto-calibration.md, wiki/concepts/capacitive-soil-moisture.md]
 created: 2026-04-14
-updated: 2026-04-14
+updated: 2026-04-16
 ---
 
 # ESP32-C3 Per-Plant Nodes
@@ -13,14 +13,14 @@ One wireless sensor node per plant (A/B/C/D) inside the tent, each reading a cap
 
 ## Deployment Status
 
-| Node | Board | Sensor | Status |
-|------|-------|--------|--------|
-| plant-a | ESP32-C3 SuperMini | Capacitive v1.2 | ✅ **Live 2026-04-14** |
-| plant-b | (spare available) | — | ⏳ Waiting on more working sensors |
-| plant-c | (spare available) | — | ⏳ Waiting on more working sensors |
-| plant-d | (spare available) | — | ⏳ Waiting on more working sensors |
+| Node | Board | Sensor | IP | Status |
+|------|-------|--------|----|--------|
+| plant-a | ESP32-C3 SuperMini | Capacitive v1.2 | 192.168.1.250 | ✅ **Live 2026-04-14** |
+| plant-b | ESP32-C3 SuperMini | Capacitive v2.0 | 192.168.1.243 | ✅ **Live 2026-04-16** |
+| plant-c | ESP32-C3 SuperMini (reused dev unit) | Capacitive v2.0 | 192.168.1.117 | ✅ **Live 2026-04-16** |
+| plant-d | ESP32-C3 SuperMini | Capacitive v1.2 | 192.168.1.59 | ✅ **Live 2026-04-14** |
 
-**Sensor supply issue:** 2 of 5 sensors from the current Amazon pack (B0BTHL6M19) survived; 3 are dead (AOUT stuck at 0V despite VCC being good). Need a second pack before plants b/c/d can deploy.
+**Mixed sensor generations:** plant-a and plant-d shipped with the first Amazon pack (v1.2, 40% DOA rate). plant-b and plant-c got a second pack of v2.0 sensors after the first pack ran out. See [v1.2 vs v2.0 differences](../concepts/capacitive-soil-moisture.md#v12-vs-v20) — it doesn't break cross-plant comparisons because the normalized wet% from auto-calibration abstracts over the raw-voltage differences, but it does mean raw ADC values aren't directly comparable across plants.
 
 ## Hardware
 
@@ -101,3 +101,5 @@ Given the 40%+ DOA rate on the current sensor pack, always validate a sensor wit
 - **Conformal coating risk:** silicone coating can creep onto the sensor's 3-pin header and insulate the dupont contacts. Mask the pins before coating, or scrape/IPA-clean afterward. Covered in the 2026-04-14 debugging session — multiple coated sensors appeared to fail power checks until pins were cleaned.
 - **5V supply degrades sensor longevity:** running the v1.2 at 5V can push AOUT above 3.3V; if the ESP32 ADC pin is already connected, current flows through the ESP32's ESD clamp diodes. Protects the ESP32 but can stress the sensor's output stage over time. Use 3V3.
 - **Dupont wire crimps** from cheap jumper packs fail silently more often than expected. When debugging a node, consider the wires as a hypothesis before swapping boards or sensors.
+- **ESP32-C3 ADC over-reports near the rail.** On v2.0 sensors with a real 2.76 V dry-air output (confirmed by multimeter 2026-04-16), `adc1_get_raw()` returns **~3800–3900**, not the linear-math expectation of ~3425. The C3's ADC1 at 11 dB attenuation has documented non-linearity in the upper ~500 mV that over-reports by 200–400 counts. The firmware uses raw `adc1_get_raw()` without the `esp_adc_cal` correction layer (per the [GPIO3/ADC decision](../decisions/2026-04-14-esp32-c3-gpio3-adc.md)), so we see the uncorrected curve. **Do not mistake a legitimate 3800+ raw reading on a v2.0 sensor for a floating-pin fault.** Floating-pin usually rails at 4095; the 3800-range is the sensor actually talking. If you need absolute volts, apply a per-unit ADC calibration curve — for relative wet/dry tracking (what we do) the non-linearity is harmless.
+- **pyserial resets the ESP32-C3 on port open.** `serial.Serial('/dev/ttyACM*')` asserts DTR by default, which the ESP32-C3 USB-CDC driver interprets as a `USB_UART_CHIP_RESET`. Symptom: you read the port immediately after flashing expecting to see firmware output, get nothing, assume the flash failed. Fix: set `s.dtr = False; s.rts = False` on a `Serial()` instance *before* calling `.open()`. `pio device monitor` handles this correctly out of the box.

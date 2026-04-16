@@ -1,7 +1,7 @@
 ---
 title: Index
 type: index
-updated: 2026-04-15
+updated: 2026-04-16
 ---
 
 # Grow Wiki Index
@@ -35,10 +35,10 @@ updated: 2026-04-15
 - [Nutrients & pH](environment/nutrients.md) — Canna A+B protocol; pH management; incident log
 
 ## Hardware
-- [ESP32-C3 Per-Plant Nodes](hardware/esp32-plant-nodes.md) — Wireless soil moisture nodes (A/B/C/D); plant-a live, b/c/d pending more sensors
+- [ESP32-C3 Per-Plant Nodes](hardware/esp32-plant-nodes.md) — Wireless soil moisture nodes (A/B/C/D); **all four live as of 2026-04-16** (A/D on v1.2 sensors, B/C on v2.0)
 - [Humidifier Control](hardware/humidifier-control.md) — Raydrop 4L + G3MB-202P SSR; closed-loop RH via Arduino Nano DHT22; hardware en route 2026-04-15
 - [PTZ Camera (OBSBOT Tiny 2 Lite + daemon)](hardware/ptz-camera.md) — Programmable gimbal + zoom; persistent C++ daemon + `scripts/camera` CLI; per-plant presets calibrated
-- [Jabra Speak 410](hardware/jabra.md) — USB speakerphone for voice I/O; Nova-3 STT + Aura-2 TTS pilot proven; production `channels/voice.py` pending
+- [Jabra Speak 410](hardware/jabra.md) — USB speakerphone for voice I/O; ElevenLabs "Claudia" TTS + Nova-3 STT + openWakeWord ("hey claudia", training); production `channels/voice.py` pending
 
 ## Concepts
 - [Anthocyanin](concepts/anthocyanin.md) — Purple expression: genetic vs. environmental
@@ -58,6 +58,8 @@ updated: 2026-04-15
 - [Nutrient Burn](concepts/nutrient-burn.md) — Excess salt damage from high EC; symptoms, diagnosis, correction
 - [EC (Electrical Conductivity)](concepts/ec.md) — Measuring nutrient concentration; targets by stage; TDS-3 meter usage
 - [Capacitive Soil Moisture Sensors](concepts/capacitive-soil-moisture.md) — How v1.2 sensors work; voltage ranges; failure modes; multimeter diagnostic
+- [Wake-Word Detection](concepts/wake-word-detection.md) — openWakeWord architecture, training data, FRR diagnostics, threshold tuning, custom verifier models
+- [Room Impulse Response (RIR)](concepts/room-impulse-response.md) — What an IR is; exponential sine sweep capture (Farina method); using IRs as training augmentation
 
 ## Decisions
 - [Medium, Nutrients & Training (2026-03-16)](decisions/2026-03-16-medium-and-training.md) — Coco/perlite, Canna A+B, single top → LST → SCROG
@@ -69,6 +71,8 @@ updated: 2026-04-15
 - [Mobile Chat Interface (2026-04-12)](decisions/2026-04-12-telegram-mobile-interface.md) — Telegram bot for on-the-go Claude interaction
 - [Agent Architecture (2026-04-12)](decisions/2026-04-12-agent-architecture.md) — Ephemeral agent loops via Claude Agent SDK; wiki as memory; JSONL session logs
 - [Agent Runtime — Shell-Out to Claude Code CLI (2026-04-14)](decisions/2026-04-14-agent-runtime-shell-out.md) — Use `claude -p` subprocess to leverage Max subscription instead of API billing
+- [Voice Pipeline Selections (2026-04-16)](decisions/2026-04-16-voice-pipeline-selections.md) — ElevenLabs TTS ("Claudia" voice) + openWakeWord wake phrase + Deepgram STT
+- [Wake-Word Training Strategy (2026-04-16)](decisions/2026-04-16-wake-word-training-strategy.md) — Retrain openWakeWord with voice-clone positives + captured RIRs to fix far-field recall
 - [ESP32-C3 GPIO3 + IDF ADC (2026-04-14)](decisions/2026-04-14-esp32-c3-gpio3-adc.md) — GPIO3 over GPIO4 (JTAG conflict); `adc1_get_raw()` over Arduino `analogRead()` (WiFi instability)
 - [Server-Side Auto-Calibration (2026-04-14)](decisions/2026-04-14-server-side-auto-calibration.md) — Calibration lives in DB, auto-widens extrema per (location, metric); firmware sends raw only
 - [Humidifier Closed-Loop Control (2026-04-14)](decisions/2026-04-14-humidifier-relay-control.md) — Raydrop 4L + G3MB-202P SSR, bang-bang hysteresis from Arduino Nano DHT22

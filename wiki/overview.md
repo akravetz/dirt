@@ -4,7 +4,7 @@ type: overview
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/index.md, wiki/plants/plant-a.md, wiki/plants/plant-b.md, wiki/plants/plant-c.md, wiki/plants/plant-d.md]
 created: 2026-04-06
-updated: 2026-04-15
+updated: 2026-04-16
 ---
 
 # Grow Overview
@@ -88,13 +88,15 @@ updated: 2026-04-15
 | Component | Status | Notes |
 |-----------|--------|-------|
 | **Arduino Nano + DHT22** | Online | Temp/humidity readings via USB serial |
-| **Plant-A ESP32-C3 node** | Online (2026-04-14) | GPIO3 capacitive v1.2; POSTs to `/api/ingest/sensors` every 30s; OTA-ready. See `hardware/esp32-plant-nodes.md`. |
-| **Plant-B/C/D ESP32-C3 nodes** | Blocked | Waiting on more working sensors — current pack had 3/5 DOA |
+| **Plant-A ESP32-C3 node** | Online (2026-04-14) | GPIO3 capacitive v1.2; POSTs every 30s; OTA-ready |
+| **Plant-B ESP32-C3 node** | Online (2026-04-16) | v2.0 sensor; 192.168.1.243; fresh calibration |
+| **Plant-C ESP32-C3 node** | Online (2026-04-16) | v2.0 sensor; 192.168.1.117; reused dev unit; fresh calibration |
+| **Plant-D ESP32-C3 node** | Online (2026-04-14) | GPIO3 capacitive v1.2; POSTs every 30s; OTA-ready |
 | **CO2 sensor** (MH-Z19B) | Planned | Not yet deployed |
 | **Reservoir level** (XKC-Y25-T12V) | Planned | Not yet deployed |
 | **Humidifier control** (Raydrop 4L + G3MB-202P SSR) | Hardware en route (ETA 2026-04-15) | Closed-loop RH control from Arduino Nano DHT22. See `hardware/humidifier-control.md`. |
 | **PTZ camera** (OBSBOT Tiny 2 Lite) | Online (2026-04-15) | Persistent C++ daemon + `scripts/camera` CLI. Per-plant presets calibrated. See `hardware/ptz-camera.md`. |
-| **Jabra Speak 410** (voice I/O) | Connected 2026-04-15 | Deepgram Nova-3 + Aura-2 pilot proven end-to-end. Production channel adapter still pending. See `hardware/jabra.md`. |
+| **Jabra Speak 410** (voice I/O) | Connected 2026-04-15 | STT: Deepgram Nova-3. TTS: ElevenLabs "Claudia" (`eleven_multilingual_v2`). Wake word: openWakeWord ("hey claudia", training). Production channel adapter still pending. See `hardware/jabra.md`. |
 
 ## Denver Water Notes
 - Tap pH: 8.5–8.8 → GH pH Down required at every fill

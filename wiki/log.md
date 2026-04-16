@@ -2,7 +2,7 @@
 title: Activity Log
 type: log
 created: 2026-04-06
-updated: 2026-04-15
+updated: 2026-04-16
 order: chronological — oldest entries at top, newest appended at bottom. Do NOT insert entries out of date order.
 ---
 
@@ -271,3 +271,32 @@ order: chronological — oldest entries at top, newest appended at bottom. Do NO
 - Added post-stress guidance: sit at low end of band during topping / LST / transplant recovery — plants repairing tissue don't tolerate hot nutrients.
 - Added Canna mix-order clarifier: A first, stir, then B. Never combine undiluted (calcium phosphate precipitation). pH correction happens **after** Canna is mixed, not before.
 - Updated: [`environment/nutrients.md`](environment/nutrients.md), [`concepts/ec.md`](concepts/ec.md).
+
+## [2026-04-16] plant-b + plant-c nodes deployed; all 4 plants live
+- Flashed fresh ESP32-C3 SuperMini units with plant-node firmware fw 0.1.1 for plant-b (MAC AC:A7:04:BB:C3:38 → 192.168.1.243) and plant-c (MAC AC:A7:04:BB:D7:B4 → 192.168.1.117, reused from the 2026-04-14 GPIO debugging dev unit). `platformio.ini` got `plant-b`/`plant-b-ota` and `plant-c`/`plant-c-ota` env blocks following the existing pattern.
+- Both units got v2.0 capacitive moisture sensors (user had exhausted the original v1.2 Amazon pack). Plant-a and plant-d stay on v1.2 — fleet now mixed, but auto-calibration normalizes over the generation difference.
+- **Calibration cleanup:** after bring-up, plant-b and plant-c's `sensorcalibration` rows had inflated `raw_high` values (~3800) that were initially suspected as floating-pin spikes. Turned out to be **legitimate ESP32-C3 ADC non-linearity** near the rail — multimeter-verified 2.76 V on AOUT reads as raw ~3800 via `adc1_get_raw()` (no `esp_adc_cal` correction). Still did a clean wipe of plant-b and plant-c calibration + historical readings (backed up `dirt.db` first) so fresh calibrations seeded from measured wet/dry transitions. Current clean values: plant-b 1378/3806, plant-c 1383/3874 — tightly matched, both v2.0 sensors from the same pack behave identically.
+- **New quirks filed:** v1.2 vs v2.0 sensor differences (reseller "2.3V ceiling" claim doesn't match our hardware — ours outputs 2.76V); ESP32-C3 ADC over-reports by 200–400 counts above ~2.5V input; pyserial default DTR assertion resets ESP32-C3 on port open (fix: `s.dtr = False; s.rts = False` before `open()`).
+- New scratch tool: `debug/moisture_report.py` — per-plant snapshot of raw, calibration bounds, and normalized wet%.
+- Updated: [`hardware/esp32-plant-nodes.md`](hardware/esp32-plant-nodes.md), [`concepts/capacitive-soil-moisture.md`](concepts/capacitive-soil-moisture.md), [`overview.md`](overview.md), [`index.md`](index.md).
+
+## [2026-04-16] decision | Voice pipeline: ElevenLabs TTS + openWakeWord wake phrase
+- **TTS provider selected:** ElevenLabs `eleven_multilingual_v2` replaces Deepgram Aura-2. Voice persona is "Claudia" (bilingual English/Spanish). Settings: stability=0.55, similarity_boost=1.0, speed=1.08, +12 dB gain for Jabra playback.
+- **Wake word engine selected:** openWakeWord (Apache 2.0). Custom "hey claudia" model currently being trained via synthetic data. Always-on listener gates STT/LLM/TTS to avoid idle API costs.
+- **STT unchanged:** Deepgram Nova-3 retained.
+- **Architecture:** Jabra mic → openWakeWord (always-on) → trigger → Deepgram STT → LLM → ElevenLabs TTS → Jabra speaker.
+- Pilot: `debug/elevenlabs_tts.py` — ElevenLabs streaming TTS through Jabra proven end-to-end.
+- Dependency added: `elevenlabs` Python SDK.
+- New decision record: [`decisions/2026-04-16-voice-pipeline-selections.md`](decisions/2026-04-16-voice-pipeline-selections.md).
+- Updated: [`hardware/jabra.md`](hardware/jabra.md), [`overview.md`](overview.md), [`index.md`](index.md).
+
+## [2026-04-16] wake-word | Pipeline investigation, diagnostics, retraining strategy
+- **Default Piper-only openWakeWord model tested** via `debug/wake_word_test.py` against the Jabra mic. Close-range recall 70–80% at threshold 0.5–0.4; far-range recall collapsed to 40% with many utterances scoring near zero (model blind, not threshold-limited). Deepgram Nova-3 run as a control from the same far spot — about half the utterances came back garbled, confirming acoustic-path degradation is real but still less severe than the model's blindness.
+- **Decision: retrain with voice-matched + environment-matched data**. See [training strategy decision](decisions/2026-04-16-wake-word-training-strategy.md). Rejected alternatives: threshold tuning, Piper+MIT-RIR retrain, LoRA/fine-tune (no hooks, model too small), custom verifier only (precision-not-recall tool).
+- **Captured 4 room impulse responses** via exponential sine sweep + Farina deconvolution. Two-script setup: `debug/capture_rir_record.py` on the Jabra host, `debug/capture_rir_play.py` on the laptop at the capture position. Positions: loft_primary (65.8 dB SNR), stairs_top (69.6 dB), couch (67.1 dB), next_to_tent (77.3 dB). Output at `debug/rirs/ir/*.wav`, ready to drop into `rir_paths` in the training config.
+- **Voice-clone sample generation in progress**. ElevenLabs clone (voice ID `mjXJZpUEgv69eq6xrhlW`), `eleven_multilingual_v2` model, `pcm_16000` output for direct training-pipeline compatibility. Four phrase variants ("hey claudia," "Hey, Claudia," "hey Clowdia," "Hey, Clowdia") × 500 each via `debug/elevenlabs_clone_batch.py`. Phonetic spelling "CLAU-dyah" tested and rejected (sounded weird); "Clowdia" retained as it pronounces cleanly. First 2000-sample attempt hit a 4k-credit per-API-key cap; resumed after raising limit.
+- **Two new concept pages**:
+  - [`concepts/wake-word-detection.md`](concepts/wake-word-detection.md) — openWakeWord three-stage architecture (melspec → pretrained embedding → tiny classifier), why synthetic training works, frame-burst behavior, diagnostic protocol, custom verifier alternative.
+  - [`concepts/room-impulse-response.md`](concepts/room-impulse-response.md) — What IRs are and aren't, why they're useful for augmentation, Farina's sine sweep method, capture setup, caveats (speaker coloration, mouth directivity).
+- **New deps added**: `openwakeword` (also pulled in `onnxruntime`, `scipy`, `scikit-learn`, `protobuf`, etc.).
+- Updated: [`hardware/jabra.md`](hardware/jabra.md), [`index.md`](index.md).
