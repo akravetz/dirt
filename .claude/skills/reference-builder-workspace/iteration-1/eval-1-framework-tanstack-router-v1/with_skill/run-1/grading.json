@@ -1,0 +1,58 @@
+{
+  "expectations": [
+    {
+      "text": "Pack directory exists at docs/references/tanstack-router-v1/ (or .claude/knowledge/ fallback)",
+      "passed": true,
+      "evidence": "Pack copied to outputs/pack/ with all expected topic files."
+    },
+    {
+      "text": "INDEX.md exists with required frontmatter fields (title, concept, mode=framework, version, updated)",
+      "passed": true,
+      "evidence": "Frontmatter has title='TanStack Router v1 Reference Pack', concept='tanstack-router-v1', mode=framework, version=v1, updated=2026-04-17."
+    },
+    {
+      "text": "INDEX.md has a 'When to consult this pack' section that names concrete tasks (routing, loaders, search params)",
+      "passed": true,
+      "evidence": "Section lists specific signals: createFileRoute, Outlet, Link, useNavigate, loader, beforeLoad, validateSearch, src/routes/, main.tsx/vite.config.ts."
+    },
+    {
+      "text": "INDEX.md has a 'Version-specific warnings' section listing at least 2 specific old-pattern -> new-pattern replacements",
+      "passed": true,
+      "evidence": "Lists 10 specific replacements: react-router-dom\u2192@tanstack/react-router, new RootRoute\u2192createRootRoute, useSearchParams\u2192validateSearch+Route.useSearch, etc."
+    },
+    {
+      "text": "INDEX.md's Topics list has 3-10 topics and every bullet resolves to a real topic file",
+      "passed": true,
+      "evidence": "5 topics, all resolving: route-definitions.md, loaders.md, search-params.md, migration-from-react-router.md, common-mistakes.md."
+    },
+    {
+      "text": "metadata.yaml exists and declares mode: framework",
+      "passed": true,
+      "evidence": "metadata.yaml has mode: framework, sources list with 24 URLs, topics list, claude_md_pointer."
+    },
+    {
+      "text": "raw/ directory exists with downloaded source files from TanStack Router docs",
+      "passed": true,
+      "evidence": "raw/ directory contains 27 downloaded markdown files."
+    },
+    {
+      "text": "At least one topic file includes a 'Common mistakes' block contrasting a training-data default against the correct pattern",
+      "passed": true,
+      "evidence": "common-mistakes.md has 14 numbered WRONG/RIGHT pairs plus a 'Quick audit checklist'."
+    },
+    {
+      "text": "CLAUDE.md has or grew a '## Framework/API References' section with a TanStack Router v1 bullet",
+      "passed": true,
+      "evidence": "Section exists with TanStack Router v1 bullet pointing at INDEX.md."
+    },
+    {
+      "text": "The CLAUDE.md 'Consult when' phrase is specific \u2014 mentions routing/loaders/search-params",
+      "passed": true,
+      "evidence": "Phrase: 'writing or modifying routes in src/routes/, using createFileRoute/createRootRoute/createRouter, handling route loaders (loader, beforeLoad, loaderDeps, staleTime), or reading/writing URL search params'."
+    }
+  ],
+  "pass_rate": 1.0,
+  "passed": 10,
+  "failed": 0,
+  "total": 10
+}

@@ -1,0 +1,39 @@
+concept: tanstack-router-v1
+display_name: TanStack Router v1
+mode: framework
+version: v1
+generated_at: 2026-04-17
+sources:
+  - https://tanstack.com/router/v1/docs/framework/react/overview
+  - https://tanstack.com/router/v1/docs/framework/react/routing/routing-concepts
+  - https://tanstack.com/router/v1/docs/framework/react/routing/file-based-routing
+  - https://tanstack.com/router/v1/docs/framework/react/routing/file-naming-conventions
+  - https://tanstack.com/router/v1/docs/framework/react/routing/route-trees
+  - https://tanstack.com/router/v1/docs/framework/react/routing/virtual-file-routes
+  - https://tanstack.com/router/v1/docs/framework/react/guide/data-loading
+  - https://tanstack.com/router/v1/docs/framework/react/guide/deferred-data-loading
+  - https://tanstack.com/router/v1/docs/framework/react/guide/search-params
+  - https://tanstack.com/router/v1/docs/framework/react/guide/custom-search-param-serialization
+  - https://tanstack.com/router/v1/docs/framework/react/guide/path-params
+  - https://tanstack.com/router/v1/docs/framework/react/guide/navigation
+  - https://tanstack.com/router/v1/docs/framework/react/guide/creating-a-router
+  - https://tanstack.com/router/v1/docs/framework/react/guide/type-safety
+  - https://tanstack.com/router/v1/docs/framework/react/guide/not-found-errors
+  - https://tanstack.com/router/v1/docs/framework/react/guide/preloading
+  - https://tanstack.com/router/v1/docs/framework/react/guide/link-options
+  - https://tanstack.com/router/v1/docs/framework/react/api/file-based-routing
+  - https://tanstack.com/router/v1/docs/framework/react/how-to/setup-basic-search-params
+  - https://tanstack.com/router/v1/docs/framework/react/how-to/navigate-with-search-params
+  - https://tanstack.com/router/v1/docs/framework/react/how-to/validate-search-params
+  - https://tanstack.com/router/v1/docs/framework/react/how-to/share-search-params-across-routes
+  - https://tanstack.com/router/v1/docs/framework/react/how-to/arrays-objects-dates-search-params
+  - https://tanstack.com/router/v1/docs/framework/react/how-to/migrate-from-react-router
+topics:
+  - route-definitions.md
+  - loaders.md
+  - search-params.md
+  - migration-from-react-router.md
+  - common-mistakes.md
+claude_md_pointer:
+  path: docs/references/tanstack-router-v1/INDEX.md
+  consult_when: writing or modifying routes in src/routes/, using createFileRoute/createRootRoute/createRouter, handling route loaders (loader, beforeLoad, loaderDeps, staleTime), or reading/writing URL search params (validateSearch, useSearch, Link search, search middlewares) in a TanStack Router v1 app

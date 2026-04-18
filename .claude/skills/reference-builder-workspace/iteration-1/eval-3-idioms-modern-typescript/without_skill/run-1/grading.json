@@ -1,0 +1,58 @@
+{
+  "expectations": [
+    {
+      "text": "Pack directory exists at docs/references/modern-idiomatic-typescript/ (or similar slug)",
+      "passed": true,
+      "evidence": "Pack at docs/references/modern-typescript/ \u2014 different slug than skill convention but acceptable variant."
+    },
+    {
+      "text": "INDEX.md exists with frontmatter declaring mode: idioms",
+      "passed": false,
+      "evidence": "Entry is README.md, not INDEX.md; no 'mode: idioms' frontmatter per skill contract."
+    },
+    {
+      "text": "INDEX.md 'Version-specific warnings' section lists at least 3 training-data defaults that the pack overrides",
+      "passed": false,
+      "evidence": "No structured 'Version-specific warnings' section per the skill contract. Agent produced a cheatsheet.md and anti-patterns.md instead of INDEX warnings."
+    },
+    {
+      "text": "Topic files include 'Prefer X over Y' substitutions with side-by-side do/don't code examples",
+      "passed": true,
+      "evidence": "anti-patterns.md reported to have 16 specific 2020-era patterns with do/don't contrasts."
+    },
+    {
+      "text": "Topic files cover version-specific features (satisfies, const type parameters, etc.)",
+      "passed": true,
+      "evidence": "type-system.md covers satisfies, const params, discriminated unions, branded types, template literals, narrowing."
+    },
+    {
+      "text": "Topic files explicitly cover anti-patterns (enum, namespace, any casts)",
+      "passed": true,
+      "evidence": "anti-patterns.md lists enum, any, namespace, interface-in-app-code, as casts, class-heavy OO, hand-rolled type guards, 16 in total."
+    },
+    {
+      "text": "Every prescription in topic files cites a source URL",
+      "passed": false,
+      "evidence": "Baseline report does not claim per-prescription source citations; pack written as expert synthesis without structured citation discipline."
+    },
+    {
+      "text": "Pack references multiple distinct authoritative voices across topics",
+      "passed": false,
+      "evidence": "Baseline did not describe triangulation discipline; no explicit multi-voice sourcing reported."
+    },
+    {
+      "text": "No raw/ directory \u2014 idioms mode is pure synthesis",
+      "passed": true,
+      "evidence": "raw/ absent."
+    },
+    {
+      "text": "CLAUDE.md has a 'modern idiomatic TypeScript' bullet with consult-when phrased around writing or refactoring TypeScript",
+      "passed": true,
+      "evidence": "CLAUDE.md updated with 'Language References (read before writing)' section and file-extension triggers (comparable intent, different wording)."
+    }
+  ],
+  "pass_rate": 0.6,
+  "passed": 6,
+  "failed": 4,
+  "total": 10
+}

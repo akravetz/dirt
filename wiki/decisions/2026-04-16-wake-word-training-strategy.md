@@ -79,8 +79,25 @@ If recall still insufficient, next escalations (ordered): capture more RIRs at a
 ## Status
 
 - [x] Scripts written and validated
-- [x] 4 RIRs captured (`loft_primary`, `stairs_top`, `couch`, `next_to_tent`)
-- [x] Voice clone created
-- [ ] 2,000 voice-clone samples generated (in progress 2026-04-16)
-- [ ] Colab training run
-- [ ] Re-test and document results
+- [x] 9 RIRs captured (`loft_primary`, `loft_2`, `mid_loft`, `stairs_top`, `couch`, `couch_far`, `kitchen_far`, `next_to_tent`, `tent_far`), SNR 65–77 dB
+- [x] Voice clone created (ElevenLabs ID `mjXJZpUEgv69eq6xrhlW`)
+- [x] 2,000 voice-clone samples generated across 4 phrase variants
+- [x] Colab training (3 iterations; v3 shipped)
+- [x] Real-world test on Jabra — 89% recall at threshold 0.4, confidence 0.95–0.99 on clean hits
+
+## Results (v3, 2026-04-16)
+
+Three training runs:
+
+| Version | Validation accuracy | Validation recall | FP/hour | Notes |
+|---------|-------------------|-------------------|---------|-------|
+| v1 | — | — | — | Default Piper-only baseline. Real-world: 70% close, 40% far. |
+| v2 | 0.849 | 0.700 | ~1.3 | Added voice clones + RIRs + train/test split. Real-world: 71% (5/7). |
+| **v3** | **0.890** | **0.794** | 6.64 | Plus `max_negative_weight=500`, `target_recall=0.85`, 20k training steps. Real-world: **89% (8/9)**, peaks consistently 0.95–0.99. |
+
+Key lessons:
+- **The train/test split was the biggest lever.** v1 → v2 took validation recall from 11% (measuring cross-speaker generalization on LibriTTS) to 70% (measuring our-voice recall on held-out clones). The initial "low recall" signal in v1 was largely an artifact of distribution mismatch.
+- **`max_negative_weight` tunes the precision/recall tradeoff directly.** Dropping it from 1500 to 500 moved real-world recall from 71% → 89% at the cost of pushing validation FP/hour from 1.3 to 6.6 (still unknown how that translates to real household audio).
+- **Confidence jumped qualitatively, not just quantitatively.** v3's clean hits land at 0.95–0.99 where v2's topped out around 0.88. This means the runtime threshold has headroom — could be raised to 0.5 or higher to trade a bit of recall for precision without losing most clean fires.
+
+Final model shipped at `debug/hey_claudia.onnx` (~206 KB ONNX). Older versions archived at `hey_claudia_v1.onnx` (Piper-only baseline) and `hey_claudia_v2.onnx` (conservative).

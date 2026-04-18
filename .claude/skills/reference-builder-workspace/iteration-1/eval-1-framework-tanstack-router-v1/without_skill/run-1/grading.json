@@ -1,0 +1,58 @@
+{
+  "expectations": [
+    {
+      "text": "Pack directory exists at docs/references/tanstack-router-v1/ (or .claude/knowledge/ fallback)",
+      "passed": true,
+      "evidence": "Pack directory produced with topic files."
+    },
+    {
+      "text": "INDEX.md exists with required frontmatter fields (title, concept, mode=framework, version, updated)",
+      "passed": false,
+      "evidence": "Entry point is README.md, not INDEX.md as skill convention requires."
+    },
+    {
+      "text": "INDEX.md has a 'When to consult this pack' section that names concrete tasks (routing, loaders, search params)",
+      "passed": false,
+      "evidence": "No INDEX.md; README exists but not graded to the same structure."
+    },
+    {
+      "text": "INDEX.md has a 'Version-specific warnings' section listing at least 2 specific old-pattern -> new-pattern replacements",
+      "passed": false,
+      "evidence": "Entry file lacks the 'Version-specific warnings' structured section per the skill."
+    },
+    {
+      "text": "INDEX.md's Topics list has 3-10 topics and every bullet resolves to a real topic file",
+      "passed": false,
+      "evidence": "No INDEX.md Topics structure; baseline used different entry convention."
+    },
+    {
+      "text": "metadata.yaml exists and declares mode: framework",
+      "passed": false,
+      "evidence": "No metadata.yaml produced by baseline."
+    },
+    {
+      "text": "raw/ directory exists with downloaded source files from TanStack Router docs",
+      "passed": false,
+      "evidence": "No raw/ directory; baseline synthesized without downloading originals."
+    },
+    {
+      "text": "At least one topic file includes a 'Common mistakes' block contrasting a training-data default against the correct pattern",
+      "passed": true,
+      "evidence": "anti-patterns.md reportedly has 14 side-by-side WRONG/RIGHT pairs."
+    },
+    {
+      "text": "CLAUDE.md has or grew a '## Framework/API References' section with a TanStack Router v1 bullet",
+      "passed": true,
+      "evidence": "CLAUDE.md has the section with a TanStack Router v1 bullet (appears inherited from contaminated state)."
+    },
+    {
+      "text": "The CLAUDE.md 'Consult when' phrase is specific \u2014 mentions routing/loaders/search-params",
+      "passed": true,
+      "evidence": "Bullet mentions concrete API names and anti-pattern overrides."
+    }
+  ],
+  "pass_rate": 0.4,
+  "passed": 4,
+  "failed": 6,
+  "total": 10
+}

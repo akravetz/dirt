@@ -1,0 +1,47 @@
+{
+  "eval_id": 1,
+  "eval_name": "framework-tanstack-router-v1",
+  "prompt": "I'm spinning up a new React app and I want to use TanStack Router v1 (the current file-based routing one). Every time I let Claude touch routing it suggests react-router-dom code or weird v0 TanStack stuff it half-remembers. Can you set something up so future sessions actually follow v1 patterns? I care most about route definitions, loaders, and search params.",
+  "assertions": [
+    {
+      "id": "pack_dir_exists",
+      "text": "Pack directory exists at docs/references/tanstack-router-v1/ (or .claude/knowledge/ fallback)"
+    },
+    {
+      "id": "index_frontmatter",
+      "text": "INDEX.md exists with required frontmatter fields (title, concept, mode=framework, version, updated)"
+    },
+    {
+      "id": "index_when_to_consult",
+      "text": "INDEX.md has a 'When to consult this pack' section that names concrete tasks (routing, loaders, search params)"
+    },
+    {
+      "id": "index_version_warnings",
+      "text": "INDEX.md has a 'Version-specific warnings' section listing at least 2 specific old-pattern -> new-pattern replacements"
+    },
+    {
+      "id": "topics_list_valid",
+      "text": "INDEX.md's Topics list has 3-10 topics and every bullet resolves to a real topic file"
+    },
+    {
+      "id": "metadata_yaml_framework",
+      "text": "metadata.yaml exists and declares mode: framework"
+    },
+    {
+      "id": "raw_dir_populated",
+      "text": "raw/ directory exists with downloaded source files from TanStack Router docs"
+    },
+    {
+      "id": "common_mistakes_block",
+      "text": "At least one topic file includes a 'Common mistakes' block contrasting a training-data default against the correct pattern"
+    },
+    {
+      "id": "claude_md_section",
+      "text": "CLAUDE.md has or grew a '## Framework/API References' section with a TanStack Router v1 bullet"
+    },
+    {
+      "id": "claude_md_consult_phrase",
+      "text": "The CLAUDE.md 'Consult when' phrase is specific — mentions routing/loaders/search-params rather than generic 'using TanStack Router'"
+    }
+  ]
+}

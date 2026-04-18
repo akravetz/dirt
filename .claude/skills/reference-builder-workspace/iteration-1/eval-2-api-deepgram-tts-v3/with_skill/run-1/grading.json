@@ -1,0 +1,58 @@
+{
+  "expectations": [
+    {
+      "text": "Pack directory exists at docs/references/deepgram-tts-aura-2/ (or similar deepgram-tts slug)",
+      "passed": true,
+      "evidence": "Pack at deepgram-tts-aura-2/ (agent corrected the user's 'v3' misnomer)."
+    },
+    {
+      "text": "INDEX.md exists with frontmatter declaring mode: api",
+      "passed": true,
+      "evidence": "Frontmatter: mode: api, version: Aura-2."
+    },
+    {
+      "text": "INDEX.md 'When to consult' section names concrete API tasks (request bodies, auth, streaming, error handling)",
+      "passed": true,
+      "evidence": "Names synthesizing audio, configuring voice agent speech output, opening streaming socket, picking voice/model id, handling auth."
+    },
+    {
+      "text": "A topic file covers request/response format with exact field names verbatim from docs",
+      "passed": true,
+      "evidence": "wire-format-rest.md has verbatim request shape {'text':'...'}, full query-param table with all valid encoding/container/sample_rate combinations, pulled from official docs."
+    },
+    {
+      "text": "At least one topic file has a 'Common mistakes' block calling out confusable field names (e.g. voice_id vs model)",
+      "passed": true,
+      "evidence": "INDEX 'Version-specific warnings' and wire-format-rest both call out voice_id (not a field), model in body (wrong location), voice.* nested object (doesn't exist)."
+    },
+    {
+      "text": "Every wire-format claim in topic files cites a deepgram.com (or developers.deepgram.com) URL at point of use",
+      "passed": true,
+      "evidence": "Multiple developers.deepgram.com/docs/... source URLs cited inline at each claim in wire-format-rest.md."
+    },
+    {
+      "text": "metadata.yaml exists and declares mode: api",
+      "passed": true,
+      "evidence": "metadata.yaml present with mode: api."
+    },
+    {
+      "text": "No raw/ directory \u2014 api mode is synthesis, not a mirror",
+      "passed": true,
+      "evidence": "raw/ absent (confirmed by test -d)."
+    },
+    {
+      "text": "Quick-start topic has both a curl example AND an SDK example (Python or Node)",
+      "passed": true,
+      "evidence": "quick-start.md reported to have minimal runnable Python and curl examples for both REST and WebSocket."
+    },
+    {
+      "text": "CLAUDE.md has a Deepgram TTS v3 bullet with a specific consult-when phrase",
+      "passed": true,
+      "evidence": "Bullet: 'Consult when writing any code that calls Deepgram text-to-speech (REST POST /v1/speak or WebSocket wss://api.deepgram.com/v1/speak), picking a voice/model id, setting up the voice agent's TTS output, or handling Deepgram auth.'"
+    }
+  ],
+  "pass_rate": 1.0,
+  "passed": 10,
+  "failed": 0,
+  "total": 10
+}

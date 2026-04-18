@@ -12,6 +12,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Repo**: https://github.com/akravetz/dirt
 - **Project Board**: https://github.com/users/akravetz/projects/1/views/1
 
+## Framework/API References
+
+Knowledge packs live in `docs/references/`. Before writing code that touches any of these concepts, read the linked `INDEX.md` first — the pack anchors to current practice and should override any conflicting training-data instincts.
+
+- **Deepgram TTS (Aura-2)** — `docs/references/deepgram-tts-aura-2/INDEX.md`. Consult when writing any code that calls Deepgram text-to-speech (REST `POST /v1/speak` or WebSocket `wss://api.deepgram.com/v1/speak`), picking a voice/model id, setting up the voice agent's TTS output, or handling Deepgram auth.
+- **Modern Idiomatic TypeScript** — `docs/references/modern-idiomatic-typescript/INDEX.md`. Consult when writing or refactoring any `.ts`/`.tsx` file, choosing lint/format tooling, or editing `tsconfig.json` — anchors to current practice (`satisfies`, discriminated unions, branded types, Biome) and overrides training-data defaults like `enum`, `namespace`, `any`, and ESLint+Prettier scaffolds.
+- **TanStack Router v1** — `docs/references/tanstack-router-v1/INDEX.md`. Consult when writing or modifying routes in `src/routes/`, using `createFileRoute` / `createRootRoute` / `createRouter`, handling route loaders (`loader`, `beforeLoad`, `loaderDeps`, `staleTime`), or reading/writing URL search params (`validateSearch`, `useSearch`, `<Link search>`, search middlewares) in a TanStack Router v1 app. Overrides training-data instincts to reach for `react-router-dom`, v0 `new Router()` / `new RootRoute()` syntax, `useSearchParams`, or `useEffect`-based data fetching.
+
 ## Commands
 
 ### Monitoring App
@@ -52,6 +60,7 @@ This file is the discovery layer. Read deeper docs before starting work in an ar
 - **`docs/epics/`** — Epic context and scope. Read the relevant epic README before starting work. Issues are tracked on the [GitHub project board](https://github.com/users/akravetz/projects/1/views/1) — find issues for an epic with `gh issue list --repo akravetz/dirt --label "epic:<slug>"`.
 - **`docs/progress/`** — Feature progress tracking between PRs. Update after completing work.
 - **`docs/rules/`** — Codebase rules and conventions. Read before making changes.
+- **`docs/references/`** — Version-pinned reference packs. See the "Framework/API References" section at the top of this file for the list and triggers.
 
 ## Test Ownership
 

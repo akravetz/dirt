@@ -1,0 +1,45 @@
+concept: modern-idiomatic-typescript
+display_name: Modern Idiomatic TypeScript
+mode: idioms
+version: TypeScript 5.x (through 5.7), Biome 2.x
+generated_at: 2026-04-17
+sources:
+  - https://www.totaltypescript.com/
+  - https://www.totaltypescript.com/clarifying-the-satisfies-operator
+  - https://www.totaltypescript.com/how-to-use-satisfies-operator
+  - https://www.totaltypescript.com/four-essential-typescript-patterns
+  - https://www.totaltypescript.com/workshops/advanced-typescript-patterns/branded-types/what-is-a-branded-type
+  - https://www.totaltypescript.com/type-vs-interface-which-should-you-use
+  - https://effectivetypescript.com/
+  - https://effectivetypescript.com/2024/02/27/type-guards/
+  - https://2ality.com/2025/01/typescript-enum-patterns.html
+  - https://2ality.com/2020/02/enum-alternatives-typescript.html
+  - https://2ality.com/2020/06/type-guards-assertion-functions-typescript.html
+  - https://2ality.com/2025/01/tsconfig-json.html
+  - https://2ality.com/2025/02/typescript-esm-packages.html
+  - https://biomejs.dev/
+  - https://biomejs.dev/blog/biome-v2/
+  - https://biomejs.dev/guides/migrate-eslint-prettier/
+  - https://typescript-eslint.io/rules/no-namespace/
+  - https://www.typescriptlang.org/tsconfig/
+  - https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-9.html
+  - https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-4.html
+  - https://www.typescriptlang.org/docs/handbook/2/narrowing.html
+  - https://www.typescriptlang.org/docs/handbook/namespaces-and-modules.html
+  - https://devblogs.microsoft.com/typescript/announcing-typescript-5-0/
+  - https://nodejs.org/api/esm.html
+  - https://gist.github.com/sindresorhus/a39789f98801d908bbc7ff3ecc99d99c
+  - https://react.dev/reference/react/Component
+  - https://matklad.github.io/2023/08/17/typescript-is-surprisingly-ok-for-compilers.html
+  - https://x.com/mattpocockuk/status/1598708710523772929
+  - https://x.com/mattpocockuk/status/1685947322491154433
+topics:
+  - satisfies-over-assertions.md
+  - no-enum-discriminated-unions.md
+  - unknown-over-any.md
+  - branded-types.md
+  - no-namespace-no-classes.md
+  - tooling.md
+claude_md_pointer:
+  path: docs/references/modern-idiomatic-typescript/INDEX.md
+  consult_when: writing or refactoring any TypeScript (`.ts`/`.tsx`) file, choosing lint/format tooling, or editing `tsconfig.json` — anchors to current practice (satisfies, discriminated unions, branded types, Biome) and overrides training-data defaults like `enum`, `namespace`, `any`, and ESLint+Prettier scaffolds

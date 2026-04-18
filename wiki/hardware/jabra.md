@@ -20,7 +20,7 @@ USB-corded conference speakerphone sitting outside the grow tent. Handles both m
 | Playback volume | ✅ Set to max (100% / +8dB) | Default shipped at 55% / -12dB. Persist with `sudo alsactl store 2`. |
 | STT pipeline | ✅ Pilot proven | `debug/deepgram_roundtrip.py` — Nova-3 streaming from the Jabra mic, transcribes cleanly over tent fan noise |
 | TTS pipeline | ✅ Pilot proven | ElevenLabs `eleven_multilingual_v2` via `debug/elevenlabs_tts.py`; "Claudia" voice; +12 dB gain; PCM 48 kHz stereo. Replaces Deepgram Aura-2 from initial pilot. |
-| Wake word | 🔧 Retraining | openWakeWord — custom "hey claudia" model. Initial model had 40% far-field recall; retraining with voice-clone + captured RIRs. See [wake-word-detection concept](../concepts/wake-word-detection.md) and [training strategy decision](../decisions/2026-04-16-wake-word-training-strategy.md). |
+| Wake word | ✅ Trained (v3) | openWakeWord "hey claudia" — 89% real-world recall at threshold 0.4 after 3 training iterations. Final model at `debug/hey_claudia.onnx`. See [wake-word-detection concept](../concepts/wake-word-detection.md) and [training strategy decision](../decisions/2026-04-16-wake-word-training-strategy.md). |
 | Production voice channel | ❌ Not yet | No `channels/voice.py`, no session logging, no agent integration |
 | Noise suppression | ❌ Not yet | Jabra has no echo cancellation for sustained fans; RNNoise or similar would help |
 
@@ -88,11 +88,35 @@ sudo alsactl store 2          # persist
 
 ## Related Files
 
-- `debug/deepgram_roundtrip.py` — end-to-end STT+TTS pilot (Deepgram Aura-2)
-- `debug/elevenlabs_tts.py` — ElevenLabs TTS pilot ("Claudia" voice)
+### Debug scripts (pilot / test)
+- `debug/deepgram_roundtrip.py` — STT+TTS pilot (Deepgram Nova-3 + Aura-2)
+- `debug/deepgram_transcribe_only.py` — STT-only (no TTS response); used for mic-reach diagnostics
+- `debug/elevenlabs_tts.py` — ElevenLabs TTS pilot ("Claudia" persona voice, +12 dB gain)
+- `debug/elevenlabs_clone_test.py` — voice-clone smoke test (3 samples, varied settings)
+- `debug/elevenlabs_clone_batch.py` — resume-safe batch voice-clone generator (target-based, not delta-based). Produced the 2,000 training samples.
+- `debug/wake_word_test.py` — openWakeWord diagnostic: logs every frame above floor with timestamp, no cooldown. Used for recall measurement and threshold tuning.
+- `debug/wake_word_response.py` — **full wake→respond demo**: listens for "hey Claudia" via openWakeWord, plays cached ElevenLabs response through Jabra, handles self-hear quench. This is the closest thing to the production voice channel.
+- `debug/capture_rir_record.py` — RIR capture recorder (runs on Jabra host). Records 30-45s sweep window, deconvolves (Farina method), saves IR + raw recording.
+- `debug/capture_rir_play.py` — RIR capture sweep player (runs on laptop at capture position). Identical sweep parameters as recorder — no file sync needed.
+
+### Data artifacts
+- `debug/hey_claudia.onnx` — **current wake-word model (v3)**: 89% real-world recall at threshold 0.35, peaks 0.95–0.99. Trained on 1500 voice-clone positives + 9 captured RIRs + ACAV100M negatives.
+- `debug/hey_claudia_v2.onnx` — conservative v2 (70% recall). Kept for comparison.
+- `debug/hey_claudia_v1.onnx` — Piper-only baseline (40-70% recall depending on distance). Kept for comparison.
+- `debug/voice_samples/` — 2,000 ElevenLabs voice-clone WAVs (16 kHz mono). 4 phrase variants × 500 each. Training data for wake-word model.
+- `debug/rirs/ir/` — 9 captured room impulse responses (16 kHz mono, 1505ms each, 65–77 dB SNR). Used as augmentation RIRs during training.
+- `debug/rirs/raw/` — raw sweep recordings before deconvolution. For re-processing if needed.
+- `debug/openwakeword_src/` — cloned openWakeWord repo (includes `train.py`, `data.py`, `examples/custom_model.yml`)
+- `debug/automatic_model_training.py` — Colab training notebook exported as Python. Reference for training config and pipeline.
+
+### Architecture / decisions
 - `debug/jabra.md` — agent handoff: gotchas + production TODO
 - `docs/epics/live-audio/README.md` — epic scope
 - `wiki/decisions/2026-04-12-audio-hardware-selection.md` — why this device
+- `wiki/decisions/2026-04-16-voice-pipeline-selections.md` — ElevenLabs + openWakeWord + Deepgram chosen
+- `wiki/decisions/2026-04-16-wake-word-training-strategy.md` — voice clone + RIR retraining (full results + lessons learned)
+- `wiki/concepts/wake-word-detection.md` — how openWakeWord works, training pipeline, threshold tuning
+- `wiki/concepts/room-impulse-response.md` — RIR theory, Farina sine sweep method, capture setup
 - `docs/adrs/005-agent-architecture.md` — channel adapter pattern (voice parallels Telegram)
 
 ## Hardware Specs
@@ -111,5 +135,5 @@ sudo alsactl store 2          # persist
 ## Known Limitations
 
 - **No echo cancellation for sustained fan noise.** Conference-call DSP only kicks in for speech-vs-silence, not speech-vs-broadband. Our tent fans run 24/7. Plan for a software noise suppressor (RNNoise, Krisp) before STT in the production path if Nova-3's built-in noise handling ever proves insufficient — the pilot showed it's adequate for now.
-- **Self-hear during playback.** The pilot mutes mic input while TTS plays to avoid transcribing Claude's own voice. A more robust approach would be acoustic echo cancellation (AEC) — the Jabra doesn't provide it; we'd have to add it upstream.
+- **Self-hear during playback.** The Jabra's speaker output is picked up by its own mic. Software muting (`playing.set()` flag in the mic callback) prevents wake-word re-triggering during playback. Additionally, an 800ms "tail quench" period after `sd.play()` returns is needed because the speaker keeps emitting briefly after the software reports playback complete, and room reverb takes time to decay. Discovered and solved in `debug/wake_word_response.py`. A more robust long-term approach would be acoustic echo cancellation (AEC) — the Jabra doesn't provide it; we'd have to add it upstream.
 - **Older device, may not receive firmware updates.** The Speak 410 is the oldest Jabra Speak model; Jabra's supported its successors (510/710/810/2510 Speak 2) more actively. Treat the firmware clock-rate workaround as permanent.

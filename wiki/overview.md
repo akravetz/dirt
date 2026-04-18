@@ -96,7 +96,7 @@ updated: 2026-04-16
 | **Reservoir level** (XKC-Y25-T12V) | Planned | Not yet deployed |
 | **Humidifier control** (Raydrop 4L + G3MB-202P SSR) | Hardware en route (ETA 2026-04-15) | Closed-loop RH control from Arduino Nano DHT22. See `hardware/humidifier-control.md`. |
 | **PTZ camera** (OBSBOT Tiny 2 Lite) | Online (2026-04-15) | Persistent C++ daemon + `scripts/camera` CLI. Per-plant presets calibrated. See `hardware/ptz-camera.md`. |
-| **Jabra Speak 410** (voice I/O) | Connected 2026-04-15 | STT: Deepgram Nova-3. TTS: ElevenLabs "Claudia" (`eleven_multilingual_v2`). Wake word: openWakeWord ("hey claudia", training). Production channel adapter still pending. See `hardware/jabra.md`. |
+| **Jabra Speak 410** (voice I/O) | Connected 2026-04-15 | Full voice pipeline proven end-to-end: openWakeWord v3 (89% recall) → Deepgram Nova-3 STT → ElevenLabs "Claudia" TTS. Production `channels/voice.py` pending. See `hardware/jabra.md`. |
 
 ## Denver Water Notes
 - Tap pH: 8.5–8.8 → GH pH Down required at every fill

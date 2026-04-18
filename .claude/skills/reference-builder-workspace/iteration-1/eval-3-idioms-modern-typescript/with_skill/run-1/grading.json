@@ -1,0 +1,58 @@
+{
+  "expectations": [
+    {
+      "text": "Pack directory exists at docs/references/modern-idiomatic-typescript/ (or similar slug)",
+      "passed": true,
+      "evidence": "Pack at docs/references/modern-idiomatic-typescript/ \u2014 matches skill's slug convention."
+    },
+    {
+      "text": "INDEX.md exists with frontmatter declaring mode: idioms",
+      "passed": true,
+      "evidence": "Frontmatter: mode: idioms, version: 'TypeScript 5.x (through 5.7), Biome 2.x'."
+    },
+    {
+      "text": "INDEX.md 'Version-specific warnings' section lists at least 3 training-data defaults that the pack overrides",
+      "passed": true,
+      "evidence": "Lists 9 training-data defaults: enum, namespace, as cast, any, class-heavy, ESLint+Prettier, type Id=string, interface-for-props-by-default, strict-only tsconfig."
+    },
+    {
+      "text": "Topic files include 'Prefer X over Y' substitutions with side-by-side do/don't code examples",
+      "passed": true,
+      "evidence": "satisfies-over-assertions.md has a 'Do / Don't' block with three side-by-side examples (satisfies vs variable-annotation vs as cast)."
+    },
+    {
+      "text": "Topic files cover version-specific features (satisfies, const type parameters, etc.)",
+      "passed": true,
+      "evidence": "satisfies-over-assertions.md covers TS 4.9 satisfies; pack also has branded-types.md, no-enum-discriminated-unions.md, unknown-over-any.md."
+    },
+    {
+      "text": "Topic files explicitly cover anti-patterns (enum, namespace, any casts)",
+      "passed": true,
+      "evidence": "Dedicated files: no-enum-discriminated-unions.md, no-namespace-no-classes.md, unknown-over-any.md."
+    },
+    {
+      "text": "Every prescription in topic files cites a source URL",
+      "passed": true,
+      "evidence": "Every load-bearing rule in satisfies-over-assertions.md has an inline URL (totaltypescript.com, typescriptlang.org handbook, 2ality.com, effectivetypescript.com)."
+    },
+    {
+      "text": "Pack references multiple distinct authoritative voices across topics \u2014 not resting on a single blog source",
+      "passed": true,
+      "evidence": "Satisfies file alone cites Matt Pocock, Axel Rauschmayer (2ality), Dan Vanderkam (Effective TypeScript). Agent report: 'Every prescription...triangulated across 2-3 independent authoritative sources.'"
+    },
+    {
+      "text": "No raw/ directory \u2014 idioms mode is pure synthesis",
+      "passed": true,
+      "evidence": "raw/ absent (confirmed by test -d)."
+    },
+    {
+      "text": "CLAUDE.md has a 'modern idiomatic TypeScript' bullet with consult-when phrased around writing or refactoring TypeScript",
+      "passed": true,
+      "evidence": "Bullet: 'Consult when writing or refactoring any .ts/.tsx file, choosing lint/format tooling, or editing tsconfig.json \u2014 anchors to current practice (satisfies, discriminated unions, branded types, Biome) and overrides training-data defaults like enum, namespace, any, and ESLint+Prettier scaffolds.'"
+    }
+  ],
+  "pass_rate": 1.0,
+  "passed": 10,
+  "failed": 0,
+  "total": 10
+}

@@ -1,0 +1,32 @@
+concept: deepgram-tts-aura-2
+display_name: Deepgram TTS (Aura-2)
+mode: api
+version: Aura-2 (current generation; API surface is v1)
+generated_at: 2026-04-17
+sources:
+  - https://developers.deepgram.com/docs/text-to-speech
+  - https://developers.deepgram.com/docs/tts-rest
+  - https://developers.deepgram.com/docs/tts-websocket
+  - https://developers.deepgram.com/docs/tts-websocket-streaming
+  - https://developers.deepgram.com/docs/tts-models
+  - https://developers.deepgram.com/docs/tts-media-output-settings
+  - https://developers.deepgram.com/docs/tts-ws-clear
+  - https://developers.deepgram.com/docs/tts-ws-close
+  - https://developers.deepgram.com/docs/audio-keep-alive
+  - https://developers.deepgram.com/docs/errors
+  - https://developers.deepgram.com/reference/api-rate-limits
+  - https://developers.deepgram.com/reference/deepgram-api-overview
+  - https://github.com/deepgram/deepgram-python-sdk
+topics:
+  - wire-format-rest.md
+  - wire-format-websocket.md
+  - auth.md
+  - voice-models.md
+  - errors-and-rate-limits.md
+  - quick-start.md
+claude_md_pointer:
+  path: docs/references/deepgram-tts-aura-2/INDEX.md
+  consult_when: writing any code that calls Deepgram text-to-speech (REST /v1/speak or WebSocket wss://api.deepgram.com/v1/speak), picking a voice/model id, setting up the voice agent's TTS output, or handling Deepgram auth
+notes:
+  - User referred to this as "Deepgram TTS v3 with Aura voices". Deepgram has no v3 product — the API surface is v1 and the current voice generation is Aura-2 (not Aura, not Aura v3). Pack slug reflects reality (aura-2) rather than the user's initial wording.
+  - Biggest training-data drift risks addressed. `model` is a query parameter (not body field); there is no `voice_id`, `voice.name`, or nested `voice` object.
