@@ -19,6 +19,7 @@ Knowledge packs live in `docs/references/`. Before writing code that touches any
 - **Deepgram TTS (Aura-2)** — `docs/references/deepgram-tts-aura-2/INDEX.md`. Consult when writing any code that calls Deepgram text-to-speech (REST `POST /v1/speak` or WebSocket `wss://api.deepgram.com/v1/speak`), picking a voice/model id, setting up the voice agent's TTS output, or handling Deepgram auth.
 - **Modern Idiomatic TypeScript** — `docs/references/modern-idiomatic-typescript/INDEX.md`. Consult when writing or refactoring any `.ts`/`.tsx` file, choosing lint/format tooling, or editing `tsconfig.json` — anchors to current practice (`satisfies`, discriminated unions, branded types, Biome) and overrides training-data defaults like `enum`, `namespace`, `any`, and ESLint+Prettier scaffolds.
 - **TanStack Router v1** — `docs/references/tanstack-router-v1/INDEX.md`. Consult when writing or modifying routes in `src/routes/`, using `createFileRoute` / `createRootRoute` / `createRouter`, handling route loaders (`loader`, `beforeLoad`, `loaderDeps`, `staleTime`), or reading/writing URL search params (`validateSearch`, `useSearch`, `<Link search>`, search middlewares) in a TanStack Router v1 app. Overrides training-data instincts to reach for `react-router-dom`, v0 `new Router()` / `new RootRoute()` syntax, `useSearchParams`, or `useEffect`-based data fetching.
+- **Pipecat v1.0** — `docs/references/pipecat/INDEX.md`. Consult when writing code that imports from `pipecat.*`, building a `Pipeline`/`PipelineTask`/`PipelineRunner`, instantiating a Pipecat service (`AnthropicLLMService`, `DeepgramSTTService`, `ElevenLabsTTSService`, etc.), configuring a transport (`LocalAudioTransport`, `DailyTransport`), or wiring a VAD/`SileroVADAnalyzer` into a pipeline. Pipecat v1.0.0 shipped 2026-04-14 with major breaking changes from v0.x — training data will suggest `OpenAILLMContext`, `llm.create_context_aggregator(...)`, `TransportParams(vad_analyzer=...)`, and `allow_interruptions=True`, all of which are gone or relocated in v1.0.
 
 ## Commands
 
@@ -50,6 +51,16 @@ Knowledge packs live in `docs/references/`. Before writing code that touches any
 - **Current state**: `scripts/camera where` (adds `--json` for structured output)
 - **Daemon status**: `systemctl --user status dirt-camera` / `journalctl --user -u dirt-camera -f`
 - **Full operational spec**: `wiki/hardware/ptz-camera.md`. Do NOT bypass the CLI by calling the daemon's socket directly or running debug/obsbot_* binaries — the CLI handles user-frame translation, preset lookup, and error reporting.
+
+### Voice Channel (Claudia)
+
+- **Service status**: `systemctl --user status dirt-voice` / `journalctl --user -u dirt-voice -f`
+- **Stop / start / restart**: `systemctl --user {stop,start,restart} dirt-voice`
+- **Session transcripts**: `sessions/voice/YYYY-MM-DD.jsonl` — append-only, one JSON event per line (`wake`, `conversation_end`, etc.)
+- **Emergency stop (bypass systemd)**: `kill $(cat logs/voice.pid)`. PID file is written on startup, unlinked on clean exit. Use over `pkill -f` — pattern matching the voice-channel string will SIGKILL the invoking shell.
+- **Full operational spec**: `wiki/hardware/voice-channel.md` (pipeline, tools, config); `wiki/hardware/jabra.md` (device quirks). Do NOT run `python -m dirt.channels.voice` directly while the service is up — both processes will fight for the Jabra ALSA handle.
+- **Manual foreground run (dev)**: `systemctl --user stop dirt-voice && uv run python -m dirt.channels.voice`. Restart the service when done.
+- **Pipecat v1.0 is a major departure from v0.x** — training data will suggest obsolete patterns (`OpenAILLMContext`, `TransportParams(vad_analyzer=...)`, `allow_interruptions=True`). Always read `docs/references/pipecat/INDEX.md` before editing `src/dirt/channels/voice.py`, `_audio_transport.py`, or `src/dirt/tools/`.
 
 ## Documentation (Progressive Disclosure)
 

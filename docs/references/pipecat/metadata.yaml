@@ -1,0 +1,23 @@
+concept: pipecat
+display_name: Pipecat
+mode: framework
+version: 1.0.0
+generated_at: 2026-04-17
+source_commit: 6d3dfd8f6429bf55693890e4fa96910e843df9f1
+sources:
+  - https://github.com/pipecat-ai/pipecat
+  - https://docs.pipecat.ai/
+  - https://docs.pipecat.ai/pipecat/migration/migration-1.0
+  - https://github.com/pipecat-ai/pipecat/blob/main/CHANGELOG.md
+topics:
+  - pipeline-core.md
+  - llm-context.md
+  - service-anthropic.md
+  - service-deepgram-stt.md
+  - service-elevenlabs-tts.md
+  - vad-silero.md
+  - transport-local-audio.md
+  - install.md
+claude_md_pointer:
+  path: docs/references/pipecat/INDEX.md
+  consult_when: "writing code that imports from pipecat.*, building a Pipeline/PipelineTask/PipelineRunner, instantiating a Pipecat service (AnthropicLLMService, DeepgramSTTService, ElevenLabsTTSService), configuring a transport, or wiring a VAD into a user aggregator — anchors to v1.0.0, which has major breaking changes from v0.x training data"

@@ -21,6 +21,7 @@ dependencies = [
     "sounddevice>=0.5.5",
     "elevenlabs>=2.43.0",
     "openwakeword>=0.4.0",
+    "pipecat-ai[anthropic,deepgram,elevenlabs,local,silero]>=1.0.0",
 ]
 
 [project.optional-dependencies]

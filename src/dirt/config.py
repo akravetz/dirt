@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     secret_key: str = "change-me-in-production"
     mcp_bearer_token: str = "change-me-in-production"
     sensor_ingest_token: str = "change-me-in-production"
+    # Voice channel. Empty defaults so non-voice deployments don't fail to boot;
+    # dirt.channels.voice validates presence at startup.
+    deepgram_api_key: str = ""
+    anthropic_api_key: str = ""
+    elabs_api_key: str = ""
+    elabs_voice_id: str = ""
 
 
 settings = Settings()

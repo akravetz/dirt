@@ -2,9 +2,9 @@
 title: "Hardware — Jabra Speak 410 (Voice I/O)"
 type: hardware
 sources: []
-related: [wiki/decisions/2026-04-12-audio-hardware-selection.md, wiki/decisions/2026-04-16-voice-pipeline-selections.md, docs/epics/live-audio/README.md, docs/adrs/005-agent-architecture.md]
+related: [wiki/decisions/2026-04-12-audio-hardware-selection.md, wiki/decisions/2026-04-16-voice-pipeline-selections.md, docs/epics/live-audio/README.md, docs/adrs/005-agent-architecture.md, docs/references/pipecat/INDEX.md]
 created: 2026-04-15
-updated: 2026-04-16
+updated: 2026-04-18
 ---
 
 # Jabra Speak 410 — Voice I/O
@@ -21,7 +21,7 @@ USB-corded conference speakerphone sitting outside the grow tent. Handles both m
 | STT pipeline | ✅ Pilot proven | `debug/deepgram_roundtrip.py` — Nova-3 streaming from the Jabra mic, transcribes cleanly over tent fan noise |
 | TTS pipeline | ✅ Pilot proven | ElevenLabs `eleven_multilingual_v2` via `debug/elevenlabs_tts.py`; "Claudia" voice; +12 dB gain; PCM 48 kHz stereo. Replaces Deepgram Aura-2 from initial pilot. |
 | Wake word | ✅ Trained (v3) | openWakeWord "hey claudia" — 89% real-world recall at threshold 0.4 after 3 training iterations. Final model at `debug/hey_claudia.onnx`. See [wake-word-detection concept](../concepts/wake-word-detection.md) and [training strategy decision](../decisions/2026-04-16-wake-word-training-strategy.md). |
-| Production voice channel | ❌ Not yet | No `channels/voice.py`, no session logging, no agent integration |
+| Production voice channel | ✅ Deployed 2026-04-18 | `src/dirt/channels/voice.py` running under `dirt-voice.service` (systemd user unit). Pipecat 1.0 pipeline: Deepgram Nova-3 STT → Claude Haiku 4.5 → ElevenLabs turbo_v2_5. Three agent tools (`get_current_status`, `get_sensor_trend`, `ask_wiki`). Session transcripts at `sessions/voice/YYYY-MM-DD.jsonl`. |
 | Noise suppression | ❌ Not yet | Jabra has no echo cancellation for sustained fans; RNNoise or similar would help |
 
 ## Connection & ALSA Layout
@@ -65,6 +65,12 @@ sudo alsactl store 2               # persist across reboots
 
 The Jabra exposes exactly two mixer controls: `PCM` (output, 0–11 range, joined mono) and `Mic` (input gain). No separate speaker/master.
 
+## Production Voice Channel
+
+Deployed 2026-04-18 as the `dirt-voice` systemd user service. Holds this device's ALSA handle continuously (wake-word loop) and claims the playback side during conversations.
+
+**Operational spec, architecture, tool list, session log format, and Pipecat version gotchas all live in [`voice-channel.md`](voice-channel.md).** That page is the pipeline; this page is the device.
+
 ## Pilot Reference
 
 `debug/deepgram_roundtrip.py` — streams the Jabra mic to Deepgram Nova-3 WebSocket, prints transcripts, and plays back a pre-synthesized Aura-2 response. Runs until Ctrl-C. Used to validate the full audio path end-to-end with fan noise present. See `debug/jabra.md` for gotchas an agent needs to know before productionizing.
@@ -87,6 +93,9 @@ sudo alsactl store 2          # persist
 ```
 
 ## Related Files
+
+### Production code (2026-04-18 onwards)
+See [`voice-channel.md`](voice-channel.md) for the full code + service layout.
 
 ### Debug scripts (pilot / test)
 - `debug/deepgram_roundtrip.py` — STT+TTS pilot (Deepgram Nova-3 + Aura-2)

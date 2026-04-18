@@ -18,26 +18,42 @@ Search for the canonical docs URL. Preference order:
 
 **Handle version collisions carefully.** Many frameworks maintain multiple major versions on separate URLs (e.g. `react.dev` vs `legacy.reactjs.org`, `v0.tanstack.com` vs current). Confirm with the user which URL is canonical for the version in scope before fetching. A wrong-version pack is worse than no pack.
 
-## Step 2 — Pull the docs
+## Step 2 — Pull the source
 
-Use `WebFetch` to pull the docs index page, then iterate through the linked pages.
+Most frameworks live on GitHub. A shallow clone gets you the full source tree (and often the docs tree) locally, so you can use `Grep`, `Read`, and `Glob` to find class definitions, trace imports, and spot deprecations. That is dramatically more reliable than piecing together information from many `WebFetch` calls — one `Grep` on the cloned source replaces a dozen round-trips and gives you ground truth instead of a summarization.
 
-**Focus, don't mirror.** Framework docs often have 100-300 pages. Don't mirror the whole tree.
+**Clone the repo (shallow) to a temp directory:**
 
-- For small trees (< 30 pages): fetch the whole thing.
-- For large trees: ask the user which sections matter for their use case, then focus there. "Are you working on routing, data fetching, or forms? I'll deepen that section and skim the rest."
+```bash
+TMP=$(mktemp -d -t refpack-XXXXXX)
+git clone --depth 1 https://github.com/<org>/<repo>.git "$TMP/src"
+# If docs live in a separate repo (e.g. pipecat-ai/docs, reactjs/react.dev), clone that too:
+git clone --depth 1 https://github.com/<org>/<docs-repo>.git "$TMP/docs" 2>/dev/null || true
+```
 
-Save originals into `raw/` in the pack directory. Preserve the source URL structure in filenames:
+Then use `Grep` and `Read` against `$TMP/src` (and `$TMP/docs` if present) for ground-truth source inspection. When rendered docs and source disagree, **source wins** — docs sites lag.
+
+**When to fall back to `WebFetch`:**
+- The project has no public git repo (rare for frameworks, common for hosted APIs — see api mode).
+- The narrative explanation you need lives only on a rendered docs site, not in the repo (e.g., a blog post, a standalone migration guide).
+- The repo is enormous (>1GB even with `--depth 1`) and you only need one section.
+
+**Focus, don't mirror.** Frameworks often have 100-300 doc pages and thousands of source files. Don't copy everything — use `Grep` to find the 5-20 files that matter for the pack's scope, then `Read` just those.
+
+- For small doc trees (< 30 pages): skim the whole thing.
+- For large trees: ask the user which sections matter for their use case. "Are you working on routing, data fetching, or forms? I'll deepen that section and skim the rest."
+
+**Save originals into `raw/`.** Copy the source files and docs pages you actually used into `raw/` inside the pack. Preserve meaningful filenames (`services-anthropic-llm.py`, `transports-local-audio.py`). Include the source URL or clone-relative path as the first line as a comment, so later refreshes can re-verify:
 
 ```
 raw/
-├── 01-getting-started-installation.md
-├── 01-getting-started-project-structure.md
-├── 02-routing-defining-routes.md
+├── services-anthropic-llm.py        # src/pipecat/services/anthropic/llm.py
+├── transports-local-audio.py        # src/pipecat/transports/local/audio.py
+├── 01-getting-started-quickstart.md # docs.pipecat.ai/getting-started/quickstart
 ├── ...
 ```
 
-One file per fetched page. Include the source URL as the first line of each raw file, as a comment, so later refreshes can re-fetch.
+**Clean up:** `rm -rf "$TMP"` once you've copied what you need into `raw/`. The temp clone is ephemeral; `raw/` is the persisted snapshot.
 
 ## Step 3 — Plan the topic split
 

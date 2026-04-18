@@ -326,3 +326,10 @@ order: chronological — oldest entries at top, newest appended at bottom. Do NO
 - **Bonus from the EP10**: energy monitoring. Wattage reporting gives a free ground-truth signal when the humidifier has been unplugged, run dry, or hit its own cutoff despite the plug reporting ON.
 - **Deliverables**: new decision record at [`decisions/2026-04-17-humidifier-kasa-ep10.md`](decisions/2026-04-17-humidifier-kasa-ep10.md); old [`decisions/2026-04-14-humidifier-relay-control.md`](decisions/2026-04-14-humidifier-relay-control.md) marked Superseded; [`hardware/humidifier-control.md`](hardware/humidifier-control.md) fully rewritten for the EP10 path; [`environment/humidity.md`](environment/humidity.md), [`index.md`](index.md), and [`overview.md`](overview.md) updated to match.
 - **Next**: onboard the EP10 (Kasa app + DHCP reservation), then scope the control service on the `dirt` host.
+
+## 2026-04-18 — Production voice channel deployed
+
+First pass at the voice agent (`channels/voice.py`) shipped and running as `dirt-voice.service`. Pipecat v1.0 pipeline: wake-word (openWakeWord) → Deepgram Nova-3 STT → Claude Haiku 4.5 (with 3 tools: `get_current_status`, `get_sensor_trend`, `ask_wiki`) → ElevenLabs `eleven_turbo_v2_5` TTS → Jabra. Custom `SoundDeviceTransport` in callback mode (portaudio ring buffer) to get `latency='low'` + instant barge-in on our asymmetric-endpoint Jabra. Session transcripts append to `sessions/voice/YYYY-MM-DD.jsonl`. PID file at `logs/voice.pid` for reliable external stop.
+
+- New pages: `wiki/hardware/voice-channel.md` (pipeline), `docs/references/pipecat/` (v1.0 anchor pack).
+- Updated: `wiki/hardware/jabra.md` (marked production voice channel deployed, linked out to voice-channel.md), `wiki/index.md`, `CLAUDE.md` (new "Voice Channel (Claudia)" commands block).
