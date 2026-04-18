@@ -96,6 +96,37 @@ Four env vars required (all in `.env`, consumed via `dirt.config.settings`):
 - `~/.config/systemd/user/dirt-voice.service` — systemd user unit.
 - `docs/references/pipecat/INDEX.md` — Pipecat v1.0 reference pack anchoring agents away from v0.x training-data patterns (required reading before editing any code above).
 
+## Known Issues
+
+### Intermittent: follow-up turn swallowed (observed 2026-04-18)
+
+**Symptom.** Wake → greeting → user question 1 → Claudia answers → user question 2 → **no response**. Pipeline sits silent until `SESSION_IDLE_TIMEOUT_S` elapses and tears down. The `conversation_end` event in `sessions/voice/YYYY-MM-DD.jsonl` shows only one `user` turn captured, not two.
+
+**Intermittent.** Ruled out as a fixed cause: was reproducible across multiple conversations in a row during one session, then stopped on its own mid-debugging (same code, same env, same speaker, same Jabra). Not correlated with restart, wake score, or user volume.
+
+**What it is NOT.**
+- Not `SESSION_IDLE_TIMEOUT_S=15` being too short — reproduced with back-to-back questions well inside 15s.
+- Not `VADParams(min_volume=...)` — reproduced at both `0.5` and `0.35`. First question always triggered VAD fine; second got swallowed.
+- Not the in-flight wake-word `model.reset()` / warmup change (that only affects the *wake-word loop between conversations* — phantom wakes from TTS echo tail — not in-conversation turn-taking).
+
+**Suspected.** State-machine issue somewhere in `DeepgramSTTService` WebSocket, `LLMContextAggregatorPair` turn state, or the Silero VAD internal state after the first `UserStopped → LLMRun → BotSpeaking` cycle. Not yet diagnosed.
+
+**For the next agent debugging this.** The next time it reproduces, flip logging to DEBUG and capture a full journal for one bad conversation:
+
+```python
+# src/dirt/channels/voice.py main()
+logger.add(sys.stderr, level="DEBUG")
+```
+
+Then `systemctl --user restart dirt-voice` and reproduce. In the DEBUG output, check for each of these on question 2:
+
+1. `VADUserStartedSpeakingFrame` / `UserSpeakingFrame` — is VAD firing at all?
+2. Deepgram interim/final transcript log lines — is STT receiving audio and transcribing?
+3. `User started speaking (strategy: ...)` from `LLMUserContextAggregator` — did the aggregator see a new turn?
+4. `LLMRunFrame` → Anthropic request — did the LLM run?
+
+Whichever stage is missing its event on the failed turn is where the bug lives. Revert to INFO when done; DEBUG is noisy.
+
 ## Pipecat Version Gotchas
 
 Pipecat v1.0 (2026-04-14) is a breaking-change release from v0.x. Training-data-era patterns that are WRONG in our code:

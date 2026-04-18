@@ -74,6 +74,7 @@ WAKE_SAMPLE_RATE = 16000
 WAKE_CHUNK_SAMPLES = int(WAKE_SAMPLE_RATE * 0.08)   # 80 ms
 WAKE_THRESHOLD = 0.35
 WAKE_DEBOUNCE_S = 3.0
+WAKE_WARMUP_FRAMES = 12   # ~1s at 80ms/frame — drop post-conversation echo tail
 
 # Jabra SPEAK 410 hardware constraints
 INPUT_SAMPLE_RATE = 16000
@@ -188,6 +189,11 @@ def _load_wake_model() -> tuple[Model, str]:
 async def wait_for_wake(device: int) -> float:
     """Listen until 'hey Claudia' fires. Returns the detection score."""
     model, model_name = _load_wake_model()
+    # openwakeword carries ~1.5s of internal mel/embedding state across calls.
+    # Without this, stale features from the prior conversation (plus TTS tail
+    # bleeding through the Jabra during stream switchover) produce phantom
+    # wakes ~170ms after the pipeline tears down.
+    model.reset()
 
     loop = asyncio.get_running_loop()
     q: asyncio.Queue[np.ndarray] = asyncio.Queue(maxsize=50)
@@ -209,9 +215,17 @@ async def wait_for_wake(device: int) -> float:
         callback=cb,
     ):
         last_fire = 0.0
+        frames_seen = 0
         while True:
             frame = await q.get()
             score = model.predict(frame)[model_name]
+            frames_seen += 1
+            # Skip the first ~1s (12 x 80ms frames). Echo tail from the prior
+            # TTS response can still be in the Jabra's capture path when the
+            # mic reopens, and openwakeword needs ~1.5s of fresh audio to
+            # refill its feature buffers before predictions are meaningful.
+            if frames_seen <= WAKE_WARMUP_FRAMES:
+                continue
             now = time.monotonic()
             if score >= WAKE_THRESHOLD and (now - last_fire) >= WAKE_DEBOUNCE_S:
                 last_fire = now
@@ -283,7 +297,7 @@ async def run_conversation(device: int) -> LLMContext:
                     confidence=0.7,
                     start_secs=0.2,
                     stop_secs=0.2,
-                    min_volume=0.5,
+                    min_volume=0.35,
                 ),
             ),
         ),

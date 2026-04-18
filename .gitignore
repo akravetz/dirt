@@ -49,3 +49,4 @@ outputs/
 # macOS Finder metadata
 .DS_Store
 logs/
+sessions/**/*.jsonl
