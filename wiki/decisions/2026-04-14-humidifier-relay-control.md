@@ -10,7 +10,10 @@ updated: 2026-04-14
 # Decision: Closed-Loop Humidifier Control
 
 **Date:** 2026-04-14
-**Status:** Accepted (hardware ordered, arrives 2026-04-15)
+**Status:** ⚠️ **Superseded 2026-04-17 by [Humidifier Control via Kasa EP10 Smart Plug](2026-04-17-humidifier-kasa-ep10.md)**. The SSR approach was accepted but never deployed — installing mains-switching hardware safely is higher-friction than a WiFi smart plug that achieves the same topology with the mains side already sealed. The control algorithm (bang-bang with hysteresis) carries forward unchanged; only the actuator and control host changed. Kept for decision-trail history.
+
+**Date (original):** 2026-04-14
+**Status (original):** Accepted (hardware ordered, arrives 2026-04-15)
 
 ## Context
 

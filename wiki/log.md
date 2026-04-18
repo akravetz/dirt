@@ -311,3 +311,18 @@ order: chronological — oldest entries at top, newest appended at bottom. Do NO
 - **New deps added**: `openwakeword` (also pulled in `onnxruntime`, `scipy`, `scikit-learn`, `protobuf`, etc.).
 - Final model shipped at `debug/hey_claudia.onnx`. Archived: `hey_claudia_v1.onnx` (Piper baseline), `hey_claudia_v2.onnx` (conservative).
 - Updated: [`hardware/jabra.md`](hardware/jabra.md), [`index.md`](index.md), [`decisions/2026-04-16-wake-word-training-strategy.md`](decisions/2026-04-16-wake-word-training-strategy.md).
+
+## [2026-04-17] sensors | plant-d moisture dropouts diagnosed and cleaned
+- **Symptom investigated**: `plant-d` `soil_moisture_raw` showing daily clusters of sub-100 raw values (~25% of samples, vs 0–0.7% on a/b/c). Values of 1–6 are below plant-d's calibrated `raw_low=105` — sensor output collapse, not real readings.
+- **Pattern**: dropouts cluster at 04:00–09:00 and 19:00 — the hours where tent temperature / humidity are *transitioning*, not the peak-heat hours (10:00–14:00 had zero dropouts). Signal aligns with dew-point crossings rather than lights/heat.
+- **Likely cause**: plant-d is a v1.2 sensor from the first Amazon pack (40% DOA rate). Hypothesis is marginal conformal coating letting moisture wick into the 555-timer traces during high-RH transitions, collapsing the oscillator. plant-a (also v1.2) does not show this failure, so it's a unit-level defect, not a generational issue.
+- **Data cleanup**: deleted 2,165 rows matching `metric='soil_moisture_raw' AND location='plant-d' AND value < 105` from `dirt.db`. Backup at `dirt.db.bak-before-plantd-cleanup-1776489309`. Post-cleanup plant-d trends coherently: 27.9% → 34.3% → 38.3% wet over 04-16/04-17/04-18.
+- **Open issue**: [#20](https://github.com/akravetz/dirt/issues/20) — fix is to swap plant-d's sensor for a v2.0 unit (matches b/c).
+
+## [2026-04-17] decision | Humidifier actuator switched from SSR to Kasa EP10 smart plug
+- **What changed**: dropped the 2026-04-14 plan to control the Raydrop 4L via a G3MB-202P SSR on the Arduino Nano. Replaced with a **TP-Link Kasa Ultra Mini EP10** smart plug driven from a host-side Python service via [`python-kasa`](https://github.com/python-kasa/python-kasa). No mains wiring, no custom enclosure, no GPIO.
+- **What didn't change**: the control algorithm. Still bang-bang with hysteresis (target 60% RH, ±3% deadband), with a minimum off-time for relay protection and a max-on safety timeout. PID reconfirmed as the wrong tool here — binary actuator, asymmetric transfer function, big dead time, finite relay switch-cycle budget, plants don't need ±1% precision.
+- **Why the switch**: the SSR approach was accepted on 2026-04-14 but hardware was never deployed — installing mains-switching safely (enclosure + strain relief + fused outlet) is higher-friction than a UL-listed sealed smart plug. Same control topology, lower activation energy.
+- **Bonus from the EP10**: energy monitoring. Wattage reporting gives a free ground-truth signal when the humidifier has been unplugged, run dry, or hit its own cutoff despite the plug reporting ON.
+- **Deliverables**: new decision record at [`decisions/2026-04-17-humidifier-kasa-ep10.md`](decisions/2026-04-17-humidifier-kasa-ep10.md); old [`decisions/2026-04-14-humidifier-relay-control.md`](decisions/2026-04-14-humidifier-relay-control.md) marked Superseded; [`hardware/humidifier-control.md`](hardware/humidifier-control.md) fully rewritten for the EP10 path; [`environment/humidity.md`](environment/humidity.md), [`index.md`](index.md), and [`overview.md`](overview.md) updated to match.
+- **Next**: onboard the EP10 (Kasa app + DHCP reservation), then scope the control service on the `dirt` host.

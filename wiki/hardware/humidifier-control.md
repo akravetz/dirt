@@ -1,105 +1,129 @@
 ---
-title: "Hardware — Humidifier Control (Raydrop 4L + G3MB-202P SSR)"
+title: "Hardware — Humidifier Control (Raydrop 4L + Kasa EP10 smart plug)"
 type: hardware
 sources: []
-related: [wiki/decisions/2026-04-14-humidifier-relay-control.md, wiki/environment/humidity.md, wiki/concepts/vpd.md]
+related: [wiki/decisions/2026-04-17-humidifier-kasa-ep10.md, wiki/environment/humidity.md, wiki/concepts/vpd.md]
 created: 2026-04-14
-updated: 2026-04-14
+updated: 2026-04-17
 ---
 
 # Humidifier Control
 
-Closed-loop humidity control: DHT22 reading → Arduino Nano decision → G3MB-202P SSR → Raydrop 4L humidifier mains power.
+Closed-loop humidity control: tent DHT22 reading → Python service on the `dirt` host → WiFi command to Kasa EP10 smart plug → mains power to the Raydrop 4L humidifier.
+
+Superseded the SSR-on-Arduino approach — see [decision 2026-04-17](../decisions/2026-04-17-humidifier-kasa-ep10.md). No mains wiring, no custom enclosure, no GPIO.
 
 ## Deployment Status
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| Raydrop 4L humidifier | ⏳ **Arrives 2026-04-15** | Replaces current ad-hoc humidifier |
-| G3MB-202P SSR module | ⏳ **Arrives 2026-04-15** | 2A zero-cross SSR |
-| Arduino Nano firmware update | ❌ Not started | Add hysteresis loop + GPIO drive |
-| Enclosure for SSR + mains wiring | ❌ Not yet sourced | Required before deployment |
-| Relay state logging | ❌ Not designed | Schema/endpoint TBD |
-
-See [decision record](../decisions/2026-04-14-humidifier-relay-control.md) for rationale.
+| Raydrop 4L humidifier | ✅ In tent | Knob set to a moderate fixed output (~50–60%) |
+| Kasa Ultra Mini EP10 smart plug | ⏳ On hand, not yet provisioned | Needs Kasa-app onboarding + static LAN IP |
+| `python-kasa` integration | ❌ Not started | Canonical library, supports EP10 incl. newer KLAP protocol |
+| Control service | ❌ Not started | Lives on `dirt` host; reads RH from DB / Nano stream, commands plug |
+| Plug state logging | ❌ Not started | On/off transitions + optional wattage persisted alongside RH |
 
 ## Hardware
 
 ### Raydrop 4L Ultrasonic Humidifier
 
-- **Control interface:** analog potentiometer (mist intensity). No digital / WiFi / BLE control.
-- **Power:** 120VAC wall plug.
-- **Approach:** knob set to a fixed moderate output (~50–60%). Dynamic control via mains gating from the SSR, not by driving the knob.
+- **Control interface:** analog potentiometer knob for mist intensity. No digital / WiFi / BLE control.
+- **Power:** 120 VAC wall plug.
+- **Strategy:** knob set once to a moderate output (~50–60%). Dynamic control is purely ON/OFF gating of mains power via the Kasa plug — never by driving the knob.
 
-### G3MB-202P Solid-State Relay Module
+### TP-Link Kasa Ultra Mini EP10 Smart Plug
 
-| Parameter | Rating |
-|-----------|--------|
-| Control (input) | 3–32 VDC, opto-isolated |
-| Load (output) | 100–240 VAC, ≤2A resistive |
-| Switching type | Zero-cross (reduces inrush / EMI) |
-| Isolation | Optocoupler between DC control and AC load |
-| Form factor | PCB module with screw terminals for AC, header pin for DC control |
+- **Switching:** internal relay; UL-listed sealed consumer device — all mains switching stays inside the plug.
+- **Connectivity:** 2.4 GHz WiFi. Controlled over LAN (not via TP-Link cloud).
+- **Protocol:** modern Kasa plugs use the KLAP protocol; `python-kasa` handles both legacy Kasa and KLAP transparently.
+- **Energy monitoring:** reports instantaneous wattage. Useful as a ground-truth signal — a humidifier that's been unplugged, has run dry, or has hit its own safety cutout will read ~0 W even when the plug is ON.
+- **Relay lifetime:** plug relays are mechanical — rated on the order of 10⁴–10⁵ cycles. The control loop deliberately limits switching (wide hysteresis band + minimum off-time) to stay comfortably under that.
 
-**Current margin:** a 4L ultrasonic humidifier draws ~0.2–0.3A at 120V — well within the 2A rating.
+## Network / Provisioning
 
-**No built-in fuse.** Add an inline fuse in the enclosure or plug into a fused outlet strip.
+- Onboard the plug using the Kasa mobile app (one-time; WiFi credentials baked into the plug).
+- Assign the plug a **static DHCP reservation** on the LAN so the control service can reach it by a stable IP (or mDNS name if preferred).
+- Note the plug's MAC + IP in this file once deployed.
 
-## Wiring (planned)
+## Control Library
 
-```
-AC side (inside enclosure):
-  Wall plug (hot) ──────┬── SSR AC IN
-                        └── (neutral passes through uninterrupted to outlet)
-  SSR AC OUT ───────── Outlet hot (to humidifier plug)
-  Wall plug (neutral) ─ Outlet neutral
-  Wall plug (ground) ── Outlet ground (pass-through)
+[`python-kasa`](https://github.com/python-kasa/python-kasa) — async API, explicit EP10 support, talks directly to the plug over the LAN. No TP-Link cloud dependency.
 
-DC control side:
-  Arduino Nano GPIO (TBD) ── SSR input "+"
-  Arduino Nano GND ──────── SSR input "−"
-```
+Sketch (not final code):
 
-The relay gates **only the hot conductor**; neutral and ground pass through unbroken. Enclosure must be rated for mains wiring (plastic project box with strain relief, or a proper outlet box).
-
-## Control Firmware (planned)
-
-Extension of the existing Arduino Nano DHT22 loop. Pseudocode:
-
-```cpp
-const float TARGET_RH = 60.0;
-const float DEADBAND  = 3.0;    // ±3% around target
-const unsigned long MIN_CYCLE_MS = 60000; // minimum 60s between state changes
-const unsigned long FAILSAFE_MS  = 300000; // 5 min stale reading → force OFF
-
-void controlLoop() {
-    float rh = readDHT22_RH();
-    if (rh is NaN or stale > FAILSAFE_MS) {
-        setRelay(OFF);
-        return;
-    }
-    unsigned long now = millis();
-    if (now - lastStateChange < MIN_CYCLE_MS) return;  // anti-chatter
-
-    if (rh < TARGET_RH - DEADBAND && !relayState) setRelay(ON);
-    else if (rh > TARGET_RH + DEADBAND && relayState) setRelay(OFF);
-}
+```python
+from kasa import SmartPlug
+plug = SmartPlug("192.168.1.XX")
+await plug.update()
+await plug.turn_on()
+await plug.turn_off()
+is_on = plug.is_on
+watts = plug.emeter_realtime.power  # real-time wattage
 ```
 
-**Setpoint** is hardcoded per phase in firmware for MVP. Future: server-side setpoint table keyed on grow phase.
+`python-kasa` is also usable from its CLI (`kasa` command) for out-of-band testing.
 
-**State publishing:** relay state should be serialized alongside the DHT22 reading in the existing serial output the dirt backend already parses. New field, e.g. `humidifier: on|off`.
+## Control Logic (idea, not yet implemented)
 
-## Safety
+Bang-bang with hysteresis + relay-protection guards. Concrete service wiring is deferred — this section is the algorithmic shape only.
 
-- **Mains voltage** — SSR and its wiring are live. Install in a closed enclosure with strain relief before powering. Never probe live AC terminals.
-- **Water proximity** — tent contains a humidifier, moisture, and occasional drips. Mount the SSR enclosure outside the tent or well above the canopy/reservoir splash zone. Use a drip loop on any cable entering the enclosure.
-- **Thermal** — G3MB-202P has modest thermal headroom at its rated 2A; at ~0.3A load there is no practical heat concern, but do not obstruct the module.
-- **Fail behavior** — firmware failsafe forces relay OFF on stale sensor data. Preference is "dry air from a stuck-off humidifier" over "saturated tent from a stuck-on humidifier" (damping-off + mold are worse than a dry spell).
+```
+target            = 60.0  # %RH  (mid-veg; phase-configurable later)
+deadband          =  3.0  # %RH
+TURN_ON_BELOW     = target - deadband   # 57%
+TURN_OFF_ABOVE    = target + deadband   # 63%
+MIN_OFF_SECONDS   = 90    # relay protection + let the last pulse settle
+MAX_ON_SECONDS    = 1200  # 20 min — safety timeout
+FAILSAFE_STALE_S  = 300   # 5 min without fresh RH → force OFF
+
+loop every ~30s:
+    rh, ts = latest DHT22 reading
+    if rh is None or (now - ts) > FAILSAFE_STALE_S:
+        plug.off()
+        continue
+
+    if plug.is_on and (now - turned_on_at) > MAX_ON_SECONDS:
+        plug.off()
+        alert("humidifier max-on timeout")
+        continue
+
+    if rh < TURN_ON_BELOW and (now - last_switch) >= MIN_OFF_SECONDS and not plug.is_on:
+        plug.on()
+    elif rh > TURN_OFF_ABOVE and plug.is_on:
+        plug.off()
+    # else: hold — the deadband is intentional
+```
+
+**Why these choices (recap):**
+
+- Bang-bang, not PID. Binary actuator. Big dead time. Asymmetric transfer function (can add moisture, can't actively remove). Relay switch-cycle budget. Plants don't need ±1% RH.
+- 3% deadband exceeds DHT22 noise floor (±2% per datasheet).
+- Failsafe OFF on stale reads — prefer brief dryness over a damping-off tent.
+
+## State Logging
+
+On every state change, persist a row so the loop's behavior is reconstructable from the DB:
+
+- Timestamp
+- New state (`on` / `off`)
+- Reason (`rh_below_threshold`, `rh_above_threshold`, `failsafe_stale_sensor`, `max_on_timeout`, `manual`)
+- Current RH reading
+- Optional: plug wattage at the moment of the change
+
+Schema choice (new table vs. folding into `sensorreading` as a 0/1 metric) is an open question in the decision record.
+
+## Safety / Operational Notes
+
+- **No mains wiring to do.** The EP10 is a sealed consumer device; all high-voltage switching is internal.
+- **Plug placement:** keep the plug outside the tent's splash zone. A short extension cord into the tent is fine; the plug itself should be in dry air.
+- **Humidifier knob:** set to ~50–60% output, not max. If the plug ever fails closed (rare but possible — relays can weld), a lower knob setting limits the overshoot rate before a human notices.
+- **Empty-reservoir behavior:** the Raydrop has its own low-water cutoff. Combined with the EP10's wattage reporting (~0 W even when `is_on`), the control service can detect "humidifier plugged in but not actually running" and surface it.
+- **Fail-safe priority:** stuck-off is safer than stuck-on. Damping-off and mold are worse than a dry spell. The loop defaults to OFF on any ambiguity.
 
 ## Acceptance (from decision record)
 
-- Humidifier cycles on/off based on DHT22 readings without manual intervention.
+- Humidifier cycles on/off through the EP10 based on DHT22 readings without manual intervention.
 - RH stays within target band ±5% for 24h continuous.
-- Relay state logged alongside RH.
-- Simulated sensor failure triggers failsafe OFF.
+- Plug state (and ideally wattage) logged alongside RH.
+- Simulated sensor failure triggers failsafe OFF within the failsafe window.
+- Max-on-time safety timeout observed under a "sensor stuck low" simulation.

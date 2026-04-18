@@ -36,7 +36,7 @@ updated: 2026-04-16
 
 ## Hardware
 - [ESP32-C3 Per-Plant Nodes](hardware/esp32-plant-nodes.md) — Wireless soil moisture nodes (A/B/C/D); **all four live as of 2026-04-16** (A/D on v1.2 sensors, B/C on v2.0)
-- [Humidifier Control](hardware/humidifier-control.md) — Raydrop 4L + G3MB-202P SSR; closed-loop RH via Arduino Nano DHT22; hardware en route 2026-04-15
+- [Humidifier Control](hardware/humidifier-control.md) — Raydrop 4L gated by a Kasa Ultra Mini EP10 smart plug, driven by a host-side Python service via `python-kasa`; bang-bang hysteresis on tent DHT22 RH. Plug on hand, service not yet built.
 - [PTZ Camera (OBSBOT Tiny 2 Lite + daemon)](hardware/ptz-camera.md) — Programmable gimbal + zoom; persistent C++ daemon + `scripts/camera` CLI; per-plant presets calibrated
 - [Jabra Speak 410](hardware/jabra.md) — USB speakerphone for voice I/O; ElevenLabs "Claudia" TTS + Nova-3 STT + openWakeWord ("hey claudia", training); production `channels/voice.py` pending
 
@@ -75,4 +75,5 @@ updated: 2026-04-16
 - [Wake-Word Training Strategy (2026-04-16)](decisions/2026-04-16-wake-word-training-strategy.md) — Retrain openWakeWord with voice-clone positives + captured RIRs to fix far-field recall
 - [ESP32-C3 GPIO3 + IDF ADC (2026-04-14)](decisions/2026-04-14-esp32-c3-gpio3-adc.md) — GPIO3 over GPIO4 (JTAG conflict); `adc1_get_raw()` over Arduino `analogRead()` (WiFi instability)
 - [Server-Side Auto-Calibration (2026-04-14)](decisions/2026-04-14-server-side-auto-calibration.md) — Calibration lives in DB, auto-widens extrema per (location, metric); firmware sends raw only
-- [Humidifier Closed-Loop Control (2026-04-14)](decisions/2026-04-14-humidifier-relay-control.md) — Raydrop 4L + G3MB-202P SSR, bang-bang hysteresis from Arduino Nano DHT22
+- [Humidifier Control via Kasa EP10 (2026-04-17)](decisions/2026-04-17-humidifier-kasa-ep10.md) — Raydrop 4L gated by a WiFi smart plug + `python-kasa`; bang-bang hysteresis on host-side Python service. Supersedes the 2026-04-14 SSR approach.
+- [Humidifier Closed-Loop Control (2026-04-14, superseded)](decisions/2026-04-14-humidifier-relay-control.md) — Original SSR-on-Arduino plan; superseded before deployment, kept for decision-trail history.
