@@ -6,8 +6,8 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from dirt_mcp.app import create_mcp_app
-from dirt_shared.config import TEMPLATES_DIR
 from dirt_shared.db import init_db
+from dirt_web import TEMPLATES_DIR
 from dirt_web.api.auth import router as auth_router
 from dirt_web.api.feed import router as feed_router
 from dirt_web.api.sensors import router as sensors_router

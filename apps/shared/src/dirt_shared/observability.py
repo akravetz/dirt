@@ -30,8 +30,9 @@ from typing import Any
 
 from loguru import logger
 
-_ROOT = Path(__file__).resolve().parents[2]
-_DEFAULT_LOGS_DIR = _ROOT / "logs"
+from dirt_shared.config import settings
+
+_DEFAULT_LOGS_DIR = settings.data_dir / "logs"
 # Env-var override for `logs_dir()`. Tests set this (via the autouse fixture
 # in `tests/conftest.py`) so a passing or crashing test never writes to the
 # production telemetry directory. Production code should never set it.
