@@ -2,7 +2,8 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from dirt.config import settings
+from dirt.config import GROW_START, settings
+from dirt.models.grow_state import GrowState
 from dirt.models.sensor_calibration import SensorCalibration  # noqa: F401
 from dirt.models.sensor_node import SensorNode  # noqa: F401
 from dirt.models.sensor_reading import SensorReading  # noqa: F401
@@ -19,3 +20,7 @@ async def get_session():
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
+    async with AsyncSession(engine) as session:
+        if await session.get(GrowState, 1) is None:
+            session.add(GrowState(id=1, germination_date=GROW_START))
+            await session.commit()

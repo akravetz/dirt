@@ -12,6 +12,7 @@ updated: 2026-04-18
 *Formerly labeled Plant 1 in early documentation.*
 
 **Label:** A
+**Sticker:** yellow
 **Priority:** 🔴 Primary keeper candidate
 **Purple Signal:** ✅ Confirmed genetic anthocyanin expression
 

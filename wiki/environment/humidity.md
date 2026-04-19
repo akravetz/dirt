@@ -14,11 +14,13 @@ updated: 2026-04-18
 | Phase | Target RH | VPD |
 |-------|-----------|-----|
 | Seedling | 65–75% | 0.4–0.8 kPa |
-| Veg | 55–65% | 0.8–1.2 kPa |
-| Early Flower | 45–55% | 1.0–1.5 kPa |
-| Late Flower | 35–45% | 1.5–2.0 kPa |
+| Veg | 45–55% | 0.8–1.2 kPa |
+| Early Flower (days 0–20 of 12/12) | 45–50% | 1.0–1.3 kPa |
+| Late Flower (day 21+ of 12/12) | 40–45% | 1.2–1.5 kPa |
 
-**Current phase:** Early veg — target 55–65% (current readings slightly above).
+VPD is the control-loop setpoint; RH is informational (temperature determines what RH corresponds to a given VPD). The canonical source of truth for these bands is `dirt.services.grow_state.STAGE_TARGETS` — the humidifier loop and the voice status tool both read it. See [hardware/humidifier-control.md](../hardware/humidifier-control.md) for the deployed algorithm and [decision 2026-04-18](../decisions/2026-04-18-vpd-targeting.md) for the rationale.
+
+**Current phase:** Early veg — target VPD 0.8–1.2 kPa.
 
 **Denver note:** Denver's dry ambient air can pull tent RH down to 20–30% without active humidification. A humidifier is essential during seedling/early veg. Denver's natural dryness becomes advantageous in mid-veg through flower.
 
@@ -47,16 +49,17 @@ updated: 2026-04-18
 - **2026-04-08** — VPD swing incident: humidifier off caused RH to drop to 42% and VPD to spike to 2.03 kPa before recovering to 70% / 0.89 kPa. RH oscillations are more stressful than a steady suboptimal value — keep humidifier running consistently
 - **2026-04-14** — Decided to move to closed-loop humidifier control (bang-bang hysteresis). Initial plan was an SSR driven by the Arduino Nano; superseded before deployment. See [original decision (superseded)](../decisions/2026-04-14-humidifier-relay-control.md).
 - **2026-04-17** — Switched actuator to a **TP-Link Kasa Ultra Mini EP10 smart plug** controlled from a Python service on the `dirt` host via [`python-kasa`](https://github.com/python-kasa/python-kasa). No mains wiring, no custom enclosure; control algorithm unchanged. See [current decision](../decisions/2026-04-17-humidifier-kasa-ep10.md) and [hardware page](../hardware/humidifier-control.md).
-- **2026-04-18** — Overnight lights-off window: temp 63.54°F avg, RH 76.95% avg, VPD 0.46 kPa. Day period in target (53.58% morning avg, 59.13% now). Day/night VPD swing ~3× (0.46 → 1.31 kPa). Recommend: lower nighttime humidifier setpoint to ~55% or schedule humidifier OFF during lights-off window → [2026-04-18](../daily/2026-04-18.md)
+- **2026-04-18** — Overnight lights-off window: temp 63.54°F avg, RH 76.95% avg, VPD 0.46 kPa. Day period in target (53.58% morning avg, 59.13% now). Day/night VPD swing ~3× (0.46 → 1.31 kPa). Motivated the switch from fixed-RH control to VPD targeting so the humidifier stops running through cool nights automatically.
+- **2026-04-18** — Switched humidifier control loop from fixed 60% RH setpoint to stage-dynamic VPD targeting (upper-band edge, 0.1 kPa deadband). VPD band reads from `dirt.services.grow_state` so veg→flower transitions shift setpoints without redeploying. See [decision 2026-04-18](../decisions/2026-04-18-vpd-targeting.md).
 
-## Planned Control System
+## Deployed Control System
 
-Manual humidifier adjustments are being replaced with a bang-bang (hysteresis) controller on the `dirt` host:
+Bang-bang VPD controller on the `dirt` host:
 
-- **Sensor:** existing DHT22 on the Arduino Nano tent-hub (unchanged).
-- **Actuator:** Raydrop 4L ultrasonic humidifier plugged into a **TP-Link Kasa Ultra Mini EP10** smart plug. The plug is commanded over the LAN via [`python-kasa`](https://github.com/python-kasa/python-kasa).
-- **Logic:** `ON` when `RH < target − deadband`, `OFF` when `RH > target + deadband`, hold otherwise. Initial target = 60% RH, deadband = ±3%.
+- **Sensor:** existing DHT22 on the Arduino Nano tent-hub; `vpd_kpa` derived at ingest and stored alongside `humidity_pct` / `temperature_f`.
+- **Actuator:** Raydrop 4L ultrasonic humidifier plugged into a **TP-Link Kasa Ultra Mini EP10** smart plug, commanded over the LAN via [`python-kasa`](https://github.com/python-kasa/python-kasa).
+- **Logic:** `ON` when `vpd > upper_band`, `OFF` when `vpd < upper_band − 0.1 kPa`. Upper band is the current stage's VPD ceiling (1.2 kPa veg / 1.3 early flower / 1.5 late flower).
 - **Guards:** minimum off-time between switches (relay protection + let the last pulse reach the sensor) and a max-on safety timeout.
-- **Failsafe:** plug forced OFF on stale or invalid DHT22 readings (prefer brief dryness over damping-off).
+- **Failsafe:** plug forced OFF on stale or invalid VPD readings (prefer brief dryness over damping-off).
 
-Phase-specific setpoints will be managed in host-side config; migration to a proper setpoint table is planned when additional tent actuators (dehumidifier, exhaust modulation, heater) come online. See the [hardware page](../hardware/humidifier-control.md) for the algorithm sketch, library notes, and safety considerations.
+Full algorithm + state-logging spec: [hardware/humidifier-control.md](../hardware/humidifier-control.md).

@@ -12,6 +12,7 @@ updated: 2026-04-18
 *Formerly labeled Plant 3 in early documentation.*
 
 **Label:** C
+**Sticker:** pink
 **Priority:** 🟡 Secondary candidate
 **Purple Signal:** ⚠️ Stress-induced only (stems/petioles, Day 25) — NOT genetic; does not affect keeper priority
 

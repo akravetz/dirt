@@ -9,7 +9,9 @@ updated: 2026-04-18
 
 # Humidifier Control
 
-Closed-loop humidity control: tent DHT22 reading → Python service on the `dirt` host → WiFi command to Kasa EP10 smart plug → mains power to the Raydrop 4L humidifier.
+Closed-loop VPD control: tent DHT22 reading → VPD calc → Python service on the `dirt` host → WiFi command to Kasa EP10 smart plug → mains power to the Raydrop 4L humidifier.
+
+The loop targets **VPD** against the current stage's upper band (from `dirt.services.grow_state.current_targets()`), not a fixed RH. Night behavior is free — cooler air drops VPD on its own, so the humidifier shuts off during lights-off without needing a schedule. See [decision 2026-04-18](../decisions/2026-04-18-vpd-targeting.md) for the switch from fixed-RH control.
 
 Superseded the SSR-on-Arduino approach — see [decision 2026-04-17](../decisions/2026-04-17-humidifier-kasa-ep10.md). No mains wiring, no custom enclosure, no GPIO.
 
@@ -21,8 +23,8 @@ Superseded the SSR-on-Arduino approach — see [decision 2026-04-17](../decision
 | Kasa Ultra Mini EP10 smart plug | ✅ Provisioned | Alias `dirt-humidifier`; DHCP-reserved `192.168.1.220`; MAC `10:5A:95:8B:E8:B7`; firmware `1.1.1 Build 250908` |
 | `python-kasa` integration | ✅ Working | Pinned to [PR #1580 fork branch](https://github.com/ZeliardM/python-kasa/tree/feature/new-klap) until KLAP v2 support lands upstream — stock python-kasa fails auth on this firmware (see "Known Issues" below) |
 | Control service | ✅ Deployed 2026-04-18 | `src/dirt/services/humidifier.py`, run from the FastAPI lifespan alongside capture / archive / serial |
-| Plug state logging | ✅ | `humidifier_on` (0/1) written to `sensorreading` every poll; state transitions emitted to `logs/humidifier/` stream with reason + RH |
-| Energy monitoring | ❌ Not exposed | This EP10 firmware does not publish an `Energy` module — only `is_on` is readable. Good-enough: control loop uses RH, not wattage |
+| Plug state logging | ✅ | `humidifier_on` (0/1) written to `sensorreading` every poll; state transitions emitted to `logs/humidifier/` stream with reason + VPD |
+| Energy monitoring | ❌ Not exposed | This EP10 firmware does not publish an `Energy` module — only `is_on` is readable. Good-enough: control loop uses VPD, not wattage |
 
 ## Hardware
 
@@ -82,20 +84,30 @@ Once PR #1580 merges and releases, swap back to a pinned version.
 
 ## Control Logic (deployed)
 
-Bang-bang with hysteresis + relay-protection guards. Concrete service wiring is deferred — this section is the algorithmic shape only.
+Bang-bang with hysteresis + relay-protection guards, targeting the **upper edge** of the stage-appropriate VPD band. The humidifier only pushes VPD down (adds moisture), so the upper edge is the right setpoint: kick on when VPD climbs past it, kick off once it falls back below by a small deadband.
+
+Stage → VPD band lookup comes from `dirt.services.grow_state.STAGE_TARGETS`:
+
+| Stage | VPD band (kPa) | Upper edge (turn-on threshold) |
+|---|---|---|
+| `veg` | 0.8 – 1.2 | 1.2 |
+| `flower_early` (days 0–20 of 12/12) | 1.0 – 1.3 | 1.3 |
+| `flower_late` (day 21+ of 12/12) | 1.2 – 1.5 | 1.5 |
 
 ```
-target            = 60.0  # %RH  (mid-veg; phase-configurable later)
-deadband          =  3.0  # %RH
-TURN_ON_BELOW     = target - deadband   # 57%
-TURN_OFF_ABOVE    = target + deadband   # 63%
-MIN_OFF_SECONDS   = 90    # relay protection + let the last pulse settle
-MAX_ON_SECONDS    = 1200  # 20 min — safety timeout
-FAILSAFE_STALE_S  = 300   # 5 min without fresh RH → force OFF
+deadband          = 0.1  # kPa  (vpd_deadband_kpa in config)
+MIN_OFF_SECONDS   = 90   # relay protection + let the last pulse settle
+MAX_ON_SECONDS    = 1200 # 20 min — safety timeout
+FAILSAFE_STALE_S  = 300  # 5 min without fresh VPD → force OFF
 
 loop every ~30s:
-    rh, ts = latest DHT22 reading
-    if rh is None or (now - ts) > FAILSAFE_STALE_S:
+    stage                = current_stage()        # veg / flower_early / flower_late
+    lo, hi               = current_targets()["vpd_kpa"]
+    turn_on_above        = hi
+    turn_off_below       = hi - deadband
+    vpd, ts              = latest vpd_kpa reading
+
+    if vpd is None or (now - ts) > FAILSAFE_STALE_S:
         plug.off()
         continue
 
@@ -104,27 +116,30 @@ loop every ~30s:
         alert("humidifier max-on timeout")
         continue
 
-    if rh < TURN_ON_BELOW and (now - last_switch) >= MIN_OFF_SECONDS and not plug.is_on:
+    if vpd > turn_on_above and (now - last_switch) >= MIN_OFF_SECONDS and not plug.is_on:
         plug.on()
-    elif rh > TURN_OFF_ABOVE and plug.is_on:
+    elif vpd < turn_off_below and plug.is_on:
         plug.off()
     # else: hold — the deadband is intentional
 ```
 
-**Why these choices (recap):**
+**Why these choices:**
 
-- Bang-bang, not PID. Binary actuator. Big dead time. Asymmetric transfer function (can add moisture, can't actively remove). Relay switch-cycle budget. Plants don't need ±1% RH.
-- 3% deadband exceeds DHT22 noise floor (±2% per datasheet).
-- Failsafe OFF on stale reads — prefer brief dryness over a damping-off tent.
+- **VPD, not RH.** RH at a fixed setpoint mis-targets the plant: when temperature falls at night, the same RH produces a much lower VPD (e.g. 60% RH at 63°F = 0.46 kPa, seedling range). VPD collapses this into one number that's correct across the day/night swing. See [concepts/vpd.md](../concepts/vpd.md).
+- **Upper-edge setpoint.** The humidifier only adds moisture; there's nothing to do when VPD is already in or below the band. Acting only at the dry edge keeps the duty cycle low and the relay count manageable.
+- **Bang-bang, not PID.** Binary actuator. Big dead time. Asymmetric transfer function (can add moisture, can't actively remove). Relay switch-cycle budget. Plants don't need ±0.05 kPa.
+- **0.1 kPa deadband** ≈ the noise floor of the derived VPD signal given DHT22 ±0.5°C / ±2% RH.
+- **Failsafe OFF on stale reads** — prefer brief dryness over a damping-off tent.
+- **Stage band re-read every tick** — a veg→flower flip in the DB (via a future UI) takes effect on the next poll with no restart.
 
 ## State Logging
 
 Two streams, each serving a different consumer:
 
-- **`sensorreading.humidifier_on`** — 0/1 every poll (~30s), `source="kasa"`, `location="tent"`. Written even when no state change occurred, so the web UI's time-series graphs show a continuous step function alongside `humidity_pct`.
-- **`logs/humidifier/YYYY-MM-DD.jsonl`** — state-change events with full context (reason, RH at decision time, RH-reading age). Short-retention operational stream for incident review.
+- **`sensorreading.humidifier_on`** — 0/1 every poll (~30s), `source="kasa"`, `location="tent"`. Written even when no state change occurred, so the web UI's time-series graphs show a continuous step function alongside `vpd_kpa`.
+- **`logs/humidifier/YYYY-MM-DD.jsonl`** — state-change events with full context (reason, VPD at decision time, VPD-reading age, stage, and the upper/lower band edges in effect). Short-retention operational stream for incident review.
 
-State-change reasons: `rh_below_threshold`, `rh_above_threshold`, `failsafe_stale_sensor`, `max_on_timeout`. Manual overrides via the Kasa app or `uv run kasa --host 192.168.1.220 on/off` are NOT tagged — the loop just observes the new state on its next poll and records it.
+State-change reasons: `vpd_above_upper_band`, `vpd_below_upper_band`, `failsafe_stale_sensor`, `max_on_timeout`. Manual overrides via the Kasa app or `uv run kasa --host 192.168.1.220 on/off` are NOT tagged — the loop just observes the new state on its next poll and records it.
 
 Wattage field is absent because this firmware doesn't expose an Energy module.
 
@@ -136,10 +151,11 @@ Wattage field is absent because this firmware doesn't expose an Energy module.
 - **Empty-reservoir behavior:** the Raydrop has its own low-water cutoff. Combined with the EP10's wattage reporting (~0 W even when `is_on`), the control service can detect "humidifier plugged in but not actually running" and surface it.
 - **Fail-safe priority:** stuck-off is safer than stuck-on. Damping-off and mold are worse than a dry spell. The loop defaults to OFF on any ambiguity.
 
-## Acceptance (from decision record)
+## Acceptance
 
-- Humidifier cycles on/off through the EP10 based on DHT22 readings without manual intervention.
-- RH stays within target band ±5% for 24h continuous.
-- Plug state (and ideally wattage) logged alongside RH.
+- Humidifier cycles on/off through the EP10 based on tent VPD without manual intervention.
+- VPD stays inside the active stage band for 24h continuous across the day/night swing.
+- Plug state logged alongside VPD; state-change events carry the band edges that were active at decision time.
 - Simulated sensor failure triggers failsafe OFF within the failsafe window.
-- Max-on-time safety timeout observed under a "sensor stuck low" simulation.
+- Max-on-time safety timeout observed under a "sensor stuck high-VPD" simulation.
+- Veg→flower flip (via a `grow_state.flower_start_date` write) shifts the upper-edge setpoint on the next poll without a service restart.

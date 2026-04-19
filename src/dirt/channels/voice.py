@@ -32,14 +32,14 @@ import time
 import uuid
 import wave
 from collections import deque
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import numpy as np
 import sounddevice as sd
 from loguru import logger
 from openwakeword.model import Model
-
+from pipecat.adapters.schemas.tools_schema import FunctionSchema, ToolsSchema
 from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.audio.vad.vad_analyzer import VADParams
 from pipecat.frames.frames import LLMRunFrame
@@ -52,19 +52,22 @@ from pipecat.processors.aggregators.llm_response_universal import (
     LLMUserAggregatorParams,
 )
 from pipecat.processors.aggregators.llm_text_processor import LLMTextProcessor
-from pipecat.adapters.schemas.tools_schema import FunctionSchema, ToolsSchema
 from pipecat.services.anthropic.llm import AnthropicLLMService
 from pipecat.services.deepgram.stt import DeepgramSTTService
 from pipecat.services.elevenlabs.tts import ElevenLabsTTSService
-from pipecat.utils.text.pattern_pair_aggregator import MatchAction, PatternPairAggregator
+from pipecat.utils.text.pattern_pair_aggregator import (
+    MatchAction,
+    PatternPairAggregator,
+)
 
 from dirt.channels._audio_transport import (
     SoundDeviceTransport,
     SoundDeviceTransportParams,
 )
 from dirt.channels._observers import FrameFlowObserver
-from dirt.config import grow_week, settings
+from dirt.config import settings
 from dirt.observability import CONVERSATION_ID, log_event
+from dirt.services.grow_state import grow_week
 from dirt.tools import SHARED_TOOLS, ToolSpec
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -130,7 +133,7 @@ CLAUDIA_SYSTEM_PROMPT_BASE = (
 )
 
 
-def _build_claudia_system_prompt() -> str:
+async def _build_claudia_system_prompt() -> str:
     # Date and grow week change over time; rebuild per conversation so the
     # model always has current context. Short addendum — no effect on cache
     # because Anthropic prompt-cache TTL (≤1h) is shorter than the daily
@@ -138,16 +141,16 @@ def _build_claudia_system_prompt() -> str:
     return (
         f"{CLAUDIA_SYSTEM_PROMPT_BASE}\n\n"
         f"Today is {date.today().isoformat()}. "
-        f"We're in week {grow_week()} of the grow."
+        f"We're in week {await grow_week()} of the grow."
     )
 
 
 def _utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+    return datetime.now(UTC).isoformat(timespec="milliseconds")
 
 
 def _session_log_path() -> Path:
-    return SESSIONS_DIR / f"{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.jsonl"
+    return SESSIONS_DIR / f"{datetime.now(UTC).strftime('%Y-%m-%d')}.jsonl"
 
 
 def _log_event(event: dict) -> None:
@@ -227,7 +230,7 @@ def _save_wake_audio_clip(
     retention would defeat the purpose.
     """
     WAKE_AUDIO_DIR.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%S-%f")[:-3]
+    ts = datetime.now(UTC).strftime("%Y-%m-%dT%H-%M-%S-%f")[:-3]
     path = WAKE_AUDIO_DIR / f"{ts}_{label}_score-{score:.3f}.wav"
     audio_bytes = b"".join(f.tobytes() for f in frames)
     with wave.open(str(path), "wb") as w:
@@ -358,7 +361,7 @@ async def run_conversation(device: int) -> LLMContext:
         api_key=settings.anthropic_api_key,
         settings=AnthropicLLMService.Settings(
             model="claude-haiku-4-5",
-            system_instruction=_build_claudia_system_prompt(),
+            system_instruction=await _build_claudia_system_prompt(),
             max_tokens=512,
             enable_prompt_caching=True,
         ),

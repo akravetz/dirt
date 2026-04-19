@@ -9,13 +9,10 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = BASE_DIR / "templates"
 
-# Germination date per wiki/overview.md. Day 1 = 2026-03-15.
+# Germination date per wiki/overview.md. Day 1 = 2026-03-15. Seeds the
+# grow_state.germination_date row on first boot — runtime reads go through
+# dirt.services.grow_state so a future UI can edit the date in one place.
 GROW_START = date(2026, 3, 15)
-
-
-def grow_week() -> int:
-    """Current week of the grow (1-indexed). Day 1-7 = week 1, day 8-14 = week 2, ..."""
-    return (date.today() - GROW_START).days // 7 + 1
 
 
 class Settings(BaseSettings):
@@ -40,11 +37,12 @@ class Settings(BaseSettings):
     elabs_api_key: str = ""
     elabs_voice_id: str = ""
     # Kasa EP10 humidifier plug. See wiki/hardware/humidifier-control.md.
+    # Control targets VPD (not fixed RH); the active band comes from
+    # services.grow_state.current_targets() and shifts by stage.
     kasa_username: str = ""
     kasa_password: str = ""
     kasa_humidifier_host: str = "192.168.1.220"
-    humidity_target_pct: float = 60.0
-    humidity_deadband_pct: float = 3.0
+    vpd_deadband_kpa: float = 0.1
     humidifier_poll_interval: int = 30
     humidifier_min_off_seconds: int = 90
     humidifier_max_on_seconds: int = 1200

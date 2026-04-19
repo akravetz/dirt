@@ -11,21 +11,17 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from dirt.db import engine
 from dirt.models.sensor_calibration import SensorCalibration
 from dirt.models.sensor_reading import SensorReading
+from dirt.services.grow_state import current_targets
 from dirt.services.readings import METRICS, compute_calibrated_pct, get_latest_reading
 from dirt.tools import ToolSpec
 
 PLANT_LOCATIONS = ("plant-a", "plant-b", "plant-c", "plant-d")
 
 
-# Flower-stage targets. V1 hardcode — source-of-truth belongs in wiki/environment/
-# pages once we're ready to read them at tool boot. `pressure_hpa` and
-# `dew_point_f` are informational (rarely actionable indoors); out-of-range is
-# suppressed for them so we don't distract Claudia with non-signal.
-_TARGETS = {
-    "temperature_f": (70, 82),
-    "humidity_pct": (40, 55),
-    "vpd_kpa": (1.2, 1.5),
-}
+# `pressure_hpa` and `dew_point_f` are informational (rarely actionable
+# indoors); out-of-range is suppressed for them so we don't distract Claudia
+# with non-signal. Temp / RH / VPD bands live in services.grow_state and
+# shift with stage.
 
 # Speech-friendly short labels for Claudia to say.
 _LABELS = {
@@ -82,6 +78,7 @@ async def _get_current_status() -> dict:
     out_of_range = []
     oldest_age_s: float | None = None
     now = datetime.now(UTC)
+    targets = await current_targets()
 
     for metric in METRICS:
         r = await get_latest_reading(metric)
@@ -91,14 +88,16 @@ async def _get_current_status() -> dict:
         age_s = (now - r.timestamp.replace(tzinfo=UTC)).total_seconds()
         oldest_age_s = age_s if oldest_age_s is None else max(oldest_age_s, age_s)
 
-        if metric in _TARGETS:
-            lo, hi = _TARGETS[metric]
+        if metric in targets:
+            lo, hi = targets[metric]
             if not (lo <= r.value <= hi):
-                out_of_range.append({
-                    "label": _LABELS[metric],
-                    "value": round(r.value, 2),
-                    "target": f"{lo}-{hi}",
-                })
+                out_of_range.append(
+                    {
+                        "label": _LABELS[metric],
+                        "value": round(r.value, 2),
+                        "target": f"{lo}-{hi}",
+                    }
+                )
 
     soil, soil_ages = await _latest_soil_moisture_pct()
     for age_s in soil_ages:

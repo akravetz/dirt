@@ -12,6 +12,7 @@ updated: 2026-04-18
 *Formerly labeled Plant 2 in early documentation.*
 
 **Label:** B
+**Sticker:** orange
 **Priority:** 🟡 Secondary candidate
 **Purple Signal:** ❌ None observed
 

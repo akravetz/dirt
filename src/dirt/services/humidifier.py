@@ -1,11 +1,15 @@
 """Humidifier control via Kasa EP10 smart plug.
 
-Bang-bang hysteresis on tent DHT22 RH. See wiki/hardware/humidifier-control.md
-and wiki/decisions/2026-04-17-humidifier-kasa-ep10.md for the design.
+Bang-bang hysteresis on tent VPD against the stage-dynamic upper band from
+`dirt.services.grow_state.current_targets()`. The humidifier is a single-
+direction actuator (adds moisture → drops VPD), so we target the band's
+upper edge: kick on when VPD rises above it, kick off once it falls back
+below by `vpd_deadband_kpa`. Night-time behavior is free — cooler air drops
+VPD naturally, which turns the loop off without a schedule.
 
-Safety posture: failsafe OFF on any ambiguity (stale sensor, unreachable plug,
-max-on timeout). Stuck-off is safer than stuck-on — mold/damping-off is worse
-than a brief dry spell.
+Safety posture: failsafe OFF on any ambiguity (stale sensor, unreachable
+plug, max-on timeout). Stuck-off is safer than stuck-on — mold / damping-off
+is worse than a brief dry spell.
 """
 
 from __future__ import annotations
@@ -22,6 +26,7 @@ from dirt.config import settings
 from dirt.db import engine
 from dirt.models.sensor_reading import SensorReading
 from dirt.observability import log_event
+from dirt.services.grow_state import current_stage, current_targets
 from dirt.services.readings import get_latest_reading
 
 logger = logging.getLogger(__name__)
@@ -50,12 +55,14 @@ async def _safe_disconnect(plug: Device | None) -> None:
 
 
 async def humidifier_loop(stop_event: asyncio.Event) -> None:
-    """Close the loop: tent RH → Kasa plug → Raydrop humidifier.
+    """Close the loop: tent VPD → Kasa plug → Raydrop humidifier.
 
-    Polls every `humidifier_poll_interval` seconds. On each tick, records the
-    plug's state as a `humidifier_on` reading (0/1) so it graphs alongside
-    `humidity_pct`. State transitions are also emitted to the `humidifier`
-    operational log stream with the triggering reason.
+    Polls every `humidifier_poll_interval` seconds. Each tick fetches the
+    current stage's VPD band fresh so a veg→flower flip takes effect without
+    a restart. Records the plug's state as a `humidifier_on` reading (0/1)
+    every poll so it graphs alongside `vpd_kpa`. State transitions are also
+    emitted to the `humidifier` operational log stream with the triggering
+    reason, stage, and upper-band edge.
     """
     if not settings.kasa_username or not settings.kasa_password:
         logger.warning("KASA_USERNAME/KASA_PASSWORD unset — humidifier loop disabled")
@@ -63,19 +70,15 @@ async def humidifier_loop(stop_event: asyncio.Event) -> None:
 
     creds = Credentials(settings.kasa_username, settings.kasa_password)
     host = settings.kasa_humidifier_host
-    target = settings.humidity_target_pct
-    band = settings.humidity_deadband_pct
-    turn_on_below = target - band
-    turn_off_above = target + band
+    deadband = settings.vpd_deadband_kpa
     interval = settings.humidifier_poll_interval
     min_off = settings.humidifier_min_off_seconds
     max_on = settings.humidifier_max_on_seconds
     stale_s = settings.humidifier_failsafe_stale_seconds
 
     logger.info(
-        "humidifier loop starting: host=%s target=%.1f%% "
-        "band=[%.1f,%.1f] interval=%ds",
-        host, target, turn_on_below, turn_off_above, interval,
+        "humidifier loop starting: host=%s deadband=%.2fkPa interval=%ds",
+        host, deadband, interval,
     )
 
     plug: Device | None = None
@@ -101,10 +104,16 @@ async def humidifier_loop(stop_event: asyncio.Event) -> None:
             if turned_on_at is None:
                 turned_on_at = asyncio.get_event_loop().time() if is_on else 0.0
 
-            reading = await get_latest_reading("humidity_pct")
+            # Stage-dynamic upper band; the humidifier targets the dry edge.
+            stage = await current_stage()
+            vpd_lo, vpd_hi = (await current_targets())["vpd_kpa"]
+            turn_on_above = vpd_hi
+            turn_off_below = vpd_hi - deadband
+
+            reading = await get_latest_reading("vpd_kpa")
             now_mono = asyncio.get_event_loop().time()
             now = datetime.now(UTC)
-            rh: float | None = reading.value if reading else None
+            vpd: float | None = reading.value if reading else None
             # SQLite drops tzinfo; treat stored timestamps as UTC.
             age = None
             if reading is not None:
@@ -116,7 +125,7 @@ async def humidifier_loop(stop_event: asyncio.Event) -> None:
             new_state = is_on
             reason: str | None = None
 
-            if rh is None or age is None or age > stale_s:
+            if vpd is None or age is None or age > stale_s:
                 if is_on:
                     new_state = False
                     reason = "failsafe_stale_sensor"
@@ -124,15 +133,15 @@ async def humidifier_loop(stop_event: asyncio.Event) -> None:
                 new_state = False
                 reason = "max_on_timeout"
             elif (
-                rh < turn_on_below
+                vpd > turn_on_above
                 and not is_on
                 and (now_mono - last_switch) >= min_off
             ):
                 new_state = True
-                reason = "rh_below_threshold"
-            elif rh > turn_off_above and is_on:
+                reason = "vpd_above_upper_band"
+            elif vpd < turn_off_below and is_on:
                 new_state = False
-                reason = "rh_above_threshold"
+                reason = "vpd_below_upper_band"
 
             if new_state != is_on:
                 if new_state:
@@ -147,12 +156,16 @@ async def humidifier_loop(stop_event: asyncio.Event) -> None:
                     "state_change",
                     new_state="on" if new_state else "off",
                     reason=reason,
-                    rh=rh,
-                    rh_age_s=age,
+                    vpd=vpd,
+                    vpd_age_s=age,
+                    stage=stage,
+                    upper_band_kpa=vpd_hi,
+                    lower_band_kpa=vpd_lo,
                 )
                 logger.info(
-                    "humidifier → %s (reason=%s rh=%s age=%s)",
-                    "on" if new_state else "off", reason, rh, age,
+                    "humidifier → %s (reason=%s vpd=%s age=%s stage=%s band=[%s,%s])",
+                    "on" if new_state else "off",
+                    reason, vpd, age, stage, vpd_lo, vpd_hi,
                 )
 
             await _record(is_on)

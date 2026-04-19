@@ -57,10 +57,11 @@ updated: 2026-04-18
 ## Active Action Items
 
 1. **Begin LST on all 4 plants — as soon as main shoots size up** 🔴 — Day 35, Day 6–7 post-topping. SCROG net is in; waiting on new shoots to reach ~2" (expected 1–3 days). Then gently bend outward at ~45° and anchor to pot rim; tuck into nearest net squares as shoots extend. Start with Plant A (longest recovery)
-2. **Lower overnight humidifier setpoint** 🟡 — overnight RH 76.95%, VPD 0.46 kPa; reduce bang-bang nighttime target to ~55% or schedule humidifier OFF during lights-off
-3. **Address overnight temperature** 🟡 — 63.54°F overnight avg; reduce exhaust fan speed at lights-off or add space heater on a timer; target 68–72°F night
-4. **Verify EC in reservoir** — was 1.84 before activation (Apr 15); confirm diluted to 0.8–1.0 at next reservoir change
-5. **Continue light ramp** — at 40%; step to 50% once LST stress resolves (~5–7 days)
+2. **Address overnight temperature** 🟡 — 63.54°F overnight avg; reduce exhaust fan speed at lights-off or add space heater on a timer; target 68–72°F night
+3. **Verify EC in reservoir** — was 1.84 before activation (Apr 15); confirm diluted to 0.8–1.0 at next reservoir change
+4. **Continue light ramp** — at 40%; step to 50% once LST stress resolves (~5–7 days)
+
+_Resolved 2026-04-18: "Lower overnight humidifier setpoint" — humidifier loop switched to stage-dynamic VPD targeting, which stops running automatically through cool nights. See [decision 2026-04-18](decisions/2026-04-18-vpd-targeting.md)._
 
 ## Upcoming Milestones
 

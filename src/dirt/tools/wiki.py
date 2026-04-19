@@ -29,8 +29,8 @@ from claude_agent_sdk import (
     query,
 )
 
-from dirt.config import grow_week
 from dirt.observability import log_event
+from dirt.services.grow_state import grow_week
 from dirt.tools import ToolSpec
 
 _WIKI_ROOT = Path(__file__).resolve().parents[3] / "wiki"
@@ -75,7 +75,7 @@ async def _ask_wiki(question: str) -> dict[str, Any]:
     )
 
     prompt = (
-        f"Today is {date.today()}, week {grow_week()} of the grow. "
+        f"Today is {date.today()}, week {await grow_week()} of the grow. "
         "You're in the grow wiki (this directory). Start by reading "
         "`CLAUDE.md` — it's the wiki's operating manual and has a routing "
         "table that tells you which file to read for each question shape. "

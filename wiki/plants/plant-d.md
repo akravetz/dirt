@@ -12,6 +12,7 @@ updated: 2026-04-18
 *Formerly labeled Plant 4 in early documentation.*
 
 **Label:** D
+**Sticker:** blue
 **Priority:** 🔴 Primary keeper candidate
 **Purple Signal:** ✅ Strongest signal — stem, petioles, cotyledons
 
