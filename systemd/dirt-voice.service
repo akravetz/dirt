@@ -1,0 +1,23 @@
+[Unit]
+Description=Dirt voice channel (Claudia) — wake-word → Pipecat pipeline → Jabra
+Documentation=file://%h/code/dirt/wiki/hardware/jabra.md
+After=default.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/code/dirt
+# Full path to uv — systemd user services don't inherit the interactive PATH.
+ExecStart=%h/.local/bin/uv run python -m dirt.channels.voice
+Restart=on-failure
+RestartSec=5s
+# Give the channel time to unwind async context managers so the Jabra ALSA
+# handle is released cleanly. The signal handler in voice.main() routes
+# SIGTERM through asyncio task cancellation, which unwinds `async with`.
+KillSignal=SIGTERM
+TimeoutStopSec=10s
+
+# Security hardening (user service). Keep minimal to avoid breaking USB audio.
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

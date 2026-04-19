@@ -1,0 +1,13 @@
+[Unit]
+Description=Fire dirt-daily-report.service at 14:00 MDT (20:00 UTC)
+Documentation=file://%h/code/dirt/CLAUDE.md
+
+[Timer]
+# 20:00 UTC = 14:00 MDT (UTC-6).
+OnCalendar=*-*-* 20:00:00 UTC
+# If the machine was off at 20:00 UTC, fire on next boot — once per day.
+Persistent=true
+Unit=dirt-daily-report.service
+
+[Install]
+WantedBy=timers.target

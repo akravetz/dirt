@@ -1,0 +1,14 @@
+[Unit]
+Description=Dirt daily report run (photos + sensor synthesis + Telegram)
+Documentation=file://%h/code/dirt/CLAUDE.md
+After=dirt-camera.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/code/dirt
+EnvironmentFile=%h/code/dirt/.env
+ExecStart=%h/code/dirt/scripts/daily_report
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=900s
