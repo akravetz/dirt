@@ -1,0 +1,37 @@
+concept: atlas
+display_name: Atlas (ariga/atlas)
+mode: framework
+version: 1.2.0
+generated_at: 2026-04-19
+sources:
+  - https://atlasgo.io/getting-started
+  - https://atlasgo.io/atlas-schema/hcl
+  - https://atlasgo.io/atlas-schema/hcl-types
+  - https://atlasgo.io/atlas-schema/projects
+  - https://atlasgo.io/versioned/diff
+  - https://atlasgo.io/versioned/apply
+  - https://atlasgo.io/versioned/lint
+  - https://atlasgo.io/lint/analyzers
+  - https://atlasgo.io/concepts/dev-database
+  - https://atlasgo.io/integrations/github-actions
+  - https://github.com/ariga/atlas
+  - https://github.com/ariga/atlas-provider-sqlalchemy
+topics:
+  - installation-and-cli.md
+  - hcl-schema.md
+  - sqlalchemy-external-loader.md
+  - atlas-hcl-config.md
+  - migration-workflow.md
+  - migration-lint-and-safety.md
+  - postgres-specifics.md
+claude_md_pointer:
+  path: docs/references/atlas/INDEX.md
+  consult_when: >-
+    Consult when writing or modifying Atlas HCL schema files, editing
+    `atlas.hcl` config, running `atlas migrate diff` / `atlas migrate apply`
+    / `atlas migrate lint`, configuring the SQLAlchemy external schema loader
+    to derive HCL from SQLModel models in
+    `apps/shared/src/dirt_shared/models/`, or authoring migration files
+    under `migrations/`. Anchors to current Atlas v1.2 practice and
+    overrides training-data instincts toward Alembic or hand-written SQL
+    migrations.

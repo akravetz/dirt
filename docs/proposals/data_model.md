@@ -110,73 +110,49 @@ CREATE TYPE sensor_location     AS ENUM ('tent', 'plant-a', 'plant-b', 'plant-c'
 CREATE TYPE sensor_source       AS ENUM ('arduino', 'esp32', 'kasa', 'mock');
 
 -- ============================================================
--- growstate (singleton, id = 1)
+-- PK / FK discipline
+-- ============================================================
+-- Every table has a surrogate `id bigint GENERATED ALWAYS AS IDENTITY`
+-- primary key. Natural keys (plant code, sensor node location) live as
+-- separate columns with their own UNIQUE constraint. Every cross-table
+-- reference is a real FK on those surrogate keys, not on the natural key.
+--
+-- Singletons (growstate) use a partial unique index to enforce "exactly
+-- one row of kind X" rather than pinning id=1; future-proofs multi-grow
+-- history without another schema migration.
+
+-- ============================================================
+-- growstate ("the current grow"; future-proofed for multi-grow)
 -- ============================================================
 
 CREATE TABLE growstate (
-    id                  smallint     PRIMARY KEY DEFAULT 1 CHECK (id = 1),
-    germination_date    date         NOT NULL,
-    flower_start_date   date         NULL,
-    lights_on_local     time         NOT NULL DEFAULT '05:00:00',
-    lights_off_local    time         NOT NULL DEFAULT '23:00:00',
-    -- NEW COLUMNS:
-    strain              text         NOT NULL DEFAULT 'Sirius Black × BS01',
-    location            text         NOT NULL DEFAULT 'Denver, MT · closet tent',
-    plant_count         smallint     NOT NULL DEFAULT 4 CHECK (plant_count BETWEEN 1 AND 16)
+    id                  bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    germination_date    date        NOT NULL,
+    flower_start_date   date        NULL,
+    lights_on_local     time        NOT NULL DEFAULT '05:00:00',
+    lights_off_local    time        NOT NULL DEFAULT '23:00:00',
+    strain              text        NOT NULL DEFAULT 'Sirius Black × BS01',
+    location            text        NOT NULL DEFAULT 'Denver, MT · closet tent',
+    plant_count         smallint    NOT NULL DEFAULT 4 CHECK (plant_count BETWEEN 1 AND 16),
+    is_current          boolean     NOT NULL DEFAULT false,
+    created_at          timestamptz NOT NULL DEFAULT now()
 );
 
--- ============================================================
--- plant (NEW — seeded with 4 rows on first migration)
--- ============================================================
+-- Exactly one grow can be flagged current. Partial unique index permits
+-- any number of historical (is_current=false) rows.
+CREATE UNIQUE INDEX ux_growstate_is_current
+    ON growstate (is_current) WHERE is_current = true;
 
-CREATE TABLE plant (
-    id                      char(1)             PRIMARY KEY CHECK (id ~ '^[a-z]$'),
-    name                    text                NOT NULL,
-    sticker_color           plant_sticker       NOT NULL,
-    status                  plant_status        NOT NULL DEFAULT 'secondary',
-    purple                  boolean             NOT NULL DEFAULT false,
-    label                   text                NULL,           -- drawer tagline
-    location                sensor_location     NOT NULL UNIQUE, -- 'plant-a' etc; UNIQUE → 1:1 with a sensor node
-    moisture_target_low     real                NOT NULL DEFAULT 55 CHECK (moisture_target_low >= 0 AND moisture_target_low < moisture_target_high),
-    moisture_target_high    real                NOT NULL DEFAULT 70 CHECK (moisture_target_high <= 100),
-    created_at              timestamptz         NOT NULL DEFAULT now(),
-    updated_at              timestamptz         NOT NULL DEFAULT now()
-);
-
-CREATE INDEX ix_plant_status ON plant (status);
-
--- Initial seed (written as a post-DDL data migration, not part of DDL):
---   ('a','Plant A','yellow','primary', true,  'Purple Keeper Candidate','plant-a', ...)
---   ('b','Plant B','orange','secondary',false, NULL,                    'plant-b', ...)
---   ('c','Plant C','pink',  'secondary',false, NULL,                    'plant-c', ...)
---   ('d','Plant D','blue',  'primary', true,  'Purple Keeper Candidate','plant-d', ...)
+-- Initial seed (data migration): one row, is_current=true, values from
+-- current wiki/config.
 
 -- ============================================================
--- sensorreading (the hot table — 138k+ rows, append-only)
--- ============================================================
-
-CREATE TABLE sensorreading (
-    id          bigserial           PRIMARY KEY,
-    ts          timestamptz         NOT NULL DEFAULT now(),
-    location    sensor_location     NOT NULL,
-    metric      text                NOT NULL,
-    value       double precision    NOT NULL,
-    source      sensor_source       NOT NULL
-);
-
--- BRIN is intentional: ts is monotonically increasing (append-only),
--- which is exactly what BRIN is good at. Much smaller than B-tree for
--- time-range scans on a 150k+ row table, negligible write cost.
-CREATE INDEX ix_sensorreading_ts        ON sensorreading USING BRIN (ts);
-CREATE INDEX ix_sensorreading_metric_ts ON sensorreading (metric, ts DESC);
-CREATE INDEX ix_sensorreading_loc_ts    ON sensorreading (location, ts DESC);
-
--- ============================================================
--- sensornode (per-ESP32 metadata)
+-- sensornode (seeded with one row per sensor_location enum value)
 -- ============================================================
 
 CREATE TABLE sensornode (
-    location            sensor_location     PRIMARY KEY,
+    id                  bigint              GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    location            sensor_location     NOT NULL UNIQUE,
     ip                  inet                NULL,
     firmware_version    text                NULL,
     uptime_ms           bigint              NULL,
@@ -185,25 +161,100 @@ CREATE TABLE sensornode (
 
 CREATE INDEX ix_sensornode_last_seen ON sensornode (last_seen DESC);
 
+-- Initial seed (data migration): one row per sensor_location enum value,
+-- so that every downstream FK target exists from day one. The ESP32
+-- nodes overwrite their own row via the ingest upsert; the 'tent' and
+-- 'reservoir' rows stay minimally populated (no ip/firmware) until
+-- real hardware shows up.
+--   ('tent',      NULL, NULL, NULL, NULL)
+--   ('plant-a',   NULL, NULL, NULL, NULL)
+--   ('plant-b',   NULL, NULL, NULL, NULL)
+--   ('plant-c',   NULL, NULL, NULL, NULL)
+--   ('plant-d',   NULL, NULL, NULL, NULL)
+--   ('reservoir', NULL, NULL, NULL, NULL)
+
 -- ============================================================
--- sensorcalibration (per-metric linear calibration)
+-- plant (seeded with 4 rows; one per plant-{a,b,c,d} sensornode)
+-- ============================================================
+
+CREATE TABLE plant (
+    id                      bigint              GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    growstate_id            bigint              NOT NULL REFERENCES growstate(id) ON DELETE RESTRICT,
+    sensornode_id           bigint              NOT NULL UNIQUE REFERENCES sensornode(id) ON DELETE RESTRICT,
+    code                    char(1)             NOT NULL CHECK (code ~ '^[a-z]$'),
+    name                    text                NOT NULL,
+    sticker_color           plant_sticker       NOT NULL,
+    status                  plant_status        NOT NULL DEFAULT 'secondary',
+    purple                  boolean             NOT NULL DEFAULT false,
+    label                   text                NULL,                          -- drawer tagline
+    moisture_target_low     real                NOT NULL DEFAULT 55,
+    moisture_target_high    real                NOT NULL DEFAULT 70,
+    created_at              timestamptz         NOT NULL DEFAULT now(),
+    updated_at              timestamptz         NOT NULL DEFAULT now(),
+    CHECK (moisture_target_low >= 0 AND moisture_target_low < moisture_target_high),
+    CHECK (moisture_target_high <= 100),
+    UNIQUE (growstate_id, code)          -- code 'a' unique per-grow, not globally
+);
+
+CREATE INDEX ix_plant_status        ON plant (status);
+CREATE INDEX ix_plant_growstate_id  ON plant (growstate_id);
+
+-- Initial seed (data migration, joined to the growstate + sensornode rows
+-- above by their surrogate ids):
+--   (growstate#1, sensornode#plant-a, 'a', 'Plant A', 'yellow', 'primary',   true,  'Purple Keeper Candidate')
+--   (growstate#1, sensornode#plant-b, 'b', 'Plant B', 'orange', 'secondary', false, NULL)
+--   (growstate#1, sensornode#plant-c, 'c', 'Plant C', 'pink',   'secondary', false, NULL)
+--   (growstate#1, sensornode#plant-d, 'd', 'Plant D', 'blue',   'primary',   true,  'Purple Keeper Candidate')
+
+-- ============================================================
+-- sensorreading (hot table — 138k+ rows, append-only; FK to sensornode)
+-- ============================================================
+
+CREATE TABLE sensorreading (
+    id              bigint              GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    ts              timestamptz         NOT NULL DEFAULT now(),
+    sensornode_id   bigint              NOT NULL REFERENCES sensornode(id) ON DELETE RESTRICT,
+    metric          text                NOT NULL,
+    value           double precision    NOT NULL,
+    source          sensor_source       NOT NULL
+);
+
+-- BRIN is intentional: ts is monotonically increasing (append-only),
+-- exactly what BRIN is good at. Much smaller than B-tree for time-range
+-- scans on a 150k+ row table, negligible write cost.
+CREATE INDEX ix_sensorreading_ts         ON sensorreading USING BRIN (ts);
+CREATE INDEX ix_sensorreading_metric_ts  ON sensorreading (metric, ts DESC);
+CREATE INDEX ix_sensorreading_node_ts    ON sensorreading (sensornode_id, ts DESC);
+
+-- Ingest ordering (dirt-hwd `ingest_reading()` in readings.py): within one
+-- transaction, upsert `sensornode` FIRST, then insert `sensorreading` rows.
+-- Both statements commit together; FK is satisfied. The seed rows above
+-- cover the cold-start case (first reading before a node ever POSTed).
+
+-- ============================================================
+-- sensorcalibration (composite business key preserved as UNIQUE)
 -- ============================================================
 
 CREATE TABLE sensorcalibration (
-    location    sensor_location     NOT NULL,
-    metric      text                NOT NULL,
-    raw_low     double precision    NOT NULL,
-    raw_high    double precision    NOT NULL CHECK (raw_high > raw_low),
-    updated_at  timestamptz         NOT NULL DEFAULT now(),
-    PRIMARY KEY (location, metric)
+    id              bigint              GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    sensornode_id   bigint              NOT NULL REFERENCES sensornode(id) ON DELETE CASCADE,
+    metric          text                NOT NULL,
+    raw_low         double precision    NOT NULL,
+    raw_high        double precision    NOT NULL,
+    updated_at      timestamptz         NOT NULL DEFAULT now(),
+    CHECK (raw_high > raw_low),
+    UNIQUE (sensornode_id, metric)       -- old composite natural key, now a constraint
 );
+
+-- CASCADE on delete: if a sensornode is ever actually deleted (not expected
+-- in normal operation), its calibration rows are meaningless and go with it.
 
 -- ============================================================
 -- snapshot (daily report + interval archive)
 -- ============================================================
 
 CREATE TABLE snapshot (
-    id          bigserial       PRIMARY KEY,
+    id          bigint          GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ts          timestamptz     NOT NULL DEFAULT now(),
     file_path   text            NOT NULL UNIQUE
 );
@@ -213,20 +264,23 @@ CREATE INDEX ix_snapshot_ts ON snapshot (ts DESC);
 
 ### Notes on type choices
 
+- **`bigint GENERATED ALWAYS AS IDENTITY` over `bigserial`.** SQL-standard, no orphan backing sequence to fix permissions on, rejects manual inserts that bypass the sequence (`INSERT INTO foo (id, ...)` errors unless you write `OVERRIDING SYSTEM VALUE`). Modern-Postgres idiom since pg 10; `bigserial` is the legacy macro.
 - **`timestamptz` everywhere** and `ts` (not `timestamp`) as the column name. All wire-level datetimes are UTC. Clients that need local time (tent TZ, America/Denver) convert at presentation.
-- **`sensor_location` enum.** Today the string is free-form; in practice only 6 values exist. Making it an enum makes bad writes impossible and queries cheaper.
-- **`bigserial` for `sensorreading.id`.** The 138k existing rows fit in int, but we're append-only and the table grows every 20 seconds — `bigserial` is cheap insurance.
-- **BRIN index on `sensorreading.ts`.** Append-only + monotonic-ts is the textbook BRIN use case; the composite `(metric, ts DESC)` covers the typical "latest value for metric" query pattern. Dropped the redundant single-column `(metric)` B-tree.
+- **`sensor_location` enum.** Today the string is free-form; in practice only 6 values exist. Applied only where the natural key is written — `sensornode.location`. Adding a new location = one migration that widens the enum + one insert.
+- **BRIN index on `sensorreading.ts`.** Append-only + monotonic-ts is the textbook BRIN use case; the composite `(metric, ts DESC)` and `(sensornode_id, ts DESC)` cover the "latest value for metric / for node" query patterns.
 - **`inet` for IP.** Native, validated, indexable. Cheap.
-- **`plant.id CHECK (id ~ '^[a-z]$')`.** Prevents 'Plant-A', 'plant_a', 'A' drift across four call sites.
-- **CHECK constraints on band bounds.** Prevent `moisture_target_low >= moisture_target_high` at the DB, not in Python.
-- **`plant.location UNIQUE`.** Enforces the 1:1 between a plant row and its sensor node.
+- **`plant.code CHECK (code ~ '^[a-z]$')`.** Prevents 'Plant-A', 'plant_a', 'A' drift on the stable-label column. Paired with `UNIQUE (growstate_id, code)` so grow #2 can also have plants a–d.
+- **`plant.sensornode_id UNIQUE`.** Enforces the 1:1 between a plant row and its ESP32 node via a real FK, not a name-matching convention.
+- **`plant.growstate_id` FK.** Ties every plant to a specific grow. Lets a future multi-grow flow insert new plants without schema change.
+- **`growstate.is_current` + partial unique index.** Exactly-one-current-grow invariant is enforced in the DB (`CREATE UNIQUE INDEX ... WHERE is_current = true`). Multi-grow flow = `UPDATE growstate SET is_current=false WHERE is_current=true; INSERT INTO growstate (..., is_current=true) ...` — both in one transaction, partial index accepts the swap.
+- **CHECK constraints on moisture bands.** `moisture_target_low >= moisture_target_high` is rejected at the DB, not in Python.
 
 ### What's intentionally not doing
 
-- **No foreign key from `sensorreading.location` → `sensornode.location`.** Readings arrive before the node metadata row exists on first boot, and we don't want ingest to fail on a missing parent. The shared enum type gives us type safety without the ordering problem.
 - **No partitioning on `sensorreading` (yet).** 150k rows/year is laughable for a modern pg. When it's 50M rows, revisit monthly range partitioning on `ts`.
-- **No `grow` history table.** Only one active grow; flipping to a new grow overwrites `growstate`. Multi-grow history is an eventual ADR, not V1.
+- **No separate `device` table covering OBSBOT / Jabra / Kasa plug.** The system-devices endpoint collates heterogeneous hardware (sensor nodes from DB + camera socket probe + voice session file + kasa last-seen) at query time. Modeling non-sensor devices as rows would require another table + ingest path for each; not worth it yet.
+- **No FK from `sensorreading.source` to a `source` dimension table.** The `sensor_source` enum is the right shape: it's a small closed set, not independently queryable.
+- **No `updated_at` on `sensorreading`.** It's append-only; readings are never updated.
 
 ---
 
@@ -319,7 +373,7 @@ Caveat: the external schema loader needs our Python env loaded to run. For produ
 
 **Needed by:** `GET /api/plants`, `GET /api/plants/{id}`, dashboard plant cards, plant-detail drawer.
 
-**Target:** new `plant` table (see above). Seeded with 4 rows during the cutover. Uses Postgres `plant_status` + `plant_sticker` enums — writes outside the allowed set error at the DB layer, not at the Python layer.
+**Target:** new `plant` table (see above). Seeded with 4 rows during the cutover. Natural key `code` ('a'..'d') is a separate column with `UNIQUE (growstate_id, code)`; surrogate `id bigint` is the PK and the reference point for any future per-plant FKs (e.g. plant-scoped wiki mirrors). Uses Postgres `plant_status` + `plant_sticker` enums — writes outside the allowed set error at the DB layer, not at the Python layer. FK to `sensornode(id)` is `UNIQUE`, enforcing the plant↔node 1:1 in the DB instead of relying on a matching `'plant-a'` string convention across tables.
 
 ### 4c. Inline fan percent
 
@@ -399,15 +453,16 @@ If that parse proves flaky, the fallback is a `plant_detail` table (`id, body js
 
 | Change | Why |
 |---|---|
-| `growstate` — ADD `strain text NOT NULL`, `location text NOT NULL`, `plant_count smallint NOT NULL` | Top bar, login field-notes, `/api/grow/current`. |
+| Every table: **surrogate `id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY`** | Uniform PK discipline; FKs are always on `bigint`. Natural keys (`plant.code`, `sensornode.location`) become separate columns with their own UNIQUE constraint. |
+| `growstate` — ADD `strain`, `location`, `plant_count`, `is_current boolean`, `created_at` | Top bar / login; `is_current` + partial unique index enforces singleton semantics with a real PK and future-proofs multi-grow without another schema change. |
 | NEW enum types `grow_stage`, `plant_status`, `plant_sticker`, `sensor_location`, `sensor_source` | Replace free-form string columns with validated enums. |
-| NEW TABLE `plant` (id, name, sticker_color, status, purple, label, location, moisture target lo/hi, timestamps) + 4 seed rows | `/api/plants`, plant-detail drawer. |
-| Convert `sensorreading.location` from free-form TEXT to `sensor_location` enum | Defense-in-depth against bad writes. |
-| Convert `sensorreading.source` from free-form TEXT to `sensor_source` enum | Same. |
+| NEW TABLE `plant` with `growstate_id` + `sensornode_id` FKs, `code` natural key, sticker/status/purple/label/targets + timestamps; 4 seed rows | `/api/plants`, plant-detail drawer. `UNIQUE (growstate_id, code)` lets multi-grow reuse the A–D labels. `UNIQUE sensornode_id` enforces plant↔node 1:1. |
+| `sensorreading` — drop `location text`, add **`sensornode_id bigint REFERENCES sensornode(id)`** | Real FK, not a string convention. Seed `sensornode` covers cold-start; write path upserts node before reading in the same transaction. |
+| Convert `sensorreading.source` to `sensor_source` enum | Defense-in-depth against bad writes. |
 | Rename `sensorreading.timestamp` → `ts` | Postgres convention; `timestamp` is a reserved-adjacent keyword in some ORM contexts and it's less typing. |
-| `sensorreading` — add `(metric, ts DESC)` and `(location, ts DESC)` composite B-tree indexes; swap the single-column `ts` index to BRIN | Append-only monotonic-ts is the classic BRIN use case; the composite indexes cover the "latest for metric/location" query pattern. |
-| `sensornode.ip` — TEXT → `inet` | Native validation. |
-| `sensorcalibration` — add `updated_at` + CHECK `raw_high > raw_low` | Auditability + prevent degenerate rows. |
+| `sensorreading` — add `(metric, ts DESC)` and `(sensornode_id, ts DESC)` composite B-tree indexes; BRIN on `ts` | Append-only monotonic-ts is the classic BRIN use case; composites cover the "latest for metric/node" patterns. |
+| `sensornode` — add surrogate PK + `UNIQUE (location)` on the enum column; IP becomes `inet` | Uniform PK discipline; native IP validation. Seeded with one row per enum value so every FK target exists from day one. |
+| `sensorcalibration` — drop composite natural PK, add surrogate PK + `UNIQUE (sensornode_id, metric)`; add `updated_at`, CHECK `raw_high > raw_low`; FK `sensornode_id` with `ON DELETE CASCADE` | PK discipline; composite uniqueness preserved as constraint; auditability; prevent degenerate rows. |
 | `snapshot.file_path` — add UNIQUE | Avoid double-recording the same file after a bug. |
 
 ### Mocked data (server-side stubs, retire when hardware catches up)
@@ -448,7 +503,9 @@ If that parse proves flaky, the fallback is a `plant_detail` table (`id, body js
 5. **Mocked sensors visible in `/api/system/devices`?** If we add a "mocked" kind/status, the UI could show them as `mock`. Lean: no — mockup doesn't surface it, and flagging would leak implementation detail. Handlers log `stream=mock_sensors` server-side for auditability.
 6. **Plant `moisture_target_low/high`: per-plant in the schema (proposed) vs global constant.** Per-plant is in the Postgres schema. Cost: two extra columns. Benefit: per-plant tuning without a deploy. Lean: keep per-plant.
 7. **Should `growstate` have a `stage` column, or compute `stage` on read (current behavior)?** Compute is truth-preserving (no drift between `flower_start_date` and a cached `stage` value). Lean: keep computed. The `grow_stage` enum exists only to be returned by the API, not stored.
-8. **Historical grows.** When a grow ends, `growstate` is overwritten today. Should we snapshot to a `grow_history` table? Lean: defer. V1 is single-grow; multi-grow gets its own ADR.
+8. **Historical grows.** Partially addressed by this revision: `growstate` now uses `is_current` + a partial unique index rather than a pinned `id = 1`, and `plant` carries `growstate_id`. A grow flip becomes a single-transaction `UPDATE ... SET is_current=false` + `INSERT ... is_current=true` + new `plant` rows. No separate `grow_history` table needed — the history IS `growstate` with `is_current = false` rows. Remaining open question: UI/API surface for "list past grows" is out of scope for V1 but free to add later.
+
+9. **`sensor_source` enum vs a dimension table.** Kept as enum (4 values: arduino, esp32, kasa, mock). Leaning enum because sources aren't independently queryable and don't carry additional metadata. Flip to a table only if we ever want to join sources to ownership / provisioning data.
 
 ---
 
