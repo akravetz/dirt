@@ -101,7 +101,7 @@ WAKE_WARMUP_FRAMES = 12   # ~1s at 80ms/frame — drop post-conversation echo ta
 # * 80 ms = ~1.9 s of context, enough to capture the full wake-phrase window
 # regardless of where within the frame the peak score lands.
 WAKE_AUDIO_BUFFER_FRAMES = 24
-WAKE_AUDIO_DIR = Path(__file__).resolve().parents[3] / "logs" / "wake_audio"
+WAKE_AUDIO_DIR = settings.data_dir / "logs" / "wake_audio"
 
 # Jabra SPEAK 410 hardware constraints
 INPUT_SAMPLE_RATE = 16000

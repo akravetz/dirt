@@ -1,8 +1,29 @@
 # Webapp rewrite — agent handoff
 
-**Status**: Phase 0 complete (uv workspace + hardware-daemon split). Phase 1 (OpenAPI contract) not started. Phase 2 (parallel FE + BE generation) blocked on Phase 1.
+**Status**: Phase 0 complete (uv workspace + hardware-daemon split). Harness installed (agent-browser + `web-ui/` skeleton). Phase 1 (OpenAPI contract) not started. Phase 2 (parallel FE + BE generation) blocked on Phase 1.
 
 You (the agent reading this) are picking up where the previous session stopped. This doc gives you enough to get started without re-reading the prior conversation. Read it end-to-end before you do anything.
+
+## Harness smoke test — verify before you start
+
+These four commands must all succeed. They're the baseline evaluator loop; if any break, fix before proceeding.
+
+```bash
+# 1. dev server on :5173 (background)
+pnpm --dir web-ui dev &
+sleep 4
+
+# 2. navigate, snapshot, read console + network
+agent-browser open http://localhost:5173/
+agent-browser snapshot                        # compact accessibility tree with @eN refs
+agent-browser console                         # JS console output (should have no errors)
+agent-browser network requests --type fetch   # filter Network tab by type
+
+# 3. cleanup
+kill %1
+```
+
+Expected: `snapshot` returns a ~3-line tree containing `heading "dirt." [level=1, ref=e2]`. `console` shows only Vite HMR chatter. If you see errors, the skeleton is broken — don't proceed.
 
 ---
 
@@ -68,7 +89,7 @@ Anthropic's canonical shape is three agents running serially:
 
 - **Planner** — expands a short prompt ("build a habit tracker") into a full product spec + structured feature list.
 - **Generator** — picks one feature at a time from the plan, implements it, marks it in progress then done.
-- **Evaluator** — drives the running app with Playwright MCP, verifies features end-to-end against acceptance criteria, files followups for failures.
+- **Evaluator** — drives the running app with `agent-browser` (Rust CLI, ~82% fewer tokens than Playwright MCP), verifies features end-to-end against acceptance criteria, files followups for failures.
 
 The Generator and Evaluator iterate in a loop (5–15 iterations per feature) until the Evaluator signs off. Then they move to the next feature. Total build time in their examples: four hours for a full app.
 
@@ -94,7 +115,7 @@ This is a deliberate departure from the Anthropic blog post. Read their posts (l
 | **Contract author** | 1 | Opus (or you directly) | Writes `contracts/webapp-v1.yaml` (OpenAPI 3.1). Also you, during Phase 1. |
 | **Backend generator** | 1 (Phase 2) | Opus | Implements new FastAPI endpoints in `apps/web/` (or a new `apps/api/`) against the frozen contract. |
 | **Frontend generator** | 1 (Phase 2) | Opus | Implements the Vite + React + TanStack Router app in `web-ui/` against the same contract. |
-| **Evaluator** | 1 (Phase 2) | Sonnet with Playwright MCP | Boots the stack locally, drives the UI, checks feature acceptance criteria, updates plan JSON status. |
+| **Evaluator** | 1 (Phase 2) | Sonnet with `agent-browser` CLI | Boots the stack locally, drives the UI, checks feature acceptance criteria, updates plan JSON status. |
 
 ### Phasing
 
@@ -106,7 +127,7 @@ This is a deliberate departure from the Anthropic blog post. Read their posts (l
 Feature status flips to `done` when **both** of these are true:
 
 1. All invariant + unit tests pass in CI.
-2. The Evaluator's Playwright run against the live stack matches the feature's acceptance criteria.
+2. The Evaluator's `agent-browser` run against the live stack matches the feature's acceptance criteria.
 
 No per-feature human sign-off. Merges into `main` are auto-approved when the invariants + evaluator agree. You still own strategic direction (approve the overall plan, review surprises) but not feature-by-feature gates.
 
@@ -141,7 +162,7 @@ Key properties:
 - **`run_in_background: true`** for parallel work — you get a notification when it completes. Do NOT poll.
 - **To run FE + BE in parallel**: issue a single message with TWO Agent tool calls, both with `run_in_background: true`. They wake up as they finish.
 
-The Evaluator agent typically runs **foreground** — you want its report before you merge. Give it the Playwright MCP server in its allowed tools.
+The Evaluator agent typically runs **foreground** — you want its report before you merge. Give it Bash access; the `agent-browser` CLI is on `$PATH` (installed globally). No MCP server needed.
 
 ### Why not separate Claude Code sessions or the Agent SDK directly?
 
@@ -177,9 +198,9 @@ Central artifact. Grounds every agent. Lives at `docs/plans/webapp-rewrite.json`
       "user_story": "Operator sees temp/humidity/VPD/fan/reservoir on the dashboard with target-band status colors.",
       "acceptance": [
         {
-          "kind": "playwright",
-          "spec": "web-ui/tests/e2e/dashboard-gauges.spec.ts",
-          "description": "Load /, five gauges render with values matching GET /api/sensors/current, warn color when value outside target band."
+          "kind": "agent-browser",
+          "script": "docs/plans/evaluator-checks/dashboard-gauges.sh",
+          "description": "Open /, snapshot the dashboard, assert 5 gauge headings + matching values from GET /api/sensors/current, assert warn color class when value outside target band, assert no console errors."
         },
         {
           "kind": "visual",
@@ -225,23 +246,24 @@ Decided with the user in the prior session. Do not relitigate.
 | OpenAPI version | 3.1 |
 | TS client generation | Let Phase 1 decide — leading candidates: `openapi-ts`, `orval`, or FastAPI's own spec → manual models |
 | Auth | Keep the cookie-session middleware already in `apps/web/src/dirt_web/auth.py` |
-| Testing (FE) | Vitest for unit, Playwright for e2e (new specs under `web-ui/tests/`) |
+| Testing (FE) | Vitest for unit tests. E2E acceptance is `agent-browser` scripts under `docs/plans/evaluator-checks/*.sh` referenced from the plan JSON. |
+| Browser tool | `agent-browser` (globally installed, `agent-browser --version`). Replaces Playwright MCP. Supports snapshot (`@eN` refs), click, type, console, network (list/filter/HAR), trace, profiler. |
 
 ### Layout after Phase 2
 
 ```
 apps/        (unchanged; Python backend stays in uv workspace)
 contracts/   OpenAPI spec + generated TS client + generated Pydantic models (new — Phase 1)
-web-ui/      Vite + React + TanStack Router app (new — Phase 2)
+web-ui/      Vite + React + TanStack Router + Tailwind v4 app (SKELETON EXISTS — Phase 2 extends)
   src/
-    routes/
-    components/
-    lib/     (generated API client lives here)
-  tests/
-    e2e/     (Playwright specs referenced by plan JSON)
-  package.json, vite.config.ts, tsconfig.json, biome.json
+    routes/          (TanStack file-based routing; __root.tsx + index.tsx exist)
+    components/      (empty — generators add per feature)
+    lib/             (generated OpenAPI client lives here — Phase 1 populates)
+    styles.css       (single global import of Tailwind + @theme design tokens)
+  package.json, vite.config.ts, tsconfig.*.json, biome.json
 docs/plans/
-  webapp-rewrite.json     (the plan, owned by planner + evaluator)
+  webapp-rewrite.json        (the plan, owned by planner + evaluator)
+  evaluator-checks/*.sh      (agent-browser scripts referenced by plan JSON)
   refs/                   (reference screenshots from the mockup)
 ```
 
@@ -289,11 +311,11 @@ Endpoints already live (mostly in `apps/web/src/dirt_web/api/`) for: feed, senso
 
 ### Invariants the evaluator checks after each feature
 
-1. `uv run pytest apps/tests/invariants/ apps/*/tests/ -q` green.
+1. `uv run pytest -q` green (invariants + per-app suites per the root `testpaths`).
 2. Contract test (`test_api_contract.py`, Phase 1 introduces) green — proves OpenAPI spec ↔ FastAPI routes ↔ Pydantic models ↔ TS client all agree.
-3. `cd web-ui && biome check .` clean.
+3. `cd web-ui && pnpm lint && pnpm typecheck && pnpm build` clean.
 4. `cd web-ui && pnpm test` (Vitest) green.
-5. Feature-specific Playwright spec green against the live stack on :8001.
+5. Feature-specific `agent-browser` script (under `docs/plans/evaluator-checks/`) green against the live stack on :8001, with no console errors and expected network calls observed.
 6. All four systemd services still `active` after the feature's local dev cycle.
 
 ---
@@ -372,7 +394,7 @@ At the end of Phase 2:
 
 - `web-ui/` ships a working Vite + React + TanStack Router app hitting `dirt-web` on :8001.
 - Every endpoint in the mockup works against real backend data.
-- All invariants green; Playwright specs green; Biome clean; Vitest green.
+- All invariants green; every feature's `agent-browser` check passes; Biome clean; Vitest green.
 - `dirt-hwd.service` has been untouched by agents the entire time (verify with `git log apps/hwd/` — should show only pre-Phase-2 commits or author = you).
 - The old Jinja templates + HTMX endpoints in `dirt-web` are removed.
 - `dirt.service` (retired Phase 0) still absent.
