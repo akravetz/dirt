@@ -26,11 +26,11 @@ async def test_capture_snapshot_saves_file_and_db_record(db_engine, tmp_path):
 
     with (
         patch(
-            "dirt.services.capture.capture_frame",
+            "dirt_shared.services.capture.capture_frame",
             new=AsyncMock(return_value=fake_jpeg),
         ),
-        patch("dirt.services.capture.settings") as mock_settings,
-        patch("dirt.services.capture.engine", db_engine),
+        patch("dirt_shared.services.capture.settings") as mock_settings,
+        patch("dirt_shared.services.capture.engine", db_engine),
     ):
         mock_settings.snapshot_dir = str(tmp_path / "snapshots")
 

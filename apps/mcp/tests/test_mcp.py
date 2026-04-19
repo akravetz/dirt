@@ -25,8 +25,8 @@ async def db_engine(tmp_path):
 async def full_app_client(db_engine):
     """Client against the full FastAPI app (for auth boundary tests)."""
     with (
-        patch("dirt.services.capture.capture_loop"),
-        patch("dirt.db.engine", db_engine),
+        patch("dirt_shared.services.capture.capture_loop"),
+        patch("dirt_shared.db.engine", db_engine),
     ):
         from dirt_web.app import app
 
@@ -62,7 +62,7 @@ async def test_mcp_no_cookie_auth_redirect(full_app_client: AsyncClient):
 
 
 async def test_get_latest_snapshot_empty_db(db_engine):
-    with patch("dirt.services.snapshots.engine", db_engine):
+    with patch("dirt_shared.services.snapshots.engine", db_engine):
         result = await get_latest_snapshot()
     assert result is None
 
@@ -77,7 +77,7 @@ async def test_get_latest_snapshot_returns_most_recent(db_engine):
         )
         await session.commit()
 
-    with patch("dirt.services.snapshots.engine", db_engine):
+    with patch("dirt_shared.services.snapshots.engine", db_engine):
         result = await get_latest_snapshot()
     assert result is not None
     assert result.file_path == "/new.jpg"

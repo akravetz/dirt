@@ -134,7 +134,7 @@ async def test_get_state_returns_default_when_row_missing(db_engine):
 
 
 async def test_init_db_seeds_singleton_on_fresh_db(db_engine):
-    with patch("dirt.db.engine", db_engine):
+    with patch("dirt_shared.db.engine", db_engine):
         await init_db()
     async with AsyncSession(db_engine) as session:
         row = await session.get(GrowState, 1)
@@ -147,7 +147,7 @@ async def test_init_db_does_not_overwrite_existing_row(db_engine):
     # Simulate a user who's already flipped to flower.
     flipped = date(2026, 6, 1)
     await _set_state(db_engine, germination=date(2026, 3, 15), flower=flipped)
-    with patch("dirt.db.engine", db_engine):
+    with patch("dirt_shared.db.engine", db_engine):
         await init_db()
     async with AsyncSession(db_engine) as session:
         row = await session.get(GrowState, 1)

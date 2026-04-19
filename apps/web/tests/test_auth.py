@@ -6,7 +6,7 @@ from httpx import ASGITransport, AsyncClient
 
 @pytest.fixture
 async def client():
-    with patch("dirt.services.capture.capture_loop"):
+    with patch("dirt_shared.services.capture.capture_loop"):
         from dirt_web.app import app
 
         transport = ASGITransport(app=app)

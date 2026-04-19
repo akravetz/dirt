@@ -52,9 +52,9 @@ async def db_engine(tmp_path):
 @pytest.fixture
 async def client(db_engine):
     with (
-        patch("dirt.services.capture.capture_loop"),
-        patch("dirt.db.engine", db_engine),
-        patch("dirt.services.readings.engine", db_engine),
+        patch("dirt_shared.services.capture.capture_loop"),
+        patch("dirt_shared.db.engine", db_engine),
+        patch("dirt_shared.services.readings.engine", db_engine),
     ):
         from dirt_web.app import app
 

@@ -24,12 +24,17 @@ async def db_engine(tmp_path):
 
 @pytest.fixture
 async def client(db_engine):
+    # ingest endpoint lives in dirt_hwd.app after phase-0. Patch all four
+    # background loops so the lifespan doesn't try to talk to real hardware.
     with (
-        patch("dirt.services.capture.capture_loop"),
-        patch("dirt.db.engine", db_engine),
-        patch("dirt.services.readings.engine", db_engine),
+        patch("dirt_shared.services.capture.capture_loop"),
+        patch("dirt_hwd.services.archive.archive_loop"),
+        patch("dirt_hwd.services.humidifier.humidifier_loop"),
+        patch("dirt_hwd.services.serial_reader.serial_reader_loop"),
+        patch("dirt_shared.db.engine", db_engine),
+        patch("dirt_shared.services.readings.engine", db_engine),
     ):
-        from dirt_web.app import app
+        from dirt_hwd.app import app
 
         transport = ASGITransport(app=app)
         async with AsyncClient(

@@ -74,7 +74,7 @@ class TestFindArchivableDates:
         _create_test_jpegs(tmp_path, date(2026, 3, 10), 1)
         _create_test_jpegs(tmp_path, date(2026, 3, 22), 1)  # today
 
-        with patch("dirt.services.archive.datetime") as mock_dt:
+        with patch("dirt_hwd.services.archive.datetime") as mock_dt:
             mock_dt.now.return_value.date.return_value = date(2026, 3, 22)
             mock_dt.strptime = __import__("datetime").datetime.strptime
             dates = find_archivable_dates(tmp_path, retention_days=7)
@@ -118,7 +118,7 @@ class TestArchiveDate:
         archive_dir = tmp_path / "archives"
         jpegs = _create_test_jpegs(snapshot_dir, d, 5)
 
-        with patch("dirt.services.archive.settings") as mock_settings:
+        with patch("dirt_hwd.services.archive.settings") as mock_settings:
             mock_settings.snapshot_dir = str(snapshot_dir)
             mock_settings.archive_dir = str(archive_dir)
 
@@ -138,8 +138,8 @@ class TestArchiveDate:
         jpegs = _create_test_jpegs(snapshot_dir, d, 5)
 
         with (
-            patch("dirt.services.archive.settings") as mock_settings,
-            patch("dirt.services.archive.run_ffmpeg", return_value=False),
+            patch("dirt_hwd.services.archive.settings") as mock_settings,
+            patch("dirt_hwd.services.archive.run_ffmpeg", return_value=False),
         ):
             mock_settings.snapshot_dir = str(snapshot_dir)
             mock_settings.archive_dir = str(archive_dir)
@@ -158,8 +158,8 @@ class TestArchiveDate:
         jpegs = _create_test_jpegs(snapshot_dir, d, 5)
 
         with (
-            patch("dirt.services.archive.settings") as mock_settings,
-            patch("dirt.services.archive.ffprobe_frame_count", return_value=3),
+            patch("dirt_hwd.services.archive.settings") as mock_settings,
+            patch("dirt_hwd.services.archive.ffprobe_frame_count", return_value=3),
         ):
             mock_settings.snapshot_dir = str(snapshot_dir)
             mock_settings.archive_dir = str(archive_dir)
@@ -180,7 +180,7 @@ class TestArchiveDate:
         archive_dir = tmp_path / "archives"
         _create_test_jpegs(snapshot_dir, d, 5)
 
-        with patch("dirt.services.archive.settings") as mock_settings:
+        with patch("dirt_hwd.services.archive.settings") as mock_settings:
             mock_settings.snapshot_dir = str(snapshot_dir)
             mock_settings.archive_dir = str(archive_dir)
 
@@ -197,7 +197,7 @@ class TestArchiveDate:
         snapshot_dir.mkdir()
         archive_dir = tmp_path / "archives"
 
-        with patch("dirt.services.archive.settings") as mock_settings:
+        with patch("dirt_hwd.services.archive.settings") as mock_settings:
             mock_settings.snapshot_dir = str(snapshot_dir)
             mock_settings.archive_dir = str(archive_dir)
 
@@ -216,7 +216,7 @@ class TestArchiveDate:
         bad_file = snapshot_dir / f"snapshot_{d.strftime('%Y%m%d')}_000000.jpg"
         bad_file.write_bytes(b"")
 
-        with patch("dirt.services.archive.settings") as mock_settings:
+        with patch("dirt_hwd.services.archive.settings") as mock_settings:
             mock_settings.snapshot_dir = str(snapshot_dir)
             mock_settings.archive_dir = str(archive_dir)
 
