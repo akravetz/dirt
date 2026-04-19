@@ -34,7 +34,7 @@ from pathlib import Path
 
 import pytest
 
-APPS_ROOT = Path(__file__).resolve().parents[2] / "apps"
+APPS_ROOT = Path(__file__).resolve().parents[2]  # apps/tests/invariants → apps/
 
 # Each workspace app → packages it is NOT permitted to import.
 CROSS_APP_FORBIDDEN: dict[str, tuple[str, ...]] = {

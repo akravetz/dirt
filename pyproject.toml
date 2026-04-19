@@ -1,5 +1,6 @@
 [tool.uv.workspace]
 members = ["apps/*"]
+exclude = ["apps/tests"]
 
 [tool.uv]
 dev-dependencies = [
@@ -23,7 +24,17 @@ dirt-mcp = { workspace = true }
 dirt-voice = { workspace = true }
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+# Discovery roots: cross-cutting invariants at apps/tests/ plus per-app unit
+# tests at apps/<name>/tests/. Each per-app pyproject also carries its own
+# testpaths=["tests"] so `cd apps/hwd && uv run pytest` works in isolation.
+testpaths = [
+    "apps/tests",
+    "apps/hwd/tests",
+    "apps/web/tests",
+    "apps/shared/tests",
+    "apps/mcp/tests",
+    "apps/voice/tests",
+]
 asyncio_mode = "auto"
 asyncio_default_test_loop_scope = "session"
 
