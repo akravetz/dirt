@@ -34,8 +34,8 @@ from dirt_shared.services.telegram import TelegramClient
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WIKI_ROOT = REPO_ROOT / "wiki"
-PHOTOS_DIR = REPO_ROOT / "raw" / "photos"
-MARKER_DIR = REPO_ROOT / "logs" / "daily_report"
+PHOTOS_DIR = settings.data_dir / "raw" / "photos"
+MARKER_DIR = settings.data_dir / "logs" / "daily_report"
 CAMERA_CONFIG_PATH = Path.home() / ".config" / "dirt" / "camera.json"
 
 

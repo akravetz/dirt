@@ -14,9 +14,11 @@ from pathlib import Path
 
 from PIL import Image
 
+from dirt_shared.config import settings
+
 REPO = Path(__file__).parent.parent
 WIKI = REPO / "wiki"
-RAW_PHOTOS = REPO / "raw" / "photos"
+RAW_PHOTOS = settings.data_dir / "raw" / "photos"
 
 EXIF_TAG_DATETIME_ORIGINAL = 36867
 
