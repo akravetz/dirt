@@ -1,15 +1,19 @@
 """
 INVARIANT TEST — HUMAN-OWNED
 
-This test is protected by Claude Code hooks and MUST NOT be modified by the agent.
-If this test fails, the agent must fix its code to satisfy the test, never modify
-this file.
+This test is protected by Claude Code hooks and MUST NOT be modified by
+the agent. If this test fails, the agent must fix its code to satisfy
+the test, never modify this file.
 
-Purpose: Ensures every route in the application requires authentication except
-for the explicitly listed public paths.
+Purpose: Every route on the dirt_web FastAPI app (except the explicitly
+public login/logout endpoints) must redirect unauthenticated requests to
+/login. The MCP mount under /mcp uses its own bearer auth and is
+validated separately.
+
+Phase 0 note: sensor ingest moved to dirt_hwd.service (port 8000) and is
+no longer served by dirt_web. That endpoint's bearer-auth contract is
+re-validated in test_hwd_routes.py.
 """
-
-from unittest.mock import patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -31,13 +35,12 @@ FRAMEWORK_PATHS = {
 
 # Paths that use bearer token auth instead of cookie/session auth.
 # These are excluded from the cookie-auth test and validated separately.
-BEARER_AUTH_PREFIXES = ("/mcp", "/api/ingest")
+BEARER_AUTH_PREFIXES = ("/mcp",)
 
 
 def _get_app_routes():
-    """Collect all application-defined routes (excluding framework-generated ones)."""
-    with patch("dirt.services.capture.capture_loop"):
-        from dirt_web.app import app
+    """Collect all application-defined routes (excluding framework-generated)."""
+    from dirt_web.app import app
 
     routes = []
     for route in app.routes:
@@ -56,8 +59,7 @@ def _get_app_routes():
 
 @pytest.fixture
 async def unauthenticated_client():
-    with patch("dirt.services.capture.capture_loop"):
-        from dirt_web.app import app
+    from dirt_web.app import app
 
     transport = ASGITransport(app=app)
     async with AsyncClient(

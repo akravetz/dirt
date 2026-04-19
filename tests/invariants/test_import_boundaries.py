@@ -1,211 +1,125 @@
 """
 INVARIANT TEST — HUMAN-OWNED
 
-This test is protected by Claude Code hooks and MUST NOT be modified by the agent.
-If this test fails, the agent must fix its code to satisfy the test, never modify
-this file.
+This test is protected by Claude Code hooks and MUST NOT be modified by the
+agent. If this test fails, the agent must fix its code to satisfy the test,
+never modify this file.
 
-Purpose: Enforces module import boundaries so the codebase maintains clean
-architectural separation between layers.
+Purpose: Enforce architectural boundaries across the uv workspace, so no
+app silently grows a dependency on a peer. Phase 0 established these five
+packages:
 
-Architecture layers:
-    models   — data models (no app dependencies)
-    services — business logic (may use models, must not use api/mcp)
-    api      — web routes (may use services, must not use models or db directly)
-    mcp      — MCP server (may only use services and config)
+    dirt_shared   — models, config, db, observability, non-HW services (pure)
+    dirt_hwd      — HW-owning daemon: serial, humidifier, archive, ingest
+    dirt_web      — web UI + sensors/snapshots/feed API + MCP mount
+    dirt_mcp      — MCP server (mounted into dirt_web)
+    dirt_voice    — voice channel (own process)
+
+Rules:
+  dirt_shared  may NOT import any dirt_{hwd,web,mcp,voice}  (pure base)
+  dirt_hwd     may NOT import dirt_{web,mcp,voice}
+  dirt_web     may NOT import dirt_{hwd,voice}               (may import mcp)
+  dirt_mcp     may NOT import dirt_{hwd,web,voice}
+  dirt_voice   may NOT import dirt_{hwd,web,mcp}
+
+Within-app: api-layer modules (dirt_web.api.*, dirt_hwd.api.*) may NOT
+import dirt_shared.db or dirt_shared.models directly — they must go
+through dirt_shared.services so session management stays in one place.
 """
 
+from __future__ import annotations
+
+import ast
+from pathlib import Path
+
 import pytest
-from pytestarch import Rule, get_evaluable_architecture
 
-SRC_ROOT = "src"
-MODULE_ROOT = "src/dirt"
+APPS_ROOT = Path(__file__).resolve().parents[2] / "apps"
 
+# Each workspace app → packages it is NOT permitted to import.
+CROSS_APP_FORBIDDEN: dict[str, tuple[str, ...]] = {
+    "dirt_shared": ("dirt_hwd", "dirt_web", "dirt_mcp", "dirt_voice"),
+    "dirt_hwd":    ("dirt_web", "dirt_mcp", "dirt_voice"),
+    "dirt_web":    ("dirt_hwd", "dirt_voice"),
+    "dirt_mcp":    ("dirt_hwd", "dirt_web", "dirt_voice"),
+    "dirt_voice":  ("dirt_hwd", "dirt_web", "dirt_mcp"),
+}
 
-def _check_rule(rule, evaluable, fix_message):
-    """Assert a pytestarch rule, appending actionable guidance on failure."""
-    try:
-        rule.assert_applies(evaluable)
-    except AssertionError as e:
-        raise AssertionError(f"{e}\n\nFIX: {fix_message}") from None
-
-
-@pytest.fixture(scope="module")
-def evaluable():
-    return get_evaluable_architecture(SRC_ROOT, MODULE_ROOT)
+# api/* layer must not reach past services into db/models.
+API_LAYER_FORBIDDEN: tuple[str, ...] = ("dirt_shared.db", "dirt_shared.models")
 
 
-def test_models_do_not_import_api(evaluable):
-    """Models are pure data — they must not depend on API routes."""
-    rule = (
-        Rule()
-        .modules_that()
-        .are_sub_modules_of("src.dirt.models")
-        .should_not()
-        .import_modules_that()
-        .are_sub_modules_of("src.dirt.api")
-    )
-    _check_rule(
-        rule,
-        evaluable,
-        "Models in src/dirt/models/ are pure data classes with no app dependencies. "
-        "Move any logic that depends on API routes into src/dirt/services/ instead.",
-    )
+def _pkg_src_dir(pkg: str) -> Path:
+    # dirt_shared → apps/shared/src/dirt_shared
+    return APPS_ROOT / pkg.removeprefix("dirt_") / "src" / pkg
 
 
-def test_models_do_not_import_services(evaluable):
-    """Models must not depend on services."""
-    rule = (
-        Rule()
-        .modules_that()
-        .are_sub_modules_of("src.dirt.models")
-        .should_not()
-        .import_modules_that()
-        .are_sub_modules_of("src.dirt.services")
-    )
-    _check_rule(
-        rule,
-        evaluable,
-        "Models in src/dirt/models/ are pure data classes with no app dependencies. "
-        "Move any business logic into src/dirt/services/ and keep models free of "
-        "service imports.",
-    )
+def _iter_py(root: Path):
+    yield from root.rglob("*.py")
 
 
-def test_models_do_not_import_mcp(evaluable):
-    """Models must not depend on MCP server."""
-    rule = (
-        Rule()
-        .modules_that()
-        .are_sub_modules_of("src.dirt.models")
-        .should_not()
-        .import_modules_that()
-        .are_sub_modules_of("src.dirt.mcp")
-    )
-    _check_rule(
-        rule,
-        evaluable,
-        "Models in src/dirt/models/ are pure data classes with no app dependencies. "
-        "Move any MCP-related logic into src/dirt/mcp/ and keep models free of "
-        "MCP imports.",
-    )
+def _file_imports(py: Path) -> list[tuple[int, str]]:
+    """Return (lineno, dotted-module) for every import statement in ``py``."""
+    tree = ast.parse(py.read_text())
+    out: list[tuple[int, str]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                out.append((node.lineno, alias.name))
+        elif isinstance(node, ast.ImportFrom) and node.module is not None:
+            out.append((node.lineno, node.module))
+    return out
 
 
-def test_services_do_not_import_api(evaluable):
-    """Services must not depend on API routes."""
-    rule = (
-        Rule()
-        .modules_that()
-        .are_sub_modules_of("src.dirt.services")
-        .should_not()
-        .import_modules_that()
-        .are_sub_modules_of("src.dirt.api")
-    )
-    _check_rule(
-        rule,
-        evaluable,
-        "Services in src/dirt/services/ contain business logic that is shared by "
-        "multiple consumers (API routes, MCP tools). They must not depend on any "
-        "specific consumer. Remove the API import and keep the dependency direction: "
-        "api -> services, not services -> api.",
-    )
+def _matches(imp: str, forbidden: str) -> bool:
+    """True if ``imp`` is the forbidden module or a submodule of it."""
+    return imp == forbidden or imp.startswith(forbidden + ".")
 
 
-def test_services_do_not_import_mcp(evaluable):
-    """Services must not depend on MCP server."""
-    rule = (
-        Rule()
-        .modules_that()
-        .are_sub_modules_of("src.dirt.services")
-        .should_not()
-        .import_modules_that()
-        .are_sub_modules_of("src.dirt.mcp")
-    )
-    _check_rule(
-        rule,
-        evaluable,
-        "Services in src/dirt/services/ contain business logic that is shared by "
-        "multiple consumers (API routes, MCP tools). They must not depend on any "
-        "specific consumer. Remove the MCP import and keep the dependency direction: "
-        "mcp -> services, not services -> mcp.",
-    )
+@pytest.mark.parametrize("app", sorted(CROSS_APP_FORBIDDEN.keys()))
+def test_cross_app_imports(app: str) -> None:
+    """Each app's source must not import peer-app packages it doesn't depend on."""
+    forbidden = CROSS_APP_FORBIDDEN[app]
+    pkg_dir = _pkg_src_dir(app)
+    assert pkg_dir.exists(), f"package dir missing: {pkg_dir}"
+
+    violations: list[str] = []
+    for py in _iter_py(pkg_dir):
+        rel = py.relative_to(APPS_ROOT)
+        for lineno, imp in _file_imports(py):
+            for bad in forbidden:
+                if _matches(imp, bad):
+                    violations.append(f"apps/{rel}:{lineno}  imports  {imp}")
+
+    if violations:
+        pytest.fail(
+            f"\n{app} has {len(violations)} forbidden cross-app import(s).\n"
+            f"Forbidden for {app}: {forbidden}\n"
+            "FIX: push shared code into dirt_shared, or call across apps via HTTP\n"
+            "(process boundary) — not by direct Python import.\n\n"
+            + "\n".join(violations)
+        )
 
 
-def test_mcp_only_imports_services_and_config(evaluable):
-    """MCP server may only import from services and config — nothing else."""
-    rule = (
-        Rule()
-        .modules_that()
-        .are_sub_modules_of("src.dirt.mcp")
-        .should_not()
-        .import_modules_except_modules_that()
-        .have_name_matching(r"^src\.dirt\.(services|config|mcp)")
-    )
-    _check_rule(
-        rule,
-        evaluable,
-        "The MCP server (src/dirt/mcp/) may only import from dirt.services and "
-        "dirt.config. It must not import from dirt_shared.db, dirt.models, dirt.api, or "
-        "any other internal package. All data access and business logic should go "
-        "through service functions in src/dirt/services/. If you need a new "
-        "capability, add a service function rather than importing directly.",
-    )
+@pytest.mark.parametrize("app", ["dirt_hwd", "dirt_web"])
+def test_api_layer_does_not_touch_db_or_models(app: str) -> None:
+    """API routes must not import db/models directly — go through services."""
+    api_dir = _pkg_src_dir(app) / "api"
+    if not api_dir.exists():
+        pytest.skip(f"{app} has no api/ layer")
 
+    violations: list[str] = []
+    for py in _iter_py(api_dir):
+        rel = py.relative_to(APPS_ROOT)
+        for lineno, imp in _file_imports(py):
+            for bad in API_LAYER_FORBIDDEN:
+                if _matches(imp, bad):
+                    violations.append(f"apps/{rel}:{lineno}  imports  {imp}")
 
-def test_api_does_not_import_mcp(evaluable):
-    """API routes must not depend on MCP server."""
-    rule = (
-        Rule()
-        .modules_that()
-        .are_sub_modules_of("src.dirt.api")
-        .should_not()
-        .import_modules_that()
-        .are_sub_modules_of("src.dirt.mcp")
-    )
-    _check_rule(
-        rule,
-        evaluable,
-        "The API routes (src/dirt/api/) and MCP server (src/dirt/mcp/) are sibling "
-        "consumers that must not depend on each other. If both need the same logic, "
-        "extract it into a service function in src/dirt/services/.",
-    )
-
-
-def test_api_does_not_import_models(evaluable):
-    """API routes must not import models directly — use services instead."""
-    rule = (
-        Rule()
-        .modules_that()
-        .are_sub_modules_of("src.dirt.api")
-        .should_not()
-        .import_modules_that()
-        .are_sub_modules_of("src.dirt.models")
-    )
-    _check_rule(
-        rule,
-        evaluable,
-        "API routes must not import model classes from src/dirt/models/. Instead, "
-        "call a service function in src/dirt/services/ that returns the data you need. "
-        "The API route should only format the service response for its transport "
-        "(HTML, JSON, etc.).",
-    )
-
-
-def test_api_does_not_import_db(evaluable):
-    """API routes must not use the DB layer — services manage their own sessions."""
-    rule = (
-        Rule()
-        .modules_that()
-        .are_sub_modules_of("src.dirt.api")
-        .should_not()
-        .import_modules_that()
-        .are_named("src.dirt.db")
-    )
-    _check_rule(
-        rule,
-        evaluable,
-        "API routes must not import from dirt_shared.db or manage DB sessions. Services "
-        "manage their own sessions internally. Move query logic into a service "
-        "function in src/dirt/services/ that creates its own AsyncSession from "
-        "dirt.db.engine, then call that service function from the API route.",
-    )
+    if violations:
+        pytest.fail(
+            f"\n{app}.api has {len(violations)} direct db/model import(s).\n"
+            "FIX: move the logic into dirt_shared.services (or dirt_hwd.services\n"
+            "if HW-owning) and have the api route call the service function.\n\n"
+            + "\n".join(violations)
+        )
