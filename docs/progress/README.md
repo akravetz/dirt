@@ -12,4 +12,5 @@ Each progress file should include:
 
 ## Current Features
 
-(None yet — features will be added as work begins)
+- **[webapp-rewrite.md](webapp-rewrite.md)** — Phase 0 complete (workspace split + hardware daemon extracted). Phase 1 = OpenAPI contract. Phase 2 = parallel FE + BE generator agents.
+- **[phase1-skeleton.md](phase1-skeleton.md)** — historical; earlier scaffolding notes.
