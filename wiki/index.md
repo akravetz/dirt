@@ -57,6 +57,7 @@ updated: 2026-04-18
 - [Lollipopping & Defoliation](concepts/lollipopping-defoliation.md) — Flip-day techniques; SCROG integration; week 3 hard stop
 - [Trichome Stages](concepts/trichome-stages.md) — Harvest timing; clear/cloudy/amber; pheno hunt evaluation criteria
 - [VPD](concepts/vpd.md) — Vapor Pressure Deficit: formula, targets by stage, current situation, coco interaction
+- [Multi-Actuator Environment Control (future)](concepts/multi-actuator-environment-control.md) — Design principles for when the dehumidifier + PWM fan arrive: 2D (T, RH) target zones, cascaded SISO state-machine, feedforward on lights. Rejects MIMO/PID. Implementation deferred until hardware is in.
 - [Topping](concepts/topping.md) — HST technique: cut apical meristem at node 4–5 to create two main stems; imminent for Plant A
 - [pH Lockout](concepts/ph-lockout.md) — Nutrient unavailability from root zone pH drift; active diagnosis for Plant C
 - [Nutrient Burn](concepts/nutrient-burn.md) — Excess salt damage from high EC; symptoms, diagnosis, correction
@@ -80,6 +81,8 @@ updated: 2026-04-18
 - [Wake-Word v4 Plan (2026-04-18)](decisions/2026-04-18-wake-word-v4-plan.md) — Precision-focused retraining: harvested hard negatives from deployment + mined meeting audio + synthesized phonetic neighbors + additional RIRs; near-miss audio capture live as of 2026-04-18
 - [ESP32-C3 GPIO3 + IDF ADC (2026-04-14)](decisions/2026-04-14-esp32-c3-gpio3-adc.md) — GPIO3 over GPIO4 (JTAG conflict); `adc1_get_raw()` over Arduino `analogRead()` (WiFi instability)
 - [Server-Side Auto-Calibration (2026-04-14)](decisions/2026-04-14-server-side-auto-calibration.md) — Calibration lives in DB, auto-widens extrema per (location, metric); firmware sends raw only
+- [Lights-Off-Aware Humidifier Control (2026-04-19)](decisions/2026-04-19-lights-off-aware-humidifier.md) — Schedule-driven feedforward added to the humidifier loop: pre-lights-off prep window forces OFF for the last 30 min of lights-on; lights-off subtracts 0.3 kPa from the stage band. Lights schedule stored on `growstate` (user-editable); rejected derivative control in favor of feedforward on a known-periodic disturbance.
+- [Drop Humidifier Safety Timers (2026-04-19)](decisions/2026-04-19-drop-humidifier-safety-timers.md) — Removed `max_on` (20 min) and `min_off` (90s) guards after 2026-04-19 logs showed `max_on_timeout` displacing the deadband as the effective setpoint. Raydrop's low-water cutoff replaces the max-on safety; hysteresis replaces min-off.
 - [Humidifier VPD Targeting (2026-04-18)](decisions/2026-04-18-vpd-targeting.md) — Switched humidifier control from fixed 60% RH to stage-dynamic VPD upper-band edge; setpoint reads `dirt.services.grow_state.STAGE_TARGETS` per tick so veg→flower transitions shift automatically. Supersedes the setpoint portion of the 2026-04-17 decision.
 - [Humidifier Control via Kasa EP10 (2026-04-17)](decisions/2026-04-17-humidifier-kasa-ep10.md) — Raydrop 4L gated by a WiFi smart plug + `python-kasa`; bang-bang hysteresis on host-side Python service. Supersedes the 2026-04-14 SSR approach.
 - [Humidifier Closed-Loop Control (2026-04-14, superseded)](decisions/2026-04-14-humidifier-relay-control.md) — Original SSR-on-Arduino plan; superseded before deployment, kept for decision-trail history.

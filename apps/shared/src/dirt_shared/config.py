@@ -60,9 +60,14 @@ class Settings(BaseSettings):
     kasa_password: str = ""
     kasa_humidifier_host: str = "192.168.1.220"
     vpd_deadband_kpa: float = 0.1
+    # Subtracted from the day VPD band during lights-off to let the loop
+    # rest rather than chase the cooling-air VPD drop. See
+    # wiki/decisions/2026-04-19-lights-off-aware-humidifier.md.
+    vpd_lights_off_offset_kpa: float = -0.3
+    # Pre-lights-off window during which the humidifier is forced off to
+    # prevent dosing mist into air that's about to cool.
+    lights_off_prep_minutes: int = 30
     humidifier_poll_interval: int = 30
-    humidifier_min_off_seconds: int = 90
-    humidifier_max_on_seconds: int = 1200
     humidifier_failsafe_stale_seconds: int = 300
     # Telegram bot. Outbound-only for V1 (daily report); inbound channel TBD.
     telegram_bot_token: str = ""

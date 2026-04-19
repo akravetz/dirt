@@ -12,6 +12,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Repo**: https://github.com/akravetz/dirt
 - **Project Board**: https://github.com/users/akravetz/projects/1/views/1
 
+### Current grow
+
+- **Germination date:** 2026-03-15 (authoritative: `growstate.germination_date` in `var/dirt.db`).
+- **Flower start date:** not yet set (still in vegetative stage). Once flower is flipped, `growstate.flower_start_date` becomes the authoritative source.
+- **Deriving stage without the DB:** if `flower_start_date` is NULL (or `today` is before it) → `veg`. If set and `today - flower_start_date < 21` → `flower_early`. If ≥ 21 → `flower_late`. See `apps/shared/src/dirt_shared/services/grow_state.py` for the canonical logic and `STAGE_TARGETS` (temp/RH/VPD bands per stage).
+- **Update this file** whenever the grow is flipped, terminated, or a new grow is started — don't rely on the DB alone, since agents without DB access still need to know the stage.
+
 ## Repository layout
 
 `uv` workspace with five Python packages under `apps/`, each its own package with its own `pyproject.toml` and tests:
@@ -131,7 +138,7 @@ Structured JSONL for debugging. Rotated by filename date on first write of the d
 | `audio_playback` | Per-assistant-turn duration metric: `tts_stream_duration_s` (pipecat's "bot done speaking" time) vs `playback_duration_s` (speaker actually finished), and `excess_buffer_s` gap. Detects ring-buffer decoupling anomalies. | 1 day | `apps/voice/src/dirt_voice/channels/_audio_transport.py:SoundDeviceOutputTransport` |
 | `pipecat_frames` | Every non-raw-data frame pushed through the pipeline — turn lifecycle (`BotSpeakingFrame`, `UserStartedSpeakingFrame`, …), STT/LLM/TTS signals (`TranscriptionFrame`, `TTSStoppedFrame`, `LLMRunFrame`, …), interruptions, errors. Denylist excludes `AudioRawFrame`, `ImageRawFrame`, `HeartbeatFrame`. | 1 day | `apps/voice/src/dirt_voice/channels/_observers.py:FrameFlowObserver` |
 | `subagent_calls` | Full Claude Agent SDK trace per `ask_wiki` invocation — question, every tool_use/tool_result, final answer, usage, cost, duration. | 10 days | `apps/voice/src/dirt_voice/tools/wiki.py:_ask_wiki` |
-| `humidifier` | State transitions of the Kasa EP10 plug controlling the Raydrop humidifier. One event per on/off change with `reason`, `vpd`, `vpd_age_s`, `stage`, `upper_band_kpa`, `lower_band_kpa`. Loop targets the stage's VPD upper edge — see `wiki/hardware/humidifier-control.md`. | 30 days | `apps/hwd/src/dirt_hwd/services/humidifier.py:humidifier_loop` |
+| `humidifier` | State transitions of the Kasa EP10 plug controlling the Raydrop humidifier. One event per on/off change with `reason` (`vpd_above_upper_band` / `vpd_below_upper_band` / `failsafe_stale_sensor` / `lights_off_prep`), `vpd`, `vpd_age_s`, `stage`, `upper_band_kpa`, `lower_band_kpa`, `lights_on`, `minutes_until_off`, `band_offset_kpa`. Loop targets the stage's VPD upper edge with lights-schedule feedforward — see `wiki/hardware/humidifier-control.md`. | 30 days | `apps/hwd/src/dirt_hwd/services/humidifier.py:humidifier_loop` |
 | `daily_report` | Per-phase markers for the daily report run (`run_started`, `capture_finished`, `validate_finished`, `snapshot_finished`, `synthesis_finished`, `deliver_finished`, `run_completed`, `run_failed`, `deliver_failed`). | 30 days | `apps/shared/src/dirt_shared/services/daily_report.py` |
 
 ### Adding a new log stream

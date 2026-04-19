@@ -12,8 +12,10 @@ Apr 2026).
 
 from __future__ import annotations
 
-from datetime import date
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, timedelta
 from typing import Literal
+from zoneinfo import ZoneInfo
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -25,6 +27,10 @@ Stage = Literal["veg", "flower_early", "flower_late"]
 
 # Early flower covers weeks 1-3 of 12/12 (days 0-20); late flower begins day 21.
 _LATE_FLOWER_DAY = 21
+
+# Tent clock for lights schedule. Kept here (not DB) because it's a physical
+# property of the grow space's location, not a per-grow decision.
+TENT_TZ = ZoneInfo("America/Denver")
 
 # Stage → metric → (low, high) target band. Metric names match MetricReading
 # so sensors.py can key by metric name directly.
@@ -81,3 +87,42 @@ async def grow_week(today: date | None = None) -> int:
 async def current_targets() -> dict[str, tuple[float, float]]:
     """Temp / RH / VPD band for the current stage."""
     return STAGE_TARGETS[await current_stage()]
+
+
+@dataclass(frozen=True)
+class LightsState:
+    on: bool
+    # Minutes until the next scheduled lights-off event (always positive,
+    # measured from `now`). When lights are off, counts down to the *next*
+    # lights-off (i.e. tomorrow's), so this field is primarily useful while
+    # lights are on — callers should guard with `state.on`.
+    minutes_until_off: float
+
+
+async def lights_state(now_utc: datetime | None = None) -> LightsState:
+    """Are lights on right now, and how long until the next lights-off?
+
+    Reads `lights_on_local` / `lights_off_local` from the `growstate`
+    singleton so the schedule is user-editable without a code deploy
+    (future UI; for now `sqlite3 ... UPDATE growstate SET ...`).
+    """
+    now_utc = now_utc or datetime.now(UTC)
+    now_local = now_utc.astimezone(TENT_TZ)
+    state = await get_state()
+    on_time = state.lights_on_local
+    off_time = state.lights_off_local
+
+    now_t = now_local.time()
+    if on_time < off_time:
+        on = on_time <= now_t < off_time
+    else:
+        # Lights-on crosses midnight (not our current schedule, but handled).
+        on = now_t >= on_time or now_t < off_time
+
+    off_dt = datetime.combine(now_local.date(), off_time, tzinfo=TENT_TZ)
+    if off_dt <= now_local:
+        next_day = now_local.date() + timedelta(days=1)
+        off_dt = datetime.combine(next_day, off_time, tzinfo=TENT_TZ)
+    minutes_until_off = (off_dt - now_local).total_seconds() / 60.0
+
+    return LightsState(on=on, minutes_until_off=minutes_until_off)

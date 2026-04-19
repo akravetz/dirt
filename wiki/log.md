@@ -2,7 +2,7 @@
 title: Activity Log
 type: log
 created: 2026-04-06
-updated: 2026-04-18
+updated: 2026-04-19
 order: chronological — oldest entries at top, newest appended at bottom. Do NOT insert entries out of date order.
 ---
 
@@ -410,3 +410,28 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - **Resolved action item from overview:** "Lower overnight humidifier setpoint" — VPD targeting handles this automatically (cool nights drop VPD naturally, loop stops running without a schedule).
 - **New page:** [`wiki/decisions/2026-04-18-vpd-targeting.md`](decisions/2026-04-18-vpd-targeting.md). Updated: `wiki/hardware/humidifier-control.md` (Control Logic + State Logging + Acceptance sections rewritten), `wiki/environment/humidity.md` (Targets by Phase table + Deployed Control System section), `CLAUDE.md` (observability table: `humidifier` stream fields now `vpd`, `vpd_age_s`, `stage`, `upper_band_kpa`, `lower_band_kpa`), `wiki/overview.md` (removed resolved action item).
 - **Tests:** 13 new in `tests/test_grow_state.py` — stage math, week math, target lookup, singleton seeding idempotency. 131 tests passing.
+
+## [2026-04-19] decision | Drop humidifier max-on and min-off safety timers
+- **Decision:** [`wiki/decisions/2026-04-19-drop-humidifier-safety-timers.md`](decisions/2026-04-19-drop-humidifier-safety-timers.md). Removed `humidifier_max_on_seconds` (20 min) and `humidifier_min_off_seconds` (90s) from `apps/shared/src/dirt_shared/config.py` and from the loop in `apps/hwd/src/dirt_hwd/services/humidifier.py`. Only safety retained: `humidifier_failsafe_stale_seconds` (5 min).
+- **Why:** 2026-04-19 log analysis (`var/logs/humidifier/2026-04-19.jsonl`) showed four consecutive on-phases between 13:34–14:55 UTC terminating on `max_on_timeout` at VPD values (1.65, 1.36, 1.22) still well above the hysteresis turn-off edge (1.10). The 20-min safety had become the *primary* termination criterion, making the effective setpoint non-deterministic and burning relay cycles against the deadband. 90s `min_off` was redundant with the VPD deadband (hysteresis already prevents chatter).
+- **Safety reasoning:** Raydrop 4L has its own low-water cutoff, so a stuck-high VPD reading self-limits by reservoir exhaustion rather than by the `max_on` timer. Relay lifetime is cycle-limited, not duty-limited — dropping these guards *reduces* cycles.
+- **Updated:** `wiki/hardware/humidifier-control.md` (Control Logic pseudocode, "Why these choices" bullets, State-change reasons list, Acceptance criteria, relay-lifetime note), `wiki/index.md` (new decision entry), `CLAUDE.md` (observability table: `humidifier` stream `reason` values enumerated).
+- **Tests:** No tests referenced the removed settings; no env / systemd overrides existed.
+
+## [2026-04-19] decision | Lights-off-aware humidifier feedforward (A + B)
+- **Decision:** [`wiki/decisions/2026-04-19-lights-off-aware-humidifier.md`](decisions/2026-04-19-lights-off-aware-humidifier.md). Added two rules to `humidifier_loop`:
+  - **A.** Pre-lights-off prep window: force OFF in the last `lights_off_prep_minutes` (30) of lights-on.
+  - **B.** Lights-off band offset: subtract `vpd_lights_off_offset_kpa` (−0.3) from the stage band during dark period. Preserves deadband width.
+- **Schema:** added `lights_on_local` and `lights_off_local` (`TIME`) columns to `growstate`. Seeded `(05:00, 23:00)` for veg 18/6. Migration is idempotent `ALTER TABLE ADD COLUMN ... DEFAULT` in `init_db()` — existing production row auto-populated.
+- **Why:** lights-off crash is a *scheduled, periodic* disturbance, so feedforward (clock-based) strictly dominates derivative feedback (DHT22-noise-limited). Measured steady-state overshoot after clean shutoff is only ~0.004 kPa and ~15 s — nighttime VPD collapse is the disturbance itself, not control-loop lag. Night band (0.5–0.9 veg; 0.7–1.0 flower_early; 0.9–1.2 flower_late) sits inside the published "0.2–0.4 kPa below day" industry range.
+- **Files:** `apps/shared/src/dirt_shared/models/grow_state.py` (two new `time` fields), `apps/shared/src/dirt_shared/db.py` (column migration), `apps/shared/src/dirt_shared/services/grow_state.py` (`TENT_TZ`, `LightsState`, async `lights_state()`), `apps/shared/src/dirt_shared/config.py` (two new knobs), `apps/hwd/src/dirt_hwd/services/humidifier.py` (decision block).
+- **Observability:** new reason `lights_off_prep`; every state_change now carries `lights_on`, `minutes_until_off`, `band_offset_kpa`.
+- **Updated:** `wiki/hardware/humidifier-control.md` (Control Logic rewritten, new "Why" bullets, State Logging reasons), `wiki/index.md`, `CLAUDE.md` (observability table, + new "Current grow" section pinning germination 2026-03-15 and the stage-derivation rule for agents without DB access).
+- **Tests:** 5 new in `apps/shared/tests/test_grow_state.py` covering `lights_state` across on/off/prep-window/schedule-override cases. 113 tests passing across invariants + shared + hwd suites.
+- **Pending user action:** `systemctl --user restart dirt-hwd` to pick up the new loop (+ the earlier drop-timers change). Service has NOT been restarted yet.
+
+## [2026-04-19] query-filed | Multi-actuator environment control design principles
+- **New page:** [`wiki/concepts/multi-actuator-environment-control.md`](concepts/multi-actuator-environment-control.md). Captures the design discussion from 2026-04-19 for how to structure the control loop once the dehumidifier (second Kasa EP10) and PWM exhaust fan are provisioned.
+- **Key decisions (principles, not code yet):** target 2D (T, RH) zones rather than scalar VPD; cascaded SISO state-machine with priority over true MIMO; assign actuators by dominant authority (fan → T, humidifier/dehumidifier → RH ±); feedforward on the lights schedule is the main lever; rejected PID / LQR / derivative estimation as over-engineering for a sparse actuator-output matrix. Failure modes called out up front: actuator mutex, dehumidifier saturation detection via wattage, fan baseline floor, dehumidifier compressor min-off.
+- **Status:** explicitly future work. Nothing to implement until hardware arrives. Migration path documented.
+- **Updated:** `wiki/index.md` (new concept entry flagged as "future").

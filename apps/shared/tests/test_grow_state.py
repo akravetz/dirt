@@ -1,6 +1,6 @@
 """Tests for the GrowState singleton + stage-derived target lookup."""
 
-from datetime import date
+from datetime import UTC, date, datetime, time
 from unittest.mock import patch
 
 import pytest
@@ -152,3 +152,63 @@ async def test_init_db_does_not_overwrite_existing_row(db_engine):
     async with AsyncSession(db_engine) as session:
         row = await session.get(GrowState, 1)
     assert row.flower_start_date == flipped
+
+
+# ------- lights_state (A + B feedforward inputs) -------
+
+
+async def _set_lights(eng, on: time, off: time) -> None:
+    async with AsyncSession(eng) as session:
+        row = await session.get(GrowState, 1)
+        if row is None:
+            row = GrowState(id=1, germination_date=GROW_START)
+        row.lights_on_local = on
+        row.lights_off_local = off
+        session.add(row)
+        await session.commit()
+
+
+def _utc(y: int, mo: int, d: int, h: int, mi: int = 0) -> datetime:
+    # 12:00 MDT == 18:00 UTC; build the UTC equivalent for a MDT wall-clock time.
+    local = datetime(y, mo, d, h, mi, tzinfo=gs.TENT_TZ)
+    return local.astimezone(UTC)
+
+
+async def test_lights_on_midday(db_engine):
+    await _set_lights(db_engine, time(5, 0), time(23, 0))
+    with patch.object(gs, "engine", db_engine):
+        state = await gs.lights_state(_utc(2026, 4, 19, 14, 0))  # 14:00 MDT
+    assert state.on is True
+    assert state.minutes_until_off == pytest.approx(9 * 60, abs=0.1)
+
+
+async def test_lights_off_after_schedule(db_engine):
+    await _set_lights(db_engine, time(5, 0), time(23, 0))
+    with patch.object(gs, "engine", db_engine):
+        state = await gs.lights_state(_utc(2026, 4, 20, 2, 0))  # 02:00 MDT next day
+    assert state.on is False
+
+
+async def test_lights_off_before_schedule(db_engine):
+    await _set_lights(db_engine, time(5, 0), time(23, 0))
+    with patch.object(gs, "engine", db_engine):
+        state = await gs.lights_state(_utc(2026, 4, 19, 4, 30))  # 04:30 MDT
+    assert state.on is False
+
+
+async def test_prep_window_boundary(db_engine):
+    """22:35 MDT — 25 min before 23:00 lights-off, inside a 30-min prep."""
+    await _set_lights(db_engine, time(5, 0), time(23, 0))
+    with patch.object(gs, "engine", db_engine):
+        state = await gs.lights_state(_utc(2026, 4, 19, 22, 35))
+    assert state.on is True
+    assert state.minutes_until_off == pytest.approx(25, abs=0.1)
+
+
+async def test_flower_schedule_overridable_via_db(db_engine):
+    """Flipping lights_on to 11:00 (flower 12/12) takes effect on next read."""
+    await _set_lights(db_engine, time(11, 0), time(23, 0))
+    with patch.object(gs, "engine", db_engine):
+        # 10:00 MDT — lights should still be OFF (before the 11:00 flower on-time).
+        state = await gs.lights_state(_utc(2026, 4, 19, 10, 0))
+    assert state.on is False
