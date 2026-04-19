@@ -2,7 +2,7 @@
 title: Activity Log
 type: log
 created: 2026-04-06
-updated: 2026-04-16
+updated: 2026-04-18
 order: chronological — oldest entries at top, newest appended at bottom. Do NOT insert entries out of date order.
 ---
 
@@ -377,3 +377,10 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - Rewrote `wiki/overview.md` — Day 35, LST due flag, overnight env flags, plant status table updated, environment last reading updated
 - Updated `wiki/index.md` — Day 35 daily entry added
 - **Known gap:** No daily entries for 2026-04-13 through 2026-04-17 (no photos or sensor snapshots taken on those dates). Pre-existing pattern; lint timeline-continuity check will flag this gap.
+
+## [2026-04-18] training | SCROG net installed; LST start deferred 1–3 days
+
+- User installed VIVOSUN 4x4 trellis net today at **11" above canopy / 18" above pot base** — matches the plan spec in `wiki/concepts/scrog.md` (18" above pots) and sits in the standard 8–12" above-canopy range. Install is ~1–2 weeks ahead of the original weeks-6–8 estimate; acceptable tradeoff — the net becomes an anchor plane for LST ties rather than a later overhead constraint.
+- **LST not started today** — user reports the two new main shoots per plant aren't yet sized up enough to bend confidently; will begin once each clears ~2" (expected 1–3 days).
+- Updated: `wiki/daily/2026-04-18.md` (title, summary, added Training Action Today section, Recommendation #1 rewritten for net-installed + LST-pending state), `wiki/overview.md` (Current Stage, Plant Status rows, Active Action Items #1, Upcoming Milestones — SCROG marked done), `wiki/concepts/scrog.md` ("In This Grow" with actual install date + measurements).
+- Q&A context: user asked whether LST and SCROG are mutually exclusive (no — sequence is Top → LST → SCROG per `wiki/concepts/plant-training-methods.md`), when to install the net, what height, and whether indica/sativa changes the answer. Answer was in-chat; the concept pages already cover the rationale, so no new concept page needed.

@@ -103,6 +103,8 @@ def check_index_sync() -> list[str]:
         issues.append(f"  Not in index.md: wiki/{path_str}")
 
     for path_str in sorted(indexed - all_wiki):
+        if path_str in META_FILES:
+            continue
         issues.append(f"  index.md links to nonexistent file: wiki/{path_str}")
 
     return issues
@@ -242,9 +244,17 @@ def check_photo_coverage() -> list[str]:
                 issues.append(f"  Photo date {d} ({fname}) has no wiki/daily/{d}.md")
 
     for d in sorted(daily_dates - set(photo_dates)):
+        if d in KNOWN_MISSING_PHOTOS:
+            continue
         issues.append(f"  wiki/daily/{d}.md has no corresponding photo in raw/photos/")
 
     return issues
+
+
+# Daily entries intentionally without a matching photo in raw/photos/.
+KNOWN_MISSING_PHOTOS = {
+    "2026-04-12",  # topping day for B/C/D; no photo taken
+}
 
 
 # ─── check 4: timeline continuity ────────────────────────────────────────────
@@ -258,6 +268,11 @@ KNOWN_TIMELINE_GAPS = {
     date(2026, 4, 7),    # No photo/chat data
     date(2026, 4, 9),    # No photo/chat data
     date(2026, 4, 10),   # No photo/chat data
+    date(2026, 4, 13),   # No photo/chat data
+    date(2026, 4, 14),   # No photo/chat data
+    date(2026, 4, 15),   # No photo/chat data
+    date(2026, 4, 16),   # No photo/chat data
+    date(2026, 4, 17),   # No photo/chat data
 }
 
 

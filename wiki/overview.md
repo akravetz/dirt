@@ -27,7 +27,7 @@ updated: 2026-04-18
 
 ## Current Stage
 
-**Early Veg** — Autopot system active since Apr 15 (reservoir filled, float valves open). **All four plants topped** (A: Apr 11; B/C/D: Apr 12) and fully recovered — Day 6–7 post-topping. **LST begins now** (Day 35; target window was Apr 16–19). Overnight environment flag: lights-off temp drops to ~63°F, RH spikes to ~77% — humidifier nighttime setpoint reduction recommended.
+**Early Veg** — Autopot system active since Apr 15 (reservoir filled, float valves open). **All four plants topped** (A: Apr 11; B/C/D: Apr 12) and fully recovered — Day 6–7 post-topping. **SCROG net installed Apr 18** at 11" above canopy / 18" above pot base (VIVOSUN 4x4 trellis; matches plan spec). **LST pending** — starts once the two new main shoots per plant clear ~2" (expected within 1–3 days). Overnight environment flag: lights-off temp drops to ~63°F, RH spikes to ~77% — humidifier nighttime setpoint reduction recommended.
 
 **Light schedule:** 18/6
 **Light intensity:** ~40% Fold-650 (ramped from 30% per Apr 8 recommendation)
@@ -36,10 +36,10 @@ updated: 2026-04-18
 
 | Plant | Nodes | Purple | Priority | Status |
 |-------|-------|--------|----------|--------|
-| Plant A | 5+ (topped, branching) | ✅ Confirmed genetic | 🔴 Primary | 🟡 **LST due now** — Day 7 post-topping; vigorous multi-branch canopy |
-| Plant B | — (topped, branching) | ❌ None | 🟡 Secondary | 🟡 **LST due now** — Day 6 post-topping; most vigorous canopy; morning moisture dip (autopot cycle) |
-| Plant C | — (topped, branching) | ⚠️ Stress-induced only | 🟡 Secondary | 🟡 **LST due now** — Day 6 post-topping; compact healthy canopy; moisture stable ~40% |
-| Plant D | — (topped, branching) | ✅ Confirmed genetic | 🔴 Primary | 🟡 **LST due now** — Day 6 post-topping; healthy canopy; v2.0 sensor installed today |
+| Plant A | 5+ (topped, branching) | ✅ Confirmed genetic | 🔴 Primary | 🟡 **LST pending** — Day 7 post-topping; vigorous multi-branch canopy; waiting for main shoots to size up (~2") |
+| Plant B | — (topped, branching) | ❌ None | 🟡 Secondary | 🟡 **LST pending** — Day 6 post-topping; most vigorous canopy; morning moisture dip (autopot cycle) |
+| Plant C | — (topped, branching) | ⚠️ Stress-induced only | 🟡 Secondary | 🟡 **LST pending** — Day 6 post-topping; compact healthy canopy; moisture stable ~40% |
+| Plant D | — (topped, branching) | ✅ Confirmed genetic | 🔴 Primary | 🟡 **LST pending** — Day 6 post-topping; healthy canopy; v2.0 sensor installed today |
 
 ## Environment (Last Reading: Apr 18 14:00 MDT)
 
@@ -56,7 +56,7 @@ updated: 2026-04-18
 
 ## Active Action Items
 
-1. **Begin LST on all 4 plants** 🔴 — Day 35, Day 6–7 post-topping; gently bend new main shoots outward at ~45° and tie down; start with Plant A (longest recovery)
+1. **Begin LST on all 4 plants — as soon as main shoots size up** 🔴 — Day 35, Day 6–7 post-topping. SCROG net is in; waiting on new shoots to reach ~2" (expected 1–3 days). Then gently bend outward at ~45° and anchor to pot rim; tuck into nearest net squares as shoots extend. Start with Plant A (longest recovery)
 2. **Lower overnight humidifier setpoint** 🟡 — overnight RH 76.95%, VPD 0.46 kPa; reduce bang-bang nighttime target to ~55% or schedule humidifier OFF during lights-off
 3. **Address overnight temperature** 🟡 — 63.54°F overnight avg; reduce exhaust fan speed at lights-off or add space heater on a timer; target 68–72°F night
 4. **Verify EC in reservoir** — was 1.84 before activation (Apr 15); confirm diluted to 0.8–1.0 at next reservoir change
@@ -69,9 +69,9 @@ updated: 2026-04-18
 | ~~Plant C diagnosis~~ | ✅ Resolved |
 | ~~Topping all plants~~ | ✅ Done Apr 11–12 |
 | ~~Float valve activation~~ | ✅ Done Apr 15 |
-| **LST all plants** | **Now (Day 35)** |
+| ~~SCROG net install~~ | ✅ Done Apr 18 (11" above canopy / 18" above pot base) |
+| **LST all plants** | **1–3 days (as shoots reach ~2")** |
 | First reservoir change | ~Apr 22–25 (7–10 days post-activation) |
-| SCROG net install | Weeks 6–8 of veg (~late April/early May) |
 | 12/12 flip | SCROG 70% full |
 | Clone selection | Flower weeks 3–4 |
 | Final pheno evaluation | Flower weeks 5–6 |

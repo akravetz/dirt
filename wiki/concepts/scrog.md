@@ -4,7 +4,7 @@ type: concept
 sources: [raw/chat-history/bible.md, raw/chat-history/all-chat-summary.md]
 related: [wiki/concepts/lst.md, wiki/concepts/plant-training-methods.md, wiki/decisions/2026-03-16-medium-and-training.md]
 created: 2026-04-06
-updated: 2026-04-07
+updated: 2026-04-18
 ---
 
 # SCROG — Screen of Green
@@ -22,9 +22,9 @@ SCROG uses a horizontal net/screen installed above the plants to create a flat, 
 
 ## In This Grow
 
-- **Net:** VIVOSUN 4x4 Trellis Net, installed ~18" above pots
+- **Net:** VIVOSUN 4x4 Trellis Net
+- **Installed:** 2026-04-18 (Day 35, Day 6–7 post-topping) — 11" above the canopy / **18" above pot base** (matches plan spec). Installed ahead of the original weeks-6–8 estimate; the net now serves as an anchor plane for upcoming LST ties rather than a later constraint.
 - **Flip trigger:** 70% net coverage
-- **Installation estimate:** Weeks 6–8 of veg (~late April / early May 2026)
 
 ## Key Notes
 - SCROG works best after topping — the two main shoots spread naturally into the net

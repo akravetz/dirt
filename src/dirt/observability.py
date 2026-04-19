@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import contextvars
 import json
+import os
 import queue
 import threading
 from datetime import UTC, date, datetime, timedelta
@@ -30,7 +31,25 @@ from typing import Any
 from loguru import logger
 
 _ROOT = Path(__file__).resolve().parents[2]
-LOGS_DIR = _ROOT / "logs"
+_DEFAULT_LOGS_DIR = _ROOT / "logs"
+# Env-var override for `logs_dir()`. Tests set this (via the autouse fixture
+# in `tests/conftest.py`) so a passing or crashing test never writes to the
+# production telemetry directory. Production code should never set it.
+LOGS_DIR_ENV = "DIRT_LOGS_DIR"
+
+
+def logs_dir() -> Path:
+    """Where stream JSONL files land. Reads ``DIRT_LOGS_DIR`` on every call so
+    test fixtures can swap it via :func:`os.environ` (or pytest's
+    ``monkeypatch.setenv``) without restarting the process or touching the
+    writer thread."""
+    env = os.environ.get(LOGS_DIR_ENV)
+    return Path(env) if env else _DEFAULT_LOGS_DIR
+
+
+# Backwards-compat alias — some external code may still reference this. New
+# call sites should call :func:`logs_dir` so the env-var override works.
+LOGS_DIR = _DEFAULT_LOGS_DIR
 
 # Per-stream retention in days. Streams not listed inherit DEFAULT_RETENTION_DAYS.
 # Keep the window short for high-volume instrumentation; a day of data is
@@ -69,7 +88,7 @@ def _rotate(stream_dir: Path, keep_days: int) -> None:
 
 
 def _log_path(stream: str) -> Path:
-    return LOGS_DIR / stream / f"{datetime.now(UTC).strftime('%Y-%m-%d')}.jsonl"
+    return logs_dir() / stream / f"{datetime.now(UTC).strftime('%Y-%m-%d')}.jsonl"
 
 
 # All writes happen on one background thread so the hot path stays
@@ -94,9 +113,13 @@ def _writer_loop() -> None:
         stream, envelope = item
         try:
             path = _log_path(stream)
-            key = f"{stream}:{path.name}"
+            # Keying on full path (not just stream:filename) so per-test
+            # tmp directories rotate independently and a test changing
+            # DIRT_LOGS_DIR mid-process doesn't reuse the prior dir's
+            # rotation cache entry.
+            key = str(path)
             if key not in rotated_today:
-                stream_dir = LOGS_DIR / stream
+                stream_dir = path.parent
                 stream_dir.mkdir(parents=True, exist_ok=True)
                 _rotate(stream_dir, _RETENTION.get(stream, DEFAULT_RETENTION_DAYS))
                 rotated_today.add(key)

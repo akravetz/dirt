@@ -116,6 +116,10 @@ Structured JSONL for debugging. Rotated by filename date on first write of the d
 
 Call `log_event(stream, event, **fields)` from `dirt.observability`. It handles path, rotation, timestamp, and correlation ID. Register non-default retention in `_RETENTION` in `src/dirt/observability.py`. That's the whole API — don't invent per-stream helpers.
 
+### Test isolation
+
+`logs_dir()` reads the `DIRT_LOGS_DIR` env var on every write. The autouse fixture in `tests/conftest.py` (`isolate_observability_logs`) sets it to a per-test `tmp_path / "logs"` so no test ever appends to the production `logs/` tree. Production code paths leave the env var unset and fall back to the repo's `logs/` directory. Apply this pattern (env-var-based isolation + autouse fixture) when adding new modules that write to disk under `logs/`, `sessions/`, or similar shared locations.
+
 ### Correlation across streams
 
 Every entry stamped with `conversation_id` (UUID generated per voice wake). To reconstruct a single user interaction:
