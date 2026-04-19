@@ -2,6 +2,28 @@ version = 1
 revision = 3
 requires-python = ">=3.13"
 
+[manifest]
+members = [
+    "dirt-hwd",
+    "dirt-mcp",
+    "dirt-shared",
+    "dirt-voice",
+    "dirt-web",
+]
+
+[manifest.dependency-groups]
+dev = [
+    { name = "httpx", specifier = ">=0.28" },
+    { name = "matplotlib", specifier = ">=3.10.8" },
+    { name = "pytest", specifier = ">=8.3" },
+    { name = "pytest-asyncio", specifier = ">=0.25" },
+    { name = "pytest-playwright-asyncio", specifier = ">=0.7.2" },
+    { name = "pytest-testmon", specifier = ">=2.2.0" },
+    { name = "pytestarch", specifier = ">=4.0.1" },
+    { name = "ruff", specifier = ">=0.11" },
+    { name = "schemdraw", specifier = ">=0.22" },
+]
+
 [[package]]
 name = "aiofiles"
 version = "25.1.0"
@@ -587,76 +609,119 @@ wheels = [
 ]
 
 [[package]]
-name = "dirt"
+name = "dirt-hwd"
 version = "0.1.0"
-source = { editable = "." }
+source = { editable = "apps/hwd" }
+dependencies = [
+    { name = "dirt-shared" },
+    { name = "fastapi" },
+    { name = "python-multipart" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "dirt-shared", editable = "apps/shared" },
+    { name = "fastapi", specifier = ">=0.115" },
+    { name = "python-multipart", specifier = ">=0.0.20" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.34" },
+]
+
+[[package]]
+name = "dirt-mcp"
+version = "0.1.0"
+source = { editable = "apps/mcp" }
+dependencies = [
+    { name = "dirt-shared" },
+    { name = "mcp", extra = ["cli"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "dirt-shared", editable = "apps/shared" },
+    { name = "mcp", extras = ["cli"], specifier = ">=1.9" },
+]
+
+[[package]]
+name = "dirt-shared"
+version = "0.1.0"
+source = { editable = "apps/shared" }
 dependencies = [
     { name = "aiosqlite" },
     { name = "claude-agent-sdk" },
-    { name = "deepgram-sdk" },
-    { name = "elevenlabs" },
     { name = "fastapi" },
     { name = "itsdangerous" },
     { name = "jinja2" },
-    { name = "mcp", extra = ["cli"] },
-    { name = "openwakeword" },
     { name = "pillow" },
-    { name = "pipecat-ai", extra = ["anthropic", "deepgram", "elevenlabs", "local"] },
     { name = "pydantic-settings" },
     { name = "pyserial" },
     { name = "python-dotenv" },
     { name = "python-kasa" },
-    { name = "python-multipart" },
-    { name = "sounddevice" },
     { name = "sqlmodel" },
-    { name = "uvicorn", extra = ["standard"] },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "httpx" },
-    { name = "matplotlib" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-playwright-asyncio" },
-    { name = "pytest-testmon" },
-    { name = "pytestarch" },
-    { name = "ruff" },
-    { name = "schemdraw" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "aiosqlite", specifier = ">=0.21" },
     { name = "claude-agent-sdk", specifier = ">=0.1.63" },
-    { name = "deepgram-sdk", specifier = ">=6.1.1" },
-    { name = "elevenlabs", specifier = ">=2.43.0" },
     { name = "fastapi", specifier = ">=0.115" },
-    { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.28" },
     { name = "itsdangerous", specifier = ">=2.2.0" },
     { name = "jinja2", specifier = ">=3.1" },
-    { name = "matplotlib", marker = "extra == 'dev'", specifier = ">=3.10.8" },
-    { name = "mcp", extras = ["cli"], specifier = ">=1.9" },
-    { name = "openwakeword", specifier = ">=0.4.0" },
     { name = "pillow", specifier = ">=12.2.0" },
-    { name = "pipecat-ai", extras = ["anthropic", "deepgram", "elevenlabs", "local", "silero"], specifier = ">=1.0.0" },
     { name = "pydantic-settings", specifier = ">=2.13.1" },
     { name = "pyserial", specifier = ">=3.5" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.25" },
-    { name = "pytest-playwright-asyncio", marker = "extra == 'dev'", specifier = ">=0.7.2" },
-    { name = "pytest-testmon", marker = "extra == 'dev'", specifier = ">=2.2.0" },
-    { name = "pytestarch", marker = "extra == 'dev'", specifier = ">=4.0.1" },
     { name = "python-dotenv", specifier = ">=1.1" },
     { name = "python-kasa", git = "https://github.com/ZeliardM/python-kasa.git?rev=feature%2Fnew-klap" },
-    { name = "python-multipart", specifier = ">=0.0.20" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.11" },
-    { name = "schemdraw", marker = "extra == 'dev'", specifier = ">=0.22" },
-    { name = "sounddevice", specifier = ">=0.5.5" },
     { name = "sqlmodel", specifier = ">=0.0.22" },
+]
+
+[[package]]
+name = "dirt-voice"
+version = "0.1.0"
+source = { editable = "apps/voice" }
+dependencies = [
+    { name = "claude-agent-sdk" },
+    { name = "deepgram-sdk" },
+    { name = "dirt-shared" },
+    { name = "elevenlabs" },
+    { name = "openwakeword" },
+    { name = "pipecat-ai", extra = ["anthropic", "deepgram", "elevenlabs", "local"] },
+    { name = "sounddevice" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "claude-agent-sdk", specifier = ">=0.1.63" },
+    { name = "deepgram-sdk", specifier = ">=6.1.1" },
+    { name = "dirt-shared", editable = "apps/shared" },
+    { name = "elevenlabs", specifier = ">=2.43.0" },
+    { name = "openwakeword", specifier = ">=0.4.0" },
+    { name = "pipecat-ai", extras = ["anthropic", "deepgram", "elevenlabs", "local", "silero"], specifier = ">=1.0.0" },
+    { name = "sounddevice", specifier = ">=0.5.5" },
+]
+
+[[package]]
+name = "dirt-web"
+version = "0.1.0"
+source = { editable = "apps/web" }
+dependencies = [
+    { name = "dirt-mcp" },
+    { name = "dirt-shared" },
+    { name = "fastapi" },
+    { name = "jinja2" },
+    { name = "python-multipart" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "dirt-mcp", editable = "apps/mcp" },
+    { name = "dirt-shared", editable = "apps/shared" },
+    { name = "fastapi", specifier = ">=0.115" },
+    { name = "jinja2", specifier = ">=3.1" },
+    { name = "python-multipart", specifier = ">=0.0.20" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34" },
 ]
-provides-extras = ["dev"]
 
 [[package]]
 name = "distro"
