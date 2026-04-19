@@ -1,4 +1,4 @@
-#!/usr/bin/env -S uv run python
+#!/usr/bin/env -S uv run --package dirt-shared python
 """dirt daily report — pan all camera presets, snapshot sensors, hand off
 to a synthesis sub-agent that writes the wiki entry, deliver via Telegram.
 
@@ -23,14 +23,14 @@ from pathlib import Path
 
 import httpx
 
-from dirt.config import settings
-from dirt.db import engine
-from dirt.services.capture import _daemon_rpc
-from dirt.services.daily_report import DailyReport
-from dirt.services.daily_sensors import MDT, SensorReader
-from dirt.services.daily_synthesis import ClaudeSynthesisRunner
-from dirt.services.photos import CameraClient
-from dirt.services.telegram import TelegramClient
+from dirt_shared.config import settings
+from dirt_shared.db import engine
+from dirt_shared.services.capture import _daemon_rpc
+from dirt_shared.services.daily_report import DailyReport
+from dirt_shared.services.daily_sensors import MDT, SensorReader
+from dirt_shared.services.daily_synthesis import ClaudeSynthesisRunner
+from dirt_shared.services.photos import CameraClient
+from dirt_shared.services.telegram import TelegramClient
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WIKI_ROOT = REPO_ROOT / "wiki"
