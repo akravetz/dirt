@@ -32,7 +32,7 @@ from claude_agent_sdk import (
     query,
 )
 
-from dirt.observability import log_event
+from dirt_shared.observability import log_event
 
 logger = logging.getLogger(__name__)
 

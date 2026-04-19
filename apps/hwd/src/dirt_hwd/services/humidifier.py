@@ -22,12 +22,12 @@ from datetime import UTC, datetime
 from kasa import Credentials, Device, Discover
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from dirt.config import settings
-from dirt.db import engine
-from dirt.models.sensor_reading import SensorReading
-from dirt.observability import log_event
-from dirt.services.grow_state import current_stage, current_targets
-from dirt.services.readings import get_latest_reading
+from dirt_shared.config import settings
+from dirt_shared.db import engine
+from dirt_shared.models.sensor_reading import SensorReading
+from dirt_shared.observability import log_event
+from dirt_shared.services.grow_state import current_stage, current_targets
+from dirt_shared.services.readings import get_latest_reading
 
 logger = logging.getLogger(__name__)
 

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import time
 
-from dirt.observability import (
+from dirt_shared.observability import (
     _DEFAULT_LOGS_DIR,
     log_event,
     logs_dir,
@@ -25,7 +25,7 @@ def _drain_writer(timeout_s: float = 2.0) -> None:
     Tests that need to assert on file contents must wait for the queue
     to drain.
     """
-    from dirt.observability import _write_queue
+    from dirt_shared.observability import _write_queue
     deadline = time.monotonic() + timeout_s
     while not _write_queue.empty() and time.monotonic() < deadline:
         time.sleep(0.01)

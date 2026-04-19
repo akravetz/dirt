@@ -6,11 +6,11 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from dirt.config import settings
-from dirt.models.sensor_calibration import SensorCalibration
-from dirt.models.sensor_node import SensorNode
-from dirt.models.sensor_reading import SensorReading
-from dirt.services.readings import compute_calibrated_pct
+from dirt_shared.config import settings
+from dirt_shared.models.sensor_calibration import SensorCalibration
+from dirt_shared.models.sensor_node import SensorNode
+from dirt_shared.models.sensor_reading import SensorReading
+from dirt_shared.services.readings import compute_calibrated_pct
 
 
 @pytest.fixture
@@ -29,7 +29,7 @@ async def client(db_engine):
         patch("dirt.db.engine", db_engine),
         patch("dirt.services.readings.engine", db_engine),
     ):
-        from dirt.app import app
+        from dirt_web.app import app
 
         transport = ASGITransport(app=app)
         async with AsyncClient(

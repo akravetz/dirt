@@ -8,12 +8,12 @@ from statistics import mean
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from dirt.db import engine
-from dirt.models.sensor_calibration import SensorCalibration
-from dirt.models.sensor_reading import SensorReading
-from dirt.services.grow_state import current_targets
-from dirt.services.readings import METRICS, compute_calibrated_pct, get_latest_reading
-from dirt.tools import ToolSpec
+from dirt_shared.db import engine
+from dirt_shared.models.sensor_calibration import SensorCalibration
+from dirt_shared.models.sensor_reading import SensorReading
+from dirt_shared.services.grow_state import current_targets
+from dirt_shared.services.readings import METRICS, compute_calibrated_pct, get_latest_reading
+from dirt_voice.tools import ToolSpec
 
 PLANT_LOCATIONS = ("plant-a", "plant-b", "plant-c", "plant-d")
 

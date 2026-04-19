@@ -23,7 +23,7 @@ from pipecat.frames.frames import (
 )
 from pipecat.observers.base_observer import BaseObserver, FramePushed
 
-from dirt.observability import log_event
+from dirt_shared.observability import log_event
 
 # Frame classes we deliberately DO NOT log. All are high-volume / low-signal.
 _DENYLIST: tuple[type[Frame], ...] = (

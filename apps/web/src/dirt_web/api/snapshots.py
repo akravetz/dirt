@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
-from dirt.services.snapshots import get_latest_snapshot, get_snapshot_path
+from dirt_shared.services.snapshots import get_latest_snapshot, get_snapshot_path
 
 router = APIRouter(prefix="/api/snapshots", tags=["snapshots"])
 

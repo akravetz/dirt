@@ -1,6 +1,6 @@
 from mcp.server.fastmcp import FastMCP, Image
 
-from dirt.services.snapshots import get_latest_snapshot, get_snapshot_path
+from dirt_shared.services.snapshots import get_latest_snapshot, get_snapshot_path
 
 
 def _register_tools(mcp: FastMCP, **kwargs) -> None:

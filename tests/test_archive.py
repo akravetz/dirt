@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import pytest
 
-from dirt.services.archive import (
+from dirt_hwd.services.archive import (
     ArchiveVerificationError,
     archive_date,
     ffprobe_frame_count,

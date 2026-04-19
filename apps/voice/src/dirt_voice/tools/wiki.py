@@ -29,9 +29,9 @@ from claude_agent_sdk import (
     query,
 )
 
-from dirt.observability import log_event
-from dirt.services.grow_state import grow_week
-from dirt.tools import ToolSpec
+from dirt_shared.observability import log_event
+from dirt_shared.services.grow_state import grow_week
+from dirt_voice.tools import ToolSpec
 
 _WIKI_ROOT = Path(__file__).resolve().parents[3] / "wiki"
 

@@ -7,8 +7,8 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from dirt.models.snapshot import Snapshot
-from dirt.services.snapshots import get_latest_snapshot, get_snapshot_path
+from dirt_shared.models.snapshot import Snapshot
+from dirt_shared.services.snapshots import get_latest_snapshot, get_snapshot_path
 
 
 @pytest.fixture
@@ -28,7 +28,7 @@ async def full_app_client(db_engine):
         patch("dirt.services.capture.capture_loop"),
         patch("dirt.db.engine", db_engine),
     ):
-        from dirt.app import app
+        from dirt_web.app import app
 
         transport = ASGITransport(app=app)
         async with AsyncClient(

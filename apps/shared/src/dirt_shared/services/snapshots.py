@@ -3,8 +3,8 @@ from pathlib import Path
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from dirt.db import engine
-from dirt.models.snapshot import Snapshot
+from dirt_shared.db import engine
+from dirt_shared.models.snapshot import Snapshot
 
 
 async def get_latest_snapshot() -> Snapshot | None:

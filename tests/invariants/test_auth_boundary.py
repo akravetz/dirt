@@ -37,7 +37,7 @@ BEARER_AUTH_PREFIXES = ("/mcp", "/api/ingest")
 def _get_app_routes():
     """Collect all application-defined routes (excluding framework-generated ones)."""
     with patch("dirt.services.capture.capture_loop"):
-        from dirt.app import app
+        from dirt_web.app import app
 
     routes = []
     for route in app.routes:
@@ -57,7 +57,7 @@ def _get_app_routes():
 @pytest.fixture
 async def unauthenticated_client():
     with patch("dirt.services.capture.capture_loop"):
-        from dirt.app import app
+        from dirt_web.app import app
 
     transport = ASGITransport(app=app)
     async with AsyncClient(

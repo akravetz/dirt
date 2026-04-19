@@ -46,7 +46,7 @@ from pipecat.transports.base_input import BaseInputTransport
 from pipecat.transports.base_output import BaseOutputTransport
 from pipecat.transports.base_transport import BaseTransport, TransportParams
 
-from dirt.observability import CONVERSATION_ID, log_event
+from dirt_shared.observability import CONVERSATION_ID, log_event
 
 # Log input amplitude at roughly this rate (Hz). 20ms blocksize means every
 # 50th frame = 1 Hz. Low enough not to flood logs/audio_rms/, high enough to

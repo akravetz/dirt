@@ -3,8 +3,8 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.responses import Response
 
-from dirt.auth import clear_session_cookie, create_session_cookie, get_current_user
-from dirt.config import TEMPLATES_DIR, settings
+from dirt_web.auth import clear_session_cookie, create_session_cookie, get_current_user
+from dirt_shared.config import TEMPLATES_DIR, settings
 
 router = APIRouter(tags=["auth"])
 templates = Jinja2Templates(directory=TEMPLATES_DIR)

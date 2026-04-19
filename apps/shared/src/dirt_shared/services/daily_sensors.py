@@ -29,9 +29,9 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from dirt.models.sensor_calibration import SensorCalibration
-from dirt.models.sensor_reading import SensorReading
-from dirt.services.readings import METRICS, compute_calibrated_pct
+from dirt_shared.models.sensor_calibration import SensorCalibration
+from dirt_shared.models.sensor_reading import SensorReading
+from dirt_shared.services.readings import METRICS, compute_calibrated_pct
 
 logger = logging.getLogger(__name__)
 

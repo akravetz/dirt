@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from dirt.services.photos import CameraClient, CameraError, stamp_exif_datetime
+from dirt_shared.services.photos import CameraClient, CameraError, stamp_exif_datetime
 
 PRESETS = {
     "overview": {"pitch": -50.0, "yaw": -25.0, "zoom": 1.0},

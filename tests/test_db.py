@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from dirt.models.snapshot import Snapshot
+from dirt_shared.models.snapshot import Snapshot
 
 
 @pytest.fixture

@@ -17,9 +17,9 @@ from typing import Literal
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from dirt.config import GROW_START
-from dirt.db import engine
-from dirt.models.grow_state import GrowState
+from dirt_shared.config import GROW_START
+from dirt_shared.db import engine
+from dirt_shared.models.grow_state import GrowState
 
 Stage = Literal["veg", "flower_early", "flower_late"]
 

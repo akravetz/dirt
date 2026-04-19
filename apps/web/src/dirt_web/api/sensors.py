@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from dirt.services.readings import (
+from dirt_shared.services.readings import (
     get_latest_reading,
     get_sensor_history,
     is_sensor_stale,

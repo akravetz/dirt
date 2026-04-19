@@ -18,21 +18,21 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from dirt.models.sensor_calibration import SensorCalibration
-from dirt.models.sensor_reading import SensorReading
-from dirt.services.daily_report import (
+from dirt_shared.models.sensor_calibration import SensorCalibration
+from dirt_shared.models.sensor_reading import SensorReading
+from dirt_shared.services.daily_report import (
     DailyReport,
     Phase,
     balance_html_tags,
     markdown_to_simple_html,
 )
-from dirt.services.daily_sensors import (
+from dirt_shared.services.daily_sensors import (
     PLANT_LOCATIONS,
     SOIL_METRIC,
     TENT_LOCATION,
     SensorReader,
 )
-from dirt.services.daily_synthesis import SynthesisResult
+from dirt_shared.services.daily_synthesis import SynthesisResult
 
 # --- shared fixtures ---
 
@@ -101,7 +101,7 @@ class _FakeCamera:
     async def capture_at(self, preset: str) -> bytes:
         self.calls.append(preset)
         if self.raise_on == preset:
-            from dirt.services.photos import CameraError
+            from dirt_shared.services.photos import CameraError
             raise CameraError(f"injected failure at {preset}")
         return self.jpeg
 
@@ -149,7 +149,7 @@ class _FakeTelegram:
     async def send_message(self, chat_id, text, *, parse_mode="HTML",
                            disable_web_page_preview=True):
         if self.fail_send_message:
-            from dirt.services.telegram import TelegramError
+            from dirt_shared.services.telegram import TelegramError
             raise TelegramError("injected message failure")
         self.messages.append({
             "chat_id": chat_id, "text": text, "parse_mode": parse_mode,
@@ -159,7 +159,7 @@ class _FakeTelegram:
     async def send_media_group(self, chat_id, photo_paths, *, caption=None,
                                caption_parse_mode="HTML"):
         if self.fail_send_media:
-            from dirt.services.telegram import TelegramError
+            from dirt_shared.services.telegram import TelegramError
             raise TelegramError("injected media failure")
         self.media_groups.append({
             "chat_id": chat_id,

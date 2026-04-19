@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from dirt.models.snapshot import Snapshot
+from dirt_shared.models.snapshot import Snapshot
 
 
 @pytest.fixture
@@ -34,7 +34,7 @@ async def test_capture_snapshot_saves_file_and_db_record(db_engine, tmp_path):
     ):
         mock_settings.snapshot_dir = str(tmp_path / "snapshots")
 
-        from dirt.services.capture import capture_snapshot
+        from dirt_shared.services.capture import capture_snapshot
 
         snapshot = await capture_snapshot()
 

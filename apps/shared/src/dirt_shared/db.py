@@ -2,12 +2,12 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from dirt.config import GROW_START, settings
-from dirt.models.grow_state import GrowState
-from dirt.models.sensor_calibration import SensorCalibration  # noqa: F401
-from dirt.models.sensor_node import SensorNode  # noqa: F401
-from dirt.models.sensor_reading import SensorReading  # noqa: F401
-from dirt.models.snapshot import Snapshot  # noqa: F401
+from dirt_shared.config import GROW_START, settings
+from dirt_shared.models.grow_state import GrowState
+from dirt_shared.models.sensor_calibration import SensorCalibration  # noqa: F401
+from dirt_shared.models.sensor_node import SensorNode  # noqa: F401
+from dirt_shared.models.sensor_reading import SensorReading  # noqa: F401
+from dirt_shared.models.snapshot import Snapshot  # noqa: F401
 
 engine = create_async_engine(settings.database_url)
 

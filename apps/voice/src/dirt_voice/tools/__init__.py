@@ -36,8 +36,8 @@ class ToolSpec:
 
 
 # Populated at import time by each tool module.
-from dirt.tools.sensors import GET_CURRENT_STATUS, GET_SENSOR_TREND  # noqa: E402
-from dirt.tools.wiki import ASK_WIKI  # noqa: E402
+from dirt_voice.tools.sensors import GET_CURRENT_STATUS, GET_SENSOR_TREND  # noqa: E402
+from dirt_voice.tools.wiki import ASK_WIKI  # noqa: E402
 
 SHARED_TOOLS: list[ToolSpec] = [
     GET_CURRENT_STATUS,

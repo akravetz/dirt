@@ -60,15 +60,15 @@ from pipecat.utils.text.pattern_pair_aggregator import (
     PatternPairAggregator,
 )
 
-from dirt.channels._audio_transport import (
+from dirt_voice.channels._audio_transport import (
     SoundDeviceTransport,
     SoundDeviceTransportParams,
 )
-from dirt.channels._observers import FrameFlowObserver
-from dirt.config import settings
-from dirt.observability import CONVERSATION_ID, log_event
-from dirt.services.grow_state import grow_week
-from dirt.tools import SHARED_TOOLS, ToolSpec
+from dirt_voice.channels._observers import FrameFlowObserver
+from dirt_shared.config import settings
+from dirt_shared.observability import CONVERSATION_ID, log_event
+from dirt_shared.services.grow_state import grow_week
+from dirt_voice.tools import SHARED_TOOLS, ToolSpec
 
 ROOT = Path(__file__).resolve().parents[3]
 

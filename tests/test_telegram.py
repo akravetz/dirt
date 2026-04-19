@@ -13,7 +13,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from dirt.services.telegram import TelegramClient, TelegramError
+from dirt_shared.services.telegram import TelegramClient, TelegramError
 
 
 def _ok(result: object) -> httpx.Response:

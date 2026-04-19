@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from dirt.models.sensor_reading import SensorReading
+from dirt_shared.models.sensor_reading import SensorReading
 
 
 async def _seed_test_data(session: AsyncSession, hours: int = 48) -> None:
@@ -56,7 +56,7 @@ async def client(db_engine):
         patch("dirt.db.engine", db_engine),
         patch("dirt.services.readings.engine", db_engine),
     ):
-        from dirt.app import app
+        from dirt_web.app import app
 
         transport = ASGITransport(app=app)
         async with AsyncClient(

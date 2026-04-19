@@ -3,10 +3,10 @@ from datetime import UTC, datetime, timedelta
 from sqlmodel import select, text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from dirt.db import engine
-from dirt.models.sensor_calibration import SensorCalibration
-from dirt.models.sensor_node import SensorNode
-from dirt.models.sensor_reading import SensorReading
+from dirt_shared.db import engine
+from dirt_shared.models.sensor_calibration import SensorCalibration
+from dirt_shared.models.sensor_node import SensorNode
+from dirt_shared.models.sensor_reading import SensorReading
 
 # Metrics that get auto-calibrated at ingest (extrema-tracking).
 AUTO_CALIBRATED_METRICS = {"soil_moisture_raw"}

@@ -145,7 +145,7 @@ def test_mcp_only_imports_services_and_config(evaluable):
         rule,
         evaluable,
         "The MCP server (src/dirt/mcp/) may only import from dirt.services and "
-        "dirt.config. It must not import from dirt.db, dirt.models, dirt.api, or "
+        "dirt.config. It must not import from dirt_shared.db, dirt.models, dirt.api, or "
         "any other internal package. All data access and business logic should go "
         "through service functions in src/dirt/services/. If you need a new "
         "capability, add a service function rather than importing directly.",
@@ -204,7 +204,7 @@ def test_api_does_not_import_db(evaluable):
     _check_rule(
         rule,
         evaluable,
-        "API routes must not import from dirt.db or manage DB sessions. Services "
+        "API routes must not import from dirt_shared.db or manage DB sessions. Services "
         "manage their own sessions internally. Move query logic into a service "
         "function in src/dirt/services/ that creates its own AsyncSession from "
         "dirt.db.engine, then call that service function from the API route.",

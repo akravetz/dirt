@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
-from dirt.config import settings
+from dirt_shared.config import settings
 
 logger = logging.getLogger(__name__)
 

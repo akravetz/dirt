@@ -8,10 +8,10 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from dirt.config import GROW_START
-from dirt.db import init_db
-from dirt.models.grow_state import GrowState
-from dirt.services import grow_state as gs
+from dirt_shared.config import GROW_START
+from dirt_shared.db import init_db
+from dirt_shared.models.grow_state import GrowState
+from dirt_shared.services import grow_state as gs
 
 
 @pytest.fixture

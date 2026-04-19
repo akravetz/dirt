@@ -3,8 +3,8 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse, Response
 
-from dirt.services.capture import capture_frame
-from dirt.services.snapshots import get_latest_snapshot
+from dirt_shared.services.capture import capture_frame
+from dirt_shared.services.snapshots import get_latest_snapshot
 
 _MT = ZoneInfo("America/Denver")
 

@@ -3,7 +3,7 @@ from fastapi.responses import RedirectResponse
 from itsdangerous import BadSignature, URLSafeSerializer
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
-from dirt.config import settings
+from dirt_shared.config import settings
 
 SESSION_COOKIE = "dirt_session"
 PUBLIC_PATHS = {"/login", "/logout"}

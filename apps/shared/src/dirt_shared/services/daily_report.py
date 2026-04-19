@@ -22,15 +22,15 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Protocol
 
-from dirt.observability import log_event
-from dirt.services.daily_sensors import (
+from dirt_shared.observability import log_event
+from dirt_shared.services.daily_sensors import (
     DailySensorSnapshot,
     SensorReader,
     ValidationFailure,
 )
-from dirt.services.daily_synthesis import SynthesisResult, SynthesisRunner
-from dirt.services.photos import CameraClient, stamp_exif_datetime
-from dirt.services.telegram import TelegramClient, TelegramError
+from dirt_shared.services.daily_synthesis import SynthesisResult, SynthesisRunner
+from dirt_shared.services.photos import CameraClient, stamp_exif_datetime
+from dirt_shared.services.telegram import TelegramClient, TelegramError
 
 logger = logging.getLogger(__name__)
 

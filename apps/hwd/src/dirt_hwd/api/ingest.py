@@ -10,8 +10,8 @@ from __future__ import annotations
 from fastapi import APIRouter, Header, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
-from dirt.config import settings
-from dirt.services.readings import ingest_reading
+from dirt_shared.config import settings
+from dirt_shared.services.readings import ingest_reading
 
 router = APIRouter(tags=["ingest"])
 

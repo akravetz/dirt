@@ -16,9 +16,9 @@ from pathlib import Path
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from dirt.config import settings
-from dirt.db import engine
-from dirt.models.snapshot import Snapshot
+from dirt_shared.config import settings
+from dirt_shared.db import engine
+from dirt_shared.models.snapshot import Snapshot
 
 logger = logging.getLogger(__name__)
 

@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import pytest
 
-from dirt.observability import LOGS_DIR_ENV
+from dirt_shared.observability import LOGS_DIR_ENV
 
 
 @pytest.fixture(autouse=True)

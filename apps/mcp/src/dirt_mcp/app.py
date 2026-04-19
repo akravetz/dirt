@@ -6,8 +6,8 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
 
-from dirt.mcp.auth import BearerTokenMiddleware
-from dirt.mcp.tools import _register_tools
+from dirt_mcp.auth import BearerTokenMiddleware
+from dirt_mcp.tools import _register_tools
 
 
 def create_mcp_app(

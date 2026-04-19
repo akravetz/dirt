@@ -7,9 +7,9 @@ import math
 import serial
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from dirt.config import settings
-from dirt.db import engine
-from dirt.models.sensor_reading import SensorReading
+from dirt_shared.config import settings
+from dirt_shared.db import engine
+from dirt_shared.models.sensor_reading import SensorReading
 
 logger = logging.getLogger(__name__)
 

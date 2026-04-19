@@ -13,9 +13,9 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from dirt.models.sensor_calibration import SensorCalibration
-from dirt.models.sensor_reading import SensorReading
-from dirt.services.daily_sensors import (
+from dirt_shared.models.sensor_calibration import SensorCalibration
+from dirt_shared.models.sensor_reading import SensorReading
+from dirt_shared.services.daily_sensors import (
     PLANT_LOCATIONS,
     SOIL_METRIC,
     TENT_LOCATION,
@@ -253,7 +253,7 @@ async def test_snapshot_per_plant_pct_uses_calibration(engine):
 
 
 def test_to_prompt_dict_renders_window_avg():
-    from dirt.services.daily_sensors import (
+    from dirt_shared.services.daily_sensors import (
         DailySensorSnapshot,
         WindowAvg,
     )
