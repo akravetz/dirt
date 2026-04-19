@@ -1,0 +1,30 @@
+[project]
+name = "dirt-shared"
+version = "0.1.0"
+description = "Shared models, config, DB, and non-hardware services for dirt"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.115",
+    "sqlmodel>=0.0.22",
+    "aiosqlite>=0.21",
+    "python-dotenv>=1.1",
+    "jinja2>=3.1",
+    "pydantic-settings>=2.13.1",
+    "itsdangerous>=2.2.0",
+    "pyserial>=3.5",
+    "pillow>=12.2.0",
+    "python-kasa",
+    "claude-agent-sdk>=0.1.63",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/dirt_shared"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_test_loop_scope = "session"

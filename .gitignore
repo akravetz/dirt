@@ -50,3 +50,6 @@ outputs/
 .DS_Store
 logs/
 sessions/**/*.jsonl
+
+# Phase 1+ runtime data directory (dirt.db, snapshots, logs, archives, etc.)
+var/
