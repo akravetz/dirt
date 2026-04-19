@@ -22,6 +22,8 @@ dependencies = [
     "elevenlabs>=2.43.0",
     "openwakeword>=0.4.0",
     "pipecat-ai[anthropic,deepgram,elevenlabs,local,silero]>=1.0.0",
+    "claude-agent-sdk>=0.1.63",
+    "python-kasa",
 ]
 
 [project.optional-dependencies]
@@ -58,3 +60,6 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 
 [tool.ruff.format]
 quote-style = "double"
+
+[tool.uv.sources]
+python-kasa = { git = "https://github.com/ZeliardM/python-kasa.git", rev = "feature/new-klap" }

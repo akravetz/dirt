@@ -2,12 +2,14 @@
 title: "Wake-Word Training Strategy — Voice Clone + Captured RIRs"
 type: decision
 sources: []
-related: [wiki/decisions/2026-04-16-voice-pipeline-selections.md, wiki/concepts/wake-word-detection.md, wiki/concepts/room-impulse-response.md, wiki/hardware/jabra.md]
+related: [wiki/decisions/2026-04-16-voice-pipeline-selections.md, wiki/decisions/2026-04-18-wake-word-v4-plan.md, wiki/concepts/wake-word-detection.md, wiki/concepts/room-impulse-response.md, wiki/hardware/jabra.md]
 created: 2026-04-16
-updated: 2026-04-16
+updated: 2026-04-18
 ---
 
 # Wake-Word Training Strategy — Voice Clone + Captured RIRs
+
+> **Successor:** [Wake-Word v4 Plan (2026-04-18)](2026-04-18-wake-word-v4-plan.md). v3 shipped and solved recall; v4 targets precision (meeting false positives + ambiguous-zone misses) via in-situ hard negatives, mined meeting audio, and bumped `max_negative_weight`.
 
 ## Context
 

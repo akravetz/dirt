@@ -1,0 +1,133 @@
+#!/usr/bin/env -S uv run python
+"""dirt daily report — pan all camera presets, snapshot sensors, hand off
+to a synthesis sub-agent that writes the wiki entry, deliver via Telegram.
+
+See `wiki/CLAUDE.md` (Daily Update Workflow) and
+`docs/references/claude-agent-sdk/INDEX.md`.
+
+Usage:
+    scripts/daily_report                  # today's date, skip if already done
+    scripts/daily_report --force          # re-run even if marker exists
+    scripts/daily_report --date 2026-04-19 [--force]
+"""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+import logging
+import sys
+from datetime import date, datetime
+from pathlib import Path
+
+import httpx
+
+from dirt.config import settings
+from dirt.db import engine
+from dirt.services.capture import _daemon_rpc
+from dirt.services.daily_report import DailyReport
+from dirt.services.daily_sensors import MDT, SensorReader
+from dirt.services.daily_synthesis import ClaudeSynthesisRunner
+from dirt.services.photos import CameraClient
+from dirt.services.telegram import TelegramClient
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+WIKI_ROOT = REPO_ROOT / "wiki"
+PHOTOS_DIR = REPO_ROOT / "raw" / "photos"
+MARKER_DIR = REPO_ROOT / "logs" / "daily_report"
+CAMERA_CONFIG_PATH = Path.home() / ".config" / "dirt" / "camera.json"
+
+
+def _parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description="Run the daily report.")
+    p.add_argument(
+        "--force", action="store_true",
+        help="Re-run even if today's completed marker exists.",
+    )
+    p.add_argument(
+        "--date", type=date.fromisoformat, default=None,
+        help="Target date (YYYY-MM-DD). Defaults to today's date in MDT.",
+    )
+    return p.parse_args()
+
+
+def _today_mdt() -> date:
+    return datetime.now(MDT).date()
+
+
+def _load_camera_presets() -> dict[str, dict[str, float]]:
+    cfg = json.loads(CAMERA_CONFIG_PATH.read_text())
+    presets = cfg.get("presets") or {}
+    if not presets:
+        raise SystemExit(
+            f"camera config at {CAMERA_CONFIG_PATH} has no 'presets' key"
+        )
+    return presets
+
+
+async def _amain() -> int:
+    args = _parse_args()
+    target_date = args.date or _today_mdt()
+
+    if not settings.telegram_bot_token or not settings.telegram_allowed_user_id:
+        print(
+            "TELEGRAM_BOT_TOKEN and TELEGRAM_ALLOWED_USER_ID must be set in "
+            ".env (loaded as kasa-style settings).",
+            file=sys.stderr,
+        )
+        return 2
+
+    presets = _load_camera_presets()
+
+    async with httpx.AsyncClient(timeout=30.0) as http:
+        telegram = TelegramClient(
+            token=settings.telegram_bot_token, http=http,
+        )
+        camera = CameraClient(
+            _daemon_rpc, presets,
+            settle_s=settings.daily_report_photo_settle_s,
+            max_capture_age_ms=settings.daily_report_max_capture_age_ms,
+        )
+        reader = SensorReader(
+            engine,
+            max_age_s=settings.daily_report_sensor_max_age_s,
+            sensor_min_raw=settings.daily_report_sensor_min_raw,
+            sensor_max_raw=settings.daily_report_sensor_max_raw,
+        )
+        synthesis = ClaudeSynthesisRunner(
+            wiki_root=WIKI_ROOT, log_dir=MARKER_DIR,
+        )
+        orch = DailyReport(
+            camera=camera,
+            sensor_reader=reader,
+            synthesis=synthesis,
+            telegram=telegram,
+            telegram_chat_id=settings.telegram_allowed_user_id,
+            photos_dir=PHOTOS_DIR,
+            marker_dir=MARKER_DIR,
+            wiki_root=WIKI_ROOT,
+        )
+        result = await orch.run(target_date, force=args.force)
+
+    if result.success:
+        print(f"daily report {target_date} complete")
+        return 0
+    print(
+        f"daily report {target_date} FAILED at phase={result.failed_phase}: "
+        f"{result.error}",
+        file=sys.stderr,
+    )
+    return 1
+
+
+def main() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+    sys.exit(asyncio.run(_amain()))
+
+
+if __name__ == "__main__":
+    main()

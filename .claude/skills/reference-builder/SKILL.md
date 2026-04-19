@@ -68,48 +68,71 @@ State your classification and the sourcing approach in one sentence, then wait f
 Example:
 > I'd treat "TanStack Router v1" as **framework** mode — I'll pull the official docs tree and condense it into a pack. OK?
 
-### Step 3 — Run the mode-specific workflow
+### Step 3 — Delegate the build to a subagent
 
-Once the mode is confirmed, read the matching reference file and follow it:
+**This step is what keeps the main conversation's context clean.** The research and writing phase involves reading hundreds of lines of source code, cloning repos, and drafting long topic files — none of which the user needs to see. Do NOT do this work inline. Spawn a subagent to perform it and relay only its summary.
 
-- **framework** → [references/mode-framework.md](references/mode-framework.md)
-- **api** → [references/mode-api.md](references/mode-api.md)
-- **idioms** → [references/mode-idioms.md](references/mode-idioms.md)
+Use the `Agent` tool with `subagent_type: "general-purpose"`. The subagent has no memory of this conversation, so the prompt must be fully self-contained.
 
-All three modes produce the same output shape (defined in [references/pack-structure.md](references/pack-structure.md)) but source and condense differently.
+**Before spawning**, determine and embed in the prompt:
 
-### Step 4 — Write the pack
+- The skill's base directory — at skill invocation time you were told `Base directory for this skill: <SKILL_BASE_DIR>`. Use that absolute path. The subagent will read the skill's mode and pack-structure references from there.
+- The concept's slug (lowercase, hyphenated, version embedded): `tanstack-router-v1`, `deepgram-tts-v3`, `modern-idiomatic-typescript`.
+- The mode (`framework` / `api` / `idioms`) the user confirmed.
+- The repo root and project `CLAUDE.md` absolute path. Fall back to `.claude/knowledge/<slug>/` if no `docs/` directory exists at the repo root.
+- A first-draft `Consult when…` phrase for the CLAUDE.md bullet. The subagent may refine it, but having one in the prompt anchors the "name concrete file paths / function names / subtasks" expectation — generic phrases are the single most common failure mode.
 
-Create the pack directory. Default: `docs/references/<concept-slug>/`. If the project has no `docs/` directory, fall back to `.claude/knowledge/<concept-slug>/`. Slug rules: lowercase, hyphenated, version embedded (`tanstack-router-v1`, `deepgram-tts-v3`, `modern-idiomatic-typescript`).
+**Prompt template** (fill in the angle-bracketed placeholders):
 
-Populate `INDEX.md`, topic files, and `metadata.yaml` per [references/pack-structure.md](references/pack-structure.md).
+```
+You are executing the build phase of the reference-builder skill. The main
+conversation has already scoped the concept and confirmed the mode — your job
+is to do the research, condense it into a pack, and wire a pointer into
+CLAUDE.md. Work autonomously; the user will not see your intermediate tool
+calls, only your final report.
 
-**Fresh overwrite on re-run.** If the slug directory already exists, remove it and regenerate. No merge logic.
+Inputs:
+  Concept: <Concept Name + version>
+  Slug:    <slug>
+  Mode:    <framework | api | idioms>
+  Pack target directory: <absolute path, e.g. /repo/docs/references/<slug>/>
+  Project CLAUDE.md:     <absolute path>
+  First-draft "Consult when…" phrase: <phrase>
 
-### Step 5 — Wire the CLAUDE.md pointer
+Read these files first, in order, and follow them:
+  1. <SKILL_BASE_DIR>/references/mode-<mode>.md  — sourcing + condensation strategy for this mode
+  2. <SKILL_BASE_DIR>/references/pack-structure.md — required pack layout + INDEX.md / topic file / metadata.yaml templates
+  3. <SKILL_BASE_DIR>/assets/claude-md-block.md   — CLAUDE.md block template
 
-This step is what makes the skill work. Don't skip it.
+Then execute end-to-end:
+  - Source material per the mode instructions (shallow git clone to /tmp, WebFetch, etc.). Clean up temp dirs when done.
+  - Write INDEX.md, 3-10 topic files, and metadata.yaml into the pack target directory. Framework mode additionally populates raw/ with the actual source files you used, filename-preserved.
+  - Wire the pointer into CLAUDE.md: append to the existing `## Framework/API References` section, replace the bullet if the concept is already listed, or create the section if missing (place it near the top, below the project overview). Refine the "Consult when…" phrase to name concrete file paths / function names / subtasks.
+  - If the pack directory already exists, delete it first and regenerate (fresh overwrite; no merge).
 
-Find the project's `CLAUDE.md` (usually repo root). Look for an existing `## Framework/API References` section:
+Verify before reporting:
+  - Every topic bullet in INDEX.md resolves to a real file.
+  - Every topic file has frontmatter with title/concept/updated/source.
+  - metadata.yaml is populated with `claude_md_pointer.consult_when` reflecting what you wrote.
+  - CLAUDE.md has the new/updated bullet.
 
-- **Section exists, concept not listed** → append a new bullet.
-- **Section exists, concept already listed** → replace that bullet (fresh overwrite).
-- **Section doesn't exist** → add it. Place it near the top of CLAUDE.md, below the project overview but above deeper sections. Use the block template in [assets/claude-md-block.md](assets/claude-md-block.md).
+Report back in under 250 words, structured as:
+  - Pack path
+  - Topic filenames (one per line)
+  - The CLAUDE.md bullet you wrote, verbatim
+  - Any non-obvious decisions you made (version chosen, topic scope, skipped sections, WebFetch fallbacks)
+  - Anything that failed, was skipped, or should be re-run
 
-Each bullet has three parts:
-1. **Concept name** (bold)
-2. Path to the pack's `INDEX.md` (relative to repo root)
-3. A specific "Consult when..." phrase
+Do NOT paste topic file contents, source-file contents, or long narration into your report. The report must be scannable in 30 seconds — everything else lives in the pack itself.
+```
 
-The "Consult when..." phrase is the single most important sentence in the pack. Write it concretely — `when writing route definitions, loaders, or search-param handling` beats `when using TanStack Router`. Generic phrases get ignored by future agents scanning CLAUDE.md for relevance.
+### Step 4 — Relay the summary and do a lightweight verify
 
-### Step 6 — Verify and report
+When the subagent returns:
 
-1. `INDEX.md` exists and its Topics list references every topic file.
-2. Every topic file has frontmatter and reads usefully in isolation.
-3. `metadata.yaml` is populated.
-4. `CLAUDE.md` has the pointer with a specific when-to-consult phrase.
-5. Report to the user: the pack path, the concepts now wired in CLAUDE.md, and a one-line note on what to re-run to refresh.
+1. **Sanity-check the pack exists.** One `Glob` for `<pack-dir>/*.md` and one `Glob` on CLAUDE.md for the new bullet is enough. Do NOT re-read the topic files — they exist for future agents, not for revalidation now. If the subagent claimed work it didn't do, the Globs will expose it.
+2. **Relay to the user.** Pack path, concepts now wired in CLAUDE.md, a one-line note on how to refresh (`re-run /reference-builder with the same concept`), and any caveats the subagent surfaced.
+3. **Do NOT reprint the pack contents or the subagent's tool trace.** The whole point of delegation is that the main conversation stays short.
 
 ## Design principles
 
@@ -124,3 +147,5 @@ The "Consult when..." phrase is the single most important sentence in the pack. 
 **Fresh overwrite.** Re-running on the same slug replaces the pack. No merge, no diff, no stale detection. The user re-runs when they want the pack refreshed.
 
 **The CLAUDE.md pointer is the whole point.** A pack without a pointer might as well not exist. A pointer without a pack is useless. Always produce both.
+
+**Delegate the build; keep the main conversation clean.** Steps 1-2 (classify, confirm) must run in the main conversation because they need the user's judgment. Steps 3+ (source ingestion, condensation, pack writing, CLAUDE.md wiring) must NOT — they pull hundreds of lines of source and generate thousands of lines of output, which bloats the caller's context window for zero user benefit. Always spawn a subagent for the build phase and relay only its summary. The only exception is if the subagent tooling is unavailable in the current environment; in that case say so and ask the user whether to proceed inline.

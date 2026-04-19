@@ -1,143 +1,194 @@
-"""`ask_wiki` — delegated Sonnet sub-agent that searches and reads the wiki."""
+"""`ask_wiki` — delegated Claude Code sub-agent that reads the grow wiki.
+
+The sub-agent runs via the Claude Agent SDK with the Claude Code tool kit
+(Bash/Read/Grep/Glob) scoped to `wiki/`. It's read-only by policy — Write/Edit
+are on the disallowed list so the research agent can't mutate the wiki by
+accident. Trace and result are persisted to `sessions/subagents/YYYY-MM-DD.jsonl`.
+
+Reference for the SDK surface: `docs/references/claude-agent-sdk/INDEX.md`.
+"""
 
 from __future__ import annotations
 
-import re
+import asyncio
+import time
+from datetime import date
 from pathlib import Path
+from typing import Any
 
-from anthropic import AsyncAnthropic
+from claude_agent_sdk import (
+    AssistantMessage,
+    ClaudeAgentOptions,
+    ClaudeSDKError,
+    CLINotFoundError,
+    ResultMessage,
+    TextBlock,
+    ToolResultBlock,
+    ToolUseBlock,
+    UserMessage,
+    query,
+)
 
-from dirt.config import settings
+from dirt.config import grow_week
+from dirt.observability import log_event
 from dirt.tools import ToolSpec
 
 _WIKI_ROOT = Path(__file__).resolve().parents[3] / "wiki"
-_MAX_TURNS = 5
-_MAX_RESULT_CHARS = 4000
-_MODEL = "claude-sonnet-4-6"
 
-_SYSTEM_PROMPT = (
-    "You are a research sub-agent that answers questions about an ongoing "
-    "indoor cannabis grow by reading the project's wiki. Your answer will be "
-    "spoken aloud by a voice assistant, so:\n"
-    "- Be direct and concise — 1 to 3 spoken sentences.\n"
-    "- No bullet points, no markdown, no URLs.\n"
-    "- If the wiki doesn't have the answer, say so plainly.\n"
-    "Cite the wiki file you used by calling it by name (e.g. 'plant C's page')."
+# Haiku 4.5 is the right fit for this sub-agent: the work is "read 1-3 wiki
+# files, synthesize 1-3 spoken sentences", not open-ended reasoning. Haiku
+# is ~3x cheaper than Sonnet and ~2-3x faster for straight extraction, which
+# matters because this call blocks a voice turn. Pinning to a concrete model
+# ID rather than the "haiku" alias to keep behavior reproducible across
+# Claude Code CLI versions. See docs/references/claude-agent-sdk/options.md.
+_MODEL = "claude-haiku-4-5"
+
+_BUDGET_USD = 0.25
+_TIMEOUT_S = 30.0
+_MAX_TURNS = 25
+
+_PROMPT_APPEND = (
+    "Answer in 1-3 sentences suitable for speaking aloud. "
+    "No markdown, no bullets, no URLs. If you truly can't find the answer "
+    "in the wiki, say so plainly."
 )
 
 
-def _safe_wiki_path(rel: str) -> Path | None:
-    """Resolve rel under wiki/, rejecting traversal and symlink escapes."""
-    try:
-        p = (_WIKI_ROOT / rel).resolve()
-    except (OSError, ValueError):
-        return None
-    if _WIKI_ROOT not in p.parents and p != _WIKI_ROOT:
-        return None
-    return p
-
-
-def _tool_read_wiki(path: str) -> str:
-    p = _safe_wiki_path(path)
-    if p is None or not p.is_file():
-        return f"error: {path!r} not found in wiki/"
-    text = p.read_text()
-    if len(text) > _MAX_RESULT_CHARS:
-        text = text[:_MAX_RESULT_CHARS] + f"\n...[truncated at {_MAX_RESULT_CHARS} chars]"
-    return text
-
-
-def _tool_grep_wiki(pattern: str, max_matches: int = 30) -> str:
-    try:
-        rx = re.compile(pattern, re.IGNORECASE)
-    except re.error as e:
-        return f"error: invalid regex: {e}"
-
-    matches: list[str] = []
-    for md in sorted(_WIKI_ROOT.rglob("*.md")):
-        rel = md.relative_to(_WIKI_ROOT)
-        for i, line in enumerate(md.read_text().splitlines(), 1):
-            if rx.search(line):
-                matches.append(f"{rel}:{i}: {line.strip()[:200]}")
-                if len(matches) >= max_matches:
-                    matches.append(f"...[capped at {max_matches} matches]")
-                    return "\n".join(matches)
-    return "\n".join(matches) or "(no matches)"
-
-
-_TOOLS_SCHEMA = [
-    {
-        "name": "read_wiki",
-        "description": "Read a wiki file by path relative to the wiki/ root (e.g. 'plants/plant-a.md').",
-        "input_schema": {
-            "type": "object",
-            "properties": {"path": {"type": "string"}},
-            "required": ["path"],
-        },
-    },
-    {
-        "name": "grep_wiki",
-        "description": "Search the wiki tree with a case-insensitive regex. Returns path:line: match results.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "pattern": {"type": "string"},
-                "max_matches": {"type": "integer", "default": 30},
-            },
-            "required": ["pattern"],
-        },
-    },
-]
-
-
-def _execute_tool(name: str, args: dict) -> str:
-    if name == "read_wiki":
-        return _tool_read_wiki(args["path"])
-    if name == "grep_wiki":
-        return _tool_grep_wiki(args["pattern"], args.get("max_matches", 30))
-    return f"error: unknown tool {name!r}"
-
-
-async def _ask_wiki(question: str) -> dict:
+async def _ask_wiki(question: str) -> dict[str, Any]:
     question = (question or "").strip()
     if not question:
-        return {"error": "empty question"}
-    if not settings.anthropic_api_key:
-        return {"error": "ANTHROPIC_API_KEY not configured"}
+        return {"error": "empty question", "answer": ""}
 
-    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
-    messages: list[dict] = [{"role": "user", "content": question}]
-    sources: list[str] = []
+    options = ClaudeAgentOptions(
+        cwd=_WIKI_ROOT,
+        model=_MODEL,
+        allowed_tools=["Bash", "Read", "Grep", "Glob"],
+        disallowed_tools=["Write", "Edit", "MultiEdit", "NotebookEdit"],
+        system_prompt={
+            "type": "preset",
+            "preset": "claude_code",
+            "append": _PROMPT_APPEND,
+        },
+        max_turns=_MAX_TURNS,
+        max_budget_usd=_BUDGET_USD,
+        setting_sources=[],  # isolated — do not inherit host .claude/ settings
+    )
 
-    for _ in range(_MAX_TURNS):
-        resp = await client.messages.create(
-            model=_MODEL,
-            max_tokens=400,
-            system=_SYSTEM_PROMPT,
-            tools=_TOOLS_SCHEMA,
-            messages=messages,
+    prompt = (
+        f"Today is {date.today()}, week {grow_week()} of the grow. "
+        "You're in the grow wiki (this directory). Start by reading "
+        "`CLAUDE.md` — it's the wiki's operating manual and has a routing "
+        "table that tells you which file to read for each question shape. "
+        "Most questions are answered by one section of `overview.md`; read "
+        "there before greping or reading `log.md`.\n\n"
+        f"Question: {question}"
+    )
+
+    trace: list[dict[str, Any]] = []
+    final_text = ""
+    result_msg: ResultMessage | None = None
+    read_paths: list[str] = []
+    started = time.monotonic()
+
+    async def run() -> None:
+        nonlocal final_text, result_msg
+        async for msg in query(prompt=prompt, options=options):
+            # ms since _ask_wiki started — tells us where the wall clock
+            # went (SDK spawn vs first LLM call vs tool exec vs next LLM).
+            ts_ms = int((time.monotonic() - started) * 1000)
+            if isinstance(msg, AssistantMessage):
+                turn: dict[str, Any] = {
+                    "role": "assistant",
+                    "ts_ms": ts_ms,
+                    "blocks": [],
+                }
+                for b in msg.content:
+                    if isinstance(b, TextBlock):
+                        turn["blocks"].append({"type": "text", "text": b.text})
+                        final_text = b.text
+                    elif isinstance(b, ToolUseBlock):
+                        turn["blocks"].append({
+                            "type": "tool_use",
+                            "id": b.id,
+                            "name": b.name,
+                            "input": b.input,
+                        })
+                        if b.name == "Read":
+                            fp = b.input.get("file_path")
+                            if isinstance(fp, str) and fp not in read_paths:
+                                read_paths.append(fp)
+                if turn["blocks"]:
+                    trace.append(turn)
+            elif isinstance(msg, UserMessage) and isinstance(msg.content, list):
+                results = [
+                    {
+                        "tool_use_id": b.tool_use_id,
+                        "is_error": b.is_error,
+                        "content": b.content,
+                    }
+                    for b in msg.content
+                    if isinstance(b, ToolResultBlock)
+                ]
+                if results:
+                    trace.append({
+                        "role": "tool_results",
+                        "ts_ms": ts_ms,
+                        "results": results,
+                    })
+            elif isinstance(msg, ResultMessage):
+                result_msg = msg
+
+    try:
+        await asyncio.wait_for(run(), timeout=_TIMEOUT_S)
+    except TimeoutError:
+        log_event(
+            "subagent_calls", "ask_wiki",
+            question=question,
+            trace=trace,
+            error="timeout",
+            duration_ms=int((time.monotonic() - started) * 1000),
+            sources=read_paths,
         )
+        return {"error": "timeout", "answer": "I couldn't answer in time."}
+    except CLINotFoundError as e:
+        return {"error": f"cli_not_found: {e}", "answer": ""}
+    except ClaudeSDKError as e:
+        log_event(
+            "subagent_calls", "ask_wiki",
+            question=question,
+            trace=trace,
+            error=str(e),
+            duration_ms=int((time.monotonic() - started) * 1000),
+            sources=read_paths,
+        )
+        return {"error": str(e), "answer": ""}
 
-        if resp.stop_reason != "tool_use":
-            answer = "".join(b.text for b in resp.content if b.type == "text").strip()
-            return {"answer": answer or "No answer.", "sources": sources}
+    # Prefer ResultMessage.result (the CLI's canonical final answer) over the
+    # last TextBlock, which can include trailing tool-use explanation.
+    answer = (
+        result_msg.result
+        if result_msg and result_msg.result
+        else final_text or ""
+    )
+    error_text = result_msg.result if (result_msg and result_msg.is_error) else None
 
-        # Run tools, feed results back.
-        messages.append({"role": "assistant", "content": resp.content})
-        tool_results = []
-        for block in resp.content:
-            if block.type != "tool_use":
-                continue
-            if block.name == "read_wiki":
-                sources.append(block.input.get("path", ""))
-            tool_results.append({
-                "type": "tool_result",
-                "tool_use_id": block.id,
-                "content": _execute_tool(block.name, block.input),
-            })
-        messages.append({"role": "user", "content": tool_results})
+    log_event(
+        "subagent_calls", "ask_wiki",
+        question=question,
+        trace=trace,
+        answer=answer if not error_text else None,
+        error=error_text,
+        duration_ms=int((time.monotonic() - started) * 1000),
+        usage=(result_msg.usage if result_msg else None),
+        cost_usd=(result_msg.total_cost_usd if result_msg else None),
+        stop_reason=(result_msg.stop_reason if result_msg else None),
+        sources=read_paths,
+    )
 
-    return {"answer": "I couldn't find a clear answer in the wiki.", "sources": sources}
+    return {
+        "answer": answer or "I couldn't find a clear answer in the wiki.",
+        "sources": read_paths,
+    }
 
 
 ASK_WIKI = ToolSpec(
@@ -156,6 +207,6 @@ ASK_WIKI = ToolSpec(
     },
     required=["question"],
     handler=_ask_wiki,
-    cancel_on_interruption=False,  # don't abort a 2s lookup on a 'mhmm'
-    timeout_secs=15.0,
+    cancel_on_interruption=False,  # don't abort a 20s lookup on a filler "mhmm"
+    timeout_secs=_TIMEOUT_S,
 )

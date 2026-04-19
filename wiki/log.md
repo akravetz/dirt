@@ -333,3 +333,47 @@ First pass at the voice agent (`channels/voice.py`) shipped and running as `dirt
 
 - New pages: `wiki/hardware/voice-channel.md` (pipeline), `docs/references/pipecat/` (v1.0 anchor pack).
 - Updated: `wiki/hardware/jabra.md` (marked production voice channel deployed, linked out to voice-channel.md), `wiki/index.md`, `CLAUDE.md` (new "Voice Channel (Claudia)" commands block).
+
+## 2026-04-18 — Wake-word v4 plan filed; near-miss audio capture live
+
+v3 (shipped 2026-04-16) solved the far-field recall problem but exposed the next one: precision. In the wild we've seen a meeting false positive (score 0.74 on Zoom audio during a real meeting) and ambiguous-zone misses (legitimate "hey Claudia" attempts scoring 0.47–0.49 from positions further than v3's training RIRs covered). v3's negatives were generic LibriTTS — no environment match.
+
+v4 plan is precision-focused retraining: add in-situ hard negatives, mine meeting audio + transcripts for phonetic neighbors, synthesize more phonetic-neighbor samples via ElevenLabs, capture additional far-field RIRs, and bump `max_negative_weight` 500 → 800 once negatives are representative. Also has runtime-only fallbacks (double-hit confirmation, tiny speaker verifier) if retraining schedule slips.
+
+- New page: `wiki/decisions/2026-04-18-wake-word-v4-plan.md`.
+- Shipped now: `src/dirt/channels/voice.py` keeps a 1.9 s audio ring buffer and dumps a WAV on every wake event and every near-miss with score ≥ 0.3. Lands in `logs/wake_audio/`, intentionally not auto-rotated so we can accumulate for 1–2 weeks before training.
+- Updated: `wiki/index.md` (v4 plan link under Decisions).
+
+## 2026-04-18 — Humidifier closed-loop control deployed
+
+Kasa EP10 smart plug provisioned as `dirt-humidifier` (DHCP-reserved `192.168.1.220`). New service `src/dirt/services/humidifier.py` runs from the FastAPI lifespan and drives the plug via `python-kasa` based on tent DHT22 RH — bang-bang with a ±3% deadband around 60% target, plus 90s min-off, 20-min max-on safety, and failsafe-OFF on stale (>5 min) readings. Per-poll `humidifier_on` (0/1) rows land in `sensorreading` (graphable alongside `humidity_pct`); state transitions land in `logs/humidifier/` with reason + RH.
+
+One snag: stock `python-kasa` 0.10.2 fails KLAP v2 auth on our firmware (1.1.1 Build 250908). Pinned to the fork branch in [PR #1580](https://github.com/python-kasa/python-kasa/pull/1580) until that merges. Also worth knowing: "Remote Control" must be enabled in the Kasa app for LAN auth to work — cloud registration is what provisions the KLAP credentials the plug checks locally.
+
+- Updated: `wiki/hardware/humidifier-control.md` (deployment status, known-issues section, state-logging section), `CLAUDE.md` (new `humidifier` stream in the observability table).
+
+## 2026-04-18 — Reservoir-level sensing planned (submerged pressure transducer)
+
+Net-new design (no prior reservoir-level page existed). For the 25-gal Autopot FlexiTank Pro: submerged hydrostatic pressure transducer (DFRobot KIT0139, 4–20mA, 0–5m, IP68) → 4-20mA-to-voltage converter → ADS1115 16-bit I²C ADC → new dedicated ESP32-C3 SuperMini node (working name `dirt-reservoir.local`, location label `reservoir`) → existing `/api/ingest/sensors` endpoint as `reservoir_depth_cm` at 30 s cadence. ADS1115 chosen over the C3's native ADC because the C3 over-reports near the rail (already-documented quirk) and absolute-accuracy depth conversion can't tolerate that systematic error.
+
+Decision record covers alternatives (float switch, multi-stage float ladder, ultrasonic, capacitive strip, eTape) and why submerged pressure won. Notable trade-off accepted: 0–5m probe on a ~0.5m tank gives ±25 mm absolute accuracy (~5% of tank depth) — fine for "days-until-empty" but worth recording so we don't pretend to mm-class precision later.
+
+Status: parts on roadmap, none assembled yet; firmware project (`firmware/reservoir_node/`) doesn't exist yet. Open items: 4-20mA conversion path (SEN0262 module vs discrete shunt), 12V supply source, lid grommet for cable strain relief.
+
+- New pages: `wiki/hardware/reservoir-level.md`, `wiki/decisions/2026-04-18-reservoir-level-pressure-transducer.md`.
+- Updated: `wiki/index.md` (added under Hardware and Decisions), `wiki/concepts/autopot.md` (new "Reservoir Level Telemetry" section linking out).
+
+Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrated via 30-min water soak + air-dry, calibration rows reset (sentinel-then-relearn) to wet ~1370–1376 / dry ~3883–3887. Old v1.2 readings purged from `sensorreading` (8,734 rows) so historical curves don't mix sensor generations.
+
+## [2026-04-18] daily | Day 35 — LST window open; overnight temp/RH flags; A/D sensors upgraded to v2.0
+
+- Created `wiki/daily/2026-04-18.md` — Day 35 (Day 6–7 post-topping recovery); 5 photos (overview + 4 plants, 14:00 MDT); windowed sensor data (overnight/morning/now); all plants healthy and branching; LST due now; overnight temp 63.54°F avg and overnight RH 76.95% avg flagged; Plant B morning drydown (3.57%) noted; A/D sensor gaps explained (v1.2 purged, v2.0 fresh)
+- Updated `wiki/plants/plant-a.md` — timeline entry + Current State rewritten (LST due now)
+- Updated `wiki/plants/plant-b.md` — timeline entry + Current State rewritten (LST due now; morning drydown noted)
+- Updated `wiki/plants/plant-c.md` — timeline entry + Current State rewritten (LST due now; stable moisture)
+- Updated `wiki/plants/plant-d.md` — timeline entry + Current State rewritten (LST due now; v2.0 sensor)
+- Updated `wiki/environment/temperature.md` — trend row + notable event for overnight lights-off dip (63.54°F avg)
+- Updated `wiki/environment/humidity.md` — trend row + notable event for overnight RH spike + day/night VPD swing
+- Rewrote `wiki/overview.md` — Day 35, LST due flag, overnight env flags, plant status table updated, environment last reading updated
+- Updated `wiki/index.md` — Day 35 daily entry added
+- **Known gap:** No daily entries for 2026-04-13 through 2026-04-17 (no photos or sensor snapshots taken on those dates). Pre-existing pattern; lint timeline-continuity check will flag this gap.

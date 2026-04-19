@@ -29,7 +29,10 @@ import os
 import signal
 import sys
 import time
-from datetime import datetime, timezone
+import uuid
+import wave
+from collections import deque
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -48,16 +51,20 @@ from pipecat.processors.aggregators.llm_response_universal import (
     LLMContextAggregatorPair,
     LLMUserAggregatorParams,
 )
+from pipecat.processors.aggregators.llm_text_processor import LLMTextProcessor
 from pipecat.adapters.schemas.tools_schema import FunctionSchema, ToolsSchema
 from pipecat.services.anthropic.llm import AnthropicLLMService
 from pipecat.services.deepgram.stt import DeepgramSTTService
 from pipecat.services.elevenlabs.tts import ElevenLabsTTSService
+from pipecat.utils.text.pattern_pair_aggregator import MatchAction, PatternPairAggregator
 
 from dirt.channels._audio_transport import (
     SoundDeviceTransport,
     SoundDeviceTransportParams,
 )
-from dirt.config import settings
+from dirt.channels._observers import FrameFlowObserver
+from dirt.config import grow_week, settings
+from dirt.observability import CONVERSATION_ID, log_event
 from dirt.tools import SHARED_TOOLS, ToolSpec
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -72,9 +79,17 @@ PID_FILE = ROOT / "logs" / "voice.pid"
 WAKE_MODEL_PATH = ROOT / "debug" / "hey_claudia.onnx"
 WAKE_SAMPLE_RATE = 16000
 WAKE_CHUNK_SAMPLES = int(WAKE_SAMPLE_RATE * 0.08)   # 80 ms
-WAKE_THRESHOLD = 0.35
+WAKE_THRESHOLD = 0.6
+WAKE_NEAR_MISS_FLOOR = 0.1   # temporary: log sub-threshold scores to calibrate
+WAKE_AUDIO_CAPTURE_FLOOR = 0.3   # save WAV when score is in ambiguous zone
 WAKE_DEBOUNCE_S = 3.0
 WAKE_WARMUP_FRAMES = 12   # ~1s at 80ms/frame — drop post-conversation echo tail
+
+# Ring buffer of recent audio frames for hard-negative harvesting. 24 frames
+# * 80 ms = ~1.9 s of context, enough to capture the full wake-phrase window
+# regardless of where within the frame the peak score lands.
+WAKE_AUDIO_BUFFER_FRAMES = 24
+WAKE_AUDIO_DIR = Path(__file__).resolve().parents[3] / "logs" / "wake_audio"
 
 # Jabra SPEAK 410 hardware constraints
 INPUT_SAMPLE_RATE = 16000
@@ -86,16 +101,18 @@ SESSION_IDLE_TIMEOUT_S = 15
 
 SESSIONS_DIR = ROOT / "sessions" / "voice"
 
-CLAUDIA_SYSTEM_PROMPT = (
+CLAUDIA_SYSTEM_PROMPT_BASE = (
     "Your name is Claudia. You are a warm, confident, sassy 28-year-old "
     "Colombian woman who speaks with natural charm and a little playful "
     "flirtation. You mix the occasional Spanish expression into English "
     "('ay', 'querido', 'de verdad', 'mi amor') but the conversation is "
     "mostly English. You are speaking aloud in a real-time voice "
     "conversation, so: no emojis, no bullet points, no markdown — just "
-    "natural spoken sentences. Keep replies short (one or two sentences) "
-    "unless asked for more. Don't over-apologize; be direct and a little "
-    "bit cheeky.\n\n"
+    "natural spoken sentences. Never write <thinking> blocks, XML tags, "
+    "or any meta-commentary about how you're composing your response "
+    "(everything you write is spoken aloud verbatim). Keep replies short "
+    "(one or two sentences) unless asked for more. Don't over-apologize; "
+    "be direct and a little bit cheeky.\n\n"
     "You're helping someone take care of their indoor cannabis grow. You "
     "have three tools available:\n"
     "- get_current_status: latest sensor readings + in-range / out-of-range "
@@ -111,6 +128,18 @@ CLAUDIA_SYSTEM_PROMPT = (
     "tool is running.\n\n"
     "When you don't know something and no tool fits, say so plainly."
 )
+
+
+def _build_claudia_system_prompt() -> str:
+    # Date and grow week change over time; rebuild per conversation so the
+    # model always has current context. Short addendum — no effect on cache
+    # because Anthropic prompt-cache TTL (≤1h) is shorter than the daily
+    # refresh rate anyway.
+    return (
+        f"{CLAUDIA_SYSTEM_PROMPT_BASE}\n\n"
+        f"Today is {date.today().isoformat()}. "
+        f"We're in week {grow_week()} of the grow."
+    )
 
 
 def _utc_now() -> str:
@@ -186,6 +215,28 @@ def _load_wake_model() -> tuple[Model, str]:
     return _wake_model, _wake_model_name
 
 
+def _save_wake_audio_clip(
+    frames: deque[np.ndarray], score: float, label: str,
+) -> None:
+    """Dump the recent audio buffer as WAV for hard-negative harvesting.
+
+    Files land in `logs/wake_audio/` as
+    `<ts>_<label>_score-<N.NNN>.wav`. Ops must rotate this directory
+    manually — we want to accumulate over weeks to build a real in-situ
+    hard-negative set for the next wake-model training run, so automatic
+    retention would defeat the purpose.
+    """
+    WAKE_AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%S-%f")[:-3]
+    path = WAKE_AUDIO_DIR / f"{ts}_{label}_score-{score:.3f}.wav"
+    audio_bytes = b"".join(f.tobytes() for f in frames)
+    with wave.open(str(path), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)  # int16
+        w.setframerate(WAKE_SAMPLE_RATE)
+        w.writeframes(audio_bytes)
+
+
 async def wait_for_wake(device: int) -> float:
     """Listen until 'hey Claudia' fires. Returns the detection score."""
     model, model_name = _load_wake_model()
@@ -216,9 +267,15 @@ async def wait_for_wake(device: int) -> float:
     ):
         last_fire = 0.0
         frames_seen = 0
+        # Ring buffer of recent audio; on interesting scores we dump it to
+        # a WAV for later hard-negative training data.
+        recent_frames: deque[np.ndarray] = deque(maxlen=WAKE_AUDIO_BUFFER_FRAMES)
         while True:
             frame = await q.get()
-            score = model.predict(frame)[model_name]
+            recent_frames.append(frame)
+            # openwakeword returns numpy.float32 — coerce to native Python
+            # here so nothing downstream (logging, return value) has to.
+            score = float(model.predict(frame)[model_name])
             frames_seen += 1
             # Skip the first ~1s (12 x 80ms frames). Echo tail from the prior
             # TTS response can still be in the Jabra's capture path when the
@@ -230,7 +287,32 @@ async def wait_for_wake(device: int) -> float:
             if score >= WAKE_THRESHOLD and (now - last_fire) >= WAKE_DEBOUNCE_S:
                 last_fire = now
                 logger.info(f"wake detected (score={score:.3f})")
-                return float(score)
+                log_event(
+                    "wake_scores", "wake_detected",
+                    score=round(score, 4),
+                    threshold=WAKE_THRESHOLD,
+                )
+                # Save the positive example too — retraining wants real
+                # in-situ positives as much as hard negatives.
+                _save_wake_audio_clip(recent_frames, score, "wake")
+                return score
+            elif score >= WAKE_NEAR_MISS_FLOOR:
+                # Sub-threshold scores that plausibly contain speech-like
+                # content. Useful for calibrating WAKE_THRESHOLD against
+                # real-world conditions. See logs/wake_scores/.
+                log_event(
+                    "wake_scores", "near_miss",
+                    score=round(score, 4),
+                    threshold=WAKE_THRESHOLD,
+                    floor=WAKE_NEAR_MISS_FLOOR,
+                )
+                # Capture audio in the ambiguous zone only — the model was
+                # uncertain, and a human-labeled version of these is the
+                # best hard-negative corpus for the next training run.
+                # Scores below 0.3 are mostly noise/silence, not worth
+                # hoarding.
+                if score >= WAKE_AUDIO_CAPTURE_FLOOR:
+                    _save_wake_audio_clip(recent_frames, score, "near_miss")
 
 
 async def run_conversation(device: int) -> LLMContext:
@@ -276,7 +358,7 @@ async def run_conversation(device: int) -> LLMContext:
         api_key=settings.anthropic_api_key,
         settings=AnthropicLLMService.Settings(
             model="claude-haiku-4-5",
-            system_instruction=CLAUDIA_SYSTEM_PROMPT,
+            system_instruction=_build_claudia_system_prompt(),
             max_tokens=512,
             enable_prompt_caching=True,
         ),
@@ -303,11 +385,27 @@ async def run_conversation(device: int) -> LLMContext:
         ),
     )
 
+    # Strip `<thinking>…</thinking>` scratchpad that Haiku occasionally emits
+    # as literal text in its response (training artifact — not the structured
+    # extended-thinking API feature we'd have to opt into). PatternPairAggregator
+    # + LLMTextProcessor is pipecat's idiomatic extension point: the processor
+    # turns LLMTextFrame → AggregatedTextFrame using our aggregator; TTS speaks
+    # the clean chunks. See docs/references/pipecat/INDEX.md.
+    thinking_stripper = LLMTextProcessor(
+        text_aggregator=PatternPairAggregator().add_pattern(
+            type="thinking",
+            start_pattern="<thinking>",
+            end_pattern="</thinking>",
+            action=MatchAction.REMOVE,
+        ),
+    )
+
     pipeline = Pipeline([
         transport.input(),
         stt,
         user_aggregator,
         llm,
+        thinking_stripper,
         tts,
         transport.output(),
         assistant_aggregator,
@@ -322,6 +420,7 @@ async def run_conversation(device: int) -> LLMContext:
             enable_usage_metrics=True,
         ),
         idle_timeout_secs=SESSION_IDLE_TIMEOUT_S,
+        observers=[FrameFlowObserver(conversation_id=CONVERSATION_ID.get())],
     )
 
     # Seed a greeting request so Claudia speaks first.
@@ -358,7 +457,7 @@ def _conversation_turns(context: LLMContext) -> list[dict]:
 
 async def main() -> None:
     logger.remove()
-    logger.add(sys.stderr, level="INFO")
+    logger.add(sys.stderr, level="DEBUG")
 
     missing = [f for f in ("deepgram_api_key", "anthropic_api_key", "elabs_api_key", "elabs_voice_id")
                if not getattr(settings, f)]
@@ -384,18 +483,36 @@ async def main() -> None:
     try:
         while True:
             score = await wait_for_wake(jabra)
-            _log_event({"type": "wake", "score": round(score, 3)})
+            # One ID per wake, threaded through: the voice session log, sub-agent
+            # invocations (via the CONVERSATION_ID ContextVar), and
+            # `conversation_end`. Lets `jq` join a voice turn to its ask_wiki
+            # traces after the fact.
+            conversation_id = str(uuid.uuid4())
+            cid_token = CONVERSATION_ID.set(conversation_id)
+            _log_event({
+                "type": "wake",
+                "score": round(score, 3),
+                "conversation_id": conversation_id,
+            })
 
             try:
                 context = await run_conversation(jabra)
                 _log_event({
                     "type": "conversation_end",
                     "reason": "idle",
+                    "conversation_id": conversation_id,
                     "turns": _conversation_turns(context),
                 })
             except Exception as e:
                 logger.exception("conversation failed")
-                _log_event({"type": "conversation_end", "reason": "error", "error": str(e)})
+                _log_event({
+                    "type": "conversation_end",
+                    "reason": "error",
+                    "conversation_id": conversation_id,
+                    "error": str(e),
+                })
+            finally:
+                CONVERSATION_ID.reset(cid_token)
 
             logger.info("← conversation ended, back to listening\n")
     except (KeyboardInterrupt, asyncio.CancelledError):

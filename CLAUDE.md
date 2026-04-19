@@ -20,6 +20,7 @@ Knowledge packs live in `docs/references/`. Before writing code that touches any
 - **Modern Idiomatic TypeScript** — `docs/references/modern-idiomatic-typescript/INDEX.md`. Consult when writing or refactoring any `.ts`/`.tsx` file, choosing lint/format tooling, or editing `tsconfig.json` — anchors to current practice (`satisfies`, discriminated unions, branded types, Biome) and overrides training-data defaults like `enum`, `namespace`, `any`, and ESLint+Prettier scaffolds.
 - **TanStack Router v1** — `docs/references/tanstack-router-v1/INDEX.md`. Consult when writing or modifying routes in `src/routes/`, using `createFileRoute` / `createRootRoute` / `createRouter`, handling route loaders (`loader`, `beforeLoad`, `loaderDeps`, `staleTime`), or reading/writing URL search params (`validateSearch`, `useSearch`, `<Link search>`, search middlewares) in a TanStack Router v1 app. Overrides training-data instincts to reach for `react-router-dom`, v0 `new Router()` / `new RootRoute()` syntax, `useSearchParams`, or `useEffect`-based data fetching.
 - **Pipecat v1.0** — `docs/references/pipecat/INDEX.md`. Consult when writing code that imports from `pipecat.*`, building a `Pipeline`/`PipelineTask`/`PipelineRunner`, instantiating a Pipecat service (`AnthropicLLMService`, `DeepgramSTTService`, `ElevenLabsTTSService`, etc.), configuring a transport (`LocalAudioTransport`, `DailyTransport`), or wiring a VAD/`SileroVADAnalyzer` into a pipeline. Pipecat v1.0.0 shipped 2026-04-14 with major breaking changes from v0.x — training data will suggest `OpenAILLMContext`, `llm.create_context_aggregator(...)`, `TransportParams(vad_analyzer=...)`, and `allow_interruptions=True`, all of which are gone or relocated in v1.0.
+- **Claude Agent SDK (Python)** — `docs/references/claude-agent-sdk/INDEX.md`. Consult when writing code that imports from `claude_agent_sdk`, calls `query()` or `ClaudeSDKClient`, configures `ClaudeAgentOptions` (cwd, allowed_tools, disallowed_tools, permission_mode, system_prompt, hooks, can_use_tool), or builds a local Claude-Code-style research sub-agent — e.g. any edit to `src/dirt/tools/wiki.py` or a new sub-agent under `src/dirt/tools/`. The package was renamed from `claude-code-sdk` at v0.1.0; training data suggests `ClaudeCodeOptions`, `api_key=...` parameters, and `allowed_tools` as an availability filter — all wrong for current versions.
 
 ## Commands
 
@@ -37,11 +38,6 @@ Knowledge packs live in `docs/references/`. Before writing code that touches any
 - **Firmware test**: `cd firmware && pio test -e native` (runs on host, no hardware needed)
 - **Firmware build**: `cd firmware && pio run -e nano`
 - **Firmware upload**: `cd firmware && pio run -e nano -t upload`
-
-### Grow Wiki
-
-- **Wiki lint**: `uv run scripts/lint.py`
-- **EXIF date extraction**: `uv run scripts/exif_date.py <file_or_directory>`
 
 ### PTZ Camera
 
@@ -61,6 +57,15 @@ Knowledge packs live in `docs/references/`. Before writing code that touches any
 - **Full operational spec**: `wiki/hardware/voice-channel.md` (pipeline, tools, config); `wiki/hardware/jabra.md` (device quirks). Do NOT run `python -m dirt.channels.voice` directly while the service is up — both processes will fight for the Jabra ALSA handle.
 - **Manual foreground run (dev)**: `systemctl --user stop dirt-voice && uv run python -m dirt.channels.voice`. Restart the service when done.
 - **Pipecat v1.0 is a major departure from v0.x** — training data will suggest obsolete patterns (`OpenAILLMContext`, `TransportParams(vad_analyzer=...)`, `allow_interruptions=True`). Always read `docs/references/pipecat/INDEX.md` before editing `src/dirt/channels/voice.py`, `_audio_transport.py`, or `src/dirt/tools/`.
+
+### Daily Report (automated 14:00 MDT)
+
+- **Manual run**: `scripts/daily_report` (today, skip if marker exists) or `scripts/daily_report --force` (re-run today) or `scripts/daily_report --date 2026-04-19 --force`.
+- **Service / timer status**: `systemctl --user status dirt-daily-report.timer` and `journalctl --user -u dirt-daily-report.service -n 100`.
+- **Marker files**: `logs/daily_report/<DATE>.completed` and `logs/daily_report/<DATE>.failed`. The `.completed` marker is what makes the next run skip — delete it (or pass `--force`) to re-run.
+- **Synthesis trace**: `logs/daily_report/<DATE>.synthesis.json` — full sub-agent tool trace, usage, cost. Produced even on failure.
+- **Failure → Telegram alert**: Phases 1–4 (capture, validate, snapshot, synthesize) all bail-on-fail and post a `<b>⚠ Daily report failed</b>` message to the configured chat. Phase 5 (Telegram delivery) is non-fatal — wiki is the durable record; failed deliveries log to journal only.
+- **Pipeline source**: `src/dirt/services/daily_report.py` (orchestrator), `src/dirt/services/{photos,daily_sensors,daily_synthesis,telegram}.py` (per-phase). Workflow detail in `wiki/CLAUDE.md` (Daily Update Workflow).
 
 ## Documentation (Progressive Disclosure)
 
@@ -83,177 +88,55 @@ This file is the discovery layer. Read deeper docs before starting work in an ar
 
 - **`debug/`** — Agent sandbox. Write scratch scripts here freely when you need to probe an API, exercise a library, capture a throwaway artifact, or test hardware interaction before wiring it into the real app. Nothing in this directory is production code, imported by the app, or covered by tests. Use it instead of cluttering `src/` or `scripts/` with one-off experiments.
 
----
+## Observability
+
+Logs are first-class diagnostic artifacts. Two families with different contracts:
+
+### `sessions/<channel>/YYYY-MM-DD.jsonl` — conversation records (long-lived)
+
+What the user and agent said. Append-only, agent-readable. Kept indefinitely (ops cleanup only). One JSON object per line with channel-specific fields. Streams:
+- `sessions/voice/` — voice channel turns (wake, conversation_end). See `wiki/hardware/voice-channel.md`.
+- `sessions/telegram/` — telegram channel turns (future).
+
+### `logs/<stream>/YYYY-MM-DD.jsonl` — operational instrumentation (short-lived)
+
+Structured JSONL for debugging. Rotated by filename date on first write of the day. All events share one envelope: `{ts, conversation_id, stream, event, ...fields}`.
+
+| Stream | What it records | Retention | Source |
+|---|---|---|---|
+| `wake_scores` | Every wake-model score ≥ `WAKE_NEAR_MISS_FLOOR` (`near_miss`) and every threshold-crossing wake (`wake_detected`). | 1 day | `src/dirt/channels/voice.py:wait_for_wake` |
+| `audio_rms` | Input amplitude (int16 RMS) at ~1 Hz during pipecat conversations. Only fires while a conversation is active; silent otherwise. | 1 day | `src/dirt/channels/_audio_transport.py:SoundDeviceInputTransport` |
+| `audio_playback` | Per-assistant-turn duration metric: `tts_stream_duration_s` (pipecat's "bot done speaking" time) vs `playback_duration_s` (speaker actually finished), and `excess_buffer_s` gap. Detects ring-buffer decoupling anomalies. | 1 day | `src/dirt/channels/_audio_transport.py:SoundDeviceOutputTransport` |
+| `pipecat_frames` | Every non-raw-data frame pushed through the pipeline — turn lifecycle (`BotSpeakingFrame`, `UserStartedSpeakingFrame`, …), STT/LLM/TTS signals (`TranscriptionFrame`, `TTSStoppedFrame`, `LLMRunFrame`, …), interruptions, errors. Denylist excludes `AudioRawFrame`, `ImageRawFrame`, `HeartbeatFrame`. | 1 day | `src/dirt/channels/_observers.py:FrameFlowObserver` |
+| `subagent_calls` | Full Claude Agent SDK trace per `ask_wiki` invocation — question, every tool_use/tool_result, final answer, usage, cost, duration. | 10 days | `src/dirt/tools/wiki.py:_ask_wiki` |
+| `humidifier` | State transitions of the Kasa EP10 plug controlling the Raydrop humidifier. One event per on/off change with `reason`, `rh`, `rh_age_s`. | 30 days | `src/dirt/services/humidifier.py:humidifier_loop` |
+| `daily_report` | Per-phase markers for the daily report run (`run_started`, `capture_finished`, `validate_finished`, `snapshot_finished`, `synthesis_finished`, `deliver_finished`, `run_completed`, `run_failed`, `deliver_failed`). | 30 days | `src/dirt/services/daily_report.py` |
+
+### Adding a new log stream
+
+Call `log_event(stream, event, **fields)` from `dirt.observability`. It handles path, rotation, timestamp, and correlation ID. Register non-default retention in `_RETENTION` in `src/dirt/observability.py`. That's the whole API — don't invent per-stream helpers.
+
+### Correlation across streams
+
+Every entry stamped with `conversation_id` (UUID generated per voice wake). To reconstruct a single user interaction:
+
+```bash
+CID=f1918a9c-1545-4033-beaa-9adc4f5b3dbf
+jq -c "select(.conversation_id==\"$CID\")" \
+  sessions/voice/*.jsonl logs/*/*.jsonl 2>/dev/null
+```
+
+### Free-text operational logs
+
+Loguru output (voice service) goes to stderr → systemd journal:
+
+```bash
+journalctl --user -u dirt-voice -f           # live tail
+journalctl --user -u dirt-voice --since "1 hour ago"
+```
+
+Retention is governed by systemd's journal config, not us. Use this for free-text tailing during a live incident; use the `logs/*/` JSONL streams for programmatic / agent-readable analysis.
 
 ## Grow Wiki
 
-### Data Architecture
-
-```
-sessions/   Interaction transcripts. Append-only JSONL, written by harness. Agent reads on demand.
-raw/        Immutable source material. Never edited after ingestion.
-wiki/       LLM-maintained knowledge base. Single source of truth for synthesized knowledge.
-outputs/    Generated reports, summaries, exports. Derived from wiki, never primary.
-```
-
-| Layer | Purpose | Who writes | Who reads |
-|-------|---------|-----------|-----------|
-| `sessions/` | Raw interaction transcripts | Harness (append-only) | Agent (on demand) |
-| `raw/` | Source material (photos, sensor logs) | User / hardware | Agent (during ingestion) |
-| `wiki/` | Curated knowledge | Agent | Agent + user |
-| `outputs/` | Generated reports | Agent | User |
-
-**sessions/** — Interaction transcripts, one JSONL file per day per channel. Written by the harness (`dirt-harness` user), read-only to the agent (`dirt-agent` user) via Linux group permissions. The agent may read these on demand (e.g., "what did we discuss yesterday?") but they are NOT loaded into context by default. See ADR 005 for the full access control model. Subfolders:
-- `telegram/` — Telegram bot conversations (`YYYY-MM-DD.jsonl`)
-- `voice/` — Voice interactions via Jabra speakerphone (`YYYY-MM-DD.jsonl`)
-
-**raw/** — Drop zone for incoming material. Subfolders:
-- `photos/` — Daily/weekly plant photos
-- `sensor-logs/` — Temperature, humidity, VPD, CO2, pH, EC readings
-- `chat-history/` — Conversational notes, questions, observations
-- `references/` — Grow guides, nutrient schedules, strain info, etc.
-
-**wiki/** — Agent-maintained knowledge base. All wiki files follow the page conventions below. Subfolders:
-- `daily/` — One file per day (YYYY-MM-DD.md). Canonical observation records.
-- `plants/` — One file per plant. Timelines + current state, linking into dailies.
-- `environment/` — Trend pages for temp/humidity/VPD/lighting/nutrients/etc.
-- `hardware/` — One file per deployed system (sensors, cameras, controllers). Operational state, wiring, configuration.
-- `concepts/` — Reference knowledge for both growing and technical domains (e.g., VPD, LST, EC metering, sensor placement).
-- `decisions/` — Dated decision records (e.g., switching to flower, choosing a PTZ camera, defoliating).
-- `index.md` — Master catalog. Always up to date.
-- `log.md` — Append-only activity log. Never edited, only appended.
-- `overview.md` — High-level grow status + system status. Refreshed on each update.
-
-**outputs/** — Exports only. Do not edit wiki files here; generate from wiki.
-
-### Available Scripts
-
-| Script | Purpose | Usage |
-|--------|---------|-------|
-| `scripts/exif_date.py` | Extract EXIF DateTimeOriginal from JPEG photos | `uv run scripts/exif_date.py <file_or_directory>` |
-| `scripts/lint.py` | Wiki health checker — run after every ingestion | `uv run scripts/lint.py` |
-
-### Page Conventions
-
-All wiki pages use YAML frontmatter:
-
-```yaml
----
-title: <page title>
-type: daily | plant | environment | hardware | concept | decision | index | overview | log
-sources: [raw/photos/2026-04-06.jpg, raw/sensor-logs/2026-04-06.csv]  # raw files referenced
-related: [wiki/plants/plant-1.md, wiki/environment/humidity.md]       # wiki pages linked
-created: YYYY-MM-DD
-updated: YYYY-MM-DD
----
-```
-
-**File naming:**
-- Daily entries: `wiki/daily/YYYY-MM-DD.md`
-- Concept pages: `wiki/concepts/concept-name.md`
-- Decision pages: `wiki/decisions/YYYY-MM-DD-decision-name.md`
-- Environment pages: `wiki/environment/topic.md` (e.g., `temperature.md`, `vpd.md`, `nutrients.md`)
-- Hardware pages: `wiki/hardware/system-name.md` (e.g., `arduino-nano.md`, `ptz-camera.md`)
-
-### Key Principle: NO DUPLICATION
-
-Daily entries (`wiki/daily/`) are the **canonical record** of observations.
-
-Plant, environment, and decision pages are **views** — they summarize and link into dailies. They do NOT duplicate observation data.
-
-- A plant page's Timeline section has one-line entries like: `2026-04-06 — [Day 12: first pistils visible, minor tip burn](../daily/2026-04-06.md)`
-- A plant page's Current State section has 1-2 sentences reflecting the latest daily.
-- Environment pages track trends and notable events with links to source dailies.
-- If something is recorded in a daily, don't re-record it elsewhere — link to it.
-
-### Ingestion Workflow
-
-When new raw material arrives in `raw/`:
-
-1. Read `wiki/index.md` to understand current state.
-2. Identify what's new (compare raw/ contents vs. sources cited in existing wiki pages).
-3. For each new day's material, create/update `wiki/daily/YYYY-MM-DD.md` with full observations, photo notes, sensor readings, and recommendations.
-4. Update each relevant plant page: add one-line timeline entry + update Current State (1-2 sentences + link to daily). Do not duplicate observation detail.
-5. Update relevant environment pages: note trends, flag anomalies, link to daily entries.
-6. Append to `wiki/log.md` with what was ingested.
-7. Refresh `wiki/index.md` and `wiki/overview.md`.
-8. **Run `uv run scripts/lint.py`** — fix any reported issues before considering ingestion complete.
-
-### Daily Update Workflow
-
-User sends: photo(s) + sensor readings (and optionally notes/questions).
-
-1. Create `wiki/daily/YYYY-MM-DD.md`:
-   - Full photo observations for each plant (color, structure, canopy, any issues)
-   - Sensor readings table (temp, RH, VPD, pH, EC, etc.)
-   - Stage-appropriate recommendations and action items
-   - Any user questions answered in context
-2. Update each plant's page (`wiki/plants/plant-N.md`):
-   - Append one-line entry to Timeline
-   - Rewrite Current State (1-2 sentences max, link to today's daily)
-3. Update relevant environment pages with trend data.
-4. Append to `wiki/log.md`.
-5. Rewrite `wiki/overview.md` with current grow status, system status, active action items, next milestones.
-6. Refresh `wiki/index.md` (add daily entry link, update any changed pages).
-7. **Run `uv run scripts/lint.py`** — fix any reported issues before considering the update complete.
-
-### Query Workflow
-
-After answering a user question or providing advice, evaluate whether the response is "filing-worthy" — meaning it should be persisted into the wiki rather than lost in chat history.
-
-**Filing-worthy responses include:**
-- Diagnoses or assessments (e.g., "Plant C's light green color is likely nitrogen deficiency because...")
-- Comparisons or analyses
-- Decision rationales (why we chose X over Y)
-- New concepts explained for the first time
-- Synthesized insights from multiple sources
-
-**NOT filing-worthy:**
-- Simple factual answers ("water at 6pm")
-- Confirmations or acknowledgments
-- Routine status updates already captured in daily entries
-
-**Filing destinations:**
-- Diagnosis/observation about a plant -> append to the relevant daily entry + update the plant page's current state
-- New growing concept explained -> create a `concepts/` page
-- New technical concept relevant to the grow -> create a `concepts/` page
-- Hardware deployed or reconfigured -> create/update a `hardware/` page
-- Decision made with rationale (grow or infrastructure) -> create a `decisions/` page
-- Comparison or deep analysis -> file in `outputs/` and link from relevant wiki pages
-
-**After filing:**
-1. Update `wiki/index.md` if a new page was created
-2. Update `wiki/log.md` with a `## [DATE] query-filed | Title` entry
-3. Add backlinks from related pages
-4. Run the deterministic lint (`uv run scripts/lint.py`)
-
-### Linting Workflow
-
-#### Deterministic lint (run after every ingestion or daily update)
-
-Run `uv run scripts/lint.py`. It performs 6 checks and exits non-zero if any fail:
-
-1. **Index sync** — Parses `wiki/index.md` for markdown links; globs all `.md` files in `wiki/`. Flags files missing from the index and index entries pointing to nonexistent files.
-2. **Backlink checker** — For each `wiki/daily/*.md`, checks whether plants mentioned in that entry are linked from the corresponding plant's Timeline section. Also verifies that all plant timeline links resolve to real daily files.
-3. **Photo coverage** — Reads EXIF `DateTimeOriginal` (tag 36867) from all JPEGs in `raw/photos/`. Flags photo dates with no matching daily entry, and daily entries with no matching photo.
-4. **Timeline continuity** — Parses dates from `wiki/daily/YYYY-MM-DD.md` filenames, sorts them, and reports any gaps between first and last entry.
-5. **Overview staleness** — Compares the `updated` field in `wiki/overview.md` frontmatter against the most recent daily filename. Flags if overview is older.
-6. **Frontmatter validation** — Every `.md` in `wiki/` (except `index.md` and `log.md`) must have YAML frontmatter with `title`, `type`, `created`, and `updated`. Flags missing or malformed frontmatter.
-7. **File length** — Flags wiki files over 200 lines as a warning ("consider splitting") and over 400 lines as a failure ("should be split"). `index.md` and `log.md` are exempt (they grow naturally). Long files are a signal that a page is covering too many topics and should be broken into linked sub-pages.
-
-Fix all reported issues before considering any update complete.
-
-#### LLM lint (weekly or on-demand)
-
-The deterministic script cannot catch semantic issues. Periodically perform a deeper review using LLM reasoning:
-
-- **Contradiction detection** — Read all plant pages and cross-reference claims (e.g., plant height, node count, health status) for inconsistencies across entries. Surface contradictions in `wiki/log.md` for user review; do not silently resolve them.
-- **Concept gap finder** — Scan recent daily entries and flag domain terms (LST, VPD, flushing, trichomes, etc.) with no concepts/ page.
-- **Overview rewrite** — When `wiki/overview.md` is stale (flagged by lint check 5), synthesize a new overview by reading the most recent daily entries and plant pages.
-
-### Plant Labeling
-
-Plants are labeled **A, B, C, D** — matching the physical pot labels. This is the canonical naming system used throughout the wiki and in all agent work.
-
-- Plant files: `wiki/plants/plant-a.md`, `wiki/plants/plant-b.md`, `wiki/plants/plant-c.md`, `wiki/plants/plant-d.md`
-- Early documentation (before 2026-04-06) used numeric labels (Plant 1/2/3/4). The mapping was: 1->A, 2->B, 3->C, 4->D. Do NOT use the numeric labels; use A/B/C/D exclusively.
+Agent-maintained knowledge base at `wiki/`. For ANY work touching the wiki — ingestion, daily updates, page conventions, linting, query filing, plant labeling, or routing a question to the right file — **start at [`wiki/CLAUDE.md`](wiki/CLAUDE.md)**. That file is the full operating manual (data architecture across `sessions/`/`raw/`/`wiki/`/`outputs/`, wiki-specific commands, page conventions, workflows, linting, plant labeling A-D). The `ask_wiki` sub-agent (`src/dirt/tools/wiki.py`) also reads it as its first step.

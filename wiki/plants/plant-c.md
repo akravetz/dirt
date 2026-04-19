@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/coco-coir.md, wiki/environment/nutrients.md]
 created: 2026-04-06
-updated: 2026-04-12
+updated: 2026-04-18
 ---
 
 # Plant C
@@ -17,7 +17,7 @@ updated: 2026-04-12
 
 ## Current State
 
-**Topped on [Day 29 (Apr 12)](../daily/2026-04-12.md), now in recovery.** Cut above node 4. Prior leaf issue (brown/rust spots) **resolved** — diagnosed as foliar nutrient burn from an accidental solution splash on leaves, not systemic pH lockout. Stress-induced purple on stems/petioles remains cosmetic (not genetic). Plant is otherwise healthy going into topping recovery. **LST begins once two new main shoots reach 2–3 inches (~Apr 17–19).**
+Six days post-topping, Plant C shows compact healthy branching with stable moisture around 40–42% from consistent autopot feeding. **LST begins now.** Prior leaf issue (foliar burn) fully resolved; stress-induced purple on stems/petioles remains cosmetic. See [2026-04-18](../daily/2026-04-18.md).
 
 ## Timeline
 
@@ -33,3 +33,4 @@ updated: 2026-04-12
 - 2026-04-08 — [Day 25: ⚠️ Worsening — brown/rust spots on multiple leaves; stress-induced purple now visible on stems/petioles (NOT genetic); runoff pH/EC check required](../daily/2026-04-08.md)
 - 2026-04-11 — [Day 28: No new observations; runoff pH/EC test still pending; leaf issue unresolved](../daily/2026-04-11.md)
 - 2026-04-12 — [Day 29: **Topped above node 4**; leaf issue diagnosed as foliar burn (splash), not pH lockout — resolved; normal recovery expected](../daily/2026-04-12.md)
+- 2026-04-18 — [Day 35: Recovery Day 6; compact healthy branching; **LST due now**; moisture stable ~40–42%](../daily/2026-04-18.md)

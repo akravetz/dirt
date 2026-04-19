@@ -1,7 +1,7 @@
 ---
 title: Index
 type: index
-updated: 2026-04-16
+updated: 2026-04-18
 ---
 
 # Grow Wiki Index
@@ -28,6 +28,7 @@ updated: 2026-04-16
 - [2026-04-08](daily/2026-04-08.md) — Day 25: Plant C worsening (brown/rust spots); VPD swing incident; topping imminent
 - [2026-04-11](daily/2026-04-11.md) — Day 28: **Plant A topped**; vigor leader confirmed; EC too high (920 ppm); float valve window opens Apr 12
 - [2026-04-12](daily/2026-04-12.md) — Day 29: **All four plants topped** (B, C, D today; A yesterday); all in recovery; LST ~Apr 16–19
+- [2026-04-18](daily/2026-04-18.md) — Day 35: LST window open (all 4 due now); overnight temp/RH flags; A/D sensors upgraded to v2.0
 
 ## Environment
 - [Temperature](environment/temperature.md) — Trend log; targets by phase; notable events
@@ -40,6 +41,7 @@ updated: 2026-04-16
 - [PTZ Camera (OBSBOT Tiny 2 Lite + daemon)](hardware/ptz-camera.md) — Programmable gimbal + zoom; persistent C++ daemon + `scripts/camera` CLI; per-plant presets calibrated
 - [Jabra Speak 410](hardware/jabra.md) — USB speakerphone for voice I/O; ElevenLabs "Claudia" TTS + Nova-3 STT + openWakeWord ("hey claudia"). Device quirks, firmware, volume tuning.
 - [Voice Channel (Claudia)](hardware/voice-channel.md) — Production Pipecat pipeline on top of the Jabra; `dirt-voice.service`; agent tools; session logs. **Deployed 2026-04-18.**
+- [Reservoir Level (Autopot)](hardware/reservoir-level.md) — Submerged hydrostatic pressure transducer (DFRobot KIT0139) → ADS1115 → dedicated ESP32-C3 reservoir node → `reservoir_depth_cm` ingest. Planned, parts on roadmap.
 
 ## Concepts
 - [Anthocyanin](concepts/anthocyanin.md) — Purple expression: genetic vs. environmental
@@ -74,7 +76,9 @@ updated: 2026-04-16
 - [Agent Runtime — Shell-Out to Claude Code CLI (2026-04-14)](decisions/2026-04-14-agent-runtime-shell-out.md) — Use `claude -p` subprocess to leverage Max subscription instead of API billing
 - [Voice Pipeline Selections (2026-04-16)](decisions/2026-04-16-voice-pipeline-selections.md) — ElevenLabs TTS ("Claudia" voice) + openWakeWord wake phrase + Deepgram STT
 - [Wake-Word Training Strategy (2026-04-16)](decisions/2026-04-16-wake-word-training-strategy.md) — Retrain openWakeWord with voice-clone positives + captured RIRs to fix far-field recall
+- [Wake-Word v4 Plan (2026-04-18)](decisions/2026-04-18-wake-word-v4-plan.md) — Precision-focused retraining: harvested hard negatives from deployment + mined meeting audio + synthesized phonetic neighbors + additional RIRs; near-miss audio capture live as of 2026-04-18
 - [ESP32-C3 GPIO3 + IDF ADC (2026-04-14)](decisions/2026-04-14-esp32-c3-gpio3-adc.md) — GPIO3 over GPIO4 (JTAG conflict); `adc1_get_raw()` over Arduino `analogRead()` (WiFi instability)
 - [Server-Side Auto-Calibration (2026-04-14)](decisions/2026-04-14-server-side-auto-calibration.md) — Calibration lives in DB, auto-widens extrema per (location, metric); firmware sends raw only
 - [Humidifier Control via Kasa EP10 (2026-04-17)](decisions/2026-04-17-humidifier-kasa-ep10.md) — Raydrop 4L gated by a WiFi smart plug + `python-kasa`; bang-bang hysteresis on host-side Python service. Supersedes the 2026-04-14 SSR approach.
 - [Humidifier Closed-Loop Control (2026-04-14, superseded)](decisions/2026-04-14-humidifier-relay-control.md) — Original SSR-on-Arduino plan; superseded before deployment, kept for decision-trail history.
+- [Reservoir Level Sensing (2026-04-18)](decisions/2026-04-18-reservoir-level-pressure-transducer.md) — Submerged DFRobot KIT0139 pressure transducer (4–20mA, 0–5m) → ADS1115 16-bit I²C ADC → new dedicated ESP32-C3 reservoir node. Alternatives (float, ultrasonic, capacitive strip) considered and rejected.

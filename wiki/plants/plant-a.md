@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-04-12
+updated: 2026-04-18
 ---
 
 # Plant A
@@ -17,7 +17,7 @@ updated: 2026-04-12
 
 ## Current State
 
-**Topped on [Day 28 (Apr 11)](../daily/2026-04-11.md), now in recovery.** Cut above node 4. Most vigorous plant of the four, with D about a day behind. Confirmed genetic anthocyanin expression (strong contender alongside D). Foliar burn from Day 22 stable/cosmetic. **LST begins once two new main shoots reach 2–3 inches (~Apr 16–18).**
+Seven days post-topping, Plant A shows vigorous multi-branch canopy with clean medium-dark green leaves — no trace of earlier foliar burn on new growth. **LST begins now.** See [2026-04-18](../daily/2026-04-18.md).
 
 ## Timeline
 
@@ -33,3 +33,4 @@ updated: 2026-04-12
 - 2026-04-08 — [Day 25: 4–5 nodes developing; foliar burn stable (not spreading); no new issues](../daily/2026-04-08.md)
 - 2026-04-11 — [Day 28: **Topped above node 4**; 5th node was emerging; most vigorous plant overall; strong purple contender alongside D](../daily/2026-04-11.md)
 - 2026-04-12 — [Day 29: Recovery Day 1; monitoring for two new main shoots; LST target ~Apr 16–18](../daily/2026-04-12.md)
+- 2026-04-18 — [Day 35: Post-topping recovery complete; vigorous multi-branch canopy; **LST due now** (Day 7 post-topping); v1.2 sensor → v2.0 swap](../daily/2026-04-18.md)

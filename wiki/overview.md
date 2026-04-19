@@ -4,7 +4,7 @@ type: overview
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/index.md, wiki/plants/plant-a.md, wiki/plants/plant-b.md, wiki/plants/plant-c.md, wiki/plants/plant-d.md]
 created: 2026-04-06
-updated: 2026-04-16
+updated: 2026-04-18
 ---
 
 # Grow Overview
@@ -23,11 +23,11 @@ updated: 2026-04-16
 | **Water system** | Autopot 4-Pot XL + 25-gal FlexiTank (hand-watering phase; activation window opens Apr 12) |
 | **Training** | Single top at node 4–5 → LST → SCROG |
 | **Start date** | 2026-03-15 (germination) |
-| **Grow day** | Day 29 (as of 2026-04-12) |
+| **Grow day** | Day 35 (as of 2026-04-18) |
 
 ## Current Stage
 
-**Early Veg** — Hand-watering phase (float valves closed, Day 14 post-transplant). Float valve activation window now open (Apr 12). **All four plants topped:** Plant A topped Apr 11; Plants B, C, D topped Apr 12. All in post-topping recovery. LST begins once new shoots reach 2–3 inches (~Apr 16–19). Plant C leaf issue resolved (foliar burn from splash, not pH lockout).
+**Early Veg** — Autopot system active since Apr 15 (reservoir filled, float valves open). **All four plants topped** (A: Apr 11; B/C/D: Apr 12) and fully recovered — Day 6–7 post-topping. **LST begins now** (Day 35; target window was Apr 16–19). Overnight environment flag: lights-off temp drops to ~63°F, RH spikes to ~77% — humidifier nighttime setpoint reduction recommended.
 
 **Light schedule:** 18/6
 **Light intensity:** ~40% Fold-650 (ramped from 30% per Apr 8 recommendation)
@@ -36,38 +36,41 @@ updated: 2026-04-16
 
 | Plant | Nodes | Purple | Priority | Status |
 |-------|-------|--------|----------|--------|
-| Plant A | 5 (topped) | ✅ Confirmed genetic | 🔴 Primary | ✅ **Topped Apr 11 — recovery Day 1; LST ~Apr 16–18** |
-| Plant B | — (topped) | ❌ None | 🟡 Secondary | ✅ **Topped Apr 12 — recovery Day 0; LST ~Apr 17–19** |
-| Plant C | — (topped) | ⚠️ Stress-induced only | 🟡 Secondary | ✅ **Topped Apr 12 — leaf issue was foliar burn (resolved); normal recovery** |
-| Plant D | — (topped) | ✅ Confirmed genetic | 🔴 Primary | ✅ **Topped Apr 12 — recovery Day 0; LST ~Apr 17–19** |
+| Plant A | 5+ (topped, branching) | ✅ Confirmed genetic | 🔴 Primary | 🟡 **LST due now** — Day 7 post-topping; vigorous multi-branch canopy |
+| Plant B | — (topped, branching) | ❌ None | 🟡 Secondary | 🟡 **LST due now** — Day 6 post-topping; most vigorous canopy; morning moisture dip (autopot cycle) |
+| Plant C | — (topped, branching) | ⚠️ Stress-induced only | 🟡 Secondary | 🟡 **LST due now** — Day 6 post-topping; compact healthy canopy; moisture stable ~40% |
+| Plant D | — (topped, branching) | ✅ Confirmed genetic | 🔴 Primary | 🟡 **LST due now** — Day 6 post-topping; healthy canopy; v2.0 sensor installed today |
 
-## Environment (Last Reading: Apr 11)
+## Environment (Last Reading: Apr 18 14:00 MDT)
 
 | Metric | Value | Target | Status |
 |--------|-------|--------|--------|
-| Temperature | 72°F | 74–76°F | ⚠️ Slightly low |
-| Humidity | 65% | 55–65% | ✅ |
-| VPD | ~0.94 kPa | 0.8–1.2 kPa | ✅ Best reading to date |
-| pH (watering) | 5.8 (target) | 5.5–6.0 | ⚠️ Verify — Plant C issue suggests possible drift |
-| EC (nutrient solution) | ~1.84 measured | 0.8–1.0 | 🔴 Too high — dilute next feed |
+| Temperature (now) | 73.85°F | 74–76°F | ⚠️ Slightly low |
+| Temperature (overnight avg) | 63.54°F | 68–72°F night | ⚠️ Well below target |
+| Humidity (now) | 59.13% | 55–65% | ✅ |
+| Humidity (overnight avg) | 76.95% | 55–65% | ⚠️ Too high |
+| VPD (now) | 1.17 kPa | 0.8–1.2 kPa | ✅ |
+| VPD (overnight avg) | 0.46 kPa | 0.8–1.2 kPa | ⚠️ Too low (seedling range) |
+| pH (watering) | 5.8 (target) | 5.5–6.0 | — |
+| EC (reservoir) | — | 0.8–1.0 | ⚠️ Verify at next fill |
 
 ## Active Action Items
 
-1. **Dilute nutrient solution to EC 0.8–1.0** 🔴 — current 920 ppm (EC ~1.84) is too high for early veg
-2. **Monitor all 4 topping recoveries** — A (Apr 11), B/C/D (Apr 12); LST begins ~Apr 16–19
-5. **Float valve activation** — window now open (Apr 12); check behavioral readiness signals daily (faster drinking, accelerating nodes, upward foliage)
-6. **Nudge temp to 74–76°F** — currently 72°F
-7. **Continue light ramp** — at 40%; step to 50% in next few days if no stress signs
+1. **Begin LST on all 4 plants** 🔴 — Day 35, Day 6–7 post-topping; gently bend new main shoots outward at ~45° and tie down; start with Plant A (longest recovery)
+2. **Lower overnight humidifier setpoint** 🟡 — overnight RH 76.95%, VPD 0.46 kPa; reduce bang-bang nighttime target to ~55% or schedule humidifier OFF during lights-off
+3. **Address overnight temperature** 🟡 — 63.54°F overnight avg; reduce exhaust fan speed at lights-off or add space heater on a timer; target 68–72°F night
+4. **Verify EC in reservoir** — was 1.84 before activation (Apr 15); confirm diluted to 0.8–1.0 at next reservoir change
+5. **Continue light ramp** — at 40%; step to 50% once LST stress resolves (~5–7 days)
 
 ## Upcoming Milestones
 
 | Milestone | Estimated Timing |
 |-----------|-----------------|
-| ~~Plant C diagnosis~~ | ✅ Resolved — foliar burn from splash, not pH lockout |
-| ~~Topping Plant A~~ | ~~Apr 13–15~~ ✅ Done Apr 11 |
-| ~~Topping Plant D~~ | ✅ Done Apr 12 |
-| Float valve activation | Apr 12–19 (window now open) |
-| **LST all plants** | **~Apr 16–19** (once new shoots reach 2–3") |
+| ~~Plant C diagnosis~~ | ✅ Resolved |
+| ~~Topping all plants~~ | ✅ Done Apr 11–12 |
+| ~~Float valve activation~~ | ✅ Done Apr 15 |
+| **LST all plants** | **Now (Day 35)** |
+| First reservoir change | ~Apr 22–25 (7–10 days post-activation) |
 | SCROG net install | Weeks 6–8 of veg (~late April/early May) |
 | 12/12 flip | SCROG 70% full |
 | Clone selection | Flower weeks 3–4 |

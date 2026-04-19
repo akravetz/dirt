@@ -88,9 +88,16 @@ async def _get_metric_series(
 ) -> dict[str, list]:
     """Return {labels, values} for a single metric over the given range."""
     if range_key in _BUCKET_SQL:
+        # SQLite stores datetimes as TEXT and the bucketed text() queries
+        # compare them lexically. Stored format is "YYYY-MM-DD HH:MM:SS.ffffff"
+        # (space separator, no tz). cutoff.isoformat() produces a "T" separator
+        # plus "+00:00" suffix — lexically " " < "T", so naive .isoformat()
+        # filters out anything before the next UTC midnight. Match the stored
+        # format explicitly.
+        cutoff_str = cutoff.replace(tzinfo=None).isoformat(sep=" ")
         stmt = text(_BUCKET_SQL[range_key])
         result = await session.exec(
-            stmt, params={"cutoff": cutoff.isoformat(), "metric": metric}
+            stmt, params={"cutoff": cutoff_str, "metric": metric}
         )
         rows = result.all()
         return {

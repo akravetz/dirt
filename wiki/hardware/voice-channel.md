@@ -127,6 +127,23 @@ Then `systemctl --user restart dirt-voice` and reproduce. In the DEBUG output, c
 
 Whichever stage is missing its event on the failed turn is where the bug lives. Revert to INFO when done; DEBUG is noisy.
 
+## Deferred Enhancements
+
+### "Meeting mode" / conversation lock (deferred 2026-04-18)
+
+**Problem.** A single false-positive wake during a conference call or in-person meeting opens the pipeline for as long as the user keeps talking (VAD resets the idle timer on every utterance). Claudia then interjects repeatedly into the meeting side of the conversation, transcribing meeting audio as garbled user turns and responding to each fragment. Witnessed 2026-04-18 during a Zoom call: one wake at `score=0.74`, pipeline stayed live ~3.5 minutes, Claudia injected 8+ responses into the meeting. Mitigation at the time: `systemctl --user stop dirt-voice`.
+
+**Immediate fix applied.** `WAKE_THRESHOLD` raised from 0.35 → 0.6. Clears every intentional wake recorded in `sessions/voice/*.jsonl` (real wakes score 0.82–0.97) while rejecting the meeting false-positive at 0.74.
+
+**Longer-term design to revisit if this recurs.** Options in rough preference order:
+
+1. **Double-wake confirmation.** Require two wake-word hits within ~2s before opening the pipeline. Cheap to add (modify `wait_for_wake`), high-impact against one-shot false positives, costs a small amount of wake latency.
+2. **Meeting-mode toggle.** A local flag file or a lightweight IPC (socket, signal, CLI) that puts the service into "listening for wake suppressed" without stopping the daemon. Useful when the user wants predictable silence for a known window.
+3. **Calendar-aware muting.** Read the user's Google Calendar (via the existing `mcp__claude_ai_Google_Calendar__*` tools) and auto-suppress wakes during events marked busy. Highest UX value; also the most infra to build.
+4. **Physical button.** Press a button on or near the Jabra to arm/disarm wakes. Requires hardware beyond what's deployed.
+
+Pick one of (1) / (2) if this happens again and the threshold bump isn't enough. (3) is the "full" answer but premature without evidence the threshold fix is insufficient.
+
 ## Pipecat Version Gotchas
 
 Pipecat v1.0 (2026-04-14) is a breaking-change release from v0.x. Training-data-era patterns that are WRONG in our code:

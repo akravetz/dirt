@@ -89,11 +89,14 @@ def check_index_sync() -> list[str]:
         except ValueError:
             pass  # link points outside wiki/
 
-    # All .md files in wiki/ except index.md itself
+    # All content .md files in wiki/ — skip meta files (index.md is the
+    # catalog itself; CLAUDE.md is the operating manual; log.md is an
+    # append-only activity log, skipped here too for consistency).
+    META_FILES = {"index.md", "CLAUDE.md", "log.md"}
     all_wiki: set[str] = {
         p.resolve().relative_to(WIKI.resolve()).as_posix()
         for p in WIKI.rglob("*.md")
-        if p.name != "index.md"
+        if p.name not in META_FILES
     }
 
     for path_str in sorted(all_wiki - indexed):
@@ -175,7 +178,17 @@ def check_backlinks() -> list[str]:
 # ─── check 3: photo coverage ─────────────────────────────────────────────────
 
 def check_photo_coverage() -> list[str]:
-    """EXIF dates of raw/photos/*.jpg vs wiki/daily/ entries."""
+    """EXIF dates of raw/photos/*.jpg vs wiki/daily/ entries.
+
+    Two photo layouts are accepted:
+    - Legacy flat: ``raw/photos/<file>.jpg`` (any EXIF date).
+    - Per-day folders introduced by the daily-report automation
+      (2026-04-19 onward): ``raw/photos/YYYY-MM-DD/<preset>.jpg``.
+      The folder name is the canonical date for the entry; we still
+      verify EXIF DateTimeOriginal is present (the wiki photo-coverage
+      check fails if it's missing) but don't require it to match the
+      folder name.
+    """
     issues = []
 
     if not RAW_PHOTOS.exists():
@@ -185,7 +198,25 @@ def check_photo_coverage() -> list[str]:
     photo_dates: dict[str, list[str]] = {}
     no_exif: list[str] = []
 
+    # Per-day folders (new format)
+    for day_dir in sorted(RAW_PHOTOS.iterdir()):
+        if not day_dir.is_dir():
+            continue
+        m = re.match(r"^(\d{4}-\d{2}-\d{2})$", day_dir.name)
+        if not m:
+            continue
+        d = m.group(1)
+        for photo in sorted(day_dir.glob("*")):
+            if photo.suffix.lower() not in {".jpg", ".jpeg"}:
+                continue
+            if get_exif_date(photo) is None:
+                no_exif.append(f"{day_dir.name}/{photo.name}")
+            photo_dates.setdefault(d, []).append(f"{day_dir.name}/{photo.name}")
+
+    # Legacy flat files (one EXIF date per file)
     for photo in sorted(RAW_PHOTOS.glob("*")):
+        if not photo.is_file():
+            continue
         if photo.suffix.lower() not in {".jpg", ".jpeg"}:
             continue
         d = get_exif_date(photo)
@@ -302,7 +333,7 @@ def check_overview_staleness() -> list[str]:
 # ─── check 6: frontmatter validation ─────────────────────────────────────────
 
 REQUIRED_FIELDS = {"title", "type", "created", "updated"}
-SKIP_FILES = {"index.md", "log.md"}
+SKIP_FILES = {"index.md", "log.md", "CLAUDE.md"}
 
 
 def check_frontmatter() -> list[str]:
@@ -326,7 +357,7 @@ def check_frontmatter() -> list[str]:
 
 MAX_LINES_WARN = 200
 MAX_LINES_FAIL = 400
-LENGTH_SKIP_FILES = {"index.md", "log.md"}
+LENGTH_SKIP_FILES = {"index.md", "log.md", "CLAUDE.md"}
 
 
 def check_file_length() -> list[str]:

@@ -2,9 +2,9 @@
 title: Concept — Autopot System
 type: concept
 sources: [raw/chat-history/bible.md, raw/chat-history/all-chat-summary.md]
-related: [wiki/concepts/coco-coir.md, wiki/environment/nutrients.md, wiki/decisions/2026-04-11-reservoir-stand.md]
+related: [wiki/concepts/coco-coir.md, wiki/environment/nutrients.md, wiki/decisions/2026-04-11-reservoir-stand.md, wiki/hardware/reservoir-level.md]
 created: 2026-04-06
-updated: 2026-04-15
+updated: 2026-04-18
 ---
 
 # Autopot System
@@ -86,6 +86,10 @@ Once activated:
 2. Open float valve — system self-regulates
 3. Check reservoir level weekly (more frequently at peak flower)
 4. Refill and re-adjust pH/EC at every top-off
+
+## Reservoir Level Telemetry
+
+Continuous depth telemetry on the FlexiTank is planned via a submerged hydrostatic pressure transducer reporting through a dedicated ESP32-C3 node. See [Reservoir Level hardware page](../hardware/reservoir-level.md) and the [2026-04-18 decision](../decisions/2026-04-18-reservoir-level-pressure-transducer.md). Once live, "days-until-empty at current consumption" becomes derivable from data instead of needing to lift the lid.
 
 ## Reservoir Management (Post-Activation)
 

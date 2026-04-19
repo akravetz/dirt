@@ -4,7 +4,7 @@ type: hardware
 sources: []
 related: [wiki/decisions/2026-04-17-humidifier-kasa-ep10.md, wiki/environment/humidity.md, wiki/concepts/vpd.md]
 created: 2026-04-14
-updated: 2026-04-17
+updated: 2026-04-18
 ---
 
 # Humidifier Control
@@ -18,10 +18,11 @@ Superseded the SSR-on-Arduino approach — see [decision 2026-04-17](../decision
 | Component | Status | Notes |
 |-----------|--------|-------|
 | Raydrop 4L humidifier | ✅ In tent | Knob set to a moderate fixed output (~50–60%) |
-| Kasa Ultra Mini EP10 smart plug | ⏳ On hand, not yet provisioned | Needs Kasa-app onboarding + static LAN IP |
-| `python-kasa` integration | ❌ Not started | Canonical library, supports EP10 incl. newer KLAP protocol |
-| Control service | ❌ Not started | Lives on `dirt` host; reads RH from DB / Nano stream, commands plug |
-| Plug state logging | ❌ Not started | On/off transitions + optional wattage persisted alongside RH |
+| Kasa Ultra Mini EP10 smart plug | ✅ Provisioned | Alias `dirt-humidifier`; DHCP-reserved `192.168.1.220`; MAC `10:5A:95:8B:E8:B7`; firmware `1.1.1 Build 250908` |
+| `python-kasa` integration | ✅ Working | Pinned to [PR #1580 fork branch](https://github.com/ZeliardM/python-kasa/tree/feature/new-klap) until KLAP v2 support lands upstream — stock python-kasa fails auth on this firmware (see "Known Issues" below) |
+| Control service | ✅ Deployed 2026-04-18 | `src/dirt/services/humidifier.py`, run from the FastAPI lifespan alongside capture / archive / serial |
+| Plug state logging | ✅ | `humidifier_on` (0/1) written to `sensorreading` every poll; state transitions emitted to `logs/humidifier/` stream with reason + RH |
+| Energy monitoring | ❌ Not exposed | This EP10 firmware does not publish an `Energy` module — only `is_on` is readable. Good-enough: control loop uses RH, not wattage |
 
 ## Hardware
 
@@ -63,7 +64,23 @@ watts = plug.emeter_realtime.power  # real-time wattage
 
 `python-kasa` is also usable from its CLI (`kasa` command) for out-of-band testing.
 
-## Control Logic (idea, not yet implemented)
+## Known Issues
+
+### KLAP v2 authentication (firmware 1.1.1 Build 250908)
+
+Our plug ships with KLAP `Login version: 2`, and stock `python-kasa` (0.10.2) fails the second-stage handshake with "Device response did not match our challenge" even with correct TP-Link Cloud credentials. Fix is in [python-kasa PR #1580](https://github.com/python-kasa/python-kasa/pull/1580) (approved, not yet merged). We pin to the contributor's branch in `pyproject.toml`:
+
+```toml
+"python-kasa @ git+https://github.com/ZeliardM/python-kasa.git@feature/new-klap"
+```
+
+Once PR #1580 merges and releases, swap back to a pinned version.
+
+### Provisioning note
+
+"Remote Control" must be **enabled** in the Kasa app for LAN KLAP auth to work. It's nominally a cloud-relay toggle, but the plug's KLAP credentials are only valid once it's bound to a TP-Link Cloud account.
+
+## Control Logic (deployed)
 
 Bang-bang with hysteresis + relay-protection guards. Concrete service wiring is deferred — this section is the algorithmic shape only.
 
@@ -102,15 +119,14 @@ loop every ~30s:
 
 ## State Logging
 
-On every state change, persist a row so the loop's behavior is reconstructable from the DB:
+Two streams, each serving a different consumer:
 
-- Timestamp
-- New state (`on` / `off`)
-- Reason (`rh_below_threshold`, `rh_above_threshold`, `failsafe_stale_sensor`, `max_on_timeout`, `manual`)
-- Current RH reading
-- Optional: plug wattage at the moment of the change
+- **`sensorreading.humidifier_on`** — 0/1 every poll (~30s), `source="kasa"`, `location="tent"`. Written even when no state change occurred, so the web UI's time-series graphs show a continuous step function alongside `humidity_pct`.
+- **`logs/humidifier/YYYY-MM-DD.jsonl`** — state-change events with full context (reason, RH at decision time, RH-reading age). Short-retention operational stream for incident review.
 
-Schema choice (new table vs. folding into `sensorreading` as a 0/1 metric) is an open question in the decision record.
+State-change reasons: `rh_below_threshold`, `rh_above_threshold`, `failsafe_stale_sensor`, `max_on_timeout`. Manual overrides via the Kasa app or `uv run kasa --host 192.168.1.220 on/off` are NOT tagged — the loop just observes the new state on its next poll and records it.
+
+Wattage field is absent because this firmware doesn't expose an Energy module.
 
 ## Safety / Operational Notes
 

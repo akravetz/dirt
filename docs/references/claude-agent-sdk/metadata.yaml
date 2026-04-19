@@ -1,0 +1,25 @@
+concept: claude-agent-sdk
+display_name: Claude Agent SDK (Python)
+mode: framework
+version: 0.1.63
+generated_at: 2026-04-18
+sources:
+  - https://github.com/anthropics/claude-agent-sdk-python
+  - https://docs.anthropic.com/en/docs/claude-code/sdk
+  - https://platform.claude.com/docs/en/agent-sdk/python
+topics:
+  - getting-started.md
+  - options.md
+  - messages.md
+  - tools-and-permissions.md
+  - system-prompts.md
+  - research-subagent-pattern.md
+  - errors-and-gotchas.md
+claude_md_pointer:
+  path: docs/references/claude-agent-sdk/INDEX.md
+  consult_when: >
+    writing code that imports from `claude_agent_sdk`, calls `query()` or
+    `ClaudeSDKClient`, configures `ClaudeAgentOptions` (cwd, allowed_tools,
+    permission_mode, system_prompt, hooks, can_use_tool), or builds a local
+    Claude-Code-style research sub-agent — e.g. any edit to
+    `src/dirt/tools/wiki.py` or a new sub-agent in `src/dirt/tools/`.

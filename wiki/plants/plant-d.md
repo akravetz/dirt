@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-04-12
+updated: 2026-04-18
 ---
 
 # Plant D
@@ -17,7 +17,7 @@ updated: 2026-04-12
 
 ## Current State
 
-**Topped on [Day 29 (Apr 12)](../daily/2026-04-12.md), now in recovery.** Cut above node 4, one day after Plant A. Strong anthocyanin expression alongside Plant A — both are top purple contenders (D shows stems, petioles, cotyledons; confirmed before any environmental trigger). About a day behind A in vigor. No health concerns. **LST begins once two new main shoots reach 2–3 inches (~Apr 17–19).**
+Six days post-topping, Plant D shows a healthy multi-branch canopy, medium-dark green with clean leaves. **LST begins now.** v1.2 capacitive sensor replaced with v2.0 today for sensor-generation consistency. See [2026-04-18](../daily/2026-04-18.md).
 
 ## Timeline
 
@@ -33,3 +33,4 @@ updated: 2026-04-12
 - 2026-04-08 — [Day 25: Strongest-looking plant today; vigorous multi-node growth; no health concerns](../daily/2026-04-08.md)
 - 2026-04-11 — [Day 28: Stable; no new observations](../daily/2026-04-11.md)
 - 2026-04-12 — [Day 29: **Topped above node 4**; both primaries now in recovery; LST target ~Apr 17–19](../daily/2026-04-12.md)
+- 2026-04-18 — [Day 35: Recovery Day 6; healthy multi-branch canopy; **LST due now**; v1.2 sensor → v2.0 swap](../daily/2026-04-18.md)

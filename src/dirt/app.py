@@ -17,6 +17,7 @@ from dirt.db import init_db
 from dirt.mcp.app import create_mcp_app
 from dirt.services.archive import archive_loop
 from dirt.services.capture import capture_loop
+from dirt.services.humidifier import humidifier_loop
 from dirt.services.serial_reader import serial_reader_loop
 
 _mcp_app, _mcp_run = create_mcp_app()
@@ -29,12 +30,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     capture_task = asyncio.create_task(capture_loop(stop_event))
     archive_task = asyncio.create_task(archive_loop(stop_event))
     serial_task = asyncio.create_task(serial_reader_loop(stop_event))
+    humidifier_task = asyncio.create_task(humidifier_loop(stop_event))
     async with _mcp_run():
         yield
     stop_event.set()
     await capture_task
     await archive_task
     await serial_task
+    await humidifier_task
 
 
 app = FastAPI(title="Dirt", lifespan=lifespan)

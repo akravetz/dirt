@@ -4,7 +4,7 @@ type: environment
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/environment/humidity.md, wiki/overview.md]
 created: 2026-04-06
-updated: 2026-04-08
+updated: 2026-04-18
 ---
 
 # Temperature
@@ -38,7 +38,9 @@ updated: 2026-04-08
 | 2026-04-03 | 72°F ⚠️ | Slightly below target |
 | 2026-04-05 | 77°F ✅ | On target |
 | 2026-04-08 | 75°F ✅ (spike to 80°F during humidifier-off period) | On target; spike coincided with RH drop → VPD incident → [2026-04-08](../daily/2026-04-08.md) |
+| 2026-04-18 | 73.85°F now / 63.54°F overnight avg ⚠️ / 73.34°F morning avg | Overnight lights-off window drops to ~63°F — ~10°F below daytime; well below 68–72°F veg night target → [2026-04-18](../daily/2026-04-18.md) |
 
 ## Notable Events
 - **2026-03-21** — Overnight low of 59.5°F due to exhaust fan running too fast at night; resolved by throttling fan after lights-out → [2026-03-27 daily](../daily/2026-03-27.md)
 - **2026-04-01** — Temp running low at 70°F; advised to increase → [2026-04-01 daily](../daily/2026-04-01.md)
+- **2026-04-18** — Overnight lights-off window averages 63.54°F — ~10°F below daytime; below veg night target of 68–72°F. Grow light is sole heat source; tent tracks toward ambient at night. Options: reduce exhaust fan speed at lights-off, or add a space heater on a timer → [2026-04-18](../daily/2026-04-18.md)
