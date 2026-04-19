@@ -1,0 +1,37 @@
+concept: tailwind-v4
+display_name: Tailwind CSS v4
+mode: framework
+version: 4.2.2
+generated_at: 2026-04-19
+sources:
+  - https://tailwindcss.com/docs/upgrade-guide
+  - https://tailwindcss.com/docs/installation/using-vite
+  - https://tailwindcss.com/docs/theme
+  - https://tailwindcss.com/docs/adding-custom-styles
+  - https://tailwindcss.com/docs/detecting-classes-in-source-files
+  - https://tailwindcss.com/docs/dark-mode
+  - https://tailwindcss.com/docs/responsive-design
+  - https://tailwindcss.com/docs/colors
+  - https://github.com/tailwindlabs/tailwindcss
+  - debug/webapp.zip/colors_and_type.css
+topics:
+  - install-vite.md
+  - theme-configuration.md
+  - directives.md
+  - variants-and-responsive.md
+  - project-design-system.md
+  - migration-traps.md
+claude_md_pointer:
+  path: docs/references/tailwind-v4/INDEX.md
+  consult_when: >-
+    Consult when writing or refactoring Tailwind utility classes in
+    `web-ui/src/`, editing `web-ui/src/styles.css` (global
+    `@import "tailwindcss"` + `@theme` directive), wiring `vite.config.ts` for
+    the `@tailwindcss/vite` plugin, porting the Dirt paper/ink/magenta palette
+    and Fraunces / IBM Plex Mono / Inter fonts from
+    `debug/webapp.zip/colors_and_type.css`, adding custom utilities with
+    `@utility`, or overriding dark mode with `@custom-variant`. Tailwind v4 is
+    a ground-up rewrite — training data reliably suggests v3 patterns
+    (`tailwind.config.js` with `content:` / `theme.extend`, the three
+    `@tailwind base/components/utilities` directives, `postcss-cli` +
+    `autoprefixer` boilerplate, PurgeCSS), all obsolete in v4.
