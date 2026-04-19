@@ -1,0 +1,28 @@
+[Unit]
+Description=Dirt hardware daemon — serial reader, humidifier, archive, ingest API
+Documentation=file://%h/code/dirt/CLAUDE.md
+After=default.target network-online.target
+Wants=network-online.target
+# Ordered after the camera daemon — capture loop talks to its socket.
+After=dirt-camera.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/code/dirt
+EnvironmentFile=%h/code/dirt/.env
+# `uv run --package dirt-hwd` activates the workspace venv with dirt-hwd's
+# deps on PATH. python -m dirt_hwd.main invokes the uvicorn entrypoint,
+# which binds :8000.
+ExecStart=%h/.local/bin/uv run --package dirt-hwd python -m dirt_hwd.main
+Restart=on-failure
+RestartSec=5s
+KillSignal=SIGTERM
+# Allow async context managers (capture_loop daemon RPC, kasa plug teardown,
+# serial close) time to unwind before SIGKILL.
+TimeoutStopSec=10s
+
+# Minimal hardening — don't break serial/USB/camera socket access.
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

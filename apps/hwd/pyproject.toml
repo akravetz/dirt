@@ -1,0 +1,26 @@
+[project]
+name = "dirt-hwd"
+version = "0.1.0"
+description = "Hardware daemon: sensor ingest, serial reader, humidifier loop, archive loop"
+requires-python = ">=3.13"
+dependencies = [
+    "dirt-shared",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "python-multipart>=0.0.20",
+    "pyserial>=3.5",
+    "python-kasa",
+    "loguru>=0.7",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/dirt_hwd"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_test_loop_scope = "session"

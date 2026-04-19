@@ -1,33 +1,8 @@
-[project]
-name = "dirt"
-version = "0.1.0"
-description = "Home grow monitoring system"
-readme = "README.md"
-requires-python = ">=3.13"
-dependencies = [
-    "fastapi>=0.115",
-    "uvicorn[standard]>=0.34",
-    "sqlmodel>=0.0.22",
-    "aiosqlite>=0.21",
-    "python-dotenv>=1.1",
-    "jinja2>=3.1",
-    "python-multipart>=0.0.20",
-    "pydantic-settings>=2.13.1",
-    "itsdangerous>=2.2.0",
-    "mcp[cli]>=1.9",
-    "pyserial>=3.5",
-    "pillow>=12.2.0",
-    "deepgram-sdk>=6.1.1",
-    "sounddevice>=0.5.5",
-    "elevenlabs>=2.43.0",
-    "openwakeword>=0.4.0",
-    "pipecat-ai[anthropic,deepgram,elevenlabs,local,silero]>=1.0.0",
-    "claude-agent-sdk>=0.1.63",
-    "python-kasa",
-]
+[tool.uv.workspace]
+members = ["apps/*"]
 
-[project.optional-dependencies]
-dev = [
+[tool.uv]
+dev-dependencies = [
     "pytest>=8.3",
     "pytest-asyncio>=0.25",
     "httpx>=0.28",
@@ -39,12 +14,13 @@ dev = [
     "matplotlib>=3.10.8",
 ]
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/dirt"]
+[tool.uv.sources]
+python-kasa = { git = "https://github.com/ZeliardM/python-kasa.git", rev = "feature/new-klap" }
+dirt-shared = { workspace = true }
+dirt-hwd = { workspace = true }
+dirt-web = { workspace = true }
+dirt-mcp = { workspace = true }
+dirt-voice = { workspace = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -52,7 +28,7 @@ asyncio_mode = "auto"
 asyncio_default_test_loop_scope = "session"
 
 [tool.ruff]
-src = ["src"]
+src = ["apps/hwd/src", "apps/web/src", "apps/shared/src", "apps/mcp/src", "apps/voice/src"]
 line-length = 88
 
 [tool.ruff.lint]
@@ -60,6 +36,3 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 
 [tool.ruff.format]
 quote-style = "double"
-
-[tool.uv.sources]
-python-kasa = { git = "https://github.com/ZeliardM/python-kasa.git", rev = "feature/new-klap" }

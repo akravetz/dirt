@@ -1,0 +1,20 @@
+[Unit]
+Description=Dirt web app — UI, sensors/snapshots/feed API, MCP mount
+Documentation=file://%h/code/dirt/CLAUDE.md
+After=default.target network-online.target dirt-hwd.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/code/dirt
+EnvironmentFile=%h/code/dirt/.env
+ExecStart=%h/.local/bin/uv run --package dirt-web python -m dirt_web.main
+Restart=on-failure
+RestartSec=5s
+KillSignal=SIGTERM
+TimeoutStopSec=10s
+
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

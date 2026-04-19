@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# Install (or update) dirt user-level systemd units by symlinking from the
+# repo. Safe to re-run: uses `ln -sf`.
+#
+# Does NOT start or enable anything. Operator must run enable/start
+# explicitly after review.
+#
+# Retired unit: dirt.service (system-level, pre-phase-0). Left on disk in
+# /etc/systemd/system/ for rollback purposes; disable + remove manually at
+# cutover time.
+
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+TARGET_DIR="$HOME/.config/systemd/user"
+
+mkdir -p "$TARGET_DIR"
+
+UNITS=(
+    dirt-hwd.service
+    dirt-web.service
+    dirt-camera.service
+    dirt-voice.service
+    dirt-daily-report.service
+    dirt-daily-report.timer
+)
+
+for unit in "${UNITS[@]}"; do
+    src="$REPO_DIR/systemd/$unit"
+    dst="$TARGET_DIR/$unit"
+    if [ ! -f "$src" ]; then
+        echo "ERROR: missing $src" >&2
+        exit 1
+    fi
+    ln -sf "$src" "$dst"
+    echo "linked: $dst -> $src"
+done
+
+systemctl --user daemon-reload
+echo
+echo "daemon-reload done. Next (explicit) steps:"
+echo "  systemctl --user enable dirt-hwd dirt-web dirt-camera dirt-voice dirt-daily-report.timer"
+echo "  systemctl --user start  dirt-hwd dirt-web"
+echo
+echo "If replacing the old system-level dirt.service, additionally:"
+echo "  sudo systemctl stop dirt"
+echo "  sudo systemctl disable dirt"
+echo "  sudo rm /etc/systemd/system/dirt.service"
+echo "  sudo rm -r /etc/systemd/system/dirt.service.d"
+echo "  sudo systemctl daemon-reload"

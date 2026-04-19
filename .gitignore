@@ -1,15 +1,9 @@
 # Environment
 .env
 .venv/
+.venv.pre-phase0/
 __pycache__/
 *.pyc
-
-# Database
-*.db
-dirt.db.bak-*
-
-# Snapshots
-snapshots/
 
 # IDE
 .idea/
@@ -41,12 +35,9 @@ dist/
 # Scratch / sandbox (see CLAUDE.md)
 debug/
 
-# Binary archives (raw photos, generated timelapses, derived reports)
-raw/photos/
-archives/
-outputs/
-
 # macOS Finder metadata
 .DS_Store
-logs/
-sessions/**/*.jsonl
+
+# Runtime data directory: dirt.db, snapshots/, archives/, logs/, sessions/,
+# raw/photos/, outputs/, db-backups/. Set DIRT_DATA_DIR to override.
+var/
