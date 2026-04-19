@@ -70,16 +70,25 @@ from dirt_shared.observability import CONVERSATION_ID, log_event
 from dirt_shared.services.grow_state import grow_week
 from dirt_voice.tools import SHARED_TOOLS, ToolSpec
 
-ROOT = Path(__file__).resolve().parents[3]
+# voice.py lives at apps/voice/src/dirt_voice/channels/voice.py
+#   parents[0] channels
+#   parents[1] dirt_voice
+#   parents[2] src
+#   parents[3] voice
+#   parents[4] apps
+#   parents[5] <repo root>
+REPO_ROOT = Path(__file__).resolve().parents[5]
 
-# Written on startup, unlinked on clean shutdown. `kill $(cat logs/voice.pid)`
+# Written on startup, unlinked on clean shutdown. `kill $(cat var/logs/voice.pid)`
 # always targets the actual Python PID — no pattern-matching, no uv wrapper
 # confusion, no risk of pkill matching its own shell.
-PID_FILE = ROOT / "logs" / "voice.pid"
+PID_FILE = settings.data_dir / "logs" / "voice.pid"
 
 # Wake model — trained on user-voice ElevenLabs clones + captured RIRs.
 # See wiki/decisions/2026-04-16-wake-word-training-strategy.md.
-WAKE_MODEL_PATH = ROOT / "debug" / "hey_claudia.onnx"
+# Lives at <repo>/debug/hey_claudia.onnx (gitignored scratch dir; the .onnx
+# file is a trained artifact we keep on disk but not in git).
+WAKE_MODEL_PATH = REPO_ROOT / "debug" / "hey_claudia.onnx"
 WAKE_SAMPLE_RATE = 16000
 WAKE_CHUNK_SAMPLES = int(WAKE_SAMPLE_RATE * 0.08)   # 80 ms
 WAKE_THRESHOLD = 0.6
@@ -102,7 +111,7 @@ PLAYBACK_GAIN_DB = 12.0
 
 SESSION_IDLE_TIMEOUT_S = 15
 
-SESSIONS_DIR = ROOT / "sessions" / "voice"
+SESSIONS_DIR = settings.data_dir / "sessions" / "voice"
 
 CLAUDIA_SYSTEM_PROMPT_BASE = (
     "Your name is Claudia. You are a warm, confident, sassy 28-year-old "
