@@ -100,6 +100,7 @@ updated: 2026-04-18
 | **Humidifier control** (Raydrop 4L + Kasa EP10 smart plug) | Plug on hand; service not yet built | Closed-loop RH control via host-side Python service + `python-kasa` (supersedes the earlier SSR plan). See `hardware/humidifier-control.md`. |
 | **PTZ camera** (OBSBOT Tiny 2 Lite) | Online (2026-04-15) | Persistent C++ daemon + `scripts/camera` CLI. Per-plant presets calibrated. See `hardware/ptz-camera.md`. |
 | **Jabra Speak 410** (voice I/O) | Connected 2026-04-15 | Full voice pipeline proven end-to-end: openWakeWord v3 (89% recall) → Deepgram Nova-3 STT → ElevenLabs "Claudia" TTS. Production `channels/voice.py` pending. See `hardware/jabra.md`. |
+| **AC Infinity Cloudline LITE 6" fan control** (Arduino Nano + USB-C breakouts) | Parts ordered 2026-04-18 | Reverse-engineer the stock PWM remote over USB-C, then drive the fan from an Arduino Nano. Awaiting hardware arrival. See `hardware/ac-infinity-fan-control.md`. |
 
 ## Denver Water Notes
 - Tap pH: 8.5–8.8 → GH pH Down required at every fill

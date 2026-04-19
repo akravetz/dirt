@@ -378,6 +378,20 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - Updated `wiki/index.md` — Day 35 daily entry added
 - **Known gap:** No daily entries for 2026-04-13 through 2026-04-17 (no photos or sensor snapshots taken on those dates). Pre-existing pattern; lint timeline-continuity check will flag this gap.
 
+## [2026-04-18] query-filed | AC Infinity Cloudline LITE 6" fan control — reverse-engineering plan + hardware ordered
+
+- User wants to remove AC Infinity's proprietary stock wired remote from the loop and drive the Cloudline LITE 6" inline fan from an Arduino Nano (controlled by the Dirt stack) for programmatic speed / scheduled ramps / closed-loop VPD pairing with the humidifier.
+- **Signaling confirmed as PWM** via the back label of the stock wired speed controller. Working assumption: single PWM line on the fan's USB-C connector (most likely SBU1/SBU2; fallback CC1/CC2; least-likely D+/D−). Duty cycle encodes speed; no multi-byte protocol.
+- **Approach:** (1) multimeter pre-flight to confirm no pin >5V and narrow candidates to the pin whose DC-averaged voltage changes with knob position; (2) HiLetgo 8-channel logic analyzer + PulseView to identify the PWM pin, measure frequency and duty-cycle range; (3) permanent install on a perma-proto board with a socketed Arduino Nano driving a Treedix female USB-C breakout.
+- **Hardware ordered 2026-04-18** (all in transit):
+  - minidodoca USB-C M/F passthrough test board × 2 (B0FLX671VF) — analysis tap
+  - Treedix vertical female USB-C breakout × 2 (B0D31GG6WD) — permanent install interface
+  - HiLetgo USB logic analyzer 24 MHz 8CH (B077LSG5P2)
+  - ElectroCookie prototype solderable PCBs 5+1 (B07ZYNWJ1S)
+  - Lonely Binary female header assortment kit, 160 pc (B0FFM2RBMB)
+- **New page:** `wiki/hardware/ac-infinity-fan-control.md` — full context, shopping list, reverse-engineering stages, permanent install plan, open questions.
+- Updated: `wiki/index.md` (added under Hardware), `wiki/overview.md` (System Status row added).
+
 ## [2026-04-18] training | SCROG net installed; LST start deferred 1–3 days
 
 - User installed VIVOSUN 4x4 trellis net today at **11" above canopy / 18" above pot base** — matches the plan spec in `wiki/concepts/scrog.md` (18" above pots) and sits in the standard 8–12" above-canopy range. Install is ~1–2 weeks ahead of the original weeks-6–8 estimate; acceptable tradeoff — the net becomes an anchor plane for LST ties rather than a later overhead constraint.
