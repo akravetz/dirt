@@ -1,527 +1,561 @@
-# API.md — first-pass proposal
+# API Proposal — webapp-v1
 
-**Status**: draft 1 for review. Derived from the `debug/webapp.zip` mockup + today's `apps/web/` inventory. Nothing frozen yet.
+Scope: JSON API that the Vite/React SPA in `web-ui/` consumes to reproduce the `debug/webapp.zip` mockup against real backend data. This doc is a first-pass sketch. Open questions are marked **?**.
 
-This document proposes the **dirt-web JSON API** that the new Vite+React UI will consume. It classifies every endpoint as **KEEP**, **MODIFY**, **ADD**, or **REMOVE**, and proposes request/response shapes for everything except pure REMOVE.
-
-## Cross-cutting conventions
-
-- **Base path**: all new endpoints live under `/api/*`. The old `/sensors/current`, `/feed/image`, `/feed/status` HTMX fragments (no `/api` prefix) are all **REMOVE**.
-- **Auth**: cookie-session middleware (already built, `apps/web/src/dirt_web/auth.py`). A single `dirt_session` httponly cookie covers the whole UI. MCP mount at `/mcp` keeps its own bearer token — unchanged.
-- **Content-type**: JSON request/response everywhere except `/api/feed/live.jpg` (image/jpeg) and `/api/snapshots/latest.jpg` (image/jpeg). No form-posts in the new API.
-- **Timestamps**: all timestamps are ISO-8601 UTC strings with `Z` suffix (e.g. `2026-04-19T17:23:00Z`). Clients convert to local for display.
-- **Stage / targets**: every sensor-value endpoint returns the current stage's target band alongside the reading so the UI never has to replicate the stage → band map. Source: `grow_state.current_targets()`.
-- **Staleness envelope**: every reading exposes `{value, ts, stale: bool, age_s}`. `stale=true` when age > the metric's staleness threshold (tent=300s, plants=600s — see `daily_sensors.py` precedent).
-- **Errors**: 401 for unauthenticated, 403 for authenticated-but-forbidden (future multi-user), 404 for missing resource, 422 for validation (FastAPI default), 503 for transiently-unavailable hardware (PTZ daemon down, capture failed). Body shape: `{"error": "<slug>", "detail": "<human msg>"}`.
-- **Pagination**: none needed in v1. Wiki tree + daily list are small; sensor history is bounded by `range`.
-- **MOCK markers**: endpoints flagged **MOCK** return synthetic data we are not yet collecting (fan %, reservoir level, runoff pH, etc.). They ship with the same shape as the real endpoint so the UI never has to change when real data is wired up. See `data_model.md` for the backing gaps.
+Not in scope here: OpenAPI YAML (will be generated from this after sign-off), FastAPI route files (`apps/web/src/dirt_web/api/*.py` rewrites), TS client generation.
 
 ---
 
-## Quick classification index
+## Conventions
 
-| Path | Verb | Class | Notes |
+**Prefix.** All endpoints live under `/api/*`. The old HTMX/template routes (`/login`, `/feed/image`, `/feed/status`, `/sensors/current`) go away — they return HTML fragments that the SPA doesn't need.
+
+**Auth.** Keep the cookie-session middleware in `apps/web/src/dirt_web/auth.py` — it's already in place, runs on every non-`/mcp`, non-`/api/ingest` request, and redirects to `/login` on 401. For the SPA we change the *login* path to JSON (no redirect) but leave the cookie contract identical. The `AuthMiddleware` will stop redirecting for `/api/*` paths and instead return `401 {"error":"unauthorized"}`. SPA catches the 401 and routes to `/login`. `/api/auth/*` itself is public (no auth required).
+
+**Response envelope.** Keep it flat — no `{data: ...}` wrapper. Errors follow FastAPI's default `{"detail": "..."}` so existing `HTTPException` calls continue to work.
+
+**Timestamps.** ISO 8601 with `Z` suffix (UTC). No naive datetimes on the wire.
+
+**Ranges.** Any history endpoint takes `?range=1h|24h|7d` (mirrors the mockup's three-button switcher). `30d` stays supported server-side but isn't in the UI.
+
+**Paths.** Mockup uses `wiki/foo/bar.md` (with `wiki/` prefix). The FS-backed endpoints normalize this — accept both `foo/bar.md` and `wiki/foo/bar.md`, reject any path that escapes `wiki/`.
+
+---
+
+## Summary table
+
+| Endpoint | Method | Today | Action |
 |---|---|---|---|
-| `/api/auth/login` | POST | **MODIFY** | JSON body, replaces form-post `/login` |
-| `/api/auth/logout` | POST | **MODIFY** | was GET, becomes POST for CSRF hygiene |
-| `/api/auth/me` | GET | **ADD** | UI-side session probe |
-| `/api/sensors/current` | GET | **ADD** | gauge-ready envelope (replaces HTMX fragment) |
-| `/api/sensors/history` | GET | **MODIFY** | rename of `/api/sensors/readings`, multi-metric shape, same query param |
-| `/api/humidifier/state` | GET | **ADD** | current on/off + cycle-in-progress + 24h stats |
-| `/api/humidifier/history` | GET | **ADD** | duty-cycle strip series |
-| `/api/plants` | GET | **ADD** | summary list for dashboard strip |
-| `/api/plants/{id}` | GET | **ADD** | drawer payload |
-| `/api/plants/{id}/history` | GET | **ADD** | soil-moisture time-series for drawer chart |
-| `/api/system/devices` | GET | **ADD** | status table (sensors + camera + mic + plug) |
-| `/api/feed/live.jpg` | GET | **MODIFY** | renamed from `/feed/live`, same semantics |
-| `/api/snapshots/latest.jpg` | GET | **MODIFY** | renamed from `/api/snapshots/latest`, explicit `.jpg` suffix |
-| `/api/ptz/state` | GET | **ADD** | current yaw/pitch/zoom + last preset |
-| `/api/ptz/presets` | GET | **ADD** | static list (overview + plant_a–d) |
-| `/api/ptz/preset` | POST | **ADD** | goto preset by id |
-| `/api/ptz/nudge` | POST | **ADD** | relative pan/tilt |
-| `/api/ptz/zoom` | POST | **ADD** | zoom absolute or relative |
-| `/api/ptz/look` | POST | **ADD** | click-to-look at normalized (x,y) |
-| `/api/wiki/tree` | GET | **ADD** | folder tree with counts |
-| `/api/wiki/file` | GET | **ADD** | parsed markdown (frontmatter + body + backlinks) |
-| `/api/wiki/search` | GET | **ADD** | fuzzy filename + content match |
-| `/` | GET (HTML) | **REMOVE** | replaced by `web-ui/` static build |
-| `/login` (GET/POST HTML) | GET, POST | **REMOVE** | replaced by SPA login route hitting `/api/auth/login` |
-| `/logout` (GET HTML) | GET | **REMOVE** | replaced by POST `/api/auth/logout` |
-| `/sensors/current` (HTML fragment) | GET | **REMOVE** | replaced by JSON `/api/sensors/current` |
-| `/feed/image` (HTML fragment) | GET | **REMOVE** | UI embeds `/api/feed/live.jpg` directly |
-| `/feed/status` (HTML fragment) | GET | **REMOVE** | UI reads `ts` from sensors/snapshots endpoints |
-| `/api/sensors/readings` | GET | **REMOVE** | superseded by `/api/sensors/history` (renamed) |
+| `/api/auth/login` | POST | form-post `/login` returns HTML | **ADD** (JSON) |
+| `/api/auth/logout` | POST | GET `/logout` redirects | **MODIFY** (method + JSON) |
+| `/api/auth/me` | GET | — | **ADD** |
+| `/api/grow/current` | GET | — | **ADD** |
+| `/api/sensors/current` | GET | `/sensors/current` returns HTML fragment | **MODIFY** (JSON, envelope with target+status) |
+| `/api/sensors/history` | GET | `/api/sensors/readings` exists | **MODIFY** (rename, param, shape) |
+| `/api/humidifier/state` | GET | — | **ADD** |
+| `/api/humidifier/history` | GET | — | **ADD** |
+| `/api/plants` | GET | — | **ADD** |
+| `/api/plants/{id}` | GET | — | **ADD** |
+| `/api/plants/{id}/moisture` | GET | — | **ADD** |
+| `/api/system/devices` | GET | — | **ADD** |
+| `/api/feed/live.jpg` | GET | `/feed/live` | **MODIFY** (rename to `.jpg`, keep behavior) |
+| `/api/feed/snapshot/latest` | GET | `/api/snapshots/latest` | **MODIFY** (rename) |
+| `/api/ptz/state` | GET | — | **ADD** |
+| `/api/ptz/preset/{id}` | POST | — | **ADD** |
+| `/api/ptz/look` | POST | — | **ADD** |
+| `/api/ptz/zoom` | POST | — | **ADD** |
+| `/api/wiki/tree` | GET | — | **ADD** |
+| `/api/wiki/file` | GET | — | **ADD** |
+| `/api/wiki/search` | GET | — | **ADD** |
+| `/feed/image` | GET | HTMX fragment | **REMOVE** |
+| `/feed/status` | GET | HTMX fragment | **REMOVE** |
+| `/login`, `/logout` (HTML) | GET/POST | Jinja template | **REMOVE** (SPA owns /login route) |
+| `/` (index.html) | GET | Jinja dashboard | **REMOVE** (SPA shell served by Vite build) |
+
+`/api/ingest/sensors` (on `dirt-hwd` :8000) is not touched.  
+`/mcp` mount is not touched.
 
 ---
 
-## Auth
+## 1. Auth — `/api/auth/*`
 
-### `POST /api/auth/login` — **MODIFY**
-
-Replaces form-post `/login` handler.
-
-Request:
-```json
-{ "username": "alex", "password": "••••••••" }
-```
-
-Response 200 (sets `dirt_session` cookie):
-```json
-{ "username": "alex" }
-```
-
-Response 401:
-```json
-{ "error": "invalid_credentials", "detail": "username or password incorrect" }
-```
-
-### `POST /api/auth/logout` — **MODIFY** (was GET)
-
-No body. Clears cookie, returns 204.
-
-### `GET /api/auth/me` — **ADD**
-
-Used by SPA on cold load to decide login vs dashboard.
-
-Response 200:
-```json
-{ "username": "alex" }
-```
-
-Response 401: empty body (SPA redirects to `/login`).
-
----
-
-## Sensors
-
-### `GET /api/sensors/current` — **ADD**
-
-Dashboard gauges. One envelope per metric.
-
-Response 200:
-```json
+### POST /api/auth/login
+```jsonc
+// request
 {
-  "stage": "veg",
-  "grow_day": 36,
-  "lights": { "on": true, "minutes_until_off": 174 },
+  "username": "alex",
+  "password": "..."
+}
+// 200
+{
+  "username": "alex"
+}
+// 401
+{ "detail": "invalid credentials" }
+```
+Sets `dirt_session` cookie (httponly, samesite=lax) on success. Cookie shape is unchanged from today.
+
+### POST /api/auth/logout
+```jsonc
+// request: empty body
+// 204 no content; clears dirt_session cookie
+```
+
+### GET /api/auth/me
+```jsonc
+// 200
+{ "username": "alex" }
+// 401 if no valid session
+```
+
+---
+
+## 2. Grow identity — `/api/grow/current`
+
+Drives the top-bar tag line "Day 29 · Sirius Black × BS01" and the login-screen field-notes block ("grow / day / plants / loc / agent").
+
+### GET /api/grow/current
+```jsonc
+{
+  "germination_date": "2026-03-15",
+  "flower_start_date": null,            // or "2026-06-01"
+  "day_number": 36,                      // = today - germination_date + 1
+  "week_number": 6,                      // 1-indexed
+  "stage": "veg",                        // "veg" | "flower_early" | "flower_late"
+  "strain": "Sirius Black × BS01",       // ? see data_model.md "Grow identity"
+  "location": "Denver, MT · closet tent",
+  "plant_count": 4,
+  "lights": {
+    "on": true,
+    "on_local": "05:00:00",
+    "off_local": "23:00:00",
+    "minutes_until_off": 258
+  }
+}
+```
+
+Reads today's stage/day from `dirt_shared.services.grow_state`. Strain + location are constants today; see data_model proposal for whether to keep them in config, add to `growstate`, or promote to their own table.
+
+---
+
+## 3. Sensors — `/api/sensors/*`
+
+### GET /api/sensors/current
+
+Drives the five dashboard gauges + humidifier tile header. The mockup's `SENSORS` array is the source of truth for which metrics appear.
+
+```jsonc
+{
+  "ts": "2026-04-19T22:45:25Z",
+  "stale": false,                        // is_sensor_stale() — sensor stuck flag
   "metrics": {
     "temperature_f": {
-      "value": 72.4, "unit": "°F",
-      "target": { "lo": 70, "hi": 82 },
-      "status": "warn",
-      "ts": "2026-04-19T17:23:00Z", "stale": false, "age_s": 12
+      "value": 72.4,
+      "unit": "°F",
+      "target": [70, 82],                // null if no band for this stage
+      "status": "ok",                    // "ok" | "warn" | "crit"
+      "ts": "2026-04-19T22:45:25Z"       // per-metric ts (dew_point might lag)
     },
-    "humidity_pct": { "value": 65, "unit": "%",  "target": { "lo": 45, "hi": 55 }, "status": "warn",  "ts": "...", "stale": false, "age_s": 12 },
-    "vpd_kpa":      { "value": 0.94, "unit": "kPa", "target": { "lo": 0.8, "hi": 1.2 }, "status": "ok", "ts": "...", "stale": false, "age_s": 12 },
-    "fan_pct":      { "value": 48, "unit": "%", "target": null, "status": "ok", "ts": "...", "stale": false, "age_s": 0, "_mock": true },
-    "reservoir_in": { "value": 6.2, "unit": "in", "target": null, "status": "ok", "ts": "...", "stale": false, "age_s": 0, "_mock": true }
+    "humidity_pct": { "value": 65, "unit": "%", "target": [45, 55], "status": "warn", "ts": "..." },
+    "vpd_kpa":      { "value": 0.94, "unit": "kPa", "target": [0.8, 1.2], "status": "ok", "ts": "..." },
+    "fan_pct":      { "value": 48, "unit": "%", "target": null, "status": "ok", "ts": "..." },
+    "reservoir_in": { "value": 6.2, "unit": "in", "target": null, "status": "ok", "ts": "..." }
   }
 }
 ```
 
-- `status` ∈ `{"ok","warn","err"}`. Rule: `ok` if value inside target; `warn` if outside target but within target ± (target span); `err` if stale OR outside the wider band OR reading missing.
-- `target: null` means "no target configured" (fan, reservoir).
-- `_mock: true` flags fields backed by synthetic data until hardware is wired. UI renders them normally; we just know to hide them if we want later.
-- `grow_day` = days since `GrowState.germination_date`, 1-indexed.
+Notes:
+- Target bands come from `STAGE_TARGETS` in `grow_state.py` for `temperature_f / humidity_pct / vpd_kpa`. `fan_pct` and `reservoir_in` have no bands today.
+- `status` is server-computed: `ok` if in band, `warn` if within ±50% of band width outside, `crit` if further. Makes the client a pure renderer — no threshold drift between the two.
+- `fan_pct` and `reservoir_in` are **not in the DB today** — see data_model proposal. Initial plan: mock with stable values (48 %, 6.2 in) behind a server-side `MockSensorProvider` that the OpenAPI contract treats as real.
 
-### `GET /api/sensors/history` — **MODIFY** (renamed from `/api/sensors/readings`)
+### GET /api/sensors/history?range=1h|24h|7d&metric=...
 
-Same query shape (`range=1h|24h|7d|30d`) but the response standardizes on the envelope above so charts can render target bands.
+Drives the five sparklines (single-metric each) *and* the dashboard page's shared crosshair hover. The mockup does one request per sparkline but we can keep it flexible:
 
-Request: `?range=24h&metrics=temperature_f,humidity_pct,vpd_kpa,fan_pct,reservoir_in`
-
-- `metrics` is a comma-separated allowlist; if omitted, returns all five dashboard metrics.
-- `range`: `1h` | `24h` | `7d` | `30d`.
-
-Response 200:
-```json
+```jsonc
+// GET /api/sensors/history?range=24h&metric=temperature_f
 {
   "range": "24h",
-  "labels": ["2026-04-18T18:00:00Z", "..."],
-  "series": {
-    "temperature_f": { "values": [72.1, 72.3, ...], "target": { "lo": 70, "hi": 82 }, "unit": "°F" },
-    "humidity_pct":  { "values": [64, 65, ...],     "target": { "lo": 45, "hi": 55 }, "unit": "%" },
-    "vpd_kpa":       { "values": [0.92, 0.94, ...], "target": { "lo": 0.8, "hi": 1.2 }, "unit": "kPa" },
-    "fan_pct":       { "values": [48, 49, ...], "target": null, "unit": "%", "_mock": true },
-    "reservoir_in":  { "values": [6.3, 6.2, ...], "target": null, "unit": "in", "_mock": true }
-  }
+  "metric": "temperature_f",
+  "unit": "°F",
+  "points": [
+    { "ts": "2026-04-18T23:00:00Z", "value": 71.2 },
+    { "ts": "2026-04-18T23:05:00Z", "value": 71.5 },
+    ...
+  ]
 }
 ```
 
-- Shared `labels` array across series (same bucketing) — lets the sparkline crosshair sync without extra bookkeeping.
-- Bucketing: `1h` → 1-min buckets (60pts), `24h` → 15-min (96pts), `7d` → 1-hour (168pts), `30d` → 4-hour (180pts). Matches the existing `get_sensor_history` bucketing today.
+Allowed `metric` values: `temperature_f | humidity_pct | vpd_kpa | dew_point_f | pressure_hpa | fan_pct | reservoir_in`.
 
-### `GET /api/sensors/readings` — **REMOVE**
+Bucketing matches today's `_BUCKET_SQL`: raw for 1h, 5-min avg for 24h, hourly for 7d.
 
-Superseded by `/api/sensors/history`.
+**Delta from today.** Today's `/api/sensors/readings` returns every metric in one payload with `{labels, values}` arrays. New shape is one-metric-at-a-time with `{ts, value}` point arrays. One N+1 concern (five requests per sparkline panel) — worth accepting because the sparklines also re-fetch independently on the range switch and a combined endpoint forces them all through one loader.
+
+**Open question (?):** Do we also want a bulk variant `GET /api/sensors/history?range=24h&metric=temperature_f,humidity_pct,...` for the dashboard's initial load? Lean: no — add if profiling shows it's needed.
 
 ---
 
-## Humidifier
+## 4. Humidifier — `/api/humidifier/*`
 
-### `GET /api/humidifier/state` — **ADD**
+The mockup shows a binary on/off tile + a cycle-count header + a duty-cycle strip chart. Today, `humidifier_on` (0/1) is already being written to `sensorreading` every loop tick (see the `GROUP BY` output: 2,116 rows). We've got the data, we just need to expose it.
 
-Drives the dashboard tile ("ON · 4m 12s · 18 cycles / 24h").
-
-Response 200:
-```json
+### GET /api/humidifier/state
+```jsonc
 {
   "on": true,
-  "since": "2026-04-19T17:19:00Z",
-  "cycle_duration_s": 252,
-  "last_24h": { "cycles": 18, "on_pct": 34 },
-  "last_reason": "vpd_below_upper_band",
-  "target_band_kpa": { "lo": 0.7, "hi": 1.1 },
-  "ts": "2026-04-19T17:23:12Z"
+  "since": "2026-04-19T22:41:13Z",       // last transition timestamp
+  "duration_s": 252,                      // time since `since`
+  "cycles_24h": 18,                       // count of off→on transitions in last 24h
+  "ts": "2026-04-19T22:45:25Z"
 }
 ```
+Computed from `sensorreading WHERE metric='humidifier_on'` by counting transitions.
 
-- Derivation: scan `SensorReading` rows where `metric="humidifier_on"` for the last 24h, count 0→1 transitions for `cycles`, sum the 1-valued portions for `on_pct`. Current `on` + `since` come from the most-recent row; `last_reason` from the tail of `var/logs/humidifier/<today>.jsonl`. No new writes required.
-- `target_band_kpa` reflects lights-aware band (day band vs lights-off offset) — already computed inside the humidifier loop, just needs to be readable.
-
-### `GET /api/humidifier/history?range=1h|24h|7d` — **ADD**
-
-Binary duty-cycle strip on the dashboard.
-
-Response 200:
-```json
+### GET /api/humidifier/history?range=1h|24h|7d
+```jsonc
 {
   "range": "24h",
-  "labels": ["2026-04-18T18:00:00Z", "..."],
-  "values": [0, 0, 1, 1, 0, 1, ...]
+  "points": [
+    { "ts": "2026-04-18T23:00:00Z", "on": false },
+    { "ts": "2026-04-18T23:12:04Z", "on": true },
+    ...
+  ]
 }
 ```
-
-- Same bucketing as `/api/sensors/history`. Each bucket = 1 if the plug was ON for ≥50% of that bucket's span, else 0. Source: `SensorReading` rows with `metric="humidifier_on"`.
+Returns transitions only (not sampled state at every bucket) — the UI rectangles render from `(ts, on)` pairs, treating each pair as "on from ts until next ts".
 
 ---
 
-## Plants
+## 5. Plants — `/api/plants/*`
 
-### `GET /api/plants` — **ADD**
+Drives the dashboard plants strip (A–D cards) and the plant-detail drawer.
 
-Dashboard plants strip.
-
-Response 200:
-```json
+### GET /api/plants
+```jsonc
 {
-  "grow_day": 36,
+  "day": 36,
   "plants": [
     {
       "id": "a",
       "name": "Plant A",
-      "soil_moisture_pct": 62,
-      "soil_moisture_ts": "2026-04-19T17:22:31Z",
-      "soil_stale": false,
-      "status": "primary",
-      "purple": true
+      "sticker_color": "yellow",
+      "status": "primary",               // "primary" | "secondary"
+      "purple": true,
+      "moisture_pct": 62,                 // latest calibrated pct (null if no cal)
+      "moisture_ts": "2026-04-19T22:45:25Z"
     },
-    { "id": "b", "name": "Plant B", "soil_moisture_pct": 48, "soil_moisture_ts": "...", "soil_stale": false, "status": "secondary", "purple": false },
-    { "id": "c", "name": "Plant C", "soil_moisture_pct": 54, "soil_moisture_ts": "...", "soil_stale": false, "status": "secondary", "purple": false },
-    { "id": "d", "name": "Plant D", "soil_moisture_pct": 66, "soil_moisture_ts": "...", "soil_stale": false, "status": "primary", "purple": true }
+    { "id": "b", "name": "Plant B", "sticker_color": "orange", "status": "secondary", "purple": false, "moisture_pct": 48, "moisture_ts": "..." },
+    { "id": "c", "name": "Plant C", "sticker_color": "pink", "status": "secondary", "purple": false, "moisture_pct": 54, "moisture_ts": "..." },
+    { "id": "d", "name": "Plant D", "sticker_color": "blue", "status": "primary", "purple": true, "moisture_pct": 66, "moisture_ts": "..." }
   ]
 }
 ```
 
-- `id` lowercased letter; `name` is display string.
-- `soil_moisture_pct` = calibrated % from `SensorReading(metric="soil_moisture_raw")` + `SensorCalibration`.
-- `status` ∈ `{"primary","secondary"}`, `purple` bool — **backed by the new `Plant` table** proposed in `data_model.md`. Until that table exists, return hard-coded values keyed by id (this lets the UI ship verbatim).
+`id` is lowercase letter. `sticker_color`, `status`, `purple` are **not tracked today** — see data_model proposal. Initial plan: static per-plant config in a new `plant` table or a single JSON config row. Moisture pct comes from the existing `sensorreading soil_moisture_raw` + `sensorcalibration` join.
 
-### `GET /api/plants/{id}` — **ADD**
+### GET /api/plants/{id}
 
-Plant-detail drawer payload. `{id}` ∈ `{a,b,c,d}`.
+Full plant-detail-drawer payload. `id` is `a|b|c|d`.
 
-Response 200:
-```json
+```jsonc
 {
   "id": "a",
   "name": "Plant A",
-  "label": "Purple Keeper Candidate",
+  "sticker_color": "yellow",
   "status": "primary",
   "purple": true,
-  "strain": "Sirius Black × BS01",
   "day": 36,
-  "notes": "Topped on day 28; LST target ~day 45.",
-  "vitals": {
-    "soil_moisture_pct": { "value": 62, "target": { "lo": 55, "hi": 70 }, "status": "ok", "ts": "..." },
-    "runoff_ph":         { "value": 5.9, "target": { "lo": 5.5, "hi": 6.0 }, "status": "ok", "ts": "2026-04-18T18:30:00Z", "_mock": true },
-    "distance_from_light_in": { "value": 24, "target": { "lo": 20, "hi": 26 }, "status": "ok", "ts": "...", "_mock": true },
-    "node_count":        { "value": 5, "note": "topped at 4", "_mock": true }
+  "label": "Purple Keeper Candidate",   // tagline shown in drawer header
+
+  "moisture": {
+    "current_pct": 62,
+    "target": [55, 70],                  // soil moisture target band
+    "status": "ok",                      // same ok|warn|crit
+    "ts": "2026-04-19T22:45:25Z"
   },
+
+  "vitals": [
+    { "label": "Soil moisture", "value": "62 %", "target": "55–70", "status": "ok" },
+    { "label": "Runoff pH",     "value": "5.9",  "target": "5.5–6.0", "status": "ok" },
+    { "label": "Distance from light", "value": "24 in", "target": "20–26", "status": "ok" },
+    { "label": "Node count",    "value": "5 (topped)", "target": "—", "status": "ok" }
+  ],
+
   "timeline": [
     { "date": "2026-03-27", "day": 13, "text": "Pre-transplant; 2–3 true leaf sets", "highlight": false },
-    { "date": "2026-03-29", "day": 15, "text": "Transplanted into Autopot XL (coco/perlite 60/40)", "highlight": false },
-    { "date": "2026-04-11", "day": 28, "text": "Topped above node 4", "highlight": true }
+    { "date": "2026-04-11", "day": 28, "text": "Topped above node 4", "highlight": true },
+    ...
   ],
-  "quote": {
-    "text": "Day 28 was the right call — plant had visible 5th node emerging…",
-    "source": "daily log, 2026-04-11"
+
+  "note": {                              // the "current status" bottom quote
+    "text": "Day 28 was the right call — plant had visible 5th node emerging...",
+    "updated": "2026-04-18"
   },
-  "wiki_path": "wiki/plants/plant-a.md",
-  "ptz_preset_id": "plant_a"
+
+  "wiki_path": "wiki/plants/plant-a.md"
 }
 ```
 
-- `timeline`, `quote`, `label` are pulled from the wiki page's parsed markdown (see `Wiki` section below) or from the `Plant` table's structured fields — `data_model.md` proposes making `timeline` a DB table so it's queryable without re-parsing. For v1 stub, pull from parsed markdown.
-- `_mock` flags stay until real ingest arrives.
+**Source of truth:** `wiki/plants/plant-{id}.md` is the agent-maintained plant page. The simplest implementation parses that markdown's frontmatter + a few known headings (`## Timeline`, `## Vitals (live)`) into this shape. The `moisture.current_pct` is live-computed; everything else rides from the wiki.
 
-### `GET /api/plants/{id}/history?range=24h|7d|30d` — **ADD**
+**Open question (?):** Do we want to *mirror* plant-wiki data into SQL (for fast queries + avoid parsing markdown on every hit), or parse-on-read? Lean: parse-on-read + short in-memory TTL cache. The wiki updates once a day at 14:00 MDT — cache invalidation is trivial.
 
-Soil-moisture chart on the drawer.
+### GET /api/plants/{id}/moisture?range=1h|24h|7d
 
-Response 200:
-```json
+Drives the plant-detail-drawer moisture chart.
+
+```jsonc
 {
+  "id": "a",
   "range": "24h",
-  "labels": ["..."],
-  "values": [62.1, 61.8, 50.3, ...],
-  "target": { "lo": 55, "hi": 70 },
-  "irrigation_events": [
-    { "ts": "2026-04-19T06:05:00Z", "delta_pct": 22 },
-    { "ts": "2026-04-19T12:10:00Z", "delta_pct": 18 }
+  "unit": "%",
+  "target": [55, 70],
+  "points": [
+    { "ts": "2026-04-18T23:00:00Z", "value": 68.2 },
+    ...
   ],
-  "mean_pct": 58
+  "irrigation_events_24h": 12           // count of downward steps >= threshold
 }
 ```
 
-- `irrigation_events` = detected positive jumps >10% over 2 buckets. Mocked list if detection isn't wired; UI can ignore empty arrays gracefully.
+Derived from `sensorreading WHERE location='plant-a' AND metric='soil_moisture_raw'` + calibration. Irrigation event count is a simple "how many times did moisture jump up by >N%" heuristic — can be mocked in V1.
 
 ---
 
-## System / devices
+## 6. System — `/api/system/devices`
 
-### `GET /api/system/devices` — **ADD**
+Drives the dashboard system table (8 rows in the mockup).
 
-Populates the dashboard's system table.
-
-Response 200:
-```json
+### GET /api/system/devices
+```jsonc
 {
+  "ts": "2026-04-19T22:45:25Z",
   "devices": [
-    { "id": "arduino",    "label": "Arduino Nano + DHT22",     "status": "online",   "last_seen": "2026-04-19T17:23:00Z", "source": "serial" },
-    { "id": "esp32_a",    "label": "ESP32-C3 · plant_a",       "status": "online",   "last_seen": "...", "source": "ingest" },
-    { "id": "esp32_b",    "label": "ESP32-C3 · plant_b",       "status": "online",   "last_seen": "...", "source": "ingest" },
-    { "id": "esp32_c",    "label": "ESP32-C3 · plant_c",       "status": "online",   "last_seen": "...", "source": "ingest" },
-    { "id": "esp32_d",    "label": "ESP32-C3 · plant_d",       "status": "online",   "last_seen": "...", "source": "ingest" },
-    { "id": "obsbot",     "label": "OBSBOT Tiny 2 Lite",       "status": "online",   "last_seen": "...", "source": "ptz_daemon" },
-    { "id": "jabra",      "label": "Jabra Speak 410 (Claudia)", "status": "listening", "last_seen": "...", "source": "voice_service" },
-    { "id": "humidifier", "label": "Humidifier (Kasa EP10)",   "status": "online",   "last_seen": "...", "source": "humidifier_loop" }
+    { "name": "Arduino Nano + DHT22",      "kind": "env_sensor",   "status": "ok",     "last_seen": "2026-04-19T22:45:25Z" },
+    { "name": "ESP32-C3 · plant_a",         "kind": "moisture_node","status": "ok",     "last_seen": "2026-04-19T22:45:25Z" },
+    { "name": "ESP32-C3 · plant_b",         "kind": "moisture_node","status": "ok",     "last_seen": "..." },
+    { "name": "ESP32-C3 · plant_c",         "kind": "moisture_node","status": "ok",     "last_seen": "..." },
+    { "name": "ESP32-C3 · plant_d",         "kind": "moisture_node","status": "ok",     "last_seen": "..." },
+    { "name": "OBSBOT Tiny 2 Lite",         "kind": "camera",       "status": "ok",     "last_seen": "2026-04-19T22:45:20Z" },
+    { "name": "Jabra Speak 410 (Claudia)",  "kind": "voice",        "status": "listening","last_seen": "2026-04-19T22:45:10Z" },
+    { "name": "Humidifier (Kasa EP10)",     "kind": "actuator",     "status": "warn",   "last_seen": "2026-04-19T22:45:23Z", "note": "not deployed" }
   ]
 }
 ```
 
-- `status` ∈ `{"online","listening","offline","warn","error"}`.
-- `arduino` / `esp32_*` come from `SensorNode.last_seen` (threshold: offline if >120s for arduino, >300s for ESP32s).
-- `obsbot`: checks `systemctl --user is-active dirt-camera` (or daemon heartbeat socket).
-- `jabra`: checks `systemctl --user is-active dirt-voice`.
-- `humidifier`: checks the humidifier loop's own last-tick timestamp + Kasa reachability — requires a light touch to expose this from the hwd daemon. **Proposal**: have hwd write a heartbeat row to a new `DeviceHeartbeat` table (see `data_model.md`) so dirt-web doesn't need to reach into hwd's memory or ping the Kasa plug itself.
+Sources:
+- Env sensor (Arduino) → check the most recent `sensorreading WHERE metric='temperature_f' AND source='arduino'`.
+- ESP32 plant nodes → existing `sensornode` table. `status=ok` if `last_seen < 2 min ago`, `warn` if `< 5 min`, `offline` otherwise.
+- Camera → query `dirt-camera` daemon socket `get_state` and check `camera_connected`.
+- Jabra → **not tracked today**. Mock `listening` if `dirt-voice.service` is active. See data_model proposal.
+- Humidifier → check that the Kasa device is reachable; status comes from the most recent `humidifier` log stream event (have `reason` → if `failsafe_stale_sensor`, show warn).
+
+Status taxonomy: `ok | listening | warn | offline` (listening is just ok+aria label; could collapse).
 
 ---
 
-## Feed
+## 7. Live feed — `/api/feed/*`
 
-### `GET /api/feed/live.jpg` — **MODIFY** (renamed from `/feed/live`)
+### GET /api/feed/live.jpg
 
-Unchanged semantics — binary JPEG of the current frame via the camera daemon. Rename to `/api/*` and add explicit `.jpg` suffix for UI clarity + caching. 503 if daemon is down.
+Returns a single JPEG. SPA refreshes via `<img src=".../live.jpg?t={{now}}">` on an interval (mockup picks 5–15s; we'll say 10s). No MJPEG stream — the existing one-shot capture matches today's `/feed/live` behavior.
 
-### `GET /api/snapshots/latest.jpg` — **MODIFY** (renamed from `/api/snapshots/latest`)
-
-Unchanged semantics — most-recent stored snapshot from disk + DB.
-
-Headers: include `Last-Modified` so the UI can cache.
-
----
-
-## PTZ
-
-The PTZ daemon already speaks a Unix-socket RPC (`scripts/camera` is its CLI). We add HTTP endpoints inside `dirt-web` that translate JSON requests into that RPC. Rationale: the UI is a browser, not a shell; `dirt-web` already has cookie auth; we don't want to expose a new socket on the network.
-
-### `GET /api/ptz/state` — **ADD**
-
-Response 200:
-```json
-{
-  "yaw_deg": -55,
-  "pitch_deg": -38,
-  "zoom_x": 1.5,
-  "last_preset": "plant_a",
-  "moving": false,
-  "ts": "2026-04-19T17:23:14Z"
-}
+```
+200 Content-Type: image/jpeg
+503 if camera daemon unreachable
 ```
 
-503 if daemon is unreachable. Tail this endpoint (or use a WebSocket later) to animate the crosshair during a move; v1 can poll.
+**Rename:** today's `/feed/live` becomes `/api/feed/live.jpg`. The `.jpg` suffix helps the browser cache/refresh dance. The HTMX-fragment endpoints `/feed/image` and `/feed/status` are deleted.
 
-### `GET /api/ptz/presets` — **ADD**
+### GET /api/feed/snapshot/latest
 
-Response 200:
-```json
+Returns the most recent archived snapshot from disk (today's `/api/snapshots/latest`, renamed).
+
+```
+200 Content-Type: image/jpeg
+404 if no snapshots yet
+```
+
+---
+
+## 8. PTZ — `/api/ptz/*`
+
+Thin HTTP wrapper around `scripts/camera` (reality: we call the daemon socket from Python, same as `dirt_shared.services.capture._daemon_rpc`). The mockup is locked to click-to-look, so we don't need a `nudge` endpoint — but we add `look` (normalized click) and keep `zoom` + `preset` for completeness.
+
+### GET /api/ptz/state
+```jsonc
 {
-  "presets": [
-    { "id": "overview", "label": "Overview", "hint": "wide · full tent" },
-    { "id": "plant_a",  "label": "Plant A",  "hint": "y=-55° p=-38° z=1.5×" },
-    { "id": "plant_b",  "label": "Plant B",  "hint": "y=-20° p=-40° z=1.5×" },
-    { "id": "plant_c",  "label": "Plant C",  "hint": "y=+20° p=-40° z=1.5×" },
-    { "id": "plant_d",  "label": "Plant D",  "hint": "y=+55° p=-38° z=1.5×" }
+  "connected": true,
+  "yaw": -55,                  // motor-frame degrees
+  "pitch": -38,
+  "zoom": 1.5,
+  "preset": "plant_a",         // null if not at a preset (tolerance ~2°)
+  "presets": [                 // static list — hard to change at runtime
+    { "id": "overview", "label": "Overview", "description": "wide · full tent" },
+    { "id": "plant_a",  "label": "Plant A",  "description": "Plant A close-up (yellow)", "sticker_color": "yellow" },
+    { "id": "plant_b",  "label": "Plant B",  "description": "...",                         "sticker_color": "orange" },
+    { "id": "plant_c",  "label": "Plant C",  "description": "...",                         "sticker_color": "pink" },
+    { "id": "plant_d",  "label": "Plant D",  "description": "...",                         "sticker_color": "blue" }
+  ]
+}
+```
+Reads `~/.config/dirt/camera.json` for the preset list (keep it in sync with the file; don't duplicate in code).
+
+### POST /api/ptz/preset/{id}
+```jsonc
+// request: empty body
+// 200
+{ "ok": true, "preset": "plant_a", "yaw": -55, "pitch": -38, "zoom": 1.5 }
+// 404
+{ "detail": "unknown preset 'foo'" }
+```
+
+### POST /api/ptz/look
+
+Click-to-look: re-centers the gimbal based on a normalized click point on the video frame.
+
+```jsonc
+// request — xy are -0.5..0.5, origin = frame center.
+// UI computes: xy = (click - rect.center) / rect.size
+{ "x": 0.12, "y": -0.08 }
+
+// 200
+{ "ok": true, "yaw": -47.8, "pitch": -34.8, "zoom": 1.5, "preset": null }
+```
+
+Server math: `yaw_delta = x * 60°, pitch_delta = y * 40°` — mirrors what the mockup does client-side. Server-side lets us keep a single source for the motion model and apply daemon limits uniformly.
+
+### POST /api/ptz/zoom
+```jsonc
+// Absolute form:
+{ "zoom": 1.8 }
+// Relative form (alternative):
+{ "delta": 0.2 }
+
+// 200
+{ "ok": true, "zoom": 1.8 }
+// 400 if both or neither provided
+```
+
+---
+
+## 9. Wiki — `/api/wiki/*`
+
+Filesystem-backed (not DB). Server reads from `<repo>/wiki/`. All paths are normalized and rejected if they escape `wiki/`.
+
+### GET /api/wiki/tree
+
+Drives the sidebar file tree.
+
+```jsonc
+{
+  "tree": [
+    {
+      "type": "folder",
+      "name": "overview",
+      "children": [
+        { "type": "file", "name": "overview.md", "path": "wiki/overview.md", "title": "Grow Overview" },
+        { "type": "file", "name": "index.md",    "path": "wiki/index.md",    "title": "Wiki Index" }
+      ]
+    },
+    {
+      "type": "folder",
+      "name": "plants",
+      "children": [
+        { "type": "file", "name": "plant-a.md", "path": "wiki/plants/plant-a.md", "title": "Plant A", "sticker_color": "yellow" },
+        ...
+      ]
+    },
+    ...
   ]
 }
 ```
 
-- Source: `presets.json` in the camera daemon's config (or a static import in `apps/web`). Static in v1 — no write endpoint.
+Walks `wiki/` on disk (excludes `CLAUDE.md` and hidden files); extracts `title` from markdown frontmatter (stripping the `type: plant|concept|...` prefix if present — `"Plant A — Purple Keeper Candidate"` becomes just `"Plant A"` for plant pages, because the sidebar has limited width; we can adjust in iteration).
 
-### `POST /api/ptz/preset` — **ADD**
+### GET /api/wiki/file?path=wiki/plants/plant-a.md
 
-Request: `{ "id": "plant_a" }`
+Drives the main pane.
 
-Response 202: `{ "accepted": true, "target": { "yaw_deg": -55, "pitch_deg": -38, "zoom_x": 1.5 } }`
-
-### `POST /api/ptz/nudge` — **ADD**
-
-Request: `{ "dyaw_deg": -10, "dpitch_deg": 0 }` (either/both)
-
-Response 202: `{ "accepted": true, "target": { "yaw_deg": -65, "pitch_deg": -38, "zoom_x": 1.5 } }`
-
-### `POST /api/ptz/zoom` — **ADD**
-
-Request: `{ "delta_x": 0.2 }` OR `{ "absolute_x": 1.5 }` — one of.
-
-Response 202: `{ "accepted": true, "zoom_x": 1.7 }`
-
-### `POST /api/ptz/look` — **ADD**
-
-Click-to-look. `x`, `y` are normalized to [-0.5, 0.5] (feed frame). Server maps to yaw/pitch delta scaled by current FOV.
-
-Request: `{ "x": 0.15, "y": -0.08 }`
-
-Response 202: `{ "accepted": true, "target": { "yaw_deg": -52, "pitch_deg": -40, "zoom_x": 1.5 } }`
-
----
-
-## Wiki
-
-All paths are **relative to `wiki/`** and normalized server-side. Path traversal (`..`, absolute paths) is rejected with 400.
-
-### `GET /api/wiki/tree` — **ADD**
-
-Response 200:
-```json
+```jsonc
 {
-  "folders": [
-    { "name": "overview", "count": 3, "files": [
-      { "name": "overview.md",     "path": "overview/overview.md",     "title": "Grow Overview" },
-      { "name": "index.md",        "path": "overview/index.md",        "title": "Wiki Index" },
-      { "name": "activity-log.md", "path": "overview/activity-log.md", "title": "Activity Log" }
-    ]},
-    { "name": "plants", "count": 4, "files": [
-      { "name": "plant-a.md", "path": "plants/plant-a.md", "title": "Plant A — Purple Keeper Candidate", "chip": "a" },
-      { "name": "plant-b.md", "path": "plants/plant-b.md", "title": "Plant B", "chip": "b" },
-      { "name": "plant-c.md", "path": "plants/plant-c.md", "title": "Plant C", "chip": "c" },
-      { "name": "plant-d.md", "path": "plants/plant-d.md", "title": "Plant D", "chip": "d" }
-    ]},
-    { "name": "daily",    "count": 14, "files": [...] },
-    { "name": "concepts", "count": 9,  "files": [...] },
-    { "name": "hardware", "count": 6,  "files": [...] },
-    { "name": "decisions","count": 5,  "files": [...] },
-    { "name": "environment","count": 4,"files": [...] }
-  ],
-  "total_files": 45,
-  "updated_at": "2026-04-19T14:03:00Z"
-}
-```
-
-- `title` = frontmatter `title` if present, else filename stem.
-- `chip` = plant id a-d if the file is under `plants/`; otherwise omitted.
-
-### `GET /api/wiki/file?path=plants/plant-a.md` — **ADD**
-
-Response 200:
-```json
-{
-  "path": "plants/plant-a.md",
+  "path": "wiki/plants/plant-a.md",
   "title": "Plant A — Purple Keeper Candidate",
-  "subtitle": "Formerly labeled Plant 1 in early documentation.",
+  "subtitle": "Formerly labeled Plant 1 in early documentation.", // optional; parsed from first italic line
   "frontmatter": {
     "title": "Plant A — Purple Keeper Candidate",
     "type": "plant",
-    "priority": "primary",
-    "purple": true,
+    "sources": ["raw/chat-history/all-chat-summary.md"],
+    "related": ["wiki/concepts/anthocyanin.md", "wiki/concepts/lst.md"],
     "created": "2026-04-06",
-    "updated": "2026-04-18",
-    "related": ["concepts/anthocyanin", "concepts/lst", "daily/2026-04-11"]
+    "updated": "2026-04-18"
   },
-  "body_markdown": "# Plant A\n\n**Topped on day 28…** …",
-  "backlinks": [
-    { "path": "daily/2026-04-11.md", "title": "2026-04-11 · d22" },
-    { "path": "concepts/anthocyanin.md", "title": "Anthocyanin" }
-  ],
-  "updated_at": "2026-04-18T14:07:00Z"
+  "body_markdown": "# Plant A\n\n*Formerly labeled...\n\n## Current State\n\n...",
+  "backlinks": [                        // files that link back to this one
+    { "path": "wiki/daily/2026-04-18.md", "title": "2026-04-18 · d35" }
+  ]
 }
 ```
 
-- Body returned as **raw markdown** — the SPA renders with its own markdown pipeline (consistent styling, link interception for wiki↔wiki navigation). Do not pre-render HTML on the server.
-- `backlinks` computed by scanning the tree for `[[...]]` or `](...)` references to this path. Cheap with the existing `lint.py` index; can be cached in-memory with a mtime watcher.
+**Key decision:** server returns *raw markdown* in `body_markdown` — the SPA renders it with a JS markdown library (e.g. `react-markdown`). This is simpler than a pre-rendered AST payload, and it lets the SPA re-implement link interception (intercept `wiki/*.md` clicks → client-side route).
 
-### `GET /api/wiki/search?q=purple&limit=12` — **ADD**
+Backlinks are computed by a grep pass across all `wiki/*.md` files for `](./... <path>)` or `related: [..., wiki/<path>, ...]`. Cache aggressively.
 
-Response 200:
-```json
+### GET /api/wiki/search?q=...
+
+Drives the Cmd+K palette.
+
+```jsonc
 {
-  "q": "purple",
+  "q": "topping",
   "results": [
     {
-      "path": "plants/plant-a.md",
-      "title": "Plant A — Purple Keeper Candidate",
-      "match_type": "name",
-      "snippet": null,
-      "score": 0.92
+      "path": "wiki/concepts/topping.md",
+      "title": "Topping",
+      "match_type": "title",             // "title" | "path" | "content"
+      "snippet": null
     },
     {
-      "path": "concepts/anthocyanin.md",
-      "title": "Anthocyanin",
+      "path": "wiki/plants/plant-a.md",
+      "title": "Plant A — Purple Keeper Candidate",
       "match_type": "content",
-      "snippet": "…confirmed genetic **anthocyanin** expression in purple…",
-      "score": 0.68
+      "snippet": "...Topped above node 4; 5th node was emerging..."
     }
   ]
 }
 ```
 
-- `match_type` ∈ `{"name","path","content"}`.
-- `limit` default 12, max 50.
-- v1: naive substring scan with per-file mtime cache. Good enough for ~50 files.
+V1 implementation: naive substring scan over filenames + markdown bodies. ~70 files, will complete in single-digit ms. If that changes, swap in SQLite FTS or a simple inverted index.
+
+**Open question (?):** Fuzzy match? Lean: no in V1 — mockup's search text is literal.
 
 ---
 
-## MCP
+## 10. Routes to remove
 
-`/mcp/*` stays mounted verbatim (bearer-auth, separate from cookie-auth). No changes proposed.
+- `GET /login` (Jinja template) — SPA owns this route; Vite build serves the HTML shell at `/login` via a SPA fallback.
+- `POST /login` (form-post) — replaced by `POST /api/auth/login`.
+- `GET /logout` (302 redirect) — replaced by `POST /api/auth/logout`.
+- `GET /` (Jinja dashboard) — replaced by SPA shell at `/` with route `/dashboard`.
+- `GET /feed/live` — renamed to `/api/feed/live.jpg`.
+- `GET /feed/image` (HTMX fragment) — deleted; `<img>` handles refresh itself.
+- `GET /feed/status` (HTMX fragment) — deleted; timestamp rendered client-side.
+- `GET /sensors/current` (HTMX fragment) — replaced by `GET /api/sensors/current` (JSON).
+- `GET /api/sensors/readings` — renamed to `GET /api/sensors/history` with per-metric param.
+- `GET /api/snapshots/latest` — renamed to `GET /api/feed/snapshot/latest`.
 
----
-
-## REMOVE list (cleanup at end of Phase 2)
-
-| Path | Reason |
-|---|---|
-| `GET /` (Jinja index) | Replaced by `web-ui/` static bundle served at `/` |
-| `GET /login` (HTML) | SPA owns the login route |
-| `POST /login` (form) | Replaced by JSON `POST /api/auth/login` |
-| `GET /logout` | Replaced by `POST /api/auth/logout` |
-| `GET /sensors/current` (HTMX) | Replaced by JSON `GET /api/sensors/current` |
-| `GET /feed/image` (HTMX) | UI embeds `/api/feed/live.jpg` directly |
-| `GET /feed/status` (HTMX) | UI reads `ts` from other envelopes |
-| `GET /feed/live` | Renamed to `/api/feed/live.jpg` |
-| `GET /api/sensors/readings` | Renamed to `/api/sensors/history` |
-| `GET /api/snapshots/latest` | Renamed to `/api/snapshots/latest.jpg` |
-| All `templates/*.jinja` | Dead after the routes above are deleted |
+The cookie-session middleware stays; the `/api/ingest/sensors` endpoint (on `dirt-hwd` :8000) stays; the `/mcp` mount stays.
 
 ---
 
-## Open questions for this review pass
+## 11. Cross-cutting concerns
 
-1. **Staleness thresholds**: tent=300s, plant soil=600s, humidifier state=120s — copied from current precedent. Confirm or adjust?
-2. **Target bands — who owns the source of truth?** Today bands live in Python (`grow_state.py:STAGE_TARGETS`). `data_model.md` proposes moving them to a DB table so the UI can expose an editor. Fine to defer?
-3. **Humidifier target band exposure**: the current humidifier loop computes a lights-aware band internally. Should we expose it as a first-class field (proposed: yes, as `target_band_kpa` in `/api/humidifier/state`) or let the UI recompute from stage + lights?
-4. **Plant structured vitals (pH, distance, nodes)**: mock for now, or carve a small ingest surface (e.g. `POST /api/plants/{id}/vitals`) so the user can type them in via the drawer? I lean toward mock for v1 since the rest of the stack is read-only.
-5. **Wiki write endpoints**: none proposed — the wiki is agent-maintained by the daily-report pipeline + manual edits via editor. Confirm no in-UI editing in scope?
-6. **PTZ websocket vs polling**: polling `/api/ptz/state` every 500ms during a move is cheap but ugly. Worth a tiny SSE endpoint in v1? I'd defer.
-7. **Device heartbeat source for humidifier/camera/jabra**: do we introduce a `DeviceHeartbeat` table (proposed in `data_model.md`), or have dirt-web shell out to `systemctl --user is-active` per request? The table is cleaner but adds writes to hwd.
+### Caching headers
+- `GET /api/feed/live.jpg`: `Cache-Control: no-store`.
+- `GET /api/sensors/current`, `/api/humidifier/state`, `/api/ptz/state`, `/api/system/devices`: `Cache-Control: no-store`.
+- `GET /api/wiki/*`: `ETag` based on mtime of the file (tree uses a rollup hash of all mtimes).
+- `GET /api/sensors/history`, `/api/humidifier/history`, `/api/plants/{id}/moisture`: short `Cache-Control: public, max-age=30` — the data bucket boundaries are coarser than that.
+
+### Errors
+Everything uses FastAPI's `HTTPException` → `{"detail": "..."}`. HTTP codes:
+- 400 for bad input (invalid range, invalid metric, invalid preset id).
+- 401 for missing/invalid session.
+- 404 for unknown plant id, unknown preset id, unknown wiki path.
+- 503 for camera daemon unreachable, humidifier Kasa unreachable.
+
+### Rate limiting
+Out of scope for V1. The UI is single-user; harden if we ever ship to multiple operators.
+
+---
+
+## Open questions (to resolve before OpenAPI freeze)
+
+1. **Single-metric vs bulk sensor history** — lean single-metric; revisit if dashboard initial load is slow.
+2. **Plant-detail source** — parse `wiki/plants/*.md` on read (lean: yes + TTL cache) vs mirror into SQL.
+3. **Plant status taxonomy** — `primary|secondary` is from the mockup; do we need `discarded` / `culled` for later? Lean: add `retired` now, empty in V1.
+4. **Strain / location on `/api/grow/current`** — promote to a new SQL column on `growstate`, or keep in `Settings`? Lean: add to `growstate`.
+5. **Fan pct / reservoir in.** Mock, or wait for real hardware? Lean: mock with deterministic rotating values keyed off time so the chart moves; replace when wiring lands.
+6. **Wiki file body**: raw markdown (this proposal) vs server-side rendered HTML. Lean: raw markdown. Server knows about frontmatter + backlinks; client owns rendering.
+7. **Backlinks cache invalidation**: mtime-based or file-watcher? Lean: mtime, compute lazily on first request per mtime tick.

@@ -1,214 +1,248 @@
-# data_model.md — first-pass proposal
+# Data Model Proposal — webapp-v1
 
-**Status**: draft 1 for review. Companion to `API.md`. Every new/changed table below is driven by a concrete UI need. Items marked **MOCK** are UI-visible fields we are not collecting today — the proposal is to ship the API shape now and backfill storage + ingestion later.
+Scope: what SQL and FS-backed data does the new SPA need that we already have, what do we need to add, and what do we need to *mock* because the hardware or agent pipeline hasn't caught up yet?
 
-Principles:
-- **Don't touch `SensorReading`/`SensorCalibration`/`SensorNode`/`Snapshot`** — they are working and hot-path. New data lives in new tables.
-- **Wiki stays authoritative for narrative content** (timelines, quotes, daily logs). SQL only gets structured/queryable data.
-- **Mock before ingest** — synthesize plausible values for fields the UI shows but sensors don't report, so the UI doesn't have to change when real data arrives.
+Sibling doc: [`API.md`](./API.md). Read that first — this one references endpoints by name.
 
 ---
 
-## Summary table
+## 1. What we already have
 
-| Proposal | Kind | UI driver | Status |
+### SQL (SQLite at `var/dirt.db`)
+
+| Table | Purpose | Rows today | Used by mockup? |
 |---|---|---|---|
-| New: `Plant` | table | dashboard strip, plant drawer | ADD |
-| New: `PlantVitalReading` | table | plant drawer (pH, distance, nodes) | ADD (mock data to start) |
-| New: `StageTarget` | table | gauge target bands, editability later | ADD (seed from `grow_state.STAGE_TARGETS`) |
-| New: `DeviceHeartbeat` | table | system-devices status table | ADD |
-| New: `HumidifierEvent` | table | humidifier history + "last reason" | ADD |
-| Update: `SensorReading` | column | track `reservoir_in` + `fan_pct` when hardware arrives | NO SCHEMA CHANGE — just new `metric` values |
-| No change: `SensorCalibration` | — | calibrated plant % (unchanged) | — |
-| No change: `SensorNode` | — | sensor device online/last_seen (unchanged) | — |
-| No change: `Snapshot` | — | latest-snapshot endpoint (unchanged) | — |
-| No change: `GrowState` | — | stage derivation + lights (unchanged) | — |
-| **MOCK**: `fan_pct` metric | sensor data | gauge + sparkline | backend returns synthesized series until hardware lands |
-| **MOCK**: `reservoir_in` metric | sensor data | gauge + sparkline | same |
-| **MOCK**: `runoff_ph` / `distance_from_light_in` / `node_count` | plant vitals | drawer | served from `PlantVitalReading` with `source="mock"` rows seeded at startup |
-| **MOCK**: `timeline` / `quote` on `/api/plants/{id}` | narrative | drawer | parsed from wiki page for v1 — no SQL |
-| **MOCK**: `irrigation_events` on `/api/plants/{id}/history` | derived | drawer chart | detected from soil-% jumps; empty array acceptable |
+| `growstate` | Singleton (id=1): germination_date, flower_start_date, lights_on_local, lights_off_local | 1 | Yes — drives day/week/stage in top bar + login field-notes. |
+| `sensorreading` | Append-only, one row per (ts, location, metric, value). Index on ts, metric, location. | 138k+ | Yes — every gauge, sparkline, humidifier chart, plant moisture chart. |
+| `sensornode` | Per-ESP32 metadata: ip, firmware_version, uptime_ms, last_seen. Upserted on each POST. | 4 (plant-a..d) | Yes — drives system table rows for plant nodes. |
+| `sensorcalibration` | Per-(location, metric) two-point linear calibration. Auto-widens at ingest. | 4 (one per plant) | Yes — converts `soil_moisture_raw` → %. |
+| `snapshot` | Archive of timestamped JPEG snapshots on disk. | Many | No — mockup uses live feed, not snapshot archive. Keep the table; `/api/feed/snapshot/latest` exposes the newest. |
+
+### Metrics currently recorded in `sensorreading`
+From live DB:
+
+| metric | location(s) | source | Notes |
+|---|---|---|---|
+| `temperature_f` | `tent` | arduino | Used by gauge + sparkline. |
+| `humidity_pct` | `tent` | arduino | Used by gauge + sparkline. |
+| `vpd_kpa` | `tent` | arduino | Used by gauge + sparkline (derived in serial_reader). |
+| `pressure_hpa` | `tent` | arduino | Not in mockup; kept for completeness. |
+| `dew_point_f` | `tent` | arduino | Not in mockup. |
+| `humidifier_on` | `tent` | kasa | Binary 0/1 per humidifier loop tick — drives the humidifier tile + duty-cycle strip. |
+| `soil_moisture_raw` | `plant-a..d` | esp32 | Raw ADC; calibrated via `sensorcalibration` to %. Drives plant cards + plant-detail moisture chart. |
+
+### Filesystem
+
+- `wiki/` (70 `.md` files) — agent-maintained markdown. Each has YAML-ish frontmatter (`title`, `type`, `sources`, `related`, `created`, `updated`). Drives the wiki page 100%. `wiki/plants/plant-{a..d}.md` is the source for plant-detail drawer content.
+- `~/.config/dirt/camera.json` — PTZ preset definitions. Drives the PTZ preset list.
+- `var/snapshots/` — archived JPEGs, indexed by the `snapshot` table.
+- `var/raw/photos/<date>/{overview,plant-a,...}.jpg` — daily report captures. Not used by the SPA.
+- `var/sessions/voice/YYYY-MM-DD.jsonl` — voice channel turns. Not used by the SPA directly, but "Claudia is listening" status on system table maps to whether `dirt-voice.service` is active.
 
 ---
 
-## New: `Plant` table
+## 2. Data the mockup needs that we **don't have today**
 
-The UI needs a structured source for plant identity (name, strain, primary/secondary, purple flag). Today this lives only in wiki markdown, which is not queryable.
+Grouped by urgency. "Flag" = not collected, propose either mock or deferred; "Add" = a small DB/FS change.
 
-```python
-# apps/shared/src/dirt_shared/models/plant.py
-class Plant(SQLModel, table=True):
-    id: str = Field(primary_key=True)                 # "a" | "b" | "c" | "d"
-    name: str                                         # "Plant A"
-    label: str | None = None                          # "Purple Keeper Candidate"
-    strain: str | None = None                         # "Sirius Black × BS01"
-    sensor_location: str                              # "plant-a" — links to SensorReading.location
-    status: str = "secondary"                         # "primary" | "secondary"
-    purple: bool = False                              # genetic anthocyanin confirmed
-    transplanted_on: date | None = None               # for day-count in drawer
-    topped_on: date | None = None                     # cosmetic flag on timeline
-    notes: str | None = None                          # short, shown in drawer frontmatter
-    wiki_path: str | None = None                      # "plants/plant-a.md"
-    ptz_preset_id: str | None = None                  # "plant_a"
+### 2a. Grow identity (strain, location, plant count)
+
+**Needed by:** `GET /api/grow/current`, login field-notes block, top-bar tag line.
+
+**Today:** `growstate` has only date/time columns. Strain ("Sirius Black × BS01"), location ("Denver, MT · closet tent"), and plant count (4) are not in the DB — they're implicit in wiki copy.
+
+**Proposal:** **Add** columns to `growstate`:
+- `strain: str`
+- `location: str`
+- `plant_count: int` (default 4; must equal the number of rows in the new `plant` table, see below).
+
+Add these via `_COLUMN_MIGRATIONS` in `db.py` (same pattern used for `lights_on_local`). Seed from a config default on first migration.
+
+Alternative considered: keep these in `dirt_shared.config.Settings`. Rejected: future second-grow support will need per-grow strain/location, and `Settings` is process-wide.
+
+### 2b. Per-plant metadata (sticker color, primary/secondary status, purple flag, label)
+
+**Needed by:** `GET /api/plants`, `GET /api/plants/{id}`, dashboard plant cards, plant-detail drawer.
+
+**Today:** Plant identity exists only as `location='plant-a'` in `sensorreading`/`sensornode`. Sticker color, primary/secondary, "purple keeper" flag, and the drawer tagline ("Purple Keeper Candidate") live in prose inside `wiki/plants/plant-{a..d}.md` and in the mockup's hard-coded `PLANTS` array.
+
+**Proposal:** **Add** a new `plant` table.
+
+```sql
+CREATE TABLE plant (
+    id           TEXT PRIMARY KEY,        -- 'a' | 'b' | 'c' | 'd'
+    name         TEXT NOT NULL,           -- 'Plant A'
+    sticker_color TEXT NOT NULL,          -- 'yellow' | 'orange' | 'pink' | 'blue'
+    status       TEXT NOT NULL,           -- 'primary' | 'secondary' | 'retired'
+    purple       INTEGER NOT NULL,        -- 0 | 1 (SQLite bool)
+    label        TEXT,                    -- 'Purple Keeper Candidate' — short drawer tagline
+    location     TEXT NOT NULL,           -- FK-ish back to sensorreading.location; 'plant-a' etc.
+    moisture_target_low  REAL NOT NULL DEFAULT 55,
+    moisture_target_high REAL NOT NULL DEFAULT 70,
+    created_at   DATETIME NOT NULL,
+    updated_at   DATETIME NOT NULL
+);
 ```
 
-- Seed migration writes the current 4 plants (a/b/c/d) with hard-coded values matching the mockup.
-- `sensor_location` bridges to `SensorReading.location` — no FK because sensor locations are strings, not normalized.
-- `soil_moisture_pct`, `day` are derived on read, not stored.
-- The wiki page remains the source of truth for prose; this table is the queryable slice the UI needs.
+Seed 4 rows on first boot: `{a:yellow, b:orange, c:pink, d:blue}`, `status` / `purple` / `label` pulled from the mockup's initial values and then user-editable via SQL (no admin UI in V1).
+
+Why SQL and not FS: the SPA's plant strip hits this endpoint on every dashboard load; parsing 4 markdown files + extracting frontmatter + guessing at `status` from prose is fragile. SQL is the source of truth; wiki is prose.
+
+**Flag:** the `wiki/plants/plant-{a..d}.md` pages contain the longer-form `Vitals` table and `Timeline` entries that the plant-detail drawer also renders. Those stay as parse-on-read (see §2g).
+
+### 2c. Inline fan percent
+
+**Needed by:** gauge #4 (`fan_pct`), sparkline #4.
+
+**Today:** The AC Infinity inline fan is not wired to the backend. See `wiki/hardware/ac-infinity-fan-control.md` — it's listed as a planned integration.
+
+**Flag:** **Mock with server-side stub.** Return a plausible 45–52 % range that drifts slowly (sine wave keyed off minute-of-day so the sparkline has shape). Add a `TODO: replace with real fan telemetry` marker in the handler. When real telemetry lands, it'll flow through `sensorreading metric='fan_pct'` and the mock can retire with no client change.
+
+Alternative: omit the fan gauge from V1. Rejected because the mockup clearly wants 5 gauges; losing one breaks the layout.
+
+### 2d. Reservoir level (inches)
+
+**Needed by:** gauge #5 (`reservoir_in`), sparkline #5.
+
+**Today:** Reservoir level is manually observed — the wiki has daily notes like "refilled reservoir to 9 in". No sensor, no table. `wiki/hardware/reservoir-level.md` exists but describes a future setup.
+
+**Flag:** **Mock with server-side stub.** Return a monotonically-decreasing value 4..9 in, keyed off hours-since-midnight, that resets to 9 at a fixed time-of-day (the mockup's "09:14 refilled reservoir" note in daily/2026-04-18.md implies a morning refill cycle). Longer-term: an ESP32 ultrasonic module writes `sensorreading location='reservoir' metric='level_in'`, and the mock retires.
+
+### 2e. Humidifier cycles/24h + state transitions
+
+**Needed by:** humidifier tile ("18 cycles / 24h"), humidifier on/off duration, history strip.
+
+**Today:** We have the data — `sensorreading metric='humidifier_on'` writes 0/1 every ~30s. Just haven't exposed it.
+
+**Proposal:** **No new storage.** Compute on read:
+- Current state: most recent `humidifier_on` row.
+- `cycles_24h`: `COUNT` of transitions (`value != LAG(value)` where current = 1) in last 24h via a single window-function query.
+- History: select rows where `value != LAG(value)` — i.e. transitions only — in the window. Keeps payload small.
+
+If we find that computing on read is slow (unlikely at 2k rows over 24h), add a `humidifier_transition` derived table written by the humidifier loop at transition time.
+
+### 2f. System device statuses
+
+**Needed by:** system-devices table (8 rows).
+
+Per-row coverage:
+- **Arduino Nano + DHT22** — existing `sensorreading` tent rows. Status = ok if latest temperature_f < 2min old.
+- **ESP32-C3 plant_{a..d}** — existing `sensornode.last_seen`. Status = ok if < 2min.
+- **OBSBOT Tiny 2 Lite** — query the dirt-camera daemon's `get_state` and check `camera_connected`. No storage needed.
+- **Jabra Speak 410 (Claudia)** — **not tracked today.** See §2h.
+- **Humidifier (Kasa EP10)** — can be derived from the Kasa discovery call + the latest `humidifier_on` row. Actual "reachable" test requires a call to `Device.update()`; V1 can check the `humidifier` log stream instead (if the last event `<` 5min old, it's alive).
+
+**Proposal:** no new SQL. Add a `dirt_shared.services.system_status` service that collates all of the above into one dict. Heartbeat sources:
+- `sensornode.last_seen` (DB).
+- Most recent `sensorreading` row for tent.
+- Camera daemon socket.
+- Voice service status from `systemctl --user is-active dirt-voice` OR (better) a tail of `var/sessions/voice/YYYY-MM-DD.jsonl` — if the file has a `wake` or session-start event in the last 30min, "listening".
+
+**Flag:** "not deployed" is a human label ("Humidifier (Kasa EP10): not deployed" in the mockup). Clearly a moment-in-time status, not a permanent attribute. Status should be computed; the text "not deployed" is probably stale mockup copy.
+
+### 2g. Plant-detail vitals + timeline + note
+
+**Needed by:** `GET /api/plants/{id}` → vitals/timeline/note fields.
+
+**Today:** These live in `wiki/plants/plant-{a..d}.md` as markdown sections (`## Vitals (live)`, `## Timeline`, bottom-quote). No structured storage.
+
+**Proposal:** **Parse-on-read from the markdown.** The agent already writes these pages every daily report cycle (14:00 MDT). Parsing logic:
+
+1. Read `wiki/plants/plant-{id}.md`.
+2. Extract frontmatter YAML.
+3. Walk blocks looking for `## Vitals (live)` followed by a table → convert to `vitals` array.
+4. `## Timeline` followed by a bullet list → each `- YYYY-MM-DD — [Day N: ...]` becomes a `timeline` entry. The `**Topped above node 4**` bolding indicates `highlight: true`.
+5. Final block paragraph → `note.text`.
+
+In-memory TTL cache keyed on file mtime. Cache cost trivial (4 files, ~20KB each).
+
+Alternative: Mirror into SQL. Rejected for V1 — it doubles the write path (agent + mirror) and the markdown is already the canonical source for humans.
+
+### 2h. Voice channel status
+
+**Needed by:** system table row "Jabra Speak 410 (Claudia)" — `listening | offline`.
+
+**Today:** No DB row. Only `var/sessions/voice/YYYY-MM-DD.jsonl` has voice events.
+
+**Proposal:** **FS-backed.** In the `system_status` service, tail today's session file and:
+- If any event in the last 30min → `listening`.
+- Else → `offline`.
+
+Rationale: matches how the wiki already treats voice logs. No DB round-trip for a single row is worth adding a schema for.
+
+### 2i. Wiki backlinks
+
+**Needed by:** `GET /api/wiki/file` → `backlinks` field.
+
+**Today:** Not computed anywhere.
+
+**Proposal:** **On-the-fly grep pass.** For a given file path `P`, scan all `wiki/**/*.md` for:
+- Markdown links `](<relative path to P>)` or `](./<...>/<P>)`,
+- YAML frontmatter `related: [..., P, ...]`.
+
+Cache by a composite key `(target_path_mtime, all_files_mtime_rollup)`. First uncached call hits ~70 files; LRU cache beyond that.
+
+Alternative: a persistent `wiki_link` table, updated by a file watcher. Over-engineered for V1.
+
+### 2j. Wiki search index
+
+**Needed by:** `GET /api/wiki/search`.
+
+**Today:** Not indexed.
+
+**Proposal:** **Linear substring scan in V1** over filenames + body text. At ~70 files × ~10KB average, this is <5 ms. If slow: SQLite FTS5 virtual table, populated at boot and on a file watcher.
 
 ---
 
-## New: `PlantVitalReading` table
+## 3. Summary of changes
 
-Three drawer fields are not sensor-driven today: **runoff pH**, **distance from light**, and **node count**. Rather than inlining them as columns on `Plant` (which would lose history), give them their own reading stream parallel to `SensorReading`.
+### SQL schema changes
 
-```python
-# apps/shared/src/dirt_shared/models/plant_vital_reading.py
-class PlantVitalReading(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    plant_id: str = Field(index=True, foreign_key="plant.id")
-    metric: str = Field(index=True)                    # "runoff_ph" | "distance_from_light_in" | "node_count"
-    value: float
-    ts: datetime = Field(default_factory=lambda: datetime.now(UTC), index=True)
-    source: str = "manual"                             # "manual" | "mock" | "sensor" (future)
-    note: str | None = None                            # free-form ("topped at 4", etc.)
-```
+| Change | Why |
+|---|---|
+| `growstate` — ADD COLUMN `strain TEXT` | Top bar tag line, login field-notes. |
+| `growstate` — ADD COLUMN `location TEXT` | Login field-notes. |
+| `growstate` — ADD COLUMN `plant_count INTEGER` | `/api/grow/current` payload. |
+| NEW TABLE `plant` | `/api/plants`, `/api/plants/{id}`. Columns: id, name, sticker_color, status, purple, label, location, moisture target lo/hi, created_at, updated_at. |
 
-- Seed migration inserts one mock row per (plant, metric) so the drawer has data to render immediately.
-- When we wire up a UI form or a pH meter later, rows carry `source="manual"` or `source="sensor"` — no schema change.
-- UI reads "latest per (plant, metric)" to fill the drawer vitals table.
+Apply via the `_COLUMN_MIGRATIONS` tuple in `db.py` + a new one-shot insert of the four plant rows.
 
----
+### Mocked data (server-side stubs until hardware catches up)
 
-## New: `StageTarget` table
+| Field | Mock strategy | Retire when |
+|---|---|---|
+| `fan_pct` (sensor + history) | Slow sine 45–52% keyed off minute-of-day. | AC Infinity integration lands; writes `sensorreading metric='fan_pct'`. |
+| `reservoir_in` (sensor + history) | 4–9 in sawtooth keyed off time-of-day. | Ultrasonic reservoir ESP32 deployed; writes `sensorreading location='reservoir' metric='level_in'`. |
+| Plant `vitals` sub-rows beyond soil moisture (pH, distance from light, node count) | Parsed from `wiki/plants/plant-{id}.md` — which today the agent writes from conversation. They're "real" in the sense that a human observed them, but not live sensor-backed. | Per-plant pH probe + light-distance sensor wiring. Until then, the wiki is authoritative. |
+| Plant `timeline` entries | Parsed from wiki. Same caveat. | N/A — timeline will always be agent-authored narrative, not sensor data. |
 
-Today `STAGE_TARGETS` is a Python dict in `grow_state.py`. The gauges need the current band, and we eventually want users to edit bands without a code deploy.
+### New server-side services / logic
 
-```python
-# apps/shared/src/dirt_shared/models/stage_target.py
-class StageTarget(SQLModel, table=True):
-    stage: str = Field(primary_key=True)               # "veg" | "flower_early" | "flower_late"
-    metric: str = Field(primary_key=True)              # "temperature_f" | "humidity_pct" | "vpd_kpa"
-    lo: float
-    hi: float
-    unit: str                                          # "°F" | "%" | "kPa"
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-```
+| Service | Responsibility |
+|---|---|
+| `dirt_shared.services.plants` | CRUD over the new `plant` table + join moisture percentages. |
+| `dirt_shared.services.plant_detail` | Parses `wiki/plants/plant-{id}.md` into vitals/timeline/note. mtime-keyed cache. |
+| `dirt_shared.services.humidifier_state` | Reads `sensorreading humidifier_on` → current, cycles_24h, history transitions. |
+| `dirt_shared.services.system_status` | Collates device heartbeats (nodes, arduino, camera, voice, humidifier) into one payload. |
+| `dirt_shared.services.wiki` | Tree walk + file read with frontmatter split + backlinks grep + search. |
+| `dirt_shared.services.mock_sensors` | `fan_pct` and `reservoir_in` deterministic generators. Clearly labeled, retire cleanly. |
 
-- Seed the 9 rows (3 stages × 3 metrics) from the current `STAGE_TARGETS` dict at migration time.
-- `grow_state.current_targets()` becomes a DB read with an in-process cache. The humidifier loop, the daily-report validator, and the new `/api/sensors/current` all consume through this same function.
-- **Out of scope v1**: an edit UI. Just making the values queryable + editable via SQL for now.
+All of these are pure-read (`apps/web/` doesn't own `sensorreading` writes; `dirt-hwd` does). They belong in `apps/shared/` because the MCP server might want some of them later.
 
----
+### No-op / leave-alone
 
-## New: `DeviceHeartbeat` table
-
-The system-devices table on the dashboard lists 8 devices, but only 5 (Arduino + 4 ESP32s) have a natural "last seen" from `SensorNode`. Camera, Jabra, and humidifier-plug status are not tracked anywhere queryable.
-
-Options:
-- **A**: have `dirt-web` shell out to `systemctl --user is-active` per request — simple, but couples web to systemd and adds latency.
-- **B** (proposed): every long-running daemon writes a tiny heartbeat row every N seconds. Web reads the latest per device.
-
-```python
-# apps/shared/src/dirt_shared/models/device_heartbeat.py
-class DeviceHeartbeat(SQLModel, table=True):
-    device_id: str = Field(primary_key=True)           # "obsbot" | "jabra" | "humidifier" | ...
-    label: str                                         # "OBSBOT Tiny 2 Lite"
-    status: str                                        # "online" | "listening" | "offline" | "error"
-    last_seen: datetime = Field(default_factory=lambda: datetime.now(UTC), index=True)
-    detail: str | None = None                          # free text (error cause, mode)
-```
-
-- Upsert pattern: each daemon writes `{device_id, status, last_seen=now, detail}` on every loop tick.
-- `dirt-web` reads all rows once per `/api/system/devices` call + combines with `SensorNode.last_seen` for sensor nodes.
-- Writers required:
-  - `dirt-camera` — writes `obsbot` heartbeat on every successful frame capture.
-  - `dirt-voice` — writes `jabra` heartbeat on every wake-listen tick.
-  - `dirt-hwd` humidifier loop — writes `humidifier` heartbeat on every control tick (already runs every 30s).
-- Thresholds: `online` if last_seen < 2× the writer's tick interval, else `offline`.
-
-This is strictly additive. Existing services keep working if they don't write yet — `dirt-web` just reports `offline` for the missing rows.
+- `snapshot` table — keep for the daily-report archive. Expose via `/api/feed/snapshot/latest` only.
+- `sensorcalibration` — keep; computed during ingest on dirt-hwd.
+- `sensornode` — keep; drives system table heartbeats.
 
 ---
 
-## New: `HumidifierEvent` table
+## 4. Open questions (to resolve before freeze)
 
-The humidifier tile needs "last reason" + 24h cycle count, and the duty-cycle strip needs on/off history. We have both inside `var/logs/humidifier/<DATE>.jsonl` today, but log files rotate (30-day retention) and aren't SQL-queryable.
-
-We **already** record the on/off state as `SensorReading(metric="humidifier_on")` rows — that's enough for cycle count + duty cycle. What's missing is the **reason** field, the **stage**, and the **target band** at each transition.
-
-Proposal: add a dedicated event table for state transitions only (not every tick). This lets us answer "why was the humidifier on at 14:20?" without log spelunking.
-
-```python
-# apps/shared/src/dirt_shared/models/humidifier_event.py
-class HumidifierEvent(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    ts: datetime = Field(default_factory=lambda: datetime.now(UTC), index=True)
-    new_state: str                                     # "on" | "off"
-    reason: str                                        # "vpd_above_upper_band" | "vpd_below_upper_band" | "failsafe_stale_sensor" | "lights_off_prep"
-    vpd_kpa: float | None = None                       # reading at decision time
-    vpd_age_s: float | None = None
-    stage: str | None = None                           # "veg" | "flower_early" | "flower_late"
-    upper_band_kpa: float | None = None                # effective band at decision time
-    lower_band_kpa: float | None = None
-    lights_on: bool | None = None
-    minutes_until_off: float | None = None
-```
-
-- Written by `humidifier_loop` on every state transition only (not every poll). Today those transitions land in the JSON log; we add a parallel DB insert.
-- The existing log stream continues — the DB table is a **queryable projection** of the same events. Retention in SQL is indefinite (small: maybe 30 rows/day).
-- `/api/humidifier/state` reads the most-recent row for `last_reason` + `target_band_kpa`.
-- `/api/humidifier/history` keeps using `SensorReading(metric="humidifier_on")` (no change).
-
----
-
-## Fields we are NOT collecting today (MOCK flags)
-
-These are UI fields with no real source of truth yet. Proposal: backend returns plausible synthetic values with `_mock: true` flags, so the UI ships verbatim and gets real data when the sensors do.
-
-| UI field | Shape | Today's source | When real | Mock strategy |
-|---|---|---|---|---|
-| `fan_pct` | 0–100 int | nothing | after fan PWM sensor wired via Arduino | linear random walk around 48%, range 40–60; stored as `SensorReading(metric="fan_pct", location="tent")` so the sparkline query path is identical |
-| `reservoir_in` | float, inches | nothing | after water-level sensor arrives | slow-decay sawtooth (refill = +4in events on daily_report runs); stored as `SensorReading(metric="reservoir_in", location="tent")` |
-| `runoff_ph` | float 5.0–7.0 | manual wiki notes | user types into drawer (future) | one `PlantVitalReading(source="mock", metric="runoff_ph", value=5.9)` seeded per plant |
-| `distance_from_light_in` | int, inches | manual wiki | user types into drawer | seeded mock per plant |
-| `node_count` | int | wiki narrative | manual field | seeded mock per plant |
-| Plant `timeline` | list of events | wiki markdown parse | — | parse wiki `plants/plant-*.md` bullet list; v1 stub if parse fails |
-| Plant `quote` | string | wiki daily page | — | parse wiki daily page for the most recent blockquote mentioning the plant; v1 stub |
-| `irrigation_events` | list of deltas | derived | — | detect >10% jumps across 2 buckets in soil-% series; empty array is fine |
-
-Rule: **every mocked metric uses the same storage path as the real one**. Mock generators write into `SensorReading` or `PlantVitalReading` on a timer during dev; in production, once hardware is attached, those generators turn off and real rows flow in. No API contract change.
-
----
-
-## Migration order
-
-1. `StageTarget` + seed from `STAGE_TARGETS` dict.
-2. `Plant` + seed 4 rows matching the mockup.
-3. `PlantVitalReading` + seed 3 mock rows per plant (pH, distance, nodes).
-4. `DeviceHeartbeat` (empty; writers land later).
-5. `HumidifierEvent` (empty; humidifier loop starts writing on next deploy).
-6. Mock-value writer for `fan_pct` / `reservoir_in` — optional hwd-side loop that synthesizes rows every 30s while `settings.mocks_enabled=True`. Default True until hardware exists.
-
----
-
-## What stays untouched
-
-- `SensorReading` — already has the right shape for any new metric. We just add new `metric` string values; no schema change.
-- `SensorCalibration` — continues to auto-widen for `soil_moisture_raw`.
-- `SensorNode` — continues to capture last-seen / ip / firmware / uptime for the 5 upstream nodes.
-- `Snapshot` — latest-snapshot endpoint reads it as-is.
-- `GrowState` — stage derivation + lights schedule stay exactly where they are. `current_targets()` starts reading from `StageTarget` but the *caller* API (`grow_state.current_targets()`) is unchanged.
-
----
-
-## Open questions for this review pass
-
-1. **Plant as a table vs hard-coded**: v1 could live with a hardcoded `PLANTS = [...]` module constant and skip the `Plant` table entirely. Adding a table costs a migration but unlocks per-plant settings, edit UI, and keeps wiki paths out of Python. Table wins IMO — but cheap to defer.
-2. **`PlantVitalReading` granularity**: one table with `(plant_id, metric, value)` is maximally flexible. Alternative: three columns on `Plant` (`last_ph`, `last_distance_in`, `last_node_count`). Alt is simpler but loses history. Prefer the reading table.
-3. **`DeviceHeartbeat` writers**: cross-daemon write pattern is new. Acceptable cost? The alternative (dirt-web shelling out to systemctl per request) is simpler but uglier and slower.
-4. **`HumidifierEvent` vs JSON logs**: duplication is fine since the SQL version is the long-lived queryable projection. Confirm you're OK with the dual write.
-5. **Mock metric strategy**: writing synthesized `fan_pct`/`reservoir_in` rows into `SensorReading` means the DB has fake data in it. Acceptable for a pre-production system? Alternative: compute mocks on-the-fly in the API handler and skip DB writes. I lean DB writes because it exercises the same code path real data will — no surprises when we swap ingest sources.
-6. **Stage target editability**: this proposal adds the table but no edit UI. OK to defer edit-UI to a later feature, or bundle it now? Current thinking: defer; the table-ification alone is the win.
-7. **Heartbeat granularity**: one row per device (upsert) vs append-only history. Proposed upsert — history-over-time is not in any v1 UI. Flag for later if we want an uptime chart.
+1. **Store strain/location in `growstate` vs a new `grow_identity` singleton table?** Lean: extend `growstate` — it's already the singleton for "current grow" identity; adding three columns is cheaper than a new table. Revisit if we build multi-grow history.
+2. **Are mocked `fan_pct` / `reservoir_in` acceptable for a Phase-2 contract freeze?** If yes, they're part of the OpenAPI spec and the generator writes UI that expects them; when real telemetry lands, the shape doesn't change, only the data source. If no, we drop them from V1 and gauge #4/#5 stay empty or placeholder.
+3. **Plant `status` taxonomy.** `primary | secondary`, or include `retired | culled`? Lean: include `retired` (for post-harvest), omit `culled` (not needed yet).
+4. **Plant `purple` flag.** Boolean is clean. Is there a future "strength of purple expression" we'd want? Out of scope; flip to enum later if needed (no-op for bool → enum migration with `'confirmed' | 'partial' | 'none'`).
+5. **Moisture `target` bands on plant table vs global constant.** Proposal stores per-plant. Alternative: global `MOISTURE_TARGET = (55, 70)`. Lean: per-plant, because soil volume / strain vigor / pot size all vary; cheaper now to have columns than to add later.
+6. **Plant-detail timeline: max entries returned.** The wiki entry is growing with each daily report. Return all, or paginate? Lean: return all — the drawer scrolls.
+7. **Wiki linking convention.** The wiki has both `](./foo.md)` relative links and `related: [wiki/foo.md, ...]` frontmatter. Backlinks computation must handle both. Do we also rewrite relative links to `wiki/foo.md` in the response body so the client has a uniform click handler? Lean: yes — the server normalizes. Client gets one shape.
