@@ -7,11 +7,12 @@ AuthMiddleware via the `/api/ingest` prefix in app.py.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Header, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
-from dirt_shared.config import settings
-from dirt_shared.services.readings import ingest_reading
+from dirt_hwd.deps import get_readings, get_settings
+from dirt_shared.config import Settings
+from dirt_shared.services.readings import ReadingsService
 
 router = APIRouter(tags=["ingest"])
 
@@ -25,8 +26,8 @@ class IngestPayload(BaseModel):
     uptime_ms: int | None = None
 
 
-def _check_token(authorization: str | None) -> None:
-    expected = f"Bearer {settings.sensor_ingest_token}"
+def _check_token(authorization: str | None, expected_token: str) -> None:
+    expected = f"Bearer {expected_token}"
     if not authorization or authorization != expected:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid token"
@@ -38,13 +39,15 @@ async def ingest_sensors(
     payload: IngestPayload,
     request: Request,
     authorization: str | None = Header(default=None),
+    readings: ReadingsService = Depends(get_readings),
+    settings: Settings = Depends(get_settings),
 ) -> dict[str, object]:
-    _check_token(authorization)
+    _check_token(authorization, settings.sensor_ingest_token)
 
     # If caller didn't self-report IP, use the connection's remote address.
     ip = payload.ip or (request.client.host if request.client else None)
 
-    await ingest_reading(
+    await readings.ingest_reading(
         location=payload.location,
         metrics=payload.metrics,
         source=payload.source,

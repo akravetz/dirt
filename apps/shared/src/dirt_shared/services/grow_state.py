@@ -2,26 +2,25 @@
 
 Single source of truth for "what stage is the grow in right now" and "what
 temp/RH/VPD should we target at this stage". Consumed by the voice status
-tool (sensors.py) and — soon — the VPD-targeting humidifier loop.
+tool (sensors.py) and the VPD-targeting humidifier loop.
 
 Stage bands are hardcoded domain knowledge rather than DB rows: they change
-rarely and via code review, not a UI toggle. See commit history for the
-sources that informed the numbers (converging cannabis cultivation guidance,
-Apr 2026).
+rarely and via code review, not a UI toggle.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Literal
 from zoneinfo import ZoneInfo
 
+from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.config import GROW_START
-from dirt_shared.db import engine
 from dirt_shared.models.grow_state import GrowState
 
 Stage = Literal["veg", "flower_early", "flower_late"]
@@ -33,8 +32,7 @@ _LATE_FLOWER_DAY = 21
 # property of the grow space's location, not a per-grow decision.
 TENT_TZ = ZoneInfo("America/Denver")
 
-# Stage → metric → (low, high) target band. Metric names match MetricReading
-# so sensors.py can key by metric name directly.
+# Stage → metric → (low, high) target band.
 STAGE_TARGETS: dict[Stage, dict[str, tuple[float, float]]] = {
     "veg": {
         "temperature_f": (70, 82),
@@ -54,123 +52,11 @@ STAGE_TARGETS: dict[Stage, dict[str, tuple[float, float]]] = {
 }
 
 
-async def get_state() -> GrowState:
-    """Return the current grow (``is_current = true``).
-
-    The partial unique index in the schema enforces "at most one"; the
-    initial Atlas migration seeds exactly one. A transient default
-    (germination_date from config.GROW_START) is returned if nothing is
-    found, so tool callsites stay robust against an un-seeded DB (fresh
-    dev env, test without seed).
-    """
-    async with AsyncSession(engine) as session:
-        result = await session.exec(
-            select(GrowState).where(GrowState.is_current.is_(True)).limit(1)
-        )
-        state = result.first()
-        return state or GrowState(germination_date=GROW_START, is_current=True)
-
-
-async def current_stage(today: date | None = None) -> Stage:
-    """Veg vs early vs late flower, derived from flower_start_date."""
-    today = today or date.today()
-    state = await get_state()
-    if state.flower_start_date is None or today < state.flower_start_date:
-        return "veg"
-    days_in_flower = (today - state.flower_start_date).days
-    if days_in_flower < _LATE_FLOWER_DAY:
-        return "flower_early"
-    return "flower_late"
-
-
-async def grow_week(today: date | None = None) -> int:
-    """1-indexed week since germination. Day 1-7 = week 1."""
-    today = today or date.today()
-    state = await get_state()
-    return (today - state.germination_date).days // 7 + 1
-
-
-async def current_targets() -> dict[str, tuple[float, float]]:
-    """Temp / RH / VPD band for the current stage."""
-    return STAGE_TARGETS[await current_stage()]
-
-
 @dataclass(frozen=True)
 class LightsState:
     on: bool
-    # Minutes until the next scheduled lights-off event (always positive,
-    # measured from `now`). When lights are off, counts down to the *next*
-    # lights-off (i.e. tomorrow's), so this field is primarily useful while
-    # lights are on — callers should guard with `state.on`.
-    minutes_until_off: float
-
-
-async def lights_state(now_utc: datetime | None = None) -> LightsState:
-    """Are lights on right now, and how long until the next lights-off?
-
-    Reads `lights_on_local` / `lights_off_local` from the `growstate`
-    singleton so the schedule is user-editable without a code deploy
-    (future UI; for now `psql -U dirt -d dirt -c "UPDATE growstate SET ..."`).
-    """
-    now_utc = now_utc or datetime.now(UTC)
-    now_local = now_utc.astimezone(TENT_TZ)
-    state = await get_state()
-    on_time = state.lights_on_local
-    off_time = state.lights_off_local
-
-    now_t = now_local.time()
-    if on_time < off_time:
-        on = on_time <= now_t < off_time
-    else:
-        # Lights-on crosses midnight (not our current schedule, but handled).
-        on = now_t >= on_time or now_t < off_time
-
-    off_dt = datetime.combine(now_local.date(), off_time, tzinfo=TENT_TZ)
-    if off_dt <= now_local:
-        next_day = now_local.date() + timedelta(days=1)
-        off_dt = datetime.combine(next_day, off_time, tzinfo=TENT_TZ)
-    minutes_until_off = (off_dt - now_local).total_seconds() / 60.0
-
-    return LightsState(on=on, minutes_until_off=minutes_until_off)
-
-
-# ============================================================
-# Shared band-status helper — used by every endpoint that returns
-# an "ok | warn | crit" classification against a target band.
-# ============================================================
-
-BandStatus = Literal["ok", "warn", "crit"]
-
-
-def band_status(
-    value: float, band: tuple[float, float] | None
-) -> BandStatus:
-    """Classify ``value`` against a target ``band=(lo, hi)``.
-
-    - ``ok``   — value within [lo, hi]
-    - ``warn`` — outside the band but within half a band-width of an edge
-    - ``crit`` — further out than that
-
-    ``None`` band (no target defined for this metric, e.g. fan_pct) is
-    treated as "always ok" — the UI renders those without status colouring.
-    Used by ``/api/sensors/current``, ``/api/plants/{code}.moisture.status``,
-    and anywhere else the API returns a status field.
-    """
-    if band is None:
-        return "ok"
-    lo, hi = band
-    if lo <= value <= hi:
-        return "ok"
-    half_width = (hi - lo) / 2
-    if lo - half_width <= value <= hi + half_width:
-        return "warn"
-    return "crit"
-
-
-# ============================================================
-# /api/grow/current composite — collects everything the endpoint needs
-# into one dataclass so the endpoint layer doesn't chain 5 service calls.
-# ============================================================
+    minutes_until_off: float    # always positive; counts to next lights-off
+    minutes_until_on: float     # always positive; counts to next lights-on
 
 
 @dataclass(frozen=True)
@@ -188,39 +74,148 @@ class GrowCurrentPayload:
     lights_off_local: time
 
 
-async def get_grow_current_payload(
-    today: date | None = None, now_utc: datetime | None = None
-) -> GrowCurrentPayload:
-    """One-shot assembler for ``GET /api/grow/current``.
+# ============================================================
+# Pure helper used by every endpoint that returns ok|warn|crit.
+# ============================================================
 
-    Does a single ``get_state`` read + the three derived calculations
-    (stage, week, lights). ``today`` / ``now_utc`` are passed through so
-    tests can pin time.
+BandStatus = Literal["ok", "warn", "crit"]
+
+
+def band_status(
+    value: float, band: tuple[float, float] | None
+) -> BandStatus:
+    """Classify ``value`` against a target ``band=(lo, hi)``."""
+    if band is None:
+        return "ok"
+    lo, hi = band
+    if lo <= value <= hi:
+        return "ok"
+    half_width = (hi - lo) / 2
+    if lo - half_width <= value <= hi + half_width:
+        return "warn"
+    return "crit"
+
+
+class GrowStateService:
+    """Grow-stage queries + lights schedule. Constructor-inject the engine.
+
+    Wired into ``app.state.grow`` by ``dirt_web.app.create_app``;
+    resolved by ``get_grow`` provider in ``dirt_web.deps``.
+
+    The clock is constructor-injected and threads through every method's
+    "what time is it now" reads. Composition roots wire one shared clock
+    (see ``app_wiring.build_core_services``); tests pass a frozen clock
+    for deterministic stage / week / lights-state assertions.
     """
-    today = today or date.today()
-    now_utc = now_utc or datetime.now(UTC)
-    state = await get_state()
 
-    if state.flower_start_date is None or today < state.flower_start_date:
-        stage: Stage = "veg"
-    else:
+    def __init__(
+        self,
+        engine: AsyncEngine,
+        *,
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    ) -> None:
+        self._engine = engine
+        self._clock = clock
+
+    def today(self) -> date:
+        """The grow's current date in tent-local time (MDT)."""
+        return self._clock().astimezone(TENT_TZ).date()
+
+    async def get_state(self) -> GrowState:
+        """Return the current grow (``is_current = true``)."""
+        async with AsyncSession(self._engine) as session:
+            result = await session.exec(
+                select(GrowState).where(GrowState.is_current.is_(True)).limit(1)
+            )
+            state = result.first()
+            return state or GrowState(
+                germination_date=GROW_START, is_current=True
+            )
+
+    async def current_stage(self) -> Stage:
+        """Veg vs early vs late flower, derived from flower_start_date."""
+        today = self.today()
+        state = await self.get_state()
+        if state.flower_start_date is None or today < state.flower_start_date:
+            return "veg"
         days_in_flower = (today - state.flower_start_date).days
-        stage = "flower_early" if days_in_flower < _LATE_FLOWER_DAY else "flower_late"
+        if days_in_flower < _LATE_FLOWER_DAY:
+            return "flower_early"
+        return "flower_late"
 
-    week_number = (today - state.germination_date).days // 7 + 1
-    day_number = (today - state.germination_date).days + 1
-    lights = await lights_state(now_utc)
+    async def grow_week(self) -> int:
+        """1-indexed week since germination. Day 1-7 = week 1."""
+        state = await self.get_state()
+        return (self.today() - state.germination_date).days // 7 + 1
 
-    return GrowCurrentPayload(
-        germination_date=state.germination_date,
-        flower_start_date=state.flower_start_date,
-        day_number=day_number,
-        week_number=week_number,
-        stage=stage,
-        strain=state.strain,
-        location=state.location,
-        plant_count=state.plant_count,
-        lights=lights,
-        lights_on_local=state.lights_on_local,
-        lights_off_local=state.lights_off_local,
-    )
+    async def current_targets(self) -> dict[str, tuple[float, float]]:
+        """Temp / RH / VPD band for the current stage."""
+        return STAGE_TARGETS[await self.current_stage()]
+
+    async def lights_state(self) -> LightsState:
+        """Are lights on right now, and how long until the next on/off transition?"""
+        now_local = self._clock().astimezone(TENT_TZ)
+        state = await self.get_state()
+        on_time = state.lights_on_local
+        off_time = state.lights_off_local
+
+        now_t = now_local.time()
+        if on_time < off_time:
+            on = on_time <= now_t < off_time
+        else:
+            # Lights-on crosses midnight (handled but not the current schedule).
+            on = now_t >= on_time or now_t < off_time
+
+        # Always-positive countdown to the NEXT lights-off.
+        off_dt = datetime.combine(now_local.date(), off_time, tzinfo=TENT_TZ)
+        if off_dt <= now_local:
+            off_dt = datetime.combine(
+                now_local.date() + timedelta(days=1), off_time, tzinfo=TENT_TZ,
+            )
+        minutes_until_off = (off_dt - now_local).total_seconds() / 60.0
+
+        # Always-positive countdown to the NEXT lights-on.
+        on_dt = datetime.combine(now_local.date(), on_time, tzinfo=TENT_TZ)
+        if on_dt <= now_local:
+            on_dt = datetime.combine(
+                now_local.date() + timedelta(days=1), on_time, tzinfo=TENT_TZ,
+            )
+        minutes_until_on = (on_dt - now_local).total_seconds() / 60.0
+
+        return LightsState(
+            on=on,
+            minutes_until_off=minutes_until_off,
+            minutes_until_on=minutes_until_on,
+        )
+
+    async def get_grow_current_payload(self) -> GrowCurrentPayload:
+        """One-shot assembler for ``GET /api/grow/current``."""
+        today = self.today()
+        state = await self.get_state()
+
+        if state.flower_start_date is None or today < state.flower_start_date:
+            stage: Stage = "veg"
+        else:
+            days_in_flower = (today - state.flower_start_date).days
+            stage = (
+                "flower_early" if days_in_flower < _LATE_FLOWER_DAY
+                else "flower_late"
+            )
+
+        week_number = (today - state.germination_date).days // 7 + 1
+        day_number = (today - state.germination_date).days + 1
+        lights = await self.lights_state()
+
+        return GrowCurrentPayload(
+            germination_date=state.germination_date,
+            flower_start_date=state.flower_start_date,
+            day_number=day_number,
+            week_number=week_number,
+            stage=stage,
+            strain=state.strain,
+            location=state.location,
+            plant_count=state.plant_count,
+            lights=lights,
+            lights_on_local=state.lights_on_local,
+            lights_off_local=state.lights_off_local,
+        )

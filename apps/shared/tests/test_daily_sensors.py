@@ -25,7 +25,6 @@ from dirt_shared.services.daily_sensors import (
     mdt_window_to_utc,
 )
 
-
 # Apr 19 2026: MDT is UTC-6.
 TEST_NOW = datetime(2026, 4, 19, 20, 30, 0, tzinfo=UTC)  # 14:30 MDT
 TEST_DATE = date(2026, 4, 19)

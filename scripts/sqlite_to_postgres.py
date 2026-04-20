@@ -56,8 +56,8 @@ async def _assert_target_is_prepared(conn: asyncpg.Connection) -> None:
     """Target must have schema applied + seed rows present + no user data yet."""
     for table in ("growstate", "sensornode", "plant", "sensorcalibration", "sensorreading", "snapshot"):
         r = await conn.fetchval(
-            f"SELECT COUNT(*) FROM information_schema.tables "
-            f"WHERE table_schema = 'public' AND table_name = $1",
+            "SELECT COUNT(*) FROM information_schema.tables "
+            "WHERE table_schema = 'public' AND table_name = $1",
             table,
         )
         if r == 0:

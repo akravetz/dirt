@@ -1,11 +1,8 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from dirt_shared.services.readings import (
-    get_latest_reading,
-    get_sensor_history,
-    is_sensor_stale,
-)
+from dirt_shared.services.readings import ReadingsService
+from dirt_web.deps import get_readings
 
 router = APIRouter(tags=["sensors"])
 
@@ -13,27 +10,30 @@ router = APIRouter(tags=["sensors"])
 @router.get("/api/sensors/readings")
 async def sensor_readings(
     range: str = Query(default="24h", pattern="^(1h|24h|7d|30d)$"),
+    readings: ReadingsService = Depends(get_readings),
 ) -> JSONResponse:
     """Return all sensor metrics for Chart.js.
 
     Response shape: {metric: {"labels": [...], "values": [...]}, ...}
     """
-    data = await get_sensor_history(range)
+    data = await readings.get_sensor_history(range)
     return JSONResponse(data)
 
 
 @router.get("/sensors/current", response_class=HTMLResponse)
-async def current_readings() -> HTMLResponse:
+async def current_readings(
+    readings: ReadingsService = Depends(get_readings),
+) -> HTMLResponse:
     """HTMX fragment showing the latest sensor values."""
-    temp = await get_latest_reading("temperature_f")
-    hum = await get_latest_reading("humidity_pct")
-    pres = await get_latest_reading("pressure_hpa")
-    vpd = await get_latest_reading("vpd_kpa")
+    temp = await readings.get_latest_reading("temperature_f")
+    hum = await readings.get_latest_reading("humidity_pct")
+    pres = await readings.get_latest_reading("pressure_hpa")
+    vpd = await readings.get_latest_reading("vpd_kpa")
 
     if temp is None or hum is None:
         return HTMLResponse('<div class="current-stats">No sensor data available</div>')
 
-    stale = await is_sensor_stale()
+    stale = await readings.is_sensor_stale()
     warning = ""
     if stale:
         warning = (

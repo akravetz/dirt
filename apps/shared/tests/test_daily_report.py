@@ -12,7 +12,6 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-import pytest
 from PIL import Image
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession

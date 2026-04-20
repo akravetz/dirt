@@ -4,7 +4,7 @@ type: environment
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/environment/humidity.md, wiki/overview.md]
 created: 2026-04-06
-updated: 2026-04-18
+updated: 2026-04-20
 ---
 
 # Temperature
@@ -39,8 +39,12 @@ updated: 2026-04-18
 | 2026-04-05 | 77°F ✅ | On target |
 | 2026-04-08 | 75°F ✅ (spike to 80°F during humidifier-off period) | On target; spike coincided with RH drop → VPD incident → [2026-04-08](../daily/2026-04-08.md) |
 | 2026-04-18 | 73.85°F now / 63.54°F overnight avg ⚠️ / 73.34°F morning avg | Overnight lights-off window drops to ~63°F — ~10°F below daytime; well below 68–72°F veg night target → [2026-04-18](../daily/2026-04-18.md) |
+| 2026-04-19 | 78.58°F now ⚠️ / 68.0°F overnight avg ✅ / 76.09°F morning avg ⚠️ | Overnight recovered to 68°F (first time in veg night range); daytime running slightly warm (76–79°F) → [2026-04-19](../daily/2026-04-19.md) |
+| 2026-04-20 | 75.04°F now ✅ / 66.84°F overnight avg ⚠️ / 74.43°F morning avg ✅ | Daytime now in target (74–76°F) for first time; overnight dipped to 66.84°F (regression from 68.0°F) — `dirt-hwd` restart still pending → [2026-04-20](../daily/2026-04-20.md) |
 
 ## Notable Events
 - **2026-03-21** — Overnight low of 59.5°F due to exhaust fan running too fast at night; resolved by throttling fan after lights-out → [2026-03-27 daily](../daily/2026-03-27.md)
 - **2026-04-01** — Temp running low at 70°F; advised to increase → [2026-04-01 daily](../daily/2026-04-01.md)
 - **2026-04-18** — Overnight lights-off window averages 63.54°F — ~10°F below daytime; below veg night target of 68–72°F. Grow light is sole heat source; tent tracks toward ambient at night. Options: reduce exhaust fan speed at lights-off, or add a space heater on a timer → [2026-04-18](../daily/2026-04-18.md)
+- **2026-04-19** — Overnight recovered to 68.0°F avg — first time in veg night range (68–72°F) since the flag was raised. Daytime slightly warm (76.09°F morning, 78.58°F now) but not alarming. Improvement likely linked to lights-off-aware humidifier feedforward deployed today. Monitor for consistency → [2026-04-19](../daily/2026-04-19.md)
+- **2026-04-20** — Daytime now in target: 74.43°F morning avg, 75.04°F now — first time both readings within 74–76°F veg range. Overnight regressed to 66.84°F avg (below 68–72°F floor); consistent with `dirt-hwd` restart still pending (lights-off feedforward not yet active). → [2026-04-20](../daily/2026-04-20.md)

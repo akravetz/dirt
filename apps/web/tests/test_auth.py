@@ -1,19 +1,17 @@
-from unittest.mock import patch
-
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from dirt_web.app import create_app
+
 
 @pytest.fixture
-async def client():
-    with patch("dirt_shared.services.capture.capture_loop"):
-        from dirt_web.app import app
-
-        transport = ASGITransport(app=app)
-        async with AsyncClient(
-            transport=transport, base_url="http://test", follow_redirects=False
-        ) as ac:
-            yield ac
+async def client(app_engine):
+    app = create_app(engine=app_engine, run_mcp=False)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(
+        transport=transport, base_url="http://test", follow_redirects=False
+    ) as ac:
+        yield ac
 
 
 async def test_unauthenticated_redirects_to_login(client: AsyncClient):

@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-04-18
+updated: 2026-04-20
 ---
 
 # Plant A
@@ -18,7 +18,7 @@ updated: 2026-04-18
 
 ## Current State
 
-Seven days post-topping, Plant A shows vigorous multi-branch canopy with clean medium-dark green leaves — no trace of earlier foliar burn on new growth. **LST begins now.** See [2026-04-18](../daily/2026-04-18.md).
+Day 37, nine days post-topping: vigorous medium-green multi-branch canopy with clean new growth; residual cosmetic foliar burn on a few older leaves only; LST is critically overdue. See [2026-04-20](../daily/2026-04-20.md).
 
 ## Timeline
 
@@ -35,3 +35,5 @@ Seven days post-topping, Plant A shows vigorous multi-branch canopy with clean m
 - 2026-04-11 — [Day 28: **Topped above node 4**; 5th node was emerging; most vigorous plant overall; strong purple contender alongside D](../daily/2026-04-11.md)
 - 2026-04-12 — [Day 29: Recovery Day 1; monitoring for two new main shoots; LST target ~Apr 16–18](../daily/2026-04-12.md)
 - 2026-04-18 — [Day 35: Post-topping recovery complete; vigorous multi-branch canopy; **LST due now** (Day 7 post-topping); v1.2 sensor → v2.0 swap](../daily/2026-04-18.md)
+- 2026-04-19 — [Day 36: vigorous multi-branch canopy; main shoots sized up; **LST overdue** (Day 8 post-topping); moisture rising to 56% (autopot active)](../daily/2026-04-19.md)
+- 2026-04-20 — [Day 37: vigorous medium-green canopy; faint residual foliar burn on older leaves only; **LST critically overdue** (Day 9 post-topping); moisture stable ~52%](../daily/2026-04-20.md)

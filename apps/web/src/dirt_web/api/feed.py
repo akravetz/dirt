@@ -1,10 +1,11 @@
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import HTMLResponse, Response
 
 from dirt_shared.services.capture import capture_frame
-from dirt_shared.services.snapshots import get_latest_snapshot
+from dirt_shared.services.snapshots import SnapshotsService
+from dirt_web.deps import get_snapshots
 
 _MT = ZoneInfo("America/Denver")
 
@@ -30,8 +31,10 @@ async def feed_image() -> HTMLResponse:
 
 
 @router.get("/status", response_class=HTMLResponse)
-async def feed_status() -> HTMLResponse:
-    snapshot = await get_latest_snapshot()
+async def feed_status(
+    snaps: SnapshotsService = Depends(get_snapshots),
+) -> HTMLResponse:
+    snapshot = await snaps.latest()
     if snapshot is None:
         return HTMLResponse("No snapshots yet")
     ts_mt = snapshot.ts.astimezone(_MT)

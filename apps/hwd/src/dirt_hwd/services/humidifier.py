@@ -1,23 +1,11 @@
 """Humidifier control via Kasa EP10 smart plug.
 
 Bang-bang hysteresis on tent VPD against the stage-dynamic upper band from
-`dirt.services.grow_state.current_targets()`, with lights-schedule feedforward:
-
-  A. Pre-lights-off prep window — force OFF in the last N minutes of lights-on
-     so the humidifier isn't dosing mist into air that's about to cool and
-     crash VPD (see 2026-04-19 decision).
-  B. Lights-off band offset — during dark, the whole band shifts down by
-     `vpd_lights_off_offset_kpa`. The humidifier can't raise night VPD anyway
-     (single-direction actuator); the offset lets the loop rest instead of
-     chasing a setpoint it can't hit.
+``GrowStateService.current_targets()``, with lights-schedule feedforward.
 
 The humidifier is a single-direction actuator (adds moisture → drops VPD),
 so we target the band's upper edge: kick on when VPD rises above it, kick
-off once it falls back below by `vpd_deadband_kpa`.
-
-The only safety is stale-sensor failsafe OFF. The Raydrop has its own
-low-water cutoff, so continuous-on from a stuck-high VPD reading is
-self-limiting. Relay cycle count is bounded by the deadband alone.
+off once it falls back below by ``vpd_deadband_kpa``.
 """
 
 from __future__ import annotations
@@ -25,28 +13,20 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+from collections.abc import Callable
 from datetime import UTC, datetime
 
 from kasa import Credentials, Device, Discover
 
-from dirt_shared.config import settings
+from dirt_shared.config import HumidifierConfig
 from dirt_shared.models.enums import SensorLocation, SensorSource
 from dirt_shared.observability import log_event
-from dirt_shared.services.grow_state import current_stage, current_targets, lights_state
-from dirt_shared.services.readings import get_latest_reading, ingest_reading
+from dirt_shared.services.grow_state import GrowStateService
+from dirt_shared.services.readings import ReadingsService
 
 logger = logging.getLogger(__name__)
 
 STREAM = "humidifier"
-
-
-async def _record(on: bool) -> None:
-    """Write the humidifier on/off state as a tent-scoped reading."""
-    await ingest_reading(
-        SensorLocation.TENT,
-        {"humidifier_on": 1.0 if on else 0.0},
-        source=SensorSource.KASA,
-    )
 
 
 async def _safe_disconnect(plug: Device | None) -> None:
@@ -56,130 +36,163 @@ async def _safe_disconnect(plug: Device | None) -> None:
         await plug.disconnect()
 
 
-async def humidifier_loop(stop_event: asyncio.Event) -> None:
-    """Close the loop: tent VPD → Kasa plug → Raydrop humidifier.
+class HumidifierLoopService:
+    """VPD-targeting humidifier control loop. Constructor-inject everything.
 
-    Polls every `humidifier_poll_interval` seconds. Each tick fetches the
-    current stage's VPD band fresh so a veg→flower flip takes effect without
-    a restart. Records the plug's state as a `humidifier_on` reading (0/1)
-    every poll so it graphs alongside `vpd_kpa`. State transitions are also
-    emitted to the `humidifier` operational log stream with the triggering
-    reason, stage, and upper-band edge.
+    Constructor takes:
+      - ``config``: HumidifierConfig (kasa creds + VPD bands + intervals)
+      - ``readings``: ReadingsService for VPD reads + state recording
+      - ``grow``: GrowStateService for stage-dynamic band + lights schedule
+
+    Run via ``await loop_svc.run(stop_event)`` from the lifespan.
     """
-    if not settings.kasa_username or not settings.kasa_password:
-        logger.warning("KASA_USERNAME/KASA_PASSWORD unset — humidifier loop disabled")
-        return
 
-    creds = Credentials(settings.kasa_username, settings.kasa_password)
-    host = settings.kasa_humidifier_host
-    deadband = settings.vpd_deadband_kpa
-    interval = settings.humidifier_poll_interval
-    stale_s = settings.humidifier_failsafe_stale_seconds
-    night_offset = settings.vpd_lights_off_offset_kpa
-    prep_minutes = settings.lights_off_prep_minutes
+    def __init__(
+        self,
+        config: HumidifierConfig,
+        *,
+        readings: ReadingsService,
+        grow: GrowStateService,
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    ) -> None:
+        self._config = config
+        self._readings = readings
+        self._grow = grow
+        self._clock = clock
 
-    logger.info(
-        "humidifier loop starting: host=%s deadband=%.2fkPa interval=%ds "
-        "night_offset=%+.2fkPa prep_window=%dmin",
-        host, deadband, interval, night_offset, prep_minutes,
-    )
+    async def _record(self, on: bool) -> None:
+        await self._readings.ingest_reading(
+            SensorLocation.TENT,
+            {"humidifier_on": 1.0 if on else 0.0},
+            source=SensorSource.KASA,
+        )
 
-    plug: Device | None = None
+    async def run(self, stop_event: asyncio.Event) -> None:
+        cfg = self._config
+        if not cfg.kasa_username or not cfg.kasa_password:
+            logger.warning(
+                "KASA_USERNAME/KASA_PASSWORD unset — humidifier loop disabled",
+            )
+            return
 
-    while not stop_event.is_set():
-        try:
-            if plug is None:
-                # discover_single is the only path that accepts credentials
-                # directly; Device.connect(host=...) has no credentials kwarg
-                # on this python-kasa branch. One UDP probe per reconnect is
-                # cheap at our 30s cadence.
-                plug = await Discover.discover_single(host, credentials=creds)
+        creds = Credentials(cfg.kasa_username, cfg.kasa_password)
+        host = cfg.kasa_humidifier_host
+        deadband = cfg.vpd_deadband_kpa
+        interval = cfg.poll_interval
+        stale_s = cfg.failsafe_stale_seconds
+        margin_minutes = cfg.lights_off_prep_minutes
+
+        logger.info(
+            "humidifier loop starting: host=%s deadband=%.2fkPa interval=%ds "
+            "lights_margin=%dmin",
+            host, deadband, interval, margin_minutes,
+        )
+
+        plug: Device | None = None
+
+        while not stop_event.is_set():
+            try:
                 if plug is None:
-                    raise RuntimeError(f"kasa discover_single({host}) returned None")
+                    plug = await Discover.discover_single(host, credentials=creds)
+                    if plug is None:
+                        raise RuntimeError(
+                            f"kasa discover_single({host}) returned None",
+                        )
 
-            await plug.update()
-            is_on = bool(plug.is_on)
+                await plug.update()
+                is_on = bool(plug.is_on)
 
-            # Stage-dynamic band + lights-off offset (B). During lights-off
-            # the whole band drops by `night_offset` (negative value) because
-            # the humidifier can't raise night VPD — chasing it just causes
-            # overshoot. Deadband width is preserved.
-            stage = await current_stage()
-            lights = await lights_state()
-            offset = 0.0 if lights.on else night_offset
-            vpd_lo_day, vpd_hi_day = (await current_targets())["vpd_kpa"]
-            vpd_lo = vpd_lo_day + offset
-            vpd_hi = vpd_hi_day + offset
-            turn_on_above = vpd_hi
-            turn_off_below = vpd_hi - deadband
+                stage = await self._grow.current_stage()
+                lights = await self._grow.lights_state()
+                vpd_lo, vpd_hi = (
+                    await self._grow.current_targets()
+                )["vpd_kpa"]
+                turn_on_above = vpd_hi
+                turn_off_below = vpd_hi - deadband
 
-            # Pre-lights-off prep window (A). Last N minutes of lights-on:
-            # force OFF regardless of VPD so we don't dose mist into air
-            # that's about to cool and crash VPD into damping-off territory.
-            in_prep_window = lights.on and lights.minutes_until_off < prep_minutes
-
-            reading = await get_latest_reading("vpd_kpa")
-            now = datetime.now(UTC)
-            vpd: float | None = reading.value if reading else None
-            age = (now - reading.ts).total_seconds() if reading is not None else None
-
-            new_state = is_on
-            reason: str | None = None
-
-            if vpd is None or age is None or age > stale_s:
-                if is_on:
-                    new_state = False
-                    reason = "failsafe_stale_sensor"
-            elif in_prep_window:
-                if is_on:
-                    new_state = False
-                    reason = "lights_off_prep"
-                # else: already off, stay off — don't start during prep window
-            elif vpd > turn_on_above and not is_on:
-                new_state = True
-                reason = "vpd_above_upper_band"
-            elif vpd < turn_off_below and is_on:
-                new_state = False
-                reason = "vpd_below_upper_band"
-
-            if new_state != is_on:
-                if new_state:
-                    await plug.turn_on()
-                else:
-                    await plug.turn_off()
-                is_on = new_state
-                log_event(
-                    STREAM,
-                    "state_change",
-                    new_state="on" if new_state else "off",
-                    reason=reason,
-                    vpd=vpd,
-                    vpd_age_s=age,
-                    stage=stage,
-                    upper_band_kpa=vpd_hi,
-                    lower_band_kpa=vpd_lo,
-                    lights_on=lights.on,
-                    minutes_until_off=round(lights.minutes_until_off, 1),
-                    band_offset_kpa=offset,
-                )
-                logger.info(
-                    "humidifier → %s (reason=%s vpd=%s stage=%s band=[%.2f,%.2f] "
-                    "lights_on=%s until_off=%.1fmin)",
-                    "on" if new_state else "off",
-                    reason, vpd, stage, vpd_lo, vpd_hi,
-                    lights.on, lights.minutes_until_off,
+                # Humidifier-allowed window: from `lights_on - margin` through
+                # `lights_off - margin`. Outside this window we force OFF —
+                # design call (2026-04-19): the humidifier shouldn't run during
+                # the dark period, since cool air drives natural condensation
+                # and adding mist creates damping-off risk. Forces off across
+                # the prep ramp-down before lights-off and stays off until
+                # the ramp-up before lights-on.
+                allowed = (
+                    (lights.on and lights.minutes_until_off >= margin_minutes)
+                    or (
+                        not lights.on
+                        and lights.minutes_until_on <= margin_minutes
+                    )
                 )
 
-            await _record(is_on)
+                reading = await self._readings.get_latest_reading("vpd_kpa")
+                now = self._clock()
+                vpd: float | None = reading.value if reading else None
+                age = (
+                    (now - reading.ts).total_seconds()
+                    if reading is not None
+                    else None
+                )
 
-        except Exception:
-            logger.exception("humidifier loop error — dropping plug connection")
-            await _safe_disconnect(plug)
-            plug = None
-            log_event(STREAM, "error")
+                new_state = is_on
+                reason: str | None = None
 
-        with contextlib.suppress(TimeoutError):
-            await asyncio.wait_for(stop_event.wait(), timeout=interval)
+                if vpd is None or age is None or age > stale_s:
+                    if is_on:
+                        new_state = False
+                        reason = "failsafe_stale_sensor"
+                elif not allowed:
+                    if is_on:
+                        new_state = False
+                        reason = "outside_lights_window"
+                elif vpd > turn_on_above and not is_on:
+                    new_state = True
+                    reason = "vpd_above_upper_band"
+                elif vpd < turn_off_below and is_on:
+                    new_state = False
+                    reason = "vpd_below_upper_band"
 
-    await _safe_disconnect(plug)
-    logger.info("humidifier loop stopped")
+                if new_state != is_on:
+                    if new_state:
+                        await plug.turn_on()
+                    else:
+                        await plug.turn_off()
+                    is_on = new_state
+                    log_event(
+                        STREAM,
+                        "state_change",
+                        new_state="on" if new_state else "off",
+                        reason=reason,
+                        vpd=vpd,
+                        vpd_age_s=age,
+                        stage=stage,
+                        upper_band_kpa=vpd_hi,
+                        lower_band_kpa=vpd_lo,
+                        lights_on=lights.on,
+                        minutes_until_off=round(lights.minutes_until_off, 1),
+                        minutes_until_on=round(lights.minutes_until_on, 1),
+                        allowed=allowed,
+                    )
+                    logger.info(
+                        "humidifier → %s (reason=%s vpd=%s stage=%s "
+                        "band=[%.2f,%.2f] lights_on=%s allowed=%s)",
+                        "on" if new_state else "off",
+                        reason, vpd, stage, vpd_lo, vpd_hi,
+                        lights.on, allowed,
+                    )
+
+                await self._record(is_on)
+
+            except Exception:
+                logger.exception(
+                    "humidifier loop error — dropping plug connection",
+                )
+                await _safe_disconnect(plug)
+                plug = None
+                log_event(STREAM, "error")
+
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(stop_event.wait(), timeout=interval)
+
+        await _safe_disconnect(plug)
+        logger.info("humidifier loop stopped")

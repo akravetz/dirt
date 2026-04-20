@@ -23,14 +23,20 @@ from pathlib import Path
 
 import httpx
 
-from dirt_shared.config import settings
-from dirt_shared.db import engine
+from dirt_shared.app_wiring import build_core_services
+from dirt_shared.config import Settings
 from dirt_shared.services.capture import _daemon_rpc
 from dirt_shared.services.daily_report import DailyReport
 from dirt_shared.services.daily_sensors import MDT, SensorReader
 from dirt_shared.services.daily_synthesis import ClaudeSynthesisRunner
 from dirt_shared.services.photos import CameraClient
 from dirt_shared.services.telegram import TelegramClient
+
+# Composition root for the daily-report script. Settings + engine
+# constructed once per script invocation.
+settings = Settings()
+core = build_core_services(settings=settings)
+engine = core.engine
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WIKI_ROOT = REPO_ROOT / "wiki"

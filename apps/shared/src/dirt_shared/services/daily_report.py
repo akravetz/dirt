@@ -88,7 +88,7 @@ class DailyReport:
         photos_dir: Path,
         marker_dir: Path,
         wiki_root: Path,
-        clock: _Clock | None = None,
+        clock: _Clock = lambda: datetime.now(UTC),
     ) -> None:
         if not telegram_chat_id:
             raise ValueError("telegram_chat_id is required")
@@ -100,7 +100,7 @@ class DailyReport:
         self._photos_root = photos_dir
         self._marker_dir = marker_dir
         self._wiki_root = wiki_root
-        self._clock = clock or (lambda: datetime.now(UTC))
+        self._clock = clock
 
     # --- public entrypoints ---
 

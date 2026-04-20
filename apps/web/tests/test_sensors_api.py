@@ -1,5 +1,4 @@
 from datetime import UTC, datetime, timedelta
-from unittest.mock import patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -9,6 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from dirt_shared.models.enums import SensorLocation, SensorSource
 from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
+from dirt_web.app import create_app
 
 
 async def _seed_test_data(engine, hours: int = 48) -> None:
@@ -46,20 +46,18 @@ async def _seed_test_data(engine, hours: int = 48) -> None:
 
 
 @pytest.fixture
-async def client(pg_engine):
-    await _seed_test_data(pg_engine)
-    with patch("dirt_shared.services.capture.capture_loop"):
-        from dirt_web.app import app
-
-        transport = ASGITransport(app=app)
-        async with AsyncClient(
-            transport=transport, base_url="http://test", follow_redirects=False
-        ) as ac:
-            login = await ac.post(
-                "/login", data={"username": "admin", "password": "changeme"}
-            )
-            ac.cookies = login.cookies
-            yield ac
+async def client(app_engine):
+    await _seed_test_data(app_engine)
+    app = create_app(engine=app_engine, run_mcp=False)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(
+        transport=transport, base_url="http://test", follow_redirects=False
+    ) as ac:
+        login = await ac.post(
+            "/login", data={"username": "admin", "password": "changeme"}
+        )
+        ac.cookies = login.cookies
+        yield ac
 
 
 async def test_readings_default_range(client: AsyncClient):

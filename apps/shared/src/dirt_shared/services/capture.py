@@ -1,8 +1,8 @@
 """Capture service — thin client over the dirt-camera daemon socket.
 
-The daemon owns `/dev/video0` (v4l2 streaming at 5fps MJPG) and exposes a
-`capture` command that writes the latest frame to a tempfile. Python reads
-that tempfile and returns the bytes.
+The daemon owns ``/dev/video0`` (v4l2 streaming at 5fps MJPG) and exposes
+a ``capture`` command that writes the latest frame to a tempfile. Python
+reads that tempfile and returns the bytes.
 
 All v4l2, white balance, exposure, and rotation concerns live in the daemon.
 """
@@ -11,14 +11,20 @@ import asyncio
 import contextlib
 import logging
 import os
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
+from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from dirt_shared.config import settings
-from dirt_shared.db import engine
+from dirt_shared.config import CaptureConfig
 from dirt_shared.models.snapshot import Snapshot
+
+# Type alias for the camera-daemon boundary — exposed as a constructor
+# parameter on ``CaptureService`` so tests can inject a fake without
+# patching ``dirt_shared.services.capture.capture_frame``.
+FrameCapturer = Callable[[], Awaitable[bytes | None]]
 
 logger = logging.getLogger(__name__)
 
@@ -35,10 +41,7 @@ def _daemon_socket_path() -> str:
 
 
 def _parse_response(line: str) -> dict[str, str]:
-    """Parse `STATUS k=v k=v ...` into {'_status': STATUS, k: v, ...}.
-
-    Values stay as strings.
-    """
+    """Parse `STATUS k=v k=v ...` into {'_status': STATUS, k: v, ...}."""
     toks = line.split()
     if not toks:
         return {"_status": "empty"}
@@ -83,8 +86,7 @@ async def _daemon_rpc(line: str, timeout: float = 5.0) -> dict[str, str]:
 async def capture_frame() -> bytes | None:
     """Ask the daemon to capture a frame; read the tempfile; return bytes.
 
-    Returns None if the daemon is unreachable or the capture failed.
-    The tempfile is not deleted here — daemon TTL-sweeps its own dir.
+    Stateless — no engine, no config. Returns None if daemon unreachable.
     """
     resp = await _daemon_rpc("capture")
     if resp.get("_status") != "ok":
@@ -101,40 +103,62 @@ async def capture_frame() -> bytes | None:
         return None
 
 
-async def capture_snapshot() -> Snapshot | None:
-    """Capture a frame, save to disk, and record in the database."""
-    data = await capture_frame()
-    if data is None:
-        return None
+class CaptureService:
+    """Snapshot capture + persistence + periodic loop. Constructor-inject
+    engine + ``CaptureConfig`` (snapshot_dir + capture_interval) plus the
+    ``frame_capturer`` callable (defaults to the daemon-RPC implementation;
+    tests inject a fake to skip the network round-trip).
+    """
 
-    snapshot_dir = Path(settings.snapshot_dir)
-    snapshot_dir.mkdir(parents=True, exist_ok=True)
+    def __init__(
+        self,
+        engine: AsyncEngine,
+        config: CaptureConfig,
+        *,
+        frame_capturer: FrameCapturer = capture_frame,
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    ) -> None:
+        self._engine = engine
+        self._config = config
+        self._capture_frame = frame_capturer
+        self._clock = clock
 
-    now = datetime.now(UTC)
-    filename = f"snapshot_{now.strftime('%Y%m%d_%H%M%S')}.jpg"
-    file_path = snapshot_dir / filename
-    await asyncio.to_thread(file_path.write_bytes, data)
+    async def capture_snapshot(self) -> Snapshot | None:
+        """Capture a frame, save to disk, record in DB."""
+        data = await self._capture_frame()
+        if data is None:
+            return None
 
-    snapshot = Snapshot(ts=now, file_path=str(file_path))
-    async with AsyncSession(engine) as session:
-        session.add(snapshot)
-        await session.commit()
-        await session.refresh(snapshot)
+        snapshot_dir = Path(self._config.snapshot_dir)
+        snapshot_dir.mkdir(parents=True, exist_ok=True)
 
-    logger.info("Captured snapshot: %s", file_path)
-    return snapshot
+        now = self._clock()
+        filename = f"snapshot_{now.strftime('%Y%m%d_%H%M%S')}.jpg"
+        file_path = snapshot_dir / filename
+        await asyncio.to_thread(file_path.write_bytes, data)
 
+        snapshot = Snapshot(ts=now, file_path=str(file_path))
+        async with AsyncSession(self._engine) as session:
+            session.add(snapshot)
+            await session.commit()
+            await session.refresh(snapshot)
 
-async def capture_loop(stop_event: asyncio.Event) -> None:
-    """Periodically archive a snapshot at the configured interval."""
-    logger.info(
-        "Starting capture loop (interval=%ds, via dirt-camera daemon)",
-        settings.capture_interval,
-    )
-    while not stop_event.is_set():
-        try:
-            await capture_snapshot()
-        except Exception:
-            logger.exception("Error capturing snapshot")
-        with contextlib.suppress(TimeoutError):
-            await asyncio.wait_for(stop_event.wait(), timeout=settings.capture_interval)
+        logger.info("Captured snapshot: %s", file_path)
+        return snapshot
+
+    async def run(self, stop_event: asyncio.Event) -> None:
+        """Periodically capture a snapshot at the configured interval."""
+        logger.info(
+            "Starting capture loop (interval=%ds, via dirt-camera daemon)",
+            self._config.capture_interval,
+        )
+        while not stop_event.is_set():
+            try:
+                await self.capture_snapshot()
+            except Exception:
+                logger.exception("Error capturing snapshot")
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(
+                    stop_event.wait(),
+                    timeout=self._config.capture_interval,
+                )

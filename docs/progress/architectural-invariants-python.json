@@ -1,0 +1,225 @@
+{
+  "schema_version": "1",
+  "kind": "lane",
+  "lane": "python",
+  "index_file": "docs/progress/architectural-invariants.json",
+  "title": "Architectural invariants expansion — Python lane",
+  "scope": "Python-side invariants. Touches apps/*/src/**, root pyproject.toml, per-app pyproject.toml files, and creates new tests under apps/tests/invariants/. Does NOT touch web-ui/** or .claude/settings.json. Can run fully in parallel with the TypeScript lane.",
+  "parallelization_notes": "No item in this lane has a blocked_by in the TypeScript lane. Safe to start all work as soon as bootstrap_cmds pass.",
+  "harness_reference": "See docs/progress/architectural-invariants.json — harness, format_notes, acceptance_criteria_types all live there. Agents updating this file should read the index first.",
+  "items": [
+    {
+      "id": "PY-01",
+      "title": "Layered contract for dirt_shared internals",
+      "category": "python-invariant",
+      "priority": 1,
+      "rationale": "Existing import_boundaries.invariant.ini enforces cross-app and api→db boundaries, but dirt_shared internals have no layer rule. Nothing stops models/ from importing services/, which inverts dependency flow and creates circular imports under load.",
+      "approach": "Add a new contract to apps/tests/invariants/import_boundaries.invariant.ini of type=layers with containers=dirt_shared and layers in strict order: services (top) → models → db → {config, observability}. This extends the existing import-linter config; no new test wrapper needed since test_import_boundaries.py already runs lint-imports against the whole .ini.",
+      "files": {
+        "modify": ["apps/tests/invariants/import_boundaries.invariant.ini"],
+        "create": [],
+        "protect": []
+      },
+      "acceptance_criteria": [
+        {"type": "grep_present", "path": "apps/tests/invariants/import_boundaries.invariant.ini", "pattern": "^type\\s*=\\s*layers"},
+        {"type": "grep_present", "path": "apps/tests/invariants/import_boundaries.invariant.ini", "pattern": "dirt_shared\\.services"},
+        {"type": "shell_exit_zero", "cmd": "uv run pytest apps/tests/invariants/test_import_boundaries.py -q"},
+        {"type": "negative_test", "description": "Add `from dirt_shared.services.plants import get_plants_payload` to any file in apps/shared/src/dirt_shared/models/ — pytest must fail.", "cmd": "uv run pytest apps/tests/invariants/test_import_boundaries.py -q"}
+      ],
+      "status": "not_started",
+      "blocks": [],
+      "blocked_by": [],
+      "session_log": [],
+      "verifier_notes": null
+    },
+    {
+      "id": "PY-02",
+      "title": "deptry — unused and undeclared dependencies",
+      "category": "python-invariant",
+      "priority": 2,
+      "rationale": "Agents reliably add `import httpx` without `uv add`, or leave imports dead after a refactor. deptry catches both in one pass. Same wrapper shape as test_import_boundaries.py (shell out, pytest.fail with actionable message).",
+      "approach": "Add deptry as a dev dep (`uv add --dev deptry`). Write apps/tests/invariants/test_dependency_hygiene.py that runs `deptry .` from repo root, capturing stdout. On non-zero exit, pytest.fail with format_invariant_failure. Configure deptry per-package via [tool.deptry] in each apps/*/pyproject.toml (or one root config with per-package sections) to distinguish dirt_shared / dirt_hwd / etc.",
+      "files": {
+        "modify": ["pyproject.toml", "apps/hwd/pyproject.toml", "apps/web/pyproject.toml", "apps/shared/pyproject.toml", "apps/mcp/pyproject.toml", "apps/voice/pyproject.toml"],
+        "create": ["apps/tests/invariants/test_dependency_hygiene.py"],
+        "protect": ["apps/tests/invariants/test_dependency_hygiene.py"]
+      },
+      "acceptance_criteria": [
+        {"type": "file_exists", "path": "apps/tests/invariants/test_dependency_hygiene.py"},
+        {"type": "shell_exit_zero", "cmd": "uv run deptry --version"},
+        {"type": "shell_exit_zero", "cmd": "uv run pytest apps/tests/invariants/test_dependency_hygiene.py -q"},
+        {"type": "negative_test", "description": "Add `import toml` to any dirt_shared service file without adding it to deps. Must fail.", "cmd": "uv run pytest apps/tests/invariants/test_dependency_hygiene.py -q"}
+      ],
+      "status": "not_started",
+      "blocks": [],
+      "blocked_by": [],
+      "session_log": [],
+      "verifier_notes": null
+    },
+    {
+      "id": "PY-03",
+      "title": "No os.environ / os.getenv outside config.py",
+      "category": "python-invariant",
+      "priority": 3,
+      "rationale": "Every env read must go through Settings (apps/shared/src/dirt_shared/config.py). Without this, agents answer 'we need a new knob' by sprinkling os.getenv('FOO') at call sites — untyped, undocumented, untestable.",
+      "approach": "New AST-based invariant test following the same shape as test_no_concrete_clock_in_production.py. Walk apps/*/src/dirt_*/**/*.py; use build_import_map to resolve aliases. Flag Call nodes whose resolved target is in {'os.environ', 'os.getenv', 'os.environ.get', 'os.environ.setdefault'} OR Subscript nodes on the `os.environ` mapping. Allowlist: dirt_shared.config and a short SHELL_MODULES set (just config.py for now).",
+      "files": {
+        "create": ["apps/tests/invariants/test_no_env_reads_outside_config.py"],
+        "modify": [],
+        "protect": ["apps/tests/invariants/test_no_env_reads_outside_config.py"]
+      },
+      "acceptance_criteria": [
+        {"type": "file_exists", "path": "apps/tests/invariants/test_no_env_reads_outside_config.py"},
+        {"type": "shell_exit_zero", "cmd": "uv run pytest apps/tests/invariants/test_no_env_reads_outside_config.py -q"},
+        {"type": "negative_test", "description": "Add `import os; _x = os.getenv('FOO')` at module level of any service file. Must fail.", "cmd": "uv run pytest apps/tests/invariants/test_no_env_reads_outside_config.py -q"}
+      ],
+      "status": "not_started",
+      "blocks": [],
+      "blocked_by": [],
+      "session_log": [],
+      "verifier_notes": null
+    },
+    {
+      "id": "PY-04",
+      "title": "No blocking I/O inside async def",
+      "category": "python-invariant",
+      "priority": 4,
+      "rationale": "Most common correctness regression when an LLM 'helpfully' adds a retry or file read inside a FastAPI handler. Blocks the event loop, produces mysterious tail-latency spikes.",
+      "approach": "Prefer Ruff's ASYNC rule family over a custom AST check — lower maintenance. Enable `ASYNC` in [tool.ruff.lint] select. Verify coverage matches intent (ASYNC100/ASYNC101/ASYNC109/ASYNC210/ASYNC220/ASYNC230/ASYNC250). If a gap remains (e.g. open() inside async def, bare requests.*), add one targeted AST invariant for that gap only; do not duplicate Ruff coverage.",
+      "files": {
+        "modify": ["pyproject.toml"],
+        "create": [],
+        "protect": []
+      },
+      "acceptance_criteria": [
+        {"type": "grep_present", "path": "pyproject.toml", "pattern": "\"ASYNC\""},
+        {"type": "shell_exit_zero", "cmd": "uv run ruff check"},
+        {"type": "negative_test", "description": "Add `import time; async def f(): time.sleep(1)` to any production file. Must fail `uv run ruff check`.", "cmd": "uv run ruff check"}
+      ],
+      "status": "not_started",
+      "blocks": [],
+      "blocked_by": [],
+      "session_log": [],
+      "verifier_notes": null
+    },
+    {
+      "id": "PY-05",
+      "title": "No raw SQL outside models / services / migrations",
+      "category": "python-invariant",
+      "priority": 5,
+      "rationale": "Runtime-query analog of test_schema_managed_by_atlas.py (which only covers DDL). Keeps ORM discipline; prevents agents from 'just running a quick SELECT' inside an API handler.",
+      "approach": "AST scan. Walk apps/*/src/dirt_*/**/*.py. For each string literal (Constant with str value), flag if the UPPERCASED stripped value starts with any of {'SELECT ', 'INSERT INTO ', 'UPDATE ', 'DELETE FROM ', 'CREATE TABLE', 'ALTER TABLE', 'DROP TABLE'}. Allowlist directories: apps/shared/src/dirt_shared/services/, apps/shared/src/dirt_shared/models/, migrations/, apps/shared/src/dirt_shared/db.py (session factory may ship with a health-check). Multi-line string literals count (cover `sql = '''SELECT ...'''`).",
+      "files": {
+        "create": ["apps/tests/invariants/test_no_raw_sql_outside_data_layer.py"],
+        "modify": [],
+        "protect": ["apps/tests/invariants/test_no_raw_sql_outside_data_layer.py"]
+      },
+      "acceptance_criteria": [
+        {"type": "file_exists", "path": "apps/tests/invariants/test_no_raw_sql_outside_data_layer.py"},
+        {"type": "shell_exit_zero", "cmd": "uv run pytest apps/tests/invariants/test_no_raw_sql_outside_data_layer.py -q"},
+        {"type": "negative_test", "description": "Add `_q = 'SELECT * FROM plant'` to any api/ file. Must fail.", "cmd": "uv run pytest apps/tests/invariants/test_no_raw_sql_outside_data_layer.py -q"}
+      ],
+      "status": "not_started",
+      "blocks": [],
+      "blocked_by": [],
+      "session_log": [],
+      "verifier_notes": null
+    },
+    {
+      "id": "PY-06",
+      "title": "No print() in production code",
+      "category": "python-invariant",
+      "priority": 6,
+      "rationale": "Observability is structured (log_event, loguru). print() bypasses log streams, breaks correlation_id chaining, and isn't captured by systemd journal in a useful shape.",
+      "approach": "Ruff's T201 rule (`flake8-print`). Add 'T20' to [tool.ruff.lint] select. Allow prints in scripts/ and debug/ by per-directory extend-select override.",
+      "files": {
+        "modify": ["pyproject.toml"],
+        "create": [],
+        "protect": []
+      },
+      "acceptance_criteria": [
+        {"type": "grep_present", "path": "pyproject.toml", "pattern": "\"T20\""},
+        {"type": "shell_exit_zero", "cmd": "uv run ruff check"},
+        {"type": "negative_test", "description": "Add `print('hi')` to any apps/*/src/**/*.py. Must fail ruff.", "cmd": "uv run ruff check"}
+      ],
+      "status": "not_started",
+      "blocks": [],
+      "blocked_by": [],
+      "session_log": [],
+      "verifier_notes": null
+    },
+    {
+      "id": "PY-07",
+      "title": "No asyncio.run outside composition roots / __main__ blocks",
+      "category": "python-invariant",
+      "priority": 7,
+      "rationale": "Agents 'fix' a sync call site by wrapping in asyncio.run(), which explodes under uvicorn (nested loop) and silently drops exceptions in daemon contexts.",
+      "approach": "AST check. Flag Call nodes resolving to `asyncio.run`. Allow only inside `if __name__ == '__main__':` blocks or inside COMPOSITION_ROOTS files. Reuse build_import_map + COMPOSITION_ROOTS from _helpers.py.",
+      "files": {
+        "create": ["apps/tests/invariants/test_no_asyncio_run_outside_entrypoints.py"],
+        "modify": [],
+        "protect": ["apps/tests/invariants/test_no_asyncio_run_outside_entrypoints.py"]
+      },
+      "acceptance_criteria": [
+        {"type": "file_exists", "path": "apps/tests/invariants/test_no_asyncio_run_outside_entrypoints.py"},
+        {"type": "shell_exit_zero", "cmd": "uv run pytest apps/tests/invariants/test_no_asyncio_run_outside_entrypoints.py -q"},
+        {"type": "negative_test", "description": "Add `import asyncio; asyncio.run(some_coro())` at top level of any service file. Must fail.", "cmd": "uv run pytest apps/tests/invariants/test_no_asyncio_run_outside_entrypoints.py -q"}
+      ],
+      "status": "not_started",
+      "blocks": [],
+      "blocked_by": [],
+      "session_log": [],
+      "verifier_notes": null
+    },
+    {
+      "id": "PY-08",
+      "title": "Ruff rule-set audit — enable TID / PLR / RUF / S",
+      "category": "python-invariant",
+      "priority": 8,
+      "rationale": "Ruff covers many smells for free (tidy imports, complexity, security). Cheaper than hand-rolled AST for everything it already does.",
+      "approach": "Enable in [tool.ruff.lint.select]: TID (flake8-tidy-imports), PLR0913/PLR0915 (complexity), RUF (Ruff-specific), S (bandit). Triage the initial failure set: fix the real smells, add targeted per-file-ignores for intentional patterns (e.g. S101 assert in tests). Do NOT enable SIM or PL globally without triage — noisy.",
+      "files": {
+        "modify": ["pyproject.toml"],
+        "create": [],
+        "protect": []
+      },
+      "acceptance_criteria": [
+        {"type": "grep_present", "path": "pyproject.toml", "pattern": "\"TID\""},
+        {"type": "grep_present", "path": "pyproject.toml", "pattern": "\"RUF\""},
+        {"type": "grep_present", "path": "pyproject.toml", "pattern": "\"S\""},
+        {"type": "shell_exit_zero", "cmd": "uv run ruff check"}
+      ],
+      "status": "not_started",
+      "blocks": [],
+      "blocked_by": [],
+      "session_log": [],
+      "verifier_notes": null
+    },
+    {
+      "id": "PY-09",
+      "title": "Hypothesis property-based tests at pure-function boundaries (stretch)",
+      "category": "python-test",
+      "priority": 9,
+      "rationale": "Invariants so far are structural. One class of correctness drift they don't catch: an agent 'fixes' a bug by narrowing a function's contract. Property tests pin the contract.",
+      "approach": "Add `hypothesis` to dev deps. Write property tests for: (a) grow_state.derive_stage — for any date + germination_date + optional flower_start_date, output is one of {'veg','flower_early','flower_late'}; (b) ingest validation in dirt_hwd.api.ingest — for any payload matching the Pydantic schema, the service accepts it and idempotently inserts. Scope: 2-3 properties total, not a suite. Stretch item — skip if bandwidth-limited.",
+      "files": {
+        "create": [
+          "apps/shared/tests/test_grow_state_properties.py",
+          "apps/hwd/tests/test_ingest_properties.py"
+        ],
+        "modify": ["pyproject.toml"],
+        "protect": []
+      },
+      "acceptance_criteria": [
+        {"type": "file_exists", "path": "apps/shared/tests/test_grow_state_properties.py"},
+        {"type": "shell_exit_zero", "cmd": "uv run pytest apps/shared/tests/test_grow_state_properties.py apps/hwd/tests/test_ingest_properties.py -q"},
+        {"type": "grep_present", "path": "apps/shared/tests/test_grow_state_properties.py", "pattern": "@given"}
+      ],
+      "status": "not_started",
+      "blocks": [],
+      "blocked_by": [],
+      "session_log": [],
+      "verifier_notes": null
+    }
+  ]
+}

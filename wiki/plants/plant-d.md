@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-04-18
+updated: 2026-04-20
 ---
 
 # Plant D
@@ -18,7 +18,7 @@ updated: 2026-04-18
 
 ## Current State
 
-Six days post-topping, Plant D shows a healthy multi-branch canopy, medium-dark green with clean leaves. **LST begins now.** v1.2 capacitive sensor replaced with v2.0 today for sensor-generation consistency. See [2026-04-18](../daily/2026-04-18.md).
+Day 37, eight days post-topping: multi-branch canopy; noticeably lighter green than peers today — monitoring for 2–3 more observations; stable moisture (~42%); LST critically overdue. See [2026-04-20](../daily/2026-04-20.md).
 
 ## Timeline
 
@@ -35,3 +35,5 @@ Six days post-topping, Plant D shows a healthy multi-branch canopy, medium-dark 
 - 2026-04-11 — [Day 28: Stable; no new observations](../daily/2026-04-11.md)
 - 2026-04-12 — [Day 29: **Topped above node 4**; both primaries now in recovery; LST target ~Apr 17–19](../daily/2026-04-12.md)
 - 2026-04-18 — [Day 35: Recovery Day 6; healthy multi-branch canopy; **LST due now**; v1.2 sensor → v2.0 swap](../daily/2026-04-18.md)
+- 2026-04-19 — [Day 36: healthy multi-branch canopy; **LST overdue** (Day 7 post-topping); moisture stable ~26%](../daily/2026-04-19.md)
+- 2026-04-20 — [Day 37: ⚠️ lighter green than peers — monitoring; **LST critically overdue** (Day 8 post-topping); moisture stable ~42%](../daily/2026-04-20.md)

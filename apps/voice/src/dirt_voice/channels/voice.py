@@ -32,7 +32,7 @@ import time
 import uuid
 import wave
 from collections import deque
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
@@ -60,15 +60,18 @@ from pipecat.utils.text.pattern_pair_aggregator import (
     PatternPairAggregator,
 )
 
+from dirt_shared.app_wiring import build_core_services
+from dirt_shared.config import Settings
+from dirt_shared.observability import CONVERSATION_ID, log_event
+from dirt_shared.services.grow_state import GrowStateService
 from dirt_voice.channels._audio_transport import (
     SoundDeviceTransport,
     SoundDeviceTransportParams,
 )
 from dirt_voice.channels._observers import FrameFlowObserver
-from dirt_shared.config import settings
-from dirt_shared.observability import CONVERSATION_ID, log_event
-from dirt_shared.services.grow_state import grow_week
-from dirt_voice.tools import SHARED_TOOLS, ToolSpec
+from dirt_voice.tools import ToolSpec
+from dirt_voice.tools.sensors import build_sensor_tools
+from dirt_voice.tools.wiki import build_wiki_tools
 
 # voice.py lives at apps/voice/src/dirt_voice/channels/voice.py
 #   parents[0] channels
@@ -78,11 +81,6 @@ from dirt_voice.tools import SHARED_TOOLS, ToolSpec
 #   parents[4] apps
 #   parents[5] <repo root>
 REPO_ROOT = Path(__file__).resolve().parents[5]
-
-# Written on startup, unlinked on clean shutdown. `kill $(cat var/logs/voice.pid)`
-# always targets the actual Python PID — no pattern-matching, no uv wrapper
-# confusion, no risk of pkill matching its own shell.
-PID_FILE = settings.data_dir / "logs" / "voice.pid"
 
 # Wake model — trained on user-voice ElevenLabs clones + captured RIRs.
 # See wiki/decisions/2026-04-16-wake-word-training-strategy.md.
@@ -101,7 +99,6 @@ WAKE_WARMUP_FRAMES = 12   # ~1s at 80ms/frame — drop post-conversation echo ta
 # * 80 ms = ~1.9 s of context, enough to capture the full wake-phrase window
 # regardless of where within the frame the peak score lands.
 WAKE_AUDIO_BUFFER_FRAMES = 24
-WAKE_AUDIO_DIR = settings.data_dir / "logs" / "wake_audio"
 
 # Jabra SPEAK 410 hardware constraints
 INPUT_SAMPLE_RATE = 16000
@@ -110,8 +107,6 @@ OUTPUT_CHANNELS = 2            # stereo-only playback endpoint
 PLAYBACK_GAIN_DB = 12.0
 
 SESSION_IDLE_TIMEOUT_S = 15
-
-SESSIONS_DIR = settings.data_dir / "sessions" / "voice"
 
 CLAUDIA_SYSTEM_PROMPT_BASE = (
     "Your name is Claudia. You are a warm, confident, sassy 28-year-old "
@@ -142,15 +137,15 @@ CLAUDIA_SYSTEM_PROMPT_BASE = (
 )
 
 
-async def _build_claudia_system_prompt() -> str:
+async def _build_claudia_system_prompt(grow: GrowStateService) -> str:
     # Date and grow week change over time; rebuild per conversation so the
     # model always has current context. Short addendum — no effect on cache
     # because Anthropic prompt-cache TTL (≤1h) is shorter than the daily
     # refresh rate anyway.
     return (
         f"{CLAUDIA_SYSTEM_PROMPT_BASE}\n\n"
-        f"Today is {date.today().isoformat()}. "
-        f"We're in week {await grow_week()} of the grow."
+        f"Today is {grow.today().isoformat()}. "
+        f"We're in week {await grow.grow_week()} of the grow."
     )
 
 
@@ -158,14 +153,14 @@ def _utc_now() -> str:
     return datetime.now(UTC).isoformat(timespec="milliseconds")
 
 
-def _session_log_path() -> Path:
-    return SESSIONS_DIR / f"{datetime.now(UTC).strftime('%Y-%m-%d')}.jsonl"
+def _session_log_path(sessions_dir: Path) -> Path:
+    return sessions_dir / f"{datetime.now(UTC).strftime('%Y-%m-%d')}.jsonl"
 
 
-def _log_event(event: dict) -> None:
+def _log_event(event: dict, sessions_dir: Path) -> None:
     """Append one JSON line to today's session log."""
     event.setdefault("ts", _utc_now())
-    with _session_log_path().open("a") as f:
+    with _session_log_path(sessions_dir).open("a") as f:
         f.write(json.dumps(event, ensure_ascii=False) + "\n")
 
 
@@ -228,19 +223,23 @@ def _load_wake_model() -> tuple[Model, str]:
 
 
 def _save_wake_audio_clip(
-    frames: deque[np.ndarray], score: float, label: str,
+    frames: deque[np.ndarray],
+    score: float,
+    label: str,
+    audio_dir: Path,
 ) -> None:
     """Dump the recent audio buffer as WAV for hard-negative harvesting.
 
-    Files land in `logs/wake_audio/` as
-    `<ts>_<label>_score-<N.NNN>.wav`. Ops must rotate this directory
+    Files land in ``audio_dir`` (caller's choice — typically
+    ``settings.data_dir / "logs" / "wake_audio"``) as
+    ``<ts>_<label>_score-<N.NNN>.wav``. Ops must rotate this directory
     manually — we want to accumulate over weeks to build a real in-situ
     hard-negative set for the next wake-model training run, so automatic
     retention would defeat the purpose.
     """
-    WAKE_AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+    audio_dir.mkdir(parents=True, exist_ok=True)
     ts = datetime.now(UTC).strftime("%Y-%m-%dT%H-%M-%S-%f")[:-3]
-    path = WAKE_AUDIO_DIR / f"{ts}_{label}_score-{score:.3f}.wav"
+    path = audio_dir / f"{ts}_{label}_score-{score:.3f}.wav"
     audio_bytes = b"".join(f.tobytes() for f in frames)
     with wave.open(str(path), "wb") as w:
         w.setnchannels(1)
@@ -249,7 +248,7 @@ def _save_wake_audio_clip(
         w.writeframes(audio_bytes)
 
 
-async def wait_for_wake(device: int) -> float:
+async def wait_for_wake(device: int, *, wake_audio_dir: Path) -> float:
     """Listen until 'hey Claudia' fires. Returns the detection score."""
     model, model_name = _load_wake_model()
     # openwakeword carries ~1.5s of internal mel/embedding state across calls.
@@ -306,7 +305,9 @@ async def wait_for_wake(device: int) -> float:
                 )
                 # Save the positive example too — retraining wants real
                 # in-situ positives as much as hard negatives.
-                _save_wake_audio_clip(recent_frames, score, "wake")
+                _save_wake_audio_clip(
+                    recent_frames, score, "wake", wake_audio_dir,
+                )
                 return score
             elif score >= WAKE_NEAR_MISS_FLOOR:
                 # Sub-threshold scores that plausibly contain speech-like
@@ -324,10 +325,18 @@ async def wait_for_wake(device: int) -> float:
                 # Scores below 0.3 are mostly noise/silence, not worth
                 # hoarding.
                 if score >= WAKE_AUDIO_CAPTURE_FLOOR:
-                    _save_wake_audio_clip(recent_frames, score, "near_miss")
+                    _save_wake_audio_clip(
+                        recent_frames, score, "near_miss", wake_audio_dir,
+                    )
 
 
-async def run_conversation(device: int) -> LLMContext:
+async def run_conversation(
+    device: int,
+    *,
+    settings: Settings,
+    grow: GrowStateService,
+    tools: list[ToolSpec],
+) -> LLMContext:
     """Build and run a single Pipecat conversation session. Returns the final
     LLMContext so the caller can persist the transcript to the session log."""
     transport = SoundDeviceTransport(SoundDeviceTransportParams(
@@ -370,16 +379,16 @@ async def run_conversation(device: int) -> LLMContext:
         api_key=settings.anthropic_api_key,
         settings=AnthropicLLMService.Settings(
             model="claude-haiku-4-5",
-            system_instruction=await _build_claudia_system_prompt(),
+            system_instruction=await _build_claudia_system_prompt(grow),
             max_tokens=512,
             enable_prompt_caching=True,
         ),
     )
 
-    _register_tools(llm, SHARED_TOOLS)
+    _register_tools(llm, tools)
 
     context = LLMContext(
-        tools=ToolsSchema(standard_tools=[_to_pipecat_schema(t) for t in SHARED_TOOLS]),
+        tools=ToolsSchema(standard_tools=[_to_pipecat_schema(t) for t in tools]),
     )
 
     user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
@@ -468,17 +477,46 @@ def _conversation_turns(context: LLMContext) -> list[dict]:
 
 
 async def main() -> None:
+    """Composition root for the voice channel. Builds Settings + engine +
+    services + tools, then runs the wake-word loop."""
     logger.remove()
     logger.add(sys.stderr, level="DEBUG")
 
-    missing = [f for f in ("deepgram_api_key", "anthropic_api_key", "elabs_api_key", "elabs_voice_id")
-               if not getattr(settings, f)]
-    if missing:
-        sys.exit(f"Missing env vars in .env: {', '.join(m.upper() for m in missing)}")
+    settings = Settings()
+    core = build_core_services(settings=settings)
 
-    SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
-    PID_FILE.parent.mkdir(parents=True, exist_ok=True)
-    PID_FILE.write_text(str(os.getpid()))
+    # Per-process paths derived from settings.data_dir.
+    sessions_dir = settings.data_dir / "sessions" / "voice"
+    wake_audio_dir = settings.data_dir / "logs" / "wake_audio"
+    pid_file = settings.data_dir / "logs" / "voice.pid"
+
+    missing = [
+        f for f in (
+            "deepgram_api_key", "anthropic_api_key",
+            "elabs_api_key", "elabs_voice_id",
+        )
+        if not getattr(settings, f)
+    ]
+    if missing:
+        sys.exit(
+            f"Missing env vars in .env: {', '.join(m.upper() for m in missing)}"
+        )
+
+    sessions_dir.mkdir(parents=True, exist_ok=True)
+    pid_file.parent.mkdir(parents=True, exist_ok=True)
+    pid_file.write_text(str(os.getpid()))
+
+    # Build tools with services injected — the closures bind here, no
+    # module-level service access anywhere.
+    tools: list[ToolSpec] = (
+        build_sensor_tools(
+            engine=core.engine,
+            readings=core.readings,
+            grow=core.grow,
+            clock=core.clock,
+        )
+        + build_wiki_tools(grow=core.grow)
+    )
 
     # Without this, SIGTERM skips async unwind and leaves the portaudio thread
     # holding the Jabra ALSA capture handle, breaking the next startup.
@@ -490,47 +528,60 @@ async def main() -> None:
 
     jabra = find_jabra()
     logger.info(f"Jabra device index: {jabra} (pid={os.getpid()})")
-    _log_event({"type": "channel_started", "device_index": jabra})
+    _log_event(
+        {"type": "channel_started", "device_index": jabra}, sessions_dir,
+    )
 
     try:
         while True:
-            score = await wait_for_wake(jabra)
+            score = await wait_for_wake(jabra, wake_audio_dir=wake_audio_dir)
             # One ID per wake, threaded through: the voice session log, sub-agent
             # invocations (via the CONVERSATION_ID ContextVar), and
             # `conversation_end`. Lets `jq` join a voice turn to its ask_wiki
             # traces after the fact.
             conversation_id = str(uuid.uuid4())
             cid_token = CONVERSATION_ID.set(conversation_id)
-            _log_event({
-                "type": "wake",
-                "score": round(score, 3),
-                "conversation_id": conversation_id,
-            })
+            _log_event(
+                {
+                    "type": "wake",
+                    "score": round(score, 3),
+                    "conversation_id": conversation_id,
+                },
+                sessions_dir,
+            )
 
             try:
-                context = await run_conversation(jabra)
-                _log_event({
-                    "type": "conversation_end",
-                    "reason": "idle",
-                    "conversation_id": conversation_id,
-                    "turns": _conversation_turns(context),
-                })
+                context = await run_conversation(
+                    jabra, settings=settings, grow=core.grow, tools=tools,
+                )
+                _log_event(
+                    {
+                        "type": "conversation_end",
+                        "reason": "idle",
+                        "conversation_id": conversation_id,
+                        "turns": _conversation_turns(context),
+                    },
+                    sessions_dir,
+                )
             except Exception as e:
                 logger.exception("conversation failed")
-                _log_event({
-                    "type": "conversation_end",
-                    "reason": "error",
-                    "conversation_id": conversation_id,
-                    "error": str(e),
-                })
+                _log_event(
+                    {
+                        "type": "conversation_end",
+                        "reason": "error",
+                        "conversation_id": conversation_id,
+                        "error": str(e),
+                    },
+                    sessions_dir,
+                )
             finally:
                 CONVERSATION_ID.reset(cid_token)
 
             logger.info("← conversation ended, back to listening\n")
     except (KeyboardInterrupt, asyncio.CancelledError):
-        _log_event({"type": "channel_stopped"})
+        _log_event({"type": "channel_stopped"}, sessions_dir)
     finally:
-        PID_FILE.unlink(missing_ok=True)
+        pid_file.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":

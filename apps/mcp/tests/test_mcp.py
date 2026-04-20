@@ -1,25 +1,23 @@
 from datetime import UTC, datetime
-from unittest.mock import patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.snapshot import Snapshot
-from dirt_shared.services.snapshots import get_latest_snapshot, get_snapshot_path
+from dirt_shared.services.snapshots import SnapshotsService, get_snapshot_path
+from dirt_web.app import create_app
 
 
 @pytest.fixture
-async def full_app_client(pg_engine):
-    """Client against the full FastAPI app (for auth boundary tests)."""
-    with patch("dirt_shared.services.capture.capture_loop"):
-        from dirt_web.app import app
-
-        transport = ASGITransport(app=app)
-        async with AsyncClient(
-            transport=transport, base_url="http://test", follow_redirects=False
-        ) as ac:
-            yield ac
+async def full_app_client(app_engine):
+    """Per-test app with MCP mounted (for auth boundary tests)."""
+    app = create_app(engine=app_engine, run_mcp=True)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(
+        transport=transport, base_url="http://test", follow_redirects=False
+    ) as ac:
+        yield ac
 
 
 # --- Auth boundary tests ---
@@ -43,16 +41,16 @@ async def test_mcp_no_cookie_auth_redirect(full_app_client: AsyncClient):
     assert response.headers.get("location") != "/login"
 
 
-# --- Service layer tests ---
+# --- Service layer tests (constructor-injected; no FastAPI, no patches) ---
 
 
-async def test_get_latest_snapshot_empty_db(pg_engine):
-    result = await get_latest_snapshot()
-    assert result is None
+async def test_snapshots_service_empty_db(app_engine):
+    snaps = SnapshotsService(app_engine)
+    assert await snaps.latest() is None
 
 
-async def test_get_latest_snapshot_returns_most_recent(pg_engine):
-    async with AsyncSession(pg_engine) as session:
+async def test_snapshots_service_returns_most_recent(app_engine):
+    async with AsyncSession(app_engine) as session:
         session.add(
             Snapshot(ts=datetime(2026, 1, 1, tzinfo=UTC), file_path="/old.jpg")
         )
@@ -61,7 +59,8 @@ async def test_get_latest_snapshot_returns_most_recent(pg_engine):
         )
         await session.commit()
 
-    result = await get_latest_snapshot()
+    snaps = SnapshotsService(app_engine)
+    result = await snaps.latest()
     assert result is not None
     assert result.file_path == "/new.jpg"
 

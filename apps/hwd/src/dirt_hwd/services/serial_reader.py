@@ -6,9 +6,10 @@ import math
 
 import serial
 
-from dirt_shared.config import settings
+from dirt_shared.config import SerialConfig
 from dirt_shared.models.enums import SensorLocation, SensorSource
-from dirt_shared.services.readings import ingest_reading
+from dirt_shared.observability import log_event
+from dirt_shared.services.readings import ReadingsService
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ def _c_to_f(celsius: float) -> float:
 
 
 def _saturation_vapor_pressure_kpa(temp_c: float) -> float:
-    """Tetens formula for saturation vapor pressure (kPa) at the given temp (°C)."""
+    """Tetens formula for saturation vapor pressure (kPa)."""
     return 0.6108 * math.exp(17.27 * temp_c / (temp_c + 237.3))
 
 
@@ -49,6 +50,23 @@ def _derive_metrics(data: dict) -> dict[str, float]:
     }
 
 
+def _is_boot_frame(data: dict) -> bool:
+    return data.get("event") == "boot"
+
+
+def _log_boot_frame(data: dict) -> None:
+    """Persist a BME280 boot diagnostic frame to the sensor_boot stream.
+
+    Emitted once by the Arduino after every bme.begin() call (power-on, DTR
+    reset from serial reopen, or loop-level re-init after a transient read
+    failure). Diffing the calibration blobs across boots distinguishes
+    library-side state issues from coefficient-read corruption. See ongoing
+    BME280 drift investigation (2026-04-20).
+    """
+    fields = {k: v for k, v in data.items() if k != "event"}
+    log_event("sensor_boot", "boot", **fields)
+
+
 def _read_line(ser: serial.Serial) -> dict | None:
     """Read a single JSON line from the serial port. Returns parsed dict or None."""
     try:
@@ -61,65 +79,84 @@ def _read_line(ser: serial.Serial) -> dict | None:
         return None
 
 
-async def serial_reader_loop(stop_event: asyncio.Event) -> None:
-    """Read sensor data from the Arduino over serial and save to DB."""
-    port = settings.serial_port
-    baud = settings.serial_baud
-    interval = settings.sensor_poll_interval
+class SerialReaderService:
+    """Read sensor data from the Arduino over serial. Constructor-inject."""
 
-    logger.info(
-        "Starting serial reader (port=%s, baud=%d, interval=%ds)",
-        port,
-        baud,
-        interval,
-    )
+    def __init__(
+        self,
+        config: SerialConfig,
+        *,
+        readings: ReadingsService,
+    ) -> None:
+        self._config = config
+        self._readings = readings
 
-    loop = asyncio.get_running_loop()
-    ser: serial.Serial | None = None
+    async def run(self, stop_event: asyncio.Event) -> None:
+        cfg = self._config
+        port = cfg.port
+        baud = cfg.baud
+        interval = cfg.poll_interval
 
-    while not stop_event.is_set():
-        try:
-            if ser is None or not ser.is_open:
-                ser = await loop.run_in_executor(
-                    None, lambda: serial.Serial(port, baud, timeout=interval)
+        logger.info(
+            "Starting serial reader (port=%s, baud=%d, interval=%ds)",
+            port, baud, interval,
+        )
+
+        loop = asyncio.get_running_loop()
+        ser: serial.Serial | None = None
+
+        while not stop_event.is_set():
+            try:
+                if ser is None or not ser.is_open:
+                    ser = await loop.run_in_executor(
+                        None, lambda: serial.Serial(port, baud, timeout=interval),
+                    )
+                    logger.info("Serial port opened: %s", port)
+
+                data = await loop.run_in_executor(None, _read_line, ser)
+                if data and _is_boot_frame(data):
+                    _log_boot_frame(data)
+                    logger.info("BME280 boot diagnostics: %s", data)
+                elif data and all(
+                    k in data
+                    for k in ("temperature_c", "humidity_pct", "pressure_hpa")
+                ):
+                    try:
+                        metrics = _derive_metrics(data)
+                    except (KeyError, ValueError, TypeError) as e:
+                        logger.warning(
+                            "Could not derive metrics from %r: %s", data, e,
+                        )
+                    else:
+                        await self._readings.ingest_reading(
+                            SensorLocation.TENT,
+                            metrics,
+                            source=SensorSource.ARDUINO,
+                        )
+                        logger.debug(
+                            "Saved reading: %.1f°F, %.1f%%, %.1fhPa, "
+                            "VPD=%.2fkPa",
+                            metrics["temperature_f"],
+                            metrics["humidity_pct"],
+                            metrics["pressure_hpa"],
+                            metrics["vpd_kpa"],
+                        )
+                elif data and "error" in data:
+                    logger.warning("Arduino reported error: %s", data["error"])
+
+                with contextlib.suppress(TimeoutError):
+                    await asyncio.wait_for(stop_event.wait(), timeout=interval)
+
+            except serial.SerialException as e:
+                logger.error(
+                    "Serial error: %s — retrying in %ds", e, interval,
                 )
-                logger.info("Serial port opened: %s", port)
+                if ser is not None:
+                    ser.close()
+                    ser = None
+                with contextlib.suppress(TimeoutError):
+                    await asyncio.wait_for(stop_event.wait(), timeout=interval)
 
-            data = await loop.run_in_executor(None, _read_line, ser)
-            if data and all(
-                k in data for k in ("temperature_c", "humidity_pct", "pressure_hpa")
-            ):
-                try:
-                    metrics = _derive_metrics(data)
-                except (KeyError, ValueError, TypeError) as e:
-                    logger.warning("Could not derive metrics from %r: %s", data, e)
-                else:
-                    await ingest_reading(
-                        SensorLocation.TENT,
-                        metrics,
-                        source=SensorSource.ARDUINO,
-                    )
-                    logger.debug(
-                        "Saved reading: %.1f°F, %.1f%%, %.1fhPa, VPD=%.2fkPa",
-                        metrics["temperature_f"],
-                        metrics["humidity_pct"],
-                        metrics["pressure_hpa"],
-                        metrics["vpd_kpa"],
-                    )
-            elif data and "error" in data:
-                logger.warning("Arduino reported error: %s", data["error"])
-
-            with contextlib.suppress(TimeoutError):
-                await asyncio.wait_for(stop_event.wait(), timeout=interval)
-
-        except serial.SerialException as e:
-            logger.error("Serial error: %s — retrying in %ds", e, interval)
-            if ser is not None:
-                ser.close()
-                ser = None
-            with contextlib.suppress(TimeoutError):
-                await asyncio.wait_for(stop_event.wait(), timeout=interval)
-
-    if ser is not None:
-        ser.close()
-        logger.info("Serial port closed")
+        if ser is not None:
+            ser.close()
+            logger.info("Serial port closed")

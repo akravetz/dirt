@@ -2,7 +2,7 @@
 title: Activity Log
 type: log
 created: 2026-04-06
-updated: 2026-04-19
+updated: 2026-04-20
 order: chronological — oldest entries at top, newest appended at bottom. Do NOT insert entries out of date order.
 ---
 
@@ -435,3 +435,36 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - **Key decisions (principles, not code yet):** target 2D (T, RH) zones rather than scalar VPD; cascaded SISO state-machine with priority over true MIMO; assign actuators by dominant authority (fan → T, humidifier/dehumidifier → RH ±); feedforward on the lights schedule is the main lever; rejected PID / LQR / derivative estimation as over-engineering for a sparse actuator-output matrix. Failure modes called out up front: actuator mutex, dehumidifier saturation detection via wattage, fan baseline floor, dehumidifier compressor min-off.
 - **Status:** explicitly future work. Nothing to implement until hardware arrives. Migration path documented.
 - **Updated:** `wiki/index.md` (new concept entry flagged as "future").
+
+## [2026-04-19] daily | Day 36 — Overnight temp recovered; LST overdue; daytime VPD elevated
+
+- Created `wiki/daily/2026-04-19.md` — Day 36 (Day 8/7 post-topping); 5 photos (overview + 4 plants, 14:00 MDT); windowed sensor data; all plants healthy and vigorous; overnight temp recovered to 68.0°F ✅ (first time in veg night range); overnight RH still elevated at 70.79% (improving trend); daytime VPD above ceiling at 1.31–1.51 kPa ⚠️; LST overdue (Day 8/7 post-topping); Plant A moisture rising to 56% (autopot active); B/D stable ~26–27%
+- Updated `wiki/plants/plant-a.md` — timeline entry (Day 36, LST overdue) + Current State rewritten
+- Updated `wiki/plants/plant-b.md` — timeline entry (Day 36, LST overdue) + Current State rewritten
+- Updated `wiki/plants/plant-c.md` — timeline entry (Day 36, LST overdue) + Current State rewritten
+- Updated `wiki/plants/plant-d.md` — timeline entry (Day 36, LST overdue) + Current State rewritten
+- Updated `wiki/environment/temperature.md` — trend row for Apr 19 (overnight in range for first time); notable event added
+- Updated `wiki/environment/humidity.md` — trend row for Apr 19 (overnight improving; daytime VPD above ceiling); notable event added
+- Rewrote `wiki/overview.md` — Day 36, overnight temp resolved, daytime VPD new flag, LST overdue, plant status and environment readings updated
+- Updated `wiki/index.md` — Day 36 daily entry added
+
+## [2026-04-20] decision | Swap tent-hub temp/RH sensor DHT22 → BME280
+- **Decision:** [`wiki/decisions/2026-04-20-bme280-sensor-swap.md`](decisions/2026-04-20-bme280-sensor-swap.md). Replaced the DHT22 on the Arduino Nano tent-hub with a Bosch BME280 (I²C `0x76`). Sensor physically deployed ~2026-04-13; documentation catch-up today.
+- **Why:** DHT22 hardware failure (stale / invalid reads) + want less long-term cal drift under a VPD-targeted control loop where temp error compounds into VPD error.
+- **Unchanged:** tent-hub topology (Nano outside the tent, USB serial to host), ingest schema, humidifier control loop (VPD setpoint, 0.1 kPa deadband, feedforward, failsafes). Control loop is sensor-agnostic — reads VPD from DB.
+- **Bonus:** barometric pressure now captured as a free side channel. Not wired to any controller.
+- **Historical decisions kept intact:** `decisions/2026-04-12-distributed-sensor-architecture.md`, `decisions/2026-04-14-humidifier-relay-control.md`, `decisions/2026-04-17-humidifier-kasa-ep10.md`, `decisions/2026-04-18-reservoir-level-pressure-transducer.md`, `decisions/2026-04-19-lights-off-aware-humidifier.md`, `decisions/2026-04-19-drop-humidifier-safety-timers.md` — DHT22 references preserved; rationale still sound under BME280. New decision record is the authoritative supersede pointer.
+- **Updated:** `wiki/overview.md` (System Status row), `wiki/index.md` (humidifier blurb + new decision entry + `updated` bumped), `wiki/environment/humidity.md` (Deployed Control System sensor line), `wiki/hardware/humidifier-control.md` (pipeline description + deadband rationale + "Why these choices" bullets), `wiki/concepts/multi-actuator-environment-control.md` (room-sensor references).
+- **Out of scope wiki-side:** `apps/shared/src/dirt_shared/services/system_status.py` and any other code-side user-facing strings still mentioning "DHT22" — flagged for a follow-up pass.
+
+## [2026-04-20] daily | Day 37 — Daytime environment in target; overnight RH regressed; LST still outstanding
+
+- Created `wiki/daily/2026-04-20.md` — Day 37 (Day 9/8 post-topping); 5 photos (overview + 4 plants, 14:00 MDT); windowed sensor data; daytime temp in target (75.04°F ✅) and VPD in target at 14:00 (1.12 kPa ✅) for first time; overnight RH regressed to 74.37% ⚠️ and overnight VPD dropped to 0.57 kPa ⚠️ — `dirt-hwd` restart still pending; all plants healthy and vigorous; Plant D lighter green than peers — monitoring; LST critically overdue (Day 9/8); Plant B moisture spiked to 58% at 14:00 (autopot afternoon feeding)
+- Updated `wiki/plants/plant-a.md` — timeline entry (Day 37, LST critically overdue, Day 9 post-topping) + Current State rewritten
+- Updated `wiki/plants/plant-b.md` — timeline entry (Day 37, moisture spike 58%, LST critically overdue) + Current State rewritten
+- Updated `wiki/plants/plant-c.md` — timeline entry (Day 37, compact healthy canopy, LST critically overdue) + Current State rewritten
+- Updated `wiki/plants/plant-d.md` — timeline entry (Day 37, ⚠️ lighter green — monitoring, LST critically overdue) + Current State rewritten
+- Updated `wiki/environment/temperature.md` — trend row for Apr 20 (daytime in target; overnight regression); notable event added
+- Updated `wiki/environment/humidity.md` — trend row for Apr 20 (daytime VPD in target; overnight regression confirmed); notable event added
+- Rewrote `wiki/overview.md` — Day 37, daytime environment resolved, overnight regression new flag, LST critically overdue, plant status and environment readings updated
+- Updated `wiki/index.md` — Day 37 daily entry added

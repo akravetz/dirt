@@ -4,12 +4,14 @@ type: hardware
 sources: []
 related: [wiki/decisions/2026-04-17-humidifier-kasa-ep10.md, wiki/environment/humidity.md, wiki/concepts/vpd.md]
 created: 2026-04-14
-updated: 2026-04-19
+updated: 2026-04-20
 ---
 
 # Humidifier Control
 
-Closed-loop VPD control: tent DHT22 reading → VPD calc → Python service on the `dirt` host → WiFi command to Kasa EP10 smart plug → mains power to the Raydrop 4L humidifier.
+Closed-loop VPD control: tent BME280 reading → VPD calc → Python service on the `dirt` host → WiFi command to Kasa EP10 smart plug → mains power to the Raydrop 4L humidifier.
+
+(Temp/RH sensor was a DHT22 until 2026-04-13 — swapped after a hardware failure and for tighter drift characteristics. See [decision 2026-04-20](../decisions/2026-04-20-bme280-sensor-swap.md). The control loop is sensor-agnostic; deadband and feedforward were not retuned.)
 
 The loop targets **VPD** against the current stage's upper band (from `dirt.services.grow_state.current_targets()`), not a fixed RH. Night behavior is free — cooler air drops VPD on its own, so the humidifier shuts off during lights-off without needing a schedule. See [decision 2026-04-18](../decisions/2026-04-18-vpd-targeting.md) for the switch from fixed-RH control.
 
@@ -132,9 +134,9 @@ loop every ~30s:
 - **VPD, not RH.** RH at a fixed setpoint mis-targets the plant: when temperature falls at night, the same RH produces a much lower VPD (e.g. 60% RH at 63°F = 0.46 kPa, seedling range). VPD collapses this into one number that's correct across the day/night swing. See [concepts/vpd.md](../concepts/vpd.md).
 - **Upper-edge setpoint.** The humidifier only adds moisture; there's nothing to do when VPD is already in or below the band. Acting only at the dry edge keeps the duty cycle low and the relay count manageable.
 - **Bang-bang, not PID.** Binary actuator. Big dead time. Asymmetric transfer function (can add moisture, can't actively remove). Plants don't need ±0.05 kPa.
-- **0.1 kPa deadband** ≈ the noise floor of the derived VPD signal given DHT22 ±0.5°C / ±2% RH. The deadband alone is what bounds relay cycling.
-- **Feedforward, not derivative.** The dominant disturbance (lights on/off) is scheduled and periodic, so we use the clock to anticipate it rather than estimating `dVPD/dt`. Derivative on DHT22 noise would have a 5 min smoothing lag and near-unit SNR for the signals we care about. See [decisions/2026-04-19-lights-off-aware-humidifier.md](../decisions/2026-04-19-lights-off-aware-humidifier.md).
-- **−0.3 kPa night offset, not percentage.** Preserves deadband width across stages (a percentage factor compresses the band below DHT22 noise). Falls inside the published "0.2–0.4 kPa below day" range (Pulse Grow, GrowSensor, Anden).
+- **0.1 kPa deadband** ≈ the noise floor of the derived VPD signal. Originally sized to DHT22 ±0.5°C / ±2% RH; kept at 0.1 kPa through the [2026-04-20 DHT22→BME280 swap](../decisions/2026-04-20-bme280-sensor-swap.md) — tighter than strictly required for BME280 (±0.5°C / ±3% RH typical) but it's the deadband alone that bounds relay cycling, so conservative is correct here.
+- **Feedforward, not derivative.** The dominant disturbance (lights on/off) is scheduled and periodic, so we use the clock to anticipate it rather than estimating `dVPD/dt`. Derivative on sensor noise would have a 5 min smoothing lag and near-unit SNR for the signals we care about. See [decisions/2026-04-19-lights-off-aware-humidifier.md](../decisions/2026-04-19-lights-off-aware-humidifier.md).
+- **−0.3 kPa night offset, not percentage.** Preserves deadband width across stages (a percentage factor compresses the band below sensor noise). Falls inside the published "0.2–0.4 kPa below day" range (Pulse Grow, GrowSensor, Anden).
 - **30 min prep window.** Long enough to absorb the ultrasonic's residual air-mass rise and let VPD drift toward the upper edge before the thermal crash; short enough that daytime duty cycle is essentially unaffected.
 - **No max-on safety, no min-off guard.** The Raydrop has its own low-water cutoff, so a stuck-high VPD reading self-limits when the reservoir runs dry. Min-off was redundant with the deadband (hysteresis already prevents chatter). Earlier versions fought the safety timers — ops learning 2026-04-19: max-on at 20 min terminated on-phases before the deadband could, turning the safety into the primary (and poorly-tuned) controller. See [decisions/2026-04-19-drop-humidifier-safety-timers.md](../decisions/2026-04-19-drop-humidifier-safety-timers.md).
 - **Failsafe OFF on stale reads** — prefer brief dryness over a damping-off tent.

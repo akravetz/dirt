@@ -124,7 +124,7 @@ class SensorReader:
         self,
         engine: AsyncEngine,
         *,
-        clock: Callable[[], datetime] | None = None,
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         max_age_s: int = 300,
         sensor_min_raw: float = 30.0,
         sensor_max_raw: float = 4000.0,
@@ -141,7 +141,7 @@ class SensorReader:
                 pinned at the rail / disconnected sensor).
         """
         self._engine = engine
-        self._clock = clock or (lambda: datetime.now(UTC))
+        self._clock = clock
         self._max_age_s = max_age_s
         self._min_raw = sensor_min_raw
         self._max_raw = sensor_max_raw

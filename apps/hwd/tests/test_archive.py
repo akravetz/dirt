@@ -5,23 +5,43 @@ video file exists with the expected frame count.
 """
 
 import base64
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
 from dirt_hwd.services.archive import (
+    ArchiveService,
     ArchiveVerificationError,
-    archive_date,
     ffprobe_frame_count,
     find_archivable_dates,
     find_jpegs_for_date,
     run_ffmpeg,
 )
+from dirt_shared.config import ArchiveConfig
 
-# Tiny (8x8, all-black) valid JPEG. ffmpeg treats each copy as one frame in
-# an image-sequence input, which is all the archive tests need.
+
+def _service(
+    snapshot_dir: Path,
+    archive_dir: Path,
+    *,
+    ffmpeg_runner=None,
+    frame_counter=None,
+) -> ArchiveService:
+    """Helper: ArchiveService with optional injected runners (defaults real)."""
+    return ArchiveService(
+        ArchiveConfig(
+            snapshot_dir=snapshot_dir,
+            archive_dir=archive_dir,
+            retention_days=7,
+        ),
+        ffmpeg_runner=ffmpeg_runner if ffmpeg_runner is not None else run_ffmpeg,
+        frame_counter=(
+            frame_counter if frame_counter is not None else ffprobe_frame_count
+        ),
+    )
+
+# Tiny (8x8, all-black) valid JPEG.
 _TINY_JPEG = base64.b64decode(
     "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAIBAQEBAQIBAQECAgICAgQDAgICAgUEBAMEBgUGBgYF"
     "BgYGBwkIBgcJBwYGCAsICQoKCgoKBggLDAsKDAkKCgr/2wBDAQICAgICAgUDAwUKBwYHCgoKCgoK"
@@ -56,7 +76,6 @@ class TestFindJpegs:
     def test_finds_jpegs_for_date(self, tmp_path):
         d = date(2026, 3, 15)
         created = _create_test_jpegs(tmp_path, d, 3)
-        # Add a JPEG for a different date
         _create_test_jpegs(tmp_path, date(2026, 3, 16), 2)
 
         found = find_jpegs_for_date(tmp_path, d)
@@ -74,10 +93,12 @@ class TestFindArchivableDates:
         _create_test_jpegs(tmp_path, date(2026, 3, 10), 1)
         _create_test_jpegs(tmp_path, date(2026, 3, 22), 1)  # today
 
-        with patch("dirt_hwd.services.archive.datetime") as mock_dt:
-            mock_dt.now.return_value.date.return_value = date(2026, 3, 22)
-            mock_dt.strptime = __import__("datetime").datetime.strptime
-            dates = find_archivable_dates(tmp_path, retention_days=7)
+        # ``clock`` injected — no need to patch the datetime module.
+        dates = find_archivable_dates(
+            tmp_path,
+            retention_days=7,
+            clock=lambda: datetime(2026, 3, 22, tzinfo=UTC),
+        )
 
         assert date(2026, 3, 1) in dates
         assert date(2026, 3, 10) in dates
@@ -118,16 +139,11 @@ class TestArchiveDate:
         archive_dir = tmp_path / "archives"
         jpegs = _create_test_jpegs(snapshot_dir, d, 5)
 
-        with patch("dirt_hwd.services.archive.settings") as mock_settings:
-            mock_settings.snapshot_dir = str(snapshot_dir)
-            mock_settings.archive_dir = str(archive_dir)
-
-            result = archive_date(d)
+        result = _service(snapshot_dir, archive_dir).archive_date(d)
 
         assert result.frame_count == 5
         assert result.jpegs_deleted == 5
         assert result.video_path.exists()
-        # All source JPEGs should be deleted
         for j in jpegs:
             assert not j.exists(), f"{j} should have been deleted"
 
@@ -137,17 +153,14 @@ class TestArchiveDate:
         archive_dir = tmp_path / "archives"
         jpegs = _create_test_jpegs(snapshot_dir, d, 5)
 
-        with (
-            patch("dirt_hwd.services.archive.settings") as mock_settings,
-            patch("dirt_hwd.services.archive.run_ffmpeg", return_value=False),
-        ):
-            mock_settings.snapshot_dir = str(snapshot_dir)
-            mock_settings.archive_dir = str(archive_dir)
+        # Inject a fake ffmpeg runner that simulates failure — no patching.
+        svc = _service(
+            snapshot_dir, archive_dir,
+            ffmpeg_runner=lambda jpegs, out: False,
+        )
+        with pytest.raises(ArchiveVerificationError, match="ffmpeg failed"):
+            svc.archive_date(d)
 
-            with pytest.raises(ArchiveVerificationError, match="ffmpeg failed"):
-                archive_date(d)
-
-        # All source JPEGs must still exist
         for j in jpegs:
             assert j.exists(), f"{j} should NOT have been deleted"
 
@@ -157,20 +170,18 @@ class TestArchiveDate:
         archive_dir = tmp_path / "archives"
         jpegs = _create_test_jpegs(snapshot_dir, d, 5)
 
-        with (
-            patch("dirt_hwd.services.archive.settings") as mock_settings,
-            patch("dirt_hwd.services.archive.ffprobe_frame_count", return_value=3),
+        # Inject a fake frame_counter that returns the wrong count.
+        svc = _service(
+            snapshot_dir, archive_dir,
+            frame_counter=lambda video: 3,
+        )
+        with pytest.raises(
+            ArchiveVerificationError, match="Frame count mismatch",
         ):
-            mock_settings.snapshot_dir = str(snapshot_dir)
-            mock_settings.archive_dir = str(archive_dir)
+            svc.archive_date(d)
 
-            with pytest.raises(ArchiveVerificationError, match="Frame count mismatch"):
-                archive_date(d)
-
-        # All source JPEGs must still exist
         for j in jpegs:
             assert j.exists(), f"{j} should NOT have been deleted"
-        # Incomplete video should be cleaned up
         video = archive_dir / f"timelapse_{d.strftime('%Y%m%d')}.mp4"
         assert not video.exists(), "Invalid video should have been deleted"
 
@@ -180,16 +191,13 @@ class TestArchiveDate:
         archive_dir = tmp_path / "archives"
         _create_test_jpegs(snapshot_dir, d, 5)
 
-        with patch("dirt_hwd.services.archive.settings") as mock_settings:
-            mock_settings.snapshot_dir = str(snapshot_dir)
-            mock_settings.archive_dir = str(archive_dir)
+        svc = _service(snapshot_dir, archive_dir)
+        result1 = svc.archive_date(d)
+        assert result1.jpegs_deleted == 5
 
-            result1 = archive_date(d)
-            assert result1.jpegs_deleted == 5
-
-            # Second run — video exists, no JPEGs left
-            result2 = archive_date(d)
-            assert result2.jpegs_deleted == 0
+        # Second run — video exists, no JPEGs left.
+        result2 = svc.archive_date(d)
+        assert result2.jpegs_deleted == 0
 
     def test_no_jpegs_is_noop(self, tmp_path):
         d = date(2026, 3, 15)
@@ -197,11 +205,7 @@ class TestArchiveDate:
         snapshot_dir.mkdir()
         archive_dir = tmp_path / "archives"
 
-        with patch("dirt_hwd.services.archive.settings") as mock_settings:
-            mock_settings.snapshot_dir = str(snapshot_dir)
-            mock_settings.archive_dir = str(archive_dir)
-
-            result = archive_date(d)
+        result = _service(snapshot_dir, archive_dir).archive_date(d)
 
         assert result.frame_count == 0
         assert result.jpegs_deleted == 0
@@ -212,16 +216,10 @@ class TestArchiveDate:
         snapshot_dir.mkdir(parents=True)
         archive_dir = tmp_path / "archives"
 
-        # Create a 0-byte "JPEG"
         bad_file = snapshot_dir / f"snapshot_{d.strftime('%Y%m%d')}_000000.jpg"
         bad_file.write_bytes(b"")
 
-        with patch("dirt_hwd.services.archive.settings") as mock_settings:
-            mock_settings.snapshot_dir = str(snapshot_dir)
-            mock_settings.archive_dir = str(archive_dir)
-
-            # ffmpeg will fail on corrupt input — should not delete
-            with pytest.raises(ArchiveVerificationError):
-                archive_date(d)
+        with pytest.raises(ArchiveVerificationError):
+            _service(snapshot_dir, archive_dir).archive_date(d)
 
         assert bad_file.exists(), "Corrupt file should NOT have been deleted"

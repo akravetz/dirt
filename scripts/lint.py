@@ -14,11 +14,14 @@ from pathlib import Path
 
 from PIL import Image
 
-from dirt_shared.config import settings
+from dirt_shared.config import Settings
 
 REPO = Path(__file__).parent.parent
 WIKI = REPO / "wiki"
-RAW_PHOTOS = settings.data_dir / "raw" / "photos"
+# Local instance: `Settings()` at script top-level is fine (scripts/ is outside
+# the no-module-level-singletons invariant, which only covers production
+# packages under apps/*/src/). We read `data_dir` once to locate raw/photos/.
+RAW_PHOTOS = Settings().data_dir / "raw" / "photos"
 
 EXIF_TAG_DATETIME_ORIGINAL = 36867
 

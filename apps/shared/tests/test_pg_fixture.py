@@ -9,11 +9,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from dirt_shared.models.enums import SensorLocation, SensorSource
 from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
-from dirt_shared.services.readings import ingest_reading, get_latest_reading
+from dirt_shared.services.readings import ReadingsService
 
 
-async def test_fixture_yields_engine_with_seeded_rows(pg_engine):
-    async with AsyncSession(pg_engine) as session:
+async def test_fixture_yields_engine_with_seeded_rows(app_engine):
+    async with AsyncSession(app_engine) as session:
         result = await session.exec(select(SensorNode))
         nodes = result.all()
     # The Atlas init migration seeds one sensornode row per enum value.
@@ -23,31 +23,32 @@ async def test_fixture_yields_engine_with_seeded_rows(pg_engine):
     }
 
 
-async def test_ingest_reading_hits_per_test_db(pg_engine):
-    """Service function uses the monkeypatched module-level engine —
-    writes should land in the per-test DB and be visible via the same engine."""
-    await ingest_reading(
+async def test_readings_service_round_trip(app_engine):
+    """Constructor-injected service writes + reads through the test engine."""
+    readings = ReadingsService(app_engine)
+    await readings.ingest_reading(
         SensorLocation.TENT,
         {"temperature_f": 72.4},
         source=SensorSource.ARDUINO,
     )
-    r = await get_latest_reading("temperature_f")
+    r = await readings.get_latest_reading("temperature_f")
     assert r is not None
     assert r.value == pytest.approx(72.4)
 
 
-async def test_per_test_isolation_one(pg_engine):
+async def test_per_test_isolation_one(app_engine):
     """Writes in this test should NOT appear in test_per_test_isolation_two."""
-    await ingest_reading(
+    readings = ReadingsService(app_engine)
+    await readings.ingest_reading(
         SensorLocation.TENT,
         {"temperature_f": 99.9},
         source=SensorSource.ARDUINO,
     )
 
 
-async def test_per_test_isolation_two(pg_engine):
+async def test_per_test_isolation_two(app_engine):
     """Should see zero readings even though test_one wrote one."""
-    async with AsyncSession(pg_engine) as session:
+    async with AsyncSession(app_engine) as session:
         result = await session.exec(
             select(SensorReading).where(SensorReading.metric == "temperature_f")
         )

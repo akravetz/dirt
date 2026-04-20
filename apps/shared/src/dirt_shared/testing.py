@@ -24,7 +24,6 @@ stamp the template schema; this requires the ``atlas`` binary on PATH.
 """
 from __future__ import annotations
 
-import importlib
 import subprocess
 import uuid
 from pathlib import Path
@@ -66,25 +65,12 @@ _REPO_ROOT = Path(__file__).resolve().parents[4]
 _MIGRATIONS = _REPO_ROOT / "migrations"
 _TEMPLATE = "dirt_test_template"
 
-# Every module in the codebase that does `from dirt_shared.db import engine`.
-# Each gets its module-level `engine` binding monkeypatched to the per-test
-# engine so service functions transparently hit the isolated schema.
-_ENGINE_HOLDERS: tuple[str, ...] = (
-    "dirt_shared.db",
-    "dirt_shared.services.readings",
-    "dirt_shared.services.grow_state",
-    "dirt_shared.services.snapshots",
-    "dirt_shared.services.capture",
-    "dirt_shared.services.plants",
-    "dirt_shared.services.humidifier_state",
-    "dirt_shared.services.system_status",
-    "dirt_voice.tools.sensors",
-)
 
 
 def _pg_admin_url() -> str:
     """URL for CREATE/DROP DATABASE — connects to the ``postgres`` DB."""
-    from dirt_shared.config import settings
+    from dirt_shared.config import Settings
+    settings = Settings()
 
     return (
         f"postgres://{settings.dirt_pg_user}:{settings.dirt_pg_password}"
@@ -94,7 +80,8 @@ def _pg_admin_url() -> str:
 
 def _pg_url(dbname: str) -> str:
     """SQLAlchemy asyncpg URL for a given database."""
-    from dirt_shared.config import settings
+    from dirt_shared.config import Settings
+    settings = Settings()
 
     return (
         f"postgresql+asyncpg://{settings.dirt_pg_user}:{settings.dirt_pg_password}"
@@ -109,7 +96,8 @@ async def _pg_template() -> str:
     Session-scoped so the schema + seed rows are applied exactly once per
     ``pytest`` invocation regardless of how many tests request a DB.
     """
-    from dirt_shared.config import settings
+    from dirt_shared.config import Settings
+    settings = Settings()
 
     admin_url = _pg_admin_url()
     admin = await asyncpg.connect(admin_url)
@@ -153,12 +141,23 @@ async def _pg_template() -> str:
 
 
 @pytest_asyncio.fixture
-async def pg_engine(_pg_template: str, monkeypatch):
+async def app_engine(_pg_template: str):
     """Per-test: clone the session template into a fresh DB and yield its engine.
 
-    The per-test DB is dropped on teardown. Every module-level ``engine``
-    reference listed in ``_ENGINE_HOLDERS`` is monkeypatched to point at
-    the fresh engine.
+    Pure fixture — yields the AsyncEngine and nothing else. No
+    monkey-patching of module-level bindings. New-style tests (post
+    singleton-retirement, see ``docs/proposals/singleton-retirement.md``)
+    construct service classes / FastAPI apps with this engine directly:
+
+        async def test_something(app_engine):
+            svc = ReadingsService(app_engine)
+            ...
+
+        async def test_endpoint(app_engine):
+            app = create_app(engine=app_engine, run_mcp=False)
+            ...
+
+    The per-test DB is dropped on teardown.
     """
     dbname = f"test_{uuid.uuid4().hex[:12]}"
     admin_url = _pg_admin_url()
@@ -177,19 +176,25 @@ async def pg_engine(_pg_template: str, monkeypatch):
     # runs fixture teardown on a different loop than the test body.
     test_engine = create_async_engine(_pg_url(dbname), poolclass=NullPool)
 
-    for mod_path in _ENGINE_HOLDERS:
-        try:
-            mod = importlib.import_module(mod_path)
-        except ImportError:
-            continue
-        if hasattr(mod, "engine"):
-            monkeypatch.setattr(f"{mod_path}.engine", test_engine)
-
-    yield test_engine
-
-    await test_engine.dispose()
-    admin = await asyncpg.connect(admin_url)
     try:
-        await admin.execute(f'DROP DATABASE IF EXISTS "{dbname}" WITH (FORCE)')
+        yield test_engine
     finally:
-        await admin.close()
+        await test_engine.dispose()
+        admin = await asyncpg.connect(admin_url)
+        try:
+            await admin.execute(f'DROP DATABASE IF EXISTS "{dbname}" WITH (FORCE)')
+        finally:
+            await admin.close()
+
+
+@pytest_asyncio.fixture
+async def pg_engine(app_engine):
+    """DEPRECATED ALIAS for ``app_engine``.
+
+    Kept so existing tests under ``apps/*/tests/`` that still reference
+    ``pg_engine`` keep working through the singleton-retirement landing.
+    New tests should depend on ``app_engine`` directly. The
+    ``_ENGINE_HOLDERS`` monkey-patch loop has been removed — no service
+    module retains a module-level ``engine`` binding to patch.
+    """
+    yield app_engine

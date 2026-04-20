@@ -41,3 +41,4 @@ debug/
 # Runtime data directory: dirt.db, snapshots/, archives/, logs/, sessions/,
 # raw/photos/, outputs/, db-backups/. Set DIRT_DATA_DIR to override.
 var/
+.claude/worktrees/

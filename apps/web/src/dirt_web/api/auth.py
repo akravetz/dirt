@@ -1,33 +1,40 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.responses import Response
 
-from dirt_shared.config import settings
+from dirt_shared.config import Settings
 from dirt_web import TEMPLATES_DIR
-from dirt_web.auth import clear_session_cookie, create_session_cookie, get_current_user
+from dirt_web.auth import SessionManager, get_sessions
+from dirt_web.deps import get_settings
 
 router = APIRouter(tags=["auth"])
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
 
 @router.get("/login", response_model=None)
-async def login_page(request: Request) -> Response:
-    user = get_current_user(request)
-    if user is not None:
+async def login_page(
+    request: Request,
+    sessions: SessionManager = Depends(get_sessions),
+) -> Response:
+    if sessions.get_current_user(request) is not None:
         return RedirectResponse(url="/", status_code=302)
     return templates.TemplateResponse(request, "login.html", {"error": None})
 
 
 @router.post("/login", response_model=None)
-async def login_submit(request: Request) -> Response:
+async def login_submit(
+    request: Request,
+    sessions: SessionManager = Depends(get_sessions),
+    settings: Settings = Depends(get_settings),
+) -> Response:
     form = await request.form()
     username = form.get("username", "")
     password = form.get("password", "")
 
     if username == settings.auth_username and password == settings.auth_password:
         response = RedirectResponse(url="/", status_code=302)
-        create_session_cookie(response, username)
+        sessions.create_cookie(response, username)
         return response
 
     return templates.TemplateResponse(
@@ -39,7 +46,9 @@ async def login_submit(request: Request) -> Response:
 
 
 @router.get("/logout")
-async def logout() -> RedirectResponse:
+async def logout(
+    sessions: SessionManager = Depends(get_sessions),
+) -> RedirectResponse:
     response = RedirectResponse(url="/login", status_code=302)
-    clear_session_cookie(response)
+    sessions.clear_cookie(response)
     return response

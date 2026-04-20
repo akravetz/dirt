@@ -13,9 +13,8 @@ Output (tab-separated):
 
 import sys
 from pathlib import Path
-from PIL import Image
-from PIL.ExifTags import TAGS
 
+from PIL import Image
 
 EXIF_TAG_DATETIME_ORIGINAL = 36867  # DateTimeOriginal tag ID
 

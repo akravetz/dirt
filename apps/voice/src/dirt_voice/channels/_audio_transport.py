@@ -29,7 +29,6 @@ import time
 import numpy as np
 import sounddevice as sd
 from loguru import logger
-
 from pipecat.frames.frames import (
     BotSpeakingFrame,
     Frame,

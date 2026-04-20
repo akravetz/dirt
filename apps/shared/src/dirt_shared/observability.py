@@ -30,20 +30,27 @@ from typing import Any
 
 from loguru import logger
 
-from dirt_shared.config import settings
-
-_DEFAULT_LOGS_DIR = settings.data_dir / "logs"
 # Env-var override for `logs_dir()`. Tests set this (via the autouse fixture
 # in `tests/conftest.py`) so a passing or crashing test never writes to the
-# production telemetry directory. Production code should never set it.
+# production telemetry directory. Production sets it from the composition
+# root (e.g. ``os.environ.setdefault(LOGS_DIR_ENV, str(settings.data_dir / "logs"))``).
 LOGS_DIR_ENV = "DIRT_LOGS_DIR"
+
+# Fallback if neither env nor caller has set anything: <repo>/var/logs.
+_REPO_ROOT = Path(__file__).resolve().parents[4]
+_DEFAULT_LOGS_DIR = _REPO_ROOT / "var" / "logs"
 
 
 def logs_dir() -> Path:
     """Where stream JSONL files land. Reads ``DIRT_LOGS_DIR`` on every call so
     test fixtures can swap it via :func:`os.environ` (or pytest's
     ``monkeypatch.setenv``) without restarting the process or touching the
-    writer thread."""
+    writer thread.
+
+    Production: the composition root sets ``DIRT_LOGS_DIR`` once at startup
+    from ``Settings.data_dir``. This is the env-var-authoritative model
+    documented in ``docs/proposals/singleton-retirement.md`` §5.
+    """
     env = os.environ.get(LOGS_DIR_ENV)
     return Path(env) if env else _DEFAULT_LOGS_DIR
 
@@ -64,6 +71,7 @@ _RETENTION: dict[str, int] = {
     "subagent_calls": 10,   # sub-agent traces — higher value, lower volume
     "humidifier": 30,       # plug state transitions — rare, useful for incident review
     "daily_report": 30,     # per-phase markers for the daily report run
+    "sensor_boot": 90,      # BME280 calibration + register state at each Arduino reset
 }
 
 

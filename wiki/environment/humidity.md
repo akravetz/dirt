@@ -4,8 +4,9 @@ type: environment
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/environment/temperature.md, wiki/concepts/vpd.md, wiki/overview.md, wiki/hardware/humidifier-control.md, wiki/decisions/2026-04-17-humidifier-kasa-ep10.md]
 created: 2026-04-06
-updated: 2026-04-18
+updated: 2026-04-20
 ---
+
 
 # Humidity (RH)
 
@@ -41,6 +42,8 @@ VPD is the control-loop setpoint; RH is informational (temperature determines wh
 | 2026-04-05 | 75% ⚠️ | Consistently elevated |
 | 2026-04-08 | 42% → 70% ⚠️ | VPD swing incident: humidifier off → RH dropped to 42% (VPD 2.03 kPa); restored to 70% (VPD 0.89 kPa) → [2026-04-08](../daily/2026-04-08.md) |
 | 2026-04-18 | 59.13% now ✅ / 76.95% overnight avg ⚠️ | Closed-loop service holding day period in target; overnight with lights off + temp 63°F, RH spikes to 77% (VPD 0.46 kPa — seedling range); significant day/night VPD swing 0.46 → 1.31 kPa → [2026-04-18](../daily/2026-04-18.md) |
+| 2026-04-19 | 54.69% now ✅ / 70.79% overnight avg ⚠️; VPD 1.51 kPa now ⚠️ / 0.68 kPa overnight | Overnight RH improving (76.95% → 70.79%); overnight VPD improving (0.46 → 0.68 kPa); daytime VPD above 1.2 ceiling → [2026-04-19](../daily/2026-04-19.md) |
+| 2026-04-20 | 62.37% now ✅ / 74.37% overnight avg ⚠️; VPD 1.12 kPa now ✅ / 0.57 kPa overnight | Daytime VPD in target at 14:00 (1.12 kPa ✅) — first time in range; overnight RH regressed (70.79% → 74.37%) — `dirt-hwd` restart still pending → [2026-04-20](../daily/2026-04-20.md) |
 
 ## Notable Events
 - **2026-03-20** — Dome propped open, room humidifier added to tent after RH consistently below 50% → [2026-03-27 daily](../daily/2026-03-27.md)
@@ -51,12 +54,14 @@ VPD is the control-loop setpoint; RH is informational (temperature determines wh
 - **2026-04-17** — Switched actuator to a **TP-Link Kasa Ultra Mini EP10 smart plug** controlled from a Python service on the `dirt` host via [`python-kasa`](https://github.com/python-kasa/python-kasa). No mains wiring, no custom enclosure; control algorithm unchanged. See [current decision](../decisions/2026-04-17-humidifier-kasa-ep10.md) and [hardware page](../hardware/humidifier-control.md).
 - **2026-04-18** — Overnight lights-off window: temp 63.54°F avg, RH 76.95% avg, VPD 0.46 kPa. Day period in target (53.58% morning avg, 59.13% now). Day/night VPD swing ~3× (0.46 → 1.31 kPa). Motivated the switch from fixed-RH control to VPD targeting so the humidifier stops running through cool nights automatically.
 - **2026-04-18** — Switched humidifier control loop from fixed 60% RH setpoint to stage-dynamic VPD targeting (upper-band edge, 0.1 kPa deadband). VPD band reads from `dirt.services.grow_state` so veg→flower transitions shift setpoints without redeploying. See [decision 2026-04-18](../decisions/2026-04-18-vpd-targeting.md).
+- **2026-04-19** — Overnight improvement continues: RH 70.79% (was 76.95%), VPD 0.68 kPa (was 0.46). Daytime VPD running above ceiling: 1.31 kPa morning, 1.51 kPa at 14:00. Lights-off-aware feedforward and dropped safety timers deployed today; should further improve overnight profile. See [decisions/2026-04-19-lights-off-aware-humidifier.md](../decisions/2026-04-19-lights-off-aware-humidifier.md) and [decisions/2026-04-19-drop-humidifier-safety-timers.md](../decisions/2026-04-19-drop-humidifier-safety-timers.md).
+- **2026-04-20** — Daytime VPD reached 1.12 kPa at 14:00 — in the 0.8–1.2 veg target for the first time. Overnight profile regressed: RH 74.37% (was 70.79%), VPD 0.57 kPa (was 0.68). Regression confirms `dirt-hwd` service restart is still pending — lights-off feedforward cannot activate until restarted. → [2026-04-20](../daily/2026-04-20.md)
 
 ## Deployed Control System
 
 Bang-bang VPD controller on the `dirt` host:
 
-- **Sensor:** existing DHT22 on the Arduino Nano tent-hub; `vpd_kpa` derived at ingest and stored alongside `humidity_pct` / `temperature_f`.
+- **Sensor:** BME280 on the Arduino Nano tent-hub (I²C, addr `0x76`); `vpd_kpa` derived at ingest and stored alongside `humidity_pct` / `temperature_f`. Barometric pressure also captured. Replaced the original DHT22 on 2026-04-13 — see [decision 2026-04-20](../decisions/2026-04-20-bme280-sensor-swap.md).
 - **Actuator:** Raydrop 4L ultrasonic humidifier plugged into a **TP-Link Kasa Ultra Mini EP10** smart plug, commanded over the LAN via [`python-kasa`](https://github.com/python-kasa/python-kasa).
 - **Logic:** `ON` when `vpd > upper_band`, `OFF` when `vpd < upper_band − 0.1 kPa`. Upper band is the current stage's VPD ceiling (1.2 kPa veg / 1.3 early flower / 1.5 late flower).
 - **Guards:** minimum off-time between switches (relay protection + let the last pulse reach the sensor) and a max-on safety timeout.

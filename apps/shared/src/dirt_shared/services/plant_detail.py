@@ -2,17 +2,18 @@
 
 The plant-detail drawer in the SPA (see API.md §5 and mockup
 ``plant_detail.jsx``) needs a ``timeline`` list plus a ``note`` blurb.
-Those live as markdown sections inside the per-plant wiki file — the
-agent writes them every daily-report cycle.
+Those live as markdown sections inside the per-plant wiki file.
 
 Parsing is narrow + pragmatic. The wiki is agent-authored and follows a
-consistent structure — we don't need a full markdown AST:
+consistent structure:
 
 - ``## Current State`` — first paragraph → the note.
 - ``## Timeline`` — the immediately-following bullet list → timeline[].
 
-The result is cached by file mtime so consecutive reads (e.g., dashboard
-+ drawer both hitting ``/api/plants/{code}``) don't re-parse.
+Cached by file mtime so consecutive reads (dashboard + drawer both hitting
+``/api/plants/{code}``) don't re-parse. The cache lives on the
+``PlantDetailService`` instance — per-app, not per-process — so tests
+that construct a fresh service get a clean cache.
 """
 from __future__ import annotations
 
@@ -47,70 +48,62 @@ class PlantDetail:
     note: PlantNote | None
 
 
-# ============================================================
-# mtime-keyed cache
-# ============================================================
-
-_cache: dict[str, tuple[float, PlantDetail]] = {}
-
-
-def _plant_path(code: str) -> Path:
-    return WIKI_DIR / "plants" / f"plant-{code}.md"
-
-
-def get_plant_detail(code: str) -> PlantDetail | None:
-    """Parse and cache the plant wiki file. Returns None if missing."""
-    path = _plant_path(code)
-    if not path.exists():
-        return None
-    mtime = path.stat().st_mtime
-    cached = _cache.get(code)
-    if cached is not None and cached[0] == mtime:
-        return cached[1]
-    detail = _parse(code, path)
-    _cache[code] = (mtime, detail)
-    return detail
-
-
-# ============================================================
-# Parsing
-# ============================================================
-
 _HEADING_RE = re.compile(r"^##\s+(.+?)\s*$")
 _BULLET_RE = re.compile(r"^[-*]\s+(.*)$")
 
 # "2026-03-27 — [Day 13: Pre-transplant; …](../daily/2026-03-27.md)"
-# date ISO, then em-dash (— or --), then optional markdown-linked day text.
 _TIMELINE_LINE_RE = re.compile(
     r"^(\d{4}-\d{2}-\d{2})\s*[—\-]\s*(?:\[)?(?:Day\s+(\d+)\s*[:—]\s*)?(.+?)(?:\]\(.+?\))?\s*$",
     re.IGNORECASE,
 )
 
 
-def _parse(code: str, path: Path) -> PlantDetail:
-    raw = path.read_text(encoding="utf-8")
-    fm, body = _parse_frontmatter(raw)
+class PlantDetailService:
+    """Parses + caches per-plant wiki files. Constructor-inject the wiki dir.
 
-    sections = _split_h2_sections(body)
-    timeline = _parse_timeline(sections.get("timeline", []))
-    note = _parse_note(sections, fm.get("updated"))
+    Cache lives on the instance so tests get a fresh cache per service.
+    Wired into ``app.state.plant_detail`` by ``create_app``.
+    """
 
-    return PlantDetail(
-        code=code,
-        wiki_path=f"wiki/plants/{path.name}",
-        frontmatter=fm,
-        timeline=timeline,
-        note=note,
-    )
+    def __init__(self, wiki_dir: Path = WIKI_DIR) -> None:
+        self._wiki_dir = wiki_dir
+        self._cache: dict[str, tuple[float, PlantDetail]] = {}
+
+    def _plant_path(self, code: str) -> Path:
+        return self._wiki_dir / "plants" / f"plant-{code}.md"
+
+    def get(self, code: str) -> PlantDetail | None:
+        """Parse + cache the plant wiki file. Returns None if missing."""
+        path = self._plant_path(code)
+        if not path.exists():
+            return None
+        mtime = path.stat().st_mtime
+        cached = self._cache.get(code)
+        if cached is not None and cached[0] == mtime:
+            return cached[1]
+        detail = self._parse(code, path)
+        self._cache[code] = (mtime, detail)
+        return detail
+
+    def _parse(self, code: str, path: Path) -> PlantDetail:
+        raw = path.read_text(encoding="utf-8")
+        fm, body = _parse_frontmatter(raw)
+
+        sections = _split_h2_sections(body)
+        timeline = _parse_timeline(sections.get("timeline", []))
+        note = _parse_note(sections, fm.get("updated"))
+
+        return PlantDetail(
+            code=code,
+            wiki_path=f"wiki/plants/{path.name}",
+            frontmatter=fm,
+            timeline=timeline,
+            note=note,
+        )
 
 
 def _split_h2_sections(body: str) -> dict[str, list[str]]:
-    """Group body lines by their preceding ``## <name>`` heading.
-
-    Returns a dict mapping lowercased heading text → list of lines under it
-    (not including the heading). H1 + pre-H2 prelude go under the empty-string
-    key so callers can still scan it.
-    """
+    """Group body lines by their preceding ``## <name>`` heading."""
     sections: dict[str, list[str]] = {"": []}
     current = ""
     for line in body.splitlines():
@@ -124,12 +117,7 @@ def _split_h2_sections(body: str) -> dict[str, list[str]]:
 
 
 def _parse_timeline(lines: list[str]) -> list[TimelineEntry]:
-    """Parse the bullet list under ``## Timeline``.
-
-    Each bullet is expected to start with ``2026-MM-DD — [Day N: text]...``.
-    Entries that don't match the pattern are still included as raw text so
-    the drawer shows them; ``date`` + ``day`` default to None.
-    """
+    """Parse the bullet list under ``## Timeline``."""
     entries: list[TimelineEntry] = []
     for line in lines:
         stripped = line.strip()
@@ -152,7 +140,9 @@ def _parse_timeline(lines: list[str]) -> list[TimelineEntry]:
             )
         else:
             entries.append(
-                TimelineEntry(date=None, day=None, text=inner, highlight="**" in inner)
+                TimelineEntry(
+                    date=None, day=None, text=inner, highlight="**" in inner,
+                )
             )
     return entries
 
@@ -160,14 +150,7 @@ def _parse_timeline(lines: list[str]) -> list[TimelineEntry]:
 def _parse_note(
     sections: dict[str, list[str]], updated_fm: object
 ) -> PlantNote | None:
-    """Return the first paragraph under ``## Current State`` as the drawer note.
-
-    The wiki convention (plant-a.md through plant-d.md) is a prose paragraph
-    summarising today's state immediately after the Current State heading.
-    An earlier iteration of this parser preferred a trailing `> ...` block
-    quote, but the wiki doesn't use that convention — dropped to keep the
-    code matching reality.
-    """
+    """Return the first paragraph under ``## Current State`` as the drawer note."""
     cs = sections.get("current state", [])
     paragraph_lines: list[str] = []
     for line in cs:

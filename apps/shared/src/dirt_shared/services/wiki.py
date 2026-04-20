@@ -15,18 +15,18 @@ Design choices (per API.md §9 + data_model.md §4i/4j):
 """
 from __future__ import annotations
 
+# wiki/ lives at the repo root — sibling of var/. Resolve relative to
+# this module rather than via the (singleton-retired) Settings global.
+# Override via DIRT_WIKI_DIR env var.
+#   wiki.py at apps/shared/src/dirt_shared/services/wiki.py
+#   parents[0] services/, [1] dirt_shared/, [2] src/, [3] shared/, [4] apps/, [5] repo
+import os
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
-from dirt_shared.config import settings
-
-# wiki/ lives at the repo root — sibling of var/. settings.data_dir is
-# <repo>/var by default, so the wiki root is <settings.data_dir>/../wiki.
-#
-# Override via DIRT_WIKI_DIR env var (future: a setting on Settings).
-import os
-WIKI_DIR = Path(os.environ.get("DIRT_WIKI_DIR", settings.data_dir.parent / "wiki"))
+_REPO_ROOT = Path(__file__).resolve().parents[5]
+WIKI_DIR = Path(os.environ.get("DIRT_WIKI_DIR", _REPO_ROOT / "wiki"))
 
 
 # A minimal YAML subset that the wiki frontmatter uses:

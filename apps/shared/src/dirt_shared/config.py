@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
@@ -56,25 +57,21 @@ class Settings(BaseSettings):
     elabs_api_key: str = ""
     elabs_voice_id: str = ""
     # Kasa EP10 humidifier plug. See wiki/hardware/humidifier-control.md.
-    # Control targets VPD (not fixed RH); the active band comes from
-    # services.grow_state.current_targets() and shifts by stage.
     kasa_username: str = ""
     kasa_password: str = ""
     kasa_humidifier_host: str = "192.168.1.220"
     vpd_deadband_kpa: float = 0.1
-    # Subtracted from the day VPD band during lights-off to let the loop
-    # rest rather than chase the cooling-air VPD drop. See
-    # wiki/decisions/2026-04-19-lights-off-aware-humidifier.md.
-    vpd_lights_off_offset_kpa: float = -0.3
-    # Pre-lights-off window during which the humidifier is forced off to
-    # prevent dosing mist into air that's about to cool.
+    # Margin (minutes) around lights transitions during which the humidifier
+    # is forced OFF — extends the off-window from `lights_off - margin` through
+    # `lights_on - margin`. With the default 30 + a 23:00 → 05:00 dark cycle,
+    # the humidifier is allowed to run only between 04:30 and 22:30.
     lights_off_prep_minutes: int = 30
     humidifier_poll_interval: int = 30
     humidifier_failsafe_stale_seconds: int = 300
-    # Telegram bot. Outbound-only for V1 (daily report); inbound channel TBD.
+    # Telegram bot. Outbound-only for V1.
     telegram_bot_token: str = ""
     telegram_allowed_user_id: str = ""
-    # Daily report. See wiki/CLAUDE.md daily update workflow.
+    # Daily report.
     daily_report_photo_settle_s: float = 1.5
     daily_report_max_capture_age_ms: int = 400
     daily_report_sensor_min_raw: float = 30.0
@@ -84,8 +81,7 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _derive_data_paths(self) -> Settings:
         if self.database_url is None:
-            # Assemble from DIRT_PG_* env vars. Used when .env has the
-            # components but no explicit DATABASE_URL override.
+            # Assemble from DIRT_PG_* env vars.
             self.database_url = (
                 f"postgresql+asyncpg://{self.dirt_pg_user}:{self.dirt_pg_password}"
                 f"@{self.dirt_pg_host}:{self.dirt_pg_port}/{self.dirt_pg_database}"
@@ -96,5 +92,87 @@ class Settings(BaseSettings):
             self.archive_dir = self.data_dir / "archives"
         return self
 
+    # --- purpose-specific config slices ---
+    # Each slice is what the corresponding service takes by constructor. Keeps
+    # service signatures honest about what they actually depend on, and makes
+    # test setup minimal (CaptureService(engine, CaptureConfig(snapshot_dir=tmp))).
 
-settings = Settings()
+    def capture(self) -> CaptureConfig:
+        return CaptureConfig(
+            snapshot_dir=Path(self.snapshot_dir),
+            capture_interval=self.capture_interval,
+        )
+
+    def archive(self) -> ArchiveConfig:
+        return ArchiveConfig(
+            snapshot_dir=Path(self.snapshot_dir),
+            archive_dir=Path(self.archive_dir),
+            retention_days=self.archive_retention_days,
+        )
+
+    def humidifier(self) -> HumidifierConfig:
+        return HumidifierConfig(
+            kasa_username=self.kasa_username,
+            kasa_password=self.kasa_password,
+            kasa_humidifier_host=self.kasa_humidifier_host,
+            vpd_deadband_kpa=self.vpd_deadband_kpa,
+            lights_off_prep_minutes=self.lights_off_prep_minutes,
+            poll_interval=self.humidifier_poll_interval,
+            failsafe_stale_seconds=self.humidifier_failsafe_stale_seconds,
+        )
+
+    def serial(self) -> SerialConfig:
+        return SerialConfig(
+            port=self.serial_port,
+            baud=self.serial_baud,
+            poll_interval=self.sensor_poll_interval,
+        )
+
+    def auth(self) -> AuthConfig:
+        return AuthConfig(
+            username=self.auth_username,
+            password=self.auth_password,
+            secret_key=self.secret_key,
+            sensor_ingest_token=self.sensor_ingest_token,
+            mcp_bearer_token=self.mcp_bearer_token,
+        )
+
+
+@dataclass(frozen=True)
+class CaptureConfig:
+    snapshot_dir: Path
+    capture_interval: int
+
+
+@dataclass(frozen=True)
+class ArchiveConfig:
+    snapshot_dir: Path
+    archive_dir: Path
+    retention_days: int
+
+
+@dataclass(frozen=True)
+class HumidifierConfig:
+    kasa_username: str
+    kasa_password: str
+    kasa_humidifier_host: str
+    vpd_deadband_kpa: float
+    lights_off_prep_minutes: int   # margin around lights transitions
+    poll_interval: int
+    failsafe_stale_seconds: int
+
+
+@dataclass(frozen=True)
+class SerialConfig:
+    port: str
+    baud: int
+    poll_interval: int
+
+
+@dataclass(frozen=True)
+class AuthConfig:
+    username: str
+    password: str
+    secret_key: str
+    sensor_ingest_token: str
+    mcp_bearer_token: str

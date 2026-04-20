@@ -52,7 +52,7 @@ The 25-gal FlexiTank is ~0.5 m deep when full, so a 0–5 m probe only ever exer
 
 - A new top-level **`reservoir`** location label in `sensorreading` (alongside `tent`, `plant-a`, `plant-b`, `plant-c`, `plant-d`).
 - A new pattern of **dedicated single-purpose ESP32-C3 nodes** beyond the per-plant template — the firmware skeleton (`firmware/plant_node/`) is reusable but the location-specific logic (sensors, calibration) gets its own folder.
-- The first **absolute** sensor reading in the system. All prior sensors were either inherently calibrated (DHT22 temp/RH/pressure on the Arduino Nano) or auto-calibrated relatively (capacitive soil probes). This one needs a one-time **two-point manual calibration** persisted in `sensorcalibration` and **must be excluded** from the auto-extrema widening logic in `src/dirt/services/readings.py:_update_calibration` (i.e. `reservoir_depth_cm` does NOT belong in `AUTO_CALIBRATED_METRICS`).
+- The first **absolute** sensor reading in the system. All prior sensors were either inherently calibrated (BME280 temp/RH/pressure on the Arduino Nano — see [2026-04-20 sensor swap](2026-04-20-bme280-sensor-swap.md)) or auto-calibrated relatively (capacitive soil probes). This one needs a one-time **two-point manual calibration** persisted in `sensorcalibration` and **must be excluded** from the auto-extrema widening logic in `src/dirt/services/readings.py:_update_calibration` (i.e. `reservoir_depth_cm` does NOT belong in `AUTO_CALIBRATED_METRICS`).
 
 ## Acceptance Criteria
 

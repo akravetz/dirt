@@ -7,7 +7,6 @@ created: 2026-04-15
 updated: 2026-04-15
 ---
 
-
 # PTZ Camera — OBSBOT Tiny 2 Lite
 
 Programmable pan/tilt/zoom camera for remote plant inspection. Physical camera + vendor SDK + persistent daemon + CLI. The daemon runs as a systemd user service; `scripts/camera` is the thin client any agent, script, or human uses.
@@ -41,7 +40,7 @@ scripts/camera zoom-to 1.5                 # absolute zoom
 
 Directions are in user-frame (`left`/`right`/`up`/`down`). The CLI translates to motor-frame via the sign map in the config file. **Agents should prefer `look <preset>` and `nudge <direction>` over any motor-level commands.**
 
-### Output examples
+### Output example
 
 ```
 $ scripts/camera where
@@ -49,11 +48,6 @@ pointing:      at overview
 zoom:          1.00x
 preset match:  overview (approx, within ~2°)
 motor:         pitch=-50.0° yaw=-25.0°
-```
-
-```
-$ scripts/camera nudge left 5
-✓ nudged left 5°
 ```
 
 `where --json` emits structured output for programmatic callers.
@@ -113,18 +107,7 @@ Each process that opens the OBSBOT SDK pays ~3.4 s in hotplug discovery. Ten ite
 
 ### Wire protocol
 
-Line-oriented text over Unix socket (`$XDG_RUNTIME_DIR/dirt-camera.sock`, default mode 0600):
-
-```
-ping                              -> pong
-health                            -> ok camera_connected=<bool> uptime_s=<int>
-get_state                         -> ok camera_connected=... motor_pitch=... motor_yaw=... imu_pitch=... imu_yaw=... zoom=...
-resync                            -> (same as get_state)
-move_motor <pitch> <yaw>          -> ok|limit_reached|disconnected motor_pitch=... requested_pitch=... retries=<n> sdk_rc=<rc>
-set_zoom <zoom>                   -> ok|error zoom=... zoom_capped=<bool>
-```
-
-Full protocol in `services/camera-daemon/README.md`.
+Line-oriented text over Unix socket (`$XDG_RUNTIME_DIR/dirt-camera.sock`, mode 0600). Commands: `ping`, `health`, `get_state`, `resync`, `move_motor <pitch> <yaw>`, `set_zoom <zoom>`. Full protocol in `services/camera-daemon/README.md`.
 
 ### Running
 
@@ -212,6 +195,6 @@ The `dirt-camera-daemon` holds an open fd on `/dev/video0` (the OBSBOT vendor SD
 2. **~3.4 s SDK hotplug discovery** — only matters on daemon cold start, not per-command.
 3. **Zoom > 2.0x** — silently clamps. Never advertise >2.0x to the agent.
 4. **Mount inversion** — the SDK auto-orients images correctly. Do NOT apply software rotation to captures. (An older `--rotate` flag in `debug/camera_mvp.py` is a debugging artifact and makes things worse.)
-5. **Sticker-vs-plant parallax** — a sticker centered in the image doesn't mean the plant is centered. Stickers sit on the pot rim, offset from the plant stem by the pot radius. Per-plant preset yaw values bake this offset in; if you add a new plant, center visually, not on the sticker.
-6. **Plant growth drift** — canopy grows, fills more of the frame over time. Presets age. Recalibrate every week or two.
-7. **Lights-off** — the camera still responds to PTZ commands in the dark, but captures are unusable. The daemon does not check lights status; any image-based detection caller must do that itself.
+5. **Sticker-vs-plant parallax** — sticker on pot rim ≠ plant center; preset yaw values bake in the offset. If adding a new plant, center visually.
+6. **Plant growth drift** — presets age as canopy grows; recalibrate every 1–2 weeks.
+7. **Lights-off** — PTZ commands work in dark, but captures are unusable. Daemon doesn't check lights status; image callers must handle this.

@@ -1,7 +1,7 @@
 ---
 title: Index
 type: index
-updated: 2026-04-18
+updated: 2026-04-20
 ---
 
 # Grow Wiki Index
@@ -11,10 +11,10 @@ updated: 2026-04-18
 - [Activity Log](log.md) — Append-only ingestion and update history
 
 ## Plants
-- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; vigor leader; strong purple contender; **topped Apr 11**, recovery → LST ~Apr 16–18
-- [Plant B](plants/plant-b.md) — 🟡 Secondary; no purple; **topped Apr 12**, recovery → LST ~Apr 17–19
-- [Plant C](plants/plant-c.md) — 🟡 Secondary; **topped Apr 12**; leaf issue resolved (foliar burn); recovery → LST ~Apr 17–19
-- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; strong purple contender; **topped Apr 12**, recovery → LST ~Apr 17–19
+- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; vigor leader; strong purple contender; **topped Apr 11**; **LST critically overdue (Day 9)**
+- [Plant B](plants/plant-b.md) — 🟡 Secondary; no purple; **topped Apr 12**; **LST critically overdue (Day 8)**
+- [Plant C](plants/plant-c.md) — 🟡 Secondary; **topped Apr 12**; leaf issue resolved; **LST critically overdue (Day 8)**
+- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; strong purple contender; **topped Apr 12**; **LST critically overdue (Day 8)**; ⚠️ lighter green — monitoring
 
 ## Daily Logs
 - [2026-03-27](daily/2026-03-27.md) — Day 13: Pre-transplant; 2–3 leaf sets
@@ -29,6 +29,8 @@ updated: 2026-04-18
 - [2026-04-11](daily/2026-04-11.md) — Day 28: **Plant A topped**; vigor leader confirmed; EC too high (920 ppm); float valve window opens Apr 12
 - [2026-04-12](daily/2026-04-12.md) — Day 29: **All four plants topped** (B, C, D today; A yesterday); all in recovery; LST ~Apr 16–19
 - [2026-04-18](daily/2026-04-18.md) — Day 35: LST window open (all 4 due now); overnight temp/RH flags; A/D sensors upgraded to v2.0
+- [2026-04-19](daily/2026-04-19.md) — Day 36: overnight temp recovered (68.0°F ✅); LST overdue; daytime VPD elevated (1.51 kPa)
+- [2026-04-20](daily/2026-04-20.md) — Day 37: daytime env in target (75.04°F ✅, 1.12 kPa VPD ✅); overnight RH regressed (74.37% ⚠️ — service restart pending); LST critically overdue; Plant D lighter green — monitoring
 
 ## Environment
 - [Temperature](environment/temperature.md) — Trend log; targets by phase; notable events
@@ -37,7 +39,7 @@ updated: 2026-04-18
 
 ## Hardware
 - [ESP32-C3 Per-Plant Nodes](hardware/esp32-plant-nodes.md) — Wireless soil moisture nodes (A/B/C/D); **all four live as of 2026-04-16** (A/D on v1.2 sensors, B/C on v2.0)
-- [Humidifier Control](hardware/humidifier-control.md) — Raydrop 4L gated by a Kasa Ultra Mini EP10 smart plug, driven by a host-side Python service via `python-kasa`; bang-bang hysteresis on tent DHT22 RH. Plug on hand, service not yet built.
+- [Humidifier Control](hardware/humidifier-control.md) — Raydrop 4L gated by a Kasa Ultra Mini EP10 smart plug, driven by a host-side Python service via `python-kasa`; bang-bang hysteresis on tent BME280-derived VPD. Plug on hand, service not yet built.
 - [PTZ Camera (OBSBOT Tiny 2 Lite + daemon)](hardware/ptz-camera.md) — Programmable gimbal + zoom; persistent C++ daemon + `scripts/camera` CLI; per-plant presets calibrated
 - [Jabra Speak 410](hardware/jabra.md) — USB speakerphone for voice I/O; ElevenLabs "Claudia" TTS + Nova-3 STT + openWakeWord ("hey claudia"). Device quirks, firmware, volume tuning.
 - [Voice Channel (Claudia)](hardware/voice-channel.md) — Production Pipecat pipeline on top of the Jabra; `dirt-voice.service`; agent tools; session logs. **Deployed 2026-04-18.**
@@ -87,3 +89,4 @@ updated: 2026-04-18
 - [Humidifier Control via Kasa EP10 (2026-04-17)](decisions/2026-04-17-humidifier-kasa-ep10.md) — Raydrop 4L gated by a WiFi smart plug + `python-kasa`; bang-bang hysteresis on host-side Python service. Supersedes the 2026-04-14 SSR approach.
 - [Humidifier Closed-Loop Control (2026-04-14, superseded)](decisions/2026-04-14-humidifier-relay-control.md) — Original SSR-on-Arduino plan; superseded before deployment, kept for decision-trail history.
 - [Reservoir Level Sensing (2026-04-18)](decisions/2026-04-18-reservoir-level-pressure-transducer.md) — Submerged DFRobot KIT0139 pressure transducer (4–20mA, 0–5m) → ADS1115 16-bit I²C ADC → new dedicated ESP32-C3 reservoir node. Alternatives (float, ultrasonic, capacitive strip) considered and rejected.
+- [Tent-Hub Sensor Swap — DHT22 → BME280 (2026-04-20)](decisions/2026-04-20-bme280-sensor-swap.md) — Replaced the DHT22 on the Arduino Nano tent-hub with a Bosch BME280 (I²C `0x76`) after DHT22 hardware failure and for tighter drift characteristics. Topology and humidifier control loop unchanged; 0.1 kPa deadband kept. Pressure now captured as a free side channel.
