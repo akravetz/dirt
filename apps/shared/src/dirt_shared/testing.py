@@ -75,6 +75,9 @@ _ENGINE_HOLDERS: tuple[str, ...] = (
     "dirt_shared.services.grow_state",
     "dirt_shared.services.snapshots",
     "dirt_shared.services.capture",
+    "dirt_shared.services.plants",
+    "dirt_shared.services.humidifier_state",
+    "dirt_shared.services.system_status",
     "dirt_voice.tools.sensors",
 )
 
