@@ -19,4 +19,9 @@
   --font-sans: "Inter", system-ui, sans-serif;
   --font-serif: "Fraunces", Georgia, serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  /* Named letter-spacing token so components reference the palette
+   * (`tracking-caps`) instead of arbitrary values (`tracking-[0.3em]`),
+   * which TS-15 forbids. */
+  --tracking-caps: 0.3em;
 }

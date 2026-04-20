@@ -16,6 +16,7 @@ import tseslint from "typescript-eslint";
 import boundaries from "eslint-plugin-boundaries";
 import pluginRouter from "@tanstack/eslint-plugin-router";
 import noInternalViMock from "./rules/no-internal-vi-mock.ts";
+import noArbitraryTwValue from "./rules/no-arbitrary-tw-value.ts";
 
 // Element-type rules for eslint-plugin-boundaries.
 //
@@ -76,8 +77,13 @@ const config: Linter.Config[] = [
     plugins: {
       boundaries: boundaries as unknown as NonNullable<Linter.Config["plugins"]>[string],
       "@typescript-eslint": tseslint.plugin as unknown as NonNullable<Linter.Config["plugins"]>[string],
-      // TS-08 — inline-plugin pattern for custom rules under ./rules/.
-      local: { rules: { "no-internal-vi-mock": noInternalViMock } },
+      // TS-08 / TS-15 — inline-plugin pattern for custom rules under ./rules/.
+      local: {
+        rules: {
+          "no-internal-vi-mock": noInternalViMock,
+          "no-arbitrary-tw-value": noArbitraryTwValue,
+        },
+      },
     },
     settings: {
       "boundaries/elements": ELEMENT_TYPES,
@@ -248,6 +254,10 @@ const config: Linter.Config[] = [
       //
       // See web-ui/invariants/rules/no-internal-vi-mock.ts for rule body.
       "local/no-internal-vi-mock": "error",
+      // TS-15 — Tailwind v4 palette guard.
+      //
+      // See web-ui/invariants/rules/no-arbitrary-tw-value.ts for rule body.
+      "local/no-arbitrary-tw-value": "error",
       // TS-05 — no fetch() outside api-client.
       //
       // WHY: single outward-facing boundary. Auth headers, retry,

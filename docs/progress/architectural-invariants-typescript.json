@@ -443,7 +443,7 @@
       "blocks": [],
       "blocked_by": ["XX-02"],
       "session_log": [
-        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "Installed @tanstack/eslint-plugin-router@1.161.6. Extended flat/recommended config at the top of web-ui/invariants/eslint.config.ts (spread as the first element of the config array so the invariants/base block can still override / extend). Did not touch @typescript-eslint/only-throw-error (not currently enabled). pnpm lint PASS; meta-invariant PASS. Commit TBD."}
+        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "Installed @tanstack/eslint-plugin-router@1.161.6. Extended flat/recommended config at the top of web-ui/invariants/eslint.config.ts (spread as the first element of the config array so the invariants/base block can still override / extend). Did not touch @typescript-eslint/only-throw-error (not currently enabled). pnpm lint PASS; meta-invariant PASS. Commit 393a350."}
       ],
       "verifier_notes": null
     },
@@ -463,10 +463,12 @@
         {"type": "shell_exit_zero", "cmd": "pnpm --dir web-ui lint"},
         {"type": "negative_test", "description": "Add `<div className='bg-[#abcdef]'>` anywhere. Must fail lint.", "cmd": "pnpm --dir web-ui lint"}
       ],
-      "status": "not_started",
+      "status": "needs_verification",
       "blocks": [],
       "blocked_by": ["XX-02"],
-      "session_log": [],
+      "session_log": [
+        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "Created web-ui/invariants/rules/no-arbitrary-tw-value.ts — flags arbitrary-value utilities (bg-[#..], text-[14px], tracking-[0.3em], etc.) in JSX className strings and template-literal quasis. Registered as local/no-arbitrary-tw-value:error. Negative test: <div className='bg-[#abcdef]'> fires with WHY/FIX message pointing at palette / @theme. Baseline violation in src/routes/index.tsx (tracking-[0.3em]) — fixed per the NEVER-DISABLE guardrail: added --tracking-caps:0.3em to @theme in src/styles.css and updated index.tsx to use `tracking-caps` palette class. pnpm lint + pnpm typecheck PASS. Commit TBD."}
+      ],
       "verifier_notes": null
     },
     {
