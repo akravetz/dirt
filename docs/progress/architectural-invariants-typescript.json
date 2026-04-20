@@ -286,7 +286,7 @@
       "blocks": ["XX-01"],
       "blocked_by": ["XX-02"],
       "session_log": [
-        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "Created web-ui/invariants/rules/no-internal-vi-mock.ts (Rule.RuleModule) flagging vi.mock() calls whose first literal argument starts with '@/', './' or '../' (internal modules). Registered via flat-config inline plugin pattern: plugins.local.rules. Rule message follows WHY/FIX shape. Appended 'local/no-internal-vi-mock':2 to KNOWN_SENTINELS. Negative test manually verified: a .test.ts containing vi.mock('@/api/client') fires the rule with the full WHY/FIX message. Commit TBD."}
+        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "Created web-ui/invariants/rules/no-internal-vi-mock.ts (Rule.RuleModule) flagging vi.mock() calls whose first literal argument starts with '@/', './' or '../' (internal modules). Registered via flat-config inline plugin pattern: plugins.local.rules. Rule message follows WHY/FIX shape. Appended 'local/no-internal-vi-mock':2 to KNOWN_SENTINELS. Negative test manually verified: a .test.ts containing vi.mock('@/api/client') fires the rule with the full WHY/FIX message. Commit 4189f29."}
       ],
       "verifier_notes": null
     },
@@ -307,10 +307,12 @@
         {"type": "shell_exit_zero", "cmd": "pnpm --dir web-ui lint"},
         {"type": "negative_test", "description": "Add `localStorage.setItem('k','v')` to any component file. Must fail lint.", "cmd": "pnpm --dir web-ui lint"}
       ],
-      "status": "not_started",
+      "status": "needs_verification",
       "blocks": [],
       "blocked_by": ["XX-02", "TS-02"],
-      "session_log": [],
+      "session_log": [
+        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "Created web-ui/src/shared/storage.ts as the single localStorage/sessionStorage owner. Added no-restricted-globals entries for localStorage + sessionStorage; per-file exemption block turns them off inside src/shared/storage.ts. pnpm lint PASS; meta-invariant PASS. Commit TBD."}
+      ],
       "verifier_notes": null
     },
     {

@@ -235,6 +235,33 @@ const config: Linter.Config[] = [
           message:
             "WHY: fetch is owned by src/api-client/. FIX: import the typed client from '@/api-client' (see TS-05).",
         },
+        // TS-09 — localStorage / sessionStorage outside src/shared/storage.ts.
+        //
+        // WHY: single ownership — one mock surface for tests, one shim
+        // surface for SSR. Parallel to Python's no-module-level-singletons.
+        // FIX: import { storage } from "@/shared/storage" and go through
+        // its typed methods.
+        {
+          name: "localStorage",
+          message:
+            "WHY: localStorage has a single owner (src/shared/storage.ts). FIX: import { storage } from '@/shared/storage'.",
+        },
+        {
+          name: "sessionStorage",
+          message:
+            "WHY: sessionStorage has a single owner (src/shared/storage.ts). FIX: import { storage } from '@/shared/storage'.",
+        },
+        // TS-10 — window.* outside src/shared/platform.ts.
+        //
+        // WHY: forces a testable platform abstraction even in SPA-only
+        // apps. Prevents reaching for navigator.clipboard inline.
+        // FIX: import { platform } from "@/shared/platform" (shared
+        // will re-expose clipboard / navigator surfaces as needed).
+        {
+          name: "window",
+          message:
+            "WHY: window.* has a single owner (src/shared/platform.ts). FIX: import { platform } from '@/shared/platform' and use its typed methods.",
+        },
       ],
     },
   },
@@ -242,6 +269,22 @@ const config: Linter.Config[] = [
   {
     name: "invariants/api-client-fetch-allowed",
     files: ["src/api-client/**"],
+    rules: {
+      "no-restricted-globals": "off",
+    },
+  },
+  // TS-09 — exemption for the single storage owner.
+  {
+    name: "invariants/storage-owner",
+    files: ["src/shared/storage.ts"],
+    rules: {
+      "no-restricted-globals": "off",
+    },
+  },
+  // TS-10 — exemption for the single platform owner.
+  {
+    name: "invariants/platform-owner",
+    files: ["src/shared/platform.ts"],
     rules: {
       "no-restricted-globals": "off",
     },
