@@ -66,7 +66,10 @@ extend-exclude = ["docs", ".claude", "scripts", "firmware", "debug"]
 #               synchronous call slipped into a FastAPI handler, which
 #               blocks the event loop and produces mysterious tail-latency
 #               under load.
-select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "SLF", "ASYNC"]
+#   T20       — flake8-print (PY-06): ban print() / pprint() in production.
+#               Observability is structured (log_event, loguru); print
+#               bypasses every log stream and breaks correlation-id chain.
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "SLF", "ASYNC", "T20"]
 # ASYNC240 "don't use pathlib.Path in async fns; use trio.Path / anyio.Path"
 # doesn't apply — Dirt uses stdlib asyncio exclusively.
 # RUF001/RUF002/RUF003 complain about "ambiguous" unicode (× ≠ x,

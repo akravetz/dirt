@@ -137,7 +137,7 @@
       "blocked_by": [],
       "session_log": [
         {"date": "2026-04-20", "note": "Starting PY-05. AST scan walks apps/*/src/dirt_*/**/*.py, checks every Constant-str and JoinedStr-prefix for SQL keyword starts (SELECT, INSERT INTO, UPDATE, DELETE FROM, CREATE/ALTER/DROP TABLE, WITH). ALLOWED_PREFIXES = models/, services/, db.py. No production refactor — all existing raw SQL (db.py ping; services/readings.py time-bucket aggregation; services/humidifier_state.py time-window query) is already inside allowed prefixes."},
-        {"date": "2026-04-20", "commit": "pending", "note": "PY-05 test passes. All 3 acceptance_criteria green: (1) file exists, (2) uv run pytest → 5 passed, (3) negative test: prepended `_q = 'SELECT * FROM plant'` to apps/web/src/dirt_web/api/sensors.py; test failed flagging the literal. Reverted."}
+        {"date": "2026-04-20", "commit": "634cdeb", "note": "PY-05 committed. All 3 acceptance_criteria green: (1) file exists, (2) uv run pytest → 5 passed, (3) negative test: prepended `_q = 'SELECT * FROM plant'` to apps/web/src/dirt_web/api/sensors.py; test failed flagging the literal. Reverted."}
       ],
       "verifier_notes": null
     },
@@ -158,10 +158,13 @@
         {"type": "shell_exit_zero", "cmd": "uv run ruff check"},
         {"type": "negative_test", "description": "Add `print('hi')` to any apps/*/src/**/*.py. Must fail ruff.", "cmd": "uv run ruff check"}
       ],
-      "status": "not_started",
+      "status": "needs_verification",
       "blocks": [],
       "blocked_by": [],
-      "session_log": [],
+      "session_log": [
+        {"date": "2026-04-20", "note": "Starting PY-06. Added T20 to [tool.ruff.lint] select. scripts/ and debug/ already extend-excluded in PY-04, which achieves the same effect as a per-directory extend-select override: those dirs aren't linted, so prints pass. No existing prints in apps/*/src/dirt_*/ to fix."},
+        {"date": "2026-04-20", "commit": "pending", "note": "PY-06 test passes. All 3 acceptance_criteria green: (1) grep 'T20' in pyproject.toml, (2) uv run ruff check → clean, (3) negative test: `print('debug')` injected into plants.py trips T201 and ruff exits non-zero. Reverted."}
+      ],
       "verifier_notes": null
     },
     {
