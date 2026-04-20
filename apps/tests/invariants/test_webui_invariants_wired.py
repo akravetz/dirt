@@ -63,7 +63,12 @@ KNOWN_SENTINELS: dict[str, dict[str, object]] = {
         # Filled in by TS-02, TS-03, TS-04, TS-08.
     },
     "tsconfig": {
-        # Filled in by TS-01.
+        # TS-01 — strict-mode flags.
+        "strict": True,
+        "noUncheckedIndexedAccess": True,
+        "exactOptionalPropertyTypes": True,
+        "noImplicitOverride": True,
+        "noFallthroughCasesInSwitch": True,
     },
 }
 

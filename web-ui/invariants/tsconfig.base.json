@@ -1,4 +1,10 @@
 {
-  "_comment": "HUMAN-OWNED. Strict compilerOptions base. The root web-ui/tsconfig.json shim extends this file. Meta-invariant apps/tests/invariants/test_webui_invariants_wired.py runs `tsc --showConfig` on the live tree and asserts every flag in KNOWN_SENTINELS is set as expected. Do not add overrides here to silence failures — fix the calling code. Successive TS-XX items (starting with TS-01) fill this in.",
-  "compilerOptions": {}
+  "_comment": "HUMAN-OWNED. Strict compilerOptions base. The root web-ui/tsconfig.json shim extends this file. Meta-invariant apps/tests/invariants/test_webui_invariants_wired.py runs `tsc --showConfig` on the live tree and asserts every flag in KNOWN_SENTINELS is set as expected. Do not add overrides here to silence failures — fix the calling code.",
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true
+  }
 }
