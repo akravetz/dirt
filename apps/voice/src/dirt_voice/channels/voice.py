@@ -447,7 +447,10 @@ async def run_conversation(
     # Seed a greeting request so Claudia speaks first.
     context.add_message({
         "role": "developer",
-        "content": "Greet the user warmly in one sentence — you just heard them say your wake word.",
+        "content": (
+            "Greet the user warmly in one sentence — you just heard them "
+            "say your wake word."
+        ),
     })
     await task.queue_frames([LLMRunFrame()])
 
@@ -471,7 +474,11 @@ def _conversation_turns(context: LLMContext) -> list[dict]:
             continue
         role = msg.get("role")
         content = msg.get("content")
-        if role in ("user", "assistant") and isinstance(content, str) and content.strip():
+        if (
+            role in ("user", "assistant")
+            and isinstance(content, str)
+            and content.strip()
+        ):
             turns.append({"role": role, "text": content})
     return turns
 

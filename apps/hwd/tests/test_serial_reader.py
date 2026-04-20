@@ -8,7 +8,6 @@ port) — the loop's asyncio plumbing is out of scope here.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from dirt_hwd.services.serial_reader import (
     _derive_metrics,
@@ -37,7 +36,7 @@ def test_boot_frame_routed_to_sensor_boot_stream(tmp_path, monkeypatch) -> None:
     # Observability writer is a daemon thread — drain via the same primitive
     # the observability module uses internally.
     from dirt_shared import observability
-    observability._write_queue.join() if False else None  # noqa: E501 (pragma)
+    observability._write_queue.join() if False else None
     # Simpler: poll for the file to appear.
     log_dir = tmp_path / "sensor_boot"
     for _ in range(50):

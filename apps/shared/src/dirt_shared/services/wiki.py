@@ -347,7 +347,7 @@ def _backlinks_for(target_path: str) -> list[WikiFileRef]:
         if isinstance(related, list):
             for r in related:
                 r = str(r).strip()
-                if r == target_path or r == f"wiki/{target_rel}" or r == target_rel:
+                if r in (target_path, f"wiki/{target_rel}", target_rel):
                     refs.append(_file_ref(p))
                     break
                 # Frontmatter sometimes drops the .md suffix.
@@ -435,7 +435,12 @@ def search(q: str, limit: int = 12) -> list[SearchResult]:
             end = min(len(body), idx + len(q) + 50)
             snippet = body[start:end].replace("\n", " ").strip()
             content_hits.append(
-                SearchResult(path=rel, title=title, match_type="content", snippet=snippet)
+                SearchResult(
+                    path=rel,
+                    title=title,
+                    match_type="content",
+                    snippet=snippet,
+                )
             )
 
     return (title_hits + path_hits + content_hits)[:limit]

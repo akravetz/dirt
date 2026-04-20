@@ -114,7 +114,12 @@ async def _pg_template() -> str:
         f"@{settings.dirt_pg_host}:{settings.dirt_pg_port}/{_TEMPLATE}"
         "?sslmode=disable"
     )
-    result = subprocess.run(
+    # Session-scoped one-shot atlas migrate against an ephemeral template
+    # DB. We are inside an async fixture but there is nothing else on the
+    # loop during setup — async subprocess_exec would just add noise. The
+    # ASYNC221 rule is valuable elsewhere; this is the single justified
+    # exception.
+    result = subprocess.run(  # noqa: ASYNC221
         [
             "atlas", "migrate", "apply",
             "--dir", f"file://{_MIGRATIONS}",

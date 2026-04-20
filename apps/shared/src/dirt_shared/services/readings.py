@@ -75,7 +75,7 @@ _BUCKET_SQL = {
     "24h": (
         "SELECT to_char("
         "    date_trunc('hour', ts AT TIME ZONE 'UTC')"
-        "    + make_interval(mins => (extract(minute from ts AT TIME ZONE 'UTC')::int / 5) * 5),"
+        "    + make_interval(mins => (extract(minute from ts AT TIME ZONE 'UTC')::int / 5) * 5),"  # noqa: E501
         "    'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'"
         ") AS bucket, "
         "AVG(value) AS avg_value "
@@ -143,7 +143,7 @@ async def _get_sensornode_id(
 async def _update_calibration(
     session: AsyncSession, sensornode_id: int, metric: str, value: float
 ) -> None:
-    """Widen the (sensornode_id, metric) calibration range if value is a new extremum."""
+    """Widen the (sensornode_id, metric) calibration range if ``value`` is a new extremum."""  # noqa: E501
     result = await session.exec(
         select(SensorCalibration)
         .where(SensorCalibration.sensornode_id == sensornode_id)
@@ -206,7 +206,7 @@ class ReadingsService:
             return result.first()
 
     async def is_sensor_stale(self, threshold: int = 10) -> bool:
-        """Return True if the last ``threshold`` tent temperature readings are identical."""
+        """Return True if the last ``threshold`` tent temperature readings are identical."""  # noqa: E501
         async with AsyncSession(self._engine) as session:
             node_id = await _get_sensornode_id(session, SensorLocation.TENT)
             if node_id is None:

@@ -44,10 +44,52 @@ asyncio_default_test_loop_scope = "session"
 [tool.ruff]
 src = ["apps/hwd/src", "apps/web/src", "apps/shared/src", "apps/mcp/src", "apps/voice/src"]
 line-length = 88
-extend-exclude = ["docs"]
+# Agent-owned surfaces only. .claude/ is harness / skill scaffolding
+# shipped from upstream; scripts/ holds one-off maintenance tooling with
+# its own style conventions (pragma allowed). Both would drown the
+# signal-to-noise in ASYNC/T20/TID/RUF/S audits (PY-04/06/08) with
+# pre-existing cosmetic drift agents aren't supposed to police.
+extend-exclude = ["docs", ".claude", "scripts", "firmware", "debug"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "SLF"]
+# Rule-set rationale (kept next to the select):
+#   E,F       — pycodestyle + pyflakes (line length, undefined names).
+#   I         — isort (import ordering).
+#   UP        — pyupgrade (modern Python idioms).
+#   B         — flake8-bugbear (likely bugs).
+#   SIM       — flake8-simplify (readability simplifications).
+#   RUF       — Ruff-specific rules.
+#   SLF       — flake8-self (private-member access).
+#   ASYNC     — flake8-async (PY-04): flag blocking I/O inside `async def`
+#               (time.sleep, open(), requests.get, subprocess.run, etc.).
+#               Prevents the most common LLM correctness regression: a
+#               synchronous call slipped into a FastAPI handler, which
+#               blocks the event loop and produces mysterious tail-latency
+#               under load.
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "SLF", "ASYNC"]
+# ASYNC240 "don't use pathlib.Path in async fns; use trio.Path / anyio.Path"
+# doesn't apply — Dirt uses stdlib asyncio exclusively.
+# RUF001/RUF002/RUF003 complain about "ambiguous" unicode (× ≠ x,
+# – ≠ -). Our docstrings and comments intentionally use typographic
+# unicode; we don't care about the 'ambiguous' visual distinction.
+# B008 is the standard FastAPI dependency-injection pattern
+# (`param: T = Depends(get_T)`) — the rule is written for pre-FastAPI
+# Python. Exempted per-file under [lint.per-file-ignores].
+ignore = ["ASYNC240", "RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.per-file-ignores]
+# FastAPI uses `param: T = Depends(get_T)` idiomatically; B008 doesn't
+# understand that.
+"apps/*/src/**/api/*.py" = ["B008"]
+"apps/*/src/dirt_hwd/api/*.py" = ["B008"]
+"apps/*/src/dirt_web/api/*.py" = ["B008"]
+"apps/*/src/dirt_mcp/**.py" = ["B008"]
+# Test files and invariants prefer readability (long docstrings,
+# structured-data tables, pytest parametrize lines) over a hard 88-char
+# bound; SLF001 (private member access) is the entire point of a unit
+# test that exercises an internal contract.
+"apps/*/tests/**/*.py" = ["E501", "SLF001"]
+"apps/tests/**/*.py" = ["E501", "SLF001"]
 
 [tool.ruff.format]
 quote-style = "double"

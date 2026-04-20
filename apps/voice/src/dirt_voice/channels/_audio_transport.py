@@ -76,7 +76,9 @@ class SoundDeviceInputTransport(BaseInputTransport):
         if self._in_stream:
             return
 
-        self._sample_rate = self._params.audio_in_sample_rate or frame.audio_in_sample_rate
+        self._sample_rate = (
+            self._params.audio_in_sample_rate or frame.audio_in_sample_rate
+        )
         blocksize = int(self._sample_rate * 0.02)  # 20 ms
         loop = self.get_event_loop()
 
@@ -198,7 +200,9 @@ class SoundDeviceOutputTransport(BaseOutputTransport):
                 "audio_playback",
                 "turn_complete",
                 conversation_id=self._cid,
-                tts_stream_duration_s=round(self._tts_stopped_ts - self._turn_start_ts, 3),
+                tts_stream_duration_s=round(
+                    self._tts_stopped_ts - self._turn_start_ts, 3
+                ),
                 playback_duration_s=round(t_end - self._turn_start_ts, 3),
                 excess_buffer_s=round(t_end - self._tts_stopped_ts, 3),
             )
@@ -224,7 +228,9 @@ class SoundDeviceOutputTransport(BaseOutputTransport):
         if self._out_stream:
             return
 
-        self._sample_rate = self._params.audio_out_sample_rate or frame.audio_out_sample_rate
+        self._sample_rate = (
+            self._params.audio_out_sample_rate or frame.audio_out_sample_rate
+        )
         # Capture the conversation id now (asyncio context); the portaudio
         # callback runs on a C thread where the ContextVar isn't propagated.
         self._cid = CONVERSATION_ID.get()
@@ -323,8 +329,12 @@ class SoundDeviceTransport(BaseTransport):
     def __init__(self, params: SoundDeviceTransportParams):
         super().__init__()
         self._params = params
-        self._input = SoundDeviceInputTransport(params) if params.audio_in_enabled else None
-        self._output = SoundDeviceOutputTransport(params) if params.audio_out_enabled else None
+        self._input = (
+            SoundDeviceInputTransport(params) if params.audio_in_enabled else None
+        )
+        self._output = (
+            SoundDeviceOutputTransport(params) if params.audio_out_enabled else None
+        )
 
     def input(self) -> FrameProcessor:
         if not self._input:

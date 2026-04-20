@@ -83,8 +83,10 @@ def count_irrigation_events(
     points: list[MoisturePoint], jump_pct: float = 5.0
 ) -> int:
     """Heuristic: count upward jumps >= ``jump_pct`` between adjacent samples."""
+    from itertools import pairwise
+
     n = 0
-    for prev, curr in zip(points, points[1:]):
+    for prev, curr in pairwise(points):
         if curr.value - prev.value >= jump_pct:
             n += 1
     return n
@@ -269,10 +271,7 @@ class PlantsService:
                     select(GrowState).where(GrowState.is_current.is_(True))
                 )
             ).first()
-        if gs is None:
-            day = 0
-        else:
-            day = (today_d - gs.germination_date).days + 1
+        day = 0 if gs is None else (today_d - gs.germination_date).days + 1
 
         moisture = PlantMoistureStatus(
             current_pct=summary.moisture_pct,
