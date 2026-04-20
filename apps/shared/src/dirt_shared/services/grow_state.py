@@ -13,7 +13,7 @@ Apr 2026).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Literal
 from zoneinfo import ZoneInfo
 
@@ -132,3 +132,95 @@ async def lights_state(now_utc: datetime | None = None) -> LightsState:
     minutes_until_off = (off_dt - now_local).total_seconds() / 60.0
 
     return LightsState(on=on, minutes_until_off=minutes_until_off)
+
+
+# ============================================================
+# Shared band-status helper — used by every endpoint that returns
+# an "ok | warn | crit" classification against a target band.
+# ============================================================
+
+BandStatus = Literal["ok", "warn", "crit"]
+
+
+def band_status(
+    value: float, band: tuple[float, float] | None
+) -> BandStatus:
+    """Classify ``value`` against a target ``band=(lo, hi)``.
+
+    - ``ok``   — value within [lo, hi]
+    - ``warn`` — outside the band but within half a band-width of an edge
+    - ``crit`` — further out than that
+
+    ``None`` band (no target defined for this metric, e.g. fan_pct) is
+    treated as "always ok" — the UI renders those without status colouring.
+    Used by ``/api/sensors/current``, ``/api/plants/{code}.moisture.status``,
+    and anywhere else the API returns a status field.
+    """
+    if band is None:
+        return "ok"
+    lo, hi = band
+    if lo <= value <= hi:
+        return "ok"
+    half_width = (hi - lo) / 2
+    if lo - half_width <= value <= hi + half_width:
+        return "warn"
+    return "crit"
+
+
+# ============================================================
+# /api/grow/current composite — collects everything the endpoint needs
+# into one dataclass so the endpoint layer doesn't chain 5 service calls.
+# ============================================================
+
+
+@dataclass(frozen=True)
+class GrowCurrentPayload:
+    germination_date: date
+    flower_start_date: date | None
+    day_number: int          # today - germination_date + 1
+    week_number: int
+    stage: Stage
+    strain: str
+    location: str
+    plant_count: int
+    lights: LightsState
+    lights_on_local: time
+    lights_off_local: time
+
+
+async def get_grow_current_payload(
+    today: date | None = None, now_utc: datetime | None = None
+) -> GrowCurrentPayload:
+    """One-shot assembler for ``GET /api/grow/current``.
+
+    Does a single ``get_state`` read + the three derived calculations
+    (stage, week, lights). ``today`` / ``now_utc`` are passed through so
+    tests can pin time.
+    """
+    today = today or date.today()
+    now_utc = now_utc or datetime.now(UTC)
+    state = await get_state()
+
+    if state.flower_start_date is None or today < state.flower_start_date:
+        stage: Stage = "veg"
+    else:
+        days_in_flower = (today - state.flower_start_date).days
+        stage = "flower_early" if days_in_flower < _LATE_FLOWER_DAY else "flower_late"
+
+    week_number = (today - state.germination_date).days // 7 + 1
+    day_number = (today - state.germination_date).days + 1
+    lights = await lights_state(now_utc)
+
+    return GrowCurrentPayload(
+        germination_date=state.germination_date,
+        flower_start_date=state.flower_start_date,
+        day_number=day_number,
+        week_number=week_number,
+        stage=stage,
+        strain=state.strain,
+        location=state.location,
+        plant_count=state.plant_count,
+        lights=lights,
+        lights_on_local=state.lights_on_local,
+        lights_off_local=state.lights_off_local,
+    )

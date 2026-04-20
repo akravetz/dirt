@@ -35,8 +35,8 @@ Not in scope here: OpenAPI YAML (will be generated from this after sign-off), Fa
 | `/api/humidifier/state` | GET | — | **ADD** |
 | `/api/humidifier/history` | GET | — | **ADD** |
 | `/api/plants` | GET | — | **ADD** |
-| `/api/plants/{id}` | GET | — | **ADD** |
-| `/api/plants/{id}/moisture` | GET | — | **ADD** |
+| `/api/plants/{code}` | GET | — | **ADD** |
+| `/api/plants/{code}/moisture` | GET | — | **ADD** |
 | `/api/system/devices` | GET | — | **ADD** |
 | `/api/feed/live.jpg` | GET | `/feed/live` | **MODIFY** (rename to `.jpg`, keep behavior) |
 | `/api/feed/snapshot/latest` | GET | `/api/snapshots/latest` | **MODIFY** (rename) |
@@ -218,30 +218,30 @@ Drives the dashboard plants strip (A–D cards) and the plant-detail drawer.
   "day": 36,
   "plants": [
     {
-      "id": "a",
+      "code": "a",                       // stable 'a'/'b'/'c'/'d' — use in URLs
       "name": "Plant A",
       "sticker_color": "yellow",
-      "status": "primary",               // "primary" | "secondary"
+      "status": "primary",               // "primary" | "secondary" | "retired"
       "purple": true,
       "moisture_pct": 62,                 // latest calibrated pct (null if no cal)
       "moisture_ts": "2026-04-19T22:45:25Z"
     },
-    { "id": "b", "name": "Plant B", "sticker_color": "orange", "status": "secondary", "purple": false, "moisture_pct": 48, "moisture_ts": "..." },
-    { "id": "c", "name": "Plant C", "sticker_color": "pink", "status": "secondary", "purple": false, "moisture_pct": 54, "moisture_ts": "..." },
-    { "id": "d", "name": "Plant D", "sticker_color": "blue", "status": "primary", "purple": true, "moisture_pct": 66, "moisture_ts": "..." }
+    { "code": "b", "name": "Plant B", "sticker_color": "orange", "status": "secondary", "purple": false, "moisture_pct": 48, "moisture_ts": "..." },
+    { "code": "c", "name": "Plant C", "sticker_color": "pink", "status": "secondary", "purple": false, "moisture_pct": 54, "moisture_ts": "..." },
+    { "code": "d", "name": "Plant D", "sticker_color": "blue", "status": "primary", "purple": true, "moisture_pct": 66, "moisture_ts": "..." }
   ]
 }
 ```
 
-`id` is lowercase letter. `sticker_color`, `status`, `purple` are **not tracked today** — see data_model proposal. Initial plan: static per-plant config in a new `plant` table or a single JSON config row. Moisture pct comes from the existing `sensorreading soil_moisture_raw` + `sensorcalibration` join.
+`code` is the stable lowercase letter and the URL path param for `/api/plants/{code}`. The surrogate `plant.id` bigint is DB-internal — never appears on the wire. Moisture pct comes from the `sensorreading soil_moisture_raw` + `sensorcalibration` join.
 
-### GET /api/plants/{id}
+### GET /api/plants/{code}
 
-Full plant-detail-drawer payload. `id` is `a|b|c|d`.
+Full plant-detail-drawer payload. `code` is `a|b|c|d`.
 
 ```jsonc
 {
-  "id": "a",
+  "code": "a",
   "name": "Plant A",
   "sticker_color": "yellow",
   "status": "primary",
@@ -256,21 +256,14 @@ Full plant-detail-drawer payload. `id` is `a|b|c|d`.
     "ts": "2026-04-19T22:45:25Z"
   },
 
-  "vitals": [
-    { "label": "Soil moisture", "value": "62 %", "target": "55–70", "status": "ok" },
-    { "label": "Runoff pH",     "value": "5.9",  "target": "5.5–6.0", "status": "ok" },
-    { "label": "Distance from light", "value": "24 in", "target": "20–26", "status": "ok" },
-    { "label": "Node count",    "value": "5 (topped)", "target": "—", "status": "ok" }
-  ],
-
   "timeline": [
     { "date": "2026-03-27", "day": 13, "text": "Pre-transplant; 2–3 true leaf sets", "highlight": false },
     { "date": "2026-04-11", "day": 28, "text": "Topped above node 4", "highlight": true },
     ...
   ],
 
-  "note": {                              // the "current status" bottom quote
-    "text": "Day 28 was the right call — plant had visible 5th node emerging...",
+  "note": {
+    "text": "Seven days post-topping, Plant A shows vigorous multi-branch canopy with clean medium-dark green leaves...",
     "updated": "2026-04-18"
   },
 
@@ -278,17 +271,17 @@ Full plant-detail-drawer payload. `id` is `a|b|c|d`.
 }
 ```
 
-**Source of truth:** `wiki/plants/plant-{id}.md` is the agent-maintained plant page. The simplest implementation parses that markdown's frontmatter + a few known headings (`## Timeline`, `## Vitals (live)`) into this shape. The `moisture.current_pct` is live-computed; everything else rides from the wiki.
+**Source of truth:** `wiki/plants/plant-{code}.md` is the agent-maintained plant page. `plant_detail.get_plant_detail(code)` parses its frontmatter + `## Timeline` bullet list + first paragraph of `## Current State` (used for the drawer's bottom note). `moisture.*` and `day` come from DB-live data joined by the endpoint. The drawer has no vitals table — the mockup never rendered one, and the wiki has no structured pH / distance / node-count source yet.
 
 **Open question (?):** Do we want to *mirror* plant-wiki data into SQL (for fast queries + avoid parsing markdown on every hit), or parse-on-read? Lean: parse-on-read + short in-memory TTL cache. The wiki updates once a day at 14:00 MDT — cache invalidation is trivial.
 
-### GET /api/plants/{id}/moisture?range=1h|24h|7d
+### GET /api/plants/{code}/moisture?range=1h|24h|7d
 
 Drives the plant-detail-drawer moisture chart.
 
 ```jsonc
 {
-  "id": "a",
+  "code": "a",
   "range": "24h",
   "unit": "%",
   "target": [55, 70],
@@ -296,7 +289,7 @@ Drives the plant-detail-drawer moisture chart.
     { "ts": "2026-04-18T23:00:00Z", "value": 68.2 },
     ...
   ],
-  "irrigation_events_24h": 12           // count of downward steps >= threshold
+  "irrigation_events_24h": 12           // count of upward steps >= threshold (autopot cycle heuristic)
 }
 ```
 
@@ -536,7 +529,7 @@ The cookie-session middleware stays; the `/api/ingest/sensors` endpoint (on `dir
 - `GET /api/feed/live.jpg`: `Cache-Control: no-store`.
 - `GET /api/sensors/current`, `/api/humidifier/state`, `/api/ptz/state`, `/api/system/devices`: `Cache-Control: no-store`.
 - `GET /api/wiki/*`: `ETag` based on mtime of the file (tree uses a rollup hash of all mtimes).
-- `GET /api/sensors/history`, `/api/humidifier/history`, `/api/plants/{id}/moisture`: short `Cache-Control: public, max-age=30` — the data bucket boundaries are coarser than that.
+- `GET /api/sensors/history`, `/api/humidifier/history`, `/api/plants/{code}/moisture`: short `Cache-Control: public, max-age=30` — the data bucket boundaries are coarser than that.
 
 ### Errors
 Everything uses FastAPI's `HTTPException` → `{"detail": "..."}`. HTTP codes:

@@ -24,9 +24,9 @@ hour.
 from __future__ import annotations
 
 import contextlib
-import json
 import os
 import socket
+import subprocess
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -261,84 +261,44 @@ def _parse_camera_response(line: str) -> dict[str, str]:
 
 
 def _voice_status(now: datetime) -> DeviceStatus:
-    """Jabra — infer from today's voice session JSONL.
+    """Jabra / Claudia — infer from ``systemctl --user is-active dirt-voice``.
 
-    Any event in the last 30 min → ``listening``. Older-than-24h or no file
-    today → ``offline``. Between 30 min and 24 h → ``warn``.
+    Per API.md §6: the voice row is ``listening`` when the service is up,
+    ``offline`` otherwise. No need to tail session JSONL; the systemd
+    unit's active state is the authoritative signal.
     """
-    session_dir = Path(settings.data_dir) / "sessions" / "voice"
-    latest = _latest_session_event_ts(session_dir)
-    if latest is None:
-        return DeviceStatus(
-            name="Jabra Speak 410 (Claudia)",
-            kind="voice",
-            status="offline",
-            last_seen=None,
-        )
-    age = now - latest
-    if age < _THRESHOLDS["voice"][0]:
+    active = _is_user_service_active("dirt-voice")
+    if active:
         return DeviceStatus(
             name="Jabra Speak 410 (Claudia)",
             kind="voice",
             status="listening",
-            last_seen=latest,
-        )
-    if age < _THRESHOLDS["voice"][1]:
-        return DeviceStatus(
-            name="Jabra Speak 410 (Claudia)",
-            kind="voice",
-            status="warn",
-            last_seen=latest,
+            last_seen=now,
         )
     return DeviceStatus(
         name="Jabra Speak 410 (Claudia)",
         kind="voice",
         status="offline",
-        last_seen=latest,
+        last_seen=None,
     )
 
 
-def _latest_session_event_ts(session_dir: Path) -> datetime | None:
-    """Find the newest event across today's voice/*.jsonl files.
+def _is_user_service_active(unit: str) -> bool:
+    """Shell out to ``systemctl --user is-active <unit>``.
 
-    The file format is one JSON object per line with a ``ts`` or
-    ``timestamp`` field (varies by event). We only need the max ts so we
-    tail a small number of lines from the most recent file.
+    ``is-active`` exits 0 iff the unit is active — stdout is ``active``.
+    Any other state (``inactive``, ``failed``, ``unknown``) exits non-zero.
     """
-    if not session_dir.exists():
-        return None
-    files = sorted(session_dir.glob("*.jsonl"), reverse=True)
-    if not files:
-        return None
-    for f in files[:2]:  # today + yesterday is enough to decide "recent"
-        try:
-            with f.open(encoding="utf-8") as fh:
-                lines = fh.readlines()[-200:]  # last N events — cheap
-        except OSError:
-            continue
-        newest: datetime | None = None
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                event = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            ts_s = event.get("ts") or event.get("timestamp")
-            if not isinstance(ts_s, str):
-                continue
-            try:
-                ts = datetime.fromisoformat(ts_s.replace("Z", "+00:00"))
-            except ValueError:
-                continue
-            if ts.tzinfo is None:
-                ts = ts.replace(tzinfo=UTC)
-            if newest is None or ts > newest:
-                newest = ts
-        if newest is not None:
-            return newest
-    return None
+    try:
+        result = subprocess.run(
+            ["systemctl", "--user", "is-active", unit],
+            capture_output=True,
+            text=True,
+            timeout=2.0,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0 and result.stdout.strip() == "active"
 
 
 # ============================================================

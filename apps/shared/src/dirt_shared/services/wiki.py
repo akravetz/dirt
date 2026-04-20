@@ -54,6 +54,15 @@ class WikiFolder:
 
 @dataclass(frozen=True)
 class WikiTree:
+    """Faithful snapshot of ``wiki/``.
+
+    ``folders`` is the real subdirectories. ``root_files`` is the *.md
+    files that live at the wiki root (``overview.md``, ``index.md``,
+    ``log.md``). No synthetic regrouping — the frontend decides how to
+    render loose files vs foldered files.
+    """
+
+    root_files: list[WikiFileRef]
     folders: list[WikiFolder]
 
 
@@ -216,9 +225,10 @@ def _sticker_color_for(code: str) -> str:
 
 
 def get_tree() -> WikiTree:
-    """Walk ``wiki/``; each top-level dir becomes a folder. Hidden + CLAUDE.md skipped."""
+    """Walk ``wiki/``; each subdirectory becomes a folder, root ``*.md``
+    files land in ``root_files``. Hidden dirs + ``CLAUDE.md`` skipped."""
     if not WIKI_DIR.exists():
-        return WikiTree(folders=[])
+        return WikiTree(root_files=[], folders=[])
 
     folders: list[WikiFolder] = []
     for child in sorted(WIKI_DIR.iterdir()):
@@ -227,20 +237,11 @@ def get_tree() -> WikiTree:
             if files:
                 folders.append(WikiFolder(name=child.name, files=files))
 
-    # Top-level .md files (overview.md, index.md, log.md) go into a synthetic
-    # 'overview' folder for the sidebar. If there's already a folder of that
-    # name, merge its files in.
-    top_level = [
+    root_files = [
         _file_ref(p) for p in sorted(WIKI_DIR.glob("*.md"))
         if p.name not in _IGNORED_NAMES and not p.name.startswith(".")
     ]
-    if top_level:
-        existing = next((f for f in folders if f.name == "overview"), None)
-        if existing is not None:
-            folders.remove(existing)
-            top_level = top_level + list(existing.files)
-        folders.insert(0, WikiFolder(name="overview", files=top_level))
-    return WikiTree(folders=folders)
+    return WikiTree(root_files=root_files, folders=folders)
 
 
 def _folder_files(folder: Path) -> list[WikiFileRef]:
@@ -330,14 +331,13 @@ def _backlinks_for(target_path: str) -> list[WikiFileRef]:
             content = p.read_text(encoding="utf-8")
         except OSError:
             continue
-        # Relative link hit (cheapest check): either the basename alone or
-        # the full 'wiki/...' path anywhere in a markdown link.
+        # Relative link hit: either the basename alone or the full
+        # 'wiki/...' path anywhere in a markdown link.
         if (
             f"]({target_basename})" in content
             or f"]({target_rel})" in content
             or f"](wiki/{target_rel})" in content
             or f"../{target_rel}" in content
-            or f"/{target_rel}" in content.replace(str(WIKI_DIR), "")
         ):
             refs.append(_file_ref(p))
             continue

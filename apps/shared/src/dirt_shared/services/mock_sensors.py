@@ -19,10 +19,17 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 _MT = ZoneInfo("America/Denver")
+
+
+def _as_utc(ts: datetime) -> datetime:
+    """Promote a naive datetime to UTC-aware. Tests + historical backfill
+    occasionally hand us naive datetimes; accepting both keeps the mocks
+    from raising ``ValueError`` on ``astimezone()``."""
+    return ts.replace(tzinfo=UTC) if ts.tzinfo is None else ts
 
 # Fan: slow sine between 45 and 52 %.
 _FAN_LOW = 45.0
@@ -40,6 +47,7 @@ _RES_REFILL_HOUR_MT = 9  # 09:00 MDT — matches current operator pattern
 
 def get_fan_pct(ts: datetime) -> float:
     """Mocked inline-fan duty cycle at ``ts``, in percent. Pure function."""
+    ts = _as_utc(ts)
     minute_of_day = ts.hour * 60 + ts.minute + ts.second / 60.0
     phase = 2 * math.pi * (minute_of_day / _FAN_PERIOD_MIN)
     amplitude = (_FAN_HIGH - _FAN_LOW) / 2
@@ -54,7 +62,7 @@ def get_reservoir_in(ts: datetime) -> float:
     Linear drop at ``_RES_DROP_PER_HOUR`` until the next refill. Clamped
     to [``_RES_LOW``, ``_RES_HIGH``] so we never show a negative reservoir.
     """
-    local = ts.astimezone(_MT)
+    local = _as_utc(ts).astimezone(_MT)
     refill_today = local.replace(
         hour=_RES_REFILL_HOUR_MT, minute=0, second=0, microsecond=0
     )
