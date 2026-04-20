@@ -14,11 +14,12 @@ from typing import Any
 
 import pytest
 from PIL import Image
-from sqlalchemy.ext.asyncio import create_async_engine
-from sqlmodel import SQLModel
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from dirt_shared.models.enums import SensorLocation, SensorSource
 from dirt_shared.models.sensor_calibration import SensorCalibration
+from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.services.daily_report import (
     DailyReport,
@@ -53,41 +54,30 @@ def _clock() -> datetime:
     return NOW
 
 
-@pytest.fixture
-async def engine(tmp_path):
-    db = tmp_path / "test.db"
-    eng = create_async_engine(f"sqlite+aiosqlite:///{db}")
-    async with eng.begin() as conn:
-        await conn.run_sync(SQLModel.metadata.create_all)
-    yield eng
-    await eng.dispose()
+async def _node_ids(engine) -> dict[SensorLocation, int]:
+    async with AsyncSession(engine) as s:
+        result = await s.exec(select(SensorNode))
+        return {n.location: n.id for n in result.all()}
 
 
 async def _seed_clean(engine):
-    fresh_ts = NOW.replace(tzinfo=None) - timedelta(seconds=10)
-    rows = []
-    for m, v in [
-        ("temperature_f", 80.0), ("humidity_pct", 50.0),
-        ("pressure_hpa", 843.0), ("vpd_kpa", 1.5), ("dew_point_f", 58.0),
-    ]:
-        rows.append(SensorReading(
-            location=TENT_LOCATION, metric=m, value=v,
-            timestamp=fresh_ts, source="arduino"))
-    for loc in PLANT_LOCATIONS:
-        rows.append(SensorReading(
-            location=loc, metric=SOIL_METRIC, value=2500.0,
-            timestamp=fresh_ts, source="esp32"))
-    cals = [
-        SensorCalibration(
-            location=loc, metric=SOIL_METRIC,
-            raw_low=1370.0, raw_high=3880.0)
-        for loc in PLANT_LOCATIONS
-    ]
+    fresh_ts = NOW - timedelta(seconds=10)
+    ids = await _node_ids(engine)
     async with AsyncSession(engine) as s:
-        for r in rows:
-            s.add(r)
-        for c in cals:
-            s.add(c)
+        for m, v in [
+            ("temperature_f", 80.0), ("humidity_pct", 50.0),
+            ("pressure_hpa", 843.0), ("vpd_kpa", 1.5), ("dew_point_f", 58.0),
+        ]:
+            s.add(SensorReading(
+                sensornode_id=ids[TENT_LOCATION], metric=m, value=v,
+                ts=fresh_ts, source=SensorSource.ARDUINO))
+        for loc in PLANT_LOCATIONS:
+            s.add(SensorReading(
+                sensornode_id=ids[loc], metric=SOIL_METRIC, value=2500.0,
+                ts=fresh_ts, source=SensorSource.ESP32))
+            s.add(SensorCalibration(
+                sensornode_id=ids[loc], metric=SOIL_METRIC,
+                raw_low=1370.0, raw_high=3880.0))
         await s.commit()
 
 
@@ -197,7 +187,8 @@ def _build_orchestrator(
 # --- happy path ---
 
 
-async def test_run_full_pipeline_happy_path(engine, tmp_path):
+async def test_run_full_pipeline_happy_path(pg_engine, tmp_path):
+    engine = pg_engine
     await _seed_clean(engine)
     orch, cam, synth, tg = _build_orchestrator(engine=engine, tmp_path=tmp_path)
 
@@ -232,7 +223,8 @@ async def test_run_full_pipeline_happy_path(engine, tmp_path):
 # --- failure modes ---
 
 
-async def test_capture_failure_sends_alert_and_skips_synthesis(engine, tmp_path):
+async def test_capture_failure_sends_alert_and_skips_synthesis(pg_engine, tmp_path):
+    engine = pg_engine
     await _seed_clean(engine)
     cam = _FakeCamera()
     cam.raise_on = "plant_b"
@@ -259,28 +251,26 @@ async def test_capture_failure_sends_alert_and_skips_synthesis(engine, tmp_path)
 
 
 async def test_validation_failure_sends_alert_and_skips_synthesis(
-    engine, tmp_path,
+    pg_engine, tmp_path,
 ):
+    engine = pg_engine
     # seed with humidity=0 (zero-trigger)
-    fresh_ts = NOW.replace(tzinfo=None) - timedelta(seconds=10)
-    rows = []
-    for m, v in [
-        ("temperature_f", 80.0), ("humidity_pct", 0.0),
-        ("pressure_hpa", 843.0), ("vpd_kpa", 1.5), ("dew_point_f", 58.0),
-    ]:
-        rows.append(SensorReading(
-            location=TENT_LOCATION, metric=m, value=v,
-            timestamp=fresh_ts, source="arduino"))
-    for loc in PLANT_LOCATIONS:
-        rows.append(SensorReading(
-            location=loc, metric=SOIL_METRIC, value=2500.0,
-            timestamp=fresh_ts, source="esp32"))
+    fresh_ts = NOW - timedelta(seconds=10)
+    ids = await _node_ids(engine)
     async with AsyncSession(engine) as s:
-        for r in rows:
-            s.add(r)
+        for m, v in [
+            ("temperature_f", 80.0), ("humidity_pct", 0.0),
+            ("pressure_hpa", 843.0), ("vpd_kpa", 1.5), ("dew_point_f", 58.0),
+        ]:
+            s.add(SensorReading(
+                sensornode_id=ids[TENT_LOCATION], metric=m, value=v,
+                ts=fresh_ts, source=SensorSource.ARDUINO))
         for loc in PLANT_LOCATIONS:
+            s.add(SensorReading(
+                sensornode_id=ids[loc], metric=SOIL_METRIC, value=2500.0,
+                ts=fresh_ts, source=SensorSource.ESP32))
             s.add(SensorCalibration(
-                location=loc, metric=SOIL_METRIC,
+                sensornode_id=ids[loc], metric=SOIL_METRIC,
                 raw_low=1370.0, raw_high=3880.0))
         await s.commit()
 
@@ -295,7 +285,8 @@ async def test_validation_failure_sends_alert_and_skips_synthesis(
     assert "validate" in tg.messages[0]["text"]
 
 
-async def test_synthesis_failure_sends_alert(engine, tmp_path):
+async def test_synthesis_failure_sends_alert(pg_engine, tmp_path):
+    engine = pg_engine
     await _seed_clean(engine)
     wiki_root = tmp_path / "wiki"
     wiki_root.mkdir(parents=True, exist_ok=True)
@@ -314,7 +305,8 @@ async def test_synthesis_failure_sends_alert(engine, tmp_path):
     assert "synthesize" in tg.messages[0]["text"]
 
 
-async def test_telegram_failure_does_not_fail_overall_run(engine, tmp_path):
+async def test_telegram_failure_does_not_fail_overall_run(pg_engine, tmp_path):
+    engine = pg_engine
     """Telegram is delivery, not the durable record. A send failure should
     leave the run as 'completed' with the wiki entry intact."""
     await _seed_clean(engine)
@@ -334,7 +326,8 @@ async def test_telegram_failure_does_not_fail_overall_run(engine, tmp_path):
 # --- idempotency ---
 
 
-async def test_run_skips_when_completed_marker_exists(engine, tmp_path):
+async def test_run_skips_when_completed_marker_exists(pg_engine, tmp_path):
+    engine = pg_engine
     await _seed_clean(engine)
     marker_dir = tmp_path / "logs" / "daily_report"
     marker_dir.mkdir(parents=True, exist_ok=True)
@@ -349,7 +342,8 @@ async def test_run_skips_when_completed_marker_exists(engine, tmp_path):
     assert tg.messages == []
 
 
-async def test_force_overrides_completed_marker(engine, tmp_path):
+async def test_force_overrides_completed_marker(pg_engine, tmp_path):
+    engine = pg_engine
     await _seed_clean(engine)
     marker_dir = tmp_path / "logs" / "daily_report"
     marker_dir.mkdir(parents=True, exist_ok=True)
@@ -362,7 +356,8 @@ async def test_force_overrides_completed_marker(engine, tmp_path):
     assert len(cam.calls) == 5  # full re-run
 
 
-async def test_failed_marker_cleared_on_re_run(engine, tmp_path):
+async def test_failed_marker_cleared_on_re_run(pg_engine, tmp_path):
+    engine = pg_engine
     await _seed_clean(engine)
     marker_dir = tmp_path / "logs" / "daily_report"
     marker_dir.mkdir(parents=True, exist_ok=True)

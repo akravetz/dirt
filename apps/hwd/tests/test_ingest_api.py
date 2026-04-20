@@ -2,11 +2,11 @@ from unittest.mock import patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import create_async_engine
-from sqlmodel import SQLModel, select
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.config import settings
+from dirt_shared.models.enums import SensorLocation
 from dirt_shared.models.sensor_calibration import SensorCalibration
 from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
@@ -14,25 +14,14 @@ from dirt_shared.services.readings import compute_calibrated_pct
 
 
 @pytest.fixture
-async def db_engine(tmp_path):
-    eng = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'test.db'}")
-    async with eng.begin() as conn:
-        await conn.run_sync(SQLModel.metadata.create_all)
-    yield eng
-    await eng.dispose()
-
-
-@pytest.fixture
-async def client(db_engine):
-    # ingest endpoint lives in dirt_hwd.app after phase-0. Patch all four
-    # background loops so the lifespan doesn't try to talk to real hardware.
+async def client(pg_engine):
+    # Patch the four background loops so the lifespan doesn't try to talk to
+    # real hardware (they'd also bind to a different engine than pg_engine).
     with (
         patch("dirt_shared.services.capture.capture_loop"),
         patch("dirt_hwd.services.archive.archive_loop"),
         patch("dirt_hwd.services.humidifier.humidifier_loop"),
         patch("dirt_hwd.services.serial_reader.serial_reader_loop"),
-        patch("dirt_shared.db.engine", db_engine),
-        patch("dirt_shared.services.readings.engine", db_engine),
     ):
         from dirt_hwd.app import app
 
@@ -45,6 +34,14 @@ async def client(db_engine):
 
 def _auth_header() -> dict[str, str]:
     return {"Authorization": f"Bearer {settings.sensor_ingest_token}"}
+
+
+async def _plant_a_node_id(engine) -> int:
+    async with AsyncSession(engine) as s:
+        result = await s.exec(
+            select(SensorNode.id).where(SensorNode.location == SensorLocation.PLANT_A)
+        )
+        return result.first()
 
 
 async def test_ingest_without_token_is_401(client: AsyncClient):
@@ -64,7 +61,7 @@ async def test_ingest_with_wrong_token_is_401(client: AsyncClient):
     assert r.status_code == 401
 
 
-async def test_ingest_writes_readings_and_node(client: AsyncClient, db_engine):
+async def test_ingest_writes_readings_and_node(client: AsyncClient, pg_engine):
     r = await client.post(
         "/api/ingest/sensors",
         json={
@@ -80,10 +77,11 @@ async def test_ingest_writes_readings_and_node(client: AsyncClient, db_engine):
     body = r.json()
     assert body == {"ok": True, "location": "plant-a", "count": 2}
 
-    async with AsyncSession(db_engine) as s:
+    node_id = await _plant_a_node_id(pg_engine)
+    async with AsyncSession(pg_engine) as s:
         readings = (
             await s.exec(
-                select(SensorReading).where(SensorReading.location == "plant-a")
+                select(SensorReading).where(SensorReading.sensornode_id == node_id)
             )
         ).all()
         metrics = {r.metric: r.value for r in readings}
@@ -91,15 +89,19 @@ async def test_ingest_writes_readings_and_node(client: AsyncClient, db_engine):
         for r in readings:
             assert r.source == "esp32"
 
-        node = await s.get(SensorNode, "plant-a")
+        node = (
+            await s.exec(
+                select(SensorNode).where(SensorNode.location == SensorLocation.PLANT_A)
+            )
+        ).first()
         assert node is not None
-        assert node.ip == "192.168.1.103"
+        assert str(node.ip) == "192.168.1.103"
         assert node.firmware_version == "0.1.0"
         assert node.uptime_ms == 60000
         assert node.last_seen is not None
 
 
-async def test_ingest_upserts_node_on_second_post(client: AsyncClient, db_engine):
+async def test_ingest_upserts_node_on_second_post(client: AsyncClient, pg_engine):
     payload = {
         "location": "plant-a",
         "metrics": {"soil_moisture_pct": 10.0},
@@ -114,10 +116,15 @@ async def test_ingest_upserts_node_on_second_post(client: AsyncClient, db_engine
     r2 = await client.post("/api/ingest/sensors", json=payload, headers=_auth_header())
     assert r2.status_code == 202
 
-    async with AsyncSession(db_engine) as s:
-        nodes = (await s.exec(select(SensorNode))).all()
-        assert len(nodes) == 1
-        assert nodes[0].uptime_ms == 2000
+    async with AsyncSession(pg_engine) as s:
+        # Per-grow template has 6 seeded nodes; plant-a should still be 1 row.
+        plant_a = (
+            await s.exec(
+                select(SensorNode).where(SensorNode.location == SensorLocation.PLANT_A)
+            )
+        ).all()
+        assert len(plant_a) == 1
+        assert plant_a[0].uptime_ms == 2000
 
 
 async def _post_raw(client: AsyncClient, value: float, location: str = "plant-a"):
@@ -128,38 +135,44 @@ async def _post_raw(client: AsyncClient, value: float, location: str = "plant-a"
     )
 
 
-async def _get_cal(db_engine, location: str, metric: str) -> SensorCalibration | None:
-    async with AsyncSession(db_engine) as s:
+async def _get_cal(engine, location: SensorLocation, metric: str) -> SensorCalibration | None:
+    async with AsyncSession(engine) as s:
+        result = await s.exec(
+            select(SensorNode.id).where(SensorNode.location == location)
+        )
+        node_id = result.first()
+        if node_id is None:
+            return None
         return (
             await s.exec(
                 select(SensorCalibration)
-                .where(SensorCalibration.location == location)
+                .where(SensorCalibration.sensornode_id == node_id)
                 .where(SensorCalibration.metric == metric)
             )
         ).first()
 
 
 async def test_first_raw_reading_creates_calibration_row(
-    client: AsyncClient, db_engine
+    client: AsyncClient, pg_engine
 ):
     assert (await _post_raw(client, 2700)).status_code == 202
-    cal = await _get_cal(db_engine, "plant-a", "soil_moisture_raw")
+    cal = await _get_cal(pg_engine, SensorLocation.PLANT_A, "soil_moisture_raw")
     assert cal is not None
     assert cal.raw_low == 2700
     assert cal.raw_high == 2700
 
 
-async def test_calibration_widens_range_on_new_extrema(client: AsyncClient, db_engine):
+async def test_calibration_widens_range_on_new_extrema(client: AsyncClient, pg_engine):
     for v in [2750, 2700, 620, 1500, 640, 3000]:
         assert (await _post_raw(client, v)).status_code == 202
 
-    cal = await _get_cal(db_engine, "plant-a", "soil_moisture_raw")
+    cal = await _get_cal(pg_engine, SensorLocation.PLANT_A, "soil_moisture_raw")
     assert cal is not None
     assert cal.raw_low == 620
     assert cal.raw_high == 3000
 
 
-async def test_calibration_ignores_out_of_clamp_values(client: AsyncClient, db_engine):
+async def test_calibration_ignores_out_of_clamp_values(client: AsyncClient, pg_engine):
     for v in [2500, 800]:
         assert (await _post_raw(client, v)).status_code == 202
 
@@ -167,14 +180,14 @@ async def test_calibration_ignores_out_of_clamp_values(client: AsyncClient, db_e
     assert (await _post_raw(client, 50)).status_code == 202  # impossibly wet
     assert (await _post_raw(client, 4000)).status_code == 202  # impossibly dry
 
-    cal = await _get_cal(db_engine, "plant-a", "soil_moisture_raw")
+    cal = await _get_cal(pg_engine, SensorLocation.PLANT_A, "soil_moisture_raw")
     assert cal is not None
     assert cal.raw_low == 800
     assert cal.raw_high == 2500
 
 
 async def test_calibration_not_triggered_for_other_metrics(
-    client: AsyncClient, db_engine
+    client: AsyncClient, pg_engine
 ):
     # humidity_pct is not in AUTO_CALIBRATED_METRICS
     r = await client.post(
@@ -183,7 +196,7 @@ async def test_calibration_not_triggered_for_other_metrics(
         headers=_auth_header(),
     )
     assert r.status_code == 202
-    cal = await _get_cal(db_engine, "plant-a", "humidity_pct")
+    cal = await _get_cal(pg_engine, SensorLocation.PLANT_A, "humidity_pct")
     assert cal is None
 
 

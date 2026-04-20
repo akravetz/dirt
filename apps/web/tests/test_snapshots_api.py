@@ -3,30 +3,14 @@ from unittest.mock import patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import create_async_engine
-from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.snapshot import Snapshot
 
 
 @pytest.fixture
-async def db_engine(tmp_path):
-    db_path = tmp_path / "test.db"
-    eng = create_async_engine(f"sqlite+aiosqlite:///{db_path}")
-    async with eng.begin() as conn:
-        await conn.run_sync(SQLModel.metadata.create_all)
-    yield eng
-    await eng.dispose()
-
-
-@pytest.fixture
-async def client(db_engine):
-    with (
-        patch("dirt_shared.services.capture.capture_loop"),
-        patch("dirt_shared.db.engine", db_engine),
-        patch("dirt_shared.services.snapshots.engine", db_engine),
-    ):
+async def client(pg_engine):
+    with patch("dirt_shared.services.capture.capture_loop"):
         from dirt_web.app import app
 
         transport = ASGITransport(app=app)
@@ -45,12 +29,12 @@ async def test_latest_snapshot_404_when_empty(client: AsyncClient):
     assert response.status_code == 404
 
 
-async def test_latest_snapshot_returns_image(client: AsyncClient, db_engine, tmp_path):
+async def test_latest_snapshot_returns_image(client: AsyncClient, pg_engine, tmp_path):
     img_path = tmp_path / "test.jpg"
     img_path.write_bytes(b"\xff\xd8\xff\xe0fake-jpeg-data")
 
-    async with AsyncSession(db_engine) as session:
-        snapshot = Snapshot(timestamp=datetime.now(UTC), file_path=str(img_path))
+    async with AsyncSession(pg_engine) as session:
+        snapshot = Snapshot(ts=datetime.now(UTC), file_path=str(img_path))
         session.add(snapshot)
         await session.commit()
 

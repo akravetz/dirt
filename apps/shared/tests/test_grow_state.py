@@ -1,35 +1,43 @@
-"""Tests for the GrowState singleton + stage-derived target lookup."""
+"""Tests for the GrowState current-row + stage-derived target lookup.
+
+Post-pg-cutover (ADR-006): growstate is no longer a pinned-id=1 singleton.
+Instead, a partial unique index on ``is_current = true`` enforces
+at-most-one-current-grow. The Atlas init migration seeds one row with
+``is_current=true`` and the germination date from config.GROW_START.
+
+Each test uses the shared ``pg_engine`` fixture, which yields an engine
+pointing at a fresh per-test Postgres clone (the template already has
+the singleton row seeded). Helpers below mutate that seeded row.
+"""
+from __future__ import annotations
 
 from datetime import UTC, date, datetime, time
-from unittest.mock import patch
 
 import pytest
-from sqlalchemy.ext.asyncio import create_async_engine
-from sqlmodel import SQLModel
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.config import GROW_START
-from dirt_shared.db import init_db
 from dirt_shared.models.grow_state import GrowState
 from dirt_shared.services import grow_state as gs
 
 
-@pytest.fixture
-async def db_engine(tmp_path):
-    db_path = tmp_path / "test.db"
-    eng = create_async_engine(f"sqlite+aiosqlite:///{db_path}")
-    async with eng.begin() as conn:
-        await conn.run_sync(SQLModel.metadata.create_all)
-    yield eng
-    await eng.dispose()
-
-
-async def _set_state(eng, *, germination: date, flower: date | None = None) -> None:
-    async with AsyncSession(eng) as session:
-        row = await session.get(GrowState, 1)
+async def _set_state(
+    engine, *, germination: date, flower: date | None = None
+) -> None:
+    """Overwrite the seeded is_current row with the given dates."""
+    async with AsyncSession(engine) as session:
+        result = await session.exec(
+            select(GrowState).where(GrowState.is_current.is_(True))
+        )
+        row = result.first()
         if row is None:
             session.add(
-                GrowState(id=1, germination_date=germination, flower_start_date=flower)
+                GrowState(
+                    germination_date=germination,
+                    flower_start_date=flower,
+                    is_current=True,
+                )
             )
         else:
             row.germination_date = germination
@@ -38,76 +46,97 @@ async def _set_state(eng, *, germination: date, flower: date | None = None) -> N
         await session.commit()
 
 
+async def _set_lights(engine, on: time, off: time) -> None:
+    async with AsyncSession(engine) as session:
+        result = await session.exec(
+            select(GrowState).where(GrowState.is_current.is_(True))
+        )
+        row = result.first()
+        assert row is not None, "migration should have seeded an is_current row"
+        row.lights_on_local = on
+        row.lights_off_local = off
+        session.add(row)
+        await session.commit()
+
+
+async def _clear_state(engine) -> None:
+    """Flip is_current off on the seeded row — exercises the transient-default
+    path. Can't DELETE the row because plant.growstate_id references it."""
+    async with AsyncSession(engine) as session:
+        result = await session.exec(
+            select(GrowState).where(GrowState.is_current.is_(True))
+        )
+        row = result.first()
+        if row is not None:
+            row.is_current = False
+            session.add(row)
+            await session.commit()
+
+
 # ------- current_stage -------
 
 
-async def test_stage_veg_when_flower_start_is_none(db_engine):
-    await _set_state(db_engine, germination=date(2026, 3, 15))
-    with patch.object(gs, "engine", db_engine):
-        assert await gs.current_stage(today=date(2026, 4, 18)) == "veg"
+async def test_stage_veg_when_flower_start_is_none(pg_engine):
+    await _set_state(pg_engine, germination=date(2026, 3, 15))
+    assert await gs.current_stage(today=date(2026, 4, 18)) == "veg"
 
 
-async def test_stage_veg_when_flower_start_in_future(db_engine):
-    await _set_state(db_engine, germination=date(2026, 3, 15), flower=date(2026, 5, 1))
-    with patch.object(gs, "engine", db_engine):
-        assert await gs.current_stage(today=date(2026, 4, 18)) == "veg"
+async def test_stage_veg_when_flower_start_in_future(pg_engine):
+    await _set_state(
+        pg_engine, germination=date(2026, 3, 15), flower=date(2026, 5, 1)
+    )
+    assert await gs.current_stage(today=date(2026, 4, 18)) == "veg"
 
 
-async def test_stage_early_flower_day_zero(db_engine):
+async def test_stage_early_flower_day_zero(pg_engine):
     flower = date(2026, 4, 18)
-    await _set_state(db_engine, germination=date(2026, 3, 15), flower=flower)
-    with patch.object(gs, "engine", db_engine):
-        assert await gs.current_stage(today=flower) == "flower_early"
+    await _set_state(pg_engine, germination=date(2026, 3, 15), flower=flower)
+    assert await gs.current_stage(today=flower) == "flower_early"
 
 
-async def test_stage_early_flower_day_20(db_engine):
+async def test_stage_early_flower_day_20(pg_engine):
     flower = date(2026, 4, 1)
-    await _set_state(db_engine, germination=date(2026, 3, 15), flower=flower)
-    with patch.object(gs, "engine", db_engine):
-        # Day 20 = still early (21 is the crossover)
-        assert await gs.current_stage(today=date(2026, 4, 21)) == "flower_early"
+    await _set_state(pg_engine, germination=date(2026, 3, 15), flower=flower)
+    # Day 20 = still early (21 is the crossover)
+    assert await gs.current_stage(today=date(2026, 4, 21)) == "flower_early"
 
 
-async def test_stage_late_flower_day_21(db_engine):
+async def test_stage_late_flower_day_21(pg_engine):
     flower = date(2026, 4, 1)
-    await _set_state(db_engine, germination=date(2026, 3, 15), flower=flower)
-    with patch.object(gs, "engine", db_engine):
-        assert await gs.current_stage(today=date(2026, 4, 22)) == "flower_late"
+    await _set_state(pg_engine, germination=date(2026, 3, 15), flower=flower)
+    assert await gs.current_stage(today=date(2026, 4, 22)) == "flower_late"
 
 
 # ------- grow_week -------
 
 
-async def test_grow_week_day_one_is_week_one(db_engine):
-    await _set_state(db_engine, germination=date(2026, 3, 15))
-    with patch.object(gs, "engine", db_engine):
-        assert await gs.grow_week(today=date(2026, 3, 15)) == 1
+async def test_grow_week_day_one_is_week_one(pg_engine):
+    await _set_state(pg_engine, germination=date(2026, 3, 15))
+    assert await gs.grow_week(today=date(2026, 3, 15)) == 1
 
 
-async def test_grow_week_day_seven_is_week_one(db_engine):
-    await _set_state(db_engine, germination=date(2026, 3, 15))
-    with patch.object(gs, "engine", db_engine):
-        assert await gs.grow_week(today=date(2026, 3, 21)) == 1
+async def test_grow_week_day_seven_is_week_one(pg_engine):
+    await _set_state(pg_engine, germination=date(2026, 3, 15))
+    assert await gs.grow_week(today=date(2026, 3, 21)) == 1
 
 
-async def test_grow_week_day_eight_is_week_two(db_engine):
-    await _set_state(db_engine, germination=date(2026, 3, 15))
-    with patch.object(gs, "engine", db_engine):
-        assert await gs.grow_week(today=date(2026, 3, 22)) == 2
+async def test_grow_week_day_eight_is_week_two(pg_engine):
+    await _set_state(pg_engine, germination=date(2026, 3, 15))
+    assert await gs.grow_week(today=date(2026, 3, 22)) == 2
 
 
 # ------- current_targets -------
 
 
-async def test_current_targets_tracks_stage(db_engine):
-    await _set_state(db_engine, germination=date(2026, 3, 15))
-    with patch.object(gs, "engine", db_engine):
-        veg = await gs.current_targets()
+async def test_current_targets_tracks_stage(pg_engine):
+    await _set_state(pg_engine, germination=date(2026, 3, 15))
+    veg = await gs.current_targets()
     assert veg == gs.STAGE_TARGETS["veg"]
 
-    await _set_state(db_engine, germination=date(2026, 3, 15), flower=date(2026, 4, 1))
-    with patch.object(gs, "engine", db_engine):
-        early = await gs.current_targets()
+    await _set_state(
+        pg_engine, germination=date(2026, 3, 15), flower=date(2026, 4, 1)
+    )
+    early = await gs.current_targets()
     assert early == gs.STAGE_TARGETS["flower_early"]
 
 
@@ -123,49 +152,14 @@ def test_stage_targets_cover_all_stages_and_metrics():
 # ------- get_state / transient fallback -------
 
 
-async def test_get_state_returns_default_when_row_missing(db_engine):
-    with patch.object(gs, "engine", db_engine):
-        state = await gs.get_state()
+async def test_get_state_returns_default_when_row_missing(pg_engine):
+    await _clear_state(pg_engine)
+    state = await gs.get_state()
     assert state.germination_date == GROW_START
     assert state.flower_start_date is None
 
 
-# ------- init_db seeding -------
-
-
-async def test_init_db_seeds_singleton_on_fresh_db(db_engine):
-    with patch("dirt_shared.db.engine", db_engine):
-        await init_db()
-    async with AsyncSession(db_engine) as session:
-        row = await session.get(GrowState, 1)
-    assert row is not None
-    assert row.germination_date == GROW_START
-    assert row.flower_start_date is None
-
-
-async def test_init_db_does_not_overwrite_existing_row(db_engine):
-    # Simulate a user who's already flipped to flower.
-    flipped = date(2026, 6, 1)
-    await _set_state(db_engine, germination=date(2026, 3, 15), flower=flipped)
-    with patch("dirt_shared.db.engine", db_engine):
-        await init_db()
-    async with AsyncSession(db_engine) as session:
-        row = await session.get(GrowState, 1)
-    assert row.flower_start_date == flipped
-
-
-# ------- lights_state (A + B feedforward inputs) -------
-
-
-async def _set_lights(eng, on: time, off: time) -> None:
-    async with AsyncSession(eng) as session:
-        row = await session.get(GrowState, 1)
-        if row is None:
-            row = GrowState(id=1, germination_date=GROW_START)
-        row.lights_on_local = on
-        row.lights_off_local = off
-        session.add(row)
-        await session.commit()
+# ------- lights_state (feedforward inputs for the humidifier loop) -------
 
 
 def _utc(y: int, mo: int, d: int, h: int, mi: int = 0) -> datetime:
@@ -174,41 +168,43 @@ def _utc(y: int, mo: int, d: int, h: int, mi: int = 0) -> datetime:
     return local.astimezone(UTC)
 
 
-async def test_lights_on_midday(db_engine):
-    await _set_lights(db_engine, time(5, 0), time(23, 0))
-    with patch.object(gs, "engine", db_engine):
-        state = await gs.lights_state(_utc(2026, 4, 19, 14, 0))  # 14:00 MDT
+async def test_lights_on_midday(pg_engine):
+    await _set_lights(pg_engine, time(5, 0), time(23, 0))
+    state = await gs.lights_state(_utc(2026, 4, 19, 14, 0))  # 14:00 MDT
     assert state.on is True
     assert state.minutes_until_off == pytest.approx(9 * 60, abs=0.1)
 
 
-async def test_lights_off_after_schedule(db_engine):
-    await _set_lights(db_engine, time(5, 0), time(23, 0))
-    with patch.object(gs, "engine", db_engine):
-        state = await gs.lights_state(_utc(2026, 4, 20, 2, 0))  # 02:00 MDT next day
+async def test_lights_off_after_schedule(pg_engine):
+    await _set_lights(pg_engine, time(5, 0), time(23, 0))
+    state = await gs.lights_state(_utc(2026, 4, 20, 2, 0))  # 02:00 MDT next day
     assert state.on is False
 
 
-async def test_lights_off_before_schedule(db_engine):
-    await _set_lights(db_engine, time(5, 0), time(23, 0))
-    with patch.object(gs, "engine", db_engine):
-        state = await gs.lights_state(_utc(2026, 4, 19, 4, 30))  # 04:30 MDT
+async def test_lights_off_before_schedule(pg_engine):
+    await _set_lights(pg_engine, time(5, 0), time(23, 0))
+    state = await gs.lights_state(_utc(2026, 4, 19, 4, 30))  # 04:30 MDT
     assert state.on is False
 
 
-async def test_prep_window_boundary(db_engine):
+async def test_prep_window_boundary(pg_engine):
     """22:35 MDT — 25 min before 23:00 lights-off, inside a 30-min prep."""
-    await _set_lights(db_engine, time(5, 0), time(23, 0))
-    with patch.object(gs, "engine", db_engine):
-        state = await gs.lights_state(_utc(2026, 4, 19, 22, 35))
+    await _set_lights(pg_engine, time(5, 0), time(23, 0))
+    state = await gs.lights_state(_utc(2026, 4, 19, 22, 35))
     assert state.on is True
     assert state.minutes_until_off == pytest.approx(25, abs=0.1)
 
 
-async def test_flower_schedule_overridable_via_db(db_engine):
+async def test_flower_schedule_overridable_via_db(pg_engine):
     """Flipping lights_on to 11:00 (flower 12/12) takes effect on next read."""
-    await _set_lights(db_engine, time(11, 0), time(23, 0))
-    with patch.object(gs, "engine", db_engine):
-        # 10:00 MDT — lights should still be OFF (before the 11:00 flower on-time).
-        state = await gs.lights_state(_utc(2026, 4, 19, 10, 0))
+    await _set_lights(pg_engine, time(11, 0), time(23, 0))
+    # 10:00 MDT — lights should still be OFF (before the 11:00 flower on-time).
+    state = await gs.lights_state(_utc(2026, 4, 19, 10, 0))
     assert state.on is False
+
+
+# ------- init_db is no longer a DDL entrypoint (ADR-006) -------
+# The old test_init_db_* tests are intentionally dropped:
+#   - init_db now only runs `SELECT 1` (Atlas owns DDL).
+#   - seeding of the current grow row lives in the initial Atlas migration,
+#     not in init_db. The pg_engine fixture's template already has it.

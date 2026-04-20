@@ -1,7 +1,8 @@
 """Tests for the daily-report sensor reader.
 
-Uses an in-memory SQLite engine and a frozen clock — both passed to
-SensorReader by injection so the production singletons stay untouched.
+Uses the shared ``pg_engine`` fixture (cloned from the session-wide
+template) + a frozen clock passed by injection so time-window logic is
+deterministic.
 """
 
 from __future__ import annotations
@@ -9,11 +10,12 @@ from __future__ import annotations
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
-from sqlalchemy.ext.asyncio import create_async_engine
-from sqlmodel import SQLModel
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from dirt_shared.models.enums import SensorLocation, SensorSource
 from dirt_shared.models.sensor_calibration import SensorCalibration
+from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.services.daily_sensors import (
     PLANT_LOCATIONS,
@@ -22,30 +24,6 @@ from dirt_shared.services.daily_sensors import (
     SensorReader,
     mdt_window_to_utc,
 )
-
-
-@pytest.fixture
-async def engine(tmp_path):
-    db = tmp_path / "test.db"
-    eng = create_async_engine(f"sqlite+aiosqlite:///{db}")
-    async with eng.begin() as conn:
-        await conn.run_sync(SQLModel.metadata.create_all)
-    yield eng
-    await eng.dispose()
-
-
-async def _seed(engine, rows: list[SensorReading], cals: list[SensorCalibration] = ()):
-    async with AsyncSession(engine) as s:
-        for r in rows:
-            s.add(r)
-        for c in cals:
-            s.add(c)
-        await s.commit()
-
-
-def _ts(year, mo, d, h, m, sec=0) -> datetime:
-    """Naive UTC, matching how the production code stores SensorReading.timestamp."""
-    return datetime(year, mo, d, h, m, sec)
 
 
 # Apr 19 2026: MDT is UTC-6.
@@ -57,37 +35,66 @@ def _clock():
     return TEST_NOW
 
 
-def _all_tent_metrics_fresh() -> list[SensorReading]:
+async def _node_ids(engine) -> dict[SensorLocation, int]:
+    """Resolve every seeded sensornode (location → id)."""
+    async with AsyncSession(engine) as s:
+        result = await s.exec(select(SensorNode))
+        return {n.location: n.id for n in result.all()}
+
+
+async def _seed_readings(
+    engine,
+    rows: list[tuple[SensorLocation, str, float, datetime, SensorSource]],
+    cals: list[tuple[SensorLocation, str, float, float]] = (),
+) -> None:
+    """rows: (location, metric, value, ts, source). cals: (location, metric, raw_low, raw_high)."""
+    node_ids = await _node_ids(engine)
+    async with AsyncSession(engine) as s:
+        for loc, metric, value, ts, source in rows:
+            s.add(
+                SensorReading(
+                    sensornode_id=node_ids[loc],
+                    metric=metric,
+                    value=value,
+                    ts=ts,
+                    source=source,
+                )
+            )
+        for loc, metric, raw_low, raw_high in cals:
+            s.add(
+                SensorCalibration(
+                    sensornode_id=node_ids[loc],
+                    metric=metric,
+                    raw_low=raw_low,
+                    raw_high=raw_high,
+                )
+            )
+        await s.commit()
+
+
+def _all_tent_metrics_fresh() -> list[tuple]:
     """Build a clean set of fresh tent readings (one per METRIC)."""
-    fresh_ts = TEST_NOW.replace(tzinfo=None) - timedelta(seconds=10)
+    fresh_ts = TEST_NOW - timedelta(seconds=10)
     return [
-        SensorReading(location=TENT_LOCATION, metric="temperature_f",
-                      value=80.0, timestamp=fresh_ts, source="arduino"),
-        SensorReading(location=TENT_LOCATION, metric="humidity_pct",
-                      value=50.0, timestamp=fresh_ts, source="arduino"),
-        SensorReading(location=TENT_LOCATION, metric="pressure_hpa",
-                      value=843.0, timestamp=fresh_ts, source="arduino"),
-        SensorReading(location=TENT_LOCATION, metric="vpd_kpa",
-                      value=1.5, timestamp=fresh_ts, source="arduino"),
-        SensorReading(location=TENT_LOCATION, metric="dew_point_f",
-                      value=58.0, timestamp=fresh_ts, source="arduino"),
+        (TENT_LOCATION, "temperature_f", 80.0, fresh_ts, SensorSource.ARDUINO),
+        (TENT_LOCATION, "humidity_pct", 50.0, fresh_ts, SensorSource.ARDUINO),
+        (TENT_LOCATION, "pressure_hpa", 843.0, fresh_ts, SensorSource.ARDUINO),
+        (TENT_LOCATION, "vpd_kpa", 1.5, fresh_ts, SensorSource.ARDUINO),
+        (TENT_LOCATION, "dew_point_f", 58.0, fresh_ts, SensorSource.ARDUINO),
     ]
 
 
-def _all_plants_fresh(value: float = 2500.0) -> list[SensorReading]:
-    fresh_ts = TEST_NOW.replace(tzinfo=None) - timedelta(seconds=10)
+def _all_plants_fresh(value: float = 2500.0) -> list[tuple]:
+    fresh_ts = TEST_NOW - timedelta(seconds=10)
     return [
-        SensorReading(location=loc, metric=SOIL_METRIC, value=value,
-                      timestamp=fresh_ts, source="esp32")
+        (loc, SOIL_METRIC, value, fresh_ts, SensorSource.ESP32)
         for loc in PLANT_LOCATIONS
     ]
 
 
-def _plant_calibrations() -> list[SensorCalibration]:
+def _plant_calibrations() -> list[tuple]:
     return [
-        SensorCalibration(location=loc, metric=SOIL_METRIC,
-                          raw_low=1370.0, raw_high=3880.0)
-        for loc in PLANT_LOCATIONS
+        (loc, SOIL_METRIC, 1370.0, 3880.0) for loc in PLANT_LOCATIONS
     ]
 
 
@@ -102,122 +109,102 @@ def test_mdt_window_to_utc_handles_offset():
     assert end == datetime(2026, 4, 19, 20, 0, tzinfo=UTC)
 
 
-async def test_validate_passes_on_clean_data(engine):
-    await _seed(
-        engine,
+async def test_validate_passes_on_clean_data(pg_engine):
+    await _seed_readings(
+        pg_engine,
         _all_tent_metrics_fresh() + _all_plants_fresh(value=2500.0),
         _plant_calibrations(),
     )
-    r = SensorReader(engine, clock=_clock, max_age_s=300)
+    r = SensorReader(pg_engine, clock=_clock, max_age_s=300)
     assert await r.validate() == []
 
 
-async def test_validate_flags_zero_tent_value(engine):
+async def test_validate_flags_zero_tent_value(pg_engine):
     rows = _all_tent_metrics_fresh()
-    rows[1] = SensorReading(  # humidity_pct -> 0
-        location=TENT_LOCATION, metric="humidity_pct", value=0.0,
-        timestamp=rows[1].timestamp, source="arduino",
-    )
-    await _seed(engine, rows + _all_plants_fresh())
-    r = SensorReader(engine, clock=_clock, max_age_s=300)
+    rows[1] = (TENT_LOCATION, "humidity_pct", 0.0, rows[1][3], SensorSource.ARDUINO)
+    await _seed_readings(pg_engine, rows + _all_plants_fresh())
+    r = SensorReader(pg_engine, clock=_clock, max_age_s=300)
     failures = await r.validate()
     assert any(f.reason == "zero" and f.metric == "humidity_pct" for f in failures)
 
 
-async def test_validate_flags_pinned_plant_high(engine):
+async def test_validate_flags_pinned_plant_high(pg_engine):
     plants = _all_plants_fresh()
-    plants[1] = SensorReading(  # plant-b -> 4095 (rail)
-        location="plant-b", metric=SOIL_METRIC, value=4095.0,
-        timestamp=plants[1].timestamp, source="esp32",
-    )
-    await _seed(engine, _all_tent_metrics_fresh() + plants)
-    r = SensorReader(engine, clock=_clock, max_age_s=300, sensor_max_raw=4000.0)
+    plants[1] = (SensorLocation.PLANT_B, SOIL_METRIC, 4095.0, plants[1][3], SensorSource.ESP32)
+    await _seed_readings(pg_engine, _all_tent_metrics_fresh() + plants)
+    r = SensorReader(pg_engine, clock=_clock, max_age_s=300, sensor_max_raw=4000.0)
     failures = await r.validate()
     assert any(
-        f.reason == "raw_pinned_high" and f.location == "plant-b"
+        f.reason == "raw_pinned_high" and f.location == SensorLocation.PLANT_B
         for f in failures
     )
 
 
-async def test_validate_flags_pinned_plant_low(engine):
+async def test_validate_flags_pinned_plant_low(pg_engine):
     plants = _all_plants_fresh()
-    plants[2] = SensorReading(  # plant-c reads 5 (out of soil)
-        location="plant-c", metric=SOIL_METRIC, value=5.0,
-        timestamp=plants[2].timestamp, source="esp32",
-    )
-    await _seed(engine, _all_tent_metrics_fresh() + plants)
-    r = SensorReader(engine, clock=_clock, max_age_s=300, sensor_min_raw=30.0)
+    plants[2] = (SensorLocation.PLANT_C, SOIL_METRIC, 5.0, plants[2][3], SensorSource.ESP32)
+    await _seed_readings(pg_engine, _all_tent_metrics_fresh() + plants)
+    r = SensorReader(pg_engine, clock=_clock, max_age_s=300, sensor_min_raw=30.0)
     failures = await r.validate()
     assert any(
-        f.reason == "raw_pinned_low" and f.location == "plant-c"
+        f.reason == "raw_pinned_low" and f.location == SensorLocation.PLANT_C
         for f in failures
     )
 
 
-async def test_validate_flags_stale(engine):
+async def test_validate_flags_stale(pg_engine):
     # ten minutes old -> stale at 5min threshold
-    stale_ts = TEST_NOW.replace(tzinfo=None) - timedelta(minutes=10)
+    stale_ts = TEST_NOW - timedelta(minutes=10)
+    fresh_ts = TEST_NOW - timedelta(seconds=10)
     rows = [
-        SensorReading(location=TENT_LOCATION, metric="temperature_f",
-                      value=80.0, timestamp=stale_ts, source="arduino"),
+        (TENT_LOCATION, "temperature_f", 80.0, stale_ts, SensorSource.ARDUINO),
     ]
     # other tent metrics fresh
-    fresh_ts = TEST_NOW.replace(tzinfo=None) - timedelta(seconds=10)
     for m in ("humidity_pct", "pressure_hpa", "vpd_kpa", "dew_point_f"):
-        rows.append(SensorReading(
-            location=TENT_LOCATION, metric=m, value=50.0,
-            timestamp=fresh_ts, source="arduino"))
-    await _seed(engine, rows + _all_plants_fresh())
-    r = SensorReader(engine, clock=_clock, max_age_s=300)
+        rows.append((TENT_LOCATION, m, 50.0, fresh_ts, SensorSource.ARDUINO))
+    await _seed_readings(pg_engine, rows + _all_plants_fresh())
+    r = SensorReader(pg_engine, clock=_clock, max_age_s=300)
     failures = await r.validate()
     assert any(f.reason == "stale" and f.metric == "temperature_f" for f in failures)
 
 
-async def test_validate_flags_missing(engine):
+async def test_validate_flags_missing(pg_engine):
     # only humidity_pct seeded; other tent metrics missing entirely
     rows = [
-        SensorReading(location=TENT_LOCATION, metric="humidity_pct",
-                      value=50.0,
-                      timestamp=TEST_NOW.replace(tzinfo=None) - timedelta(seconds=5),
-                      source="arduino"),
+        (TENT_LOCATION, "humidity_pct", 50.0,
+         TEST_NOW - timedelta(seconds=5), SensorSource.ARDUINO),
     ]
-    await _seed(engine, rows + _all_plants_fresh())
-    r = SensorReader(engine, clock=_clock, max_age_s=300)
+    await _seed_readings(pg_engine, rows + _all_plants_fresh())
+    r = SensorReader(pg_engine, clock=_clock, max_age_s=300)
     failures = await r.validate()
     missing_metrics = {f.metric for f in failures if f.reason == "missing"}
     assert "temperature_f" in missing_metrics
     assert "vpd_kpa" in missing_metrics
 
 
-async def test_snapshot_aggregates_three_windows(engine):
+async def test_snapshot_aggregates_three_windows(pg_engine):
     """Seed readings across overnight + morning + just-now and verify the
     snapshot averages match by hand."""
     rows = []
-    # overnight: 02:00 MDT = 08:00 UTC. Two readings, avg should be 75 and 50.
-    overnight_ts = datetime(2026, 4, 19, 8, 0)
-    rows.append(SensorReading(location=TENT_LOCATION, metric="temperature_f",
-                              value=70.0, timestamp=overnight_ts, source="a"))
-    rows.append(SensorReading(location=TENT_LOCATION, metric="temperature_f",
-                              value=80.0,
-                              timestamp=overnight_ts + timedelta(hours=1),
-                              source="a"))
+    # overnight: 02:00 MDT = 08:00 UTC. Two readings, avg should be 75.
+    overnight_ts = datetime(2026, 4, 19, 8, 0, tzinfo=UTC)
+    rows.append((TENT_LOCATION, "temperature_f", 70.0, overnight_ts, SensorSource.ARDUINO))
+    rows.append((TENT_LOCATION, "temperature_f", 80.0,
+                 overnight_ts + timedelta(hours=1), SensorSource.ARDUINO))
     # morning: 10:00 MDT = 16:00 UTC. one reading at 90.
-    morning_ts = datetime(2026, 4, 19, 16, 0)
-    rows.append(SensorReading(location=TENT_LOCATION, metric="temperature_f",
-                              value=90.0, timestamp=morning_ts, source="a"))
+    morning_ts = datetime(2026, 4, 19, 16, 0, tzinfo=UTC)
+    rows.append((TENT_LOCATION, "temperature_f", 90.0, morning_ts, SensorSource.ARDUINO))
     # NOW reading at 14:30 MDT = 20:30 UTC; latest = 85
-    now_ts = datetime(2026, 4, 19, 20, 25)
-    rows.append(SensorReading(location=TENT_LOCATION, metric="temperature_f",
-                              value=85.0, timestamp=now_ts, source="a"))
+    now_ts = datetime(2026, 4, 19, 20, 25, tzinfo=UTC)
+    rows.append((TENT_LOCATION, "temperature_f", 85.0, now_ts, SensorSource.ARDUINO))
     # also add other tent metrics + plants so windows have *something*
-    fresh_ts = TEST_NOW.replace(tzinfo=None) - timedelta(seconds=10)
+    fresh_ts = TEST_NOW - timedelta(seconds=10)
     for m in ("humidity_pct", "pressure_hpa", "vpd_kpa", "dew_point_f"):
-        rows.append(SensorReading(location=TENT_LOCATION, metric=m,
-                                  value=50.0, timestamp=fresh_ts, source="a"))
+        rows.append((TENT_LOCATION, m, 50.0, fresh_ts, SensorSource.ARDUINO))
     rows.extend(_all_plants_fresh(value=2500.0))
-    await _seed(engine, rows, _plant_calibrations())
+    await _seed_readings(pg_engine, rows, _plant_calibrations())
 
-    r = SensorReader(engine, clock=_clock)
+    r = SensorReader(pg_engine, clock=_clock)
     snap = await r.snapshot(TEST_DATE)
 
     temp = snap.tent["temperature_f"]
@@ -231,22 +218,16 @@ async def test_snapshot_aggregates_three_windows(engine):
     assert temp["now"] == 85.0
 
 
-async def test_snapshot_per_plant_pct_uses_calibration(engine):
+async def test_snapshot_per_plant_pct_uses_calibration(pg_engine):
     rows = _all_tent_metrics_fresh()
-    fresh_ts = TEST_NOW.replace(tzinfo=None) - timedelta(seconds=10)
+    fresh_ts = TEST_NOW - timedelta(seconds=10)
     # plant-a raw=2500 cal 1370/3880 -> pct = 1380/2510 = 54.98%
-    rows.append(SensorReading(
-        location="plant-a", metric=SOIL_METRIC,
-        value=2500.0, timestamp=fresh_ts, source="esp32",
-    ))
-    for loc in ("plant-b", "plant-c", "plant-d"):
-        rows.append(SensorReading(
-            location=loc, metric=SOIL_METRIC, value=2000.0,
-            timestamp=fresh_ts, source="esp32",
-        ))
-    await _seed(engine, rows, _plant_calibrations())
+    rows.append((SensorLocation.PLANT_A, SOIL_METRIC, 2500.0, fresh_ts, SensorSource.ESP32))
+    for loc in (SensorLocation.PLANT_B, SensorLocation.PLANT_C, SensorLocation.PLANT_D):
+        rows.append((loc, SOIL_METRIC, 2000.0, fresh_ts, SensorSource.ESP32))
+    await _seed_readings(pg_engine, rows, _plant_calibrations())
 
-    r = SensorReader(engine, clock=_clock)
+    r = SensorReader(pg_engine, clock=_clock)
     snap = await r.snapshot(TEST_DATE)
     pct_a = snap.plants["a"]["now_pct"]
     assert pct_a == pytest.approx(54.98, abs=0.1)
