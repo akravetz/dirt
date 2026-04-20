@@ -75,7 +75,7 @@ _SYSTEM_PROMPT_APPEND = (
 class ClaudeSynthesisRunner:
     """Production runner — spawns claude-agent-sdk sub-agent."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 — wiki_root+log_dir are required paths; the four trailing kwargs are sub-agent budget knobs kept flat so a single call site can tune one without constructing a budget struct.
         self,
         wiki_root: Path,
         log_dir: Path,

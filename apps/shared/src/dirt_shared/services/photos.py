@@ -35,7 +35,7 @@ class CameraError(RuntimeError):
 
 
 class CameraClient:
-    def __init__(
+    def __init__(  # noqa: PLR0913 — rpc+presets are the collaborators; the four trailing kwargs are capture-retry tuning knobs with sensible defaults, kept flat so tests can override one at a time.
         self,
         rpc: DaemonRPC,
         presets: dict[str, dict[str, float]],

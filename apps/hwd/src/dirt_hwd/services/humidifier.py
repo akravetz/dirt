@@ -67,7 +67,7 @@ class HumidifierLoopService:
             source=SensorSource.KASA,
         )
 
-    async def run(self, stop_event: asyncio.Event) -> None:
+    async def run(self, stop_event: asyncio.Event) -> None:  # noqa: PLR0915 — single-responsibility state-machine loop; splitting it would fragment the control flow across private methods without reducing total complexity.
         cfg = self._config
         if not cfg.kasa_username or not cfg.kasa_password:
             logger.warning(

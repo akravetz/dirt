@@ -77,7 +77,7 @@ class _Clock(Protocol):
 
 
 class DailyReport:
-    def __init__(
+    def __init__(  # noqa: PLR0913 — orchestrator: 9 collaborators wired from the composition root; a deps dataclass would just move the same count behind an extra indirection.
         self,
         *,
         camera: CameraClient,
@@ -318,7 +318,7 @@ def balance_html_tags(s: str) -> str:
 _FRONTMATTER_RE = re.compile(r"^---\n.*?\n---\n", re.DOTALL)
 
 
-def markdown_to_simple_html(md: str) -> str:
+def markdown_to_simple_html(md: str) -> str:  # noqa: PLR0915 — linear whitelist parser; decomposing the block-state machine into helpers would fragment the pass without reducing total complexity.
     """Convert a subset of markdown to Telegram-flavoured HTML.
 
     Telegram's HTML mode supports a small whitelist:

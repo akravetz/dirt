@@ -92,15 +92,6 @@ select = [
 # Python. Exempted per-file under [lint.per-file-ignores].
 ignore = ["ASYNC240", "RUF001", "RUF002", "RUF003"]
 
-# PLR0913/PLR0915 thresholds. Defaults (5 args, 50 stmts) are too tight
-# for service orchestrators like DailyReport (9 constructor deps) and
-# HumidifierLoop (single long run() method by design). Raised thresholds
-# still fire on genuinely bloated code while letting legitimately-large
-# orchestrators live.
-[tool.ruff.lint.pylint]
-max-args = 10
-max-statements = 70
-
 [tool.ruff.lint.per-file-ignores]
 # FastAPI uses `param: T = Depends(get_T)` idiomatically; B008 doesn't
 # understand that.

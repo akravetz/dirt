@@ -216,7 +216,8 @@
       "blocked_by": [],
       "session_log": [
         {"date": "2026-04-20", "note": "Starting PY-08. Added TID, S, PLR0913, PLR0915 to [tool.ruff.lint] select; RUF already present. SIM not enabled at this pass — too noisy to triage without refactor. Triaged the initial failure set: per-file-ignores for tests (S101 pytest assert idiom, S105/S106 fixture secrets, S108 /tmp paths, S603/S607 subprocess-with-trusted-argv, PLR0913/PLR0915); service-local per-file-ignores for archive.py / system_status.py / testing.py / capture.py (subprocess + /tmp camera socket — all trusted argv); uvicorn entry points (S104 0.0.0.0 bind IS the point); config.py (S105/S106 sentinel defaults). Type-narrowing asserts in production got noqa: S101 with WHY comments (5 lines). PLR thresholds raised to max-args=10 max-statements=70 — defaults (5/50) are tighter than service orchestrators like DailyReport / HumidifierLoop warrant by design."},
-        {"date": "2026-04-20", "commit": "193b3f0", "note": "PY-08 committed. All 4 acceptance_criteria green: (1)-(3) grep \"TID\", \"RUF\", \"S\" in pyproject.toml, (4) uv run ruff check → All checks passed."}
+        {"date": "2026-04-20", "commit": "193b3f0", "note": "PY-08 committed. All 4 acceptance_criteria green: (1)-(3) grep \"TID\", \"RUF\", \"S\" in pyproject.toml, (4) uv run ruff check → All checks passed."},
+        {"date": "2026-04-20", "note": "PY-08 rework per verifier: raised PLR0913/PLR0915 thresholds silently weakened complexity signal repo-wide. Restored ruff defaults (removed [tool.ruff.lint.pylint] max-args/max-statements block); added targeted # noqa: PLR0913/PLR0915 with WHY comments at six legitimate call sites (DailyReport.__init__ 9 deps, HumidifierLoopService.run state-machine, CameraClient.__init__ capture knobs, ClaudeSynthesisRunner.__init__ budget knobs, SensorReadings.ingest_reading node-metadata bundle, markdown_to_simple_html whitelist parser). All 4 acceptance_criteria re-verified green: ruff check → All checks passed; invariants 60 passed."}
       ],
       "verifier_notes": null
     },
@@ -245,7 +246,7 @@
       "blocked_by": [],
       "session_log": [
         {"date": "2026-04-20", "note": "Starting PY-09. Added hypothesis as dev dep. Wrote two property test files: (a) apps/shared/tests/test_grow_state_properties.py — pins band_status() partition behavior (exactly one of ok/warn/crit for any value/band) AND stage-derivation progression (veg → flower_early → flower_late monotonic across flower_start_date transitions). derive_stage helper lives locally in the test because the production path is async + DB-bound; duplicating is intentional — if the production logic drifts without the property updating, hypothesis finds the split. (b) apps/hwd/tests/test_ingest_properties.py — pins IngestPayload Pydantic contract (any payload inside declared bounds parses, any oversize location is rejected). DB-free by design; contract is with the ESP32 firmware."},
-        {"date": "2026-04-20", "commit": "pending", "note": "PY-09 test passes. All 3 acceptance_criteria green: (1) file exists, (2) uv run pytest ... → 7 passed, (3) grep @given present in test_grow_state_properties.py."}
+        {"date": "2026-04-20", "commit": "c296993", "note": "PY-09 committed. All 3 acceptance_criteria green: (1) file exists, (2) uv run pytest ... → 7 passed, (3) grep @given present in test_grow_state_properties.py."}
       ],
       "verifier_notes": null
     }

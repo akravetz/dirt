@@ -223,7 +223,7 @@ class ReadingsService:
             return False
         return len({r.value for r in rows}) == 1
 
-    async def ingest_reading(
+    async def ingest_reading(  # noqa: PLR0913 — location+metrics are the reading; ip/firmware/uptime are optional node-metadata upserts bundled into the same transaction by design.
         self,
         location: SensorLocation | str,
         metrics: dict[str, float],
