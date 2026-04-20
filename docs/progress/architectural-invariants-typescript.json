@@ -467,7 +467,7 @@
       "blocks": [],
       "blocked_by": ["XX-02"],
       "session_log": [
-        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "Created web-ui/invariants/rules/no-arbitrary-tw-value.ts — flags arbitrary-value utilities (bg-[#..], text-[14px], tracking-[0.3em], etc.) in JSX className strings and template-literal quasis. Registered as local/no-arbitrary-tw-value:error. Negative test: <div className='bg-[#abcdef]'> fires with WHY/FIX message pointing at palette / @theme. Baseline violation in src/routes/index.tsx (tracking-[0.3em]) — fixed per the NEVER-DISABLE guardrail: added --tracking-caps:0.3em to @theme in src/styles.css and updated index.tsx to use `tracking-caps` palette class. pnpm lint + pnpm typecheck PASS. Commit TBD."}
+        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "Created web-ui/invariants/rules/no-arbitrary-tw-value.ts — flags arbitrary-value utilities (bg-[#..], text-[14px], tracking-[0.3em], etc.) in JSX className strings and template-literal quasis. Registered as local/no-arbitrary-tw-value:error. Negative test: <div className='bg-[#abcdef]'> fires with WHY/FIX message pointing at palette / @theme. Baseline violation in src/routes/index.tsx (tracking-[0.3em]) — fixed per the NEVER-DISABLE guardrail: added --tracking-caps:0.3em to @theme in src/styles.css and updated index.tsx to use `tracking-caps` palette class. pnpm lint + pnpm typecheck PASS. Commit da09956."}
       ],
       "verifier_notes": null
     },
@@ -487,10 +487,12 @@
         {"type": "shell_exit_zero", "cmd": "pnpm --dir web-ui lint"},
         {"type": "negative_test", "description": "Add `<div style={{color: 'red'}}>` anywhere. Must fail lint.", "cmd": "pnpm --dir web-ui lint"}
       ],
-      "status": "not_started",
+      "status": "needs_verification",
       "blocks": [],
       "blocked_by": ["XX-02"],
-      "session_log": [],
+      "session_log": [
+        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "Appended two no-restricted-syntax selectors: JSXAttribute[name.name='style'] and JSXOpeningElement[name.name='style']. No dynamic-transform allowlist added — skeleton is too small to justify. pnpm lint PASS; negative test (<div style={{color:'red'}}>) fires the rule with WHY/FIX message. Commit TBD."}
+      ],
       "verifier_notes": null
     },
     {

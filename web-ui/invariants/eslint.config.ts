@@ -249,6 +249,24 @@ const config: Linter.Config[] = [
           message:
             "WHY: top-level singleton outside src/main.tsx. FIX: construct in main.tsx, pass via Provider.",
         },
+        // TS-16 — no inline style / <style> tags.
+        //
+        // WHY: utility-first Tailwind v4 discipline — inline styles and
+        // <style> tags sidestep the palette guard (TS-15) and are
+        // un-themeable.
+        // FIX: use a Tailwind utility class; if genuinely dynamic, set
+        // a CSS custom property via `style={{ "--x": value }}` is NOT
+        // allowed either — lift into a @utility in styles.css.
+        {
+          selector: "JSXAttribute[name.name='style']",
+          message:
+            "WHY: inline style={{...}} bypasses Tailwind utilities + the palette. FIX: use utility classes, or add a @utility in src/styles.css.",
+        },
+        {
+          selector: "JSXOpeningElement[name.name='style']",
+          message:
+            "WHY: <style> tags bypass the Tailwind build. FIX: put CSS in src/styles.css under @layer utilities / @utility.",
+        },
       ],
       // TS-08 — no vi.mock() on internal modules (custom rule).
       //
