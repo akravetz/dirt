@@ -151,10 +151,12 @@
         {"type": "shell_exit_zero", "cmd": "pnpm --dir web-ui lint"},
         {"type": "negative_test", "description": "Add `import { useNavigate } from 'react-router-dom'` anywhere under web-ui/src/. Must fail lint with a message pointing to TanStack Router.", "cmd": "pnpm --dir web-ui lint"}
       ],
-      "status": "not_started",
+      "status": "needs_verification",
       "blocks": [],
       "blocked_by": ["XX-02"],
-      "session_log": [],
+      "session_log": [
+        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "no-restricted-imports config with paths (react-router-dom, @remix-run/{react,router}, next, axios) and pattern next/*, each carrying a WHY/FIX message pointing at TanStack Router or the generated api-client. Appended 'no-restricted-imports':2 to KNOWN_SENTINELS. pnpm lint PASS; meta-invariant 6/6 PASS. Commit 59085b1."}
+      ],
       "verifier_notes": null
     },
     {
@@ -178,10 +180,12 @@
         {"type": "shell_exit_zero", "cmd": "pnpm --dir web-ui lint"},
         {"type": "negative_test", "description": "Add `enum Color { Red, Green }` anywhere under web-ui/src/. Must fail lint.", "cmd": "pnpm --dir web-ui lint"}
       ],
-      "status": "not_started",
+      "status": "needs_verification",
       "blocks": [],
       "blocked_by": ["XX-02"],
-      "session_log": [],
+      "session_log": [
+        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "Registered @typescript-eslint plugin (via tseslint.plugin from the typescript-eslint aggregator package — single-dep strategy, no separate @typescript-eslint/eslint-plugin install). Enabled @typescript-eslint/no-explicit-any, @typescript-eslint/consistent-type-assertions (assertionStyle='as', objectLiteralTypeAssertions='never'), and no-restricted-syntax with TSEnumDeclaration + TSModuleDeclaration[kind='namespace'] selectors. Appended no-restricted-syntax:2 and @typescript-eslint/no-explicit-any:2 to KNOWN_SENTINELS. pnpm lint PASS; meta-invariant 6/6 PASS. Commit TBD."}
+      ],
       "verifier_notes": null
     },
     {

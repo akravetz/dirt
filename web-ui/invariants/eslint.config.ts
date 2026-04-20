@@ -65,6 +65,7 @@ const config: Linter.Config[] = [
     },
     plugins: {
       boundaries: boundaries as unknown as NonNullable<Linter.Config["plugins"]>[string],
+      "@typescript-eslint": tseslint.plugin as unknown as NonNullable<Linter.Config["plugins"]>[string],
     },
     settings: {
       "boundaries/elements": ELEMENT_TYPES,
@@ -144,6 +145,35 @@ const config: Linter.Config[] = [
             { from: ["ui"], allow: ["ui", "shared"] },
             { from: ["shared"], allow: ["shared"] },
           ],
+        },
+      ],
+      // TS-04 — ban enum / namespace / `as any`.
+      //
+      // WHY: enums/namespaces are not the current TS idiom (see
+      // docs/references/modern-idiomatic-typescript); `as any` defeats
+      // the type system entirely.
+      // FIX: use discriminated union + `as const` objects instead of
+      // enums; ES modules instead of namespaces; narrow via type guards
+      // or `as unknown as X` only at well-documented boundary seams.
+      "@typescript-eslint/no-explicit-any": "error",
+      "@typescript-eslint/consistent-type-assertions": [
+        "error",
+        {
+          assertionStyle: "as",
+          objectLiteralTypeAssertions: "never",
+        },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "TSEnumDeclaration",
+          message:
+            "WHY: TS enums are not the current idiom. FIX: use `const Foo = { ... } as const` + a union type of its values (see docs/references/modern-idiomatic-typescript).",
+        },
+        {
+          selector: "TSModuleDeclaration[kind='namespace']",
+          message:
+            "WHY: TS namespaces predate ES modules and have no good use case in new code. FIX: use ES modules (separate files + import/export).",
         },
       ],
     },

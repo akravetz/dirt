@@ -64,6 +64,9 @@ KNOWN_SENTINELS: dict[str, dict[str, object]] = {
         "boundaries/element-types": 2,
         # TS-03 — ban training-data drift imports.
         "no-restricted-imports": 2,
+        # TS-04 — ban enum / namespace / `as any`.
+        "no-restricted-syntax": 2,
+        "@typescript-eslint/no-explicit-any": 2,
     },
     "tsconfig": {
         # TS-01 — strict-mode flags.
