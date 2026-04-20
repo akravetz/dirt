@@ -67,6 +67,8 @@ KNOWN_SENTINELS: dict[str, dict[str, object]] = {
         # TS-04 — ban enum / namespace / `as any`.
         "no-restricted-syntax": 2,
         "@typescript-eslint/no-explicit-any": 2,
+        # TS-08 — no vi.mock() on internal modules (custom rule).
+        "local/no-internal-vi-mock": 2,
     },
     "tsconfig": {
         # TS-01 — strict-mode flags.

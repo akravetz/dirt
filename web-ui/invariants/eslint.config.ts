@@ -14,6 +14,7 @@
 import type { Linter } from "eslint";
 import tseslint from "typescript-eslint";
 import boundaries from "eslint-plugin-boundaries";
+import noInternalViMock from "./rules/no-internal-vi-mock.ts";
 
 // Element-type rules for eslint-plugin-boundaries.
 //
@@ -66,6 +67,8 @@ const config: Linter.Config[] = [
     plugins: {
       boundaries: boundaries as unknown as NonNullable<Linter.Config["plugins"]>[string],
       "@typescript-eslint": tseslint.plugin as unknown as NonNullable<Linter.Config["plugins"]>[string],
+      // TS-08 — inline-plugin pattern for custom rules under ./rules/.
+      local: { rules: { "no-internal-vi-mock": noInternalViMock } },
     },
     settings: {
       "boundaries/elements": ELEMENT_TYPES,
@@ -213,6 +216,10 @@ const config: Linter.Config[] = [
             "WHY: string-literal `to` bypasses TanStack Router's typed route tree. FIX: pass `to={Route.fullPath}` from the generated route tree.",
         },
       ],
+      // TS-08 — no vi.mock() on internal modules (custom rule).
+      //
+      // See web-ui/invariants/rules/no-internal-vi-mock.ts for rule body.
+      "local/no-internal-vi-mock": "error",
       // TS-05 — no fetch() outside api-client.
       //
       // WHY: single outward-facing boundary. Auth headers, retry,
