@@ -389,7 +389,7 @@
       "blocks": [],
       "blocked_by": ["XX-02"],
       "session_log": [
-        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "Installed knip@6.5.0. Filled web-ui/invariants/knip.json with entry points (main.tsx, shared/storage.ts, shared/platform.ts, vite.config.ts, eslint.config.ts, invariants/eslint.config.ts, invariants/rules/*.ts) + project globs (src/**, invariants/**). ignoreDependencies for tailwindcss / @eslint/js / eslint-plugin-boundaries / typescript-eslint / jiti (referenced only in the invariants config, which knip doesn't fully trace through). Added `knip` script to web-ui/package.json. Created apps/tests/invariants/test_typescript_dead_code.py — thin shell-out wrapper that asserts `pnpm --dir web-ui knip --no-progress` exits 0, with a format_invariant_failure message carrying knip's stdout as violations. PASS on baseline (no unused code in the skeleton). Commit TBD."}
+        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "Installed knip@6.5.0. Filled web-ui/invariants/knip.json with entry points (main.tsx, shared/storage.ts, shared/platform.ts, vite.config.ts, eslint.config.ts, invariants/eslint.config.ts, invariants/rules/*.ts) + project globs (src/**, invariants/**). ignoreDependencies for tailwindcss / @eslint/js / eslint-plugin-boundaries / typescript-eslint / jiti (referenced only in the invariants config, which knip doesn't fully trace through). Added `knip` script to web-ui/package.json. Created apps/tests/invariants/test_typescript_dead_code.py — thin shell-out wrapper that asserts `pnpm --dir web-ui knip --no-progress` exits 0, with a format_invariant_failure message carrying knip's stdout as violations. PASS on baseline (no unused code in the skeleton). Commit d0df4a4."}
       ],
       "verifier_notes": null
     },
@@ -411,11 +411,13 @@
         {"type": "shell_exit_zero", "cmd": "uv run pytest apps/tests/invariants/test_api_client_not_stale.py -q"},
         {"type": "negative_test", "description": "Append `// drift` to any file under web-ui/src/api-client/generated/. Drift test must fail.", "cmd": "uv run pytest apps/tests/invariants/test_api_client_not_stale.py -q"}
       ],
-      "status": "not_started",
+      "status": "blocked",
       "blocks": [],
-      "blocked_by": ["XX-02"],
-      "session_log": [],
-      "verifier_notes": "Depends on contracts/webapp-v1.yaml existing — coordinate with Phase 1 freeze in docs/progress/webapp-rewrite.md. If contract freeze hasn't shipped, mark this item blocked_by=WEBAPP-REWRITE-phase-1-freeze and defer."
+      "blocked_by": ["XX-02", "WEBAPP-REWRITE-phase-1-freeze"],
+      "session_log": [
+        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "BLOCKED. Verified contracts/webapp-v1.yaml does not exist (per-plan-file caveat: webapp-rewrite phase 1 contract freeze has not shipped yet — see docs/progress/webapp-rewrite.md). No api-client/generated/ directory exists to protect either. Returning to the plan once phase-1 freeze lands. No work performed this session."}
+      ],
+      "verifier_notes": "BLOCKED on WEBAPP-REWRITE-phase-1-freeze — contracts/webapp-v1.yaml does not exist as of 2026-04-20. The hook glob for web-ui/src/api-client/generated/ IS in place (landed with XX-02 by the parent session), so the moment the contract + generator + generated/ tree land, this item only needs the test_api_client_not_stale.py file to be created."
     },
     {
       "id": "TS-14",
@@ -437,10 +439,12 @@
         {"type": "grep_present", "path": "web-ui/invariants/eslint.config.ts", "pattern": "pluginRouter"},
         {"type": "shell_exit_zero", "cmd": "pnpm --dir web-ui lint"}
       ],
-      "status": "not_started",
+      "status": "needs_verification",
       "blocks": [],
       "blocked_by": ["XX-02"],
-      "session_log": [],
+      "session_log": [
+        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "Installed @tanstack/eslint-plugin-router@1.161.6. Extended flat/recommended config at the top of web-ui/invariants/eslint.config.ts (spread as the first element of the config array so the invariants/base block can still override / extend). Did not touch @typescript-eslint/only-throw-error (not currently enabled). pnpm lint PASS; meta-invariant PASS. Commit TBD."}
+      ],
       "verifier_notes": null
     },
     {

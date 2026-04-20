@@ -14,6 +14,7 @@
 import type { Linter } from "eslint";
 import tseslint from "typescript-eslint";
 import boundaries from "eslint-plugin-boundaries";
+import pluginRouter from "@tanstack/eslint-plugin-router";
 import noInternalViMock from "./rules/no-internal-vi-mock.ts";
 
 // Element-type rules for eslint-plugin-boundaries.
@@ -44,7 +45,15 @@ const ELEMENT_TYPES = [
   { type: "main", pattern: "src/routeTree.gen.ts", mode: "file" },
 ] as const;
 
+// TS-14 — extend TanStack Router's recommended flat config.
+//
+// WHY: first-party lint rules from the framework
+// (create-route-property-order, etc.). Free coverage.
+const routerConfigs =
+  (pluginRouter.configs["flat/recommended"] as unknown as Linter.Config[]) ?? [];
+
 const config: Linter.Config[] = [
+  ...routerConfigs,
   {
     name: "invariants/ignores",
     ignores: [

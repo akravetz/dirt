@@ -23,6 +23,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.12",
+    "@eslint/js": "^10.0.1",
+    "@tanstack/eslint-plugin-router": "^1.161.6",
     "@tanstack/router-plugin": "^1.167.22",
     "@types/node": "^24.12.2",
     "@types/react": "^19.2.14",
