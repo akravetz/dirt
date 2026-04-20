@@ -2,7 +2,7 @@
 
 Scope: what SQL and FS-backed data does the new SPA need, what types and constraints should they have in a real DB, and how do we get there from the current SQLite store?
 
-**Framing change from the prior draft.** The prior version extended the SQLite schema in place using the hand-rolled `_COLUMN_MIGRATIONS` tuple in `db.py`. This version starts from the premise that we're moving to **Postgres 16+** with **Atlas-managed migrations** before freezing the contract, and designs the schema against Postgres-native types (`timestamptz`, `boolean`, `text`, `jsonb`, explicit enum types, CHECK constraints) instead of SQLite's dynamic typing. See [ADR-005 (pending)](#) for the decision rationale.
+**Framing change from the prior draft.** The prior version extended the SQLite schema in place using the hand-rolled `_COLUMN_MIGRATIONS` tuple in `db.py`. This version starts from the premise that we're moving to **Postgres 16+** with **Atlas-managed migrations** before freezing the contract, and designs the schema against Postgres-native types (`timestamptz`, `boolean`, `text`, `jsonb`, explicit enum types, CHECK constraints) instead of SQLite's dynamic typing. See [ADR-006](../adrs/006-postgres-and-atlas.md) for the decision rationale.
 
 Sibling doc: [`API.md`](./API.md). Read that first — this one references endpoints by name.
 
@@ -494,18 +494,19 @@ If that parse proves flaky, the fallback is a `plant_detail` table (`id, body js
 
 ---
 
-## 6. Open questions (to resolve before freeze)
+## 6. Resolved decisions
 
-1. **Postgres hosting.** Systemd user unit (`postgresql@16-main` as the `akcom` user, data dir under `var/postgres/`) vs a docker-compose `postgres:16` container. Lean: systemd user unit — matches how every other Dirt service is run, keeps the "no containers required" story intact, and gives us the same logs/restart ergonomics. Container is easier to spin up but adds a dep to the deploy story. **Decide before cutover.**
-2. **Atlas dev-db URL.** `docker://postgres/16/dirt_dev` requires docker on the dev machine. If we want zero-docker dev, switch to a second `postgresql@16-main` cluster bound to a non-prod port. Minor hassle; decide once and document. Lean: keep docker for the ephemeral dev-db — it's short-lived and not the production path.
-3. **CI Postgres.** GitHub Actions has a `services:` block for `postgres:16`. Trivial. Not a blocker.
-4. **Timezone convention: `timestamptz` always UTC vs America/Denver on the wire?** Lean: UTC on the wire, Denver at presentation. The current SQLite columns are naive-UTC (writer intent), which ports cleanly.
-5. **Mocked sensors visible in `/api/system/devices`?** If we add a "mocked" kind/status, the UI could show them as `mock`. Lean: no — mockup doesn't surface it, and flagging would leak implementation detail. Handlers log `stream=mock_sensors` server-side for auditability.
-6. **Plant `moisture_target_low/high`: per-plant in the schema (proposed) vs global constant.** Per-plant is in the Postgres schema. Cost: two extra columns. Benefit: per-plant tuning without a deploy. Lean: keep per-plant.
-7. **Should `growstate` have a `stage` column, or compute `stage` on read (current behavior)?** Compute is truth-preserving (no drift between `flower_start_date` and a cached `stage` value). Lean: keep computed. The `grow_stage` enum exists only to be returned by the API, not stored.
-8. **Historical grows.** Partially addressed by this revision: `growstate` now uses `is_current` + a partial unique index rather than a pinned `id = 1`, and `plant` carries `growstate_id`. A grow flip becomes a single-transaction `UPDATE ... SET is_current=false` + `INSERT ... is_current=true` + new `plant` rows. No separate `grow_history` table needed — the history IS `growstate` with `is_current = false` rows. Remaining open question: UI/API surface for "list past grows" is out of scope for V1 but free to add later.
+All data-model questions closed as of 2026-04-19:
 
-9. **`sensor_source` enum vs a dimension table.** Kept as enum (4 values: arduino, esp32, kasa, mock). Leaning enum because sources aren't independently queryable and don't carry additional metadata. Flip to a table only if we ever want to join sources to ownership / provisioning data.
+1. **Postgres hosting** → installed via `apt-get`; runs as the system `postgresql.service` (Debian package). Data dir `/var/lib/postgresql/17/main`. Enabled for boot.
+2. **Atlas dev-db** → Docker-ephemeral via `docker://postgres/17/dev?search_path=public`. Matches Atlas's recommended pattern — cleanroom per diff, impossible to misconfigure into prod. Docker 26 installed + enabled + `akcom` in the `docker` group (2026-04-19).
+3. **CI Postgres** → GitHub Actions `services:` block for `postgres:17`.
+4. **Timezone** → `timestamptz` (UTC) in the DB; UTC on the wire; the frontend converts to America/Denver at render time.
+5. **Mocked sensors in `/api/system/devices`** → not surfaced. Handlers log `stream=mock_sensors` server-side for auditability only.
+6. **Per-plant `moisture_target_low/high`** → per-plant, columns on `plant`.
+7. **`growstate.stage`** → computed on read from `flower_start_date`, never stored. The `grow_stage` enum exists only as an API return type.
+8. **Historical grows** → out of scope for V1. Schema supports it (the `is_current` flag + `plant.growstate_id` FK let a future flip insert a new row without migration), but no API / UI surface yet.
+9. **`sensor_source`** → enum (arduino, esp32, kasa, mock). Flip to a dimension table only if we ever need to join sources to ownership/provisioning metadata.
 
 ---
 
