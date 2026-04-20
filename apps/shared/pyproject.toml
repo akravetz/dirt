@@ -5,7 +5,6 @@ description = "Shared models, config, DB, and non-hardware services for dirt"
 requires-python = ">=3.13"
 dependencies = [
     "sqlmodel>=0.0.22",
-    "aiosqlite>=0.21",
     "python-dotenv>=1.1",
     "pydantic>=2.0",
     "pydantic-settings>=2.13.1",
@@ -14,6 +13,7 @@ dependencies = [
     "claude-agent-sdk>=0.1.63",
     "httpx>=0.28",
     "loguru>=0.7",
+    "asyncpg>=0.31.0",
 ]
 
 [build-system]

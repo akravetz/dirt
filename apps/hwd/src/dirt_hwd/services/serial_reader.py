@@ -5,11 +5,10 @@ import logging
 import math
 
 import serial
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.config import settings
-from dirt_shared.db import engine
-from dirt_shared.models.sensor_reading import SensorReading
+from dirt_shared.models.enums import SensorLocation, SensorSource
+from dirt_shared.services.readings import ingest_reading
 
 logger = logging.getLogger(__name__)
 
@@ -62,18 +61,6 @@ def _read_line(ser: serial.Serial) -> dict | None:
         return None
 
 
-async def _save_reading(metrics: dict[str, float]) -> None:
-    """Save a full set of metrics as individual rows."""
-    async with AsyncSession(engine) as session:
-        for name, value in metrics.items():
-            session.add(
-                SensorReading(
-                    location="tent", metric=name, value=value, source="arduino"
-                )
-            )
-        await session.commit()
-
-
 async def serial_reader_loop(stop_event: asyncio.Event) -> None:
     """Read sensor data from the Arduino over serial and save to DB."""
     port = settings.serial_port
@@ -107,7 +94,11 @@ async def serial_reader_loop(stop_event: asyncio.Event) -> None:
                 except (KeyError, ValueError, TypeError) as e:
                     logger.warning("Could not derive metrics from %r: %s", data, e)
                 else:
-                    await _save_reading(metrics)
+                    await ingest_reading(
+                        SensorLocation.TENT,
+                        metrics,
+                        source=SensorSource.ARDUINO,
+                    )
                     logger.debug(
                         "Saved reading: %.1f°F, %.1f%%, %.1fhPa, VPD=%.2fkPa",
                         metrics["temperature_f"],

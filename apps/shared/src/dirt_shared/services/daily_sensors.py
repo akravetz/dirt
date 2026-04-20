@@ -11,8 +11,8 @@ Three responsibilities:
    from the live calibration row + raw readings.
 
 All three are exposed through a :class:`SensorReader` whose constructor takes
-the SQLAlchemy engine and a clock. Tests inject an in-memory SQLite engine +
-a frozen clock so the time-window logic can be exercised deterministically.
+the SQLAlchemy engine and a clock. Tests inject a test pg engine + a frozen
+clock so the time-window logic can be exercised deterministically.
 """
 
 from __future__ import annotations
@@ -29,21 +29,28 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from dirt_shared.models.enums import SensorLocation
 from dirt_shared.models.sensor_calibration import SensorCalibration
+from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.services.readings import METRICS, compute_calibrated_pct
 
 logger = logging.getLogger(__name__)
 
-PLANT_LOCATIONS: tuple[str, ...] = ("plant-a", "plant-b", "plant-c", "plant-d")
-TENT_LOCATION = "tent"
+PLANT_LOCATIONS: tuple[SensorLocation, ...] = (
+    SensorLocation.PLANT_A,
+    SensorLocation.PLANT_B,
+    SensorLocation.PLANT_C,
+    SensorLocation.PLANT_D,
+)
+TENT_LOCATION = SensorLocation.TENT
 SOIL_METRIC = "soil_moisture_raw"
 MDT = ZoneInfo("America/Denver")
 
 
 @dataclass(frozen=True)
 class LatestReading:
-    location: str
+    location: SensorLocation
     metric: str
     value: float
     timestamp: datetime  # always UTC-aware
@@ -53,7 +60,7 @@ class LatestReading:
 @dataclass(frozen=True)
 class ValidationFailure:
     """Why a sensor reading failed the daily-report bail-out check."""
-    location: str
+    location: SensorLocation
     metric: str
     value: float | None
     age_s: float | None
@@ -102,11 +109,6 @@ class DailySensorSnapshot:
         }
 
 
-def _to_utc(dt: datetime) -> datetime:
-    """Stored timestamps are naive UTC; this normalises to UTC-aware."""
-    return dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt.astimezone(UTC)
-
-
 def mdt_window_to_utc(
     target_date: date, start_h: int, end_h: int
 ) -> tuple[datetime, datetime]:
@@ -143,24 +145,45 @@ class SensorReader:
         self._max_age_s = max_age_s
         self._min_raw = sensor_min_raw
         self._max_raw = sensor_max_raw
+        # Lazy (location → sensornode.id) cache. Initial migration seeds one
+        # row per enum value, so after a single lookup we never hit DB for
+        # the translation again.
+        self._node_ids: dict[SensorLocation, int] = {}
 
-    async def latest(self, location: str, metric: str) -> LatestReading | None:
+    async def _node_id(
+        self, session: AsyncSession, location: SensorLocation
+    ) -> int | None:
+        if location in self._node_ids:
+            return self._node_ids[location]
+        result = await session.exec(
+            select(SensorNode.id).where(SensorNode.location == location)
+        )
+        node_id = result.first()
+        if node_id is not None:
+            self._node_ids[location] = node_id
+        return node_id
+
+    async def latest(
+        self, location: SensorLocation, metric: str
+    ) -> LatestReading | None:
         async with AsyncSession(self._engine) as session:
+            node_id = await self._node_id(session, location)
+            if node_id is None:
+                return None
             result = await session.exec(
                 select(SensorReading)
-                .where(SensorReading.location == location)
+                .where(SensorReading.sensornode_id == node_id)
                 .where(SensorReading.metric == metric)
-                .order_by(SensorReading.timestamp.desc())
+                .order_by(SensorReading.ts.desc())
                 .limit(1)
             )
             row = result.first()
         if row is None:
             return None
-        ts = _to_utc(row.timestamp)
-        age = (self._clock() - ts).total_seconds()
+        age = (self._clock() - row.ts).total_seconds()
         return LatestReading(
             location=location, metric=metric, value=row.value,
-            timestamp=ts, age_s=age,
+            timestamp=row.ts, age_s=age,
         )
 
     async def validate(self) -> list[ValidationFailure]:
@@ -214,20 +237,22 @@ class SensorReader:
         return failures
 
     async def _avg_in_window(
-        self, location: str, metric: str, start: datetime, end: datetime
+        self,
+        location: SensorLocation,
+        metric: str,
+        start: datetime,
+        end: datetime,
     ) -> WindowAvg:
-        # Stored timestamps are naive UTC; strip tz from bounds for the
-        # lex-string comparison SQLite does. (See readings.py history bug
-        # for the equivalent issue we hit on the dashboard.)
-        start_naive = start.astimezone(UTC).replace(tzinfo=None)
-        end_naive = end.astimezone(UTC).replace(tzinfo=None)
         async with AsyncSession(self._engine) as session:
+            node_id = await self._node_id(session, location)
+            if node_id is None:
+                return WindowAvg(avg=None, n=0)
             result = await session.exec(
                 select(SensorReading.value)
-                .where(SensorReading.location == location)
+                .where(SensorReading.sensornode_id == node_id)
                 .where(SensorReading.metric == metric)
-                .where(SensorReading.timestamp >= start_naive)
-                .where(SensorReading.timestamp < end_naive)
+                .where(SensorReading.ts >= start)
+                .where(SensorReading.ts < end)
             )
             values = list(result.all())
         if not values:
@@ -235,37 +260,39 @@ class SensorReader:
         return WindowAvg(avg=mean(values), n=len(values))
 
     async def _calibration(
-        self, location: str, metric: str
+        self, location: SensorLocation, metric: str
     ) -> SensorCalibration | None:
         async with AsyncSession(self._engine) as session:
+            node_id = await self._node_id(session, location)
+            if node_id is None:
+                return None
             result = await session.exec(
                 select(SensorCalibration)
-                .where(SensorCalibration.location == location)
+                .where(SensorCalibration.sensornode_id == node_id)
                 .where(SensorCalibration.metric == metric)
             )
             return result.first()
 
     async def _avg_pct_in_window(
-        self, location: str, start: datetime, end: datetime,
+        self,
+        location: SensorLocation,
+        start: datetime,
+        end: datetime,
         cal: SensorCalibration | None,
     ) -> WindowAvg:
-        """Average calibrated soil-moisture % across the window.
-
-        Computes the mean of per-row calibrated values (not pct of mean
-        raw) so that any temporary spikes don't get smoothed away.
-        """
+        """Average calibrated soil-moisture % across the window."""
         if cal is None:
             return WindowAvg(avg=None, n=0)
-        # Per-row pct (not pct of mean raw) so spikes don't get smoothed.
-        start_naive = start.astimezone(UTC).replace(tzinfo=None)
-        end_naive = end.astimezone(UTC).replace(tzinfo=None)
         async with AsyncSession(self._engine) as session:
+            node_id = await self._node_id(session, location)
+            if node_id is None:
+                return WindowAvg(avg=None, n=0)
             result = await session.exec(
                 select(SensorReading.value)
-                .where(SensorReading.location == location)
+                .where(SensorReading.sensornode_id == node_id)
                 .where(SensorReading.metric == SOIL_METRIC)
-                .where(SensorReading.timestamp >= start_naive)
-                .where(SensorReading.timestamp < end_naive)
+                .where(SensorReading.ts >= start)
+                .where(SensorReading.ts < end)
             )
             raws = list(result.all())
         pcts = [
@@ -307,7 +334,7 @@ class SensorReader:
             if now_r is not None and cal is not None:
                 now_pct = compute_calibrated_pct(
                     now_r.value, cal.raw_low, cal.raw_high)
-            letter = loc.removeprefix("plant-")
+            letter = loc.value.removeprefix("plant-")
             plants[letter] = {
                 "overnight_pct": await self._avg_pct_in_window(
                     loc, *overnight, cal),

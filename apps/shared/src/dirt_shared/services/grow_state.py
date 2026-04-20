@@ -17,6 +17,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Literal
 from zoneinfo import ZoneInfo
 
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.config import GROW_START
@@ -54,15 +55,20 @@ STAGE_TARGETS: dict[Stage, dict[str, tuple[float, float]]] = {
 
 
 async def get_state() -> GrowState:
-    """Read the singleton. Returns a transient default if the row is missing.
+    """Return the current grow (``is_current = true``).
 
-    The transient fallback keeps tool callsites robust against an un-seeded
-    DB (fresh dev env, test without explicit seed). init_db() writes the
-    real row on app startup so production reads always see it.
+    The partial unique index in the schema enforces "at most one"; the
+    initial Atlas migration seeds exactly one. A transient default
+    (germination_date from config.GROW_START) is returned if nothing is
+    found, so tool callsites stay robust against an un-seeded DB (fresh
+    dev env, test without seed).
     """
     async with AsyncSession(engine) as session:
-        state = await session.get(GrowState, 1)
-        return state or GrowState(id=1, germination_date=GROW_START)
+        result = await session.exec(
+            select(GrowState).where(GrowState.is_current.is_(True)).limit(1)
+        )
+        state = result.first()
+        return state or GrowState(germination_date=GROW_START, is_current=True)
 
 
 async def current_stage(today: date | None = None) -> Stage:

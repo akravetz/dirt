@@ -10,7 +10,7 @@ from dirt_shared.models.snapshot import Snapshot
 async def get_latest_snapshot() -> Snapshot | None:
     async with AsyncSession(engine) as session:
         result = await session.exec(
-            select(Snapshot).order_by(Snapshot.timestamp.desc()).limit(1)
+            select(Snapshot).order_by(Snapshot.ts.desc()).limit(1)
         )
         return result.first()
 

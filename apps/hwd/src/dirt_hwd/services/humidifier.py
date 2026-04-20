@@ -28,14 +28,12 @@ import logging
 from datetime import UTC, datetime
 
 from kasa import Credentials, Device, Discover
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.config import settings
-from dirt_shared.db import engine
-from dirt_shared.models.sensor_reading import SensorReading
+from dirt_shared.models.enums import SensorLocation, SensorSource
 from dirt_shared.observability import log_event
 from dirt_shared.services.grow_state import current_stage, current_targets, lights_state
-from dirt_shared.services.readings import get_latest_reading
+from dirt_shared.services.readings import get_latest_reading, ingest_reading
 
 logger = logging.getLogger(__name__)
 
@@ -43,16 +41,12 @@ STREAM = "humidifier"
 
 
 async def _record(on: bool) -> None:
-    async with AsyncSession(engine) as session:
-        session.add(
-            SensorReading(
-                location="tent",
-                metric="humidifier_on",
-                value=1.0 if on else 0.0,
-                source="kasa",
-            )
-        )
-        await session.commit()
+    """Write the humidifier on/off state as a tent-scoped reading."""
+    await ingest_reading(
+        SensorLocation.TENT,
+        {"humidifier_on": 1.0 if on else 0.0},
+        source=SensorSource.KASA,
+    )
 
 
 async def _safe_disconnect(plug: Device | None) -> None:
@@ -127,13 +121,7 @@ async def humidifier_loop(stop_event: asyncio.Event) -> None:
             reading = await get_latest_reading("vpd_kpa")
             now = datetime.now(UTC)
             vpd: float | None = reading.value if reading else None
-            # SQLite drops tzinfo; treat stored timestamps as UTC.
-            age = None
-            if reading is not None:
-                ts = reading.timestamp
-                if ts.tzinfo is None:
-                    ts = ts.replace(tzinfo=UTC)
-                age = (now - ts).total_seconds()
+            age = (now - reading.ts).total_seconds() if reading is not None else None
 
             new_state = is_on
             reason: str | None = None

@@ -17,8 +17,8 @@ load_dotenv()
 #   parents[4] = <repo root>
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 
-# Germination date per wiki/overview.md. Day 1 = 2026-03-15. Seeds the
-# grow_state.germination_date row on first boot — runtime reads go through
+# Germination date per wiki/overview.md. Day 1 = 2026-03-15. Seeded into
+# growstate on the initial Atlas migration; runtime reads go through
 # dirt_shared.services.grow_state so a future UI can edit the date in one place.
 GROW_START = date(2026, 3, 15)
 
@@ -27,16 +27,18 @@ class Settings(BaseSettings):
     app_name: str = "Dirt"
     auth_username: str = "admin"
     auth_password: str = "changeme"
-    # Runtime data directory: dirt.db + snapshots/ + archives/ + logs/ +
-    # sessions/ all live under this. Override via DIRT_DATA_DIR env var.
-    # Default is the post-cutover target (<repo>/var). Pre-cutover, the
-    # running service overrides DATABASE_URL + SNAPSHOT_DIR in .env to point
-    # at the repo-root files; removing those two env vars at cutover lets
-    # the derivation below move everything under <repo>/var in one step.
+    # Runtime data directory: snapshots/ + archives/ + logs/ + sessions/
+    # all live under this. Override via DIRT_DATA_DIR env var.
     data_dir: Path = Field(default=_REPO_ROOT / "var", validation_alias="DIRT_DATA_DIR")
-    # None = derive from data_dir in _derive_data_paths. Set explicitly to
-    # override independently of data_dir.
+    # Postgres — either set DATABASE_URL explicitly or provide the components
+    # (DIRT_PG_{HOST,PORT,USER,PASSWORD,DATABASE}) and let _derive_db_url
+    # assemble the async URL. No sqlite fallback post-cutover (ADR-006).
     database_url: str | None = None
+    dirt_pg_host: str = Field(default="127.0.0.1", validation_alias="DIRT_PG_HOST")
+    dirt_pg_port: int = Field(default=5432, validation_alias="DIRT_PG_PORT")
+    dirt_pg_user: str = Field(default="dirt", validation_alias="DIRT_PG_USER")
+    dirt_pg_password: str = Field(default="", validation_alias="DIRT_PG_PASSWORD")
+    dirt_pg_database: str = Field(default="dirt", validation_alias="DIRT_PG_DATABASE")
     snapshot_dir: Path | None = None
     archive_dir: Path | None = None
     capture_interval: int = 300  # 5 minutes
@@ -82,8 +84,11 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _derive_data_paths(self) -> Settings:
         if self.database_url is None:
+            # Assemble from DIRT_PG_* env vars. Used when .env has the
+            # components but no explicit DATABASE_URL override.
             self.database_url = (
-                f"sqlite+aiosqlite:///{(self.data_dir / 'dirt.db').as_posix()}"
+                f"postgresql+asyncpg://{self.dirt_pg_user}:{self.dirt_pg_password}"
+                f"@{self.dirt_pg_host}:{self.dirt_pg_port}/{self.dirt_pg_database}"
             )
         if self.snapshot_dir is None:
             self.snapshot_dir = self.data_dir / "snapshots"

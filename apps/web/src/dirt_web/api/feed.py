@@ -34,6 +34,6 @@ async def feed_status() -> HTMLResponse:
     snapshot = await get_latest_snapshot()
     if snapshot is None:
         return HTMLResponse("No snapshots yet")
-    ts_mt = snapshot.timestamp.astimezone(_MT)
+    ts_mt = snapshot.ts.astimezone(_MT)
     ts_str = ts_mt.strftime("%Y-%m-%d %I:%M:%S %p MT")
     return HTMLResponse(f"Last capture: {ts_str}")

@@ -1,4 +1,4 @@
-"""Direct-read sensor tools. Sub-200ms; hit the local SQLite sensor DB."""
+"""Direct-read sensor tools. Sub-200ms; hit the local sensor DB."""
 
 from __future__ import annotations
 
@@ -9,13 +9,24 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.db import engine
+from dirt_shared.models.enums import SensorLocation
 from dirt_shared.models.sensor_calibration import SensorCalibration
+from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.services.grow_state import current_targets
-from dirt_shared.services.readings import METRICS, compute_calibrated_pct, get_latest_reading
+from dirt_shared.services.readings import (
+    METRICS,
+    compute_calibrated_pct,
+    get_latest_reading,
+)
 from dirt_voice.tools import ToolSpec
 
-PLANT_LOCATIONS = ("plant-a", "plant-b", "plant-c", "plant-d")
+PLANT_LOCATIONS = (
+    SensorLocation.PLANT_A,
+    SensorLocation.PLANT_B,
+    SensorLocation.PLANT_C,
+    SensorLocation.PLANT_D,
+)
 
 
 # `pressure_hpa` and `dew_point_f` are informational (rarely actionable
@@ -38,9 +49,7 @@ async def _latest_soil_moisture_pct() -> tuple[dict[str, float], list[float]]:
 
     Returns ({plant_letter: pct_rounded}, [reading_age_s, ...]) — letter is
     'a'/'b'/'c'/'d', pct is 0-100. Plants without a reading or without a
-    usable calibration row are silently omitted; ages are reported only for
-    plants that made it into the dict, so callers can fold them into the
-    'oldest reading' calculation alongside tent-metric ages.
+    usable calibration row are silently omitted.
     """
     out: dict[str, float] = {}
     ages: list[float] = []
@@ -49,9 +58,10 @@ async def _latest_soil_moisture_pct() -> tuple[dict[str, float], list[float]]:
         for loc in PLANT_LOCATIONS:
             reading_res = await session.exec(
                 select(SensorReading)
-                .where(SensorReading.location == loc)
+                .join(SensorNode, SensorReading.sensornode_id == SensorNode.id)
+                .where(SensorNode.location == loc)
                 .where(SensorReading.metric == "soil_moisture_raw")
-                .order_by(SensorReading.timestamp.desc())
+                .order_by(SensorReading.ts.desc())
                 .limit(1)
             )
             row = reading_res.first()
@@ -59,7 +69,8 @@ async def _latest_soil_moisture_pct() -> tuple[dict[str, float], list[float]]:
                 continue
             cal_res = await session.exec(
                 select(SensorCalibration)
-                .where(SensorCalibration.location == loc)
+                .join(SensorNode, SensorCalibration.sensornode_id == SensorNode.id)
+                .where(SensorNode.location == loc)
                 .where(SensorCalibration.metric == "soil_moisture_raw")
             )
             cal = cal_res.first()
@@ -68,8 +79,8 @@ async def _latest_soil_moisture_pct() -> tuple[dict[str, float], list[float]]:
             pct = compute_calibrated_pct(row.value, cal.raw_low, cal.raw_high)
             if pct is None:
                 continue
-            out[loc.removeprefix("plant-")] = round(pct, 1)
-            ages.append((now - row.timestamp.replace(tzinfo=UTC)).total_seconds())
+            out[loc.value.removeprefix("plant-")] = round(pct, 1)
+            ages.append((now - row.ts).total_seconds())
     return out, ages
 
 
@@ -85,7 +96,7 @@ async def _get_current_status() -> dict:
         if r is None:
             continue
         readings[metric] = round(r.value, 2)
-        age_s = (now - r.timestamp.replace(tzinfo=UTC)).total_seconds()
+        age_s = (now - r.ts).total_seconds()
         oldest_age_s = age_s if oldest_age_s is None else max(oldest_age_s, age_s)
 
         if metric in targets:
@@ -120,11 +131,14 @@ async def _get_sensor_trend(sensor: str, hours_back: int = 24) -> dict:
 
     cutoff = datetime.now(UTC) - timedelta(hours=hours_back)
     async with AsyncSession(engine) as session:
+        # Tent-scoped trend — join to the 'tent' sensornode.
         result = await session.exec(
             select(SensorReading)
+            .join(SensorNode, SensorReading.sensornode_id == SensorNode.id)
+            .where(SensorNode.location == SensorLocation.TENT)
             .where(SensorReading.metric == sensor)
-            .where(SensorReading.timestamp >= cutoff)
-            .order_by(SensorReading.timestamp)
+            .where(SensorReading.ts >= cutoff)
+            .order_by(SensorReading.ts)
         )
         rows = result.all()
 

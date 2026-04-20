@@ -115,7 +115,7 @@ async def capture_snapshot() -> Snapshot | None:
     file_path = snapshot_dir / filename
     await asyncio.to_thread(file_path.write_bytes, data)
 
-    snapshot = Snapshot(timestamp=now, file_path=str(file_path))
+    snapshot = Snapshot(ts=now, file_path=str(file_path))
     async with AsyncSession(engine) as session:
         session.add(snapshot)
         await session.commit()
