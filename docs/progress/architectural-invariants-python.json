@@ -26,10 +26,13 @@
         {"type": "shell_exit_zero", "cmd": "uv run pytest apps/tests/invariants/test_import_boundaries.py -q"},
         {"type": "negative_test", "description": "Add `from dirt_shared.services.plants import get_plants_payload` to any file in apps/shared/src/dirt_shared/models/ — pytest must fail.", "cmd": "uv run pytest apps/tests/invariants/test_import_boundaries.py -q"}
       ],
-      "status": "not_started",
+      "status": "needs_verification",
       "blocks": [],
       "blocked_by": [],
-      "session_log": [],
+      "session_log": [
+        {"date": "2026-04-20", "note": "Starting PY-01. Adding layers contract to import_boundaries.invariant.ini. Noted that the lane-file-suggested order (services → models → db → {config,observability}) is inverted relative to reality: db.py imports dirt_shared.models as a side-effect to register SQLModel metadata. Using order services → db → models → {config, observability} instead — acceptance_criteria only require layers contract present, pattern dirt_shared.services, test passes, and negative test (models → services) fails. Order is flexible within those constraints."},
+        {"date": "2026-04-20", "commit": "ad9b602", "note": "PY-01 committed. All 4 acceptance_criteria pass locally: (1) grep '^type\\s*=\\s*layers' present, (2) grep 'dirt_shared\\.services' present (in WHY comment), (3) uv run pytest apps/tests/invariants/test_import_boundaries.py -q exits 0, (4) negative test: patched apps/shared/src/dirt_shared/models/plant.py to add `from dirt_shared.services.plants import PlantsService`; pytest exited non-zero with import-linter reporting 'dirt_shared.models is not allowed to import dirt_shared.services'. Reverted."}
+      ],
       "verifier_notes": null
     },
     {
@@ -50,10 +53,13 @@
         {"type": "shell_exit_zero", "cmd": "uv run pytest apps/tests/invariants/test_dependency_hygiene.py -q"},
         {"type": "negative_test", "description": "Add `import toml` to any dirt_shared service file without adding it to deps. Must fail.", "cmd": "uv run pytest apps/tests/invariants/test_dependency_hygiene.py -q"}
       ],
-      "status": "not_started",
+      "status": "needs_verification",
       "blocks": [],
       "blocked_by": [],
-      "session_log": [],
+      "session_log": [
+        {"date": "2026-04-20", "note": "Starting PY-02. Added deptry as a dev dep (uv add --dev deptry → 0.25.1). Ran deptry per-package and fixed real findings: removed unused python-multipart + loguru from dirt-hwd; moved pytest + pytest-asyncio into dirt-shared real deps because src/dirt_shared/testing.py ships fixtures as a pytest plugin; removed unused python-kasa from dirt-shared (only dirt-hwd imports kasa); added pydantic to dirt-hwd (directly imported by api/ingest.py). Configured per-package [tool.deptry.per_rule_ignores] for legitimate transitive directly-imported peers (sqlalchemy via sqlmodel; starlette via fastapi/mcp; numpy/loguru via pipecat in voice; deepgram-sdk/elevenlabs declared for pin-pinning against pipecat extras)."},
+        {"date": "2026-04-20", "commit": "pending", "note": "PY-02 test written. All 4 acceptance_criteria pass locally: (1) file exists, (2) uv run deptry --version → 0.25.1, (3) uv run pytest .../test_dependency_hygiene.py → 5 passed, (4) negative test: injected `import toml` into apps/shared/src/dirt_shared/services/plants.py; deptry reported DEP001 and pytest exited non-zero. Reverted."}
+      ],
       "verifier_notes": null
     },
     {

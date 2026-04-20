@@ -13,6 +13,16 @@ dependencies = [
     "itsdangerous>=2.2.0",
 ]
 
+# deptry: per-rule ignores. See apps/tests/invariants/test_dependency_hygiene.py.
+#   DEP002 jinja2 / python-multipart — consumed transparently by fastapi
+#   (fastapi.templating.Jinja2Templates; fastapi form parsers), so deptry
+#   can't see the direct import even though the dep is real.
+#   DEP003 sqlalchemy / starlette — transitively pulled in via sqlmodel /
+#   fastapi respectively; idiomatic to import them directly.
+[tool.deptry.per_rule_ignores]
+DEP002 = ["jinja2", "python-multipart"]
+DEP003 = ["sqlalchemy", "starlette"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

@@ -7,11 +7,16 @@ dependencies = [
     "dirt-shared",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.34",
-    "python-multipart>=0.0.20",
     "pyserial>=3.5",
     "python-kasa",
-    "loguru>=0.7",
+    "pydantic>=2.0",
 ]
+
+# deptry: per-rule ignores. See apps/tests/invariants/test_dependency_hygiene.py.
+#   DEP003 sqlalchemy / starlette — transitively pulled in via sqlmodel /
+#   fastapi respectively. Idiomatic to import them directly.
+[tool.deptry.per_rule_ignores]
+DEP003 = ["sqlalchemy", "starlette"]
 
 [build-system]
 requires = ["hatchling"]

@@ -15,6 +15,7 @@ dev-dependencies = [
     "matplotlib>=3.10.8",
     "atlas-provider-sqlalchemy>=0.5.0",
     "import-linter>=2.11",
+    "deptry>=0.25.1",
 ]
 
 [tool.uv.sources]

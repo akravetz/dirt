@@ -13,6 +13,17 @@ dependencies = [
     "claude-agent-sdk>=0.1.63",
 ]
 
+# deptry: per-rule ignores. See apps/tests/invariants/test_dependency_hygiene.py.
+#   DEP002 deepgram-sdk / elevenlabs — consumed via pipecat's
+#   [deepgram,elevenlabs] extras which wrap the SDKs at import time; the
+#   declarations pin the versions pipecat resolves against.
+#   DEP003 numpy / loguru / sqlalchemy / sqlmodel — transitively pulled
+#   in via pipecat / dirt-shared; idiomatic to import directly at the
+#   call site rather than redeclare every pipecat peer.
+[tool.deptry.per_rule_ignores]
+DEP002 = ["deepgram-sdk", "elevenlabs"]
+DEP003 = ["numpy", "loguru", "sqlalchemy", "sqlmodel"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

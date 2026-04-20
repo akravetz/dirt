@@ -9,12 +9,22 @@ dependencies = [
     "pydantic>=2.0",
     "pydantic-settings>=2.13.1",
     "pillow>=12.2.0",
-    "python-kasa",
     "claude-agent-sdk>=0.1.63",
     "httpx>=0.28",
     "loguru>=0.7",
     "asyncpg>=0.31.0",
+    # src/dirt_shared/testing.py ships pytest fixtures as a plugin
+    # (pytest_plugins = ["dirt_shared.testing"] in every conftest) — so
+    # pytest + pytest-asyncio are real first-party imports, not dev-only.
+    "pytest>=8.3",
+    "pytest-asyncio>=0.25",
 ]
+
+# deptry: per-rule ignores. See apps/tests/invariants/test_dependency_hygiene.py.
+#   DEP003 sqlalchemy — transitively pulled in via sqlmodel; idiomatic to
+#   import it directly for typed query primitives (text, select, etc.).
+[tool.deptry.per_rule_ignores]
+DEP003 = ["sqlalchemy"]
 
 [build-system]
 requires = ["hatchling"]
