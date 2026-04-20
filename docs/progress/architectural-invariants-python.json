@@ -111,7 +111,7 @@
       "session_log": [
         {"date": "2026-04-20", "note": "Starting PY-04. Added ASYNC to [tool.ruff.lint] select. ASYNC240 (use trio/anyio Path in async fns) ignored — Dirt uses stdlib asyncio. Also added noqa: ASYNC221 to the single legitimate sync subprocess.run inside an async session fixture (atlas migrate in src/dirt_shared/testing.py — session-scoped one-shot)."},
         {"date": "2026-04-20", "note": "Pre-existing ruff drift blocked 'ruff check' from exiting 0 baseline: 45 errors in apps/ plus ~170 in .claude/skills and scripts/. Excluded .claude, scripts, firmware, debug from [tool.ruff]. Fixed or noqa'd the 15 remaining apps/ errors: B008 (FastAPI Depends idiom) → per-file-ignores for api/ modules; RUF001/002/003 (ambiguous unicode ×, –) → global ignore (docstrings intentionally use typographic chars); tests E501/SLF001 → per-file-ignore (long pytest.parametrize lines + private-member-access IS the test); small refactors of plants.py (pairwise), wiki.py (r in tuple / line break), _audio_transport.py + voice.py (line breaks)."},
-        {"date": "2026-04-20", "commit": "pending", "note": "PY-04 test pass. All 3 acceptance_criteria green: (1) grep 'ASYNC' in pyproject.toml, (2) uv run ruff check → 0 errors, (3) negative test: injected `import time; time.sleep(1)` into an async fn in plants.py; ruff reported ASYNC251 and exited non-zero. Reverted."}
+        {"date": "2026-04-20", "commit": "25cfa4b", "note": "PY-04 committed. All 3 acceptance_criteria green: (1) grep 'ASYNC' in pyproject.toml, (2) uv run ruff check → 0 errors, (3) negative test: injected `import time; time.sleep(1)` into an async fn in plants.py; ruff reported ASYNC251 and exited non-zero. Reverted."}
       ],
       "verifier_notes": null
     },
@@ -132,10 +132,13 @@
         {"type": "shell_exit_zero", "cmd": "uv run pytest apps/tests/invariants/test_no_raw_sql_outside_data_layer.py -q"},
         {"type": "negative_test", "description": "Add `_q = 'SELECT * FROM plant'` to any api/ file. Must fail.", "cmd": "uv run pytest apps/tests/invariants/test_no_raw_sql_outside_data_layer.py -q"}
       ],
-      "status": "not_started",
+      "status": "needs_verification",
       "blocks": [],
       "blocked_by": [],
-      "session_log": [],
+      "session_log": [
+        {"date": "2026-04-20", "note": "Starting PY-05. AST scan walks apps/*/src/dirt_*/**/*.py, checks every Constant-str and JoinedStr-prefix for SQL keyword starts (SELECT, INSERT INTO, UPDATE, DELETE FROM, CREATE/ALTER/DROP TABLE, WITH). ALLOWED_PREFIXES = models/, services/, db.py. No production refactor — all existing raw SQL (db.py ping; services/readings.py time-bucket aggregation; services/humidifier_state.py time-window query) is already inside allowed prefixes."},
+        {"date": "2026-04-20", "commit": "pending", "note": "PY-05 test passes. All 3 acceptance_criteria green: (1) file exists, (2) uv run pytest → 5 passed, (3) negative test: prepended `_q = 'SELECT * FROM plant'` to apps/web/src/dirt_web/api/sensors.py; test failed flagging the literal. Reverted."}
+      ],
       "verifier_notes": null
     },
     {
