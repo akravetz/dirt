@@ -110,7 +110,7 @@ async def lights_state(now_utc: datetime | None = None) -> LightsState:
 
     Reads `lights_on_local` / `lights_off_local` from the `growstate`
     singleton so the schedule is user-editable without a code deploy
-    (future UI; for now `sqlite3 ... UPDATE growstate SET ...`).
+    (future UI; for now `psql -U dirt -d dirt -c "UPDATE growstate SET ..."`).
     """
     now_utc = now_utc or datetime.now(UTC)
     now_local = now_utc.astimezone(TENT_TZ)

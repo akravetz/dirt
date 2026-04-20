@@ -500,7 +500,7 @@ Drives the Cmd+K palette.
 }
 ```
 
-V1 implementation: naive substring scan over filenames + markdown bodies. ~70 files, will complete in single-digit ms. If that changes, swap in SQLite FTS or a simple inverted index.
+V1 implementation: naive substring scan over filenames + markdown bodies. ~70 files, will complete in single-digit ms. If that changes, swap in Postgres FTS via a `wiki_file(path, title, body_tsv tsvector)` materialized table.
 
 **Open question (?):** Fuzzy match? Lean: no in V1 — mockup's search text is literal.
 

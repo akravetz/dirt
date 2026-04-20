@@ -1,9 +1,10 @@
 # Epic: Sensor Monitoring
 
-Status: blocked
+Status: complete
 Priority: high
 Created: 2026-03-22
-Blocked: Waiting on sensor hardware (~April 1, 2026)
+
+> **Post-completion note (2026-04-19):** sensor storage was migrated from SQLite to Postgres 17 per [ADR-006](../../adrs/006-postgres-and-atlas.md). `SensorReading.location` (free-form text) became `sensornode_id` (FK to the enum-typed `sensornode` table); timestamps are `timestamptz` with `LAG()` window functions replacing the SQLite datetime workarounds. Service surface unchanged: `get_latest_reading` / `get_sensor_history` / `ingest_reading`.
 
 ## Goal
 

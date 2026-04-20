@@ -4,6 +4,8 @@ Status: complete
 Priority: high
 Created: 2026-03-22
 
+> **Post-completion note (2026-04-19):** the snapshot metadata DB was migrated from SQLite to Postgres 17 per [ADR-006](../../adrs/006-postgres-and-atlas.md). The ingest path + schema shape are equivalent; the `Snapshot.timestamp` column is now `Snapshot.ts` / `timestamptz`.
+
 ## Goal
 
 Capture periodic snapshots from the Logitech C920 via OpenCV, store them to disk with metadata in SQLite, and serve a live feed page that auto-refreshes via HTMX. This is the first user-facing feature and establishes the capture pipeline, database foundation, and web UI shell.

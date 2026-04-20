@@ -54,7 +54,7 @@ apps/
   tests/
     invariants/    three AST-driven cross-app boundary tests
   <app>/tests/     per-app unit/integration tests
-var/           runtime data: dirt.db, snapshots/, logs/, sessions/, raw/photos/, outputs/, db-backups/
+var/           runtime data: snapshots/, logs/, sessions/, raw/photos/, outputs/, db-backups/, dirt.db.pre-pg-cutover (rollback artifact)
 systemd/       six user-level .service + .timer units
 scripts/       install-systemd, daily_report, camera, lint.py, etc.
 docs/          ADRs, epics, progress, references, rules
@@ -306,7 +306,7 @@ Endpoints already live (mostly in `apps/web/src/dirt_web/api/`) for: feed, senso
 
 - `apps/hwd/` — the hardware daemon (serial reader, humidifier loop, archive loop, ingest endpoint). Do not edit code here, do not add endpoints here, do not import from here in non-hwd code. `test_import_boundaries.py` enforces the last rule.
 - `systemd/dirt-hwd.service` — do not modify; its live process is serving the ESP32s.
-- `var/dirt.db` (live DB) — never delete or overwrite. Tests must use a tmp DB per-test.
+- Live Postgres `dirt` database (see ADR-006) — never `DROP TABLE`, `TRUNCATE`, or overwrite production data. Tests clone from `dirt_test_template` via `pg_engine` fixture; see `dirt_shared.testing`.
 - `apps/tests/invariants/*` — human-owned per existing hooks. Generators must make code match the invariants, not the other way around.
 
 ### Invariants the evaluator checks after each feature

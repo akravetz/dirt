@@ -61,8 +61,8 @@ Custom `SoundDeviceTransport` (in `src/dirt/channels/_audio_transport.py`) wraps
 
 All defined in `src/dirt/tools/`, shared with future channels (e.g., Telegram) via the framework-agnostic `ToolSpec` registry:
 
-- **`get_current_status`** — latest tent sensor readings (temp, RH, VPD, pressure, dew point) + in-range / out-of-range flags against flower-stage targets. <200ms, direct SQLite.
-- **`get_sensor_trend`** — min / max / avg / direction (rising|falling|stable) for a single metric over N hours. <200ms, direct SQLite.
+- **`get_current_status`** — latest tent sensor readings (temp, RH, VPD, pressure, dew point) + in-range / out-of-range flags against flower-stage targets. <200ms, direct Postgres read.
+- **`get_sensor_trend`** — min / max / avg / direction (rising|falling|stable) for a single metric over N hours. <200ms, direct Postgres read.
 - **`ask_wiki`** — delegated Sonnet 4.6 sub-agent with `read_wiki` + `grep_wiki` tools scoped to `wiki/`. Returns a spoken-ready 1-3 sentence answer plus cited source paths. `cancel_on_interruption=False`, 15s timeout.
 
 When adding new tools, the default should be **narrow and well-typed for voice-turn-critical paths**, with a codegen-style sub-agent (via `ask_wiki`-style delegation) as the escape hatch for open-ended queries.

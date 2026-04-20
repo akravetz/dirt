@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted — **database choice superseded by [ADR-006](006-postgres-and-atlas.md)** on 2026-04-19 (SQLite → Postgres 17 + Atlas migrations). All other stack choices (FastAPI, SQLModel, Jinja2, htmx, Bootstrap, OpenCV, pytest, ruff, uv) still stand.
 
 ## Context
 

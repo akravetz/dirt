@@ -14,7 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Current grow
 
-- **Germination date:** 2026-03-15 (authoritative: `growstate.germination_date` in `var/dirt.db`).
+- **Germination date:** 2026-03-15 (authoritative: `growstate.germination_date` in the Postgres `dirt` database; inspect with `set -a; source .env; set +a; PGPASSWORD=$DIRT_PG_PASSWORD psql -h 127.0.0.1 -U dirt -d dirt`).
 - **Flower start date:** not yet set (still in vegetative stage). Once flower is flipped, `growstate.flower_start_date` becomes the authoritative source.
 - **Deriving stage without the DB:** if `flower_start_date` is NULL (or `today` is before it) → `veg`. If set and `today - flower_start_date < 21` → `flower_early`. If ≥ 21 → `flower_late`. See `apps/shared/src/dirt_shared/services/grow_state.py` for the canonical logic and `STAGE_TARGETS` (temp/RH/VPD bands per stage).
 - **Update this file** whenever the grow is flipped, terminated, or a new grow is started — don't rely on the DB alone, since agents without DB access still need to know the stage.
@@ -32,7 +32,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **`apps/<app>/tests/`** — per-app unit + integration tests.
 - **`contracts/`** — (future) OpenAPI spec + generated TS client + generated Pydantic models.
 - **`web-ui/`** — Vite + React + TypeScript + TanStack Router + TanStack Query + Tailwind v4 + Biome. Skeleton exists with a single placeholder route at `/`. Dev server on :5173 (`pnpm --dir web-ui dev`). Phase 2 generator agents extend this against the frozen API contract.
-- **`var/`** — runtime data: `dirt.db`, `snapshots/`, `logs/`, `sessions/`, `raw/photos/`, `outputs/`, `db-backups/`. Gitignored. Override the root via `DIRT_DATA_DIR` env var (defaults to `<repo>/var`).
+- **`var/`** — runtime data: `snapshots/`, `logs/`, `sessions/`, `raw/photos/`, `outputs/`, `db-backups/`, plus the `dirt.db.pre-pg-cutover` sqlite rollback artifact (retained 2 weeks post-cutover, ADR-006). The live DB is Postgres (connect via `dirt_shared.db.engine`), not a file under `var/`. Gitignored. Override the root via `DIRT_DATA_DIR` env var (defaults to `<repo>/var`).
 
 Services are user-level systemd units under `systemd/`; `scripts/install-systemd` symlinks them into `~/.config/systemd/user/`.
 
