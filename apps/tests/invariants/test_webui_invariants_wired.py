@@ -62,6 +62,8 @@ KNOWN_SENTINELS: dict[str, dict[str, object]] = {
     "eslint": {
         # TS-02 — layered architecture via eslint-plugin-boundaries.
         "boundaries/element-types": 2,
+        # TS-03 — ban training-data drift imports.
+        "no-restricted-imports": 2,
     },
     "tsconfig": {
         # TS-01 — strict-mode flags.

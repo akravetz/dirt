@@ -78,6 +78,52 @@ const config: Linter.Config[] = [
       // FIX: Re-route the dependency through a shared/* module, lift the
       // shared logic into a new shared utility, or use an explicit
       // composition in src/main.tsx.
+      // TS-03 — ban training-data drift imports.
+      //
+      // WHY: LLM training data reliably reaches for react-router-dom /
+      // axios / next/* / @remix-run/* even when the project uses TanStack
+      // Router + native fetch. Lint-fatal makes the drift visible at
+      // first keystroke.
+      // FIX: Use the replacements flagged in each `message` below.
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "react-router-dom",
+              message:
+                "WHY: project uses @tanstack/react-router. FIX: import from '@tanstack/react-router' — see docs/references/tanstack-router-v1/INDEX.md.",
+            },
+            {
+              name: "@remix-run/react",
+              message:
+                "WHY: project uses @tanstack/react-router. FIX: import from '@tanstack/react-router'.",
+            },
+            {
+              name: "@remix-run/router",
+              message:
+                "WHY: project uses @tanstack/react-router. FIX: import from '@tanstack/react-router'.",
+            },
+            {
+              name: "next",
+              message:
+                "WHY: this is a Vite SPA, not a Next.js app. FIX: use TanStack Router primitives; no next/* imports.",
+            },
+            {
+              name: "axios",
+              message:
+                "WHY: project uses the generated OpenAPI client over native fetch. FIX: import from src/api-client/ (see TS-05).",
+            },
+          ],
+          patterns: [
+            {
+              group: ["next/*"],
+              message:
+                "WHY: Vite SPA, not Next.js. FIX: drop next/* imports; use TanStack Router + Vite equivalents.",
+            },
+          ],
+        },
+      ],
       "boundaries/element-types": [
         "error",
         {

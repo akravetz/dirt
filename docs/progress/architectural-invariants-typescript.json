@@ -126,7 +126,7 @@
       "blocks": ["TS-05", "TS-09", "TS-10", "TS-11"],
       "blocked_by": ["XX-02"],
       "session_log": [
-        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "Installed eslint-plugin-boundaries v6.0.2. Defined 6 element types (main / routes / features(slice) / api-client / ui / shared) in web-ui/invariants/eslint.config.ts + rules: features/X cannot import features/Y, routes cannot import api-client directly (it can — routes is the entry to api-client); updated rule map so routes/ui/shared/api-client each have their allowlist. Kept 'boundaries/element-types' legacy rule name (still works in v6 with deprecation warning → lint exit 0) to honor the plan's grep assertion + sentinel rule name. Appended 'boundaries/element-types':2 to KNOWN_SENTINELS. pnpm lint PASS; meta-invariant 6/6 PASS. Commit <sha>."}
+        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "Installed eslint-plugin-boundaries v6.0.2. Defined 6 element types (main / routes / features(slice) / api-client / ui / shared) in web-ui/invariants/eslint.config.ts + rules: features/X cannot import features/Y, routes cannot import api-client directly (it can — routes is the entry to api-client); updated rule map so routes/ui/shared/api-client each have their allowlist. Kept 'boundaries/element-types' legacy rule name (still works in v6 with deprecation warning → lint exit 0) to honor the plan's grep assertion + sentinel rule name. Appended 'boundaries/element-types':2 to KNOWN_SENTINELS. pnpm lint PASS; meta-invariant 6/6 PASS. Commit f4e5780."}
       ],
       "verifier_notes": null
     },
