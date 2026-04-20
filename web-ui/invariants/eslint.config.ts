@@ -72,13 +72,6 @@ const config: Linter.Config[] = [
       "boundaries/include": ["src/**/*.ts", "src/**/*.tsx"],
     },
     rules: {
-      // TS-02 — layered architecture enforcement.
-      //
-      // WHY: Without it, feature slices cross-import and the architecture
-      // decays within weeks (Python-lane analogue: import-linter layers).
-      // FIX: Re-route the dependency through a shared/* module, lift the
-      // shared logic into a new shared utility, or use an explicit
-      // composition in src/main.tsx.
       // TS-03 — ban training-data drift imports.
       //
       // WHY: LLM training data reliably reaches for react-router-dom /
@@ -125,6 +118,13 @@ const config: Linter.Config[] = [
           ],
         },
       ],
+      // TS-02 — layered architecture enforcement.
+      //
+      // WHY: Without it, feature slices cross-import and the architecture
+      // decays within weeks (Python-lane analogue: import-linter layers).
+      // FIX: Re-route the dependency through a shared/* module, lift the
+      // shared logic into a new shared utility, or use an explicit
+      // composition in src/main.tsx.
       "boundaries/element-types": [
         "error",
         {
@@ -165,6 +165,7 @@ const config: Linter.Config[] = [
       ],
       "no-restricted-syntax": [
         "error",
+        // TS-04 — enum / namespace.
         {
           selector: "TSEnumDeclaration",
           message:
@@ -174,6 +175,24 @@ const config: Linter.Config[] = [
           selector: "TSModuleDeclaration[kind='namespace']",
           message:
             "WHY: TS namespaces predate ES modules and have no good use case in new code. FIX: use ES modules (separate files + import/export).",
+        },
+        // TS-06 — no data-fetching in useEffect.
+        //
+        // WHY: training data is saturated with
+        // `useEffect(() => { fetch(...).then(setData); }, [])`. The
+        // project uses TanStack Router loaders + TanStack Query — ALL
+        // server data flows through those seams.
+        // FIX: move the fetch into createFileRoute().loader or useQuery /
+        // useSuspenseQuery. See docs/references/tanstack-router-v1.
+        {
+          selector: "CallExpression[callee.name='useEffect'] AwaitExpression",
+          message:
+            "WHY: await inside useEffect is a data-fetch smell. FIX: use createFileRoute().loader or useQuery/useSuspenseQuery.",
+        },
+        {
+          selector: "CallExpression[callee.name='useEffect'] CallExpression[callee.name='fetch']",
+          message:
+            "WHY: fetch() inside useEffect bypasses the router loader + Query cache. FIX: use createFileRoute().loader or useQuery/useSuspenseQuery.",
         },
       ],
       // TS-05 — no fetch() outside api-client.
