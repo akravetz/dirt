@@ -194,6 +194,24 @@ const config: Linter.Config[] = [
           message:
             "WHY: fetch() inside useEffect bypasses the router loader + Query cache. FIX: use createFileRoute().loader or useQuery/useSuspenseQuery.",
         },
+        // TS-07 — string-literal route paths in <Link to="...">.
+        //
+        // WHY: TanStack Router generates a typed route tree; literal
+        // strings defeat type-checking and make refactors unsafe.
+        // Training data suggests <Link to='/plants'> because
+        // react-router-dom works that way.
+        // FIX: pass a typed route — e.g. `to={Route.fullPath}` — so the
+        // compiler catches stale paths.
+        {
+          selector: "JSXOpeningElement[name.name='Link'] > JSXAttribute[name.name='to'][value.type='Literal']",
+          message:
+            "WHY: string-literal `to` bypasses TanStack Router's typed route tree. FIX: pass `to={Route.fullPath}` from the generated route tree (see docs/references/tanstack-router-v1).",
+        },
+        {
+          selector: "JSXOpeningElement[name.name='Navigate'] > JSXAttribute[name.name='to'][value.type='Literal']",
+          message:
+            "WHY: string-literal `to` bypasses TanStack Router's typed route tree. FIX: pass `to={Route.fullPath}` from the generated route tree.",
+        },
       ],
       // TS-05 — no fetch() outside api-client.
       //

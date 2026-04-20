@@ -234,7 +234,7 @@
       "blocks": [],
       "blocked_by": ["XX-02"],
       "session_log": [
-        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "Added two no-restricted-syntax selectors: (1) CallExpression[callee.name='useEffect'] AwaitExpression, (2) CallExpression[callee.name='useEffect'] CallExpression[callee.name='fetch']. Each message points at TanStack Router loader / useQuery as the FIX. Negative test: created a component with useEffect+fetch → eslint reports both no-restricted-globals (TS-05) and no-restricted-syntax (TS-06). pnpm lint PASS on baseline; meta-invariant 6/6 PASS. Commit TBD."}
+        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "Added two no-restricted-syntax selectors: (1) CallExpression[callee.name='useEffect'] AwaitExpression, (2) CallExpression[callee.name='useEffect'] CallExpression[callee.name='fetch']. Each message points at TanStack Router loader / useQuery as the FIX. Negative test: created a component with useEffect+fetch → eslint reports both no-restricted-globals (TS-05) and no-restricted-syntax (TS-06). pnpm lint PASS on baseline; meta-invariant 6/6 PASS. Commit d5edda7."}
       ],
       "verifier_notes": null
     },
@@ -254,10 +254,12 @@
         {"type": "shell_exit_zero", "cmd": "pnpm --dir web-ui lint"},
         {"type": "negative_test", "description": "Add `<Link to='/plants'>...` to any route component. Must fail lint.", "cmd": "pnpm --dir web-ui lint"}
       ],
-      "status": "not_started",
+      "status": "needs_verification",
       "blocks": [],
       "blocked_by": ["XX-02"],
-      "session_log": [],
+      "session_log": [
+        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "Added two no-restricted-syntax selectors for JSXAttribute[name.name='to'][value.type='Literal'] scoped to <Link> and <Navigate>. Messages point at `to={Route.fullPath}` from the generated route tree. pnpm lint PASS; meta-invariant PASS. Commit TBD."}
+      ],
       "verifier_notes": null
     },
     {
