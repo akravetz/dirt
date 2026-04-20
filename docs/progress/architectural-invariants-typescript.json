@@ -336,7 +336,7 @@
       "blocks": [],
       "blocked_by": ["XX-02", "TS-02"],
       "session_log": [
-        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "Created web-ui/src/shared/platform.ts (typed wrapper exposing copyToClipboard / reload / getOrigin). The `window` entry in no-restricted-globals was already added in the same eslint.config.ts commit that landed TS-09 (see TS-09 session log for rationale). Per-file exemption block turns no-restricted-globals off inside src/shared/platform.ts. pnpm lint PASS; pnpm typecheck PASS. Commit TBD."}
+        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "Created web-ui/src/shared/platform.ts (typed wrapper exposing copyToClipboard / reload / getOrigin). The `window` entry in no-restricted-globals was already added in the same eslint.config.ts commit that landed TS-09 (see TS-09 session log for rationale). Per-file exemption block turns no-restricted-globals off inside src/shared/platform.ts. pnpm lint PASS; pnpm typecheck PASS. Commit 272c575."}
       ],
       "verifier_notes": null
     },
@@ -356,10 +356,12 @@
         {"type": "shell_exit_zero", "cmd": "pnpm --dir web-ui lint"},
         {"type": "negative_test", "description": "Add `const qc = new QueryClient()` at module scope in any feature file. Must fail lint.", "cmd": "pnpm --dir web-ui lint"}
       ],
-      "status": "not_started",
+      "status": "needs_verification",
       "blocks": [],
       "blocked_by": ["XX-02", "TS-02"],
-      "session_log": [],
+      "session_log": [
+        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "Appended two no-restricted-syntax selectors: Program > VariableDeclaration > VariableDeclarator > NewExpression[callee.name=/^(QueryClient|Router)$/] and the matching CallExpression[callee.name=/^(createRouter|createBrowserRouter|createQueryClient|createClient)$/]. Added per-file override for src/main.tsx that redeclares no-restricted-syntax WITHOUT the two singleton selectors (all other selectors stay enforced). main.tsx's `new QueryClient()` + `createRouter(...)` now pass; same syntax anywhere else fires. pnpm lint PASS. Commit TBD."}
+      ],
       "verifier_notes": null
     },
     {

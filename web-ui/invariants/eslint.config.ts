@@ -215,6 +215,25 @@ const config: Linter.Config[] = [
           message:
             "WHY: string-literal `to` bypasses TanStack Router's typed route tree. FIX: pass `to={Route.fullPath}` from the generated route tree.",
         },
+        // TS-11 — top-level singleton construction outside main.tsx.
+        //
+        // WHY: `new QueryClient()` / `createRouter()` at module scope
+        // in a feature file creates a hidden singleton — same smell
+        // shape as Python's no-module-level-singletons invariant.
+        // FIX: construct in src/main.tsx and thread through React
+        // context (QueryClientProvider / RouterProvider).
+        {
+          selector:
+            "Program > VariableDeclaration > VariableDeclarator > NewExpression[callee.name=/^(QueryClient|Router)$/]",
+          message:
+            "WHY: top-level singleton outside src/main.tsx. FIX: construct in main.tsx, pass via Provider (QueryClientProvider / RouterProvider).",
+        },
+        {
+          selector:
+            "Program > VariableDeclaration > VariableDeclarator > CallExpression[callee.name=/^(createRouter|createBrowserRouter|createQueryClient|createClient)$/]",
+          message:
+            "WHY: top-level singleton outside src/main.tsx. FIX: construct in main.tsx, pass via Provider.",
+        },
       ],
       // TS-08 — no vi.mock() on internal modules (custom rule).
       //
@@ -287,6 +306,55 @@ const config: Linter.Config[] = [
     files: ["src/shared/platform.ts"],
     rules: {
       "no-restricted-globals": "off",
+    },
+  },
+  // TS-11 — composition root is allowed to construct singletons.
+  //
+  // In main.tsx only, drop the two singleton selectors from
+  // no-restricted-syntax. All other selectors (enum, namespace,
+  // useEffect+fetch, Link-literal, inline-style) stay enforced — they
+  // don't belong in main.tsx anyway.
+  {
+    name: "invariants/main-composition-root",
+    files: ["src/main.tsx"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        // TS-04 — enum / namespace.
+        {
+          selector: "TSEnumDeclaration",
+          message:
+            "WHY: TS enums are not the current idiom. FIX: use `const Foo = { ... } as const` + a union type.",
+        },
+        {
+          selector: "TSModuleDeclaration[kind='namespace']",
+          message:
+            "WHY: TS namespaces predate ES modules. FIX: use ES modules.",
+        },
+        // TS-06 — useEffect+fetch.
+        {
+          selector: "CallExpression[callee.name='useEffect'] AwaitExpression",
+          message:
+            "WHY: await inside useEffect is a data-fetch smell. FIX: use createFileRoute().loader or useQuery.",
+        },
+        {
+          selector: "CallExpression[callee.name='useEffect'] CallExpression[callee.name='fetch']",
+          message:
+            "WHY: fetch() inside useEffect bypasses the router loader + Query cache. FIX: use createFileRoute().loader or useQuery.",
+        },
+        // TS-07 — string-literal Link/Navigate.
+        {
+          selector: "JSXOpeningElement[name.name='Link'] > JSXAttribute[name.name='to'][value.type='Literal']",
+          message:
+            "WHY: string-literal `to` bypasses the typed route tree. FIX: pass a typed route.",
+        },
+        {
+          selector: "JSXOpeningElement[name.name='Navigate'] > JSXAttribute[name.name='to'][value.type='Literal']",
+          message:
+            "WHY: string-literal `to` bypasses the typed route tree. FIX: pass a typed route.",
+        },
+        // TS-11's two singleton selectors are intentionally omitted.
+      ],
     },
   },
 ];
