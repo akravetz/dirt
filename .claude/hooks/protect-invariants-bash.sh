@@ -5,7 +5,7 @@
 INPUT=$(cat)
 COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
 
-PROTECTED_PATHS='(Xests/Xnvariants/|Xests\/Xnvariants\/|\.githooks/|\.githooks\/)'
+PROTECTED_PATHS='(tests/invariants/|tests\/invariants\/|\.githooks/|\.githooks\/|web-ui/invariants/|web-ui\/invariants\/|web-ui/src/api-client/generated/|web-ui\/src\/api-client\/generated\/)'
 
 if echo "$COMMAND" | grep -qE "$PROTECTED_PATHS" && \
    echo "$COMMAND" | grep -qE '(sed|awk|echo|tee|cat.*>|python|mv|cp|rm|chmod)'; then

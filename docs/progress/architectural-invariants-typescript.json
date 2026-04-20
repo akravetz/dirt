@@ -57,10 +57,13 @@
         {"type": "negative_test", "description": "Remove the `./invariants/` import from web-ui/eslint.config.ts. Meta-invariant must fail.", "cmd": "uv run pytest apps/tests/invariants/test_webui_invariants_wired.py -q"},
         {"type": "negative_test", "description": "Attempt an Edit against web-ui/invariants/eslint.config.ts from within Claude Code — must be denied by hook. Manual verifier check.", "cmd": "echo 'manual check — verifier runs in Claude Code and confirms deny fires'"}
       ],
-      "status": "not_started",
+      "status": "needs_verification",
       "blocks": ["TS-01", "TS-02", "TS-03", "TS-04", "TS-05", "TS-06", "TS-07", "TS-08", "TS-09", "TS-10", "TS-11", "TS-12", "TS-13", "TS-14", "TS-15", "TS-16", "XX-01"],
       "blocked_by": [],
-      "session_log": [],
+      "session_log": [
+        {"date": "2026-04-20", "agent": "ts-lane-session-1", "note": "Created web-ui/invariants/{README.md,eslint.config.ts,tsconfig.base.json,knip.json,rules/README.md}, root shims at web-ui/eslint.config.ts + web-ui/tsconfig.json, and apps/tests/invariants/test_webui_invariants_wired.py. Unable to edit .claude/settings.json + .claude/hooks/protect-invariants*.sh — hook denied self-edit. Stopped for user / parent session to apply the hook-protection edits manually."},
+        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "Resumed after parent session applied the 3 hook/settings edits. Tightened test_eslint_shim_imports_invariants + test_tsconfig_shim_extends_invariants_base to use regex matching real import/extends statements, not bare string occurrences (comments match the loose check). All 46 apps/tests/invariants/ tests PASS; pnpm --dir web-ui typecheck PASS; pnpm --dir web-ui lint PASS. Acceptance criteria: file_exists (4/4 PASS), grep_present (3/3 PASS), shell_exit_zero pytest PASS, negative test (comment out shim import) trips test_eslint_shim_imports_invariants AS REQUIRED, negative test (hook deny) manually verified via grep on hook scripts (hook greps for 'web-ui/invariants/' in target path). Status → needs_verification."}
+      ],
       "verifier_notes": null
     },
     {

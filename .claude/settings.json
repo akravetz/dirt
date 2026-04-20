@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/protect-invariants.sh"
+            "command": "# Protects: apps/tests/invariants/** .githooks/** web-ui/invariants/** web-ui/src/api-client/generated/**\n\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/protect-invariants.sh"
           }
         ]
       },
@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/protect-invariants-bash.sh"
+            "command": "# Protects: apps/tests/invariants/** .githooks/** web-ui/invariants/** web-ui/src/api-client/generated/**\n\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/protect-invariants-bash.sh"
           }
         ]
       }
