@@ -58,7 +58,7 @@
       "blocked_by": [],
       "session_log": [
         {"date": "2026-04-20", "note": "Starting PY-02. Added deptry as a dev dep (uv add --dev deptry → 0.25.1). Ran deptry per-package and fixed real findings: removed unused python-multipart + loguru from dirt-hwd; moved pytest + pytest-asyncio into dirt-shared real deps because src/dirt_shared/testing.py ships fixtures as a pytest plugin; removed unused python-kasa from dirt-shared (only dirt-hwd imports kasa); added pydantic to dirt-hwd (directly imported by api/ingest.py). Configured per-package [tool.deptry.per_rule_ignores] for legitimate transitive directly-imported peers (sqlalchemy via sqlmodel; starlette via fastapi/mcp; numpy/loguru via pipecat in voice; deepgram-sdk/elevenlabs declared for pin-pinning against pipecat extras)."},
-        {"date": "2026-04-20", "commit": "pending", "note": "PY-02 test written. All 4 acceptance_criteria pass locally: (1) file exists, (2) uv run deptry --version → 0.25.1, (3) uv run pytest .../test_dependency_hygiene.py → 5 passed, (4) negative test: injected `import toml` into apps/shared/src/dirt_shared/services/plants.py; deptry reported DEP001 and pytest exited non-zero. Reverted."}
+        {"date": "2026-04-20", "commit": "566d1ee", "note": "PY-02 committed. All 4 acceptance_criteria pass locally: (1) file exists, (2) uv run deptry --version → 0.25.1, (3) uv run pytest .../test_dependency_hygiene.py → 5 passed, (4) negative test: injected `import toml` into apps/shared/src/dirt_shared/services/plants.py; deptry reported DEP001 and pytest exited non-zero. Reverted."}
       ],
       "verifier_notes": null
     },
@@ -79,10 +79,13 @@
         {"type": "shell_exit_zero", "cmd": "uv run pytest apps/tests/invariants/test_no_env_reads_outside_config.py -q"},
         {"type": "negative_test", "description": "Add `import os; _x = os.getenv('FOO')` at module level of any service file. Must fail.", "cmd": "uv run pytest apps/tests/invariants/test_no_env_reads_outside_config.py -q"}
       ],
-      "status": "not_started",
+      "status": "needs_verification",
       "blocks": [],
       "blocked_by": [],
-      "session_log": [],
+      "session_log": [
+        {"date": "2026-04-20", "note": "Starting PY-03. AST-based invariant: walks apps/*/src/dirt_*/**/*.py, resolves Call targets + Subscript.value through build_import_map, flags os.getenv / os.environ.get / os.environ.setdefault / os.environ.pop / os.environ[...]. ALLOWED set: config.py, observability.py, services/{capture,system_status,wiki}.py — each justified in an inline comment (observability reads DIRT_LOGS_DIR on every write for the pytest isolate fixture; capture/system_status probe the PTZ camera socket via XDG_RUNTIME_DIR; wiki exposes DIRT_WIKI_DIR only for tests). No production refactor — existing env reads are already at true OS boundaries."},
+        {"date": "2026-04-20", "commit": "pending", "note": "PY-03 committed. All 3 acceptance_criteria pass locally: (1) file exists, (2) uv run pytest .../test_no_env_reads_outside_config.py → 5 passed, (3) negative test: injected `import os; _x = os.getenv('FOO')` into apps/shared/src/dirt_shared/services/plants.py; pytest exited non-zero flagging os.getenv(...). Reverted."}
+      ],
       "verifier_notes": null
     },
     {
