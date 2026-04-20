@@ -311,7 +311,7 @@
       "blocks": [],
       "blocked_by": ["XX-02", "TS-02"],
       "session_log": [
-        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "Created web-ui/src/shared/storage.ts as the single localStorage/sessionStorage owner. Added no-restricted-globals entries for localStorage + sessionStorage; per-file exemption block turns them off inside src/shared/storage.ts. pnpm lint PASS; meta-invariant PASS. Commit TBD."}
+        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "Created web-ui/src/shared/storage.ts as the single localStorage/sessionStorage owner. Added no-restricted-globals entries for localStorage + sessionStorage; per-file exemption block turns them off inside src/shared/storage.ts. pnpm lint PASS; meta-invariant PASS. Commit 88eb010."}
       ],
       "verifier_notes": null
     },
@@ -332,10 +332,12 @@
         {"type": "shell_exit_zero", "cmd": "pnpm --dir web-ui lint"},
         {"type": "negative_test", "description": "Add `window.navigator.clipboard.writeText('x')` to any component. Must fail lint.", "cmd": "pnpm --dir web-ui lint"}
       ],
-      "status": "not_started",
+      "status": "needs_verification",
       "blocks": [],
       "blocked_by": ["XX-02", "TS-02"],
-      "session_log": [],
+      "session_log": [
+        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "Created web-ui/src/shared/platform.ts (typed wrapper exposing copyToClipboard / reload / getOrigin). The `window` entry in no-restricted-globals was already added in the same eslint.config.ts commit that landed TS-09 (see TS-09 session log for rationale). Per-file exemption block turns no-restricted-globals off inside src/shared/platform.ts. pnpm lint PASS; pnpm typecheck PASS. Commit TBD."}
+      ],
       "verifier_notes": null
     },
     {
