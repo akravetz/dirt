@@ -69,6 +69,17 @@ The backend runs as two systemd-managed processes: `dirt-hwd` (hardware + ingest
 - **Firmware build**: `cd firmware && pio run -e nano`
 - **Firmware upload**: `cd firmware && pio run -e nano -t upload`
 
+### Database
+
+- **Live DB**: PostgreSQL 17 at `127.0.0.1:5432`, database `dirt`. Managed as a system service (`systemctl status postgresql`).
+- **Credentials**: `DIRT_PG_{HOST,PORT,USER,PASSWORD,DATABASE}` in `.env`. The app composes `DATABASE_URL=postgresql+asyncpg://...` at startup (see `apps/shared/src/dirt_shared/config.py:_derive_data_paths`).
+- **Connect**: `set -a; source .env; set +a; PGPASSWORD=$DIRT_PG_PASSWORD psql -h 127.0.0.1 -U dirt -d dirt`
+- **Schema changes**: edit SQLModel classes in `apps/shared/src/dirt_shared/models/`, then `atlas migrate diff <name> --env local` (writes plain SQL to `migrations/`) → review the generated file → `atlas migrate apply --env local`. NEVER run DDL from app code — `apps/tests/invariants/test_schema_managed_by_atlas.py` enforces this. Full workflow + HCL reference: `docs/references/atlas/INDEX.md`.
+- **Dev-db for Atlas diffs**: Docker-ephemeral `docker://postgres/17/dev?search_path=public`. Atlas spins a short-lived container per `migrate diff` — blast radius cannot reach prod.
+- **Backups**: manual for now (`pg_dump dirt > var/db-backups/dirt-$(date +%F).sql`). Automation deferred per `docs/proposals/pg-cutover-plan.md` §6 non-scope.
+- **Rollback artifact**: pre-cutover sqlite preserved at `var/dirt.db.pre-pg-cutover` through ~2026-05-03; restore procedure in [ADR-006](docs/adrs/006-postgres-and-atlas.md).
+- **Why Postgres + Atlas**: [ADR-006](docs/adrs/006-postgres-and-atlas.md).
+
 ### PTZ Camera
 
 - **Go to a preset**: `scripts/camera look <overview|plant_a|plant_b|plant_c|plant_d|home>`
