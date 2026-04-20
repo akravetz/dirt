@@ -176,6 +176,30 @@ const config: Linter.Config[] = [
             "WHY: TS namespaces predate ES modules and have no good use case in new code. FIX: use ES modules (separate files + import/export).",
         },
       ],
+      // TS-05 — no fetch() outside api-client.
+      //
+      // WHY: single outward-facing boundary. Auth headers, retry,
+      // error mapping, and contract-drift detection all live in the
+      // generated api-client wrapper. Agents drifting toward "just call
+      // fetch" in a route loader would bypass every seam.
+      // FIX: call the typed client from src/api-client/ (regenerated
+      // from contracts/webapp-v1.yaml).
+      "no-restricted-globals": [
+        "error",
+        {
+          name: "fetch",
+          message:
+            "WHY: fetch is owned by src/api-client/. FIX: import the typed client from '@/api-client' (see TS-05).",
+        },
+      ],
+    },
+  },
+  // TS-05 — exemption for the api-client slice itself.
+  {
+    name: "invariants/api-client-fetch-allowed",
+    files: ["src/api-client/**"],
+    rules: {
+      "no-restricted-globals": "off",
     },
   },
 ];
