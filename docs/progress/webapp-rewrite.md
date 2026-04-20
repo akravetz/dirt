@@ -1,8 +1,12 @@
 # Webapp rewrite — agent handoff
 
-**Status**: Phase 0 complete (uv workspace + hardware-daemon split). Harness installed (agent-browser + `web-ui/` skeleton). Phase 1 (OpenAPI contract) not started. Phase 2 (parallel FE + BE generation) blocked on Phase 1.
+**Status (2026-04-19, end of session 2)**:
+- ✅ **Phase 0** — uv workspace + hardware-daemon split. Harness installed. `web-ui/` skeleton exists.
+- ✅ **Phase 1 design** — API + data-model proposals written and agreed (`docs/proposals/{API.md, data_model.md}`). Postgres cutover executed (ADR-006, `docs/proposals/pg-cutover-plan.md`). New service modules that back the future endpoints are implemented and tested. Test suite green on Postgres (143 tests).
+- 🟡 **Phase 1 contract freeze** — translate `docs/proposals/API.md` into formal `contracts/webapp-v1.yaml` (OpenAPI 3.1), write `apps/tests/invariants/test_api_contract.py`, author `docs/plans/webapp-rewrite.json`, get user sign-off, tag + record the frozen SHA. **This is the next agent's job.**
+- 🔒 **Phase 2** — blocked on contract freeze.
 
-You (the agent reading this) are picking up where the previous session stopped. This doc gives you enough to get started without re-reading the prior conversation. Read it end-to-end before you do anything.
+You (the agent reading this) are picking up where session 2 stopped. Read this doc end-to-end before you do anything.
 
 ## Harness smoke test — verify before you start
 
@@ -29,14 +33,24 @@ Expected: `snapshot` returns a ~3-line tree containing `heading "dirt." [level=1
 
 ## 1. What you're inheriting
 
-Phase 0 reshaped the repo from a single `dirt` FastAPI monolith into a `uv` workspace with five packages. The live hardware loop (serial reader, humidifier, camera capture, archive, ESP32 ingest) is now **isolated** in `dirt-hwd.service`. The web/MCP half lives in `dirt-web.service` and is **expendable** — its code is slated for rewrite in Phase 2.
+Phase 0 reshaped the repo from a `dirt` monolith into a `uv` workspace with five packages (hwd / web / shared / mcp / voice). The live hardware loop (serial reader, humidifier, camera capture, archive, ESP32 ingest) is **isolated** in `dirt-hwd.service`. The web/MCP half is **expendable** — slated for rewrite in Phase 2.
 
-You have two jobs:
+**Session 2 (2026-04-19) also completed the DB migration + Phase 1 design work** so that Phase 2 generators have a clean foundation:
 
-1. **Phase 1** — design an OpenAPI contract for the new web UI → backend boundary and freeze it. You do this work yourself (not via agents).
+- **Postgres 17 + Atlas migrations** replace SQLite + hand-rolled column-migration tuple. See [ADR-006](../adrs/006-postgres-and-atlas.md). Service module `engine`s point at pg via `DIRT_PG_*` creds in `.env`. Rollback sqlite artifact at `var/dirt.db.pre-pg-cutover` until ~2026-05-03.
+- **New schema + seed data**: `plant` table (4 rows A/B/C/D), `sensornode` seeded with one row per `sensor_location` enum value, `growstate.is_current` partial-unique-index singleton (future-proofs multi-grow), real FKs everywhere. See `migrations/20260420003127_init.sql`.
+- **`docs/proposals/{API.md, data_model.md}`** — agreed endpoint-by-endpoint API spec + data-model spec. These ARE the Phase 1 design. Next agent turns API.md into formal OpenAPI YAML.
+- **Six new service modules in `apps/shared/src/dirt_shared/services/`** back the future endpoints: `plants`, `humidifier_state`, `system_status`, `plant_detail`, `wiki`, `mock_sensors`. Each has a `get_*_payload` helper that already produces the shape the API.md endpoints expect — the Phase 2 BE generator's job is the thin FastAPI wrapper, not re-implementing this logic.
+- **Test fixture overhaul**: `pg_engine` per-test fixture in `apps/shared/src/dirt_shared/testing.py` clones a session-wide template DB via `CREATE DATABASE ... TEMPLATE`. 143 tests green end-to-end.
+- **Shared helpers**: `band_status(value, band) → ok|warn|crit` + `get_grow_current_payload()` in `grow_state.py`; `get_plant_detail_payload(code)` in `plants.py`. The endpoint layer stays thin.
+- **Invariant `test_schema_managed_by_atlas.py`** — blocks any agent from re-introducing `metadata.create_all` or hand-rolled column-migration tuples.
+
+Your two jobs:
+
+1. **Phase 1 freeze** — translate `docs/proposals/API.md` into `contracts/webapp-v1.yaml`, write `test_api_contract.py`, author `docs/plans/webapp-rewrite.json`, get user sign-off, tag + record the frozen SHA.
 2. **Phase 2** — once the contract is frozen and invariant-tested, orchestrate two parallel generator agents (frontend + backend lanes) via the Claude Code `Agent` tool with `isolation: "worktree"`. An evaluator agent gates merges.
 
-**Critical rule**: `apps/hwd/` is off-limits to the Phase 2 generators. The hardware loops there are running in production and must not be touched. Invariant `test_hwd_routes.py` + `test_import_boundaries.py` will enforce this.
+**Critical rule**: `apps/hwd/` is off-limits to the Phase 2 generators. The hardware loops there are running in production and must not be touched. Invariant `test_hwd_routes.py` + `test_import_boundaries.py` enforce this.
 
 ---
 
@@ -282,21 +296,11 @@ Plus a plant-detail drawer (overlay, clicked from dashboard) showing moisture ch
 
 Design language: paper/ink palette, JetBrains-Mono for numbers, Crimson-Pro-italic for brand, low-contrast dotted/gridded backgrounds. Keep it verbatim — don't let generators redesign.
 
-### API surface implied by the mockup
+### API surface
 
-This is a first-pass sketch. Phase 1 owns finalizing it.
+**Source of truth: [`docs/proposals/API.md`](../proposals/API.md)** — session 2 wrote this endpoint-by-endpoint spec with agreed JSON response shapes, agreed-on decisions (code/id rename, vitals dropped, band-status helper pattern), and an explicit add/modify/remove table against today's `apps/web/src/dirt_web/api/` routes. Phase 1 turns this into `contracts/webapp-v1.yaml`. Do NOT re-design or cherry-pick shapes — the proposal was iterated on with the user and is the contract baseline.
 
-- `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me` — JSON replacement for the current form-post `/login`
-- `GET /api/sensors/current` — envelope with `{value, target:[lo,hi]|null, status, stale, ts}` per metric
-- `GET /api/sensors/history?range=1h|24h|7d&metric=…` — labels + values (partly exists)
-- `GET /api/humidifier/state` + `GET /api/humidifier/history?range=…` — on/off + duty cycle
-- `GET /api/plants` + `GET /api/plants/{id}` — moisture, pH, distance, nodes, timeline, primary flag
-- `GET /api/system/devices` — per-device `{name, status, last_seen}`
-- `GET /api/feed/live.jpg` + `GET /api/feed/snapshot/latest` (snapshot exists, live too via dirt-web)
-- `GET /api/ptz/state`, `POST /api/ptz/preset/{id}`, `POST /api/ptz/nudge`, `POST /api/ptz/look`, `POST /api/ptz/zoom` — thin HTTP wrappers over `scripts/camera`
-- `GET /api/wiki/tree`, `GET /api/wiki/file?path=…`, `GET /api/wiki/search?q=…` — filesystem-backed, path-restricted to `wiki/`
-
-Endpoints already live (mostly in `apps/web/src/dirt_web/api/`) for: feed, sensors/readings, snapshots, login (form-post). Phase 1 will audit and decide what to replace vs. reuse.
+Paired reference: [`docs/proposals/data_model.md`](../proposals/data_model.md) — schema, types, resolved open questions, per-endpoint "which service produces this field" notes.
 
 ---
 
@@ -324,30 +328,43 @@ Endpoints already live (mostly in `apps/web/src/dirt_web/api/`) for: feed, senso
 
 Do these in order:
 
-1. **Verify Phase 0 is intact**. Run:
+1. **Verify the foundation is intact**. Run:
    ```
-   systemctl --user is-active dirt-hwd dirt-web dirt-camera dirt-voice
-   uv run pytest -q
+   systemctl --user is-active dirt-hwd dirt-web dirt-camera dirt-voice postgresql
+   set -a; source .env; set +a
+   uv run pytest -q                       # should report 143 passed
    ```
-   Both should be green. If not, stop and investigate — don't proceed on a broken base.
+   All services active + 143 tests green. If not, stop and investigate — don't proceed on a broken base.
 
-2. **Read the references**. In order of importance for orientation:
-   - The two Anthropic harness blog posts (links below). Read both.
-   - `docs/references/tanstack-router-v1/INDEX.md` (if the handoff goes anywhere near frontend).
-   - `docs/references/modern-idiomatic-typescript/INDEX.md`.
-   - `docs/references/claude-agent-sdk/INDEX.md` — we're NOT using the SDK directly, but it explains options + tradeoffs.
+2. **Read the proposals** (in order — they are short and were iterated on with the user):
+   - `docs/proposals/API.md` — the frozen API design. Your OpenAPI YAML is a translation of this.
+   - `docs/proposals/data_model.md` — schema + resolved decisions + per-endpoint service mapping.
+   - `docs/proposals/pg-cutover-plan.md` — what happened to the DB (context for any migration concerns).
 
-3. **Unzip and re-read the mockup** if you're doing contract design: `unzip debug/webapp.zip -d /tmp/webapp_review/` then skim `Dirt WebApp.html` + the four component JSX files. Only needed if you're the contract author.
+3. **Read the references** (only what you'll actually touch):
+   - Two Anthropic harness blog posts (links in §12). Read before designing the Phase 2 orchestration.
+   - `docs/references/tanstack-router-v1/INDEX.md` + `docs/references/modern-idiomatic-typescript/INDEX.md` + `docs/references/tailwind-v4/INDEX.md` — FE stack anchors. Required reading for the FE generator's prompt.
+   - `docs/references/atlas/INDEX.md` — only if you're changing the DB schema in Phase 1 (you probably aren't).
+   - `docs/references/claude-agent-sdk/INDEX.md` — we're NOT using the SDK directly, but it clarifies options.
 
-4. **Kick off Phase 1 (OpenAPI contract)**. No agents yet — you do this yourself. Deliverables:
-   - `contracts/webapp-v1.yaml` (OpenAPI 3.1).
-   - `apps/tests/invariants/test_api_contract.py` — asserts every endpoint in the spec exists in `dirt_web.app.app` with matching methods; response schemas round-trip through generated Pydantic models.
-   - `docs/plans/webapp-rewrite.json` — full feature list + acceptance criteria + dependencies, all lanes. See section 6 for shape.
-   - Get the user's sign-off on the plan before freezing.
+4. **Unzip and re-read the mockup** if you're finalizing contract details: `unzip debug/webapp.zip -d /tmp/webapp_review/` then skim `Dirt WebApp.html` + the four component JSX files. Cross-check against `docs/proposals/API.md` section numbers.
 
-5. **Once the plan is approved**: tag the HEAD commit (`contract-frozen-<date>`), record that SHA in `docs/plans/webapp-rewrite.json` under `contract.frozen_at_sha`, and commit. That's the boundary agents can't cross.
+5. **Phase 1 freeze — do this yourself, not via agents.** Deliverables:
+   - `contracts/webapp-v1.yaml` (OpenAPI 3.1) — translation of `docs/proposals/API.md`. Don't redesign; translate. Include request/response schemas, error codes, auth scheme.
+   - `apps/tests/invariants/test_api_contract.py` — asserts every path+method in the spec exists in `dirt_web.app.app`, and response schemas round-trip through the generated Pydantic models.
+   - `docs/plans/webapp-rewrite.json` — full feature list + acceptance criteria + dependencies + lane per feature. See §6 for shape.
+   - Generated TS client in `web-ui/src/lib/` (pick `openapi-ts` vs `orval` — that's a Phase 1 decision; lean `openapi-ts` for minimal-footprint output).
+   - Get the user's sign-off on the plan JSON before freezing.
 
-6. **Kick off Phase 2**. Two `Agent` calls in a single message, both `run_in_background: true`, one `frontend` lane + one `backend` lane, each with a self-contained prompt pointing at the plan JSON + the frozen contract SHA. The prompt must list off-limits paths (section 9) explicitly. Reserve a foreground `Agent` call for the Evaluator after each round.
+6. **Once approved**: tag the HEAD commit (`contract-frozen-YYYY-MM-DD`), record that SHA in `docs/plans/webapp-rewrite.json` under `contract.frozen_at_sha`, and commit.
+
+7. **Kick off Phase 2**. Two `Agent` calls in a single message, both `run_in_background: true`, one `frontend` lane + one `backend` lane. Each prompt must:
+   - Point at the plan JSON + the frozen contract SHA.
+   - List off-limits paths (§9) explicitly.
+   - Remind the BE generator that the hard logic is in `dirt_shared.services.{plants, humidifier_state, system_status, plant_detail, wiki, mock_sensors, grow_state, readings}` — they just thread FastAPI endpoints through. `get_*_payload()` composites already shape the responses.
+   - Remind the FE generator to use the generated TS client from `web-ui/src/lib/`, not hand-author fetch calls.
+
+   Reserve a foreground `Agent` call for the Evaluator after each round.
 
 ---
 
@@ -376,14 +393,33 @@ Do these in order:
 
 ### Internal references (in this repo)
 
-- `CLAUDE.md` — project overview, discovery layer. Also lists the framework reference packs and when to consult each.
+**Must-read (session 2 output — these ARE the Phase 1 design):**
+- `docs/proposals/API.md` — agreed API spec; your `contracts/webapp-v1.yaml` translates this.
+- `docs/proposals/data_model.md` — schema + resolved open questions + per-endpoint service mapping.
+- `docs/proposals/pg-cutover-plan.md` — what happened to the DB; skim §1/§8 for current state.
+- `docs/adrs/006-postgres-and-atlas.md` — DB engine decision.
+
+**Framework reference packs (read before writing any code in that area):**
+- `CLAUDE.md` — project overview, discovery layer. `### Database` subsection covers pg ops; `## Framework/API References` lists the packs below.
 - `docs/references/tanstack-router-v1/INDEX.md` — read before writing any route.
 - `docs/references/modern-idiomatic-typescript/INDEX.md` — read before writing TS.
+- `docs/references/tailwind-v4/INDEX.md` — read before writing any Tailwind class (v4 is a rewrite; training data is stuck on v3).
+- `docs/references/atlas/INDEX.md` — only if Phase 1 requires a schema change (unlikely).
 - `docs/references/claude-agent-sdk/INDEX.md` — read before considering a custom runner.
-- `docs/references/pipecat/INDEX.md` — only if you touch voice (you shouldn't in Phase 1/2).
-- `docs/references/deepgram-tts-aura-2/INDEX.md` — only if you touch voice TTS (you shouldn't).
+- `docs/references/pipecat/INDEX.md` + `docs/references/deepgram-tts-aura-2/INDEX.md` — only if you touch voice (you shouldn't in Phase 1/2).
+
+**Service modules already implemented for Phase 2 BE to consume:**
+- `apps/shared/src/dirt_shared/services/plants.py` — `list_plants()`, `get_plant_by_code()`, `get_plant_detail_payload()` (composite), `get_plant_moisture_history()`.
+- `apps/shared/src/dirt_shared/services/humidifier_state.py` — `get_state()`, `get_history()`.
+- `apps/shared/src/dirt_shared/services/system_status.py` — `get_device_statuses()`.
+- `apps/shared/src/dirt_shared/services/plant_detail.py` — `get_plant_detail(code)` (wiki markdown parser).
+- `apps/shared/src/dirt_shared/services/wiki.py` — `get_tree()`, `get_file(path)`, `search(q)`.
+- `apps/shared/src/dirt_shared/services/mock_sensors.py` — `get_fan_pct(ts)`, `get_reservoir_in(ts)`, history helpers.
+- `apps/shared/src/dirt_shared/services/grow_state.py` — plus `band_status(value, band)` + `get_grow_current_payload()`.
+
+**Historical (read only if you need background):**
 - `wiki/CLAUDE.md` — start here for any wiki-related work (if the wiki UI feature involves read-through to the markdown store).
-- `.claude/plans/cuddly-twirling-starlight.md` — Phase 0 plan. Historical; Phase 0 is done. Read if you want to understand why the split looks the way it does.
+- `.claude/plans/cuddly-twirling-starlight.md` — Phase 0 plan. Historical.
 - `debug/webapp.zip` — the high-fidelity React+Babel mockup from Claude Design. Visual truth for the rewrite.
 
 ---
@@ -403,4 +439,4 @@ At that point the original mockup from `debug/webapp.zip` is approximately repro
 
 ---
 
-*Written at end of Phase 0 cutover session, 2026-04-19. If this document is more than a couple of weeks stale, re-verify section 2 (Phase 0 recap) against current repo state before trusting the rest.*
+*Written at end of Phase 0 cutover session. Updated 2026-04-19 at end of session 2 (pg cutover + Phase 1 design work). If this document is more than a couple of weeks stale, re-verify the top-of-doc status banner + section 2 (Phase 0/1 recap) against current repo state before trusting the rest.*

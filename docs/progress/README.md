@@ -12,5 +12,5 @@ Each progress file should include:
 
 ## Current Features
 
-- **[webapp-rewrite.md](webapp-rewrite.md)** — Phase 0 complete (workspace split + hardware daemon extracted). Phase 1 = OpenAPI contract. Phase 2 = parallel FE + BE generator agents.
-- **[phase1-skeleton.md](phase1-skeleton.md)** — historical; earlier scaffolding notes.
+- **[webapp-rewrite.md](webapp-rewrite.md)** — Phase 0 ✅ (workspace split) + Phase 1 design ✅ (API + data-model proposals, pg cutover, service modules, test rework). Next: translate `docs/proposals/API.md` → `contracts/webapp-v1.yaml`, write contract invariant + plan JSON, get sign-off, freeze. Then Phase 2 = parallel FE + BE generator agents.
+- **[phase1-skeleton.md](phase1-skeleton.md)** — historical; earliest scaffolding notes (pre-workspace-split).
