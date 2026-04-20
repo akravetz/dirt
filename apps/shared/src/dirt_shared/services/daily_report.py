@@ -216,7 +216,7 @@ class DailyReport:
         # Log and continue to mark the run completed.
         try:
             caption = self._format_caption(target_date, synth)
-            assert synth.daily_file is not None  # phase_synthesize guarantees
+            assert synth.daily_file is not None  # noqa: S101  phase_synthesize guarantees
             body_html = self._format_body(synth.daily_file)
             await self._telegram.send_media_group(
                 self._chat_id, list(photos), caption=caption,

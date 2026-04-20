@@ -189,7 +189,7 @@
       "blocked_by": [],
       "session_log": [
         {"date": "2026-04-20", "note": "Starting PY-07. AST invariant — walks apps/*/src/dirt_*/**/*.py, resolves Call targets through build_import_map, flags asyncio.run UNLESS (a) the call is inside a top-level `if __name__ == '__main__':` block or (b) the file is in COMPOSITION_ROOTS. asyncio.run_coroutine_threadsafe is intentionally NOT flagged — it's the correct primitive for handing work to a loop from a C thread. No production refactor — the one existing asyncio.run call is inside `if __name__ == '__main__'` in apps/voice/src/dirt_voice/channels/voice.py."},
-        {"date": "2026-04-20", "commit": "pending", "note": "PY-07 test passes. All 3 acceptance_criteria green: (1) file exists, (2) uv run pytest → 5 passed, (3) negative test: injected `import asyncio; async def _c(): pass; asyncio.run(_c())` at module level of plants.py; test failed flagging asyncio.run(...). Reverted."}
+        {"date": "2026-04-20", "commit": "8d8ffcf", "note": "PY-07 committed. All 3 acceptance_criteria green: (1) file exists, (2) uv run pytest → 5 passed, (3) negative test: injected `import asyncio; async def _c(): pass; asyncio.run(_c())` at module level of plants.py; test failed flagging asyncio.run(...). Reverted."}
       ],
       "verifier_notes": null
     },
@@ -211,10 +211,13 @@
         {"type": "grep_present", "path": "pyproject.toml", "pattern": "\"S\""},
         {"type": "shell_exit_zero", "cmd": "uv run ruff check"}
       ],
-      "status": "not_started",
+      "status": "needs_verification",
       "blocks": [],
       "blocked_by": [],
-      "session_log": [],
+      "session_log": [
+        {"date": "2026-04-20", "note": "Starting PY-08. Added TID, S, PLR0913, PLR0915 to [tool.ruff.lint] select; RUF already present. SIM not enabled at this pass — too noisy to triage without refactor. Triaged the initial failure set: per-file-ignores for tests (S101 pytest assert idiom, S105/S106 fixture secrets, S108 /tmp paths, S603/S607 subprocess-with-trusted-argv, PLR0913/PLR0915); service-local per-file-ignores for archive.py / system_status.py / testing.py / capture.py (subprocess + /tmp camera socket — all trusted argv); uvicorn entry points (S104 0.0.0.0 bind IS the point); config.py (S105/S106 sentinel defaults). Type-narrowing asserts in production got noqa: S101 with WHY comments (5 lines). PLR thresholds raised to max-args=10 max-statements=70 — defaults (5/50) are tighter than service orchestrators like DailyReport / HumidifierLoop warrant by design."},
+        {"date": "2026-04-20", "commit": "pending", "note": "PY-08 passes. All 4 acceptance_criteria green: (1)-(3) grep \"TID\", \"RUF\", \"S\" in pyproject.toml, (4) uv run ruff check → All checks passed."}
+      ],
       "verifier_notes": null
     },
     {

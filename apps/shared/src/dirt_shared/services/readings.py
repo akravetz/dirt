@@ -258,7 +258,7 @@ class ReadingsService:
             node.last_seen = now
             session.add(node)
             await session.flush()  # populate node.id for the FK on SensorReading
-            assert node.id is not None
+            assert node.id is not None  # noqa: S101 (type narrow: post-flush)
 
             # Step 2 + 3 — readings and (optional) calibration updates.
             for metric_name, value in metrics.items():

@@ -69,7 +69,18 @@ extend-exclude = ["docs", ".claude", "scripts", "firmware", "debug"]
 #   T20       — flake8-print (PY-06): ban print() / pprint() in production.
 #               Observability is structured (log_event, loguru); print
 #               bypasses every log stream and breaks correlation-id chain.
-select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "SLF", "ASYNC", "T20"]
+#   TID       — flake8-tidy-imports (PY-08): ban relative imports at the
+#               package boundary and redundant aliases.
+#   S         — bandit security (PY-08): flag common security smells
+#               (hardcoded passwords, shell=True, assert in prod, etc.).
+#               S101 (assert in tests) exempted per-file below.
+#   PLR0913/PLR0915 — function complexity ceilings (PY-08). Full PL
+#               rule-set is noisy; only the two complexity rules are
+#               worth it without triage.
+select = [
+    "E", "F", "I", "UP", "B", "SIM", "RUF", "SLF",
+    "ASYNC", "T20", "TID", "S", "PLR0913", "PLR0915",
+]
 # ASYNC240 "don't use pathlib.Path in async fns; use trio.Path / anyio.Path"
 # doesn't apply — Dirt uses stdlib asyncio exclusively.
 # RUF001/RUF002/RUF003 complain about "ambiguous" unicode (× ≠ x,
@@ -79,6 +90,15 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "SLF", "ASYNC", "T20"]
 # (`param: T = Depends(get_T)`) — the rule is written for pre-FastAPI
 # Python. Exempted per-file under [lint.per-file-ignores].
 ignore = ["ASYNC240", "RUF001", "RUF002", "RUF003"]
+
+# PLR0913/PLR0915 thresholds. Defaults (5 args, 50 stmts) are too tight
+# for service orchestrators like DailyReport (9 constructor deps) and
+# HumidifierLoop (single long run() method by design). Raised thresholds
+# still fire on genuinely bloated code while letting legitimately-large
+# orchestrators live.
+[tool.ruff.lint.pylint]
+max-args = 10
+max-statements = 70
 
 [tool.ruff.lint.per-file-ignores]
 # FastAPI uses `param: T = Depends(get_T)` idiomatically; B008 doesn't
@@ -90,9 +110,39 @@ ignore = ["ASYNC240", "RUF001", "RUF002", "RUF003"]
 # Test files and invariants prefer readability (long docstrings,
 # structured-data tables, pytest parametrize lines) over a hard 88-char
 # bound; SLF001 (private member access) is the entire point of a unit
-# test that exercises an internal contract.
-"apps/*/tests/**/*.py" = ["E501", "SLF001"]
-"apps/tests/**/*.py" = ["E501", "SLF001"]
+# test that exercises an internal contract. Bandit S-rules aimed at
+# production don't apply to tests: S101 assert is pytest's lingua
+# franca; S105/S106 hardcoded "changeme" strings are test-fixture
+# constants; S108 /tmp paths and S603/S607 subprocess-with-trusted-
+# argv patterns show up in pytest + atlas / lint-imports / deptry
+# wrappers with no security surface.
+"apps/*/tests/**/*.py" = [
+    "E501", "SLF001",
+    "S101", "S105", "S106", "S108", "S603", "S607",
+    "PLR0913", "PLR0915",
+]
+"apps/tests/**/*.py" = [
+    "E501", "SLF001",
+    "S101", "S105", "S106", "S108", "S603", "S607",
+    "PLR0913", "PLR0915",
+]
+# Service wrappers around subprocess. Archive uses ssh / rsync on
+# hardcoded paths; system_status shells ffprobe against a trusted
+# snapshot path; dirt_shared.testing runs `atlas migrate apply`. All
+# argvs are code-constant, no external input.
+"apps/shared/src/dirt_shared/services/archive.py" = ["S603", "S607"]
+"apps/shared/src/dirt_shared/services/system_status.py" = ["S603", "S607", "S108"]
+"apps/shared/src/dirt_shared/services/capture.py" = ["S108"]
+"apps/shared/src/dirt_shared/testing.py" = ["S603", "S607"]
+"apps/hwd/src/dirt_hwd/services/archive.py" = ["S603", "S607"]
+# Entry points bind uvicorn to 0.0.0.0 — the whole point is to accept
+# LAN traffic; S104 is paranoid here.
+"apps/hwd/src/dirt_hwd/main.py" = ["S104"]
+"apps/web/src/dirt_web/main.py" = ["S104"]
+# Config defaults include sentinel strings like "change-me-in-production"
+# so non-voice deployments can boot without dashing through every
+# secret.
+"apps/shared/src/dirt_shared/config.py" = ["S105", "S106"]
 
 [tool.ruff.format]
 quote-style = "double"

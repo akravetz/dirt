@@ -218,7 +218,7 @@ def _load_wake_model() -> tuple[Model, str]:
             sys.exit(f"Wake model not found at {WAKE_MODEL_PATH}")
         _wake_model = Model(wakeword_model_paths=[str(WAKE_MODEL_PATH)])
         _wake_model_name = next(iter(_wake_model.models.keys()))
-    assert _wake_model_name is not None
+    assert _wake_model_name is not None  # noqa: S101 (type narrow)
     return _wake_model, _wake_model_name
 
 
@@ -529,7 +529,7 @@ async def main() -> None:
     # holding the Jabra ALSA capture handle, breaking the next startup.
     loop = asyncio.get_running_loop()
     main_task = asyncio.current_task()
-    assert main_task is not None
+    assert main_task is not None  # noqa: S101 (inside async def, guaranteed)
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, main_task.cancel)
 

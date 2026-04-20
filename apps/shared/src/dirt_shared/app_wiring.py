@@ -60,7 +60,7 @@ def build_core_services(
     if settings is None:
         settings = Settings()
     if engine is None:
-        assert settings.database_url is not None
+        assert settings.database_url is not None  # noqa: S101 (type narrow)
         engine = create_async_engine(settings.database_url)
 
     snapshots = SnapshotsService(engine)
