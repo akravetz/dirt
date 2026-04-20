@@ -20,6 +20,14 @@
 // FIX: lift the dependency out of the production module, inject it via
 // parameter / context / provider, and swap in a fake from test code.
 import type { Rule } from "eslint";
+import { formatInvariantMessage } from "./_message.ts";
+
+const MESSAGE = formatInvariantMessage({
+  smell: "Internal Test Mock",
+  why: "vi.mock('{{arg}}') targets an internal module — production code has no injection seam.",
+  fix: "Lift the dependency to a parameter / context / provider; swap in a fake from test code. Mocks at the api-client / MSW boundary (network level) are fine.",
+  violations: ["vi.mock('{{arg}}')"],
+});
 
 const rule: Rule.RuleModule = {
   meta: {
@@ -30,8 +38,7 @@ const rule: Rule.RuleModule = {
     },
     schema: [],
     messages: {
-      internalMock:
-        "WHY: vi.mock('{{arg}}') targets an internal module — production code has no injection seam. FIX: lift the dependency to a parameter / context / provider and swap in a fake from test code. Mocks at the api-client / MSW boundary are fine (network level).",
+      internalMock: MESSAGE,
     },
   },
   create(context) {

@@ -491,7 +491,7 @@
       "blocks": [],
       "blocked_by": ["XX-02"],
       "session_log": [
-        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "Appended two no-restricted-syntax selectors: JSXAttribute[name.name='style'] and JSXOpeningElement[name.name='style']. No dynamic-transform allowlist added — skeleton is too small to justify. pnpm lint PASS; negative test (<div style={{color:'red'}}>) fires the rule with WHY/FIX message. Commit TBD."}
+        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "Appended two no-restricted-syntax selectors: JSXAttribute[name.name='style'] and JSXOpeningElement[name.name='style']. No dynamic-transform allowlist added — skeleton is too small to justify. pnpm lint PASS; negative test (<div style={{color:'red'}}>) fires the rule with WHY/FIX message. Commit 4324ac9."}
       ],
       "verifier_notes": null
     },
@@ -511,10 +511,12 @@
         {"type": "file_exists", "path": "web-ui/invariants/rules/_message.ts"},
         {"type": "grep_present", "path": "web-ui/invariants/eslint.config.ts", "pattern": "WHY:|FIX:"}
       ],
-      "status": "not_started",
+      "status": "needs_verification",
       "blocks": [],
       "blocked_by": ["XX-02", "TS-08"],
-      "session_log": [],
+      "session_log": [
+        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "Created web-ui/invariants/rules/_message.ts exposing formatInvariantMessage({smell, why, fix, violations}) returning the SMELL/WHY/FIX/Violations shape matching Python's apps/tests/invariants/_helpers.py:format_invariant_failure. Also exposes formatShortInvariantMessage({why, fix}) for one-line config-rule messages. Retrofitted web-ui/invariants/rules/no-internal-vi-mock.ts (TS-08) and web-ui/invariants/rules/no-arbitrary-tw-value.ts (TS-15) to use formatInvariantMessage. The config-level eslint rules (TS-03, TS-04, TS-05, TS-06, TS-07, TS-09, TS-10, TS-11, TS-16) already used loose WHY/FIX shape in their one-line messages — 47 WHY:/FIX: occurrences in eslint.config.ts. pnpm lint PASS; knip PASS; all 47 apps/tests/invariants/ tests PASS. Commit 05f153b."}
+      ],
       "verifier_notes": null
     }
   ],

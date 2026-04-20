@@ -14,6 +14,14 @@
 // just a lint-rule-grade heuristic that catches the common smells.
 
 import type { Rule } from "eslint";
+import { formatInvariantMessage } from "./_message.ts";
+
+const MESSAGE = formatInvariantMessage({
+  smell: "Arbitrary Tailwind Value",
+  why: "`{{text}}` uses an arbitrary-value Tailwind utility (bg-[#..], text-[14px], tracking-[0.3em], …) — sidesteps the project palette (paper/ink/magenta + typographic scale).",
+  fix: "Use a palette class, or add the missing token to src/styles.css @theme / @utility (human review). See docs/references/tailwind-v4.",
+  violations: ["{{text}}"],
+});
 
 // Matches arbitrary color: bg-[#..] / text-[#..] / border-[rgb( / etc.
 const COLOR_ARBITRARY = /\b(?:bg|text|border|ring|fill|stroke|from|to|via)-\[(#|rgb|hsl)/;
@@ -39,8 +47,7 @@ const rule: Rule.RuleModule = {
     },
     schema: [],
     messages: {
-      arbitrary:
-        "WHY: arbitrary Tailwind value in `{{text}}` sidesteps the palette (paper/ink/magenta + typographic scale). FIX: use a palette class, or add the missing token to src/styles.css @theme / @utility (human review). See docs/references/tailwind-v4.",
+      arbitrary: MESSAGE,
     },
   },
   create(context) {
