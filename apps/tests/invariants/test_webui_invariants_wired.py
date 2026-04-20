@@ -60,7 +60,8 @@ CLAUDE_SETTINGS: Path = REPO_ROOT / ".claude" / "settings.json"
 #   tsconfig: compilerOption-name -> required value
 KNOWN_SENTINELS: dict[str, dict[str, object]] = {
     "eslint": {
-        # Filled in by TS-02, TS-03, TS-04, TS-08.
+        # TS-02 — layered architecture via eslint-plugin-boundaries.
+        "boundaries/element-types": 2,
     },
     "tsconfig": {
         # TS-01 — strict-mode flags.
