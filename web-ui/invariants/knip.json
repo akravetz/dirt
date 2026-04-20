@@ -1,4 +1,21 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "_comment": "HUMAN-OWNED. Filled in by TS-12. Scaffolded empty by XX-02 so the shim can point at it."
+  "entry": [
+    "src/main.tsx",
+    "src/shared/storage.ts",
+    "src/shared/platform.ts",
+    "vite.config.ts",
+    "eslint.config.ts",
+    "invariants/eslint.config.ts",
+    "invariants/rules/*.ts"
+  ],
+  "project": ["src/**/*.{ts,tsx}", "invariants/**/*.ts"],
+  "ignore": ["src/routeTree.gen.ts"],
+  "ignoreDependencies": [
+    "tailwindcss",
+    "@eslint/js",
+    "eslint-plugin-boundaries",
+    "typescript-eslint",
+    "jiti"
+  ]
 }

@@ -10,7 +10,8 @@
     "lint": "biome check .",
     "format": "biome format --write .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "knip": "knip --config invariants/knip.json"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.2",
@@ -30,6 +31,7 @@
     "eslint": "^10.2.1",
     "eslint-plugin-boundaries": "^6.0.2",
     "jiti": "^2.6.1",
+    "knip": "^6.5.0",
     "typescript": "~6.0.2",
     "vite": "^8.0.4",
     "vitest": "^4.1.4"

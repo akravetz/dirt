@@ -360,7 +360,7 @@
       "blocks": [],
       "blocked_by": ["XX-02", "TS-02"],
       "session_log": [
-        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "Appended two no-restricted-syntax selectors: Program > VariableDeclaration > VariableDeclarator > NewExpression[callee.name=/^(QueryClient|Router)$/] and the matching CallExpression[callee.name=/^(createRouter|createBrowserRouter|createQueryClient|createClient)$/]. Added per-file override for src/main.tsx that redeclares no-restricted-syntax WITHOUT the two singleton selectors (all other selectors stay enforced). main.tsx's `new QueryClient()` + `createRouter(...)` now pass; same syntax anywhere else fires. pnpm lint PASS. Commit TBD."}
+        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "Appended two no-restricted-syntax selectors: Program > VariableDeclaration > VariableDeclarator > NewExpression[callee.name=/^(QueryClient|Router)$/] and the matching CallExpression[callee.name=/^(createRouter|createBrowserRouter|createQueryClient|createClient)$/]. Added per-file override for src/main.tsx that redeclares no-restricted-syntax WITHOUT the two singleton selectors (all other selectors stay enforced). main.tsx's `new QueryClient()` + `createRouter(...)` now pass; same syntax anywhere else fires. pnpm lint PASS. Commit a682149."}
       ],
       "verifier_notes": null
     },
@@ -385,10 +385,12 @@
         {"type": "shell_exit_zero", "cmd": "uv run pytest apps/tests/invariants/test_typescript_dead_code.py -q"},
         {"type": "negative_test", "description": "Add `export const unused = 1;` to any file not re-exported. Must fail knip.", "cmd": "pnpm --dir web-ui knip --no-progress"}
       ],
-      "status": "not_started",
+      "status": "needs_verification",
       "blocks": [],
       "blocked_by": ["XX-02"],
-      "session_log": [],
+      "session_log": [
+        {"date": "2026-04-20", "agent": "ts-lane-session-2", "note": "Installed knip@6.5.0. Filled web-ui/invariants/knip.json with entry points (main.tsx, shared/storage.ts, shared/platform.ts, vite.config.ts, eslint.config.ts, invariants/eslint.config.ts, invariants/rules/*.ts) + project globs (src/**, invariants/**). ignoreDependencies for tailwindcss / @eslint/js / eslint-plugin-boundaries / typescript-eslint / jiti (referenced only in the invariants config, which knip doesn't fully trace through). Added `knip` script to web-ui/package.json. Created apps/tests/invariants/test_typescript_dead_code.py — thin shell-out wrapper that asserts `pnpm --dir web-ui knip --no-progress` exits 0, with a format_invariant_failure message carrying knip's stdout as violations. PASS on baseline (no unused code in the skeleton). Commit TBD."}
+      ],
       "verifier_notes": null
     },
     {
