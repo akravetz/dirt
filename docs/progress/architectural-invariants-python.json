@@ -163,7 +163,7 @@
       "blocked_by": [],
       "session_log": [
         {"date": "2026-04-20", "note": "Starting PY-06. Added T20 to [tool.ruff.lint] select. scripts/ and debug/ already extend-excluded in PY-04, which achieves the same effect as a per-directory extend-select override: those dirs aren't linted, so prints pass. No existing prints in apps/*/src/dirt_*/ to fix."},
-        {"date": "2026-04-20", "commit": "pending", "note": "PY-06 test passes. All 3 acceptance_criteria green: (1) grep 'T20' in pyproject.toml, (2) uv run ruff check → clean, (3) negative test: `print('debug')` injected into plants.py trips T201 and ruff exits non-zero. Reverted."}
+        {"date": "2026-04-20", "commit": "a759038", "note": "PY-06 committed. All 3 acceptance_criteria green: (1) grep 'T20' in pyproject.toml, (2) uv run ruff check → clean, (3) negative test: `print('debug')` injected into plants.py trips T201 and ruff exits non-zero. Reverted."}
       ],
       "verifier_notes": null
     },
@@ -184,10 +184,13 @@
         {"type": "shell_exit_zero", "cmd": "uv run pytest apps/tests/invariants/test_no_asyncio_run_outside_entrypoints.py -q"},
         {"type": "negative_test", "description": "Add `import asyncio; asyncio.run(some_coro())` at top level of any service file. Must fail.", "cmd": "uv run pytest apps/tests/invariants/test_no_asyncio_run_outside_entrypoints.py -q"}
       ],
-      "status": "not_started",
+      "status": "needs_verification",
       "blocks": [],
       "blocked_by": [],
-      "session_log": [],
+      "session_log": [
+        {"date": "2026-04-20", "note": "Starting PY-07. AST invariant — walks apps/*/src/dirt_*/**/*.py, resolves Call targets through build_import_map, flags asyncio.run UNLESS (a) the call is inside a top-level `if __name__ == '__main__':` block or (b) the file is in COMPOSITION_ROOTS. asyncio.run_coroutine_threadsafe is intentionally NOT flagged — it's the correct primitive for handing work to a loop from a C thread. No production refactor — the one existing asyncio.run call is inside `if __name__ == '__main__'` in apps/voice/src/dirt_voice/channels/voice.py."},
+        {"date": "2026-04-20", "commit": "pending", "note": "PY-07 test passes. All 3 acceptance_criteria green: (1) file exists, (2) uv run pytest → 5 passed, (3) negative test: injected `import asyncio; async def _c(): pass; asyncio.run(_c())` at module level of plants.py; test failed flagging asyncio.run(...). Reverted."}
+      ],
       "verifier_notes": null
     },
     {
