@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Run every auto-fixer the pre-commit hooks would otherwise flag in
+# read-only mode. Designed for agents (and humans) to invoke before
+# `git add` + `git commit` so the commit doesn't bounce off cosmetic
+# drift the tooling already knows how to repair.
+#
+# What this does NOT do:
+#   - Run tests. Pre-commit's pytest hooks still gate the commit; this
+#     script doesn't try to second-guess them.
+#   - Touch generated artifacts under contracts/python/, web-ui/src/
+#     api-client/generated/, web-ui/src/routeTree.gen.ts. Use
+#     `scripts/gen-contract` for the contract artifacts.
+#   - Apply unsafe fixes. Both ruff and Biome have an --unsafe-fixes
+#     mode; we don't enable it here because the recovery from a bad
+#     unsafe fix is more painful than re-running the script.
+#
+# Exit code: 0 if every fixer succeeded; non-zero otherwise.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+echo "→ ruff format"
+uv run ruff format
+
+echo "→ ruff check --fix"
+uv run ruff check --fix
+
+echo "→ biome check --write (web-ui)"
+pnpm --dir web-ui exec biome check --write
+
+echo "→ eslint --fix (web-ui)"
+pnpm --dir web-ui exec eslint --fix .
+
+echo "✓ all fixers applied — review the diff, stage, then commit"
