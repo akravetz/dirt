@@ -87,7 +87,7 @@
         { "kind": "typecheck" },
         { "kind": "build" }
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "backend.auth",
@@ -133,7 +133,7 @@
         { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/grow/current removed." },
         { "kind": "unit", "path": "apps/web/tests/test_grow_endpoint.py" }
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "backend.sensors.current",
