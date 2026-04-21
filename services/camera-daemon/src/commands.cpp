@@ -169,7 +169,7 @@ std::string CommandDispatcher::handle_set_zoom(float target) {
 }
 
 std::string CommandDispatcher::dispatch(const std::string& line) {
-    if (log_) log_->info("req: " + line);
+    if (log_) log_->debug("req: " + line);
 
     auto toks = split_ws(line);
     if (toks.empty()) return "";
@@ -208,7 +208,7 @@ std::string CommandDispatcher::dispatch(const std::string& line) {
         resp = error(std::string("exception_") + e.what());
     }
 
-    if (log_) log_->info("resp: " + resp);
+    if (log_) log_->debug("resp: " + resp);
     return resp;
 }
 

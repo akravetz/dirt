@@ -1,5 +1,6 @@
 #include "logger.hpp"
 
+#include <cctype>
 #include <chrono>
 #include <cstdio>
 #include <cstring>
@@ -9,7 +10,23 @@
 
 namespace dirt {
 
-Logger::Logger(const std::string& path) : path_(path), fd_(-1) {
+LogLevel parse_log_level(const std::string& s, bool* ok) {
+    std::string lower;
+    lower.reserve(s.size());
+    for (char c : s) {
+        lower.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+    }
+    if (ok) *ok = true;
+    if (lower == "error") return LogLevel::Error;
+    if (lower == "warn")  return LogLevel::Warn;
+    if (lower == "info")  return LogLevel::Info;
+    if (lower == "debug") return LogLevel::Debug;
+    if (ok) *ok = false;
+    return LogLevel::Info;
+}
+
+Logger::Logger(const std::string& path, LogLevel level)
+    : path_(path), fd_(-1), level_(level) {
     if (!path.empty()) {
         fd_ = ::open(path.c_str(),
                      O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC,
@@ -25,7 +42,9 @@ Logger::~Logger() {
     if (fd_ >= 0) ::close(fd_);
 }
 
-void Logger::write(const char* level, const std::string& msg) {
+void Logger::write(LogLevel level, const char* level_str, const std::string& msg) {
+    if (static_cast<int>(level) > static_cast<int>(level_)) return;
+
     auto now = std::chrono::system_clock::now();
     std::time_t t = std::chrono::system_clock::to_time_t(now);
     char ts[32];
@@ -35,7 +54,7 @@ void Logger::write(const char* level, const std::string& msg) {
 
     char line[1024];
     int n = std::snprintf(line, sizeof(line), "%s %s %s\n",
-                          ts, level, msg.c_str());
+                          ts, level_str, msg.c_str());
     if (n < 0) return;
     if (n >= (int)sizeof(line)) n = sizeof(line) - 1;
 
@@ -45,8 +64,9 @@ void Logger::write(const char* level, const std::string& msg) {
     (void)_;
 }
 
-void Logger::info(const std::string& msg)  { write("INFO",  msg); }
-void Logger::warn(const std::string& msg)  { write("WARN",  msg); }
-void Logger::error(const std::string& msg) { write("ERROR", msg); }
+void Logger::error(const std::string& msg) { write(LogLevel::Error, "ERROR", msg); }
+void Logger::warn(const std::string& msg)  { write(LogLevel::Warn,  "WARN",  msg); }
+void Logger::info(const std::string& msg)  { write(LogLevel::Info,  "INFO",  msg); }
+void Logger::debug(const std::string& msg) { write(LogLevel::Debug, "DEBUG", msg); }
 
 } // namespace dirt

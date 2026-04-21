@@ -1,0 +1,9 @@
+[Unit]
+Description=Rotate dirt-camera-daemon log (hourly via timer)
+Documentation=file://%h/code/dirt/config/logrotate.conf
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/logrotate -s %h/.local/state/dirt/logrotate.status %h/code/dirt/config/logrotate.conf
+StandardOutput=journal
+StandardError=journal

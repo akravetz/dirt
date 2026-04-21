@@ -2,11 +2,16 @@
 //
 // Usage:
 //   dirt-camera-daemon [--socket PATH] [--log PATH]
+//                      [--log-level error|warn|info|debug]
 //
-// Default socket:  $XDG_RUNTIME_DIR/dirt-camera.sock
-//                  (fallback: /tmp/dirt-camera.sock if XDG_RUNTIME_DIR unset)
-// Default log:     $HOME/.local/state/dirt/camera.log
-//                  (auto-creates parent directory)
+// Default socket:    $XDG_RUNTIME_DIR/dirt-camera.sock
+//                    (fallback: /tmp/dirt-camera.sock if XDG_RUNTIME_DIR unset)
+// Default log:       $HOME/.local/state/dirt/camera.log
+//                    (auto-creates parent directory)
+// Default log level: info (overridable via DIRT_CAMERA_LOG_LEVEL env
+//                    or --log-level flag). req/resp lines log at
+//                    DEBUG and are suppressed by default — a client
+//                    hammering the socket must not fill the disk.
 
 #include "capture.hpp"
 #include "commands.hpp"
@@ -57,14 +62,36 @@ int main(int argc, char* argv[]) {
     std::string socket_path = default_socket_path();
     std::string log_path = default_log_path();
 
+    dirt::LogLevel level = dirt::LogLevel::Info;
+    if (const char* env = std::getenv("DIRT_CAMERA_LOG_LEVEL"); env && *env) {
+        bool ok = false;
+        dirt::LogLevel parsed = dirt::parse_log_level(env, &ok);
+        if (ok) {
+            level = parsed;
+        } else {
+            std::fprintf(stderr,
+                "DIRT_CAMERA_LOG_LEVEL=%s not recognized; using info\n", env);
+        }
+    }
+
     for (int i = 1; i < argc; i++) {
         std::string a = argv[i];
         if (a == "--socket" && i + 1 < argc) {
             socket_path = argv[++i];
         } else if (a == "--log" && i + 1 < argc) {
             log_path = argv[++i];
+        } else if (a == "--log-level" && i + 1 < argc) {
+            bool ok = false;
+            dirt::LogLevel parsed = dirt::parse_log_level(argv[++i], &ok);
+            if (!ok) {
+                std::fprintf(stderr,
+                    "--log-level: want error|warn|info|debug\n");
+                return 2;
+            }
+            level = parsed;
         } else if (a == "--help" || a == "-h") {
-            std::printf("Usage: %s [--socket PATH] [--log PATH]\n", argv[0]);
+            std::printf("Usage: %s [--socket PATH] [--log PATH] "
+                        "[--log-level error|warn|info|debug]\n", argv[0]);
             return 0;
         } else {
             std::fprintf(stderr, "unknown arg: %s\n", a.c_str());
@@ -72,7 +99,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    dirt::Logger logger(log_path);
+    dirt::Logger logger(log_path, level);
     logger.info("dirt-camera-daemon starting");
     logger.info("socket=" + socket_path);
     logger.info("log=" + log_path);

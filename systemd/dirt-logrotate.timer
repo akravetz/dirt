@@ -1,0 +1,14 @@
+[Unit]
+Description=Hourly trigger for dirt-logrotate.service
+Documentation=file://%h/code/dirt/config/logrotate.conf
+
+[Timer]
+OnCalendar=hourly
+# If the machine was off when the hour rolled, fire on next boot.
+Persistent=true
+# Stagger relative to the hour to avoid colliding with other hourly jobs.
+RandomizedDelaySec=2m
+Unit=dirt-logrotate.service
+
+[Install]
+WantedBy=timers.target
