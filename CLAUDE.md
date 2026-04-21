@@ -56,8 +56,6 @@ Before `git add` + `git commit`, run **`scripts/agent-fix`**. It applies every f
 
 The pre-commit hooks themselves now run in **write-mode** (not check-mode). If a hook still modifies files during the commit, pre-commit aborts with "files were modified by this hook" — the recovery is `git add -A && git commit ...` again, NOT chasing each formatter's `--write` flag separately. If a hook fails for a non-cosmetic reason (test failure, type error, invariant violation), fix the underlying code; never edit the hook config or skip with `--no-verify`.
 
-**Bash gotcha**: the Bash tool's working directory persists across calls. The `cd apps/<x> && pytest` pattern leaks into the next command — `git status` / `git commit` then run from a subdir. Don't `cd` in the first place: `uv run pytest apps/shared` works from anywhere, and `git -C <path>` handles the rare case where you actually need git in a different tree.
-
 ### Monitoring App
 
 The backend runs as two systemd-managed processes: `dirt-hwd` (hardware + ingest, :8000) and `dirt-web` (UI + MCP, :8001). There is no single `main.py`.
