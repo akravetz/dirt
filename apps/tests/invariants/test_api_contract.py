@@ -11,15 +11,16 @@ the frozen OpenAPI contract at ``contracts/webapp-v1.yaml``.
 Three assertions:
 
 1. **Spec ⊆ App**: Every (path, method) declared in the spec is either
-   served by the app OR marked as `EXPECTED_MISSING` (a Phase 2 feature
-   that hasn't shipped yet). The expected-missing table shrinks
-   monotonically as features land — entries that are no longer missing
-   cause an `xpassed` failure.
+   served by the app OR marked as `expected_missing` in
+   ``contract_status.json`` (a Phase 2 feature that hasn't shipped yet).
+   The expected-missing table shrinks monotonically as features land —
+   entries that are no longer missing cause a "falsely missing" failure.
 
 2. **App ⊆ Spec**: Every non-framework, non-legacy route in the app
-   appears in the spec. The `LEGACY_ROUTES` table holds the pre-rewrite
-   HTML / HTMX endpoints that exist today and will be deleted in Phase 2.
-   Adding a new route without updating the spec fails this check.
+   appears in the spec. The ``legacy_routes`` table in
+   ``contract_status.json`` holds the pre-rewrite HTML / HTMX endpoints
+   that exist today and will be deleted in Phase 2. Adding a new route
+   without updating the spec fails this check.
 
 3. **Models import**: The generated Pydantic models from
    ``dirt_contracts.webapp_v1.models`` import cleanly. This catches drift
@@ -28,17 +29,25 @@ Three assertions:
 
 Phase 2 endpoint round-trip checks (call the endpoint, parse JSON with
 the generated model) are added per-feature when the corresponding entry
-is removed from EXPECTED_MISSING.
+is removed from expected_missing.
+
+Note on data-vs-logic split: the two shrinking tables (expected_missing,
+legacy_routes) live in the sibling ``contract_status.json`` data file,
+which is NOT human-owned — agents flip entries there as features land
+without tripping the protect-invariants hook. Test logic stays here and
+stays sacred.
 """
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
 import yaml
 
 CONTRACT_PATH = Path(__file__).resolve().parents[3] / "contracts" / "webapp-v1.yaml"
+STATUS_PATH = Path(__file__).resolve().parent / "contract_status.json"
 
 # FastAPI framework-generated paths — not part of the application contract.
 FRAMEWORK_PATHS = frozenset(
@@ -56,51 +65,60 @@ FRAMEWORK_PATHS = frozenset(
 # here in the future.
 EXEMPT_PATH_PREFIXES = ("/mcp",)
 
-# Pre-rewrite HTML/HTMX endpoints that exist today. Phase 2 generators
-# DELETE these as the SPA replaces them. The set must shrink to empty by
-# the end of Phase 2; do not extend it.
-LEGACY_ROUTES: frozenset[tuple[str, str]] = frozenset(
-    {
-        ("/", "GET"),  # Jinja dashboard — replaced by SPA shell
-        ("/login", "GET"),  # Jinja login page — replaced by SPA /login route
-        ("/login", "POST"),  # form-post — replaced by /api/auth/login
-        ("/logout", "GET"),  # 302 redirect — replaced by /api/auth/logout
-        ("/feed/live", "GET"),  # renamed to /api/feed/live.jpg
-        ("/feed/image", "GET"),  # HTMX fragment — deleted
-        ("/feed/status", "GET"),  # HTMX fragment — deleted
-        ("/sensors/current", "GET"),  # HTMX fragment — replaced by JSON
-        ("/api/sensors/readings", "GET"),  # renamed to /api/sensors/history
-        ("/api/snapshots/latest", "GET"),  # renamed to /api/feed/snapshot/latest
-    }
-)
+# Loaded once at import time from contract_status.json. The agent-editable
+# data file holds the two shrinking tables; this module only owns the test
+# logic that reads them.
+_VALID_METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"})
 
-# Contract endpoints not yet implemented in the app. Each entry maps to
-# the plan-JSON feature id that will deliver it. The Phase 2 evaluator
-# removes entries here as features land. An entry that's already
-# implemented produces an `xpassed` failure (strict).
-EXPECTED_MISSING: dict[tuple[str, str], str] = {
-    ("/api/auth/login", "POST"): "backend.auth",
-    ("/api/auth/logout", "POST"): "backend.auth",
-    ("/api/auth/me", "GET"): "backend.auth",
-    ("/api/grow/current", "GET"): "backend.grow.current",
-    ("/api/sensors/current", "GET"): "backend.sensors.current",
-    ("/api/sensors/history", "GET"): "backend.sensors.history",
-    ("/api/humidifier/state", "GET"): "backend.humidifier.state",
-    ("/api/humidifier/history", "GET"): "backend.humidifier.history",
-    ("/api/plants", "GET"): "backend.plants.list",
-    ("/api/plants/{code}", "GET"): "backend.plants.detail",
-    ("/api/plants/{code}/moisture", "GET"): "backend.plants.moisture",
-    ("/api/system/devices", "GET"): "backend.system.devices",
-    ("/api/feed/live.jpg", "GET"): "backend.feed.live",
-    ("/api/feed/snapshot/latest", "GET"): "backend.feed.snapshot",
-    ("/api/ptz/state", "GET"): "backend.ptz.state",
-    ("/api/ptz/preset/{id}", "POST"): "backend.ptz.preset",
-    ("/api/ptz/look", "POST"): "backend.ptz.look",
-    ("/api/ptz/zoom", "POST"): "backend.ptz.zoom",
-    ("/api/wiki/tree", "GET"): "backend.wiki.tree",
-    ("/api/wiki/file", "GET"): "backend.wiki.file",
-    ("/api/wiki/search", "GET"): "backend.wiki.search",
-}
+
+def _parse_endpoint_key(key: str) -> tuple[str, str]:
+    """Split 'METHOD /path' → ('/path', 'METHOD'). Loud failure on bad shape.
+
+    The key format mirrors how OpenAPI displays operations and how curl
+    would invoke them, so contract_status.json reads naturally. We
+    normalize back to (path, method) tuples for set arithmetic against
+    the spec/app endpoint pairs.
+    """
+    parts = key.split(" ", 1)
+    if len(parts) != 2:
+        raise ValueError(
+            f"contract_status.json: bad endpoint key {key!r}; "
+            f"expected 'METHOD /path' (e.g. 'GET /api/grow/current')"
+        )
+    method, path = parts[0].upper(), parts[1]
+    if method not in _VALID_METHODS:
+        raise ValueError(
+            f"contract_status.json: unknown method {method!r} in key {key!r}"
+        )
+    if not path.startswith("/"):
+        raise ValueError(f"contract_status.json: path must start with / in key {key!r}")
+    return (path, method)
+
+
+def _load_status() -> tuple[dict[tuple[str, str], str], dict[tuple[str, str], str]]:
+    """Load + validate contract_status.json. Returns (expected_missing, legacy_routes).
+
+    Each table maps (path, method) → string note. expected_missing's
+    note is a plan-JSON feature_id (must be dotted); legacy_routes'
+    note is free-form prose explaining what replaces the legacy route.
+    """
+    with STATUS_PATH.open() as fh:
+        raw = json.load(fh)
+
+    def _section(name: str) -> dict[tuple[str, str], str]:
+        section = raw.get(name, {})
+        if not isinstance(section, dict):
+            raise TypeError(f"contract_status.json[{name!r}] must be an object")
+        return {
+            _parse_endpoint_key(k): v
+            for k, v in section.items()
+            if not k.startswith("$")
+        }
+
+    return _section("expected_missing"), _section("legacy_routes")
+
+
+EXPECTED_MISSING, LEGACY_ROUTES = _load_status()
 
 
 def _load_spec() -> dict:
@@ -111,11 +129,10 @@ def _load_spec() -> dict:
 def _spec_endpoints(spec: dict) -> frozenset[tuple[str, str]]:
     """All (path, METHOD) tuples declared in the OpenAPI paths section."""
     pairs: set[tuple[str, str]] = set()
-    valid_methods = {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
     for path, ops in spec.get("paths", {}).items():
         for method in ops:
             mu = method.upper()
-            if mu in valid_methods:
+            if mu in _VALID_METHODS:
                 pairs.add((path, mu))
     return frozenset(pairs)
 

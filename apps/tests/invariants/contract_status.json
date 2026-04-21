@@ -1,0 +1,42 @@
+{
+  "$comment": "Agent-editable contract-status data for test_api_contract.py. The test logic itself is in apps/tests/invariants/test_api_contract.py and is HUMAN-OWNED (protected by .claude/hooks/protect-invariants.sh). This file is NOT protected — the Phase 2 BE generator agent flips entries here as features land. Schema is enforced by test_api_contract.py at load time; bad shapes cause loud test failures.",
+
+  "expected_missing": {
+    "$comment": "Contract endpoints not yet implemented in the app. Each entry: 'METHOD path' → plan-JSON feature_id that will deliver it. Phase 2 BE generator removes its feature's entries when finishing. An entry that's already implemented produces a test failure ('falsely missing' check) so this list shrinks monotonically.",
+    "POST /api/auth/login": "backend.auth",
+    "POST /api/auth/logout": "backend.auth",
+    "GET /api/auth/me": "backend.auth",
+    "GET /api/grow/current": "backend.grow.current",
+    "GET /api/sensors/current": "backend.sensors.current",
+    "GET /api/sensors/history": "backend.sensors.history",
+    "GET /api/humidifier/state": "backend.humidifier.state",
+    "GET /api/humidifier/history": "backend.humidifier.history",
+    "GET /api/plants": "backend.plants.list",
+    "GET /api/plants/{code}": "backend.plants.detail",
+    "GET /api/plants/{code}/moisture": "backend.plants.moisture",
+    "GET /api/system/devices": "backend.system.devices",
+    "GET /api/feed/live.jpg": "backend.feed.live",
+    "GET /api/feed/snapshot/latest": "backend.feed.snapshot",
+    "GET /api/ptz/state": "backend.ptz.state",
+    "POST /api/ptz/preset/{id}": "backend.ptz.preset",
+    "POST /api/ptz/look": "backend.ptz.look",
+    "POST /api/ptz/zoom": "backend.ptz.zoom",
+    "GET /api/wiki/tree": "backend.wiki.tree",
+    "GET /api/wiki/file": "backend.wiki.file",
+    "GET /api/wiki/search": "backend.wiki.search"
+  },
+
+  "legacy_routes": {
+    "$comment": "Pre-rewrite HTML/HTMX endpoints that exist today on apps/web and will be deleted as their replacement contract endpoints land. Each entry: 'METHOD path' → short why/what-replaces-it note. The set must shrink to empty by the end of Phase 2; do NOT extend it. The BE generator removes an entry in the same commit that deletes the corresponding route handler from the app code.",
+    "GET /": "Jinja dashboard — replaced by SPA shell",
+    "GET /login": "Jinja login page — replaced by SPA /login route",
+    "POST /login": "form-post — replaced by /api/auth/login",
+    "GET /logout": "302 redirect — replaced by /api/auth/logout",
+    "GET /feed/live": "renamed to /api/feed/live.jpg",
+    "GET /feed/image": "HTMX fragment — deleted",
+    "GET /feed/status": "HTMX fragment — deleted",
+    "GET /sensors/current": "HTMX fragment — replaced by JSON",
+    "GET /api/sensors/readings": "renamed to /api/sensors/history",
+    "GET /api/snapshots/latest": "renamed to /api/feed/snapshot/latest"
+  }
+}
