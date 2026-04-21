@@ -3,19 +3,16 @@ import { useEffect, useState } from "react";
 import { storage } from "@/shared/storage";
 
 // Primary nav tabs. Paths match the file-based routes under src/routes/;
-// TanStack Router's generated tree gives `navigate({ to })` type safety
-// across this literal union.
+// `as const` preserves the literal union so `navigate({ to })` stays
+// type-checked against the generated route tree.
 const TABS = [
   { label: "Dashboard", path: "/" },
   { label: "Live", path: "/live" },
   { label: "Wiki", path: "/wiki" },
 ] as const;
 
-type TabPath = (typeof TABS)[number]["path"];
-
 const THEME_STORAGE_KEY = "dirt.theme";
-const THEMES = ["light", "dark"] as const;
-type Theme = (typeof THEMES)[number];
+type Theme = "light" | "dark";
 
 function readStoredTheme(): Theme {
   const raw = storage.get(THEME_STORAGE_KEY);
@@ -57,7 +54,7 @@ export function TopBar() {
               key={path}
               type="button"
               onClick={() => {
-                void navigate({ to: path satisfies TabPath });
+                void navigate({ to: path });
               }}
               aria-current={active ? "page" : undefined}
               className={
