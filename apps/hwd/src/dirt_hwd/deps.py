@@ -3,6 +3,7 @@
 Mirrors ``dirt_web.deps`` — endpoints take services + config via
 ``Depends(get_*)`` and tests override with ``app.dependency_overrides``.
 """
+
 from fastapi import Request
 
 from dirt_shared.config import Settings

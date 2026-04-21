@@ -126,7 +126,9 @@ async def _post_raw(client: AsyncClient, value: float, location: str = "plant-a"
     )
 
 
-async def _get_cal(engine, location: SensorLocation, metric: str) -> SensorCalibration | None:
+async def _get_cal(
+    engine, location: SensorLocation, metric: str
+) -> SensorCalibration | None:
     async with AsyncSession(engine) as s:
         result = await s.exec(
             select(SensorNode.id).where(SensorNode.location == location)

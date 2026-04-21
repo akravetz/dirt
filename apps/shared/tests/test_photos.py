@@ -90,7 +90,8 @@ async def test_capture_at_retries_on_stale_frame(tmp_path: Path):
     # First capture returns age_ms=999 (stale); second returns 50 (fresh).
     fake = FakeDaemon(tmp_path, capture_ages_ms=[999, 50])
     c = CameraClient(
-        fake, PRESETS,
+        fake,
+        PRESETS,
         settle_s=0.0,
         max_capture_age_ms=400,
         capture_retries=3,
@@ -107,7 +108,8 @@ async def test_capture_at_retries_on_stale_frame(tmp_path: Path):
 async def test_capture_at_fails_after_exhausting_retries(tmp_path: Path):
     fake = FakeDaemon(tmp_path, capture_ages_ms=[999, 999, 999])
     c = CameraClient(
-        fake, PRESETS,
+        fake,
+        PRESETS,
         settle_s=0.0,
         max_capture_age_ms=400,
         capture_retries=3,

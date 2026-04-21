@@ -17,6 +17,7 @@ The tests never hit the DB — they exercise only the Pydantic model,
 which is the layer whose contract matters for the ESP32 firmware that
 was tested against it six months ago.
 """
+
 from __future__ import annotations
 
 from hypothesis import given
@@ -91,6 +92,4 @@ def test_empty_location_is_rejected() -> None:
         IngestPayload(location="", metrics={})
     except ValidationError:
         return
-    raise AssertionError(
-        "IngestPayload accepted an empty location — contract broken"
-    )
+    raise AssertionError("IngestPayload accepted an empty location — contract broken")

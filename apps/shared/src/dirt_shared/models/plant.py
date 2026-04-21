@@ -9,6 +9,7 @@ Uniqueness: ``(growstate_id, code)`` — the stable 'a'/'b'/'c'/'d' label
 is unique per grow, not globally. Grow #2 can reuse A–D with different
 surrogate ids.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -44,9 +45,7 @@ def _utcnow() -> datetime:
 class Plant(SQLModel, table=True):
     __tablename__ = "plant"
     __table_args__ = (
-        CheckConstraint(
-            "code ~ '^[a-z]$'", name="ck_plant_code_lowercase_letter"
-        ),
+        CheckConstraint("code ~ '^[a-z]$'", name="ck_plant_code_lowercase_letter"),
         CheckConstraint(
             "moisture_target_low >= 0 AND moisture_target_low < moisture_target_high",
             name="ck_plant_moisture_low_bounds",
@@ -55,9 +54,7 @@ class Plant(SQLModel, table=True):
             "moisture_target_high <= 100",
             name="ck_plant_moisture_high_bounds",
         ),
-        UniqueConstraint(
-            "growstate_id", "code", name="uq_plant_grow_code"
-        ),
+        UniqueConstraint("growstate_id", "code", name="uq_plant_grow_code"),
         Index("ix_plant_status", "status"),
         Index("ix_plant_growstate_id", "growstate_id"),
     )
@@ -96,22 +93,16 @@ class Plant(SQLModel, table=True):
     )
     purple: bool = Field(
         default=False,
-        sa_column=Column(
-            Boolean, nullable=False, server_default=text("false")
-        ),
+        sa_column=Column(Boolean, nullable=False, server_default=text("false")),
     )
     label: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
     moisture_target_low: float = Field(
         default=55.0,
-        sa_column=Column(
-            Double, nullable=False, server_default=text("55")
-        ),
+        sa_column=Column(Double, nullable=False, server_default=text("55")),
     )
     moisture_target_high: float = Field(
         default=70.0,
-        sa_column=Column(
-            Double, nullable=False, server_default=text("70")
-        ),
+        sa_column=Column(Double, nullable=False, server_default=text("70")),
     )
     created_at: datetime = Field(
         default_factory=_utcnow,

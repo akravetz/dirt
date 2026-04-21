@@ -76,23 +76,27 @@ from ._helpers import (
 # Their entire job is to be the boundary where time enters the system.
 # Forcing clock injection here would force every caller to thread a
 # clock parameter for no testability gain.
-SHELL_MODULES: frozenset[str] = frozenset({
-    # observability owns log timestamps + filename rotation per CLAUDE.md
-    # ("log_event handles path, rotation, timestamp, and correlation ID").
-    "shared/src/dirt_shared/observability.py",
-    # voice.py: time boundary for session logs and audio clips
-    # (same role observability plays for web/hwd).
-    "voice/src/dirt_voice/channels/voice.py",
-})
+SHELL_MODULES: frozenset[str] = frozenset(
+    {
+        # observability owns log timestamps + filename rotation per CLAUDE.md
+        # ("log_event handles path, rotation, timestamp, and correlation ID").
+        "shared/src/dirt_shared/observability.py",
+        # voice.py: time boundary for session logs and audio clips
+        # (same role observability plays for web/hwd).
+        "voice/src/dirt_voice/channels/voice.py",
+    }
+)
 
 # Directory exemptions: any file under one of these prefixes is skipped.
 # Used for SQLModel schema files where ``default_factory=_utcnow`` is the
 # idiomatic Python ORM pattern for DB-managed timestamps. The model
 # layer is declarative; "what time was this row inserted" is a database
 # concern, not a business-logic decision.
-MODEL_DIRS: frozenset[str] = frozenset({
-    "shared/src/dirt_shared/models",
-})
+MODEL_DIRS: frozenset[str] = frozenset(
+    {
+        "shared/src/dirt_shared/models",
+    }
+)
 
 # Fully-qualified call targets, *post-import-resolution*. Each entry
 # corresponds to a real way a Python file can ask "what time is it now?"
@@ -100,24 +104,27 @@ MODEL_DIRS: frozenset[str] = frozenset({
 # (``time.monotonic``, ``time.perf_counter``) are deliberately omitted —
 # they show up only in ``started = monotonic(); ...; elapsed =
 # monotonic() - started`` shapes that feed telemetry, not control flow.
-BANNED_CLOCK_CALLS: frozenset[str] = frozenset({
-    # datetime module — `from datetime import datetime; datetime.now()`
-    # resolves to "datetime.datetime.now" because `datetime` (the local)
-    # binds to `datetime.datetime` (the class) per the import map below.
-    "datetime.datetime.now",
-    "datetime.datetime.utcnow",
-    "datetime.datetime.today",
-    "datetime.date.today",
-    # `import datetime; datetime.now()` (atypical but possible) and
-    # bare `now()` after `from datetime.datetime import now` (very rare).
-    "datetime.now",
-    "datetime.utcnow",
-    "datetime.today",
-    "date.today",
-    # time module — only the wall-clock readers; not monotonic/perf_counter.
-    "time.time",
-    "time.process_time",
-})
+BANNED_CLOCK_CALLS: frozenset[str] = frozenset(
+    {
+        # datetime module — `from datetime import datetime; datetime.now()`
+        # resolves to "datetime.datetime.now" because `datetime` (the local)
+        # binds to `datetime.datetime` (the class) per the import map below.
+        "datetime.datetime.now",
+        "datetime.datetime.utcnow",
+        "datetime.datetime.today",
+        "datetime.date.today",
+        # `import datetime; datetime.now()` (atypical but possible) and
+        # bare `now()` after `from datetime.datetime import now` (very rare).
+        "datetime.now",
+        "datetime.utcnow",
+        "datetime.today",
+        "date.today",
+        # time module — only the wall-clock readers; not monotonic/perf_counter.
+        "time.time",
+        "time.process_time",
+    }
+)
+
 
 def _resolve_call_target(func_node: ast.expr, imports: dict[str, str]) -> str:
     """Qualified name of a Call's target, resolving import aliases.
@@ -190,42 +197,44 @@ def test_no_concrete_clock_in_production(app: str) -> None:
             violations.append(f"apps/{rel}:{lineno}  {target}(...)")
 
     if violations:
-        pytest.fail(format_invariant_failure(
-            headline=(
-                f"{app}: {len(violations)} concrete clock read(s) "
-                "in production code"
-            ),
-            smell_name="Non-Deterministic Test / Hidden Time Dependency",
-            citation=(
-                "Meszaros, xUnit Test Patterns; Bernhardt, 'Functional\n"
-                "   Core, Imperative Shell', 2012"
-            ),
-            body=(
-                "See this file's module docstring for the smell description\n"
-                "and the basic ``clock=`` callable-default pattern.\n\n"
-                "FIX — PREFERRED PATH (services): inject the clock on\n"
-                "``__init__`` and store ``self._clock``; thread it from the\n"
-                "composition root via ``build_core_services(clock=...)`` so\n"
-                "every service in the bundle reads from one source. Tests\n"
-                "pass a frozen clock at construction. Gold standards:\n"
-                "``SensorReader`` in daily_sensors.py, ``DailyReport`` in\n"
-                "daily_report.py, and the rest of app_wiring.py.\n\n"
-                "ANTI-PATTERN: do NOT add per-method ``now=None, today=None``\n"
-                "kwargs that fall back to ``datetime.now(UTC)`` inside the\n"
-                "body. That's a half-finished test seam — N fallbacks\n"
-                "scattered across the class instead of one clock stored on\n"
-                "the instance, and every caller has to remember the kwarg.\n\n"
-                "FIX — FREE FUNCTIONS / UTILITIES: a ``clock=`` kwarg with a\n"
-                "default IS the right shape; there's no ``self`` to hang the\n"
-                "clock off. Example: ``find_archivable_dates`` in archive.py.\n\n"
-                "FIX — SHELL MODULES: if the file's job is to BE the time\n"
-                "boundary (log filename rotation, audio clip filenames, the\n"
-                "process's session log), add it to ``SHELL_MODULES`` above\n"
-                "with a one-line WHY comment. observability.py and the voice\n"
-                "channel are the canonical examples."
-            ),
-            violations=violations,
-        ))
+        pytest.fail(
+            format_invariant_failure(
+                headline=(
+                    f"{app}: {len(violations)} concrete clock read(s) "
+                    "in production code"
+                ),
+                smell_name="Non-Deterministic Test / Hidden Time Dependency",
+                citation=(
+                    "Meszaros, xUnit Test Patterns; Bernhardt, 'Functional\n"
+                    "   Core, Imperative Shell', 2012"
+                ),
+                body=(
+                    "See this file's module docstring for the smell description\n"
+                    "and the basic ``clock=`` callable-default pattern.\n\n"
+                    "FIX — PREFERRED PATH (services): inject the clock on\n"
+                    "``__init__`` and store ``self._clock``; thread it from the\n"
+                    "composition root via ``build_core_services(clock=...)`` so\n"
+                    "every service in the bundle reads from one source. Tests\n"
+                    "pass a frozen clock at construction. Gold standards:\n"
+                    "``SensorReader`` in daily_sensors.py, ``DailyReport`` in\n"
+                    "daily_report.py, and the rest of app_wiring.py.\n\n"
+                    "ANTI-PATTERN: do NOT add per-method ``now=None, today=None``\n"
+                    "kwargs that fall back to ``datetime.now(UTC)`` inside the\n"
+                    "body. That's a half-finished test seam — N fallbacks\n"
+                    "scattered across the class instead of one clock stored on\n"
+                    "the instance, and every caller has to remember the kwarg.\n\n"
+                    "FIX — FREE FUNCTIONS / UTILITIES: a ``clock=`` kwarg with a\n"
+                    "default IS the right shape; there's no ``self`` to hang the\n"
+                    "clock off. Example: ``find_archivable_dates`` in archive.py.\n\n"
+                    "FIX — SHELL MODULES: if the file's job is to BE the time\n"
+                    "boundary (log filename rotation, audio clip filenames, the\n"
+                    "process's session log), add it to ``SHELL_MODULES`` above\n"
+                    "with a one-line WHY comment. observability.py and the voice\n"
+                    "channel are the canonical examples."
+                ),
+                violations=violations,
+            )
+        )
 
 
 if __name__ == "__main__":

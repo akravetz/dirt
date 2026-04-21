@@ -51,12 +51,8 @@ async def test_snapshots_service_empty_db(app_engine):
 
 async def test_snapshots_service_returns_most_recent(app_engine):
     async with AsyncSession(app_engine) as session:
-        session.add(
-            Snapshot(ts=datetime(2026, 1, 1, tzinfo=UTC), file_path="/old.jpg")
-        )
-        session.add(
-            Snapshot(ts=datetime(2026, 3, 1, tzinfo=UTC), file_path="/new.jpg")
-        )
+        session.add(Snapshot(ts=datetime(2026, 1, 1, tzinfo=UTC), file_path="/old.jpg"))
+        session.add(Snapshot(ts=datetime(2026, 3, 1, tzinfo=UTC), file_path="/new.jpg"))
         await session.commit()
 
     snaps = SnapshotsService(app_engine)

@@ -9,6 +9,7 @@ Background loops are *not* built here — they're hwd-specific and depend
 on hardware config that the web app shouldn't touch. They get assembled
 in ``dirt_hwd.app.create_app``.
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -30,6 +31,7 @@ from dirt_shared.services.system_status import SystemStatusService
 @dataclass(frozen=True)
 class CoreServices:
     """Bundle of constructor-injected services shared across both web + hwd."""
+
     engine: AsyncEngine
     settings: Settings
     clock: Callable[[], datetime]

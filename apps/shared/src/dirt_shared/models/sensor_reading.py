@@ -9,6 +9,7 @@ textbook BRIN use case); composite B-trees on ``(metric, ts DESC)`` and
 ``(sensornode_id, ts DESC)`` for the "latest value per metric/node"
 query pattern.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -76,6 +77,4 @@ class SensorReading(SQLModel, table=True):
     )
     metric: str = Field(sa_column=Column(Text, nullable=False))
     value: float = Field(sa_column=Column(Double, nullable=False))
-    source: SensorSource = Field(
-        sa_column=Column(SENSOR_SOURCE_ENUM, nullable=False)
-    )
+    source: SensorSource = Field(sa_column=Column(SENSOR_SOURCE_ENUM, nullable=False))

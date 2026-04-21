@@ -5,6 +5,7 @@ the `sensor_boot` observability stream; metric frames go through the derive
 path. Both paths are exercised with synthetic `data` dicts (not a real serial
 port) — the loop's asyncio plumbing is out of scope here.
 """
+
 from __future__ import annotations
 
 import json
@@ -36,6 +37,7 @@ def test_boot_frame_routed_to_sensor_boot_stream(tmp_path, monkeypatch) -> None:
     # Observability writer is a daemon thread — drain via the same primitive
     # the observability module uses internally.
     from dirt_shared import observability
+
     observability._write_queue.join() if False else None
     # Simpler: poll for the file to appear.
     log_dir = tmp_path / "sensor_boot"
@@ -43,6 +45,7 @@ def test_boot_frame_routed_to_sensor_boot_stream(tmp_path, monkeypatch) -> None:
         if log_dir.exists() and any(log_dir.iterdir()):
             break
         import time
+
         time.sleep(0.05)
 
     files = list(log_dir.glob("*.jsonl"))

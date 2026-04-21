@@ -56,28 +56,58 @@ from ._helpers import (
 # resulting object is either immutable, a framework idiom (FastAPI router
 # at module level is the framework's expected shape), or a declarative
 # value with no external resource state.
-SAFE_CONSTRUCTORS: frozenset[str] = frozenset({
-    # Stdlib pure / immutable values
-    "Path", "PurePath", "PurePosixPath", "PureWindowsPath",
-    "ZoneInfo",                                      # immutable timezone
-    "Decimal", "Fraction",                           # immutable numerics
-    "date", "time", "datetime", "timedelta", "timezone", "tzinfo",  # immutable datetime values
-    # Builtin numeric / string constructors — used for type-casting constants
-    "int", "float", "bool", "complex", "str", "bytes", "bytearray",
-    # Builtin containers used as module-level constants
-    "frozenset", "tuple", "set", "dict", "list",
-    "namedtuple", "NamedTuple",
-    # Type machinery (no runtime state)
-    "TypeVar", "ParamSpec", "TypeAdapter",
-    # Enum class definitions (declarative, not state)
-    "Enum", "IntEnum", "StrEnum", "Flag", "SAEnum",
-    # FastAPI / Starlette routing & templates — module-level binding is the
-    # framework idiom; tests exercise the app, not these bindings.
-    "FastAPI", "APIRouter", "Jinja2Templates",
-    # Project-specific declarative tool descriptions (voice agent).
-    # ToolSpec instances carry no external state; they're config objects.
-    "ToolSpec",
-})
+SAFE_CONSTRUCTORS: frozenset[str] = frozenset(
+    {
+        # Stdlib pure / immutable values
+        "Path",
+        "PurePath",
+        "PurePosixPath",
+        "PureWindowsPath",
+        "ZoneInfo",  # immutable timezone
+        "Decimal",
+        "Fraction",  # immutable numerics
+        "date",
+        "time",
+        "datetime",
+        "timedelta",
+        "timezone",
+        "tzinfo",  # immutable datetime values
+        # Builtin numeric / string constructors — used for type-casting constants
+        "int",
+        "float",
+        "bool",
+        "complex",
+        "str",
+        "bytes",
+        "bytearray",
+        # Builtin containers used as module-level constants
+        "frozenset",
+        "tuple",
+        "set",
+        "dict",
+        "list",
+        "namedtuple",
+        "NamedTuple",
+        # Type machinery (no runtime state)
+        "TypeVar",
+        "ParamSpec",
+        "TypeAdapter",
+        # Enum class definitions (declarative, not state)
+        "Enum",
+        "IntEnum",
+        "StrEnum",
+        "Flag",
+        "SAEnum",
+        # FastAPI / Starlette routing & templates — module-level binding is the
+        # framework idiom; tests exercise the app, not these bindings.
+        "FastAPI",
+        "APIRouter",
+        "Jinja2Templates",
+        # Project-specific declarative tool descriptions (voice agent).
+        # ToolSpec instances carry no external state; they're config objects.
+        "ToolSpec",
+    }
+)
 
 
 def _iter_calls(value: ast.expr):
@@ -126,32 +156,33 @@ def test_no_module_level_singletons(app: str) -> None:
             violations.append(f"apps/{rel}:{lineno}  {name}(...)")
 
     if violations:
-        pytest.fail(format_invariant_failure(
-            headline=(
-                f"{app}: {len(violations)} module-level singleton "
-                "instantiation(s)"
-            ),
-            smell_name="Hidden Dependency / Module-level Singleton",
-            citation="Feathers, Working Effectively with Legacy Code, ch. 9",
-            body=(
-                "Module-level instantiation creates a hidden dependency.\n"
-                "Functions in the module — and other modules that import the\n"
-                "binding — silently couple to that singleton. Tests can only\n"
-                "swap it via patch(). Production can't construct a different\n"
-                "instance per request, per user, or per environment.\n\n"
-                "FIX: Construct the object once in the composition root\n"
-                "(app.py / main.py) and pass it to consumers as a constructor\n"
-                "or function parameter. The consumer then becomes testable\n"
-                "without monkey-patching.\n\n"
-                "If the constructor is genuinely fine at module level (an\n"
-                "immutable value or framework idiom), add its bare name to\n"
-                "SAFE_CONSTRUCTORS in this file with a one-line comment\n"
-                "justifying it. SAFE_CONSTRUCTORS is not a debt list — it's\n"
-                "an enumeration of non-smells.\n\n"
-                f"Composition roots already allowed: {sorted(COMPOSITION_ROOTS)}"
-            ),
-            violations=violations,
-        ))
+        pytest.fail(
+            format_invariant_failure(
+                headline=(
+                    f"{app}: {len(violations)} module-level singleton instantiation(s)"
+                ),
+                smell_name="Hidden Dependency / Module-level Singleton",
+                citation="Feathers, Working Effectively with Legacy Code, ch. 9",
+                body=(
+                    "Module-level instantiation creates a hidden dependency.\n"
+                    "Functions in the module — and other modules that import the\n"
+                    "binding — silently couple to that singleton. Tests can only\n"
+                    "swap it via patch(). Production can't construct a different\n"
+                    "instance per request, per user, or per environment.\n\n"
+                    "FIX: Construct the object once in the composition root\n"
+                    "(app.py / main.py) and pass it to consumers as a constructor\n"
+                    "or function parameter. The consumer then becomes testable\n"
+                    "without monkey-patching.\n\n"
+                    "If the constructor is genuinely fine at module level (an\n"
+                    "immutable value or framework idiom), add its bare name to\n"
+                    "SAFE_CONSTRUCTORS in this file with a one-line comment\n"
+                    "justifying it. SAFE_CONSTRUCTORS is not a debt list — it's\n"
+                    "an enumeration of non-smells.\n\n"
+                    f"Composition roots already allowed: {sorted(COMPOSITION_ROOTS)}"
+                ),
+                violations=violations,
+            )
+        )
 
 
 if __name__ == "__main__":

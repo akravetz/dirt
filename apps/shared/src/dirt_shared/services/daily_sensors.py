@@ -60,6 +60,7 @@ class LatestReading:
 @dataclass(frozen=True)
 class ValidationFailure:
     """Why a sensor reading failed the daily-report bail-out check."""
+
     location: SensorLocation
     metric: str
     value: float | None
@@ -71,6 +72,7 @@ class ValidationFailure:
 class WindowAvg:
     """Average value across [start, end). `n` is the sample count; values is
     None when there were zero samples in the window."""
+
     avg: float | None
     n: int
 
@@ -78,6 +80,7 @@ class WindowAvg:
 @dataclass(frozen=True)
 class DailySensorSnapshot:
     """The structured payload handed to the synthesis sub-agent."""
+
     date_mdt: date
     tent: dict[str, dict[str, WindowAvg | float | None]]
     """{metric: {"overnight": WindowAvg, "morning": WindowAvg, "now": v}}"""
@@ -86,6 +89,7 @@ class DailySensorSnapshot:
 
     def to_prompt_dict(self) -> dict[str, Any]:
         """Render to a JSON-serializable dict for the LLM prompt."""
+
         def render(d: dict[str, dict[str, WindowAvg | float | None]]) -> dict[str, Any]:
             out: dict[str, Any] = {}
             for k, windows in d.items():
@@ -93,7 +97,8 @@ class DailySensorSnapshot:
                 for win, v in windows.items():
                     if isinstance(v, WindowAvg):
                         row[win] = (
-                            None if v.avg is None
+                            None
+                            if v.avg is None
                             else {"avg": round(v.avg, 2), "n": v.n}
                         )
                     elif isinstance(v, float):
@@ -102,6 +107,7 @@ class DailySensorSnapshot:
                         row[win] = v
                 out[k] = row
             return out
+
         return {
             "date_mdt": self.date_mdt.isoformat(),
             "tent": render(self.tent),
@@ -182,8 +188,11 @@ class SensorReader:
             return None
         age = (self._clock() - row.ts).total_seconds()
         return LatestReading(
-            location=location, metric=metric, value=row.value,
-            timestamp=row.ts, age_s=age,
+            location=location,
+            metric=metric,
+            value=row.value,
+            timestamp=row.ts,
+            age_s=age,
         )
 
     async def validate(self) -> list[ValidationFailure]:
@@ -202,38 +211,42 @@ class SensorReader:
         for metric in METRICS:
             r = await self.latest(TENT_LOCATION, metric)
             if r is None:
-                failures.append(ValidationFailure(
-                    TENT_LOCATION, metric, None, None, "missing"
-                ))
+                failures.append(
+                    ValidationFailure(TENT_LOCATION, metric, None, None, "missing")
+                )
                 continue
             if r.value == 0.0:
-                failures.append(ValidationFailure(
-                    TENT_LOCATION, metric, r.value, r.age_s, "zero"
-                ))
+                failures.append(
+                    ValidationFailure(TENT_LOCATION, metric, r.value, r.age_s, "zero")
+                )
             if r.age_s > self._max_age_s:
-                failures.append(ValidationFailure(
-                    TENT_LOCATION, metric, r.value, r.age_s, "stale"
-                ))
+                failures.append(
+                    ValidationFailure(TENT_LOCATION, metric, r.value, r.age_s, "stale")
+                )
 
         for loc in PLANT_LOCATIONS:
             r = await self.latest(loc, SOIL_METRIC)
             if r is None:
-                failures.append(ValidationFailure(
-                    loc, SOIL_METRIC, None, None, "missing"
-                ))
+                failures.append(
+                    ValidationFailure(loc, SOIL_METRIC, None, None, "missing")
+                )
                 continue
             if r.value < self._min_raw:
-                failures.append(ValidationFailure(
-                    loc, SOIL_METRIC, r.value, r.age_s, "raw_pinned_low"
-                ))
+                failures.append(
+                    ValidationFailure(
+                        loc, SOIL_METRIC, r.value, r.age_s, "raw_pinned_low"
+                    )
+                )
             if r.value > self._max_raw:
-                failures.append(ValidationFailure(
-                    loc, SOIL_METRIC, r.value, r.age_s, "raw_pinned_high"
-                ))
+                failures.append(
+                    ValidationFailure(
+                        loc, SOIL_METRIC, r.value, r.age_s, "raw_pinned_high"
+                    )
+                )
             if r.age_s > self._max_age_s:
-                failures.append(ValidationFailure(
-                    loc, SOIL_METRIC, r.value, r.age_s, "stale"
-                ))
+                failures.append(
+                    ValidationFailure(loc, SOIL_METRIC, r.value, r.age_s, "stale")
+                )
         return failures
 
     async def _avg_in_window(
@@ -296,9 +309,11 @@ class SensorReader:
             )
             raws = list(result.all())
         pcts = [
-            p for p in (
+            p
+            for p in (
                 compute_calibrated_pct(r, cal.raw_low, cal.raw_high) for r in raws
-            ) if p is not None
+            )
+            if p is not None
         ]
         if not pcts:
             return WindowAvg(avg=None, n=0)
@@ -320,9 +335,9 @@ class SensorReader:
             now_r = await self.latest(TENT_LOCATION, metric)
             tent[metric] = {
                 "overnight": await self._avg_in_window(
-                    TENT_LOCATION, metric, *overnight),
-                "morning": await self._avg_in_window(
-                    TENT_LOCATION, metric, *morning),
+                    TENT_LOCATION, metric, *overnight
+                ),
+                "morning": await self._avg_in_window(TENT_LOCATION, metric, *morning),
                 "now": (None if now_r is None else now_r.value),
             }
 
@@ -332,17 +347,16 @@ class SensorReader:
             now_r = await self.latest(loc, SOIL_METRIC)
             now_pct: float | None = None
             if now_r is not None and cal is not None:
-                now_pct = compute_calibrated_pct(
-                    now_r.value, cal.raw_low, cal.raw_high)
+                now_pct = compute_calibrated_pct(now_r.value, cal.raw_low, cal.raw_high)
             letter = loc.value.removeprefix("plant-")
             plants[letter] = {
-                "overnight_pct": await self._avg_pct_in_window(
-                    loc, *overnight, cal),
-                "morning_pct": await self._avg_pct_in_window(
-                    loc, *morning, cal),
+                "overnight_pct": await self._avg_pct_in_window(loc, *overnight, cal),
+                "morning_pct": await self._avg_pct_in_window(loc, *morning, cal),
                 "now_pct": now_pct,
             }
 
         return DailySensorSnapshot(
-            date_mdt=target_date, tent=tent, plants=plants,
+            date_mdt=target_date,
+            tent=tent,
+            plants=plants,
         )

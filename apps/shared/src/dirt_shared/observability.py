@@ -64,14 +64,14 @@ LOGS_DIR = _DEFAULT_LOGS_DIR
 # plenty for almost all debugging, and rotation is cheap when we run it.
 DEFAULT_RETENTION_DAYS = 1
 _RETENTION: dict[str, int] = {
-    "wake_scores": 1,       # every wake-word score above WAKE_NEAR_MISS_FLOOR
-    "audio_rms": 1,         # input amplitude trace, ~1 Hz
-    "audio_playback": 1,    # per-turn TTS-vs-playback duration metric
-    "pipecat_frames": 1,    # all pipecat control/signal frames
-    "subagent_calls": 10,   # sub-agent traces — higher value, lower volume
-    "humidifier": 30,       # plug state transitions — rare, useful for incident review
-    "daily_report": 30,     # per-phase markers for the daily report run
-    "sensor_boot": 90,      # BME280 calibration + register state at each Arduino reset
+    "wake_scores": 1,  # every wake-word score above WAKE_NEAR_MISS_FLOOR
+    "audio_rms": 1,  # input amplitude trace, ~1 Hz
+    "audio_playback": 1,  # per-turn TTS-vs-playback duration metric
+    "pipecat_frames": 1,  # all pipecat control/signal frames
+    "subagent_calls": 10,  # sub-agent traces — higher value, lower volume
+    "humidifier": 30,  # plug state transitions — rare, useful for incident review
+    "daily_report": 30,  # per-phase markers for the daily report run
+    "sensor_boot": 90,  # BME280 calibration + register state at each Arduino reset
 }
 
 

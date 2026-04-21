@@ -32,6 +32,7 @@ value starts with any of ``SQL_KEYWORDS``. Covers multi-line strings
 the first string fragment), and f-strings that start with a SQL
 keyword. Files under ``ALLOWED_PREFIXES`` are skipped wholesale.
 """
+
 from __future__ import annotations
 
 import ast
@@ -127,48 +128,50 @@ def test_no_raw_sql_outside_data_layer(app: str) -> None:
         if any(rel.startswith(p) for p in ALLOWED_PREFIXES):
             continue
         for lineno, snippet in _violations_in_file(py):
-            violations.append(f"apps/{rel}:{lineno}  \"{snippet}...\"")
+            violations.append(f'apps/{rel}:{lineno}  "{snippet}..."')
 
     if violations:
-        pytest.fail(format_invariant_failure(
-            headline=(
-                f"{app}: {len(violations)} raw-SQL literal(s) outside the "
-                "data layer"
-            ),
-            smell_name="Leaky Data Access / Bypassed Service Layer",
-            citation=(
-                "Fowler, _Patterns of Enterprise Application Architecture_\n"
-                "   — Data Mapper + Repository; ADR-006 (Atlas owns the\n"
-                "   schema); apps/tests/invariants/test_schema_managed_by_atlas.py"
-            ),
-            body=(
-                "WHY this rule exists:\n"
-                "  dirt_shared.services is the single place that opens DB\n"
-                "  sessions, wraps queries in transactions, and runs auth /\n"
-                "  ingest validation. A raw `SELECT *` or `INSERT INTO` in\n"
-                "  a route handler bypasses all three — every new such call\n"
-                "  site is a candidate for a silent data-corruption bug.\n"
-                "  Schema DDL specifically must go through Atlas\n"
-                "  (see test_schema_managed_by_atlas.py).\n\n"
-                "FIX:\n"
-                "  - Runtime query: add a method to the relevant service in\n"
-                "    apps/shared/src/dirt_shared/services/ and call it from\n"
-                "    the route handler / CLI / tool. Use SQLModel's typed\n"
-                "    `select(Model).where(...)` — raw `text(...)` is\n"
-                "    reserved for Postgres aggregation primitives that\n"
-                "    SQLModel doesn't model (window funcs, date_trunc,\n"
-                "    etc.), and lives only inside a service method.\n"
-                "  - Schema change: edit a SQLModel class in\n"
-                "    apps/shared/src/dirt_shared/models/ then run\n"
-                "    `atlas migrate diff <name> --env local`. NEVER write\n"
-                "    `CREATE TABLE` / `ALTER TABLE` in app code.\n\n"
-                "IF a SQL literal genuinely belongs elsewhere (which is\n"
-                "almost never the case), add the containing file's\n"
-                "prefix to `ALLOWED_PREFIXES` in this invariant and the\n"
-                "next agent will respect it."
-            ),
-            violations=violations,
-        ))
+        pytest.fail(
+            format_invariant_failure(
+                headline=(
+                    f"{app}: {len(violations)} raw-SQL literal(s) outside the "
+                    "data layer"
+                ),
+                smell_name="Leaky Data Access / Bypassed Service Layer",
+                citation=(
+                    "Fowler, _Patterns of Enterprise Application Architecture_\n"
+                    "   — Data Mapper + Repository; ADR-006 (Atlas owns the\n"
+                    "   schema); apps/tests/invariants/test_schema_managed_by_atlas.py"
+                ),
+                body=(
+                    "WHY this rule exists:\n"
+                    "  dirt_shared.services is the single place that opens DB\n"
+                    "  sessions, wraps queries in transactions, and runs auth /\n"
+                    "  ingest validation. A raw `SELECT *` or `INSERT INTO` in\n"
+                    "  a route handler bypasses all three — every new such call\n"
+                    "  site is a candidate for a silent data-corruption bug.\n"
+                    "  Schema DDL specifically must go through Atlas\n"
+                    "  (see test_schema_managed_by_atlas.py).\n\n"
+                    "FIX:\n"
+                    "  - Runtime query: add a method to the relevant service in\n"
+                    "    apps/shared/src/dirt_shared/services/ and call it from\n"
+                    "    the route handler / CLI / tool. Use SQLModel's typed\n"
+                    "    `select(Model).where(...)` — raw `text(...)` is\n"
+                    "    reserved for Postgres aggregation primitives that\n"
+                    "    SQLModel doesn't model (window funcs, date_trunc,\n"
+                    "    etc.), and lives only inside a service method.\n"
+                    "  - Schema change: edit a SQLModel class in\n"
+                    "    apps/shared/src/dirt_shared/models/ then run\n"
+                    "    `atlas migrate diff <name> --env local`. NEVER write\n"
+                    "    `CREATE TABLE` / `ALTER TABLE` in app code.\n\n"
+                    "IF a SQL literal genuinely belongs elsewhere (which is\n"
+                    "almost never the case), add the containing file's\n"
+                    "prefix to `ALLOWED_PREFIXES` in this invariant and the\n"
+                    "next agent will respect it."
+                ),
+                violations=violations,
+            )
+        )
 
 
 if __name__ == "__main__":

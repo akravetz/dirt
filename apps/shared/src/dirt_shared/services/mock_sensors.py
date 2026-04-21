@@ -15,6 +15,7 @@ reservoir-level}.md``), the sensors will emit ``sensorreading`` rows and
 these helpers retire — the SPA never knows the difference because the API
 envelope is shape-identical.
 """
+
 from __future__ import annotations
 
 import math
@@ -30,6 +31,7 @@ def _as_utc(ts: datetime) -> datetime:
     occasionally hand us naive datetimes; accepting both keeps the mocks
     from raising ``ValueError`` on ``astimezone()``."""
     return ts.replace(tzinfo=UTC) if ts.tzinfo is None else ts
+
 
 # Fan: slow sine between 45 and 52 %.
 _FAN_LOW = 45.0
@@ -82,9 +84,7 @@ class MockPoint:
     value: float
 
 
-def _sample(
-    fn, start: datetime, end: datetime, n: int
-) -> list[MockPoint]:
+def _sample(fn, start: datetime, end: datetime, n: int) -> list[MockPoint]:
     if n <= 1:
         return [MockPoint(end, fn(end))]
     step = (end - start) / (n - 1)

@@ -99,7 +99,9 @@ class SerialReaderService:
 
         logger.info(
             "Starting serial reader (port=%s, baud=%d, interval=%ds)",
-            port, baud, interval,
+            port,
+            baud,
+            interval,
         )
 
         loop = asyncio.get_running_loop()
@@ -109,7 +111,8 @@ class SerialReaderService:
             try:
                 if ser is None or not ser.is_open:
                     ser = await loop.run_in_executor(
-                        None, lambda: serial.Serial(port, baud, timeout=interval),
+                        None,
+                        lambda: serial.Serial(port, baud, timeout=interval),
                     )
                     logger.info("Serial port opened: %s", port)
 
@@ -118,14 +121,15 @@ class SerialReaderService:
                     _log_boot_frame(data)
                     logger.info("BME280 boot diagnostics: %s", data)
                 elif data and all(
-                    k in data
-                    for k in ("temperature_c", "humidity_pct", "pressure_hpa")
+                    k in data for k in ("temperature_c", "humidity_pct", "pressure_hpa")
                 ):
                     try:
                         metrics = _derive_metrics(data)
                     except (KeyError, ValueError, TypeError) as e:
                         logger.warning(
-                            "Could not derive metrics from %r: %s", data, e,
+                            "Could not derive metrics from %r: %s",
+                            data,
+                            e,
                         )
                     else:
                         await self._readings.ingest_reading(
@@ -134,8 +138,7 @@ class SerialReaderService:
                             source=SensorSource.ARDUINO,
                         )
                         logger.debug(
-                            "Saved reading: %.1f°F, %.1f%%, %.1fhPa, "
-                            "VPD=%.2fkPa",
+                            "Saved reading: %.1f°F, %.1f%%, %.1fhPa, VPD=%.2fkPa",
                             metrics["temperature_f"],
                             metrics["humidity_pct"],
                             metrics["pressure_hpa"],
@@ -149,7 +152,9 @@ class SerialReaderService:
 
             except serial.SerialException as e:
                 logger.error(
-                    "Serial error: %s — retrying in %ds", e, interval,
+                    "Serial error: %s — retrying in %ds",
+                    e,
+                    interval,
                 )
                 if ser is not None:
                     ser.close()

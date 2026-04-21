@@ -1,4 +1,5 @@
 """Archive of timestamped JPEG snapshots on disk."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -13,9 +14,7 @@ def _utcnow() -> datetime:
 
 class Snapshot(SQLModel, table=True):
     __tablename__ = "snapshot"
-    __table_args__ = (
-        Index("ix_snapshot_ts", "ts", postgresql_ops={"ts": "DESC"}),
-    )
+    __table_args__ = (Index("ix_snapshot_ts", "ts", postgresql_ops={"ts": "DESC"}),)
 
     id: int | None = Field(
         default=None,

@@ -169,32 +169,33 @@ def test_no_patching_production_code(app: str) -> None:
             violations.append(f"apps/{rel}:{lineno}  {kind}({target!r})")
 
     if violations:
-        pytest.fail(format_invariant_failure(
-            headline=(
-                f"{app}: {len(violations)} patch(es) on dirt_* "
-                "production module(s)"
-            ),
-            smell_name="Hard-Coded Dependency",
-            citation=(
-                "Feathers, Working Effectively with Legacy Code, ch. 9;\n"
-                "   Fowler, 'Mocks Aren't Stubs', 2007"
-            ),
-            body=(
-                "A test that patches dirt_* says the production code has no\n"
-                "seam to substitute the dependency. The fault is in production,\n"
-                "not the test.\n\n"
-                "FIX: refactor the production code to accept the dependency by\n"
-                "constructor or function parameter. The test then injects a\n"
-                "fake / spy / in-memory implementation directly — no patch().\n"
-                "See apps/shared/tests/test_daily_report.py for the gold-\n"
-                "standard shape (FakeCamera / FakeSynthesis / FakeTelegram\n"
-                "all constructor-injected, zero patch() calls in the file).\n\n"
-                "Patches against external libraries (httpx.MockTransport,\n"
-                "time.sleep, asyncio.run, builtins.open, etc.) remain allowed\n"
-                "— only `dirt_*` targets fail this invariant."
-            ),
-            violations=violations,
-        ))
+        pytest.fail(
+            format_invariant_failure(
+                headline=(
+                    f"{app}: {len(violations)} patch(es) on dirt_* production module(s)"
+                ),
+                smell_name="Hard-Coded Dependency",
+                citation=(
+                    "Feathers, Working Effectively with Legacy Code, ch. 9;\n"
+                    "   Fowler, 'Mocks Aren't Stubs', 2007"
+                ),
+                body=(
+                    "A test that patches dirt_* says the production code has no\n"
+                    "seam to substitute the dependency. The fault is in production,\n"
+                    "not the test.\n\n"
+                    "FIX: refactor the production code to accept the dependency by\n"
+                    "constructor or function parameter. The test then injects a\n"
+                    "fake / spy / in-memory implementation directly — no patch().\n"
+                    "See apps/shared/tests/test_daily_report.py for the gold-\n"
+                    "standard shape (FakeCamera / FakeSynthesis / FakeTelegram\n"
+                    "all constructor-injected, zero patch() calls in the file).\n\n"
+                    "Patches against external libraries (httpx.MockTransport,\n"
+                    "time.sleep, asyncio.run, builtins.open, etc.) remain allowed\n"
+                    "— only `dirt_*` targets fail this invariant."
+                ),
+                violations=violations,
+            )
+        )
 
 
 if __name__ == "__main__":

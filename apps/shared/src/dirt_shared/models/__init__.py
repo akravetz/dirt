@@ -4,6 +4,7 @@ Imported side-effect-only by ``dirt_shared.db`` and by
 ``scripts/atlas-load-sqlmodel.py`` so that SQLModel metadata is populated
 before it's inspected.
 """
+
 from __future__ import annotations
 
 from dirt_shared.models.enums import (

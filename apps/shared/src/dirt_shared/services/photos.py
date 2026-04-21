@@ -110,7 +110,9 @@ class CameraClient:
                 }
                 logger.info(
                     "capture stale for %r (age=%dms > %dms), retrying",
-                    preset, age_ms, self._max_age_ms,
+                    preset,
+                    age_ms,
+                    self._max_age_ms,
                 )
                 await asyncio.sleep(self._retry_delay_s)
                 continue

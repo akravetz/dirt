@@ -5,6 +5,7 @@ poll (~30 s) with value 0.0 or 1.0 — see
 ``dirt_shared.services.humidifier._record``. This service turns those
 into the shapes the SPA needs.
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -40,9 +41,7 @@ class HumidifierTransition:
 async def _tent_sensornode_id(session: AsyncSession) -> int | None:
     return (
         await session.exec(
-            select(SensorNode.id).where(
-                SensorNode.location == SensorLocation.TENT
-            )
+            select(SensorNode.id).where(SensorNode.location == SensorLocation.TENT)
         )
     ).first()
 
@@ -141,9 +140,7 @@ class HumidifierStateService:
                 ts=now,
             )
 
-    async def get_history(
-        self, cutoff: datetime
-    ) -> list[HumidifierTransition]:
+    async def get_history(self, cutoff: datetime) -> list[HumidifierTransition]:
         """Return only state-change rows in [cutoff, now]."""
         async with AsyncSession(self._engine) as session:
             tent_id = await _tent_sensornode_id(session)
@@ -172,6 +169,4 @@ class HumidifierStateService:
                     },
                 )
             ).all()
-            return [
-                HumidifierTransition(ts=r[0], on=bool(r[1])) for r in rows
-            ]
+            return [HumidifierTransition(ts=r[0], on=bool(r[1])) for r in rows]

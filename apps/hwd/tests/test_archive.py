@@ -41,6 +41,7 @@ def _service(
         ),
     )
 
+
 # Tiny (8x8, all-black) valid JPEG.
 _TINY_JPEG = base64.b64decode(
     "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAIBAQEBAQIBAQECAgICAgQDAgICAgUEBAMEBgUGBgYF"
@@ -155,7 +156,8 @@ class TestArchiveDate:
 
         # Inject a fake ffmpeg runner that simulates failure — no patching.
         svc = _service(
-            snapshot_dir, archive_dir,
+            snapshot_dir,
+            archive_dir,
             ffmpeg_runner=lambda jpegs, out: False,
         )
         with pytest.raises(ArchiveVerificationError, match="ffmpeg failed"):
@@ -172,11 +174,13 @@ class TestArchiveDate:
 
         # Inject a fake frame_counter that returns the wrong count.
         svc = _service(
-            snapshot_dir, archive_dir,
+            snapshot_dir,
+            archive_dir,
             frame_counter=lambda video: 3,
         )
         with pytest.raises(
-            ArchiveVerificationError, match="Frame count mismatch",
+            ArchiveVerificationError,
+            match="Frame count mismatch",
         ):
             svc.archive_date(d)
 

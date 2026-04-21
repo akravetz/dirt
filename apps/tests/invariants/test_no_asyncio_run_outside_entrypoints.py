@@ -28,6 +28,7 @@ Detection (AST):
     correct way to hand work to an event loop from a C thread and
     doesn't create a new loop.
 """
+
 from __future__ import annotations
 
 import ast
@@ -119,46 +120,48 @@ def test_no_asyncio_run_outside_entrypoints(app: str) -> None:
             violations.append(f"apps/{rel}:{lineno}  {target}(...)")
 
     if violations:
-        pytest.fail(format_invariant_failure(
-            headline=(
-                f"{app}: {len(violations)} stray asyncio.run() call(s) "
-                "outside composition roots / __main__"
-            ),
-            smell_name="Double-Loop / Sync-Wrapping an Async Call Site",
-            citation=(
-                "CPython asyncio docs — `asyncio.run()` cannot be called\n"
-                "   from a running event loop; Lennart Regebro, _Modern\n"
-                "   Python Cookbook_ — 'One event loop per process'"
-            ),
-            body=(
-                "WHY this rule exists:\n"
-                "  `asyncio.run()` creates a new event loop. Calling it\n"
-                "  inside a process that already has one (uvicorn workers,\n"
-                "  pytest-asyncio, the voice channel runner) either raises\n"
-                "  `RuntimeError: asyncio.run() cannot be called from a\n"
-                "  running event loop` or silently drops exceptions. Agents\n"
-                "  reach for it as a shortcut when a sync call site needs\n"
-                "  to consume a coroutine — almost always the wrong fix.\n\n"
-                "FIX:\n"
-                "  - Inside async code: `await the_coro()`. Make the caller\n"
-                "    async too. FastAPI and pytest-asyncio both handle it.\n"
-                "  - Inside a threadpool / sync-adapter: use\n"
-                "    `asyncio.run_coroutine_threadsafe(coro, loop)` (which\n"
-                "    is explicitly NOT flagged by this invariant) if you\n"
-                "    have a handle to the loop. Otherwise use\n"
-                "    `anyio.from_thread.run(coro)` — properly scoped to the\n"
-                "    surrounding async context.\n"
-                "  - If this really is a top-level CLI entrypoint, move the\n"
-                "    `asyncio.run(main())` inside\n"
-                "    `if __name__ == '__main__':` — then the rule accepts\n"
-                "    it as the process's single event-loop owner.\n\n"
-                "IF the file genuinely is a composition root (dirt-hwd or\n"
-                "dirt-web app factory), add it to `COMPOSITION_ROOTS` in\n"
-                "apps/tests/invariants/_helpers.py with a WHY comment.\n"
-                "That list is deliberately short."
-            ),
-            violations=violations,
-        ))
+        pytest.fail(
+            format_invariant_failure(
+                headline=(
+                    f"{app}: {len(violations)} stray asyncio.run() call(s) "
+                    "outside composition roots / __main__"
+                ),
+                smell_name="Double-Loop / Sync-Wrapping an Async Call Site",
+                citation=(
+                    "CPython asyncio docs — `asyncio.run()` cannot be called\n"
+                    "   from a running event loop; Lennart Regebro, _Modern\n"
+                    "   Python Cookbook_ — 'One event loop per process'"
+                ),
+                body=(
+                    "WHY this rule exists:\n"
+                    "  `asyncio.run()` creates a new event loop. Calling it\n"
+                    "  inside a process that already has one (uvicorn workers,\n"
+                    "  pytest-asyncio, the voice channel runner) either raises\n"
+                    "  `RuntimeError: asyncio.run() cannot be called from a\n"
+                    "  running event loop` or silently drops exceptions. Agents\n"
+                    "  reach for it as a shortcut when a sync call site needs\n"
+                    "  to consume a coroutine — almost always the wrong fix.\n\n"
+                    "FIX:\n"
+                    "  - Inside async code: `await the_coro()`. Make the caller\n"
+                    "    async too. FastAPI and pytest-asyncio both handle it.\n"
+                    "  - Inside a threadpool / sync-adapter: use\n"
+                    "    `asyncio.run_coroutine_threadsafe(coro, loop)` (which\n"
+                    "    is explicitly NOT flagged by this invariant) if you\n"
+                    "    have a handle to the loop. Otherwise use\n"
+                    "    `anyio.from_thread.run(coro)` — properly scoped to the\n"
+                    "    surrounding async context.\n"
+                    "  - If this really is a top-level CLI entrypoint, move the\n"
+                    "    `asyncio.run(main())` inside\n"
+                    "    `if __name__ == '__main__':` — then the rule accepts\n"
+                    "    it as the process's single event-loop owner.\n\n"
+                    "IF the file genuinely is a composition root (dirt-hwd or\n"
+                    "dirt-web app factory), add it to `COMPOSITION_ROOTS` in\n"
+                    "apps/tests/invariants/_helpers.py with a WHY comment.\n"
+                    "That list is deliberately short."
+                ),
+                violations=violations,
+            )
+        )
 
 
 if __name__ == "__main__":

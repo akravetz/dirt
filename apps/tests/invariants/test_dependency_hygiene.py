@@ -24,6 +24,7 @@ each ``apps/<app>/pyproject.toml``. The only allowed runtime option
 here is ``--known-first-party <pkg>`` so deptry treats the package's
 own imports as first-party rather than transitive.
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -42,10 +43,15 @@ def test_dependency_hygiene(app: str) -> None:
 
     result = subprocess.run(
         [
-            "uv", "run", "--no-sync", "deptry",
+            "uv",
+            "run",
+            "--no-sync",
+            "deptry",
             str(src_dir),
-            "--known-first-party", app,
-            "--config", str(pkg_dir / "pyproject.toml"),
+            "--known-first-party",
+            app,
+            "--config",
+            str(pkg_dir / "pyproject.toml"),
         ],
         capture_output=True,
         text=True,
@@ -61,49 +67,51 @@ def test_dependency_hygiene(app: str) -> None:
         if line.strip() and "DEP0" in line
     ]
 
-    pytest.fail(format_invariant_failure(
-        headline=(
-            f"{app}: deptry found {len(violations)} dependency issue(s) "
-            "in pyproject.toml vs imports"
-        ),
-        smell_name="Dependency Drift / Unused or Undeclared Dependency",
-        citation="Wheeler, _Package Managers Don't Lie_ (2021 / FOSDEM);\n"
-                 "   PEP 621 — Storing project metadata in pyproject.toml",
-        body=(
-            "WHY this rule exists:\n"
-            "  Agents reliably regress dependency hygiene two ways:\n"
-            "   (a) `import httpx` without `uv add` — the package works\n"
-            "       today because httpx arrives transitively, but the\n"
-            "       declaration lies and the next transitive drop breaks\n"
-            "       the app silently.\n"
-            "   (b) An import goes dead after a refactor and the\n"
-            "       pyproject.toml entry is never pruned — each deploy\n"
-            "       pulls extra bytes and pin-management is more work.\n\n"
-            "HOW to fix:\n"
-            "  DEP001 (missing dep):\n"
-            "    `uv add --package dirt-<app> <module>` — declare it.\n"
-            "  DEP002 (unused dep):\n"
-            "    Remove the line from the package's dependencies list.\n"
-            "    If the dep IS real but consumed transparently (e.g.\n"
-            "    `jinja2` via `fastapi.templating`), add it to that\n"
-            "    package's `[tool.deptry.per_rule_ignores] DEP002 = [...]`\n"
-            "    with a comment WHY.\n"
-            "  DEP003 (transitive dep, imported directly):\n"
-            "    If the peer is re-exported at import time (sqlalchemy via\n"
-            "    sqlmodel), keep the direct import and add it to\n"
-            "    `[tool.deptry.per_rule_ignores] DEP003 = [...]` with a\n"
-            "    comment WHY. Otherwise declare it explicitly with\n"
-            "    `uv add --package dirt-<app> <module>`.\n"
-            "  DEP004 (dev dep used in production):\n"
-            "    Either promote to a real dep or move the import into\n"
-            "    tests/.\n\n"
-            "DO NOT edit this invariant. DO NOT run deptry with `--ignore`\n"
-            "at the CLI level — every ignore must live in a package's\n"
-            "pyproject.toml with a WHY comment so the next agent can\n"
-            "reason about it."
-        ),
-        violations=violations or [result.stdout.strip() or result.stderr.strip()],
-    ))
+    pytest.fail(
+        format_invariant_failure(
+            headline=(
+                f"{app}: deptry found {len(violations)} dependency issue(s) "
+                "in pyproject.toml vs imports"
+            ),
+            smell_name="Dependency Drift / Unused or Undeclared Dependency",
+            citation="Wheeler, _Package Managers Don't Lie_ (2021 / FOSDEM);\n"
+            "   PEP 621 — Storing project metadata in pyproject.toml",
+            body=(
+                "WHY this rule exists:\n"
+                "  Agents reliably regress dependency hygiene two ways:\n"
+                "   (a) `import httpx` without `uv add` — the package works\n"
+                "       today because httpx arrives transitively, but the\n"
+                "       declaration lies and the next transitive drop breaks\n"
+                "       the app silently.\n"
+                "   (b) An import goes dead after a refactor and the\n"
+                "       pyproject.toml entry is never pruned — each deploy\n"
+                "       pulls extra bytes and pin-management is more work.\n\n"
+                "HOW to fix:\n"
+                "  DEP001 (missing dep):\n"
+                "    `uv add --package dirt-<app> <module>` — declare it.\n"
+                "  DEP002 (unused dep):\n"
+                "    Remove the line from the package's dependencies list.\n"
+                "    If the dep IS real but consumed transparently (e.g.\n"
+                "    `jinja2` via `fastapi.templating`), add it to that\n"
+                "    package's `[tool.deptry.per_rule_ignores] DEP002 = [...]`\n"
+                "    with a comment WHY.\n"
+                "  DEP003 (transitive dep, imported directly):\n"
+                "    If the peer is re-exported at import time (sqlalchemy via\n"
+                "    sqlmodel), keep the direct import and add it to\n"
+                "    `[tool.deptry.per_rule_ignores] DEP003 = [...]` with a\n"
+                "    comment WHY. Otherwise declare it explicitly with\n"
+                "    `uv add --package dirt-<app> <module>`.\n"
+                "  DEP004 (dev dep used in production):\n"
+                "    Either promote to a real dep or move the import into\n"
+                "    tests/.\n\n"
+                "DO NOT edit this invariant. DO NOT run deptry with `--ignore`\n"
+                "at the CLI level — every ignore must live in a package's\n"
+                "pyproject.toml with a WHY comment so the next agent can\n"
+                "reason about it."
+            ),
+            violations=violations or [result.stdout.strip() or result.stderr.strip()],
+        )
+    )
 
 
 if __name__ == "__main__":

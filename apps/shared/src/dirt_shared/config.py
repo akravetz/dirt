@@ -157,7 +157,7 @@ class HumidifierConfig:
     kasa_password: str
     kasa_humidifier_host: str
     vpd_deadband_kpa: float
-    lights_off_prep_minutes: int   # margin around lights transitions
+    lights_off_prep_minutes: int  # margin around lights transitions
     poll_interval: int
     failsafe_stale_seconds: int
 

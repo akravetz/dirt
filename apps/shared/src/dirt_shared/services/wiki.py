@@ -13,6 +13,7 @@ Design choices (per API.md §9 + data_model.md §4i/4j):
 - Search is a linear substring scan over filename + title + body.
   FTS5 / tsvector can be added later if the corpus grows.
 """
+
 from __future__ import annotations
 
 # wiki/ lives at the repo root — sibling of var/. Resolve relative to
@@ -41,7 +42,7 @@ _LIST_RE = re.compile(r"^\[(.*)\]$")
 @dataclass(frozen=True)
 class WikiFileRef:
     name: str
-    path: str                 # "wiki/plants/plant-a.md"
+    path: str  # "wiki/plants/plant-a.md"
     title: str
     sticker_color: str | None = None
 
@@ -80,7 +81,7 @@ class WikiFile:
 class SearchResult:
     path: str
     title: str
-    match_type: str           # "title" | "path" | "content"
+    match_type: str  # "title" | "path" | "content"
     snippet: str | None = None
 
 
@@ -180,7 +181,7 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, object], str]:
         kv = _KV_RE.match(line)
         if kv:
             fm[kv.group(1)] = _parse_yaml_value(kv.group(2))
-    return fm, text[m.end():]
+    return fm, text[m.end() :]
 
 
 def _extract_title(frontmatter: dict[str, object], body: str, fallback: str) -> str:
@@ -238,7 +239,8 @@ def get_tree() -> WikiTree:
                 folders.append(WikiFolder(name=child.name, files=files))
 
     root_files = [
-        _file_ref(p) for p in sorted(WIKI_DIR.glob("*.md"))
+        _file_ref(p)
+        for p in sorted(WIKI_DIR.glob("*.md"))
         if p.name not in _IGNORED_NAMES and not p.name.startswith(".")
     ]
     return WikiTree(root_files=root_files, folders=folders)
@@ -420,14 +422,10 @@ def search(q: str, limit: int = 12) -> list[SearchResult]:
         title = _extract_title(fm, body, fallback=p.stem)
 
         if needle in title.lower():
-            title_hits.append(
-                SearchResult(path=rel, title=title, match_type="title")
-            )
+            title_hits.append(SearchResult(path=rel, title=title, match_type="title"))
             continue
         if needle in rel.lower() or needle in p.name.lower():
-            path_hits.append(
-                SearchResult(path=rel, title=title, match_type="path")
-            )
+            path_hits.append(SearchResult(path=rel, title=title, match_type="path"))
             continue
         idx = body.lower().find(needle)
         if idx >= 0:

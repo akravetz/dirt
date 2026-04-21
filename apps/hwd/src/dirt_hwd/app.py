@@ -5,6 +5,7 @@ hardware exclusively (capture, archive, humidifier loop, serial reader).
 ``create_app`` wires them into the lifespan; tests construct an app with
 ``background_services=[]`` to skip the hardware loops entirely.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -82,7 +83,9 @@ def create_app(
         background_services
         if background_services is not None
         else _default_background_services(
-            engine=engine, settings=settings, core=core,
+            engine=engine,
+            settings=settings,
+            core=core,
         )
     )
 
@@ -90,9 +93,7 @@ def create_app(
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await ping(engine)
         stop_event = asyncio.Event()
-        tasks = [
-            asyncio.create_task(svc.run(stop_event)) for svc in services
-        ]
+        tasks = [asyncio.create_task(svc.run(stop_event)) for svc in services]
         try:
             yield
         finally:

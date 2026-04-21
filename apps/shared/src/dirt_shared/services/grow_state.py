@@ -55,15 +55,15 @@ STAGE_TARGETS: dict[Stage, dict[str, tuple[float, float]]] = {
 @dataclass(frozen=True)
 class LightsState:
     on: bool
-    minutes_until_off: float    # always positive; counts to next lights-off
-    minutes_until_on: float     # always positive; counts to next lights-on
+    minutes_until_off: float  # always positive; counts to next lights-off
+    minutes_until_on: float  # always positive; counts to next lights-on
 
 
 @dataclass(frozen=True)
 class GrowCurrentPayload:
     germination_date: date
     flower_start_date: date | None
-    day_number: int          # today - germination_date + 1
+    day_number: int  # today - germination_date + 1
     week_number: int
     stage: Stage
     strain: str
@@ -81,9 +81,7 @@ class GrowCurrentPayload:
 BandStatus = Literal["ok", "warn", "crit"]
 
 
-def band_status(
-    value: float, band: tuple[float, float] | None
-) -> BandStatus:
+def band_status(value: float, band: tuple[float, float] | None) -> BandStatus:
     """Classify ``value`` against a target ``band=(lo, hi)``."""
     if band is None:
         return "ok"
@@ -128,9 +126,7 @@ class GrowStateService:
                 select(GrowState).where(GrowState.is_current.is_(True)).limit(1)
             )
             state = result.first()
-            return state or GrowState(
-                germination_date=GROW_START, is_current=True
-            )
+            return state or GrowState(germination_date=GROW_START, is_current=True)
 
     async def current_stage(self) -> Stage:
         """Veg vs early vs late flower, derived from flower_start_date."""
@@ -170,7 +166,9 @@ class GrowStateService:
         off_dt = datetime.combine(now_local.date(), off_time, tzinfo=TENT_TZ)
         if off_dt <= now_local:
             off_dt = datetime.combine(
-                now_local.date() + timedelta(days=1), off_time, tzinfo=TENT_TZ,
+                now_local.date() + timedelta(days=1),
+                off_time,
+                tzinfo=TENT_TZ,
             )
         minutes_until_off = (off_dt - now_local).total_seconds() / 60.0
 
@@ -178,7 +176,9 @@ class GrowStateService:
         on_dt = datetime.combine(now_local.date(), on_time, tzinfo=TENT_TZ)
         if on_dt <= now_local:
             on_dt = datetime.combine(
-                now_local.date() + timedelta(days=1), on_time, tzinfo=TENT_TZ,
+                now_local.date() + timedelta(days=1),
+                on_time,
+                tzinfo=TENT_TZ,
             )
         minutes_until_on = (on_dt - now_local).total_seconds() / 60.0
 
@@ -198,8 +198,7 @@ class GrowStateService:
         else:
             days_in_flower = (today - state.flower_start_date).days
             stage = (
-                "flower_early" if days_in_flower < _LATE_FLOWER_DAY
-                else "flower_late"
+                "flower_early" if days_in_flower < _LATE_FLOWER_DAY else "flower_late"
             )
 
         week_number = (today - state.germination_date).days // 7 + 1

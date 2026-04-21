@@ -5,6 +5,7 @@ at most one row can have ``is_current=true`` at any time. Historical
 grows live as ``is_current=false`` rows; the V1 app reads only the
 current row.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, time
@@ -54,15 +55,11 @@ class GrowState(SQLModel, table=True):
     )
     lights_on_local: time = Field(
         default=time(5, 0),
-        sa_column=Column(
-            Time, nullable=False, server_default=text("'05:00:00'")
-        ),
+        sa_column=Column(Time, nullable=False, server_default=text("'05:00:00'")),
     )
     lights_off_local: time = Field(
         default=time(23, 0),
-        sa_column=Column(
-            Time, nullable=False, server_default=text("'23:00:00'")
-        ),
+        sa_column=Column(Time, nullable=False, server_default=text("'23:00:00'")),
     )
     strain: str = Field(
         default="Sirius Black × BS01",
@@ -82,15 +79,11 @@ class GrowState(SQLModel, table=True):
     )
     plant_count: int = Field(
         default=4,
-        sa_column=Column(
-            SmallInteger, nullable=False, server_default=text("4")
-        ),
+        sa_column=Column(SmallInteger, nullable=False, server_default=text("4")),
     )
     is_current: bool = Field(
         default=False,
-        sa_column=Column(
-            Boolean, nullable=False, server_default=text("false")
-        ),
+        sa_column=Column(Boolean, nullable=False, server_default=text("false")),
     )
     created_at: datetime = Field(
         default_factory=_utcnow,

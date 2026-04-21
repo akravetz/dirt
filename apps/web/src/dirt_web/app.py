@@ -72,9 +72,7 @@ def create_app(
     app.state.system_status = core.system_status
     app.state.sessions = sessions
 
-    app.add_middleware(
-        AuthMiddleware, sessions=sessions, exclude_prefixes=["/mcp"]
-    )
+    app.add_middleware(AuthMiddleware, sessions=sessions, exclude_prefixes=["/mcp"])
     app.include_router(auth_router)
     app.include_router(snapshots_router)
     app.include_router(feed_router)

@@ -23,6 +23,7 @@ DB session). Duplication is the point: if someone later changes the
 production logic without updating the pinned property, hypothesis
 finds the split.
 """
+
 from __future__ import annotations
 
 from datetime import date, timedelta
@@ -80,18 +81,24 @@ def test_derive_stage_progression_is_monotonic(germ: date, flower: date) -> None
     # Day 0 of flower = flower_early.
     assert derive_stage(flower, germ, flower) == "flower_early"
     # Day _LATE_FLOWER_DAY - 1 still flower_early.
-    assert derive_stage(
-        flower + timedelta(days=_LATE_FLOWER_DAY - 1), germ, flower
-    ) == "flower_early"
+    assert (
+        derive_stage(flower + timedelta(days=_LATE_FLOWER_DAY - 1), germ, flower)
+        == "flower_early"
+    )
     # Day _LATE_FLOWER_DAY tips to flower_late, and every subsequent day stays late.
     for offset in (0, 1, 7, 100):
-        assert derive_stage(
-            flower + timedelta(days=_LATE_FLOWER_DAY + offset), germ, flower
-        ) == "flower_late"
+        assert (
+            derive_stage(
+                flower + timedelta(days=_LATE_FLOWER_DAY + offset), germ, flower
+            )
+            == "flower_late"
+        )
 
 
 @given(value=_VALUE, band=_BAND)
-def test_band_status_partitions_real_line(value: float, band: tuple[float, float]) -> None:
+def test_band_status_partitions_real_line(
+    value: float, band: tuple[float, float]
+) -> None:
     """band_status returns exactly one of ok/warn/crit for any (value, band)."""
     status = band_status(value, band)
     assert status in ("ok", "warn", "crit")

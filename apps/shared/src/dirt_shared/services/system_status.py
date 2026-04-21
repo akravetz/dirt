@@ -13,6 +13,7 @@ them into a single ``DeviceStatus`` dataclass with a small status taxonomy.
 
 This is read-only; no DB writes.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -32,9 +33,7 @@ from dirt_shared.models.enums import SensorLocation
 from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
 
-DeviceKind = Literal[
-    "env_sensor", "moisture_node", "camera", "voice", "actuator"
-]
+DeviceKind = Literal["env_sensor", "moisture_node", "camera", "voice", "actuator"]
 DeviceStatus_t = Literal["ok", "warn", "offline", "listening"]
 
 
@@ -49,11 +48,11 @@ class DeviceStatus:
 
 # How old a heartbeat can be before we flip ok → warn → offline.
 _THRESHOLDS = {
-    "env_sensor":     (timedelta(minutes=2),  timedelta(minutes=5)),
-    "moisture_node":  (timedelta(minutes=2),  timedelta(minutes=5)),
-    "actuator":       (timedelta(minutes=2),  timedelta(minutes=10)),
-    "camera":         (timedelta(minutes=1),  timedelta(minutes=5)),
-    "voice":          (timedelta(minutes=30), timedelta(hours=24)),
+    "env_sensor": (timedelta(minutes=2), timedelta(minutes=5)),
+    "moisture_node": (timedelta(minutes=2), timedelta(minutes=5)),
+    "actuator": (timedelta(minutes=2), timedelta(minutes=10)),
+    "camera": (timedelta(minutes=1), timedelta(minutes=5)),
+    "voice": (timedelta(minutes=30), timedelta(hours=24)),
 }
 
 
@@ -184,9 +183,7 @@ class SystemStatusService:
     ) -> DeviceStatus:
         node = (
             await session.exec(
-                select(SensorNode).where(
-                    SensorNode.location == SensorLocation.TENT
-                )
+                select(SensorNode).where(SensorNode.location == SensorLocation.TENT)
             )
         ).first()
         last_seen = node.last_seen if node is not None else None
@@ -201,9 +198,7 @@ class SystemStatusService:
         self, session: AsyncSession, loc: SensorLocation, now: datetime
     ) -> DeviceStatus:
         node = (
-            await session.exec(
-                select(SensorNode).where(SensorNode.location == loc)
-            )
+            await session.exec(select(SensorNode).where(SensorNode.location == loc))
         ).first()
         last_seen = node.last_seen if node is not None else None
         letter = loc.value.removeprefix("plant-")
@@ -219,9 +214,7 @@ class SystemStatusService:
     ) -> DeviceStatus:
         tent = (
             await session.exec(
-                select(SensorNode.id).where(
-                    SensorNode.location == SensorLocation.TENT
-                )
+                select(SensorNode.id).where(SensorNode.location == SensorLocation.TENT)
             )
         ).first()
         last_seen: datetime | None = None

@@ -10,6 +10,7 @@ with the per-plant ``sensorcalibration`` row and running the value
 through :func:`compute_calibrated_pct`. Plants without a calibration
 return ``moisture_pct=None``.
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -79,9 +80,7 @@ class PlantDetailPayload:
     wiki_path: str
 
 
-def count_irrigation_events(
-    points: list[MoisturePoint], jump_pct: float = 5.0
-) -> int:
+def count_irrigation_events(points: list[MoisturePoint], jump_pct: float = 5.0) -> int:
     """Heuristic: count upward jumps >= ``jump_pct`` between adjacent samples."""
     from itertools import pairwise
 
@@ -249,15 +248,15 @@ class PlantsService:
             points: list[MoisturePoint] = []
             for r in rows:
                 pct = compute_calibrated_pct(
-                    r.value, cal.raw_low, cal.raw_high,
+                    r.value,
+                    cal.raw_low,
+                    cal.raw_high,
                 )
                 if pct is not None:
                     points.append(MoisturePoint(ts=r.ts, value=pct))
             return points
 
-    async def get_plant_detail_payload(
-        self, code: str
-    ) -> PlantDetailPayload | None:
+    async def get_plant_detail_payload(self, code: str) -> PlantDetailPayload | None:
         """Combine ``PlantSummary`` + live moisture + ``PlantDetail`` wiki parse."""
         summary = await self.get_plant_by_code(code)
         if summary is None:
@@ -279,16 +278,16 @@ class PlantsService:
             status=band_status(
                 summary.moisture_pct,
                 (summary.moisture_target_low, summary.moisture_target_high),
-            ) if summary.moisture_pct is not None else "ok",
+            )
+            if summary.moisture_pct is not None
+            else "ok",
             ts=summary.moisture_ts,
         )
 
         detail = self._plant_detail.get(code)
         timeline = list(detail.timeline) if detail else []
         note = detail.note if detail else None
-        wiki_path = (
-            detail.wiki_path if detail else f"wiki/plants/plant-{code}.md"
-        )
+        wiki_path = detail.wiki_path if detail else f"wiki/plants/plant-{code}.md"
 
         return PlantDetailPayload(
             code=summary.code,

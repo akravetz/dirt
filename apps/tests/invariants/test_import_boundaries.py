@@ -21,6 +21,7 @@ for "which package may import which". The seven contracts there encode:
 Both the .ini file and this wrapper live in ``apps/tests/invariants/``,
 the directory protected from agent edits.
 """
+
 from __future__ import annotations
 
 import subprocess

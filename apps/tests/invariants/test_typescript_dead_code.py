@@ -10,6 +10,7 @@ The Python test is a thin shell-out wrapper: it runs
 ``pnpm --dir web-ui knip --no-progress`` and asserts exit 0. The real
 rules live in ``web-ui/invariants/knip.json`` (hook-protected).
 """
+
 from __future__ import annotations
 
 import shutil
@@ -40,9 +41,7 @@ def test_no_unused_files_exports_or_deps() -> None:
     )
     if proc.returncode != 0:
         # knip prints a terse, agent-readable report to stdout.
-        violations = [
-            line for line in proc.stdout.splitlines() if line.strip()
-        ]
+        violations = [line for line in proc.stdout.splitlines() if line.strip()]
         raise AssertionError(
             format_invariant_failure(
                 headline="knip reports unused code in web-ui/",

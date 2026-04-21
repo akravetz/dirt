@@ -12,6 +12,7 @@ seeds one row per ``SensorLocation`` enum value, so
 ``_get_sensornode_id`` never has to create on miss — but it upserts
 metadata when ingest reports fresh ip/firmware/uptime.
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -34,9 +35,7 @@ CAL_CLAMP_MIN = 100.0
 CAL_CLAMP_MAX = 3900.0
 
 
-def compute_calibrated_pct(
-    raw: float, raw_low: float, raw_high: float
-) -> float | None:
+def compute_calibrated_pct(raw: float, raw_low: float, raw_high: float) -> float | None:
     """Map a raw ADC reading to calibrated percentage via two-point linear.
 
     raw_low  = wettest ADC seen (100%)
@@ -76,7 +75,7 @@ _BUCKET_SQL = {
         "SELECT to_char("
         "    date_trunc('hour', ts AT TIME ZONE 'UTC')"
         "    + make_interval(mins => (extract(minute from ts AT TIME ZONE 'UTC')::int / 5) * 5),"  # noqa: E501
-        "    'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'"
+        '    \'YYYY-MM-DD"T"HH24:MI:SS"Z"\''
         ") AS bucket, "
         "AVG(value) AS avg_value "
         "FROM sensorreading "
@@ -85,7 +84,7 @@ _BUCKET_SQL = {
     ),
     "7d": (
         "SELECT to_char(date_trunc('hour', ts AT TIME ZONE 'UTC'), "
-        "'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS bucket, "
+        '\'YYYY-MM-DD"T"HH24:MI:SS"Z"\') AS bucket, '
         "AVG(value) AS avg_value "
         "FROM sensorreading "
         "WHERE ts >= :cutoff AND metric = :metric "
@@ -93,7 +92,7 @@ _BUCKET_SQL = {
     ),
     "30d": (
         "SELECT to_char(date_trunc('hour', ts AT TIME ZONE 'UTC'), "
-        "'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS bucket, "
+        '\'YYYY-MM-DD"T"HH24:MI:SS"Z"\') AS bucket, '
         "AVG(value) AS avg_value "
         "FROM sensorreading "
         "WHERE ts >= :cutoff AND metric = :metric "
@@ -108,9 +107,7 @@ async def _get_metric_series(
     """Return {labels, values} for a single metric over the given range."""
     if range_key in _BUCKET_SQL:
         stmt = text(_BUCKET_SQL[range_key])
-        result = await session.exec(
-            stmt, params={"cutoff": cutoff, "metric": metric}
-        )
+        result = await session.exec(stmt, params={"cutoff": cutoff, "metric": metric})
         rows = result.all()
         return {
             "labels": [r[0] for r in rows],
@@ -279,9 +276,7 @@ class ReadingsService:
 
             await session.commit()
 
-    async def get_sensor_history(
-        self, range_key: str
-    ) -> dict[str, dict[str, list]]:
+    async def get_sensor_history(self, range_key: str) -> dict[str, dict[str, list]]:
         """Return all metrics over the given range, batched."""
         delta = RANGE_DELTAS[range_key]
         cutoff = self._clock() - delta

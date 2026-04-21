@@ -26,6 +26,7 @@ def _drain_writer(timeout_s: float = 2.0) -> None:
     to drain.
     """
     from dirt_shared.observability import _write_queue
+
     deadline = time.monotonic() + timeout_s
     while not _write_queue.empty() and time.monotonic() < deadline:
         time.sleep(0.01)
@@ -42,8 +43,11 @@ def test_logs_dir_reads_env_var(isolate_observability_logs):
 def test_log_event_writes_to_tmp_not_production(isolate_observability_logs):
     """A `log_event` call inside a test must not touch the production
     `logs/` tree — proves the test-isolation contract end-to-end."""
-    log_event("isolation_test", "smoke",
-              detail="if you see this in production logs the fixture is broken")
+    log_event(
+        "isolation_test",
+        "smoke",
+        detail="if you see this in production logs the fixture is broken",
+    )
     _drain_writer()
 
     # Tmp directory got the file.
@@ -60,7 +64,8 @@ def test_log_event_writes_to_tmp_not_production(isolate_observability_logs):
 
 
 def test_consecutive_tests_get_independent_dirs(
-    isolate_observability_logs, tmp_path,
+    isolate_observability_logs,
+    tmp_path,
 ):
     """Each test invocation gets a fresh tmp_path → fresh log dir.
 

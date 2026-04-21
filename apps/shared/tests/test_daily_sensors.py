@@ -92,9 +92,7 @@ def _all_plants_fresh(value: float = 2500.0) -> list[tuple]:
 
 
 def _plant_calibrations() -> list[tuple]:
-    return [
-        (loc, SOIL_METRIC, 1370.0, 3880.0) for loc in PLANT_LOCATIONS
-    ]
+    return [(loc, SOIL_METRIC, 1370.0, 3880.0) for loc in PLANT_LOCATIONS]
 
 
 def test_mdt_window_to_utc_handles_offset():
@@ -129,7 +127,13 @@ async def test_validate_flags_zero_tent_value(pg_engine):
 
 async def test_validate_flags_pinned_plant_high(pg_engine):
     plants = _all_plants_fresh()
-    plants[1] = (SensorLocation.PLANT_B, SOIL_METRIC, 4095.0, plants[1][3], SensorSource.ESP32)
+    plants[1] = (
+        SensorLocation.PLANT_B,
+        SOIL_METRIC,
+        4095.0,
+        plants[1][3],
+        SensorSource.ESP32,
+    )
     await _seed_readings(pg_engine, _all_tent_metrics_fresh() + plants)
     r = SensorReader(pg_engine, clock=_clock, max_age_s=300, sensor_max_raw=4000.0)
     failures = await r.validate()
@@ -141,7 +145,13 @@ async def test_validate_flags_pinned_plant_high(pg_engine):
 
 async def test_validate_flags_pinned_plant_low(pg_engine):
     plants = _all_plants_fresh()
-    plants[2] = (SensorLocation.PLANT_C, SOIL_METRIC, 5.0, plants[2][3], SensorSource.ESP32)
+    plants[2] = (
+        SensorLocation.PLANT_C,
+        SOIL_METRIC,
+        5.0,
+        plants[2][3],
+        SensorSource.ESP32,
+    )
     await _seed_readings(pg_engine, _all_tent_metrics_fresh() + plants)
     r = SensorReader(pg_engine, clock=_clock, max_age_s=300, sensor_min_raw=30.0)
     failures = await r.validate()
@@ -170,8 +180,13 @@ async def test_validate_flags_stale(pg_engine):
 async def test_validate_flags_missing(pg_engine):
     # only humidity_pct seeded; other tent metrics missing entirely
     rows = [
-        (TENT_LOCATION, "humidity_pct", 50.0,
-         TEST_NOW - timedelta(seconds=5), SensorSource.ARDUINO),
+        (
+            TENT_LOCATION,
+            "humidity_pct",
+            50.0,
+            TEST_NOW - timedelta(seconds=5),
+            SensorSource.ARDUINO,
+        ),
     ]
     await _seed_readings(pg_engine, rows + _all_plants_fresh())
     r = SensorReader(pg_engine, clock=_clock, max_age_s=300)
@@ -187,12 +202,23 @@ async def test_snapshot_aggregates_three_windows(pg_engine):
     rows = []
     # overnight: 02:00 MDT = 08:00 UTC. Two readings, avg should be 75.
     overnight_ts = datetime(2026, 4, 19, 8, 0, tzinfo=UTC)
-    rows.append((TENT_LOCATION, "temperature_f", 70.0, overnight_ts, SensorSource.ARDUINO))
-    rows.append((TENT_LOCATION, "temperature_f", 80.0,
-                 overnight_ts + timedelta(hours=1), SensorSource.ARDUINO))
+    rows.append(
+        (TENT_LOCATION, "temperature_f", 70.0, overnight_ts, SensorSource.ARDUINO)
+    )
+    rows.append(
+        (
+            TENT_LOCATION,
+            "temperature_f",
+            80.0,
+            overnight_ts + timedelta(hours=1),
+            SensorSource.ARDUINO,
+        )
+    )
     # morning: 10:00 MDT = 16:00 UTC. one reading at 90.
     morning_ts = datetime(2026, 4, 19, 16, 0, tzinfo=UTC)
-    rows.append((TENT_LOCATION, "temperature_f", 90.0, morning_ts, SensorSource.ARDUINO))
+    rows.append(
+        (TENT_LOCATION, "temperature_f", 90.0, morning_ts, SensorSource.ARDUINO)
+    )
     # NOW reading at 14:30 MDT = 20:30 UTC; latest = 85
     now_ts = datetime(2026, 4, 19, 20, 25, tzinfo=UTC)
     rows.append((TENT_LOCATION, "temperature_f", 85.0, now_ts, SensorSource.ARDUINO))
@@ -221,7 +247,9 @@ async def test_snapshot_per_plant_pct_uses_calibration(pg_engine):
     rows = _all_tent_metrics_fresh()
     fresh_ts = TEST_NOW - timedelta(seconds=10)
     # plant-a raw=2500 cal 1370/3880 -> pct = 1380/2510 = 54.98%
-    rows.append((SensorLocation.PLANT_A, SOIL_METRIC, 2500.0, fresh_ts, SensorSource.ESP32))
+    rows.append(
+        (SensorLocation.PLANT_A, SOIL_METRIC, 2500.0, fresh_ts, SensorSource.ESP32)
+    )
     for loc in (SensorLocation.PLANT_B, SensorLocation.PLANT_C, SensorLocation.PLANT_D):
         rows.append((loc, SOIL_METRIC, 2000.0, fresh_ts, SensorSource.ESP32))
     await _seed_readings(pg_engine, rows, _plant_calibrations())
@@ -237,18 +265,23 @@ def test_to_prompt_dict_renders_window_avg():
         DailySensorSnapshot,
         WindowAvg,
     )
+
     snap = DailySensorSnapshot(
         date_mdt=TEST_DATE,
-        tent={"temperature_f": {
-            "overnight": WindowAvg(avg=75.123, n=2),
-            "morning": WindowAvg(avg=None, n=0),
-            "now": 85.0,
-        }},
-        plants={"a": {
-            "overnight_pct": WindowAvg(avg=42.5, n=10),
-            "morning_pct": WindowAvg(avg=None, n=0),
-            "now_pct": 33.1,
-        }},
+        tent={
+            "temperature_f": {
+                "overnight": WindowAvg(avg=75.123, n=2),
+                "morning": WindowAvg(avg=None, n=0),
+                "now": 85.0,
+            }
+        },
+        plants={
+            "a": {
+                "overnight_pct": WindowAvg(avg=42.5, n=10),
+                "morning_pct": WindowAvg(avg=None, n=0),
+                "now_pct": 33.1,
+            }
+        },
     )
     out = snap.to_prompt_dict()
     assert out["date_mdt"] == "2026-04-19"

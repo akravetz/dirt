@@ -105,12 +105,14 @@ def build_wiki_tools(*, grow: GrowStateService) -> list[ToolSpec]:
                             turn["blocks"].append({"type": "text", "text": b.text})
                             final_text = b.text
                         elif isinstance(b, ToolUseBlock):
-                            turn["blocks"].append({
-                                "type": "tool_use",
-                                "id": b.id,
-                                "name": b.name,
-                                "input": b.input,
-                            })
+                            turn["blocks"].append(
+                                {
+                                    "type": "tool_use",
+                                    "id": b.id,
+                                    "name": b.name,
+                                    "input": b.input,
+                                }
+                            )
                             if b.name == "Read":
                                 fp = b.input.get("file_path")
                                 if isinstance(fp, str) and fp not in read_paths:
@@ -128,11 +130,13 @@ def build_wiki_tools(*, grow: GrowStateService) -> list[ToolSpec]:
                         if isinstance(b, ToolResultBlock)
                     ]
                     if results:
-                        trace.append({
-                            "role": "tool_results",
-                            "ts_ms": ts_ms,
-                            "results": results,
-                        })
+                        trace.append(
+                            {
+                                "role": "tool_results",
+                                "ts_ms": ts_ms,
+                                "results": results,
+                            }
+                        )
                 elif isinstance(msg, ResultMessage):
                     result_msg = msg
 
@@ -140,7 +144,8 @@ def build_wiki_tools(*, grow: GrowStateService) -> list[ToolSpec]:
             await asyncio.wait_for(run(), timeout=_TIMEOUT_S)
         except TimeoutError:
             log_event(
-                "subagent_calls", "ask_wiki",
+                "subagent_calls",
+                "ask_wiki",
                 question=question,
                 trace=trace,
                 error="timeout",
@@ -152,7 +157,8 @@ def build_wiki_tools(*, grow: GrowStateService) -> list[ToolSpec]:
             return {"error": f"cli_not_found: {e}", "answer": ""}
         except ClaudeSDKError as e:
             log_event(
-                "subagent_calls", "ask_wiki",
+                "subagent_calls",
+                "ask_wiki",
                 question=question,
                 trace=trace,
                 error=str(e),
@@ -163,16 +169,13 @@ def build_wiki_tools(*, grow: GrowStateService) -> list[ToolSpec]:
 
         # Prefer ResultMessage.result over trailing TextBlock.
         answer = (
-            result_msg.result
-            if result_msg and result_msg.result
-            else final_text or ""
+            result_msg.result if result_msg and result_msg.result else final_text or ""
         )
-        error_text = (
-            result_msg.result if (result_msg and result_msg.is_error) else None
-        )
+        error_text = result_msg.result if (result_msg and result_msg.is_error) else None
 
         log_event(
-            "subagent_calls", "ask_wiki",
+            "subagent_calls",
+            "ask_wiki",
             question=question,
             trace=trace,
             answer=answer if not error_text else None,
@@ -201,9 +204,7 @@ def build_wiki_tools(*, grow: GrowStateService) -> list[ToolSpec]:
             properties={
                 "question": {
                     "type": "string",
-                    "description": (
-                        "The question to research, in natural language."
-                    ),
+                    "description": ("The question to research, in natural language."),
                 },
             },
             required=["question"],

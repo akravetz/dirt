@@ -74,14 +74,22 @@ def run_ffmpeg(jpegs: list[Path], output_path: Path) -> bool:
 
         result = subprocess.run(
             [
-                "ffmpeg", "-y",
-                "-f", "concat",
-                "-safe", "0",
-                "-i", str(list_file),
-                "-vsync", "vfr",
-                "-pix_fmt", "yuv420p",
-                "-c:v", "libx264",
-                "-crf", "23",
+                "ffmpeg",
+                "-y",
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                str(list_file),
+                "-vsync",
+                "vfr",
+                "-pix_fmt",
+                "yuv420p",
+                "-c:v",
+                "libx264",
+                "-crf",
+                "23",
                 str(output_path),
             ],
             capture_output=True,
@@ -97,10 +105,16 @@ def ffprobe_frame_count(video_path: Path) -> int:
     """Count frames in a video file using ffprobe."""
     result = subprocess.run(
         [
-            "ffprobe", "-v", "error",
-            "-count_frames", "-select_streams", "v:0",
-            "-show_entries", "stream=nb_read_frames",
-            "-of", "csv=p=0",
+            "ffprobe",
+            "-v",
+            "error",
+            "-count_frames",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=nb_read_frames",
+            "-of",
+            "csv=p=0",
             str(video_path),
         ],
         capture_output=True,
@@ -159,7 +173,9 @@ class ArchiveService:
                     video_filename,
                 )
                 return ArchiveResult(
-                    video_path=video_path, frame_count=0, jpegs_deleted=0,
+                    video_path=video_path,
+                    frame_count=0,
+                    jpegs_deleted=0,
                 )
             actual_frames = self._frame_counter(video_path)
             if actual_frames >= len(jpegs):
@@ -167,7 +183,9 @@ class ArchiveService:
                     j.unlink()
                 count = len(jpegs)
                 logger.info(
-                    "Cleaned %d JPEGs for archive %s", count, video_filename,
+                    "Cleaned %d JPEGs for archive %s",
+                    count,
+                    video_filename,
                 )
                 return ArchiveResult(
                     video_path=video_path,
@@ -179,7 +197,9 @@ class ArchiveService:
         if not jpegs:
             logger.info("No JPEGs found for %s, skipping", target_date)
             return ArchiveResult(
-                video_path=video_path, frame_count=0, jpegs_deleted=0,
+                video_path=video_path,
+                frame_count=0,
+                jpegs_deleted=0,
             )
 
         expected_count = len(jpegs)
@@ -188,7 +208,8 @@ class ArchiveService:
         success = self._ffmpeg_runner(jpegs, video_path)
         if not success:
             logger.error(
-                "ffmpeg failed for %s — JPEGs NOT deleted", target_date,
+                "ffmpeg failed for %s — JPEGs NOT deleted",
+                target_date,
             )
             video_path.unlink(missing_ok=True)
             raise ArchiveVerificationError(f"ffmpeg failed for {target_date}")
@@ -197,7 +218,9 @@ class ArchiveService:
         if actual_frames != expected_count:
             logger.error(
                 "Frame count mismatch for %s: expected %d, got %d — JPEGs NOT deleted",
-                target_date, expected_count, actual_frames,
+                target_date,
+                expected_count,
+                actual_frames,
             )
             video_path.unlink(missing_ok=True)
             raise ArchiveVerificationError(
@@ -209,7 +232,10 @@ class ArchiveService:
             j.unlink()
         logger.info(
             "Archived %s: %d frames → %s (%d bytes)",
-            target_date, actual_frames, video_path, video_path.stat().st_size,
+            target_date,
+            actual_frames,
+            video_path,
+            video_path.stat().st_size,
         )
 
         return ArchiveResult(
@@ -237,11 +263,14 @@ class ArchiveService:
                         try:
                             loop = asyncio.get_running_loop()
                             await loop.run_in_executor(
-                                None, self.archive_date, d,
+                                None,
+                                self.archive_date,
+                                d,
                             )
                         except ArchiveVerificationError:
                             logger.exception(
-                                "Archive verification failed for %s", d,
+                                "Archive verification failed for %s",
+                                d,
                             )
             except Exception:
                 logger.exception("Error in archive loop")

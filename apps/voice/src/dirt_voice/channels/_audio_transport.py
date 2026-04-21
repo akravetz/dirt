@@ -102,7 +102,8 @@ class SoundDeviceInputTransport(BaseInputTransport):
                 if pcm.size > 0:
                     rms = int(np.sqrt(np.mean(pcm.astype(np.float32) ** 2)))
                     log_event(
-                        "audio_rms", "rms",
+                        "audio_rms",
+                        "rms",
                         conversation_id=cid,
                         rms=rms,
                     )

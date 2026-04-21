@@ -1,5 +1,6 @@
 """Smoke tests for the root pg_engine fixture — verifies per-test DB
 isolation + engine monkeypatching across service modules."""
+
 from __future__ import annotations
 
 import pytest
@@ -18,8 +19,12 @@ async def test_fixture_yields_engine_with_seeded_rows(app_engine):
         nodes = result.all()
     # The Atlas init migration seeds one sensornode row per enum value.
     assert {n.location for n in nodes} == {
-        SensorLocation.TENT, SensorLocation.PLANT_A, SensorLocation.PLANT_B,
-        SensorLocation.PLANT_C, SensorLocation.PLANT_D, SensorLocation.RESERVOIR,
+        SensorLocation.TENT,
+        SensorLocation.PLANT_A,
+        SensorLocation.PLANT_B,
+        SensorLocation.PLANT_C,
+        SensorLocation.PLANT_D,
+        SensorLocation.RESERVOIR,
     }
 
 

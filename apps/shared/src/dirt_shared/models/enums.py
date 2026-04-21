@@ -15,6 +15,7 @@ Two parallel declarations per concept:
 UPPERCASE constant but the Postgres enum label must be the lowercase
 ``.value``.
 """
+
 from __future__ import annotations
 
 from enum import StrEnum

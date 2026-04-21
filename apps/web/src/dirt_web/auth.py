@@ -16,9 +16,7 @@ class SessionManager:
 
     def create_cookie(self, response: Response, username: str) -> None:
         value = self._serializer.dumps({"user": username})
-        response.set_cookie(
-            self.SESSION_COOKIE, value, httponly=True, samesite="lax"
-        )
+        response.set_cookie(self.SESSION_COOKIE, value, httponly=True, samesite="lax")
 
     def clear_cookie(self, response: Response) -> None:
         response.delete_cookie(self.SESSION_COOKIE)

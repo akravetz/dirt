@@ -22,6 +22,7 @@ Post-cutover (ADR-006): SQLite is gone; all test DBs are Postgres
 clones. The session fixture shells out to ``atlas migrate apply`` to
 stamp the template schema; this requires the ``atlas`` binary on PATH.
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -66,10 +67,10 @@ _MIGRATIONS = _REPO_ROOT / "migrations"
 _TEMPLATE = "dirt_test_template"
 
 
-
 def _pg_admin_url() -> str:
     """URL for CREATE/DROP DATABASE — connects to the ``postgres`` DB."""
     from dirt_shared.config import Settings
+
     settings = Settings()
 
     return (
@@ -81,6 +82,7 @@ def _pg_admin_url() -> str:
 def _pg_url(dbname: str) -> str:
     """SQLAlchemy asyncpg URL for a given database."""
     from dirt_shared.config import Settings
+
     settings = Settings()
 
     return (
@@ -97,14 +99,13 @@ async def _pg_template() -> str:
     ``pytest`` invocation regardless of how many tests request a DB.
     """
     from dirt_shared.config import Settings
+
     settings = Settings()
 
     admin_url = _pg_admin_url()
     admin = await asyncpg.connect(admin_url)
     try:
-        await admin.execute(
-            f'DROP DATABASE IF EXISTS "{_TEMPLATE}" WITH (FORCE)'
-        )
+        await admin.execute(f'DROP DATABASE IF EXISTS "{_TEMPLATE}" WITH (FORCE)')
         await admin.execute(f'CREATE DATABASE "{_TEMPLATE}"')
     finally:
         await admin.close()
@@ -121,9 +122,13 @@ async def _pg_template() -> str:
     # exception.
     result = subprocess.run(  # noqa: ASYNC221
         [
-            "atlas", "migrate", "apply",
-            "--dir", f"file://{_MIGRATIONS}",
-            "--url", template_url,
+            "atlas",
+            "migrate",
+            "apply",
+            "--dir",
+            f"file://{_MIGRATIONS}",
+            "--url",
+            template_url,
         ],
         capture_output=True,
         text=True,
@@ -138,9 +143,7 @@ async def _pg_template() -> str:
 
     admin = await asyncpg.connect(admin_url)
     try:
-        await admin.execute(
-            f'DROP DATABASE IF EXISTS "{_TEMPLATE}" WITH (FORCE)'
-        )
+        await admin.execute(f'DROP DATABASE IF EXISTS "{_TEMPLATE}" WITH (FORCE)')
     finally:
         await admin.close()
 
@@ -169,9 +172,7 @@ async def app_engine(_pg_template: str):
 
     admin = await asyncpg.connect(admin_url)
     try:
-        await admin.execute(
-            f'CREATE DATABASE "{dbname}" TEMPLATE "{_pg_template}"'
-        )
+        await admin.execute(f'CREATE DATABASE "{dbname}" TEMPLATE "{_pg_template}"')
     finally:
         await admin.close()
 

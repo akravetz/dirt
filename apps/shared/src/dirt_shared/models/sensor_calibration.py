@@ -6,6 +6,7 @@ raw_high the driest. Calibrated percentage:
 clamped to [0, 100]. Degenerate ranges (raw_high <= raw_low) return
 None — protected here by CHECK constraint.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -34,9 +35,7 @@ class SensorCalibration(SQLModel, table=True):
     __table_args__ = (
         # Allow raw_high == raw_low (initial state after a single observation).
         # compute_calibrated_pct() treats equal-range as degenerate and returns None.
-        CheckConstraint(
-            "raw_high >= raw_low", name="ck_sensorcalibration_range"
-        ),
+        CheckConstraint("raw_high >= raw_low", name="ck_sensorcalibration_range"),
         UniqueConstraint(
             "sensornode_id",
             "metric",

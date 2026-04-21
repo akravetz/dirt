@@ -15,6 +15,7 @@ Cached by file mtime so consecutive reads (dashboard + drawer both hitting
 ``PlantDetailService`` instance — per-app, not per-process — so tests
 that construct a fresh service get a clean cache.
 """
+
 from __future__ import annotations
 
 import re
@@ -141,15 +142,16 @@ def _parse_timeline(lines: list[str]) -> list[TimelineEntry]:
         else:
             entries.append(
                 TimelineEntry(
-                    date=None, day=None, text=inner, highlight="**" in inner,
+                    date=None,
+                    day=None,
+                    text=inner,
+                    highlight="**" in inner,
                 )
             )
     return entries
 
 
-def _parse_note(
-    sections: dict[str, list[str]], updated_fm: object
-) -> PlantNote | None:
+def _parse_note(sections: dict[str, list[str]], updated_fm: object) -> PlantNote | None:
     """Return the first paragraph under ``## Current State`` as the drawer note."""
     cs = sections.get("current state", [])
     paragraph_lines: list[str] = []

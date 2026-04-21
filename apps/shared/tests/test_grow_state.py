@@ -13,6 +13,7 @@ Determinism: the clock is constructor-injected on ``GrowStateService``,
 so tests build the service with a frozen UTC datetime via the ``_svc``
 helper instead of patching the datetime module.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, time
@@ -51,9 +52,7 @@ def _svc(
     return GrowStateService(engine, clock=lambda: frozen)
 
 
-async def _set_state(
-    engine, *, germination: date, flower: date | None = None
-) -> None:
+async def _set_state(engine, *, germination: date, flower: date | None = None) -> None:
     """Overwrite the seeded is_current row with the given dates."""
     async with AsyncSession(engine) as session:
         result = await session.exec(
@@ -111,9 +110,7 @@ async def test_stage_veg_when_flower_start_is_none(pg_engine):
 
 
 async def test_stage_veg_when_flower_start_in_future(pg_engine):
-    await _set_state(
-        pg_engine, germination=date(2026, 3, 15), flower=date(2026, 5, 1)
-    )
+    await _set_state(pg_engine, germination=date(2026, 3, 15), flower=date(2026, 5, 1))
     assert await _svc(pg_engine, today=date(2026, 4, 18)).current_stage() == "veg"
 
 
@@ -164,9 +161,7 @@ async def test_current_targets_tracks_stage(pg_engine):
     veg = await GrowStateService(pg_engine).current_targets()
     assert veg == gs.STAGE_TARGETS["veg"]
 
-    await _set_state(
-        pg_engine, germination=date(2026, 3, 15), flower=date(2026, 4, 1)
-    )
+    await _set_state(pg_engine, germination=date(2026, 3, 15), flower=date(2026, 4, 1))
     early = await GrowStateService(pg_engine).current_targets()
     assert early == gs.STAGE_TARGETS["flower_early"]
 

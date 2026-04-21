@@ -28,9 +28,7 @@ async def test_latest_snapshot_404_when_empty(client: AsyncClient):
     assert response.status_code == 404
 
 
-async def test_latest_snapshot_returns_image(
-    client: AsyncClient, app_engine, tmp_path
-):
+async def test_latest_snapshot_returns_image(client: AsyncClient, app_engine, tmp_path):
     img_path = tmp_path / "test.jpg"
     img_path.write_bytes(b"\xff\xd8\xff\xe0fake-jpeg-data")
 

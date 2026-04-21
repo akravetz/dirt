@@ -74,7 +74,7 @@ def test_atlas_hcl_present() -> None:
     source = _ATLAS_HCL.read_text()
     # Sanity check: the external schema data block is the whole point.
     assert 'data "external_schema"' in source, (
-        "atlas.hcl must declare `data \"external_schema\"` pointing at "
+        'atlas.hcl must declare `data "external_schema"` pointing at '
         "scripts/atlas-load-sqlmodel.py so SQLModel stays the source of truth."
     )
 

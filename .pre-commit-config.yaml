@@ -1,0 +1,79 @@
+# Pre-commit hooks. All hooks are `language: system` — they invoke
+# already-installed project tooling (uv, pnpm) rather than letting
+# pre-commit manage their versions. Each hook declares a `files:` regex
+# so it only runs when a staged file matches: a pure web-ui change
+# skips ruff/pytest-apps; a pure apps/ change skips eslint/biome/knip.
+# Failures dump the hook's stdout/stderr inline in the commit output so
+# the agent/developer sees the failure reason without digging.
+repos:
+  - repo: local
+    hooks:
+      # Python: format + lint.
+      - id: ruff-format
+        name: ruff format (check)
+        entry: uv run ruff format --check
+        language: system
+        files: '\.py$'
+        pass_filenames: false
+
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check
+        language: system
+        files: '\.py$'
+        pass_filenames: false
+
+      # Architectural invariants. Cross-cutting — run on ANY code change
+      # (apps/ or web-ui/) because some invariants assert against the
+      # web-ui shims via `tsc --showConfig` / `eslint --print-config`.
+      - id: invariants
+        name: pytest invariants (architectural)
+        entry: uv run pytest apps/tests/invariants/ -q
+        language: system
+        files: '^(apps/|web-ui/|pyproject\.toml|\.claude/settings\.json|\.claude/hooks/)'
+        pass_filenames: false
+
+      # Per-app Python suites. Excludes invariants (they run above) and
+      # skips unless an apps/ package or root pyproject.toml changes.
+      - id: pytest-apps
+        name: pytest apps (per-app suites)
+        entry: uv run pytest apps/hwd apps/web apps/shared apps/mcp apps/voice -q
+        language: system
+        files: '^(apps/(hwd|web|shared|mcp|voice)/|pyproject\.toml)'
+        pass_filenames: false
+
+      # web-ui: Biome (format + fast lint).
+      - id: biome
+        name: pnpm biome check
+        entry: pnpm --dir web-ui run lint:biome
+        language: system
+        files: '^web-ui/.*\.(ts|tsx|js|jsx|json|css)$'
+        pass_filenames: false
+
+      # web-ui: ESLint (architectural rules — boundaries, no-restricted-syntax,
+      # custom rules). Kept separate from Biome per docs/references/
+      # modern-idiomatic-typescript.
+      - id: eslint
+        name: pnpm eslint
+        entry: pnpm --dir web-ui run lint:eslint
+        language: system
+        files: '^web-ui/.*\.(ts|tsx)$|^web-ui/(eslint\.config\.ts|invariants/)'
+        pass_filenames: false
+
+      # web-ui: TypeScript strict typecheck. Strict flags live in the
+      # protected invariants/tsconfig.base.json.
+      - id: typecheck
+        name: pnpm tsc --noEmit
+        entry: pnpm --dir web-ui run typecheck
+        language: system
+        files: '^web-ui/.*\.(ts|tsx)$|^web-ui/tsconfig.*\.json$'
+        pass_filenames: false
+
+      # web-ui: knip — unused files / exports / deps. Uses the project's
+      # knip script which points at invariants/knip.json.
+      - id: knip
+        name: pnpm knip
+        entry: pnpm --dir web-ui exec knip --config invariants/knip.json --no-progress
+        language: system
+        files: '^web-ui/'
+        pass_filenames: false

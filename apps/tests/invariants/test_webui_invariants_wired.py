@@ -33,6 +33,7 @@ sentinel set IS the invariant — the meta-invariant is tamper-evident
 regardless of which surface the agent edits, because it asks the real
 tools what the effective config is.
 """
+
 from __future__ import annotations
 
 import json
@@ -167,7 +168,7 @@ def test_eslint_shim_imports_invariants() -> None:
                     "WHY: The shim is the only legitimate edit surface; if it "
                     "stops importing the protected config, architectural rules "
                     "vanish silently.\n"
-                    "FIX: Restore `import invariants from \"./invariants/eslint.config.ts\"` "
+                    'FIX: Restore `import invariants from "./invariants/eslint.config.ts"` '
                     "(or equivalent path) and spread it first in the exported array."
                 ),
                 violations=["import ./invariants/eslint NOT FOUND in shim"],
@@ -194,10 +195,12 @@ def test_tsconfig_shim_extends_invariants_base() -> None:
                 body=(
                     "WHY: Strict compilerOptions live in the protected base; "
                     "dropping the `extends` silently removes the type-system fence.\n"
-                    "FIX: Restore `\"extends\": \"./invariants/tsconfig.base.json\"` "
+                    'FIX: Restore `"extends": "./invariants/tsconfig.base.json"` '
                     "at the top of web-ui/tsconfig.json."
                 ),
-                violations=["extends ./invariants/tsconfig.base.json NOT FOUND in shim"],
+                violations=[
+                    "extends ./invariants/tsconfig.base.json NOT FOUND in shim"
+                ],
             ),
         )
 

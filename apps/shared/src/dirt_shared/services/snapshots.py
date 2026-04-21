@@ -35,5 +35,3 @@ def get_snapshot_path(snapshot: Snapshot) -> Path | None:
     if path.exists():
         return path
     return None
-
-

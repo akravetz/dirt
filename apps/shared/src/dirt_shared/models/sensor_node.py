@@ -6,6 +6,7 @@ from day one. ESP32 nodes overwrite their own row via the ingest upsert;
 ``tent`` and ``reservoir`` rows stay minimally populated (NULL ip /
 firmware) until real hardware owns them.
 """
+
 from __future__ import annotations
 
 from datetime import datetime

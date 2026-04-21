@@ -66,6 +66,7 @@ class RunResult:
 
 class _Bail(Exception):
     """Internal: a phase failed and we should send the failure alert + exit."""
+
     def __init__(self, phase: Phase, message: str):
         super().__init__(f"{phase.value}: {message}")
         self.phase = phase
@@ -110,16 +111,16 @@ class DailyReport:
         failed_marker = self._marker_dir / f"{target_date.isoformat()}.failed"
 
         if completed_marker.exists() and not force:
-            logger.info("already completed %s — pass --force to re-run",
-                        target_date)
+            logger.info("already completed %s — pass --force to re-run", target_date)
             return RunResult(success=True, failed_phase=None, error=None)
 
         # Clear stale failure marker if re-running
         if failed_marker.exists():
             failed_marker.unlink(missing_ok=True)
 
-        log_event("daily_report", "run_started",
-                  date=target_date.isoformat(), force=force)
+        log_event(
+            "daily_report", "run_started", date=target_date.isoformat(), force=force
+        )
 
         try:
             photos = await self._phase_capture(target_date)
@@ -130,9 +131,13 @@ class DailyReport:
         except _Bail as e:
             self._marker_dir.mkdir(parents=True, exist_ok=True)
             failed_marker.write_text(f"{e.phase.value}\n{e.message}\n")
-            log_event("daily_report", "run_failed",
-                      date=target_date.isoformat(),
-                      phase=e.phase.value, error=e.message)
+            log_event(
+                "daily_report",
+                "run_failed",
+                date=target_date.isoformat(),
+                phase=e.phase.value,
+                error=e.message,
+            )
             await self._send_failure(target_date, e.phase, e.message)
             return RunResult(success=False, failed_phase=e.phase, error=e.message)
 
@@ -171,8 +176,12 @@ class DailyReport:
             photos.append(path)
             logger.info("captured %s -> %s", preset, path)
 
-        log_event("daily_report", "capture_finished",
-                  date=target_date.isoformat(), photo_count=len(photos))
+        log_event(
+            "daily_report",
+            "capture_finished",
+            date=target_date.isoformat(),
+            photo_count=len(photos),
+        )
         return photos
 
     async def _phase_validate(self) -> None:
@@ -185,12 +194,13 @@ class DailyReport:
 
     async def _phase_snapshot(self, target_date: date) -> DailySensorSnapshot:
         snap = await self._reader.snapshot(target_date)
-        log_event("daily_report", "snapshot_finished",
-                  date=target_date.isoformat())
+        log_event("daily_report", "snapshot_finished", date=target_date.isoformat())
         return snap
 
     async def _phase_synthesize(
-        self, target_date: date, photos: Sequence[Path],
+        self,
+        target_date: date,
+        photos: Sequence[Path],
         snapshot: DailySensorSnapshot,
     ) -> SynthesisResult:
         result = await self._synthesis.run(
@@ -209,7 +219,9 @@ class DailyReport:
         return result
 
     async def _phase_deliver(
-        self, target_date: date, photos: Sequence[Path],
+        self,
+        target_date: date,
+        photos: Sequence[Path],
         synth: SynthesisResult,
     ) -> None:
         # Telegram failures are NON-fatal — wiki is the durable record.
@@ -219,22 +231,37 @@ class DailyReport:
             assert synth.daily_file is not None  # noqa: S101  phase_synthesize guarantees
             body_html = self._format_body(synth.daily_file)
             await self._telegram.send_media_group(
-                self._chat_id, list(photos), caption=caption,
+                self._chat_id,
+                list(photos),
+                caption=caption,
             )
             await self._telegram.send_message(
-                self._chat_id, body_html, parse_mode="HTML",
+                self._chat_id,
+                body_html,
+                parse_mode="HTML",
             )
-            log_event("daily_report", "deliver_finished",
-                      date=target_date.isoformat(), via="telegram")
+            log_event(
+                "daily_report",
+                "deliver_finished",
+                date=target_date.isoformat(),
+                via="telegram",
+            )
         except (TelegramError, OSError, ValueError) as e:
             logger.exception("telegram delivery failed (non-fatal)")
-            log_event("daily_report", "deliver_failed",
-                      date=target_date.isoformat(), error=str(e))
+            log_event(
+                "daily_report",
+                "deliver_failed",
+                date=target_date.isoformat(),
+                error=str(e),
+            )
 
     # --- failure / formatting helpers ---
 
     async def _send_failure(
-        self, target_date: date, phase: Phase, message: str,
+        self,
+        target_date: date,
+        phase: Phase,
+        message: str,
     ) -> None:
         try:
             text = (
@@ -247,26 +274,30 @@ class DailyReport:
                 "for full context."
             )
             await self._telegram.send_message(
-                self._chat_id, text, parse_mode="HTML",
+                self._chat_id,
+                text,
+                parse_mode="HTML",
             )
         except Exception:
             logger.exception("could not send failure alert to telegram")
 
     def _format_validation_failures(
-        self, failures: list[ValidationFailure],
+        self,
+        failures: list[ValidationFailure],
     ) -> str:
         lines = []
         for f in failures:
             val = "?" if f.value is None else f"{f.value:.2f}"
             age = "?" if f.age_s is None else f"{f.age_s:.0f}s"
             lines.append(
-                f"{f.location}/{f.metric}: value={val} age={age} "
-                f"reason={f.reason}"
+                f"{f.location}/{f.metric}: value={val} age={age} reason={f.reason}"
             )
         return "; ".join(lines)
 
     def _format_caption(
-        self, target_date: date, synth: SynthesisResult,
+        self,
+        target_date: date,
+        synth: SynthesisResult,
     ) -> str:
         # Keep under 1024 chars (Telegram album caption hard limit).
         return (
@@ -343,18 +374,14 @@ def markdown_to_simple_html(md: str) -> str:  # noqa: PLR0915 — linear whiteli
     def flush_table() -> None:
         nonlocal in_table, table_buffer
         if table_buffer:
-            out_lines.append(
-                "<pre>" + html.escape("\n".join(table_buffer)) + "</pre>"
-            )
+            out_lines.append("<pre>" + html.escape("\n".join(table_buffer)) + "</pre>")
         table_buffer = []
         in_table = False
 
     def flush_code() -> None:
         nonlocal in_code_block, code_buffer, code_lang
         if code_buffer:
-            out_lines.append(
-                "<pre>" + html.escape("\n".join(code_buffer)) + "</pre>"
-            )
+            out_lines.append("<pre>" + html.escape("\n".join(code_buffer)) + "</pre>")
         code_buffer = []
         code_lang = ""
         in_code_block = False
@@ -394,9 +421,7 @@ def markdown_to_simple_html(md: str) -> str:  # noqa: PLR0915 — linear whiteli
         # _italic_ (only when bracketed by spaces/punct, to avoid mangling
         # snake_case identifiers — keep it simple: require leading whitespace
         # or start-of-line, trailing whitespace/punctuation)
-        line = re.sub(
-            r"(^|\s)_([^_\n]+)_(?=\s|[.,;:!?]|$)", r"\1<i>\2</i>", line
-        )
+        line = re.sub(r"(^|\s)_([^_\n]+)_(?=\s|[.,;:!?]|$)", r"\1<i>\2</i>", line)
         out_lines.append(line)
 
     if in_code_block:

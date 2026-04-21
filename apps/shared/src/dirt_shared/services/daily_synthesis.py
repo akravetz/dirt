@@ -160,7 +160,9 @@ class ClaudeSynthesisRunner:
                 ts_ms = int((time.monotonic() - started) * 1000)
                 if isinstance(msg, AssistantMessage):
                     turn: dict[str, Any] = {
-                        "role": "assistant", "ts_ms": ts_ms, "blocks": [],
+                        "role": "assistant",
+                        "ts_ms": ts_ms,
+                        "blocks": [],
                     }
                     for b in msg.content:
                         if isinstance(b, TextBlock):
@@ -171,16 +173,22 @@ class ClaudeSynthesisRunner:
                             # the synthesis took the time it did. Do not
                             # truncate; storage is cheap, replaying a slow
                             # run is not.
-                            turn["blocks"].append({
-                                "type": "thinking",
-                                "thinking": b.thinking,
-                                "signature": b.signature,
-                            })
+                            turn["blocks"].append(
+                                {
+                                    "type": "thinking",
+                                    "thinking": b.thinking,
+                                    "signature": b.signature,
+                                }
+                            )
                         elif isinstance(b, ToolUseBlock):
-                            turn["blocks"].append({
-                                "type": "tool_use",
-                                "id": b.id, "name": b.name, "input": b.input,
-                            })
+                            turn["blocks"].append(
+                                {
+                                    "type": "tool_use",
+                                    "id": b.id,
+                                    "name": b.name,
+                                    "input": b.input,
+                                }
+                            )
                     if turn["blocks"]:
                         trace.append(turn)
                 elif isinstance(msg, UserMessage) and isinstance(msg.content, list):
@@ -194,10 +202,13 @@ class ClaudeSynthesisRunner:
                         if isinstance(b, ToolResultBlock)
                     ]
                     if results:
-                        trace.append({
-                            "role": "tool_results", "ts_ms": ts_ms,
-                            "results": results,
-                        })
+                        trace.append(
+                            {
+                                "role": "tool_results",
+                                "ts_ms": ts_ms,
+                                "results": results,
+                            }
+                        )
                 elif isinstance(msg, ResultMessage):
                     result_msg = msg
 
@@ -218,22 +229,29 @@ class ClaudeSynthesisRunner:
         self._log_dir.mkdir(parents=True, exist_ok=True)
         trace_path = self._log_dir / f"{target_date.isoformat()}.synthesis.json"
         try:
-            trace_path.write_text(json.dumps({
-                "date": target_date.isoformat(),
-                "model": self._model,
-                "duration_s": round(duration_s, 2),
-                "error": error,
-                "trace": trace,
-                "final_text": final_text,
-                "usage": (result_msg.usage if result_msg else None),
-                "cost_usd": (result_msg.total_cost_usd if result_msg else None),
-                "stop_reason": (result_msg.stop_reason if result_msg else None),
-            }, indent=2, default=str))
+            trace_path.write_text(
+                json.dumps(
+                    {
+                        "date": target_date.isoformat(),
+                        "model": self._model,
+                        "duration_s": round(duration_s, 2),
+                        "error": error,
+                        "trace": trace,
+                        "final_text": final_text,
+                        "usage": (result_msg.usage if result_msg else None),
+                        "cost_usd": (result_msg.total_cost_usd if result_msg else None),
+                        "stop_reason": (result_msg.stop_reason if result_msg else None),
+                    },
+                    indent=2,
+                    default=str,
+                )
+            )
         except OSError as e:
             logger.warning("could not write synthesis trace %s: %s", trace_path, e)
 
         log_event(
-            "daily_report", "synthesis_finished",
+            "daily_report",
+            "synthesis_finished",
             date=target_date.isoformat(),
             duration_s=round(duration_s, 2),
             error=error,
@@ -243,7 +261,9 @@ class ClaudeSynthesisRunner:
 
         if error is not None:
             return SynthesisResult(
-                success=False, daily_file=None, error=error,
+                success=False,
+                daily_file=None,
+                error=error,
                 duration_s=duration_s,
                 cost_usd=(result_msg.total_cost_usd if result_msg else None),
                 final_text=final_text,
@@ -251,7 +271,8 @@ class ClaudeSynthesisRunner:
 
         if not daily_file.exists():
             return SynthesisResult(
-                success=False, daily_file=None,
+                success=False,
+                daily_file=None,
                 error=f"daily file not created at {daily_file}",
                 duration_s=duration_s,
                 cost_usd=(result_msg.total_cost_usd if result_msg else None),
@@ -259,7 +280,9 @@ class ClaudeSynthesisRunner:
             )
 
         return SynthesisResult(
-            success=True, daily_file=daily_file, error=None,
+            success=True,
+            daily_file=daily_file,
+            error=None,
             duration_s=duration_s,
             cost_usd=(result_msg.total_cost_usd if result_msg else None),
             final_text=final_text,

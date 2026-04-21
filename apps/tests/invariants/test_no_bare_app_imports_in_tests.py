@@ -28,6 +28,7 @@ Detection (AST):
 
 There is no allowlist by design — each violation is a burn-down item.
 """
+
 from __future__ import annotations
 
 import ast
@@ -38,11 +39,16 @@ import pytest
 from ._helpers import APPS, APPS_ROOT, format_invariant_failure
 
 # A module name like "dirt_hwd.app" — flag any `from <pkg>.app import app`.
-_TARGET_PKGS: frozenset[str] = frozenset({
-    "dirt_hwd.app", "dirt_web.app", "dirt_mcp.app", "dirt_voice.app",
-    # dirt_shared has no .app module, listed for completeness.
-    "dirt_shared.app",
-})
+_TARGET_PKGS: frozenset[str] = frozenset(
+    {
+        "dirt_hwd.app",
+        "dirt_web.app",
+        "dirt_mcp.app",
+        "dirt_voice.app",
+        # dirt_shared has no .app module, listed for completeness.
+        "dirt_shared.app",
+    }
+)
 
 
 def _bare_app_imports(py: Path) -> list[tuple[int, str]]:
@@ -72,32 +78,32 @@ def test_no_bare_app_imports_in_tests(app: str) -> None:
     for py in test_dir.rglob("*.py"):
         rel = py.relative_to(APPS_ROOT)
         for lineno, module in _bare_app_imports(py):
-            violations.append(
-                f"apps/{rel}:{lineno}  from {module} import app"
-            )
+            violations.append(f"apps/{rel}:{lineno}  from {module} import app")
 
     if violations:
-        pytest.fail(format_invariant_failure(
-            headline=f"{app}: {len(violations)} bare-app import(s) in tests",
-            smell_name="Bare FastAPI app singleton import in tests",
-            citation="derived from Hidden Dependency / Module-level Singleton",
-            body=(
-                "Tests importing ``from dirt_<app>.app import app`` bind to the\n"
-                "module-level composition root, which drags every background\n"
-                "lifespan side-effect, every default service wiring, and the\n"
-                "single shared ``app.state`` across the test session. This\n"
-                "forces tests to patch lifespan internals to keep them quiet.\n\n"
-                "FIX: use ``from dirt_<app>.app import create_app`` and build a\n"
-                "per-test app:\n\n"
-                "    @pytest.fixture\n"
-                "    async def client(app_engine):\n"
-                "        app = create_app(engine=app_engine, run_mcp=False)\n"
-                "        ...\n\n"
-                "Override services with ``app.dependency_overrides[provider]``\n"
-                "to substitute fakes — no ``mock.patch`` needed."
-            ),
-            violations=violations,
-        ))
+        pytest.fail(
+            format_invariant_failure(
+                headline=f"{app}: {len(violations)} bare-app import(s) in tests",
+                smell_name="Bare FastAPI app singleton import in tests",
+                citation="derived from Hidden Dependency / Module-level Singleton",
+                body=(
+                    "Tests importing ``from dirt_<app>.app import app`` bind to the\n"
+                    "module-level composition root, which drags every background\n"
+                    "lifespan side-effect, every default service wiring, and the\n"
+                    "single shared ``app.state`` across the test session. This\n"
+                    "forces tests to patch lifespan internals to keep them quiet.\n\n"
+                    "FIX: use ``from dirt_<app>.app import create_app`` and build a\n"
+                    "per-test app:\n\n"
+                    "    @pytest.fixture\n"
+                    "    async def client(app_engine):\n"
+                    "        app = create_app(engine=app_engine, run_mcp=False)\n"
+                    "        ...\n\n"
+                    "Override services with ``app.dependency_overrides[provider]``\n"
+                    "to substitute fakes — no ``mock.patch`` needed."
+                ),
+                violations=violations,
+            )
+        )
 
 
 if __name__ == "__main__":

@@ -49,7 +49,7 @@ _INTERESTING_FIELDS: tuple[str, ...] = (
     "result",
     "model",
     "stop_reason",
-    "is_final",        # Deepgram InterimTranscriptionFrame
+    "is_final",  # Deepgram InterimTranscriptionFrame
     "user_id",
     "tool_name",
 )

@@ -29,6 +29,7 @@ Known evasion paths, accepted in v1:
   * Stored aliases through attribute chains on arbitrary Call results
     slip past for the same reason.
 """
+
 from __future__ import annotations
 
 import ast
@@ -49,37 +50,41 @@ from ._helpers import (
 # Everything else must go through Settings. If you are tempted to add a
 # file here, ask first whether the knob belongs in Settings instead —
 # the answer is "yes" more often than "no".
-ALLOWED: frozenset[str] = frozenset({
-    # Settings itself — canonical env reader.
-    "shared/src/dirt_shared/config.py",
-    # observability.py: reads DIRT_LOGS_DIR on every write so the pytest
-    # isolate_observability_logs autouse fixture can redirect writes
-    # per-test. Documented in CLAUDE.md (Observability / Test isolation)
-    # and again in the module docstring.
-    "shared/src/dirt_shared/observability.py",
-    # services/capture.py + services/system_status.py: discover the PTZ
-    # camera daemon's unix socket by probing DIRT_CAMERA_SOCKET /
-    # XDG_RUNTIME_DIR — a hardware-boundary path that doesn't belong in
-    # Settings (discovered at call time from the systemd runtime dir).
-    "shared/src/dirt_shared/services/capture.py",
-    "shared/src/dirt_shared/services/system_status.py",
-    # services/wiki.py: DIRT_WIKI_DIR override exists only to let tests
-    # point the wiki service at a tmp tree; production reads fall
-    # through to the repo-root default. A Settings field would force
-    # every non-wiki test to stub a Settings object.
-    "shared/src/dirt_shared/services/wiki.py",
-})
+ALLOWED: frozenset[str] = frozenset(
+    {
+        # Settings itself — canonical env reader.
+        "shared/src/dirt_shared/config.py",
+        # observability.py: reads DIRT_LOGS_DIR on every write so the pytest
+        # isolate_observability_logs autouse fixture can redirect writes
+        # per-test. Documented in CLAUDE.md (Observability / Test isolation)
+        # and again in the module docstring.
+        "shared/src/dirt_shared/observability.py",
+        # services/capture.py + services/system_status.py: discover the PTZ
+        # camera daemon's unix socket by probing DIRT_CAMERA_SOCKET /
+        # XDG_RUNTIME_DIR — a hardware-boundary path that doesn't belong in
+        # Settings (discovered at call time from the systemd runtime dir).
+        "shared/src/dirt_shared/services/capture.py",
+        "shared/src/dirt_shared/services/system_status.py",
+        # services/wiki.py: DIRT_WIKI_DIR override exists only to let tests
+        # point the wiki service at a tmp tree; production reads fall
+        # through to the repo-root default. A Settings field would force
+        # every non-wiki test to stub a Settings object.
+        "shared/src/dirt_shared/services/wiki.py",
+    }
+)
 
 # Fully-qualified call targets, post-import-resolution. Anything that
 # asks "what's in the environment?" at runtime.
-BANNED_ENV_CALLS: frozenset[str] = frozenset({
-    "os.getenv",
-    "os.environ.get",
-    "os.environ.setdefault",
-    "os.environ.pop",
-    # `from os import getenv` → local name "getenv" resolves to "os.getenv"
-    # via build_import_map. Same for environ.
-})
+BANNED_ENV_CALLS: frozenset[str] = frozenset(
+    {
+        "os.getenv",
+        "os.environ.get",
+        "os.environ.setdefault",
+        "os.environ.pop",
+        # `from os import getenv` → local name "getenv" resolves to "os.getenv"
+        # via build_import_map. Same for environ.
+    }
+)
 
 
 def _resolve_call_target(func_node: ast.expr, imports: dict[str, str]) -> str:
@@ -145,43 +150,45 @@ def test_no_env_reads_outside_config(app: str) -> None:
             violations.append(f"apps/{rel}:{lineno}  {target}")
 
     if violations:
-        pytest.fail(format_invariant_failure(
-            headline=(
-                f"{app}: {len(violations)} ad-hoc env read(s) "
-                "outside dirt_shared.config"
-            ),
-            smell_name="Untyped Configuration Sprawl / Hidden Dependency on Env",
-            citation=(
-                "Hunt & Thomas, _The Pragmatic Programmer_ — 'Keep\n"
-                "   Configuration Out of Code'; 12-Factor App §III"
-            ),
-            body=(
-                "WHY this rule exists:\n"
-                "  Every runtime knob belongs in Settings (typed, validated,\n"
-                "  documented in one place, discoverable in one grep). An\n"
-                "  `os.getenv('FOO')` at a call site is untyped (str | None,\n"
-                "  caller has to coerce), undocumented (no one knows the knob\n"
-                "  exists until it breaks), and untestable (can't stub\n"
-                "  Settings to exercise the happy path).\n\n"
-                "FIX:\n"
-                "  - Add a field to `Settings` in\n"
-                "    apps/shared/src/dirt_shared/config.py. Type it,\n"
-                "    validation_alias='<NAME>', sane default.\n"
-                "  - Thread it through a slice method (capture(), humidifier(),\n"
-                "    etc.) the way the existing shape does, OR inject the\n"
-                "    Settings instance into the service's __init__.\n"
-                "  - Tests construct Settings with the value they want to\n"
-                "    exercise — no monkeypatching of os.environ.\n\n"
-                "IF the knob genuinely belongs at the OS boundary (a unix\n"
-                "socket path discovered from XDG_RUNTIME_DIR, a test-only\n"
-                "tmp-dir override) and cannot live in Settings without\n"
-                "inverting the dep, add the file to `ALLOWED` in this\n"
-                "invariant with a one-line WHY comment. Those additions are\n"
-                "reviewed with the human maintainer — the answer is usually\n"
-                "'put it in Settings'."
-            ),
-            violations=violations,
-        ))
+        pytest.fail(
+            format_invariant_failure(
+                headline=(
+                    f"{app}: {len(violations)} ad-hoc env read(s) "
+                    "outside dirt_shared.config"
+                ),
+                smell_name="Untyped Configuration Sprawl / Hidden Dependency on Env",
+                citation=(
+                    "Hunt & Thomas, _The Pragmatic Programmer_ — 'Keep\n"
+                    "   Configuration Out of Code'; 12-Factor App §III"
+                ),
+                body=(
+                    "WHY this rule exists:\n"
+                    "  Every runtime knob belongs in Settings (typed, validated,\n"
+                    "  documented in one place, discoverable in one grep). An\n"
+                    "  `os.getenv('FOO')` at a call site is untyped (str | None,\n"
+                    "  caller has to coerce), undocumented (no one knows the knob\n"
+                    "  exists until it breaks), and untestable (can't stub\n"
+                    "  Settings to exercise the happy path).\n\n"
+                    "FIX:\n"
+                    "  - Add a field to `Settings` in\n"
+                    "    apps/shared/src/dirt_shared/config.py. Type it,\n"
+                    "    validation_alias='<NAME>', sane default.\n"
+                    "  - Thread it through a slice method (capture(), humidifier(),\n"
+                    "    etc.) the way the existing shape does, OR inject the\n"
+                    "    Settings instance into the service's __init__.\n"
+                    "  - Tests construct Settings with the value they want to\n"
+                    "    exercise — no monkeypatching of os.environ.\n\n"
+                    "IF the knob genuinely belongs at the OS boundary (a unix\n"
+                    "socket path discovered from XDG_RUNTIME_DIR, a test-only\n"
+                    "tmp-dir override) and cannot live in Settings without\n"
+                    "inverting the dep, add the file to `ALLOWED` in this\n"
+                    "invariant with a one-line WHY comment. Those additions are\n"
+                    "reviewed with the human maintainer — the answer is usually\n"
+                    "'put it in Settings'."
+                ),
+                violations=violations,
+            )
+        )
 
 
 if __name__ == "__main__":

@@ -8,6 +8,7 @@ Composition roots (``dirt_web.app.create_app``, ``dirt_hwd.app.create_app``,
 ``dirt_voice`` startup) call ``build_core_services`` from
 ``dirt_shared.app_wiring`` to construct an engine once per process.
 """
+
 from __future__ import annotations
 
 from sqlalchemy import text

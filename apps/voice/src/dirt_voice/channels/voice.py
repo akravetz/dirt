@@ -88,12 +88,12 @@ REPO_ROOT = Path(__file__).resolve().parents[5]
 # file is a trained artifact we keep on disk but not in git).
 WAKE_MODEL_PATH = REPO_ROOT / "debug" / "hey_claudia.onnx"
 WAKE_SAMPLE_RATE = 16000
-WAKE_CHUNK_SAMPLES = int(WAKE_SAMPLE_RATE * 0.08)   # 80 ms
+WAKE_CHUNK_SAMPLES = int(WAKE_SAMPLE_RATE * 0.08)  # 80 ms
 WAKE_THRESHOLD = 0.6
-WAKE_NEAR_MISS_FLOOR = 0.1   # temporary: log sub-threshold scores to calibrate
-WAKE_AUDIO_CAPTURE_FLOOR = 0.3   # save WAV when score is in ambiguous zone
+WAKE_NEAR_MISS_FLOOR = 0.1  # temporary: log sub-threshold scores to calibrate
+WAKE_AUDIO_CAPTURE_FLOOR = 0.3  # save WAV when score is in ambiguous zone
 WAKE_DEBOUNCE_S = 3.0
-WAKE_WARMUP_FRAMES = 12   # ~1s at 80ms/frame — drop post-conversation echo tail
+WAKE_WARMUP_FRAMES = 12  # ~1s at 80ms/frame — drop post-conversation echo tail
 
 # Ring buffer of recent audio frames for hard-negative harvesting. 24 frames
 # * 80 ms = ~1.9 s of context, enough to capture the full wake-phrase window
@@ -102,8 +102,8 @@ WAKE_AUDIO_BUFFER_FRAMES = 24
 
 # Jabra SPEAK 410 hardware constraints
 INPUT_SAMPLE_RATE = 16000
-OUTPUT_SAMPLE_RATE = 48000     # firmware clock
-OUTPUT_CHANNELS = 2            # stereo-only playback endpoint
+OUTPUT_SAMPLE_RATE = 48000  # firmware clock
+OUTPUT_CHANNELS = 2  # stereo-only playback endpoint
 PLAYBACK_GAIN_DB = 12.0
 
 SESSION_IDLE_TIMEOUT_S = 15
@@ -299,14 +299,18 @@ async def wait_for_wake(device: int, *, wake_audio_dir: Path) -> float:
                 last_fire = now
                 logger.info(f"wake detected (score={score:.3f})")
                 log_event(
-                    "wake_scores", "wake_detected",
+                    "wake_scores",
+                    "wake_detected",
                     score=round(score, 4),
                     threshold=WAKE_THRESHOLD,
                 )
                 # Save the positive example too — retraining wants real
                 # in-situ positives as much as hard negatives.
                 _save_wake_audio_clip(
-                    recent_frames, score, "wake", wake_audio_dir,
+                    recent_frames,
+                    score,
+                    "wake",
+                    wake_audio_dir,
                 )
                 return score
             elif score >= WAKE_NEAR_MISS_FLOOR:
@@ -314,7 +318,8 @@ async def wait_for_wake(device: int, *, wake_audio_dir: Path) -> float:
                 # content. Useful for calibrating WAKE_THRESHOLD against
                 # real-world conditions. See logs/wake_scores/.
                 log_event(
-                    "wake_scores", "near_miss",
+                    "wake_scores",
+                    "near_miss",
                     score=round(score, 4),
                     threshold=WAKE_THRESHOLD,
                     floor=WAKE_NEAR_MISS_FLOOR,
@@ -326,7 +331,10 @@ async def wait_for_wake(device: int, *, wake_audio_dir: Path) -> float:
                 # hoarding.
                 if score >= WAKE_AUDIO_CAPTURE_FLOOR:
                     _save_wake_audio_clip(
-                        recent_frames, score, "near_miss", wake_audio_dir,
+                        recent_frames,
+                        score,
+                        "near_miss",
+                        wake_audio_dir,
                     )
 
 
@@ -339,17 +347,19 @@ async def run_conversation(
 ) -> LLMContext:
     """Build and run a single Pipecat conversation session. Returns the final
     LLMContext so the caller can persist the transcript to the session log."""
-    transport = SoundDeviceTransport(SoundDeviceTransportParams(
-        audio_in_enabled=True,
-        audio_out_enabled=True,
-        audio_in_sample_rate=INPUT_SAMPLE_RATE,
-        audio_out_sample_rate=OUTPUT_SAMPLE_RATE,
-        audio_in_channels=1,
-        audio_out_channels=OUTPUT_CHANNELS,
-        input_device=device,
-        output_device=device,
-        playback_gain_db=PLAYBACK_GAIN_DB,
-    ))
+    transport = SoundDeviceTransport(
+        SoundDeviceTransportParams(
+            audio_in_enabled=True,
+            audio_out_enabled=True,
+            audio_in_sample_rate=INPUT_SAMPLE_RATE,
+            audio_out_sample_rate=OUTPUT_SAMPLE_RATE,
+            audio_in_channels=1,
+            audio_out_channels=OUTPUT_CHANNELS,
+            input_device=device,
+            output_device=device,
+            playback_gain_db=PLAYBACK_GAIN_DB,
+        )
+    )
 
     stt = DeepgramSTTService(
         api_key=settings.deepgram_api_key,
@@ -367,7 +377,7 @@ async def run_conversation(
         sample_rate=OUTPUT_SAMPLE_RATE,
         settings=ElevenLabsTTSService.Settings(
             voice=settings.elabs_voice_id,
-            model="eleven_turbo_v2_5",   # ~75-150ms TTFA vs ~400ms for multilingual_v2
+            model="eleven_turbo_v2_5",  # ~75-150ms TTFA vs ~400ms for multilingual_v2
             language="en",
             stability=0.55,
             similarity_boost=1.0,
@@ -421,16 +431,18 @@ async def run_conversation(
         ),
     )
 
-    pipeline = Pipeline([
-        transport.input(),
-        stt,
-        user_aggregator,
-        llm,
-        thinking_stripper,
-        tts,
-        transport.output(),
-        assistant_aggregator,
-    ])
+    pipeline = Pipeline(
+        [
+            transport.input(),
+            stt,
+            user_aggregator,
+            llm,
+            thinking_stripper,
+            tts,
+            transport.output(),
+            assistant_aggregator,
+        ]
+    )
 
     task = PipelineTask(
         pipeline,
@@ -445,13 +457,15 @@ async def run_conversation(
     )
 
     # Seed a greeting request so Claudia speaks first.
-    context.add_message({
-        "role": "developer",
-        "content": (
-            "Greet the user warmly in one sentence — you just heard them "
-            "say your wake word."
-        ),
-    })
+    context.add_message(
+        {
+            "role": "developer",
+            "content": (
+                "Greet the user warmly in one sentence — you just heard them "
+                "say your wake word."
+            ),
+        }
+    )
     await task.queue_frames([LLMRunFrame()])
 
     # handle_sigint=False — the voice channel installs its own SIGTERM/SIGINT
@@ -498,16 +512,17 @@ async def main() -> None:
     pid_file = settings.data_dir / "logs" / "voice.pid"
 
     missing = [
-        f for f in (
-            "deepgram_api_key", "anthropic_api_key",
-            "elabs_api_key", "elabs_voice_id",
+        f
+        for f in (
+            "deepgram_api_key",
+            "anthropic_api_key",
+            "elabs_api_key",
+            "elabs_voice_id",
         )
         if not getattr(settings, f)
     ]
     if missing:
-        sys.exit(
-            f"Missing env vars in .env: {', '.join(m.upper() for m in missing)}"
-        )
+        sys.exit(f"Missing env vars in .env: {', '.join(m.upper() for m in missing)}")
 
     sessions_dir.mkdir(parents=True, exist_ok=True)
     pid_file.parent.mkdir(parents=True, exist_ok=True)
@@ -515,15 +530,12 @@ async def main() -> None:
 
     # Build tools with services injected — the closures bind here, no
     # module-level service access anywhere.
-    tools: list[ToolSpec] = (
-        build_sensor_tools(
-            engine=core.engine,
-            readings=core.readings,
-            grow=core.grow,
-            clock=core.clock,
-        )
-        + build_wiki_tools(grow=core.grow)
-    )
+    tools: list[ToolSpec] = build_sensor_tools(
+        engine=core.engine,
+        readings=core.readings,
+        grow=core.grow,
+        clock=core.clock,
+    ) + build_wiki_tools(grow=core.grow)
 
     # Without this, SIGTERM skips async unwind and leaves the portaudio thread
     # holding the Jabra ALSA capture handle, breaking the next startup.
@@ -536,7 +548,8 @@ async def main() -> None:
     jabra = find_jabra()
     logger.info(f"Jabra device index: {jabra} (pid={os.getpid()})")
     _log_event(
-        {"type": "channel_started", "device_index": jabra}, sessions_dir,
+        {"type": "channel_started", "device_index": jabra},
+        sessions_dir,
     )
 
     try:
@@ -559,7 +572,10 @@ async def main() -> None:
 
             try:
                 context = await run_conversation(
-                    jabra, settings=settings, grow=core.grow, tools=tools,
+                    jabra,
+                    settings=settings,
+                    grow=core.grow,
+                    tools=tools,
                 )
                 _log_event(
                     {

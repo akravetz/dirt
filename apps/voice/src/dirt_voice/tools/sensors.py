@@ -117,9 +117,7 @@ def build_sensor_tools(
                 continue
             readings_out[metric] = round(r.value, 2)
             age_s = (now - r.ts).total_seconds()
-            oldest_age_s = (
-                age_s if oldest_age_s is None else max(oldest_age_s, age_s)
-            )
+            oldest_age_s = age_s if oldest_age_s is None else max(oldest_age_s, age_s)
 
             if metric in targets:
                 lo, hi = targets[metric]
@@ -134,25 +132,19 @@ def build_sensor_tools(
 
         soil, soil_ages = await _latest_soil_moisture_pct(engine, now)
         for age_s in soil_ages:
-            oldest_age_s = (
-                age_s if oldest_age_s is None else max(oldest_age_s, age_s)
-            )
+            oldest_age_s = age_s if oldest_age_s is None else max(oldest_age_s, age_s)
 
         return {
             "readings": readings_out,
             "soil_moisture_pct": soil,
             "out_of_range": out_of_range,
-            "last_reading_age_s": (
-                round(oldest_age_s) if oldest_age_s else None
-            ),
+            "last_reading_age_s": (round(oldest_age_s) if oldest_age_s else None),
         }
 
     async def _get_sensor_trend(sensor: str, hours_back: int = 24) -> dict:
         sensor = sensor.strip()
         if sensor not in METRICS:
-            return {
-                "error": f"unknown sensor {sensor!r}; valid: {', '.join(METRICS)}"
-            }
+            return {"error": f"unknown sensor {sensor!r}; valid: {', '.join(METRICS)}"}
         if not (1 <= hours_back <= 168):
             return {"error": "hours_back must be between 1 and 168"}
 
@@ -170,9 +162,7 @@ def build_sensor_tools(
             rows = result.all()
 
         if not rows:
-            return {
-                "error": f"no readings for {sensor} in the last {hours_back}h"
-            }
+            return {"error": f"no readings for {sensor} in the last {hours_back}h"}
 
         values = [r.value for r in rows]
         # Direction: compare first-half average to second-half average.

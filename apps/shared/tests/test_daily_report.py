@@ -64,24 +64,45 @@ async def _seed_clean(engine):
     ids = await _node_ids(engine)
     async with AsyncSession(engine) as s:
         for m, v in [
-            ("temperature_f", 80.0), ("humidity_pct", 50.0),
-            ("pressure_hpa", 843.0), ("vpd_kpa", 1.5), ("dew_point_f", 58.0),
+            ("temperature_f", 80.0),
+            ("humidity_pct", 50.0),
+            ("pressure_hpa", 843.0),
+            ("vpd_kpa", 1.5),
+            ("dew_point_f", 58.0),
         ]:
-            s.add(SensorReading(
-                sensornode_id=ids[TENT_LOCATION], metric=m, value=v,
-                ts=fresh_ts, source=SensorSource.ARDUINO))
+            s.add(
+                SensorReading(
+                    sensornode_id=ids[TENT_LOCATION],
+                    metric=m,
+                    value=v,
+                    ts=fresh_ts,
+                    source=SensorSource.ARDUINO,
+                )
+            )
         for loc in PLANT_LOCATIONS:
-            s.add(SensorReading(
-                sensornode_id=ids[loc], metric=SOIL_METRIC, value=2500.0,
-                ts=fresh_ts, source=SensorSource.ESP32))
-            s.add(SensorCalibration(
-                sensornode_id=ids[loc], metric=SOIL_METRIC,
-                raw_low=1370.0, raw_high=3880.0))
+            s.add(
+                SensorReading(
+                    sensornode_id=ids[loc],
+                    metric=SOIL_METRIC,
+                    value=2500.0,
+                    ts=fresh_ts,
+                    source=SensorSource.ESP32,
+                )
+            )
+            s.add(
+                SensorCalibration(
+                    sensornode_id=ids[loc],
+                    metric=SOIL_METRIC,
+                    raw_low=1370.0,
+                    raw_high=3880.0,
+                )
+            )
         await s.commit()
 
 
 class _FakeCamera:
     """CameraClient stand-in. Records preset list, returns a real JPEG."""
+
     def __init__(self, jpeg: bytes | None = None):
         self.jpeg = jpeg or _tiny_jpeg()
         self.calls: list[str] = []
@@ -91,28 +112,37 @@ class _FakeCamera:
         self.calls.append(preset)
         if self.raise_on == preset:
             from dirt_shared.services.photos import CameraError
+
             raise CameraError(f"injected failure at {preset}")
         return self.jpeg
 
 
 class _FakeSynthesis:
     """SynthesisRunner stand-in. Writes a daily file when invoked."""
-    def __init__(self, wiki_root: Path, *, succeed: bool = True,
-                 error: str | None = None):
+
+    def __init__(
+        self, wiki_root: Path, *, succeed: bool = True, error: str | None = None
+    ):
         self.wiki_root = wiki_root
         self.succeed = succeed
         self.error = error
         self.calls: list[tuple[date, list[Path], dict[str, Any]]] = []
 
     async def run(
-        self, target_date, photo_paths, sensor_payload,
+        self,
+        target_date,
+        photo_paths,
+        sensor_payload,
     ) -> SynthesisResult:
         self.calls.append((target_date, list(photo_paths), sensor_payload))
         if not self.succeed:
             return SynthesisResult(
-                success=False, daily_file=None,
+                success=False,
+                daily_file=None,
                 error=self.error or "fake failure",
-                duration_s=1.0, cost_usd=0.0, final_text=None,
+                duration_s=1.0,
+                cost_usd=0.0,
+                final_text=None,
             )
         daily = self.wiki_root / "daily" / f"{target_date.isoformat()}.md"
         daily.parent.mkdir(parents=True, exist_ok=True)
@@ -122,44 +152,64 @@ class _FakeSynthesis:
             "## Sensors\n\n| metric | value |\n|---|---|\n| temp | 80°F |\n"
         )
         return SynthesisResult(
-            success=True, daily_file=daily, error=None,
-            duration_s=1.0, cost_usd=0.05, final_text="done",
+            success=True,
+            daily_file=daily,
+            error=None,
+            duration_s=1.0,
+            cost_usd=0.05,
+            final_text="done",
         )
 
 
 class _FakeTelegram:
-    def __init__(self, *, fail_send_message: bool = False,
-                 fail_send_media: bool = False):
+    def __init__(
+        self, *, fail_send_message: bool = False, fail_send_media: bool = False
+    ):
         self.messages: list[dict[str, Any]] = []
         self.media_groups: list[dict[str, Any]] = []
         self.fail_send_message = fail_send_message
         self.fail_send_media = fail_send_media
 
-    async def send_message(self, chat_id, text, *, parse_mode="HTML",
-                           disable_web_page_preview=True):
+    async def send_message(
+        self, chat_id, text, *, parse_mode="HTML", disable_web_page_preview=True
+    ):
         if self.fail_send_message:
             from dirt_shared.services.telegram import TelegramError
+
             raise TelegramError("injected message failure")
-        self.messages.append({
-            "chat_id": chat_id, "text": text, "parse_mode": parse_mode,
-        })
+        self.messages.append(
+            {
+                "chat_id": chat_id,
+                "text": text,
+                "parse_mode": parse_mode,
+            }
+        )
         return {"message_id": 1}
 
-    async def send_media_group(self, chat_id, photo_paths, *, caption=None,
-                               caption_parse_mode="HTML"):
+    async def send_media_group(
+        self, chat_id, photo_paths, *, caption=None, caption_parse_mode="HTML"
+    ):
         if self.fail_send_media:
             from dirt_shared.services.telegram import TelegramError
+
             raise TelegramError("injected media failure")
-        self.media_groups.append({
-            "chat_id": chat_id,
-            "photo_paths": list(photo_paths),
-            "caption": caption,
-        })
+        self.media_groups.append(
+            {
+                "chat_id": chat_id,
+                "photo_paths": list(photo_paths),
+                "caption": caption,
+            }
+        )
         return [{"message_id": 100}]
 
 
 def _build_orchestrator(
-    *, engine, tmp_path, camera=None, synthesis=None, telegram=None,
+    *,
+    engine,
+    tmp_path,
+    camera=None,
+    synthesis=None,
+    telegram=None,
 ) -> tuple[DailyReport, _FakeCamera, _FakeSynthesis, _FakeTelegram]:
     photos_dir = tmp_path / "raw" / "photos"
     marker_dir = tmp_path / "logs" / "daily_report"
@@ -201,8 +251,11 @@ async def test_run_full_pipeline_happy_path(pg_engine, tmp_path):
     photos_dir = tmp_path / "raw" / "photos" / "2026-04-19"
     files = sorted(p.name for p in photos_dir.iterdir())
     assert files == [
-        "overview.jpg", "plant-a.jpg", "plant-b.jpg",
-        "plant-c.jpg", "plant-d.jpg",
+        "overview.jpg",
+        "plant-a.jpg",
+        "plant-b.jpg",
+        "plant-c.jpg",
+        "plant-d.jpg",
     ]
     # Synthesis received the same paths
     assert len(synth.calls) == 1
@@ -228,7 +281,9 @@ async def test_capture_failure_sends_alert_and_skips_synthesis(pg_engine, tmp_pa
     cam = _FakeCamera()
     cam.raise_on = "plant_b"
     orch, _cam, synth, tg = _build_orchestrator(
-        engine=engine, tmp_path=tmp_path, camera=cam,
+        engine=engine,
+        tmp_path=tmp_path,
+        camera=cam,
     )
 
     result = await orch.run(TARGET_DATE)
@@ -250,7 +305,8 @@ async def test_capture_failure_sends_alert_and_skips_synthesis(pg_engine, tmp_pa
 
 
 async def test_validation_failure_sends_alert_and_skips_synthesis(
-    pg_engine, tmp_path,
+    pg_engine,
+    tmp_path,
 ):
     engine = pg_engine
     # seed with humidity=0 (zero-trigger)
@@ -258,19 +314,39 @@ async def test_validation_failure_sends_alert_and_skips_synthesis(
     ids = await _node_ids(engine)
     async with AsyncSession(engine) as s:
         for m, v in [
-            ("temperature_f", 80.0), ("humidity_pct", 0.0),
-            ("pressure_hpa", 843.0), ("vpd_kpa", 1.5), ("dew_point_f", 58.0),
+            ("temperature_f", 80.0),
+            ("humidity_pct", 0.0),
+            ("pressure_hpa", 843.0),
+            ("vpd_kpa", 1.5),
+            ("dew_point_f", 58.0),
         ]:
-            s.add(SensorReading(
-                sensornode_id=ids[TENT_LOCATION], metric=m, value=v,
-                ts=fresh_ts, source=SensorSource.ARDUINO))
+            s.add(
+                SensorReading(
+                    sensornode_id=ids[TENT_LOCATION],
+                    metric=m,
+                    value=v,
+                    ts=fresh_ts,
+                    source=SensorSource.ARDUINO,
+                )
+            )
         for loc in PLANT_LOCATIONS:
-            s.add(SensorReading(
-                sensornode_id=ids[loc], metric=SOIL_METRIC, value=2500.0,
-                ts=fresh_ts, source=SensorSource.ESP32))
-            s.add(SensorCalibration(
-                sensornode_id=ids[loc], metric=SOIL_METRIC,
-                raw_low=1370.0, raw_high=3880.0))
+            s.add(
+                SensorReading(
+                    sensornode_id=ids[loc],
+                    metric=SOIL_METRIC,
+                    value=2500.0,
+                    ts=fresh_ts,
+                    source=SensorSource.ESP32,
+                )
+            )
+            s.add(
+                SensorCalibration(
+                    sensornode_id=ids[loc],
+                    metric=SOIL_METRIC,
+                    raw_low=1370.0,
+                    raw_high=3880.0,
+                )
+            )
         await s.commit()
 
     orch, _cam, synth, tg = _build_orchestrator(engine=engine, tmp_path=tmp_path)
@@ -291,7 +367,9 @@ async def test_synthesis_failure_sends_alert(pg_engine, tmp_path):
     wiki_root.mkdir(parents=True, exist_ok=True)
     synth = _FakeSynthesis(wiki_root, succeed=False, error="cli_not_found")
     orch, _cam, _synth, tg = _build_orchestrator(
-        engine=engine, tmp_path=tmp_path, synthesis=synth,
+        engine=engine,
+        tmp_path=tmp_path,
+        synthesis=synth,
     )
 
     result = await orch.run(TARGET_DATE)
@@ -311,7 +389,9 @@ async def test_telegram_failure_does_not_fail_overall_run(pg_engine, tmp_path):
     await _seed_clean(engine)
     tg = _FakeTelegram(fail_send_media=True)
     orch, _cam, _synth, _tg = _build_orchestrator(
-        engine=engine, tmp_path=tmp_path, telegram=tg,
+        engine=engine,
+        tmp_path=tmp_path,
+        telegram=tg,
     )
 
     result = await orch.run(TARGET_DATE)
@@ -363,7 +443,8 @@ async def test_failed_marker_cleared_on_re_run(pg_engine, tmp_path):
     (marker_dir / "2026-04-19.failed").write_text("capture\nold failure\n")
 
     orch, _cam, _synth, _tg = _build_orchestrator(
-        engine=engine, tmp_path=tmp_path,
+        engine=engine,
+        tmp_path=tmp_path,
     )
     result = await orch.run(TARGET_DATE)
 
@@ -389,9 +470,7 @@ def test_markdown_headings_become_bold():
 
 
 def test_markdown_inline_code_and_bold():
-    out = markdown_to_simple_html(
-        "Use `cmd` for **important** notes."
-    )
+    out = markdown_to_simple_html("Use `cmd` for **important** notes.")
     assert "<code>cmd</code>" in out
     assert "<b>important</b>" in out
 
@@ -407,9 +486,7 @@ def test_markdown_table_becomes_pre():
 
 
 def test_markdown_code_fence_becomes_pre():
-    out = markdown_to_simple_html(
-        "Example:\n\n```bash\nls -la\necho hi\n```\n"
-    )
+    out = markdown_to_simple_html("Example:\n\n```bash\nls -la\necho hi\n```\n")
     assert "<pre>" in out
     assert "ls -la" in out
     # Inside <pre>, special chars are escaped

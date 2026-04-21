@@ -85,7 +85,10 @@ class HumidifierLoopService:
         logger.info(
             "humidifier loop starting: host=%s deadband=%.2fkPa interval=%ds "
             "lights_margin=%dmin",
-            host, deadband, interval, margin_minutes,
+            host,
+            deadband,
+            interval,
+            margin_minutes,
         )
 
         plug: Device | None = None
@@ -104,9 +107,7 @@ class HumidifierLoopService:
 
                 stage = await self._grow.current_stage()
                 lights = await self._grow.lights_state()
-                vpd_lo, vpd_hi = (
-                    await self._grow.current_targets()
-                )["vpd_kpa"]
+                vpd_lo, vpd_hi = (await self._grow.current_targets())["vpd_kpa"]
                 turn_on_above = vpd_hi
                 turn_off_below = vpd_hi - deadband
 
@@ -118,20 +119,14 @@ class HumidifierLoopService:
                 # the prep ramp-down before lights-off and stays off until
                 # the ramp-up before lights-on.
                 allowed = (
-                    (lights.on and lights.minutes_until_off >= margin_minutes)
-                    or (
-                        not lights.on
-                        and lights.minutes_until_on <= margin_minutes
-                    )
-                )
+                    lights.on and lights.minutes_until_off >= margin_minutes
+                ) or (not lights.on and lights.minutes_until_on <= margin_minutes)
 
                 reading = await self._readings.get_latest_reading("vpd_kpa")
                 now = self._clock()
                 vpd: float | None = reading.value if reading else None
                 age = (
-                    (now - reading.ts).total_seconds()
-                    if reading is not None
-                    else None
+                    (now - reading.ts).total_seconds() if reading is not None else None
                 )
 
                 new_state = is_on
@@ -177,8 +172,13 @@ class HumidifierLoopService:
                         "humidifier → %s (reason=%s vpd=%s stage=%s "
                         "band=[%.2f,%.2f] lights_on=%s allowed=%s)",
                         "on" if new_state else "off",
-                        reason, vpd, stage, vpd_lo, vpd_hi,
-                        lights.on, allowed,
+                        reason,
+                        vpd,
+                        stage,
+                        vpd_lo,
+                        vpd_hi,
+                        lights.on,
+                        allowed,
                     )
 
                 await self._record(is_on)

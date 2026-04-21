@@ -6,6 +6,7 @@ instead of ``mock.patch``.
 
 Each provider is a one-liner. The wiring is in ``dirt_web.app.create_app``.
 """
+
 from fastapi import Request
 
 from dirt_shared.config import Settings

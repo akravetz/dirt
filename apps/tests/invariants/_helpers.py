@@ -9,6 +9,7 @@ Naming: ``_helpers.py`` (leading underscore) marks this as an internal
 invariants-tests module, not a test file. Functions inside don't need a
 prefix — ``from ._helpers import pkg_src_dir`` is the import shape.
 """
+
 from __future__ import annotations
 
 import ast
@@ -19,16 +20,22 @@ from pathlib import Path
 APPS_ROOT: Path = Path(__file__).resolve().parents[2]
 
 APPS: tuple[str, ...] = (
-    "dirt_hwd", "dirt_web", "dirt_shared", "dirt_mcp", "dirt_voice",
+    "dirt_hwd",
+    "dirt_web",
+    "dirt_shared",
+    "dirt_mcp",
+    "dirt_voice",
 )
 
 # Files where wiring stateful singletons / reading the wall clock at
 # startup is the intended architectural pattern. Used by both the
 # module-level-singleton invariant and the concrete-clock invariant.
-COMPOSITION_ROOTS: frozenset[str] = frozenset({
-    "hwd/src/dirt_hwd/app.py",   # builds dirt-hwd FastAPI app + lifespan
-    "web/src/dirt_web/app.py",   # builds dirt-web FastAPI app + lifespan
-})
+COMPOSITION_ROOTS: frozenset[str] = frozenset(
+    {
+        "hwd/src/dirt_hwd/app.py",  # builds dirt-hwd FastAPI app + lifespan
+        "web/src/dirt_web/app.py",  # builds dirt-web FastAPI app + lifespan
+    }
+)
 
 
 def pkg_src_dir(pkg: str) -> Path:
