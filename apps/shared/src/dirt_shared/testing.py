@@ -25,6 +25,7 @@ stamp the template schema; this requires the ``atlas`` binary on PATH.
 
 from __future__ import annotations
 
+import hashlib
 import subprocess
 import uuid
 from pathlib import Path
@@ -64,7 +65,29 @@ def isolate_observability_logs(tmp_path, monkeypatch):
 #   parents[0] = dirt_shared/, [1] = src/, [2] = shared/, [3] = apps/, [4] = repo root
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 _MIGRATIONS = _REPO_ROOT / "migrations"
-_TEMPLATE = "dirt_test_template"
+
+
+def _worktree_id() -> str:
+    """Short stable hash of this worktree's repo root.
+
+    Used to namespace the template DB + per-test clones so concurrent
+    pytest runs in different worktrees don't fight over the same
+    ``dirt_test_template`` (DROP/CREATE races, stale-template visibility).
+
+    Hash is deterministic per filesystem location; re-running tests in
+    the same worktree reuses the same template name across sessions.
+    """
+    return hashlib.sha256(str(_REPO_ROOT).encode()).hexdigest()[:10]
+
+
+def _template_name() -> str:
+    """Worktree-namespaced template DB name."""
+    return f"dirt_test_template_{_worktree_id()}"
+
+
+def _test_db_prefix() -> str:
+    """Worktree-namespaced prefix for per-test clone DB names."""
+    return f"dirt_test_{_worktree_id()}_"
 
 
 def _pg_admin_url() -> str:
@@ -91,28 +114,52 @@ def _pg_url(dbname: str) -> str:
     )
 
 
+async def _drop_stale_test_dbs(admin: asyncpg.Connection) -> None:
+    """Drop any leftover per-test clones from this worktree's prefix.
+
+    Crashed/interrupted prior sessions can leave ``dirt_test_<worktree>_*``
+    databases behind. They're harmless (next clone uses a fresh uuid),
+    but accumulating them slowly drinks the connection slot pool. Sweep
+    them at session start.
+
+    Scoped to this worktree's prefix so a parallel session in another
+    worktree doesn't have its in-flight clones yanked out from under it.
+    """
+    rows = await admin.fetch(
+        "SELECT datname FROM pg_database WHERE datname LIKE $1",
+        _test_db_prefix() + "%",
+    )
+    for (dbname,) in rows:
+        await admin.execute(f'DROP DATABASE IF EXISTS "{dbname}" WITH (FORCE)')
+
+
 @pytest_asyncio.fixture(scope="session")
 async def _pg_template() -> str:
-    """Build ``dirt_test_template`` once per session (drop + create + migrate).
+    """Build the worktree-namespaced template once per session.
 
-    Session-scoped so the schema + seed rows are applied exactly once per
-    ``pytest`` invocation regardless of how many tests request a DB.
+    Template name is ``dirt_test_template_<worktree_hash>`` so two
+    pytests in different worktrees never collide on DROP/CREATE/TEMPLATE
+    operations. Per-test clones are namespaced the same way (see
+    ``_TEST_DB_PREFIX``); session start sweeps any stale clones from
+    this worktree's prefix that a previous crashed run left behind.
     """
     from dirt_shared.config import Settings
 
     settings = Settings()
 
+    template = _template_name()
     admin_url = _pg_admin_url()
     admin = await asyncpg.connect(admin_url)
     try:
-        await admin.execute(f'DROP DATABASE IF EXISTS "{_TEMPLATE}" WITH (FORCE)')
-        await admin.execute(f'CREATE DATABASE "{_TEMPLATE}"')
+        await _drop_stale_test_dbs(admin)
+        await admin.execute(f'DROP DATABASE IF EXISTS "{template}" WITH (FORCE)')
+        await admin.execute(f'CREATE DATABASE "{template}"')
     finally:
         await admin.close()
 
     template_url = (
         f"postgres://{settings.dirt_pg_user}:{settings.dirt_pg_password}"
-        f"@{settings.dirt_pg_host}:{settings.dirt_pg_port}/{_TEMPLATE}"
+        f"@{settings.dirt_pg_host}:{settings.dirt_pg_port}/{template}"
         "?sslmode=disable"
     )
     # Session-scoped one-shot atlas migrate against an ephemeral template
@@ -139,11 +186,11 @@ async def _pg_template() -> str:
             f"stdout: {result.stdout}\nstderr: {result.stderr}"
         )
 
-    yield _TEMPLATE
+    yield template
 
     admin = await asyncpg.connect(admin_url)
     try:
-        await admin.execute(f'DROP DATABASE IF EXISTS "{_TEMPLATE}" WITH (FORCE)')
+        await admin.execute(f'DROP DATABASE IF EXISTS "{template}" WITH (FORCE)')
     finally:
         await admin.close()
 
@@ -167,7 +214,7 @@ async def app_engine(_pg_template: str):
 
     The per-test DB is dropped on teardown.
     """
-    dbname = f"test_{uuid.uuid4().hex[:12]}"
+    dbname = f"{_test_db_prefix()}{uuid.uuid4().hex[:12]}"
     admin_url = _pg_admin_url()
 
     admin = await asyncpg.connect(admin_url)

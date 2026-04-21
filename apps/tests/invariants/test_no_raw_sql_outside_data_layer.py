@@ -54,6 +54,11 @@ ALLOWED_PREFIXES: tuple[str, ...] = (
     "shared/src/dirt_shared/models/",
     "shared/src/dirt_shared/services/",
     "shared/src/dirt_shared/db.py",
+    # Test infrastructure — pg_database catalog query for stale-clone
+    # cleanup, plus CREATE/DROP DATABASE template wiring. None of this
+    # SQL touches application tables; it's all database-level admin
+    # scoped to the per-worktree dirt_test_<hash>_* prefix.
+    "shared/src/dirt_shared/testing.py",
 )
 
 # SQL statements whose presence as a string literal anywhere outside
