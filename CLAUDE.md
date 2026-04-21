@@ -56,7 +56,7 @@ Before `git add` + `git commit`, run **`scripts/agent-fix`**. It applies every f
 
 The pre-commit hooks themselves now run in **write-mode** (not check-mode). If a hook still modifies files during the commit, pre-commit aborts with "files were modified by this hook" — the recovery is `git add -A && git commit ...` again, NOT chasing each formatter's `--write` flag separately. If a hook fails for a non-cosmetic reason (test failure, type error, invariant violation), fix the underlying code; never edit the hook config or skip with `--no-verify`.
 
-**Bash gotcha**: the Bash tool's working directory persists across calls. If you `cd apps/<x>` to run a per-app test, your subsequent `git status` / `git commit` runs from that subdir and stages with confusing relative paths. Prefer `git -C <path>` for ad-hoc commands, or `cd /home/akcom/code/dirt` back to the repo root before staging/committing.
+**Bash gotcha**: the Bash tool's working directory persists across calls. The `cd apps/<x> && pytest` pattern leaks into the next command — `git status` / `git commit` then run from a subdir. Don't `cd` in the first place: `uv run pytest apps/shared` works from anywhere, and `git -C <path>` handles the rare case where you actually need git in a different tree.
 
 ### Monitoring App
 
