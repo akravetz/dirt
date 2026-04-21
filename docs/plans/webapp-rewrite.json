@@ -93,19 +93,20 @@
       "id": "backend.auth",
       "lane": "backend",
       "depends_on": [],
-      "user_story": "POST /api/auth/login + POST /api/auth/logout + GET /api/auth/me. Login sets the dirt_session cookie; logout clears it; me returns the current user or 401.",
+      "user_story": "Two coupled concerns that MUST land in one feature because they share the delete-Jinja-root commit: (1) POST /api/auth/login + POST /api/auth/logout + GET /api/auth/me — login sets the dirt_session cookie, logout clears it, me returns the current user or 401. (2) Serve the SPA bundle from apps/web: mount web-ui/dist/assets as StaticFiles, catch-all → web-ui/dist/index.html so TanStack Router can handle any client-side route (including /, /live, /wiki, /login) on refresh and deeplink.",
       "endpoints": [
         ["POST", "/api/auth/login"],
         ["POST", "/api/auth/logout"],
         ["GET", "/api/auth/me"]
       ],
-      "implementation_notes": "Reuse SessionManager + AuthMiddleware in apps/web/src/dirt_web/auth.py. Replace the existing Jinja /login GET + form-POST /login + GET /logout routes; remove the templates. AuthMiddleware must stop redirecting /api/* and instead return 401 JSON; carve auth endpoints out via security: [] (already in YAML).",
+      "implementation_notes": "(a) Auth API: reuse SessionManager + AuthMiddleware in apps/web/src/dirt_web/auth.py. Replace the existing Jinja /login GET + form-POST /login + GET /logout routes with the three JSON endpoints. AuthMiddleware changes: gate only /api/* on auth (401 JSON on fail, no more 302 redirect). /api/auth/login, /api/auth/logout, /api/auth/me are carved out as public via security: [] (already in YAML). Every non-/api/* path falls through to SPA serving — auth status is checked client-side via GET /api/auth/me and the SPA routes the user to its own /login screen when 401. (b) SPA serving: delete the @app.get('/') Jinja handler at apps/web/src/dirt_web/app.py. Replace with (i) app.mount('/assets', StaticFiles(directory=<web-ui-dist>/assets), name='spa-assets') and (ii) a catch-all @app.get('/{full_path:path}') → FileResponse(<web-ui-dist>/index.html, media_type='text/html') registered AFTER all /api/* routers so FastAPI's route resolution hits the API first. If web-ui/dist/ is missing at startup (fresh clone without pnpm build), log a WARN and return a 503 placeholder from the catch-all — don't crash. Drop TEMPLATES_DIR, templates/, and the Jinja dependency wiring. The dist directory path comes from a Settings field (default: <repo>/web-ui/dist); tests can point it at a tmp_path fixture that contains a minimal index.html + assets/ layout.",
       "removes_legacy": [
         ["GET", "/login"], ["POST", "/login"], ["GET", "/logout"], ["GET", "/"]
       ],
       "acceptance": [
         { "kind": "invariant", "description": "EXPECTED_MISSING entries for the three /api/auth/* endpoints removed; LEGACY_ROUTES entries for /login GET+POST, /logout GET, / GET removed (deletion of the Jinja routes is part of this feature)." },
-        { "kind": "unit", "path": "apps/web/tests/test_auth_endpoints.py" }
+        { "kind": "unit", "path": "apps/web/tests/test_auth_endpoints.py" },
+        { "kind": "unit", "path": "apps/web/tests/test_spa_serving.py", "description": "With a tmp_path dist/ containing index.html + assets/main.js: GET / → index.html content; GET /live → same index.html (catch-all for client routes); GET /assets/main.js → the asset bytes; GET /api/unknown → 404 JSON (not the SPA shell — API paths must not fall through); GET /api/auth/me without cookie → 401 JSON (not a 302 redirect)."}
       ],
       "status": "pending"
     },
