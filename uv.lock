@@ -945,6 +945,7 @@ name = "dirt-web"
 version = "0.1.0"
 source = { editable = "apps/web" }
 dependencies = [
+    { name = "dirt-contracts" },
     { name = "dirt-mcp" },
     { name = "dirt-shared" },
     { name = "fastapi" },
@@ -956,6 +957,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "dirt-contracts", editable = "contracts/python" },
     { name = "dirt-mcp", editable = "apps/mcp" },
     { name = "dirt-shared", editable = "apps/shared" },
     { name = "fastapi", specifier = ">=0.115" },

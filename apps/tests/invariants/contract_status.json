@@ -6,7 +6,6 @@
     "POST /api/auth/login": "backend.auth",
     "POST /api/auth/logout": "backend.auth",
     "GET /api/auth/me": "backend.auth",
-    "GET /api/grow/current": "backend.grow.current",
     "GET /api/sensors/current": "backend.sensors.current",
     "GET /api/sensors/history": "backend.sensors.history",
     "GET /api/humidifier/state": "backend.humidifier.state",

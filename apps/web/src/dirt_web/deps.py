@@ -19,6 +19,7 @@ sync with the services they wrap.
 from fastapi import Request
 
 from dirt_shared.config import Settings
+from dirt_shared.services.grow_state import GrowStateService
 from dirt_shared.services.readings import ReadingsService
 from dirt_shared.services.snapshots import SnapshotsService
 
@@ -33,3 +34,7 @@ def get_snapshots(request: Request) -> SnapshotsService:
 
 def get_readings(request: Request) -> ReadingsService:
     return request.app.state.readings
+
+
+def get_grow(request: Request) -> GrowStateService:
+    return request.app.state.grow
