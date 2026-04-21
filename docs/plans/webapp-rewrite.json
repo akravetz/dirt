@@ -80,7 +80,7 @@
       "lane": "frontend",
       "depends_on": [],
       "user_story": "Operator lands on /, sees the dirt. brand + tab strip (Dashboard / Live / Wiki) + theme toggle + log-out. Tabs route via TanStack Router; theme persists via shared/storage.ts.",
-      "files": ["web-ui/src/main.tsx", "web-ui/src/routes/__root.tsx", "web-ui/src/routes/index.tsx", "web-ui/src/components/TopBar.tsx"],
+      "files": ["web-ui/src/main.tsx", "web-ui/src/routes/__root.tsx", "web-ui/src/routes/index.tsx", "web-ui/src/ui/TopBar.tsx"],
       "acceptance": [
         { "kind": "agent-browser", "script": "docs/plans/evaluator-checks/app-shell.sh", "description": "open /, snapshot top bar, assert brand + 3 tab buttons + theme toggle render; click each tab and assert URL + active-tab class change." },
         { "kind": "lint" },
@@ -114,7 +114,7 @@
       "lane": "frontend",
       "depends_on": ["backend.auth"],
       "user_story": "Pre-auth /login route renders the botanical split-screen form. Submit calls POST /api/auth/login; success routes to /; 401 shows an error. Field-notes block (grow / day / plants / loc / agent) is hardcoded copy — no API call.",
-      "files": ["web-ui/src/routes/login.tsx", "web-ui/src/components/LoginScreen.tsx"],
+      "files": ["web-ui/src/routes/login.tsx", "web-ui/src/ui/LoginScreen.tsx"],
       "acceptance": [
         { "kind": "agent-browser", "script": "docs/plans/evaluator-checks/login.sh", "description": "open /login, snapshot, assert hardcoded field-notes block; submit with bad creds → 401 visible; submit with good creds → routed to /; cookie set." },
         { "kind": "visual", "reference_screenshot": "docs/plans/refs/login-botanical.png" }
@@ -167,7 +167,7 @@
       "lane": "frontend",
       "depends_on": ["backend.grow.current", "backend.sensors.current", "frontend.app.shell"],
       "user_story": "Dashboard shows the five gauges (temp / humidity / VPD / fan / reservoir) with arc target bands and ok/warn/crit colour status. Top bar displays Day {day_number} · {strain}.",
-      "files": ["web-ui/src/routes/dashboard/index.tsx", "web-ui/src/components/Gauge.tsx"],
+      "files": ["web-ui/src/routes/dashboard/index.tsx", "web-ui/src/ui/Gauge.tsx"],
       "acceptance": [
         { "kind": "agent-browser", "script": "docs/plans/evaluator-checks/dashboard-gauges.sh", "description": "open /, assert 5 gauge headings + values match GET /api/sensors/current; bands rendered for temp/humidity/VPD only; status colour matches band_status output; top bar shows day + strain." },
         { "kind": "visual", "reference_screenshot": "docs/plans/refs/dashboard-gauges.png" }
@@ -179,7 +179,7 @@
       "lane": "frontend",
       "depends_on": ["backend.sensors.history", "frontend.dashboard.gauges"],
       "user_story": "Below the gauges, five sparklines (one per metric) share a crosshair hover and respond to a 1h/24h/7d range switcher.",
-      "files": ["web-ui/src/components/Sparkline.tsx", "web-ui/src/components/RangeSwitch.tsx"],
+      "files": ["web-ui/src/ui/Sparkline.tsx", "web-ui/src/ui/RangeSwitch.tsx"],
       "acceptance": [
         { "kind": "agent-browser", "script": "docs/plans/evaluator-checks/dashboard-sparklines.sh", "description": "click 1h/24h/7d in turn; assert 5 GETs to /api/sensors/history per range; hover one sparkline → crosshair moves on all 5; value tooltip shows correct unit." },
         { "kind": "visual", "reference_screenshot": "docs/plans/refs/dashboard-sparklines.png" }
@@ -217,7 +217,7 @@
       "lane": "frontend",
       "depends_on": ["backend.humidifier.state", "backend.humidifier.history", "frontend.dashboard.gauges"],
       "user_story": "Humidifier tile shows ON/OFF state + duration since last transition + cycles/24h. Below the sparklines, a duty-cycle strip renders the on/off transitions for the active range.",
-      "files": ["web-ui/src/components/HumidifierTile.tsx", "web-ui/src/components/HumidifierStrip.tsx"],
+      "files": ["web-ui/src/ui/HumidifierTile.tsx", "web-ui/src/ui/HumidifierStrip.tsx"],
       "acceptance": [
         { "kind": "agent-browser", "script": "docs/plans/evaluator-checks/dashboard-humidifier.sh", "description": "tile reflects /api/humidifier/state; strip renders rectangles for /api/humidifier/history; range switch re-fetches strip." }
       ],
@@ -241,7 +241,7 @@
       "lane": "frontend",
       "depends_on": ["backend.plants.list", "frontend.dashboard.gauges"],
       "user_story": "Plants strip below the sparklines shows four cards (A/B/C/D) with sticker chip + soil-moisture bar. Click opens the plant-detail drawer.",
-      "files": ["web-ui/src/components/PlantCard.tsx", "web-ui/src/components/PlantsStrip.tsx"],
+      "files": ["web-ui/src/ui/PlantCard.tsx", "web-ui/src/ui/PlantsStrip.tsx"],
       "acceptance": [
         { "kind": "agent-browser", "script": "docs/plans/evaluator-checks/dashboard-plants.sh", "description": "4 cards render with correct sticker colours from GET /api/plants; clicking opens drawer with /api/plants/{code}." }
       ],
@@ -278,7 +278,7 @@
       "lane": "frontend",
       "depends_on": ["backend.plants.detail", "backend.plants.moisture", "frontend.dashboard.plants_strip"],
       "user_story": "Plant-detail drawer overlays the dashboard with header (sticker + name + primary/secondary tag), moisture hero (current + target band visualization), 24h moisture chart, timeline list, and current-status note. Drop the lint ✓ badge.",
-      "files": ["web-ui/src/components/PlantDetail.tsx"],
+      "files": ["web-ui/src/ui/PlantDetail.tsx"],
       "acceptance": [
         { "kind": "agent-browser", "script": "docs/plans/evaluator-checks/plant-detail.sh", "description": "click Plant A on dashboard; assert drawer opens, frontmatter rows render, moisture hero matches /api/plants/a.moisture.current_pct, timeline rows count = response.timeline.length, ESC closes drawer." },
         { "kind": "visual", "reference_screenshot": "docs/plans/refs/plant-detail-a.png" }
@@ -303,7 +303,7 @@
       "lane": "frontend",
       "depends_on": ["backend.system.devices", "frontend.dashboard.gauges"],
       "user_story": "Dashboard system section renders the device table.",
-      "files": ["web-ui/src/components/SystemTable.tsx"],
+      "files": ["web-ui/src/ui/SystemTable.tsx"],
       "acceptance": [
         { "kind": "agent-browser", "script": "docs/plans/evaluator-checks/dashboard-system.sh", "description": "8 rows render; status badges match GET /api/system/devices.devices[i].status." }
       ],
@@ -394,7 +394,7 @@
       "lane": "frontend",
       "depends_on": ["backend.feed.live", "backend.ptz.state", "backend.ptz.preset", "backend.ptz.look", "backend.ptz.zoom", "frontend.app.shell"],
       "user_story": "Live tab shows the camera feed (auto-refresh 10s), click-to-look on the feed, presets list (overview + plant_a..d), zoom slider 1–4×.",
-      "files": ["web-ui/src/routes/live.tsx", "web-ui/src/components/CameraFeed.tsx", "web-ui/src/components/PresetList.tsx", "web-ui/src/components/ZoomSlider.tsx"],
+      "files": ["web-ui/src/routes/live.tsx", "web-ui/src/ui/CameraFeed.tsx", "web-ui/src/ui/PresetList.tsx", "web-ui/src/ui/ZoomSlider.tsx"],
       "acceptance": [
         { "kind": "agent-browser", "script": "docs/plans/evaluator-checks/live.sh", "description": "img tag refreshes /api/feed/live.jpg every ~10s; clicking the feed posts /api/ptz/look with normalized x/y; preset row click posts /api/ptz/preset/{id}; zoom slider drag posts /api/ptz/zoom." },
         { "kind": "visual", "reference_screenshot": "docs/plans/refs/live.png" }
@@ -445,7 +445,7 @@
       "lane": "frontend",
       "depends_on": ["backend.wiki.tree", "backend.wiki.file", "backend.wiki.search", "frontend.app.shell"],
       "user_story": "Wiki tab: sidebar tree + main pane renders raw markdown with frontmatter block + breadcrumb. Cmd+K opens search palette; empty state shows recent files (client-side via shared/storage.ts). Drop the lint ✓ footer badge.",
-      "files": ["web-ui/src/routes/wiki.tsx", "web-ui/src/components/WikiSidebar.tsx", "web-ui/src/components/WikiDoc.tsx", "web-ui/src/components/CmdKPalette.tsx"],
+      "files": ["web-ui/src/routes/wiki.tsx", "web-ui/src/ui/WikiSidebar.tsx", "web-ui/src/ui/WikiDoc.tsx", "web-ui/src/ui/CmdKPalette.tsx"],
       "acceptance": [
         { "kind": "agent-browser", "script": "docs/plans/evaluator-checks/wiki.sh", "description": "tree renders folders + files; clicking plant-a.md shows frontmatter + markdown body; Cmd+K opens palette; typing 'topping' returns matches; ENTER navigates; empty palette shows recent files (no /api/wiki/search call with empty q)." },
         { "kind": "visual", "reference_screenshot": "docs/plans/refs/wiki.png" }
