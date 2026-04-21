@@ -61,7 +61,11 @@ CLAUDE_SETTINGS: Path = REPO_ROOT / ".claude" / "settings.json"
 KNOWN_SENTINELS: dict[str, dict[str, object]] = {
     "eslint": {
         # TS-02 — layered architecture via eslint-plugin-boundaries.
-        "boundaries/element-types": 2,
+        # Note: v6 renamed `element-types` -> `dependencies`. The legacy
+        # name is a backward-compat alias that accepts the config shape
+        # but evaluates as a no-op; use the new name so tamper checks
+        # resolve against a rule that actually enforces.
+        "boundaries/dependencies": 2,
         # TS-03 — ban training-data drift imports.
         "no-restricted-imports": 2,
         # TS-04 — ban enum / namespace / `as any`.

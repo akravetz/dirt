@@ -108,17 +108,30 @@ const NON_SINGLETON_SELECTORS = [
 
 // TS-11 — top-level singleton construction. Forbidden everywhere EXCEPT
 // src/main.tsx (the composition root), which overrides
-// no-restricted-syntax to drop just these two entries.
+// no-restricted-syntax to drop these entries.
+//
+// Covers both `const x = new QueryClient()` (Program > VariableDeclaration)
+// and `export const x = new QueryClient()` (Program > ExportNamedDeclaration
+// > VariableDeclaration). Known gap: factory-function evasion like
+// `function make() { return new QueryClient() } export const qc = make()`
+// is not caught — the `new` happens inside `make`, not at module scope.
+// Accepted cost: `export const qc = make()` requires an import of `make`,
+// which is visible in review; a silent `new QueryClient()` at module
+// scope is not. If the factory pattern becomes common, promote the ban
+// to a custom rule that tracks known singleton identifiers.
+const _SINGLETON_NEW_CALLEES = "/^(QueryClient|Router)$/";
+const _SINGLETON_FACTORY_CALLEES =
+  "/^(createRouter|createBrowserRouter|createQueryClient|createClient)$/";
+const _VAR_SCOPE =
+  ":matches(Program, ExportNamedDeclaration) > VariableDeclaration > VariableDeclarator";
 const SINGLETON_SELECTORS = [
   {
-    selector:
-      "Program > VariableDeclaration > VariableDeclarator > NewExpression[callee.name=/^(QueryClient|Router)$/]",
+    selector: `${_VAR_SCOPE} > NewExpression[callee.name=${_SINGLETON_NEW_CALLEES}]`,
     message:
       "WHY: top-level singleton outside src/main.tsx. FIX: construct in main.tsx, pass via Provider (QueryClientProvider / RouterProvider).",
   },
   {
-    selector:
-      "Program > VariableDeclaration > VariableDeclarator > CallExpression[callee.name=/^(createRouter|createBrowserRouter|createQueryClient|createClient)$/]",
+    selector: `${_VAR_SCOPE} > CallExpression[callee.name=${_SINGLETON_FACTORY_CALLEES}]`,
     message:
       "WHY: top-level singleton outside src/main.tsx. FIX: construct in main.tsx, pass via Provider.",
   },
@@ -159,6 +172,16 @@ const config: Linter.Config[] = [
     settings: {
       "boundaries/elements": ELEMENT_TYPES,
       "boundaries/include": ["src/**/*.ts", "src/**/*.tsx"],
+      // Resolver: eslint-plugin-boundaries uses eslint-module-utils/resolve
+      // to classify the `to` side of each import. Without a resolver that
+      // understands extension-less .ts/.tsx imports and the tsconfig `@/*`
+      // path alias, most imports fail resolution silently, the `to` side
+      // is unknown, and the dependency rule can't fire — making the whole
+      // invariant a no-op.
+      "import/resolver": {
+        typescript: { project: "./tsconfig.json" },
+        node: { extensions: [".ts", ".tsx", ".js", ".jsx"] },
+      },
     },
     rules: {
       // TS-03 — ban training-data drift imports.
@@ -214,25 +237,60 @@ const config: Linter.Config[] = [
       // FIX: Re-route the dependency through a shared/* module, lift the
       // shared logic into a new shared utility, or use an explicit
       // composition in src/main.tsx.
-      "boundaries/element-types": [
+      //
+      // Uses v6 `boundaries/dependencies` with object-style selectors and
+      // `{{from.slice}}` templates. The legacy `boundaries/element-types`
+      // name + `${from.slice}` template shape is accepted by the v6
+      // back-compat alias but evaluates as a NO-OP (the plugin warns
+      // "legacy selector syntax" / "legacy template syntax" but emits
+      // zero errors). Don't use the legacy shape — it's a silent miss.
+      "boundaries/dependencies": [
         "error",
         {
           default: "disallow",
           rules: [
-            { from: ["main"], allow: ["routes", "features", "api-client", "ui", "shared"] },
-            { from: ["routes"], allow: ["features", "api-client", "ui", "shared"] },
             {
-              from: [["features", { slice: "${from.slice}" }]],
-              allow: [
-                ["features", { slice: "${from.slice}" }],
-                "api-client",
-                "ui",
-                "shared",
-              ],
+              from: { type: "main" },
+              allow: {
+                // main.tsx imports the TanStack Router generated routeTree.gen.ts,
+                // which is also classified as "main" (see ELEMENT_TYPES).
+                to: { type: ["main", "routes", "features", "api-client", "ui", "shared"] },
+              },
             },
-            { from: ["api-client"], allow: ["shared"] },
-            { from: ["ui"], allow: ["ui", "shared"] },
-            { from: ["shared"], allow: ["shared"] },
+            {
+              from: { type: "routes" },
+              allow: {
+                to: { type: ["features", "api-client", "ui", "shared"] },
+              },
+            },
+            // Cross-slice feature imports are forbidden. From features/<slice>
+            // allow features whose captured `slice` matches `{{from.slice}}`
+            // (same-slice intra-composition is legitimate), plus the
+            // non-feature leaf layers.
+            {
+              from: { type: "features" },
+              allow: {
+                to: { type: "features", captured: { slice: "{{from.slice}}" } },
+              },
+            },
+            {
+              from: { type: "features" },
+              allow: {
+                to: { type: ["api-client", "ui", "shared"] },
+              },
+            },
+            {
+              from: { type: "api-client" },
+              allow: { to: { type: "shared" } },
+            },
+            {
+              from: { type: "ui" },
+              allow: { to: { type: ["ui", "shared"] } },
+            },
+            {
+              from: { type: "shared" },
+              allow: { to: { type: "shared" } },
+            },
           ],
         },
       ],
