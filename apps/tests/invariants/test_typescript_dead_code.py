@@ -32,7 +32,7 @@ def _pnpm_available() -> bool:
 @pytest.mark.skipif(not _pnpm_available(), reason="pnpm not installed")
 def test_no_unused_files_exports_or_deps() -> None:
     assert KNIP_CONFIG.exists(), f"missing: {KNIP_CONFIG}"
-    proc = subprocess.run(  # noqa: S603
+    proc = subprocess.run(
         ["pnpm", "--dir", str(WEB_UI), "knip", "--no-progress"],
         capture_output=True,
         text=True,

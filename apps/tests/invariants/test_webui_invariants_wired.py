@@ -91,7 +91,7 @@ def _pnpm_available() -> bool:
 
 
 def _run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(  # noqa: S603
+    return subprocess.run(
         cmd,
         cwd=cwd,
         capture_output=True,
@@ -322,10 +322,7 @@ def test_eslint_printconfig_sentinels() -> None:
             violations.append(f"{rule_name}: rule not present in effective config")
             continue
         # ESLint normalizes: rule can be ['error', {...}] or 2, etc.
-        if isinstance(raw, list) and raw:
-            severity = raw[0]
-        else:
-            severity = raw
+        severity = raw[0] if isinstance(raw, list) and raw else raw
         # Severity: 0/"off", 1/"warn", 2/"error"
         severity_int = {"off": 0, "warn": 1, "error": 2}.get(
             severity if isinstance(severity, str) else "",
