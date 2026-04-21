@@ -468,3 +468,5 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - Updated `wiki/environment/humidity.md` — trend row for Apr 20 (daytime VPD in target; overnight regression confirmed); notable event added
 - Rewrote `wiki/overview.md` — Day 37, daytime environment resolved, overnight regression new flag, LST critically overdue, plant status and environment readings updated
 - Updated `wiki/index.md` — Day 37 daily entry added
+- Updated `wiki/hardware/humidifier-control.md` — added "BME280 stuck-state (recurring)" subsection under Known Issues with pattern description, detection cue, fix (`systemctl --user restart dirt-hwd`), and incident log table (entry 1: 2026-04-20 17:36 MDT)
+- Updated `wiki/daily/2026-04-20.md` — added "BME280 stuck-state incident at 17:36 MDT" flag under Issues & Flags

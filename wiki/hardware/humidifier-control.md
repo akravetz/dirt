@@ -84,6 +84,22 @@ Once PR #1580 merges and releases, swap back to a pinned version.
 
 "Remote Control" must be **enabled** in the Kasa app for LAN KLAP auth to work. It's nominally a cloud-relay toggle, but the plug's KLAP credentials are only valid once it's bound to a TP-Link Cloud account.
 
+### BME280 stuck-state (recurring)
+
+**Pattern:** the tent-hub BME280 periodically enters a stuck state where RH reads ~15–20 points lower than reality while temp and pressure stay roughly plausible. The control loop then sees artificially high VPD and runs the humidifier harder than warranted. The stale-sensor failsafe does NOT trip — readings are updating, they're just wrong.
+
+**Detection:** cross-check against a handheld hygrometer in the tent; a 10+ point RH gap is the cue.
+
+**Fix:** `systemctl --user restart dirt-hwd`. The service closes and reopens the USB serial port, which toggles DTR and resets the Arduino Nano; the Nano's setup code re-inits the BME280 over I²C, clearing the stuck state. First post-restart sample arrives ~15 s later and should agree with the handheld within ±2 pts RH / ±2°F.
+
+**Root cause:** unclear — candidate hypotheses are I²C bus flake on the Nano, a firmware edge case in the BME280 driver, or intermittent sensor hardware. Not worth deep investigation until we have ≥3 incidents to triangulate.
+
+**Incident log:**
+
+| Date | Pre-restart | Handheld reference | Post-restart | Notes |
+|---|---|---|---|---|
+| 2026-04-20 17:36 MDT | 43.5 % RH / 74.6 °F / VPD 1.65 kPa | 63 % RH / 73 °F | 61.2 % RH / 75.0 °F / VPD 1.15 kPa | Detected from user sanity check against handheld. Restart brought all three metrics back into agreement. |
+
 ## Control Logic (deployed)
 
 Bang-bang with hysteresis, targeting the **upper edge** of the stage-appropriate VPD band. The humidifier only pushes VPD down (adds moisture), so the upper edge is the right setpoint: kick on when VPD climbs past it, kick off once it falls back below by a small deadband.
