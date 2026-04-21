@@ -6,7 +6,7 @@
 INPUT=$(cat)
 FILE=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
 
-if [[ "$FILE" == *"Xests/Xnvariants/"* ]]; then
+if [[ "$FILE" == *"tests/invariants/"* ]]; then
     echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"tests/invariants/ files are human-owned. Approve only if you explicitly asked for this change."}}'
     exit 0
 fi
