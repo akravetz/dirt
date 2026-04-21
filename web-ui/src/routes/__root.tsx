@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext, Outlet } from "@tanstack/react-router";
+import { TopBar } from "@/ui/TopBar";
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   component: RootComponent,
@@ -7,7 +8,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootComponent() {
   return (
-    <div className="min-h-screen bg-paper text-ink font-sans">
+    <div className="flex min-h-screen flex-col bg-paper font-sans text-ink">
+      <TopBar />
       <Outlet />
     </div>
   );

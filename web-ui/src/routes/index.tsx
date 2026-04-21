@@ -6,15 +6,10 @@ export const Route = createFileRoute("/")({
 
 function IndexPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center">
-      <div className="text-center">
-        <h1 className="font-serif italic text-6xl text-ink">
-          dirt<span className="text-accent-magenta">.</span>
-        </h1>
-        <p className="font-mono text-xs text-ink-3 uppercase tracking-caps mt-2">
-          harness ready · wire me up
-        </p>
-      </div>
+    <main className="flex flex-1 items-center justify-center p-6">
+      <p className="font-mono text-xs uppercase tracking-caps text-ink-3">
+        Dashboard · placeholder
+      </p>
     </main>
   );
 }
