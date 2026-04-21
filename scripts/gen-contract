@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Regenerate the contract clients from contracts/webapp-v1.yaml.
+#
+# Run this whenever the YAML changes. The generated artifacts
+# (contracts/python/webapp_v1/models.py, web-ui/src/lib/api/schema.ts)
+# are committed; this script makes regeneration deterministic.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+echo "→ generating Pydantic models"
+uv run datamodel-codegen \
+  --input contracts/webapp-v1.yaml \
+  --input-file-type openapi \
+  --output contracts/python/src/dirt_contracts/webapp_v1/models.py \
+  --output-model-type pydantic_v2.BaseModel \
+  --use-standard-collections \
+  --use-union-operator \
+  --use-schema-description \
+  --use-field-description \
+  --target-python-version 3.13 \
+  --disable-timestamp
+
+echo "→ generating TypeScript schema"
+pnpm --dir web-ui exec openapi-typescript \
+  ../contracts/webapp-v1.yaml \
+  -o src/api-client/generated/schema.ts
+
+echo "✓ contract clients regenerated"

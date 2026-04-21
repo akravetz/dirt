@@ -1,0 +1,470 @@
+{
+  "$comment": "Phase 2 plan JSON. Read docs/progress/webapp-rewrite.md §6 + §10 before editing. Generators MAY ONLY flip `status` on existing features. Adding/removing features or changing acceptance criteria is the planner's job (the human or a Planner agent under explicit instruction). The contract reference at the top is the immutable anchor — if you find yourself wanting to change it, you're probably solving the wrong problem.",
+
+  "version": 1,
+  "name": "webapp-rewrite",
+  "frozen_at": "2026-04-20",
+
+  "contract": {
+    "openapi": "contracts/webapp-v1.yaml",
+    "frozen_at_tag": "contract-frozen-2026-04-20",
+    "invariant_test": "apps/tests/invariants/test_api_contract.py",
+    "python_models": "contracts/python/src/dirt_contracts/webapp_v1/models.py",
+    "ts_schema": "web-ui/src/api-client/generated/schema.ts",
+    "ts_client_entry": "web-ui/src/api-client/index.ts",
+    "regenerate_command": "scripts/gen-contract"
+  },
+
+  "invariants": [
+    "apps/tests/invariants/test_api_contract.py",
+    "apps/tests/invariants/test_auth_boundary.py",
+    "apps/tests/invariants/test_import_boundaries.py",
+    "apps/tests/invariants/test_hwd_routes.py",
+    "apps/tests/invariants/test_dependency_hygiene.py",
+    "apps/tests/invariants/test_no_asyncio_run_outside_entrypoints.py",
+    "apps/tests/invariants/test_no_bare_app_imports_in_tests.py",
+    "apps/tests/invariants/test_no_concrete_clock_in_production.py",
+    "apps/tests/invariants/test_no_env_reads_outside_config.py",
+    "apps/tests/invariants/test_no_module_level_singletons.py",
+    "apps/tests/invariants/test_no_patching_production_code.py",
+    "apps/tests/invariants/test_no_raw_sql_outside_data_layer.py",
+    "apps/tests/invariants/test_schema_managed_by_atlas.py",
+    "apps/tests/invariants/test_typescript_dead_code.py",
+    "apps/tests/invariants/test_webui_invariants_wired.py"
+  ],
+
+  "off_limits": [
+    "apps/hwd/**",
+    "apps/tests/invariants/**",
+    "web-ui/invariants/**",
+    "web-ui/src/api-client/generated/**",
+    "systemd/dirt-hwd.service",
+    "contracts/webapp-v1.yaml"
+  ],
+
+  "lanes": {
+    "backend": {
+      "description": "FastAPI endpoints in apps/web/. Most logic already exists in dirt_shared.services.{plants, humidifier_state, system_status, plant_detail, wiki, mock_sensors, grow_state, readings, snapshots} — endpoints are thin wrappers that call get_*_payload() composites and shape the response per the contract.",
+      "worktree_branch_prefix": "feat/be/"
+    },
+    "frontend": {
+      "description": "Vite + React + TanStack Router v1 + Tailwind v4 in web-ui/. Use the typed client from web-ui/src/api-client/index.ts (NEVER call fetch directly — TS-05 enforces). Reference packs are mandatory reading: docs/references/{tanstack-router-v1,modern-idiomatic-typescript,tailwind-v4}/INDEX.md.",
+      "worktree_branch_prefix": "feat/fe/"
+    }
+  },
+
+  "acceptance_kinds": {
+    "unit": "uv run pytest <path> -q passes (per-app suite or specific test).",
+    "invariant": "uv run pytest apps/tests/invariants/ -q passes — including test_api_contract.py once EXPECTED_MISSING entry is removed.",
+    "typecheck": "cd web-ui && pnpm typecheck passes.",
+    "lint": "cd web-ui && pnpm lint passes (Biome + ESLint with all TS-XX rules).",
+    "knip": "cd web-ui && pnpm knip passes (no unused files / exports / deps).",
+    "build": "cd web-ui && pnpm build produces a dist/ tree without errors.",
+    "vitest": "cd web-ui && pnpm test passes (unit tests for components / lib).",
+    "agent-browser": "Driving the live :8001 stack with the script at acceptance.script must satisfy every assertion the script encodes; no console errors; expected network requests observed.",
+    "visual": "Rendered output matches the reference screenshot under acceptance.reference_screenshot to within Pixelmatch threshold (TBD — evaluator decides)."
+  },
+
+  "feature_status_legend": {
+    "pending": "Not started; no worktree exists.",
+    "in_progress": "Generator worktree exists; status flipped on first commit in the worktree.",
+    "done": "Merged into main; invariants + evaluator agree.",
+    "blocked": "Evaluator failed; see evaluator_notes on the feature for the failure mode and proposed next step."
+  },
+
+  "$features_authoring_note": "Each backend feature lists its contract endpoints and the service composite it should thread through. Each frontend feature points at its route + components and lists its API client calls. depends_on captures: (a) BE features that block the FE feature consuming them, (b) intra-lane sequencing where one feature's components are reused by another. Acceptance always includes the contract-invariant unblock (remove the matching EXPECTED_MISSING entry) for backend features.",
+
+  "features": [
+    {
+      "id": "frontend.app.shell",
+      "lane": "frontend",
+      "depends_on": [],
+      "user_story": "Operator lands on /, sees the dirt. brand + tab strip (Dashboard / Live / Wiki) + theme toggle + log-out. Tabs route via TanStack Router; theme persists via shared/storage.ts.",
+      "files": ["web-ui/src/main.tsx", "web-ui/src/routes/__root.tsx", "web-ui/src/routes/index.tsx", "web-ui/src/components/TopBar.tsx"],
+      "acceptance": [
+        { "kind": "agent-browser", "script": "docs/plans/evaluator-checks/app-shell.sh", "description": "open /, snapshot top bar, assert brand + 3 tab buttons + theme toggle render; click each tab and assert URL + active-tab class change." },
+        { "kind": "lint" },
+        { "kind": "typecheck" },
+        { "kind": "build" }
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "backend.auth",
+      "lane": "backend",
+      "depends_on": [],
+      "user_story": "POST /api/auth/login + POST /api/auth/logout + GET /api/auth/me. Login sets the dirt_session cookie; logout clears it; me returns the current user or 401.",
+      "endpoints": [
+        ["POST", "/api/auth/login"],
+        ["POST", "/api/auth/logout"],
+        ["GET", "/api/auth/me"]
+      ],
+      "implementation_notes": "Reuse SessionManager + AuthMiddleware in apps/web/src/dirt_web/auth.py. Replace the existing Jinja /login GET + form-POST /login + GET /logout routes; remove the templates. AuthMiddleware must stop redirecting /api/* and instead return 401 JSON; carve auth endpoints out via security: [] (already in YAML).",
+      "removes_legacy": [
+        ["GET", "/login"], ["POST", "/login"], ["GET", "/logout"], ["GET", "/"]
+      ],
+      "acceptance": [
+        { "kind": "invariant", "description": "EXPECTED_MISSING entries for the three /api/auth/* endpoints removed; LEGACY_ROUTES entries for /login GET+POST, /logout GET, / GET removed (deletion of the Jinja routes is part of this feature)." },
+        { "kind": "unit", "path": "apps/web/tests/test_auth_endpoints.py" }
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "frontend.login",
+      "lane": "frontend",
+      "depends_on": ["backend.auth"],
+      "user_story": "Pre-auth /login route renders the botanical split-screen form. Submit calls POST /api/auth/login; success routes to /; 401 shows an error. Field-notes block (grow / day / plants / loc / agent) is hardcoded copy — no API call.",
+      "files": ["web-ui/src/routes/login.tsx", "web-ui/src/components/LoginScreen.tsx"],
+      "acceptance": [
+        { "kind": "agent-browser", "script": "docs/plans/evaluator-checks/login.sh", "description": "open /login, snapshot, assert hardcoded field-notes block; submit with bad creds → 401 visible; submit with good creds → routed to /; cookie set." },
+        { "kind": "visual", "reference_screenshot": "docs/plans/refs/login-botanical.png" }
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "backend.grow.current",
+      "lane": "backend",
+      "depends_on": [],
+      "user_story": "GET /api/grow/current returns germination_date / day_number / grow_week_number / flower_week_number / stage / strain / location / plant_count / lights for the current grow.",
+      "endpoints": [["GET", "/api/grow/current"]],
+      "implementation_notes": "Thread GrowStateService.get_grow_current_payload() — already returns the contract shape. Just serialize.",
+      "acceptance": [
+        { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/grow/current removed." },
+        { "kind": "unit", "path": "apps/web/tests/test_grow_endpoint.py" }
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "backend.sensors.current",
+      "lane": "backend",
+      "depends_on": [],
+      "user_story": "GET /api/sensors/current returns the five-metric envelope with target bands, statuses, and a stale flag.",
+      "endpoints": [["GET", "/api/sensors/current"]],
+      "implementation_notes": "Compose ReadingsService.get_latest_reading + grow_state.STAGE_TARGETS + grow_state.band_status. fan_pct / reservoir_in come from MockSensorProvider (mock_sensors.py).",
+      "removes_legacy": [["GET", "/sensors/current"]],
+      "acceptance": [
+        { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/sensors/current removed; LEGACY_ROUTES entry for /sensors/current removed." },
+        { "kind": "unit", "path": "apps/web/tests/test_sensors_current_endpoint.py" }
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "backend.sensors.history",
+      "lane": "backend",
+      "depends_on": [],
+      "user_story": "GET /api/sensors/history?range=&metric= returns bucketed (ts, value) points for one metric over the requested range.",
+      "endpoints": [["GET", "/api/sensors/history"]],
+      "implementation_notes": "ReadingsService already has _BUCKET_SQL; new endpoint queries one metric at a time per the contract. Old /api/sensors/readings stays until the FE migrates fully, then the legacy entry is removed.",
+      "removes_legacy": [["GET", "/api/sensors/readings"]],
+      "acceptance": [
+        { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/sensors/history removed; LEGACY_ROUTES entry for /api/sensors/readings removed once the FE no longer references it." },
+        { "kind": "unit", "path": "apps/web/tests/test_sensors_history_endpoint.py" }
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "frontend.dashboard.gauges",
+      "lane": "frontend",
+      "depends_on": ["backend.grow.current", "backend.sensors.current", "frontend.app.shell"],
+      "user_story": "Dashboard shows the five gauges (temp / humidity / VPD / fan / reservoir) with arc target bands and ok/warn/crit colour status. Top bar displays Day {day_number} · {strain}.",
+      "files": ["web-ui/src/routes/dashboard/index.tsx", "web-ui/src/components/Gauge.tsx"],
+      "acceptance": [
+        { "kind": "agent-browser", "script": "docs/plans/evaluator-checks/dashboard-gauges.sh", "description": "open /, assert 5 gauge headings + values match GET /api/sensors/current; bands rendered for temp/humidity/VPD only; status colour matches band_status output; top bar shows day + strain." },
+        { "kind": "visual", "reference_screenshot": "docs/plans/refs/dashboard-gauges.png" }
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "frontend.dashboard.sparklines",
+      "lane": "frontend",
+      "depends_on": ["backend.sensors.history", "frontend.dashboard.gauges"],
+      "user_story": "Below the gauges, five sparklines (one per metric) share a crosshair hover and respond to a 1h/24h/7d range switcher.",
+      "files": ["web-ui/src/components/Sparkline.tsx", "web-ui/src/components/RangeSwitch.tsx"],
+      "acceptance": [
+        { "kind": "agent-browser", "script": "docs/plans/evaluator-checks/dashboard-sparklines.sh", "description": "click 1h/24h/7d in turn; assert 5 GETs to /api/sensors/history per range; hover one sparkline → crosshair moves on all 5; value tooltip shows correct unit." },
+        { "kind": "visual", "reference_screenshot": "docs/plans/refs/dashboard-sparklines.png" }
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "backend.humidifier.state",
+      "lane": "backend",
+      "depends_on": [],
+      "user_story": "GET /api/humidifier/state returns current on/off + duration since last transition + cycles_24h.",
+      "endpoints": [["GET", "/api/humidifier/state"]],
+      "implementation_notes": "HumidifierStateService.get_state already exists; thread it through.",
+      "acceptance": [
+        { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/humidifier/state removed." },
+        { "kind": "unit", "path": "apps/web/tests/test_humidifier_state_endpoint.py" }
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "backend.humidifier.history",
+      "lane": "backend",
+      "depends_on": [],
+      "user_story": "GET /api/humidifier/history?range= returns the on/off transition list for the requested range.",
+      "endpoints": [["GET", "/api/humidifier/history"]],
+      "implementation_notes": "HumidifierStateService.get_history already exists.",
+      "acceptance": [
+        { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/humidifier/history removed." },
+        { "kind": "unit", "path": "apps/web/tests/test_humidifier_history_endpoint.py" }
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "frontend.dashboard.humidifier",
+      "lane": "frontend",
+      "depends_on": ["backend.humidifier.state", "backend.humidifier.history", "frontend.dashboard.gauges"],
+      "user_story": "Humidifier tile shows ON/OFF state + duration since last transition + cycles/24h. Below the sparklines, a duty-cycle strip renders the on/off transitions for the active range.",
+      "files": ["web-ui/src/components/HumidifierTile.tsx", "web-ui/src/components/HumidifierStrip.tsx"],
+      "acceptance": [
+        { "kind": "agent-browser", "script": "docs/plans/evaluator-checks/dashboard-humidifier.sh", "description": "tile reflects /api/humidifier/state; strip renders rectangles for /api/humidifier/history; range switch re-fetches strip." }
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "backend.plants.list",
+      "lane": "backend",
+      "depends_on": [],
+      "user_story": "GET /api/plants returns A–D with current calibrated moisture.",
+      "endpoints": [["GET", "/api/plants"]],
+      "implementation_notes": "PlantsService.list_plants + per-plant moisture join. Composite already shaped per contract.",
+      "acceptance": [
+        { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/plants removed." },
+        { "kind": "unit", "path": "apps/web/tests/test_plants_list_endpoint.py" }
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "frontend.dashboard.plants_strip",
+      "lane": "frontend",
+      "depends_on": ["backend.plants.list", "frontend.dashboard.gauges"],
+      "user_story": "Plants strip below the sparklines shows four cards (A/B/C/D) with sticker chip + soil-moisture bar. Click opens the plant-detail drawer.",
+      "files": ["web-ui/src/components/PlantCard.tsx", "web-ui/src/components/PlantsStrip.tsx"],
+      "acceptance": [
+        { "kind": "agent-browser", "script": "docs/plans/evaluator-checks/dashboard-plants.sh", "description": "4 cards render with correct sticker colours from GET /api/plants; clicking opens drawer with /api/plants/{code}." }
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "backend.plants.detail",
+      "lane": "backend",
+      "depends_on": [],
+      "user_story": "GET /api/plants/{code} returns the full drawer payload (label / moisture / timeline / note / wiki_path).",
+      "endpoints": [["GET", "/api/plants/{code}"]],
+      "implementation_notes": "PlantDetailService.get_plant_detail(code) parses wiki/plants/plant-{code}.md frontmatter + Timeline + Current State. Result shaped per contract.",
+      "acceptance": [
+        { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/plants/{code} removed." },
+        { "kind": "unit", "path": "apps/web/tests/test_plants_detail_endpoint.py" }
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "backend.plants.moisture",
+      "lane": "backend",
+      "depends_on": [],
+      "user_story": "GET /api/plants/{code}/moisture?range= returns bucketed moisture points + irrigation_events_24h count.",
+      "endpoints": [["GET", "/api/plants/{code}/moisture"]],
+      "implementation_notes": "PlantsService.get_plant_moisture_history + irrigation event heuristic (count of upward steps ≥ N%).",
+      "acceptance": [
+        { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/plants/{code}/moisture removed." },
+        { "kind": "unit", "path": "apps/web/tests/test_plants_moisture_endpoint.py" }
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "frontend.plant_detail",
+      "lane": "frontend",
+      "depends_on": ["backend.plants.detail", "backend.plants.moisture", "frontend.dashboard.plants_strip"],
+      "user_story": "Plant-detail drawer overlays the dashboard with header (sticker + name + primary/secondary tag), moisture hero (current + target band visualization), 24h moisture chart, timeline list, and current-status note. Drop the lint ✓ badge.",
+      "files": ["web-ui/src/components/PlantDetail.tsx"],
+      "acceptance": [
+        { "kind": "agent-browser", "script": "docs/plans/evaluator-checks/plant-detail.sh", "description": "click Plant A on dashboard; assert drawer opens, frontmatter rows render, moisture hero matches /api/plants/a.moisture.current_pct, timeline rows count = response.timeline.length, ESC closes drawer." },
+        { "kind": "visual", "reference_screenshot": "docs/plans/refs/plant-detail-a.png" }
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "backend.system.devices",
+      "lane": "backend",
+      "depends_on": [],
+      "user_story": "GET /api/system/devices returns the 8-row device status table.",
+      "endpoints": [["GET", "/api/system/devices"]],
+      "implementation_notes": "SystemStatusService.get_device_statuses; status taxonomy ok|listening|warn|offline. Jabra status is mocked from systemctl is-active dirt-voice for now.",
+      "acceptance": [
+        { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/system/devices removed." },
+        { "kind": "unit", "path": "apps/web/tests/test_system_devices_endpoint.py" }
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "frontend.dashboard.system_table",
+      "lane": "frontend",
+      "depends_on": ["backend.system.devices", "frontend.dashboard.gauges"],
+      "user_story": "Dashboard system section renders the device table.",
+      "files": ["web-ui/src/components/SystemTable.tsx"],
+      "acceptance": [
+        { "kind": "agent-browser", "script": "docs/plans/evaluator-checks/dashboard-system.sh", "description": "8 rows render; status badges match GET /api/system/devices.devices[i].status." }
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "backend.feed.live",
+      "lane": "backend",
+      "depends_on": [],
+      "user_story": "GET /api/feed/live.jpg returns one live JPEG via the camera daemon.",
+      "endpoints": [["GET", "/api/feed/live.jpg"]],
+      "implementation_notes": "Reuse capture_frame() from dirt_shared.services.capture; rename current /feed/live route. Set Cache-Control: no-store.",
+      "removes_legacy": [["GET", "/feed/live"], ["GET", "/feed/image"], ["GET", "/feed/status"]],
+      "acceptance": [
+        { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/feed/live.jpg removed; LEGACY_ROUTES entries for /feed/live, /feed/image, /feed/status removed." },
+        { "kind": "unit", "path": "apps/web/tests/test_feed_endpoints.py" }
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "backend.feed.snapshot",
+      "lane": "backend",
+      "depends_on": [],
+      "user_story": "GET /api/feed/snapshot/latest returns the most recent archived snapshot.",
+      "endpoints": [["GET", "/api/feed/snapshot/latest"]],
+      "implementation_notes": "Rename /api/snapshots/latest; reuse SnapshotsService.latest + get_snapshot_path.",
+      "removes_legacy": [["GET", "/api/snapshots/latest"]],
+      "acceptance": [
+        { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/feed/snapshot/latest removed; LEGACY_ROUTES entry for /api/snapshots/latest removed." },
+        { "kind": "unit", "path": "apps/web/tests/test_feed_snapshot_endpoint.py" }
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "backend.ptz.state",
+      "lane": "backend",
+      "depends_on": [],
+      "user_story": "GET /api/ptz/state returns connected / yaw / pitch / zoom / preset / presets[] with yaw/pitch/zoom per preset.",
+      "endpoints": [["GET", "/api/ptz/state"]],
+      "implementation_notes": "RPC the dirt-camera daemon socket via dirt_shared.services.capture._daemon_rpc('get_state'). Preset list comes from ~/.config/dirt/camera.json — augment that file with yaw/pitch/zoom per preset if not already present.",
+      "acceptance": [
+        { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/ptz/state removed." },
+        { "kind": "unit", "path": "apps/web/tests/test_ptz_state_endpoint.py" }
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "backend.ptz.preset",
+      "lane": "backend",
+      "depends_on": ["backend.ptz.state"],
+      "user_story": "POST /api/ptz/preset/{id} moves the camera to a preset and returns the new yaw/pitch/zoom.",
+      "endpoints": [["POST", "/api/ptz/preset/{id}"]],
+      "implementation_notes": "Call _daemon_rpc('look_preset', id). 404 on unknown preset (validate against camera.json).",
+      "acceptance": [
+        { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/ptz/preset/{id} removed." },
+        { "kind": "unit", "path": "apps/web/tests/test_ptz_preset_endpoint.py" }
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "backend.ptz.look",
+      "lane": "backend",
+      "depends_on": ["backend.ptz.state"],
+      "user_story": "POST /api/ptz/look {x, y} re-centers via normalized click. Server applies yaw_delta = x*60°, pitch_delta = y*40°.",
+      "endpoints": [["POST", "/api/ptz/look"]],
+      "implementation_notes": "Compute new motor-frame yaw/pitch from current state, clamp to daemon limits, call _daemon_rpc('look_at_motor_xy', yaw, pitch).",
+      "acceptance": [
+        { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/ptz/look removed." },
+        { "kind": "unit", "path": "apps/web/tests/test_ptz_look_endpoint.py" }
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "backend.ptz.zoom",
+      "lane": "backend",
+      "depends_on": ["backend.ptz.state"],
+      "user_story": "POST /api/ptz/zoom — exactly one of {zoom, delta}; absolute or relative.",
+      "endpoints": [["POST", "/api/ptz/zoom"]],
+      "implementation_notes": "Validate XOR; call _daemon_rpc('zoom_to', value) or 'zoom_by'.",
+      "acceptance": [
+        { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/ptz/zoom removed." },
+        { "kind": "unit", "path": "apps/web/tests/test_ptz_zoom_endpoint.py" }
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "frontend.live",
+      "lane": "frontend",
+      "depends_on": ["backend.feed.live", "backend.ptz.state", "backend.ptz.preset", "backend.ptz.look", "backend.ptz.zoom", "frontend.app.shell"],
+      "user_story": "Live tab shows the camera feed (auto-refresh 10s), click-to-look on the feed, presets list (overview + plant_a..d), zoom slider 1–4×.",
+      "files": ["web-ui/src/routes/live.tsx", "web-ui/src/components/CameraFeed.tsx", "web-ui/src/components/PresetList.tsx", "web-ui/src/components/ZoomSlider.tsx"],
+      "acceptance": [
+        { "kind": "agent-browser", "script": "docs/plans/evaluator-checks/live.sh", "description": "img tag refreshes /api/feed/live.jpg every ~10s; clicking the feed posts /api/ptz/look with normalized x/y; preset row click posts /api/ptz/preset/{id}; zoom slider drag posts /api/ptz/zoom." },
+        { "kind": "visual", "reference_screenshot": "docs/plans/refs/live.png" }
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "backend.wiki.tree",
+      "lane": "backend",
+      "depends_on": [],
+      "user_story": "GET /api/wiki/tree walks wiki/ on disk and returns a folder/file tree with titles + plant sticker colors.",
+      "endpoints": [["GET", "/api/wiki/tree"]],
+      "implementation_notes": "Use WikiService.get_tree. ETag from rollup mtime hash.",
+      "acceptance": [
+        { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/wiki/tree removed." },
+        { "kind": "unit", "path": "apps/web/tests/test_wiki_tree_endpoint.py" }
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "backend.wiki.file",
+      "lane": "backend",
+      "depends_on": [],
+      "user_story": "GET /api/wiki/file?path= returns frontmatter + raw markdown body + backlinks for a single wiki file.",
+      "endpoints": [["GET", "/api/wiki/file"]],
+      "implementation_notes": "WikiService.get_file. Path normalization accepts foo/bar.md or wiki/foo/bar.md; reject any path that escapes wiki/.",
+      "acceptance": [
+        { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/wiki/file removed." },
+        { "kind": "unit", "path": "apps/web/tests/test_wiki_file_endpoint.py" }
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "backend.wiki.search",
+      "lane": "backend",
+      "depends_on": [],
+      "user_story": "GET /api/wiki/search?q= returns ranked results with match_type and optional snippet. 400 on empty q.",
+      "endpoints": [["GET", "/api/wiki/search"]],
+      "implementation_notes": "WikiService.search; substring scan over filenames + bodies for V1.",
+      "acceptance": [
+        { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/wiki/search removed." },
+        { "kind": "unit", "path": "apps/web/tests/test_wiki_search_endpoint.py" }
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "frontend.wiki",
+      "lane": "frontend",
+      "depends_on": ["backend.wiki.tree", "backend.wiki.file", "backend.wiki.search", "frontend.app.shell"],
+      "user_story": "Wiki tab: sidebar tree + main pane renders raw markdown with frontmatter block + breadcrumb. Cmd+K opens search palette; empty state shows recent files (client-side via shared/storage.ts). Drop the lint ✓ footer badge.",
+      "files": ["web-ui/src/routes/wiki.tsx", "web-ui/src/components/WikiSidebar.tsx", "web-ui/src/components/WikiDoc.tsx", "web-ui/src/components/CmdKPalette.tsx"],
+      "acceptance": [
+        { "kind": "agent-browser", "script": "docs/plans/evaluator-checks/wiki.sh", "description": "tree renders folders + files; clicking plant-a.md shows frontmatter + markdown body; Cmd+K opens palette; typing 'topping' returns matches; ENTER navigates; empty palette shows recent files (no /api/wiki/search call with empty q)." },
+        { "kind": "visual", "reference_screenshot": "docs/plans/refs/wiki.png" }
+      ],
+      "status": "pending"
+    }
+  ],
+
+  "runbook_for_evaluator": [
+    "Verify the harness smoke test passes (see webapp-rewrite.md §0).",
+    "uv run pytest -q must be green.",
+    "cd web-ui && pnpm lint && pnpm typecheck && pnpm knip && pnpm build must all pass.",
+    "For each `done`-pending feature: run its acceptance.script under agent-browser against the live :8001 stack; flip status to done if every assertion passes and there are no console errors; flip to blocked + write evaluator_notes if any assertion fails.",
+    "After each merge into main, re-verify all four systemd services (dirt-hwd, dirt-web, dirt-camera, dirt-voice) are still active."
+  ],
+
+  "runbook_for_planner": [
+    "Adding a new endpoint: edit contracts/webapp-v1.yaml first; run scripts/gen-contract; add (path, method) to EXPECTED_MISSING in apps/tests/invariants/test_api_contract.py with a feature_id; add the matching feature to this plan; run pytest invariants to confirm everything is wired.",
+    "Adding a new feature: append to features[] with at minimum {id, lane, depends_on, user_story, acceptance[], status:'pending'}.",
+    "Removing a feature: never. Mark it done if shipped, blocked if abandoned, with evaluator_notes explaining why."
+  ]
+}

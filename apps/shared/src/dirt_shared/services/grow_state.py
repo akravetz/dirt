@@ -64,7 +64,8 @@ class GrowCurrentPayload:
     germination_date: date
     flower_start_date: date | None
     day_number: int  # today - germination_date + 1
-    week_number: int
+    grow_week_number: int  # 1-indexed since germination_date
+    flower_week_number: int | None  # 1-indexed since flower_start_date; None in veg
     stage: Stage
     strain: str
     location: str
@@ -201,15 +202,22 @@ class GrowStateService:
                 "flower_early" if days_in_flower < _LATE_FLOWER_DAY else "flower_late"
             )
 
-        week_number = (today - state.germination_date).days // 7 + 1
+        grow_week_number = (today - state.germination_date).days // 7 + 1
         day_number = (today - state.germination_date).days + 1
+        if state.flower_start_date is not None and today >= state.flower_start_date:
+            flower_week_number: int | None = (
+                today - state.flower_start_date
+            ).days // 7 + 1
+        else:
+            flower_week_number = None
         lights = await self.lights_state()
 
         return GrowCurrentPayload(
             germination_date=state.germination_date,
             flower_start_date=state.flower_start_date,
             day_number=day_number,
-            week_number=week_number,
+            grow_week_number=grow_week_number,
+            flower_week_number=flower_week_number,
             stage=stage,
             strain=state.strain,
             location=state.location,

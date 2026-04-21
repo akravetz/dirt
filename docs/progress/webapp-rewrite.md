@@ -1,10 +1,11 @@
 # Webapp rewrite — agent handoff
 
-**Status (2026-04-19, end of session 2)**:
+**Status (2026-04-20, end of session 3)**:
 - ✅ **Phase 0** — uv workspace + hardware-daemon split. Harness installed. `web-ui/` skeleton exists.
-- ✅ **Phase 1 design** — API + data-model proposals written and agreed (`docs/proposals/{API.md, data_model.md}`). Postgres cutover executed (ADR-006, `docs/proposals/pg-cutover-plan.md`). New service modules that back the future endpoints are implemented and tested. Test suite green on Postgres (143 tests).
-- 🟡 **Phase 1 contract freeze** — translate `docs/proposals/API.md` into formal `contracts/webapp-v1.yaml` (OpenAPI 3.1), write `apps/tests/invariants/test_api_contract.py`, author `docs/plans/webapp-rewrite.json`, get user sign-off, tag + record the frozen SHA. **This is the next agent's job.**
-- 🔒 **Phase 2** — blocked on contract freeze.
+- ✅ **Phase 1 design** — API + data-model proposals written and agreed (`docs/proposals/{API.md, data_model.md}`). Postgres cutover executed (ADR-006). New service modules that back the future endpoints are implemented and tested. Test suite green on Postgres (143 tests).
+- ✅ **Architectural-invariant hardening (session 3)** — full per-language invariant suites landed: PY-01..09 (layered contracts, no-asyncio-run, no-print, no-module-level-singletons, ruff TID/PLR/RUF/S audit, Hypothesis at pure-function boundaries, etc.) under `apps/tests/invariants/`; TS-01..16 (tsconfig strict, eslint-plugin-boundaries, banned training-data-drift imports, no `enum`/`namespace`/`as any`, no fetch outside api-client, no `useEffect` data-fetching, no string-literal route paths, Tailwind v4 palette guard, no inline style, knip dead-code, etc.) under `web-ui/invariants/`; XX-01/02 meta rules (uniform failure-message template + protected `web-ui/invariants/` shims). These are the guardrails the Phase 2 generators will run under.
+- ✅ **Phase 1 contract freeze (session 3)** — `contracts/webapp-v1.yaml` (OpenAPI 3.1) authored from `docs/proposals/API.md`. `dirt-contracts` workspace member ships the generated Pydantic models at `contracts/python/src/dirt_contracts/webapp_v1/models.py`. Generated TypeScript schema at `web-ui/src/api-client/generated/schema.ts` + a typed `openapi-fetch` wrapper at `web-ui/src/api-client/{client,index}.ts`. Regenerator: `scripts/gen-contract`. Invariant `apps/tests/invariants/test_api_contract.py` enforces spec ⊆ app, app ⊆ spec, and pydantic-model importability with an `EXPECTED_MISSING` table that shrinks as Phase 2 endpoints land + a `LEGACY_ROUTES` allowlist that shrinks as the old HTML/HTMX endpoints are deleted. Plan JSON at `docs/plans/webapp-rewrite.json` lists 29 features (19 BE + 10 FE) with acceptance criteria. Frozen tag: `contract-frozen-2026-04-20`. 226 tests green.
+- 🟢 **Phase 2** — ready to start. Spawn one BE-lane + one FE-lane Agent (worktree, background) per the plan JSON's `depends_on` ordering; reserve a foreground evaluator pass after each merge.
 
 You (the agent reading this) are picking up where session 2 stopped. Read this doc end-to-end before you do anything.
 
@@ -268,13 +269,14 @@ Decided with the user in the prior session. Do not relitigate.
 ```
 apps/        (unchanged; Python backend stays in uv workspace)
 contracts/   OpenAPI spec + generated TS client + generated Pydantic models (new — Phase 1)
-web-ui/      Vite + React + TanStack Router + Tailwind v4 app (SKELETON EXISTS — Phase 2 extends)
+web-ui/      Vite + React + TanStack Router + Tailwind v4 app (SKELETON + INVARIANTS — Phase 2 extends)
   src/
     routes/          (TanStack file-based routing; __root.tsx + index.tsx exist)
-    components/      (empty — generators add per feature)
+    components/      (sparse — generators add per feature)
     lib/             (generated OpenAPI client lives here — Phase 1 populates)
     styles.css       (single global import of Tailwind + @theme design tokens)
-  package.json, vite.config.ts, tsconfig.*.json, biome.json
+  invariants/        (TS-01..16 + XX-02 architectural-invariant harness: eslint.config.ts, knip.json, rules/, tsconfig.base.json)
+  package.json, vite.config.ts, tsconfig.*.json, biome.json, eslint.config.ts
 docs/plans/
   webapp-rewrite.json        (the plan, owned by planner + evaluator)
   evaluator-checks/*.sh      (agent-browser scripts referenced by plan JSON)
@@ -298,7 +300,7 @@ Design language: paper/ink palette, JetBrains-Mono for numbers, Crimson-Pro-ital
 
 ### API surface
 
-**Source of truth: [`docs/proposals/API.md`](../proposals/API.md)** — session 2 wrote this endpoint-by-endpoint spec with agreed JSON response shapes, agreed-on decisions (code/id rename, vitals dropped, band-status helper pattern), and an explicit add/modify/remove table against today's `apps/web/src/dirt_web/api/` routes. Phase 1 turns this into `contracts/webapp-v1.yaml`. Do NOT re-design or cherry-pick shapes — the proposal was iterated on with the user and is the contract baseline.
+**Source of truth: [`docs/proposals/API.md`](../proposals/API.md)** — session 2 wrote this endpoint-by-endpoint spec with agreed JSON response shapes, agreed-on decisions (code/id rename, vitals dropped, band-status helper pattern), and an explicit add/modify/remove table against today's `apps/web/src/dirt_web/api/` routes. Session 3 added the "Resolved" subsection at the bottom after a mockup-vs-API audit: login field-notes are hardcoded (no pre-auth endpoint); `week_number` → `grow_week_number` + new `flower_week_number`; `/api/auth/me` on SPA boot (no `localStorage` auth flag); PTZ preset entries gain `yaw`/`pitch`/`zoom`; wiki `lint ✓` badge dropped from the UI; Cmd+K "recent" is client-side via `shared/storage.ts`. Phase 1 turns this into `contracts/webapp-v1.yaml`. Do NOT re-design or cherry-pick shapes — the proposal was iterated on with the user and is the contract baseline.
 
 Paired reference: [`docs/proposals/data_model.md`](../proposals/data_model.md) — schema, types, resolved open questions, per-endpoint "which service produces this field" notes.
 
@@ -339,7 +341,7 @@ Do these in order:
 2. **Read the proposals** (in order — they are short and were iterated on with the user):
    - `docs/proposals/API.md` — the frozen API design. Your OpenAPI YAML is a translation of this.
    - `docs/proposals/data_model.md` — schema + resolved decisions + per-endpoint service mapping.
-   - `docs/proposals/pg-cutover-plan.md` — what happened to the DB (context for any migration concerns).
+   - `docs/adrs/006-postgres-and-atlas.md` — DB engine + migration tool decision (context for any schema concerns).
 
 3. **Read the references** (only what you'll actually touch):
    - Two Anthropic harness blog posts (links in §12). Read before designing the Phase 2 orchestration.
@@ -396,8 +398,7 @@ Do these in order:
 **Must-read (session 2 output — these ARE the Phase 1 design):**
 - `docs/proposals/API.md` — agreed API spec; your `contracts/webapp-v1.yaml` translates this.
 - `docs/proposals/data_model.md` — schema + resolved open questions + per-endpoint service mapping.
-- `docs/proposals/pg-cutover-plan.md` — what happened to the DB; skim §1/§8 for current state.
-- `docs/adrs/006-postgres-and-atlas.md` — DB engine decision.
+- `docs/adrs/006-postgres-and-atlas.md` — DB engine decision + cutover context.
 
 **Framework reference packs (read before writing any code in that area):**
 - `CLAUDE.md` — project overview, discovery layer. `### Database` subsection covers pg ops; `## Framework/API References` lists the packs below.
@@ -439,4 +440,4 @@ At that point the original mockup from `debug/webapp.zip` is approximately repro
 
 ---
 
-*Written at end of Phase 0 cutover session. Updated 2026-04-19 at end of session 2 (pg cutover + Phase 1 design work). If this document is more than a couple of weeks stale, re-verify the top-of-doc status banner + section 2 (Phase 0/1 recap) against current repo state before trusting the rest.*
+*Written at end of Phase 0 cutover session. Updated 2026-04-19 at end of session 2 (pg cutover + Phase 1 design work). Updated 2026-04-20 at end of session 3 (architectural-invariant hardening: PY-01..09, TS-01..16, XX-01/02 landed; Phase 1 contract freeze landed: `contracts/webapp-v1.yaml`, `dirt-contracts` workspace member with generated Pydantic models, `web-ui/src/api-client/{generated/schema,client,index}.ts`, `apps/tests/invariants/test_api_contract.py`, `docs/plans/webapp-rewrite.json` with 29 features; stale pointers to deleted `docs/proposals/{pg-cutover-plan,singleton-retirement}.md` and `docs/progress/architectural-invariants*.json` removed; tag `contract-frozen-2026-04-20`). If this document is more than a couple of weeks stale, re-verify the top-of-doc status banner + section 2 (Phase 0/1 recap) against current repo state before trusting the rest.*

@@ -88,21 +88,26 @@ Sets `dirt_session` cookie (httponly, samesite=lax) on success. Cookie shape is 
 // 401 if no valid session
 ```
 
+**FE boot lifecycle.** On app mount, the SPA calls `GET /api/auth/me` once. 200 → hydrate authed state and render the tab router; 401 → route to `/login`. Do **not** persist auth state in `localStorage` (the mockup's `dirt-auth` flag is a prototyping shortcut). The cookie is the sole source of truth; TS-09 restricts `localStorage` access to `shared/storage.ts` anyway.
+
 ---
 
 ## 2. Grow identity — `/api/grow/current`
 
-Drives the top-bar tag line "Day 29 · Sirius Black × BS01" and the login-screen field-notes block ("grow / day / plants / loc / agent").
+Drives the top-bar tag line "Day 29 · Sirius Black × BS01". Requires auth.
+
+**Login field-notes block is fully static / hardcoded in the SPA.** The login page is pre-auth and mustn't depend on this endpoint. The mockup's field-notes copy (`grow / day / plants / loc / agent · Claudia · listening`) is branding, not live data — keep it as a static constant in the login component. If it ever needs to change with the grow, bump the constant during a grow flip.
 
 ### GET /api/grow/current
 ```jsonc
 {
   "germination_date": "2026-03-15",
-  "flower_start_date": null,            // or "2026-06-01"
-  "day_number": 36,                      // = today - germination_date + 1
-  "week_number": 6,                      // 1-indexed
-  "stage": "veg",                        // "veg" | "flower_early" | "flower_late"
-  "strain": "Sirius Black × BS01",       // ? see data_model.md "Grow identity"
+  "flower_start_date": null,              // or "2026-06-01"
+  "day_number": 36,                        // = today - germination_date + 1
+  "grow_week_number": 6,                   // 1-indexed since germination_date (week 1 = days 1–7)
+  "flower_week_number": null,              // 1-indexed since flower_start_date, or null while in veg
+  "stage": "veg",                          // "veg" | "flower_early" | "flower_late"
+  "strain": "Sirius Black × BS01",
   "location": "Denver, MT · closet tent",
   "plant_count": 4,
   "lights": {
@@ -114,7 +119,7 @@ Drives the top-bar tag line "Day 29 · Sirius Black × BS01" and the login-scree
 }
 ```
 
-Reads today's stage/day from `dirt_shared.services.grow_state`. Strain + location are constants today; see data_model proposal for whether to keep them in config, add to `growstate`, or promote to their own table.
+Reads today's stage/day from `dirt_shared.services.grow_state`. Strain + location + plant_count live on `growstate` (resolved per data_model proposal). `GrowCurrentPayload.grow_week_number` + `flower_week_number` are already computed by `get_grow_current_payload()` — the BE endpoint just threads the payload through.
 
 ---
 
@@ -366,15 +371,15 @@ Thin HTTP wrapper around `scripts/camera` (reality: we call the daemon socket fr
   "zoom": 1.5,
   "preset": "plant_a",         // null if not at a preset (tolerance ~2°)
   "presets": [                 // static list — hard to change at runtime
-    { "id": "overview", "label": "Overview", "description": "wide · full tent" },
-    { "id": "plant_a",  "label": "Plant A",  "description": "Plant A close-up (yellow)", "sticker_color": "yellow" },
-    { "id": "plant_b",  "label": "Plant B",  "description": "...",                         "sticker_color": "orange" },
-    { "id": "plant_c",  "label": "Plant C",  "description": "...",                         "sticker_color": "pink" },
-    { "id": "plant_d",  "label": "Plant D",  "description": "...",                         "sticker_color": "blue" }
+    { "id": "overview", "label": "Overview", "description": "wide · full tent",            "yaw": 0,   "pitch": -10, "zoom": 1.0 },
+    { "id": "plant_a",  "label": "Plant A",  "description": "Plant A close-up (yellow)",  "yaw": -55, "pitch": -38, "zoom": 1.5, "sticker_color": "yellow" },
+    { "id": "plant_b",  "label": "Plant B",  "description": "...",                         "yaw": -20, "pitch": -40, "zoom": 1.5, "sticker_color": "orange" },
+    { "id": "plant_c",  "label": "Plant C",  "description": "...",                         "yaw":  20, "pitch": -40, "zoom": 1.5, "sticker_color": "pink" },
+    { "id": "plant_d",  "label": "Plant D",  "description": "...",                         "yaw":  55, "pitch": -38, "zoom": 1.5, "sticker_color": "blue" }
   ]
 }
 ```
-Reads `~/.config/dirt/camera.json` for the preset list (keep it in sync with the file; don't duplicate in code).
+Reads `~/.config/dirt/camera.json` for the preset list (keep it in sync with the file; don't duplicate in code). `yaw`/`pitch` are motor-frame degrees, same axis convention as the top-level `yaw`/`pitch` fields; the FE uses them for the preset-row hint text (`y=-55° p=-38° z=1.5×`).
 
 ### POST /api/ptz/preset/{id}
 ```jsonc
@@ -476,6 +481,8 @@ Drives the main pane.
 
 Backlinks are computed by a grep pass across all `wiki/*.md` files for `](./... <path>)` or `related: [..., wiki/<path>, ...]`. Cache aggressively.
 
+**FE note — drop the `lint ✓` footer badge.** The mockup's wiki doc footer renders `sources: ... · 3 backlinks · lint ✓`. Keep `sources` (from `frontmatter.sources`) and the backlinks count (from `backlinks.length`). Drop the `lint ✓` badge — no API field backs it and we're not plumbing lint status per file in V1.
+
 ### GET /api/wiki/search?q=...
 
 Drives the Cmd+K palette.
@@ -503,6 +510,8 @@ Drives the Cmd+K palette.
 V1 implementation: naive substring scan over filenames + markdown bodies. ~70 files, will complete in single-digit ms. If that changes, swap in Postgres FTS via a `wiki_file(path, title, body_tsv tsvector)` materialized table.
 
 **Open question (?):** Fuzzy match? Lean: no in V1 — mockup's search text is literal.
+
+**FE note — Cmd+K empty-state "recent".** The mockup shows recent files as the empty-state list. Track recents client-side via `shared/storage.ts` (TS-09 restricts `localStorage` to this module) — push `path` on every wiki-file open, cap at the last 10, dedupe by path. No API field for this. Do not send `?q=` with an empty string to the server; short-circuit the recents list locally.
 
 ---
 
@@ -552,3 +561,12 @@ Out of scope for V1. The UI is single-user; harden if we ever ship to multiple o
 5. **Fan pct / reservoir in.** Mock, or wait for real hardware? Lean: mock with deterministic rotating values keyed off time so the chart moves; replace when wiring lands.
 6. **Wiki file body**: raw markdown (this proposal) vs server-side rendered HTML. Lean: raw markdown. Server knows about frontmatter + backlinks; client owns rendering.
 7. **Backlinks cache invalidation**: mtime-based or file-watcher? Lean: mtime, compute lazily on first request per mtime tick.
+
+### Resolved (session 3, 2026-04-20 mockup-vs-API audit)
+
+- **Login field-notes block** — hardcoded in the SPA's login component. Login page is pre-auth and doesn't call any API; copy is updated manually on a grow flip.
+- **`week_number` semantics** — renamed to `grow_week_number` (1-indexed since `germination_date`). Added `flower_week_number: int | null` (1-indexed since `flower_start_date`, `null` while stage = `veg`). Rename + new field landed in `apps/shared/src/dirt_shared/services/grow_state.py` (session 3); `GrowCurrentPayload` now matches the contract shape and BE just threads the payload through.
+- **`GET /api/auth/me` boot lifecycle** — SPA calls it once on mount; no `localStorage` auth persistence (cookie is the source of truth; TS-09 walls `localStorage` off to `shared/storage.ts`).
+- **PTZ preset hints** — `/api/ptz/state.presets[]` entries now include `yaw`, `pitch`, `zoom` so the FE can render the `y=-55° p=-38° z=1.5×` hint line without hardcoding.
+- **Wiki doc `lint ✓` badge** — dropped from the UI (no API backing). Footer keeps `sources` + backlinks count.
+- **Cmd+K "recent" empty state** — client-side via `shared/storage.ts`; no API field. Do not request `/api/wiki/search?q=` with an empty string.

@@ -229,6 +229,47 @@ async def test_flower_schedule_overridable_via_db(pg_engine):
     assert state.on is False
 
 
+# ------- get_grow_current_payload -------
+
+
+async def test_payload_in_veg_has_null_flower_week(pg_engine):
+    await _set_state(pg_engine, germination=date(2026, 3, 15))
+    payload = await _svc(pg_engine, today=date(2026, 4, 18)).get_grow_current_payload()
+    assert payload.day_number == 35
+    assert payload.grow_week_number == 5
+    assert payload.flower_week_number is None
+    assert payload.stage == "veg"
+
+
+async def test_payload_with_future_flower_date_still_in_veg(pg_engine):
+    await _set_state(pg_engine, germination=date(2026, 3, 15), flower=date(2026, 5, 1))
+    payload = await _svc(pg_engine, today=date(2026, 4, 18)).get_grow_current_payload()
+    assert payload.flower_week_number is None
+    assert payload.stage == "veg"
+
+
+async def test_payload_on_flower_day_zero_is_week_one(pg_engine):
+    flower = date(2026, 4, 18)
+    await _set_state(pg_engine, germination=date(2026, 3, 15), flower=flower)
+    payload = await _svc(pg_engine, today=flower).get_grow_current_payload()
+    assert payload.flower_week_number == 1
+    assert payload.stage == "flower_early"
+
+
+async def test_payload_on_flower_day_seven_is_still_week_one(pg_engine):
+    flower = date(2026, 4, 1)
+    await _set_state(pg_engine, germination=date(2026, 3, 15), flower=flower)
+    payload = await _svc(pg_engine, today=date(2026, 4, 7)).get_grow_current_payload()
+    assert payload.flower_week_number == 1
+
+
+async def test_payload_on_flower_day_eight_is_week_two(pg_engine):
+    flower = date(2026, 4, 1)
+    await _set_state(pg_engine, germination=date(2026, 3, 15), flower=flower)
+    payload = await _svc(pg_engine, today=date(2026, 4, 9)).get_grow_current_payload()
+    assert payload.flower_week_number == 2
+
+
 # ------- init_db is no longer a DDL entrypoint (ADR-006) -------
 # The old test_init_db_* tests are intentionally dropped:
 #   - init_db now only runs `SELECT 1` (Atlas owns DDL).

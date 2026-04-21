@@ -1,5 +1,5 @@
 [tool.uv.workspace]
-members = ["apps/*"]
+members = ["apps/*", "contracts/python"]
 exclude = ["apps/tests"]
 
 [tool.uv]
@@ -18,6 +18,8 @@ dev-dependencies = [
     "deptry>=0.25.1",
     "hypothesis>=6.152.1",
     "pre-commit>=4.5.1",
+    "datamodel-code-generator>=0.56.1",
+    "dirt-contracts",
 ]
 
 [tool.uv.sources]
@@ -27,6 +29,7 @@ dirt-hwd = { workspace = true }
 dirt-web = { workspace = true }
 dirt-mcp = { workspace = true }
 dirt-voice = { workspace = true }
+dirt-contracts = { workspace = true }
 
 [tool.pytest.ini_options]
 # Discovery roots: cross-cutting invariants at apps/tests/ plus per-app unit

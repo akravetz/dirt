@@ -50,7 +50,7 @@ Capturing pre-migration so the move-script author has an exact spec.
 
 | Table | Purpose | Rows in live DB | Used by mockup? |
 |---|---|---|---|
-| `growstate` | Singleton (id=1): germination_date, flower_start_date, lights_on_local, lights_off_local | 1 | Yes — drives day/week/stage in top bar + login field-notes. |
+| `growstate` | Singleton (id=1): germination_date, flower_start_date, lights_on_local, lights_off_local | 1 | Yes — drives day/week/stage in the top bar. (The login field-notes block is pre-auth and fully hardcoded in the SPA — no DB dependency.) |
 | `sensorreading` | Append-only, one row per (ts, location, metric, value). Index on ts, metric, location. | 138k+ | Yes — every gauge, sparkline, humidifier chart, plant moisture chart. |
 | `sensornode` | Per-ESP32 metadata: ip, firmware_version, uptime_ms, last_seen. Upserted on each POST. | 4 (plant-a..d) | Yes — drives system table rows for plant nodes. |
 | `sensorcalibration` | Per-(location, metric) two-point linear calibration. Auto-widens at ingest. | 4 (one per plant) | Yes — converts `soil_moisture_raw` → %. |
@@ -365,9 +365,11 @@ Caveat: the external schema loader needs our Python env loaded to run. For produ
 
 ### 4a. Grow identity (strain, location, plant count)
 
-**Needed by:** `GET /api/grow/current`, login field-notes block, top-bar tag line.
+**Needed by:** `GET /api/grow/current`, top-bar tag line. (The login field-notes block is pre-auth and fully hardcoded in the SPA — no DB dependency; update the constant on a grow flip.)
 
 **Target:** `growstate.strain`, `growstate.location`, `growstate.plant_count` — included in the Postgres schema above. Seeded from current wiki values during the cutover data move. Editable later via a small admin page or SQL.
+
+**Derived-on-read (not columns):** `grow_week_number` = `(today − germination_date) // 7 + 1`; `flower_week_number` = `(today − flower_start_date) // 7 + 1` when in flower, else `null`. Both are computed in `GrowStateService.get_grow_current_payload()` and exposed directly by `GrowCurrentPayload` (session-3 rename + new field, already landed).
 
 ### 4b. Per-plant metadata (sticker color, status, purple, label)
 

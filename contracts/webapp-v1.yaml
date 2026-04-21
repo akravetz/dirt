@@ -1,0 +1,1110 @@
+openapi: 3.1.0
+info:
+  title: Dirt Webapp API
+  version: 1.0.0
+  description: |
+    JSON API consumed by the `web-ui/` SPA. Translation of `docs/proposals/API.md`.
+
+    This is the frozen Phase-1 contract. Changes require a new minor or major
+    version, an updated invariant test, and re-generation of the Pydantic
+    + TypeScript clients (see `scripts/gen-contract`).
+
+    Source of truth for endpoint behaviour, error semantics, and shape
+    decisions: `docs/proposals/API.md`. This YAML is a translation, not a
+    re-design — do not edit one without the other.
+
+servers:
+  - url: /
+    description: dirt-web on :8001 (cookie session auth)
+
+# Default: every operation requires a valid session cookie. Auth endpoints
+# override this with `security: []` to allow anonymous access. Image
+# endpoints (`/api/feed/*`) and the rest still require the cookie.
+security:
+  - cookieAuth: []
+
+tags:
+  - name: auth
+    description: Cookie-session login / logout / whoami
+  - name: grow
+    description: Current grow identity (day, week, stage)
+  - name: sensors
+    description: Live + historical sensor readings
+  - name: humidifier
+    description: Humidifier on/off state + transition history
+  - name: plants
+    description: Per-plant cards, detail drawer, moisture history
+  - name: system
+    description: Device status table
+  - name: feed
+    description: Camera live JPEG + latest archived snapshot
+  - name: ptz
+    description: Camera pan/tilt/zoom controls
+  - name: wiki
+    description: Filesystem-backed grow-wiki tree, file, search
+
+paths:
+
+  # ============================================================
+  # 1. Auth
+  # ============================================================
+
+  /api/auth/login:
+    post:
+      tags: [auth]
+      operationId: authLogin
+      summary: Sign in (sets dirt_session cookie)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+            example:
+              username: alex
+              password: hunter2
+      responses:
+        '200':
+          description: Authenticated. Sets `dirt_session` httponly cookie.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+              example: { username: alex }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/auth/logout:
+    post:
+      tags: [auth]
+      operationId: authLogout
+      summary: Sign out (clears dirt_session cookie)
+      security: []
+      responses:
+        '204':
+          description: Cookie cleared.
+
+  /api/auth/me:
+    get:
+      tags: [auth]
+      operationId: authMe
+      summary: Whoami — used by SPA on boot to validate the session cookie
+      responses:
+        '200':
+          description: Current user.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+              example: { username: alex }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================================
+  # 2. Grow identity
+  # ============================================================
+
+  /api/grow/current:
+    get:
+      tags: [grow]
+      operationId: growCurrent
+      summary: Top-bar tag line + lights schedule
+      responses:
+        '200':
+          description: Current grow identity.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GrowCurrent' }
+              example:
+                germination_date: '2026-03-15'
+                flower_start_date: null
+                day_number: 36
+                grow_week_number: 6
+                flower_week_number: null
+                stage: veg
+                strain: Sirius Black × BS01
+                location: Denver, MT · closet tent
+                plant_count: 4
+                lights:
+                  on: true
+                  on_local: '05:00:00'
+                  off_local: '23:00:00'
+                  minutes_until_off: 258
+                  minutes_until_on: 378
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================================
+  # 3. Sensors
+  # ============================================================
+
+  /api/sensors/current:
+    get:
+      tags: [sensors]
+      operationId: sensorsCurrent
+      summary: Current values for the five dashboard gauges
+      responses:
+        '200':
+          description: Current sensor envelope with target bands and statuses.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SensorsCurrent' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/sensors/history:
+    get:
+      tags: [sensors]
+      operationId: sensorsHistory
+      summary: One-metric history for sparklines
+      parameters:
+        - name: range
+          in: query
+          required: true
+          schema: { $ref: '#/components/schemas/Range' }
+        - name: metric
+          in: query
+          required: true
+          schema: { $ref: '#/components/schemas/SensorMetric' }
+      responses:
+        '200':
+          description: Bucketed time-series points for the requested metric.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SensorsHistoryResponse' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================================
+  # 4. Humidifier
+  # ============================================================
+
+  /api/humidifier/state:
+    get:
+      tags: [humidifier]
+      operationId: humidifierState
+      summary: Current humidifier on/off + last transition
+      responses:
+        '200':
+          description: Current humidifier state envelope.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HumidifierState' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/humidifier/history:
+    get:
+      tags: [humidifier]
+      operationId: humidifierHistory
+      summary: Humidifier on/off transitions over the requested range
+      parameters:
+        - name: range
+          in: query
+          required: true
+          schema: { $ref: '#/components/schemas/Range' }
+      responses:
+        '200':
+          description: List of transitions; render as `(ts, on)` pairs.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HumidifierHistory' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================================
+  # 5. Plants
+  # ============================================================
+
+  /api/plants:
+    get:
+      tags: [plants]
+      operationId: plantsList
+      summary: Dashboard plants strip (A-D cards)
+      responses:
+        '200':
+          description: List of plants with current moisture.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlantsResponse' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/plants/{code}:
+    get:
+      tags: [plants]
+      operationId: plantsDetail
+      summary: Full plant-detail-drawer payload
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/PlantCode' }
+      responses:
+        '200':
+          description: Plant detail.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlantDetail' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/plants/{code}/moisture:
+    get:
+      tags: [plants]
+      operationId: plantsMoisture
+      summary: Moisture chart for the plant-detail drawer
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/PlantCode' }
+        - name: range
+          in: query
+          required: true
+          schema: { $ref: '#/components/schemas/Range' }
+      responses:
+        '200':
+          description: Bucketed soil-moisture points + irrigation event count.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlantMoistureHistory' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================================
+  # 6. System
+  # ============================================================
+
+  /api/system/devices:
+    get:
+      tags: [system]
+      operationId: systemDevices
+      summary: Dashboard system table (one row per device)
+      responses:
+        '200':
+          description: Device status list.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DevicesResponse' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================================
+  # 7. Live feed
+  # ============================================================
+
+  /api/feed/live.jpg:
+    get:
+      tags: [feed]
+      operationId: feedLive
+      summary: Single live JPEG frame (no MJPEG; SPA refreshes via cache-bust)
+      responses:
+        '200':
+          description: JPEG image.
+          content:
+            image/jpeg:
+              schema: { type: string, format: binary }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/feed/snapshot/latest:
+    get:
+      tags: [feed]
+      operationId: feedSnapshotLatest
+      summary: Most recent archived snapshot from disk
+      responses:
+        '200':
+          description: JPEG image.
+          content:
+            image/jpeg:
+              schema: { type: string, format: binary }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================================
+  # 8. PTZ
+  # ============================================================
+
+  /api/ptz/state:
+    get:
+      tags: [ptz]
+      operationId: ptzState
+      summary: Current camera position + preset list
+      responses:
+        '200':
+          description: PTZ state.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PTZState' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/ptz/preset/{id}:
+    post:
+      tags: [ptz]
+      operationId: ptzPreset
+      summary: Move camera to a named preset
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Preset applied; new yaw/pitch/zoom.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PTZApplied' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/ptz/look:
+    post:
+      tags: [ptz]
+      operationId: ptzLook
+      summary: Click-to-look — re-center via normalized click point
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PTZLookRequest' }
+            example: { x: 0.12, y: -0.08 }
+      responses:
+        '200':
+          description: New yaw/pitch/zoom; `preset` is null after a manual move.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PTZApplied' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/ptz/zoom:
+    post:
+      tags: [ptz]
+      operationId: ptzZoom
+      summary: Set zoom (absolute) or nudge zoom (relative)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PTZZoomRequest' }
+            examples:
+              absolute:
+                summary: Absolute zoom level
+                value: { zoom: 1.8 }
+              relative:
+                summary: Relative zoom delta
+                value: { delta: 0.2 }
+      responses:
+        '200':
+          description: New zoom level.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PTZZoomResponse' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  # ============================================================
+  # 9. Wiki
+  # ============================================================
+
+  /api/wiki/tree:
+    get:
+      tags: [wiki]
+      operationId: wikiTree
+      summary: Sidebar file tree (folders + files)
+      responses:
+        '200':
+          description: Wiki tree.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WikiTreeResponse' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/wiki/file:
+    get:
+      tags: [wiki]
+      operationId: wikiFile
+      summary: Single wiki file — frontmatter + raw markdown body + backlinks
+      parameters:
+        - name: path
+          in: query
+          required: true
+          schema: { type: string }
+          description: |
+            Path under the wiki root. Accepts both `foo/bar.md` and
+            `wiki/foo/bar.md`. Any path that escapes `wiki/` is rejected
+            with 400.
+      responses:
+        '200':
+          description: Wiki file payload.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WikiFile' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/wiki/search:
+    get:
+      tags: [wiki]
+      operationId: wikiSearch
+      summary: Cmd+K search across wiki filenames + bodies
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 1 }
+          description: |
+            Substring to search. Empty `q` is rejected with 400 — the SPA
+            short-circuits the empty-state "recent files" list locally
+            (see `shared/storage.ts`).
+      responses:
+        '200':
+          description: Ranked search results.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WikiSearchResponse' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+# ================================================================
+# Components
+# ================================================================
+
+components:
+
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: dirt_session
+      description: |
+        Opaque httponly session cookie issued by `POST /api/auth/login`.
+        SPA never reads or writes this cookie directly; it relies on the
+        browser to attach it to every same-origin request. `openapi-fetch`
+        client must set `credentials: "include"` globally.
+
+  responses:
+    BadRequest:
+      description: Invalid input.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorDetail' }
+          example: { detail: invalid range }
+    Unauthorized:
+      description: Missing or invalid session cookie.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorDetail' }
+          example: { detail: unauthorized }
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorDetail' }
+          example: { detail: not found }
+    ServiceUnavailable:
+      description: Upstream device unreachable (camera daemon, Kasa).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorDetail' }
+          example: { detail: camera daemon unreachable }
+
+  schemas:
+
+    # ---- Common ----
+
+    ErrorDetail:
+      type: object
+      additionalProperties: false
+      required: [detail]
+      properties:
+        detail: { type: string }
+
+    BandStatus:
+      type: string
+      enum: [ok, warn, crit]
+
+    Stage:
+      type: string
+      enum: [veg, flower_early, flower_late]
+
+    Range:
+      type: string
+      enum: [1h, 24h, 7d]
+
+    SensorMetric:
+      type: string
+      enum:
+        - temperature_f
+        - humidity_pct
+        - vpd_kpa
+        - dew_point_f
+        - pressure_hpa
+        - fan_pct
+        - reservoir_in
+
+    PlantCode:
+      type: string
+      enum: [a, b, c, d]
+      description: Stable lowercase letter; URL path param.
+
+    PlantStatus:
+      type: string
+      enum: [primary, secondary, retired]
+
+    PlantStickerColor:
+      type: string
+      enum: [yellow, orange, pink, blue]
+
+    DeviceStatusKind:
+      type: string
+      enum: [ok, listening, warn, offline]
+
+    HistoryPoint:
+      type: object
+      additionalProperties: false
+      required: [ts, value]
+      properties:
+        ts: { type: string, format: date-time }
+        value: { type: number }
+
+    # ---- Auth ----
+
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [username, password]
+      properties:
+        username: { type: string, minLength: 1 }
+        password: { type: string, minLength: 1 }
+
+    User:
+      type: object
+      additionalProperties: false
+      required: [username]
+      properties:
+        username: { type: string }
+
+    # ---- Grow ----
+
+    LightsState:
+      type: object
+      additionalProperties: false
+      required: [on, on_local, off_local, minutes_until_off, minutes_until_on]
+      properties:
+        on: { type: boolean }
+        on_local:
+          type: string
+          description: Local-time HH:MM:SS (tent timezone).
+          example: '05:00:00'
+        off_local:
+          type: string
+          description: Local-time HH:MM:SS (tent timezone).
+          example: '23:00:00'
+        minutes_until_off:
+          type: number
+          description: Always-positive countdown to next lights-off.
+        minutes_until_on:
+          type: number
+          description: Always-positive countdown to next lights-on.
+
+    GrowCurrent:
+      type: object
+      additionalProperties: false
+      required:
+        - germination_date
+        - flower_start_date
+        - day_number
+        - grow_week_number
+        - flower_week_number
+        - stage
+        - strain
+        - location
+        - plant_count
+        - lights
+      properties:
+        germination_date: { type: string, format: date }
+        flower_start_date:
+          oneOf: [{ type: string, format: date }, { type: 'null' }]
+        day_number:
+          type: integer
+          minimum: 1
+          description: today − germination_date + 1
+        grow_week_number:
+          type: integer
+          minimum: 1
+          description: 1-indexed since germination_date (week 1 = days 1–7).
+        flower_week_number:
+          oneOf: [{ type: integer, minimum: 1 }, { type: 'null' }]
+          description: 1-indexed since flower_start_date; null while in veg.
+        stage: { $ref: '#/components/schemas/Stage' }
+        strain: { type: string }
+        location: { type: string }
+        plant_count: { type: integer, minimum: 0 }
+        lights: { $ref: '#/components/schemas/LightsState' }
+
+    # ---- Sensors ----
+
+    TargetBand:
+      type: array
+      description: '[lo, hi] target band; null if no band defined for this metric/stage.'
+      minItems: 2
+      maxItems: 2
+      items: { type: number }
+
+    MetricEnvelope:
+      type: object
+      additionalProperties: false
+      required: [value, unit, target, status, ts]
+      properties:
+        value: { type: number }
+        unit: { type: string }
+        target:
+          oneOf:
+            - { $ref: '#/components/schemas/TargetBand' }
+            - { type: 'null' }
+        status: { $ref: '#/components/schemas/BandStatus' }
+        ts: { type: string, format: date-time }
+
+    SensorsCurrent:
+      type: object
+      additionalProperties: false
+      required: [ts, stale, metrics]
+      properties:
+        ts: { type: string, format: date-time }
+        stale:
+          type: boolean
+          description: Sensor-stuck flag (is_sensor_stale()).
+        metrics:
+          type: object
+          additionalProperties: false
+          required:
+            - temperature_f
+            - humidity_pct
+            - vpd_kpa
+            - fan_pct
+            - reservoir_in
+          properties:
+            temperature_f: { $ref: '#/components/schemas/MetricEnvelope' }
+            humidity_pct:  { $ref: '#/components/schemas/MetricEnvelope' }
+            vpd_kpa:       { $ref: '#/components/schemas/MetricEnvelope' }
+            fan_pct:       { $ref: '#/components/schemas/MetricEnvelope' }
+            reservoir_in:  { $ref: '#/components/schemas/MetricEnvelope' }
+
+    SensorsHistoryResponse:
+      type: object
+      additionalProperties: false
+      required: [range, metric, unit, points]
+      properties:
+        range: { $ref: '#/components/schemas/Range' }
+        metric: { $ref: '#/components/schemas/SensorMetric' }
+        unit: { type: string }
+        points:
+          type: array
+          items: { $ref: '#/components/schemas/HistoryPoint' }
+
+    # ---- Humidifier ----
+
+    HumidifierState:
+      type: object
+      additionalProperties: false
+      required: [on, since, duration_s, cycles_24h, ts]
+      properties:
+        on: { type: boolean }
+        since:
+          type: string
+          format: date-time
+          description: Timestamp of the last transition.
+        duration_s:
+          type: integer
+          minimum: 0
+          description: Seconds since `since`.
+        cycles_24h:
+          type: integer
+          minimum: 0
+          description: Off→on transitions in the last 24h.
+        ts: { type: string, format: date-time }
+
+    HumidifierTransition:
+      type: object
+      additionalProperties: false
+      required: [ts, on]
+      properties:
+        ts: { type: string, format: date-time }
+        on: { type: boolean }
+
+    HumidifierHistory:
+      type: object
+      additionalProperties: false
+      required: [range, points]
+      properties:
+        range: { $ref: '#/components/schemas/Range' }
+        points:
+          type: array
+          items: { $ref: '#/components/schemas/HumidifierTransition' }
+
+    # ---- Plants ----
+
+    Plant:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - name
+        - sticker_color
+        - status
+        - purple
+        - moisture_pct
+        - moisture_ts
+      properties:
+        code: { $ref: '#/components/schemas/PlantCode' }
+        name: { type: string }
+        sticker_color: { $ref: '#/components/schemas/PlantStickerColor' }
+        status: { $ref: '#/components/schemas/PlantStatus' }
+        purple: { type: boolean }
+        moisture_pct:
+          oneOf: [{ type: number }, { type: 'null' }]
+          description: Latest calibrated soil moisture %; null if no calibration.
+        moisture_ts:
+          oneOf: [{ type: string, format: date-time }, { type: 'null' }]
+
+    PlantsResponse:
+      type: object
+      additionalProperties: false
+      required: [day, plants]
+      properties:
+        day: { type: integer, minimum: 1 }
+        plants:
+          type: array
+          items: { $ref: '#/components/schemas/Plant' }
+
+    PlantMoistureCurrent:
+      type: object
+      additionalProperties: false
+      required: [current_pct, target, status, ts]
+      properties:
+        current_pct:
+          oneOf: [{ type: number }, { type: 'null' }]
+        target:
+          oneOf:
+            - { $ref: '#/components/schemas/TargetBand' }
+            - { type: 'null' }
+        status: { $ref: '#/components/schemas/BandStatus' }
+        ts:
+          oneOf: [{ type: string, format: date-time }, { type: 'null' }]
+
+    TimelineEntry:
+      type: object
+      additionalProperties: false
+      required: [date, day, text, highlight]
+      properties:
+        date: { type: string, format: date }
+        day: { type: integer, minimum: 1 }
+        text: { type: string }
+        highlight: { type: boolean }
+
+    PlantNote:
+      type: object
+      additionalProperties: false
+      required: [text, updated]
+      properties:
+        text: { type: string }
+        updated: { type: string, format: date }
+
+    PlantDetail:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - name
+        - sticker_color
+        - status
+        - purple
+        - day
+        - label
+        - moisture
+        - timeline
+        - note
+        - wiki_path
+      properties:
+        code: { $ref: '#/components/schemas/PlantCode' }
+        name: { type: string }
+        sticker_color: { $ref: '#/components/schemas/PlantStickerColor' }
+        status: { $ref: '#/components/schemas/PlantStatus' }
+        purple: { type: boolean }
+        day: { type: integer, minimum: 1 }
+        label: { type: string }
+        moisture: { $ref: '#/components/schemas/PlantMoistureCurrent' }
+        timeline:
+          type: array
+          items: { $ref: '#/components/schemas/TimelineEntry' }
+        note:
+          oneOf:
+            - { $ref: '#/components/schemas/PlantNote' }
+            - { type: 'null' }
+        wiki_path: { type: string }
+
+    PlantMoistureHistory:
+      type: object
+      additionalProperties: false
+      required: [code, range, unit, target, points, irrigation_events_24h]
+      properties:
+        code: { $ref: '#/components/schemas/PlantCode' }
+        range: { $ref: '#/components/schemas/Range' }
+        unit: { type: string }
+        target:
+          oneOf:
+            - { $ref: '#/components/schemas/TargetBand' }
+            - { type: 'null' }
+        points:
+          type: array
+          items: { $ref: '#/components/schemas/HistoryPoint' }
+        irrigation_events_24h:
+          type: integer
+          minimum: 0
+
+    # ---- System ----
+
+    DeviceStatus:
+      type: object
+      additionalProperties: false
+      required: [name, kind, status, last_seen]
+      properties:
+        name: { type: string }
+        kind:
+          type: string
+          enum: [env_sensor, moisture_node, camera, voice, actuator]
+        status: { $ref: '#/components/schemas/DeviceStatusKind' }
+        last_seen:
+          oneOf: [{ type: string, format: date-time }, { type: 'null' }]
+        note:
+          oneOf: [{ type: string }, { type: 'null' }]
+
+    DevicesResponse:
+      type: object
+      additionalProperties: false
+      required: [ts, devices]
+      properties:
+        ts: { type: string, format: date-time }
+        devices:
+          type: array
+          items: { $ref: '#/components/schemas/DeviceStatus' }
+
+    # ---- PTZ ----
+
+    PTZPreset:
+      type: object
+      additionalProperties: false
+      required: [id, label, description, yaw, pitch, zoom]
+      properties:
+        id: { type: string }
+        label: { type: string }
+        description: { type: string }
+        yaw:
+          type: number
+          description: Motor-frame degrees (same convention as PTZState.yaw).
+        pitch:
+          type: number
+          description: Motor-frame degrees (same convention as PTZState.pitch).
+        zoom: { type: number }
+        sticker_color:
+          oneOf:
+            - { $ref: '#/components/schemas/PlantStickerColor' }
+            - { type: 'null' }
+
+    PTZState:
+      type: object
+      additionalProperties: false
+      required: [connected, yaw, pitch, zoom, preset, presets]
+      properties:
+        connected: { type: boolean }
+        yaw: { type: number }
+        pitch: { type: number }
+        zoom: { type: number }
+        preset:
+          oneOf: [{ type: string }, { type: 'null' }]
+          description: Current preset id, or null if not at one (~2° tolerance).
+        presets:
+          type: array
+          items: { $ref: '#/components/schemas/PTZPreset' }
+
+    PTZApplied:
+      type: object
+      additionalProperties: false
+      required: [ok, yaw, pitch, zoom, preset]
+      properties:
+        ok: { type: boolean }
+        yaw: { type: number }
+        pitch: { type: number }
+        zoom: { type: number }
+        preset:
+          oneOf: [{ type: string }, { type: 'null' }]
+
+    PTZLookRequest:
+      type: object
+      additionalProperties: false
+      required: [x, y]
+      properties:
+        x:
+          type: number
+          minimum: -0.5
+          maximum: 0.5
+          description: Normalized horizontal click (frame center = 0).
+        y:
+          type: number
+          minimum: -0.5
+          maximum: 0.5
+          description: Normalized vertical click (frame center = 0).
+
+    PTZZoomRequest:
+      type: object
+      additionalProperties: false
+      description: Provide exactly one of `zoom` (absolute) or `delta` (relative).
+      properties:
+        zoom:
+          type: number
+          minimum: 1
+          maximum: 4
+        delta:
+          type: number
+
+    PTZZoomResponse:
+      type: object
+      additionalProperties: false
+      required: [ok, zoom]
+      properties:
+        ok: { type: boolean }
+        zoom: { type: number }
+
+    # ---- Wiki ----
+
+    WikiTreeFile:
+      type: object
+      additionalProperties: false
+      required: [type, name, path, title]
+      properties:
+        type: { type: string, enum: [file] }
+        name: { type: string }
+        path: { type: string }
+        title: { type: string }
+        sticker_color:
+          oneOf:
+            - { $ref: '#/components/schemas/PlantStickerColor' }
+            - { type: 'null' }
+
+    WikiTreeFolder:
+      type: object
+      additionalProperties: false
+      required: [type, name, children]
+      properties:
+        type: { type: string, enum: [folder] }
+        name: { type: string }
+        children:
+          type: array
+          items: { $ref: '#/components/schemas/WikiTreeNode' }
+
+    WikiTreeNode:
+      oneOf:
+        - { $ref: '#/components/schemas/WikiTreeFile' }
+        - { $ref: '#/components/schemas/WikiTreeFolder' }
+      discriminator:
+        propertyName: type
+        mapping:
+          file: '#/components/schemas/WikiTreeFile'
+          folder: '#/components/schemas/WikiTreeFolder'
+
+    WikiTreeResponse:
+      type: object
+      additionalProperties: false
+      required: [tree]
+      properties:
+        tree:
+          type: array
+          items: { $ref: '#/components/schemas/WikiTreeNode' }
+
+    WikiBacklink:
+      type: object
+      additionalProperties: false
+      required: [path, title]
+      properties:
+        path: { type: string }
+        title: { type: string }
+
+    WikiFile:
+      type: object
+      additionalProperties: false
+      required: [path, title, frontmatter, body_markdown, backlinks]
+      properties:
+        path: { type: string }
+        title: { type: string }
+        subtitle:
+          oneOf: [{ type: string }, { type: 'null' }]
+          description: First italic line of body, if present.
+        frontmatter:
+          type: object
+          additionalProperties: true
+          description: YAML frontmatter parsed verbatim.
+        body_markdown:
+          type: string
+          description: Raw markdown body; SPA renders with react-markdown.
+        backlinks:
+          type: array
+          items: { $ref: '#/components/schemas/WikiBacklink' }
+
+    WikiSearchResult:
+      type: object
+      additionalProperties: false
+      required: [path, title, match_type]
+      properties:
+        path: { type: string }
+        title: { type: string }
+        match_type:
+          type: string
+          enum: [title, path, content]
+        snippet:
+          oneOf: [{ type: string }, { type: 'null' }]
+
+    WikiSearchResponse:
+      type: object
+      additionalProperties: false
+      required: [q, results]
+      properties:
+        q: { type: string }
+        results:
+          type: array
+          items: { $ref: '#/components/schemas/WikiSearchResult' }
