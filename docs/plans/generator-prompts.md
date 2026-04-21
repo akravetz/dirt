@@ -648,8 +648,15 @@ rubber-stamp it. Bias hard the other way:
 # Step 1 — off-limits re-verification (before any functional check)
 
     cd {{WORKTREE_PATH}}
-    git fetch origin main
-    git diff --name-only origin/main...HEAD
+    git diff --name-only main...HEAD
+
+Diff against LOCAL `main`, not `origin/main`. The orchestrator runs
+locally; local main is the authoritative base. Push cadence often lags
+(pilots, work-in-progress, etc.), so origin/main may be stale relative
+to local main by many commits. A diff against origin/main would
+falsely surface those unpushed human-authored commits as worktree
+changes. If local `main` itself is stale relative to what you expect,
+that is an orchestrator/human issue, not something you resolve.
 
 Fail immediately if the diff touches any path matching the
 `off_limits` list in docs/plans/webapp-rewrite.json:
