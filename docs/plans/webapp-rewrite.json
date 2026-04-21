@@ -140,7 +140,7 @@
       "depends_on": [],
       "user_story": "GET /api/sensors/current returns the five-metric envelope with target bands, statuses, and a stale flag.",
       "endpoints": [["GET", "/api/sensors/current"]],
-      "implementation_notes": "Compose ReadingsService.get_latest_reading + grow_state.STAGE_TARGETS + grow_state.band_status. fan_pct / reservoir_in come from MockSensorProvider (mock_sensors.py).",
+      "implementation_notes": "Compose ReadingsService.get_latest_reading + grow_state.STAGE_TARGETS + grow_state.band_status. fan_pct / reservoir_in come from the pure helpers in mock_sensors.py (get_fan_pct / get_reservoir_in) — no provider class, just stateless functions keyed on ts.",
       "removes_legacy": [["GET", "/sensors/current"]],
       "acceptance": [
         { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/sensors/current removed; LEGACY_ROUTES entry for /sensors/current removed." },
@@ -253,7 +253,7 @@
       "depends_on": [],
       "user_story": "GET /api/plants/{code} returns the full drawer payload (label / moisture / timeline / note / wiki_path).",
       "endpoints": [["GET", "/api/plants/{code}"]],
-      "implementation_notes": "PlantDetailService.get_plant_detail(code) parses wiki/plants/plant-{code}.md frontmatter + Timeline + Current State. Result shaped per contract.",
+      "implementation_notes": "PlantDetailService.get(code) parses wiki/plants/plant-{code}.md frontmatter + Timeline + Current State. Result shaped per contract.",
       "acceptance": [
         { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/plants/{code} removed." },
         { "kind": "unit", "path": "apps/web/tests/test_plants_detail_endpoint.py" }
