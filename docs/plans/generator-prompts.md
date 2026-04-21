@@ -385,6 +385,139 @@ client via prop or context.
 
 ---
 
+## Capturing screenshots with agent-browser
+
+Both the FE generator (verifying its own rendered output) and the
+Evaluator (comparing against `docs/plans/refs/*.png`) will use
+`agent-browser` to take screenshots. Several non-obvious gotchas
+were discovered during the prep phase — apply this protocol verbatim
+unless you have a reason to deviate.
+
+### The core problem
+
+The mockup and the `web-ui/` SPA both use a layout where the page
+content scrolls inside an inner container, not the document body:
+
+```css
+.app-root  { min-height: 100vh; display: flex; flex-direction: column; }
+.main      { overflow: auto; flex: 1; }   /* this is what scrolls */
+```
+
+The default Chromium viewport is roughly 1280×633. Calling
+`agent-browser screenshot --full <out>` captures the document scroll
+surface. But the document doesn't scroll — `.main` does, internally.
+So `--full` returns a viewport-sized image (1280×633) with everything
+below the fold silently clipped.
+
+### The protocol
+
+For each screen you want to capture:
+
+```bash
+# 1. Set viewport tall enough that any reasonable screen fits
+agent-browser set viewport 1280 2800
+agent-browser wait 500
+
+# 2. Measure the actual content bottom for the screen you're on
+#    (max of the content selectors — see table below)
+H=$(agent-browser eval "Math.max(
+  document.querySelector('.dash')?.getBoundingClientRect().bottom || 0,
+  document.querySelector('.syscard')?.getBoundingClientRect().bottom || 0
+)" | tail -1 | tr -d '"')
+
+# 3. Resize viewport to fit content + ~30px margin
+agent-browser set viewport 1280 $((${H%.*} + 30))
+agent-browser wait 400
+
+# 4. Now --full actually works because the content fits in the viewport
+agent-browser screenshot --full docs/plans/refs/<screen>.png
+```
+
+### Per-screen content selectors
+
+Use these to measure the content bottom for each route. Pass the
+union of the listed selectors to the `Math.max(...)` eval.
+
+| Screen | Selectors |
+|---|---|
+| `/login` | `.app-root` (or any login form root) |
+| `/` (Dashboard) | `.dash`, `.syscard` |
+| Plant detail drawer | `.pd-links` (last child of the drawer) |
+| `/live` | `.live-feed`, `.live-controls` |
+| `/wiki` | `.wiki-sidebar`, `.wiki-doc` |
+| Wiki Cmd+K palette open | same as `/wiki` (palette is fixed overlay) |
+
+Your FE feature's selectors will be different from the mockup — adjust
+this list as you build new components.
+
+### Other things that bit the prep agent
+
+1. **Don't trust `@eN` accessibility refs across navigation.** They
+   re-number after every state change (tab switch, modal open). For
+   tab navigation, use a JS click instead of `agent-browser click @eN`:
+   ```bash
+   agent-browser eval "document.querySelectorAll('.tab-btn')[1].click()"
+   ```
+   In the mockup specifically, ref-based clicks sometimes did not
+   trigger React's onClick — JS click via `querySelectorAll` was more
+   reliable. Your real SPA uses TanStack Router; click via a
+   route-specific selector or use `agent-browser open <url>` to
+   navigate directly.
+
+2. **Drawer / modal state leaks across screen changes.** If you open
+   the Plant detail drawer and then navigate to /live without
+   closing it first, the drawer overlay carries over and contaminates
+   the next screenshot. Cheapest reset: `agent-browser open <url>`
+   (full reload) between distinct captures. Don't rely on
+   `agent-browser press Escape` — it works sometimes, full reload
+   always works.
+
+3. **Auth state persists in cookies (or localStorage in the
+   prototype).** To re-capture a logged-out screen, clear the
+   relevant storage and reload:
+   ```bash
+   agent-browser eval "localStorage.clear()"
+   # For your real SPA, clear the dirt_session cookie:
+   agent-browser eval "document.cookie = 'dirt_session=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/'"
+   agent-browser open <url>
+   ```
+
+4. **Wait briefly between actions.** React re-renders are async; a
+   click that returns "✓ Done" may not have produced its DOM update
+   yet when the next command runs. `agent-browser wait 500` to
+   `wait 1000` covers nearly all cases. The `wait` command takes
+   either a selector (waits for it to exist) or a millisecond count.
+
+5. **`agent-browser set viewport <w> <h>`**, not `agent-browser viewport`
+   (which is a settings-help noun, not a command).
+
+6. **Element-level screenshots (`agent-browser screenshot <selector>
+   <path>`) sound clean but don't help with the inner-scroll problem
+   either** — passing `.app-root` returns the viewport-sized
+   bounding rect of `.app-root`, not its scrollHeight. Stick with the
+   resize-and-fit protocol above.
+
+### Comparing to a reference
+
+For the Evaluator's `kind: visual` acceptance check, compare your
+captured PNG to `docs/plans/refs/<feature>.png`:
+
+```bash
+# Same viewport height as the reference, then capture
+REF_H=$(identify -format "%h" docs/plans/refs/dashboard.png)
+agent-browser set viewport 1280 ${REF_H}
+agent-browser wait 400
+agent-browser screenshot --full /tmp/dashboard-actual.png
+# Visual diff — pixelmatch or compare from imagemagick
+compare -metric AE /tmp/dashboard-actual.png docs/plans/refs/dashboard.png /tmp/diff.png
+```
+
+Threshold for "matches reference" is a judgement call; ~1% pixel
+difference accommodates anti-aliasing variance, font rendering
+differences, etc. Investigate anything beyond that.
+
+---
+
 ## Example: spawn one BE + one FE in parallel
 
 ```
