@@ -17,18 +17,13 @@ from pathlib import Path
 from typing import Any
 
 from claude_agent_sdk import (
-    AssistantMessage,
     ClaudeAgentOptions,
     ClaudeSDKError,
     CLINotFoundError,
-    ResultMessage,
-    TextBlock,
-    ToolResultBlock,
     ToolUseBlock,
-    UserMessage,
-    query,
 )
 
+from dirt_shared.agent_trace import AgentTraceState, collect_agent_trace
 from dirt_shared.observability import log_event
 from dirt_shared.services.grow_state import GrowStateService
 from dirt_voice.tools import ToolSpec
@@ -84,70 +79,33 @@ def build_wiki_tools(*, grow: GrowStateService) -> list[ToolSpec]:
             f"Question: {question}"
         )
 
-        trace: list[dict[str, Any]] = []
-        final_text = ""
-        result_msg: ResultMessage | None = None
+        state = AgentTraceState()
         read_paths: list[str] = []
         started = time.monotonic()
 
-        async def run() -> None:
-            nonlocal final_text, result_msg
-            async for msg in query(prompt=prompt, options=options):
-                ts_ms = int((time.monotonic() - started) * 1000)
-                if isinstance(msg, AssistantMessage):
-                    turn: dict[str, Any] = {
-                        "role": "assistant",
-                        "ts_ms": ts_ms,
-                        "blocks": [],
-                    }
-                    for b in msg.content:
-                        if isinstance(b, TextBlock):
-                            turn["blocks"].append({"type": "text", "text": b.text})
-                            final_text = b.text
-                        elif isinstance(b, ToolUseBlock):
-                            turn["blocks"].append(
-                                {
-                                    "type": "tool_use",
-                                    "id": b.id,
-                                    "name": b.name,
-                                    "input": b.input,
-                                }
-                            )
-                            if b.name == "Read":
-                                fp = b.input.get("file_path")
-                                if isinstance(fp, str) and fp not in read_paths:
-                                    read_paths.append(fp)
-                    if turn["blocks"]:
-                        trace.append(turn)
-                elif isinstance(msg, UserMessage) and isinstance(msg.content, list):
-                    results = [
-                        {
-                            "tool_use_id": b.tool_use_id,
-                            "is_error": b.is_error,
-                            "content": b.content,
-                        }
-                        for b in msg.content
-                        if isinstance(b, ToolResultBlock)
-                    ]
-                    if results:
-                        trace.append(
-                            {
-                                "role": "tool_results",
-                                "ts_ms": ts_ms,
-                                "results": results,
-                            }
-                        )
-                elif isinstance(msg, ResultMessage):
-                    result_msg = msg
+        def _capture_read_path(b: ToolUseBlock) -> None:
+            if b.name == "Read":
+                fp = b.input.get("file_path")
+                if isinstance(fp, str) and fp not in read_paths:
+                    read_paths.append(fp)
 
         try:
-            await asyncio.wait_for(run(), timeout=_TIMEOUT_S)
+            await asyncio.wait_for(
+                collect_agent_trace(
+                    prompt=prompt,
+                    options=options,
+                    started=started,
+                    state=state,
+                    on_tool_use=_capture_read_path,
+                ),
+                timeout=_TIMEOUT_S,
+            )
         except TimeoutError:
             log_event(
                 "subagent_calls",
                 "ask_wiki",
                 question=question,
-                trace=trace,
+                trace=state.trace,
                 error="timeout",
                 duration_ms=int((time.monotonic() - started) * 1000),
                 sources=read_paths,
@@ -160,16 +118,19 @@ def build_wiki_tools(*, grow: GrowStateService) -> list[ToolSpec]:
                 "subagent_calls",
                 "ask_wiki",
                 question=question,
-                trace=trace,
+                trace=state.trace,
                 error=str(e),
                 duration_ms=int((time.monotonic() - started) * 1000),
                 sources=read_paths,
             )
             return {"error": str(e), "answer": ""}
 
+        result_msg = state.result
         # Prefer ResultMessage.result over trailing TextBlock.
         answer = (
-            result_msg.result if result_msg and result_msg.result else final_text or ""
+            result_msg.result
+            if result_msg and result_msg.result
+            else state.final_text or ""
         )
         error_text = result_msg.result if (result_msg and result_msg.is_error) else None
 
@@ -177,7 +138,7 @@ def build_wiki_tools(*, grow: GrowStateService) -> list[ToolSpec]:
             "subagent_calls",
             "ask_wiki",
             question=question,
-            trace=trace,
+            trace=state.trace,
             answer=answer if not error_text else None,
             error=error_text,
             duration_ms=int((time.monotonic() - started) * 1000),

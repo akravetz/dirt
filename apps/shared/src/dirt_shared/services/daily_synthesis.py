@@ -19,19 +19,12 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from claude_agent_sdk import (
-    AssistantMessage,
     ClaudeAgentOptions,
     ClaudeSDKError,
     CLINotFoundError,
-    ResultMessage,
-    TextBlock,
-    ThinkingBlock,
-    ToolResultBlock,
-    ToolUseBlock,
-    UserMessage,
-    query,
 )
 
+from dirt_shared.agent_trace import AgentTraceState, collect_agent_trace
 from dirt_shared.observability import log_event
 
 logger = logging.getLogger(__name__)
@@ -149,72 +142,20 @@ class ClaudeSynthesisRunner:
 
         prompt = self._build_prompt(target_date, photo_paths, sensor_payload)
 
-        trace: list[dict[str, Any]] = []
-        final_text: str | None = None
-        result_msg: ResultMessage | None = None
+        state = AgentTraceState()
         started = time.monotonic()
-
-        async def run_inner() -> None:
-            nonlocal final_text, result_msg
-            async for msg in query(prompt=prompt, options=options):
-                ts_ms = int((time.monotonic() - started) * 1000)
-                if isinstance(msg, AssistantMessage):
-                    turn: dict[str, Any] = {
-                        "role": "assistant",
-                        "ts_ms": ts_ms,
-                        "blocks": [],
-                    }
-                    for b in msg.content:
-                        if isinstance(b, TextBlock):
-                            turn["blocks"].append({"type": "text", "text": b.text})
-                            final_text = b.text
-                        elif isinstance(b, ThinkingBlock):
-                            # Full thinking text — diagnostic record of why
-                            # the synthesis took the time it did. Do not
-                            # truncate; storage is cheap, replaying a slow
-                            # run is not.
-                            turn["blocks"].append(
-                                {
-                                    "type": "thinking",
-                                    "thinking": b.thinking,
-                                    "signature": b.signature,
-                                }
-                            )
-                        elif isinstance(b, ToolUseBlock):
-                            turn["blocks"].append(
-                                {
-                                    "type": "tool_use",
-                                    "id": b.id,
-                                    "name": b.name,
-                                    "input": b.input,
-                                }
-                            )
-                    if turn["blocks"]:
-                        trace.append(turn)
-                elif isinstance(msg, UserMessage) and isinstance(msg.content, list):
-                    results = [
-                        {
-                            "tool_use_id": b.tool_use_id,
-                            "is_error": b.is_error,
-                            "content": b.content,
-                        }
-                        for b in msg.content
-                        if isinstance(b, ToolResultBlock)
-                    ]
-                    if results:
-                        trace.append(
-                            {
-                                "role": "tool_results",
-                                "ts_ms": ts_ms,
-                                "results": results,
-                            }
-                        )
-                elif isinstance(msg, ResultMessage):
-                    result_msg = msg
 
         error: str | None = None
         try:
-            await asyncio.wait_for(run_inner(), timeout=self._timeout_s)
+            await asyncio.wait_for(
+                collect_agent_trace(
+                    prompt=prompt,
+                    options=options,
+                    started=started,
+                    state=state,
+                ),
+                timeout=self._timeout_s,
+            )
         except TimeoutError:
             error = "timeout"
         except CLINotFoundError as e:
@@ -222,6 +163,9 @@ class ClaudeSynthesisRunner:
         except ClaudeSDKError as e:
             error = f"sdk_error: {e}"
 
+        trace = state.trace
+        final_text = state.final_text
+        result_msg = state.result
         duration_s = time.monotonic() - started
         daily_file = self._wiki_root / "daily" / f"{target_date.isoformat()}.md"
 
