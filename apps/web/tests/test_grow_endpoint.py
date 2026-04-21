@@ -6,7 +6,7 @@ ASGI stack with an isolated Postgres DB and assert the JSON response
 deserializes into the generated Pydantic ``GrowCurrent`` model.
 """
 
-from datetime import date, time
+from datetime import UTC, date, datetime, time, timedelta
 
 import pytest
 from dirt_contracts.webapp_v1.models import GrowCurrent, Stage
@@ -80,10 +80,7 @@ async def test_grow_current_returns_contract_shape(client: AsyncClient, app_engi
     await _update_current_grow(app_engine)
     response = await client.get("/api/grow/current")
     assert response.status_code == 200
-    payload = response.json()
-
-    # Response deserializes cleanly into the generated contract model.
-    model = GrowCurrent.model_validate(payload)
+    model = GrowCurrent.model_validate(response.json())
 
     assert model.germination_date == date(2026, 3, 15)
     assert model.flower_start_date is None
@@ -102,8 +99,6 @@ async def test_grow_current_returns_contract_shape(client: AsyncClient, app_engi
 
 async def test_grow_current_flower_stage_derivation(client: AsyncClient, app_engine):
     # Flower start 30 days ago → stage = flower_late (≥21 days in flower).
-    from datetime import UTC, datetime, timedelta
-
     today = datetime.now(UTC).date()
     flower_start = today - timedelta(days=30)
     await _update_current_grow(
