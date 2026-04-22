@@ -62,7 +62,7 @@
     "build": "cd web-ui && pnpm build produces a dist/ tree without errors.",
     "vitest": "cd web-ui && pnpm test passes (unit tests for components / lib).",
     "agent-browser": "Driving the live :8001 stack with the script at acceptance.script must satisfy every assertion the script encodes; no console errors; expected network requests observed.",
-    "visual": "Rendered output matches the reference screenshot under acceptance.reference_screenshot to within Pixelmatch threshold (TBD — evaluator decides)."
+    "visual": "Rendered output matches the reference screenshot under acceptance.reference_screenshot to within the pixel-diff threshold. Default: ≤1% pass / 1-3% inspect / >3% fail. Per-feature override: set acceptance[].threshold_pct to a number (e.g. 8) to widen the pass band to ≤N%; inspect runs N–2N; fail is >2N. Use for data-driven visuals where the reference and live render will diverge in pixel-level details (gauge needle positions, sparkline shapes) but the component-level layout must still match."
   },
 
   "feature_status_legend": {
@@ -88,6 +88,34 @@
         { "kind": "build" }
       ],
       "status": "done"
+    },
+    {
+      "id": "frontend.mocks.setup",
+      "lane": "frontend",
+      "depends_on": ["frontend.app.shell"],
+      "user_story": "Wire MSW v2 into the dev + test pipelines so FE features can build in parallel with their BE counterparts. Each future FE feature registers an endpoint handler against a typed fixture; dev-mode Vite (:5173) serves the mock via a browser Service Worker; prod build (served by FastAPI on :8001) tree-shakes MSW entirely so production hits real APIs. No per-feature wire-up step at BE merge time — the same component code talks to the mock in dev and the real endpoint in prod.",
+      "files": [
+        "web-ui/src/mocks/browser.ts",
+        "web-ui/src/mocks/server.ts",
+        "web-ui/src/mocks/handlers.ts",
+        "web-ui/public/mockServiceWorker.js",
+        "web-ui/src/main.tsx",
+        "web-ui/vitest.config.ts",
+        "web-ui/src/test-setup.ts",
+        "web-ui/package.json",
+        "web-ui/invariants/eslint.config.ts"
+      ],
+      "implementation_notes": "Read docs/references/msw-v2/INDEX.md in full before writing any code. (a) Install msw as a devDependency. (b) Run `pnpm exec msw init web-ui/public --save` ONCE; commit the generated web-ui/public/mockServiceWorker.js (required for browser-mode; not gitignored; regenerated only on MSW major upgrades). (c) handlers.ts exports a `handlers: RequestHandler[]` array that starts empty — future FE features append their handlers here. (d) browser.ts: `setupWorker(...handlers)` from msw/browser. server.ts: `setupServer(...handlers)` from msw/node. (e) main.tsx: wrap the existing ReactDOM.createRoot render in an `enableMocking()` call that, gated by `if (import.meta.env.DEV)`, dynamically imports `./mocks/browser` and calls `worker.start({ onUnhandledRequest: 'bypass' })`. The DEV gate + dynamic import are what let the prod bundle tree-shake MSW out — don't statically import the mocks module from main.tsx. (f) Introduce Vitest (the project didn't have it yet): vitest.config.ts extends vite.config + sets up jsdom environment, test.setupFiles pointing at src/test-setup.ts. test-setup.ts does the node-mode MSW lifecycle (listen / resetHandlers / close) with `onUnhandledRequest: 'error'`. (g) Add a new element-type `mocks` to the web-ui/invariants/eslint.config.ts boundaries rule, pinned to `src/mocks/**`. The rule allows ONLY src/main.tsx and test files (src/**/*.test.{ts,tsx} + src/test-setup.ts) to import from mocks; ui/routes/api-client/shared/features MUST NOT. Because web-ui/invariants is human-owned, describe the eslint.config.ts change precisely in NOTES.md — do NOT edit the invariants file directly; surface this as a planner-escalation item if the invariant needs to change.",
+      "removes_legacy": [],
+      "acceptance": [
+        { "kind": "lint" },
+        { "kind": "typecheck" },
+        { "kind": "knip" },
+        { "kind": "build", "description": "Prod bundle MUST tree-shake MSW out. Verify: `grep -rli 'mock-service-worker\\|msw' web-ui/dist/` returns no matches (or only the mockServiceWorker.js copy in dist/, which is a static asset not referenced by the bundle)." },
+        { "kind": "vitest", "description": "Smoke test at web-ui/src/mocks/__tests__/handlers.test.ts: register an http.get handler for /api/__smoke, fetch it, assert the mocked body. Confirms handlers.ts + server.ts wiring are correct and Vitest + MSW node-mode are live." },
+        { "kind": "invariant", "description": "Demonstrate the boundaries rule rejects a forbidden import: add a throwaway file under web-ui/src/ui/ that imports from src/mocks/ and confirm `pnpm lint` fails with the expected boundaries error; then remove the throwaway file. Record the lint error message in NOTES.md as evidence. (Alternatively, if the planner has landed the invariant edit out-of-band, just confirm the forbidden-import pattern fails lint.)" }
+      ],
+      "status": "pending"
     },
     {
       "id": "backend.auth",
@@ -118,7 +146,7 @@
       "files": ["web-ui/src/routes/login.tsx", "web-ui/src/ui/LoginScreen.tsx"],
       "acceptance": [
         { "kind": "agent-browser", "script": "docs/plans/evaluator-checks/login.sh", "description": "open /login, snapshot, assert hardcoded field-notes block; submit with bad creds → 401 visible; submit with good creds → routed to /; cookie set." },
-        { "kind": "visual", "reference_screenshot": "docs/plans/refs/login-botanical.png" }
+        { "kind": "visual", "reference_screenshot": "docs/plans/refs/login.png" }
       ],
       "status": "pending"
     },
