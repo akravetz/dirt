@@ -17,6 +17,7 @@ from dirt_shared.db import ping
 from dirt_web.api.auth import router as auth_router
 from dirt_web.api.feed import router as feed_router
 from dirt_web.api.grow import router as grow_router
+from dirt_web.api.humidifier import router as humidifier_router
 from dirt_web.api.sensors import router as sensors_router
 from dirt_web.api.snapshots import router as snapshots_router
 from dirt_web.auth import AuthMiddleware, SessionManager
@@ -105,6 +106,7 @@ def create_app(
     app.include_router(feed_router)
     app.include_router(sensors_router)
     app.include_router(grow_router)
+    app.include_router(humidifier_router)
     if mcp_app is not None:
         app.mount("/mcp", mcp_app)
 

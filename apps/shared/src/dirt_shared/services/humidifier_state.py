@@ -61,6 +61,17 @@ class HumidifierStateService:
         self._engine = engine
         self._clock = clock
 
+    def now(self) -> datetime:
+        """UTC ``datetime`` from the injected clock — test seam.
+
+        Route handlers that need a cutoff relative to "now" (the history
+        endpoint subtracts a ``Range`` delta) read it from here so the
+        only concrete ``datetime.now()`` in production code stays inside
+        the service — see
+        ``apps/tests/invariants/test_no_concrete_clock_in_production.py``.
+        """
+        return self._clock()
+
     async def get_state(self) -> HumidifierState:
         """Current on/off + last-transition timestamp + duration + cycles_24h."""
         now = self._clock()

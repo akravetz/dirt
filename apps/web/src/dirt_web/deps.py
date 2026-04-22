@@ -20,6 +20,7 @@ from fastapi import Request
 
 from dirt_shared.config import Settings
 from dirt_shared.services.grow_state import GrowStateService
+from dirt_shared.services.humidifier_state import HumidifierStateService
 from dirt_shared.services.readings import ReadingsService
 from dirt_shared.services.snapshots import SnapshotsService
 
@@ -38,3 +39,7 @@ def get_readings(request: Request) -> ReadingsService:
 
 def get_grow(request: Request) -> GrowStateService:
     return request.app.state.grow
+
+
+def get_humidifier_state(request: Request) -> HumidifierStateService:
+    return request.app.state.humidifier_state
