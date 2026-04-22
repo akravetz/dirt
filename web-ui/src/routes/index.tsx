@@ -34,38 +34,25 @@ const api = createDirtApiClient();
 
 type SensorsCurrent = components["schemas"]["SensorsCurrent"];
 type MetricEnvelope = components["schemas"]["MetricEnvelope"];
-type SensorMetric = components["schemas"]["SensorMetric"];
-type SensorsHistoryResponse = components["schemas"]["SensorsHistoryResponse"];
 
-// Display order + labels for the five gauges. `key` picks the
-// envelope out of SensorsCurrent.metrics; `name` is the visible
-// heading + aria-label the e2e spec matches. `integer` drops the
+// Single source of truth for the dashboard's five metric tiles. The
+// gauges section indexes SensorsCurrent.metrics by `metric`; the
+// sparklines section below passes the same `metric` through as
+// /api/sensors/history's ?metric= query param (the openapi `SensorMetric`
+// enum is a superset — dew_point_f / pressure_hpa are valid history
+// metrics but not surfaced on the gauge envelope, so the tighter type
+// here is `keyof SensorsCurrent["metrics"]`). `integer` drops the
 // decimal on whole-percent and whole-unit metrics (fan_pct,
 // reservoir_in both read better as integers).
-const GAUGE_TILES: ReadonlyArray<{
-  key: keyof SensorsCurrent["metrics"];
+const METRIC_TILES: ReadonlyArray<{
+  metric: keyof SensorsCurrent["metrics"];
   name: string;
   integer?: boolean;
 }> = [
-  { key: "temperature_f", name: "Temperature" },
-  { key: "humidity_pct", name: "Humidity", integer: true },
-  { key: "vpd_kpa", name: "VPD" },
-  { key: "fan_pct", name: "Fan", integer: true },
-  { key: "reservoir_in", name: "Reservoir" },
-] as const;
-
-// Sparklines reuse the gauge ordering + display names for a 1:1 visual
-// correspondence between a metric's gauge and its trace beneath. The
-// `metric` field is the contract enum (SensorMetric) the /api/sensors/
-// history endpoint accepts on its `?metric=` query param.
-const SPARKLINE_TILES: ReadonlyArray<{
-  metric: SensorMetric;
-  name: string;
-}> = [
   { metric: "temperature_f", name: "Temperature" },
-  { metric: "humidity_pct", name: "Humidity" },
+  { metric: "humidity_pct", name: "Humidity", integer: true },
   { metric: "vpd_kpa", name: "VPD" },
-  { metric: "fan_pct", name: "Fan" },
+  { metric: "fan_pct", name: "Fan", integer: true },
   { metric: "reservoir_in", name: "Reservoir" },
 ] as const;
 
@@ -80,29 +67,6 @@ function toBand(target: MetricEnvelope["target"]): readonly [number, number] | n
 
 function formatInteger(value: number): string {
   return `${Math.round(value)}`;
-}
-
-// Fetch one metric's bucketed history. Query key includes both range
-// and metric so switching the range invalidates all five queries
-// simultaneously → the network layer observes five fresh GET
-// /api/sensors/history requests per range switch (one per metric).
-function buildHistoryQuery(
-  metric: SensorMetric,
-  range: SparklineRange,
-): {
-  queryKey: readonly [string, SparklineRange, SensorMetric];
-  queryFn: () => Promise<SensorsHistoryResponse>;
-} {
-  return {
-    queryKey: ["sensors.history", range, metric] as const,
-    queryFn: async () => {
-      const { data, error } = await api.GET("/api/sensors/history", {
-        params: { query: { range, metric } },
-      });
-      if (error) throw error;
-      return data;
-    },
-  };
 }
 
 function DashboardPage() {
@@ -120,9 +84,20 @@ function DashboardPage() {
 
   // Five parallel history queries keyed on [range, metric]. useQueries
   // is the correct idiom for a fixed-shape fan-out: one result slot per
-  // metric, all invalidated when `range` changes.
+  // metric, all invalidated when `range` changes → the network layer
+  // observes five fresh GET /api/sensors/history requests per range
+  // switch (one per metric).
   const historyResults = useQueries({
-    queries: SPARKLINE_TILES.map(({ metric }) => buildHistoryQuery(metric, range)),
+    queries: METRIC_TILES.map(({ metric }) => ({
+      queryKey: ["sensors.history", range, metric] as const,
+      queryFn: async () => {
+        const { data, error } = await api.GET("/api/sensors/history", {
+          params: { query: { range, metric } },
+        });
+        if (error) throw error;
+        return data;
+      },
+    })),
   });
 
   if (isLoading) {
@@ -151,15 +126,15 @@ function DashboardPage() {
         aria-label="Environment gauges"
         className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5"
       >
-        {GAUGE_TILES.map(({ key, name, integer }) => {
-          const envelope = data.metrics[key];
+        {METRIC_TILES.map(({ metric, name, integer }) => {
+          const envelope = data.metrics[metric];
           // Spread `format` conditionally so exactOptionalPropertyTypes
           // sees either the prop set to a function or omitted entirely,
           // never `format: undefined`.
           const formatProp = integer ? { format: formatInteger } : {};
           return (
             <Gauge
-              key={key}
+              key={metric}
               name={name}
               value={envelope.value}
               unit={envelope.unit}
@@ -178,7 +153,7 @@ function DashboardPage() {
           <RangeSwitch value={range} onChange={setRange} />
         </header>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          {SPARKLINE_TILES.map(({ metric, name }, idx) => {
+          {METRIC_TILES.map(({ metric, name }, idx) => {
             const result = historyResults[idx];
             const points = result?.data?.points ?? [];
             const unit = result?.data?.unit ?? "";

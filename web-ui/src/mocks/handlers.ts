@@ -178,15 +178,14 @@ export const handlers: RequestHandler[] = [
     const range = url.searchParams.get("range");
     const metric = url.searchParams.get("metric");
 
-    const bucketCountByRange: Record<string, number> = {
-      "1h": 12,
-      "24h": 48,
-      "7d": 168,
+    // (bucket count, window ms) per range. Anchor the series end-ts to
+    // a fixed point so snapshots don't drift per test run.
+    const RANGE_SPEC: Record<string, { count: number; windowMs: number }> = {
+      "1h": { count: 12, windowMs: 60 * 60 * 1000 },
+      "24h": { count: 48, windowMs: 24 * 60 * 60 * 1000 },
+      "7d": { count: 168, windowMs: 7 * 24 * 60 * 60 * 1000 },
     };
-    const baselineByMetric: Record<
-      string,
-      { base: number; amp: number; unit: string }
-    > = {
+    const METRIC_SPEC: Record<string, { base: number; amp: number; unit: string }> = {
       temperature_f: { base: 76, amp: 4, unit: "°F" },
       humidity_pct: { base: 50, amp: 5, unit: "%" },
       vpd_kpa: { base: 1.0, amp: 0.2, unit: "kPa" },
@@ -194,38 +193,25 @@ export const handlers: RequestHandler[] = [
       reservoir_in: { base: 9.2, amp: 0.5, unit: "in" },
     };
 
-    if (!range || !(range in bucketCountByRange)) {
+    const rangeSpec = range ? RANGE_SPEC[range] : undefined;
+    if (!range || !rangeSpec) {
       return HttpResponse.json({ detail: "bad_range" }, { status: 400 });
     }
-    if (!metric || !(metric in baselineByMetric)) {
+    const metricSpec = metric ? METRIC_SPEC[metric] : undefined;
+    if (!metric || !metricSpec) {
       return HttpResponse.json({ detail: "bad_metric" }, { status: 400 });
     }
 
-    const count = bucketCountByRange[range] as number;
-    const spec = baselineByMetric[metric] as {
-      base: number;
-      amp: number;
-      unit: string;
-    };
-
-    // Anchor the series end-ts to a fixed point so snapshots don't
-    // drift per test run.
+    const { count, windowMs } = rangeSpec;
+    const stepMs = windowMs / count;
     const endMs = Date.parse("2026-04-21T17:00:00Z");
-    const windowMs: Record<string, number> = {
-      "1h": 60 * 60 * 1000,
-      "24h": 24 * 60 * 60 * 1000,
-      "7d": 7 * 24 * 60 * 60 * 1000,
-    };
-    const stepMs = (windowMs[range] as number) / count;
 
-    // Deterministic triangle wave: pos ∈ [0, 1], offset = |2*pos - 1|.
-    // Yields reproducible values keyed on (range, metric, bucket index).
+    // Deterministic triangle wave keyed on bucket index; same
+    // (range, metric) → identical series across fetches.
     const points = Array.from({ length: count }, (_, i) => {
       const pos = count === 1 ? 0 : i / (count - 1);
       const tri = Math.abs(2 * pos - 1); // 1 → 0 → 1
-      const value = spec.base + spec.amp * (tri - 0.5) * 2; // centered swing
-      // Round to a sensible number of decimals per unit so serialized
-      // payload stays compact.
+      const value = metricSpec.base + metricSpec.amp * (tri - 0.5) * 2;
       const rounded = Math.round(value * 100) / 100;
       const ts = new Date(endMs - (count - 1 - i) * stepMs).toISOString();
       return { ts, value: rounded };
@@ -234,7 +220,7 @@ export const handlers: RequestHandler[] = [
     return HttpResponse.json({
       range,
       metric,
-      unit: spec.unit,
+      unit: metricSpec.unit,
       points,
     });
   }),
