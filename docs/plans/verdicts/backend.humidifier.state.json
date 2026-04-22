@@ -1,0 +1,16 @@
+{
+  "feature_id": "backend.humidifier.state",
+  "lane": "backend",
+  "branch": "feat/be/humidifier-cluster",
+  "evaluator_run": false,
+  "orchestrator_reconciled_at": "2026-04-22T05:30:00Z",
+  "overall": "pass",
+  "off_limits_clean": true,
+  "criteria": [
+    { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/humidifier/state removed.", "status": "pass", "evidence": "contract_status.json diff: -1 line. Full invariants on main after cherry-pick: 96 passed." },
+    { "kind": "unit", "description": "apps/web/tests/test_humidifier_state_endpoint.py", "status": "pass", "evidence": "3 new tests covering unauth-401, happy-path contract shape, cold-cluster (non-null defaults when service returns None). All 3 green. Main-branch run: 143 total pass." }
+  ],
+  "escalation": null,
+  "suggested_feedback_for_generator": null,
+  "notes": "Landed in a cluster branch (feat/be/humidifier-cluster) alongside backend.humidifier.history. Initial agent exited on /simplify handoff after only the first feature's feat commit; continuation agent implemented the second feature's feat commit but also exited on /simplify, leaving the simplify-applied edits uncommitted. Orchestrator finished the cluster manually: committed simplify pass + wrote cluster NOTES. This incident drove the structural prompt change (commit 3a06109): /simplify now folded into feat commit, plus WRAPUP_SENTINEL forcing function."
+}

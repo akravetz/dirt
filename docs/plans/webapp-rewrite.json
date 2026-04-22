@@ -237,7 +237,7 @@
       "acceptance": [
         { "kind": "e2e", "test_file": "web-ui/tests/e2e/dashboard-sparklines.spec.ts", "description": "Open /. Assert five sparklines render under the gauges (one per metric: temperature, humidity, VPD, fan, reservoir). Click 1h / 24h / 7d in turn in the range switcher and assert that changing the range triggers a fresh GET /api/sensors/history per metric per range change (5 fetches). Hovering one sparkline draws a crosshair shared across all 5 (same x-position marker visible on every sparkline). The value tooltip on hover shows the correct unit suffix per metric (°C / % / kPa / % / in)." }
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "backend.humidifier.state",
@@ -250,7 +250,7 @@
         { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/humidifier/state removed." },
         { "kind": "unit", "path": "apps/web/tests/test_humidifier_state_endpoint.py" }
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "backend.humidifier.history",
@@ -263,7 +263,7 @@
         { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/humidifier/history removed." },
         { "kind": "unit", "path": "apps/web/tests/test_humidifier_history_endpoint.py" }
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "frontend.dashboard.humidifier",

@@ -1,0 +1,15 @@
+{
+  "feature_id": "frontend.dashboard.sparklines",
+  "lane": "frontend",
+  "branch": "feat/fe/dashboard.sparklines",
+  "evaluator_run": false,
+  "orchestrator_reconciled_at": "2026-04-22T05:30:00Z",
+  "overall": "pass",
+  "off_limits_clean": true,
+  "criteria": [
+    { "kind": "e2e", "description": "Five sparklines render under gauges; range switch triggers 5 /api/sensors/history fetches per switch; shared crosshair on hover; correct unit suffix per metric.", "status": "pass", "evidence": "web-ui/tests/e2e/dashboard-sparklines.spec.ts has 4 test blocks covering all plan assertions. `pnpm test:e2e` reported 16/16 green (bootstrap app-shell + gauges + sparklines specs). Narrowed existing dashboard-gauges.spec.ts matchers to `exact: true` / `level: 2` to avoid sparkline text substring-matching into gauge assertions — clean-touching, documented. Documented deviation: temperature tooltip suffix is °F (matching the frozen contract + the gauge tile above) instead of the plan's indicative °C; other four units exactly match plan." }
+  ],
+  "escalation": null,
+  "suggested_feedback_for_generator": null,
+  "notes": "Generator followed the wrap-up protocol cleanly end-to-end (the same protocol that the BE humidifier cluster failed under). Hypothesis: solo features trigger /simplify at most once, so the handoff-exit window is smaller than multi-feature clusters. The subsequent structural change (fold /simplify into feat commit, commit 3a06109) removes the window entirely for future runs."
+}

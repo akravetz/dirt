@@ -1,0 +1,16 @@
+{
+  "feature_id": "backend.humidifier.history",
+  "lane": "backend",
+  "branch": "feat/be/humidifier-cluster",
+  "evaluator_run": false,
+  "orchestrator_reconciled_at": "2026-04-22T05:30:00Z",
+  "overall": "pass",
+  "off_limits_clean": true,
+  "criteria": [
+    { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/humidifier/history removed.", "status": "pass", "evidence": "contract_status.json diff: -1 line. Full invariants on main after cherry-pick: 96 passed." },
+    { "kind": "unit", "description": "apps/web/tests/test_humidifier_history_endpoint.py", "status": "pass", "evidence": "3 new tests covering unauth-401, happy-path bucketed transitions from the service, range-validation 4xx on unknown range value. All 3 green." }
+  ],
+  "escalation": null,
+  "suggested_feedback_for_generator": null,
+  "notes": "See backend.humidifier.state verdict for the cluster-level incident summary and the structural prompt change it drove (commit 3a06109)."
+}
