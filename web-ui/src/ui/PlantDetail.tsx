@@ -8,12 +8,21 @@
 //     document-level listener).
 import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
+import Markdown from "react-markdown";
 import {
   type PlantCode,
   STICKER_BG,
   STICKER_STROKE,
   type StickerColor,
 } from "@/ui/plant-types";
+
+// react-markdown wraps output in <p> by default. Timeline entries sit
+// inside <span>s and the note already has an italic <p> wrapper, so we
+// strip the paragraph wrapper to keep the markdown inline and preserve
+// the existing Tailwind typography classes on the surrounding element.
+const INLINE_MARKDOWN_COMPONENTS = {
+  p: ({ children }: { children?: ReactNode }) => <>{children}</>,
+};
 
 interface TimelineEntry {
   date: string;
@@ -197,7 +206,9 @@ export function PlantDetail({
                   entry.highlight ? "text-ink" : "text-ink-2"
                 }`}
               >
-                {entry.text}
+                <Markdown components={INLINE_MARKDOWN_COMPONENTS}>
+                  {entry.text}
+                </Markdown>
               </span>
             </li>
           ))}
@@ -208,7 +219,11 @@ export function PlantDetail({
           <h3 className="font-mono text-xs uppercase tracking-caps text-ink-2">
             Current status · updated {payload.note.updated}
           </h3>
-          <p className="font-serif text-base italic text-ink">{payload.note.text}</p>
+          <p className="font-serif text-base italic text-ink">
+            <Markdown components={INLINE_MARKDOWN_COMPONENTS}>
+              {payload.note.text}
+            </Markdown>
+          </p>
         </section>
       ) : null}
       <footer className="mt-auto flex items-center justify-between border-t border-rule pt-3">
