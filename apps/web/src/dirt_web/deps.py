@@ -23,6 +23,7 @@ from dirt_shared.services.capture import FrameCapturer, capture_frame
 from dirt_shared.services.grow_state import GrowStateService
 from dirt_shared.services.humidifier_state import HumidifierStateService
 from dirt_shared.services.plants import PlantsService
+from dirt_shared.services.ptz import PTZService
 from dirt_shared.services.readings import ReadingsService
 from dirt_shared.services.snapshots import SnapshotsService
 from dirt_shared.services.system_status import SystemStatusService
@@ -54,6 +55,10 @@ def get_plants(request: Request) -> PlantsService:
 
 def get_system_status(request: Request) -> SystemStatusService:
     return request.app.state.system_status
+
+
+def get_ptz(request: Request) -> PTZService:
+    return request.app.state.ptz
 
 
 def get_frame_capturer() -> FrameCapturer:

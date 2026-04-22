@@ -14,11 +14,13 @@ from dirt_mcp.app import create_mcp_app
 from dirt_shared.app_wiring import build_core_services
 from dirt_shared.config import Settings
 from dirt_shared.db import ping
+from dirt_shared.services.ptz import PTZService
 from dirt_web.api.auth import router as auth_router
 from dirt_web.api.feed import router as feed_router
 from dirt_web.api.grow import router as grow_router
 from dirt_web.api.humidifier import router as humidifier_router
 from dirt_web.api.plants import router as plants_router
+from dirt_web.api.ptz import router as ptz_router
 from dirt_web.api.sensors import router as sensors_router
 from dirt_web.api.system import router as system_router
 from dirt_web.auth import AuthMiddleware, SessionManager
@@ -92,6 +94,7 @@ def create_app(
     app.state.plants = core.plants
     app.state.humidifier_state = core.humidifier_state
     app.state.system_status = core.system_status
+    app.state.ptz = PTZService()
     app.state.sessions = sessions
 
     # Middleware order: Starlette runs middleware in reverse-registration
@@ -108,6 +111,7 @@ def create_app(
     app.include_router(grow_router)
     app.include_router(humidifier_router)
     app.include_router(plants_router)
+    app.include_router(ptz_router)
     app.include_router(system_router)
     if mcp_app is not None:
         app.mount("/mcp", mcp_app)
