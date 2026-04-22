@@ -17,7 +17,8 @@ async def client(app_engine):
         transport=transport, base_url="http://test", follow_redirects=False
     ) as ac:
         login = await ac.post(
-            "/login", data={"username": "admin", "password": "changeme"}
+            "/api/auth/login",
+            json={"username": "admin", "password": "changeme"},
         )
         ac.cookies = login.cookies
         yield ac

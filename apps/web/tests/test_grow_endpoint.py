@@ -58,7 +58,8 @@ async def client(app_engine):
         transport=transport, base_url="http://test", follow_redirects=False
     ) as ac:
         login = await ac.post(
-            "/login", data={"username": "admin", "password": "changeme"}
+            "/api/auth/login",
+            json={"username": "admin", "password": "changeme"},
         )
         ac.cookies = login.cookies
         yield ac
@@ -71,9 +72,10 @@ async def test_grow_current_requires_auth(app_engine):
         transport=transport, base_url="http://test", follow_redirects=False
     ) as ac:
         response = await ac.get("/api/grow/current")
-        # AuthMiddleware redirects unauthenticated callers to /login.
-        assert response.status_code == 302
-        assert response.headers["location"] == "/login"
+        # AuthMiddleware returns 401 JSON for unauthenticated /api/*
+        # callers — the SPA handles redirection client-side.
+        assert response.status_code == 401
+        assert response.headers["content-type"].startswith("application/json")
 
 
 async def test_grow_current_returns_contract_shape(client: AsyncClient, app_engine):

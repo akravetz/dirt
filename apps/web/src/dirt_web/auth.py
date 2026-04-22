@@ -1,5 +1,16 @@
+"""Cookie-session auth for dirt-web.
+
+The SPA is served as static files from any non-/api/ path and does its
+own client-side routing; auth status is discovered by the browser via
+``GET /api/auth/me`` on boot. Only /api/* endpoints are gated here, and
+an unauthenticated /api/* request returns ``401 {"detail": "unauthorized"}``
+— no redirects. /api/auth/* is carved out so the SPA can log in.
+"""
+
+from collections.abc import Iterable
+
 from fastapi import Request, Response
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse
 from itsdangerous import BadSignature, URLSafeSerializer
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
@@ -33,13 +44,22 @@ class SessionManager:
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
-    PUBLIC_PATHS = frozenset({"/login", "/logout"})
+    """Gate /api/* on a valid dirt_session cookie.
+
+    Non-/api/* paths pass through untouched so the SPA bundle and
+    deeplinked client-side routes can render pre-auth. /api/auth/* is
+    public (login/logout/me must be reachable without the cookie).
+    Additional exempt prefixes (e.g. /mcp, which carries its own bearer
+    auth) are passed in by the composition root.
+    """
+
+    PUBLIC_API_PREFIXES = ("/api/auth/",)
 
     def __init__(
         self,
         app,
         sessions: SessionManager,
-        exclude_prefixes: list[str] | None = None,
+        exclude_prefixes: Iterable[str] | None = None,
     ) -> None:
         super().__init__(app)
         self._sessions = sessions
@@ -48,13 +68,21 @@ class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
-        if request.url.path in self.PUBLIC_PATHS or request.url.path.startswith(
-            self._exclude_prefixes
-        ):
+        path = request.url.path
+
+        # Anything outside /api/* is served without auth — the SPA shell
+        # renders and decides what to do based on /api/auth/me.
+        if not path.startswith("/api/"):
+            return await call_next(request)
+
+        if path.startswith(self._exclude_prefixes):
+            return await call_next(request)
+
+        if path.startswith(self.PUBLIC_API_PREFIXES):
             return await call_next(request)
 
         if self._sessions.get_current_user(request) is None:
-            return RedirectResponse(url="/login", status_code=302)
+            return JSONResponse({"detail": "unauthorized"}, status_code=401)
 
         return await call_next(request)
 

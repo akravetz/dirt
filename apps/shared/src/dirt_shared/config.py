@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     # Runtime data directory: snapshots/ + archives/ + logs/ + sessions/
     # all live under this. Override via DIRT_DATA_DIR env var.
     data_dir: Path = Field(default=_REPO_ROOT / "var", validation_alias="DIRT_DATA_DIR")
+    # Built SPA bundle served by dirt-web. Must contain index.html and an
+    # assets/ subdirectory populated by `pnpm --dir web-ui build`. Override
+    # via DIRT_WEB_UI_DIST_DIR (tests point this at a tmp_path fixture).
+    web_ui_dist_dir: Path = Field(
+        default=_REPO_ROOT / "web-ui" / "dist",
+        validation_alias="DIRT_WEB_UI_DIST_DIR",
+    )
     # Postgres — either set DATABASE_URL explicitly or provide the components
     # (DIRT_PG_{HOST,PORT,USER,PASSWORD,DATABASE}) and let _derive_db_url
     # assemble the async URL. No sqlite fallback post-cutover (ADR-006).

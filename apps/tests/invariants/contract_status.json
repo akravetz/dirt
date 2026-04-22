@@ -3,9 +3,6 @@
 
   "expected_missing": {
     "$comment": "Contract endpoints not yet implemented in the app. Each entry: 'METHOD path' → plan-JSON feature_id that will deliver it. Phase 2 BE generator removes its feature's entries when finishing. An entry that's already implemented produces a test failure ('falsely missing' check) so this list shrinks monotonically.",
-    "POST /api/auth/login": "backend.auth",
-    "POST /api/auth/logout": "backend.auth",
-    "GET /api/auth/me": "backend.auth",
     "GET /api/sensors/current": "backend.sensors.current",
     "GET /api/sensors/history": "backend.sensors.history",
     "GET /api/humidifier/state": "backend.humidifier.state",
@@ -27,10 +24,6 @@
 
   "legacy_routes": {
     "$comment": "Pre-rewrite HTML/HTMX endpoints that exist today on apps/web and will be deleted as their replacement contract endpoints land. Each entry: 'METHOD path' → short why/what-replaces-it note. The set must shrink to empty by the end of Phase 2; do NOT extend it. The BE generator removes an entry in the same commit that deletes the corresponding route handler from the app code.",
-    "GET /": "Jinja dashboard — replaced by SPA shell",
-    "GET /login": "Jinja login page — replaced by SPA /login route",
-    "POST /login": "form-post — replaced by /api/auth/login",
-    "GET /logout": "302 redirect — replaced by /api/auth/logout",
     "GET /feed/live": "renamed to /api/feed/live.jpg",
     "GET /feed/image": "HTMX fragment — deleted",
     "GET /feed/status": "HTMX fragment — deleted",

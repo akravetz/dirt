@@ -950,8 +950,6 @@ dependencies = [
     { name = "dirt-shared" },
     { name = "fastapi" },
     { name = "itsdangerous" },
-    { name = "jinja2" },
-    { name = "python-multipart" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -962,8 +960,6 @@ requires-dist = [
     { name = "dirt-shared", editable = "apps/shared" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "itsdangerous", specifier = ">=2.2.0" },
-    { name = "jinja2", specifier = ">=3.1" },
-    { name = "python-multipart", specifier = ">=0.0.20" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34" },
 ]
 
