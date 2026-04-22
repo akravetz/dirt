@@ -3,7 +3,6 @@
 
   "expected_missing": {
     "$comment": "Contract endpoints not yet implemented in the app. Each entry: 'METHOD path' → plan-JSON feature_id that will deliver it. Phase 2 BE generator removes its feature's entries when finishing. An entry that's already implemented produces a test failure ('falsely missing' check) so this list shrinks monotonically.",
-    "GET /api/wiki/file": "backend.wiki.file",
     "GET /api/wiki/search": "backend.wiki.search"
   },
 
