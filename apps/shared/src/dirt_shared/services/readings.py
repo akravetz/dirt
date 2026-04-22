@@ -298,3 +298,29 @@ class ReadingsService:
                 metric: await _get_metric_series(session, metric, range_key, cutoff)
                 for metric in METRICS
             }
+
+    async def get_metric_history(
+        self, metric: str, range_key: str
+    ) -> list[tuple[datetime, float]]:
+        """Return bucketed ``(ts, value)`` points for one DB-backed metric.
+
+        Thin wrapper around ``_get_metric_series`` for the contract-shaped
+        ``GET /api/sensors/history`` endpoint. Raw mode for ``range_key='1h'``;
+        5-min buckets for ``24h``; hourly for ``7d``. Returns parsed aware
+        ``datetime``s so the endpoint can hand them to ``HistoryPoint``
+        without re-parsing the wire labels.
+
+        Callers are responsible for validating ``metric`` is a DB-backed
+        metric (i.e. in ``METRICS``) — ``fan_pct`` / ``reservoir_in`` are
+        pure-function mocks and have their own history helpers in
+        ``mock_sensors``.
+        """
+        delta = RANGE_DELTAS[range_key]
+        cutoff = self._clock() - delta
+        async with AsyncSession(self._engine) as session:
+            series = await _get_metric_series(session, metric, range_key, cutoff)
+        points: list[tuple[datetime, float]] = []
+        for label, value in zip(series["labels"], series["values"], strict=True):
+            ts = datetime.fromisoformat(label.replace("Z", "+00:00"))
+            points.append((ts, float(value)))
+        return points

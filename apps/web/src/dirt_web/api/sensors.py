@@ -1,4 +1,4 @@
-"""Sensor endpoints — history (Chart.js fragment, legacy) + current envelope.
+"""Sensor endpoints — current envelope + single-metric history.
 
 ``/api/sensors/current`` composes the latest ``sensorreading`` rows for the
 five dashboard metrics (temperature, humidity, VPD, fan, reservoir) with
@@ -6,6 +6,12 @@ target bands and status colors from ``grow_state``, and the pure mock
 helpers in ``mock_sensors`` for the two metrics we don't have hardware
 for yet. The SPA is a pure renderer — all band/status computation
 happens server-side so the front end can't drift.
+
+``/api/sensors/history`` returns bucketed ``(ts, value)`` points for one
+metric over the requested range — drives the five sparklines. Mock
+metrics (``fan_pct``, ``reservoir_in``) are synthesized on the fly from
+the deterministic helpers in ``mock_sensors``; DB-backed metrics go
+through ``ReadingsService.get_metric_history``.
 """
 
 import asyncio
@@ -16,21 +22,29 @@ from dirt_contracts.webapp_v1.models import (
     BandStatus as ContractBandStatus,
 )
 from dirt_contracts.webapp_v1.models import (
+    HistoryPoint,
     MetricEnvelope,
     Metrics,
+    Range,
+    SensorMetric,
     SensorsCurrent,
+    SensorsHistoryResponse,
     TargetBand,
 )
 from fastapi import APIRouter, Depends, Query
-from fastapi.responses import JSONResponse
 
 from dirt_shared.services.grow_state import (
     STAGE_TARGETS,
     GrowStateService,
     band_status,
 )
-from dirt_shared.services.mock_sensors import get_fan_pct, get_reservoir_in
-from dirt_shared.services.readings import ReadingsService
+from dirt_shared.services.mock_sensors import (
+    get_fan_history,
+    get_fan_pct,
+    get_reservoir_history,
+    get_reservoir_in,
+)
+from dirt_shared.services.readings import RANGE_DELTAS, ReadingsService
 from dirt_web.deps import get_grow, get_readings
 
 
@@ -51,17 +65,33 @@ class _ReadingLike(Protocol):
 router = APIRouter(tags=["sensors"])
 
 
-@router.get("/api/sensors/readings")
-async def sensor_readings(
-    range: str = Query(default="24h", pattern="^(1h|24h|7d|30d)$"),
-    readings: ReadingsService = Depends(get_readings),
-) -> JSONResponse:
-    """Return all sensor metrics for Chart.js.
+# Contract-allowed metric values that are NOT backed by DB readings — the
+# endpoint synthesizes their history from the deterministic helpers in
+# ``mock_sensors`` so the sparkline shape matches the live-hardware case.
+_MOCK_METRICS = {SensorMetric.fan_pct, SensorMetric.reservoir_in}
 
-    Response shape: {metric: {"labels": [...], "values": [...]}, ...}
-    """
-    data = await readings.get_sensor_history(range)
-    return JSONResponse(data)
+# Per-metric display unit shared between /api/sensors/current and
+# /api/sensors/history. Kept local to the router to avoid threading yet
+# another constants module through the services layer.
+_METRIC_UNITS: dict[SensorMetric, str] = {
+    SensorMetric.temperature_f: "\u00b0F",
+    SensorMetric.humidity_pct: "%",
+    SensorMetric.vpd_kpa: "kPa",
+    SensorMetric.dew_point_f: "\u00b0F",
+    SensorMetric.pressure_hpa: "hPa",
+    SensorMetric.fan_pct: "%",
+    SensorMetric.reservoir_in: "in",
+}
+
+# Approximate point counts per range for the mock-metric sparklines.
+# Matches the DB-backed bucket density: 1h raw (assumed ~1 / min), 5-min
+# buckets for 24h, hourly for 7d. Keeping parity so the sparklines for
+# mocked + real metrics look coherent in the UI.
+_MOCK_POINT_COUNT: dict[Range, int] = {
+    Range.field_1h: 60,
+    Range.field_24h: 288,
+    Range.field_7d: 168,
+}
 
 
 def _envelope(
@@ -131,3 +161,44 @@ async def sensors_current(
     )
 
     return SensorsCurrent(ts=top_ts, stale=stale, metrics=metrics)
+
+
+@router.get("/api/sensors/history", response_model=SensorsHistoryResponse)
+async def sensors_history(
+    range: Range = Query(...),
+    metric: SensorMetric = Query(...),
+    readings: ReadingsService = Depends(get_readings),
+) -> SensorsHistoryResponse:
+    """Return bucketed ``(ts, value)`` points for one metric over ``range``.
+
+    DB-backed metrics go through ``ReadingsService.get_metric_history``;
+    mock metrics (``fan_pct``, ``reservoir_in``) are sampled from the
+    deterministic helpers in ``mock_sensors`` so the sparkline shape is
+    shape-identical to a live-hardware series.
+
+    FastAPI rejects out-of-enum ``range`` / ``metric`` values at the
+    query layer with 422 before the handler runs — the contract's 400
+    response covers the same intent, and the SPA treats any 4xx as
+    "invalid input, don't retry."
+    """
+    unit = _METRIC_UNITS[metric]
+    if metric in _MOCK_METRICS:
+        end = readings.now()
+        start = end - RANGE_DELTAS[range.value]
+        n = _MOCK_POINT_COUNT[range]
+        sampler = (
+            get_fan_history if metric is SensorMetric.fan_pct else get_reservoir_history
+        )
+        points = [
+            HistoryPoint(ts=p.ts, value=round(p.value, 2))
+            for p in sampler(start, end, n)
+        ]
+    else:
+        raw = await readings.get_metric_history(metric.value, range.value)
+        points = [HistoryPoint(ts=ts, value=round(value, 2)) for ts, value in raw]
+    return SensorsHistoryResponse(
+        range=range,
+        metric=metric,
+        unit=unit,
+        points=points,
+    )

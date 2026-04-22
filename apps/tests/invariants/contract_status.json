@@ -3,7 +3,6 @@
 
   "expected_missing": {
     "$comment": "Contract endpoints not yet implemented in the app. Each entry: 'METHOD path' → plan-JSON feature_id that will deliver it. Phase 2 BE generator removes its feature's entries when finishing. An entry that's already implemented produces a test failure ('falsely missing' check) so this list shrinks monotonically.",
-    "GET /api/sensors/history": "backend.sensors.history",
     "GET /api/humidifier/state": "backend.humidifier.state",
     "GET /api/humidifier/history": "backend.humidifier.history",
     "GET /api/plants": "backend.plants.list",
@@ -26,7 +25,6 @@
     "GET /feed/live": "renamed to /api/feed/live.jpg",
     "GET /feed/image": "HTMX fragment — deleted",
     "GET /feed/status": "HTMX fragment — deleted",
-    "GET /api/sensors/readings": "renamed to /api/sensors/history",
     "GET /api/snapshots/latest": "renamed to /api/feed/snapshot/latest"
   }
 }
