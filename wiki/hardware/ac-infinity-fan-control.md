@@ -1,31 +1,31 @@
 ---
 title: Hardware — AC Infinity Cloudline LITE 6" Fan Control
 type: hardware
-sources: [debug/fan-pwm/sweep-v2.sr, debug/fan-pwm/sweep-11steps.sr]
+sources: [debug/fan-pwm/sweep-v2.sr, debug/fan-pwm/sweep-11steps.sr, debug/fan-pwm/sweep-v3.sr]
 related: [wiki/hardware/humidifier-control.md]
 created: 2026-04-18
-updated: 2026-04-20
+updated: 2026-04-21
 ---
 
 # AC Infinity Cloudline LITE 6" Fan Control
 
-**Status (2026-04-20):** protocol characterized end-to-end; circuit designed; test firmware written. Speed signal, pinout, voltage levels, and electrical topology all confirmed via logic-analyzer capture + multimeter. **Waiting on 2N7000 MOSFET delivery (overnight)**; 10 kΩ gate resistor on hand. Rendered schematic at `debug/fan-pwm/driver-schematic.png` (source: `debug/fan-pwm/schematic.py`). Standalone test sketch at `debug/fan-pwm/fan_drive_test/fan_drive_test.ino` — ramps fan duty 0 → 100% in 10% steps, dwells 3 s each, loops. Meant to flash on a spare Nano for the first bring-up; once validated, the logic folds into the main firmware.
+**Status (2026-04-21):** protocol characterized end-to-end; circuit redesign in progress. Speed signal, pinout, and electrical topology confirmed via logic-analyzer capture + multimeter. **Pinout correction 2026-04-21:** the signal previously labeled "CC1" is actually **B5** (USB-C pin B5 = CC2 on the spec side); the first captures had the minidodoca tap on the wrong side of the dongle. Re-capture at `debug/fan-pwm/sweep-v3.sr` confirms the three active signals with the corrected labeling. **Voltage correction 2026-04-21:** original pre-flight claimed signals were ≤5V — that was wrong. All three signals swing to **~9V**, same as VBUS. The HiLetgo survived because of its input protection diodes, not because the signals were in-range. Any future probe must account for 9V logic. **Waiting on 2N7000 MOSFET delivery (overnight)**; 10 kΩ gate resistor on hand. Rendered schematic at `debug/fan-pwm/driver-schematic.png` (source: `debug/fan-pwm/schematic.py`) is for the original Nano design. Standalone test sketch at `debug/fan-pwm/fan_drive_test/fan_drive_test.ino` — ramps fan duty 0 → 100% in 10% steps, dwells 3 s each, loops. Meant to flash on a spare Nano for the first bring-up; once validated, the logic folds into the main firmware.
 
 ## Goal
 
 Drive the Cloudline LITE 6" inline fan from an Arduino Nano (controlled by the Dirt stack) instead of AC Infinity's stock wired speed controller. End state: programmatic fan speed, scheduled ramps, closed-loop VPD coupling with the humidifier — without routing any control through AC Infinity's ecosystem.
 
-## Protocol (confirmed 2026-04-20)
+## Protocol (confirmed 2026-04-21, sweep-v3.sr)
 
-Three meaningful signals on the USB-C connector. All share a common GND and a 10V VCC rail.
+Three meaningful signals on the USB-C connector. All share a common GND and a ~9V VBUS rail. All three signals swing 0 ↔ ~9V.
 
 | USB-C pin | Direction | Signal | Details |
 |---|---|---|---|
-| **D+** | remote → fan | **PWM speed command** | 4,969 Hz carrier, open-drain (see topology below). Duty-cycle maps to fan speed per the table below. |
-| **D−** | fan → remote | **Tachometer output** | 50%-duty square wave whose *frequency* is proportional to RPM. ~45 Hz at min speed, ~137 Hz at max. Assuming 2 pulses/rev, that's ~1,350 RPM min, ~4,100 RPM max. |
-| **CC1** | remote → fan | Clock / keep-alive | Same 4,969 Hz carrier as D+, but stuck at 98.6% duty regardless of speed. Likely a "remote connected" heartbeat. Appears ignorable — first Nano test drives D+ only with CC1 floating. |
-| VBUS | — | +10V rail | Powers the fan's control electronics. Do **not** clip a 5V-tolerant logic analyzer to this. |
-| D+ pin label note | | | On the minidodoca breakout, D+ is labeled `A5` on the silkscreen — that's the USB-C spec-A-side pin number for D+, not a separate signal. |
+| **D+** | remote → fan | **PWM speed command** | 4,969 Hz carrier, open-drain (see topology below). Duty-cycle maps to fan speed per the table below. Measured range on v3 sweep: 0.9% (dial just above OFF) → 87.6% (near top of dial). Full 100% reached at hard-max in earlier 11-step capture. |
+| **D−** | fan → remote | **Tachometer output** | 50%-duty square wave whose *frequency* is proportional to RPM. ~45 Hz at lowest running speed, ~166 Hz near top of dial. Assuming 2 pulses/rev, that's ~1,350 RPM min, ~4,980 RPM max. |
+| **B5** (= CC2 spec-side) | remote → fan | Clock / keep-alive | Same 4,969 Hz carrier as D+, but stuck at ~98.6% duty regardless of speed (2.5–3.0 µs LOW pulses per cycle). Likely a "remote connected" heartbeat. Drive-requirement unconfirmed — first test will leave B5 floating and see if the fan still responds to D+ alone. |
+| VBUS | — | ~+9V rail | Powers the fan's control electronics and pulls the three signal lines up. Do **not** clip a 5V-only logic analyzer to this (or to any of the signal lines, which also swing to 9V). |
+| D+ pin label note | | | On the minidodoca breakout, D+ is labeled `A5` on the silkscreen — that's the USB-C spec-A-side pin number for D+, not a separate signal. The B5 pin is the neighbor on the B-side row of the same connector. |
 
 ### Speed table (dial position → D+ duty cycle)
 
@@ -51,11 +51,11 @@ Derived from a 20-second logic-analyzer sweep stepping through all 11 dial posit
 
 ### Electrical topology
 
-**D+ is open-drain with the pull-up inside the fan.** Confirmed 2026-04-20: with the stock remote unplugged, D+ floats to ~9V (the fan's internal pull-up to its ~10V VCC) and the fan runs at max speed (reads 100% duty because nothing is pulling low).
+**D+ is open-drain with the pull-up inside the fan.** Confirmed 2026-04-20: with the stock remote unplugged, D+ floats to ~9V (the fan's internal pull-up to its ~9V VBUS) and the fan runs at max speed (reads 100% duty because nothing is pulling low). B5 behaves the same way (pulled up internally, driven LOW by the remote for 2.5–3 µs chunks at 5 kHz).
 
-Implication: **the Nano does not need to source 9V** — it only needs to pull D+ to GND at the right times. A single small N-channel MOSFET (or NPN) between D+ and GND, gate driven by the Nano's 5V PWM pin, is sufficient.
+Implication: **the driver does not need to source 9V** — it only needs to pull D+ (and optionally B5) to GND at the right times. A small N-channel MOSFET (or NPN) between each signal line and GND, gate driven by the MCU's PWM output, is sufficient. If the MCU is not 5V-tolerant on its GPIO (e.g. the ESP32-C3, `Vmax = 3.6V`), the fan's 9V signals must never connect directly to a GPIO — only to the MOSFET drain.
 
-**Failsafe behavior:** if the Nano loses power, resets, or crashes, D+ floats → fan runs at 100%. For a grow tent this is the safer direction; overventilation won't kill plants, whereas a stalled fan in a sealed tent eventually will. We are intentionally leaning into this behavior rather than engineering around it.
+**Failsafe behavior:** if the driver loses power, resets, or crashes, D+ floats → fan runs at 100%. For a grow tent this is the safer direction; overventilation won't kill plants, whereas a stalled fan in a sealed tent eventually will. We are intentionally leaning into this behavior rather than engineering around it.
 
 ## Nano driver circuit
 
@@ -123,9 +123,9 @@ Used to characterize the protocol above. Retained afterward for future RE work o
 
 Three stages, executed 2026-04-20:
 
-1. **Multimeter pre-flight.** Minidodoca passthrough inline between fan and stock remote, fan powered. Each header pin probed vs GND. VCC read 10V; three pins showed signal (labeled `A5`/D+, D+, D−). All signals confirmed ≤5V → safe to clip into the HiLetgo.
-2. **Logic analyzer capture.** sigrok-cli at 4 MHz sample rate on D0=CC1, D1=D+, D2=D−, 12-second then 20-second captures while sweeping the remote's speed dial. Captures saved at `debug/fan-pwm/sweep-v2.sr` and `debug/fan-pwm/sweep-11steps.sr`. Analysis scripts at `debug/fan-pwm/analyze.py` (all three channels) and `debug/fan-pwm/analyze_steps.py` (plateau detection on D+).
-3. **Topology check.** Unplugged stock remote with fan still powered; measured D+ = ~9V and fan ran at max. Confirmed open-drain with pull-up inside the fan.
+1. **Multimeter pre-flight.** Minidodoca passthrough inline between fan and stock remote, fan powered. Each header pin probed vs GND. Original probe (v1/v2 captures) identified three signal pins and concluded "all signals ≤5V → safe to clip into the HiLetgo" — this was wrong; the meter was mis-ranged or misread. The real signal amplitude is ~9V (see v3 re-measurement). The HiLetgo's input protection diodes absorbed the overvoltage without damage, but future probes on unknown UIS hardware must assume the signals track VBUS, not 5V.
+2. **Logic analyzer capture.** sigrok-cli at 4 MHz sample rate on D0/D1/D2, 12-second then 20-second captures while sweeping the remote's speed dial. Earlier captures (`sweep-v2.sr`, `sweep-11steps.sr`) labeled D0 as "CC1" based on the wrong side of the dongle; re-capture 2026-04-21 (`sweep-v3.sr`) with the tap on the dongle-side pins corrected the mapping: **D0 = B5, D1 = D+, D2 = D−.** Protocol numbers (4,969 Hz carrier, duty ranges, tach frequency range) match across captures — only the pin name for channel 0 changed. Analysis scripts at `debug/fan-pwm/analyze.py` (all three channels) and `debug/fan-pwm/analyze_steps.py` (plateau detection on D+) still print the legacy "CC1" label; that's cosmetic and hasn't been rewritten.
+3. **Topology check.** Unplugged stock remote with fan still powered; measured D+ = ~9V and fan ran at max. Confirmed open-drain with pull-up inside the fan. B5 behaves identically (floats high, pulled low by the remote during its LOW-pulse windows).
 
 **Sigrok-cli gotcha:** `--channels D1` *filters* which channels are shown in CLI output but the `.sr` archive still contains all probed bits in their original bit positions. When decoding in Python, D+ is at bit 1 of each output byte, not bit 0. See `debug/fan-pwm/analyze_steps.py` for the correct extraction.
 
@@ -134,7 +134,7 @@ Three stages, executed 2026-04-20:
 - Arduino Nano on one ElectroCookie perma-proto board, socketed with 2× 1x15 female headers (not soldered directly).
 - Fan interface via the Treedix vertical female USB-C breakout: plain USB-C M-M cable from fan lands in the Treedix receptacle; Nano's pin-9 → MOSFET gate → drain to D+.
 - Fan GND and Nano GND tied together at the perma-proto.
-- CC1 left floating for the first test. If the fan refuses to respond to D+ alone, revisit and drive CC1 at 98.6% duty on a second Nano pin.
+- B5 left floating for the first test. If the fan refuses to respond to D+ alone, revisit and drive B5 at ~98.6% duty on a second MCU pin (same 4,969 Hz carrier).
 - D− (tach) can optionally wire to a Nano interrupt pin (D2 or D3) for closed-loop RPM feedback. Not required for basic control.
 
 ## Future integration (out of scope for this page)
