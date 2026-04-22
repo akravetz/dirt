@@ -52,6 +52,20 @@ INPUT=$(cat)
 COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
 [ -z "$COMMAND" ] && exit 0
 
+# Whitelist: if every protected-path reference in the command resolves
+# specifically to apps/tests/invariants/contract_status.json (the
+# agent-editable data table per docs/plans/generator-prompts.md), skip
+# the ask entirely. Any other protected-path reference in the same
+# command — even alongside contract_status.json — falls through to the
+# regular pattern checks below.
+PROTECTED_TOKENS=$(echo "$COMMAND" | grep -oE '(apps/tests/invariants/[^ ,;&|"'"'"'`)>]+|\.githooks/[^ ,;&|"'"'"'`)>]+|web-ui/invariants/[^ ,;&|"'"'"'`)>]+|web-ui/src/api-client/generated/[^ ,;&|"'"'"'`)>]+)' || true)
+if [ -n "$PROTECTED_TOKENS" ]; then
+    NON_WHITELISTED=$(echo "$PROTECTED_TOKENS" | grep -vE '(^|/)apps/tests/invariants/contract_status\.json$' | head -1 || true)
+    if [ -z "$NON_WHITELISTED" ]; then
+        exit 0
+    fi
+fi
+
 PATHS='(apps/tests/invariants|\.githooks|web-ui/invariants|web-ui/src/api-client/generated)'
 
 # Word-start anchor for verbs (POSIX ERE has no \b). Matches
