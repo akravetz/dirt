@@ -22,22 +22,17 @@ from dirt_shared.models.sensor_reading import SensorReading
 from dirt_web.app import create_app
 
 
-async def _tent_id(engine) -> int:
-    async with AsyncSession(engine) as s:
-        result = await s.exec(
-            select(SensorNode.id).where(SensorNode.location == SensorLocation.TENT)
-        )
-        tent_id = result.first()
-        assert tent_id is not None
-        return tent_id
-
-
 async def _seed_humidifier_readings(
     engine, samples: list[tuple[datetime, float]]
 ) -> None:
     """Insert ``(ts, value)`` rows under metric='humidifier_on'."""
-    tent_id = await _tent_id(engine)
     async with AsyncSession(engine) as s:
+        tent_id = (
+            await s.exec(
+                select(SensorNode.id).where(SensorNode.location == SensorLocation.TENT)
+            )
+        ).first()
+        assert tent_id is not None
         s.add_all(
             [
                 SensorReading(
