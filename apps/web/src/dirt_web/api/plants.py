@@ -3,35 +3,44 @@
 ``GET /api/plants`` lists A–D for the dashboard strip with each plant's
 latest calibrated moisture. ``GET /api/plants/{code}`` returns the full
 drawer payload (header + moisture status + timeline + note + wiki_path).
-Both endpoints are thin FastAPI wrappers around ``PlantsService`` +
+``GET /api/plants/{code}/moisture`` returns bucketed moisture points
+over a requested range plus an irrigation-event count heuristic.
+All three are thin FastAPI wrappers around ``PlantsService`` +
 ``PlantDetailService``; payload shapes already match the contract.
 """
 
 from __future__ import annotations
 
+import asyncio
+
 from dirt_contracts.webapp_v1.models import (
     BandStatus as ContractBandStatus,
 )
 from dirt_contracts.webapp_v1.models import (
+    HistoryPoint,
     Plant,
     PlantCode,
     PlantDetail,
     PlantMoistureCurrent,
+    PlantMoistureHistory,
     PlantNote,
     PlantsResponse,
     PlantStatus,
     PlantStickerColor,
+    Range,
     TargetBand,
     TimelineEntry,
 )
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from dirt_shared.services.grow_state import GrowStateService
 from dirt_shared.services.plants import (
     PlantDetailPayload,
     PlantsService,
     PlantSummary,
+    count_irrigation_events,
 )
+from dirt_shared.services.readings import RANGE_DELTAS
 from dirt_web.deps import get_grow, get_plants
 
 router = APIRouter(tags=["plants"])
@@ -124,4 +133,49 @@ async def plants_detail(
         timeline=_timeline_entries(detail),
         note=_note(detail),
         wiki_path=detail.wiki_path,
+    )
+
+
+@router.get("/api/plants/{code}/moisture", response_model=PlantMoistureHistory)
+async def plants_moisture(
+    code: str,
+    range: Range = Query(...),
+    plants: PlantsService = Depends(get_plants),
+) -> PlantMoistureHistory:
+    """Bucketed soil-moisture points + irrigation-events-in-24h heuristic."""
+    parsed = _parse_code(code)
+
+    # The irrigation-event badge is always over the last 24h regardless of
+    # the requested sparkline range, so the drawer reads the same across
+    # range toggles. When the requested range covers 24h, reuse those
+    # points; otherwise fetch the 24h series in parallel with the summary.
+    now = plants.now()
+    cutoff = now - RANGE_DELTAS[range.value]
+    day_cutoff = now - RANGE_DELTAS["24h"]
+    needs_separate_day_query = cutoff > day_cutoff
+
+    summary_task = plants.get_plant_by_code(parsed.value)
+    points_task = plants.get_plant_moisture_history(parsed.value, cutoff)
+    if needs_separate_day_query:
+        day_task = plants.get_plant_moisture_history(parsed.value, day_cutoff)
+        summary, points, day_points = await asyncio.gather(
+            summary_task, points_task, day_task
+        )
+    else:
+        summary, points = await asyncio.gather(summary_task, points_task)
+        day_points = [p for p in points if p.ts >= day_cutoff]
+
+    if summary is None:
+        raise HTTPException(status_code=404, detail="unknown plant")
+    events_24h = count_irrigation_events(day_points)
+
+    return PlantMoistureHistory(
+        code=parsed,
+        range=range,
+        unit="%",
+        target=TargetBand(
+            root=[summary.moisture_target_low, summary.moisture_target_high]
+        ),
+        points=[HistoryPoint(ts=p.ts, value=round(p.value, 2)) for p in points],
+        irrigation_events_24h=events_24h,
     )

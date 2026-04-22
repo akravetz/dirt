@@ -133,6 +133,15 @@ class PlantsService:
         self._plant_detail = plant_detail
         self._clock = clock
 
+    def now(self) -> datetime:
+        """Injected wall clock — UTC-aware.
+
+        Exposed so API handlers can derive range cutoffs without importing
+        ``datetime.now`` themselves (which would violate the
+        no-concrete-clock-in-production invariant).
+        """
+        return self._clock()
+
     async def list_plants(self) -> list[PlantSummary]:
         """Return one PlantSummary per plant in the current grow."""
         async with AsyncSession(self._engine) as session:
