@@ -2,8 +2,7 @@
   "$comment": "Agent-editable contract-status data for test_api_contract.py. The test logic itself is in apps/tests/invariants/test_api_contract.py and is HUMAN-OWNED (protected by .claude/hooks/protect-invariants.sh). This file is NOT protected — the Phase 2 BE generator agent flips entries here as features land. Schema is enforced by test_api_contract.py at load time; bad shapes cause loud test failures.",
 
   "expected_missing": {
-    "$comment": "Contract endpoints not yet implemented in the app. Each entry: 'METHOD path' → plan-JSON feature_id that will deliver it. Phase 2 BE generator removes its feature's entries when finishing. An entry that's already implemented produces a test failure ('falsely missing' check) so this list shrinks monotonically.",
-    "GET /api/wiki/search": "backend.wiki.search"
+    "$comment": "Contract endpoints not yet implemented in the app. Each entry: 'METHOD path' → plan-JSON feature_id that will deliver it. Phase 2 BE generator removes its feature's entries when finishing. An entry that's already implemented produces a test failure ('falsely missing' check) so this list shrinks monotonically."
   },
 
   "legacy_routes": {
