@@ -1,0 +1,50 @@
+{
+  "feature_id": "frontend.mocks.setup",
+  "lane": "frontend",
+  "branch": "feat/fe/frontend.mocks.setup",
+  "evaluated_at": "2026-04-22T01:29:40Z",
+  "orchestrator_reconciled_at": "2026-04-22T01:45:00Z",
+  "overall": "pass",
+  "off_limits_clean": true,
+  "criteria": [
+    {
+      "kind": "lint",
+      "description": "pnpm lint (biome check + eslint)",
+      "status": "pass",
+      "evidence": "cd web-ui && pnpm lint → `Checked 23 files in 34ms. No fixes applied.` exit 0. Root shim edit web-ui/eslint.config.ts adds a file-scoped `no-restricted-globals: off` override for `src/mocks/__tests__/*.{ts,tsx}` only; `no-restricted-globals` is NOT in KNOWN_SENTINELS so the meta-invariant test_webui_invariants_wired.py is unaffected, and the override scope is the exact directory whose smoke test needs raw fetch to prove network-layer interception. Legitimate app-scope override, not an end-run around invariants."
+    },
+    {
+      "kind": "typecheck",
+      "description": "pnpm typecheck (tsc --noEmit)",
+      "status": "pass",
+      "evidence": "cd web-ui && pnpm typecheck → `tsc --noEmit` exit 0 with no output."
+    },
+    {
+      "kind": "knip",
+      "description": "pnpm knip",
+      "status": "pass",
+      "evidence": "cd web-ui && pnpm knip → exit 0. Output contains 7 configuration hints only (pre-existing ignore-list cleanups, unrelated to this feature); no unused files/exports/dependencies errors."
+    },
+    {
+      "kind": "build",
+      "description": "Prod bundle MUST tree-shake MSW out. Verify: `grep -rli 'mock-service-worker|msw' web-ui/dist/` returns no matches (or only the mockServiceWorker.js copy in dist/, which is a static asset not referenced by the bundle).",
+      "status": "pass",
+      "evidence": "cd web-ui && pnpm build → vite built in 184ms, 156 modules, produced dist/assets/index-Cj36O6Vj.js (302.20 kB) + route chunks. Tree-shake probe: `grep -rli 'mock-service-worker\\|msw' web-ui/dist/ | grep -v '^web-ui/dist/mockServiceWorker\\.js$'` returned EMPTY (zero lines). dist/index.html references only `/assets/index-Cj36O6Vj.js`, `/assets/jsx-runtime-DAs1UGHr.js`, `/assets/index-ChEEJWLN.css`; no msw chunk is loaded."
+    },
+    {
+      "kind": "vitest",
+      "description": "Smoke test at web-ui/src/mocks/__tests__/handlers.test.ts: register an http.get handler for /api/__smoke, fetch it, assert the mocked body.",
+      "status": "pass",
+      "evidence": "cd web-ui && pnpm test → `Test Files 1 passed (1)`, `Tests 1 passed (1)`, duration 413ms. Smoke test registers `http.get(\"http://localhost/api/__smoke\", ...)` via server.use(), fetches it, and asserts `{ok:true, from:\"msw\"}` — proves handlers.ts + server.ts + test-setup.ts (listen/resetHandlers/close with onUnhandledRequest:\"error\") are correctly wired in Vitest node-mode."
+    },
+    {
+      "kind": "invariant",
+      "description": "Demonstrate the boundaries rule rejects a forbidden import: add a throwaway file under web-ui/src/ui/ that imports from src/mocks/ and confirm `pnpm lint` fails with the expected boundaries error; then remove the throwaway file.",
+      "status": "pass",
+      "evidence": "Reconciled post-evaluation by the human orchestrator. The generator correctly deferred this criterion because web-ui/invariants/** is off-limits; the invariant edit landed in commit c381a8a per the splice-ready snippet in docs/plans/notes/frontend.mocks.setup.md (registered `mocks` element-type at src/mocks/**, extended main→allow.to.type, added mocks→{mocks,shared} rule). Throwaway file web-ui/src/ui/_forbidden_import_demo.tsx importing @/mocks/handlers was created, `pnpm lint` ran with exit=1, producing the expected error verbatim: `error There is no rule allowing dependencies from elements of type \"ui\" to elements of type \"mocks\"  boundaries/dependencies`. Throwaway file removed immediately after verification. Meta-invariant test_webui_invariants_wired.py still 6/6 pass; no KNOWN_SENTINELS rule touched."
+    }
+  ],
+  "escalation": null,
+  "suggested_feedback_for_generator": null,
+  "notes": "Original evaluator verdict at evaluated_at was overall=fail with the kind:invariant criterion correctly deferred-pending-planner. Reconciled by (a) the human orchestrator landing the invariant edit (commit c381a8a) per the splice-ready snippet the generator put in NOTES, and (b) an independent fix to apps/tests/invariants/test_webui_invariants_wired.py::_strip_line_comments (commit 992aede) that the generator flagged as a latent meta-invariant bug during its run. Feature is now fully green end-to-end. Harness-level observation: the evaluator correctly routed the deferred criterion to planner escalation without rubber-stamping or looping the generator — the skepticism + escalation doctrine held."
+}

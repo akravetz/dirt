@@ -115,7 +115,7 @@
         { "kind": "vitest", "description": "Smoke test at web-ui/src/mocks/__tests__/handlers.test.ts: register an http.get handler for /api/__smoke, fetch it, assert the mocked body. Confirms handlers.ts + server.ts wiring are correct and Vitest + MSW node-mode are live." },
         { "kind": "invariant", "description": "Demonstrate the boundaries rule rejects a forbidden import: add a throwaway file under web-ui/src/ui/ that imports from src/mocks/ and confirm `pnpm lint` fails with the expected boundaries error; then remove the throwaway file. Record the lint error message in NOTES.md as evidence. (Alternatively, if the planner has landed the invariant edit out-of-band, just confirm the forbidden-import pattern fails lint.)" }
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "backend.auth",
