@@ -6,10 +6,10 @@ instance, resolved via ``Depends(get_ptz)`` from ``dirt_web.deps``.
 
 from __future__ import annotations
 
-from dirt_contracts.webapp_v1.models import PTZState
-from fastapi import APIRouter, Depends
+from dirt_contracts.webapp_v1.models import PTZApplied, PTZState
+from fastapi import APIRouter, Depends, HTTPException
 
-from dirt_shared.services.ptz import PTZService
+from dirt_shared.services.ptz import PTZService, UnknownPresetError
 from dirt_web.deps import get_ptz
 
 router = APIRouter(prefix="/api/ptz", tags=["ptz"])
@@ -20,3 +20,16 @@ async def ptz_state(ptz: PTZService = Depends(get_ptz)) -> PTZState:
     """Current motor position + preset list for the PTZ panel."""
     payload = await ptz.get_state()
     return PTZState.model_validate(payload)
+
+
+@router.post("/preset/{id}", response_model=PTZApplied)
+async def ptz_preset(
+    id: str,
+    ptz: PTZService = Depends(get_ptz),
+) -> PTZApplied:
+    """Move to the named preset. 404 when the id is not in camera.json."""
+    try:
+        payload = await ptz.apply_preset(id)
+    except UnknownPresetError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    return PTZApplied.model_validate(payload)
