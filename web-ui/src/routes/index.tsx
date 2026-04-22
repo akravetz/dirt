@@ -30,6 +30,7 @@ import { PlantsStrip } from "@/ui/PlantsStrip";
 import type { PlantCode } from "@/ui/plant-types";
 import { RangeSwitch, type SparklineRange } from "@/ui/RangeSwitch";
 import { Sparkline } from "@/ui/Sparkline";
+import { SystemTable } from "@/ui/SystemTable";
 
 export const Route = createFileRoute("/")({
   component: DashboardPage,
@@ -143,6 +144,19 @@ function DashboardPage() {
     queryKey: ["plants.list"],
     queryFn: async () => {
       const { data, error } = await api.GET("/api/plants");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // /api/system/devices — one row per device for the dashboard system
+  // table rendered below the plants strip. Independent of the range
+  // switch; the table is an always-on snapshot (see
+  // frontend.dashboard.system_table).
+  const systemDevicesQuery = useQuery({
+    queryKey: ["system.devices"],
+    queryFn: async () => {
+      const { data, error } = await api.GET("/api/system/devices");
       if (error) throw error;
       return data;
     },
@@ -263,6 +277,9 @@ function DashboardPage() {
       <HumidifierStrip points={humidifierHistory.data?.points ?? []} />
       {plantsQuery.data ? (
         <PlantsStrip plants={plantsQuery.data.plants} onSelect={setSelectedPlant} />
+      ) : null}
+      {systemDevicesQuery.data ? (
+        <SystemTable devices={systemDevicesQuery.data.devices} />
       ) : null}
       {selectedPlant !== null && plantDetailQuery.data ? (
         <PlantDetail

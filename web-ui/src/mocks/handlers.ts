@@ -504,6 +504,87 @@ export const handlers: RequestHandler[] = [
     });
   }),
 
+  // -------------------------------------------------------------------------
+  // frontend.dashboard.system_table — /api/system/devices
+  //
+  // Fixture for the dashboard system table (one row per device). Shape
+  // duck-typed against contracts/webapp-v1.yaml
+  // #/components/schemas/{DevicesResponse,DeviceStatus,DeviceStatusKind}
+  // (boundaries forbids mocks/ → api-client/, so no `import type` from
+  // generated schema — consumer typecheck catches drift).
+  //
+  // Eight devices chosen to cover the full DeviceStatusKind enum
+  // (ok|listening|warn|offline) — at least one row per status — so the
+  // e2e spec can assert that each row's badge text matches the fixture's
+  // status value for that row. Ordering is stable so the spec can pair
+  // rows to fixture entries by index.
+  // -------------------------------------------------------------------------
+
+  http.get("/api/system/devices", () => {
+    const ts = "2026-04-21T17:00:00Z";
+    return HttpResponse.json({
+      ts,
+      devices: [
+        {
+          name: "Env sensor · tent",
+          kind: "env_sensor",
+          status: "ok",
+          last_seen: ts,
+          note: null,
+        },
+        {
+          name: "Moisture · Plant A",
+          kind: "moisture_node",
+          status: "ok",
+          last_seen: ts,
+          note: null,
+        },
+        {
+          name: "Moisture · Plant B",
+          kind: "moisture_node",
+          status: "warn",
+          last_seen: ts,
+          note: "weak signal",
+        },
+        {
+          name: "Moisture · Plant C",
+          kind: "moisture_node",
+          status: "offline",
+          last_seen: null,
+          note: "no heartbeat 2h",
+        },
+        {
+          name: "Moisture · Plant D",
+          kind: "moisture_node",
+          status: "ok",
+          last_seen: ts,
+          note: null,
+        },
+        {
+          name: "PTZ camera",
+          kind: "camera",
+          status: "ok",
+          last_seen: ts,
+          note: null,
+        },
+        {
+          name: "Claudia voice",
+          kind: "voice",
+          status: "listening",
+          last_seen: ts,
+          note: null,
+        },
+        {
+          name: "Humidifier plug",
+          kind: "actuator",
+          status: "ok",
+          last_seen: ts,
+          note: null,
+        },
+      ],
+    });
+  }),
+
   http.get("/api/grow/current", () => {
     // germination_date authoritative in CLAUDE.md: 2026-03-15 (veg).
     // day_number for today (2026-04-21) = 38; grow_week_number = 6.
