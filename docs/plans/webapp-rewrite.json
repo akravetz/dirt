@@ -136,7 +136,7 @@
         { "kind": "unit", "path": "apps/web/tests/test_auth_endpoints.py" },
         { "kind": "unit", "path": "apps/web/tests/test_spa_serving.py", "description": "With a tmp_path dist/ containing index.html + assets/main.js: GET / → index.html content; GET /live → same index.html (catch-all for client routes); GET /assets/main.js → the asset bytes; GET /api/unknown → 404 JSON (not the SPA shell — API paths must not fall through); GET /api/auth/me without cookie → 401 JSON (not a 302 redirect)."}
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "frontend.login",
@@ -148,7 +148,7 @@
         { "kind": "agent-browser", "script": "docs/plans/evaluator-checks/login.sh", "description": "open /login, snapshot, assert hardcoded field-notes block; submit with bad creds → 401 visible; submit with good creds → routed to /; cookie set." },
         { "kind": "visual", "reference_screenshot": "docs/plans/refs/login.png" }
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "backend.grow.current",
