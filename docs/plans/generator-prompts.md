@@ -188,16 +188,28 @@ Run this EXACTLY, in order, after every acceptance criterion is
 green (unit + invariants + lane-specific gates). Treat these steps
 as one atomic phase: you are not done until step 7.
 
-**CRITICAL — common failure mode to avoid.** When the `/simplify`
-skill completes, it often prints something like "Returning control
-to the caller" or "Now return control to the parent workflow."
-**That message is NOT your exit signal.** It means the skill
-finished. You still have steps 3–7 to complete. The observed
-failure mode we are guarding against here is generators taking
-/simplify's handoff as a cue to exit — leaving an uncommitted diff
-in the worktree and no NOTES file. If you notice yourself about to
-print your final message right after /simplify returns, STOP and
-finish steps 3–7 first.
+**DO NOT yield, return, hand control back, or print your final
+summary until ALL of your work is complete.** Your work is complete
+only when step 7 prints `DONE` or `STUCK: <reason>` on the last line
+of stdout. Any earlier "returning control", "handing back to the
+caller", "all acceptance criteria green", or similar phrase is an
+INTERNAL status, not a termination signal. If you are mid-cluster
+(multiple features in one run), your work is not complete until
+every feature's commits are on the branch AND the cluster-wide
+simplify + NOTES commits are on the branch AND step 7 has printed
+`DONE`.
+
+**CRITICAL — common failure mode.** When the `/simplify` skill
+completes, it often prints something like "Returning control to the
+caller" or "Now return control to the parent workflow." **That
+message is NOT your exit signal.** It means the skill finished.
+You still have steps 3–7 to complete (and, for a cluster run, the
+next feature to implement before step 1 is even re-entered). The
+observed failure mode: generators take /simplify's handoff as a cue
+to exit, leaving uncommitted diff in the worktree, missing NOTES,
+and — for clusters — un-implemented sibling features. If you notice
+yourself about to print your final message right after /simplify
+returns, STOP and finish everything outstanding first.
 
 ## Step 1 — run /simplify
 
@@ -266,6 +278,32 @@ The very last line of your final stdout must be exactly one of:
     STUCK: <one-line reason>
 
 The orchestrator greps for this sentinel.
+
+# Cluster protocol — multi-feature runs
+
+If your spawn prompt declares a CLUSTER (multiple feature ids to
+implement in one run), the wrap-up changes:
+
+- Steps 1–5 of the checklist run ONCE AT THE END, NOT per feature.
+- Per-feature work: implement the feature, run its tests + full
+  invariants, run `scripts/agent-fix`, commit as
+  `feat(<feature_id>): <one-line>`. That's it. Do NOT run /simplify
+  yet, do NOT write NOTES yet, do NOT print any exit sentinel.
+- Move on to the next feature. Repeat the per-feature commit step
+  until every feature in the cluster has a `feat(...)` commit on the
+  branch.
+- ONLY THEN: run /simplify on the full cluster diff (step 1), commit
+  the simplify pass (step 3; `--allow-empty` if no changes), write
+  cluster-wide NOTES covering every feature (step 4), commit NOTES
+  (step 5), self-verify (step 6), print DONE (step 7).
+
+Final branch shape for a cluster of N features: `N feat commits +
+1 cluster-simplify commit + 1 cluster-notes commit = N+2 commits`.
+
+Running /simplify per-feature is the single biggest trigger of the
+exit-too-early bug documented above, because the skill's
+"returning control" handoff between features looks identical to its
+handoff at run-end. Don't give the bug a window.
 
 # Iteration budget
 
