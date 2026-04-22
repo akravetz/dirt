@@ -38,11 +38,11 @@ async def login(
 async def logout(
     response: Response,
     sessions: SessionManager = Depends(get_sessions),
-) -> Response:
-    """Clear the dirt_session cookie."""
+) -> None:
+    """Clear the dirt_session cookie. Decorator sets 204; FastAPI
+    applies the injected Response's cookie mutations to the final
+    response."""
     sessions.clear_cookie(response)
-    response.status_code = 204
-    return response
 
 
 @router.get("/me", response_model=User)

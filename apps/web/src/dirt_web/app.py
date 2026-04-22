@@ -151,12 +151,20 @@ class SPAFallbackMiddleware(BaseHTTPMiddleware):
     instead of an ambiguous 404.
     """
 
-    _MISSING_DIST_WARNED = False
-
     def __init__(self, app, dist_dir: Path) -> None:
         super().__init__(app)
         self._dist_dir = dist_dir
         self._index_html = dist_dir / "index.html"
+        # Cache the dist-present check at startup. If the bundle is
+        # built later, operators restart dirt-web (pnpm build isn't
+        # watched). Avoids a stat() on every non-/api/ 404.
+        self._dist_present = self._index_html.is_file()
+        if not self._dist_present:
+            _log.warning(
+                "web-ui dist missing at %s; non-/api/ routes will return "
+                "503 until `pnpm --dir web-ui build` runs + service restart.",
+                self._dist_dir,
+            )
 
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint
@@ -170,14 +178,7 @@ class SPAFallbackMiddleware(BaseHTTPMiddleware):
         if path.startswith(("/api/", "/mcp", "/assets/")):
             return response
 
-        if not self._index_html.is_file():
-            if not SPAFallbackMiddleware._MISSING_DIST_WARNED:
-                _log.warning(
-                    "web-ui dist missing at %s; non-/api/ routes will return "
-                    "503 until `pnpm --dir web-ui build` runs.",
-                    self._dist_dir,
-                )
-                SPAFallbackMiddleware._MISSING_DIST_WARNED = True
+        if not self._dist_present:
             return JSONResponse(
                 {"detail": "web-ui bundle not built"},
                 status_code=503,
