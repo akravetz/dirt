@@ -182,51 +182,116 @@ Your feature is done when ALL of these are green:
   assertion in it. If the script appears missing or underspecified,
   STOP and write NOTES.md rather than guessing.
 
-# Final simplification pass
+# Wrap-up — mandatory 7-step checklist. Do NOT exit before step 7.
 
-Once every acceptance criterion is green — before you write
-NOTES.md or print DONE — run the `/simplify` skill on the worktree.
-It reviews your changed code for reuse, quality, and efficiency and
-fixes what it flags. If it edits files:
+Run this EXACTLY, in order, after every acceptance criterion is
+green (unit + invariants + lane-specific gates). Treat these steps
+as one atomic phase: you are not done until step 7.
 
-- Re-run `scripts/agent-fix`.
+**CRITICAL — common failure mode to avoid.** When the `/simplify`
+skill completes, it often prints something like "Returning control
+to the caller" or "Now return control to the parent workflow."
+**That message is NOT your exit signal.** It means the skill
+finished. You still have steps 3–7 to complete. The observed
+failure mode we are guarding against here is generators taking
+/simplify's handoff as a cue to exit — leaving an uncommitted diff
+in the worktree and no NOTES file. If you notice yourself about to
+print your final message right after /simplify returns, STOP and
+finish steps 3–7 first.
+
+## Step 1 — run /simplify
+
+Invoke the `/simplify` skill on the worktree. It reviews your diff
+for reuse, quality, and efficiency and fixes what it flags.
+Observe which files (if any) the skill modified.
+
+## Step 2 — if /simplify edited files, get them clean
+
+- Run `scripts/agent-fix` (formatters + lint-fixers).
 - Re-run the per-app tests + full invariants.
-- Commit as `chore({{FEATURE_ID}}): simplify pass` (pre-commit still
-  applies; recover modified-file aborts with `git add -A` + recommit).
+- If a test now fails, fix forward — don't revert the simplification.
 
-If /simplify breaks a test, fix forward — don't revert the
-simplification. The evaluator assumes this step ran; skipping it is
-not an option, even when the diff looks clean.
+## Step 3 — commit the simplify pass (REQUIRED — do NOT skip this step)
 
-# Exit conditions — read carefully
+    git add -A
+    git commit -m "chore({{FEATURE_ID}}): simplify pass"
+
+If pre-commit hooks modify files, recover with `git add -A` and
+re-run the `git commit ...` — never `--no-verify`.
+
+**If /simplify produced zero changes**, commit an EMPTY commit so
+the evaluator and orchestrator can confirm the step ran:
+
+    git commit --allow-empty -m "chore({{FEATURE_ID}}): simplify pass (no changes)"
+
+Rationale: the evaluator greps `git log main..HEAD` for the simplify
+commit. A missing commit is indistinguishable from a skipped step;
+an explicit `--allow-empty` is a positive signal.
+
+## Step 4 — write NOTES
+
+Write {{NOTES_PATH}} (under docs/plans/notes/, which is TRACKED — no
+`git add -f` needed). Include:
+
+- What's done.
+- What's not done, and why (if exiting STUCK).
+- Any contract / out-of-scope concerns you noticed.
+- The exact failing test output if applicable (verbatim quote).
+- Suggested next move.
+
+## Step 5 — commit NOTES
+
+    git add {{NOTES_PATH}}
+    git commit -m "docs({{FEATURE_ID}}): generator notes"
+
+## Step 6 — self-verify the branch's terminal state
+
+Run both of these; both must hold before step 7.
+
+    git log main..HEAD --oneline
+    git status --porcelain
+
+Expected `git log` output: at minimum three commits (your feat,
+your simplify pass — possibly `--allow-empty` — and your notes).
+Expected `git status --porcelain`: empty. No uncommitted residue.
+
+If either check fails, go back and fix what's missing before step 7.
+
+## Step 7 — print DONE or STUCK
+
+The very last line of your final stdout must be exactly one of:
+
+    DONE
+
+    STUCK: <one-line reason>
+
+The orchestrator greps for this sentinel.
+
+# Iteration budget
 
 You have a budget of approximately {{ITERATION_BUDGET}} compose-test
 iterations. If you exhaust it without passing all acceptance
-criteria, STOP. Do not loop forever.
+criteria, stop iterating and proceed to the wrap-up checklist above
+with a STUCK ending at step 7. Do not loop forever.
 
-When you stop (success or stuck), write {{NOTES_PATH}} containing:
+# NEVER
 
-- What's done.
-- What's not done, and why.
-- Any contract / out-of-scope concerns you noticed.
-- The exact failing test output if applicable.
-- Suggested next move.
-
-Then commit NOTES.md (it's gitignored under var/, so the path needs
-explicit `git add -f` or move it to docs/plans/notes/ if you want it
-tracked — your call). Print "DONE" or "STUCK" as the last line of
-your final output so the orchestrator can grep for it.
-
-NEVER:
 - Modify off-limits paths.
 - Skip pre-commit hooks (--no-verify).
 - Patch tests to make them pass instead of fixing the code.
 - Implement features other than {{FEATURE_ID}}.
 - Pull in dependency updates outside what your feature requires.
+- Take /simplify's "returning control" text as an exit cue. It isn't.
+- Exit before step 7 of the wrap-up checklist. The checklist is not
+  optional.
 
-ALWAYS:
+# ALWAYS
+
 - Run `scripts/agent-fix` before committing.
 - Reference the plan JSON entry for ground truth.
+- Produce all three commits (feat, simplify, notes) on the branch
+  before exiting — the simplify commit may be `--allow-empty` if
+  /simplify produced no changes, but the commit itself is required.
 - Quote test output verbatim in NOTES.md if you exit STUCK.
 
 {{LANE_SPECIFIC_BLOCK}}
