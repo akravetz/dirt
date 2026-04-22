@@ -503,7 +503,7 @@
         { "kind": "e2e", "test_file": "web-ui/tests/e2e/wiki.spec.ts", "description": "Navigate to /wiki. Assert the sidebar tree renders folders + files from GET /api/wiki/tree. Click plant-a.md in the sidebar: the main pane renders a frontmatter block (matter rows) and the markdown body from GET /api/wiki/file?path=plants/plant-a.md. Press Cmd+K: a search palette becomes visible. Type 'topping' into the palette input: GET /api/wiki/search?q=topping fires and match results render. Press Enter on a match: URL navigates (e.g. to /wiki?path=…). Open palette with an empty query: recent files render from shared/storage.ts AND no GET /api/wiki/search with empty q is fired (assert via network tracking)." },
         { "kind": "visual", "reference_screenshot": "docs/plans/refs/wiki.png", "threshold_pct": 5 }
       ],
-      "status": "pending"
+      "status": "done"
     }
   ],
 

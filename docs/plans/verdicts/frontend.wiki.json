@@ -1,0 +1,20 @@
+{
+  "feature_id": "frontend.wiki",
+  "lane": "frontend",
+  "branch": "feat/fe/wiki",
+  "evaluator_run": false,
+  "orchestrator_reconciled_at": "2026-04-22T07:05:00Z",
+  "overall": "pass",
+  "off_limits_clean": true,
+  "criteria": [
+    {
+      "kind": "e2e",
+      "description": "Wiki tab: sidebar tree from /api/wiki/tree, plant-a click renders frontmatter + markdown from /api/wiki/file, Cmd+K opens palette, typing fires /api/wiki/search, Enter navigates, empty-query palette shows recents from shared/storage and does NOT fire search.",
+      "status": "pass",
+      "evidence": "2-commit branch shape (feat + docs). `pnpm test:e2e` on main after cherry-pick: 45/45 green (+7 wiki tests: tree render, file-on-click, Cmd+K visible, search fires, Enter navigates, recents-no-search, console-error sweep)."
+    }
+  ],
+  "escalation": null,
+  "suggested_feedback_for_generator": null,
+  "notes": "Final pending frontend feature. All 22 planned features (15 BE + 7 FE) now on main. Next: contract-drift audit (real BE on :8001 vs MSW fixtures)."
+}
