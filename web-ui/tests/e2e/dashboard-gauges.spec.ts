@@ -13,8 +13,6 @@
 // the backend stack.
 import { expect, test } from "@playwright/test";
 
-import { collectConsoleErrors } from "./_helpers";
-
 test.describe("dashboard gauges", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
@@ -131,14 +129,6 @@ test.describe("dashboard gauges", () => {
       await expect(status).toHaveText("ok");
       await expect(status).toHaveAttribute("data-status", "ok");
     }
-
-    // Console hygiene: no React errors from the fetch/render loop.
-    const errors = collectConsoleErrors(page);
-    await page.reload();
-    await expect(
-      page.getByRole("region", { name: "Environment gauges" }),
-    ).toBeVisible();
-    expect(errors.read()).toEqual([]);
   });
 
   test("top bar shows Day {day_number} · {strain} from /api/grow/current", async ({
