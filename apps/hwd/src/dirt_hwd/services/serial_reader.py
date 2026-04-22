@@ -151,6 +151,9 @@ class SerialReaderService:
                     await asyncio.wait_for(stop_event.wait(), timeout=interval)
 
             except serial.SerialException as e:
+                # Port-level recovery: close + reopen on next iteration.
+                # Broader failures (DB pool drop, disk error, etc.) propagate
+                # to the supervisor which restarts this task fresh.
                 logger.error(
                     "Serial error: %s — retrying in %ds",
                     e,

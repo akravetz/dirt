@@ -9,6 +9,8 @@ hardware exclusively (capture, archive, humidifier loop, serial reader).
 from __future__ import annotations
 
 import asyncio
+import logging
+import signal
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Protocol
@@ -20,10 +22,13 @@ from dirt_hwd.api.ingest import router as ingest_router
 from dirt_hwd.services.archive import ArchiveService
 from dirt_hwd.services.humidifier import HumidifierLoopService
 from dirt_hwd.services.serial_reader import SerialReaderService
+from dirt_hwd.supervise import supervise
 from dirt_shared.app_wiring import build_core_services
 from dirt_shared.config import Settings
 from dirt_shared.db import ping
 from dirt_shared.services.capture import CaptureService
+
+logger = logging.getLogger(__name__)
 
 
 class BackgroundService(Protocol):
@@ -34,6 +39,35 @@ class BackgroundService(Protocol):
     """
 
     async def run(self, stop_event: asyncio.Event) -> None: ...
+
+
+async def _crash_watchdog(
+    tasks: list[asyncio.Task[None]],
+    stop_event: asyncio.Event,
+) -> None:
+    """Turn a supervised-task budget exhaustion into a graceful process exit.
+
+    When a ``supervise``-wrapped task re-raises (budget blown), asyncio
+    stores the exception on the task without disturbing the other tasks.
+    The process keeps running degraded. This watchdog bridges that gap:
+    it waits for the first crash, logs it, sets ``stop_event`` to unwind
+    siblings, then raises SIGTERM so uvicorn shuts the app down cleanly
+    and systemd's ``Restart=on-failure`` (bounded by ``StartLimitBurst``)
+    can relaunch from a fresh process state.
+    """
+    done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION)
+    for t in done:
+        exc = t.exception()
+        if exc is None:
+            continue
+        logger.error(
+            "supervised task %s exhausted its budget — triggering shutdown",
+            t.get_name(),
+            exc_info=exc,
+        )
+        stop_event.set()
+        signal.raise_signal(signal.SIGTERM)
+        return
 
 
 def _default_background_services(
@@ -93,13 +127,33 @@ def create_app(
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await ping(engine)
         stop_event = asyncio.Event()
-        tasks = [asyncio.create_task(svc.run(stop_event)) for svc in services]
+        tasks = [
+            asyncio.create_task(
+                supervise(type(svc).__name__, svc.run, stop_event),
+                name=type(svc).__name__,
+            )
+            for svc in services
+        ]
+        # Tests pass background_services=[]; asyncio.wait([]) would raise.
+        watchdog = (
+            asyncio.create_task(
+                _crash_watchdog(tasks, stop_event),
+                name="crash_watchdog",
+            )
+            if tasks
+            else None
+        )
         try:
             yield
         finally:
             stop_event.set()
-            for t in tasks:
-                await t
+            if watchdog is not None:
+                watchdog.cancel()
+            await asyncio.gather(
+                *([watchdog] if watchdog is not None else []),
+                *tasks,
+                return_exceptions=True,
+            )
 
     app = FastAPI(title="Dirt HWD", lifespan=lifespan)
     app.state.engine = engine

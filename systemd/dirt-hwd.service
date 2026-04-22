@@ -5,6 +5,10 @@ After=default.target network-online.target
 Wants=network-online.target
 # Ordered after the camera daemon — capture loop talks to its socket.
 After=dirt-camera.service
+# Outer crash-loop budget: 5 nonzero exits in 5 minutes → systemd leaves
+# the unit `failed`. Reset with `systemctl --user reset-failed dirt-hwd`.
+StartLimitBurst=5
+StartLimitIntervalSec=300
 
 [Service]
 Type=simple

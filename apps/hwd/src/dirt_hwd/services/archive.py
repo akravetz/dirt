@@ -245,35 +245,38 @@ class ArchiveService:
         )
 
     async def run(self, stop_event: asyncio.Event) -> None:
-        """Periodically check for and archive old snapshots."""
+        """Periodically check for and archive old snapshots.
+
+        Unexpected exceptions propagate to the caller — the hwd supervisor
+        restarts this loop with a sliding-window failure budget. The inner
+        ``ArchiveVerificationError`` catch stays inline because we want to
+        skip a single bad date and continue processing siblings.
+        """
         logger.info(
             "Starting archive loop (retention=%dd)",
             self._config.retention_days,
         )
         while not stop_event.is_set():
-            try:
-                snapshot_dir = self._config.snapshot_dir
-                if snapshot_dir.exists():
-                    dates = find_archivable_dates(
-                        snapshot_dir,
-                        self._config.retention_days,
-                        clock=self._clock,
-                    )
-                    for d in dates:
-                        try:
-                            loop = asyncio.get_running_loop()
-                            await loop.run_in_executor(
-                                None,
-                                self.archive_date,
-                                d,
-                            )
-                        except ArchiveVerificationError:
-                            logger.exception(
-                                "Archive verification failed for %s",
-                                d,
-                            )
-            except Exception:
-                logger.exception("Error in archive loop")
+            snapshot_dir = self._config.snapshot_dir
+            if snapshot_dir.exists():
+                dates = find_archivable_dates(
+                    snapshot_dir,
+                    self._config.retention_days,
+                    clock=self._clock,
+                )
+                for d in dates:
+                    try:
+                        loop = asyncio.get_running_loop()
+                        await loop.run_in_executor(
+                            None,
+                            self.archive_date,
+                            d,
+                        )
+                    except ArchiveVerificationError:
+                        logger.exception(
+                            "Archive verification failed for %s",
+                            d,
+                        )
 
             with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(stop_event.wait(), timeout=3600)

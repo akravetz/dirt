@@ -147,16 +147,17 @@ class CaptureService:
         return snapshot
 
     async def run(self, stop_event: asyncio.Event) -> None:
-        """Periodically capture a snapshot at the configured interval."""
+        """Periodically capture a snapshot at the configured interval.
+
+        Exceptions propagate to the caller — the hwd supervisor restarts
+        this loop with a sliding-window failure budget.
+        """
         logger.info(
             "Starting capture loop (interval=%ds, via dirt-camera daemon)",
             self._config.capture_interval,
         )
         while not stop_event.is_set():
-            try:
-                await self.capture_snapshot()
-            except Exception:
-                logger.exception("Error capturing snapshot")
+            await self.capture_snapshot()
             with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(
                     stop_event.wait(),
