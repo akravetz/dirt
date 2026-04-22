@@ -10,11 +10,12 @@ Legacy ``/feed/live``, ``/feed/image`` (HTMX fragment) and
 renders the timestamp client-side.
 """
 
-from fastapi import APIRouter, Depends
-from fastapi.responses import Response
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import FileResponse, Response
 
 from dirt_shared.services.capture import FrameCapturer
-from dirt_web.deps import get_frame_capturer
+from dirt_shared.services.snapshots import SnapshotsService, get_snapshot_path
+from dirt_web.deps import get_frame_capturer, get_snapshots
 
 router = APIRouter(prefix="/api/feed", tags=["feed"])
 
@@ -38,3 +39,24 @@ async def live_frame(
         media_type="image/jpeg",
         headers={"Cache-Control": "no-store"},
     )
+
+
+@router.get("/snapshot/latest")
+async def latest_snapshot(
+    snaps: SnapshotsService = Depends(get_snapshots),
+) -> FileResponse:
+    """Return the most recent archived snapshot from disk.
+
+    This is the renamed ``/api/snapshots/latest``. 404 when no
+    snapshot rows exist yet, or the row's ``file_path`` is missing
+    from disk (archive drift).
+    """
+    snapshot = await snaps.latest()
+    if snapshot is None:
+        raise HTTPException(status_code=404, detail="No snapshots available")
+
+    file_path = get_snapshot_path(snapshot)
+    if file_path is None:
+        raise HTTPException(status_code=404, detail="Snapshot file not found")
+
+    return FileResponse(file_path, media_type="image/jpeg")

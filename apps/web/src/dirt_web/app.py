@@ -20,7 +20,6 @@ from dirt_web.api.grow import router as grow_router
 from dirt_web.api.humidifier import router as humidifier_router
 from dirt_web.api.plants import router as plants_router
 from dirt_web.api.sensors import router as sensors_router
-from dirt_web.api.snapshots import router as snapshots_router
 from dirt_web.api.system import router as system_router
 from dirt_web.auth import AuthMiddleware, SessionManager
 
@@ -104,7 +103,6 @@ def create_app(
     app.add_middleware(SPAFallbackMiddleware, dist_dir=web_ui_dist_dir)
 
     app.include_router(auth_router)
-    app.include_router(snapshots_router)
     app.include_router(feed_router)
     app.include_router(sensors_router)
     app.include_router(grow_router)
