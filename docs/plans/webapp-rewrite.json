@@ -231,12 +231,11 @@
     {
       "id": "frontend.dashboard.sparklines",
       "lane": "frontend",
-      "depends_on": ["backend.sensors.history", "frontend.dashboard.gauges"],
+      "depends_on": ["backend.sensors.history", "frontend.dashboard.gauges", "frontend.mocks.setup", "frontend.e2e.setup"],
       "user_story": "Below the gauges, five sparklines (one per metric) share a crosshair hover and respond to a 1h/24h/7d range switcher.",
-      "files": ["web-ui/src/ui/Sparkline.tsx", "web-ui/src/ui/RangeSwitch.tsx"],
+      "files": ["web-ui/src/ui/Sparkline.tsx", "web-ui/src/ui/RangeSwitch.tsx", "web-ui/tests/e2e/dashboard-sparklines.spec.ts"],
       "acceptance": [
-        { "kind": "agent-browser", "script": "docs/plans/evaluator-checks/dashboard-sparklines.sh", "description": "click 1h/24h/7d in turn; assert 5 GETs to /api/sensors/history per range; hover one sparkline → crosshair moves on all 5; value tooltip shows correct unit." },
-        { "kind": "visual", "reference_screenshot": "docs/plans/refs/dashboard-sparklines.png" }
+        { "kind": "e2e", "test_file": "web-ui/tests/e2e/dashboard-sparklines.spec.ts", "description": "Open /. Assert five sparklines render under the gauges (one per metric: temperature, humidity, VPD, fan, reservoir). Click 1h / 24h / 7d in turn in the range switcher and assert that changing the range triggers a fresh GET /api/sensors/history per metric per range change (5 fetches). Hovering one sparkline draws a crosshair shared across all 5 (same x-position marker visible on every sparkline). The value tooltip on hover shows the correct unit suffix per metric (°C / % / kPa / % / in)." }
       ],
       "status": "pending"
     },
@@ -269,11 +268,11 @@
     {
       "id": "frontend.dashboard.humidifier",
       "lane": "frontend",
-      "depends_on": ["backend.humidifier.state", "backend.humidifier.history", "frontend.dashboard.gauges"],
+      "depends_on": ["backend.humidifier.state", "backend.humidifier.history", "frontend.dashboard.gauges", "frontend.mocks.setup", "frontend.e2e.setup"],
       "user_story": "Humidifier tile shows ON/OFF state + duration since last transition + cycles/24h. Below the sparklines, a duty-cycle strip renders the on/off transitions for the active range.",
-      "files": ["web-ui/src/ui/HumidifierTile.tsx", "web-ui/src/ui/HumidifierStrip.tsx"],
+      "files": ["web-ui/src/ui/HumidifierTile.tsx", "web-ui/src/ui/HumidifierStrip.tsx", "web-ui/tests/e2e/dashboard-humidifier.spec.ts"],
       "acceptance": [
-        { "kind": "agent-browser", "script": "docs/plans/evaluator-checks/dashboard-humidifier.sh", "description": "tile reflects /api/humidifier/state; strip renders rectangles for /api/humidifier/history; range switch re-fetches strip." }
+        { "kind": "e2e", "test_file": "web-ui/tests/e2e/dashboard-humidifier.spec.ts", "description": "Open /. Assert the humidifier tile renders with the ON/OFF state from GET /api/humidifier/state, the duration-since-last-transition text, and the cycles-per-24h count. Below the sparklines, assert the duty-cycle strip renders on/off rectangles sourced from GET /api/humidifier/history — one rectangle per transition. Changing the range via the shared 1h/24h/7d switcher triggers a fresh GET /api/humidifier/history and re-renders the strip." }
       ],
       "status": "pending"
     },
@@ -293,11 +292,11 @@
     {
       "id": "frontend.dashboard.plants_strip",
       "lane": "frontend",
-      "depends_on": ["backend.plants.list", "frontend.dashboard.gauges"],
+      "depends_on": ["backend.plants.list", "frontend.dashboard.gauges", "frontend.mocks.setup", "frontend.e2e.setup"],
       "user_story": "Plants strip below the sparklines shows four cards (A/B/C/D) with sticker chip + soil-moisture bar. Click opens the plant-detail drawer.",
-      "files": ["web-ui/src/ui/PlantCard.tsx", "web-ui/src/ui/PlantsStrip.tsx"],
+      "files": ["web-ui/src/ui/PlantCard.tsx", "web-ui/src/ui/PlantsStrip.tsx", "web-ui/tests/e2e/dashboard-plants-strip.spec.ts"],
       "acceptance": [
-        { "kind": "agent-browser", "script": "docs/plans/evaluator-checks/dashboard-plants.sh", "description": "4 cards render with correct sticker colours from GET /api/plants; clicking opens drawer with /api/plants/{code}." }
+        { "kind": "e2e", "test_file": "web-ui/tests/e2e/dashboard-plants-strip.spec.ts", "description": "Open /. Assert four plant cards render (A, B, C, D) below the sparklines. Each card shows its sticker chip color sourced from GET /api/plants (the response's sticker color per plant). Each card shows a soil-moisture bar whose width matches the plant's moisture.current_pct. Clicking plant A's card opens the plant-detail drawer (the drawer is rendered by frontend.plant_detail, lands in a later feature — for this spec, assert the click triggers a GET /api/plants/a, no need to assert drawer contents)." }
       ],
       "status": "pending"
     },
@@ -330,12 +329,12 @@
     {
       "id": "frontend.plant_detail",
       "lane": "frontend",
-      "depends_on": ["backend.plants.detail", "backend.plants.moisture", "frontend.dashboard.plants_strip"],
+      "depends_on": ["backend.plants.detail", "backend.plants.moisture", "frontend.dashboard.plants_strip", "frontend.mocks.setup", "frontend.e2e.setup"],
       "user_story": "Plant-detail drawer overlays the dashboard with header (sticker + name + primary/secondary tag), moisture hero (current + target band visualization), 24h moisture chart, timeline list, and current-status note. Drop the lint ✓ badge.",
-      "files": ["web-ui/src/ui/PlantDetail.tsx"],
+      "files": ["web-ui/src/ui/PlantDetail.tsx", "web-ui/tests/e2e/plant-detail.spec.ts"],
       "acceptance": [
-        { "kind": "agent-browser", "script": "docs/plans/evaluator-checks/plant-detail.sh", "description": "click Plant A on dashboard; assert drawer opens, frontmatter rows render, moisture hero matches /api/plants/a.moisture.current_pct, timeline rows count = response.timeline.length, ESC closes drawer." },
-        { "kind": "visual", "reference_screenshot": "docs/plans/refs/plant-detail-a.png" }
+        { "kind": "e2e", "test_file": "web-ui/tests/e2e/plant-detail.spec.ts", "description": "Open /. Click plant A's card in the plants strip. Assert the drawer opens (a dialog/aside element becomes visible). Assert the drawer's frontmatter rows render (sticker, name, primary/secondary tag) matching GET /api/plants/a. Assert the moisture hero displays moisture.current_pct matching the response. Assert the timeline list's row count equals response.timeline.length. Pressing ESC closes the drawer (dialog becomes hidden)." },
+        { "kind": "visual", "reference_screenshot": "docs/plans/refs/plant-detail-a.png", "threshold_pct": 5 }
       ],
       "status": "pending"
     },
@@ -355,11 +354,11 @@
     {
       "id": "frontend.dashboard.system_table",
       "lane": "frontend",
-      "depends_on": ["backend.system.devices", "frontend.dashboard.gauges"],
+      "depends_on": ["backend.system.devices", "frontend.dashboard.gauges", "frontend.mocks.setup", "frontend.e2e.setup"],
       "user_story": "Dashboard system section renders the device table.",
-      "files": ["web-ui/src/ui/SystemTable.tsx"],
+      "files": ["web-ui/src/ui/SystemTable.tsx", "web-ui/tests/e2e/dashboard-system-table.spec.ts"],
       "acceptance": [
-        { "kind": "agent-browser", "script": "docs/plans/evaluator-checks/dashboard-system.sh", "description": "8 rows render; status badges match GET /api/system/devices.devices[i].status." }
+        { "kind": "e2e", "test_file": "web-ui/tests/e2e/dashboard-system-table.spec.ts", "description": "Open /. Assert the system section renders a table with 8 rows, one per device from GET /api/system/devices. Each row's status badge visually reflects the device's status value (ok|listening|warn|offline) — use an accessible indicator (role/aria-label or textContent) rather than color-only." }
       ],
       "status": "pending"
     },
@@ -446,12 +445,12 @@
     {
       "id": "frontend.live",
       "lane": "frontend",
-      "depends_on": ["backend.feed.live", "backend.ptz.state", "backend.ptz.preset", "backend.ptz.look", "backend.ptz.zoom", "frontend.app.shell"],
+      "depends_on": ["backend.feed.live", "backend.ptz.state", "backend.ptz.preset", "backend.ptz.look", "backend.ptz.zoom", "frontend.app.shell", "frontend.mocks.setup", "frontend.e2e.setup"],
       "user_story": "Live tab shows the camera feed (auto-refresh 10s), click-to-look on the feed, presets list (overview + plant_a..d), zoom slider 1–4×.",
-      "files": ["web-ui/src/routes/live.tsx", "web-ui/src/ui/CameraFeed.tsx", "web-ui/src/ui/PresetList.tsx", "web-ui/src/ui/ZoomSlider.tsx"],
+      "files": ["web-ui/src/routes/live.tsx", "web-ui/src/ui/CameraFeed.tsx", "web-ui/src/ui/PresetList.tsx", "web-ui/src/ui/ZoomSlider.tsx", "web-ui/tests/e2e/live.spec.ts"],
       "acceptance": [
-        { "kind": "agent-browser", "script": "docs/plans/evaluator-checks/live.sh", "description": "img tag refreshes /api/feed/live.jpg every ~10s; clicking the feed posts /api/ptz/look with normalized x/y; preset row click posts /api/ptz/preset/{id}; zoom slider drag posts /api/ptz/zoom." },
-        { "kind": "visual", "reference_screenshot": "docs/plans/refs/live.png" }
+        { "kind": "e2e", "test_file": "web-ui/tests/e2e/live.spec.ts", "description": "Navigate to /live. Assert an img element renders whose src targets /api/feed/live.jpg (the MSW handler returns a small test JPEG blob). Assert the img's src is refreshed (e.g. via a cache-busting query param change) within ~10s. Clicking on the feed at a normalized (x, y) fires POST /api/ptz/look with x and y in [-1, 1] — the spec can force-click at known canvas coords and assert the request body. Clicking a preset row in the presets list fires POST /api/ptz/preset/{id} with the matching id. Dragging the zoom slider fires POST /api/ptz/zoom with the new value (or a debounced sequence ending at the drop position)." },
+        { "kind": "visual", "reference_screenshot": "docs/plans/refs/live.png", "threshold_pct": 5 }
       ],
       "status": "pending"
     },
@@ -497,12 +496,12 @@
     {
       "id": "frontend.wiki",
       "lane": "frontend",
-      "depends_on": ["backend.wiki.tree", "backend.wiki.file", "backend.wiki.search", "frontend.app.shell"],
+      "depends_on": ["backend.wiki.tree", "backend.wiki.file", "backend.wiki.search", "frontend.app.shell", "frontend.mocks.setup", "frontend.e2e.setup"],
       "user_story": "Wiki tab: sidebar tree + main pane renders raw markdown with frontmatter block + breadcrumb. Cmd+K opens search palette; empty state shows recent files (client-side via shared/storage.ts). Drop the lint ✓ footer badge.",
-      "files": ["web-ui/src/routes/wiki.tsx", "web-ui/src/ui/WikiSidebar.tsx", "web-ui/src/ui/WikiDoc.tsx", "web-ui/src/ui/CmdKPalette.tsx"],
+      "files": ["web-ui/src/routes/wiki.tsx", "web-ui/src/ui/WikiSidebar.tsx", "web-ui/src/ui/WikiDoc.tsx", "web-ui/src/ui/CmdKPalette.tsx", "web-ui/tests/e2e/wiki.spec.ts"],
       "acceptance": [
-        { "kind": "agent-browser", "script": "docs/plans/evaluator-checks/wiki.sh", "description": "tree renders folders + files; clicking plant-a.md shows frontmatter + markdown body; Cmd+K opens palette; typing 'topping' returns matches; ENTER navigates; empty palette shows recent files (no /api/wiki/search call with empty q)." },
-        { "kind": "visual", "reference_screenshot": "docs/plans/refs/wiki.png" }
+        { "kind": "e2e", "test_file": "web-ui/tests/e2e/wiki.spec.ts", "description": "Navigate to /wiki. Assert the sidebar tree renders folders + files from GET /api/wiki/tree. Click plant-a.md in the sidebar: the main pane renders a frontmatter block (matter rows) and the markdown body from GET /api/wiki/file?path=plants/plant-a.md. Press Cmd+K: a search palette becomes visible. Type 'topping' into the palette input: GET /api/wiki/search?q=topping fires and match results render. Press Enter on a match: URL navigates (e.g. to /wiki?path=…). Open palette with an empty query: recent files render from shared/storage.ts AND no GET /api/wiki/search with empty q is fired (assert via network tracking)." },
+        { "kind": "visual", "reference_screenshot": "docs/plans/refs/wiki.png", "threshold_pct": 5 }
       ],
       "status": "pending"
     }
