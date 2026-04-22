@@ -6,7 +6,13 @@ instance, resolved via ``Depends(get_ptz)`` from ``dirt_web.deps``.
 
 from __future__ import annotations
 
-from dirt_contracts.webapp_v1.models import PTZApplied, PTZLookRequest, PTZState
+from dirt_contracts.webapp_v1.models import (
+    PTZApplied,
+    PTZLookRequest,
+    PTZState,
+    PTZZoomRequest,
+    PTZZoomResponse,
+)
 from fastapi import APIRouter, Depends, HTTPException
 
 from dirt_shared.services.ptz import PTZService, UnknownPresetError
@@ -43,3 +49,20 @@ async def ptz_look(
     """Click-to-look. Normalized frame coords x/y ∈ [-0.5, 0.5]."""
     payload = await ptz.look_at_normalized(req.x, req.y)
     return PTZApplied.model_validate(payload)
+
+
+@router.post("/zoom", response_model=PTZZoomResponse)
+async def ptz_zoom(
+    req: PTZZoomRequest,
+    ptz: PTZService = Depends(get_ptz),
+) -> PTZZoomResponse:
+    """Set zoom absolutely (``zoom``) or relatively (``delta``). XOR required."""
+    has_zoom = req.zoom is not None
+    has_delta = req.delta is not None
+    if has_zoom == has_delta:
+        raise HTTPException(
+            status_code=400,
+            detail="provide exactly one of 'zoom' or 'delta'",
+        )
+    payload = await ptz.zoom_to(req.zoom) if has_zoom else await ptz.zoom_by(req.delta)
+    return PTZZoomResponse.model_validate(payload)
