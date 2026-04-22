@@ -61,7 +61,8 @@
     "knip": "cd web-ui && pnpm knip passes (no unused files / exports / deps).",
     "build": "cd web-ui && pnpm build produces a dist/ tree without errors.",
     "vitest": "cd web-ui && pnpm test passes (unit tests for components / lib).",
-    "agent-browser": "Driving the live :8001 stack with the script at acceptance.script must satisfy every assertion the script encodes; no console errors; expected network requests observed.",
+    "agent-browser": "DEPRECATED after frontend.e2e.setup — use `e2e` instead. Legacy entries already pointing at docs/plans/evaluator-checks/*.sh remain valid for done features (frontend.app.shell, frontend.login); pending features should migrate to `e2e` as they come up. Semantics: driving the live :8001 stack with the script at acceptance.script must satisfy every assertion the script encodes; no console errors; expected network requests observed.",
+    "e2e": "Implementer writes a Playwright spec at acceptance.test_file (typed TypeScript in web-ui/tests/e2e/). `pnpm test:e2e -- <file>` must pass against a live `pnpm dev` on :5173. Evaluator runs it AND audits coverage: every assertion named in acceptance.description must have a corresponding test case in the spec. Missing coverage → fail with escalation='generator' naming the uncovered assertion. See docs/plans/generator-prompts.md and orchestrator.md for the implementer-writes-test convention + critic's coverage-audit step.",
     "visual": "Rendered output matches the reference screenshot under acceptance.reference_screenshot to within the pixel-diff threshold. Default: ≤1% pass / 1-3% inspect / >3% fail. Per-feature override: set acceptance[].threshold_pct to a number (e.g. 8) to widen the pass band to ≤N%; inspect runs N–2N; fail is >2N. Use for data-driven visuals where the reference and live render will diverge in pixel-level details (gauge needle positions, sparkline shapes) but the component-level layout must still match."
   },
 
@@ -116,6 +117,31 @@
         { "kind": "invariant", "description": "Demonstrate the boundaries rule rejects a forbidden import: add a throwaway file under web-ui/src/ui/ that imports from src/mocks/ and confirm `pnpm lint` fails with the expected boundaries error; then remove the throwaway file. Record the lint error message in NOTES.md as evidence. (Alternatively, if the planner has landed the invariant edit out-of-band, just confirm the forbidden-import pattern fails lint.)" }
       ],
       "status": "done"
+    },
+    {
+      "id": "frontend.e2e.setup",
+      "lane": "frontend",
+      "depends_on": ["frontend.app.shell", "frontend.mocks.setup"],
+      "user_story": "Wire Playwright into the FE acceptance pipeline so every future FE feature's agent-browser acceptance is a typed .spec.ts test file owned by the implementer and verified by the evaluator — both 'is green' AND 'covers every assertion from the plan's description'. Replaces the shell-script pattern at docs/plans/evaluator-checks/*.sh.",
+      "files": [
+        "web-ui/playwright.config.ts",
+        "web-ui/tests/e2e/README.md",
+        "web-ui/tests/e2e/_helpers.ts",
+        "web-ui/tests/e2e/app-shell.spec.ts",
+        "web-ui/package.json",
+        "web-ui/.gitignore"
+      ],
+      "implementation_notes": "Install @playwright/test as a devDependency; run `pnpm exec playwright install --with-deps chromium` in the setup or document that operators run it once per clone. playwright.config.ts: testDir: './tests/e2e'; use: { baseURL: 'http://localhost:5173' }; webServer starts `pnpm dev` on :5173 on CI (locally, assume the dev server is running). Add `test:e2e` + `test:e2e:ui` scripts to package.json. .gitignore: `test-results/`, `playwright-report/`, `.playwright/`. tests/e2e/_helpers.ts: small shared utilities (goto helpers, form-fill, common selectors). tests/e2e/app-shell.spec.ts: reproduce the assertions in docs/plans/evaluator-checks/app-shell.sh (brand renders, exactly 3 tab buttons, theme toggle, per-tab URL + aria-current=page) as a typed Playwright spec — proves the infrastructure works end-to-end. tests/e2e/README.md: authoring convention for implementer agents — one .spec.ts per feature, one `test(...)` block per plan-JSON assertion from the feature's description, file-scoped fixtures and MSW bridge if needed. The existing .sh files stay as reference; mark them deprecated.",
+      "removes_legacy": [],
+      "acceptance": [
+        { "kind": "lint" },
+        { "kind": "typecheck" },
+        { "kind": "knip" },
+        { "kind": "build" },
+        { "kind": "e2e", "test_file": "web-ui/tests/e2e/app-shell.spec.ts", "description": "Run `pnpm test:e2e -- app-shell.spec.ts` against a live `pnpm dev` on :5173. The spec must assert: dirt. brand heading renders; exactly 3 tab buttons with visible text Dashboard/Live/Wiki; a theme-toggle button (aria-label or text matches /theme|light|dark/i); clicking each tab changes location.pathname to /, /live, /wiki respectively; clicked tab carries aria-current='page' on the visible button; page console shows no error-level entries. Green exit." },
+        { "kind": "invariant", "description": "An existing docs/plans/evaluator-checks/app-shell.sh continues to pass (it's still the evaluator's target for the already-landed frontend.app.shell feature until retirement); this acceptance criterion just confirms the new Playwright spec coexists without breaking the legacy path." }
+      ],
+      "status": "pending"
     },
     {
       "id": "backend.auth",
@@ -194,12 +220,11 @@
     {
       "id": "frontend.dashboard.gauges",
       "lane": "frontend",
-      "depends_on": ["backend.grow.current", "backend.sensors.current", "frontend.app.shell"],
+      "depends_on": ["backend.grow.current", "backend.sensors.current", "frontend.app.shell", "frontend.mocks.setup", "frontend.e2e.setup"],
       "user_story": "Dashboard shows the five gauges (temp / humidity / VPD / fan / reservoir) with arc target bands and ok/warn/crit colour status. Top bar displays Day {day_number} · {strain}.",
-      "files": ["web-ui/src/routes/dashboard/index.tsx", "web-ui/src/ui/Gauge.tsx"],
+      "files": ["web-ui/src/routes/index.tsx", "web-ui/src/ui/Gauge.tsx", "web-ui/tests/e2e/dashboard-gauges.spec.ts"],
       "acceptance": [
-        { "kind": "agent-browser", "script": "docs/plans/evaluator-checks/dashboard-gauges.sh", "description": "open /, assert 5 gauge headings + values match GET /api/sensors/current; bands rendered for temp/humidity/VPD only; status colour matches band_status output; top bar shows day + strain." },
-        { "kind": "visual", "reference_screenshot": "docs/plans/refs/dashboard-gauges.png" }
+        { "kind": "e2e", "test_file": "web-ui/tests/e2e/dashboard-gauges.spec.ts", "description": "Open /, assert the five gauge tiles render with headings matching the metrics from GET /api/sensors/current (temperature, humidity, VPD, fan, reservoir). Assert each tile's displayed value matches the MSW-fixture response value for that metric. Assert target-band arc elements are rendered only on temp/humidity/VPD (not on fan/reservoir). Assert each tile's status indicator color maps to band_status(value, band) → ok|warn|crit. Assert the top bar shows Day {day_number} · {strain} from GET /api/grow/current." }
       ],
       "status": "pending"
     },
