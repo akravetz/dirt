@@ -85,4 +85,94 @@ export const handlers: RequestHandler[] = [
     const err: ErrorDetail = { detail: "unauthorized" };
     return HttpResponse.json(err, { status: 401 });
   }),
+
+  // -------------------------------------------------------------------------
+  // frontend.dashboard.gauges — /api/sensors/current + /api/grow/current
+  //
+  // Fixtures for the five-gauge dashboard. Shapes duck-typed against
+  // contracts/webapp-v1.yaml #/components/schemas/{SensorsCurrent,GrowCurrent}
+  // (boundaries forbids mocks/ → api-client/, so no `import type` from
+  // generated schema — any drift gets caught by route/component typecheck
+  // against the real api-client types, not here).
+  //
+  // Values chosen to land inside the veg-stage STAGE_TARGETS bands (see
+  // apps/shared/src/dirt_shared/services/grow_state.py) so band_status =
+  // "ok" for every metric. The e2e spec's status-color assertion counts
+  // on that: five "ok" tiles → one deterministic status badge to match.
+  //
+  // Bands per metric:
+  //   temperature_f: (70, 82)    → 76 is mid-band
+  //   humidity_pct:  (45, 55)    → 50 is mid-band
+  //   vpd_kpa:       (0.8, 1.2)  → 1.0 is mid-band
+  //   fan_pct, reservoir_in: no band (null target) — gauge renders without
+  //   an arc, status is "ok" by band_status(value, null) convention.
+  // -------------------------------------------------------------------------
+
+  http.get("/api/sensors/current", () => {
+    const ts = "2026-04-21T17:00:00Z";
+    return HttpResponse.json({
+      ts,
+      stale: false,
+      metrics: {
+        temperature_f: {
+          value: 76,
+          unit: "°F",
+          target: [70, 82],
+          status: "ok",
+          ts,
+        },
+        humidity_pct: {
+          value: 50,
+          unit: "%",
+          target: [45, 55],
+          status: "ok",
+          ts,
+        },
+        vpd_kpa: {
+          value: 1.0,
+          unit: "kPa",
+          target: [0.8, 1.2],
+          status: "ok",
+          ts,
+        },
+        fan_pct: {
+          value: 48,
+          unit: "%",
+          target: null,
+          status: "ok",
+          ts,
+        },
+        reservoir_in: {
+          value: 9.2,
+          unit: "in",
+          target: null,
+          status: "ok",
+          ts,
+        },
+      },
+    });
+  }),
+
+  http.get("/api/grow/current", () => {
+    // germination_date authoritative in CLAUDE.md: 2026-03-15 (veg).
+    // day_number for today (2026-04-21) = 38; grow_week_number = 6.
+    return HttpResponse.json({
+      germination_date: "2026-03-15",
+      flower_start_date: null,
+      day_number: 38,
+      grow_week_number: 6,
+      flower_week_number: null,
+      stage: "veg",
+      strain: "Sirius Black × BS01",
+      location: "Denver, MT · closet tent",
+      plant_count: 4,
+      lights: {
+        on: true,
+        on_local: "05:00:00",
+        off_local: "23:00:00",
+        minutes_until_on: 0,
+        minutes_until_off: 360,
+      },
+    });
+  }),
 ];

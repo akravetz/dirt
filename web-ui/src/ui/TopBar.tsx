@@ -19,7 +19,18 @@ function readStoredTheme(): Theme {
   return raw === "dark" ? "dark" : "light";
 }
 
-export function TopBar() {
+interface TopBarProps {
+  /**
+   * Grow-context summary rendered beside the brand as
+   * "Day {dayNumber} · {strain}". Sourced from GET /api/grow/current by
+   * the root route (ui/ can't import api-client under TS-02). Omit
+   * while the query is loading or on pre-auth screens that predate the
+   * grow identity (the TopBar itself is already hidden on /login).
+   */
+  growContext?: { dayNumber: number; strain: string } | null;
+}
+
+export function TopBar({ growContext = null }: TopBarProps) {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [theme, setTheme] = useState<Theme>(readStoredTheme);
@@ -40,9 +51,16 @@ export function TopBar() {
 
   return (
     <header className="flex items-center justify-between gap-6 border-b border-rule bg-paper px-6 py-4">
-      <h1 className="font-serif text-3xl italic text-ink">
-        dirt<span className="text-accent-magenta">.</span>
-      </h1>
+      <div className="flex items-baseline gap-4">
+        <h1 className="font-serif text-3xl italic text-ink">
+          dirt<span className="text-accent-magenta">.</span>
+        </h1>
+        {growContext ? (
+          <p className="font-mono text-xs uppercase tracking-caps text-ink-3">
+            Day {growContext.dayNumber} · {growContext.strain}
+          </p>
+        ) : null}
+      </div>
       <nav
         aria-label="Primary"
         className="flex items-center gap-1 font-mono text-xs uppercase tracking-caps"
