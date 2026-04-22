@@ -6,7 +6,7 @@ instance, resolved via ``Depends(get_ptz)`` from ``dirt_web.deps``.
 
 from __future__ import annotations
 
-from dirt_contracts.webapp_v1.models import PTZApplied, PTZState
+from dirt_contracts.webapp_v1.models import PTZApplied, PTZLookRequest, PTZState
 from fastapi import APIRouter, Depends, HTTPException
 
 from dirt_shared.services.ptz import PTZService, UnknownPresetError
@@ -32,4 +32,14 @@ async def ptz_preset(
         payload = await ptz.apply_preset(id)
     except UnknownPresetError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+    return PTZApplied.model_validate(payload)
+
+
+@router.post("/look", response_model=PTZApplied)
+async def ptz_look(
+    req: PTZLookRequest,
+    ptz: PTZService = Depends(get_ptz),
+) -> PTZApplied:
+    """Click-to-look. Normalized frame coords x/y ∈ [-0.5, 0.5]."""
+    payload = await ptz.look_at_normalized(req.x, req.y)
     return PTZApplied.model_validate(payload)
