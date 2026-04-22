@@ -24,6 +24,7 @@ from dirt_shared.services.humidifier_state import HumidifierStateService
 from dirt_shared.services.plants import PlantsService
 from dirt_shared.services.readings import ReadingsService
 from dirt_shared.services.snapshots import SnapshotsService
+from dirt_shared.services.system_status import SystemStatusService
 
 
 def get_settings(request: Request) -> Settings:
@@ -48,3 +49,7 @@ def get_humidifier_state(request: Request) -> HumidifierStateService:
 
 def get_plants(request: Request) -> PlantsService:
     return request.app.state.plants
+
+
+def get_system_status(request: Request) -> SystemStatusService:
+    return request.app.state.system_status

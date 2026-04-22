@@ -158,6 +158,10 @@ class SystemStatusService:
         self._engine = engine
         self._clock = clock
 
+    def now(self) -> datetime:
+        """Injected-clock read. Endpoints stamp response envelopes via this."""
+        return self._clock()
+
     async def get_device_statuses(self) -> list[DeviceStatus]:
         """Return the full device list in the mockup's render order."""
         now = self._clock()
