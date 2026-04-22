@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlmodel import select
@@ -51,6 +51,48 @@ class PlantSummary:
 class MoisturePoint:
     ts: datetime
     value: float
+
+
+# Bucket widths mirror ``_BUCKET_SQL`` in services/readings.py so the
+# plant moisture series matches the sensor history resolution per range.
+# 1h: raw (no bucketing). 24h: 5-minute buckets. 7d: hourly buckets.
+# Applied after the per-reading calibration pass so each bucket's value
+# is the mean of calibrated percentages, not raw ADC counts.
+_MOISTURE_BUCKET_WIDTH: dict[str, timedelta] = {
+    "24h": timedelta(minutes=5),
+    "7d": timedelta(hours=1),
+}
+
+
+def bucket_moisture_points(
+    points: list[MoisturePoint], range_key: str
+) -> list[MoisturePoint]:
+    """Downsample per-reading moisture points into fixed-width time buckets.
+
+    Without this, a 7d window at the sensors' native ~every-10s cadence
+    produces >10k points per plant per response — a few MiB of JSON and
+    a chart component drowning in data. 1h responses stay raw so the
+    "last hour" view keeps full resolution.
+    """
+    width = _MOISTURE_BUCKET_WIDTH.get(range_key)
+    if width is None:
+        return points
+    width_s = int(width.total_seconds())
+    buckets: dict[int, list[float]] = {}
+    # Align each timestamp down to the nearest bucket-width boundary
+    # (epoch seconds // width). Use the aligned epoch second as both
+    # the dict key and the resulting point's ts.
+    for p in points:
+        epoch = int(p.ts.timestamp())
+        aligned = (epoch // width_s) * width_s
+        buckets.setdefault(aligned, []).append(p.value)
+    return [
+        MoisturePoint(
+            ts=datetime.fromtimestamp(aligned, tz=UTC),
+            value=sum(vs) / len(vs),
+        )
+        for aligned, vs in sorted(buckets.items())
+    ]
 
 
 @dataclass(frozen=True)

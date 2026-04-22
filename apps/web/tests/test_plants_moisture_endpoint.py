@@ -184,3 +184,28 @@ async def test_plants_moisture_1h_range_preserves_24h_event_count(
     assert len(model.points) == 2
     # But the 24h event count covers the whole day: 2 upward jumps.
     assert model.irrigation_events_24h == 2
+
+
+async def test_plants_moisture_7d_range_bucketed_hourly(
+    client: AsyncClient, app_engine
+):
+    """7d responses bucket to ~hourly resolution so the JSON stays bounded.
+
+    A dense series (20 readings spread across 90 minutes) should collapse
+    to ≤2 points for 7d, matching the hourly bucket width the FE expects.
+    """
+    now = datetime.now(UTC)
+    raws = [(now - timedelta(minutes=90 - i * 5), 400.0) for i in range(20)]
+    await _seed_moisture_series(app_engine, location=SensorLocation.PLANT_A, raws=raws)
+
+    response = await client.get("/api/plants/a/moisture?range=7d")
+    assert response.status_code == 200
+    model = PlantMoistureHistory.model_validate(response.json())
+    assert model.range == Range.field_7d
+    # 90 minutes of readings crosses at most 3 hourly bucket boundaries.
+    assert len(model.points) <= 3
+    assert len(model.points) < len(raws)
+    # 1h on the same data stays raw (no bucketing).
+    response_1h = await client.get("/api/plants/a/moisture?range=1h")
+    model_1h = PlantMoistureHistory.model_validate(response_1h.json())
+    assert len(model_1h.points) > len(model.points)

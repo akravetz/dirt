@@ -38,6 +38,7 @@ from dirt_shared.services.plants import (
     PlantDetailPayload,
     PlantsService,
     PlantSummary,
+    bucket_moisture_points,
     count_irrigation_events,
 )
 from dirt_shared.services.readings import RANGE_DELTAS
@@ -167,7 +168,12 @@ async def plants_moisture(
 
     if summary is None:
         raise HTTPException(status_code=404, detail="unknown plant")
+    # Irrigation-event detection needs raw transitions; bucket only the
+    # chart points. At ~every-10s sensor cadence, 7d raw is 10k+ points
+    # per plant — a multi-MiB response and unreadable chart. 5-min and
+    # 1h buckets match /api/sensors/history's resolution per range.
     events_24h = count_irrigation_events(day_points)
+    bucketed = bucket_moisture_points(points, range.value)
 
     return PlantMoistureHistory(
         code=parsed,
@@ -176,6 +182,6 @@ async def plants_moisture(
         target=TargetBand(
             root=[summary.moisture_target_low, summary.moisture_target_high]
         ),
-        points=[HistoryPoint(ts=p.ts, value=round(p.value, 2)) for p in points],
+        points=[HistoryPoint(ts=p.ts, value=round(p.value, 2)) for p in bucketed],
         irrigation_events_24h=events_24h,
     )
