@@ -72,13 +72,31 @@ Orthogonal to the isolation bug but frequently observed together because both ki
 
 The session for this incident is `0732f17b-944c-4edf-a3ae-43634eed017c.jsonl`. If a future agent is re-running the extraction in a different session, pick the most recently modified JSONL matching the session of interest.
 
-### Secondary — sub-agent output files (volatile, `/tmp`)
+### Secondary — sub-agent transcripts (preserved in `debug/subagents/`)
+
+This session's sub-agent transcripts have been preserved in the repo at `debug/subagents/` (**gitignored**, so they're on disk only, not in history). Six files — three failure cases (Modes A, A+C, B) and three working controls — with a README explaining each.
+
+Relevant files for this bug:
+
+- [`debug/subagents/mocks-setup-afc3dc7e-mode-A-isolation-skipped.jsonl`](../../debug/subagents/mocks-setup-afc3dc7e-mode-A-isolation-skipped.jsonl) — Mode A (isolation silently skipped).
+- [`debug/subagents/backend-auth-af9e23e7-mode-A-plus-C-stalled.jsonl`](../../debug/subagents/backend-auth-af9e23e7-mode-A-plus-C-stalled.jsonl) — Mode A + Mode C (600s watchdog stall).
+- [`debug/subagents/frontend-login-a31b6703-mode-B-commits-lost.jsonl`](../../debug/subagents/frontend-login-a31b6703-mode-B-commits-lost.jsonl) — Mode B (worktree populated, commits vanished).
+
+Working controls (to compare against):
+
+- [`debug/subagents/control-frontend-app-shell-respawn-a3a047f9-isolated-ok.jsonl`](../../debug/subagents/control-frontend-app-shell-respawn-a3a047f9-isolated-ok.jsonl)
+- [`debug/subagents/control-pilot-backend-grow-current-a249f474-isolated-ok.jsonl`](../../debug/subagents/control-pilot-backend-grow-current-a249f474-isolated-ok.jsonl)
+- [`debug/subagents/control-pilot-frontend-app-shell-ad3d50d9-isolated-ok.jsonl`](../../debug/subagents/control-pilot-frontend-app-shell-ad3d50d9-isolated-ok.jsonl)
+
+See [`debug/subagents/README.md`](../../debug/subagents/README.md) for per-file descriptions and quick-triage commands (what did the sub-agent `pwd` see, where did its Write/Edit file-paths resolve to, where did the stall land).
+
+### Tertiary — `/tmp` output files (original symlinks; volatile)
 
 ```
 /tmp/claude-<uid>/-home-akcom-code-dirt/<project-ctx>/tasks/<task-id>.output
 ```
 
-These contain the full sub-agent transcript per spawn and will be wiped on reboot. The session JSONL's launch acks + completion notifications are usually sufficient; only dig into these if the primary evidence is ambiguous.
+These are symlinks into `~/.claude/projects/-home-akcom-code-dirt/<session-uuid>/subagents/agent-<task-id>.jsonl`. The symlinks themselves don't survive `/tmp` wipes on reboot; the targets do, until `~/.claude/projects/` is pruned by ops or Claude Code itself. For this session we've captured independent copies in `debug/subagents/` (above) so the evidence survives either vector.
 
 ---
 
