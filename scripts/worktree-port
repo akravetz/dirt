@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Deterministic dev-server port per git worktree.
+#
+# Hashes the worktree's top-level absolute path into a port in the
+# 5170–5199 range (30 slots). Same worktree → same port every time.
+# Main repo at /home/akcom/code/dirt resolves to one port; each
+# agent worktree under .claude/worktrees/<name> resolves to its own.
+#
+# Used by web-ui/vite.config.ts (server.port) and
+# web-ui/playwright.config.ts (baseURL) via the WEBUI_DEV_PORT env
+# var wrapped into the package.json scripts:
+#
+#     "dev": "WEBUI_DEV_PORT=$(../scripts/worktree-port) vite"
+#     "test:e2e": "WEBUI_DEV_PORT=$(../scripts/worktree-port) playwright test"
+#
+# Bare pnpm dev in main still works because both configs fall back to
+# 5173 when WEBUI_DEV_PORT is unset; the wrapper just makes worktree
+# sessions self-organizing.
+#
+# Collision probability (birthday): ~12% at 3 worktrees, ~47% at 7.
+# If you hit a collision, rename the worktree dir or widen the range
+# here. Collisions are deterministic (hash of path) so the rare
+# colliding pair is always the same two dirs — easy to spot.
+
+set -euo pipefail
+
+wt=${1:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}
+h=$(printf '%s' "$wt" | shasum -a 256 | cut -c1-4)
+echo $((5170 + (0x$h % 30)))

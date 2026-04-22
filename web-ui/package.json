@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "WEBUI_DEV_PORT=$(../scripts/worktree-port) vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "biome check . && eslint .",
@@ -13,8 +13,8 @@
     "format": "biome format --write .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui",
+    "test:e2e": "WEBUI_DEV_PORT=$(../scripts/worktree-port) playwright test",
+    "test:e2e:ui": "WEBUI_DEV_PORT=$(../scripts/worktree-port) playwright test --ui",
     "knip": "knip --config invariants/knip.json"
   },
   "dependencies": {

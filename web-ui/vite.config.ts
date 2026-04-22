@@ -18,6 +18,13 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    // WEBUI_DEV_PORT is set per-worktree by `../scripts/worktree-port`
+    // via the package.json `dev` / `test:e2e` scripts. Bare runs in
+    // main fall back to 5173.
+    port: Number(process.env.WEBUI_DEV_PORT) || 5173,
+    // Don't auto-increment to the next free port — explicit failure
+    // is better than silently binding to a different port than
+    // playwright.config.ts expects.
+    strictPort: true,
   },
 });

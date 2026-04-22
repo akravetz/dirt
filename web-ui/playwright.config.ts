@@ -5,9 +5,11 @@ import { defineConfig, devices } from "@playwright/test";
 // CONVENTIONS (see tests/e2e/README.md for the full authoring guide):
 //
 // - `testDir: "./tests/e2e"` — one .spec.ts per FE feature.
-// - `baseURL` defaults to http://localhost:5173 (the Vite dev server
-//   started by `pnpm dev`). Override with the `PLAYWRIGHT_BASE_URL`
-//   env var when a parallel worktree already holds the default port.
+// - `baseURL` is derived from `WEBUI_DEV_PORT` (set per-worktree by
+//   ../scripts/worktree-port via the package.json scripts) so each
+//   worktree's e2e run targets its own Vite server. Falls back to
+//   :5173 in plain `pnpm dev` sessions. `PLAYWRIGHT_BASE_URL` is the
+//   explicit override when neither applies.
 // - Chromium only by default — Dirt has no cross-browser matrix; the
 //   e2e suite is a harness for asserting the app's own DOM contract,
 //   not a browser-compatibility check. Adding Firefox/WebKit here
@@ -33,7 +35,9 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173",
+    baseURL:
+      process.env.PLAYWRIGHT_BASE_URL ??
+      `http://localhost:${process.env.WEBUI_DEV_PORT ?? "5173"}`,
     trace: "retain-on-failure",
   },
   projects: [
