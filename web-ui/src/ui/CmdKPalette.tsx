@@ -99,10 +99,12 @@ export function CmdKPalette({
     }
   };
 
+  const trimmedQuery = query.trim();
+
   return (
     <div
       data-testid="cmdk-overlay"
-      className="fixed inset-0 z-50 flex items-start justify-center bg-ink/30 pt-24"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-scrim-50 pt-cmdk backdrop-blur-sm"
     >
       <button
         type="button"
@@ -116,10 +118,10 @@ export function CmdKPalette({
         aria-label="Search wiki"
         data-testid="cmdk-palette"
         onKeyDown={handleKeyDown}
-        className="relative flex w-[min(640px,90vw)] flex-col border border-rule bg-paper shadow-lg"
+        className="relative flex max-h-cmdk w-cmdk animate-cmdk-in flex-col border border-ink bg-paper shadow-cmdk"
       >
-        <div className="flex items-center gap-3 border-b border-rule px-4 py-3">
-          <span className="font-mono text-xs uppercase tracking-caps text-ink-3">
+        <div className="flex items-center gap-3 border-b border-rule-strong px-4.5 py-3.5">
+          <span className="font-mono text-fs-11 uppercase tracking-caps text-ink-3">
             Search
           </span>
           <input
@@ -132,22 +134,26 @@ export function CmdKPalette({
               setActiveIdx(0);
               onQueryChange(e.target.value);
             }}
-            className="flex-1 bg-transparent font-sans text-sm text-ink outline-none placeholder:text-ink-3"
+            className="flex-1 bg-transparent font-mono text-fs-15 text-ink outline-none placeholder:text-ink-3"
           />
-          <kbd className="font-mono text-xs uppercase tracking-caps text-ink-3">
+          <kbd className="border border-rule-strong px-1.25 py-px font-mono text-fs-10 uppercase tracking-caps text-ink-3">
             ESC
           </kbd>
         </div>
 
         {items.length === 0 ? (
-          <p className="px-4 py-4 font-mono text-xs uppercase tracking-caps text-ink-3">
-            {query.trim().length === 0 ? "No recent files" : "No matches"}
+          <p className="py-8 text-center font-mono text-fs-12 text-ink-3">
+            {trimmedQuery.length === 0 ? "No recent files" : "No matches"}
           </p>
         ) : (
-          <ul className="flex max-h-80 list-none flex-col overflow-auto">
+          <ul className="flex max-h-100 list-none flex-col overflow-y-auto py-1">
             {items.map((entry, idx) => {
               const active = idx === activeIdx;
               const tag = entry.kind === "recent" ? "RECENT" : entry.item.match_type;
+              const badgeTone =
+                entry.kind === "recent"
+                  ? "border-rule-strong text-ink-3"
+                  : "border-accent-magenta text-accent-magenta";
               return (
                 <li key={`${entry.kind}:${entry.item.path}`}>
                   <button
@@ -163,24 +169,28 @@ export function CmdKPalette({
                     }}
                     className={
                       active
-                        ? "flex w-full items-center justify-between gap-3 border-l-2 border-accent-magenta bg-rule/30 px-4 py-2 text-left"
-                        : "flex w-full items-center justify-between gap-3 border-l-2 border-transparent px-4 py-2 text-left hover:bg-rule/30"
+                        ? "flex w-full flex-col gap-1 border-l-2 border-accent-magenta bg-paper-2 px-4.5 py-2.5 text-left"
+                        : "flex w-full flex-col gap-1 border-l-2 border-transparent px-4.5 py-2.5 text-left hover:bg-paper-3"
                     }
                   >
-                    <span className="flex min-w-0 flex-col">
-                      <span className="truncate text-sm text-ink">
+                    <span className="flex min-w-0 items-center gap-2 font-sans text-fs-13">
+                      <span className="shrink-0 truncate font-medium text-ink">
                         {entry.item.title}
                       </span>
-                      {entry.kind === "result" && entry.item.snippet ? (
-                        <span className="truncate font-mono text-xs text-ink-3">
-                          {entry.item.snippet}
-                        </span>
-                      ) : null}
+                      <span className="ml-auto min-w-0 truncate font-mono text-fs-10 tracking-hair text-ink-3">
+                        {entry.item.path}
+                      </span>
+                      <span
+                        className={`ml-1.5 border px-1.25 py-px font-mono text-fs-9 uppercase tracking-caps ${badgeTone}`}
+                      >
+                        {tag}
+                      </span>
                     </span>
-                    <span className="flex items-center gap-2 font-mono text-xs uppercase tracking-caps text-ink-3">
-                      <span className="truncate">{entry.item.path}</span>
-                      <span className="border border-rule px-1.5 py-0.5">{tag}</span>
-                    </span>
+                    {entry.kind === "result" && entry.item.snippet ? (
+                      <span className="pl-5 font-serif text-fs-12 leading-prose-tight text-ink-2">
+                        {highlightSnippet(entry.item.snippet, trimmedQuery)}
+                      </span>
+                    ) : null}
                   </button>
                 </li>
               );
@@ -188,13 +198,43 @@ export function CmdKPalette({
           </ul>
         )}
 
-        <footer className="flex items-center justify-between border-t border-rule px-4 py-2 font-mono text-xs uppercase tracking-caps text-ink-3">
-          <span>↑↓ NAVIGATE · ↵ OPEN · ESC CLOSE</span>
-          <span>
+        <footer className="flex gap-4.5 border-t border-rule px-4.5 py-2 font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+          <span>↑↓ NAVIGATE</span>
+          <span>↵ OPEN</span>
+          <span>ESC CLOSE</span>
+          <span className="ml-auto">
             {items.length} {items.length === 1 ? "RESULT" : "RESULTS"}
           </span>
         </footer>
       </div>
     </div>
   );
+}
+
+// Wrap every case-insensitive occurrence of `query` in <mark> so the
+// palette snippet matches the mock (magenta-on-magenta-tint). No-op
+// when query is empty — return the raw string as a single text node.
+function highlightSnippet(snippet: string, query: string): React.ReactNode {
+  if (query.length === 0) return snippet;
+  const lowered = snippet.toLowerCase();
+  const needle = query.toLowerCase();
+  const out: React.ReactNode[] = [];
+  let cursor = 0;
+  while (cursor < snippet.length) {
+    const hit = lowered.indexOf(needle, cursor);
+    if (hit === -1) {
+      out.push(snippet.slice(cursor));
+      break;
+    }
+    if (hit > cursor) {
+      out.push(snippet.slice(cursor, hit));
+    }
+    out.push(
+      <mark key={hit} className="bg-accent-magenta/20 px-0.5 text-accent-magenta">
+        {snippet.slice(hit, hit + needle.length)}
+      </mark>,
+    );
+    cursor = hit + needle.length;
+  }
+  return out;
 }

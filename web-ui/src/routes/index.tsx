@@ -53,13 +53,14 @@ type MetricEnvelope = components["schemas"]["MetricEnvelope"];
 const METRIC_TILES: ReadonlyArray<{
   metric: keyof SensorsCurrent["metrics"];
   name: string;
+  accent: "temp" | "humidity" | "vpd" | "moisture" | "neutral";
   integer?: boolean;
 }> = [
-  { metric: "temperature_f", name: "Temperature" },
-  { metric: "humidity_pct", name: "Humidity", integer: true },
-  { metric: "vpd_kpa", name: "VPD" },
-  { metric: "fan_pct", name: "Fan", integer: true },
-  { metric: "reservoir_in", name: "Reservoir" },
+  { metric: "temperature_f", name: "Temperature", accent: "temp" },
+  { metric: "humidity_pct", name: "Humidity", accent: "humidity", integer: true },
+  { metric: "vpd_kpa", name: "VPD", accent: "vpd" },
+  { metric: "fan_pct", name: "Fan", accent: "neutral", integer: true },
+  { metric: "reservoir_in", name: "Reservoir", accent: "moisture" },
 ] as const;
 
 function toBand(target: MetricEnvelope["target"]): readonly [number, number] | null {
@@ -73,6 +74,38 @@ function toBand(target: MetricEnvelope["target"]): readonly [number, number] | n
 
 function formatInteger(value: number): string {
   return `${Math.round(value)}`;
+}
+
+// Shared timestamp shown in the History section header while any
+// sparkline is hovered. All five sparklines fetch with the same `range`
+// and therefore share a bucket grid — so `points[hoverIndex].ts` is the
+// same across metrics and can be read off whichever result has data.
+const HISTORY_TS_FMT = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
+function HistoryHoverTs({
+  hoverIndex,
+  points,
+}: {
+  hoverIndex: number | null;
+  points: readonly { ts: string }[];
+}) {
+  if (hoverIndex === null) return null;
+  const clamped = Math.max(0, Math.min(points.length - 1, hoverIndex));
+  const ts = points[clamped]?.ts;
+  if (!ts) return null;
+  const date = new Date(ts);
+  if (Number.isNaN(date.getTime())) return null;
+  return (
+    <span className="font-mono text-fs-11 tabular-nums text-ink-2">
+      {HISTORY_TS_FMT.format(date)}
+    </span>
+  );
 }
 
 function DashboardPage() {
@@ -137,6 +170,18 @@ function DashboardPage() {
     },
   });
 
+  // /api/grow/current — reused from the root loader cache; the Plants
+  // section header renders "Plants · Day N" from `day_number`.
+  const growQuery = useQuery({
+    queryKey: ["grow.current"],
+    queryFn: async () => {
+      const { data, error } = await api.GET("/api/grow/current");
+      if (error) throw error;
+      return data;
+    },
+  });
+  const growContext = growQuery.data ? { dayNumber: growQuery.data.day_number } : null;
+
   // /api/plants — feeds the four A/B/C/D cards rendered under the
   // sparklines. Independent of the range switch; the strip is an
   // always-on snapshot (see frontend.dashboard.plants_strip).
@@ -194,7 +239,7 @@ function DashboardPage() {
 
   if (isLoading) {
     return (
-      <main className="p-6">
+      <main className="flex-1 overflow-auto p-6">
         <p className="font-mono text-xs uppercase tracking-caps text-ink-3">
           Loading sensors…
         </p>
@@ -204,7 +249,7 @@ function DashboardPage() {
 
   if (error || !data) {
     return (
-      <main className="p-6">
+      <main className="flex-1 overflow-auto p-6">
         <p className="font-mono text-xs uppercase tracking-caps text-accent-magenta">
           Failed to load sensors
         </p>
@@ -213,74 +258,87 @@ function DashboardPage() {
   }
 
   return (
-    <main className="flex flex-1 flex-col gap-6 p-6">
-      <section
-        aria-label="Environment gauges"
-        className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5"
-      >
-        {METRIC_TILES.map(({ metric, name, integer }) => {
-          const envelope = data.metrics[metric];
-          // Spread `format` conditionally so exactOptionalPropertyTypes
-          // sees either the prop set to a function or omitted entirely,
-          // never `format: undefined`.
-          const formatProp = integer ? { format: formatInteger } : {};
-          return (
-            <Gauge
-              key={metric}
-              name={name}
-              value={envelope.value}
-              unit={envelope.unit}
-              band={toBand(envelope.target)}
-              status={envelope.status}
-              {...formatProp}
-            />
-          );
-        })}
-      </section>
-      {humidifierState.data ? (
-        <section
-          aria-label="Humidifier"
-          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
-        >
-          <HumidifierTile
-            on={humidifierState.data.on}
-            durationS={humidifierState.data.duration_s}
-            cycles24h={humidifierState.data.cycles_24h}
-          />
-        </section>
-      ) : null}
-      <section aria-label="Environment sparklines" className="flex flex-col gap-3">
-        <header className="flex items-center justify-between">
-          <h2 className="font-mono text-xs uppercase tracking-caps text-ink-2">
-            Sparklines
-          </h2>
+    <main className="flex-1 overflow-auto">
+      <div className="mx-auto flex max-w-350 flex-col gap-6 px-8 pb-16 pt-7">
+        <div className="flex items-center justify-end gap-4 border-b border-rule-strong pb-3">
+          <span className="inline-flex items-center gap-1.5 font-mono text-fs-11 text-ink-3">
+            <span aria-hidden="true" className="text-status-ok">
+              ◉
+            </span>
+            live
+          </span>
           <RangeSwitch value={range} onChange={setRange} />
-        </header>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          {METRIC_TILES.map(({ metric, name }, idx) => {
-            const result = historyResults[idx];
-            const points = result?.data?.points ?? [];
-            const unit = result?.data?.unit ?? "";
-            return (
-              <Sparkline
-                key={metric}
-                name={name}
-                points={points}
-                unit={unit}
-                hoverIndex={hoverIndex}
-                onHoverIndex={setHoverIndex}
-              />
-            );
-          })}
         </div>
-      </section>
-      <HumidifierStrip points={humidifierHistory.data?.points ?? []} />
-      {plantsQuery.data ? (
-        <PlantsStrip plants={plantsQuery.data.plants} onSelect={setSelectedPlant} />
-      ) : null}
-      {systemDevicesQuery.data ? (
-        <SystemTable devices={systemDevicesQuery.data.devices} />
-      ) : null}
+        <div className="grid grid-cols-1 gap-px border border-rule-strong bg-rule sm:grid-cols-2 lg:grid-cols-6">
+          <section aria-label="Environment gauges" className="contents">
+            {METRIC_TILES.map(({ metric, name, accent, integer }) => {
+              const envelope = data.metrics[metric];
+              const formatProp = integer ? { format: formatInteger } : {};
+              return (
+                <Gauge
+                  key={metric}
+                  name={name}
+                  value={envelope.value}
+                  unit={envelope.unit}
+                  band={toBand(envelope.target)}
+                  status={envelope.status}
+                  accent={accent}
+                  {...formatProp}
+                />
+              );
+            })}
+          </section>
+          {humidifierState.data ? (
+            <section aria-label="Humidifier" className="contents">
+              <HumidifierTile
+                on={humidifierState.data.on}
+                durationS={humidifierState.data.duration_s}
+                cycles24h={humidifierState.data.cycles_24h}
+              />
+            </section>
+          ) : null}
+        </div>
+        <section aria-label="Environment history" className="flex flex-col">
+          <header className="flex items-baseline justify-between border-b border-rule px-0.5 py-2">
+            <h2 className="font-sans text-fs-11 font-semibold uppercase tracking-cap-wide text-ink-2">
+              History
+            </h2>
+            <HistoryHoverTs
+              hoverIndex={hoverIndex}
+              points={historyResults.find((r) => r.data)?.data?.points ?? []}
+            />
+          </header>
+          <div className="grid grid-cols-1 border border-rule-strong bg-paper-2 sm:grid-cols-2 lg:grid-cols-3">
+            {METRIC_TILES.map(({ metric, name, accent }, idx) => {
+              const result = historyResults[idx];
+              const points = result?.data?.points ?? [];
+              const unit = result?.data?.unit ?? "";
+              return (
+                <Sparkline
+                  key={metric}
+                  name={name}
+                  points={points}
+                  unit={unit}
+                  accent={accent}
+                  hoverIndex={hoverIndex}
+                  onHoverIndex={setHoverIndex}
+                />
+              );
+            })}
+            <HumidifierStrip points={humidifierHistory.data?.points ?? []} />
+          </div>
+        </section>
+        {plantsQuery.data ? (
+          <PlantsStrip
+            plants={plantsQuery.data.plants}
+            dayNumber={growContext?.dayNumber ?? null}
+            onSelect={setSelectedPlant}
+          />
+        ) : null}
+        {systemDevicesQuery.data ? (
+          <SystemTable devices={systemDevicesQuery.data.devices} />
+        ) : null}
+      </div>
       {selectedPlant !== null && plantDetailQuery.data ? (
         <PlantDetail
           payload={plantDetailQuery.data}

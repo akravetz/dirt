@@ -75,6 +75,10 @@ class Settings(BaseSettings):
     lights_off_prep_minutes: int = 30
     humidifier_poll_interval: int = 30
     humidifier_failsafe_stale_seconds: int = 300
+    # Device watchdog — fires Telegram alerts on ok/warn → offline and
+    # offline → ok transitions. 60s is prompt given the moisture-node
+    # offline threshold is 5min. See services/device_watchdog.py.
+    device_watchdog_poll_interval: int = 60
     # Telegram bot. Outbound-only for V1.
     telegram_bot_token: str = ""
     telegram_allowed_user_id: str = ""

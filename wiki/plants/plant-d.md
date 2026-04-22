@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-04-20
+updated: 2026-04-22
 ---
 
 # Plant D
@@ -18,7 +18,7 @@ updated: 2026-04-20
 
 ## Current State
 
-Day 37, eight days post-topping: multi-branch canopy; noticeably lighter green than peers today — monitoring for 2–3 more observations; stable moisture (~42%); LST critically overdue. See [2026-04-20](../daily/2026-04-20.md).
+Day 39, ten days post-topping: color improving — lighter medium-green, no longer alarming vs. Apr 20; compact symmetrical canopy; moisture rising to 60% (autopot active). See [2026-04-22](../daily/2026-04-22.md).
 
 ## Timeline
 
@@ -37,3 +37,5 @@ Day 37, eight days post-topping: multi-branch canopy; noticeably lighter green t
 - 2026-04-18 — [Day 35: Recovery Day 6; healthy multi-branch canopy; **LST due now**; v1.2 sensor → v2.0 swap](../daily/2026-04-18.md)
 - 2026-04-19 — [Day 36: healthy multi-branch canopy; **LST overdue** (Day 7 post-topping); moisture stable ~26%](../daily/2026-04-19.md)
 - 2026-04-20 — [Day 37: ⚠️ lighter green than peers — monitoring; **LST critically overdue** (Day 8 post-topping); moisture stable ~42%](../daily/2026-04-20.md)
+- 2026-04-21 — [Day 38: photos only; compact bushy lighter-green canopy; no spots or damage; consistent with prior lighter-green observations](../daily/2026-04-21.md)
+- 2026-04-22 — [Day 39: color improving — lighter medium-green, no longer alarming vs. Apr 20; compact symmetrical canopy; moisture rising to 60% (autopot active)](../daily/2026-04-22.md)

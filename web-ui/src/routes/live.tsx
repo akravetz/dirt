@@ -95,32 +95,36 @@ function LivePage() {
   const activePreset = stateQuery.data?.preset ?? null;
 
   return (
-    <main className="flex flex-1 flex-col gap-6 p-6">
-      <header>
-        <h1 className="font-serif text-3xl italic text-ink">Tent Camera</h1>
-      </header>
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
-        <CameraFeed
-          onLook={(x, y) => {
-            lookMutation.mutate({ x, y });
-          }}
-        />
-        <aside className="flex flex-col gap-4">
-          <PresetList
-            presets={presets}
-            activeId={activePreset}
-            onSelect={(id) => {
-              presetMutation.mutate(id);
+    <main className="flex-1 overflow-auto">
+      <div className="mx-auto flex max-w-400 flex-col gap-6 px-8 pb-16 pt-7">
+        <header>
+          <h1 className="font-sans text-fs-24 font-semibold tracking-tight text-ink">
+            Tent Camera
+          </h1>
+        </header>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
+          <CameraFeed
+            onLook={(x, y) => {
+              lookMutation.mutate({ x, y });
             }}
           />
-          <ZoomSlider
-            value={localZoom}
-            onChange={setLocalZoom}
-            onCommit={(next) => {
-              zoomMutation.mutate(next);
-            }}
-          />
-        </aside>
+          <aside className="flex flex-col gap-4">
+            <PresetList
+              presets={presets}
+              activeId={activePreset}
+              onSelect={(id) => {
+                presetMutation.mutate(id);
+              }}
+            />
+            <ZoomSlider
+              value={localZoom}
+              onChange={setLocalZoom}
+              onCommit={(next) => {
+                zoomMutation.mutate(next);
+              }}
+            />
+          </aside>
+        </div>
       </div>
     </main>
   );

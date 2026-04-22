@@ -17,10 +17,13 @@ import {
   type StickerColor,
 } from "@/ui/plant-types";
 
+export type PlantCardStatus = "primary" | "secondary" | "retired";
+
 interface PlantCardProps {
   code: PlantCode;
   name: string;
   stickerColor: StickerColor;
+  status: PlantCardStatus;
   /** Latest calibrated moisture %; null if no calibration exists. */
   moisturePct: number | null;
   onSelect: (code: PlantCode) => void;
@@ -30,6 +33,7 @@ export function PlantCard({
   code,
   name,
   stickerColor,
+  status,
   moisturePct,
   onSelect,
 }: PlantCardProps): ReactNode {
@@ -39,36 +43,36 @@ export function PlantCard({
   const pct = Math.round(Math.max(0, Math.min(100, pctRaw)));
   const pctLabel = moisturePct === null ? "—" : `${pct}%`;
 
+  const topBorder = status === "primary" ? "border-t-2 border-accent-magenta" : "";
+
   return (
     <button
       type="button"
       aria-label={name}
+      data-status={status}
       onClick={() => {
         onSelect(code);
       }}
-      className="flex flex-col gap-3 border border-rule bg-paper p-4 text-left hover:border-rule-strong"
+      className={`flex flex-col gap-3 bg-paper-2 px-4.5 py-4 pb-3.5 text-left transition hover:bg-paper-3 ${topBorder}`}
     >
       <header className="flex items-center gap-2">
         <span
           role="img"
           aria-label="sticker"
           data-color={stickerColor}
-          className={`inline-block h-3 w-3 ${STICKER_BG[stickerColor]}`}
+          className={`inline-block h-2.5 w-2.5 border border-ink ${STICKER_BG[stickerColor]}`}
         />
-        <h3 className="font-serif text-lg italic text-ink">{name}</h3>
+        <h3 className="font-sans text-fs-14 font-semibold text-ink">{name}</h3>
       </header>
       <div className="flex flex-col gap-1">
         <div className="flex items-baseline justify-between gap-2">
-          <span className="font-mono text-xs uppercase tracking-caps text-ink-3">
+          <span className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
             Soil moisture
           </span>
-          <span className="font-mono text-xs uppercase tracking-caps text-ink-2">
+          <span className="font-mono text-fs-11 tabular-nums text-ink-2">
             {pctLabel}
           </span>
         </div>
-        {/* viewBox width=100 means the rect's width=pct renders as pct%
-            of the strip regardless of pixel width; avoids TS-16 (no
-            inline style attrs) since SVG attrs aren't HTML styles. */}
         <svg
           role="progressbar"
           aria-label={`${name} soil moisture`}
@@ -77,7 +81,7 @@ export function PlantCard({
           aria-valuemax={100}
           viewBox="0 0 100 4"
           preserveAspectRatio="none"
-          className="h-2 w-full border border-rule bg-paper"
+          className="h-2 w-full border border-rule-strong bg-paper"
         >
           <title>
             {name} soil moisture {pctLabel}

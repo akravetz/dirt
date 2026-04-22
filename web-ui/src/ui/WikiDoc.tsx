@@ -1,17 +1,15 @@
 // Main pane for the /wiki route — breadcrumb + frontmatter block +
 // markdown body + backlinks.
 //
-// Markdown rendering is intentionally minimal: we preserve the raw
-// markdown body in a `<pre>` with whitespace preserved (the plan's user
-// story says "renders raw markdown with frontmatter block + breadcrumb"
-// — no compiled-HTML step required). This avoids pulling in a markdown-
-// renderer dependency; the contract's body_markdown field is what the
-// user sees. Upgrading to react-markdown later is a drop-in swap behind
-// this component's boundary.
+// Body renders through react-markdown (already a dep via PlantDetail).
+// Typography lives in the `.wiki-prose` utility in styles.css; we just
+// wrap the rendered markdown in that class so headings/links/tables
+// pick up the mock's type scale.
 //
 // boundaries lint forbids ui/ → api-client/, so the WikiFile /
 // WikiBacklink types are local duck-types of
 // contracts/webapp-v1.yaml #/components/schemas/{WikiFile,WikiBacklink}.
+import ReactMarkdown from "react-markdown";
 
 export interface WikiBacklink {
   path: string;
@@ -43,10 +41,7 @@ function formatFrontmatterValue(value: unknown): string {
 
 // Derive "plants / plant-a.md" crumbs from a "wiki/plants/plant-a.md"
 // path. Strip the leading "wiki/" segment so the trail matches what
-// the user sees in the sidebar. Each crumb carries the cumulative path
-// up to and including that segment so React has a stable key even when
-// two segments share a name (e.g. "index.md" appearing under multiple
-// folders in a future layout).
+// the user sees in the sidebar.
 function breadcrumbSegments(path: string): Array<{ label: string; prefix: string }> {
   const stripped = path.startsWith("wiki/") ? path.slice("wiki/".length) : path;
   const parts = stripped.split("/").filter((s) => s.length > 0);
@@ -60,61 +55,76 @@ function breadcrumbSegments(path: string): Array<{ label: string; prefix: string
 export function WikiDoc({ doc }: WikiDocProps) {
   const crumbs = breadcrumbSegments(doc.path);
   const matterEntries = Object.entries(doc.frontmatter);
+  const lastIdx = crumbs.length - 1;
 
   return (
     <article
       aria-label="Wiki document"
-      className="flex min-w-0 flex-1 flex-col gap-6 px-8 py-6"
+      className="flex min-w-0 max-w-215 flex-1 flex-col bg-paper px-12 pb-20 pt-9"
     >
       <nav
         aria-label="Breadcrumb"
-        className="font-mono text-xs uppercase tracking-caps text-ink-3"
+        className="mb-5 font-mono text-fs-11 uppercase tracking-cap-short text-ink-3"
       >
         {crumbs.map((crumb, idx) => (
           <span key={crumb.prefix}>
             {idx > 0 ? " / " : null}
-            <span>{crumb.label}</span>
+            <span className={idx === lastIdx ? "font-semibold text-ink" : undefined}>
+              {crumb.label}
+            </span>
           </span>
         ))}
       </nav>
 
-      <header className="flex flex-col gap-1">
-        <h1 className="font-serif text-3xl italic text-ink">{doc.title}</h1>
-        {doc.subtitle ? <p className="text-ink-2 italic">{doc.subtitle}</p> : null}
+      <header>
+        <h1 className="m-0 flex items-center gap-3 font-sans text-fs-32 font-semibold tracking-tighter text-ink">
+          {doc.title}
+        </h1>
+        {doc.subtitle ? (
+          <p className="mt-1.5 font-serif text-fs-16 italic text-ink-3">
+            {doc.subtitle}
+          </p>
+        ) : null}
       </header>
 
       {matterEntries.length > 0 ? (
-        <section aria-label="Frontmatter" data-testid="wiki-frontmatter">
-          <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 border border-rule bg-rule/20 p-4 font-mono text-xs">
-            {matterEntries.map(([key, value]) => (
-              <div key={key} className="contents" data-testid="wiki-frontmatter-row">
-                <dt className="uppercase tracking-caps text-ink-3">{key}</dt>
-                <dd className="text-ink">{formatFrontmatterValue(value)}</dd>
-              </div>
-            ))}
-          </dl>
+        <section
+          aria-label="Frontmatter"
+          data-testid="wiki-frontmatter"
+          className="my-6 border-y border-rule-strong py-3 font-mono text-fs-11"
+        >
+          {matterEntries.map(([key, value]) => (
+            <div
+              key={key}
+              data-testid="wiki-frontmatter-row"
+              className="grid grid-cols-[100px_1fr] gap-x-3.5 gap-y-0 py-0.75"
+            >
+              <span className="text-fs-10 uppercase tracking-caps text-ink-3">
+                {key}
+              </span>
+              <span className="text-ink">{formatFrontmatterValue(value)}</span>
+            </div>
+          ))}
         </section>
       ) : null}
 
-      <section aria-label="Body">
-        <pre
-          data-testid="wiki-body"
-          className="whitespace-pre-wrap font-mono text-sm leading-relaxed text-ink"
-        >
-          {doc.body_markdown}
-        </pre>
+      <section aria-label="Body" data-testid="wiki-body" className="wiki-prose">
+        <ReactMarkdown>{doc.body_markdown}</ReactMarkdown>
       </section>
 
       {doc.backlinks.length > 0 ? (
-        <section aria-label="Backlinks" className="border-t border-rule pt-4">
-          <h2 className="font-mono text-xs uppercase tracking-caps text-ink-3">
+        <section
+          aria-label="Backlinks"
+          className="mt-12 border-t border-rule-strong pt-3.5"
+        >
+          <h2 className="font-mono text-fs-10 uppercase tracking-cap-narrow text-ink-3">
             Backlinks
           </h2>
-          <ul className="mt-2 list-none">
+          <ul className="mt-2 list-none p-0">
             {doc.backlinks.map((bl) => (
-              <li key={bl.path} className="py-1 text-sm text-ink-2">
+              <li key={bl.path} className="py-1 font-sans text-fs-13 text-ink-2">
                 {bl.title}{" "}
-                <span className="font-mono text-xs text-ink-3">{bl.path}</span>
+                <span className="font-mono text-fs-11 text-ink-3">{bl.path}</span>
               </li>
             ))}
           </ul>

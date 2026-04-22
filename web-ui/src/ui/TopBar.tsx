@@ -50,21 +50,22 @@ export function TopBar({ growContext = null }: TopBarProps) {
   const nextTheme: Theme = theme === "dark" ? "light" : "dark";
 
   return (
-    <header className="flex items-center justify-between gap-6 border-b border-rule bg-paper px-6 py-4">
-      <div className="flex items-baseline gap-4">
-        <h1 className="font-serif text-3xl italic text-ink">
+    <header className="flex items-stretch gap-6 border-b border-rule bg-paper px-5 py-3">
+      <div className="flex items-baseline gap-2.5">
+        <h1 className="font-serif text-fs-26 font-medium italic leading-none tracking-tight text-ink">
           dirt<span className="text-accent-magenta">.</span>
         </h1>
+        <span
+          aria-hidden="true"
+          className="mx-1.5 mb-1.5 inline-block h-px w-7 self-end bg-rule-strong"
+        />
         {growContext ? (
-          <p className="font-mono text-xs uppercase tracking-caps text-ink-3">
+          <p className="font-mono text-fs-10 uppercase tracking-cap-wide text-ink-3">
             Day {growContext.dayNumber} · {growContext.strain}
           </p>
         ) : null}
       </div>
-      <nav
-        aria-label="Primary"
-        className="flex items-center gap-1 font-mono text-xs uppercase tracking-caps"
-      >
+      <nav aria-label="Primary" className="mx-auto flex items-center gap-1.5">
         {TABS.map(({ label, path }) => {
           const active = pathname === path;
           return (
@@ -77,8 +78,8 @@ export function TopBar({ growContext = null }: TopBarProps) {
               aria-current={active ? "page" : undefined}
               className={
                 active
-                  ? "border-b-2 border-accent-magenta px-3 py-2 text-ink"
-                  : "border-b-2 border-transparent px-3 py-2 text-ink-3 hover:text-ink"
+                  ? "border border-ink bg-paper-2 px-4.5 py-2 font-sans text-fs-11 font-semibold uppercase tracking-cap-ui text-ink transition"
+                  : "border border-rule px-4.5 py-2 font-sans text-fs-11 font-semibold uppercase tracking-cap-ui text-ink-3 transition hover:border-rule-strong hover:text-ink"
               }
             >
               {label}
@@ -86,21 +87,24 @@ export function TopBar({ growContext = null }: TopBarProps) {
           );
         })}
       </nav>
-      <div className="flex items-center gap-2 font-mono text-xs uppercase tracking-caps">
+      <div className="flex items-center gap-4.5 font-mono text-fs-11 text-ink-3">
         <button
           type="button"
           aria-label={`Switch to ${nextTheme} theme`}
           onClick={toggleTheme}
-          className="border border-rule px-3 py-2 text-ink-3 hover:text-ink"
+          className="border border-rule px-2.5 py-1.25 font-mono text-fs-10 uppercase tracking-caps text-ink-3 transition hover:border-ink-2 hover:text-ink"
         >
-          {theme === "dark" ? "Light" : "Dark"}
+          <span aria-hidden="true" className="mr-1">
+            ◐
+          </span>
+          Auto
         </button>
         <button
           type="button"
           onClick={() => {
             void navigate({ to: "/" });
           }}
-          className="border border-rule px-3 py-2 text-ink-3 hover:text-ink"
+          className="border border-rule px-2.5 py-1.25 font-mono text-fs-10 uppercase tracking-caps text-ink-3 transition hover:border-ink-2 hover:text-ink"
         >
           Log out
         </button>

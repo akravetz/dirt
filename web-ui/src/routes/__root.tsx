@@ -38,7 +38,7 @@ function RootComponent() {
   const growContext = data ? { dayNumber: data.day_number, strain: data.strain } : null;
 
   return (
-    <div className="flex min-h-screen flex-col bg-paper font-sans text-ink">
+    <div className="flex h-screen flex-col overflow-hidden bg-paper font-sans text-ink">
       {isLogin ? null : <TopBar growContext={growContext} />}
       <Outlet />
     </div>

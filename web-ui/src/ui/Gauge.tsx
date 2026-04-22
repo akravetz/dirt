@@ -29,6 +29,7 @@ import type { ReactNode } from "react";
 // api-client/, and a one-line literal union is cheaper than routing a
 // shared type through src/shared/.
 type GaugeStatus = "ok" | "warn" | "crit";
+type GaugeAccent = "temp" | "humidity" | "vpd" | "moisture" | "neutral";
 
 interface GaugeProps {
   /** Metric display name; also the tile's accessible name + heading text. */
@@ -39,8 +40,10 @@ interface GaugeProps {
   unit: string;
   /** Target band [lo, hi]; `null` hides the arc (fan / reservoir). */
   band: readonly [number, number] | null;
-  /** Backend-computed status. Drives the status-word + tile accent. */
+  /** Backend-computed status. Drives the status-word colour. */
   status: GaugeStatus;
+  /** Sensor accent (drives band-arc stroke when status is ok). */
+  accent?: GaugeAccent;
   /**
    * Optional value formatter; defaults to one decimal place. Useful for
    * integer-valued metrics like fan_pct where "48.0%" reads awkward.
@@ -48,21 +51,21 @@ interface GaugeProps {
   format?: (value: number) => string;
 }
 
-// Status → Tailwind-palette class. Three named tokens means the
-// evaluator can grep `status-ok` / `status-warn` / `status-crit` class
-// presence without relying on raw hex values. The classes below use
-// our paper/ink palette + accent-magenta (for crit) — all tokens from
-// src/styles.css @theme, so TS-15 (no arbitrary values) stays happy.
-const STATUS_BORDER: Record<GaugeStatus, string> = {
-  ok: "border-rule",
-  warn: "border-accent-purple",
-  crit: "border-accent-magenta",
+// Status → status word color. Pulls from the new status-* tokens added
+// in the design-system pass; "crit" is the only state that still leans
+// on the magenta accent (mock uses --status-err for crit/err).
+const STATUS_TEXT: Record<GaugeStatus, string> = {
+  ok: "text-status-ok",
+  warn: "text-status-warn",
+  crit: "text-status-err",
 };
 
-const STATUS_TEXT: Record<GaugeStatus, string> = {
-  ok: "text-ink-3",
-  warn: "text-accent-purple",
-  crit: "text-accent-magenta",
+const ACCENT_STROKE: Record<GaugeAccent, string> = {
+  temp: "stroke-sensor-temp",
+  humidity: "stroke-sensor-humidity",
+  vpd: "stroke-sensor-vpd",
+  moisture: "stroke-sensor-moisture",
+  neutral: "stroke-ink-3",
 };
 
 function defaultFormat(value: number): string {
@@ -78,10 +81,12 @@ function Arc({
   band,
   value,
   status,
+  accent,
 }: {
   band: readonly [number, number];
   value: number;
   status: GaugeStatus;
+  accent: GaugeAccent;
 }): ReactNode {
   const [lo, hi] = band;
   // Map the band onto [0, 1] of the arc by expanding the display
@@ -114,10 +119,10 @@ function Arc({
 
   const bandStrokeClass =
     status === "crit"
-      ? "stroke-accent-magenta"
+      ? "stroke-status-err"
       : status === "warn"
-        ? "stroke-accent-purple"
-        : "stroke-rule-strong";
+        ? "stroke-status-warn"
+        : ACCENT_STROKE[accent];
 
   return (
     <svg
@@ -155,31 +160,43 @@ export function Gauge({
   unit,
   band,
   status,
+  accent = "neutral",
   format = defaultFormat,
 }: GaugeProps): ReactNode {
   return (
-    <article
-      aria-label={name}
-      className={`flex flex-col gap-3 border bg-paper p-5 ${STATUS_BORDER[status]}`}
-    >
+    <article aria-label={name} className="flex flex-col gap-3 bg-paper-2 p-4">
       <header className="flex items-baseline justify-between gap-2">
-        <h2 className="font-mono text-xs uppercase tracking-caps text-ink-2">{name}</h2>
+        <h2 className="font-sans text-fs-10 font-semibold uppercase tracking-cap-med text-ink-3">
+          {name}
+        </h2>
         <span
           role="status"
           aria-label={`${name} status`}
-          className={`font-mono text-xs uppercase tracking-caps ${STATUS_TEXT[status]}`}
+          className={`font-mono text-fs-10 uppercase tracking-caps ${STATUS_TEXT[status]}`}
           data-status={status}
         >
           {status}
         </span>
       </header>
       <p className="flex items-baseline gap-2">
-        <span className="font-serif text-4xl italic text-ink">{format(value)}</span>
-        <span className="font-mono text-xs uppercase tracking-caps text-ink-3">
+        <span className="font-mono text-fs-22 font-semibold tabular-nums text-ink">
+          {format(value)}
+        </span>
+        <span className="font-mono text-fs-11 uppercase tracking-cap-narrow text-ink-3">
           {unit}
         </span>
       </p>
-      {band !== null ? <Arc band={band} value={value} status={status} /> : null}
+      {band !== null ? (
+        <p
+          className={`font-mono text-fs-10 ${status === "crit" ? "text-status-err" : status === "warn" ? "text-status-warn" : "text-ink-3"}`}
+        >
+          target {band[0]}–{band[1]}
+          {unit}
+        </p>
+      ) : null}
+      {band !== null ? (
+        <Arc band={band} value={value} status={status} accent={accent} />
+      ) : null}
     </article>
   );
 }

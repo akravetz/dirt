@@ -44,7 +44,7 @@ test.describe("dashboard plants strip", () => {
     // intervening sections (humidifier strip, etc.) while still
     // asserting the "below the sparklines" intent literally.
     const sparklinesBottom = await page
-      .getByRole("region", { name: "Environment sparklines" })
+      .getByRole("region", { name: "Environment history" })
       .evaluate((el) => el.getBoundingClientRect().bottom);
     const stripTop = await strip.evaluate(
       (el) => el.getBoundingClientRect().top,

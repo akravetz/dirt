@@ -46,9 +46,12 @@ export function PresetList({
   onSelect,
 }: PresetListProps): ReactNode {
   return (
-    <section aria-label="Presets" className="flex flex-col border border-rule bg-paper">
-      <header className="border-b border-rule px-4 py-2">
-        <h2 className="font-mono text-xs uppercase tracking-caps text-ink-2">
+    <section
+      aria-label="Presets"
+      className="flex flex-col border border-rule-strong bg-paper-2"
+    >
+      <header className="border-b border-rule-strong px-3.5 py-2">
+        <h2 className="font-sans text-fs-10 font-semibold uppercase tracking-cap-med text-ink-3">
           Presets
         </h2>
       </header>
@@ -71,15 +74,15 @@ export function PresetList({
                 }}
                 className={
                   active
-                    ? "flex w-full items-center gap-3 border-b border-rule bg-ink px-4 py-2 text-left text-paper last:border-b-0"
-                    : "flex w-full items-center gap-3 border-b border-rule bg-paper px-4 py-2 text-left text-ink hover:bg-rule/30 last:border-b-0"
+                    ? "flex w-full items-center gap-2.5 border-b border-rule bg-ink px-2.5 py-2 text-left text-paper last:border-b-0"
+                    : "flex w-full items-center gap-2.5 border-b border-rule px-2.5 py-2 text-left text-ink transition hover:bg-paper-3 last:border-b-0"
                 }
               >
                 <span
                   aria-hidden="true"
-                  className={`inline-block h-3 w-3 ${chipClass}`}
+                  className={`inline-block h-2.5 w-2.5 ${chipClass}`}
                 />
-                <span className="font-sans text-sm">{preset.label}</span>
+                <span className="font-sans text-fs-12">{preset.label}</span>
               </button>
             </li>
           );

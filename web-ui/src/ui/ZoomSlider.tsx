@@ -50,18 +50,20 @@ export function ZoomSlider({ value, onChange, onCommit }: ZoomSliderProps): Reac
   return (
     <section
       aria-label="Manual"
-      className="flex flex-col gap-3 border border-rule bg-paper p-4"
+      className="flex flex-col gap-3 border border-rule-strong bg-paper-2 p-4"
     >
       <header>
-        <h2 className="font-mono text-xs uppercase tracking-caps text-ink-2">Manual</h2>
+        <h2 className="font-sans text-fs-10 font-semibold uppercase tracking-cap-med text-ink-3">
+          Manual
+        </h2>
       </header>
-      <p className="font-sans text-xs text-ink-2">
+      <p className="font-serif text-fs-13 italic text-ink-3">
         Click any point on the feed to re-center the camera there.
       </p>
       <label className="flex flex-col gap-2">
-        <span className="flex items-baseline justify-between font-mono text-xs uppercase tracking-caps text-ink-3">
+        <span className="flex items-baseline justify-between font-mono text-fs-10 uppercase tracking-caps text-ink-3">
           <span>Zoom</span>
-          <span>{value.toFixed(1)}×</span>
+          <span className="font-semibold text-ink">{value.toFixed(1)}×</span>
         </span>
         <input
           type="range"
@@ -71,17 +73,14 @@ export function ZoomSlider({ value, onChange, onCommit }: ZoomSliderProps): Reac
           step={ZOOM_STEP}
           value={value}
           onChange={handleInput}
-          // Fire commit on both mouse/pointer release and keyboard
-          // commit (onChange on native range already fires on key
-          // strokes, so mouseUp/touchEnd are the drop events).
           onMouseUp={commit}
           onTouchEnd={commit}
           onKeyUp={commit}
-          className="w-full accent-accent-magenta"
+          className="zoom-slider"
         />
         <span
           aria-hidden="true"
-          className="flex justify-between font-mono text-xs uppercase tracking-caps text-ink-3"
+          className="flex justify-between font-mono text-fs-10 uppercase tracking-cap-narrow text-ink-3"
         >
           <span>1×</span>
           <span>2×</span>

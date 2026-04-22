@@ -10,6 +10,7 @@ dependencies = [
     "pyserial>=3.5",
     "python-kasa",
     "pydantic>=2.0",
+    "httpx>=0.28.1",
 ]
 
 # deptry: per-rule ignores. See apps/tests/invariants/test_dependency_hygiene.py.

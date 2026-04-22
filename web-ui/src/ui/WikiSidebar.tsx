@@ -57,19 +57,19 @@ function FileRow({
         }}
         className={
           active
-            ? "flex w-full items-center gap-2 border-l-2 border-accent-magenta bg-rule/30 px-3 py-1.5 text-left text-ink"
-            : "flex w-full items-center gap-2 border-l-2 border-transparent px-3 py-1.5 text-left text-ink-2 hover:bg-rule/30 hover:text-ink"
+            ? "flex w-full items-center gap-1.5 whitespace-nowrap border-l-2 border-accent-magenta bg-paper py-1 pl-5 pr-3 text-left font-sans text-fs-12 font-semibold leading-prose-tight text-ink"
+            : "flex w-full items-center gap-1.5 whitespace-nowrap border-l-2 border-transparent py-1 pl-5.5 pr-3 text-left font-sans text-fs-12 leading-prose-tight text-ink-2 hover:bg-paper-3 hover:text-ink"
         }
       >
         {sticker ? (
           <span
-            className={`inline-block h-2 w-2 rounded-full ${sticker}`}
+            className={`inline-block h-2 w-2 shrink-0 border border-ink ${sticker}`}
             aria-hidden
           />
         ) : (
-          <span className="inline-block h-2 w-2" aria-hidden />
+          <span className="inline-block h-2 w-2 shrink-0" aria-hidden />
         )}
-        <span className="truncate">{node.title}</span>
+        <span className="min-w-0 flex-1 truncate">{node.title}</span>
       </button>
     </li>
   );
@@ -79,7 +79,7 @@ export function WikiSidebar({ tree, activePath, onSelect }: WikiSidebarProps) {
   return (
     <nav
       aria-label="Wiki tree"
-      className="flex w-64 shrink-0 flex-col gap-4 border-r border-rule bg-paper py-4 text-sm"
+      className="flex w-70 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-rule-strong bg-paper-2 px-3.5 pb-10 pt-5"
     >
       {tree.map((node) => {
         if (node.type === "file") {
@@ -93,16 +93,20 @@ export function WikiSidebar({ tree, activePath, onSelect }: WikiSidebarProps) {
             </ul>
           );
         }
+        const count = node.children.length;
         return (
           <section
             key={node.name}
             aria-label={node.name}
-            className="flex flex-col gap-1"
+            className="mb-1.5 flex flex-col"
           >
-            <h3 className="px-3 font-mono text-xs uppercase tracking-caps text-ink-3">
-              {node.name}
+            <h3 className="flex items-center gap-1.5 px-2 py-1.25 font-sans text-fs-11 font-semibold uppercase tracking-caps text-ink-3">
+              <span>{node.name}</span>
+              <span className="ml-auto border border-rule px-1 text-fs-10 font-normal normal-case tracking-normal text-ink-3">
+                {count}
+              </span>
             </h3>
-            <ul className="flex list-none flex-col">
+            <ul className="m-0 flex list-none flex-col p-0">
               {node.children.map((child) => (
                 <FileRow
                   key={child.path}

@@ -81,7 +81,7 @@ export function CameraFeed({ onLook }: CameraFeedProps): ReactNode {
   return (
     <figure
       aria-label="Live camera feed"
-      className="flex flex-col gap-0 border border-rule bg-ink p-0"
+      className="flex flex-col gap-0 border border-ink bg-ink p-0 ring-1 ring-accent-purple ring-inset"
     >
       <button
         type="button"

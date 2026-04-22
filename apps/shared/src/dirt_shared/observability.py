@@ -71,6 +71,7 @@ _RETENTION: dict[str, int] = {
     "subagent_calls": 10,  # sub-agent traces — higher value, lower volume
     "humidifier": 30,  # plug state transitions — rare, useful for incident review
     "daily_report": 30,  # per-phase markers for the daily report run
+    "device_status": 30,  # offline/online transitions from the device watchdog
     "sensor_boot": 90,  # BME280 calibration + register state at each Arduino reset
 }
 

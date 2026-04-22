@@ -99,8 +99,10 @@ test.describe("wiki tab", () => {
     // heading ("## Current State") that is distinctive to plant-a.md.
     const body = doc.getByTestId("wiki-body");
     await expect(body).toBeVisible();
-    await expect(body).toContainText("## Current State");
-    await expect(body).toContainText("# Plant A");
+    // Body renders markdown via react-markdown; assert on heading text
+    // (the `#` / `##` markers are consumed by the renderer).
+    await expect(body.getByRole("heading", { name: "Plant A" })).toBeVisible();
+    await expect(body.getByRole("heading", { name: "Current State" })).toBeVisible();
   });
 
   test("Cmd+K opens the search palette", async ({ page }) => {
@@ -148,10 +150,12 @@ test.describe("wiki tab", () => {
     await expect.poll(() => new URL(page.url()).searchParams.get("path")).toBe(
       "wiki/concepts/topping.md",
     );
-    // And the doc for that path should render.
-    await expect(page.getByRole("article", { name: "Wiki document" })).toContainText(
-      "# Topping",
-    );
+    // And the doc for that path should render — scope the assertion to
+    // the body so the article-level title (also "Topping") doesn't
+    // collide with the body's `# Topping` heading.
+    await expect(
+      page.getByTestId("wiki-body").getByRole("heading", { name: "Topping" }),
+    ).toBeVisible();
   });
 
   test("opening palette with empty query renders recents and does NOT hit /api/wiki/search", async ({

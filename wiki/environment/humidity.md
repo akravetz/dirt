@@ -4,7 +4,7 @@ type: environment
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/environment/temperature.md, wiki/concepts/vpd.md, wiki/overview.md, wiki/hardware/humidifier-control.md, wiki/decisions/2026-04-17-humidifier-kasa-ep10.md]
 created: 2026-04-06
-updated: 2026-04-20
+updated: 2026-04-22
 ---
 
 
@@ -44,6 +44,7 @@ VPD is the control-loop setpoint; RH is informational (temperature determines wh
 | 2026-04-18 | 59.13% now ✅ / 76.95% overnight avg ⚠️ | Closed-loop service holding day period in target; overnight with lights off + temp 63°F, RH spikes to 77% (VPD 0.46 kPa — seedling range); significant day/night VPD swing 0.46 → 1.31 kPa → [2026-04-18](../daily/2026-04-18.md) |
 | 2026-04-19 | 54.69% now ✅ / 70.79% overnight avg ⚠️; VPD 1.51 kPa now ⚠️ / 0.68 kPa overnight | Overnight RH improving (76.95% → 70.79%); overnight VPD improving (0.46 → 0.68 kPa); daytime VPD above 1.2 ceiling → [2026-04-19](../daily/2026-04-19.md) |
 | 2026-04-20 | 62.37% now ✅ / 74.37% overnight avg ⚠️; VPD 1.12 kPa now ✅ / 0.57 kPa overnight | Daytime VPD in target at 14:00 (1.12 kPa ✅) — first time in range; overnight RH regressed (70.79% → 74.37%) — `dirt-hwd` restart still pending → [2026-04-20](../daily/2026-04-20.md) |
+| 2026-04-22 | 69.19% now ⚠️ / 52.06% overnight avg ✅; VPD 0.84 kPa now ✅ / 1.21 kPa overnight ✅ | **Overnight breakthrough**: RH 74.37% → 52.06% (in 45–55% veg target); VPD 0.57 → 1.21 kPa overnight; `dirt-hwd` restart confirmed effective; afternoon RH elevated (69%) but VPD in range (0.84 kPa) due to lower temp → [2026-04-22](../daily/2026-04-22.md) |
 
 ## Notable Events
 - **2026-03-20** — Dome propped open, room humidifier added to tent after RH consistently below 50% → [2026-03-27 daily](../daily/2026-03-27.md)
@@ -56,6 +57,7 @@ VPD is the control-loop setpoint; RH is informational (temperature determines wh
 - **2026-04-18** — Switched humidifier control loop from fixed 60% RH setpoint to stage-dynamic VPD targeting (upper-band edge, 0.1 kPa deadband). VPD band reads from `dirt.services.grow_state` so veg→flower transitions shift setpoints without redeploying. See [decision 2026-04-18](../decisions/2026-04-18-vpd-targeting.md).
 - **2026-04-19** — Overnight improvement continues: RH 70.79% (was 76.95%), VPD 0.68 kPa (was 0.46). Daytime VPD running above ceiling: 1.31 kPa morning, 1.51 kPa at 14:00. Lights-off-aware feedforward and dropped safety timers deployed today; should further improve overnight profile. See [decisions/2026-04-19-lights-off-aware-humidifier.md](../decisions/2026-04-19-lights-off-aware-humidifier.md) and [decisions/2026-04-19-drop-humidifier-safety-timers.md](../decisions/2026-04-19-drop-humidifier-safety-timers.md).
 - **2026-04-20** — Daytime VPD reached 1.12 kPa at 14:00 — in the 0.8–1.2 veg target for the first time. Overnight profile regressed: RH 74.37% (was 70.79%), VPD 0.57 kPa (was 0.68). Regression confirms `dirt-hwd` service restart is still pending — lights-off feedforward cannot activate until restarted. → [2026-04-20](../daily/2026-04-20.md)
+- **2026-04-22** — Overnight RH breakthrough: 52.06% avg (was 74.37%) — within the 45–55% veg target for the first time. Overnight VPD 1.21 kPa (was 0.57) — at the target ceiling. Both overnight metrics in veg target simultaneously for the first time this grow. Confirms `dirt-hwd` service restart activated the lights-off feedforward. Afternoon RH elevated (69.19%) but VPD (0.84 kPa) remains within target due to slightly lower tent temp (72.34°F). → [2026-04-22](../daily/2026-04-22.md)
 
 ## Deployed Control System
 

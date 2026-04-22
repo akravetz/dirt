@@ -68,58 +68,63 @@ export function LoginScreen({ onSubmit }: LoginScreenProps) {
   const errorId = "login-error";
 
   return (
-    <main className="grid min-h-screen grid-cols-1 bg-paper text-ink md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+    <main className="grid h-screen grid-cols-1 bg-paper text-ink md:grid-cols-[1.05fr_1fr]">
       {/* Left panel — dotted paper with the brand + field notes. */}
-      <section className="bg-dot-grid relative flex flex-col justify-between gap-12 px-12 py-16">
-        <div className="flex flex-col gap-8">
+      <section className="bg-dot-grid relative flex items-center justify-center border-r border-rule-strong bg-paper-2">
+        <div className="w-90 bg-paper-2 p-8">
           <svg
             aria-hidden="true"
-            viewBox="0 0 120 160"
-            className="h-28 w-24 text-ink"
+            viewBox="0 0 100 100"
+            className="h-35 w-35 text-ink-2"
             fill="none"
             stroke="currentColor"
-            strokeWidth="1.5"
+            strokeWidth="0.8"
             strokeLinecap="round"
-            strokeLinejoin="round"
           >
-            <path d="M60 150 V80" />
-            <path d="M60 110 C 30 100, 18 70, 30 40 C 50 60, 60 80, 60 110 Z" />
-            <path d="M60 110 C 90 100, 102 70, 90 40 C 70 60, 60 80, 60 110 Z" />
+            <path d="M50 88 C50 55, 20 45, 14 20 C 40 22, 52 38, 50 88 Z" />
+            <path d="M50 88 C50 55, 80 45, 86 20 C 60 22, 48 38, 50 88 Z" />
+            <path d="M50 88 L50 30" />
+            <path
+              d="M50 60 L32 48 M50 55 L68 43 M50 45 L34 35 M50 40 L66 30"
+              opacity="0.6"
+            />
           </svg>
-          <div>
-            <h1 className="font-serif text-7xl italic leading-none text-ink">
-              dirt<span className="text-accent-magenta">.</span>
-            </h1>
-            <p className="mt-6 max-w-xs font-serif text-lg italic text-ink-2">
-              really dig your hands in there,
-              <br />
-              feel it under your nails
-            </p>
-          </div>
+          <h1 className="mt-5 font-serif text-fs-72 font-medium italic leading-none tracking-tighter text-ink">
+            dirt<span className="text-accent-magenta">.</span>
+          </h1>
+          <p className="mt-3.5 max-w-fieldnote-sub font-serif text-fs-15 italic leading-normal text-ink-2">
+            really dig your hands in there,
+            <br />
+            feel it under your nails
+          </p>
+          <dl className="mt-10 flex flex-col gap-1 border-t border-rule-strong pt-4 font-mono text-fs-11">
+            {FIELD_NOTES.map(({ label, value }) => (
+              <div key={label} className="flex gap-3">
+                <dt className="w-15 uppercase tracking-cap-narrow text-ink-3">
+                  {label}
+                </dt>
+                <dd className="text-ink">{value}</dd>
+              </div>
+            ))}
+          </dl>
         </div>
-        <dl className="flex flex-col gap-2 border-t border-rule pt-6 font-mono text-xs text-ink">
-          {FIELD_NOTES.map(({ label, value }) => (
-            <div key={label} className="flex gap-6">
-              <dt className="w-20 uppercase tracking-caps text-ink-3">{label}</dt>
-              <dd className="text-ink">{value}</dd>
-            </div>
-          ))}
-        </dl>
       </section>
 
       {/* Right panel — sign in form. */}
-      <section className="flex items-center justify-center bg-paper px-12 py-16">
+      <section className="flex items-center justify-center bg-paper px-10 py-10">
         <form
           onSubmit={(event) => {
             void handleSubmit(event);
           }}
           noValidate
-          className="flex w-full max-w-sm flex-col gap-6"
+          className="flex w-95 flex-col gap-6"
           aria-describedby={invalid ? errorId : undefined}
         >
-          <div className="flex flex-col gap-2">
-            <h2 className="font-serif text-4xl text-ink">Sign in</h2>
-            <p className="font-serif text-base italic text-ink-2">
+          <div className="flex flex-col gap-1">
+            <h2 className="font-sans text-fs-28 font-semibold tracking-tight text-ink">
+              Sign in
+            </h2>
+            <p className="font-serif text-fs-15 italic text-ink-3">
               Operator access only. This instrument talks back.
             </p>
           </div>
@@ -134,8 +139,8 @@ export function LoginScreen({ onSubmit }: LoginScreenProps) {
             </div>
           ) : null}
 
-          <label className="flex flex-col gap-1 font-mono text-xs uppercase tracking-caps text-ink-3">
-            Username
+          <label className="flex flex-col gap-1 font-mono text-fs-10 uppercase tracking-cap-field text-ink-3">
+            username
             <input
               name="username"
               id="username"
@@ -145,28 +150,28 @@ export function LoginScreen({ onSubmit }: LoginScreenProps) {
               autoCorrect="off"
               spellCheck={false}
               aria-invalid={invalid ? "true" : undefined}
-              className="border border-rule bg-paper px-3 py-2 font-mono text-sm normal-case tracking-normal text-ink outline-none focus:border-ink"
+              className="border border-rule-strong bg-paper px-3 py-2.5 font-mono text-fs-15 normal-case tracking-normal text-ink outline-none focus:border-ink"
             />
           </label>
 
-          <label className="flex flex-col gap-1 font-mono text-xs uppercase tracking-caps text-ink-3">
-            Password
+          <label className="flex flex-col gap-1 font-mono text-fs-10 uppercase tracking-cap-field text-ink-3">
+            password
             <input
               name="password"
               id="password"
               type="password"
               autoComplete="current-password"
               aria-invalid={invalid ? "true" : undefined}
-              className="border border-rule bg-paper px-3 py-2 font-mono text-sm normal-case tracking-normal text-ink outline-none focus:border-ink"
+              className="border border-rule-strong bg-paper px-3 py-2.5 font-mono text-fs-15 normal-case tracking-normal text-ink outline-none focus:border-ink"
             />
           </label>
 
           <button
             type="submit"
             disabled={submitting}
-            className="bg-ink px-4 py-3 font-mono text-xs uppercase tracking-caps text-paper hover:bg-ink-2 disabled:opacity-60"
+            className="border border-ink bg-ink px-4 py-3 font-sans text-fs-13 font-semibold uppercase tracking-cap-short text-paper transition hover:bg-ink-2 disabled:opacity-60"
           >
-            {submitting ? "Signing in…" : "Enter the tent →"}
+            {submitting ? "Authenticating…" : "Enter the tent  →"}
           </button>
         </form>
       </section>

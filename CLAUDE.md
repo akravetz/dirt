@@ -51,6 +51,10 @@ Knowledge packs live in `docs/references/`. Before writing code that touches any
 
 ## Commands
 
+### Browser Automation
+
+Use the **`agent-browser`** CLI for every agentic browser interaction (navigating, screenshotting, snapshotting the a11y tree, clicking, typing, evaluating JS). Do NOT reach for a Playwright MCP, a raw `playwright` script, or `curl` + HTML parsing when the goal is actually "drive a browser". Run `agent-browser --help` (and `agent-browser skills get core --full`) to get the full command surface on demand.
+
 ### Committing (read this once before your first commit)
 
 Before `git add` + `git commit`, run **`scripts/agent-fix`**. It applies every formatter and safe lint-fix in one pass (ruff format, ruff check --fix, Biome check --write, ESLint --fix) so the pre-commit hooks don't bounce you back for cosmetic drift.
@@ -159,6 +163,7 @@ Structured JSONL for debugging. Rotated by filename date on first write of the d
 | `subagent_calls` | Full Claude Agent SDK trace per `ask_wiki` invocation — question, every tool_use/tool_result, final answer, usage, cost, duration. | 10 days | `apps/voice/src/dirt_voice/tools/wiki.py:_ask_wiki` |
 | `humidifier` | State transitions of the Kasa EP10 plug controlling the Raydrop humidifier. One `state_change` event per on/off change with `reason` (`vpd_above_upper_band` / `vpd_below_upper_band` / `failsafe_stale_sensor` / `outside_lights_window`), `vpd`, `vpd_age_s`, `stage`, `upper_band_kpa`, `lower_band_kpa`, `lights_on`, `minutes_until_off`, `minutes_until_on`, `allowed`. Also emits `error` events on loop exceptions. Loop targets the stage's VPD upper edge and forces off outside the allowed lights window (from `lights_on − margin` through `lights_off − margin`) — see `wiki/hardware/humidifier-control.md`. | 30 days | `apps/hwd/src/dirt_hwd/services/humidifier.py:HumidifierLoopService.run` |
 | `daily_report` | Per-phase markers for the daily report run (`run_started`, `capture_finished`, `validate_finished`, `snapshot_finished`, `synthesis_finished`, `deliver_finished`, `run_completed`, `run_failed`, `deliver_failed`). | 30 days | `apps/shared/src/dirt_shared/services/daily_report.py` |
+| `device_status` | Offline/online transitions from the device watchdog. One `state_change` event per cross of the `offline` boundary in either direction (`name`, `kind`, `old`, `new`, `last_seen`). Cold-start seeds silently from `var/logs/device_watchdog/state.json` so a systemd restart doesn't replay every already-offline device. Also emits `error` events on loop exceptions. | 30 days | `apps/hwd/src/dirt_hwd/services/device_watchdog.py:DeviceWatchdogService.run` |
 
 ### Adding a new log stream
 

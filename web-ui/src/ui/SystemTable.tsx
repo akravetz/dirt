@@ -29,31 +29,30 @@ interface SystemTableProps {
 // Badge colour keyed on status. Advisory only — the aria-label +
 // visible text are the load-bearing accessible signals.
 const BADGE_CLASS: Record<DeviceStatusKind, string> = {
-  ok: "text-ink border-rule",
-  listening: "text-ink border-rule",
-  warn: "text-accent-magenta border-accent-magenta",
-  offline: "text-ink-3 border-ink-3",
+  ok: "text-status-ok border-status-ok",
+  listening: "text-ink border-rule-strong",
+  warn: "text-status-warn border-status-warn",
+  offline: "text-status-err border-status-err",
 };
 
 export function SystemTable({ devices }: SystemTableProps): ReactNode {
   return (
-    <section
-      aria-label="System devices"
-      className="flex flex-col gap-2 border border-rule bg-paper p-4"
-    >
-      <h2 className="font-mono text-xs uppercase tracking-caps text-ink-2">System</h2>
-      <table className="w-full border-collapse">
+    <section aria-label="System devices" className="flex flex-col bg-paper-2 p-4">
+      <h2 className="mb-2 font-sans text-fs-10 font-semibold uppercase tracking-cap-med text-ink-3">
+        System
+      </h2>
+      <table className="w-full border-collapse font-sans text-fs-12">
         <thead>
           <tr>
             <th
               scope="col"
-              className="border-b border-rule py-1 text-left font-mono text-xs uppercase tracking-caps text-ink-3"
+              className="border-b border-rule-strong px-3.5 py-1.5 text-left font-sans text-fs-10 font-semibold uppercase tracking-caps text-ink-2"
             >
               Device
             </th>
             <th
               scope="col"
-              className="border-b border-rule py-1 text-right font-mono text-xs uppercase tracking-caps text-ink-3"
+              className="border-b border-rule-strong px-3.5 py-1.5 text-right font-sans text-fs-10 font-semibold uppercase tracking-caps text-ink-2"
             >
               Status
             </th>
@@ -62,12 +61,12 @@ export function SystemTable({ devices }: SystemTableProps): ReactNode {
         <tbody>
           {devices.map((device) => (
             <tr key={device.name} className="border-b border-rule last:border-b-0">
-              <td className="py-2 font-serif text-base text-ink">{device.name}</td>
-              <td className="py-2 text-right">
+              <td className="px-3.5 py-2.5 text-ink">{device.name}</td>
+              <td className="px-3.5 py-2.5 text-right">
                 <span
                   role="status"
                   aria-label={`${device.name} status`}
-                  className={`inline-block border px-2 py-0.5 font-mono text-xs uppercase tracking-caps ${BADGE_CLASS[device.status]}`}
+                  className={`inline-block border px-1.75 py-0.5 font-mono text-fs-10 uppercase tracking-caps ${BADGE_CLASS[device.status]}`}
                 >
                   {device.status}
                 </span>

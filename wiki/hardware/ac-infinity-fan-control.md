@@ -2,18 +2,18 @@
 title: Hardware — AC Infinity Cloudline LITE 6" Fan Control
 type: hardware
 sources: [debug/fan-pwm/sweep-v2.sr, debug/fan-pwm/sweep-11steps.sr, debug/fan-pwm/sweep-v3.sr]
-related: [wiki/hardware/humidifier-control.md]
+related: [wiki/hardware/humidifier-control.md, wiki/hardware/esp32-plant-nodes.md]
 created: 2026-04-18
-updated: 2026-04-21
+updated: 2026-04-22
 ---
 
 # AC Infinity Cloudline LITE 6" Fan Control
 
-**Status (2026-04-21):** protocol characterized end-to-end; circuit redesign in progress. Speed signal, pinout, and electrical topology confirmed via logic-analyzer capture + multimeter. **Pinout correction 2026-04-21:** the signal previously labeled "CC1" is actually **B5** (USB-C pin B5 = CC2 on the spec side); the first captures had the minidodoca tap on the wrong side of the dongle. Re-capture at `debug/fan-pwm/sweep-v3.sr` confirms the three active signals with the corrected labeling. **Voltage correction 2026-04-21:** original pre-flight claimed signals were ≤5V — that was wrong. All three signals swing to **~9V**, same as VBUS. The HiLetgo survived because of its input protection diodes, not because the signals were in-range. Any future probe must account for 9V logic. **Waiting on 2N7000 MOSFET delivery (overnight)**; 10 kΩ gate resistor on hand. Rendered schematic at `debug/fan-pwm/driver-schematic.png` (source: `debug/fan-pwm/schematic.py`) is for the original Nano design. Standalone test sketch at `debug/fan-pwm/fan_drive_test/fan_drive_test.ino` — ramps fan duty 0 → 100% in 10% steps, dwells 3 s each, loops. Meant to flash on a spare Nano for the first bring-up; once validated, the logic folds into the main firmware.
+**Status (2026-04-22):** **D+ bring-up validated.** Fan wired to a dedicated ESP32-C3 SuperMini via two 2N7000 MOSFETs on D+ (speed command) and B5 (keep-alive). Full-range 0%→100%→0% sweep in 10% steps confirmed audibly — fan is silent at 0%, starts spinning around 10%, scales cleanly through the range, peaks at 100%. Firmware at [`firmware/fan_controller/`](../../firmware/fan_controller/). Next step: add WiFi + OTA + ingest (via the shared libs in `firmware/common/`) so the host can command speed; then wire into the VPD control loop. **Deviation from original plan:** moved from Arduino Nano to ESP32-C3 SuperMini so the fan driver joins the same fleet operational model as the plant nodes and tent node (WiFi + HTTP ingest + OTA reflash). The Nano-era driver schematic at `debug/fan-pwm/driver-schematic.png` and the Nano test sketch at `debug/fan-pwm/fan_drive_test/fan_drive_test.ino` are stale and should not be referenced for current hardware.
 
 ## Goal
 
-Drive the Cloudline LITE 6" inline fan from an Arduino Nano (controlled by the Dirt stack) instead of AC Infinity's stock wired speed controller. End state: programmatic fan speed, scheduled ramps, closed-loop VPD coupling with the humidifier — without routing any control through AC Infinity's ecosystem.
+Drive the Cloudline LITE 6" inline fan from an ESP32-C3 SuperMini (controlled by the Dirt stack) instead of AC Infinity's stock wired speed controller. End state: programmatic fan speed, scheduled ramps, closed-loop VPD coupling with the humidifier — without routing any control through AC Infinity's ecosystem.
 
 ## Protocol (confirmed 2026-04-21, sweep-v3.sr)
 
@@ -47,7 +47,7 @@ Derived from a 20-second logic-analyzer sweep stepping through all 11 dial posit
 
 - Linear PWM mapping 22%–100% for "running" speeds. 0% = OFF (line held low). Below ~22% the motor likely buzzes without spinning — avoid unless explicitly testing stall.
 - The ~8% inter-click step is a remote-side UX choice, **not** a protocol limit. Underlying resolution is ≈1%, so we can command any duty we want; the 10-position dial is a coarse abstraction over a continuous range.
-- Recommended Nano API: `fan.set_speed(pct)` where `pct=0` → 0% duty (off) and `pct=1..100` → linearly remapped to 22%–100% duty (protects against the stall zone).
+- Driver API: `set_fan_speed(uint8_t pct)` in `firmware/fan_controller/src/main.cpp`. `pct=0` → 0% duty (off); `pct=1..100` → linearly remapped to 22%–100% D+ wire duty; the inversion math (MCU duty = 100 − wire duty, since our MOSFET pulls D+ low when the GPIO is high) is handled inside the helper.
 
 ### Electrical topology
 
@@ -57,29 +57,32 @@ Implication: **the driver does not need to source 9V** — it only needs to pull
 
 **Failsafe behavior:** if the driver loses power, resets, or crashes, D+ floats → fan runs at 100%. For a grow tent this is the safer direction; overventilation won't kill plants, whereas a stalled fan in a sealed tent eventually will. We are intentionally leaning into this behavior rather than engineering around it.
 
-## Nano driver circuit
+## Driver circuit (ESP32-C3 SuperMini)
 
-Single N-channel logic-level MOSFET. ~$0.50 in parts.
+Two N-channel logic-level MOSFETs, one per driven signal. ~$1 in parts.
 
 ```
-  D+ (fan USB-C via Treedix) ─────┐
-                                  │ drain
-                          [2N7000 N-ch MOSFET]
-                                  │ source
-  GND (fan) ─────────────── common GND ─────── GND (Nano)
-                                  │
-  Nano pin 9 ─────────────────────┤ gate
-                                  │
-                              [10 kΩ]
-                                  │
-                               GND (pull-down)
+  fan D+ (via Treedix) ──────────┐                fan B5 (via Treedix) ──────────┐
+                                 │ drain                                         │ drain
+                         [Q1 2N7000]                                     [Q2 2N7000]
+                                 │ source                                        │ source
+  fan GND (via Treedix) ────── common GND ────── ESP32 GND                       │
+                                 │                                               │
+  ESP32 GPIO 6 ──────────────────┤ gate                        ESP32 GPIO 7 ─────┤ gate
+                                 │                                               │
+                              [R1 10 kΩ]                                    [R2 10 kΩ]
+                                 │                                               │
+                              common GND                                    common GND
 ```
 
-- **Drain → D+** on the Treedix breakout.
-- **Source → common GND.** Fan GND and Nano GND must be tied together; otherwise the MOSFET has no reference.
-- **Gate → Nano pin 9.** Timer1 fast-PWM gives a clean 5 kHz output; the default `analogWrite()` 490 Hz is ~10× too slow and will likely confuse the fan MCU.
-- **10 kΩ gate-to-source pull-down.** Keeps the MOSFET OFF during Nano reset/boot (gate would otherwise float, causing a few ms of random D+ pull-downs).
-- **Signal is inverted in firmware.** Nano HIGH = MOSFET on = D+ pulled LOW (fan sees LOW). So `duty_nano = 100 − duty_fan`.
+- **Q1 drives D+** (speed command). **Q2 drives B5** (keep-alive heartbeat). Symmetric topology per signal.
+- **Drain → fan signal pad** on the Treedix breakout.
+- **Source → common GND.** Fan GND and ESP32 GND **must** be tied together; otherwise the MOSFETs have no reference and nothing happens.
+- **Gates → ESP32 GPIO 6 (D+) / GPIO 7 (B5).** LEDC peripheral, channel 0 for D+, channel 1 for B5, both at 5 kHz / 10-bit (matches the fan's 4,969 Hz carrier).
+- **10 kΩ gate pull-downs** (R1, R2). Keep each MOSFET OFF during ESP32 reset/boot (GPIO would otherwise float, causing a few ms of random pull-downs).
+- **Signal is inverted in firmware.** ESP32 HIGH = MOSFET on = line pulled LOW (fan sees LOW). So `duty_mcu = 100 − duty_wire`. D+ set via the `set_fan_speed()` helper; B5 statically driven at 1.4% MCU duty → 98.6% wire duty, mimicking the stock remote's keep-alive heartbeat.
+- **ESP32 USB-C powered independently** — the fan's 9V VBUS rail does not connect to the ESP32. The only electrical bridge between the two domains is common GND + the two signal wires going through the MOSFETs.
+- **D− (tach) left unconnected** in this revision. Optional future add: 10 kΩ pull-up from VBUS + 4.7 kΩ divider to GND + GPIO input, for closed-loop RPM feedback.
 
 ### 2N7000 pinout (TO-92)
 
@@ -102,8 +105,11 @@ Sanity-check with a multimeter in diode mode before soldering: the body diode co
 
 | Part | Qty | Notes |
 |------|-----|-------|
-| 2N7000 N-channel MOSFET (logic-level, `Vgs(th)` ≤ 2.5V) | 1 | BSS138 is interchangeable. Any logic-level N-channel FET works. |
-| 10 kΩ resistor | 1 | Gate pull-down. 5–100 kΩ is fine; 10 kΩ is unremarkable. |
+| ESP32-C3 SuperMini | 1 | USB-C powered. Same board as the plant nodes and tent node — fleet-uniform. |
+| 2N7000 N-channel MOSFET (logic-level, `Vgs(th)` ≤ 2.5V) | 2 | Q1 for D+, Q2 for B5. BSS138 is interchangeable. Any logic-level N-channel FET works. |
+| 10 kΩ resistor | 2 | Gate pull-downs, one per MOSFET. 5–100 kΩ is fine; 10 kΩ is unremarkable. |
+
+Optional extras for belt-and-suspenders (not currently populated): 220 Ω in series on each gate line to limit inrush current into the MOSFET gate capacitance at each PWM edge. Irrelevant at 5 kHz with a 2N7000, but harmless if you want them.
 
 Ordered separately from the reverse-engineering kit below — these were not in the original shopping list.
 
@@ -116,8 +122,8 @@ Used to characterize the protocol above. Retained afterward for future RE work o
 | minidodoca USB 3.1 Type-C M/F test board — 24-pin, 2.54mm headers | B0FLX671VF | 2 | **Inline analysis tap.** Sits between the fan's female USB-C port and the stock remote's male plug; all 24 pins broken out to headers for probing. |
 | Treedix USB Type-C vertical female breakout board | B0D31GG6WD | 2 | **Permanent install interface.** Standard USB-C M-M cable plugs fan into the Treedix receptacle; Nano wires to broken-out headers. Stock remote is removed. |
 | HiLetgo USB Logic Analyzer — 24 MHz, 8 channels, Cypress FX2 | B077LSG5P2 | 1 | PWM characterization. Works with sigrok/PulseView; appears as `fx2lafw` driver. |
-| ElectroCookie Prototype PCB solderable breadboards — 5 full-size + 1 mini, gold-plated | B07ZYNWJ1S | 6 | Perma-proto boards for the Nano rig. |
-| Lonely Binary 2.54mm female header assortment kit | B0FFM2RBMB | 1 kit | 2× 1x15 to socket the Nano (don't solder the Nano directly — lets us swap if one dies). |
+| ElectroCookie Prototype PCB solderable breadboards — 5 full-size + 1 mini, gold-plated | B07ZYNWJ1S | 6 | Perma-proto boards. Originally ordered for a Nano rig; reused for the ESP32-C3 build. |
+| Lonely Binary 2.54mm female header assortment kit | B0FFM2RBMB | 1 kit | Socket the MCU rather than solder it directly — lets us swap if the board dies. |
 
 ## Characterization method (for reference — already complete)
 
@@ -129,14 +135,35 @@ Three stages, executed 2026-04-20:
 
 **Sigrok-cli gotcha:** `--channels D1` *filters* which channels are shown in CLI output but the `.sr` archive still contains all probed bits in their original bit positions. When decoding in Python, D+ is at bit 1 of each output byte, not bit 0. See `debug/fan-pwm/analyze_steps.py` for the correct extraction.
 
+## Firmware
+
+Canonical source: [`firmware/fan_controller/`](../../firmware/fan_controller/). PlatformIO project, single `env:fan` for USB flash over `/dev/ttyACM*`. Same ESP32-C3 Arduino platform as the plant nodes and tent node — once WiFi/OTA/ingest are added, it'll consume the same shared libs at `firmware/common/{wifi_client, ota, ingest_client}/`.
+
+Current firmware is **bring-up smoke-test only**: ramps `fan=0%` → `100%` → `0%` in 10% steps, 5 s each, with verbose serial logging at every transition (human %, wire %, MCU %, LEDC register value). No WiFi, no ingest, no persistence yet. Next firmware milestone is to fold the shared libs in and accept `set_speed(pct)` over the ingest path (design TBD — either a response-body command on the normal POST, or a dedicated endpoint, or MQTT-style).
+
 ## Permanent install
 
-- Arduino Nano on one ElectroCookie perma-proto board, socketed with 2× 1x15 female headers (not soldered directly).
-- Fan interface via the Treedix vertical female USB-C breakout: plain USB-C M-M cable from fan lands in the Treedix receptacle; Nano's pin-9 → MOSFET gate → drain to D+.
-- Fan GND and Nano GND tied together at the perma-proto.
-- B5 left floating for the first test. If the fan refuses to respond to D+ alone, revisit and drive B5 at ~98.6% duty on a second MCU pin (same 4,969 Hz carrier).
-- D− (tach) can optionally wire to a Nano interrupt pin (D2 or D3) for closed-loop RPM feedback. Not required for basic control.
+- ESP32-C3 SuperMini on an ElectroCookie perma-proto board, socketed with appropriate female headers for the SuperMini footprint (not soldered directly; lets us swap if the board dies).
+- Fan interface via the Treedix vertical female USB-C breakout: plain USB-C M-M cable from fan lands in the Treedix receptacle; ESP32 GPIO 6 → Q1 gate → Q1 drain to D+ pad; ESP32 GPIO 7 → Q2 gate → Q2 drain to B5 pad.
+- Fan GND and ESP32 GND tied together at the perma-proto GND rail.
+- **B5 driven from the start** (1.4% MCU duty → 98.6% wire duty, mimicking the stock remote's keep-alive). Open question: whether B5 is actually required — the bring-up sweep 2026-04-22 ran successfully with B5 driven; whether the fan would also accept D+ commands with B5 floating is untested. If we want to know definitively, cut power to Q2 (or command GPIO 7 static-low → B5 floats high continuously via the fan's internal pull-up) and see if the fan still responds. Not a priority.
+- D− (tach) is unconnected. Adding it later is cheap: VBUS → 10 kΩ → D−, plus D− → 4.7 kΩ → GND (divider brings the 9V swing down to ~2.88V which is safely inside the ESP32's input range), feed into a GPIO with interrupt support, count rising edges → RPM.
+
+## Bring-up validation (2026-04-22)
+
+First flash of the smoke-test firmware landed on `/dev/ttyACM4` at 16:37 MDT. Initial test cycled `fan=20%` / `fan=40%` every 5 s; confirmed D+ PWM reaches the fan and produces audibly distinct speeds. Expanded to a full-range sweep (`0%` → `10%` → ... → `100%` → `90%` → ... → `0%`, 10% steps, 5 s each):
+
+| Checkpoint | Observed | Notes |
+|---|---|---|
+| Boot failsafe (D+ floats via 9V internal pull-up) | ~2 s max-speed blast | Q1 off while firmware starts up — confirms the pull-down keeps the MOSFET dormant |
+| `fan=0%` commanded | Fan silent / off | Q1 can hold D+ fully LOW — rules out a stuck-off MOSFET |
+| `fan=10%` → `20%` | Audible kick-in | Wire duty 29.8% → 37.6%; above the 22% stall threshold; motor spins cleanly |
+| Stepped ramp up 20% → 100% | Clean, monotonic | No dead spots, no uneven jumps — speed→RPM looks linear in the commanded range |
+| `fan=100%` (in sweep) | Same as boot blast | Symmetric behavior; no asymmetry between "floating high" and "commanded high" |
+| Sustained operation through full cycle | Fan keeps accepting commands | Indirect evidence B5 keep-alive is either doing its job or isn't required at all |
+
+No thermal check performed yet; to verify long-term safety, touch-check each 2N7000 after 10+ minutes at mid-speed.
 
 ## Future integration (out of scope for this page)
 
-Once standalone Nano control works, expose a simple HTTP or serial API from the Nano so the main Dirt host can send speed commands based on temp / humidity / VPD state — mirroring the ESP32-C3 plant nodes. Closed-loop VPD control will pair this with the humidifier (see [Humidifier Control](humidifier-control.md)).
+Next firmware milestone: fold `firmware/common/{wifi_client, ota, ingest_client}/` into the fan_controller build so the host can command speed over the ingest path and we get OTA reflash via `fan-controller.local`. Once that's in, closed-loop VPD control pairs this with the humidifier — see [Humidifier Control](humidifier-control.md) for the target architecture and [multi-actuator environment control](../concepts/multi-actuator-environment-control.md) for the broader design principles (2D target zones, cascaded SISO, feedforward on lights).

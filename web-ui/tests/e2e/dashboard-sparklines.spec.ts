@@ -31,7 +31,7 @@ test.describe("dashboard sparklines", () => {
     // least the first metric. Waiting on the section landmark is the
     // least brittle signal.
     await expect(
-      page.getByRole("region", { name: "Environment sparklines" }),
+      page.getByRole("region", { name: "Environment history" }),
     ).toBeVisible();
     // Wait until the first sparkline actually has data — one of the
     // five articles must show its SVG sparkline before hover assertions
@@ -65,7 +65,7 @@ test.describe("dashboard sparklines", () => {
       .getByRole("region", { name: "Environment gauges" })
       .evaluate((el) => el.getBoundingClientRect().bottom);
     const sparklinesY = await page
-      .getByRole("region", { name: "Environment sparklines" })
+      .getByRole("region", { name: "Environment history" })
       .evaluate((el) => el.getBoundingClientRect().top);
     expect(sparklinesY).toBeGreaterThanOrEqual(gaugesY);
   });

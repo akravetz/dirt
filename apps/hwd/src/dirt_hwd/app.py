@@ -20,6 +20,10 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from dirt_hwd.api.ingest import router as ingest_router
 from dirt_hwd.services.archive import ArchiveService
+from dirt_hwd.services.device_watchdog import (
+    DeviceWatchdogConfig,
+    DeviceWatchdogService,
+)
 from dirt_hwd.services.humidifier import HumidifierLoopService
 from dirt_hwd.services.serial_reader import SerialReaderService
 from dirt_hwd.supervise import supervise
@@ -89,6 +93,19 @@ def _default_background_services(
         SerialReaderService(
             settings.serial(),
             readings=core.readings,
+        ),
+        DeviceWatchdogService(
+            DeviceWatchdogConfig(
+                poll_interval=settings.device_watchdog_poll_interval,
+                state_path=settings.data_dir
+                / "logs"
+                / "device_watchdog"
+                / "state.json",
+                telegram_bot_token=settings.telegram_bot_token,
+                telegram_chat_id=settings.telegram_allowed_user_id,
+            ),
+            system_status=core.system_status,
+            clock=core.clock,
         ),
     ]
 

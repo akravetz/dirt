@@ -2,7 +2,7 @@
 title: Activity Log
 type: log
 created: 2026-04-06
-updated: 2026-04-20
+updated: 2026-04-22
 order: chronological — oldest entries at top, newest appended at bottom. Do NOT insert entries out of date order.
 ---
 
@@ -470,3 +470,43 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - Updated `wiki/index.md` — Day 37 daily entry added
 - Updated `wiki/hardware/humidifier-control.md` — added "BME280 stuck-state (recurring)" subsection under Known Issues with pattern description, detection cue, fix (`systemctl --user restart dirt-hwd`), and incident log table (entry 1: 2026-04-20 17:36 MDT)
 - Updated `wiki/daily/2026-04-20.md` — added "BME280 stuck-state incident at 17:36 MDT" flag under Issues & Flags
+
+## [2026-04-22] query-filed | PTZ camera USB dropout — potentially recurring hardware pattern
+- **Incident:** 2026-04-22 08:58 MDT — OBSBOT SDK logged `remove uvc device: RMOWLHI1203JLY`; camera absent from `lsusb` and `/dev/video*` for ~25 min, then spontaneously reappeared at ~09:23. Systemd watchdog (30 s) killed each of 6 restart attempts since the SDK couldn't issue keepalives without a camera; burst cap (commit `554c272`) then stopped the restart loop. Manual `systemctl --user reset-failed dirt-camera && systemctl --user start dirt-camera` brought the service back once the USB device reappeared.
+- **Pairs with:** commit `1ef1020` (earlier V4L2 `ENODEV` hot-spin fix) — second known self-disconnect event, so it's being treated as a *potentially recurring* pattern rather than a one-off.
+- **Updated:** [`wiki/hardware/ptz-camera.md`](hardware/ptz-camera.md) — added Known quirk #8 with the incident timeline, the burst-cap recovery procedure, and a "fix hardware, not software" directive (USB cable / RSHTECH hub / camera PSU / thermal); updated the USB hot-unplug row in "What it handles automatically" to flag the burst-cap edge case.
+- **Explicit non-fix:** do not loosen the watchdog or raise the burst cap — they behaved correctly and are the backstop against runaway restart loops.
+
+## [2026-04-22] decision | Replace tent-hub BME280/Arduino with SHT45/ESP32-C3
+- **Decision:** [`wiki/decisions/2026-04-22-sht45-tent-node-esp32.md`](decisions/2026-04-22-sht45-tent-node-esp32.md). Both sensor (BME280 → Sensirion SHT45 + PTFE cap, Adafruit 5665, I²C `0x44`) and host board (Arduino Nano + USB serial → ESP32-C3 SuperMini + HTTP ingest at `tent-node.local`) replaced. Two-day-old [BME280 swap](decisions/2026-04-20-bme280-sensor-swap.md) superseded.
+- **Why (sensor):** recurring BME280 stuck-state first logged 2026-04-20 17:36 MDT (`humidifier-control.md` Known Issues #1) makes the failsafe force OFF on a working sensor. PTFE cap is the specific reason for SHT45 over SHT31/35 — direct mist exposure inside the tent.
+- **Why (transport):** last USB-serial tether in the sensor fleet — the four plant nodes all POST over WiFi. Removes `serial_reader.py`, `/dev/ttyArduino` udev rule, Arduino toolchain, and the ExecStartPre serial-symlink assertion. Unlocks OTA reflash on the tent sensor.
+- **Wiring choice:** SDA=GPIO4, SCL=GPIO5 (not 8/9 — GPIO8 is the SuperMini onboard LED + boot-strap pin, GPIO9 is BOOT button). The plant-node "don't use GPIO4" warning is ADC-only — JTAG doesn't interfere with actively-driven I²C.
+- **Firmware restructure:** `firmware/` is now three peer PlatformIO projects (`plant_node/`, `tent_node/`, `common/`) with a shared C++ lib tree at `common/{wifi_client, ota, ingest_client}/`. Each node project consumes it via `lib_extra_dirs = ../common`. Plant node refactored to the shared libs — all four envs still compile clean. Legacy `firmware/src/` + `firmware/lib/sensor_protocol/` + `firmware/platformio.ini` kept until cutover, deleted after.
+- **Unchanged:** `sensorreading` schema, `SensorLocation.TENT`, humidifier VPD loop (0.1 kPa deadband, stage targets, lights-off feedforward, stale-sensor failsafe). Only `sensorreading.source` shifts from `arduino` to `esp32` for new tent rows.
+- **Status:** Accepted — firmware ready and compile-verified. Hardware deployment pending solder-up.
+- **Updated:** `wiki/decisions/2026-04-22-sht45-tent-node-esp32.md` (new), `wiki/decisions/2026-04-20-bme280-sensor-swap.md` (frontmatter + status-line superseded marker), `wiki/index.md` (new decision entry + `updated` bumped).
+- **Deferred until deployed:** `wiki/hardware/tent-node.md` (new page, mirroring `esp32-plant-nodes.md`); `wiki/hardware/humidifier-control.md` Known Issues #1 → resolved-by-transition; `wiki/overview.md` System Status row; retirement of `SensorSource.ARDUINO` enum value.
+
+## [2026-04-22] daily-update | Day 39 — Overnight Env Breakthrough; Reservoir Change Due; Plant D Improving
+- **Daily entry created:** `wiki/daily/2026-04-22.md`
+- **Overnight env both metrics in veg target for first time:** RH 52.06% ✅ (was 74.37%), temp 70.17°F ✅ (was 66.84°F); confirms `dirt-hwd` service was restarted and lights-off feedforward is now active
+- **Afternoon slightly off:** temp 72.34°F ⚠️ (below 74°F floor), RH 69.19% ⚠️ (above 65% ceiling); VPD 0.84 kPa ✅ in range due to lower temp; ~10 hPa pressure drop suggests weather system
+- **Plant D color improving** — lighter medium-green, no longer alarming vs. Apr 20 pale yellow-green
+- **Plant A overnight sensor dropout** — null data 00–06; morning/now stable
+- **Plant C moisture high** — 75%+ consistently; monitor root zone
+- **Reservoir change due** — Day 7 post-activation (Apr 15); change at next opportunity
+- **Plant pages updated:** A, B, C, D (timeline + current state)
+- **Environment pages updated:** `temperature.md`, `humidity.md`
+- **`overview.md`** and **`index.md`** refreshed
+
+## [2026-04-22] milestone | AC Infinity fan controller — D+ bring-up validated
+- **Hardware built:** ESP32-C3 SuperMini + 2× 2N7000 MOSFETs (Q1=D+, Q2=B5) + 2× 10 kΩ gate pull-downs, wired to Treedix USB-C female breakout. Common GND tied between ESP32 and fan; fan powered separately. GPIO 6 → Q1 gate (D+ driver), GPIO 7 → Q2 gate (B5 keep-alive). See updated [`hardware/ac-infinity-fan-control.md`](hardware/ac-infinity-fan-control.md) driver-circuit section.
+- **Deviation from original 2026-04-18 plan:** moved from Arduino Nano to ESP32-C3 SuperMini. Motivation: fleet uniformity (same board as plant nodes + tent node; same toolchain, same OTA model), unlocks WiFi + HTTP ingest + OTA reflash, drops a whole family of Nano-era failure modes.
+- **Firmware:** new [`firmware/fan_controller/`](../../firmware/fan_controller/) PIO project (ESP32-C3 Arduino platform). 5 kHz PWM via LEDC (ch 0 = D+, ch 1 = B5), 10-bit resolution. `set_fan_speed(pct)` helper handles the inversion math (MCU duty = 100 − D+ wire duty, since Q1 pulls the line LOW when the GPIO is HIGH) and the linear remap from human % to 22–100% wire duty. B5 statically driven at 1.4% MCU duty → 98.6% wire duty, mimicking the stock remote's keep-alive.
+- **Bring-up smoke test (16:35 MDT):** started with a 20% / 40% alternation every 5 s; firmware printed the expected LEDC register values, fan stepped audibly between the two speeds.
+- **Full-range sweep (16:37 MDT):** 0% → 10% → ... → 100% → 90% → ... → 0%, 10% steps, 5 s each. All checkpoints passed — silent at 0% (Q1 holds D+ LOW), audible kick-in around 10–20%, clean monotonic ramp up and back down, 100% matches the boot-blast behavior (same ~9V line state). No dead zones, no uneven steps.
+- **Still unvalidated:** whether B5 is actually required (fan accepted commands with B5 driven; untested whether it also would with B5 floating). Thermal behavior of the MOSFETs over long runs not yet verified. Tach (D−) not wired.
+- **Next firmware milestone:** fold `firmware/common/{wifi_client, ota, ingest_client}/` in so the host can command speed via the ingest path + OTA reflash becomes available. Downstream: VPD-coupled control (see [humidifier-control.md](hardware/humidifier-control.md) + [multi-actuator-environment-control.md](concepts/multi-actuator-environment-control.md)).
+- **Obsolete artifacts (kept, not deleted):** `debug/fan-pwm/driver-schematic.{png,svg}` and `debug/fan-pwm/fan_drive_test/` are the Nano-era design; flagged as stale in the wiki's Status section.
+- **Updated:** `wiki/hardware/ac-infinity-fan-control.md` (status, goal, driver-circuit section rewrite, parts BOM bumped to 2 FETs + 2 resistors, firmware section, permanent install rewrite, bring-up validation table, future-integration refresh); `wiki/index.md` (hardware entry). Note: `humidifier-control.md` line 44 in `index.md` still describes humidifier bang-bang control in isolation — when VPD-coupled fan control lands, that description should be updated to reflect the combined actuator loop.

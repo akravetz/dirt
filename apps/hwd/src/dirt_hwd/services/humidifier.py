@@ -183,13 +183,18 @@ class HumidifierLoopService:
 
                 await self._record(is_on)
 
-            except Exception:
+            except Exception as exc:
                 logger.exception(
                     "humidifier loop error — dropping plug connection",
                 )
                 await _safe_disconnect(plug)
                 plug = None
-                log_event(STREAM, "error")
+                log_event(
+                    STREAM,
+                    "error",
+                    error_type=type(exc).__name__,
+                    error=repr(exc),
+                )
 
             with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(stop_event.wait(), timeout=interval)

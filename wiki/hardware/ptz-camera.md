@@ -4,7 +4,7 @@ type: hardware
 sources: []
 related: [wiki/decisions/2026-04-12-ptz-camera-selection.md, wiki/overview.md, docs/epics/ptz-camera/README.md]
 created: 2026-04-15
-updated: 2026-04-15
+updated: 2026-04-22
 ---
 
 # PTZ Camera — OBSBOT Tiny 2 Lite
@@ -102,7 +102,7 @@ Each process that opens the OBSBOT SDK pays ~3.4 s in hotplug discovery. Ten ite
 | ~3.4 s per-call SDK init overhead | Persistent session, socket IPC. |
 | Pitch/yaw physical limits | Clamped at the hardware; `limit_reached` status returned. |
 | Zoom soft-cap (~2.0x on Tiny 2 Lite) | Clamped to 2.0, reports `zoom_capped=true`. |
-| USB hot-unplug | `setDevChangedCallback` wired; daemon re-acquires on re-plug within ~5 s. |
+| USB hot-unplug | `setDevChangedCallback` wired; daemon re-acquires on re-plug within ~5 s. **Caveat:** if the device stays gone longer than systemd's restart-burst window (~30–45 s), the service hits the burst cap and will not auto-recover even after replug — see Known quirk #8. |
 | Stale socket on restart | Daemon unlinks and rebinds. |
 
 ### Wire protocol
@@ -188,7 +188,6 @@ The `dirt-camera-daemon` holds an open fd on `/dev/video0` (the OBSBOT vendor SD
 - `debug/` — legacy one-off C++ helpers (`obsbot_move`, `obsbot_zoom`, `obsbot_probe`, `obsbot_orientation`) and calibration scripts (`find_sticker.py`, `camera_mvp.py`). Superseded by the daemon for production use but kept for reference / future calibration work.
 - `wiki/decisions/2026-04-12-ptz-camera-selection.md` — why we chose this camera
 - `docs/epics/ptz-camera/README.md` — epic scope and remaining integration work
-
 ## Known quirks (full list for future debugging)
 
 1. **Partial-move** — large pitch or yaw jumps can clamp mid-travel. The daemon's step-through retry handles it transparently, but if you see `retries > 0` in a response, this is why.
@@ -198,3 +197,4 @@ The `dirt-camera-daemon` holds an open fd on `/dev/video0` (the OBSBOT vendor SD
 5. **Sticker-vs-plant parallax** — sticker on pot rim ≠ plant center; preset yaw values bake in the offset. If adding a new plant, center visually.
 6. **Plant growth drift** — presets age as canopy grows; recalibrate every 1–2 weeks.
 7. **Lights-off** — PTZ commands work in dark, but captures are unusable. Daemon doesn't check lights status; image callers must handle this.
+8. **Intermittent USB dropouts (potentially recurring — investigate hardware if it recurs)** — Camera has self-disconnected from USB with no physical intervention at least twice: an earlier V4L2 `ENODEV` hot-spin fixed in commit `1ef1020`, and 2026-04-22 08:58 MDT (`remove uvc device: RMOWLHI1203JLY`; camera gone from `lsusb` / `/dev/video*` for ~25 min, reappeared spontaneously). During the outage the 30 s watchdog correctly killed each restart (no camera → no keepalives) and the burst cap (commit `554c272`) stopped the loop after 6 tries; **burst-capped services do not auto-retry**, so recovery after replug needs `systemctl --user reset-failed dirt-camera && systemctl --user start dirt-camera`. If this recurs, do NOT loosen the watchdog or raise the burst cap (they're the correct backstop against thrash) — investigate hardware root cause: USB-C cable, RSHTECH hub, camera PSU, camera thermal.

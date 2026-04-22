@@ -1,46 +1,254 @@
 @import "tailwindcss";
 
-/* Dirt design tokens ported from debug/webapp.zip/colors_and_type.css.
- * Paper/ink palette + Fraunces (italic) / IBM Plex Mono / Inter fonts.
- * Generators: extend this block as you need named tokens; prefer v4's
- * @theme over arbitrary values in components. See
- * docs/references/tailwind-v4/theme-configuration.md for the full pack. */
+/* Dirt design system — ported from debug/webapp.zip.
+ *
+ * Palette lives on :root / [data-theme="dark"] as plain custom properties
+ * (hex verbatim from the mock). The `@theme inline` block below aliases
+ * every Tailwind utility to those vars through `var(--paper)` etc., so
+ * class names like `bg-paper` resolve at runtime and flip automatically
+ * when the data-theme attribute changes — no `dark:` prefixes needed on
+ * components.
+ *
+ * The `@custom-variant dark (...)` is available for one-off `dark:`
+ * utilities if a component needs to diverge structurally in dark mode.
+ *
+ * Pack for the full pattern: docs/references/tailwind-v4/theme-configuration.md
+ * and docs/references/tailwind-v4/variants-and-responsive.md.
+ */
 
-@theme {
-  --color-paper: oklch(0.98 0.01 85);
-  --color-ink: oklch(0.2 0.01 85);
-  --color-ink-2: oklch(0.4 0.01 85);
-  --color-ink-3: oklch(0.6 0.01 85);
-  --color-rule: oklch(0.88 0.01 85);
-  --color-rule-strong: oklch(0.72 0.01 85);
-  --color-accent-magenta: oklch(0.62 0.19 355);
-  --color-accent-purple: oklch(0.58 0.15 300);
+@font-face {
+  font-family: "Fraunces";
+  src: url("/fonts/Fraunces-VariableFont_SOFT_WONK_opsz_wght.ttf")
+    format("truetype-variations");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
 
-  /* Plant sticker-chip palette. Four discrete tokens mirroring the
-   * `PlantStickerColor` contract enum (yellow | orange | pink | blue).
-   * Components reference them by name (e.g. `bg-sticker-yellow`) instead
-   * of arbitrary hex values — TS-15 forbids `bg-[#...]` escapes. */
-  --color-sticker-yellow: oklch(0.82 0.16 88);
-  --color-sticker-orange: oklch(0.7 0.18 50);
-  --color-sticker-pink: oklch(0.7 0.19 0);
-  --color-sticker-blue: oklch(0.62 0.14 255);
+:root {
+  --paper: #f3ebd8;
+  --paper-2: #ebe0c6;
+  --paper-3: #e2d5b4;
+
+  --ink: #1e1a14;
+  --ink-2: #4a412e;
+  --ink-3: #7a6f54;
+
+  --rule: rgba(30, 26, 20, 0.25);
+  --rule-strong: rgba(30, 26, 20, 0.55);
+
+  --accent-purple: #5b2a82;
+  --accent-magenta: #b22a6a;
+  --leaf: #5a6b3a;
+
+  --sensor-temp: #c8581f;
+  --sensor-humidity: #2a6fa8;
+  --sensor-vpd: #4a6b38;
+  --sensor-moisture: #7a4a24;
+
+  --status-ok: #4a6b38;
+  --status-warn: #b87a1f;
+  --status-err: #9b2c2c;
+
+  --plant-a: #d6a21c;
+  --plant-b: #c86a1f;
+  --plant-c: #c93d78;
+  --plant-d: #2e6bb3;
+
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --dur-fast: 120ms;
+  --dur: 240ms;
+}
+
+[data-theme="dark"] {
+  --paper: #141612;
+  --paper-2: #1c1e1a;
+  --paper-3: #262822;
+
+  --ink: #ece4d0;
+  --ink-2: #b4a987;
+  --ink-3: #7a7258;
+
+  --rule: rgba(236, 228, 208, 0.18);
+  --rule-strong: rgba(236, 228, 208, 0.45);
+
+  --accent-purple: #b079e0;
+  --accent-magenta: #f06aa8;
+  --leaf: #8aa167;
+
+  --sensor-temp: #ff8c42;
+  --sensor-humidity: #42a5f5;
+  --sensor-vpd: #66bb6a;
+  --sensor-moisture: #c08457;
+
+  --status-ok: #66bb6a;
+  --status-warn: #e0a44b;
+  --status-err: #e06767;
+
+  --plant-a: #e6b836;
+  --plant-b: #e08545;
+  --plant-c: #e06499;
+  --plant-d: #5a9ee0;
+}
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-paper-2: var(--paper-2);
+  --color-paper-3: var(--paper-3);
+
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+
+  --color-rule: var(--rule);
+  --color-rule-strong: var(--rule-strong);
+
+  --color-accent-purple: var(--accent-purple);
+  --color-accent-magenta: var(--accent-magenta);
+  --color-leaf: var(--leaf);
+
+  --color-sensor-temp: var(--sensor-temp);
+  --color-sensor-humidity: var(--sensor-humidity);
+  --color-sensor-vpd: var(--sensor-vpd);
+  --color-sensor-moisture: var(--sensor-moisture);
+
+  --color-status-ok: var(--status-ok);
+  --color-status-warn: var(--status-warn);
+  --color-status-err: var(--status-err);
+
+  /* Sticker tokens kept under their canonical yellow/orange/pink/blue
+   * names (the PlantStickerColor contract enum) but sourced from the
+   * plant-a..d vars so dark mode flips them in lockstep. */
+  --color-sticker-yellow: var(--plant-a);
+  --color-sticker-orange: var(--plant-b);
+  --color-sticker-pink: var(--plant-c);
+  --color-sticker-blue: var(--plant-d);
 
   --font-sans: "Inter", system-ui, sans-serif;
   --font-serif: "Fraunces", Georgia, serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 
-  /* Named letter-spacing token so components reference the palette
-   * (`tracking-caps`) instead of arbitrary values (`tracking-[0.3em]`),
-   * which TS-15 forbids. */
-  --tracking-caps: 0.3em;
+  /* Letter-spacing scale ported from debug/webapp.zip/colors_and_type.css.
+   * Named by style (tight for -0.02em/-0.01em, caps-* for the uppercase
+   * micro-copy scale). `tracking-caps` is the 0.1em default used by the
+   * majority of uppercase labels. */
+  --tracking-tighter: -0.02em;
+  --tracking-tight: -0.01em;
+  --tracking-hair: 0.02em;
+  --tracking-cap-short: 0.05em;
+  --tracking-cap-narrow: 0.08em;
+  --tracking-caps: 0.1em;
+  --tracking-cap-med: 0.12em;
+  --tracking-cap-ui: 0.14em;
+  --tracking-cap-field: 0.15em;
+  --tracking-cap-wide: 0.2em;
+
+  /* Line-height tokens for prose / drawer / hero copy. */
+  --leading-prose-tight: 1.4;
+  --leading-prose: 1.45;
+  --leading-ui: 1.55;
+  --leading-serif: 1.65;
+
+  /* Font-size scale — mirrors the mock's --fs-N: Npx tokens. Exposed as
+   * `text-fs-N` utilities so pixel-exact sizes don't become arbitrary
+   * `text-[Npx]` escapes. */
+  --text-fs-6: 6px;
+  --text-fs-9: 9px;
+  --text-fs-10: 10px;
+  --text-fs-11: 11px;
+  --text-fs-12: 12px;
+  --text-fs-13: 13px;
+  --text-fs-14: 14px;
+  --text-fs-15: 15px;
+  --text-fs-16: 16px;
+  --text-fs-22: 22px;
+  --text-fs-24: 24px;
+  --text-fs-26: 26px;
+  --text-fs-28: 28px;
+  --text-fs-32: 32px;
+  --text-fs-64: 64px;
+  --text-fs-72: 72px;
+
+  --ease-brand: var(--ease);
+  --default-transition-duration: var(--dur-fast);
+  --default-transition-timing-function: var(--ease);
+
+  --animate-hum-pulse: humPulse 1.2s ease-in-out infinite;
+  --animate-pd-fade: pdFade 160ms var(--ease);
+  --animate-pd-slide: pdSlide 240ms var(--ease);
+  --animate-cmdk-in: cmdkIn 120ms var(--ease);
 }
 
-/* Dotted-grid background used on the /login left panel. Built with
- * radial-gradient dots over the paper tone; size + dot-color reference
- * the rule-strong palette token so it stays in sync with any theme
- * tweaks in @theme above. TS-15 forbids arbitrary values in class names,
- * but a named @utility is the intended escape hatch for this kind of
- * reused background. */
+@keyframes humPulse {
+  50% {
+    box-shadow: 0 0 0 5px rgba(176, 42, 106, 0.08);
+  }
+}
+
+@keyframes pdFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pdSlide {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes cmdkIn {
+  from {
+    transform: translateY(-8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Scrim backgrounds for modal/drawer overlays. The mock uses two
+ * opacities (0.5 for Cmd+K, 0.55 for the plant-detail drawer). */
+@utility bg-scrim-50 {
+  background-color: rgba(20, 22, 18, 0.5);
+}
+@utility bg-scrim-55 {
+  background-color: rgba(20, 22, 18, 0.55);
+}
+
+/* Cmd+K dialog constraints — non-scale values (vh + min + vw). */
+@utility max-h-cmdk {
+  max-height: 72vh;
+}
+@utility w-cmdk {
+  width: min(640px, 92vw);
+}
+@utility pt-cmdk {
+  padding-top: 14vh;
+}
+
+/* Mock's custom shadow for the Cmd+K palette (8px drop, flat ink). */
+@utility shadow-cmdk {
+  box-shadow: 0 8px 0 rgba(0, 0, 0, 0.1);
+}
+
+/* Fieldnotes subtitle width on the login screen (`36ch`). */
+@utility max-w-fieldnote-sub {
+  max-width: 36ch;
+}
+
+/* Dotted-paper background for /login left panel. */
 @utility bg-dot-grid {
   background-image: radial-gradient(
     circle,
@@ -49,4 +257,177 @@
   );
   background-size: 16px 16px;
   background-position: 0 0;
+}
+
+/* HumidifierTile pulsing dot. The keyframe drives a magenta halo;
+ * size/color baked in so callers just need `<span class="humidifier-dot"/>`. */
+@utility humidifier-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent-magenta);
+  box-shadow: 0 0 0 0 rgba(176, 42, 106, 0.18);
+  animation: var(--animate-hum-pulse);
+}
+
+/* ZoomSlider thumb: 14px square, ink body, magenta 2px border. Applies
+ * to the range input via className="zoom-slider". */
+@utility zoom-slider {
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  height: 14px;
+  width: 100%;
+}
+@utility zoom-slider-track {
+  height: 2px;
+  background: var(--color-rule-strong);
+}
+
+.zoom-slider::-webkit-slider-runnable-track {
+  height: 2px;
+  background: var(--color-rule-strong);
+}
+.zoom-slider::-moz-range-track {
+  height: 2px;
+  background: var(--color-rule-strong);
+}
+.zoom-slider::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -6px;
+  background: var(--color-ink);
+  border: 2px solid var(--color-accent-magenta);
+  border-radius: 0;
+  cursor: pointer;
+}
+.zoom-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  background: var(--color-ink);
+  border: 2px solid var(--color-accent-magenta);
+  border-radius: 0;
+  cursor: pointer;
+}
+
+/* Wiki prose — rendered markdown under WikiDoc. Serif body, sans
+ * headings, dotted-underline links with magenta hover. */
+@utility wiki-prose {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  line-height: 1.65;
+  color: var(--color-ink);
+}
+.wiki-prose h1,
+.wiki-prose h2,
+.wiki-prose h3,
+.wiki-prose h4 {
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  margin-top: 1.4em;
+  margin-bottom: 0.5em;
+  letter-spacing: -0.01em;
+}
+.wiki-prose h1 {
+  font-size: 28px;
+  font-weight: 600;
+}
+.wiki-prose h2 {
+  font-size: 20px;
+  font-weight: 600;
+}
+.wiki-prose h3 {
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-ink-2);
+}
+.wiki-prose p {
+  margin: 0 0 0.9em 0;
+}
+.wiki-prose ul,
+.wiki-prose ol {
+  margin: 0 0 0.9em 1.25em;
+}
+.wiki-prose li {
+  margin-bottom: 0.25em;
+}
+.wiki-prose a {
+  color: var(--color-ink);
+  border-bottom: 1px dotted var(--color-rule-strong);
+  text-decoration: none;
+}
+.wiki-prose a:hover {
+  color: var(--color-accent-magenta);
+  border-bottom-color: var(--color-accent-magenta);
+  border-bottom-style: solid;
+}
+.wiki-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  margin: 1em 0;
+}
+.wiki-prose th,
+.wiki-prose td {
+  text-align: left;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--color-rule);
+}
+.wiki-prose th {
+  color: var(--color-ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 11px;
+  font-weight: 600;
+}
+.wiki-prose code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  background: var(--color-paper-2);
+  padding: 0 4px;
+}
+.wiki-prose pre {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--color-paper-2);
+  border: 1px solid var(--color-rule);
+  padding: 10px 12px;
+  overflow: auto;
+}
+.wiki-prose pre code {
+  background: transparent;
+  padding: 0;
+}
+
+/* Global focus state — magenta 2px. */
+:focus-visible {
+  outline: 2px solid var(--color-accent-magenta);
+  outline-offset: 2px;
+}
+
+/* Paper-tone scrollbar. */
+html {
+  scrollbar-color: var(--rule-strong) transparent;
+  scrollbar-width: thin;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--rule-strong);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
 }

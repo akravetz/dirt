@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-04-20
+updated: 2026-04-22
 ---
 
 # Plant A
@@ -18,7 +18,7 @@ updated: 2026-04-20
 
 ## Current State
 
-Day 37, nine days post-topping: vigorous medium-green multi-branch canopy with clean new growth; residual cosmetic foliar burn on a few older leaves only; LST is critically overdue. See [2026-04-20](../daily/2026-04-20.md).
+Day 39, eleven days post-topping: vigorous medium-green multi-branch canopy at SCROG net level; overnight sensor dropout (null data 00–06); moisture stable ~53%. See [2026-04-22](../daily/2026-04-22.md).
 
 ## Timeline
 
@@ -37,3 +37,5 @@ Day 37, nine days post-topping: vigorous medium-green multi-branch canopy with c
 - 2026-04-18 — [Day 35: Post-topping recovery complete; vigorous multi-branch canopy; **LST due now** (Day 7 post-topping); v1.2 sensor → v2.0 swap](../daily/2026-04-18.md)
 - 2026-04-19 — [Day 36: vigorous multi-branch canopy; main shoots sized up; **LST overdue** (Day 8 post-topping); moisture rising to 56% (autopot active)](../daily/2026-04-19.md)
 - 2026-04-20 — [Day 37: vigorous medium-green canopy; faint residual foliar burn on older leaves only; **LST critically overdue** (Day 9 post-topping); moisture stable ~52%](../daily/2026-04-20.md)
+- 2026-04-21 — [Day 38: photos only; medium-green multi-branch canopy; healthy structure; no issues visible](../daily/2026-04-21.md)
+- 2026-04-22 — [Day 39: vigorous medium-green canopy at SCROG net level; moisture stable ~53%; overnight sensor dropout (null data 00–06)](../daily/2026-04-22.md)

@@ -4,7 +4,7 @@ type: overview
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/index.md, wiki/plants/plant-a.md, wiki/plants/plant-b.md, wiki/plants/plant-c.md, wiki/plants/plant-d.md]
 created: 2026-04-06
-updated: 2026-04-20
+updated: 2026-04-22
 ---
 
 # Grow Overview
@@ -23,53 +23,56 @@ updated: 2026-04-20
 | **Water system** | Autopot 4-Pot XL + 25-gal FlexiTank (active since Apr 15) |
 | **Training** | Single top at node 4–5 → LST → SCROG |
 | **Start date** | 2026-03-15 (germination) |
-| **Grow day** | Day 37 (as of 2026-04-20) |
+| **Grow day** | Day 39 (as of 2026-04-22) |
 
 ## Current Stage
 
-**Early Veg** — Autopot active since Apr 15. **All four plants topped** (A: Apr 11; B/C/D: Apr 12) — Day 9/8 post-topping. **SCROG net installed Apr 18** at 11" above canopy / 18" above pot base. **LST is critically overdue** — begins today. Canopy is pushing toward net level.
+**Early Veg** — Autopot active since Apr 15. **All four plants topped** (A: Apr 11; B/C/D: Apr 12) — Day 11/10 post-topping. **SCROG net installed Apr 18** at 11" above canopy / 18" above pot base. **LST is overdue** — Day 11/10 post-topping; begin or continue immediately.
 
-Daytime environment is now in target for the first time: 75.04°F and 1.12 kPa VPD at the 14:00 check. Overnight profile regressed (74.37% RH / 66.84°F) — the `dirt-hwd` service restart deployed Apr 19 is still pending; restarting before tonight's lights-off is critical.
+**Overnight environment breakthrough Apr 22**: overnight RH 52.06% ✅ and overnight temp 70.17°F ✅ both in veg target simultaneously for the first time — `dirt-hwd` service restart confirmed effective. Afternoon running slightly cool (72.34°F) and humid (69.19% RH), but VPD (0.84 kPa) remains within target.
+
+**Reservoir change is now due** — Day 7 post-activation (Apr 15); change at next opportunity.
 
 **Light schedule:** 18/6 (lights on ~05:00–23:00 MDT)
 **Light intensity:** ~40% Fold-650
 
 ## Plant Status
 
-| Plant | Nodes | Purple | Priority | Status |
-|-------|-------|--------|----------|--------|
-| Plant A | 5+ (topped, branching) | ✅ Confirmed genetic | 🔴 Primary | 🔴 **LST critically overdue** — Day 9 post-topping; vigorous medium-green multi-branch canopy; moisture stable ~52% |
-| Plant B | — (topped, branching) | ❌ None | 🟡 Secondary | 🔴 **LST critically overdue** — Day 8 post-topping; densest/darkest canopy; autopot fed aggressively (58% at 14:00) |
-| Plant C | — (topped, branching) | ⚠️ Stress-induced only | 🟡 Secondary | 🔴 **LST critically overdue** — Day 8 post-topping; compact symmetrical healthy canopy; moisture stable ~51% |
-| Plant D | — (topped, branching) | ✅ Confirmed genetic | 🔴 Primary | 🔴 **LST critically overdue** — Day 8 post-topping; ⚠️ lighter green than peers — monitoring; moisture stable ~42% |
+| Plant | Post-top | Purple | Priority | Status |
+|-------|----------|--------|----------|--------|
+| Plant A | Day 11 | ✅ Confirmed genetic | 🔴 Primary | Vigorous medium-green canopy at SCROG net level; moisture stable ~53%; overnight sensor dropout (null 00–06) |
+| Plant B | Day 10 | ❌ None | 🟡 Secondary | Densest darkest canopy; moisture very stable 64–65% |
+| Plant C | Day 10 | ⚠️ Stress-induced only | 🟡 Secondary | Compact healthy canopy; moisture high 75%+ — monitor root zone |
+| Plant D | Day 10 | ✅ Confirmed genetic | 🔴 Primary | Color improving — lighter medium-green, no longer alarming; moisture 60% |
 
-## Environment (Last Reading: Apr 20 14:00 MDT)
+## Environment (Last Reading: Apr 22 14:00 MDT)
 
 | Metric | Value | Target | Status |
 |--------|-------|--------|--------|
-| Temperature (now) | 75.04°F | 74–76°F day | ✅ In range |
-| Temperature (morning avg) | 74.43°F | 74–76°F day | ✅ In range |
-| Temperature (overnight avg) | 66.84°F | 68–72°F night | ⚠️ Below floor (regression — service restart pending) |
-| Humidity (now) | 62.37% | 55–65% | ✅ In range |
-| Humidity (overnight avg) | 74.37% | 55–65% | ⚠️ Elevated (regression from 70.79%) |
-| VPD (now) | 1.12 kPa | 0.8–1.2 kPa | ✅ In range |
-| VPD (morning avg) | 1.41 kPa | 0.8–1.2 kPa | ⚠️ Above ceiling |
-| VPD (overnight avg) | 0.57 kPa | 0.8–1.2 kPa | ⚠️ Below floor |
+| Temperature (now) | 72.34°F | 74–76°F day | ⚠️ Below floor |
+| Temperature (morning avg) | 73.94°F | 74–76°F day | ⚠️ Just below floor |
+| Temperature (overnight avg) | 70.17°F | 68–72°F night | ✅ In range |
+| Humidity (now) | 69.19% | 55–65% | ⚠️ Elevated |
+| Humidity (overnight avg) | 52.06% | 45–55% | ✅ In range (first time) |
+| VPD (now) | 0.84 kPa | 0.8–1.2 kPa | ✅ In range |
+| VPD (morning avg) | 1.17 kPa | 0.8–1.2 kPa | ✅ In range |
+| VPD (overnight avg) | 1.21 kPa | 0.8–1.2 kPa | ✅ At ceiling |
 | pH (watering) | 5.8 (target) | 5.5–6.0 | — |
-| EC (reservoir) | — | 0.8–1.0 | ⚠️ Verify at next fill |
+| EC (reservoir) | — | 0.8–1.0 | ⚠️ Verify at reservoir change |
 
 ## Active Action Items
 
-1. **Restart `dirt-hwd` service before lights-off tonight** 🔴 — `systemctl --user restart dirt-hwd`. Lights-off feedforward and dropped safety timers (deployed Apr 19) cannot activate until restarted. This is causing overnight RH elevation and VPD undershoot.
-2. **Begin LST on all 4 plants — today** 🔴 — Day 9/8 post-topping; critically overdue. Bend outward at ~45°, anchor to pot rim; tuck into SCROG net squares as shoots extend. Start with Plant A.
-3. **Monitor Plant D color** 🟡 — Lighter green than peers at today's 14:00 check. Track for 2–3 more observations; if it continues or worsens, check autopot float valve flow for Plant D's pod.
-4. **Verify EC before next reservoir change** 🟡 — Target window ~Apr 22–25 (7–10 days post-activation Apr 15). EC was 1.84 before activation; confirm diluted to 0.8–1.0 at refill.
-5. **Continue light ramp** — Daytime environment now in target. Step from 40% → 50% once LST stress resolves (~5–7 days after LST starts).
+1. **Reservoir change — today or tomorrow** 🔴 — Day 7 post-activation (activated Apr 15). EC target 0.8–1.0; pH 5.8 after nutrients; Denver tap 8.5–8.8 requires GH pH Down at every fill.
+2. **Begin or continue LST** 🔴 — Day 11/10 post-topping; snap risk increasing daily. Bend at ~45° outward, anchor to pot rim, tuck into SCROG net squares.
+3. **Monitor afternoon temperature** 🟡 — Running 72–74°F, below 74°F floor. Possibly ambient-driven by passing weather system (~10 hPa pressure drop Apr 20→22). If it persists 1–2 more days, reduce exhaust fan speed slightly during lights-on.
+4. **Verify Plant A sensor node** 🟡 — Overnight data null (00–06); morning/now readings stable. Confirm node is posting normally.
+5. **Monitor Plant C moisture** 🟡 — 75%+ consistently; watch for early root zone stress (yellowing, wilting, sour smell from medium).
+6. **Continue light ramp** — Step from 40% → 50% Fold-650 intensity after LST stress resolves (~5–7 days from LST start).
 
+_Resolved 2026-04-22: "Restart `dirt-hwd` service" — service confirmed restarted; overnight env now in target (RH 52% ✅, temp 70.17°F ✅)._
+_Resolved 2026-04-22: "Monitor Plant D color" — color improving, lighter medium-green, no longer alarming._
 _Resolved 2026-04-20: "Daytime VPD above ceiling" — daytime VPD now 1.12 kPa ✅ at 14:00._
-_Resolved 2026-04-20: "Daytime temperature too warm" — now 75.04°F ✅ at 14:00._
-_Resolved 2026-04-19: "Overnight temperature" — overnight avg recovered to 68.0°F (in veg night range). Note: regressed to 66.84°F on Apr 20 overnight pending service restart._
-_Resolved 2026-04-18: "Lower overnight humidifier setpoint" — humidifier loop switched to stage-dynamic VPD targeting + lights-off feedforward. See [decisions 2026-04-18](decisions/2026-04-18-vpd-targeting.md) and [2026-04-19](decisions/2026-04-19-lights-off-aware-humidifier.md)._
+_Resolved 2026-04-20: "Daytime temperature too warm" — now 75.04°F ✅ at 14:00 (note: Apr 22 running slightly cool at 72.34°F)._
 
 ## Upcoming Milestones
 
@@ -79,8 +82,8 @@ _Resolved 2026-04-18: "Lower overnight humidifier setpoint" — humidifier loop 
 | ~~Topping all plants~~ | ✅ Done Apr 11–12 |
 | ~~Float valve activation~~ | ✅ Done Apr 15 |
 | ~~SCROG net install~~ | ✅ Done Apr 18 (11" above canopy / 18" above pot base) |
-| **LST all plants** | **Critically overdue — start today** |
-| First reservoir change | ~Apr 22–25 (7–10 days post-activation) |
+| **LST all plants** | **Overdue — Day 11/10 post-topping** |
+| **First reservoir change** | **Due now** (Day 7 post-activation; window Apr 22–25) |
 | 12/12 flip | SCROG 70% full |
 | Clone selection | Flower weeks 3–4 |
 | Final pheno evaluation | Flower weeks 5–6 |
@@ -89,7 +92,7 @@ _Resolved 2026-04-18: "Lower overnight humidifier setpoint" — humidifier loop 
 
 **Primary keepers:** Plants A and D — both strong purple contenders with confirmed genetic anthocyanin expression.
 - **Plant A** — vigor leader, confirmed genetic anthocyanin. Most vigorous plant overall. Standout candidate.
-- **Plant D** — confirmed genetic anthocyanin (stem, petioles, cotyledons). About a day behind A in vigor; lighter green color noted Apr 20 — monitor.
+- **Plant D** — confirmed genetic anthocyanin (stem, petioles, cotyledons). Color concern from Apr 20 is resolving — lighter medium-green Apr 22, no longer alarming.
 
 **Plant C purple note:** Stress-induced purple (stems/petioles, Day 25) concurrent with worsening leaf symptoms — pH/deficiency stress, not genetic. Does not change secondary status.
 
@@ -99,17 +102,17 @@ _Resolved 2026-04-18: "Lower overnight humidifier setpoint" — humidifier loop 
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| **Arduino Nano + BME280** | Online | Temp/humidity/pressure readings via USB serial (BME280 replaced DHT22 on 2026-04-13 — see [decision](decisions/2026-04-20-bme280-sensor-swap.md)) |
-| **Plant-A ESP32-C3 node** | Online (2026-04-18, v2.0) | GPIO3 capacitive v2.0; fresh calibration; POSTs every 30s |
-| **Plant-B ESP32-C3 node** | Online (2026-04-16) | v2.0 sensor; 192.168.1.243; fresh calibration |
-| **Plant-C ESP32-C3 node** | Online (2026-04-16) | v2.0 sensor; 192.168.1.117; reused dev unit; fresh calibration |
-| **Plant-D ESP32-C3 node** | Online (2026-04-18, v2.0) | GPIO3 capacitive v2.0; fresh calibration |
+| **Arduino Nano + BME280** | Online; **replacement planned** | Recurring stuck-state — both sensor (→ SHT45) and board (→ ESP32-C3 SuperMini) being replaced; firmware ready, hardware deployment pending solder-up. See [decision 2026-04-22](decisions/2026-04-22-sht45-tent-node-esp32.md). BME280 swap decision [2026-04-20](decisions/2026-04-20-bme280-sensor-swap.md) superseded. |
+| **Plant-A ESP32-C3 node** | Online (2026-04-18, v2.0) | Overnight dropout 2026-04-22 (null 00–06); morning/now stable; verify posting |
+| **Plant-B ESP32-C3 node** | Online (2026-04-16) | v2.0 sensor; 192.168.1.243 |
+| **Plant-C ESP32-C3 node** | Online (2026-04-16) | v2.0 sensor; 192.168.1.117 |
+| **Plant-D ESP32-C3 node** | Online (2026-04-18, v2.0) | v2.0 sensor; GPIO3 capacitive |
 | **CO2 sensor** (MH-Z19B) | Planned | Not yet deployed |
 | **Reservoir level** (XKC-Y25-T12V) | Planned | Not yet deployed |
-| **Humidifier control** (Raydrop 4L + Kasa EP10 smart plug) | Online; **service restart required** | Lights-off feedforward + dropped safety timers deployed Apr 19; `dirt-hwd` restart still pending |
-| **PTZ camera** (OBSBOT Tiny 2 Lite) | Online (2026-04-15) | Persistent C++ daemon + `scripts/camera` CLI. Per-plant presets calibrated. See `hardware/ptz-camera.md`. |
-| **Jabra Speak 410** (voice I/O) | Connected 2026-04-15 | Full voice pipeline proven end-to-end: openWakeWord v3 (89% recall) → Deepgram Nova-3 STT → ElevenLabs "Claudia" TTS. Production `channels/voice.py` pending. See `hardware/jabra.md`. |
-| **AC Infinity Cloudline LITE 6" fan control** (Arduino Nano + USB-C breakouts) | Parts ordered 2026-04-18 | Reverse-engineer the stock PWM remote over USB-C, then drive the fan from an Arduino Nano. Awaiting hardware arrival. See `hardware/ac-infinity-fan-control.md`. |
+| **Humidifier control** (Raydrop 4L + Kasa EP10) | Online; **service confirmed restarted** | Lights-off feedforward active; overnight env in target Apr 22 for first time |
+| **PTZ camera** (OBSBOT Tiny 2 Lite) | Online (2026-04-15) | USB self-disconnect incident 2026-04-22 08:58 MDT (resolved ~09:23); burst cap behaved correctly. See `hardware/ptz-camera.md`. |
+| **Jabra Speak 410** (voice I/O) | Connected 2026-04-15 | Full voice pipeline proven; production `channels/voice.py` pending. See `hardware/jabra.md`. |
+| **AC Infinity Cloudline LITE 6" fan control** | Parts ordered 2026-04-18 | Awaiting hardware arrival |
 
 ## Denver Water Notes
 - Tap pH: 8.5–8.8 → GH pH Down required at every fill

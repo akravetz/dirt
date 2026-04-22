@@ -83,7 +83,7 @@ test.describe("dashboard humidifier", () => {
 
     // Strip is anchored below the sparklines region.
     const sparklinesBottom = await page
-      .getByRole("region", { name: "Environment sparklines" })
+      .getByRole("region", { name: "Environment history" })
       .evaluate((el) => el.getBoundingClientRect().bottom);
     const stripTop = await strip.evaluate(
       (el) => el.getBoundingClientRect().top,

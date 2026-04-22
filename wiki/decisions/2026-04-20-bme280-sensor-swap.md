@@ -3,6 +3,7 @@ title: "Tent-Hub Temperature/Humidity Sensor Swap: DHT22 → BME280"
 type: decision
 sources: []
 related:
+  - wiki/decisions/2026-04-22-sht45-tent-node-esp32.md
   - wiki/decisions/2026-04-12-distributed-sensor-architecture.md
   - wiki/decisions/2026-04-14-humidifier-relay-control.md
   - wiki/decisions/2026-04-17-humidifier-kasa-ep10.md
@@ -11,13 +12,13 @@ related:
   - wiki/hardware/humidifier-control.md
   - wiki/environment/humidity.md
 created: 2026-04-20
-updated: 2026-04-20
+updated: 2026-04-22
 ---
 
 # Decision: Swap Tent-Hub Temp/RH Sensor from DHT22 to BME280
 
 **Date:** 2026-04-20 (sensor physically deployed ~2026-04-13)
-**Status:** Accepted — deployed
+**Status:** Accepted — deployed; **superseded 2026-04-22** by [SHT45 on ESP32-C3 tent node](2026-04-22-sht45-tent-node-esp32.md) (both sensor and host board replaced after recurring BME280 stuck-state).
 **Supersedes:** the DHT22 sensor choice baked into [2026-04-12 distributed sensor architecture](2026-04-12-distributed-sensor-architecture.md) and referenced by every downstream humidifier-control decision. The tent-hub topology (Arduino Nano outside the tent → USB serial → host) is unchanged; only the temp/RH sensor element is replaced.
 
 ## Context
