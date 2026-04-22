@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-from dirt_shared.services.wiki import WIKI_DIR, _parse_frontmatter
+from dirt_shared.services.wiki import _parse_frontmatter, wiki_dir
 
 
 @dataclass(frozen=True)
@@ -66,8 +66,11 @@ class PlantDetailService:
     Wired into ``app.state.plant_detail`` by ``create_app``.
     """
 
-    def __init__(self, wiki_dir: Path = WIKI_DIR) -> None:
-        self._wiki_dir = wiki_dir
+    def __init__(self, wiki_root: Path | None = None) -> None:
+        # Default resolves per-construction (not at import); tests that
+        # construct a PlantDetailService without args still get the live
+        # wiki, and ``DIRT_WIKI_DIR`` overrides are honored.
+        self._wiki_dir = wiki_root if wiki_root is not None else wiki_dir()
         self._cache: dict[str, tuple[float, PlantDetail]] = {}
 
     def _plant_path(self, code: str) -> Path:

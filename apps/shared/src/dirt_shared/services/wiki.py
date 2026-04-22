@@ -27,7 +27,19 @@ from dataclasses import dataclass
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[5]
-WIKI_DIR = Path(os.environ.get("DIRT_WIKI_DIR", _REPO_ROOT / "wiki"))
+_DEFAULT_WIKI_DIR = _REPO_ROOT / "wiki"
+
+
+def wiki_dir() -> Path:
+    """Resolve the wiki root on each call.
+
+    Reads ``DIRT_WIKI_DIR`` per-call (not at import) so tests can redirect
+    the service at a tmp_path-seeded fake wiki via ``monkeypatch.setenv``
+    without having to patch this module — the no-patching-dirt invariant
+    forbids ``monkeypatch.setattr('dirt_shared.*')`` in tests.
+    """
+    override = os.environ.get("DIRT_WIKI_DIR")
+    return Path(override) if override else _DEFAULT_WIKI_DIR
 
 
 # A minimal YAML subset that the wiki frontmatter uses:
@@ -93,17 +105,18 @@ class SearchResult:
 def _normalize_path(path: str) -> Path:
     """Accepts 'wiki/foo/bar.md' or 'foo/bar.md'; returns the absolute file path.
 
-    Rejects anything that escapes ``WIKI_DIR`` (traversal) or points outside
+    Rejects anything that escapes the wiki root (traversal) or points outside
     the wiki tree. Returns a Path that may or may not exist — caller checks.
     """
+    root = wiki_dir()
     p = path.removeprefix("wiki/").lstrip("/")
     if ".." in Path(p).parts:
         raise ValueError(f"path escapes wiki root: {path!r}")
-    target = (WIKI_DIR / p).resolve()
+    target = (root / p).resolve()
     # Harden: resolve() collapses .. so even if we stripped it above, confirm
-    # the resolved path still lives under WIKI_DIR.
+    # the resolved path still lives under the wiki root.
     try:
-        target.relative_to(WIKI_DIR.resolve())
+        target.relative_to(root.resolve())
     except ValueError as e:
         raise ValueError(f"path escapes wiki root: {path!r}") from e
     return target
@@ -111,7 +124,7 @@ def _normalize_path(path: str) -> Path:
 
 def _wiki_rel(path: Path) -> str:
     """Inverse of ``_normalize_path``: absolute path → 'wiki/...' form."""
-    rel = path.resolve().relative_to(WIKI_DIR.resolve())
+    rel = path.resolve().relative_to(wiki_dir().resolve())
     return f"wiki/{rel.as_posix()}"
 
 
@@ -228,11 +241,12 @@ def _sticker_color_for(code: str) -> str:
 def get_tree() -> WikiTree:
     """Walk ``wiki/``; each subdirectory becomes a folder, root ``*.md``
     files land in ``root_files``. Hidden dirs + ``CLAUDE.md`` skipped."""
-    if not WIKI_DIR.exists():
+    root = wiki_dir()
+    if not root.exists():
         return WikiTree(root_files=[], folders=[])
 
     folders: list[WikiFolder] = []
-    for child in sorted(WIKI_DIR.iterdir()):
+    for child in sorted(root.iterdir()):
         if child.is_dir() and not child.name.startswith("."):
             files = _folder_files(child)
             if files:
@@ -240,7 +254,7 @@ def get_tree() -> WikiTree:
 
     root_files = [
         _file_ref(p)
-        for p in sorted(WIKI_DIR.glob("*.md"))
+        for p in sorted(root.glob("*.md"))
         if p.name not in _IGNORED_NAMES and not p.name.startswith(".")
     ]
     return WikiTree(root_files=root_files, folders=folders)
@@ -280,18 +294,21 @@ def _file_ref(path: Path) -> WikiFileRef:
 # File read + backlinks
 # ============================================================
 
-# mtime-keyed backlinks cache. Key = mtime-rollup across all wiki files;
-# when ANY file's mtime changes, we recompute. Simple + correct for our scale.
+# mtime-keyed backlinks cache. Key = (wiki_dir, mtime-rollup) across all
+# wiki files; when ANY file's mtime changes (or the wiki root itself
+# changes, e.g. a test pointing at a tmp_path), we recompute. Simple +
+# correct for our scale.
 _backlinks_cache: dict[str, list[WikiFileRef]] = {}
-_backlinks_mtime: float | None = None
+_backlinks_mtime: tuple[Path, float] | None = None
 
 
 def _wiki_mtime_rollup() -> float:
     """Max mtime across all ``wiki/**/*.md``. Cheap stat-only walk."""
-    if not WIKI_DIR.exists():
+    root = wiki_dir()
+    if not root.exists():
         return 0.0
     mx = 0.0
-    for p in WIKI_DIR.rglob("*.md"):
+    for p in root.rglob("*.md"):
         try:
             mx = max(mx, p.stat().st_mtime)
         except OSError:
@@ -301,10 +318,10 @@ def _wiki_mtime_rollup() -> float:
 
 def _invalidate_backlinks_if_stale() -> None:
     global _backlinks_mtime, _backlinks_cache
-    rollup = _wiki_mtime_rollup()
-    if _backlinks_mtime != rollup:
+    key = (wiki_dir(), _wiki_mtime_rollup())
+    if _backlinks_mtime != key:
         _backlinks_cache = {}
-        _backlinks_mtime = rollup
+        _backlinks_mtime = key
 
 
 def _backlinks_for(target_path: str) -> list[WikiFileRef]:
@@ -323,7 +340,7 @@ def _backlinks_for(target_path: str) -> list[WikiFileRef]:
     target_rel = target_path.removeprefix("wiki/")
 
     refs: list[WikiFileRef] = []
-    for p in sorted(WIKI_DIR.rglob("*.md")):
+    for p in sorted(wiki_dir().rglob("*.md")):
         if p.name in _IGNORED_NAMES:
             continue
         this_rel = _wiki_rel(p)
@@ -410,7 +427,7 @@ def search(q: str, limit: int = 12) -> list[SearchResult]:
     path_hits: list[SearchResult] = []
     content_hits: list[SearchResult] = []
 
-    for p in sorted(WIKI_DIR.rglob("*.md")):
+    for p in sorted(wiki_dir().rglob("*.md")):
         if p.name in _IGNORED_NAMES:
             continue
         try:

@@ -23,6 +23,7 @@ from dirt_web.api.plants import router as plants_router
 from dirt_web.api.ptz import router as ptz_router
 from dirt_web.api.sensors import router as sensors_router
 from dirt_web.api.system import router as system_router
+from dirt_web.api.wiki import router as wiki_router
 from dirt_web.auth import AuthMiddleware, SessionManager
 
 _log = logging.getLogger(__name__)
@@ -113,6 +114,7 @@ def create_app(
     app.include_router(plants_router)
     app.include_router(ptz_router)
     app.include_router(system_router)
+    app.include_router(wiki_router)
     if mcp_app is not None:
         app.mount("/mcp", mcp_app)
 
