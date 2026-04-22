@@ -61,8 +61,9 @@ public:
 
 private:
     void drain_loop();
-    bool open_device();
+    bool open_device(bool verbose_errors = true);
     void close_device();
+    void reconnect_device();
     void sweep_old_tempfiles();
 
     Logger* log_;

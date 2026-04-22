@@ -58,10 +58,10 @@ bool CaptureService::start(const CaptureConfig& cfg) {
     return true;
 }
 
-bool CaptureService::open_device() {
+bool CaptureService::open_device(bool verbose_errors) {
     fd_ = ::open(cfg_.device.c_str(), O_RDWR | O_NONBLOCK, 0);
     if (fd_ < 0) {
-        if (log_) log_->error("capture: open " + cfg_.device + ": " +
+        if (verbose_errors && log_) log_->error("capture: open " + cfg_.device + ": " +
                               std::strerror(errno));
         return false;
     }
@@ -73,13 +73,13 @@ bool CaptureService::open_device() {
     fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_MJPEG;
     fmt.fmt.pix.field = V4L2_FIELD_NONE;
     if (xioctl(fd_, VIDIOC_S_FMT, &fmt) < 0) {
-        if (log_) log_->error("capture: VIDIOC_S_FMT: " +
+        if (verbose_errors && log_) log_->error("capture: VIDIOC_S_FMT: " +
                               std::string(std::strerror(errno)));
         close_device();
         return false;
     }
     if (fmt.fmt.pix.pixelformat != V4L2_PIX_FMT_MJPEG) {
-        if (log_) log_->error("capture: driver did not grant MJPG");
+        if (verbose_errors && log_) log_->error("capture: driver did not grant MJPG");
         close_device();
         return false;
     }
@@ -114,7 +114,7 @@ bool CaptureService::open_device() {
     req.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     req.memory = V4L2_MEMORY_MMAP;
     if (xioctl(fd_, VIDIOC_REQBUFS, &req) < 0) {
-        if (log_) log_->error("capture: VIDIOC_REQBUFS: " +
+        if (verbose_errors && log_) log_->error("capture: VIDIOC_REQBUFS: " +
                               std::string(std::strerror(errno)));
         close_device();
         return false;
@@ -127,7 +127,7 @@ bool CaptureService::open_device() {
         b.memory = V4L2_MEMORY_MMAP;
         b.index = i;
         if (xioctl(fd_, VIDIOC_QUERYBUF, &b) < 0) {
-            if (log_) log_->error("capture: VIDIOC_QUERYBUF");
+            if (verbose_errors && log_) log_->error("capture: VIDIOC_QUERYBUF");
             close_device();
             return false;
         }
@@ -135,12 +135,12 @@ bool CaptureService::open_device() {
         bufs_[i].start = mmap(nullptr, b.length, PROT_READ | PROT_WRITE,
                               MAP_SHARED, fd_, b.m.offset);
         if (bufs_[i].start == MAP_FAILED) {
-            if (log_) log_->error("capture: mmap failed");
+            if (verbose_errors && log_) log_->error("capture: mmap failed");
             close_device();
             return false;
         }
         if (xioctl(fd_, VIDIOC_QBUF, &b) < 0) {
-            if (log_) log_->error("capture: VIDIOC_QBUF");
+            if (verbose_errors && log_) log_->error("capture: VIDIOC_QBUF");
             close_device();
             return false;
         }
@@ -148,7 +148,7 @@ bool CaptureService::open_device() {
 
     int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     if (xioctl(fd_, VIDIOC_STREAMON, &type) < 0) {
-        if (log_) log_->error("capture: VIDIOC_STREAMON: " +
+        if (verbose_errors && log_) log_->error("capture: VIDIOC_STREAMON: " +
                               std::string(std::strerror(errno)));
         close_device();
         return false;
@@ -175,6 +175,30 @@ void CaptureService::close_device() {
     if (fd_ >= 0) { ::close(fd_); fd_ = -1; }
 }
 
+// Release the current (bad) fd and retry open_device() with backoff until
+// the device comes back or the service is asked to stop. Called from the
+// drainer on any non-transient select/DQBUF failure (e.g. ENODEV when USB
+// re-enumerates). Without this, a USB glitch leaves a stale fd and the
+// drain loop hot-spins logging the same errno forever — see the 410GB
+// incident on 2026-04-22.
+void CaptureService::reconnect_device() {
+    close_device();
+    have_frame_.store(false);
+
+    int attempts = 0;
+    while (!stop_.load()) {
+        std::this_thread::sleep_for(seconds(2));
+        // Silent retries after the first; on recovery we log once below.
+        if (open_device(/*verbose_errors=*/attempts == 0)) {
+            if (log_) log_->info("capture: reacquired " + cfg_.device +
+                                 " after " + std::to_string(attempts + 1) +
+                                 " attempt(s)");
+            return;
+        }
+        attempts++;
+    }
+}
+
 void CaptureService::stop() {
     stop_.store(true);
     if (drainer_.joinable()) drainer_.join();
@@ -196,7 +220,10 @@ void CaptureService::drain_loop() {
         int r = select(fd_ + 1, &fds, nullptr, nullptr, &tv);
         if (r < 0) {
             if (errno == EINTR) continue;
-            if (log_) log_->warn("capture: select: " + std::string(std::strerror(errno)));
+            if (log_) log_->warn("capture: select: " +
+                                 std::string(std::strerror(errno)) +
+                                 " — resetting device");
+            reconnect_device();
             continue;
         }
         if (r == 0) continue;  // timeout; loop check stop_
@@ -207,7 +234,9 @@ void CaptureService::drain_loop() {
         if (xioctl(fd_, VIDIOC_DQBUF, &b) < 0) {
             if (errno == EAGAIN) continue;
             if (log_) log_->warn("capture: VIDIOC_DQBUF: " +
-                                 std::string(std::strerror(errno)));
+                                 std::string(std::strerror(errno)) +
+                                 " — resetting device");
+            reconnect_device();
             continue;
         }
 
