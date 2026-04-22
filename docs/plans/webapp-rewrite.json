@@ -287,7 +287,7 @@
         { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/plants removed." },
         { "kind": "unit", "path": "apps/web/tests/test_plants_list_endpoint.py" }
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "frontend.dashboard.plants_strip",
@@ -311,7 +311,7 @@
         { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/plants/{code} removed." },
         { "kind": "unit", "path": "apps/web/tests/test_plants_detail_endpoint.py" }
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "backend.plants.moisture",
@@ -324,7 +324,7 @@
         { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/plants/{code}/moisture removed." },
         { "kind": "unit", "path": "apps/web/tests/test_plants_moisture_endpoint.py" }
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "frontend.plant_detail",
