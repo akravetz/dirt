@@ -3,8 +3,10 @@
 Self-contained prompt skeletons for the BE + FE generator agents. Each
 prompt is a single template with `{{PLACEHOLDERS}}` — fill them in at
 spawn time, paste the whole thing into the `Agent` tool's `prompt`
-field, and run with `isolation: "worktree"` + `run_in_background:
-true`.
+field, and run with `run_in_background: true`. **Do NOT pass
+`isolation: "worktree"`** — that flag is broken upstream (see
+`docs/harness-issues/worktree-isolation-silently-fails.md`). The
+orchestrator pre-creates the worktree; see the Harness note below.
 
 ## Conventions
 
@@ -24,10 +26,23 @@ true`.
 |---|---|---|
 | `{{FEATURE_ID}}` | plan JSON `features[].id` | `backend.grow.current` |
 | `{{LANE}}` | plan JSON `features[].lane` | `backend` |
-| `{{BRANCH_PREFIX}}` | plan JSON `lanes[lane].worktree_branch_prefix` | `feat/be/` |
+| `{{BRANCH}}` | orchestrator-created branch name | `feat/be/backend.grow.current` |
+| `{{WORKTREE_PATH}}` | orchestrator-created worktree absolute path | `/home/akcom/code/dirt/.claude/worktrees/backend.grow.current` |
 | `{{ITERATION_BUDGET}}` | how many compose-test-fix loops you'll allow | `15` |
 | `{{TOKEN_BUDGET_HINT}}` | rough cap, conservative | `200000` |
-| `{{NOTES_PATH}}` | relative to repo root | `var/agent-notes/{{FEATURE_ID}}.md` |
+| `{{NOTES_PATH}}` | relative to worktree root | `docs/plans/notes/{{FEATURE_ID}}.md` |
+
+## Harness note — manual worktree pattern
+
+**The Agent tool's built-in `isolation: "worktree"` is broken** (see `docs/harness-issues/worktree-isolation-silently-fails.md`). Do NOT spawn generator agents with `isolation: "worktree"`. Instead, the orchestrator pre-creates the worktree + branch, and the generator is told where it is:
+
+```bash
+# orchestrator-side, BEFORE spawning:
+git worktree add /home/akcom/code/dirt/.claude/worktrees/{{FEATURE_ID}} \
+    -b {{BRANCH}} main
+```
+
+The generator's very first tool call is `cd {{WORKTREE_PATH}}` — see the opening of the shared prompt skeleton. All subsequent work (tests, commits, simplify) happens in the worktree. After the agent returns, the orchestrator reads `git log main..{{BRANCH}}` to see what committed; any uncommitted residue is a containerize-or-discard decision.
 
 ---
 
@@ -38,9 +53,27 @@ at the bottom slot in based on `{{LANE}}`.
 
 ```
 You are a generator agent implementing ONE feature from the Phase-2
-Dirt webapp rewrite plan. You are running in a dedicated git
-worktree on branch {{BRANCH_PREFIX}}{{FEATURE_ID}}. Anything you
-write stays in this worktree until merged.
+Dirt webapp rewrite plan.
+
+# FIRST TOOL CALL — cd to your worktree
+
+The orchestrator has pre-created a git worktree for you at
+{{WORKTREE_PATH}} on branch {{BRANCH}}. Your very first tool call —
+before Read, before anything else — MUST be:
+
+    cd {{WORKTREE_PATH}}
+
+Then verify with pwd + git rev-parse --abbrev-ref HEAD that you are
+where you should be. If pwd does not match {{WORKTREE_PATH}} or HEAD
+is not {{BRANCH}}, STOP immediately and print "STUCK: worktree
+mismatch" as your final line. Do NOT write files. This guard
+prevents the known Claude-Code `isolation: "worktree"` silent-failure
+bug from putting your writes on the orchestrator's main tree (see
+docs/harness-issues/worktree-isolation-silently-fails.md for
+symptoms + background).
+
+Every subsequent tool invocation runs in the worktree. Everything
+you write stays there until merged.
 
 # What you're building
 
@@ -540,19 +573,34 @@ differences, etc. Investigate anything beyond that.
 
 ## Example: spawn one BE + one FE in parallel
 
-```
-[Single message, two Agent tool calls, both run_in_background: true]
+Pre-create worktrees BEFORE the Agent call — do NOT use
+`isolation: "worktree"`.
 
+```bash
+# Orchestrator-side (bash), before the Agent spawn:
+BE_ID=backend.grow.current
+FE_ID=frontend.app.shell
+BE_WT=/home/akcom/code/dirt/.claude/worktrees/$BE_ID
+FE_WT=/home/akcom/code/dirt/.claude/worktrees/$FE_ID
+
+git worktree add "$BE_WT" -b feat/be/$BE_ID main
+git worktree add "$FE_WT" -b feat/fe/$FE_ID main
+```
+
+Then a single Agent-tool message with two calls:
+
+```
 Agent 1:
   description: "BE lane: backend.grow.current"
   subagent_type: general-purpose
   model: opus
-  isolation: worktree
   run_in_background: true
+  # NOTE: no isolation field — orchestrator created the worktree.
   prompt: <SHARED skeleton + LANE_SPECIFIC_BLOCK backend, with
            {{FEATURE_ID}}=backend.grow.current,
            {{LANE}}=backend,
-           {{BRANCH_PREFIX}}=feat/be/,
+           {{BRANCH}}=feat/be/backend.grow.current,
+           {{WORKTREE_PATH}}=/home/akcom/code/dirt/.claude/worktrees/backend.grow.current,
            {{ITERATION_BUDGET}}=10,
            {{NOTES_PATH}}=docs/plans/notes/backend.grow.current.md>
 
@@ -560,19 +608,35 @@ Agent 2:
   description: "FE lane: frontend.app.shell"
   subagent_type: general-purpose
   model: opus
-  isolation: worktree
   run_in_background: true
+  # NOTE: no isolation field — orchestrator created the worktree.
   prompt: <SHARED skeleton + LANE_SPECIFIC_BLOCK frontend, with
            {{FEATURE_ID}}=frontend.app.shell,
            {{LANE}}=frontend,
-           {{BRANCH_PREFIX}}=feat/fe/,
+           {{BRANCH}}=feat/fe/frontend.app.shell,
+           {{WORKTREE_PATH}}=/home/akcom/code/dirt/.claude/worktrees/frontend.app.shell,
            {{ITERATION_BUDGET}}=15,
            {{NOTES_PATH}}=docs/plans/notes/frontend.app.shell.md>
 ```
 
-Both wake on completion. Inspect the worktree branches, run the
-Evaluator (foreground) against each, merge the green ones, repeat
-with the next pair from the plan JSON's depends_on graph.
+When both notifications arrive, the orchestrator verifies the work
+landed on-branch:
+
+```bash
+# Per-feature post-spawn check:
+git log main..feat/be/backend.grow.current --oneline          # commits?
+git -C "$BE_WT" status --porcelain                            # uncommitted residue?
+cd /home/akcom/code/dirt && git status --porcelain            # main's tree must be clean
+```
+
+Anything on main's working tree after a spawn means the generator
+bypassed its `cd` (its first-tool-call guard should have printed
+STUCK; if it didn't, treat as a serious agent-side bug). Uncommitted
+residue in the worktree is a containerize-or-discard decision.
+
+Run the Evaluator (foreground, no worktree creation needed — it runs
+read-only) against each green worktree, merge, repeat with the next
+pair from the plan JSON's depends_on graph.
 
 ---
 
@@ -976,7 +1040,7 @@ Agent({
   prompt: <SHARED skeleton + LANE_SPECIFIC_BLOCK backend, with
            {{FEATURE_ID}}=backend.grow.current,
            {{LANE}}=backend,
-           {{WORKTREE_PATH}}=<absolute path the generator returned>,
+           {{WORKTREE_PATH}}=<absolute path the orchestrator created for the generator; same value passed to the generator spawn>,
            {{BRANCH}}=feat/be/backend.grow.current,
            {{VERDICT_PATH}}=docs/plans/verdicts/backend.grow.current.json>
 })
