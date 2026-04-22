@@ -346,6 +346,164 @@ export const handlers: RequestHandler[] = [
     });
   }),
 
+  // -------------------------------------------------------------------------
+  // frontend.plant_detail — /api/plants/{code} + /api/plants/{code}/moisture
+  //
+  // Fixtures for the plant-detail drawer (header + moisture hero +
+  // timeline + note) and its 24h moisture history chart. Shapes
+  // duck-typed against contracts/webapp-v1.yaml
+  // #/components/schemas/{PlantDetail,PlantMoistureCurrent,TimelineEntry,
+  //                       PlantNote,PlantMoistureHistory}.
+  //
+  // Per-plant metadata mirrors /api/plants above (sticker A=yellow,
+  // B=orange, C=pink, D=blue; moisture 62/48/54/66) so the drawer agrees
+  // with the card the user clicked. Timeline + note strings are static
+  // per plant — deterministic so the e2e's row-count + header-text
+  // assertions are stable across runs.
+  // -------------------------------------------------------------------------
+
+  http.get("/api/plants/:code", ({ params }) => {
+    const code = String(params.code);
+    const DETAILS: Record<
+      string,
+      {
+        name: string;
+        sticker_color: "yellow" | "orange" | "pink" | "blue";
+        purple: boolean;
+        label: string;
+        moisture_pct: number;
+      }
+    > = {
+      a: {
+        name: "Plant A",
+        sticker_color: "yellow",
+        purple: false,
+        label: "Primary · bushy",
+        moisture_pct: 62,
+      },
+      b: {
+        name: "Plant B",
+        sticker_color: "orange",
+        purple: false,
+        label: "Primary · upright",
+        moisture_pct: 48,
+      },
+      c: {
+        name: "Plant C",
+        sticker_color: "pink",
+        purple: true,
+        label: "Primary · purple",
+        moisture_pct: 54,
+      },
+      d: {
+        name: "Plant D",
+        sticker_color: "blue",
+        purple: false,
+        label: "Primary · standard",
+        moisture_pct: 66,
+      },
+    };
+    const meta = DETAILS[code];
+    if (!meta) {
+      return HttpResponse.json({ detail: "not_found" }, { status: 404 });
+    }
+    const ts = "2026-04-21T17:00:00Z";
+    // Six timeline entries per plant so .length is a single crisp
+    // target for the spec's row-count assertion.
+    const timeline = [
+      {
+        date: "2026-04-21",
+        day: 38,
+        text: "First canopy nudge; ~6 true-node pairs.",
+        highlight: true,
+      },
+      {
+        date: "2026-04-19",
+        day: 36,
+        text: "Transplanted into Airpot 3L.",
+        highlight: false,
+      },
+      {
+        date: "2026-04-17",
+        day: 34,
+        text: "Purple stem; likely anthocyanin stress.",
+        highlight: false,
+      },
+      {
+        date: "2026-04-14",
+        day: 31,
+        text: "Yellow-chlorosis margins; dialled nutrients up.",
+        highlight: false,
+      },
+      {
+        date: "2026-04-10",
+        day: 27,
+        text: "Second watering.",
+        highlight: false,
+      },
+      {
+        date: "2026-04-04",
+        day: 21,
+        text: "Recovery 38° — monitoring for two-node rebound.",
+        highlight: false,
+      },
+    ] as const;
+    return HttpResponse.json({
+      code,
+      name: meta.name,
+      sticker_color: meta.sticker_color,
+      status: "primary",
+      purple: meta.purple,
+      day: 38,
+      label: meta.label,
+      moisture: {
+        current_pct: meta.moisture_pct,
+        target: [50, 70],
+        status: "ok",
+        ts,
+      },
+      timeline,
+      note: {
+        text: `Day 38 was the right call — ${meta.name} had visible life node emerging, soon diameter strong; recovery margins comfortable before the day 40 LST target.`,
+        updated: "2026-04-21",
+      },
+      wiki_path: `/wiki/plants/${code}.md`,
+    });
+  }),
+
+  http.get("/api/plants/:code/moisture", ({ request, params }) => {
+    const code = String(params.code);
+    const url = new URL(request.url);
+    const range = url.searchParams.get("range") ?? "24h";
+    const RANGE_SPEC: Record<string, { count: number; windowMs: number }> = {
+      "1h": { count: 12, windowMs: 60 * 60 * 1000 },
+      "24h": { count: 48, windowMs: 24 * 60 * 60 * 1000 },
+      "7d": { count: 168, windowMs: 7 * 24 * 60 * 60 * 1000 },
+    };
+    const spec = RANGE_SPEC[range];
+    if (!spec) {
+      return HttpResponse.json({ detail: "bad_range" }, { status: 400 });
+    }
+    const endMs = Date.parse("2026-04-21T17:00:00Z");
+    const stepMs = spec.windowMs / spec.count;
+    // Sawtooth: drops from high to low over each 6-bucket cycle to
+    // imitate irrigation → drawdown. Deterministic per (range, code).
+    const points = Array.from({ length: spec.count }, (_, i) => {
+      const phase = i % 6;
+      const value = 70 - phase * 3;
+      const ts = new Date(endMs - (spec.count - 1 - i) * stepMs).toISOString();
+      return { ts, value };
+    });
+    return HttpResponse.json({
+      code,
+      range,
+      unit: "%",
+      target: [50, 70],
+      points,
+      irrigation_events_24h: 4,
+    });
+  }),
+
   http.get("/api/grow/current", () => {
     // germination_date authoritative in CLAUDE.md: 2026-03-15 (veg).
     // day_number for today (2026-04-21) = 38; grow_week_number = 6.

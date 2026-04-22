@@ -18,13 +18,14 @@
 // refetches uniformly across the SPA. See
 // docs/references/tanstack-router-v1/loaders.md for the loader
 // alternative if a future change needs SSR-style prefetch.
-import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { type components, createDirtApiClient } from "@/api-client";
 import { Gauge } from "@/ui/Gauge";
 import { HumidifierStrip } from "@/ui/HumidifierStrip";
 import { HumidifierTile } from "@/ui/HumidifierTile";
+import { PlantDetail } from "@/ui/PlantDetail";
 import { PlantsStrip } from "@/ui/PlantsStrip";
 import type { PlantCode } from "@/ui/plant-types";
 import { RangeSwitch, type SparklineRange } from "@/ui/RangeSwitch";
@@ -85,24 +86,11 @@ function DashboardPage() {
 
   const [range, setRange] = useState<SparklineRange>("24h");
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  // Clicking a PlantCard fires GET /api/plants/{code} via the QueryClient's
-  // prefetch machinery. The request goes out immediately; the cached
-  // entry is then consumed by frontend.plant_detail's drawer when it
-  // lands in the next feature.
-  const queryClient = useQueryClient();
-
-  const handleSelectPlant = (code: PlantCode): void => {
-    void queryClient.prefetchQuery({
-      queryKey: ["plants.detail", code] as const,
-      queryFn: async () => {
-        const { data, error } = await api.GET("/api/plants/{code}", {
-          params: { path: { code } },
-        });
-        if (error) throw error;
-        return data;
-      },
-    });
-  };
+  // Selected plant drives the detail drawer. null = drawer closed;
+  // a/b/c/d = drawer open for that plant. The per-plant useQuery below
+  // is enabled exactly when this is non-null, so flipping the state
+  // fires GET /api/plants/{code}.
+  const [selectedPlant, setSelectedPlant] = useState<PlantCode | null>(null);
 
   // Five parallel history queries keyed on [range, metric]. useQueries
   // is the correct idiom for a fixed-shape fan-out: one result slot per
@@ -158,6 +146,36 @@ function DashboardPage() {
       if (error) throw error;
       return data;
     },
+  });
+
+  // Plant-detail drawer queries — only fetch while a plant is selected
+  // so the network activity lines up exactly with "user clicked a
+  // card". Closing the drawer (selectedPlant = null) leaves the cache
+  // intact; re-opening the same plant serves from cache while also
+  // kicking off a background refetch.
+  const plantDetailQuery = useQuery({
+    queryKey: ["plants.detail", selectedPlant] as const,
+    queryFn: async () => {
+      if (selectedPlant === null) throw new Error("no plant selected");
+      const { data, error } = await api.GET("/api/plants/{code}", {
+        params: { path: { code: selectedPlant } },
+      });
+      if (error) throw error;
+      return data;
+    },
+    enabled: selectedPlant !== null,
+  });
+  const plantMoistureQuery = useQuery({
+    queryKey: ["plants.moisture", selectedPlant, "24h"] as const,
+    queryFn: async () => {
+      if (selectedPlant === null) throw new Error("no plant selected");
+      const { data, error } = await api.GET("/api/plants/{code}/moisture", {
+        params: { path: { code: selectedPlant }, query: { range: "24h" } },
+      });
+      if (error) throw error;
+      return data;
+    },
+    enabled: selectedPlant !== null,
   });
 
   if (isLoading) {
@@ -244,7 +262,17 @@ function DashboardPage() {
       </section>
       <HumidifierStrip points={humidifierHistory.data?.points ?? []} />
       {plantsQuery.data ? (
-        <PlantsStrip plants={plantsQuery.data.plants} onSelect={handleSelectPlant} />
+        <PlantsStrip plants={plantsQuery.data.plants} onSelect={setSelectedPlant} />
+      ) : null}
+      {selectedPlant !== null && plantDetailQuery.data ? (
+        <PlantDetail
+          payload={plantDetailQuery.data}
+          moistureHistory={plantMoistureQuery.data?.points ?? []}
+          irrigationEvents24h={plantMoistureQuery.data?.irrigation_events_24h ?? 0}
+          onClose={() => {
+            setSelectedPlant(null);
+          }}
+        />
       ) : null}
     </main>
   );

@@ -10,7 +10,12 @@
 //   - svg[role="progressbar"]              — moisture bar; aria-valuenow
 //     [aria-valuenow=...]                    is the semantic width.
 import type { ReactNode } from "react";
-import type { PlantCode, StickerColor } from "@/ui/plant-types";
+import {
+  type PlantCode,
+  STICKER_BG,
+  STICKER_FILL,
+  type StickerColor,
+} from "@/ui/plant-types";
 
 interface PlantCardProps {
   code: PlantCode;
@@ -20,21 +25,6 @@ interface PlantCardProps {
   moisturePct: number | null;
   onSelect: (code: PlantCode) => void;
 }
-
-// Sticker → Tailwind theme-token classes. Named tokens keep TS-15 happy
-// (no arbitrary hex values); see src/styles.css @theme for the palette.
-const STICKER_BG: Record<StickerColor, string> = {
-  yellow: "bg-sticker-yellow",
-  orange: "bg-sticker-orange",
-  pink: "bg-sticker-pink",
-  blue: "bg-sticker-blue",
-};
-const STICKER_FILL: Record<StickerColor, string> = {
-  yellow: "fill-sticker-yellow",
-  orange: "fill-sticker-orange",
-  pink: "fill-sticker-pink",
-  blue: "fill-sticker-blue",
-};
 
 export function PlantCard({
   code,
