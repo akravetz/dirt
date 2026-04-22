@@ -141,7 +141,7 @@
         { "kind": "e2e", "test_file": "web-ui/tests/e2e/app-shell.spec.ts", "description": "Run `pnpm test:e2e -- app-shell.spec.ts` against a live `pnpm dev` on :5173. The spec must assert: dirt. brand heading renders; exactly 3 tab buttons with visible text Dashboard/Live/Wiki; a theme-toggle button (aria-label or text matches /theme|light|dark/i); clicking each tab changes location.pathname to /, /live, /wiki respectively; clicked tab carries aria-current='page' on the visible button; page console shows no error-level entries. Green exit." },
         { "kind": "invariant", "description": "An existing docs/plans/evaluator-checks/app-shell.sh continues to pass (it's still the evaluator's target for the already-landed frontend.app.shell feature until retirement); this acceptance criterion just confirms the new Playwright spec coexists without breaking the legacy path." }
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "backend.auth",
@@ -201,7 +201,7 @@
         { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/sensors/current removed; LEGACY_ROUTES entry for /sensors/current removed." },
         { "kind": "unit", "path": "apps/web/tests/test_sensors_current_endpoint.py" }
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "backend.sensors.history",

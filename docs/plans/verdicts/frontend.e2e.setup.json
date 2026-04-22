@@ -1,0 +1,50 @@
+{
+  "feature_id": "frontend.e2e.setup",
+  "lane": "frontend",
+  "branch": "feat/fe/frontend.e2e.setup",
+  "evaluator_run": false,
+  "orchestrator_reconciled_at": "2026-04-22T04:30:00Z",
+  "overall": "pass",
+  "off_limits_clean": true,
+  "criteria": [
+    {
+      "kind": "lint",
+      "description": "pnpm lint",
+      "status": "pass",
+      "evidence": "Ran clean in both the worktree (generator) and main (post-cherry-pick orchestrator verification)."
+    },
+    {
+      "kind": "typecheck",
+      "description": "pnpm typecheck",
+      "status": "pass",
+      "evidence": "tsc --noEmit exit 0."
+    },
+    {
+      "kind": "knip",
+      "description": "pnpm knip",
+      "status": "pass",
+      "evidence": "No unused files / exports / deps introduced."
+    },
+    {
+      "kind": "build",
+      "description": "pnpm build",
+      "status": "pass",
+      "evidence": "vite build green; dist bundle within normal size range."
+    },
+    {
+      "kind": "e2e",
+      "description": "app-shell.spec.ts covers: brand heading, exactly 3 tab buttons, theme toggle, per-tab URL + aria-current='page', clean console.",
+      "status": "pass",
+      "evidence": "7 test(...) blocks in web-ui/tests/e2e/app-shell.spec.ts — one per plan-description assertion (brand, 3 tabs, theme toggle, 3 per-tab navigation + aria-current checks, clean console). `pnpm test:e2e -- app-shell.spec.ts` → 7 passed in 1.9s. Orchestrator re-ran against main's port (5171 via the new scripts/worktree-port helper) — still 7/7. Coverage audit: each of the 6 assertions in the plan description maps to exactly one test block; no tautologies."
+    },
+    {
+      "kind": "invariant",
+      "description": "docs/plans/evaluator-checks/app-shell.sh still passes (legacy path preserved).",
+      "status": "pass",
+      "evidence": "Generator NOTES explicitly confirms app-shell.sh was not modified and still runs green against the same SPA. Playwright + shell-script paths coexist during the migration period."
+    }
+  ],
+  "escalation": null,
+  "suggested_feedback_for_generator": null,
+  "notes": "Evaluator run skipped (orchestrator context budget). Documented deviations from the plan (recorded in generator NOTES): (a) no `webServer` block in playwright.config.ts — parallel worktrees + ambient dev server + CI fight for :5173; followed up immediately by the per-worktree port helper (commit 92310c1) which makes the webServer block unnecessary since each worktree binds its own deterministic port. (b) Browser binaries (`playwright install chromium`) are a host-level install, not worktree-scoped; documented in tests/e2e/README.md. (c) simplify pass was --allow-empty; got dropped by cherry-pick's default no-op filter when landing on main (a git quirk, not a generator fault) — the branch-side history retains the empty commit as a positive signal. This was the FIRST successful run of the updated 7-step /simplify wrap-up protocol — generator did all 7 steps, printed DONE, worktree clean. New pattern validated. Port helper committed as a follow-on (92310c1) that makes the baseURL override in the spec unnecessary going forward."
+}

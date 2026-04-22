@@ -1,0 +1,26 @@
+{
+  "feature_id": "backend.sensors.current",
+  "lane": "backend",
+  "branch": "feat/be/backend.sensors.current",
+  "evaluator_run": false,
+  "orchestrator_reconciled_at": "2026-04-22T04:30:00Z",
+  "overall": "pass",
+  "off_limits_clean": true,
+  "criteria": [
+    {
+      "kind": "invariant",
+      "description": "EXPECTED_MISSING entry for /api/sensors/current removed; LEGACY_ROUTES entry for /sensors/current removed.",
+      "status": "pass",
+      "evidence": "Diff of apps/tests/invariants/contract_status.json shows exactly two lines removed: the /api/sensors/current row from expected_missing and the /sensors/current row from legacy_routes. Scope matches plan JSON endpoints + removes_legacy exactly. This was the first invariant edit under the new .claude/hooks contract_status.json carve-out (commit 76211c0); no human-ask prompt fired mid-run. Full invariants: 96 passed."
+    },
+    {
+      "kind": "unit",
+      "description": "apps/web/tests/test_sensors_current_endpoint.py",
+      "status": "pass",
+      "evidence": "3 tests: unauth-401-JSON (the phase-2 auth contract from backend.auth), happy-path contract-shape + all 5 metrics + bands on temp/humidity/VPD only + status colors from band_status, stale-flag derived from the service's own threshold (via inspect.signature introspection — avoids hardcoding a number the service could change). All 3 pass. Test also proves asyncio.gather-based concurrent DB read for the 5 metrics."
+    }
+  ],
+  "escalation": null,
+  "suggested_feedback_for_generator": null,
+  "notes": "Evaluator run skipped (orchestrator context budget). Verification: generator's own in-worktree test run; pre-commit invariant + per-app hooks at every commit on branch; orchestrator full-suite pass after cherry-pick on main (127 total tests; 96 invariants + 29 web + 2 additions from this feature). Notable implementation choice by the generator: added a `ReadingsService.now()` test seam to satisfy test_no_concrete_clock_in_production; legacy `GET /sensors/current` deleted + its test removed; 5 DB reads run concurrently via asyncio.gather. This was the first feature to exercise the contract_status.json hook carve-out — the generator edited the JSON without a human-ask prompt, as designed."
+}
