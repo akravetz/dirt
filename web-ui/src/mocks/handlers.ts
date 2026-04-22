@@ -153,6 +153,92 @@ export const handlers: RequestHandler[] = [
     });
   }),
 
+  // -------------------------------------------------------------------------
+  // frontend.dashboard.sparklines — /api/sensors/history
+  //
+  // Fixture for the five-sparkline strip. Shape duck-typed against
+  // contracts/webapp-v1.yaml #/components/schemas/SensorsHistoryResponse
+  // (boundaries forbids mocks/ → api-client/, so no `import type` from
+  // generated schema — any drift gets caught by consumer typecheck).
+  //
+  // Contract:
+  //   range ∈ {"1h","24h","7d"}, metric ∈ {"temperature_f","humidity_pct",
+  //     "vpd_kpa","fan_pct","reservoir_in"}.
+  //   points[] length depends on range so the e2e can observe bucket
+  //   count changes per range (1h → 12, 24h → 48, 7d → 168).
+  //   Values are deterministic per (range, metric) — a triangle wave
+  //   with per-metric amplitude around a per-metric baseline. Same
+  //   (range, metric) pair → identical series across fetches, so the
+  //   crosshair/tooltip assertions are stable.
+  //   unit mirrors the /api/sensors/current envelope per metric.
+  // -------------------------------------------------------------------------
+
+  http.get("/api/sensors/history", ({ request }) => {
+    const url = new URL(request.url);
+    const range = url.searchParams.get("range");
+    const metric = url.searchParams.get("metric");
+
+    const bucketCountByRange: Record<string, number> = {
+      "1h": 12,
+      "24h": 48,
+      "7d": 168,
+    };
+    const baselineByMetric: Record<
+      string,
+      { base: number; amp: number; unit: string }
+    > = {
+      temperature_f: { base: 76, amp: 4, unit: "°F" },
+      humidity_pct: { base: 50, amp: 5, unit: "%" },
+      vpd_kpa: { base: 1.0, amp: 0.2, unit: "kPa" },
+      fan_pct: { base: 48, amp: 10, unit: "%" },
+      reservoir_in: { base: 9.2, amp: 0.5, unit: "in" },
+    };
+
+    if (!range || !(range in bucketCountByRange)) {
+      return HttpResponse.json({ detail: "bad_range" }, { status: 400 });
+    }
+    if (!metric || !(metric in baselineByMetric)) {
+      return HttpResponse.json({ detail: "bad_metric" }, { status: 400 });
+    }
+
+    const count = bucketCountByRange[range] as number;
+    const spec = baselineByMetric[metric] as {
+      base: number;
+      amp: number;
+      unit: string;
+    };
+
+    // Anchor the series end-ts to a fixed point so snapshots don't
+    // drift per test run.
+    const endMs = Date.parse("2026-04-21T17:00:00Z");
+    const windowMs: Record<string, number> = {
+      "1h": 60 * 60 * 1000,
+      "24h": 24 * 60 * 60 * 1000,
+      "7d": 7 * 24 * 60 * 60 * 1000,
+    };
+    const stepMs = (windowMs[range] as number) / count;
+
+    // Deterministic triangle wave: pos ∈ [0, 1], offset = |2*pos - 1|.
+    // Yields reproducible values keyed on (range, metric, bucket index).
+    const points = Array.from({ length: count }, (_, i) => {
+      const pos = count === 1 ? 0 : i / (count - 1);
+      const tri = Math.abs(2 * pos - 1); // 1 → 0 → 1
+      const value = spec.base + spec.amp * (tri - 0.5) * 2; // centered swing
+      // Round to a sensible number of decimals per unit so serialized
+      // payload stays compact.
+      const rounded = Math.round(value * 100) / 100;
+      const ts = new Date(endMs - (count - 1 - i) * stepMs).toISOString();
+      return { ts, value: rounded };
+    });
+
+    return HttpResponse.json({
+      range,
+      metric,
+      unit: spec.unit,
+      points,
+    });
+  }),
+
   http.get("/api/grow/current", () => {
     // germination_date authoritative in CLAUDE.md: 2026-03-15 (veg).
     // day_number for today (2026-04-21) = 38; grow_week_number = 6.

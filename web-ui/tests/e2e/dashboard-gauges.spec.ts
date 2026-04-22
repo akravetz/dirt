@@ -30,28 +30,51 @@ test.describe("dashboard gauges", () => {
   }) => {
     // The <article aria-label={name}> per-tile contract is the spec's
     // handle onto each metric. Five metrics expected, one per key in
-    // SensorsCurrent.metrics.
+    // SensorsCurrent.metrics. `exact: true` prevents substring matches
+    // against the sparkline strip below, whose tiles are labelled
+    // "{Metric} sparkline" (frontend.dashboard.sparklines).
     await expect(
-      page.getByRole("article", { name: "Temperature" }),
+      page.getByRole("article", { name: "Temperature", exact: true }),
     ).toBeVisible();
-    await expect(page.getByRole("article", { name: "Humidity" })).toBeVisible();
-    await expect(page.getByRole("article", { name: "VPD" })).toBeVisible();
-    await expect(page.getByRole("article", { name: "Fan" })).toBeVisible();
-    await expect(page.getByRole("article", { name: "Reservoir" })).toBeVisible();
-
-    // Each tile renders its metric name as a heading (h2).
     await expect(
-      page.getByRole("heading", { name: "Temperature" }),
+      page.getByRole("article", { name: "Humidity", exact: true }),
     ).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Humidity" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "VPD" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Fan" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Reservoir" })).toBeVisible();
+    await expect(
+      page.getByRole("article", { name: "VPD", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("article", { name: "Fan", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("article", { name: "Reservoir", exact: true }),
+    ).toBeVisible();
 
-    // Guard against stray tiles (a sixth article would still satisfy
-    // the five containsText assertions above but would indicate drift).
-    const articles = page.locator("article[aria-label]");
-    await expect(articles).toHaveCount(5);
+    // Each tile renders its metric name as a heading (h2). Sparklines
+    // render their metric name in an <h3>, so getByRole('heading', ...)
+    // without a level filter would also see those — scope on level=2.
+    await expect(
+      page.getByRole("heading", { level: 2, name: "Temperature" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 2, name: "Humidity" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 2, name: "VPD" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 2, name: "Fan" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 2, name: "Reservoir" }),
+    ).toBeVisible();
+
+    // Guard against stray tiles in the gauges section specifically.
+    // Count is scoped to the Environment gauges landmark so the
+    // sparkline strip's own articles don't inflate the total.
+    const gaugesArticles = page
+      .getByRole("region", { name: "Environment gauges" })
+      .locator("article[aria-label]");
+    await expect(gaugesArticles).toHaveCount(5);
   });
 
   test("each tile's displayed value matches the MSW-fixture reading", async ({
@@ -65,23 +88,23 @@ test.describe("dashboard gauges", () => {
     //   vpd_kpa      : 1.0  → "1.0"  + "kPa"
     //   fan_pct      : 48   → "48"   + "%"   (integer)
     //   reservoir_in : 9.2  → "9.2"  + "in"
-    const temp = page.getByRole("article", { name: "Temperature" });
+    const temp = page.getByRole("article", { name: "Temperature", exact: true });
     await expect(temp).toContainText("76.0");
     await expect(temp).toContainText("°F");
 
-    const humidity = page.getByRole("article", { name: "Humidity" });
+    const humidity = page.getByRole("article", { name: "Humidity", exact: true });
     await expect(humidity).toContainText("50");
     await expect(humidity).toContainText("%");
 
-    const vpd = page.getByRole("article", { name: "VPD" });
+    const vpd = page.getByRole("article", { name: "VPD", exact: true });
     await expect(vpd).toContainText("1.0");
     await expect(vpd).toContainText("kPa");
 
-    const fan = page.getByRole("article", { name: "Fan" });
+    const fan = page.getByRole("article", { name: "Fan", exact: true });
     await expect(fan).toContainText("48");
     await expect(fan).toContainText("%");
 
-    const reservoir = page.getByRole("article", { name: "Reservoir" });
+    const reservoir = page.getByRole("article", { name: "Reservoir", exact: true });
     await expect(reservoir).toContainText("9.2");
     await expect(reservoir).toContainText("in");
   });
@@ -94,21 +117,31 @@ test.describe("dashboard gauges", () => {
     // non-null `target`; absent on fan_pct + reservoir_in (which the
     // BE returns with target=null).
     await expect(
-      page.getByRole("article", { name: "Temperature" }).getByLabel("target band"),
+      page
+        .getByRole("article", { name: "Temperature", exact: true })
+        .getByLabel("target band"),
     ).toHaveCount(1);
     await expect(
-      page.getByRole("article", { name: "Humidity" }).getByLabel("target band"),
+      page
+        .getByRole("article", { name: "Humidity", exact: true })
+        .getByLabel("target band"),
     ).toHaveCount(1);
     await expect(
-      page.getByRole("article", { name: "VPD" }).getByLabel("target band"),
+      page
+        .getByRole("article", { name: "VPD", exact: true })
+        .getByLabel("target band"),
     ).toHaveCount(1);
 
     // No arc on the band-less tiles.
     await expect(
-      page.getByRole("article", { name: "Fan" }).getByLabel("target band"),
+      page
+        .getByRole("article", { name: "Fan", exact: true })
+        .getByLabel("target band"),
     ).toHaveCount(0);
     await expect(
-      page.getByRole("article", { name: "Reservoir" }).getByLabel("target band"),
+      page
+        .getByRole("article", { name: "Reservoir", exact: true })
+        .getByLabel("target band"),
     ).toHaveCount(0);
 
     // Total count: exactly three banded tiles.
@@ -124,7 +157,7 @@ test.describe("dashboard gauges", () => {
     // role="status" element whose text is "ok" | "warn" | "crit", plus
     // a data-status attribute for deterministic attribute matching.
     for (const name of ["Temperature", "Humidity", "VPD", "Fan", "Reservoir"]) {
-      const tile = page.getByRole("article", { name });
+      const tile = page.getByRole("article", { name, exact: true });
       const status = tile.getByRole("status");
       await expect(status).toHaveText("ok");
       await expect(status).toHaveAttribute("data-status", "ok");
