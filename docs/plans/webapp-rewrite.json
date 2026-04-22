@@ -298,7 +298,7 @@
       "acceptance": [
         { "kind": "e2e", "test_file": "web-ui/tests/e2e/dashboard-plants-strip.spec.ts", "description": "Open /. Assert four plant cards render (A, B, C, D) below the sparklines. Each card shows its sticker chip color sourced from GET /api/plants (the response's sticker color per plant). Each card shows a soil-moisture bar whose width matches the plant's moisture.current_pct. Clicking plant A's card opens the plant-detail drawer (the drawer is rendered by frontend.plant_detail, lands in a later feature — for this spec, assert the click triggers a GET /api/plants/a, no need to assert drawer contents)." }
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "backend.plants.detail",
@@ -336,7 +336,7 @@
         { "kind": "e2e", "test_file": "web-ui/tests/e2e/plant-detail.spec.ts", "description": "Open /. Click plant A's card in the plants strip. Assert the drawer opens (a dialog/aside element becomes visible). Assert the drawer's frontmatter rows render (sticker, name, primary/secondary tag) matching GET /api/plants/a. Assert the moisture hero displays moisture.current_pct matching the response. Assert the timeline list's row count equals response.timeline.length. Pressing ESC closes the drawer (dialog becomes hidden)." },
         { "kind": "visual", "reference_screenshot": "docs/plans/refs/plant-detail-a.png", "threshold_pct": 5 }
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "backend.system.devices",
