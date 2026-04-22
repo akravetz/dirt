@@ -349,7 +349,7 @@
         { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/system/devices removed." },
         { "kind": "unit", "path": "apps/web/tests/test_system_devices_endpoint.py" }
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "frontend.dashboard.system_table",
