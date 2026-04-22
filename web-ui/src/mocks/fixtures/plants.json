@@ -1,0 +1,41 @@
+{
+  "day": 39,
+  "plants": [
+    {
+      "code": "a",
+      "name": "Plant A",
+      "sticker_color": "yellow",
+      "status": "primary",
+      "purple": true,
+      "moisture_pct": 57.431811216671775,
+      "moisture_ts": "2026-04-22T01:00:17.590890Z"
+    },
+    {
+      "code": "b",
+      "name": "Plant B",
+      "sticker_color": "orange",
+      "status": "secondary",
+      "purple": false,
+      "moisture_pct": 64.29159802306425,
+      "moisture_ts": "2026-04-22T15:21:27.045304Z"
+    },
+    {
+      "code": "c",
+      "name": "Plant C",
+      "sticker_color": "pink",
+      "status": "secondary",
+      "purple": false,
+      "moisture_pct": 74.30750702529105,
+      "moisture_ts": "2026-04-22T15:21:33.388368Z"
+    },
+    {
+      "code": "d",
+      "name": "Plant D",
+      "sticker_color": "blue",
+      "status": "primary",
+      "purple": true,
+      "moisture_pct": 55.83796664019063,
+      "moisture_ts": "2026-04-22T15:21:29.416818Z"
+    }
+  ]
+}

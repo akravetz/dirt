@@ -1,0 +1,77 @@
+{
+  "q": "topping",
+  "results": [
+    {
+      "path": "wiki/concepts/topping.md",
+      "title": "Concept — Topping",
+      "match_type": "title",
+      "snippet": null
+    },
+    {
+      "path": "wiki/concepts/autopot.md",
+      "title": "Concept — Autopot System",
+      "match_type": "content",
+      "snippet": "ir change — weekly to 10-day  Topping off is not sufficient. Over days, the solution de"
+    },
+    {
+      "path": "wiki/concepts/ec.md",
+      "title": "Concept — EC (Electrical Conductivity)",
+      "match_type": "content",
+      "snippet": "utrients | | Early veg / post-topping | 0.8–1.0 | 400–500 | **Current target.** Lean lo"
+    },
+    {
+      "path": "wiki/concepts/lst.md",
+      "title": "Concept — LST (Low Stress Training)",
+      "match_type": "content",
+      "snippet": "ower once buds form - **After topping:** Wait 5–7 days for recovery, then resume LST on"
+    },
+    {
+      "path": "wiki/concepts/plant-training-methods.md",
+      "title": "Concept — Plant Training Methods",
+      "match_type": "content",
+      "snippet": "-stress (LST) to high-stress (topping, super cropping), and are often combined.  ---  #"
+    },
+    {
+      "path": "wiki/concepts/scrog.md",
+      "title": "Concept — SCROG (Screen of Green)",
+      "match_type": "content",
+      "snippet": "6-04-18 (Day 35, Day 6–7 post-topping) — 11\" above the canopy / **18\" above pot base**"
+    },
+    {
+      "path": "wiki/daily/2026-04-02.md",
+      "title": "Daily: 2026-04-02 (Day 19) — Training Plan Established",
+      "match_type": "content",
+      "snippet": "Begin now — plants ready | | Topping | Node 4–5 visible, ~2–3 weeks from today | | SCR"
+    },
+    {
+      "path": "wiki/daily/2026-04-05.md",
+      "title": "Daily: 2026-04-05 (Day 22) — Nutrient Burn Incident (Plant A)",
+      "match_type": "content",
+      "snippet": "atering — 150–200ml only.  ## Topping Timeline  Node 4–5 becoming visible. **Topping wi"
+    },
+    {
+      "path": "wiki/daily/2026-04-06.md",
+      "title": "Daily: 2026-04-06 (Day 23)",
+      "match_type": "content",
+      "snippet": "l plants (especially C) - [ ] Topping window approaching (~1 week) - [ ] Float valve ac"
+    },
+    {
+      "path": "wiki/daily/2026-04-08.md",
+      "title": "Daily: 2026-04-08 (Day 25) — Plant C Worsening; VPD Swing Incident",
+      "match_type": "content",
+      "snippet": "raining & Milestone Update  **Topping window:** With Plant A now showing 4–5 nodes, the"
+    },
+    {
+      "path": "wiki/daily/2026-04-11.md",
+      "title": "Daily: 2026-04-11 (Day 28) — Plant A Topped; Vigor Leader Confirmed",
+      "match_type": "content",
+      "snippet": "r candidate at this stage.  **Topping window:** The target trigger is node 4 clearly vi"
+    },
+    {
+      "path": "wiki/daily/2026-04-12.md",
+      "title": "Daily: 2026-04-12 (Day 29) — All Four Plants Topped",
+      "match_type": "content",
+      "snippet": "12. All four are now in post-topping recovery. See [Topping](../concepts/topping.md) f"
+    }
+  ]
+}

@@ -1,0 +1,112 @@
+{
+  "code": "a",
+  "name": "Plant A",
+  "sticker_color": "yellow",
+  "status": "primary",
+  "purple": true,
+  "day": 39,
+  "label": "Purple Keeper Candidate",
+  "moisture": {
+    "current_pct": 57.431811216671775,
+    "target": [55.0, 70.0],
+    "status": "ok",
+    "ts": "2026-04-22T01:00:17.590890Z"
+  },
+  "timeline": [
+    {
+      "date": "2026-03-27",
+      "day": 13,
+      "text": "Pre-transplant; 2–3 true leaf sets, approaching transplant readiness",
+      "highlight": false
+    },
+    {
+      "date": "2026-03-29",
+      "day": 15,
+      "text": "Transplanted into Autopot XL (coco/perlite 60/40); hand-watering begins",
+      "highlight": false
+    },
+    {
+      "date": "2026-03-30",
+      "day": 16,
+      "text": "Runoff observed; watering reduced to 150–200ml",
+      "highlight": false
+    },
+    {
+      "date": "2026-03-30",
+      "day": 16,
+      "text": "Purple stem/leaf undersides first noted; labeled Plant A",
+      "highlight": false
+    },
+    {
+      "date": "2026-04-01",
+      "day": 18,
+      "text": "Anthocyanin confirmed — deep purple leaf undersides, stems, petioles; elevated to primary keeper",
+      "highlight": false
+    },
+    {
+      "date": "2026-04-02",
+      "day": 19,
+      "text": "~2 nodes, compact, stem base purple; training plan established",
+      "highlight": false
+    },
+    {
+      "date": "2026-04-03",
+      "day": 20,
+      "text": "2–3 nodes, subtle stem color; all healthy",
+      "highlight": false
+    },
+    {
+      "date": "2026-04-05",
+      "day": 22,
+      "text": "Purple expression continuing (new growth tips + petioles showing color); foliar burn incident on upper leaves (cosmetic only",
+      "highlight": false
+    },
+    {
+      "date": "2026-04-06",
+      "day": 23,
+      "text": "Photos taken; monitoring foliar burn recovery and new growth",
+      "highlight": false
+    },
+    {
+      "date": "2026-04-08",
+      "day": 25,
+      "text": "4–5 nodes developing; foliar burn stable (not spreading); no new issues",
+      "highlight": false
+    },
+    {
+      "date": "2026-04-11",
+      "day": 28,
+      "text": "**Topped above node 4**; 5th node was emerging; most vigorous plant overall; strong purple contender alongside D",
+      "highlight": true
+    },
+    {
+      "date": "2026-04-12",
+      "day": 29,
+      "text": "Recovery Day 1; monitoring for two new main shoots; LST target ~Apr 16–18",
+      "highlight": false
+    },
+    {
+      "date": "2026-04-18",
+      "day": 35,
+      "text": "Post-topping recovery complete; vigorous multi-branch canopy; **LST due now** (Day 7 post-topping); v1.2 sensor → v2.0 swap",
+      "highlight": true
+    },
+    {
+      "date": "2026-04-19",
+      "day": 36,
+      "text": "vigorous multi-branch canopy; main shoots sized up; **LST overdue** (Day 8 post-topping); moisture rising to 56% (autopot active",
+      "highlight": true
+    },
+    {
+      "date": "2026-04-20",
+      "day": 37,
+      "text": "vigorous medium-green canopy; faint residual foliar burn on older leaves only; **LST critically overdue** (Day 9 post-topping); moisture stable ~52%",
+      "highlight": true
+    }
+  ],
+  "note": {
+    "text": "Day 37, nine days post-topping: vigorous medium-green multi-branch canopy with clean new growth; residual cosmetic foliar burn on a few older leaves only; LST is critically overdue. See [2026-04-20](../daily/2026-04-20.md).",
+    "updated": "2026-04-20"
+  },
+  "wiki_path": "wiki/plants/plant-a.md"
+}

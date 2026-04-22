@@ -1,0 +1,136 @@
+#!/usr/bin/env -S uv run --with httpx python
+"""Capture live-backend responses into MSW fixture files.
+
+Hits the running dirt-web on :8001 with an admin cookie session, captures
+every safe-GET endpoint's response body, and writes the result as JSON
+under web-ui/src/mocks/fixtures/. MSW handlers.ts is refactored separately
+to import these files as the 200-path body.
+
+Out of scope:
+  - Binary endpoints (/api/feed/*.jpg).
+  - Side-effecting POSTs (ptz/{preset,look,zoom}, auth/login, auth/logout).
+  - Error branches (404/400/422) — those stay as inline logic in handlers.ts.
+
+Variant endpoints (sensors/history, humidifier/history, plants/{code}, etc.)
+capture one fixture per variant; the handler dispatches to the right file
+by query-string / path-param at serve time.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+from pathlib import Path
+
+import httpx
+
+REPO = Path(__file__).resolve().parent.parent
+OUT_DIR = REPO / "web-ui" / "src" / "mocks" / "fixtures"
+BASE = "http://127.0.0.1:8001"
+
+USERNAME = os.environ.get("AUTH_USERNAME", "admin")
+PASSWORD = os.environ.get("AUTH_PASSWORD")
+if PASSWORD is None:
+    # Read from .env if not in shell env.
+    env_path = REPO / ".env"
+    for line in env_path.read_text().splitlines():
+        if line.startswith("AUTH_PASSWORD="):
+            PASSWORD = line.split("=", 1)[1].strip()
+            break
+if not PASSWORD:
+    print("AUTH_PASSWORD not found in env or .env", file=sys.stderr)
+    sys.exit(1)
+
+METRICS = ["temperature_f", "humidity_pct", "vpd_kpa", "fan_pct", "reservoir_in"]
+RANGES = ["1h", "24h", "7d"]
+PLANT_CODES = ["a", "b", "c", "d"]
+
+
+def dump(slug: str, body: object) -> None:
+    path = OUT_DIR / f"{slug}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(body, indent=2, sort_keys=False, ensure_ascii=False) + "\n"
+    )
+    print(f"  wrote {path.relative_to(REPO)}")
+
+
+def get_json(client: httpx.Client, url: str, **kwargs) -> object:
+    r = client.get(url, **kwargs)
+    r.raise_for_status()
+    return r.json()
+
+
+def main() -> int:
+    print(f"[auth] POST {BASE}/api/auth/login as {USERNAME}")
+    client = httpx.Client(base_url=BASE, timeout=10.0)
+    r = client.post("/api/auth/login", json={"username": USERNAME, "password": PASSWORD})
+    r.raise_for_status()
+
+    print("[flat]")
+    dump("auth.me", get_json(client, "/api/auth/me"))
+    dump("grow.current", get_json(client, "/api/grow/current"))
+    dump("sensors.current", get_json(client, "/api/sensors/current"))
+    dump("humidifier.state", get_json(client, "/api/humidifier/state"))
+    dump("plants", get_json(client, "/api/plants"))
+    dump("system.devices", get_json(client, "/api/system/devices"))
+    dump("ptz.state", get_json(client, "/api/ptz/state"))
+    dump("wiki.tree", get_json(client, "/api/wiki/tree"))
+
+    print("[sensors.history]")
+    for rng in RANGES:
+        for metric in METRICS:
+            body = get_json(
+                client,
+                "/api/sensors/history",
+                params={"range": rng, "metric": metric},
+            )
+            dump(f"sensors.history.{rng}.{metric}", body)
+
+    print("[humidifier.history]")
+    for rng in RANGES:
+        body = get_json(client, "/api/humidifier/history", params={"range": rng})
+        dump(f"humidifier.history.{rng}", body)
+
+    print("[plants.detail]")
+    for code in PLANT_CODES:
+        body = get_json(client, f"/api/plants/{code}")
+        dump(f"plants.{code}", body)
+
+    print("[plants.moisture]")
+    for code in PLANT_CODES:
+        for rng in RANGES:
+            body = get_json(
+                client,
+                f"/api/plants/{code}/moisture",
+                params={"range": rng},
+            )
+            dump(f"plants.{code}.moisture.{rng}", body)
+
+    print("[wiki.file samples]")
+    # plant-a.md is the page the e2e exercises most heavily; grab a few
+    # representative paths so the fixture covers: a plant file (with
+    # frontmatter + subtitle), a root file, a concepts file.
+    for sample_path, slug in [
+        ("plants/plant-a.md", "wiki.file.plants.plant-a"),
+        ("overview.md", "wiki.file.overview"),
+        ("index.md", "wiki.file.index"),
+    ]:
+        try:
+            body = get_json(client, "/api/wiki/file", params={"path": sample_path})
+            dump(slug, body)
+        except httpx.HTTPStatusError as e:
+            print(f"  skip {sample_path}: {e.response.status_code}")
+
+    print("[wiki.search samples]")
+    for q, slug in [("plant", "wiki.search.plant"), ("topping", "wiki.search.topping")]:
+        body = get_json(client, "/api/wiki/search", params={"q": q})
+        dump(slug, body)
+
+    print("done.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

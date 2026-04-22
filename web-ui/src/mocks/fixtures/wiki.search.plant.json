@@ -1,0 +1,77 @@
+{
+  "q": "plant",
+  "results": [
+    {
+      "path": "wiki/concepts/plant-training-methods.md",
+      "title": "Concept — Plant Training Methods",
+      "match_type": "title",
+      "snippet": null
+    },
+    {
+      "path": "wiki/daily/2026-03-29.md",
+      "title": "Daily: 2026-03-29 (Day 15) — Transplant Day",
+      "match_type": "title",
+      "snippet": null
+    },
+    {
+      "path": "wiki/daily/2026-03-30.md",
+      "title": "Daily: 2026-03-30 (Day 16) — Purple Phenotype Spotted, Plants Labeled",
+      "match_type": "title",
+      "snippet": null
+    },
+    {
+      "path": "wiki/daily/2026-04-05.md",
+      "title": "Daily: 2026-04-05 (Day 22) — Nutrient Burn Incident (Plant A)",
+      "match_type": "title",
+      "snippet": null
+    },
+    {
+      "path": "wiki/daily/2026-04-08.md",
+      "title": "Daily: 2026-04-08 (Day 25) — Plant C Worsening; VPD Swing Incident",
+      "match_type": "title",
+      "snippet": null
+    },
+    {
+      "path": "wiki/daily/2026-04-11.md",
+      "title": "Daily: 2026-04-11 (Day 28) — Plant A Topped; Vigor Leader Confirmed",
+      "match_type": "title",
+      "snippet": null
+    },
+    {
+      "path": "wiki/daily/2026-04-12.md",
+      "title": "Daily: 2026-04-12 (Day 29) — All Four Plants Topped",
+      "match_type": "title",
+      "snippet": null
+    },
+    {
+      "path": "wiki/decisions/2026-04-01-anthocyanin-priority.md",
+      "title": "Decision: Anthocyanin Priority Shift (Plants A & D Elevated)",
+      "match_type": "title",
+      "snippet": null
+    },
+    {
+      "path": "wiki/decisions/2026-04-12-distributed-sensor-architecture.md",
+      "title": "Distributed Sensor Architecture: ESP32-C3 Per-Plant Nodes + Arduino Nano Tent Hub",
+      "match_type": "title",
+      "snippet": null
+    },
+    {
+      "path": "wiki/decisions/2026-04-14-esp32-c3-gpio3-adc.md",
+      "title": "ESP32-C3 Plant Nodes: GPIO3 + ESP-IDF ADC Driver",
+      "match_type": "title",
+      "snippet": null
+    },
+    {
+      "path": "wiki/hardware/esp32-plant-nodes.md",
+      "title": "Hardware — ESP32-C3 Per-Plant Nodes",
+      "match_type": "title",
+      "snippet": null
+    },
+    {
+      "path": "wiki/plants/plant-a.md",
+      "title": "Plant A — Purple Keeper Candidate",
+      "match_type": "title",
+      "snippet": null
+    }
+  ]
+}

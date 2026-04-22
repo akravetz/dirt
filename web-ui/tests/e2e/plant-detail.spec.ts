@@ -33,56 +33,93 @@ test.describe("plant detail", () => {
   test("drawer header shows sticker + name + status tag from /api/plants/a", async ({
     page,
   }) => {
+    // Capture the response so the header assertions derive from the
+    // live payload rather than hard-coded MSW fixture values.
+    const responsePromise = page.waitForResponse(
+      (resp) =>
+        new URL(resp.url()).pathname === "/api/plants/a" && resp.ok(),
+    );
     await page.getByRole("button", { name: "Plant A", exact: true }).click();
+    const payload = (await (await responsePromise).json()) as {
+      sticker_color: string;
+      name: string;
+      status: string;
+      label: string;
+    };
+
     const dialog = page.getByRole("dialog", { name: "Plant detail" });
     await expect(dialog).toBeVisible();
 
-    // Sticker chip surfaces its colour via data-color, matching
-    // fixture sticker_color=yellow for plant A.
-    await expect(dialog.getByLabel("sticker")).toHaveAttribute("data-color", "yellow");
+    // Sticker chip surfaces its colour via data-color — whatever the
+    // response reports.
+    await expect(dialog.getByLabel("sticker")).toHaveAttribute(
+      "data-color",
+      payload.sticker_color,
+    );
 
     // Name rendered as a heading inside the drawer.
     await expect(
-      dialog.getByRole("heading", { level: 2, name: "Plant A" }),
+      dialog.getByRole("heading", { level: 2, name: payload.name }),
     ).toBeVisible();
 
-    // Status + label rows from the fixture (status=primary →
-    // "Primary"; label="Primary · bushy").
+    // Status row displays a title-cased status word matching the
+    // response's enum value ("primary" | "secondary" | "retired").
     const statusRow = dialog.getByRole("status", { name: "Plant status" });
-    await expect(statusRow).toHaveText("Primary");
-    await expect(dialog).toContainText("Primary · bushy");
+    const expectedStatus =
+      payload.status.charAt(0).toUpperCase() + payload.status.slice(1);
+    await expect(statusRow).toHaveText(expectedStatus);
+    await expect(dialog).toContainText(payload.label);
   });
 
   test("moisture hero displays moisture.current_pct from the response", async ({
     page,
   }) => {
+    const responsePromise = page.waitForResponse(
+      (resp) =>
+        new URL(resp.url()).pathname === "/api/plants/a" && resp.ok(),
+    );
     await page.getByRole("button", { name: "Plant A", exact: true }).click();
+    const payload = (await (await responsePromise).json()) as {
+      moisture: { current_pct: number | null };
+    };
+
     const dialog = page.getByRole("dialog", { name: "Plant detail" });
     await expect(dialog).toBeVisible();
 
-    // Fixture sets moisture.current_pct=62 for plant A. The hero
-    // renders the integer inside a Moisture section; scoping to the
-    // section avoids accidental matches against the timeline (entry
-    // counts, day numbers, etc.).
     const moisture = dialog.getByRole("region", { name: "Moisture" });
-    await expect(moisture).toContainText("62");
+    // Hero renders the integer percent; live value drifts per capture,
+    // so assert against the response's own reported number (rounded to
+    // the integer the hero displays).
+    expect(payload.moisture.current_pct).not.toBeNull();
+    const rounded = Math.round(payload.moisture.current_pct ?? 0).toString();
+    await expect(moisture).toContainText(rounded);
     await expect(moisture).toContainText("%");
   });
 
   test("timeline list row count equals response.timeline.length", async ({
     page,
   }) => {
+    const responsePromise = page.waitForResponse(
+      (resp) =>
+        new URL(resp.url()).pathname === "/api/plants/a" && resp.ok(),
+    );
     await page.getByRole("button", { name: "Plant A", exact: true }).click();
+    const payload = (await (await responsePromise).json()) as {
+      timeline: unknown[];
+    };
+
     const dialog = page.getByRole("dialog", { name: "Plant detail" });
     await expect(dialog).toBeVisible();
 
-    // MSW fixture yields exactly 6 timeline entries for every plant.
-    // Each <li> is itself labelled "timeline entry" and belongs to the
-    // timeline <ul>; scoping via the Timeline section landmark guards
-    // against accidental matches if other regions gain listitems later.
+    // Row count == the live response's timeline length — the plan's
+    // literal contract. Hard-coding "6" coupled the spec to an MSW
+    // fixture that was always 6 entries per plant; real grow history
+    // grows over time.
+    const expectedCount = payload.timeline.length;
+    expect(expectedCount).toBeGreaterThan(0);
     const timeline = dialog.getByRole("region", { name: "Timeline" });
-    await expect(timeline.getByLabel("timeline entry")).toHaveCount(6);
-    await expect(timeline.getByRole("listitem")).toHaveCount(6);
+    await expect(timeline.getByLabel("timeline entry")).toHaveCount(expectedCount);
+    await expect(timeline.getByRole("listitem")).toHaveCount(expectedCount);
   });
 
   test("pressing ESC closes the drawer", async ({ page }) => {

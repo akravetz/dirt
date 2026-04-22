@@ -1,0 +1,112 @@
+{
+  "code": "c",
+  "name": "Plant C",
+  "sticker_color": "pink",
+  "status": "secondary",
+  "purple": false,
+  "day": 39,
+  "label": "",
+  "moisture": {
+    "current_pct": 74.30750702529105,
+    "target": [55.0, 70.0],
+    "status": "warn",
+    "ts": "2026-04-22T15:21:33.388368Z"
+  },
+  "timeline": [
+    {
+      "date": "2026-03-27",
+      "day": 13,
+      "text": "Pre-transplant; 2–3 true leaf sets",
+      "highlight": false
+    },
+    {
+      "date": "2026-03-29",
+      "day": 15,
+      "text": "Transplanted into Autopot XL; hand-watering begins",
+      "highlight": false
+    },
+    {
+      "date": "2026-03-30",
+      "day": 16,
+      "text": "Post-transplant; watering adjusted to 150–200ml",
+      "highlight": false
+    },
+    {
+      "date": "2026-03-30",
+      "day": 16,
+      "text": "Labeled Plant C; no purple; most vigorous",
+      "highlight": false
+    },
+    {
+      "date": "2026-04-01",
+      "day": 18,
+      "text": "3 nodes, broader leaf morphology, aerial root hairs visible — most developmentally advanced; no purple",
+      "highlight": false
+    },
+    {
+      "date": "2026-04-02",
+      "day": 19,
+      "text": "~3 nodes, most advanced, strong symmetrical growth, no purple",
+      "highlight": false
+    },
+    {
+      "date": "2026-04-03",
+      "day": 20,
+      "text": "3 nodes, most vigorous, no purple; RH concern noted",
+      "highlight": false
+    },
+    {
+      "date": "2026-04-05",
+      "day": 22,
+      "text": "⚠️ Lighter green + edge spotting on older leaves — pH verification needed",
+      "highlight": false
+    },
+    {
+      "date": "2026-04-06",
+      "day": 23,
+      "text": "Photos taken; monitoring leaf issue",
+      "highlight": false
+    },
+    {
+      "date": "2026-04-08",
+      "day": 25,
+      "text": "⚠️ Worsening — brown/rust spots on multiple leaves; stress-induced purple now visible on stems/petioles (NOT genetic); runoff pH/EC check required",
+      "highlight": false
+    },
+    {
+      "date": "2026-04-11",
+      "day": 28,
+      "text": "No new observations; runoff pH/EC test still pending; leaf issue unresolved",
+      "highlight": false
+    },
+    {
+      "date": "2026-04-12",
+      "day": 29,
+      "text": "**Topped above node 4**; leaf issue diagnosed as foliar burn (splash), not pH lockout — resolved; normal recovery expected",
+      "highlight": true
+    },
+    {
+      "date": "2026-04-18",
+      "day": 35,
+      "text": "Recovery Day 6; compact healthy branching; **LST due now**; moisture stable ~40–42%",
+      "highlight": true
+    },
+    {
+      "date": "2026-04-19",
+      "day": 36,
+      "text": "compact healthy canopy; **LST overdue** (Day 7 post-topping); moisture stable ~45%",
+      "highlight": true
+    },
+    {
+      "date": "2026-04-20",
+      "day": 37,
+      "text": "compact symmetrical medium-green canopy; clean leaves; **LST critically overdue** (Day 8 post-topping); moisture stable ~51%",
+      "highlight": true
+    }
+  ],
+  "note": {
+    "text": "Day 37, eight days post-topping: compact symmetrical medium-green multi-branch canopy; stable autopot moisture (~51%); clean leaves; LST critically overdue. See [2026-04-20](../daily/2026-04-20.md).",
+    "updated": "2026-04-20"
+  },
+  "wiki_path": "wiki/plants/plant-c.md"
+}

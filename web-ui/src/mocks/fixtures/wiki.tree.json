@@ -1,0 +1,544 @@
+{
+  "tree": [
+    {
+      "type": "file",
+      "name": "index.md",
+      "path": "wiki/index.md",
+      "title": "Index",
+      "sticker_color": null
+    },
+    {
+      "type": "file",
+      "name": "log.md",
+      "path": "wiki/log.md",
+      "title": "Activity Log",
+      "sticker_color": null
+    },
+    {
+      "type": "file",
+      "name": "overview.md",
+      "path": "wiki/overview.md",
+      "title": "Grow Overview",
+      "sticker_color": null
+    },
+    {
+      "type": "folder",
+      "name": "concepts",
+      "children": [
+        {
+          "type": "file",
+          "name": "anthocyanin.md",
+          "path": "wiki/concepts/anthocyanin.md",
+          "title": "Concept — Anthocyanin (Purple Expression)",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "autopot.md",
+          "path": "wiki/concepts/autopot.md",
+          "title": "Concept — Autopot System",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "capacitive-soil-moisture.md",
+          "path": "wiki/concepts/capacitive-soil-moisture.md",
+          "title": "Concept — Capacitive Soil Moisture Sensors (v1.2 + v2.0)",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "coco-coir.md",
+          "path": "wiki/concepts/coco-coir.md",
+          "title": "Concept — Coco Coir Medium",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "damping-off.md",
+          "path": "wiki/concepts/damping-off.md",
+          "title": "Concept — Damping Off",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "dli-light-management.md",
+          "path": "wiki/concepts/dli-light-management.md",
+          "title": "Concept — DLI & Light Management (Fold-650)",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "ec.md",
+          "path": "wiki/concepts/ec.md",
+          "title": "Concept — EC (Electrical Conductivity)",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "flushing.md",
+          "path": "wiki/concepts/flushing.md",
+          "title": "Concept — Flushing (Coco)",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "lollipopping-defoliation.md",
+          "path": "wiki/concepts/lollipopping-defoliation.md",
+          "title": "Concept — Lollipopping & Defoliation",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "lst.md",
+          "path": "wiki/concepts/lst.md",
+          "title": "Concept — LST (Low Stress Training)",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "multi-actuator-environment-control.md",
+          "path": "wiki/concepts/multi-actuator-environment-control.md",
+          "title": "Multi-Actuator Tent Environment Control — Design Principles (future work)",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "nutrient-burn.md",
+          "path": "wiki/concepts/nutrient-burn.md",
+          "title": "Concept — Nutrient Burn",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "ph-lockout.md",
+          "path": "wiki/concepts/ph-lockout.md",
+          "title": "Concept — pH Lockout",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "plant-training-methods.md",
+          "path": "wiki/concepts/plant-training-methods.md",
+          "title": "Concept — Plant Training Methods",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "room-impulse-response.md",
+          "path": "wiki/concepts/room-impulse-response.md",
+          "title": "Room Impulse Response (RIR)",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "scrog.md",
+          "path": "wiki/concepts/scrog.md",
+          "title": "Concept — SCROG (Screen of Green)",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "topping.md",
+          "path": "wiki/concepts/topping.md",
+          "title": "Concept — Topping",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "trichome-stages.md",
+          "path": "wiki/concepts/trichome-stages.md",
+          "title": "Concept — Trichome Stages & Harvest Timing",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "vpd.md",
+          "path": "wiki/concepts/vpd.md",
+          "title": "Concept — VPD (Vapor Pressure Deficit)",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "wake-word-detection.md",
+          "path": "wiki/concepts/wake-word-detection.md",
+          "title": "Wake-Word Detection",
+          "sticker_color": null
+        }
+      ]
+    },
+    {
+      "type": "folder",
+      "name": "daily",
+      "children": [
+        {
+          "type": "file",
+          "name": "2026-03-27.md",
+          "path": "wiki/daily/2026-03-27.md",
+          "title": "Daily: 2026-03-27 (Day 13)",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-03-29.md",
+          "path": "wiki/daily/2026-03-29.md",
+          "title": "Daily: 2026-03-29 (Day 15) — Transplant Day",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-03-30.md",
+          "path": "wiki/daily/2026-03-30.md",
+          "title": "Daily: 2026-03-30 (Day 16) — Purple Phenotype Spotted, Plants Labeled",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-04-01.md",
+          "path": "wiki/daily/2026-04-01.md",
+          "title": "Daily: 2026-04-01 (Day 18) — Anthocyanin Confirmed, Priority Shift",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-04-02.md",
+          "path": "wiki/daily/2026-04-02.md",
+          "title": "Daily: 2026-04-02 (Day 19) — Training Plan Established",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-04-03.md",
+          "path": "wiki/daily/2026-04-03.md",
+          "title": "Daily: 2026-04-03 (Day 20)",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-04-05.md",
+          "path": "wiki/daily/2026-04-05.md",
+          "title": "Daily: 2026-04-05 (Day 22) — Nutrient Burn Incident (Plant A)",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-04-06.md",
+          "path": "wiki/daily/2026-04-06.md",
+          "title": "Daily: 2026-04-06 (Day 23)",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-04-08.md",
+          "path": "wiki/daily/2026-04-08.md",
+          "title": "Daily: 2026-04-08 (Day 25) — Plant C Worsening; VPD Swing Incident",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-04-11.md",
+          "path": "wiki/daily/2026-04-11.md",
+          "title": "Daily: 2026-04-11 (Day 28) — Plant A Topped; Vigor Leader Confirmed",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-04-12.md",
+          "path": "wiki/daily/2026-04-12.md",
+          "title": "Daily: 2026-04-12 (Day 29) — All Four Plants Topped",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-04-18.md",
+          "path": "wiki/daily/2026-04-18.md",
+          "title": "Daily: 2026-04-18 (Day 35) — SCROG Net Installed; LST Imminent; Overnight Temp/RH Flags; A/D Sensors Upgraded",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-04-19.md",
+          "path": "wiki/daily/2026-04-19.md",
+          "title": "Daily: 2026-04-19 (Day 36) — Overnight Temp Recovered; LST Overdue; Daytime VPD Elevated",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-04-20.md",
+          "path": "wiki/daily/2026-04-20.md",
+          "title": "Daily: 2026-04-20 (Day 37) — Daytime Environment In Target; Overnight RH Regressed; LST Still Outstanding",
+          "sticker_color": null
+        }
+      ]
+    },
+    {
+      "type": "folder",
+      "name": "decisions",
+      "children": [
+        {
+          "type": "file",
+          "name": "2026-03-16-medium-and-training.md",
+          "path": "wiki/decisions/2026-03-16-medium-and-training.md",
+          "title": "Decision: Medium, Nutrients & Training Approach",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-04-01-anthocyanin-priority.md",
+          "path": "wiki/decisions/2026-04-01-anthocyanin-priority.md",
+          "title": "Decision: Anthocyanin Priority Shift (Plants A & D Elevated)",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-04-11-reservoir-stand.md",
+          "path": "wiki/decisions/2026-04-11-reservoir-stand.md",
+          "title": "Decision: Reservoir Stand for Autopot FlexiTank Pro",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-04-12-agent-architecture.md",
+          "path": "wiki/decisions/2026-04-12-agent-architecture.md",
+          "title": "Agent Architecture: Ephemeral Loops via Claude Agent SDK",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-04-12-audio-hardware-selection.md",
+          "path": "wiki/decisions/2026-04-12-audio-hardware-selection.md",
+          "title": "Audio Hardware Selection: Jabra Speak 410",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-04-12-distributed-sensor-architecture.md",
+          "path": "wiki/decisions/2026-04-12-distributed-sensor-architecture.md",
+          "title": "Distributed Sensor Architecture: ESP32-C3 Per-Plant Nodes + Arduino Nano Tent Hub",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-04-12-ptz-camera-selection.md",
+          "path": "wiki/decisions/2026-04-12-ptz-camera-selection.md",
+          "title": "PTZ Camera Selection: OBSBOT Tiny 2 Lite",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-04-12-telegram-mobile-interface.md",
+          "path": "wiki/decisions/2026-04-12-telegram-mobile-interface.md",
+          "title": "Mobile Chat Interface: Telegram Bot",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-04-14-agent-runtime-shell-out.md",
+          "path": "wiki/decisions/2026-04-14-agent-runtime-shell-out.md",
+          "title": "Agent Runtime: Shell-Out to Claude Code CLI (Uses Max Subscription)",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-04-14-esp32-c3-gpio3-adc.md",
+          "path": "wiki/decisions/2026-04-14-esp32-c3-gpio3-adc.md",
+          "title": "ESP32-C3 Plant Nodes: GPIO3 + ESP-IDF ADC Driver",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-04-14-humidifier-relay-control.md",
+          "path": "wiki/decisions/2026-04-14-humidifier-relay-control.md",
+          "title": "Closed-Loop Humidifier Control: Raydrop 4L + G3MB-202P SSR",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-04-14-server-side-auto-calibration.md",
+          "path": "wiki/decisions/2026-04-14-server-side-auto-calibration.md",
+          "title": "Server-Side Auto-Calibration for Soil Moisture",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-04-16-voice-pipeline-selections.md",
+          "path": "wiki/decisions/2026-04-16-voice-pipeline-selections.md",
+          "title": "Voice Pipeline Selections — ElevenLabs TTS + openWakeWord",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-04-16-wake-word-training-strategy.md",
+          "path": "wiki/decisions/2026-04-16-wake-word-training-strategy.md",
+          "title": "Wake-Word Training Strategy — Voice Clone + Captured RIRs",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-04-17-humidifier-kasa-ep10.md",
+          "path": "wiki/decisions/2026-04-17-humidifier-kasa-ep10.md",
+          "title": "Humidifier Control via Kasa EP10 Smart Plug + python-kasa (supersedes 2026-04-14)",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-04-18-reservoir-level-pressure-transducer.md",
+          "path": "wiki/decisions/2026-04-18-reservoir-level-pressure-transducer.md",
+          "title": "Decision: Reservoir Level via Submerged Pressure Transducer + ADS1115",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-04-18-vpd-targeting.md",
+          "path": "wiki/decisions/2026-04-18-vpd-targeting.md",
+          "title": "Humidifier Control Targets VPD, Not Fixed RH (stage-dynamic)",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-04-18-wake-word-v4-plan.md",
+          "path": "wiki/decisions/2026-04-18-wake-word-v4-plan.md",
+          "title": "Wake-Word v4 Plan — Precision-focused retraining",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-04-19-drop-humidifier-safety-timers.md",
+          "path": "wiki/decisions/2026-04-19-drop-humidifier-safety-timers.md",
+          "title": "Drop Humidifier Max-On and Min-Off Timers",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-04-19-lights-off-aware-humidifier.md",
+          "path": "wiki/decisions/2026-04-19-lights-off-aware-humidifier.md",
+          "title": "Lights-Off-Aware Humidifier Control (feedforward on lights schedule)",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "2026-04-20-bme280-sensor-swap.md",
+          "path": "wiki/decisions/2026-04-20-bme280-sensor-swap.md",
+          "title": "Tent-Hub Temperature/Humidity Sensor Swap: DHT22 → BME280",
+          "sticker_color": null
+        }
+      ]
+    },
+    {
+      "type": "folder",
+      "name": "environment",
+      "children": [
+        {
+          "type": "file",
+          "name": "humidity.md",
+          "path": "wiki/environment/humidity.md",
+          "title": "Environment — Humidity",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "nutrients.md",
+          "path": "wiki/environment/nutrients.md",
+          "title": "Environment — Nutrients & pH",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "temperature.md",
+          "path": "wiki/environment/temperature.md",
+          "title": "Environment — Temperature",
+          "sticker_color": null
+        }
+      ]
+    },
+    {
+      "type": "folder",
+      "name": "hardware",
+      "children": [
+        {
+          "type": "file",
+          "name": "ac-infinity-fan-control.md",
+          "path": "wiki/hardware/ac-infinity-fan-control.md",
+          "title": "Hardware — AC Infinity Cloudline LITE 6\" Fan Control",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "esp32-plant-nodes.md",
+          "path": "wiki/hardware/esp32-plant-nodes.md",
+          "title": "Hardware — ESP32-C3 Per-Plant Nodes",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "humidifier-control.md",
+          "path": "wiki/hardware/humidifier-control.md",
+          "title": "Hardware — Humidifier Control (Raydrop 4L + Kasa EP10 smart plug)",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "jabra.md",
+          "path": "wiki/hardware/jabra.md",
+          "title": "Hardware — Jabra Speak 410 (Voice I/O)",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "ptz-camera.md",
+          "path": "wiki/hardware/ptz-camera.md",
+          "title": "Hardware — PTZ Camera (OBSBOT Tiny 2 Lite + daemon)",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "reservoir-level.md",
+          "path": "wiki/hardware/reservoir-level.md",
+          "title": "Hardware — Reservoir Level (Autopot, hydrostatic pressure transducer)",
+          "sticker_color": null
+        },
+        {
+          "type": "file",
+          "name": "voice-channel.md",
+          "path": "wiki/hardware/voice-channel.md",
+          "title": "Hardware — Voice Channel (Claudia) — Pipecat pipeline",
+          "sticker_color": null
+        }
+      ]
+    },
+    {
+      "type": "folder",
+      "name": "plants",
+      "children": [
+        {
+          "type": "file",
+          "name": "plant-a.md",
+          "path": "wiki/plants/plant-a.md",
+          "title": "Plant A — Purple Keeper Candidate",
+          "sticker_color": "yellow"
+        },
+        {
+          "type": "file",
+          "name": "plant-b.md",
+          "path": "wiki/plants/plant-b.md",
+          "title": "Plant B — Secondary Candidate",
+          "sticker_color": "orange"
+        },
+        {
+          "type": "file",
+          "name": "plant-c.md",
+          "path": "wiki/plants/plant-c.md",
+          "title": "Plant C — Secondary Candidate",
+          "sticker_color": "pink"
+        },
+        {
+          "type": "file",
+          "name": "plant-d.md",
+          "path": "wiki/plants/plant-d.md",
+          "title": "Plant D — Primary Keeper, Strongest Purple",
+          "sticker_color": "blue"
+        }
+      ]
+    }
+  ]
+}

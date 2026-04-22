@@ -1,0 +1,18 @@
+{
+  "germination_date": "2026-03-15",
+  "flower_start_date": null,
+  "day_number": 39,
+  "grow_week_number": 6,
+  "flower_week_number": null,
+  "stage": "veg",
+  "strain": "Sirius Black × BS01",
+  "location": "Denver, MT · closet tent",
+  "plant_count": 4,
+  "lights": {
+    "on": true,
+    "on_local": "05:00:00",
+    "off_local": "23:00:00",
+    "minutes_until_off": 818.1668328333333,
+    "minutes_until_on": 1178.1668328333333
+  }
+}

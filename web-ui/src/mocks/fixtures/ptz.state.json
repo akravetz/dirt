@@ -1,0 +1,54 @@
+{
+  "connected": false,
+  "yaw": 0.0,
+  "pitch": 0.0,
+  "zoom": 1.0,
+  "preset": null,
+  "presets": [
+    {
+      "id": "overview",
+      "label": "Overview",
+      "description": "All 4 plants visible",
+      "yaw": -25.0,
+      "pitch": -50.0,
+      "zoom": 1.0,
+      "sticker_color": null
+    },
+    {
+      "id": "plant_a",
+      "label": "Plant A",
+      "description": "Plant A close-up (yellow)",
+      "yaw": -55.0,
+      "pitch": -38.0,
+      "zoom": 1.5,
+      "sticker_color": "yellow"
+    },
+    {
+      "id": "plant_b",
+      "label": "Plant B",
+      "description": "Plant B close-up (orange)",
+      "yaw": -22.0,
+      "pitch": -60.0,
+      "zoom": 1.4,
+      "sticker_color": "orange"
+    },
+    {
+      "id": "plant_c",
+      "label": "Plant C",
+      "description": "Plant C close-up (pink)",
+      "yaw": 10.0,
+      "pitch": -47.0,
+      "zoom": 1.5,
+      "sticker_color": "pink"
+    },
+    {
+      "id": "plant_d",
+      "label": "Plant D",
+      "description": "Plant D close-up (blue)",
+      "yaw": -24.0,
+      "pitch": -35.0,
+      "zoom": 1.5,
+      "sticker_color": "blue"
+    }
+  ]
+}
