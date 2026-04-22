@@ -73,6 +73,14 @@ BRANCH=feat/${LANE:0:2}/$FEATURE_ID   # feat/be/... or feat/fe/...
 WT=/home/akcom/code/dirt/.claude/worktrees/$FEATURE_ID
 
 git worktree add "$WT" -b "$BRANCH" main
+
+# Fresh worktrees don't share node_modules (gitignored). Three FE
+# invariants (test_typescript_dead_code, test_webui_invariants_wired
+# x2) shell out to pnpm exec {biome,tsc,eslint} and fail env-level
+# without node_modules. Install once per new worktree so pre-commit
+# stays green for the generator's first commit.
+(cd "$WT/web-ui" && pnpm install --frozen-lockfile) &
+wait
 ```
 
 One worktree per feature; two worktrees for a parallel BE+FE pair. Branch name `feat/<lane-prefix>/<feature_id>` matches the plan JSON's `lanes.*.worktree_branch_prefix` convention.
@@ -169,52 +177,9 @@ Pre-commit hooks run on every commit (ruff/biome/eslint/pytest invariants); if t
 
 ---
 
-## Resuming specifically from where Session 0732f17b left off
+## Current state (as of the latest Session log entry)
 
-At the time of writing this playbook (2026-04-21, session `0732f17b`), the state was:
-
-### Done
-- `frontend.app.shell` (pilot FE) — merged to main.
-- `backend.grow.current` (pilot BE) — merged to main.
-- `frontend.mocks.setup` — merged to main, status flipped, verdict reconciled.
-
-### Reverted as trash (isolation bug casualties)
-- `backend.auth` — agent stalled at 600s watchdog, isolation failed, ~60% complete partial work on main's working tree; reverted.
-- `frontend.login` — agent's worktree populated but commits vanished (Mode B); reverted.
-
-### Pending, unblocked, ordered by plan JSON list position
-- `backend.auth` (top of BE list). Big feature: auth API + SPA static serving + Jinja handler removal. Plan JSON has detailed `implementation_notes`. Iteration budget suggestion: 18.
-- `frontend.login` (top of FE list). Depends on `backend.auth`. With MSW now available (`frontend.mocks.setup` is done), this is the FIRST TRUE PARALLEL FE — it mocks `/api/auth/*` via MSW handlers in `web-ui/src/mocks/handlers.ts` and doesn't wait for BE. Visual criterion at `docs/plans/refs/login.png`. Iteration budget: 15.
-- `backend.sensors.current`, `backend.sensors.history`, and eight other zero-dep BE features sit further down the list.
-
-### Harness changes that landed in this session
-- Evaluator prompt: off-limits diff is against **local main**, not origin/main.
-- Plan JSON: visual acceptance entries accept optional `threshold_pct` override.
-- Plan JSON: `frontend.mocks.setup` feature added + landed; MSW v2 reference pack at `docs/references/msw-v2/` anchors future FE agents away from v1 patterns.
-- Plan JSON: `backend.auth` user_story + implementation_notes folded in the SPA static-serving swap.
-- `web-ui/invariants/eslint.config.ts`: new `mocks` element-type + scoped boundaries.
-- `apps/tests/invariants/test_webui_invariants_wired.py`: `_strip_line_comments` regex ordering fix.
-- `docs/harness-issues/worktree-isolation-silently-fails.md` + `debug/subagents/` evidence corpus.
-- This playbook.
-
-### Recommended next move
-
-**Resume with `backend.auth` + `frontend.login` as a parallel pair**, using the manual-worktree pattern documented above. The pair is already planned and the infrastructure to run them is in place:
-
-```bash
-# Step 0:
-git worktree add /home/akcom/code/dirt/.claude/worktrees/backend.auth \
-    -b feat/be/backend.auth main
-git worktree add /home/akcom/code/dirt/.claude/worktrees/frontend.login \
-    -b feat/fe/frontend.login main
-```
-
-Then spawn both generators in a single Agent-tool message with the skeleton from `docs/plans/generator-prompts.md`, `{{WORKTREE_PATH}}` populated, **no `isolation` flag**. Substitutions:
-
-- BE: `{{FEATURE_ID}}=backend.auth`, `{{BRANCH}}=feat/be/backend.auth`, iteration budget 18.
-- FE: `{{FEATURE_ID}}=frontend.login`, `{{BRANCH}}=feat/fe/frontend.login`, iteration budget 15, explicit reminder to consume MSW (`docs/references/msw-v2/INDEX.md` is mandatory pre-read).
-
-Confirm with the user before spawning — backend.auth's blast radius is larger than anything done so far (it deletes Jinja, adds SPA static serving, modifies AuthMiddleware).
+Read the ## Session log section at the bottom of this file for the most recent entry; its "next move" line is the fastest resume path. The paragraphs above (harness pattern, wrap-up protocol, etc.) are stable across sessions and don't need re-reading every time.
 
 ---
 
@@ -232,4 +197,4 @@ This file is the baton. Keep it current so the next agent can pick up without re
 
 ## Session log
 
-- **2026-04-21 — session `0732f17b-944c-4edf-a3ae-43634eed017c`**: Phase-2 pilot + harness shakedown. Landed: `frontend.app.shell`, `backend.grow.current`, `frontend.mocks.setup`. Surfaced: Claude Code `isolation: "worktree"` silent failure (see `docs/harness-issues/worktree-isolation-silently-fails.md`; evidence preserved at `debug/subagents/`). Reverted two in-flight generator runs poisoned by that bug (`backend.auth`, `frontend.login`). Switched harness to manual-worktree pattern documented in this file. Next: re-spawn `backend.auth` + `frontend.login` as the first true parallel pair under the new pattern.
+- **2026-04-21 — session `0732f17b-944c-4edf-a3ae-43634eed017c`**: Phase-2 pilot + harness shakedown. Landed: `frontend.app.shell`, `backend.grow.current`, `frontend.mocks.setup`, `backend.auth`, `frontend.login`. Surfaced: Claude Code `isolation: "worktree"` silent failure (see `docs/harness-issues/worktree-isolation-silently-fails.md`; evidence preserved at `debug/subagents/`). Switched harness to manual-worktree pattern with a cd-first guard; pattern held 2/2 on the `backend.auth` + `frontend.login` re-spawn. Introduced the `/simplify` 7-step mandatory wrap-up checklist with the explicit "returning control is NOT your exit signal" callout after observing the same flaky wrap-up on two FE runs. Landed the `contract_status.json` carve-out in `.claude/hooks/protect-invariants*.sh` so agents can edit it mid-run without a human-ask prompt. Adopted the implementer-writes-tests model for FE: `frontend.e2e.setup` feature (Playwright) will replace the planner-authored `docs/plans/evaluator-checks/*.sh` pattern as it lands; the evaluator's FE block gains a coverage-audit step (every assertion in the plan description must be exercised by a test case in the implementer's spec). **Next move**: spawn `backend.sensors.current` (BE) + `frontend.e2e.setup` (FE) as a parallel pair — independent of each other; sensors is the first BE under the new `contract_status.json` carve-out; e2e.setup unblocks `frontend.dashboard.gauges` to land under the new typed-test pattern.

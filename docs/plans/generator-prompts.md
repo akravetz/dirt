@@ -499,6 +499,35 @@ Place under web-ui/src/<dir>/__tests__/<file>.test.tsx. Use
 @testing-library/react. Don't mock the api-client at the module
 level (TS-08 blocks vi.mock on internal modules); inject a fake
 client via prop or context.
+
+## Playwright e2e tests (for `kind: "e2e"` acceptance)
+
+If your feature's plan entry has a `kind: "e2e"` acceptance criterion,
+you — the implementer — write the spec file. Do NOT wait for the
+planner to hand you a script; the shell-script pattern is deprecated
+after frontend.e2e.setup.
+
+- Place the spec at acceptance[].test_file (typically
+  `web-ui/tests/e2e/<feature_id>.spec.ts`).
+- One `test(...)` block per distinct assertion in
+  acceptance[].description. The evaluator will **audit coverage**: for
+  every assertion the description names, it looks for a matching test
+  case. Trivially-green tests (`expect(true).toBe(true)`, tautologies)
+  fail the audit.
+- Use Playwright's `expect` + typed locators (`getByRole`,
+  `getByLabel`, `getByText`). No `agent-browser eval` string-grepping.
+- If you discover the plan description's assertion is infeasible or
+  misstated (e.g., it names a selector that conflicts with TS-07 or
+  a class that doesn't semantically belong), deviate with intent:
+  test the equivalent-intent behavior, and record the deviation in
+  NOTES.md — "plan asserts X via Y; implemented equivalent via Z
+  because <reason>." The evaluator's audit step accepts documented
+  deviations when the equivalence holds; rejects them when they look
+  like cop-outs. Don't skip the NOTES entry — an undocumented
+  deviation reads as a coverage gap.
+- Run `pnpm test:e2e` locally against a live `pnpm dev` before
+  committing. Test must be green at the implementer's own workflow
+  before Step 3 of the wrap-up checklist.
 ```
 
 ---
@@ -1001,12 +1030,15 @@ file to remove.
     pnpm typecheck
     pnpm knip
     pnpm build
-    pnpm test     # only if Vitest tests exist for {{FEATURE_ID}}
+    pnpm test         # only if Vitest tests exist for {{FEATURE_ID}}
+    pnpm test:e2e     # only if Playwright specs exist for {{FEATURE_ID}}
 
 Run sequentially; first red → overall="fail", escalation.to
 ="generator" with the specific tool's error in
-suggested_feedback_for_generator. All green before you touch a
-browser.
+suggested_feedback_for_generator. All green before you move on to the
+kind-specific steps below. (`pnpm test:e2e` in the gate is the "is it
+green" half of the `kind: "e2e"` criterion; the coverage-audit half
+runs in the kind: "e2e" section.)
 
 ## Stack up
 
@@ -1017,23 +1049,71 @@ browser.
 - Frontend dev :5173 — `pnpm --dir {{WORKTREE_PATH}}/web-ui dev &`,
   then `agent-browser open http://localhost:5173` after ~3s.
 
-## kind: "agent-browser"
+## kind: "e2e" (preferred for all FE features after frontend.e2e.setup)
 
-Run the script at acceptance[].script, but do NOT trust its exit
-code alone. For each assertion the script encodes, independently
-verify via:
+The implementer wrote a Playwright spec at acceptance[].test_file
+(web-ui/tests/e2e/<feature_id>.spec.ts). Two things to verify —
+**both must pass**:
 
-- `agent-browser snapshot`               (accessibility tree)
-- `agent-browser console`                (MUST be error-free)
-- `agent-browser network requests --type fetch`  (expected calls)
+### (a) green
 
-Failing evidence for this criterion:
-- Script assertion fails.
-- Any error-level console entry (not warn/info).
-- An expected fetch from the user_story is missing, or an
-  unexpected one fires (e.g. a call to /api/wiki/search with an
-  empty q when the plan says the empty palette must NOT call the
-  endpoint).
+    cd {{WORKTREE_PATH}}/web-ui
+    pnpm test:e2e -- <feature_id>.spec.ts
+
+Must exit 0. If red → fail, capture the Playwright failure summary
+(not the full trace — just the failing test name + expect message)
+in evidence.
+
+### (b) coverage audit — every assertion in acceptance[].description
+is exercised by a test case in the spec
+
+This is the independence layer. The implementer chose their own test
+structure; you confirm they actually tested what the plan described.
+
+Procedure:
+
+1. Read acceptance[].description literally. Identify each distinct
+   assertion — usually separated by commas or semicolons (e.g.
+   "5 gauge tiles render; each value matches sensors.current; bands
+   only on temp/humidity/VPD; status color maps to band_status;
+   top bar shows Day+strain" = 5 assertions).
+2. Read the .spec.ts file. For each assertion from step 1, locate
+   the test case (or `expect(...)` call) that exercises it.
+3. If an assertion has no corresponding coverage:
+   - status = "fail"
+   - escalation.to = "generator"
+   - suggested_feedback_for_generator = "plan description asserts
+     '<the exact phrase>' but the spec has no test case covering it;
+     add a test that exercises <concrete suggestion>."
+4. If an assertion IS covered but the test is trivially green (e.g.,
+   `expect(true).toBe(true)`, a tautology, or a weaker assertion than
+   the plan called for):
+   - status = "fail"
+   - escalation.to = "generator"
+   - suggested_feedback names the tautology.
+5. If the implementer's NOTES.md contains a deviation note ("plan
+   asserts X via selector Y; implemented equivalent via selector Z
+   because Z") and the test covers the equivalent, decide:
+   - If the equivalence holds semantically → pass; note the deviation
+     in evidence.
+   - If the equivalence is a cop-out → fail, escalation = "planner"
+     (plan needs clarifying, not generator-retry).
+
+Failing evidence shape: `plan: "<assertion>"; spec: <test case name
+or "MISSING">; verdict: <matched | missing | weak | deviation-ok | deviation-cop-out>`.
+
+## kind: "agent-browser" (legacy, done features only)
+
+Feature's acceptance was written before frontend.e2e.setup. Run the
+script at acceptance[].script, then independently re-verify the
+assertions it encodes via `agent-browser snapshot` / `console` /
+`network requests --type fetch`. Failing evidence: script assertion
+fails; error-level console entry; expected fetch missing or
+unexpected one fires.
+
+If you're evaluating a PENDING feature and it still carries
+`kind: "agent-browser"`, escalate to "planner" — the plan entry
+should have been migrated to `e2e` before the generator was spawned.
 
 ## kind: "visual"
 
