@@ -465,7 +465,7 @@
         { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/wiki/tree removed." },
         { "kind": "unit", "path": "apps/web/tests/test_wiki_tree_endpoint.py" }
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "backend.wiki.file",
@@ -478,7 +478,7 @@
         { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/wiki/file removed." },
         { "kind": "unit", "path": "apps/web/tests/test_wiki_file_endpoint.py" }
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "backend.wiki.search",
@@ -491,7 +491,7 @@
         { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/wiki/search removed." },
         { "kind": "unit", "path": "apps/web/tests/test_wiki_search_endpoint.py" }
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "frontend.wiki",
