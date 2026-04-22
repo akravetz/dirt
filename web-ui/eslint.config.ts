@@ -29,6 +29,21 @@ const config: Linter.Config[] = [
       "no-restricted-globals": "off",
     },
   },
+  // Playwright e2e specs (tests/e2e/**) run inside the Playwright
+  // Node-side test process, not inside the app bundle, and use
+  // `page.addInitScript` to inject code that runs against the browser
+  // `window` directly. TS-09 / TS-10's "single owner" wrappers are a
+  // runtime-correctness invariant for app code, not test code —
+  // routing addInitScript through shared/storage.ts would actually
+  // defeat the purpose (the init script has to touch window.*
+  // directly, before the app boots). Scope is narrow: tests/e2e/**.
+  {
+    name: "app/e2e-specs-raw-window",
+    files: ["tests/e2e/**/*.ts", "tests/e2e/**/*.tsx"],
+    rules: {
+      "no-restricted-globals": "off",
+    },
+  },
 ];
 
 export default config;

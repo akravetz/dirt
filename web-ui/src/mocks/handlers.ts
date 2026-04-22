@@ -799,6 +799,319 @@ export const handlers: RequestHandler[] = [
     ];
   })(),
 
+  // -------------------------------------------------------------------------
+  // frontend.wiki — /api/wiki/{tree,file,search}
+  //
+  // Fixtures for the Wiki tab (sidebar tree + markdown pane + Cmd+K search
+  // palette). Shapes duck-typed against contracts/webapp-v1.yaml
+  // #/components/schemas/{WikiTreeResponse,WikiTreeNode,WikiTreeFile,
+  //                       WikiTreeFolder,WikiFile,WikiBacklink,
+  //                       WikiSearchResponse,WikiSearchResult,PlantStickerColor}
+  // (boundaries forbids mocks/ → api-client/, so no `import type` from
+  // generated schema — consumer typecheck catches drift).
+  //
+  // /api/wiki/tree — a realistic three-folder layout:
+  //   overview.md + index.md (root files)
+  //   plants/ (plant-a..d.md, each with the matching PlantStickerColor)
+  //   concepts/ (topping.md, anthocyanin.md, lst.md)
+  //   daily/ (one entry per recent grow day)
+  // CLAUDE.md is excluded server-side; we mirror that by not emitting it
+  // at all. Sorting: root files first (alphabetical), then folders
+  // (alphabetical) — same order the backend's `get_tree` produces.
+  //
+  // /api/wiki/file — a small path → page registry. plant-a.md is the
+  // headline page the e2e exercises; it carries a frontmatter block with
+  // `type`, `status`, `strain` plus a markdown body that contains a
+  // subtitle (first italic line) and more than one heading so the render
+  // assertions are non-trivial. Missing paths → 404, traversal → 400.
+  //
+  // /api/wiki/search — a title/path/content matcher against the same
+  // registry. Empty/whitespace q → 400 (mirrors the backend contract).
+  // -------------------------------------------------------------------------
+
+  ...(() => {
+    // Wiki content registry. One entry per on-disk .md file the fixture
+    // exposes. `folder` drives the tree layout; `sticker_color` is only
+    // meaningful inside `plants/`. Body is a raw-markdown string whose
+    // first paragraph (after the H1) begins with `*…*` when we want a
+    // subtitle surfaced on /api/wiki/file.
+    interface WikiEntry {
+      folder: string | null;
+      name: string;
+      title: string;
+      sticker_color: "yellow" | "orange" | "pink" | "blue" | null;
+      frontmatter: Record<string, unknown>;
+      subtitle: string | null;
+      body: string;
+    }
+
+    const PAGES: readonly WikiEntry[] = [
+      {
+        folder: null,
+        name: "index.md",
+        title: "Wiki Index",
+        sticker_color: null,
+        frontmatter: { title: "Wiki Index" },
+        subtitle: null,
+        body: "# Wiki Index\n\nTop-level pointers into the grow wiki.\n",
+      },
+      {
+        folder: null,
+        name: "overview.md",
+        title: "Grow Overview",
+        sticker_color: null,
+        frontmatter: { title: "Grow Overview" },
+        subtitle: null,
+        body: "# Grow Overview\n\nSirius Black × BS01, four plants in a closet tent.\n",
+      },
+      {
+        folder: "plants",
+        name: "plant-a.md",
+        title: "Plant A — Purple Keeper Candidate",
+        sticker_color: "yellow",
+        frontmatter: {
+          title: "Plant A — Purple Keeper Candidate",
+          type: "plant",
+          status: "primary",
+          strain: "Sirius Black × BS01",
+        },
+        subtitle: "Formerly labeled Plant 1.",
+        body:
+          "# Plant A — Purple Keeper Candidate\n\n" +
+          "*Formerly labeled Plant 1.*\n\n" +
+          "## Current State\n\n" +
+          "Topped on Day 38 (Apr 21); now in recovery. Cut above node 4. " +
+          "Most vigorous plant of the four, with D about a day behind. " +
+          "Applied topping above node 4 and observed the 5th node emerging " +
+          "when we cut.\n\n" +
+          "## Notes\n\n" +
+          "Day 38 was the right call — plant had visible life node emerging.\n",
+      },
+      {
+        folder: "plants",
+        name: "plant-b.md",
+        title: "Plant B",
+        sticker_color: "orange",
+        frontmatter: { title: "Plant B", type: "plant" },
+        subtitle: null,
+        body: "# Plant B\n\nUpright structure; trailing A by ~a day.\n",
+      },
+      {
+        folder: "plants",
+        name: "plant-c.md",
+        title: "Plant C",
+        sticker_color: "pink",
+        frontmatter: { title: "Plant C", type: "plant" },
+        subtitle: null,
+        body: "# Plant C\n\nPurple stem; likely anthocyanin stress.\n",
+      },
+      {
+        folder: "plants",
+        name: "plant-d.md",
+        title: "Plant D",
+        sticker_color: "blue",
+        frontmatter: { title: "Plant D", type: "plant" },
+        subtitle: null,
+        body: "# Plant D\n\nStandard sibling; mirrors A at ~one day behind.\n",
+      },
+      {
+        folder: "concepts",
+        name: "topping.md",
+        title: "Topping",
+        sticker_color: null,
+        frontmatter: { title: "Topping" },
+        subtitle: null,
+        body:
+          "# Topping\n\n" +
+          "Prune the apical meristem above a node to force two dominant " +
+          "shoots. See [Plant A](../plants/plant-a.md) for a worked example.\n",
+      },
+      {
+        folder: "concepts",
+        name: "anthocyanin.md",
+        title: "Purple Pigment Biology",
+        sticker_color: null,
+        frontmatter: { title: "Purple Pigment Biology" },
+        subtitle: null,
+        body: "# Purple Pigment Biology\n\nCold-stress signal; unrelated body text.\n",
+      },
+      {
+        folder: "concepts",
+        name: "lst.md",
+        title: "Low-Stress Training",
+        sticker_color: null,
+        frontmatter: { title: "Low-Stress Training" },
+        subtitle: null,
+        body: "# Low-Stress Training\n\nBend-and-tie; complements topping.\n",
+      },
+      {
+        folder: "daily",
+        name: "2026-04-18.md",
+        title: "2026-04-18 · d29",
+        sticker_color: null,
+        frontmatter: { title: "2026-04-18 · d29" },
+        subtitle: null,
+        body: "# 2026-04-18 · d29\n\nDaily entry.\n",
+      },
+      {
+        folder: "daily",
+        name: "2026-04-17.md",
+        title: "2026-04-17 · d28",
+        sticker_color: null,
+        frontmatter: { title: "2026-04-17 · d28" },
+        subtitle: null,
+        body: "# 2026-04-17 · d28\n\nDaily entry.\n",
+      },
+    ];
+
+    const relPath = (e: WikiEntry): string =>
+      e.folder === null ? e.name : `${e.folder}/${e.name}`;
+    const fullPath = (e: WikiEntry): string => `wiki/${relPath(e)}`;
+
+    const buildTree = () => {
+      const rootFiles = PAGES.filter((e) => e.folder === null)
+        .slice()
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((e) => ({
+          type: "file" as const,
+          name: e.name,
+          path: fullPath(e),
+          title: e.title,
+          sticker_color: e.sticker_color,
+        }));
+
+      const folderNames = Array.from(
+        new Set(PAGES.filter((e) => e.folder !== null).map((e) => e.folder as string)),
+      ).sort((a, b) => a.localeCompare(b));
+
+      const folders = folderNames.map((folder) => ({
+        type: "folder" as const,
+        name: folder,
+        children: PAGES.filter((e) => e.folder === folder)
+          .slice()
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map((e) => ({
+            type: "file" as const,
+            name: e.name,
+            path: fullPath(e),
+            title: e.title,
+            sticker_color: e.sticker_color,
+          })),
+      }));
+
+      return [...rootFiles, ...folders];
+    };
+
+    // Accept both `foo/bar.md` and `wiki/foo/bar.md` forms (matches the
+    // backend's path normalization).
+    const lookupEntry = (raw: string): WikiEntry | null => {
+      const normalized = raw.startsWith("wiki/") ? raw.slice("wiki/".length) : raw;
+      return PAGES.find((e) => relPath(e) === normalized) ?? null;
+    };
+
+    // Naive-but-stable backlink derivation: any page whose body contains
+    // a markdown link `(…/target.md)` counts as a backlink to the target.
+    // Same rule the backend's service uses in spirit; not exhaustive,
+    // just enough for the e2e's backlinks-rendered assertion to be
+    // verifiable if it ever wants it.
+    const backlinksFor = (target: WikiEntry) => {
+      const tail = target.name;
+      return PAGES.filter((p) => p !== target && p.body.includes(`/${tail})`)).map(
+        (p) => ({ path: fullPath(p), title: p.title }),
+      );
+    };
+
+    const rankSearch = (q: string) => {
+      const needle = q.toLowerCase();
+      const results: Array<{
+        path: string;
+        title: string;
+        match_type: "title" | "path" | "content";
+        snippet: string | null;
+        // Lower rank sorts first; ties broken by path for determinism.
+        rank: number;
+      }> = [];
+      for (const page of PAGES) {
+        const title = page.title.toLowerCase();
+        const path = relPath(page).toLowerCase();
+        const body = page.body.toLowerCase();
+        if (title.includes(needle)) {
+          results.push({
+            path: fullPath(page),
+            title: page.title,
+            match_type: "title",
+            snippet: null,
+            rank: 0,
+          });
+        } else if (path.includes(needle)) {
+          results.push({
+            path: fullPath(page),
+            title: page.title,
+            match_type: "path",
+            snippet: null,
+            rank: 1,
+          });
+        } else if (body.includes(needle)) {
+          const idx = body.indexOf(needle);
+          const start = Math.max(0, idx - 30);
+          const end = Math.min(page.body.length, idx + needle.length + 30);
+          results.push({
+            path: fullPath(page),
+            title: page.title,
+            match_type: "content",
+            snippet: page.body.slice(start, end).replace(/\s+/g, " ").trim(),
+            rank: 2,
+          });
+        }
+      }
+      return results
+        .sort((a, b) => a.rank - b.rank || a.path.localeCompare(b.path))
+        .map(({ rank: _rank, ...rest }) => rest);
+    };
+
+    return [
+      http.get("/api/wiki/tree", () => HttpResponse.json({ tree: buildTree() })),
+
+      http.get("/api/wiki/file", ({ request }) => {
+        const url = new URL(request.url);
+        const path = url.searchParams.get("path");
+        if (path === null || path.length === 0) {
+          return HttpResponse.json({ detail: "missing_path" }, { status: 422 });
+        }
+        // Reject traversal before any lookup — matches backend 400.
+        if (path.includes("..")) {
+          return HttpResponse.json({ detail: "path_traversal" }, { status: 400 });
+        }
+        const entry = lookupEntry(path);
+        if (!entry) {
+          return HttpResponse.json({ detail: "not_found" }, { status: 404 });
+        }
+        return HttpResponse.json({
+          path: fullPath(entry),
+          title: entry.title,
+          subtitle: entry.subtitle,
+          frontmatter: entry.frontmatter,
+          body_markdown: entry.body,
+          backlinks: backlinksFor(entry),
+        });
+      }),
+
+      http.get("/api/wiki/search", ({ request }) => {
+        const url = new URL(request.url);
+        const q = url.searchParams.get("q");
+        if (q === null || q.length === 0) {
+          // Backend: FastAPI min_length=1 → 422.
+          return HttpResponse.json({ detail: "missing_q" }, { status: 422 });
+        }
+        if (q.trim().length === 0) {
+          // Backend: whitespace-only → 400.
+          return HttpResponse.json({ detail: "empty_q" }, { status: 400 });
+        }
+        return HttpResponse.json({ q, results: rankSearch(q.trim()) });
+      }),
+    ];
+  })(),
+
   http.get("/api/grow/current", () => {
     // germination_date authoritative in CLAUDE.md: 2026-03-15 (veg).
     // day_number for today (2026-04-21) = 38; grow_week_number = 6.
