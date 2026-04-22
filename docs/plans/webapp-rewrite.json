@@ -274,7 +274,7 @@
       "acceptance": [
         { "kind": "e2e", "test_file": "web-ui/tests/e2e/dashboard-humidifier.spec.ts", "description": "Open /. Assert the humidifier tile renders with the ON/OFF state from GET /api/humidifier/state, the duration-since-last-transition text, and the cycles-per-24h count. Below the sparklines, assert the duty-cycle strip renders on/off rectangles sourced from GET /api/humidifier/history — one rectangle per transition. Changing the range via the shared 1h/24h/7d switcher triggers a fresh GET /api/humidifier/history and re-renders the strip." }
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "backend.plants.list",
