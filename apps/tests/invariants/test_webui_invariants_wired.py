@@ -140,11 +140,17 @@ def _strip_line_comments(src: str) -> str:
 
     Crude but sufficient: the shims are small, they don't contain
     string literals that look like comments.
+
+    Line comments stripped FIRST. If block-comment stripping ran first,
+    a `/**` appearing inside a `//` line comment (e.g. glob pattern
+    documentation like `src/**/*.ts` in a file header) would combine
+    with any later `*/` anywhere in the file — because the DOTALL
+    block-comment regex matches across newlines — to eat real code
+    spanning the two. Stripping line comments first neutralizes the
+    `/**` before the block-comment regex runs.
     """
-    # Block comments first (non-greedy).
-    src = re.sub(r"/\*.*?\*/", "", src, flags=re.DOTALL)
-    # Line comments.
     src = re.sub(r"//[^\n]*", "", src)
+    src = re.sub(r"/\*.*?\*/", "", src, flags=re.DOTALL)
     return src
 
 
