@@ -360,7 +360,7 @@
       "acceptance": [
         { "kind": "e2e", "test_file": "web-ui/tests/e2e/dashboard-system-table.spec.ts", "description": "Open /. Assert the system section renders a table with 8 rows, one per device from GET /api/system/devices. Each row's status badge visually reflects the device's status value (ok|listening|warn|offline) — use an accessible indicator (role/aria-label or textContent) rather than color-only." }
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "backend.feed.live",
