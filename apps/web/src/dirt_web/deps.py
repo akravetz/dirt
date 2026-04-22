@@ -19,6 +19,7 @@ sync with the services they wrap.
 from fastapi import Request
 
 from dirt_shared.config import Settings
+from dirt_shared.services.capture import FrameCapturer, capture_frame
 from dirt_shared.services.grow_state import GrowStateService
 from dirt_shared.services.humidifier_state import HumidifierStateService
 from dirt_shared.services.plants import PlantsService
@@ -53,3 +54,12 @@ def get_plants(request: Request) -> PlantsService:
 
 def get_system_status(request: Request) -> SystemStatusService:
     return request.app.state.system_status
+
+
+def get_frame_capturer() -> FrameCapturer:
+    """Camera-daemon ``capture_frame`` RPC.
+
+    Tests override with ``app.dependency_overrides[get_frame_capturer]
+    = lambda: fake_capturer`` to avoid touching the camera socket.
+    """
+    return capture_frame

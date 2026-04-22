@@ -157,12 +157,15 @@ async def test_grow_week_day_eight_is_week_two(pg_engine):
 
 
 async def test_current_targets_tracks_stage(pg_engine):
+    # Freeze "today" so the stage derivation is deterministic regardless
+    # of when the suite runs — without this, a day-21+ wall clock would
+    # push the second assertion into flower_late.
     await _set_state(pg_engine, germination=date(2026, 3, 15))
-    veg = await GrowStateService(pg_engine).current_targets()
+    veg = await _svc(pg_engine, today=date(2026, 3, 20)).current_targets()
     assert veg == gs.STAGE_TARGETS["veg"]
 
     await _set_state(pg_engine, germination=date(2026, 3, 15), flower=date(2026, 4, 1))
-    early = await GrowStateService(pg_engine).current_targets()
+    early = await _svc(pg_engine, today=date(2026, 4, 10)).current_targets()
     assert early == gs.STAGE_TARGETS["flower_early"]
 
 
