@@ -215,7 +215,7 @@
         { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/sensors/history removed; LEGACY_ROUTES entry for /api/sensors/readings removed once the FE no longer references it." },
         { "kind": "unit", "path": "apps/web/tests/test_sensors_history_endpoint.py" }
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "frontend.dashboard.gauges",
@@ -226,7 +226,7 @@
       "acceptance": [
         { "kind": "e2e", "test_file": "web-ui/tests/e2e/dashboard-gauges.spec.ts", "description": "Open /, assert the five gauge tiles render with headings matching the metrics from GET /api/sensors/current (temperature, humidity, VPD, fan, reservoir). Assert each tile's displayed value matches the MSW-fixture response value for that metric. Assert target-band arc elements are rendered only on temp/humidity/VPD (not on fan/reservoir). Assert each tile's status indicator color maps to band_status(value, band) → ok|warn|crit. Assert the top bar shows Day {day_number} · {strain} from GET /api/grow/current." }
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "frontend.dashboard.sparklines",
