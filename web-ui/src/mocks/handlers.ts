@@ -286,6 +286,66 @@ export const handlers: RequestHandler[] = [
     return HttpResponse.json({ range, points });
   }),
 
+  // -------------------------------------------------------------------------
+  // frontend.dashboard.plants_strip — /api/plants
+  //
+  // Fixture for the dashboard plants strip (four A/B/C/D cards). Shape
+  // duck-typed against contracts/webapp-v1.yaml
+  // #/components/schemas/{PlantsResponse,Plant,PlantStickerColor,PlantStatus}
+  // (boundaries forbids mocks/ → api-client/, so no `import type` from
+  // generated schema — consumer typecheck catches drift).
+  //
+  // Sticker colours: one per plant, matching the mockup reference
+  // (docs/plans/refs/dashboard.png) — A yellow, B orange, C pink, D blue.
+  // `moisture_pct` chosen distinct per plant so the spec can match each
+  // card's moisture-bar width to its plant's reading without ambiguity.
+  // -------------------------------------------------------------------------
+
+  http.get("/api/plants", () => {
+    const ts = "2026-04-21T17:00:00Z";
+    return HttpResponse.json({
+      day: 38,
+      plants: [
+        {
+          code: "a",
+          name: "Plant A",
+          sticker_color: "yellow",
+          status: "primary",
+          purple: false,
+          moisture_pct: 62,
+          moisture_ts: ts,
+        },
+        {
+          code: "b",
+          name: "Plant B",
+          sticker_color: "orange",
+          status: "primary",
+          purple: false,
+          moisture_pct: 48,
+          moisture_ts: ts,
+        },
+        {
+          code: "c",
+          name: "Plant C",
+          sticker_color: "pink",
+          status: "primary",
+          purple: true,
+          moisture_pct: 54,
+          moisture_ts: ts,
+        },
+        {
+          code: "d",
+          name: "Plant D",
+          sticker_color: "blue",
+          status: "primary",
+          purple: false,
+          moisture_pct: 66,
+          moisture_ts: ts,
+        },
+      ],
+    });
+  }),
+
   http.get("/api/grow/current", () => {
     // germination_date authoritative in CLAUDE.md: 2026-03-15 (veg).
     // day_number for today (2026-04-21) = 38; grow_week_number = 6.

@@ -18,13 +18,15 @@
 // refetches uniformly across the SPA. See
 // docs/references/tanstack-router-v1/loaders.md for the loader
 // alternative if a future change needs SSR-style prefetch.
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { type components, createDirtApiClient } from "@/api-client";
 import { Gauge } from "@/ui/Gauge";
 import { HumidifierStrip } from "@/ui/HumidifierStrip";
 import { HumidifierTile } from "@/ui/HumidifierTile";
+import { PlantsStrip } from "@/ui/PlantsStrip";
+import type { PlantCode } from "@/ui/plant-types";
 import { RangeSwitch, type SparklineRange } from "@/ui/RangeSwitch";
 import { Sparkline } from "@/ui/Sparkline";
 
@@ -83,6 +85,24 @@ function DashboardPage() {
 
   const [range, setRange] = useState<SparklineRange>("24h");
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  // Clicking a PlantCard fires GET /api/plants/{code} via the QueryClient's
+  // prefetch machinery. The request goes out immediately; the cached
+  // entry is then consumed by frontend.plant_detail's drawer when it
+  // lands in the next feature.
+  const queryClient = useQueryClient();
+
+  const handleSelectPlant = (code: PlantCode): void => {
+    void queryClient.prefetchQuery({
+      queryKey: ["plants.detail", code] as const,
+      queryFn: async () => {
+        const { data, error } = await api.GET("/api/plants/{code}", {
+          params: { path: { code } },
+        });
+        if (error) throw error;
+        return data;
+      },
+    });
+  };
 
   // Five parallel history queries keyed on [range, metric]. useQueries
   // is the correct idiom for a fixed-shape fan-out: one result slot per
@@ -123,6 +143,18 @@ function DashboardPage() {
       const { data, error } = await api.GET("/api/humidifier/history", {
         params: { query: { range } },
       });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // /api/plants — feeds the four A/B/C/D cards rendered under the
+  // sparklines. Independent of the range switch; the strip is an
+  // always-on snapshot (see frontend.dashboard.plants_strip).
+  const plantsQuery = useQuery({
+    queryKey: ["plants.list"],
+    queryFn: async () => {
+      const { data, error } = await api.GET("/api/plants");
       if (error) throw error;
       return data;
     },
@@ -211,6 +243,9 @@ function DashboardPage() {
         </div>
       </section>
       <HumidifierStrip points={humidifierHistory.data?.points ?? []} />
+      {plantsQuery.data ? (
+        <PlantsStrip plants={plantsQuery.data.plants} onSelect={handleSelectPlant} />
+      ) : null}
     </main>
   );
 }
