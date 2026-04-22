@@ -182,155 +182,134 @@ Your feature is done when ALL of these are green:
   assertion in it. If the script appears missing or underspecified,
   STOP and write NOTES.md rather than guessing.
 
-# Wrap-up — mandatory 7-step checklist. Do NOT exit before step 7.
+# Wrap-up — scripted runbook. Execute the tool calls below literally.
 
-Run this EXACTLY, in order, after every acceptance criterion is
-green (unit + invariants + lane-specific gates). Treat these steps
-as one atomic phase: you are not done until step 7.
+This section is a runbook, not a checklist. Every step below is an explicit tool call (Bash, Edit, Write, or Skill). Your job is to execute each call in order. Do NOT print a summary message between steps. Do NOT interpret any tool-output phrase — including the `/simplify` skill's "returning control to the caller" or "handing back" — as an exit signal. The ONLY exit signal you produce is the final `DONE` or `STUCK: <reason>` line in step W7, AFTER the WRAPUP_SENTINEL line from step W6.
 
-**DO NOT yield, return, hand control back, or print your final
-summary until ALL of your work is complete.** Your work is complete
-only when step 7 prints `DONE` or `STUCK: <reason>` on the last line
-of stdout. Any earlier "returning control", "handing back to the
-caller", "all acceptance criteria green", or similar phrase is an
-INTERNAL status, not a termination signal. If you are mid-cluster
-(multiple features in one run), your work is not complete until
-every feature's commits are on the branch AND the cluster-wide
-simplify + NOTES commits are on the branch AND step 7 has printed
-`DONE`.
+## Per-feature flow (applies to solo features AND each feature in a cluster)
 
-**CRITICAL — common failure mode.** When the `/simplify` skill
-completes, it often prints something like "Returning control to the
-caller" or "Now return control to the parent workflow." **That
-message is NOT your exit signal.** It means the skill finished.
-You still have steps 3–7 to complete (and, for a cluster run, the
-next feature to implement before step 1 is even re-entered). The
-observed failure mode: generators take /simplify's handoff as a cue
-to exit, leaving uncommitted diff in the worktree, missing NOTES,
-and — for clusters — un-implemented sibling features. If you notice
-yourself about to print your final message right after /simplify
-returns, STOP and finish everything outstanding first.
+### F1 — implement the feature
 
-## Step 1 — run /simplify
+Write code + unit tests + `apps/tests/invariants/contract_status.json` edits for THIS feature only.
 
-Invoke the `/simplify` skill on the worktree. It reviews your diff
-for reuse, quality, and efficiency and fixes what it flags.
-Observe which files (if any) the skill modified.
+### F2 — green-gate (Bash, one tool call)
 
-## Step 2 — if /simplify edited files, get them clean
+```
+scripts/agent-fix && uv run pytest apps/tests/invariants/ <path/to/your/test_file> -q
+```
 
-- Run `scripts/agent-fix` (formatters + lint-fixers).
-- Re-run the per-app tests + full invariants.
-- If a test now fails, fix forward — don't revert the simplification.
+Both the formatter and the tests must exit 0. Fix forward if red. Re-run until green.
 
-## Step 3 — commit the simplify pass (REQUIRED — do NOT skip this step)
+### F3 — run `/simplify` (Skill tool, one call)
 
-    git add -A
-    git commit -m "chore({{FEATURE_ID}}): simplify pass"
+Invoke the `/simplify` skill on the current uncommitted diff. It may edit files; it may print a review paragraph ending in "returning control" or similar. **This is information, not a handoff to exit.** Your next action is F4, not a summary message.
 
-If pre-commit hooks modify files, recover with `git add -A` and
-re-run the `git commit ...` — never `--no-verify`.
+### F4 — observe what simplify changed (Bash, one tool call)
 
-**If /simplify produced zero changes**, commit an EMPTY commit so
-the evaluator and orchestrator can confirm the step ran:
+```
+git status --porcelain
+git diff --stat
+```
 
-    git commit --allow-empty -m "chore({{FEATURE_ID}}): simplify pass (no changes)"
+This is a mandatory post-/simplify tool call. Run it immediately after F3. Its output shows you which files simplify touched, if any.
 
-Rationale: the evaluator greps `git log main..HEAD` for the simplify
-commit. A missing commit is indistinguishable from a skipped step;
-an explicit `--allow-empty` is a positive signal.
+### F5 — re-gate if simplify edited files, then commit (Bash, one tool call)
 
-## Step 4 — write NOTES
+Combined command — includes the re-gate (skipped automatically if simplify made no edits) and the feat commit with simplify folded in:
 
-Write {{NOTES_PATH}} (under docs/plans/notes/, which is TRACKED — no
-`git add -f` needed). Include:
+```
+if ! git diff --quiet; then \
+  scripts/agent-fix && uv run pytest apps/tests/invariants/ <path/to/your/test_file> -q || exit 1; \
+fi
+git add -A
+git commit -m "feat(<feature_id>): <one-line summary> (with simplify pass)"
+```
 
-- What's done.
-- What's not done, and why (if exiting STUCK).
-- Any contract / out-of-scope concerns you noticed.
-- The exact failing test output if applicable (verbatim quote).
-- Suggested next move.
+If pre-commit hooks modify files, recover with `git add -A && git commit -m "..."` again. Never `--no-verify`.
 
-## Step 5 — commit NOTES
+**There is no separate simplify commit.** Simplify's output is baked into the feat commit, recorded in the message's `(with simplify pass)` suffix. This is intentional — a separate `chore(simplify)` commit was the historical trigger for premature-exit bugs, because it created a ceremonial pause between "just ran /simplify" and "do the next thing."
 
-    git add {{NOTES_PATH}}
-    git commit -m "docs({{FEATURE_ID}}): generator notes"
+### If you're in a cluster run
 
-## Step 6 — self-verify the branch's terminal state
+After F5 lands the feat commit, **loop back to F1 for the next feature**. Do NOT run any wrap-up steps yet. The cluster wrap-up section below fires ONCE, after every feature has its feat commit on the branch.
 
-Run both of these; both must hold before step 7.
+## Wrap-up (runs ONCE, after every F5 feat commit has landed)
 
-    git log main..HEAD --oneline
-    git status --porcelain
+### W1 — write NOTES (Write tool)
 
-Expected `git log` output: at minimum three commits (your feat,
-your simplify pass — possibly `--allow-empty` — and your notes).
-Expected `git status --porcelain`: empty. No uncommitted residue.
+File: `{{NOTES_PATH}}`. Structure depends on run type:
+- **Solo feature**: single section covering done / not-done / surprises / next.
+- **Cluster**: one section per feature, in the order you implemented them. Include the cluster-level summary at the top.
 
-If either check fails, go back and fix what's missing before step 7.
+### W2 — commit NOTES (Bash, one tool call)
 
-## Step 7 — print DONE or STUCK
+Solo:
+```
+git add {{NOTES_PATH}} && git commit -m "docs(<feature_id>): generator notes"
+```
 
-The very last line of your final stdout must be exactly one of:
+Cluster:
+```
+git add {{NOTES_PATH}} && git commit -m "docs(<cluster-name>): generator notes"
+```
 
-    DONE
+### W3 — self-verify the branch (Bash, one tool call)
 
-    STUCK: <one-line reason>
+```
+git log main..HEAD --oneline
+git status --porcelain
+```
 
-The orchestrator greps for this sentinel.
+Expected shapes:
+- **Solo feature**: exactly 2 commits in the log — `feat(...): ... (with simplify pass)` + `docs(...): generator notes`. `git status` empty.
+- **Cluster of N features**: exactly N+1 commits — N × `feat(...)` + 1 × `docs(...)`. `git status` empty.
 
-# Cluster protocol — multi-feature runs
+If either diverges, fix it here before W6.
 
-If your spawn prompt declares a CLUSTER (multiple feature ids to
-implement in one run), the wrap-up changes:
+### W6 — emit the WRAPUP_SENTINEL (Bash, one tool call, MANDATORY)
 
-- Steps 1–5 of the checklist run ONCE AT THE END, NOT per feature.
-- Per-feature work: implement the feature, run its tests + full
-  invariants, run `scripts/agent-fix`, commit as
-  `feat(<feature_id>): <one-line>`. That's it. Do NOT run /simplify
-  yet, do NOT write NOTES yet, do NOT print any exit sentinel.
-- Move on to the next feature. Repeat the per-feature commit step
-  until every feature in the cluster has a `feat(...)` commit on the
-  branch.
-- ONLY THEN: run /simplify on the full cluster diff (step 1), commit
-  the simplify pass (step 3; `--allow-empty` if no changes), write
-  cluster-wide NOTES covering every feature (step 4), commit NOTES
-  (step 5), self-verify (step 6), print DONE (step 7).
+Run this EXACT command. It is the forcing function the orchestrator greps for. Without this line in your stdout, the orchestrator treats your run as incomplete regardless of what else you printed:
 
-Final branch shape for a cluster of N features: `N feat commits +
-1 cluster-simplify commit + 1 cluster-notes commit = N+2 commits`.
+```
+echo "WRAPUP_SENTINEL: $(git log main..HEAD --oneline | wc -l) commits, $(git status --porcelain | wc -l) unstaged"
+```
 
-Running /simplify per-feature is the single biggest trigger of the
-exit-too-early bug documented above, because the skill's
-"returning control" handoff between features looks identical to its
-handoff at run-end. Don't give the bug a window.
+Expected output:
+- Solo: `WRAPUP_SENTINEL: 2 commits, 0 unstaged`
+- Cluster of N: `WRAPUP_SENTINEL: <N+1> commits, 0 unstaged`
+
+If your sentinel doesn't match these, go back and fix before W7.
+
+### W7 — final stdout line
+
+Your last line is **exactly one** of:
+
+```
+DONE
+```
+or
+```
+STUCK: <one-line reason>
+```
+
+Nothing after this. No summary paragraph. The orchestrator greps W6's sentinel first, then this line.
 
 # Iteration budget
 
 You have a budget of approximately {{ITERATION_BUDGET}} compose-test
 iterations. If you exhaust it without passing all acceptance
-criteria, stop iterating and proceed to the wrap-up checklist above
-with a STUCK ending at step 7. Do not loop forever.
+criteria, stop iterating and proceed directly to W1 (write NOTES
+explaining why) → W2 → W3 → W6 → W7 with `STUCK: <reason>`. Do not
+loop forever.
 
-# NEVER
+# Hard rules
 
-- Modify off-limits paths.
-- Skip pre-commit hooks (--no-verify).
-- Patch tests to make them pass instead of fixing the code.
-- Implement features other than {{FEATURE_ID}}.
-- Pull in dependency updates outside what your feature requires.
-- Take /simplify's "returning control" text as an exit cue. It isn't.
-- Exit before step 7 of the wrap-up checklist. The checklist is not
-  optional.
-
-# ALWAYS
-
-- Run `scripts/agent-fix` before committing.
-- Reference the plan JSON entry for ground truth.
-- Produce all three commits (feat, simplify, notes) on the branch
-  before exiting — the simplify commit may be `--allow-empty` if
-  /simplify produced no changes, but the commit itself is required.
-- Quote test output verbatim in NOTES.md if you exit STUCK.
+- Off-limits paths are listed in docs/plans/webapp-rewrite.json's `off_limits` + the generator-prompts header. Never write there. (Exception: `apps/tests/invariants/contract_status.json` is explicitly agent-editable.)
+- Never skip pre-commit hooks with `--no-verify`.
+- Never patch tests to pass; fix the code to satisfy the test.
+- Never implement features other than the ones listed in your spawn prompt.
+- Never pull in dependencies your feature doesn't require.
+- Never emit the WRAPUP_SENTINEL without first running W3 to confirm git state; the sentinel has to be truthful.
 
 {{LANE_SPECIFIC_BLOCK}}
 ```
