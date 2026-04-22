@@ -27,6 +27,12 @@ import noArbitraryTwValue from "./rules/no-arbitrary-tw-value.ts";
 //   api-client    — OpenAPI-generated client + thin wrapper. May import shared only.
 //   ui            — pure presentational components. May import shared only.
 //   shared        — pure utilities. May import other shared only.
+//   mocks         — MSW v2 handlers + setupWorker/setupServer wiring.
+//                   Only main + mocks itself may import from it; UI /
+//                   routes / features / api-client / shared must not.
+//                   msw is tree-shaken from the prod bundle regardless,
+//                   but keeping the mock surface out of domain code
+//                   prevents accidental runtime leaks.
 //
 // Pattern order matters: the first match wins. Specific paths before generic.
 const ELEMENT_TYPES = [
@@ -41,6 +47,7 @@ const ELEMENT_TYPES = [
   { type: "api-client", pattern: "src/api-client/**", mode: "folder" },
   { type: "ui", pattern: "src/ui/**", mode: "folder" },
   { type: "shared", pattern: "src/shared/**", mode: "folder" },
+  { type: "mocks", pattern: "src/mocks/**", mode: "folder" },
   // TanStack Router generates routeTree.gen.ts at src root — treat it as
   // part of the main bundle so it isn't miscategorized.
   { type: "main", pattern: "src/routeTree.gen.ts", mode: "file" },
@@ -254,7 +261,10 @@ const config: Linter.Config[] = [
               allow: {
                 // main.tsx imports the TanStack Router generated routeTree.gen.ts,
                 // which is also classified as "main" (see ELEMENT_TYPES).
-                to: { type: ["main", "routes", "features", "api-client", "ui", "shared"] },
+                // "mocks" is allowed because main.tsx does a DEV-gated
+                // dynamic `import("./mocks/browser")` to start the Service
+                // Worker; that import is tree-shaken from the prod bundle.
+                to: { type: ["main", "routes", "features", "api-client", "ui", "shared", "mocks"] },
               },
             },
             {
@@ -290,6 +300,15 @@ const config: Linter.Config[] = [
             {
               from: { type: "shared" },
               allow: { to: { type: "shared" } },
+            },
+            // mocks — may import from other mocks files (shared handlers /
+            // fixtures / the handler registry) and from shared (for
+            // fixture-building helpers). Must NOT reach into ui / routes /
+            // features / api-client. The "default: disallow" above turns
+            // forbidden directions (e.g. ui → mocks) into lint errors.
+            {
+              from: { type: "mocks" },
+              allow: { to: { type: ["mocks", "shared"] } },
             },
           ],
         },
