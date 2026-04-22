@@ -55,6 +55,18 @@ RANGE_DELTAS = {
     "30d": timedelta(days=30),
 }
 
+
+def _as_utc(ts: datetime) -> datetime:
+    """Attach UTC tzinfo to a naive ``datetime``; pass aware values through.
+
+    Bucket SQL strips tzinfo via ``AT TIME ZONE 'UTC'`` and re-applies it;
+    raw ``SensorReading.ts`` columns already come back aware. Contract-
+    facing callers require aware datetimes (Pydantic ``AwareDatetime``),
+    so normalise both paths here.
+    """
+    return ts if ts.tzinfo is not None else ts.replace(tzinfo=UTC)
+
+
 # All metrics recorded by the serial reader (plus derived values).
 METRICS = (
     "temperature_f",
@@ -68,8 +80,12 @@ METRICS = (
 # 7d / 30d. The 1h range returns raw readings (no bucketing).
 #
 # ``ts AT TIME ZONE 'UTC'`` converts timestamptz to a naive timestamp at
-# UTC wall-clock — safe to apply date_trunc + arithmetic against. Result
-# is formatted with 'Z' suffix for unambiguous wire labels.
+# UTC wall-clock — safe to apply date_trunc + arithmetic against.
+#
+# ``_BUCKET_SQL`` formats the bucket as a 'Z'-suffixed string for the
+# legacy Chart.js payload. ``_BUCKET_SQL_NATIVE`` returns the same
+# bucket as ``timestamptz`` so the contract ``get_metric_history`` path
+# skips a string↔datetime round-trip.
 _BUCKET_SQL = {
     "24h": (
         "SELECT to_char("
@@ -93,6 +109,30 @@ _BUCKET_SQL = {
     "30d": (
         "SELECT to_char(date_trunc('hour', ts AT TIME ZONE 'UTC'), "
         '\'YYYY-MM-DD"T"HH24:MI:SS"Z"\') AS bucket, '
+        "AVG(value) AS avg_value "
+        "FROM sensorreading "
+        "WHERE ts >= :cutoff AND metric = :metric "
+        "GROUP BY 1 ORDER BY 1"
+    ),
+}
+
+# Native-datetime bucket expressions — same math as ``_BUCKET_SQL`` but
+# returning ``timestamptz`` (AT TIME ZONE 'UTC' applied only to the
+# truncation input; the outer value is re-wrapped to UTC via AT TIME
+# ZONE 'UTC' so asyncpg returns an aware datetime).
+_BUCKET_SQL_NATIVE = {
+    "24h": (
+        "SELECT ("
+        "    date_trunc('hour', ts AT TIME ZONE 'UTC')"
+        "    + make_interval(mins => (extract(minute from ts AT TIME ZONE 'UTC')::int / 5) * 5)"  # noqa: E501
+        ") AT TIME ZONE 'UTC' AS bucket, "
+        "AVG(value) AS avg_value "
+        "FROM sensorreading "
+        "WHERE ts >= :cutoff AND metric = :metric "
+        "GROUP BY 1 ORDER BY 1"
+    ),
+    "7d": (
+        "SELECT date_trunc('hour', ts AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS bucket, "  # noqa: E501
         "AVG(value) AS avg_value "
         "FROM sensorreading "
         "WHERE ts >= :cutoff AND metric = :metric "
@@ -304,11 +344,10 @@ class ReadingsService:
     ) -> list[tuple[datetime, float]]:
         """Return bucketed ``(ts, value)`` points for one DB-backed metric.
 
-        Thin wrapper around ``_get_metric_series`` for the contract-shaped
-        ``GET /api/sensors/history`` endpoint. Raw mode for ``range_key='1h'``;
-        5-min buckets for ``24h``; hourly for ``7d``. Returns parsed aware
-        ``datetime``s so the endpoint can hand them to ``HistoryPoint``
-        without re-parsing the wire labels.
+        Raw mode for ``range_key='1h'``; 5-min buckets for ``24h``; hourly
+        for ``7d``. Returns aware UTC ``datetime``s straight from Postgres
+        so the contract endpoint can hand them to ``HistoryPoint``
+        without a str-format round-trip.
 
         Callers are responsible for validating ``metric`` is a DB-backed
         metric (i.e. in ``METRICS``) — ``fan_pct`` / ``reservoir_in`` are
@@ -318,9 +357,19 @@ class ReadingsService:
         delta = RANGE_DELTAS[range_key]
         cutoff = self._clock() - delta
         async with AsyncSession(self._engine) as session:
-            series = await _get_metric_series(session, metric, range_key, cutoff)
-        points: list[tuple[datetime, float]] = []
-        for label, value in zip(series["labels"], series["values"], strict=True):
-            ts = datetime.fromisoformat(label.replace("Z", "+00:00"))
-            points.append((ts, float(value)))
-        return points
+            if range_key in _BUCKET_SQL_NATIVE:
+                stmt = text(_BUCKET_SQL_NATIVE[range_key])
+                result = await session.exec(
+                    stmt, params={"cutoff": cutoff, "metric": metric}
+                )
+                return [
+                    (_as_utc(ts), round(float(value), 2)) for ts, value in result.all()
+                ]
+            # Raw readings (1h) — no bucketing.
+            result = await session.exec(
+                select(SensorReading.ts, SensorReading.value)
+                .where(SensorReading.ts >= cutoff)
+                .where(SensorReading.metric == metric)
+                .order_by(SensorReading.ts)
+            )
+            return [(_as_utc(ts), round(float(value), 2)) for ts, value in result.all()]
