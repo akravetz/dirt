@@ -13,6 +13,8 @@
     "format": "biome format --write .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "knip": "knip --config invariants/knip.json"
   },
   "dependencies": {
@@ -26,6 +28,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.4.12",
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.59.1",
     "@tanstack/eslint-plugin-router": "^1.161.6",
     "@tanstack/router-plugin": "^1.167.22",
     "@types/node": "^24.12.2",
