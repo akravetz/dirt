@@ -183,6 +183,18 @@ class ReadingsService:
         self._engine = engine
         self._clock = clock
 
+    def now(self) -> datetime:
+        """UTC ``datetime`` from the injected clock — test seam.
+
+        Endpoints composing a readings-plus-extras envelope (``/api/sensors/current``
+        fills in mock fan / reservoir values when the DB is cold) use this so
+        the only source of "what time is it" in the service layer is the
+        shared injected clock. Avoids a second concrete ``datetime.now()``
+        call in the route handler — see
+        ``apps/tests/invariants/test_no_concrete_clock_in_production.py``.
+        """
+        return self._clock()
+
     async def get_latest_reading(
         self,
         metric: str,

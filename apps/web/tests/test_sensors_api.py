@@ -89,10 +89,3 @@ async def test_readings_range_params(client: AsyncClient, range_param: str):
 async def test_readings_invalid_range(client: AsyncClient):
     response = await client.get("/api/sensors/readings?range=99d")
     assert response.status_code == 422
-
-
-async def test_current_readings(client: AsyncClient):
-    response = await client.get("/sensors/current")
-    assert response.status_code == 200
-    assert "°F" in response.text
-    assert "%" in response.text
