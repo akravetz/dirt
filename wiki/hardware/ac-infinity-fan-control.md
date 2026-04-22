@@ -96,7 +96,7 @@ Flat side (with "2N7000" marking) facing you, legs pointing down → **Source, G
           SGD
 ```
 
-Sanity-check with a multimeter in diode mode before soldering: the body diode conducts ~0.6V when red probe is on the **drain** and black probe is on the **source**; open in the reverse direction; open both ways between gate and either other leg. If any other combination conducts, the part is wired backwards or dead.
+Sanity-check with a multimeter in diode mode before soldering: the body diode conducts ~0.6V when red probe is on the **source** and black probe is on the **drain** (anode-at-source for an N-channel body diode); open in the reverse direction; open both ways between gate and either other leg. If any other combination conducts, the part is wired backwards or dead.
 
 ### Parts used for the driver
 
