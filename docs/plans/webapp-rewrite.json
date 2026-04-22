@@ -452,7 +452,7 @@
         { "kind": "e2e", "test_file": "web-ui/tests/e2e/live.spec.ts", "description": "Navigate to /live. Assert an img element renders whose src targets /api/feed/live.jpg (the MSW handler returns a small test JPEG blob). Assert the img's src is refreshed (e.g. via a cache-busting query param change) within ~10s. Clicking on the feed at a normalized (x, y) fires POST /api/ptz/look with x and y in [-1, 1] — the spec can force-click at known canvas coords and assert the request body. Clicking a preset row in the presets list fires POST /api/ptz/preset/{id} with the matching id. Dragging the zoom slider fires POST /api/ptz/zoom with the new value (or a debounced sequence ending at the drop position)." },
         { "kind": "visual", "reference_screenshot": "docs/plans/refs/live.png", "threshold_pct": 5 }
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "backend.wiki.tree",
