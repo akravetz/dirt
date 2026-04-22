@@ -23,6 +23,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { type components, createDirtApiClient } from "@/api-client";
 import { Gauge } from "@/ui/Gauge";
+import { HumidifierStrip } from "@/ui/HumidifierStrip";
+import { HumidifierTile } from "@/ui/HumidifierTile";
 import { RangeSwitch, type SparklineRange } from "@/ui/RangeSwitch";
 import { Sparkline } from "@/ui/Sparkline";
 
@@ -100,6 +102,32 @@ function DashboardPage() {
     })),
   });
 
+  // /api/humidifier/state: current on/off + last transition. Not keyed
+  // on `range` — only the duty-cycle strip below switches with it.
+  const humidifierState = useQuery({
+    queryKey: ["humidifier.state"],
+    queryFn: async () => {
+      const { data, error } = await api.GET("/api/humidifier/state");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // /api/humidifier/history — keyed on the same `range` state the
+  // sparklines use, so toggling 1h/24h/7d invalidates this query and
+  // issues exactly one fresh fetch alongside the per-metric sparkline
+  // fetches.
+  const humidifierHistory = useQuery({
+    queryKey: ["humidifier.history", range] as const,
+    queryFn: async () => {
+      const { data, error } = await api.GET("/api/humidifier/history", {
+        params: { query: { range } },
+      });
+      if (error) throw error;
+      return data;
+    },
+  });
+
   if (isLoading) {
     return (
       <main className="p-6">
@@ -145,6 +173,18 @@ function DashboardPage() {
           );
         })}
       </section>
+      {humidifierState.data ? (
+        <section
+          aria-label="Humidifier"
+          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+        >
+          <HumidifierTile
+            on={humidifierState.data.on}
+            durationS={humidifierState.data.duration_s}
+            cycles24h={humidifierState.data.cycles_24h}
+          />
+        </section>
+      ) : null}
       <section aria-label="Environment sparklines" className="flex flex-col gap-3">
         <header className="flex items-center justify-between">
           <h2 className="font-mono text-xs uppercase tracking-caps text-ink-2">
@@ -170,6 +210,7 @@ function DashboardPage() {
           })}
         </div>
       </section>
+      <HumidifierStrip points={humidifierHistory.data?.points ?? []} />
     </main>
   );
 }

@@ -225,6 +225,67 @@ export const handlers: RequestHandler[] = [
     });
   }),
 
+  // -------------------------------------------------------------------------
+  // frontend.dashboard.humidifier — /api/humidifier/state + /api/humidifier/history
+  //
+  // Fixtures for the dashboard humidifier tile + duty-cycle strip. Shapes
+  // duck-typed against contracts/webapp-v1.yaml
+  // #/components/schemas/{HumidifierState,HumidifierHistory,HumidifierTransition}
+  // (boundaries forbids mocks/ → api-client/, so no `import type` from
+  // generated schema — consumer typecheck catches drift).
+  //
+  // /api/humidifier/state — stable "on since ~2h ago, 8 cycles in the
+  // last 24h" fixture. `since` anchored to a fixed timestamp so the
+  // duration-text assertion isn't a moving target as test time advances.
+  //
+  // /api/humidifier/history — range-dependent transition counts so the
+  // e2e can observe the strip re-rendering when the user switches ranges.
+  // Bucket counts per range (chosen distinct and not too large):
+  //   1h  → 4 transitions
+  //   24h → 12 transitions
+  //   7d  → 28 transitions
+  // Transitions alternate on/off, first transition = on=true. Same
+  // (range) → identical points[] so rectangle-count assertions are stable.
+  // -------------------------------------------------------------------------
+
+  http.get("/api/humidifier/state", () => {
+    const ts = "2026-04-21T17:00:00Z";
+    // `since` = ts - 7200s (two hours ago) so duration_s = 7200
+    const since = "2026-04-21T15:00:00Z";
+    return HttpResponse.json({
+      on: true,
+      since,
+      duration_s: 7200,
+      cycles_24h: 8,
+      ts,
+    });
+  }),
+
+  http.get("/api/humidifier/history", ({ request }) => {
+    const url = new URL(request.url);
+    const range = url.searchParams.get("range");
+
+    const RANGE_COUNT: Record<string, { count: number; windowMs: number }> = {
+      "1h": { count: 4, windowMs: 60 * 60 * 1000 },
+      "24h": { count: 12, windowMs: 24 * 60 * 60 * 1000 },
+      "7d": { count: 28, windowMs: 7 * 24 * 60 * 60 * 1000 },
+    };
+    const spec = range ? RANGE_COUNT[range] : undefined;
+    if (!range || !spec) {
+      return HttpResponse.json({ detail: "bad_range" }, { status: 400 });
+    }
+    const { count, windowMs } = spec;
+    const endMs = Date.parse("2026-04-21T17:00:00Z");
+    const stepMs = windowMs / count;
+    // Transitions evenly spaced across the window; alternate on/off with
+    // first point on=true. Deterministic — same range → same points.
+    const points = Array.from({ length: count }, (_, i) => ({
+      ts: new Date(endMs - (count - 1 - i) * stepMs).toISOString(),
+      on: i % 2 === 0,
+    }));
+    return HttpResponse.json({ range, points });
+  }),
+
   http.get("/api/grow/current", () => {
     // germination_date authoritative in CLAUDE.md: 2026-03-15 (veg).
     // day_number for today (2026-04-21) = 38; grow_week_number = 6.
