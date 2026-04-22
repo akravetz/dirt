@@ -374,7 +374,7 @@
         { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/feed/live.jpg removed; LEGACY_ROUTES entries for /feed/live, /feed/image, /feed/status removed." },
         { "kind": "unit", "path": "apps/web/tests/test_feed_endpoints.py" }
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "backend.feed.snapshot",
@@ -388,7 +388,7 @@
         { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/feed/snapshot/latest removed; LEGACY_ROUTES entry for /api/snapshots/latest removed." },
         { "kind": "unit", "path": "apps/web/tests/test_feed_snapshot_endpoint.py" }
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "backend.ptz.state",
@@ -401,7 +401,7 @@
         { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/ptz/state removed." },
         { "kind": "unit", "path": "apps/web/tests/test_ptz_state_endpoint.py" }
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "backend.ptz.preset",
@@ -414,7 +414,7 @@
         { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/ptz/preset/{id} removed." },
         { "kind": "unit", "path": "apps/web/tests/test_ptz_preset_endpoint.py" }
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "backend.ptz.look",
@@ -427,7 +427,7 @@
         { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/ptz/look removed." },
         { "kind": "unit", "path": "apps/web/tests/test_ptz_look_endpoint.py" }
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "backend.ptz.zoom",
@@ -440,7 +440,7 @@
         { "kind": "invariant", "description": "EXPECTED_MISSING entry for /api/ptz/zoom removed." },
         { "kind": "unit", "path": "apps/web/tests/test_ptz_zoom_endpoint.py" }
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "frontend.live",
