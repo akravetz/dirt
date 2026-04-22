@@ -56,7 +56,7 @@ interface ErrorDetail {
 
 let sessionUser: User | null = null;
 
-const authHandlers: RequestHandler[] = [
+export const handlers: RequestHandler[] = [
   http.post("/api/auth/login", async ({ request }) => {
     const body = (await request.json()) as Partial<LoginRequestBody>;
     if (body?.username === "admin" && body?.password === "changeme") {
@@ -86,5 +86,3 @@ const authHandlers: RequestHandler[] = [
     return HttpResponse.json(err, { status: 401 });
   }),
 ];
-
-export const handlers: RequestHandler[] = [...authHandlers];
