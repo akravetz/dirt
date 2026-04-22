@@ -920,13 +920,21 @@ Then:
     AE=$(compare -metric AE /tmp/{{FEATURE_ID}}-actual.png $REF /tmp/{{FEATURE_ID}}-diff.png 2>&1 || true)
     PCT=$(awk "BEGIN {printf \"%.3f\", ($AE / $TOTAL) * 100}")
 
-Thresholds:
+Thresholds (default):
 - ≤ 1.0% differing pixels → pass.
 - 1.0% – 3.0% → inspect /tmp/{{FEATURE_ID}}-diff.png before
   deciding. Font/AA variance can legitimately land here; layout
   drift (wrong size/position) cannot. State the measured % AND
   your inspection call in evidence.
 - > 3.0% → fail.
+
+Per-feature override: if the plan-JSON acceptance entry includes
+`threshold_pct: N` (a number), use N instead of the 1.0% pass band.
+The inspect band runs from N to 2N; the fail band is > 2N.
+Features with data-driven visuals (gauges whose needle angles depend
+on live values, sparklines whose shape depends on the window of
+history) typically set N around 5–10. State the applied threshold
+in evidence.
 
 ## Reset between screen captures
 
