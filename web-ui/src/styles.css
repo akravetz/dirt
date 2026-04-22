@@ -25,3 +25,19 @@
    * which TS-15 forbids. */
   --tracking-caps: 0.3em;
 }
+
+/* Dotted-grid background used on the /login left panel. Built with
+ * radial-gradient dots over the paper tone; size + dot-color reference
+ * the rule-strong palette token so it stays in sync with any theme
+ * tweaks in @theme above. TS-15 forbids arbitrary values in class names,
+ * but a named @utility is the intended escape hatch for this kind of
+ * reused background. */
+@utility bg-dot-grid {
+  background-image: radial-gradient(
+    circle,
+    var(--color-rule-strong) 1px,
+    transparent 1px
+  );
+  background-size: 16px 16px;
+  background-position: 0 0;
+}
