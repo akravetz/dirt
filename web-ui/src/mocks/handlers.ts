@@ -585,6 +585,220 @@ export const handlers: RequestHandler[] = [
     });
   }),
 
+  // -------------------------------------------------------------------------
+  // frontend.live — /api/feed/live.jpg, /api/ptz/{state,preset/{id},look,zoom}
+  //
+  // Fixtures for the Live tab (camera feed + PTZ controls). Shapes duck-
+  // typed against contracts/webapp-v1.yaml
+  // #/components/schemas/{PTZState,PTZPreset,PTZApplied,PTZLookRequest,
+  //                       PTZZoomRequest,PTZZoomResponse}.
+  //
+  // /api/feed/live.jpg — returns a tiny 1×1 baseline JPEG so the Live
+  //   route's <img src="/api/feed/live.jpg?t=…"> actually loads in dev +
+  //   e2e. A real binary JPEG byte-sequence (not a placeholder PNG) so
+  //   Content-Type: image/jpeg is truthful. Cache-Control: no-store so
+  //   the browser's HTTP cache doesn't hide the ~10s cache-bust refresh.
+  //
+  // PTZ state: module-level mutable. /api/ptz/state returns the current
+  //   position; preset/look/zoom mutate it and echo back PTZApplied /
+  //   PTZZoomResponse so the UI's onSuccess → invalidate → refetch sees
+  //   the updated values.
+  //
+  // Preset ids baked in: overview + plant_a..d (matches the mockup
+  // reference docs/plans/refs/live.png).
+  // -------------------------------------------------------------------------
+
+  // A 1×1 baseline JPEG, produced offline and inlined as bytes. 125 bytes
+  // total — the smallest valid JPEG (SOI + APP0 + SOF0 + DQT + DHT × 4 +
+  // SOS + EOI is too large, so this uses a minimal grayscale baseline
+  // encoder's output). The exact bytes don't matter for the e2e — the
+  // spec asserts the <img src> pattern + the network request fires, not
+  // image pixel content.
+  // biome-ignore format: keep the table columnar for review.
+  http.get("/api/feed/live.jpg", () => {
+    const bytes = new Uint8Array([
+      0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01,
+      0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xff, 0xdb, 0x00, 0x43,
+      0x00, 0x08, 0x06, 0x06, 0x07, 0x06, 0x05, 0x08, 0x07, 0x07, 0x07, 0x09,
+      0x09, 0x08, 0x0a, 0x0c, 0x14, 0x0d, 0x0c, 0x0b, 0x0b, 0x0c, 0x19, 0x12,
+      0x13, 0x0f, 0x14, 0x1d, 0x1a, 0x1f, 0x1e, 0x1d, 0x1a, 0x1c, 0x1c, 0x20,
+      0x24, 0x2e, 0x27, 0x20, 0x22, 0x2c, 0x23, 0x1c, 0x1c, 0x28, 0x37, 0x29,
+      0x2c, 0x30, 0x31, 0x34, 0x34, 0x34, 0x1f, 0x27, 0x39, 0x3d, 0x38, 0x32,
+      0x3c, 0x2e, 0x33, 0x34, 0x32, 0xff, 0xc0, 0x00, 0x0b, 0x08, 0x00, 0x01,
+      0x00, 0x01, 0x01, 0x01, 0x11, 0x00, 0xff, 0xc4, 0x00, 0x1f, 0x00, 0x00,
+      0x01, 0x05, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+      0x09, 0x0a, 0x0b, 0xff, 0xc4, 0x00, 0xb5, 0x10, 0x00, 0x02, 0x01, 0x03,
+      0x03, 0x02, 0x04, 0x03, 0x05, 0x05, 0x04, 0x04, 0x00, 0x00, 0x01, 0x7d,
+      0x01, 0x02, 0x03, 0x00, 0x04, 0x11, 0x05, 0x12, 0x21, 0x31, 0x41, 0x06,
+      0x13, 0x51, 0x61, 0x07, 0x22, 0x71, 0x14, 0x32, 0x81, 0x91, 0xa1, 0x08,
+      0x23, 0x42, 0xb1, 0xc1, 0x15, 0x52, 0xd1, 0xf0, 0x24, 0x33, 0x62, 0x72,
+      0x82, 0xff, 0xda, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3f, 0x00, 0xfb,
+      0xd3, 0xff, 0xd9,
+    ]);
+    return new HttpResponse(bytes, {
+      status: 200,
+      headers: {
+        "Content-Type": "image/jpeg",
+        "Cache-Control": "no-store",
+      },
+    });
+  }),
+
+  // Preset table — exactly matches the five rows the Live route renders.
+  // `sticker_color` null on overview, non-null per plant (mirrors the
+  // contract's optional PTZPreset.sticker_color field).
+  ...(() => {
+    // All PTZ shapes below are inlined duck-typed mirrors of
+    // contracts/webapp-v1.yaml #/components/schemas/{PTZState,PTZPreset,
+    // PTZApplied,PTZLookRequest,PTZZoomRequest,PTZZoomResponse}. The
+    // boundaries lint rule forbids mocks/ → api-client/ (even for
+    // `import type`); consumer typecheck against the real api-client
+    // types (routes/live.tsx) catches drift.
+    interface LocalPreset {
+      id: string;
+      label: string;
+      description: string;
+      yaw: number;
+      pitch: number;
+      zoom: number;
+      sticker_color: "yellow" | "orange" | "pink" | "blue" | null;
+    }
+
+    const PRESETS: readonly LocalPreset[] = [
+      {
+        id: "overview",
+        label: "Overview",
+        description: "Whole tent, center",
+        yaw: 0,
+        pitch: 0,
+        zoom: 1,
+        sticker_color: null,
+      },
+      {
+        id: "plant_a",
+        label: "Plant A",
+        description: "Front-left",
+        yaw: -30,
+        pitch: -5,
+        zoom: 1.8,
+        sticker_color: "yellow",
+      },
+      {
+        id: "plant_b",
+        label: "Plant B",
+        description: "Front-right",
+        yaw: 30,
+        pitch: -5,
+        zoom: 1.8,
+        sticker_color: "orange",
+      },
+      {
+        id: "plant_c",
+        label: "Plant C",
+        description: "Back-left",
+        yaw: -20,
+        pitch: 10,
+        zoom: 1.6,
+        sticker_color: "pink",
+      },
+      {
+        id: "plant_d",
+        label: "Plant D",
+        description: "Back-right",
+        yaw: 20,
+        pitch: 10,
+        zoom: 1.6,
+        sticker_color: "blue",
+      },
+    ];
+
+    // Module-scoped mutable position. Each mutation updates this; the
+    // next /api/ptz/state read reflects the change.
+    const state = {
+      connected: true,
+      yaw: 0,
+      pitch: 0,
+      zoom: 1,
+      preset: "overview" as string | null,
+    };
+
+    const snapshot = () => ({
+      connected: state.connected,
+      yaw: state.yaw,
+      pitch: state.pitch,
+      zoom: state.zoom,
+      preset: state.preset,
+      presets: PRESETS,
+    });
+
+    return [
+      http.get("/api/ptz/state", () => HttpResponse.json(snapshot())),
+
+      http.post("/api/ptz/preset/:id", ({ params }) => {
+        const id = String(params.id);
+        const preset = PRESETS.find((p) => p.id === id);
+        if (!preset) {
+          return HttpResponse.json({ detail: "preset_not_found" }, { status: 404 });
+        }
+        state.yaw = preset.yaw;
+        state.pitch = preset.pitch;
+        state.zoom = preset.zoom;
+        state.preset = preset.id;
+        return HttpResponse.json({
+          ok: true,
+          yaw: state.yaw,
+          pitch: state.pitch,
+          zoom: state.zoom,
+          preset: state.preset,
+        });
+      }),
+
+      http.post("/api/ptz/look", async ({ request }) => {
+        const body = (await request.json()) as Partial<{ x: number; y: number }>;
+        if (typeof body?.x !== "number" || typeof body?.y !== "number") {
+          return HttpResponse.json({ detail: "bad_coords" }, { status: 400 });
+        }
+        // Naive look → yaw/pitch projection for the fixture. The real
+        // service does geometry; the mock just records that a click-to-
+        // look fired and nulls the active preset (per PTZApplied.preset
+        // = null after manual moves).
+        state.yaw += body.x * 10;
+        state.pitch += body.y * 10;
+        state.preset = null;
+        return HttpResponse.json({
+          ok: true,
+          yaw: state.yaw,
+          pitch: state.pitch,
+          zoom: state.zoom,
+          preset: state.preset,
+        });
+      }),
+
+      http.post("/api/ptz/zoom", async ({ request }) => {
+        const body = (await request.json()) as Partial<{
+          zoom?: number;
+          delta?: number;
+        }>;
+        const hasZoom = typeof body?.zoom === "number";
+        const hasDelta = typeof body?.delta === "number";
+        if (hasZoom === hasDelta) {
+          // Contract: exactly one of {zoom, delta} must be provided.
+          return HttpResponse.json(
+            { detail: "provide_exactly_one_of_zoom_or_delta" },
+            { status: 422 },
+          );
+        }
+        if (hasZoom && typeof body.zoom === "number") {
+          state.zoom = body.zoom;
+        } else if (hasDelta && typeof body.delta === "number") {
+          state.zoom += body.delta;
+        }
+        return HttpResponse.json({ ok: true, zoom: state.zoom });
+      }),
+    ];
+  })(),
+
   http.get("/api/grow/current", () => {
     // germination_date authoritative in CLAUDE.md: 2026-03-15 (veg).
     // day_number for today (2026-04-21) = 38; grow_week_number = 6.
