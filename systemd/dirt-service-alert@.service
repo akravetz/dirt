@@ -1,0 +1,12 @@
+[Unit]
+Description=Telegram alert for failed dirt service %i
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/code/dirt
+# %i is the instance name (the unit that failed, e.g. "dirt-camera.service").
+# The script reads TELEGRAM_BOT_TOKEN + TELEGRAM_ALLOWED_USER_ID from the
+# repo-root .env; EnvironmentFile loads them for completeness in case the
+# shell invocation ever changes.
+EnvironmentFile=-%h/code/dirt/.env
+ExecStart=/usr/bin/env python3 %h/code/dirt/scripts/telegram-alert %i

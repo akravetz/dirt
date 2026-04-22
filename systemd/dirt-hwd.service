@@ -9,6 +9,7 @@ After=dirt-camera.service
 # the unit `failed`. Reset with `systemctl --user reset-failed dirt-hwd`.
 StartLimitBurst=5
 StartLimitIntervalSec=300
+OnFailure=dirt-service-alert@%n.service
 
 [Service]
 Type=simple

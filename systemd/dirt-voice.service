@@ -2,6 +2,10 @@
 Description=Dirt voice channel (Claudia) — wake-word → Pipecat pipeline → Jabra
 Documentation=file://%h/code/dirt/wiki/hardware/jabra.md
 After=default.target
+# Outer crash-loop budget: 5 nonzero exits in 5 minutes → failed state.
+StartLimitBurst=5
+StartLimitIntervalSec=300
+OnFailure=dirt-service-alert@%n.service
 
 [Service]
 Type=simple

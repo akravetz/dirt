@@ -315,6 +315,12 @@ CaptureResult CaptureService::capture_to_file() {
     return r;
 }
 
+bool CaptureService::last_frame_within(milliseconds max_age) {
+    if (!have_frame_.load()) return false;
+    std::lock_guard<std::mutex> lock(frame_mu_);
+    return (steady_clock::now() - latest_ts_) <= max_age;
+}
+
 void CaptureService::sweep_old_tempfiles() {
     DIR* d = opendir(cfg_.tempdir.c_str());
     if (!d) return;

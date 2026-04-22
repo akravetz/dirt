@@ -25,6 +25,7 @@ UNITS=(
     dirt-daily-report.timer
     dirt-logrotate.service
     dirt-logrotate.timer
+    dirt-service-alert@.service
 )
 
 for unit in "${UNITS[@]}"; do

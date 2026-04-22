@@ -59,6 +59,11 @@ public:
     // Returns CaptureResult with ok=false and error set on failure.
     CaptureResult capture_to_file();
 
+    // Liveness probe for the systemd watchdog: true iff a frame was
+    // decoded by the drain loop within the last `max_age`. Thread-safe.
+    // Returns false before the first frame or while reconnecting.
+    bool last_frame_within(std::chrono::milliseconds max_age);
+
 private:
     void drain_loop();
     bool open_device(bool verbose_errors = true);

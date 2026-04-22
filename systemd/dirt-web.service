@@ -3,6 +3,10 @@ Description=Dirt web app — UI, sensors/snapshots/feed API, MCP mount
 Documentation=file://%h/code/dirt/CLAUDE.md
 After=default.target network-online.target dirt-hwd.service
 Wants=network-online.target
+# Outer crash-loop budget: 5 nonzero exits in 5 minutes → failed state.
+StartLimitBurst=5
+StartLimitIntervalSec=300
+OnFailure=dirt-service-alert@%n.service
 
 [Service]
 Type=simple

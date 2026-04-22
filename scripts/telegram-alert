@@ -1,0 +1,90 @@
+#!/usr/bin/env python3
+"""Post a short alert to Telegram when a dirt systemd unit fails.
+
+Invoked by systemd via the template unit
+`dirt-service-alert@<unit>.service`, which is listed as `OnFailure=` on
+each dirt service. Runs on the failing host's user session, reads the
+bot token and chat id from repo-root `.env`, and POSTs a single message
+via urllib — no third-party deps, so the alert path stays reliable even
+if the Python workspace is in a bad state.
+
+Usage: telegram-alert <unit-name>
+"""
+
+from __future__ import annotations
+
+import os
+import subprocess
+import sys
+import urllib.parse
+import urllib.request
+
+
+def _read_env_file(path: str) -> dict[str, str]:
+    out: dict[str, str] = {}
+    try:
+        with open(path) as f:
+            for raw in f:
+                line = raw.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                out[k.strip()] = v.strip().strip('"').strip("'")
+    except FileNotFoundError:
+        pass
+    return out
+
+
+def main() -> int:
+    unit = sys.argv[1] if len(sys.argv) > 1 else "unknown"
+
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    env = _read_env_file(os.path.join(repo_root, ".env"))
+
+    token = os.environ.get("TELEGRAM_BOT_TOKEN") or env.get("TELEGRAM_BOT_TOKEN", "")
+    chat_id = os.environ.get("TELEGRAM_ALLOWED_USER_ID") or env.get(
+        "TELEGRAM_ALLOWED_USER_ID", ""
+    )
+    if not token or not chat_id:
+        print(
+            f"telegram-alert: no token/chat; {unit} failed but no alert sent",
+            file=sys.stderr,
+        )
+        return 0
+
+    try:
+        tail = subprocess.check_output(
+            ["journalctl", "--user", "-u", unit, "-n", "10", "--no-pager"],
+            text=True,
+            timeout=5,
+            stderr=subprocess.STDOUT,
+        )
+    except Exception as e:
+        tail = f"(journalctl failed: {e})"
+
+    tail_safe = tail.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    text = (
+        f"<b>⚠ Service failed:</b> <code>{unit}</code>\n"
+        f"<pre>{tail_safe[-2500:]}</pre>"
+    )
+
+    data = urllib.parse.urlencode(
+        {
+            "chat_id": chat_id,
+            "text": text,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": "true",
+        }
+    ).encode("utf-8")
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    try:
+        with urllib.request.urlopen(url, data=data, timeout=10) as r:
+            _ = r.read()
+    except Exception as e:
+        print(f"telegram-alert: send failed: {e}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -16,6 +16,7 @@
 #include "capture.hpp"
 #include "commands.hpp"
 #include "logger.hpp"
+#include "sd_notify.hpp"
 #include "sdk_wrapper.hpp"
 #include "server.hpp"
 
@@ -99,6 +100,8 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    dirt::notify_init();
+
     dirt::Logger logger(log_path, level);
     logger.info("dirt-camera-daemon starting");
     logger.info("socket=" + socket_path);
@@ -141,11 +144,32 @@ int main(int argc, char* argv[]) {
         }
     });
 
+    // Systemd watchdog heartbeat. Pings WATCHDOG=1 every 10s iff the
+    // capture drain loop produced a frame within the last 15s. A stuck
+    // daemon (drain spinning in error, or reconnect loop unable to
+    // reacquire the device) stops pinging and systemd SIGABRTs us per
+    // WatchdogSec — which counts as a failure and eventually trips
+    // StartLimitBurst so we surface as `failed` instead of silently
+    // half-working. No-op when NOTIFY_SOCKET is unset (dev runs).
+    dirt::notify_send("READY=1");
+    std::thread watchdog_thread([&]() {
+        using namespace std::chrono;
+        while (!g_stop.load()) {
+            std::this_thread::sleep_for(10s);
+            if (g_stop.load()) break;
+            if (capture.last_frame_within(15s)) {
+                dirt::notify_send("WATCHDOG=1");
+            }
+        }
+    });
+
     logger.info("serving");
     server.serve();
 
     logger.info("shutting down");
+    dirt::notify_send("STOPPING=1");
     g_stop.store(true);
+    watchdog_thread.join();
     tick_thread.join();
     capture.stop();
     sdk.stop();

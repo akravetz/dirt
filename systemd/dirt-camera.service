@@ -2,9 +2,21 @@
 Description=Dirt camera daemon (OBSBOT SDK wrapper)
 Documentation=file://%h/code/dirt/services/camera-daemon/README.md
 After=default.target
+# Outer crash-loop budget: 5 nonzero exits (incl. watchdog SIGABRT) in 5
+# minutes → systemd leaves the unit `failed`. Reset with
+# `systemctl --user reset-failed dirt-camera`.
+StartLimitBurst=5
+StartLimitIntervalSec=300
+OnFailure=dirt-service-alert@%n.service
 
 [Service]
-Type=simple
+# Type=notify: daemon calls sd_notify(READY=1) after listen(), and
+# sd_notify(WATCHDOG=1) every 10s while a frame was decoded in the last
+# 15s. Stuck-but-alive (drain spinning or reconnect stalled) stops the
+# heartbeat and WatchdogSec=30s causes systemd to SIGABRT + restart,
+# converting silent disk-fills into visible failures.
+Type=notify
+WatchdogSec=30s
 # %h expands to the user's home directory in user units.
 ExecStart=%h/code/dirt/services/camera-daemon/dirt-camera-daemon
 Restart=on-failure

@@ -6,6 +6,7 @@ cd "$(dirname "$0")"
 
 SRCS=(
     src/logger.cpp
+    src/sd_notify.cpp
     src/sdk_wrapper.cpp
     src/capture.cpp
     src/commands.cpp
