@@ -36,7 +36,11 @@ logger = logging.getLogger(__name__)
 
 # Telegram message body soft cap. Bot API hard cap is 4096; we leave headroom
 # for the trailing "see wiki for full report" link.
-MAX_TELEGRAM_BODY_CHARS = 3500
+# Telegram caps sendMessage at 4096 chars. 50-char safety margin keeps us
+# clear of any framing overhead and of rounding in the sub-agent's counter.
+# Kept in sync with ``daily_synthesis.TELEGRAM_MAX_BODY_CHARS`` — the
+# sub-agent writes to the same budget the orchestrator validates against.
+MAX_TELEGRAM_BODY_CHARS = 4046
 
 # Five photos, in delivery order. Names map straight to camera presets and
 # to the on-disk filenames inside `raw/photos/<DATE>/`.
@@ -228,13 +232,26 @@ class DailyReport:
         # Log and continue to mark the run completed.
         try:
             caption = self._format_caption(target_date, synth)
-            assert synth.daily_file is not None  # noqa: S101  phase_synthesize guarantees
-            body_html = self._format_body(synth.daily_file)
+            body_html = _load_telegram_body(synth.telegram_html_path)
             await self._telegram.send_media_group(
                 self._chat_id,
                 list(photos),
                 caption=caption,
             )
+            if body_html is None:
+                log_event(
+                    "daily_report",
+                    "deliver_finished",
+                    date=target_date.isoformat(),
+                    via="telegram",
+                    body_sent=False,
+                    body_missing=True,
+                )
+                logger.warning(
+                    "no telegram sidecar for %s — delivered photos only",
+                    target_date.isoformat(),
+                )
+                return
             await self._telegram.send_message(
                 self._chat_id,
                 body_html,
@@ -245,6 +262,7 @@ class DailyReport:
                 "deliver_finished",
                 date=target_date.isoformat(),
                 via="telegram",
+                body_sent=True,
             )
         except (TelegramError, OSError, ValueError) as e:
             logger.exception("telegram delivery failed (non-fatal)")
@@ -305,131 +323,70 @@ class DailyReport:
             "Plants A-D + overview"
         )
 
-    def _format_body(self, daily_file: Path) -> str:
-        try:
-            md = daily_file.read_text()
-        except OSError as e:
-            return f"<i>Could not read daily file: {html.escape(str(e))}</i>"
-        body_html = markdown_to_simple_html(md)
-        if len(body_html) > MAX_TELEGRAM_BODY_CHARS:
-            body_html = (
-                body_html[:MAX_TELEGRAM_BODY_CHARS]
-                + "\n\n<i>... truncated; full report in the wiki.</i>"
-            )
-        return balance_html_tags(body_html)
+
+# --- Telegram body loader (sub-agent writes a sidecar file; we read it) ---
+
+_BALANCEABLE_TAGS = ("pre", "code", "b", "i", "u", "s", "a", "blockquote")
 
 
-_BALANCEABLE_TAGS = ("pre", "code", "b", "i", "u", "s")
+def _load_telegram_body(sidecar: Path | None) -> str | None:
+    """Read the Telegram-ready HTML the sub-agent wrote, or return None.
+
+    The sub-agent is instructed to write a ≤MAX_TELEGRAM_BODY_CHARS file
+    using only Telegram's HTML whitelist. This loader is the last line of
+    defense: it truncates at a safe boundary if the agent overshot, strips
+    any dangling incomplete tag at the end, and balances any unclosed
+    whitelisted tags. Returns None when the sidecar is absent so the
+    orchestrator can deliver photos-only.
+    """
+    if sidecar is None or not sidecar.exists():
+        return None
+    try:
+        text = sidecar.read_text().strip()
+    except OSError:
+        logger.exception("could not read telegram sidecar %s", sidecar)
+        return None
+    if not text:
+        return None
+    text = _safe_truncate_html(text, MAX_TELEGRAM_BODY_CHARS)
+    text = _strip_trailing_partial_tag(text)
+    return balance_html_tags(text)
+
+
+def _safe_truncate_html(text: str, max_chars: int) -> str:
+    """Truncate at the last paragraph break below ``max_chars`` rather
+    than at a byte offset that could land mid-tag."""
+    if len(text) <= max_chars:
+        return text
+    cut = text.rfind("\n\n", 0, max_chars)
+    if cut == -1:
+        cut = max_chars
+    return text[:cut].rstrip() + "\n\n<i>... truncated; full report in the wiki.</i>"
+
+
+def _strip_trailing_partial_tag(text: str) -> str:
+    """Remove a trailing ``<foo`` with no matching ``>`` — protects
+    Telegram's HTML parser from the mid-tag truncation class of bug."""
+    last_lt = text.rfind("<")
+    last_gt = text.rfind(">")
+    if last_lt > last_gt:
+        return text[:last_lt].rstrip()
+    return text
 
 
 def balance_html_tags(s: str) -> str:
     """Append closing tags for any unclosed Telegram-whitelisted tags.
 
-    Truncating the body in the middle of a `<pre>...</pre>` block produces
-    "Bad Request: Can't find end tag corresponding to start tag" from
-    Telegram. Conservatively balance: for each tag in
-    :data:`_BALANCEABLE_TAGS`, count opens vs closes and append one
-    ``</tag>`` per surplus open. Order is best-effort (count-based scheme
-    can't perfectly recover nesting), but Telegram's HTML parser is
-    permissive enough that this clears the validation.
+    Belt-and-suspenders: the sub-agent writes complete HTML, but if a
+    truncation trimmed partway through a nested region, pair up opens and
+    closes count-wise so Telegram's parser doesn't reject the message with
+    "Can't find end tag corresponding to start tag".
     """
     closers: list[str] = []
     for tag in _BALANCEABLE_TAGS:
         opens = len(re.findall(rf"<{tag}\b[^>]*>", s))
         closes = len(re.findall(rf"</{tag}>", s))
-        for _ in range(opens - closes):
-            closers.append(f"</{tag}>")
+        closers.extend([f"</{tag}>"] * (opens - closes))
     if not closers:
         return s
     return s + "".join(reversed(closers))
-
-
-# --- pure helpers (testable in isolation) ---
-
-_FRONTMATTER_RE = re.compile(r"^---\n.*?\n---\n", re.DOTALL)
-
-
-def markdown_to_simple_html(md: str) -> str:  # noqa: PLR0915 — linear whitelist parser; decomposing the block-state machine into helpers would fragment the pass without reducing total complexity.
-    """Convert a subset of markdown to Telegram-flavoured HTML.
-
-    Telegram's HTML mode supports a small whitelist:
-    ``<b>``, ``<i>``, ``<u>``, ``<s>``, ``<code>``, ``<pre>``, ``<a>``.
-    No headers, no lists, no tables. We map ``# heading`` to ``<b>``,
-    strip frontmatter, convert ``**bold**`` and ``*italic*`` and inline
-    ``` `code` ``` to their HTML equivalents, and pass tables through as
-    monospace ``<pre>`` blocks (preserves alignment in mobile fonts).
-
-    Everything not on the whitelist is HTML-escaped to keep Telegram from
-    rejecting the message.
-    """
-    md = _FRONTMATTER_RE.sub("", md, count=1)
-
-    out_lines: list[str] = []
-    in_code_block = False
-    code_lang = ""
-    code_buffer: list[str] = []
-    in_table = False
-    table_buffer: list[str] = []
-
-    def flush_table() -> None:
-        nonlocal in_table, table_buffer
-        if table_buffer:
-            out_lines.append("<pre>" + html.escape("\n".join(table_buffer)) + "</pre>")
-        table_buffer = []
-        in_table = False
-
-    def flush_code() -> None:
-        nonlocal in_code_block, code_buffer, code_lang
-        if code_buffer:
-            out_lines.append("<pre>" + html.escape("\n".join(code_buffer)) + "</pre>")
-        code_buffer = []
-        code_lang = ""
-        in_code_block = False
-
-    for raw in md.splitlines():
-        if raw.strip().startswith("```"):
-            if in_code_block:
-                flush_code()
-            else:
-                in_code_block = True
-                code_lang = raw.strip().removeprefix("```").strip()
-            continue
-        if in_code_block:
-            code_buffer.append(raw)
-            continue
-
-        # Tables: any line with `|` and a non-blank rest counts as a row.
-        if "|" in raw and raw.strip():
-            in_table = True
-            table_buffer.append(raw)
-            continue
-        if in_table:
-            flush_table()
-
-        # Headings -> <b>
-        if raw.startswith("#"):
-            text = raw.lstrip("#").strip()
-            out_lines.append(f"<b>{html.escape(text)}</b>")
-            continue
-
-        # Inline transforms on plain lines
-        line = html.escape(raw)
-        # `code`
-        line = re.sub(r"`([^`]+)`", r"<code>\1</code>", line)
-        # **bold** (greedy non-newline)
-        line = re.sub(r"\*\*([^*\n]+)\*\*", r"<b>\1</b>", line)
-        # _italic_ (only when bracketed by spaces/punct, to avoid mangling
-        # snake_case identifiers — keep it simple: require leading whitespace
-        # or start-of-line, trailing whitespace/punctuation)
-        line = re.sub(r"(^|\s)_([^_\n]+)_(?=\s|[.,;:!?]|$)", r"\1<i>\2</i>", line)
-        out_lines.append(line)
-
-    if in_code_block:
-        flush_code()
-    if in_table:
-        flush_table()
-
-    # Collapse runs of >2 blank lines
-    text = "\n".join(out_lines)
-    text = re.sub(r"\n{3,}", "\n\n", text)
-    return text.strip()

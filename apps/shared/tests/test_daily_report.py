@@ -21,10 +21,13 @@ from dirt_shared.models.sensor_calibration import SensorCalibration
 from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.services.daily_report import (
+    MAX_TELEGRAM_BODY_CHARS,
     DailyReport,
     Phase,
+    _load_telegram_body,
+    _safe_truncate_html,
+    _strip_trailing_partial_tag,
     balance_html_tags,
-    markdown_to_simple_html,
 )
 from dirt_shared.services.daily_sensors import (
     PLANT_LOCATIONS,
@@ -118,14 +121,25 @@ class _FakeCamera:
 
 
 class _FakeSynthesis:
-    """SynthesisRunner stand-in. Writes a daily file when invoked."""
+    """SynthesisRunner stand-in. Writes a daily file + telegram sidecar
+    when invoked."""
 
     def __init__(
-        self, wiki_root: Path, *, succeed: bool = True, error: str | None = None
+        self,
+        wiki_root: Path,
+        marker_dir: Path,
+        *,
+        succeed: bool = True,
+        error: str | None = None,
+        write_sidecar: bool = True,
+        sidecar_body: str = "<b>Daily Report</b>\nPlant A looking good.",
     ):
         self.wiki_root = wiki_root
+        self.marker_dir = marker_dir
         self.succeed = succeed
         self.error = error
+        self.write_sidecar = write_sidecar
+        self.sidecar_body = sidecar_body
         self.calls: list[tuple[date, list[Path], dict[str, Any]]] = []
 
     async def run(
@@ -151,6 +165,10 @@ class _FakeSynthesis:
             "## Plant A\nLooking good.\n\n"
             "## Sensors\n\n| metric | value |\n|---|---|\n| temp | 80°F |\n"
         )
+        sidecar = self.marker_dir / f"{target_date.isoformat()}.telegram.html"
+        if self.write_sidecar:
+            self.marker_dir.mkdir(parents=True, exist_ok=True)
+            sidecar.write_text(self.sidecar_body)
         return SynthesisResult(
             success=True,
             daily_file=daily,
@@ -158,6 +176,7 @@ class _FakeSynthesis:
             duration_s=1.0,
             cost_usd=0.05,
             final_text="done",
+            telegram_html_path=sidecar if self.write_sidecar else None,
         )
 
 
@@ -216,7 +235,7 @@ def _build_orchestrator(
     wiki_root = tmp_path / "wiki"
     wiki_root.mkdir(parents=True, exist_ok=True)
     cam = camera or _FakeCamera()
-    synth = synthesis or _FakeSynthesis(wiki_root)
+    synth = synthesis or _FakeSynthesis(wiki_root, marker_dir)
     tg = telegram or _FakeTelegram()
     reader = SensorReader(engine, clock=_clock, max_age_s=300)
     orch = DailyReport(
@@ -267,7 +286,8 @@ async def test_run_full_pipeline_happy_path(pg_engine, tmp_path):
     assert len(tg.media_groups) == 1
     assert len(tg.messages) == 1  # body only (no failure alert)
     assert tg.messages[0]["parse_mode"] == "HTML"
-    assert "Daily Report" in tg.messages[0]["text"]
+    # Body comes from the sub-agent's sidecar file, not from markdown conversion.
+    assert "Plant A looking good" in tg.messages[0]["text"]
     # Marker file written
     assert (tmp_path / "logs" / "daily_report" / "2026-04-19.completed").exists()
 
@@ -365,7 +385,8 @@ async def test_synthesis_failure_sends_alert(pg_engine, tmp_path):
     await _seed_clean(engine)
     wiki_root = tmp_path / "wiki"
     wiki_root.mkdir(parents=True, exist_ok=True)
-    synth = _FakeSynthesis(wiki_root, succeed=False, error="cli_not_found")
+    marker_dir = tmp_path / "logs" / "daily_report"
+    synth = _FakeSynthesis(wiki_root, marker_dir, succeed=False, error="cli_not_found")
     orch, _cam, _synth, tg = _build_orchestrator(
         engine=engine,
         tmp_path=tmp_path,
@@ -380,6 +401,27 @@ async def test_synthesis_failure_sends_alert(pg_engine, tmp_path):
     assert len(tg.media_groups) == 0  # never reached delivery
     assert len(tg.messages) == 1
     assert "synthesize" in tg.messages[0]["text"]
+
+
+async def test_sidecar_missing_delivers_photos_only(pg_engine, tmp_path):
+    """Sub-agent forgot to write the Telegram HTML sidecar. Photos still
+    go out, no sendMessage, run still marked completed (non-fatal)."""
+    engine = pg_engine
+    await _seed_clean(engine)
+    wiki_root = tmp_path / "wiki"
+    wiki_root.mkdir(parents=True, exist_ok=True)
+    marker_dir = tmp_path / "logs" / "daily_report"
+    synth = _FakeSynthesis(wiki_root, marker_dir, write_sidecar=False)
+    orch, _cam, _synth, tg = _build_orchestrator(
+        engine=engine, tmp_path=tmp_path, synthesis=synth
+    )
+
+    result = await orch.run(TARGET_DATE)
+
+    assert result.success
+    assert len(tg.media_groups) == 1
+    assert len(tg.messages) == 0  # no body sent, no failure alert either
+    assert (marker_dir / "2026-04-19.completed").exists()
 
 
 async def test_telegram_failure_does_not_fail_overall_run(pg_engine, tmp_path):
@@ -453,57 +495,105 @@ async def test_failed_marker_cleared_on_re_run(pg_engine, tmp_path):
     assert (marker_dir / "2026-04-19.completed").exists()
 
 
-# --- markdown_to_simple_html ---
+# --- telegram body loader (sidecar file pattern) ---
 
 
-def test_markdown_strips_frontmatter():
-    md = "---\ntitle: x\n---\n\nbody text\n"
-    out = markdown_to_simple_html(md)
-    assert "title:" not in out
-    assert "body text" in out
+def test_load_telegram_body_returns_none_when_path_is_none():
+    assert _load_telegram_body(None) is None
 
 
-def test_markdown_headings_become_bold():
-    out = markdown_to_simple_html("# Hello\n\n## Sub heading\n")
-    assert "<b>Hello</b>" in out
-    assert "<b>Sub heading</b>" in out
+def test_load_telegram_body_returns_none_when_file_missing(tmp_path):
+    assert _load_telegram_body(tmp_path / "nonexistent.html") is None
 
 
-def test_markdown_inline_code_and_bold():
-    out = markdown_to_simple_html("Use `cmd` for **important** notes.")
-    assert "<code>cmd</code>" in out
-    assert "<b>important</b>" in out
+def test_load_telegram_body_returns_none_for_empty_file(tmp_path):
+    p = tmp_path / "empty.html"
+    p.write_text("")
+    assert _load_telegram_body(p) is None
 
 
-def test_markdown_table_becomes_pre():
-    out = markdown_to_simple_html(
-        "Stats:\n\n| metric | value |\n|---|---|\n| temp | 80 |\n"
-    )
-    assert "<pre>" in out
-    # Contents preserved (escaped)
-    assert "metric" in out
-    assert "80" in out
+def test_load_telegram_body_passes_through_short_content(tmp_path):
+    p = tmp_path / "body.html"
+    body = "<b>Daily</b>\n• Plant A in band\n• Humidifier stable"
+    p.write_text(body)
+    assert _load_telegram_body(p) == body
 
 
-def test_markdown_code_fence_becomes_pre():
-    out = markdown_to_simple_html("Example:\n\n```bash\nls -la\necho hi\n```\n")
-    assert "<pre>" in out
-    assert "ls -la" in out
-    # Inside <pre>, special chars are escaped
-    assert "echo hi" in out
+def test_load_telegram_body_strips_leading_trailing_whitespace(tmp_path):
+    p = tmp_path / "body.html"
+    p.write_text("\n\n<b>Report</b>\n\n")
+    assert _load_telegram_body(p) == "<b>Report</b>"
 
 
-def test_markdown_escapes_html_specials_in_plain_text():
-    out = markdown_to_simple_html("a < b & c > d")
-    # < and > should be escaped
-    assert "&lt;" in out
-    assert "&gt;" in out
-    assert "&amp;" in out
+def test_load_telegram_body_balances_unclosed_tags(tmp_path):
+    p = tmp_path / "body.html"
+    p.write_text("<b>Report <pre>code block")
+    out = _load_telegram_body(p)
+    assert out is not None
+    assert "</pre>" in out
+    assert "</b>" in out
 
 
-def test_markdown_does_not_break_snake_case():
-    out = markdown_to_simple_html("some_var_name and other_thing here")
-    assert "<i>" not in out  # the regex requires bracketing whitespace
+def test_load_telegram_body_drops_trailing_partial_tag(tmp_path):
+    # Sub-agent wrote a dangling '<pr' (would've triggered yesterday's bug).
+    p = tmp_path / "body.html"
+    p.write_text("<b>Report</b> and then <pr")
+    out = _load_telegram_body(p)
+    assert out is not None
+    assert "<pr" not in out
+    assert "<b>Report</b>" in out
+
+
+def test_load_telegram_body_oversize_is_truncated_at_paragraph_break(tmp_path):
+    # 6 paragraphs ~= 6 * ~800 chars so we blow past MAX.
+    paras = [f"<b>Section {i}</b>\n" + ("x " * 400) for i in range(6)]
+    body = "\n\n".join(paras)
+    assert len(body) > MAX_TELEGRAM_BODY_CHARS
+    p = tmp_path / "body.html"
+    p.write_text(body)
+    out = _load_telegram_body(p)
+    assert out is not None
+    assert len(out) <= MAX_TELEGRAM_BODY_CHARS + 100  # plus the suffix
+    assert "truncated" in out
+
+
+# --- safe truncate ---
+
+
+def test_safe_truncate_noop_when_under_limit():
+    assert _safe_truncate_html("short", 100) == "short"
+
+
+def test_safe_truncate_at_paragraph_boundary():
+    text = "A\n\nB\n\nC\n\nD"
+    out = _safe_truncate_html(text, 6)
+    # Should cut at the paragraph break strictly below 6 — the "A\n\n" boundary.
+    assert out.startswith("A")
+    assert "truncated" in out
+    # Must not include D (beyond the cap).
+    assert "D" not in out.split("truncated")[0]
+
+
+def test_safe_truncate_falls_back_to_hard_cut_when_no_paragraph_break():
+    text = "xxxxxxxxxxxxxxxxxxxx"  # 20 chars, no \n\n
+    out = _safe_truncate_html(text, 5)
+    assert out.startswith("xxxxx")
+    assert "truncated" in out
+
+
+def test_strip_trailing_partial_tag_drops_dangling_open():
+    assert _strip_trailing_partial_tag("hello <pre") == "hello"
+
+
+def test_strip_trailing_partial_tag_keeps_complete_tags():
+    s = "<b>hi</b>"
+    assert _strip_trailing_partial_tag(s) == s
+
+
+def test_strip_trailing_partial_tag_keeps_complete_open_tag():
+    s = "<b>hi"
+    # Trailing '<' is inside the already-closed '<b>' (last > is after last <).
+    assert _strip_trailing_partial_tag(s) == s
 
 
 # --- balance_html_tags ---
