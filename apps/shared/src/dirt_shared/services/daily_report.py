@@ -30,17 +30,17 @@ from dirt_shared.services.daily_sensors import (
 )
 from dirt_shared.services.daily_synthesis import SynthesisResult, SynthesisRunner
 from dirt_shared.services.photos import CameraClient, stamp_exif_datetime
-from dirt_shared.services.telegram import TelegramClient, TelegramError
+from dirt_shared.services.telegram import (
+    TELEGRAM_HTML_WHITELIST,
+    TELEGRAM_MAX_MESSAGE_CHARS,
+    TelegramClient,
+    TelegramError,
+)
 
 logger = logging.getLogger(__name__)
 
-# Telegram message body soft cap. Bot API hard cap is 4096; we leave headroom
-# for the trailing "see wiki for full report" link.
-# Telegram caps sendMessage at 4096 chars. 50-char safety margin keeps us
-# clear of any framing overhead and of rounding in the sub-agent's counter.
-# Kept in sync with ``daily_synthesis.TELEGRAM_MAX_BODY_CHARS`` — the
-# sub-agent writes to the same budget the orchestrator validates against.
-MAX_TELEGRAM_BODY_CHARS = 4046
+# Re-export under the historical name so tests and docs still resolve it.
+MAX_TELEGRAM_BODY_CHARS = TELEGRAM_MAX_MESSAGE_CHARS
 
 # Five photos, in delivery order. Names map straight to camera presets and
 # to the on-disk filenames inside `raw/photos/<DATE>/`.
@@ -324,25 +324,19 @@ class DailyReport:
         )
 
 
-# --- Telegram body loader (sub-agent writes a sidecar file; we read it) ---
-
-_BALANCEABLE_TAGS = ("pre", "code", "b", "i", "u", "s", "a", "blockquote")
+# --- Telegram body loader (reads the sub-agent's sidecar file) ---
 
 
 def _load_telegram_body(sidecar: Path | None) -> str | None:
-    """Read the Telegram-ready HTML the sub-agent wrote, or return None.
-
-    The sub-agent is instructed to write a ≤MAX_TELEGRAM_BODY_CHARS file
-    using only Telegram's HTML whitelist. This loader is the last line of
-    defense: it truncates at a safe boundary if the agent overshot, strips
-    any dangling incomplete tag at the end, and balances any unclosed
-    whitelisted tags. Returns None when the sidecar is absent so the
-    orchestrator can deliver photos-only.
-    """
-    if sidecar is None or not sidecar.exists():
+    """Read the Telegram-ready HTML from the sidecar, applying defensive
+    cleanup. Returns None when the file is absent or empty so the
+    orchestrator can deliver photos-only."""
+    if sidecar is None:
         return None
     try:
         text = sidecar.read_text().strip()
+    except FileNotFoundError:
+        return None
     except OSError:
         logger.exception("could not read telegram sidecar %s", sidecar)
         return None
@@ -383,7 +377,7 @@ def balance_html_tags(s: str) -> str:
     "Can't find end tag corresponding to start tag".
     """
     closers: list[str] = []
-    for tag in _BALANCEABLE_TAGS:
+    for tag in TELEGRAM_HTML_WHITELIST:
         opens = len(re.findall(rf"<{tag}\b[^>]*>", s))
         closes = len(re.findall(rf"</{tag}>", s))
         closers.extend([f"</{tag}>"] * (opens - closes))

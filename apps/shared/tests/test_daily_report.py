@@ -535,7 +535,6 @@ def test_load_telegram_body_balances_unclosed_tags(tmp_path):
 
 
 def test_load_telegram_body_drops_trailing_partial_tag(tmp_path):
-    # Sub-agent wrote a dangling '<pr' (would've triggered yesterday's bug).
     p = tmp_path / "body.html"
     p.write_text("<b>Report</b> and then <pr")
     out = _load_telegram_body(p)

@@ -21,6 +21,24 @@ import httpx
 
 API_BASE = "https://api.telegram.org"
 
+# Bot API limits (source: core.telegram.org/bots/api).
+# sendMessage body hard cap is 4096 chars; the 50-char margin covers any
+# delivery wrapper text and rounding in the sub-agent's character counter.
+TELEGRAM_MAX_MESSAGE_CHARS = 4046
+
+# Tag names Telegram's HTML parser accepts. The Bot API's HTML mode
+# whitelist — anything outside this set is rejected at sendMessage time.
+TELEGRAM_HTML_WHITELIST = (
+    "b",
+    "i",
+    "u",
+    "s",
+    "code",
+    "pre",
+    "a",
+    "blockquote",
+)
+
 
 class TelegramError(RuntimeError):
     """Raised on non-OK Bot API responses or transport failures."""

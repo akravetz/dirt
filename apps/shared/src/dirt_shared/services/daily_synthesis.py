@@ -26,6 +26,10 @@ from claude_agent_sdk import (
 
 from dirt_shared.agent_trace import AgentTraceState, collect_agent_trace
 from dirt_shared.observability import log_event
+from dirt_shared.services.telegram import (
+    TELEGRAM_HTML_WHITELIST,
+    TELEGRAM_MAX_MESSAGE_CHARS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,10 +42,8 @@ class SynthesisResult:
     duration_s: float
     cost_usd: float | None
     final_text: str | None
-    # Sidecar Telegram-ready HTML the sub-agent writes alongside the daily
-    # markdown. None if the file wasn't produced (agent forgot, or run
-    # failed before reaching that step); the orchestrator handles the
-    # missing case by delivering photos-only.
+    # Expected location of the Telegram sidecar the sub-agent writes; the
+    # orchestrator reads this path and handles the missing-file case itself.
     telegram_html_path: Path | None = None
 
 
@@ -74,11 +76,7 @@ _SYSTEM_PROMPT_APPEND = (
 )
 
 
-# Telegram caps sendMessage at 4096 chars. 50-char safety margin for any
-# delivery wrapper text the orchestrator might append.
-TELEGRAM_MAX_BODY_CHARS = 4046
-
-_TELEGRAM_WHITELIST = '<b>, <i>, <u>, <s>, <code>, <pre>, <a href="...">, <blockquote>'
+_TELEGRAM_WHITELIST_PROMPT_STRING = ", ".join(f"<{t}>" for t in TELEGRAM_HTML_WHITELIST)
 
 
 class ClaudeSynthesisRunner:
@@ -146,8 +144,11 @@ class ClaudeSynthesisRunner:
             "lives outside the wiki tree on purpose.\n"
             "\n"
             "Contract:\n"
-            f"- MAX {TELEGRAM_MAX_BODY_CHARS} characters. Count, don't guess.\n"
-            f"- ONLY these HTML tags allowed: {_TELEGRAM_WHITELIST}. No "
+            f"- MAX {TELEGRAM_MAX_MESSAGE_CHARS} characters. Count, "
+            "don't guess.\n"
+            f"- ONLY these HTML tags allowed: "
+            f"{_TELEGRAM_WHITELIST_PROMPT_STRING} "
+            '(use the `<a href="url">text</a>` form for links). No '
             "headers, no `<p>`, `<ul>`, `<li>`, `<div>`, `<span>`, `<br>`. "
             "Use literal newlines for line breaks and `• ` for bullets.\n"
             "- HTML-escape every literal `<`, `>`, `&` in text content "
@@ -212,8 +213,7 @@ class ClaudeSynthesisRunner:
         result_msg = state.result
         duration_s = time.monotonic() - started
         daily_file = self._wiki_root / "daily" / f"{target_date.isoformat()}.md"
-        telegram_path = self._telegram_sidecar_path(target_date)
-        telegram_html_path = telegram_path if telegram_path.exists() else None
+        telegram_html_path = self._telegram_sidecar_path(target_date)
 
         # Persist the trace regardless of success.
         self._log_dir.mkdir(parents=True, exist_ok=True)
