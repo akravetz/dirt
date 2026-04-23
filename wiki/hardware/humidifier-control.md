@@ -114,7 +114,7 @@ Stage → VPD band lookup comes from `dirt.services.grow_state.STAGE_TARGETS`:
 Lights schedule comes from `growstate.lights_on_local` / `growstate.lights_off_local` (tent-local times, `America/Denver` via `services.grow_state.TENT_TZ`). Defaults: veg 18/6 → (05:00, 23:00). Flip via SQL when the photoperiod changes; the loop picks it up on the next poll.
 
 ```
-deadband          = 0.1   # kPa  (vpd_deadband_kpa)
+deadband          = 0.3   # kPa  (vpd_deadband_kpa)
 night_offset      = -0.3  # kPa  (vpd_lights_off_offset_kpa)  — dark-period band shift
 prep_minutes      = 30    # min  (lights_off_prep_minutes)    — pre-lights-off cutoff
 FAILSAFE_STALE_S  = 300   # 5 min without fresh VPD → force OFF
@@ -149,7 +149,7 @@ loop every ~30s:
 - **VPD, not RH.** RH at a fixed setpoint mis-targets the plant: when temperature falls at night, the same RH produces a much lower VPD (e.g. 60% RH at 63°F = 0.46 kPa, seedling range). VPD collapses this into one number that's correct across the day/night swing. See [concepts/vpd.md](../concepts/vpd.md).
 - **Upper-edge setpoint.** The humidifier only adds moisture; there's nothing to do when VPD is already in or below the band. Acting only at the dry edge keeps the duty cycle low and the relay count manageable.
 - **Bang-bang, not PID.** Binary actuator. Big dead time. Asymmetric transfer function (can add moisture, can't actively remove). Plants don't need ±0.05 kPa.
-- **0.1 kPa deadband** ≈ the noise floor of the derived VPD signal. Originally sized to DHT22 ±0.5°C / ±2% RH; kept at 0.1 kPa through the [2026-04-20 DHT22→BME280 swap](../decisions/2026-04-20-bme280-sensor-swap.md) — tighter than strictly required for BME280 (±0.5°C / ±3% RH typical) but it's the deadband alone that bounds relay cycling, so conservative is correct here.
+- **0.3 kPa deadband.** Originally 0.1 kPa (sized to DHT22 noise floor and kept through the BME280 swap). Widened 2026-04-23 after the SHT45 cutover exposed severe bang-bang flapping: the Raydrop running for one minute drops VPD ~0.45 kPa (from ~1.35 to ~0.87 in veg-ambient conditions), overshooting the 0.1 kPa deadband by 4× every cycle and clicking the plug relay every 60 s at lights-on. 0.3 kPa lets the humidifier run one pulse and then stay off for ~5–10 min until VPD drifts back up past the upper edge. Not sensor-noise-sized anymore — it's actuator-overshoot-sized. The proper long-term fix is the two-actuator fan+humidifier loop (see [fan control](ac-infinity-fan-control.md) "Future integration"), which lets the fan counteract the humidifier's overshoot and tighten the band back up.
 - **Feedforward, not derivative.** The dominant disturbance (lights on/off) is scheduled and periodic, so we use the clock to anticipate it rather than estimating `dVPD/dt`. Derivative on sensor noise would have a 5 min smoothing lag and near-unit SNR for the signals we care about. See [decisions/2026-04-19-lights-off-aware-humidifier.md](../decisions/2026-04-19-lights-off-aware-humidifier.md).
 - **−0.3 kPa night offset, not percentage.** Preserves deadband width across stages (a percentage factor compresses the band below sensor noise). Falls inside the published "0.2–0.4 kPa below day" range (Pulse Grow, GrowSensor, Anden).
 - **30 min prep window.** Long enough to absorb the ultrasonic's residual air-mass rise and let VPD drift toward the upper edge before the thermal crash; short enough that daytime duty cycle is essentially unaffected.

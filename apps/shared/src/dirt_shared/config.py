@@ -64,7 +64,7 @@ class Settings(BaseSettings):
     kasa_username: str = ""
     kasa_password: str = ""
     kasa_humidifier_host: str = "192.168.1.220"
-    vpd_deadband_kpa: float = 0.1
+    vpd_deadband_kpa: float = 0.3
     # Margin (minutes) around lights transitions during which the humidifier
     # is forced OFF — extends the off-window from `lights_off - margin` through
     # `lights_on - margin`. With the default 30 + a 23:00 → 05:00 dark cycle,
