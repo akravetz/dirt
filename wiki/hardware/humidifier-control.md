@@ -195,6 +195,6 @@ Wattage field is absent because this firmware doesn't expose an Energy module.
 
 ## Future work
 
-### Replace the Raydrop's analog potentiometer with microcontroller-driven mist rate
+### Continuous humidifier intensity control
 
-*Idea bucket, not yet scoped.* The potentiometer inside the Raydrop sets the ultrasonic driver's duty cycle. Replacing it with a digipot or PWM-driven transistor under ESP32 control would make *mist intensity* a continuous variable alongside the on/off Kasa plug state. Attractive because: (a) the actuator-overshoot class of problems (see above) goes away — loop asks for exactly the mist it needs; (b) the 0.3 kPa deadband can come back down (it was sized for bang-bang overshoot, not sensor noise); (c) the "turn the knob up" operational gotcha disappears; (d) pairs naturally with the [fan+humidifier two-actuator loop](ac-infinity-fan-control.md#future-integration). Non-trivial because: requires opening the Raydrop and reverse-engineering the driver board, and the Kasa plug still needs to stay in for hard-off authority; crash-safe direction is fail-to-0 (same as the fan driver). Promote to `decisions/` if pursued.
+**Scoped and tracked** per [decision 2026-04-23](../decisions/2026-04-23-raydrop-mcu-mist-control.md) and [epic: continuous-humidifier](../../docs/epics/continuous-humidifier/README.md). Replaces the Raydrop's analog potentiometer with MCU-driven intensity (digipot or DAC on the fan-controller ESP32) + a PI control loop, in place of today's bang-bang Kasa-plug control. Collapses the actuator-overshoot deadband, the fan-coupling saturation failure mode, and the "turn the dial" operational gotcha. Phase 1 (open-and-probe investigation) is the gate on Phases 2–4.

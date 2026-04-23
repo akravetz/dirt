@@ -2,14 +2,24 @@
 title: "Multi-Actuator Tent Environment Control — Design Principles (future work)"
 type: concept
 sources: []
-related: [wiki/hardware/humidifier-control.md, wiki/decisions/2026-04-19-lights-off-aware-humidifier.md, wiki/decisions/2026-04-18-vpd-targeting.md, wiki/concepts/vpd.md]
+related: [wiki/hardware/humidifier-control.md, wiki/decisions/2026-04-19-lights-off-aware-humidifier.md, wiki/decisions/2026-04-18-vpd-targeting.md, wiki/decisions/2026-04-23-raydrop-mcu-mist-control.md, wiki/concepts/vpd.md]
 created: 2026-04-19
-updated: 2026-04-20
+updated: 2026-04-23
 ---
 
 # Multi-Actuator Tent Environment Control
 
 **Status: design notes, not yet implemented.** Captured 2026-04-19 before the dehumidifier and PWM exhaust fan arrive. Revisit when both actuators are provisioned.
+
+**Revision 2026-04-23.** The humidifier actuator model is being upgraded from binary to continuous per [2026-04-23 Raydrop MCU-controlled mist rate](../decisions/2026-04-23-raydrop-mcu-mist-control.md) (epic: [continuous-humidifier](../../docs/epics/continuous-humidifier/README.md)). Dispatch-class taxonomy, cross-actuator mutex, feedforward compounds, and failure-mode design are **unchanged**; only the per-class plan shape shifts:
+
+- `hum_on: bool` → `hum_intensity: 0..100`
+- `intensity == 0` replaces `hum_on == false` in plan output
+- Per-class handlers gain the option to set an intermediate intensity (e.g. `intensity=60` in a shallow-`dry` class) instead of always 100
+
+The `multi-actuator-environment-control` doc's "no PID" rule still holds for the cross-output dispatch — PI control inside the Raydrop decision is for *within-actuator intensity given that it's commanded on*, not for picking which actuator to use. Class-based dispatch remains authoritative at the system level.
+
+When the PWM fan and dehumidifier land, their actuator models are already continuous in the plan shape below. No rewrite needed.
 
 ## What changes
 
