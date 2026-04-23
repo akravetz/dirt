@@ -84,20 +84,23 @@ Once PR #1580 merges and releases, swap back to a pinned version.
 
 "Remote Control" must be **enabled** in the Kasa app for LAN KLAP auth to work. It's nominally a cloud-relay toggle, but the plug's KLAP credentials are only valid once it's bound to a TP-Link Cloud account.
 
+### Red LED on the Raydrop = low-water sensor latch
+
+**First observed 2026-04-23 10:00 MDT:** plug ON continuously 1h 30m+, VPD above upper band and *not* falling, tent RH drifting down despite the loop commanding mist. Physical check: unit LED red (normally green), no visible mist. Unplug/replug (bypass Kasa briefly, then reconnect) cleared it — immediately began misting.
+
+**Root cause** (Raydrop [KC-RD05 manual](https://manuals.plus/raydrop/kc-rd05-humidifier-manual) / [RD05UPSTS support page](https://www.raydrop.net/pages/rd05upsts)): low-water float sensor (part #12) latches the empty state even with water in the tank. Controller red-lights and disables the ultrasonic until a power cycle drops the latch. Trigger is usually mineral scale or biofilm on the float stem — same substrate that fouls the transducer. No thermal cutout and no other documented red-LED state.
+
+**Detection (automated, 2026-04-23):** `HumidifierLoopService` runs a stuck-actuator watchdog via `update_stuck_state` — each tick advances a `StuckState` tracking the current continuous-ON streak and the VPD at streak start. When elapsed-on ≥ `humidifier_stuck_alert_after_s` (default 1200 s = 20 min) and VPD dropped less than `humidifier_stuck_min_vpd_drop_kpa` (default 0.15 kPa), a `suspected_stuck` event lands in the `humidifier` stream and a Telegram alert fires with start/now VPD and a "check red LED / water level / misting" prompt. Fires once per streak — suppressed until the plug transitions OFF.
+
+**Recovery:** unplug Raydrop from the Kasa, plug directly into wall for ~10 s, reconnect through the Kasa. Loop sees misting resume within the next cycle.
+
+**Prevention:** distilled or RO water only (tap water is the root cause of both float sticking and transducer fouling — one problem, not two). Weekly 1:1 white-vinegar descale of the base (float + piezo disc), 15–20 min, rinse, air dry.
+
 ### BME280 drift (resolved-by-transition 2026-04-23)
 
-**Resolved** by retiring the Arduino Nano + BME280 tent hub in favour of the ESP32-C3 + SHT45 combined fan-controller board (see [fan control + tent sensor](ac-infinity-fan-control.md) and [decision 2026-04-22 SHT45 swap](../decisions/2026-04-22-sht45-tent-node-esp32.md)). A handheld hygrometer placed side-by-side with both sensors on the tent floor on **2026-04-23 00:15 MDT** read **69 °F / 49 %RH**; the SHT45 read **69.6 °F / 53 %** and the BME280 read **72.5 °F / 73 %**. The BME280 was off by **+3.5 °F and +23 %RH** — much larger than the previously-characterised "stuck-state" behaviour and likely the explanation for a number of past incidents that were attributed to transient lockups.
+**Resolved** by retiring the Arduino Nano + BME280 for the ESP32-C3 + SHT45 combined fan-controller board (see [fan control + tent sensor](ac-infinity-fan-control.md), [decision 2026-04-22](../decisions/2026-04-22-sht45-tent-node-esp32.md)). Handheld hygrometer side-by-side with both sensors on 2026-04-23 00:15 MDT: **69 °F / 49 %RH**; SHT45: **69.6 °F / 53 %**; BME280: **72.5 °F / 73 %** — BME280 was off by +3.5 °F and +23 %RH, much larger than the prior "stuck-state" pattern.
 
-**Historical-data caveat.** All `source=arduino` tent readings prior to 2026-04-23 00:22 MDT are biased high on RH / low on VPD by an unquantified amount (at least the +23 %RH / −0.5 kPa VPD gap measured at retirement; possibly less at earlier points but drift direction is consistent). The humidifier VPD loop has therefore been under-humidifying for some time — the tent has been drier than the wiki and daily reports indicated. Current-grow sensor-based trend claims should be read against this caveat; future daily syntheses only see ESP32 readings.
-
-**Original stuck-state pattern (for history):** BME280 periodically reported RH ~15–20 points lower than reality while temp and pressure stayed plausible. Was mitigated by `systemctl --user restart dirt-hwd` (which toggled DTR and re-init'd the sensor over I²C). After cutover, not applicable — the SHT45 driver path is wholly different.
-
-**Incident log (historic, Arduino era):**
-
-| Date | Pre-restart | Handheld reference | Post-restart | Notes |
-|---|---|---|---|---|
-| 2026-04-20 17:36 MDT | 43.5 % RH / 74.6 °F / VPD 1.65 kPa | 63 % RH / 73 °F | 61.2 % RH / 75.0 °F / VPD 1.15 kPa | Stuck-state. Restart brought all three metrics back into agreement. |
-| 2026-04-23 00:15 MDT | 73 % RH / 72.5 °F / VPD 0.75 kPa | 49 % RH / 69 °F | — (sensor retired) | Side-by-side with SHT45 (53 %RH / 69.6 °F) and handheld hygrometer. Terminal-incident — triggered Arduino retirement. |
+**Historical-data caveat.** All `source=arduino` tent readings prior to 2026-04-23 00:22 MDT are biased high on RH / low on VPD by an unquantified amount. The humidifier VPD loop has been under-humidifying for some time — tent was drier than wiki/daily-reports indicated. Current-grow trend claims based on pre-cutover sensor data should be read against this caveat.
 
 ## Control Logic (deployed)
 

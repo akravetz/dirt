@@ -72,6 +72,13 @@ class Settings(BaseSettings):
     lights_off_prep_minutes: int = 30
     humidifier_poll_interval: int = 30
     humidifier_failsafe_stale_seconds: int = 300
+    # Stuck-humidifier watchdog — fires a Telegram alert when the plug has
+    # been continuously ON for this long without VPD dropping by the
+    # configured threshold. Catches the failure mode from 2026-04-23 where
+    # the Raydrop's low-water sensor latched red despite a full reservoir:
+    # loop keeps asking for mist, plug electrically on, no moisture emitted.
+    humidifier_stuck_alert_after_s: int = 1200  # 20 min
+    humidifier_stuck_min_vpd_drop_kpa: float = 0.15
     # Device watchdog — fires Telegram alerts on ok/warn → offline and
     # offline → ok transitions. 60s is prompt given the moisture-node
     # offline threshold is 5min. See services/device_watchdog.py.
@@ -127,6 +134,10 @@ class Settings(BaseSettings):
             lights_off_prep_minutes=self.lights_off_prep_minutes,
             poll_interval=self.humidifier_poll_interval,
             failsafe_stale_seconds=self.humidifier_failsafe_stale_seconds,
+            stuck_alert_after_s=self.humidifier_stuck_alert_after_s,
+            stuck_min_vpd_drop_kpa=self.humidifier_stuck_min_vpd_drop_kpa,
+            telegram_bot_token=self.telegram_bot_token,
+            telegram_chat_id=self.telegram_allowed_user_id,
         )
 
     def auth(self) -> AuthConfig:
@@ -161,6 +172,10 @@ class HumidifierConfig:
     lights_off_prep_minutes: int  # margin around lights transitions
     poll_interval: int
     failsafe_stale_seconds: int
+    stuck_alert_after_s: int
+    stuck_min_vpd_drop_kpa: float
+    telegram_bot_token: str
+    telegram_chat_id: str
 
 
 @dataclass(frozen=True)
