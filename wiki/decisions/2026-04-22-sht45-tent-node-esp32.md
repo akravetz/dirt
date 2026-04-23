@@ -17,7 +17,8 @@ updated: 2026-04-22
 # Decision: Replace Tent-Hub BME280/Arduino with SHT45/ESP32-C3
 
 **Date:** 2026-04-22
-**Status:** Accepted — firmware ready; hardware deployment pending solder-up and in-tent validation
+**Status:** Accepted — hardware bring-up complete (via revision below). SHT45 integrated onto the ESP32-C3 fan-controller board rather than a dedicated tent_node ESP32; SHT45 begin + first read validated on the combined board the same day.
+**Revision (2026-04-22, evening):** the original plan of a standalone `tent_node` ESP32 inside the tent is superseded by the **combined fan-controller + tent-sensor board** (see [`hardware/ac-infinity-fan-control.md`](../hardware/ac-infinity-fan-control.md)). Rationale: the 7 ft USB-C cable from the Cloudline fan lets the ESP32 sit on the tent floor, putting it in the same physical domain a tent sensor would want anyway; combining saves one board, one power feed, one WiFi association, one OTA target. No pin contention (fan driver: GPIO 6/7; SHT45: GPIO 4/5). Wiring specifics and combined firmware now live in the fan-control hardware page. The standalone `firmware/tent_node/` PIO project is obsolete on disk and slated for deletion after the combined firmware has soaked.
 **Supersedes:** the Arduino Nano + USB-serial tent-hub topology from [2026-04-12 distributed sensor architecture](2026-04-12-distributed-sensor-architecture.md) and the BME280 sensor choice from [2026-04-20 BME280 swap](2026-04-20-bme280-sensor-swap.md). Two days ago we swapped the *sensor element* on the Arduino hub. Today we are swapping *both the sensor and the host board* — the Arduino goes away entirely.
 
 ## Context

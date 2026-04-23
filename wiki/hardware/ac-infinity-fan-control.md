@@ -1,19 +1,19 @@
 ---
-title: Hardware — AC Infinity Cloudline LITE 6" Fan Control
+title: Hardware — AC Infinity Fan Control + Tent Environmental Sensor (combined node)
 type: hardware
 sources: [debug/fan-pwm/sweep-v2.sr, debug/fan-pwm/sweep-11steps.sr, debug/fan-pwm/sweep-v3.sr]
-related: [wiki/hardware/humidifier-control.md, wiki/hardware/esp32-plant-nodes.md]
+related: [wiki/hardware/humidifier-control.md, wiki/hardware/esp32-plant-nodes.md, wiki/decisions/2026-04-22-sht45-tent-node-esp32.md]
 created: 2026-04-18
 updated: 2026-04-22
 ---
 
-# AC Infinity Cloudline LITE 6" Fan Control
+# AC Infinity Cloudline LITE 6" Fan Control + Tent Environmental Sensor
 
-**Status (2026-04-22):** **D+ bring-up validated.** Fan wired to a dedicated ESP32-C3 SuperMini via two 2N7000 MOSFETs on D+ (speed command) and B5 (keep-alive). Full-range 0%→100%→0% sweep in 10% steps confirmed audibly — fan is silent at 0%, starts spinning around 10%, scales cleanly through the range, peaks at 100%. Firmware at [`firmware/fan_controller/`](../../firmware/fan_controller/). Next step: add WiFi + OTA + ingest (via the shared libs in `firmware/common/`) so the host can command speed; then wire into the VPD control loop. **Deviation from original plan:** moved from Arduino Nano to ESP32-C3 SuperMini so the fan driver joins the same fleet operational model as the plant nodes and tent node (WiFi + HTTP ingest + OTA reflash). The Nano-era driver schematic at `debug/fan-pwm/driver-schematic.png` and the Nano test sketch at `debug/fan-pwm/fan_drive_test/fan_drive_test.ino` are stale and should not be referenced for current hardware.
+**Status (2026-04-22):** **D+ bring-up validated + SHT45 tent sensor integrated on the same ESP32.** One ESP32-C3 SuperMini now drives the fan via two 2N7000 MOSFETs (D+/B5) and reads an Adafruit SHT45 + PTFE cap over I²C (GPIO 4/5). Firmware [`firmware/fan_controller/`](../../firmware/fan_controller/) emits a combined heartbeat line every 60 s with both commanded fan state and measured tent temp/RH/VPD. **Physical placement:** board sits on the tent floor; fan reached via the 7 ft USB-C cable. **Deviation from earlier plan:** SHT45 was initially slated for a dedicated `tent_node` ESP32 per [2026-04-22 SHT45 decision](../decisions/2026-04-22-sht45-tent-node-esp32.md); merged into the fan-control board the same day since one board serving both roles is simpler than two. **Tach (D−) path remains unimplemented** — initial 10 kΩ/4.7 kΩ divider attempt 2026-04-22 registered zero edges; the fan's internal pull-up on D− is weaker than the reverse-engineering captures implied, and our divider loaded it below the ESP32 HIGH threshold. Deferred pending a redo with a higher-impedance divider or a fresh signal-analysis pass. **Also deviates from original plan:** moved from Arduino Nano to ESP32-C3 SuperMini so the driver joins the same fleet operational model as the plant nodes. The Nano-era driver schematic at `debug/fan-pwm/driver-schematic.png` and the Nano test sketch at `debug/fan-pwm/fan_drive_test/` are stale.
 
 ## Goal
 
-Drive the Cloudline LITE 6" inline fan from an ESP32-C3 SuperMini (controlled by the Dirt stack) instead of AC Infinity's stock wired speed controller. End state: programmatic fan speed, scheduled ramps, closed-loop VPD coupling with the humidifier — without routing any control through AC Infinity's ecosystem.
+Drive the Cloudline LITE 6" inline fan from an ESP32-C3 SuperMini instead of AC Infinity's stock wired speed controller, and read tent temp/RH from a colocated SHT45 on the same board. End state: programmatic fan speed, closed-loop VPD coupling with the humidifier, and retirement of the Arduino Nano BME280 tent hub.
 
 ## Protocol (confirmed 2026-04-21, sweep-v3.sr)
 
@@ -101,17 +101,35 @@ Flat side (with "2N7000" marking) facing you, legs pointing down → **Source, G
 
 Sanity-check with a multimeter in diode mode before soldering: the body diode conducts ~0.6V when red probe is on the **source** and black probe is on the **drain** (anode-at-source for an N-channel body diode); open in the reverse direction; open both ways between gate and either other leg. If any other combination conducts, the part is wired backwards or dead.
 
-### Parts used for the driver
+### Parts used on the combined board
 
 | Part | Qty | Notes |
 |------|-----|-------|
-| ESP32-C3 SuperMini | 1 | USB-C powered. Same board as the plant nodes and tent node — fleet-uniform. |
+| ESP32-C3 SuperMini | 1 | USB-C powered. Same board as the plant nodes — fleet-uniform. Serves both fan-driver and tent-sensor roles. |
 | 2N7000 N-channel MOSFET (logic-level, `Vgs(th)` ≤ 2.5V) | 2 | Q1 for D+, Q2 for B5. BSS138 is interchangeable. Any logic-level N-channel FET works. |
 | 10 kΩ resistor | 2 | Gate pull-downs, one per MOSFET. 5–100 kΩ is fine; 10 kΩ is unremarkable. |
+| Adafruit SHT45 + PTFE cap (product 5665) | 1 | I²C temp/RH sensor, addr `0x44`. 10 kΩ I²C pull-ups on-board — no external pull-ups needed. PTFE cap press-fits over the sensor window for mist/dust protection. |
 
-Optional extras for belt-and-suspenders (not currently populated): 220 Ω in series on each gate line to limit inrush current into the MOSFET gate capacitance at each PWM edge. Irrelevant at 5 kHz with a 2N7000, but harmless if you want them.
+Optional belt-and-suspenders (not currently populated): 220 Ω in series on each MOSFET gate line to limit inrush current into the gate capacitance at each PWM edge. Irrelevant at 5 kHz with a 2N7000, but harmless if you want them.
 
 Ordered separately from the reverse-engineering kit below — these were not in the original shopping list.
+
+## Tent environmental sensor (SHT45)
+
+The Adafruit SHT45 rides on the same ESP32-C3 as the fan driver, eating the four I²C-available pins that the fan driver isn't using.
+
+### Wiring
+
+| SHT45 pad | ESP32-C3 pin | Notes |
+|---|---|---|
+| `VIN` | `3V3` | 3.3 V matches the ESP32 I²C logic level. The breakout also accepts 5 V via an on-board regulator — we don't use that path. |
+| `GND` | common GND rail | Same rail the MOSFET sources + ESP32 GND tie into. |
+| `SDA` | `GPIO 4` | Not GPIO 8 — GPIO 8 is the SuperMini's onboard LED + a boot-strap pin. GPIO 4 is the documented alternate I²C path; JTAG interference only matters for ADC reads, not driven I²C. |
+| `SCL` | `GPIO 5` | Not GPIO 9 — GPIO 9 is the BOOT button + a strap pin. |
+
+Library: `adafruit/Adafruit SHT4x Library` (pulls `Adafruit Unified Sensor` transitively). Class `Adafruit_SHT4x`; bring up with `sht.begin(&Wire)`, `sht.setPrecision(SHT4X_HIGH_PRECISION)`, `sht.setHeater(SHT4X_NO_HEATER)`. Read via `sht.getEvent(&humidity, &temp)`. Heater deliberately off by default; future work to pulse it once/hour if RH pins near 100 %.
+
+The rationale for colocating with the fan driver (rather than the separate `tent_node` ESP32 in the original plan) is in the Status section at the top. No pin contention: fan uses GPIO 6/7, SHT45 uses GPIO 4/5, GPIO 10 is reserved for a future tach revisit. The obsolete `firmware/tent_node/` PIO project still exists on disk at time of writing; slated for deletion once the combined firmware has soaked for a few days.
 
 ## Reverse-engineering hardware (ordered 2026-04-18)
 
@@ -137,9 +155,15 @@ Three stages, executed 2026-04-20:
 
 ## Firmware
 
-Canonical source: [`firmware/fan_controller/`](../../firmware/fan_controller/). PlatformIO project, single `env:fan` for USB flash over `/dev/ttyACM*`. Same ESP32-C3 Arduino platform as the plant nodes and tent node — once WiFi/OTA/ingest are added, it'll consume the same shared libs at `firmware/common/{wifi_client, ota, ingest_client}/`.
+Canonical source: [`firmware/fan_controller/`](../../firmware/fan_controller/). PlatformIO project, single `env:fan` for USB flash over `/dev/ttyACM*`. Dual-role: LEDC PWM for D+/B5 on GPIO 6/7, I²C SHT45 reads on GPIO 4/5. Same ESP32-C3 Arduino platform as the plant nodes — once WiFi/OTA/ingest are added, it'll consume the shared libs at `firmware/common/{wifi_client, ota, ingest_client}/`.
 
-Current firmware is **bring-up smoke-test only**: ramps `fan=0%` → `100%` → `0%` in 10% steps, 5 s each, with verbose serial logging at every transition (human %, wire %, MCU %, LEDC register value). No WiFi, no ingest, no persistence yet. Next firmware milestone is to fold the shared libs in and accept `set_speed(pct)` over the ingest path (design TBD — either a response-body command on the normal POST, or a dedicated endpoint, or MQTT-style).
+Current firmware (fw `0.1.0`) holds the fan at `HOLD_SPEED_PCT` (currently 30 %) and prints a combined heartbeat line every `HEARTBEAT_MS` (currently 60 s). Example:
+
+```
+[   60077 ms] fan=30% (D+ wire=45.4%)  |  tent: 22.70°C (72.9°F)  RH 38.9%  VPD 1.69 kPa
+```
+
+No WiFi, no ingest, no persistence yet. If the SHT45 drops mid-flight the fan keeps running unaffected — the sensor is strictly additive. Next firmware milestone: fold in `firmware/common/{wifi_client, ota, ingest_client}/` so the host can (a) command speed via ingest and (b) receive tent temp/RH/VPD into `sensorreading` under the existing `SensorLocation.TENT` enum value (source becomes `esp32` instead of the Arduino's `arduino`).
 
 ## Permanent install
 
@@ -151,7 +175,7 @@ Current firmware is **bring-up smoke-test only**: ramps `fan=0%` → `100%` → 
 
 ## Bring-up validation (2026-04-22)
 
-First flash of the smoke-test firmware landed on `/dev/ttyACM4` at 16:37 MDT. Initial test cycled `fan=20%` / `fan=40%` every 5 s; confirmed D+ PWM reaches the fan and produces audibly distinct speeds. Expanded to a full-range sweep (`0%` → `10%` → ... → `100%` → `90%` → ... → `0%`, 10% steps, 5 s each):
+Initial fan bring-up (16:35–16:37 MDT): flashed smoke-test firmware, ran `fan=20%` / `fan=40%` alternation, then a full-range sweep. Later the same day: tach-divider attempt (failed — see below), then SHT45 integration on the same board (succeeded).
 
 | Checkpoint | Observed | Notes |
 |---|---|---|
@@ -161,6 +185,8 @@ First flash of the smoke-test firmware landed on `/dev/ttyACM4` at 16:37 MDT. In
 | Stepped ramp up 20% → 100% | Clean, monotonic | No dead spots, no uneven jumps — speed→RPM looks linear in the commanded range |
 | `fan=100%` (in sweep) | Same as boot blast | Symmetric behavior; no asymmetry between "floating high" and "commanded high" |
 | Sustained operation through full cycle | Fan keeps accepting commands | Indirect evidence B5 keep-alive is either doing its job or isn't required at all |
+| D− tach divider (10 kΩ / 4.7 kΩ) | Zero edges counted, D− DC = 0.71 V | Weaker fan-side pull-up than reverse-engineering implied; divider loaded D− HIGH down to ~1.4 V on the wire (GPIO saw ~0.45 V, below HIGH threshold). Tach deferred. |
+| SHT45 begin + first read | `begin()` ok; first heartbeat `22.70°C / 72.9°F / RH 38.9% / VPD 1.69 kPa` | Sensor reading plausible for room air (board not yet inside the tent). Serial returned 0x00000000 — known Adafruit library quirk; doesn't affect measurement. |
 
 No thermal check performed yet; to verify long-term safety, touch-check each 2N7000 after 10+ minutes at mid-speed.
 
