@@ -1,0 +1,67 @@
+name: loc-badges
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  badges:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run tokei
+        run: |
+          curl -sSL https://github.com/XAMPPRocky/tokei/releases/download/v12.1.2/tokei-x86_64-unknown-linux-gnu.tar.gz | tar xz
+          ./tokei --output json > tokei.json
+
+      - name: Generate badge JSON
+        run: |
+          mkdir -p out
+          python3 - <<'PY'
+          import json
+          data = json.load(open('tokei.json'))
+
+          def code(name):
+              return data.get(name, {}).get('code', 0)
+
+          def prose(name):
+              # tokei classifies Markdown prose as 'comments', not 'code'.
+              e = data.get(name, {})
+              return e.get('code', 0) + e.get('comments', 0)
+
+          langs = [
+              ('python',     'Python',     code('Python'),                     '3776ab', 'python'),
+              ('typescript', 'TypeScript', code('TypeScript') + code('TSX'),   '3178c6', 'typescript'),
+              ('cpp',        'C++',        code('C++') + code('C++ Header'),   '00599c', 'cplusplus'),
+              ('markdown',   'Markdown',   prose('Markdown'),                  '083fa1', 'markdown'),
+          ]
+          for slug, label, loc, color, logo in langs:
+              badge = {
+                  'schemaVersion': 1,
+                  'label': label,
+                  'message': f'{loc:,} LoC',
+                  'color': color,
+                  'namedLogo': logo,
+                  'logoColor': 'white',
+              }
+              with open(f'out/{slug}.json', 'w') as f:
+                  json.dump(badge, f)
+                  f.write('\n')
+          PY
+
+      - name: Force-push to badges branch
+        run: |
+          cd out
+          git init -q -b badges
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .
+          git commit -q -m "update LoC badges ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
+          git push -q --force \
+            "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" \
+            badges
