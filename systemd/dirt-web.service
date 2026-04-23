@@ -17,6 +17,11 @@ Restart=on-failure
 RestartSec=5s
 KillSignal=SIGTERM
 TimeoutStopSec=10s
+# uvicorn translates SIGTERM into a graceful shutdown that exits with
+# status 143 (128 + SIGTERM) — from systemd's POV that's `code=exited` not
+# `code=killed`, so the default SIGTERM-is-success rule doesn't apply and
+# OnFailure= would page on every planned restart. Whitelist 143 explicitly.
+SuccessExitStatus=143
 
 NoNewPrivileges=true
 
