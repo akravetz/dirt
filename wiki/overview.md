@@ -4,7 +4,7 @@ type: overview
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/index.md, wiki/plants/plant-a.md, wiki/plants/plant-b.md, wiki/plants/plant-c.md, wiki/plants/plant-d.md]
 created: 2026-04-06
-updated: 2026-04-22
+updated: 2026-04-23
 ---
 
 # Grow Overview
@@ -102,7 +102,7 @@ _Resolved 2026-04-20: "Daytime temperature too warm" — now 75.04°F ✅ at 14:
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| **Arduino Nano + BME280** | Online; **replacement planned** | Recurring stuck-state — both sensor (→ SHT45) and board (→ ESP32-C3 SuperMini) being replaced; firmware ready, hardware deployment pending solder-up. See [decision 2026-04-22](decisions/2026-04-22-sht45-tent-node-esp32.md). BME280 swap decision [2026-04-20](decisions/2026-04-20-bme280-sensor-swap.md) superseded. |
+| **ESP32-C3 · fan+tent** (SHT45) | Online (2026-04-23, fw 0.2.0) | Retired Arduino Nano + BME280 2026-04-23 00:22 MDT after hygrometer sanity check showed BME280 was +23 %RH / +3.5 °F off vs calibrated reference — historical tent RH/VPD is suspect. Combined fan-controller node drives the Cloudline fan + reads tent T/RH + exposes HTTP `POST/GET /fan`. See [hardware/ac-infinity-fan-control.md](hardware/ac-infinity-fan-control.md). |
 | **Plant-A ESP32-C3 node** | Online (2026-04-18, v2.0) | Overnight dropout 2026-04-22 (null 00–06); morning/now stable; verify posting |
 | **Plant-B ESP32-C3 node** | Online (2026-04-16) | v2.0 sensor; 192.168.1.243 |
 | **Plant-C ESP32-C3 node** | Online (2026-04-16) | v2.0 sensor; 192.168.1.117 |

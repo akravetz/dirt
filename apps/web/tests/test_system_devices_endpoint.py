@@ -30,7 +30,7 @@ class _FakeSystemStatusService:
     """Return a deterministic 8-row fixture shaped like the mockup.
 
     Mirrors the render order in ``SystemStatusService.get_device_statuses``:
-    tent Arduino, four plant nodes, humidifier, camera, Jabra.
+    tent ESP32, four plant nodes, humidifier, camera, Jabra.
     """
 
     def __init__(self, now: datetime) -> None:
@@ -42,7 +42,7 @@ class _FakeSystemStatusService:
     async def get_device_statuses(self) -> list[DeviceStatus]:
         return [
             DeviceStatus(
-                name="Arduino Nano + BME280",
+                name="ESP32-C3 · fan+tent",
                 kind="env_sensor",
                 status="ok",
                 last_seen=self._now,

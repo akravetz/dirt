@@ -4,12 +4,12 @@ type: hardware
 sources: [debug/fan-pwm/sweep-v2.sr, debug/fan-pwm/sweep-11steps.sr, debug/fan-pwm/sweep-v3.sr]
 related: [wiki/hardware/humidifier-control.md, wiki/hardware/esp32-plant-nodes.md, wiki/decisions/2026-04-22-sht45-tent-node-esp32.md]
 created: 2026-04-18
-updated: 2026-04-22
+updated: 2026-04-23
 ---
 
 # AC Infinity Cloudline LITE 6" Fan Control + Tent Environmental Sensor
 
-**Status (2026-04-22):** **D+ bring-up validated + SHT45 tent sensor integrated on the same ESP32.** One ESP32-C3 SuperMini now drives the fan via two 2N7000 MOSFETs (D+/B5) and reads an Adafruit SHT45 + PTFE cap over I²C (GPIO 4/5). Firmware [`firmware/fan_controller/`](../../firmware/fan_controller/) emits a combined heartbeat line every 60 s with both commanded fan state and measured tent temp/RH/VPD. **Physical placement:** board sits on the tent floor; fan reached via the 7 ft USB-C cable. **Deviation from earlier plan:** SHT45 was initially slated for a dedicated `tent_node` ESP32 per [2026-04-22 SHT45 decision](../decisions/2026-04-22-sht45-tent-node-esp32.md); merged into the fan-control board the same day since one board serving both roles is simpler than two. **Tach (D−) path remains unimplemented** — initial 10 kΩ/4.7 kΩ divider attempt 2026-04-22 registered zero edges; the fan's internal pull-up on D− is weaker than the reverse-engineering captures implied, and our divider loaded it below the ESP32 HIGH threshold. Deferred pending a redo with a higher-impedance divider or a fresh signal-analysis pass. **Also deviates from original plan:** moved from Arduino Nano to ESP32-C3 SuperMini so the driver joins the same fleet operational model as the plant nodes. The Nano-era driver schematic at `debug/fan-pwm/driver-schematic.png` and the Nano test sketch at `debug/fan-pwm/fan_drive_test/` are stale.
+**Status (2026-04-22):** **Dual-role node network-attached.** One ESP32-C3 SuperMini drives the fan via two 2N7000 MOSFETs (D+/B5) and reads an Adafruit SHT45 + PTFE cap over I²C (GPIO 4/5). Firmware [`firmware/fan_controller/`](../../firmware/fan_controller/) now joins WiFi, OTA-updates via `fan-controller.local`, runs a Sensirion-AN-matched SHT45 heater cycle (see [SHT45 heater schedule](#sht45-heater-schedule)), POSTs `{temperature_c, humidity_pct, fan_duty_pct}` to the host ingest at `location=tent` every 60 s, and exposes a LAN HTTP control surface on port 80 (`POST /fan` / `GET /fan`). **Physical placement:** board sits on the tent floor; fan reached via the 7 ft USB-C cable. **Deviation from earlier plan:** SHT45 was initially slated for a dedicated `tent_node` ESP32 per [2026-04-22 SHT45 decision](../decisions/2026-04-22-sht45-tent-node-esp32.md); merged into the fan-control board the same day. **Tach (D−) path still unimplemented** — `GET /fan` returns the last-set duty for `reported_duty_pct` as a mock; see [Future integration](#future-integration) for the follow-up.
 
 ## Goal
 
@@ -155,15 +155,17 @@ Three stages, executed 2026-04-20:
 
 ## Firmware
 
-Canonical source: [`firmware/fan_controller/`](../../firmware/fan_controller/). PlatformIO project, single `env:fan` for USB flash over `/dev/ttyACM*`. Dual-role: LEDC PWM for D+/B5 on GPIO 6/7, I²C SHT45 reads on GPIO 4/5. Same ESP32-C3 Arduino platform as the plant nodes — once WiFi/OTA/ingest are added, it'll consume the shared libs at `firmware/common/{wifi_client, ota, ingest_client}/`.
+Canonical source: [`firmware/fan_controller/`](../../firmware/fan_controller/). PlatformIO project with two envs: `fan` (USB flash over `/dev/ttyACM*`, required for initial flash) and `fan-ota` (WiFi flash via `fan-controller.local`, preferred after first USB flash). Consumes the shared libs in `firmware/common/{wifi_client, ota, ingest_client}/`. Dual-role: LEDC PWM for D+/B5 on GPIO 6/7, I²C SHT45 on GPIO 4/5.
 
-Current firmware (fw `0.1.0`) holds the fan at `HOLD_SPEED_PCT` (currently 30 %) and prints a combined heartbeat line every `HEARTBEAT_MS` (currently 60 s). Example:
+Firmware `0.2.0` does five things: **(1)** fan driver — 2 s max-speed failsafe blast at boot, then settles to `BOOT_SPEED_PCT` (currently 30 %); inversion math and 22–100 % wire-duty remap unchanged from bring-up. **(2)** SHT45 heater cycle — see below. **(3)** Ingest POST every 60 s with `{temperature_c, humidity_pct, fan_duty_pct}` at `location=tent`, `source=esp32`; overloads the tent location rather than adding a new `SensorLocation` enum value. **(4)** HTTP control surface on :80 — `POST /fan {"duty_pct":0..100}` sets the fan; `GET /fan` returns `{"set_duty_pct":N,"reported_duty_pct":N}`. `reported_duty_pct` is MOCKED (echoes set value) until D− tach is wired; JSON shape stays stable across that transition. **(5)** OTA — mDNS `fan-controller.local:3232`, fleet-wide `PLANT_OTA_PASSWORD`.
 
-```
-[   60077 ms] fan=30% (D+ wire=45.4%)  |  tent: 22.70°C (72.9°F)  RH 38.9%  VPD 1.69 kPa
-```
+Host-side client: `apps/shared/src/dirt_shared/services/fan_node.py` (`FanNodeClient`) — pure plumbing until a control loop calls it. See [Future integration](#future-integration).
 
-No WiFi, no ingest, no persistence yet. If the SHT45 drops mid-flight the fan keeps running unaffected — the sensor is strictly additive. Next firmware milestone: fold in `firmware/common/{wifi_client, ota, ingest_client}/` so the host can (a) command speed via ingest and (b) receive tent temp/RH/VPD into `sensorreading` under the existing `SensorLocation.TENT` enum value (source becomes `esp32` instead of the Arduino's `arduino`).
+### SHT45 heater schedule
+
+Follows Sensirion's [Creep Mitigation SHT4x app note](https://sensirion.com/media/documents/A88858C9/629626D4/Application_Note_Creep_Mitigation_SHT4x.pdf) §3 exactly: **1 s @ 200 mW pulse (SHT4X_HIGH_HEATER_1S) → 59 s equilibration → read + post → immediately chain the next pulse.** Cycle total 60 s, heater duty ≈ **1.67 %** (datasheet cap is 10 %). Purpose is continuous creep mitigation — prolonged >90 %RH exposure swells the polymer and biases RH up by ~+3 %RH over 60 h, which would silently defeat the humidifier VPD loop. Pulsing keeps the element dry enough that the drift never accumulates; also de-dews the PTFE cap if Raydrop mist lands on it.
+
+**Debug gotcha:** the `SHT4X_HIGH_HEATER_1S` command itself returns a measurement taken at the end of the heat pulse — invalid (sensor ~50 °C hot) and discarded. The reading posted to ingest is the *next* read after a full 59 s equilibration. Don't mistake the 1 s heater-blocking window at the start of each cycle for a dropout.
 
 ## Permanent install
 
@@ -190,6 +192,9 @@ Initial fan bring-up (16:35–16:37 MDT): flashed smoke-test firmware, ran `fan=
 
 No thermal check performed yet; to verify long-term safety, touch-check each 2N7000 after 10+ minutes at mid-speed.
 
-## Future integration (out of scope for this page)
+## Future integration
 
-Next firmware milestone: fold `firmware/common/{wifi_client, ota, ingest_client}/` into the fan_controller build so the host can command speed over the ingest path and we get OTA reflash via `fan-controller.local`. Once that's in, closed-loop VPD control pairs this with the humidifier — see [Humidifier Control](humidifier-control.md) for the target architecture and [multi-actuator environment control](../concepts/multi-actuator-environment-control.md) for the broader design principles (2D target zones, cascaded SISO, feedforward on lights).
+Two deferred follow-ups, both with known designs:
+
+1. **Host-side closed-loop VPD control.** `FanNodeClient` exists (`apps/shared/src/dirt_shared/services/fan_node.py`) and is ready to be called; no service calls it yet. Target shape: a new `apps/hwd/src/dirt_hwd/services/fan_controller.py` analogous to `HumidifierLoopService` — reads tent temp/VPD from `ReadingsService`, decides desired duty, calls `FanNodeClient.set_duty`, emits a `fan_controller` observability stream. Pairs with the humidifier to form a 2-actuator VPD loop; see [Humidifier Control](humidifier-control.md) for the humidifier half and [multi-actuator environment control](../concepts/multi-actuator-environment-control.md) for the combined-loop design (2D target zones, cascaded SISO, feedforward on lights).
+2. **Real tach (D−) input → replace `reported_duty_pct` mock.** Firmware's `GET /fan` currently returns the last-set value for both fields. Prior attempt: 10 kΩ / 4.7 kΩ divider from D− to GPIO 10 — loaded the weak fan-side pull-up below the ESP32 HIGH threshold (DC on D− under load: 0.71 V). Fix options: (a) higher-impedance divider (100 kΩ / 47 kΩ), (b) external VBUS→D− pull-up, or (c) fresh signal-analysis pass. When the real tach is wired, firmware replaces the echo in `handle_get_fan` with a pulse-frequency → RPM → duty estimate; the JSON shape is already designed for the transition.

@@ -1,5 +1,5 @@
 [Unit]
-Description=Dirt hardware daemon — serial reader, humidifier, archive, ingest API
+Description=Dirt hardware daemon — humidifier, archive, device watchdog, ingest API
 Documentation=file://%h/code/dirt/CLAUDE.md
 After=default.target network-online.target
 Wants=network-online.target
@@ -22,8 +22,8 @@ ExecStart=%h/.local/bin/uv run --package dirt-hwd python -m dirt_hwd.main
 Restart=on-failure
 RestartSec=5s
 KillSignal=SIGTERM
-# Allow async context managers (capture_loop daemon RPC, kasa plug teardown,
-# serial close) time to unwind before SIGKILL.
+# Allow async context managers (capture_loop daemon RPC, kasa plug
+# teardown, HTTP client pools) time to unwind before SIGKILL.
 TimeoutStopSec=10s
 # uvicorn translates SIGTERM into a graceful shutdown that exits with
 # status 143 (128 + SIGTERM) — from systemd's POV that's `code=exited` not
@@ -31,7 +31,7 @@ TimeoutStopSec=10s
 # OnFailure= would page on every planned restart. Whitelist 143 explicitly.
 SuccessExitStatus=143
 
-# Minimal hardening — don't break serial/USB/camera socket access.
+# Minimal hardening — don't break USB/camera socket access.
 NoNewPrivileges=true
 
 [Install]

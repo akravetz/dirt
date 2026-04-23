@@ -1,13 +1,12 @@
 [project]
 name = "dirt-hwd"
 version = "0.1.0"
-description = "Hardware daemon: sensor ingest, serial reader, humidifier loop, archive loop"
+description = "Hardware daemon: sensor ingest, humidifier loop, archive loop, device watchdog"
 requires-python = ">=3.13"
 dependencies = [
     "dirt-shared",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.34",
-    "pyserial>=3.5",
     "python-kasa",
     "pydantic>=2.0",
     "httpx>=0.28.1",

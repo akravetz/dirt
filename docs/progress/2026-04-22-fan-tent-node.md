@@ -101,53 +101,25 @@ Lint (`uv run scripts/lint.py`) passes 7/7.
 
 ## Pending work
 
-### 1. Fold WiFi + OTA + ingest into fan_controller firmware (biggest next step)
+### 1. Fold WiFi + OTA + ingest into fan_controller firmware ✅ DONE (2026-04-22 evening)
 
-This makes the combined board a real fleet member: the host can command fan speed and receive tent temp/RH into `sensorreading`.
+Firmware shipped as `0.2.0`. Build verified (`pio run -e fan` → flash 76.0 %, RAM 13.7 %) but not yet flashed to the physical board — user will do the USB re-flash + relocation inside the tent as a follow-up.
 
-**Changes needed:**
+**What landed:**
+- `firmware/fan_controller/platformio.ini` — `lib_extra_dirs = ../common`, Adafruit SHT4x deps, `FIRMWARE_VERSION="0.2.0"`, new `[env:fan-ota]` using `PLANT_OTA_PASSWORD`.
+- `firmware/fan_controller/include/secrets.h.example` — committed template; `secrets.h` gitignored, seeded from the tent_node fleet credentials.
+- `.gitignore` — `firmware/fan_controller/include/secrets.h` added.
+- `firmware/fan_controller/src/main.cpp` — full rewrite. WiFi/OTA/IngestClient via shared libs; non-blocking heater-cycle state machine (1 s @ 200 mW pulse → 59 s equilibrate → read + post → chain next pulse; Sensirion AN §3); ingest metrics `{temperature_c, humidity_pct, fan_duty_pct}` at `location=tent`.
+- `WebServer` on :80 with `POST /fan {"duty_pct":0..100}` and `GET /fan → {"set_duty_pct":N,"reported_duty_pct":N}`. `reported_duty_pct` is MOCKED (echoes set value) until tach lands.
 
-**`firmware/fan_controller/platformio.ini`:**
-- Add `lib_extra_dirs = ../common` to `[esp32_c3_base]`
-- Add OTA env:
-  ```ini
-  [env:fan-ota]
-  extends = esp32_c3_base
-  upload_protocol = espota
-  upload_port = fan-controller.local
-  upload_flags =
-      --auth=${sysenv.PLANT_OTA_PASSWORD}
-  ```
-  (Yes, `PLANT_OTA_PASSWORD` is deliberately reused across the whole fleet — don't rename. See the comment in `firmware/tent_node/platformio.ini`.)
+**Design decisions that were open in this section:**
 
-**`firmware/fan_controller/include/secrets.h`** (new, gitignored):
-- Copy content from `firmware/plant_node/src/secrets.h` (WIFI_SSID, WIFI_PASSWORD, SERVER_URL, SENSOR_INGEST_TOKEN, OTA_PASSWORD)
+- *Control plane* → **separate HTTP endpoint on the fan** (the option-2 row of the old table). Chosen over ingest-response-body because it's host-initiated, low-latency, and factors cleanly into a `FanNodeClient` the same way the Kasa humidifier plug factors into `HumidifierLoopService`. ~30 KB flash cost (`<WebServer.h>`) is a non-issue at 76 % flash utilization.
+- *Reading location* → **overload `SensorLocation.TENT`** (option a). `fan_duty_pct` rides on the tent rows' `metrics` JSON column alongside `temperature_c` / `humidity_pct`. No enum change, no Atlas migration, no new ingest endpoint — pure-additive.
+- *Host-side SDK* → `apps/shared/src/dirt_shared/services/fan_node.py` (`FanNodeClient`, `FanNodeError`) + `apps/shared/tests/test_fan_node.py` (8/8 green, `httpx.MockTransport`-based). Lives in `shared` so dirt-hwd, dirt-web, and dirt-mcp can all call it from one module.
+- *Heater schedule* → **Sensirion-matched** 1 s @ 200 mW per 60 s cycle (1.67 % duty). 5-minute cadence was considered and rejected — it lands right on the `humidifier_failsafe_stale_seconds = 300` edge; 60 s gives 5× headroom.
 
-**`firmware/fan_controller/include/secrets.h.example`** (new, committed):
-- Template like the one in `firmware/tent_node/include/secrets.h.example`
-
-**`.gitignore`:** add `firmware/fan_controller/include/secrets.h`
-
-**`firmware/fan_controller/src/main.cpp`:**
-- `#include "wifi_client.h"`, `"ota.h"`, `"ingest_client.h"`
-- `#include <secrets.h>`
-- Construct `IngestClient ingest(SERVER_URL, SENSOR_INGEST_TOKEN, FIRMWARE_VERSION);` (module scope)
-- In `setup()`: `wifi_client::connect(WIFI_SSID, WIFI_PASSWORD, "fan-controller");` then `ota::begin("fan-controller", OTA_PASSWORD);`
-- In `loop()`: `ota::loop(); wifi_client::maintain();` at the top every iteration, plus a `delay(10);` yield
-- Restructure the heartbeat: instead of `delay(HEARTBEAT_MS)`, convert to a `millis()`-based non-blocking check so the OTA + WiFi handlers run at high frequency. The plant_node main.cpp is the reference pattern.
-- On each heartbeat: build `metrics_json`, call `ingest.post("tent", metrics)`. Metrics JSON should include `temperature_c`, `humidity_pct`, and probably `fan_speed_pct` + `fan_d_plus_wire_pct` so the fan state is visible to the host too.
-
-**Host-side / design open question:** how does the host command `set_speed(pct)` to the fan?
-
-| Option | Pros | Cons |
-|---|---|---|
-| Response body on the ingest POST | Consistent with existing ingest pattern; no new endpoints | Requires re-reading every POST response; command rate = heartbeat rate |
-| Separate HTTP endpoint on the fan (`POST http://fan-controller.local/speed`) | Low-latency; host-initiated | Fan runs a web server (flash cost, new code path) |
-| MQTT or similar pub/sub | Cleanest for fan-out | New infra on the host side |
-
-My recommendation was option 1 but user hadn't committed to an approach. Worth raising before writing the code.
-
-**Also need:** pick a location for the "fan state" readings. `SensorLocation.TENT` is already taken for the environmental side. Either (a) overload it (all fan-related fields live on tent rows), or (b) add a new `SensorLocation.FAN_CONTROLLER` enum value (needs Atlas migration + code update in `apps/shared/src/dirt_shared/models/enums.py`).
+**Explicitly deferred:** host-side closed-loop VPD control. `FanNodeClient` is plumbing; nothing on the host calls it yet. Target shape documented in `wiki/hardware/ac-infinity-fan-control.md` "Future integration" — a `apps/hwd/src/dirt_hwd/services/fan_controller.py` analogous to `HumidifierLoopService`, reading tent VPD from `ReadingsService` and emitting a `fan_controller` observability stream.
 
 ### 2. Deploy combined board inside the tent
 

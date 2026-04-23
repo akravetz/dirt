@@ -1,7 +1,7 @@
 """dirt-hwd composition root.
 
-Owns the ESP32 ingest endpoint and four background services that touch
-hardware exclusively (capture, archive, humidifier loop, serial reader).
+Owns the ESP32 ingest endpoint and the background services that touch
+hardware exclusively (capture, archive, humidifier loop, device watchdog).
 ``create_app`` wires them into the lifespan; tests construct an app with
 ``background_services=[]`` to skip the hardware loops entirely.
 """
@@ -25,7 +25,6 @@ from dirt_hwd.services.device_watchdog import (
     DeviceWatchdogService,
 )
 from dirt_hwd.services.humidifier import HumidifierLoopService
-from dirt_hwd.services.serial_reader import SerialReaderService
 from dirt_hwd.supervise import supervise
 from dirt_shared.app_wiring import build_core_services
 from dirt_shared.config import Settings
@@ -80,7 +79,7 @@ def _default_background_services(
     settings: Settings,
     core,
 ) -> list[BackgroundService]:
-    """Build the four production background services from settings."""
+    """Build the production background services from settings."""
     return [
         CaptureService(engine, settings.capture(), clock=core.clock),
         ArchiveService(settings.archive(), clock=core.clock),
@@ -89,10 +88,6 @@ def _default_background_services(
             readings=core.readings,
             grow=core.grow,
             clock=core.clock,
-        ),
-        SerialReaderService(
-            settings.serial(),
-            readings=core.readings,
         ),
         DeviceWatchdogService(
             DeviceWatchdogConfig(

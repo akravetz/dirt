@@ -4,7 +4,7 @@ type: hardware
 sources: []
 related: [wiki/decisions/2026-04-17-humidifier-kasa-ep10.md, wiki/environment/humidity.md, wiki/concepts/vpd.md]
 created: 2026-04-14
-updated: 2026-04-20
+updated: 2026-04-23
 ---
 
 # Humidifier Control
@@ -84,21 +84,20 @@ Once PR #1580 merges and releases, swap back to a pinned version.
 
 "Remote Control" must be **enabled** in the Kasa app for LAN KLAP auth to work. It's nominally a cloud-relay toggle, but the plug's KLAP credentials are only valid once it's bound to a TP-Link Cloud account.
 
-### BME280 stuck-state (recurring)
+### BME280 drift (resolved-by-transition 2026-04-23)
 
-**Pattern:** the tent-hub BME280 periodically enters a stuck state where RH reads ~15–20 points lower than reality while temp and pressure stay roughly plausible. The control loop then sees artificially high VPD and runs the humidifier harder than warranted. The stale-sensor failsafe does NOT trip — readings are updating, they're just wrong.
+**Resolved** by retiring the Arduino Nano + BME280 tent hub in favour of the ESP32-C3 + SHT45 combined fan-controller board (see [fan control + tent sensor](ac-infinity-fan-control.md) and [decision 2026-04-22 SHT45 swap](../decisions/2026-04-22-sht45-tent-node-esp32.md)). A handheld hygrometer placed side-by-side with both sensors on the tent floor on **2026-04-23 00:15 MDT** read **69 °F / 49 %RH**; the SHT45 read **69.6 °F / 53 %** and the BME280 read **72.5 °F / 73 %**. The BME280 was off by **+3.5 °F and +23 %RH** — much larger than the previously-characterised "stuck-state" behaviour and likely the explanation for a number of past incidents that were attributed to transient lockups.
 
-**Detection:** cross-check against a handheld hygrometer in the tent; a 10+ point RH gap is the cue.
+**Historical-data caveat.** All `source=arduino` tent readings prior to 2026-04-23 00:22 MDT are biased high on RH / low on VPD by an unquantified amount (at least the +23 %RH / −0.5 kPa VPD gap measured at retirement; possibly less at earlier points but drift direction is consistent). The humidifier VPD loop has therefore been under-humidifying for some time — the tent has been drier than the wiki and daily reports indicated. Current-grow sensor-based trend claims should be read against this caveat; future daily syntheses only see ESP32 readings.
 
-**Fix:** `systemctl --user restart dirt-hwd`. The service closes and reopens the USB serial port, which toggles DTR and resets the Arduino Nano; the Nano's setup code re-inits the BME280 over I²C, clearing the stuck state. First post-restart sample arrives ~15 s later and should agree with the handheld within ±2 pts RH / ±2°F.
+**Original stuck-state pattern (for history):** BME280 periodically reported RH ~15–20 points lower than reality while temp and pressure stayed plausible. Was mitigated by `systemctl --user restart dirt-hwd` (which toggled DTR and re-init'd the sensor over I²C). After cutover, not applicable — the SHT45 driver path is wholly different.
 
-**Root cause:** unclear — candidate hypotheses are I²C bus flake on the Nano, a firmware edge case in the BME280 driver, or intermittent sensor hardware. Not worth deep investigation until we have ≥3 incidents to triangulate.
-
-**Incident log:**
+**Incident log (historic, Arduino era):**
 
 | Date | Pre-restart | Handheld reference | Post-restart | Notes |
 |---|---|---|---|---|
-| 2026-04-20 17:36 MDT | 43.5 % RH / 74.6 °F / VPD 1.65 kPa | 63 % RH / 73 °F | 61.2 % RH / 75.0 °F / VPD 1.15 kPa | Detected from user sanity check against handheld. Restart brought all three metrics back into agreement. |
+| 2026-04-20 17:36 MDT | 43.5 % RH / 74.6 °F / VPD 1.65 kPa | 63 % RH / 73 °F | 61.2 % RH / 75.0 °F / VPD 1.15 kPa | Stuck-state. Restart brought all three metrics back into agreement. |
+| 2026-04-23 00:15 MDT | 73 % RH / 72.5 °F / VPD 0.75 kPa | 49 % RH / 69 °F | — (sensor retired) | Side-by-side with SHT45 (53 %RH / 69.6 °F) and handheld hygrometer. Terminal-incident — triggered Arduino retirement. |
 
 ## Control Logic (deployed)
 

@@ -295,9 +295,9 @@ class ReadingsService:
                 # and forgets to seed, create rather than fail.
                 node = SensorNode(location=location)
             # Only overwrite identity fields when the caller provided them.
-            # The serial reader (Arduino) doesn't know firmware/ip/uptime
-            # and calls with None; we don't want that to null out metadata
-            # the ESP32 ingest path populates for other nodes.
+            # Internal callers (e.g. the humidifier loop recording its own
+            # on/off state) pass None for ip/firmware/uptime; don't null out
+            # the metadata the ESP32 ingest path populates for other nodes.
             if ip is not None:
                 node.ip = ip
             if firmware_version is not None:

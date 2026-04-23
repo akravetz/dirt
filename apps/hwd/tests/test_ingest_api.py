@@ -207,3 +207,57 @@ def test_compute_calibrated_pct_clamps_out_of_range():
 
 def test_compute_calibrated_pct_degenerate_returns_none():
     assert compute_calibrated_pct(1500, raw_low=1500, raw_high=1500) is None
+
+
+async def test_tent_ingest_derives_temperature_f_vpd_dew_point(
+    client: AsyncClient, app_engine
+):
+    """tent-location posts with temperature_c + humidity_pct have
+    temperature_f, vpd_kpa, and dew_point_f derived at ingest."""
+    r = await client.post(
+        "/api/ingest/sensors",
+        json={
+            "location": "tent",
+            "metrics": {
+                "temperature_c": 20.6,
+                "humidity_pct": 49.0,
+                "fan_duty_pct": 30.0,
+            },
+        },
+        headers=_auth_header(),
+    )
+    assert r.status_code == 202
+    assert r.json()["count"] == 6  # 3 input + 3 derived
+
+    async with AsyncSession(app_engine) as s:
+        rows = (
+            await s.exec(
+                select(SensorReading.metric, SensorReading.value)
+                .join(SensorNode, SensorNode.id == SensorReading.sensornode_id)
+                .where(SensorNode.location == SensorLocation.TENT)
+                .order_by(SensorReading.id.desc())
+                .limit(6)
+            )
+        ).all()
+    by_metric = {m: v for m, v in rows}
+    assert abs(by_metric["temperature_c"] - 20.6) < 1e-6
+    assert abs(by_metric["humidity_pct"] - 49.0) < 1e-6
+    assert abs(by_metric["fan_duty_pct"] - 30.0) < 1e-6
+    assert abs(by_metric["temperature_f"] - 69.08) < 0.01
+    # 20.6°C / 49 %RH → VPD ≈ 1.24 kPa
+    assert 1.2 < by_metric["vpd_kpa"] < 1.3
+    assert 45.0 < by_metric["dew_point_f"] < 52.0
+
+
+async def test_plant_node_ingest_passthrough_without_temp_rh(
+    client: AsyncClient, app_engine
+):
+    """Plant-node moisture posts lack the temperature_c + humidity_pct
+    pair — tent-metric derivation must leave them alone."""
+    r = await client.post(
+        "/api/ingest/sensors",
+        json={"location": "plant-a", "metrics": {"soil_moisture_raw": 1500.0}},
+        headers=_auth_header(),
+    )
+    assert r.status_code == 202
+    assert r.json()["count"] == 1

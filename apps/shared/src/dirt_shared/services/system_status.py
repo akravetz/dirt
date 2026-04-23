@@ -2,7 +2,8 @@
 
 Eight rows in the mockup (``dashboard.jsx:SystemTable``):
 
-- Arduino Nano + BME280       — tent sensornode's ``last_seen``
+- ESP32-C3 · fan+tent         — tent sensornode's ``last_seen``
+                                 (fan driver + SHT45 on one board)
 - ESP32-C3 · plant_{a,b,c,d}  — per-plant sensornode's ``last_seen``
 - OBSBOT Tiny 2 Lite          — dirt-camera daemon's ``get_state`` RPC
 - Jabra Speak 410 (Claudia)   — tail of ``var/sessions/voice/*.jsonl``
@@ -168,7 +169,7 @@ class SystemStatusService:
         out: list[DeviceStatus] = []
 
         async with AsyncSession(self._engine) as session:
-            out.append(await self._tent_arduino_status(session, now))
+            out.append(await self._tent_sensor_status(session, now))
             for loc in (
                 SensorLocation.PLANT_A,
                 SensorLocation.PLANT_B,
@@ -182,7 +183,7 @@ class SystemStatusService:
         out.append(self._voice_status(now))
         return out
 
-    async def _tent_arduino_status(
+    async def _tent_sensor_status(
         self, session: AsyncSession, now: datetime
     ) -> DeviceStatus:
         node = (
@@ -192,7 +193,7 @@ class SystemStatusService:
         ).first()
         last_seen = node.last_seen if node is not None else None
         return DeviceStatus(
-            name="Arduino Nano + BME280",
+            name="ESP32-C3 · fan+tent",
             kind="env_sensor",
             status=_status_from_age(now, last_seen, "env_sensor"),
             last_seen=last_seen,

@@ -7,6 +7,8 @@ AuthMiddleware via the `/api/ingest` prefix in app.py.
 
 from __future__ import annotations
 
+import math
+
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
@@ -24,6 +26,28 @@ class IngestPayload(BaseModel):
     ip: str | None = None
     firmware_version: str | None = None
     uptime_ms: int | None = None
+
+
+def _augment_temp_rh_metrics(metrics: dict[str, float]) -> dict[str, float]:
+    """Derive temperature_f, vpd_kpa, dew_point_f from temperature_c +
+    humidity_pct. Passthrough when either input is missing."""
+    t_c = metrics.get("temperature_c")
+    rh = metrics.get("humidity_pct")
+    if t_c is None or rh is None:
+        return metrics
+    svp_kpa = 0.6108 * math.exp(17.27 * t_c / (t_c + 237.3))
+    vpd = svp_kpa * (1 - rh / 100)
+    # Magnus formula for dew point (°C). max() guards against log(0) on
+    # a malformed 0 %RH reading.
+    a, b = 17.27, 237.7
+    gamma = (a * t_c) / (b + t_c) + math.log(max(rh, 0.01) / 100)
+    dew_c = (b * gamma) / (a - gamma)
+    return {
+        **metrics,
+        "temperature_f": t_c * 9 / 5 + 32,
+        "vpd_kpa": vpd,
+        "dew_point_f": dew_c * 9 / 5 + 32,
+    }
 
 
 def _check_token(authorization: str | None, expected_token: str) -> None:
@@ -47,12 +71,14 @@ async def ingest_sensors(
     # If caller didn't self-report IP, use the connection's remote address.
     ip = payload.ip or (request.client.host if request.client else None)
 
+    metrics = _augment_temp_rh_metrics(payload.metrics)
+
     await readings.ingest_reading(
         location=payload.location,
-        metrics=payload.metrics,
+        metrics=metrics,
         source=payload.source,
         ip=ip,
         firmware_version=payload.firmware_version,
         uptime_ms=payload.uptime_ms,
     )
-    return {"ok": True, "location": payload.location, "count": len(payload.metrics)}
+    return {"ok": True, "location": payload.location, "count": len(metrics)}

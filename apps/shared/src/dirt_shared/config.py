@@ -51,9 +51,6 @@ class Settings(BaseSettings):
     archive_dir: Path | None = None
     capture_interval: int = 300  # 5 minutes
     archive_retention_days: int = 7
-    serial_port: str = "/dev/ttyArduino"
-    serial_baud: int = 9600
-    sensor_poll_interval: int = 20  # seconds
     secret_key: str = "change-me-in-production"
     mcp_bearer_token: str = "change-me-in-production"
     sensor_ingest_token: str = "change-me-in-production"
@@ -132,13 +129,6 @@ class Settings(BaseSettings):
             failsafe_stale_seconds=self.humidifier_failsafe_stale_seconds,
         )
 
-    def serial(self) -> SerialConfig:
-        return SerialConfig(
-            port=self.serial_port,
-            baud=self.serial_baud,
-            poll_interval=self.sensor_poll_interval,
-        )
-
     def auth(self) -> AuthConfig:
         return AuthConfig(
             username=self.auth_username,
@@ -171,13 +161,6 @@ class HumidifierConfig:
     lights_off_prep_minutes: int  # margin around lights transitions
     poll_interval: int
     failsafe_stale_seconds: int
-
-
-@dataclass(frozen=True)
-class SerialConfig:
-    port: str
-    baud: int
-    poll_interval: int
 
 
 @dataclass(frozen=True)
