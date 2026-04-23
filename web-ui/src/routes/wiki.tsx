@@ -202,7 +202,7 @@ function WikiPage() {
   };
 
   return (
-    <main className="flex flex-1 min-w-0">
+    <main className="flex min-h-0 min-w-0 flex-1">
       <WikiSidebar
         tree={tree}
         activePath={selectedPath}
@@ -210,7 +210,7 @@ function WikiPage() {
           openPath(path, title);
         }}
       />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {doc ? (
           <WikiDoc doc={doc} />
         ) : (

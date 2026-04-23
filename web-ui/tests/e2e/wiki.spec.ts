@@ -28,10 +28,12 @@ import { collectConsoleErrors } from "./_helpers";
 
 test.describe("wiki tab", () => {
   test.beforeEach(async ({ page }) => {
-    // Keep recent-files storage clean per test so the empty-query
-    // palette branch is deterministic.
+    // Keep recent-files + expanded-folders storage clean per test so
+    // the empty-query palette branch and the collapse-by-default sidebar
+    // state are both deterministic.
     await page.addInitScript(() => {
       window.localStorage.removeItem("dirt.wiki.recentFiles");
+      window.localStorage.removeItem("dirt.wiki.expandedFolders");
     });
     await page.goto("/wiki");
     await expect(page.getByRole("navigation", { name: "Wiki tree" })).toBeVisible();
@@ -46,19 +48,24 @@ test.describe("wiki tab", () => {
     await expect(sidebar.getByRole("region", { name: "plants" })).toBeVisible();
     await expect(sidebar.getByRole("region", { name: "concepts" })).toBeVisible();
     await expect(sidebar.getByRole("region", { name: "daily" })).toBeVisible();
-    // Root files — index.md / overview.md.
+    // Root files — index.md / overview.md — render outside any folder
+    // and are always visible regardless of expand/collapse state.
     await expect(
       sidebar.locator('[data-testid="wiki-sidebar-file"][data-path="wiki/index.md"]'),
     ).toBeVisible();
     await expect(
       sidebar.locator('[data-testid="wiki-sidebar-file"][data-path="wiki/overview.md"]'),
     ).toBeVisible();
-    // Plant A sits inside the plants folder.
-    await expect(
-      sidebar.locator(
-        '[data-testid="wiki-sidebar-file"][data-path="wiki/plants/plant-a.md"]',
-      ),
-    ).toBeVisible();
+    // Folders default to collapsed — plant-a.md lives inside plants and
+    // is hidden until the folder's disclosure button is clicked.
+    const plantA = sidebar.locator(
+      '[data-testid="wiki-sidebar-file"][data-path="wiki/plants/plant-a.md"]',
+    );
+    await expect(plantA).toBeHidden();
+    await sidebar
+      .locator('[data-testid="wiki-sidebar-folder"][data-name="plants"]')
+      .click();
+    await expect(plantA).toBeVisible();
   });
 
   test("clicking plant-a.md renders frontmatter block + markdown body", async ({
@@ -74,6 +81,11 @@ test.describe("wiki tab", () => {
     });
 
     const sidebar = page.getByRole("navigation", { name: "Wiki tree" });
+    // Expand the plants folder before clicking the file inside it —
+    // folders default to collapsed.
+    await sidebar
+      .locator('[data-testid="wiki-sidebar-folder"][data-name="plants"]')
+      .click();
     await sidebar
       .locator('[data-testid="wiki-sidebar-file"][data-path="wiki/plants/plant-a.md"]')
       .click();
@@ -162,9 +174,13 @@ test.describe("wiki tab", () => {
     page,
   }) => {
     // Seed one recent file by opening plant-a.md (which pushes onto
-    // shared/storage's recentFiles list).
-    await page
-      .getByRole("navigation", { name: "Wiki tree" })
+    // shared/storage's recentFiles list). Plants folder is collapsed by
+    // default — expand it before clicking the file.
+    const sidebar = page.getByRole("navigation", { name: "Wiki tree" });
+    await sidebar
+      .locator('[data-testid="wiki-sidebar-folder"][data-name="plants"]')
+      .click();
+    await sidebar
       .locator('[data-testid="wiki-sidebar-file"][data-path="wiki/plants/plant-a.md"]')
       .click();
     await expect(page.getByRole("article", { name: "Wiki document" })).toBeVisible();
@@ -207,8 +223,13 @@ test.describe("wiki tab", () => {
     await expect(page.getByRole("navigation", { name: "Wiki tree" })).toBeVisible();
 
     // Touch each interactive primitive so any lazy render path is hit.
-    await page
-      .getByRole("navigation", { name: "Wiki tree" })
+    // Expand the plants folder (collapsed by default) before clicking
+    // into plant-a.md.
+    const sidebar = page.getByRole("navigation", { name: "Wiki tree" });
+    await sidebar
+      .locator('[data-testid="wiki-sidebar-folder"][data-name="plants"]')
+      .click();
+    await sidebar
       .locator('[data-testid="wiki-sidebar-file"][data-path="wiki/plants/plant-a.md"]')
       .click();
     await expect(page.getByRole("article", { name: "Wiki document" })).toBeVisible();

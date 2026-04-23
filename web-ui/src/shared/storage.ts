@@ -73,3 +73,28 @@ export function pushRecentWikiFile(entry: RecentWikiFile): RecentWikiFile[] {
   storage.set(RECENT_WIKI_FILES_KEY, JSON.stringify(next));
   return next;
 }
+
+// ---------------------------------------------------------------------------
+// Wiki expanded-folder set — frontend.wiki
+//
+// Persists the sidebar's open/closed tree state across reloads. Malformed
+// payloads parse to the empty set so a bad write can't brick the sidebar.
+// ---------------------------------------------------------------------------
+
+const EXPANDED_WIKI_FOLDERS_KEY = "dirt.wiki.expandedFolders";
+
+export function readExpandedWikiFolders(): Set<string> {
+  const raw = storage.get(EXPANDED_WIKI_FOLDERS_KEY);
+  if (raw === null) return new Set();
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((v): v is string => typeof v === "string"));
+  } catch {
+    return new Set();
+  }
+}
+
+export function writeExpandedWikiFolders(folders: Set<string>): void {
+  storage.set(EXPANDED_WIKI_FOLDERS_KEY, JSON.stringify([...folders]));
+}
