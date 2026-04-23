@@ -67,7 +67,9 @@ def _as_utc(ts: datetime) -> datetime:
     return ts if ts.tzinfo is not None else ts.replace(tzinfo=UTC)
 
 
-# All metrics recorded by the serial reader (plus derived values).
+# Tent environmental metrics used by the legacy get_sensor_history path.
+# (New callers use get_metric_history with an arbitrary metric name —
+# e.g. fan_duty_pct — so this tuple is not a whitelist.)
 METRICS = (
     "temperature_f",
     "humidity_pct",
@@ -350,9 +352,8 @@ class ReadingsService:
         without a str-format round-trip.
 
         Callers are responsible for validating ``metric`` is a DB-backed
-        metric (i.e. in ``METRICS``) — ``fan_pct`` / ``reservoir_in`` are
-        pure-function mocks and have their own history helpers in
-        ``mock_sensors``.
+        metric — ``reservoir_in`` is a pure-function mock with its own
+        history helper in ``mock_sensors``.
         """
         delta = RANGE_DELTAS[range_key]
         cutoff = self._clock() - delta

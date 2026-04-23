@@ -38,16 +38,23 @@ STAGE_TARGETS: dict[Stage, dict[str, tuple[float, float]]] = {
         "temperature_f": (70, 82),
         "humidity_pct": (45, 55),
         "vpd_kpa": (0.8, 1.2),
+        # Loose operational envelope — 20% is the motor's measured stall
+        # floor from the protocol sweep; 80% is an anomaly ceiling, not a
+        # control-loop setpoint. Same band across all stages until the
+        # closed-loop VPD service lands and can inform a tighter target.
+        "fan_pct": (20, 80),
     },
     "flower_early": {
         "temperature_f": (68, 80),
         "humidity_pct": (45, 50),
         "vpd_kpa": (1.0, 1.3),
+        "fan_pct": (20, 80),
     },
     "flower_late": {
         "temperature_f": (65, 78),
         "humidity_pct": (40, 45),
         "vpd_kpa": (1.2, 1.5),
+        "fan_pct": (20, 80),
     },
 }
 

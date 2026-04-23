@@ -70,7 +70,12 @@ def test_derive_stage_is_always_one_of_three(
     stage = derive_stage(today, germ, flower)
     assert stage in ("veg", "flower_early", "flower_late")
     # Every stage has a full STAGE_TARGETS entry (round-trip invariant).
-    assert set(STAGE_TARGETS[stage]) == {"temperature_f", "humidity_pct", "vpd_kpa"}
+    assert set(STAGE_TARGETS[stage]) == {
+        "temperature_f",
+        "humidity_pct",
+        "vpd_kpa",
+        "fan_pct",
+    }
 
 
 @given(germ=_DATE, flower=_DATE)

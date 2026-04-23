@@ -39,8 +39,6 @@ from dirt_shared.services.grow_state import (
     band_status,
 )
 from dirt_shared.services.mock_sensors import (
-    get_fan_history,
-    get_fan_pct,
     get_reservoir_history,
     get_reservoir_in,
 )
@@ -68,7 +66,15 @@ router = APIRouter(tags=["sensors"])
 # Contract-allowed metric values that are NOT backed by DB readings — the
 # endpoint synthesizes their history from the deterministic helpers in
 # ``mock_sensors`` so the sparkline shape matches the live-hardware case.
-_MOCK_METRICS = {SensorMetric.fan_pct, SensorMetric.reservoir_in}
+_MOCK_METRICS = {SensorMetric.reservoir_in}
+
+# Contract-name → DB-metric-name bridge. The API contract exposes
+# ``fan_pct`` (historical — was once a mock sine wave), but the fan-
+# controller firmware writes the reading as ``fan_duty_pct``. Map here
+# rather than churn the contract or rename the firmware payload.
+_CONTRACT_TO_DB_METRIC: dict[SensorMetric, str] = {
+    SensorMetric.fan_pct: "fan_duty_pct",
+}
 
 # Per-metric display unit shared between /api/sensors/current and
 # /api/sensors/history. Kept local to the router to avoid threading yet
@@ -132,14 +138,15 @@ async def sensors_current(
     grow: GrowStateService = Depends(get_grow),
 ) -> SensorsCurrent:
     """Return the five-metric envelope with target bands, statuses, and stale flag."""
-    # Fan out the independent DB queries (stage, three latest readings,
-    # staleness) concurrently — five round-trips sequential is ~5x
+    # Fan out the independent DB queries (stage, four latest readings,
+    # staleness) concurrently — six round-trips sequential is ~6x
     # latency on every dashboard render.
-    stage, temp, hum, vpd, stale = await asyncio.gather(
+    stage, temp, hum, vpd, fan, stale = await asyncio.gather(
         grow.current_stage(),
         readings.get_latest_reading("temperature_f"),
         readings.get_latest_reading("humidity_pct"),
         readings.get_latest_reading("vpd_kpa"),
+        readings.get_latest_reading("fan_duty_pct"),
         readings.is_sensor_stale(),
     )
     targets = STAGE_TARGETS[stage]
@@ -147,16 +154,15 @@ async def sensors_current(
     # Top-level ``ts`` = newest reading seen across the real metrics
     # ("when did the tent last report?"). Fall back to the injected
     # clock when the DB is cold so the envelope is always well-formed.
-    real_readings = [r for r in (temp, hum, vpd) if r is not None]
+    real_readings = [r for r in (temp, hum, vpd, fan) if r is not None]
     top_ts = max((r.ts for r in real_readings), default=readings.now())
 
     metrics = Metrics(
         temperature_f=_envelope(temp, "\u00b0F", targets.get("temperature_f"), top_ts),
         humidity_pct=_envelope(hum, "%", targets.get("humidity_pct"), top_ts),
         vpd_kpa=_envelope(vpd, "kPa", targets.get("vpd_kpa"), top_ts),
-        # Mock metrics share top_ts so the dashboard's "as of …" label
-        # stays coherent across the tile set.
-        fan_pct=_mock_envelope(get_fan_pct(top_ts), "%", top_ts),
+        fan_pct=_envelope(fan, "%", targets.get("fan_pct"), top_ts),
+        # Reservoir remains mocked until an XKC-Y25-T12V sensor is wired.
         reservoir_in=_mock_envelope(get_reservoir_in(top_ts), "in", top_ts),
     )
 
@@ -186,15 +192,13 @@ async def sensors_history(
         end = readings.now()
         start = end - RANGE_DELTAS[range.value]
         n = _MOCK_POINT_COUNT[range]
-        sampler = (
-            get_fan_history if metric is SensorMetric.fan_pct else get_reservoir_history
-        )
         points = [
             HistoryPoint(ts=p.ts, value=round(p.value, 2))
-            for p in sampler(start, end, n)
+            for p in get_reservoir_history(start, end, n)
         ]
     else:
-        raw = await readings.get_metric_history(metric.value, range.value)
+        db_metric = _CONTRACT_TO_DB_METRIC.get(metric, metric.value)
+        raw = await readings.get_metric_history(db_metric, range.value)
         points = [HistoryPoint(ts=ts, value=round(value, 2)) for ts, value in raw]
     return SensorsHistoryResponse(
         range=range,

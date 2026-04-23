@@ -1,9 +1,10 @@
 """Unit tests for GET /api/sensors/history.
 
 The endpoint returns bucketed ``(ts, value)`` points for one metric over
-the requested range. DB-backed metrics query ``ReadingsService``; mock
-metrics (``fan_pct``, ``reservoir_in``) come from the deterministic
-helpers in ``mock_sensors``.
+the requested range. DB-backed metrics query ``ReadingsService``; the
+still-mocked ``reservoir_in`` metric comes from the deterministic helper
+in ``mock_sensors``. The contract name ``fan_pct`` is bridged to the DB
+metric ``fan_duty_pct`` at the endpoint boundary.
 
 Tests drive the full ASGI stack with an isolated Postgres DB and assert
 the response body deserializes into the generated
@@ -28,8 +29,8 @@ from dirt_shared.models.sensor_reading import SensorReading
 from dirt_web.app import create_app
 
 
-async def _seed_temperature_series(engine, hours: int = 48) -> None:
-    """Insert a dense temperature_f + humidity_pct series over ``hours``."""
+async def _seed_tent_series(engine, hours: int = 48) -> None:
+    """Insert a dense temperature_f + humidity_pct + fan_duty_pct series."""
     async with AsyncSession(engine) as s:
         result = await s.exec(
             select(SensorNode.id).where(SensorNode.location == SensorLocation.TENT)
@@ -45,6 +46,7 @@ async def _seed_temperature_series(engine, hours: int = 48) -> None:
             for metric, value in (
                 ("temperature_f", 72.0 + (i % 10) * 0.5),
                 ("humidity_pct", 50.0 + (i % 10) * 0.3),
+                ("fan_duty_pct", 30.0 + (i % 5)),
             ):
                 readings.append(
                     SensorReading(
@@ -61,7 +63,7 @@ async def _seed_temperature_series(engine, hours: int = 48) -> None:
 
 @pytest.fixture
 async def client(app_engine):
-    await _seed_temperature_series(app_engine)
+    await _seed_tent_series(app_engine)
     app = create_app(engine=app_engine, run_mcp=False)
     transport = ASGITransport(app=app)
     async with AsyncClient(
@@ -126,8 +128,10 @@ async def test_sensors_history_humidity_metric(client: AsyncClient) -> None:
     assert len(model.points) > 0
 
 
-async def test_sensors_history_mock_metric_fan(client: AsyncClient) -> None:
-    """fan_pct is synthesized from mock_sensors and bounded to its band."""
+async def test_sensors_history_fan_bridges_to_fan_duty_pct(
+    client: AsyncClient,
+) -> None:
+    """Contract metric ``fan_pct`` resolves to DB column ``fan_duty_pct``."""
     response = await client.get(
         "/api/sensors/history",
         params={"range": "24h", "metric": "fan_pct"},
@@ -137,9 +141,10 @@ async def test_sensors_history_mock_metric_fan(client: AsyncClient) -> None:
     assert model.metric.value == "fan_pct"
     assert model.unit == "%"
     assert len(model.points) > 0
-    # Mock fan-pct range is 45-52 %; every sample must land inside.
+    # Seeded fan_duty_pct cycles 30..34; every bucket average lands inside.
     for pt in model.points:
-        assert 45.0 <= pt.value <= 52.0
+        assert 30.0 <= pt.value <= 34.0
+        assert pt.ts.tzinfo is not None
 
 
 async def test_sensors_history_mock_metric_reservoir(client: AsyncClient) -> None:

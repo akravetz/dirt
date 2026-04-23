@@ -2,9 +2,9 @@
 
 The endpoint composes ``ReadingsService.get_latest_reading``,
 ``grow_state.STAGE_TARGETS``, ``grow_state.band_status``, and the pure
-mock helpers ``get_fan_pct`` / ``get_reservoir_in``. Tests drive the
-full ASGI stack with an isolated Postgres DB and assert the JSON body
-deserializes into the generated Pydantic ``SensorsCurrent`` model.
+mock helper ``get_reservoir_in``. Tests drive the full ASGI stack with
+an isolated Postgres DB and assert the JSON body deserializes into the
+generated Pydantic ``SensorsCurrent`` model.
 """
 
 from __future__ import annotations
@@ -73,7 +73,7 @@ async def _seed_readings(
         "humidity_pct": humidity_pct,
         "vpd_kpa": vpd_kpa,
         "dew_point_f": 55.0,
-        "pressure_hpa": 1013.0,
+        "fan_duty_pct": 30.0,
     }.items():
         add(metric, value, now)
 
@@ -131,23 +131,24 @@ async def test_sensors_current_returns_contract_shape(client: AsyncClient, app_e
     assert model.metrics.temperature_f.value == pytest.approx(72.0)
     assert model.metrics.humidity_pct.value == pytest.approx(50.0)
     assert model.metrics.vpd_kpa.value == pytest.approx(1.0)
-    # Mocks are pure functions keyed on ts — ranges enforced in mock_sensors.
-    assert 45.0 <= model.metrics.fan_pct.value <= 52.0
+    assert model.metrics.fan_pct.value == pytest.approx(30.0)
+    # Reservoir is a pure function of ts — range enforced in mock_sensors.
     assert 4.0 <= model.metrics.reservoir_in.value <= 9.0
 
-    # Target bands present for temp/humidity/VPD (veg stage per default
-    # seed state); absent for fan/reservoir.
+    # Target bands present for every DB-backed metric (veg stage per
+    # default seed state); absent only for the still-mocked reservoir.
     assert model.metrics.temperature_f.target is not None
     assert model.metrics.humidity_pct.target is not None
     assert model.metrics.vpd_kpa.target is not None
-    assert model.metrics.fan_pct.target is None
+    assert model.metrics.fan_pct.target is not None
     assert model.metrics.reservoir_in.target is None
 
-    # Veg-stage bands: temp 70-82, humidity 45-55, VPD 0.8-1.2.
+    # Veg-stage bands: temp 70-82, humidity 45-55, VPD 0.8-1.2, fan 20-80.
     # Seeded values sit inside each band → status "ok".
     assert model.metrics.temperature_f.status.value == "ok"
     assert model.metrics.humidity_pct.status.value == "ok"
     assert model.metrics.vpd_kpa.status.value == "ok"
+    assert model.metrics.fan_pct.status.value == "ok"
 
     # Fresh seed → not stale.
     assert model.stale is False

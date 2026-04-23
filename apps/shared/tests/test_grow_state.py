@@ -170,8 +170,8 @@ async def test_current_targets_tracks_stage(pg_engine):
 
 
 def test_stage_targets_cover_all_stages_and_metrics():
-    """Sensors.py only flags temp/humidity/VPD — every stage must carry all three."""
-    expected = {"temperature_f", "humidity_pct", "vpd_kpa"}
+    """Every stage must carry a full band for every dashboard metric."""
+    expected = {"temperature_f", "humidity_pct", "vpd_kpa", "fan_pct"}
     for stage, bands in gs.STAGE_TARGETS.items():
         assert set(bands) == expected, f"{stage} missing metrics"
         for metric, (lo, hi) in bands.items():
