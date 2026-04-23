@@ -157,6 +157,12 @@ loop every ~30s:
 - **Failsafe OFF on stale reads** — prefer brief dryness over a damping-off tent.
 - **Stage band + lights schedule re-read every tick** — a veg→flower flip or a photoperiod change in the DB takes effect on the next poll with no restart.
 
+## Coupling with fan exhaust rate
+
+The humidifier competes directly with the tent exhaust fan — a coupling invisible in the BME280 era (bogus +23 %RH kept the loop from seriously demanding humidity) but immediately observable after the SHT45 cutover. 2026-04-23: at fan 30 % + mid-dial Raydrop, VPD tracked setpoint and the humidifier oscillated gently. Bumping fan to 40 % tipped the balance — exhaust exceeded the Raydrop's dialed-down emission rate, the plug pinned ON continuously, VPD *climbed* 1.20 → 1.50 kPa over 1h 40m. User turned the Raydrop dial up and RH recovered.
+
+**Implications:** (1) The Raydrop potentiometer is a hidden input to the control stack — its setting caps the max mist rate the loop can ask for, and software has no visibility into it. (2) Fan speed is part of the humidity-control surface even though nothing in the loop models it. **Diagnostic:** humidifier stuck ON >30 min with VPD still rising ⇒ physical actuator saturation, not a loop bug. Dial up the Raydrop or dial down the fan.
+
 ## State Logging
 
 Two streams, each serving a different consumer:
@@ -183,3 +189,9 @@ Wattage field is absent because this firmware doesn't expose an Energy module.
 - Plug state logged alongside VPD; state-change events carry the band edges that were active at decision time.
 - Simulated sensor failure triggers failsafe OFF within the failsafe window.
 - Veg→flower flip (via a `grow_state.flower_start_date` write) shifts the upper-edge setpoint on the next poll without a service restart.
+
+## Future work
+
+### Replace the Raydrop's analog potentiometer with microcontroller-driven mist rate
+
+*Idea bucket, not yet scoped.* The potentiometer inside the Raydrop sets the ultrasonic driver's duty cycle. Replacing it with a digipot or PWM-driven transistor under ESP32 control would make *mist intensity* a continuous variable alongside the on/off Kasa plug state. Attractive because: (a) the actuator-overshoot class of problems (see above) goes away — loop asks for exactly the mist it needs; (b) the 0.3 kPa deadband can come back down (it was sized for bang-bang overshoot, not sensor noise); (c) the "turn the knob up" operational gotcha disappears; (d) pairs naturally with the [fan+humidifier two-actuator loop](ac-infinity-fan-control.md#future-integration). Non-trivial because: requires opening the Raydrop and reverse-engineering the driver board, and the Kasa plug still needs to stay in for hard-off authority; crash-safe direction is fail-to-0 (same as the fan driver). Promote to `decisions/` if pursued.
