@@ -64,7 +64,13 @@ class Settings(BaseSettings):
     kasa_username: str = ""
     kasa_password: str = ""
     kasa_humidifier_host: str = "192.168.1.220"
-    vpd_deadband_kpa: float = 0.3
+    # Kasa plug driving the grow lights. Swapped in 2026-04-23 for the
+    # unreliable analog push-pin 24-hour timer. Schedule lives on
+    # growstate.lights_on_local / lights_off_local (per-grow-timezone
+    # wall clock); this host is just the plug endpoint.
+    kasa_lights_host: str = "192.168.1.181"
+    lights_poll_interval: int = 30
+    vpd_deadband_kpa: float = 0.4
     # Margin (minutes) around lights transitions during which the humidifier
     # is forced OFF — extends the off-window from `lights_off - margin` through
     # `lights_on - margin`. With the default 30 + a 23:00 → 05:00 dark cycle,
@@ -83,6 +89,12 @@ class Settings(BaseSettings):
     # offline → ok transitions. 60s is prompt given the moisture-node
     # offline threshold is 5min. See services/device_watchdog.py.
     device_watchdog_poll_interval: int = 60
+    # Metric-freshness watchdog — per-(location, metric) dropout alerts.
+    # Same cadence as the device watchdog; stale threshold matches the
+    # daily-report `max_age_s` so both guards agree on "stale".
+    # See services/metric_freshness.py.
+    metric_freshness_poll_interval: int = 60
+    metric_freshness_stale_after_s: int = 300
     # Telegram bot. Outbound-only for V1.
     telegram_bot_token: str = ""
     telegram_allowed_user_id: str = ""
@@ -125,6 +137,14 @@ class Settings(BaseSettings):
             retention_days=self.archive_retention_days,
         )
 
+    def lights(self) -> LightsConfig:
+        return LightsConfig(
+            kasa_username=self.kasa_username,
+            kasa_password=self.kasa_password,
+            kasa_lights_host=self.kasa_lights_host,
+            poll_interval=self.lights_poll_interval,
+        )
+
     def humidifier(self) -> HumidifierConfig:
         return HumidifierConfig(
             kasa_username=self.kasa_username,
@@ -161,6 +181,14 @@ class ArchiveConfig:
     snapshot_dir: Path
     archive_dir: Path
     retention_days: int
+
+
+@dataclass(frozen=True)
+class LightsConfig:
+    kasa_username: str
+    kasa_password: str
+    kasa_lights_host: str
+    poll_interval: int
 
 
 @dataclass(frozen=True)

@@ -17,6 +17,7 @@ helper instead of patching the datetime module.
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, time
+from zoneinfo import ZoneInfo
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -27,6 +28,10 @@ from dirt_shared.config import GROW_START
 from dirt_shared.models.grow_state import GrowState
 from dirt_shared.services import grow_state as gs
 from dirt_shared.services.grow_state import GrowStateService
+
+# Tests seed the default `America/Denver` timezone row; use the same IANA
+# zone locally when assembling a MDT wall-clock UTC instant.
+_TEST_TZ = ZoneInfo("America/Denver")
 
 
 def _svc(
@@ -46,7 +51,7 @@ def _svc(
             now_utc = datetime.now(UTC)
         else:
             # noon MDT → unambiguous calendar-day for grow_state.today()
-            now_local = datetime.combine(today, time(12, 0), tzinfo=gs.TENT_TZ)
+            now_local = datetime.combine(today, time(12, 0), tzinfo=_TEST_TZ)
             now_utc = now_local.astimezone(UTC)
     frozen = now_utc
     return GrowStateService(engine, clock=lambda: frozen)
@@ -193,7 +198,7 @@ async def test_get_state_returns_default_when_row_missing(pg_engine):
 
 def _utc(y: int, mo: int, d: int, h: int, mi: int = 0) -> datetime:
     # 12:00 MDT == 18:00 UTC; build the UTC equivalent for a MDT wall-clock time.
-    local = datetime(y, mo, d, h, mi, tzinfo=gs.TENT_TZ)
+    local = datetime(y, mo, d, h, mi, tzinfo=_TEST_TZ)
     return local.astimezone(UTC)
 
 

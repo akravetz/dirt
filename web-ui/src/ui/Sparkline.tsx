@@ -47,6 +47,14 @@ interface SparklineProps {
   hoverIndex: number | null;
   /** Called when the pointer moves over a bucket in this sparkline. */
   onHoverIndex: (index: number | null) => void;
+  /**
+   * Optional fixed y-axis domain. When both ends are supplied the chart
+   * uses them instead of auto-scaling to the data, and out-of-domain
+   * values are clamped to the viewbox (the tooltip still shows the real
+   * value).
+   */
+  yMin?: number;
+  yMax?: number;
 }
 
 const ACCENT_STROKE: Record<SparklineAccent, string> = {
@@ -86,6 +94,8 @@ export function Sparkline({
   accent = "neutral",
   hoverIndex,
   onHoverIndex,
+  yMin,
+  yMax,
 }: SparklineProps): ReactNode {
   const lineStroke = ACCENT_STROKE[accent];
   const areaFill = ACCENT_FILL[accent];
@@ -110,11 +120,15 @@ export function Sparkline({
   }
 
   const values = points.map((p) => p.value);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  const hasFixedDomain = yMin !== undefined && yMax !== undefined && yMax > yMin;
+  const min = hasFixedDomain ? (yMin as number) : Math.min(...values);
+  const max = hasFixedDomain ? (yMax as number) : Math.max(...values);
   const range = max - min || 1;
   const stepX = points.length === 1 ? 0 : VIEWBOX_W / (points.length - 1);
-  const yFor = (v: number): number => VIEWBOX_H - ((v - min) / range) * VIEWBOX_H;
+  const yFor = (v: number): number => {
+    const clamped = hasFixedDomain ? Math.max(min, Math.min(max, v)) : v;
+    return VIEWBOX_H - ((clamped - min) / range) * VIEWBOX_H;
+  };
   const xFor = (i: number): number => (points.length === 1 ? VIEWBOX_W / 2 : i * stepX);
 
   const linePath = points

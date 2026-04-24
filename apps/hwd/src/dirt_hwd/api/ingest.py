@@ -7,6 +7,7 @@ AuthMiddleware via the `/api/ingest` prefix in app.py.
 
 from __future__ import annotations
 
+import logging
 import math
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
@@ -14,7 +15,10 @@ from pydantic import BaseModel, Field
 
 from dirt_hwd.deps import get_readings, get_settings
 from dirt_shared.config import Settings
+from dirt_shared.sensor_contract import missing_emitted
 from dirt_shared.services.readings import ReadingsService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["ingest"])
 
@@ -50,6 +54,23 @@ def _augment_temp_rh_metrics(metrics: dict[str, float]) -> dict[str, float]:
     }
 
 
+def _warn_on_emitted_drift(location: str, payload_metrics: dict[str, float]) -> None:
+    """Log a warning when a known location's payload is missing a metric the
+    sensor contract says it emits — e.g. firmware was flashed but the
+    contract in dirt_shared.sensor_contract wasn't updated. Permissive by
+    design; never rejects ingest (would block legitimate rolling flashes).
+    """
+    missing = missing_emitted(location, payload_metrics.keys())
+    if missing:
+        logger.warning(
+            "ingest %s missing expected metrics %s (got %s) — "
+            "update sensor_contract.EMITTED_METRICS if this is intentional",
+            location,
+            sorted(missing),
+            sorted(payload_metrics.keys()),
+        )
+
+
 def _check_token(authorization: str | None, expected_token: str) -> None:
     expected = f"Bearer {expected_token}"
     if not authorization or authorization != expected:
@@ -70,6 +91,8 @@ async def ingest_sensors(
 
     # If caller didn't self-report IP, use the connection's remote address.
     ip = payload.ip or (request.client.host if request.client else None)
+
+    _warn_on_emitted_drift(payload.location, payload.metrics)
 
     metrics = _augment_temp_rh_metrics(payload.metrics)
 

@@ -28,9 +28,17 @@ Stage = Literal["veg", "flower_early", "flower_late"]
 # Early flower covers weeks 1-3 of 12/12 (days 0-20); late flower begins day 21.
 _LATE_FLOWER_DAY = 21
 
-# Tent clock for lights schedule. Kept here (not DB) because it's a physical
-# property of the grow space's location, not a per-grow decision.
-TENT_TZ = ZoneInfo("America/Denver")
+
+def tent_tz(state: GrowState) -> ZoneInfo:
+    """Resolve the grow's wall-clock timezone from the row's ``timezone`` column.
+
+    Every grow carries its own timezone (``growstate.timezone``, IANA name)
+    so a future grow in a different location doesn't require a code change.
+    Callers that already have a ``GrowState`` in hand should pass it; callers
+    that don't should load one via ``GrowStateService.get_state()`` first.
+    """
+    return ZoneInfo(state.timezone)
+
 
 # Stage → metric → (low, high) target band.
 STAGE_TARGETS: dict[Stage, dict[str, tuple[float, float]]] = {
@@ -123,9 +131,10 @@ class GrowStateService:
         self._engine = engine
         self._clock = clock
 
-    def today(self) -> date:
-        """The grow's current date in tent-local time (MDT)."""
-        return self._clock().astimezone(TENT_TZ).date()
+    async def today(self) -> date:
+        """The grow's current date in the grow's wall-clock timezone."""
+        state = await self.get_state()
+        return self._clock().astimezone(tent_tz(state)).date()
 
     async def get_state(self) -> GrowState:
         """Return the current grow (``is_current = true``)."""
@@ -138,8 +147,8 @@ class GrowStateService:
 
     async def current_stage(self) -> Stage:
         """Veg vs early vs late flower, derived from flower_start_date."""
-        today = self.today()
         state = await self.get_state()
+        today = self._clock().astimezone(tent_tz(state)).date()
         if state.flower_start_date is None or today < state.flower_start_date:
             return "veg"
         days_in_flower = (today - state.flower_start_date).days
@@ -150,7 +159,8 @@ class GrowStateService:
     async def grow_week(self) -> int:
         """1-indexed week since germination. Day 1-7 = week 1."""
         state = await self.get_state()
-        return (self.today() - state.germination_date).days // 7 + 1
+        today = self._clock().astimezone(tent_tz(state)).date()
+        return (today - state.germination_date).days // 7 + 1
 
     async def current_targets(self) -> dict[str, tuple[float, float]]:
         """Temp / RH / VPD band for the current stage."""
@@ -158,8 +168,9 @@ class GrowStateService:
 
     async def lights_state(self) -> LightsState:
         """Are lights on right now, and how long until the next on/off transition?"""
-        now_local = self._clock().astimezone(TENT_TZ)
         state = await self.get_state()
+        tz = tent_tz(state)
+        now_local = self._clock().astimezone(tz)
         on_time = state.lights_on_local
         off_time = state.lights_off_local
 
@@ -171,22 +182,22 @@ class GrowStateService:
             on = now_t >= on_time or now_t < off_time
 
         # Always-positive countdown to the NEXT lights-off.
-        off_dt = datetime.combine(now_local.date(), off_time, tzinfo=TENT_TZ)
+        off_dt = datetime.combine(now_local.date(), off_time, tzinfo=tz)
         if off_dt <= now_local:
             off_dt = datetime.combine(
                 now_local.date() + timedelta(days=1),
                 off_time,
-                tzinfo=TENT_TZ,
+                tzinfo=tz,
             )
         minutes_until_off = (off_dt - now_local).total_seconds() / 60.0
 
         # Always-positive countdown to the NEXT lights-on.
-        on_dt = datetime.combine(now_local.date(), on_time, tzinfo=TENT_TZ)
+        on_dt = datetime.combine(now_local.date(), on_time, tzinfo=tz)
         if on_dt <= now_local:
             on_dt = datetime.combine(
                 now_local.date() + timedelta(days=1),
                 on_time,
-                tzinfo=TENT_TZ,
+                tzinfo=tz,
             )
         minutes_until_on = (on_dt - now_local).total_seconds() / 60.0
 
@@ -198,8 +209,8 @@ class GrowStateService:
 
     async def get_grow_current_payload(self) -> GrowCurrentPayload:
         """One-shot assembler for ``GET /api/grow/current``."""
-        today = self.today()
         state = await self.get_state()
+        today = self._clock().astimezone(tent_tz(state)).date()
 
         if state.flower_start_date is None or today < state.flower_start_date:
             stage: Stage = "veg"

@@ -50,17 +50,38 @@ type MetricEnvelope = components["schemas"]["MetricEnvelope"];
 // here is `keyof SensorsCurrent["metrics"]`). `integer` drops the
 // decimal on whole-percent and whole-unit metrics (fan_pct,
 // reservoir_in both read better as integers).
+// Fixed y-axis domains for the history sparklines. Picked wide enough to
+// cover realistic excursions across every grow stage so the axes don't
+// shift when the range switches, but tight enough to still show in-band
+// movement. Union of STAGE_TARGETS plus excursion headroom; reservoir is
+// the physical float range.
 const METRIC_TILES: ReadonlyArray<{
   metric: keyof SensorsCurrent["metrics"];
   name: string;
   accent: "temp" | "humidity" | "vpd" | "moisture" | "neutral";
   integer?: boolean;
+  yMin: number;
+  yMax: number;
 }> = [
-  { metric: "temperature_f", name: "Temperature", accent: "temp" },
-  { metric: "humidity_pct", name: "Humidity", accent: "humidity", integer: true },
-  { metric: "vpd_kpa", name: "VPD", accent: "vpd" },
-  { metric: "fan_pct", name: "Fan", accent: "neutral", integer: true },
-  { metric: "reservoir_in", name: "Reservoir", accent: "moisture" },
+  { metric: "temperature_f", name: "Temperature", accent: "temp", yMin: 60, yMax: 95 },
+  {
+    metric: "humidity_pct",
+    name: "Humidity",
+    accent: "humidity",
+    integer: true,
+    yMin: 30,
+    yMax: 80,
+  },
+  { metric: "vpd_kpa", name: "VPD", accent: "vpd", yMin: 0.3, yMax: 2.0 },
+  {
+    metric: "fan_pct",
+    name: "Fan",
+    accent: "neutral",
+    integer: true,
+    yMin: 0,
+    yMax: 100,
+  },
+  { metric: "reservoir_in", name: "Reservoir", accent: "moisture", yMin: 10, yMax: 40 },
 ] as const;
 
 function toBand(target: MetricEnvelope["target"]): readonly [number, number] | null {
@@ -309,7 +330,7 @@ function DashboardPage() {
             />
           </header>
           <div className="grid grid-cols-1 border border-rule-strong bg-paper-2 sm:grid-cols-2 lg:grid-cols-3">
-            {METRIC_TILES.map(({ metric, name, accent }, idx) => {
+            {METRIC_TILES.map(({ metric, name, accent, yMin, yMax }, idx) => {
               const result = historyResults[idx];
               const points = result?.data?.points ?? [];
               const unit = result?.data?.unit ?? "";
@@ -322,6 +343,8 @@ function DashboardPage() {
                   accent={accent}
                   hoverIndex={hoverIndex}
                   onHoverIndex={setHoverIndex}
+                  yMin={yMin}
+                  yMax={yMax}
                 />
               );
             })}

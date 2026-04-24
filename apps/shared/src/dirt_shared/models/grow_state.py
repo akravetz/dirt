@@ -77,6 +77,19 @@ class GrowState(SQLModel, table=True):
             server_default=text("'Denver, MT · closet tent'"),
         ),
     )
+    # IANA timezone for the grow space's wall clock. Drives interpretation of
+    # ``lights_on_local`` / ``lights_off_local`` and any "today in the tent"
+    # date derivation. Stored on the row (not a module constant) so a future
+    # grow in a different location doesn't require a code change. Services
+    # resolve via ``ZoneInfo(state.timezone)`` on each state read.
+    timezone: str = Field(
+        default="America/Denver",
+        sa_column=Column(
+            Text,
+            nullable=False,
+            server_default=text("'America/Denver'"),
+        ),
+    )
     plant_count: int = Field(
         default=4,
         sa_column=Column(SmallInteger, nullable=False, server_default=text("4")),

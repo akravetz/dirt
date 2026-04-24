@@ -60,7 +60,7 @@ export function WikiDoc({ doc }: WikiDocProps) {
   return (
     <article
       aria-label="Wiki document"
-      className="flex min-h-0 min-w-0 max-w-215 flex-1 flex-col overflow-y-auto bg-paper px-12 pb-20 pt-9"
+      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto bg-paper px-12 pb-20 pt-9"
     >
       <nav
         aria-label="Breadcrumb"

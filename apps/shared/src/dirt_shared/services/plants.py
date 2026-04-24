@@ -26,7 +26,7 @@ from dirt_shared.models.grow_state import GrowState
 from dirt_shared.models.plant import Plant
 from dirt_shared.models.sensor_calibration import SensorCalibration
 from dirt_shared.models.sensor_reading import SensorReading
-from dirt_shared.services.grow_state import TENT_TZ, BandStatus, band_status
+from dirt_shared.services.grow_state import BandStatus, band_status, tent_tz
 from dirt_shared.services.plant_detail import PlantDetailService
 from dirt_shared.services.readings import compute_calibrated_pct
 
@@ -313,15 +313,17 @@ class PlantsService:
         if summary is None:
             return None
 
-        today_d = self._clock().astimezone(TENT_TZ).date()
-
         async with AsyncSession(self._engine) as session:
             gs = (
                 await session.exec(
                     select(GrowState).where(GrowState.is_current.is_(True))
                 )
             ).first()
-        day = 0 if gs is None else (today_d - gs.germination_date).days + 1
+        if gs is None:
+            day = 0
+        else:
+            today_d = self._clock().astimezone(tent_tz(gs)).date()
+            day = (today_d - gs.germination_date).days + 1
 
         moisture = PlantMoistureStatus(
             current_pct=summary.moisture_pct,

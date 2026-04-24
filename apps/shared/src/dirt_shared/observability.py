@@ -70,8 +70,10 @@ _RETENTION: dict[str, int] = {
     "pipecat_frames": 1,  # all pipecat control/signal frames
     "subagent_calls": 10,  # sub-agent traces — higher value, lower volume
     "humidifier": 30,  # plug state transitions — rare, useful for incident review
+    "lights": 30,  # lights plug state transitions — twice-daily
     "daily_report": 30,  # per-phase markers for the daily report run
     "device_status": 30,  # offline/online transitions from the device watchdog
+    "metric_freshness": 30,  # per-(location, metric) dropout transitions
 }
 
 

@@ -69,8 +69,10 @@ def build_wiki_tools(*, grow: GrowStateService) -> list[ToolSpec]:
             setting_sources=[],  # isolated — do not inherit host .claude/ settings
         )
 
+        today = await grow.today()
+        week = await grow.grow_week()
         prompt = (
-            f"Today is {grow.today()}, week {await grow.grow_week()} of the grow. "
+            f"Today is {today}, week {week} of the grow. "
             "You're in the grow wiki (this directory). Start by reading "
             "`CLAUDE.md` — it's the wiki's operating manual and has a routing "
             "table that tells you which file to read for each question shape. "

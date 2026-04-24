@@ -144,7 +144,7 @@ async def _build_claudia_system_prompt(grow: GrowStateService) -> str:
     # refresh rate anyway.
     return (
         f"{CLAUDIA_SYSTEM_PROMPT_BASE}\n\n"
-        f"Today is {grow.today().isoformat()}. "
+        f"Today is {(await grow.today()).isoformat()}. "
         f"We're in week {await grow.grow_week()} of the grow."
     )
 

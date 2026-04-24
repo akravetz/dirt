@@ -33,7 +33,8 @@ from dirt_shared.models.enums import SensorLocation
 from dirt_shared.models.sensor_calibration import SensorCalibration
 from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
-from dirt_shared.services.readings import METRICS, compute_calibrated_pct
+from dirt_shared.sensor_contract import persisted_metrics
+from dirt_shared.services.readings import compute_calibrated_pct
 
 logger = logging.getLogger(__name__)
 
@@ -208,7 +209,7 @@ class SensorReader:
         """
         failures: list[ValidationFailure] = []
 
-        for metric in METRICS:
+        for metric in sorted(persisted_metrics(TENT_LOCATION)):
             r = await self.latest(TENT_LOCATION, metric)
             if r is None:
                 failures.append(
@@ -331,7 +332,7 @@ class SensorReader:
         morning = mdt_window_to_utc(target_date, 7, 14)
 
         tent: dict[str, dict[str, WindowAvg | float | None]] = {}
-        for metric in METRICS:
+        for metric in sorted(persisted_metrics(TENT_LOCATION)):
             now_r = await self.latest(TENT_LOCATION, metric)
             tent[metric] = {
                 "overnight": await self._avg_in_window(

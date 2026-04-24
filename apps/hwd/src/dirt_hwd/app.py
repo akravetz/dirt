@@ -25,6 +25,11 @@ from dirt_hwd.services.device_watchdog import (
     DeviceWatchdogService,
 )
 from dirt_hwd.services.humidifier import HumidifierLoopService
+from dirt_hwd.services.lights import LightsLoopService
+from dirt_hwd.services.metric_freshness import (
+    MetricFreshnessConfig,
+    MetricFreshnessService,
+)
 from dirt_hwd.supervise import supervise
 from dirt_shared.app_wiring import build_core_services
 from dirt_shared.config import Settings
@@ -89,6 +94,11 @@ def _default_background_services(
             grow=core.grow,
             clock=core.clock,
         ),
+        LightsLoopService(
+            settings.lights(),
+            grow=core.grow,
+            clock=core.clock,
+        ),
         DeviceWatchdogService(
             DeviceWatchdogConfig(
                 poll_interval=settings.device_watchdog_poll_interval,
@@ -100,6 +110,20 @@ def _default_background_services(
                 telegram_chat_id=settings.telegram_allowed_user_id,
             ),
             system_status=core.system_status,
+            clock=core.clock,
+        ),
+        MetricFreshnessService(
+            MetricFreshnessConfig(
+                poll_interval=settings.metric_freshness_poll_interval,
+                stale_after_s=settings.metric_freshness_stale_after_s,
+                state_path=settings.data_dir
+                / "logs"
+                / "metric_freshness"
+                / "state.json",
+                telegram_bot_token=settings.telegram_bot_token,
+                telegram_chat_id=settings.telegram_allowed_user_id,
+            ),
+            readings=core.readings,
             clock=core.clock,
         ),
     ]

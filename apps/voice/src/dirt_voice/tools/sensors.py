@@ -19,9 +19,9 @@ from dirt_shared.models.enums import SensorLocation
 from dirt_shared.models.sensor_calibration import SensorCalibration
 from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
+from dirt_shared.sensor_contract import persisted_metrics
 from dirt_shared.services.grow_state import GrowStateService
 from dirt_shared.services.readings import (
-    METRICS,
     ReadingsService,
     compute_calibrated_pct,
 )
@@ -34,16 +34,14 @@ PLANT_LOCATIONS = (
     SensorLocation.PLANT_D,
 )
 
-# `pressure_hpa` and `dew_point_f` are informational (rarely actionable
-# indoors); out-of-range is suppressed for them so we don't distract Claudia
-# with non-signal. Temp / RH / VPD bands live in services.grow_state and
-# shift with stage.
+# `dew_point_f` is informational (rarely actionable indoors); out-of-range
+# is suppressed for it so we don't distract Claudia with non-signal. Temp /
+# RH / VPD bands live in services.grow_state and shift with stage.
 
 # Speech-friendly short labels for Claudia to say.
 _LABELS = {
     "temperature_f": "temperature",
     "humidity_pct": "humidity",
-    "pressure_hpa": "pressure",
     "vpd_kpa": "VPD",
     "dew_point_f": "dew point",
 }
@@ -103,6 +101,7 @@ def build_sensor_tools(
     ``clock`` is the same one wired through ``build_core_services`` —
     keeping age computations and trend cutoffs aligned with the services
     the tools consume."""
+    tent_metrics: frozenset[str] = persisted_metrics(SensorLocation.TENT)
 
     async def _get_current_status() -> dict:
         readings_out: dict[str, float] = {}
@@ -111,7 +110,7 @@ def build_sensor_tools(
         now = clock()
         targets = await grow.current_targets()
 
-        for metric in METRICS:
+        for metric in sorted(tent_metrics):
             r = await readings.get_latest_reading(metric)
             if r is None:
                 continue
@@ -143,8 +142,9 @@ def build_sensor_tools(
 
     async def _get_sensor_trend(sensor: str, hours_back: int = 24) -> dict:
         sensor = sensor.strip()
-        if sensor not in METRICS:
-            return {"error": f"unknown sensor {sensor!r}; valid: {', '.join(METRICS)}"}
+        if sensor not in tent_metrics:
+            valid = ", ".join(sorted(tent_metrics))
+            return {"error": f"unknown sensor {sensor!r}; valid: {valid}"}
         if not (1 <= hours_back <= 168):
             return {"error": "hours_back must be between 1 and 168"}
 
@@ -193,10 +193,10 @@ def build_sensor_tools(
             name="get_current_status",
             description=(
                 "Return the latest tent sensor readings (temperature, humidity, "
-                "VPD, pressure, dew point) plus per-plant calibrated soil "
-                "moisture percent for plants A through D, with in-range / "
-                "out-of-range flags on the tent metrics. Use for 'how are "
-                "things looking right now' questions."
+                "VPD, dew point) plus per-plant calibrated soil moisture "
+                "percent for plants A through D, with in-range / out-of-range "
+                "flags on the tent metrics. Use for 'how are things looking "
+                "right now' questions."
             ),
             properties={},
             required=[],
@@ -214,8 +214,7 @@ def build_sensor_tools(
                 "sensor": {
                     "type": "string",
                     "description": (
-                        "One of: temperature_f, humidity_pct, vpd_kpa, "
-                        "pressure_hpa, dew_point_f"
+                        "One of: temperature_f, humidity_pct, vpd_kpa, dew_point_f"
                     ),
                 },
                 "hours_back": {

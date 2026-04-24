@@ -27,6 +27,7 @@ from dirt_shared.models.enums import SensorLocation, SensorSource
 from dirt_shared.models.sensor_calibration import SensorCalibration
 from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
+from dirt_shared.sensor_contract import persisted_metrics
 
 # Metrics that get auto-calibrated at ingest (extrema-tracking).
 AUTO_CALIBRATED_METRICS = {"soil_moisture_raw"}
@@ -66,17 +67,6 @@ def _as_utc(ts: datetime) -> datetime:
     """
     return ts if ts.tzinfo is not None else ts.replace(tzinfo=UTC)
 
-
-# Tent environmental metrics used by the legacy get_sensor_history path.
-# (New callers use get_metric_history with an arbitrary metric name —
-# e.g. fan_duty_pct — so this tuple is not a whitelist.)
-METRICS = (
-    "temperature_f",
-    "humidity_pct",
-    "pressure_hpa",
-    "vpd_kpa",
-    "dew_point_f",
-)
 
 # Native Postgres bucket expressions. 5-minute buckets for 24h, hourly for
 # 7d / 30d. The 1h range returns raw readings (no bucketing).
@@ -256,6 +246,52 @@ class ReadingsService:
             )
             return result.first()
 
+    async def get_metric_freshness_snapshot(
+        self,
+        stale_cutoff: datetime,
+    ) -> dict[tuple[SensorLocation, str], tuple[str, datetime | None]]:
+        """For every metric in ``PERSISTED_METRICS``, classify as fresh/stale.
+
+        Returns ``{(location, metric): ("fresh"|"stale", last_ts_or_None)}``.
+
+        Skips locations whose sensornode last_seen is older than
+        ``stale_cutoff`` — whole-node outages are DeviceWatchdog's job, and
+        a dead node would otherwise fan out into N alerts.
+        """
+        from dirt_shared.sensor_contract import PERSISTED_METRICS
+
+        out: dict[tuple[SensorLocation, str], tuple[str, datetime | None]] = {}
+        async with AsyncSession(self._engine) as session:
+            nodes = (await session.exec(select(SensorNode))).all()
+            by_loc: dict[SensorLocation, SensorNode] = {n.location: n for n in nodes}
+
+            for location, metrics in PERSISTED_METRICS.items():
+                if not metrics:
+                    continue
+                node = by_loc.get(location)
+                if node is None or node.id is None or node.last_seen is None:
+                    continue
+                if _as_utc(node.last_seen) < stale_cutoff:
+                    continue
+
+                for metric in sorted(metrics):
+                    row = (
+                        await session.exec(
+                            select(SensorReading)
+                            .where(SensorReading.sensornode_id == node.id)
+                            .where(SensorReading.metric == metric)
+                            .order_by(SensorReading.ts.desc())
+                            .limit(1)
+                        )
+                    ).first()
+                    if row is None:
+                        out[(location, metric)] = ("stale", None)
+                        continue
+                    ts = _as_utc(row.ts)
+                    status = "fresh" if ts >= stale_cutoff else "stale"
+                    out[(location, metric)] = (status, ts)
+        return out
+
     async def is_sensor_stale(self, threshold: int = 10) -> bool:
         """Return True if the last ``threshold`` tent temperature readings are identical."""  # noqa: E501
         async with AsyncSession(self._engine) as session:
@@ -338,7 +374,7 @@ class ReadingsService:
         async with AsyncSession(self._engine) as session:
             return {
                 metric: await _get_metric_series(session, metric, range_key, cutoff)
-                for metric in METRICS
+                for metric in sorted(persisted_metrics(SensorLocation.TENT))
             }
 
     async def get_metric_history(
