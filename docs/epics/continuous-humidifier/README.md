@@ -1,8 +1,23 @@
 # Epic: Continuous Humidifier Intensity Control
 
-Status: planning
+Status: planning — waiting on hardware delivery
 Priority: medium
 Created: 2026-04-23
+Last touched: 2026-04-23
+
+## Current state (resume point for a fresh agent)
+
+**Where we are:** planning complete, parts being shipped. The user stops here until packages arrive (next 1–3 days).
+
+**Parts procurement** — see [bom.md](bom.md) for full detail:
+- ✅ In-hand: heat-shrink, E12 resistor kit
+- ✅ Ordered: DigiKey (1× each MCP4131 digipot at 10 kΩ / 50 kΩ / 100 kΩ), Amazon Raydrop spare (ASIN `B0CDL8XCJ5`)
+- 🛒 To order: BOJACK ceramic cap kit (Amazon ASIN `B085RDTCCV`, $9.99)
+- 🤔 Deferred: Adafruit order (DAC / level shifter / headers) — only if Phase 1 reveals the DAC-or-5 V-bridging case
+
+**What to do when parts arrive:** execute [phase1-probe-checklist.md](phase1-probe-checklist.md) end-to-end. That doc has the full walkthrough (disassembly → multimeter sweep → optional LA capture → driver-IC identification → verdict). The fill-in-the-blanks observations log at the bottom of that checklist captures the session output; paste the verdict back into the [decision doc](../../../wiki/decisions/2026-04-23-raydrop-mcu-mist-control.md) as a "Phase 1 findings" revision block and flip this epic's status to in-progress.
+
+**Do not proceed past Phase 1 without user review.** The Phase 1 → Phase 2 matrix at the bottom of [bom.md](bom.md) tells you which parts get used based on the probe verdict; if the verdict lands outside the matrix (e.g. encoded comms), stop and reassess before ordering more parts or writing firmware.
 
 ## Goal
 
