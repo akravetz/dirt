@@ -11,9 +11,10 @@ Last touched: 2026-04-23
 
 **Parts procurement** — see [bom.md](bom.md) for full detail:
 - ✅ In-hand: heat-shrink, E12 resistor kit
-- ✅ Ordered: DigiKey (1× each MCP4131 digipot at 10 kΩ / 50 kΩ / 100 kΩ), Amazon Raydrop spare (ASIN `B0CDL8XCJ5`)
+- ✅ Ordered: DigiKey (1× each MCP4131 digipot at 10 kΩ / 50 kΩ / 100 kΩ), Adafruit (MCP4725 DAC, BSS138 level shifter, headers/jumpers), Amazon Raydrop spare (ASIN `B0CDL8XCJ5`)
 - 🛒 To order: BOJACK ceramic cap kit (Amazon ASIN `B085RDTCCV`, $9.99)
-- 🤔 Deferred: Adafruit order (DAC / level shifter / headers) — only if Phase 1 reveals the DAC-or-5 V-bridging case
+
+All four Phase-1 → Phase-2 matrix rows are covered by what's on order; no additional purchasing needed based on the probe verdict.
 
 **What to do when parts arrive:** execute [phase1-probe-checklist.md](phase1-probe-checklist.md) end-to-end. That doc has the full walkthrough (disassembly → multimeter sweep → optional LA capture → driver-IC identification → verdict). The fill-in-the-blanks observations log at the bottom of that checklist captures the session output; paste the verdict back into the [decision doc](../../../wiki/decisions/2026-04-23-raydrop-mcu-mist-control.md) as a "Phase 1 findings" revision block and flip this epic's status to in-progress.
 

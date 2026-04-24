@@ -10,10 +10,10 @@ Pre-ordered before Phase 1 investigation so that once the pot's signal type is k
 | ✅ In-hand | E12 through-hole resistor kit | user stash |
 | ✅ Ordered | Raydrop KC-RD03A spare | Amazon, arriving next-day |
 | ✅ Ordered | MCP4131 digipots (1× each: 10 kΩ, 50 kΩ, 100 kΩ) | DigiKey, 2–3 day transit |
+| ✅ Ordered | MCP4725 DAC breakout (#935), BSS138 level shifter (#757), headers + jumpers (#392 / #1957 / #1954) | Adafruit, 2–4 day transit |
 | 🛒 To order | BOJACK 300-pc ceramic cap kit — ASIN B085RDTCCV ($9.99) | [Amazon](https://www.amazon.com/dp/B085RDTCCV) |
-| 🤔 Optional | MCP4725 DAC breakout (#935), BSS138 level shifter (#757), headers/jumpers | Adafruit — order only if Phase 1 reveals the DAC-or-5 V-bridging case |
 
-**Resume point for a fresh agent:** when all packages have arrived, start executing [`phase1-probe-checklist.md`](phase1-probe-checklist.md). The decision doc linked from the epic README has full rationale; you don't need to re-derive it.
+**Resume point for a fresh agent:** when all packages have arrived, start executing [`phase1-probe-checklist.md`](phase1-probe-checklist.md). The decision doc linked from the epic README has full rationale; you don't need to re-derive it. All four Phase-1→Phase-2 matrix rows are covered by what's already ordered — no further purchasing required based on the probe verdict.
 
 ## DigiKey (ordered — ~$2.24 in parts + shipping)
 
@@ -45,17 +45,15 @@ Through-hole digital potentiometers covering the three common pot resistances. D
 - **All MLCC ceramic** including the 10 µF. For our RC-filter use case, MLCC is strictly better than electrolytic — no polarity, lower ESR, tighter tolerance, doesn't dry out over time. Electrolytic only wins for bulk filtering on high-ripple power rails, which isn't what we're doing.
 - 300 pieces means this kit outlives the project many times over.
 
-## Adafruit (optional, hold until Phase 1 reports)
+## Adafruit (ordered)
 
-Order only if Phase 1 reveals a case requiring these parts. Skip the whole list if Scenario A (DC pot → MCP4131 digipot) is confirmed.
-
-| Qty | Part | SKU | Price | When to order |
+| Qty | Part | SKU | Price | Role in Phase 2 |
 |---|---|---|---|---|
-| 1 | MCP4725 12-bit DAC breakout (I²C) | [#935](https://www.adafruit.com/product/935) | $4.95 | Only if the pot drives an ADC expecting absolute voltage rather than ratiometric divider. |
-| 1 | BSS138 4-channel bidirectional level shifter | [#757](https://www.adafruit.com/product/757) | $3.95 | Only if the Raydrop's control side turns out to be 5 V (ESP32-C3 is 3.3 V only, not 5 V-tolerant). |
-| 1 | 0.1" male header pin strip — 36-pin × 10 | [#392](https://www.adafruit.com/product/392) | $4.95 | Only if existing header stash from fan-controller work is empty. |
-| 1 | Premium M/M jumper wire bundle | [#1957](https://www.adafruit.com/product/1957) | $1.95 | Same — only if existing stash is empty. |
-| 1 | Premium M/F jumper wire bundle | [#1954](https://www.adafruit.com/product/1954) | $1.95 | Same. |
+| 1 | MCP4725 12-bit DAC breakout (I²C) | [#935](https://www.adafruit.com/product/935) | $4.95 | Scenario-A fallback: use instead of MCP4131 if the pot drives an ADC expecting absolute voltage rather than a ratiometric divider. |
+| 1 | BSS138 4-channel bidirectional level shifter | [#757](https://www.adafruit.com/product/757) | $3.95 | Use on the SPI (or DAC output) if the Raydrop's control side runs at 5 V — ESP32-C3 is 3.3 V only, not 5 V-tolerant. |
+| 1 | 0.1" male header pin strip — 36-pin × 10 | [#392](https://www.adafruit.com/product/392) | $4.95 | Build-prep. |
+| 1 | Premium M/M jumper wire bundle | [#1957](https://www.adafruit.com/product/1957) | $1.95 | Breadboarding. |
+| 1 | Premium M/F jumper wire bundle | [#1954](https://www.adafruit.com/product/1954) | $1.95 | Breadboarding. |
 
 ## What we deliberately didn't order
 
@@ -65,10 +63,12 @@ Order only if Phase 1 reveals a case requiring these parts. Skip the whole list 
 
 ## Phase 1 → Phase 2 decision matrix
 
-| Phase 1 finding | Parts used in Phase 2 | Adafruit order? |
-|---|---|---|
-| Pot outputs smooth DC 0 → Vref, Raydrop at 3.3 V | One MCP4131 (matched resistance) + 1× 0.1 µF cap | No |
-| Pot outputs smooth DC 0 → Vref, Raydrop at 5 V | One MCP4131 + BSS138 level shifter + 1× 0.1 µF | Yes (BSS138 only) |
-| Pot sets PWM duty via RC into driver | ESP32 GPIO direct-drive, no IC; maybe 10 kΩ + 1 µF RC filter | No |
-| Pot feeds ADC expecting absolute voltage | MCP4725 DAC breakout + 1× 0.1 µF | Yes (DAC only) |
-| Encoded digital comms (unlikely) | Stop and re-plan — this is outside scoped alternatives | No |
+All listed parts are already on order; the matrix maps the probe verdict to which subset gets populated onto the breadboard.
+
+| Phase 1 finding | Parts used in Phase 2 |
+|---|---|
+| Pot outputs smooth DC 0 → Vref, Raydrop at 3.3 V | One MCP4131 (matched resistance) + 1× 0.1 µF cap |
+| Pot outputs smooth DC 0 → Vref, Raydrop at 5 V | One MCP4131 + BSS138 level shifter + 1× 0.1 µF |
+| Pot sets PWM duty via RC into driver | ESP32 GPIO direct-drive, no IC; maybe 10 kΩ + 1 µF RC filter |
+| Pot feeds ADC expecting absolute voltage | MCP4725 DAC breakout + 1× 0.1 µF |
+| Encoded digital comms (unlikely) | Stop and re-plan — outside scoped alternatives |
