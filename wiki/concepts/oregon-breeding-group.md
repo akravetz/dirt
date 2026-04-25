@@ -80,6 +80,8 @@ These are NOT in the standard grow-page recommendations and need to be planned f
 
 ## Genomics + ML opportunities
 
+> Full bioinformatics pipeline (alignment, variant calling, SnpEff annotation, kinship/PCA, MAS workflow) is documented separately at [`concepts/cannabis-genomics.md`](cannabis-genomics.md). This section is the procurement + ROI summary; that page is the operational manual.
+
 Researched 2026-04-24. The market for cannabis genomics has consolidated since 2020 — most boutique services either died (Steep Hill, Anandia's old SSR offering) or pivoted to corporate-only sales (NRGene, Phylos's seed business). The hobbyist-accessible options reduce to three vendors and four cost tiers:
 
 ### Recommended stack at this scale
@@ -100,8 +102,8 @@ The published QTL/GWAS literature is now dense enough for marker-assisted select
 - **Cannabinoid chemotype (Type I/II/III)** is essentially a single-locus call from any WGS. Trivial.
 - **High-PVE single SNPs from [Ronne et al. 2025](https://pmc.ncbi.nlm.nih.gov/articles/PMC12104491/)** (174 accessions, ~282k SNPs, 33 significant markers) — standout examples: SNP_1 chr9 explains 96% of CBGA variance; SNP_12 chr7 explains 89% of CBC variance. The chr7 ~60 Mb haplotype covers THCAS/CBDAS together. Genotype these markers in your keepers and you have a *defensible* prediction for the F1's cannabinoid profile *before* you run an evaluation grow.
 - **Terpene profile** is messier — three genomic regions correlate with the four terpenes that drive sativa/indica perception ([Watts et al. 2021, Nature Plants](https://www.nature.com/articles/s41477-021-01003-y)) — but still informs cross design.
-- **Pedigree confirmation + relatedness.** With WGS on parents + cheap targeted PCR on F1 seedlings (~$5–10/marker), you can confirm a cross is what you think it is and avoid accidental selfing. Tools: `plink --pca`, `vcftools --relatedness2`, `ADMIXTURE` for population structure with N as low as ~10.
-- **Reference assemblies for variant calling** — [CBDRx (NCBI PRJEB29284)](https://www.ncbi.nlm.nih.gov/bioproject/PRJEB29284) and Jamaican Lion are public; standard pipeline is `bwa-mem2`/`minimap2` → `bcftools mpileup | bcftools call` → `SnpEff` annotation.
+- **Pedigree confirmation + relatedness.** With WGS on parents + cheap targeted PCR on F1 seedlings (~$5–10/marker), you can confirm a cross is what you think it is and avoid accidental selfing. Tools: `plink --pca`, `vcftools --relatedness2`, `ADMIXTURE` for population structure with N as low as ~10. (Full how-to in [`cannabis-genomics.md`](cannabis-genomics.md#population-structure--relatedness).)
+- **Reference assemblies for variant calling** — CBDRx and Jamaican Lion. Pipeline: `bwa-mem2` → `bcftools` → SnpEff. (Full how-to in [`cannabis-genomics.md`](cannabis-genomics.md#variant-calling).)
 
 ### Why ML on grow observations + genotype isn't the right move yet
 
