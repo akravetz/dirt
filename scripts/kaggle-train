@@ -35,8 +35,29 @@ echo "kernel: $KERNEL_ID"
 mode=${1:-full}
 
 if [ "$mode" != "--pull-only" ] && [ "$mode" != "--resume" ]; then
-  echo "==> pushing kernel"
+  # Pre-flight: import-collect the library so wrong-import bugs fail in <2s
+  # locally instead of 4-90 minutes into the kernel run.
+  echo "==> pre-flight: pytest --collect-only for apps/wake-word/tests"
+  if ! uv run --project "$REPO_ROOT" pytest "$REPO_ROOT/apps/wake-word/tests" --collect-only -q >/dev/null 2>&1; then
+    echo "error: wake-word tests don't even collect. Fix locally before pushing." >&2
+    uv run --project "$REPO_ROOT" pytest "$REPO_ROOT/apps/wake-word/tests" --collect-only 2>&1 | tail -20
+    exit 1
+  fi
+  echo "    pytest collect OK"
+
+  # Pin the kernel to the current commit. The shim's __DIRT_REPO_SHA_INJECTED_AT_PUSH__
+  # sentinel is replaced with the live SHA so the kernel that runs on Kaggle
+  # is reproducibly tied to a specific repo state. Source file is restored
+  # after push regardless of pass/fail.
+  SHA=$(git -C "$REPO_ROOT" rev-parse HEAD)
+  KERNEL_FILE="$KERNEL_DIR/train-hey-claudia.py"
+  KERNEL_BACKUP=$(mktemp)
+  cp "$KERNEL_FILE" "$KERNEL_BACKUP"
+  trap 'cp "$KERNEL_BACKUP" "$KERNEL_FILE"; rm -f "$KERNEL_BACKUP"' EXIT
+  sed -i "s|__DIRT_REPO_SHA_INJECTED_AT_PUSH__|$SHA|g" "$KERNEL_FILE"
+  echo "==> pushing kernel (pinned to $SHA)"
   "${KAGGLE[@]}" kernels push -p "$KERNEL_DIR"
+  # Restore happens via the EXIT trap above.
 fi
 
 if [ "$mode" = "--push-only" ]; then
