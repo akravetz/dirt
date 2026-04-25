@@ -55,7 +55,16 @@ line-length = 88
 # its own style conventions (pragma allowed). Both would drown the
 # signal-to-noise in ASYNC/T20/TID/RUF/S audits (PY-04/06/08) with
 # pre-existing cosmetic drift agents aren't supposed to police.
-extend-exclude = ["docs", ".claude", "scripts", "firmware", "debug", "training"]
+# scripts/, kaggle kernel shim, and operator scripts in apps/wake-word/ have
+# their own style conventions (print, subprocess, long lines, sed, etc.).
+# The library at apps/wake-word/src/dirt_wake_word/ is normally linted.
+extend-exclude = [
+    "docs", ".claude", "scripts", "firmware", "debug",
+    "apps/wake-word/kaggle",
+    "apps/wake-word/data-gen",
+    "apps/wake-word/validation",
+    "apps/wake-word/reference",
+]
 
 [tool.ruff.lint]
 # Rule-set rationale (kept next to the select):

@@ -34,7 +34,7 @@ Works surprisingly well — but with caveats:
 
 ## The far-field FRR problem (what we hit)
 
-First "hey claudia" model trained in Colab with the default Piper-only recipe, tested via `training/wake-word/validation/live-test.py`:
+First "hey claudia" model trained in Colab with the default Piper-only recipe, tested via `apps/wake-word/validation/live-test.py`:
 
 | Condition | Recall at threshold 0.5 |
 |-----------|------------------------|
@@ -80,7 +80,7 @@ Defaults to 0.5 in openWakeWord; we're using 0.4 because of the giant signal/noi
 - Lower threshold → catches borderline utterances but invites false-accepts
 - Higher threshold → misses borderline but rock-solid against noise
 
-Diagnostic protocol: run `training/wake-word/validation/live-test.py` with `LOG_FLOOR=0.02` and no cooldown. Log every frame scoring above floor. Say the wake word ~10 times; look at the distribution of peak scores per utterance. Pick a threshold between the 10th-percentile hit score and the max noise score.
+Diagnostic protocol: run `apps/wake-word/validation/live-test.py` with `LOG_FLOOR=0.02` and no cooldown. Log every frame scoring above floor. Say the wake word ~10 times; look at the distribution of peak scores per utterance. Pick a threshold between the 10th-percentile hit score and the max noise score.
 
 ## References
 

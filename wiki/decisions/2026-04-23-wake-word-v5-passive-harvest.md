@@ -47,7 +47,7 @@ The harvest-only branch is gated by an env var (`DIRT_VOICE_HARVEST_ONLY=1`) rea
 
 **Kept:**
 
-- ElevenLabs voice-clone positives (2000 currently in `var/wake-word/voice-clones/`; regenerate via `training/wake-word/data-gen/elevenlabs-clones-batch.py` if the pool needs refreshing).
+- ElevenLabs voice-clone positives (2000 currently in `var/wake-word/voice-clones/`; regenerate via `apps/wake-word/data-gen/elevenlabs-clones-batch.py` if the pool needs refreshing).
 - `max_negative_weight: 500 → 800 → 3000`. v4 bumped 500 → 800; v5 pushes to **3000** because (a) the deployment is FP-hostile (a false wake interrupts; a false reject just costs a re-say) and (b) openwakeword's auto-train loop will still escalate further if FP/hour stays high. See `apps/voice` precision priorities.
 - Same `openwakeword/train.py` pipeline (same `target_recall: 0.85`, 20k-step baseline). What changed is the *runtime* — see `## Kaggle training infrastructure` below.
 
@@ -60,7 +60,7 @@ Original v5 dropped ElevenLabs phonetic-neighbor synthesis on the theory that pa
 1. The harvest hasn't run yet. We need a baseline negative pool to train v5 on *now* — synthetic neighbors fill that role.
 2. Synthetic and harvested are **complementary**, not redundant. Synthetic covers phonetically-adjacent phrases the operator might never say in a 2-day window (`hey claire`, `hey clyde`, `hey clay`); harvest covers ambient/meeting/TV cases the operator can't enumerate. Both go into `negative_train/`, separately weighted (see `## Negative-handling architecture` below).
 
-Generated 2026-04-24 via `training/wake-word/data-gen/elevenlabs-neighbors-batch.py` (sister to `elevenlabs-clones-batch.py`). 360 WAVs in `var/wake-word/neighbors/` covering 7 phrases:
+Generated 2026-04-24 via `apps/wake-word/data-gen/elevenlabs-neighbors-batch.py` (sister to `elevenlabs-clones-batch.py`). 360 WAVs in `var/wake-word/neighbors/` covering 7 phrases:
 
 | Phrase | Count | Purpose |
 |---|---:|---|
@@ -82,7 +82,7 @@ Cost: <$1 in ElevenLabs credits. Re-runnable by editing the `PHRASES` list at th
 
 v3 and v4 ran in Google Colab (the `automatic_model_training.ipynb` notebook from openwakeword). v5 moves training to **Kaggle Script Kernels on TPU** for two reasons: (a) Colab has no clean programmatic API — every retraining run required manual UI clicking; (b) Kaggle's free TPU quota (20 hr/week) is more than enough for a single openwakeword run and the whole flow is shell-scriptable.
 
-Operator command: `scripts/kaggle-train` (push kernel, poll status, pull artifacts). One-time setup detail in `training/wake-word/kaggle/README.md`.
+Operator command: `scripts/kaggle-train` (push kernel, poll status, pull artifacts). One-time setup detail in `apps/wake-word/kaggle/README.md`.
 
 ### Three Kaggle datasets
 
@@ -98,7 +98,7 @@ All private to the `akravetz` account.
 
 Idempotent. Downloads + decodes both upstream sources to `var/wake-word/kaggle-stage/{features,bg}/`, then prints the final `kaggle datasets create` commands. Bypasses the HF `datasets`/`torchcodec` library entirely (5+ failure modes during initial bring-up, all rooted in HF library churn between v3.x → v4.x → torchcodec backend) — instead reads parquet shards directly via `pyarrow` and decodes embedded FLAC/MP3 bytes via `soundfile`. Resilient to upstream layout changes (`agkphysics/AudioSet` switched from `.tar` shards to parquet between v4 and v5; `rudraml/fma` is now a script-only repo and dead in current `datasets`, replaced by `benjamin-paine/free-music-archive-small`).
 
-### Training kernel: `training/wake-word/kaggle/train_hey_claudia.py`
+### Training kernel: `apps/wake-word/kaggle/train_hey_claudia.py`
 
 Configured as a Kaggle Script Kernel (`kernel_type: script`, TPU enabled, internet enabled). Auto-runs on `kaggle kernels push`. Steps:
 
@@ -155,8 +155,8 @@ Not blocked on v5 — can ship before, after, or alongside. Tracked separately s
 - [x] Three Kaggle datasets created and `status: ready`: `akravetz/dirt-wakeword-mine` (v2: positives + RIRs + 360 ElevenLabs phonetic neighbors), `akravetz/dirt-wakeword-bg` (AudioSet+FMA WAVs), `akravetz/dirt-wakeword-features` (17 GB `.npy`s).
 - [x] `scripts/stage-kaggle-data` — idempotent local staging via direct parquet read.
 - [x] `scripts/kaggle-train` — push + poll + pull wrapper.
-- [x] `training/wake-word/kaggle/train_hey_claudia.py` — training kernel with `prepare_seed_clips()` wired (option 1: uniform augmentation + 10× duplication for harvested negatives).
-- [x] `training/wake-word/data-gen/elevenlabs-neighbors-batch.py` — sister to `elevenlabs-clones-batch.py`. 360 phonetic neighbors generated in `var/wake-word/neighbors/`.
+- [x] `apps/wake-word/kaggle/train_hey_claudia.py` — training kernel with `prepare_seed_clips()` wired (option 1: uniform augmentation + 10× duplication for harvested negatives).
+- [x] `apps/wake-word/data-gen/elevenlabs-neighbors-batch.py` — sister to `elevenlabs-clones-batch.py`. 360 phonetic neighbors generated in `var/wake-word/neighbors/`.
 
 **Next agent picks up here:**
 - [ ] **First v5 Kaggle training run on synthetic-only negatives.** `scripts/kaggle-train`. ~30–60 min on TPU. Pulls `hey_claudia.onnx` + `.tflite` to `var/wake-word/models/`. This is the **baseline** — no harvested data yet, but real ElevenLabs neighbors at 1× weight.
@@ -164,7 +164,7 @@ Not blocked on v5 — can ship before, after, or alongside. Tracked separately s
 - [ ] **Bulk-import the harvest** into the `dirt-wakeword-mine` dataset's `negatives/` folder with `harvested_*.wav` filenames, then `kaggle datasets version -p ... -m "added N harvested negatives from window YYYY-MM-DD"`. The kernel's seed step picks them up automatically and applies 10× duplication.
 - [ ] **v5 second training run** on baseline + harvested. Compare to baseline confusion matrix.
 - [ ] If real-room negatives' double-RIR problem is empirically hurting (option 2 stub at bottom of `train_hey_claudia.py`): promote the stub to working code.
-- [ ] v5 `.onnx` deployed; before/after metrics on `training/wake-word/validation/live-test.py`. Swap into `apps/voice` runtime path; restart `dirt-voice`.
+- [ ] v5 `.onnx` deployed; before/after metrics on `apps/wake-word/validation/live-test.py`. Swap into `apps/voice` runtime path; restart `dirt-voice`.
 - [ ] (Parallel, not blocking) Speaker-verifier prototype.
 
 **Operational gotchas worth a one-liner each:**

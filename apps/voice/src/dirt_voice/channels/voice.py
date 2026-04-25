@@ -84,7 +84,7 @@ REPO_ROOT = Path(__file__).resolve().parents[5]
 
 # Wake model — trained on user-voice ElevenLabs clones + captured RIRs.
 # See wiki/decisions/2026-04-16-wake-word-training-strategy.md and the
-# retraining workflow at training/wake-word/. The `current` symlink under
+# retraining workflow at apps/wake-word/. The `current` symlink under
 # var/wake-word/models/ points to the active version (currently 2026-04-16-v3).
 # var/ is gitignored — trained artifacts live on disk but not in git.
 WAKE_MODEL_PATH = (

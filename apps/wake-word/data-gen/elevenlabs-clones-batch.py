@@ -7,7 +7,7 @@ openWakeWord `positive_train/` directory.
 Edit PHRASES and SETTINGS below to control the batch composition.
 
 Usage:
-    uv run python training/wake-word/data-gen/elevenlabs-clones-batch.py
+    uv run python apps/wake-word/data-gen/elevenlabs-clones-batch.py
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from elevenlabs import ElevenLabs, VoiceSettings
 
-# File lives at training/wake-word/data-gen/<this>.py — 4 parents up to repo root.
+# File lives at apps/wake-word/data-gen/<this>.py — 4 parents up to repo root.
 ROOT = Path(__file__).resolve().parents[3]
 load_dotenv(ROOT / ".env")
 

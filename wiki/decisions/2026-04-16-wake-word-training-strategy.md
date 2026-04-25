@@ -40,14 +40,14 @@ Retrain the base wake-word model with:
    - Target 2,000+ samples across 4 phrase variants: "hey claudia," "Hey, Claudia," "hey Clowdia," "Hey, Clowdia"
    - Cycled across 5 TTS-setting presets (varied stability, similarity_boost, speed) for acoustic diversity
    - Output format: 16 kHz mono WAV (openWakeWord's native format) via `pcm_16000` ElevenLabs output
-   - Script: `training/wake-word/data-gen/elevenlabs-clones-batch.py` (resume-safe: targets are absolute, not deltas)
+   - Script: `apps/wake-word/data-gen/elevenlabs-clones-batch.py` (resume-safe: targets are absolute, not deltas)
    - Voice ID: `mjXJZpUEgv69eq6xrhlW` (cloned 2026-04-16)
 
 2. **Captured Room Impulse Responses** from our actual environment
    - 4 positions captured via exponential sine sweep + Farina deconvolution (see `concepts/room-impulse-response.md`)
    - SNR 65–77 dB across all captures (threshold: 25 dB)
    - Replace the default MIT RIR dataset in training config
-   - Scripts: `training/wake-word/data-gen/capture-rir-record.py` (Jabra host), `training/wake-word/data-gen/capture-rir-play.py` (laptop)
+   - Scripts: `apps/wake-word/data-gen/capture-rir-record.py` (Jabra host), `apps/wake-word/data-gen/capture-rir-play.py` (laptop)
 
 3. **Colab training** using the existing `openwakeword/train.py` pipeline
    - Pre-populate `positive_train/` with voice-clone samples (Piper generation is automatically skipped once directory is 95% full)
@@ -70,7 +70,7 @@ Retrain the base wake-word model with:
 
 ## Success criteria
 
-Re-run `training/wake-word/validation/live-test.py` at both close and far distances after training. Targets:
+Re-run `apps/wake-word/validation/live-test.py` at both close and far distances after training. Targets:
 
 - Close range: ≥ 90% recall at threshold 0.5
 - Far range: ≥ 70% recall at threshold 0.5

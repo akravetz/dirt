@@ -4,7 +4,7 @@ Runs as a Kaggle Script Kernel (`kernel_type: script` in kernel-metadata.json).
 End-to-end: generate synthetic positives (piper) -> augment -> train -> export
 ONNX + tflite to /kaggle/working, which Kaggle auto-publishes as kernel output.
 
-Source: training/wake-word/reference/automatic_model_training.py (Colab). The three bulk-download cells
+Source: apps/wake-word/reference/automatic_model_training.py (Colab). The three bulk-download cells
 (MIT RIRs, AudioSet, FMA, 2000h features, 11h validation features) are replaced
 with /kaggle/input/* mounts — those corpora are uploaded once as Kaggle Datasets
 and mounted read-only at runtime. Edit EXPECTED_INPUTS below if you rename them.
@@ -387,7 +387,7 @@ def restore_tts_cache_if_mounted() -> bool:
 
     Cache is invalidated by a key mismatch — fail loud rather than silently
     train on stale TTS data. Operator workflow for rebuilding the cache lives
-    in `training/wake-word/CLAUDE.md`.
+    in `apps/wake-word/CLAUDE.md`.
 
     Returns True if the cache was used. The dataset isn't yet attached —
     this hook is wired up in code so the moment we add it to
@@ -415,7 +415,7 @@ def restore_tts_cache_if_mounted() -> bool:
     if actual != expected:
         sys.exit(
             f"FATAL: TTS cache key mismatch.\n  cache: {actual}\n  run:   {expected}\n"
-            "Rebuild the cache (operator workflow in training/wake-word/CLAUDE.md) "
+            "Rebuild the cache (operator workflow in apps/wake-word/CLAUDE.md) "
             "or detach the dataset from this kernel."
         )
 

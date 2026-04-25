@@ -7,10 +7,10 @@ speak from. After recording, deconvolves with the sweep's inverse filter
 to recover the impulse response of (room + Jabra).
 
 Flow:
-    1. On the Jabra host:  uv run python training/wake-word/data-gen/capture-rir-record.py desk
+    1. On the Jabra host:  uv run python apps/wake-word/data-gen/capture-rir-record.py desk
        → counts down, records for RECORD_SECONDS
     2. On the laptop (or other source device):
-       uv run python training/wake-word/data-gen/capture-rir-play.py
+       uv run python apps/wake-word/data-gen/capture-rir-play.py
        → plays the matching sweep
     3. The record script deconvolves after the window ends and saves the IR.
 
@@ -46,7 +46,7 @@ RECORD_SECONDS = 45.0
 IR_KEEP_MS = 1500           # trim IR to this many ms after direct-path peak
 IR_LEAD_MS = 5              # keep this many ms before the peak
 
-# File lives at training/wake-word/data-gen/<this>.py — 4 parents up to repo root.
+# File lives at apps/wake-word/data-gen/<this>.py — 4 parents up to repo root.
 ROOT = Path(__file__).resolve().parents[3]
 RAW_DIR = ROOT / "var" / "wake-word" / "rirs-raw"
 IR_DIR = ROOT / "var" / "wake-word" / "rirs"
@@ -97,7 +97,7 @@ def main() -> None:
     print("     with its speaker pointing toward the Jabra.")
     print("  2. Set laptop volume to 70-80%.")
     print("  3. When recording starts, go to the laptop and run:")
-    print("         uv run python training/wake-word/data-gen/capture-rir-play.py")
+    print("         uv run python apps/wake-word/data-gen/capture-rir-play.py")
     print("  4. Stay still. Try not to be in the path between speaker and Jabra.")
     print()
     print("Starting in 3...")

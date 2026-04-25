@@ -5,7 +5,7 @@ timestamp, score, and a visual bar. No cooldown, no meter — just raw
 event timeline so we can measure the true false-rejection rate and tune
 the threshold.
 
-Run:  uv run python training/wake-word/validation/live-test.py   (Ctrl-C to stop)
+Run:  uv run python apps/wake-word/validation/live-test.py   (Ctrl-C to stop)
 """
 
 from __future__ import annotations
@@ -20,9 +20,9 @@ import numpy as np
 import sounddevice as sd
 from openwakeword.model import Model
 
-# File lives at training/wake-word/validation/<this>.py — 4 parents up to repo root.
+# File lives at apps/wake-word/validation/<this>.py — 4 parents up to repo root.
 ROOT = Path(__file__).resolve().parents[3]
-# Override the model path with a CLI arg: `uv run python training/wake-word/validation/live-test.py var/wake-word/models/2026-04-25-v5/hey_claudia.onnx`
+# Override the model path with a CLI arg: `uv run python apps/wake-word/validation/live-test.py var/wake-word/models/2026-04-25-v5/hey_claudia.onnx`
 MODEL_PATH = (
     Path(sys.argv[1]).resolve()
     if len(sys.argv) > 1

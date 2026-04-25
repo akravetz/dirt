@@ -63,8 +63,8 @@ The inverse filter is `x_inv(t) = x(T − t) · e^(−tR/T)` — time-reversed s
 
 Two-device setup (laptop speaker is across the room from the Jabra, so each host runs its own script):
 
-- **Jabra host** (monitoring machine): `training/wake-word/data-gen/capture-rir-record.py <label>` — records 30–45s through the Jabra, deconvolves, saves IR + raw WAV
-- **Laptop** (desk): `training/wake-word/data-gen/capture-rir-play.py` — plays the matching sweep through the laptop speaker at ~80% volume
+- **Jabra host** (monitoring machine): `apps/wake-word/data-gen/capture-rir-record.py <label>` — records 30–45s through the Jabra, deconvolves, saves IR + raw WAV
+- **Laptop** (desk): `apps/wake-word/data-gen/capture-rir-play.py` — plays the matching sweep through the laptop speaker at ~80% volume
 
 Both scripts use identical sweep parameters (SAMPLE_RATE, F_START, F_END, SWEEP_DURATION) as module constants so they generate bit-identical sweeps independently — no file sync needed. The recorder's 45s window is deliberately longer than the sweep so there's time to start the player after the recorder.
 

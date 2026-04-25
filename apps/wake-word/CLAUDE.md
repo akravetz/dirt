@@ -1,4 +1,4 @@
-# training/wake-word/ — operating manual
+# apps/wake-word/ — operating manual
 
 Wake-word retraining pipeline for the `dirt-voice` channel ("hey Claudia").
 Read this before touching any wake-word code, data, or model deployment.
@@ -52,8 +52,8 @@ Read this before touching any wake-word code, data, or model deployment.
 
 ```bash
 # 1. (Optional, infrequent) refresh data:
-uv run python training/wake-word/data-gen/elevenlabs-clones-batch.py
-uv run python training/wake-word/data-gen/elevenlabs-neighbors-batch.py
+uv run python apps/wake-word/data-gen/elevenlabs-clones-batch.py
+uv run python apps/wake-word/data-gen/elevenlabs-neighbors-batch.py
 # RIR capture is two-machine — see capture-rir-record.py docstring
 
 # 2. (One-time per dataset bump) re-stage local data:
@@ -73,7 +73,7 @@ uv run python scripts/validate-wake-model.py \
 
 # 5. (Optional) live-test through the Jabra:
 systemctl --user stop dirt-voice
-uv run python training/wake-word/validation/live-test.py \
+uv run python apps/wake-word/validation/live-test.py \
     var/wake-word/models/<datestamp>/hey_claudia.onnx
 # (speak; Ctrl-C; restart service)
 

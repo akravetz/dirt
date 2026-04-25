@@ -1,0 +1,30 @@
+[project]
+name = "dirt-wake-word"
+version = "0.1.0"
+description = "Wake-word retraining pipeline for the dirt-voice channel ('hey Claudia')"
+requires-python = ">=3.13"
+dependencies = []  # nothing required by default
+
+# Heavy ML deps that the Kaggle kernel installs at runtime via pip. Locally,
+# `uv sync --extra wake-word` installs them so pytest can run the library
+# tests. Without the extra, tests use `pytest.importorskip("openwakeword")`
+# and report as skipped — pre-commit on a fresh checkout still passes.
+[project.optional-dependencies]
+wake-word = [
+    "openwakeword",
+    "audiomentations",
+    "torch-audiomentations",
+    "speechbrain",
+    "torch>=2.5",
+    "numpy",
+    "soundfile",
+    "scipy",
+    "pyyaml",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/dirt_wake_word"]

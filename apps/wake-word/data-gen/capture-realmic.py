@@ -20,9 +20,9 @@ Tip: review the extracted clips with `scripts/audio-review` before promoting
 into var/wake-word/voice-clones/, neighbors/, or validation/.
 
 Usage:
-    uv run python training/wake-word/data-gen/capture-realmic.py --label realmic-pos
-    uv run python training/wake-word/data-gen/capture-realmic.py --label realmic-neg
-    uv run python training/wake-word/data-gen/capture-realmic.py --label me-far --silence-rms 350
+    uv run python apps/wake-word/data-gen/capture-realmic.py --label realmic-pos
+    uv run python apps/wake-word/data-gen/capture-realmic.py --label realmic-neg
+    uv run python apps/wake-word/data-gen/capture-realmic.py --label me-far --silence-rms 350
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ from pathlib import Path
 import numpy as np
 import sounddevice as sd
 
-# File lives at training/wake-word/data-gen/<this>.py — 4 parents up to repo root.
+# File lives at apps/wake-word/data-gen/<this>.py — 4 parents up to repo root.
 ROOT = Path(__file__).resolve().parents[3]
 
 SAMPLE_RATE = 16000
@@ -231,7 +231,7 @@ def main() -> None:
         f"\nDone. {n} utterances extracted to {out_dir}/\n"
         f"Review with: uv run python scripts/audio-review.py {out_dir}\n"
         f"Re-segment with a different threshold (full recording kept):\n"
-        f"  uv run python training/wake-word/data-gen/capture-realmic.py "
+        f"  uv run python apps/wake-word/data-gen/capture-realmic.py "
         f"--out-dir {out_dir} --silence-rms <new>"
     )
 

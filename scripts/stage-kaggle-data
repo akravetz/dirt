@@ -26,7 +26,7 @@
 set -euo pipefail
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
-META_DIR="$REPO_ROOT/training/wake-word/kaggle/datasets"
+META_DIR="$REPO_ROOT/apps/wake-word/kaggle/datasets"
 FEAT="${KAGGLE_FEATURES_DIR:-/tmp/dirt-wakeword-features}"
 BG="${KAGGLE_BG_DIR:-/tmp/dirt-wakeword-bg}"
 

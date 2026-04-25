@@ -39,7 +39,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from elevenlabs import ElevenLabs, VoiceSettings
 
-# File lives at training/wake-word/data-gen/<this>.py — 4 parents up to repo root.
+# File lives at apps/wake-word/data-gen/<this>.py — 4 parents up to repo root.
 ROOT = Path(__file__).resolve().parents[3]
 load_dotenv(ROOT / ".env")
 

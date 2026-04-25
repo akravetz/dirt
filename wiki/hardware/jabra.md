@@ -102,11 +102,11 @@ See [`voice-channel.md`](voice-channel.md) for the full code + service layout.
 - `debug/deepgram_transcribe_only.py` — STT-only (no TTS response); used for mic-reach diagnostics
 - `debug/elevenlabs_tts.py` — ElevenLabs TTS pilot ("Claudia" persona voice, +12 dB gain)
 - `debug/elevenlabs_clone_test.py` — voice-clone smoke test (3 samples, varied settings)
-- `training/wake-word/data-gen/elevenlabs-clones-batch.py` — resume-safe batch voice-clone generator (target-based, not delta-based). Produced the 2,000 training samples.
-- `training/wake-word/validation/live-test.py` — openWakeWord diagnostic: logs every frame above floor with timestamp, no cooldown. Used for recall measurement and threshold tuning.
+- `apps/wake-word/data-gen/elevenlabs-clones-batch.py` — resume-safe batch voice-clone generator (target-based, not delta-based). Produced the 2,000 training samples.
+- `apps/wake-word/validation/live-test.py` — openWakeWord diagnostic: logs every frame above floor with timestamp, no cooldown. Used for recall measurement and threshold tuning.
 - `debug/wake_word_response.py` — **full wake→respond demo**: listens for "hey Claudia" via openWakeWord, plays cached ElevenLabs response through Jabra, handles self-hear quench. This is the closest thing to the production voice channel.
-- `training/wake-word/data-gen/capture-rir-record.py` — RIR capture recorder (runs on Jabra host). Records 30-45s sweep window, deconvolves (Farina method), saves IR + raw recording.
-- `training/wake-word/data-gen/capture-rir-play.py` — RIR capture sweep player (runs on laptop at capture position). Identical sweep parameters as recorder — no file sync needed.
+- `apps/wake-word/data-gen/capture-rir-record.py` — RIR capture recorder (runs on Jabra host). Records 30-45s sweep window, deconvolves (Farina method), saves IR + raw recording.
+- `apps/wake-word/data-gen/capture-rir-play.py` — RIR capture sweep player (runs on laptop at capture position). Identical sweep parameters as recorder — no file sync needed.
 
 ### Data artifacts
 - `var/wake-word/models/current/hey_claudia.onnx` — **current wake-word model (v3)**: 89% real-world recall at threshold 0.35, peaks 0.95–0.99. Trained on 1500 voice-clone positives + 9 captured RIRs + ACAV100M negatives.
@@ -116,7 +116,7 @@ See [`voice-channel.md`](voice-channel.md) for the full code + service layout.
 - `var/wake-word/rirs/` — 9 captured room impulse responses (16 kHz mono, 1505ms each, 65–77 dB SNR). Used as augmentation RIRs during training.
 - `var/wake-word/rirs-raw/` — raw sweep recordings before deconvolution. For re-processing if needed.
 - `debug/openwakeword_src/` — cloned openWakeWord repo (includes `train.py`, `data.py`, `examples/custom_model.yml`)
-- `training/wake-word/reference/automatic_model_training.py` — Colab training notebook exported as Python. Reference for training config and pipeline.
+- `apps/wake-word/reference/automatic_model_training.py` — Colab training notebook exported as Python. Reference for training config and pipeline.
 
 ### Architecture / decisions
 - `debug/jabra.md` — agent handoff: gotchas + production TODO

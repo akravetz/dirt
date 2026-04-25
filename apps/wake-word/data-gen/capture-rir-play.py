@@ -3,13 +3,13 @@
 Runs on the device you want positioned as a "voice source" for the RIR
 capture (typically your desk laptop). Plays a 15-second exponential sine
 sweep through the default output device. Pair with
-`training/wake-word/data-gen/capture-rir-record.py` running on the Jabra host.
+`apps/wake-word/data-gen/capture-rir-record.py` running on the Jabra host.
 
 Sweep parameters MUST match capture_rir_record.py exactly — the
 recorder's inverse filter is derived from these constants.
 
 Usage:
-    uv run python training/wake-word/data-gen/capture-rir-play.py
+    uv run python apps/wake-word/data-gen/capture-rir-play.py
 """
 
 from __future__ import annotations

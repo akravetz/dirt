@@ -155,9 +155,9 @@ floors out at 43 %. **v3 is meaningfully worse than the 89 % claim.**
 
 #### What changed (vs v3)
 - Migrated training from Colab to **Kaggle Script Kernels on GPU** for
-  reproducibility. See `training/wake-word/kaggle/`.
+  reproducibility. See `apps/wake-word/kaggle/`.
 - Reinstated synthetic phonetic-neighbor negatives via ElevenLabs (440 WAVs
-  across 9 phrases) — file at `training/wake-word/data-gen/elevenlabs-neighbors-batch.py`.
+  across 9 phrases) — file at `apps/wake-word/data-gen/elevenlabs-neighbors-batch.py`.
   Later trimmed to 360 WAVs / 7 phrases (dropped `okay claudia`, `play claudia`
   on operator decision).
 - Added `prepare_seed_clips()` step that copies user-provided WAVs into

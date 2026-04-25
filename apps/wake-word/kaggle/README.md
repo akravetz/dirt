@@ -1,6 +1,6 @@
 # Kaggle wake-word training
 
-Ports `training/wake-word/reference/automatic_model_training.py` (originally a Google Colab notebook)
+Ports `apps/wake-word/reference/automatic_model_training.py` (originally a Google Colab notebook)
 to a headless Kaggle Script Kernel on TPU. One-time setup uploads the heavy
 corpora; every training run is a `kaggle kernels push` + wait + pull.
 
@@ -24,7 +24,7 @@ cp var/wake-word/voice-clones/*.wav              $MINE/voice_samples/
 cp var/wake-word/rirs/*.wav                    $MINE/rirs/
 # Curate from var/logs/wake_audio/ manually, then:
 # cp <curated>.wav                        $MINE/negatives/
-cp training/wake-word/kaggle/datasets/dirt-wakeword-mine/dataset-metadata.json $MINE/
+cp apps/wake-word/kaggle/datasets/dirt-wakeword-mine/dataset-metadata.json $MINE/
 kaggle datasets create -p $MINE           # first time only
 # Every subsequent push to add negatives / new clones:
 # kaggle datasets version -p $MINE -m "added N harvested negatives"
@@ -33,7 +33,7 @@ kaggle datasets create -p $MINE           # first time only
 **`dirt-wakeword-bg`** — background corpora, ~GB scale, upload once:
 
 The Colab notebook downloads these at runtime; the fastest one-time capture
-is to run the three relevant cells of `training/wake-word/reference/automatic_model_training.py` on
+is to run the three relevant cells of `apps/wake-word/reference/automatic_model_training.py` on
 a laptop (or in a throwaway Colab session), then rsync the produced
 `audioset_16k/` and `fma/` dirs down:
 
@@ -42,7 +42,7 @@ BG=/tmp/dirt-wakeword-bg
 mkdir -p $BG
 # produce $BG/audioset_16k/*.wav and $BG/fma/*.wav by running the relevant
 # `!wget` + `scipy.io.wavfile.write` cells, then:
-cp training/wake-word/kaggle/datasets/dirt-wakeword-bg/dataset-metadata.json $BG/
+cp apps/wake-word/kaggle/datasets/dirt-wakeword-bg/dataset-metadata.json $BG/
 kaggle datasets create -p $BG --dir-mode tar   # tar mode keeps directory structure
 ```
 
@@ -54,7 +54,7 @@ mkdir -p $FEAT
 cd $FEAT
 wget https://huggingface.co/datasets/davidscripka/openwakeword_features/resolve/main/openwakeword_features_ACAV100M_2000_hrs_16bit.npy
 wget https://huggingface.co/datasets/davidscripka/openwakeword_features/resolve/main/validation_set_features.npy
-cp -r <repo>/training/wake-word/kaggle/datasets/dirt-wakeword-features/dataset-metadata.json .
+cp -r <repo>/apps/wake-word/kaggle/datasets/dirt-wakeword-features/dataset-metadata.json .
 kaggle datasets create -p .
 ```
 
