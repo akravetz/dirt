@@ -501,11 +501,11 @@ Add a pre-push guard to `scripts/kaggle-train`:
 Aborts with a clear "push first" message when HEAD isn't on origin/main,
 saving the 5-min Kaggle no-op. Commit: `e83c5f1`.
 
-### v12 — 2026-04-25 (in flight)
+### v12 — 2026-04-25 (failed at 22 min in train phase)
 
-**Status:** running on Kaggle (kernel version 17, pushed 12:28)
-**Model artifact:** `var/wake-word/models/2026-04-25-v12/hey_claudia.onnx` (when pulled)
+**Status:** install + generate_clips OK; crashed in `augment_and_compute_features`
 **Kernel commit:** `e83c5f1`
+**Wall time:** ~47 min (install 4 min, generate_clips 22 min, then bug)
 
 #### What changed (vs v11)
 - Pre-push verification of HEAD on origin/main (the v11 fix above).
@@ -526,6 +526,65 @@ Identical to v8 staged.
 
 #### Validation set
 - Same as v8 (28 good / 76 bad — `dirt-wakeword-validation` v2)
+
+#### Results
+First run that actually entered the train phase. `--generate_clips`
+completed all 428 batches (~22 min wall, the dominant phase). Then
+crashed in our soft-fork augmentation step:
+
+```
+File ".../dirt_wake_word/augment.py", line 92,
+    in augment_and_compute_features
+    total_length=config["total_length"],
+KeyError: 'total_length'
+```
+
+Real code bug. `total_length` is the per-clip sample count for
+augment_clips; upstream's `train.py` *computes* it post-generate_clips
+from the median positive_test clip duration:
+
+```python
+config["total_length"] = int(round(np.median(durations)/1000)*1000) + 12000
+if config["total_length"] < 32000: config["total_length"] = 32000  # 2s floor
+```
+
+It's not a YAML key. The soft-fork in `train.py` bypassed `--train_model`
+entirely, taking the total_length-injection step with it.
+
+#### Fix (v13)
+Port the same calculation into a new `_compute_total_length()` helper
+called at the top of `augment_and_compute_features()`, and persist the
+value back into `my_model.yaml` so `_custom_train_model`'s later
+`yaml.safe_load(...)` sees the same int. Commit: `51abdd8`.
+
+### v13 — 2026-04-25 (in flight)
+
+**Status:** running on Kaggle (kernel version 18)
+**Model artifact:** `var/wake-word/models/2026-04-25-v13/hey_claudia.onnx` (when pulled)
+**Kernel commit:** `51abdd8`
+
+#### What changed (vs v12)
+- `_compute_total_length()` added in augment.py (the v12 fix above).
+- Otherwise identical to v12 / v11 / v10 / v9 / v8 staged.
+
+#### Why
+Fifth attempt at the v8 architectural baseline. v9–v12 each unblocked
+a different failure stage:
+
+| ver | wall  | failed at                            |
+|-----|-------|--------------------------------------|
+| v9  |  4 m  | top-level openwakeword import        |
+| v10 |  4 m  | pip install openwakeword (no py3.12) |
+| v11 |  6 m  | git checkout SHA (unpushed)          |
+| v12 | 47 m  | augment.py KeyError: 'total_length'  |
+
+v13 should be the first run to actually train.
+
+#### Training config
+Identical to v8 staged.
+
+#### Validation set
+- Same as v8 (28 good / 76 bad).
 
 #### Results
 *Pending.* ~30–90 min on free GPU tier.
