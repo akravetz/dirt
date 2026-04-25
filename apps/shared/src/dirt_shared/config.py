@@ -60,6 +60,12 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     elabs_api_key: str = ""
     elabs_voice_id: str = ""
+    # Passive harvest mode: when true, the voice channel logs/saves wake fires
+    # but never opens a Pipecat conversation. Used to bulk-collect guaranteed
+    # negatives during a no-wake-word window. See wake-word v5 plan.
+    voice_harvest_only: bool = Field(
+        default=False, validation_alias="DIRT_VOICE_HARVEST_ONLY"
+    )
     # Kasa EP10 humidifier plug. See wiki/hardware/humidifier-control.md.
     kasa_username: str = ""
     kasa_password: str = ""

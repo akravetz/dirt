@@ -1,0 +1,8 @@
+{
+  "title": "Dirt Wake Word — my clones + RIRs + negatives",
+  "id": "akravetz/dirt-wakeword-mine",
+  "licenses": [{"name": "CC0-1.0"}],
+  "isPrivate": true,
+  "keywords": ["wake-word", "audio"],
+  "description": "ElevenLabs-cloned 'hey claudia' positives, captured room impulse responses, curated negative clips harvested from live deployment. Versioned often — re-push via `kaggle datasets version`. Staged locally under voice_samples/, rirs/, negatives/ trees that mirror /kaggle/input/dirt-wakeword-mine/ at training time."
+}

@@ -2,12 +2,14 @@
 title: "Wake-Word v4 Plan — Precision-focused retraining"
 type: decision
 sources: []
-related: [wiki/decisions/2026-04-16-wake-word-training-strategy.md, wiki/concepts/wake-word-detection.md, wiki/hardware/voice-channel.md]
+related: [wiki/decisions/2026-04-16-wake-word-training-strategy.md, wiki/decisions/2026-04-23-wake-word-v5-passive-harvest.md, wiki/concepts/wake-word-detection.md, wiki/hardware/voice-channel.md]
 created: 2026-04-18
-updated: 2026-04-18
+updated: 2026-04-23
 ---
 
 # Wake-Word v4 Plan — Precision-focused retraining
+
+> **Successor:** [Wake-Word v5 Plan (2026-04-23)](2026-04-23-wake-word-v5-passive-harvest.md). v5 replaces v4's triage-heavy capture-then-label flow with a passive harvest window where every above-floor capture is a guaranteed negative by construction — eliminates manual annotation. Most v4 components (synthetic phonetic neighbors, meeting-audio mining) are dropped or deferred under v5; the ElevenLabs positives + `max_negative_weight=800` change carry forward.
 
 Successor to [v3 training strategy (2026-04-16)](2026-04-16-wake-word-training-strategy.md). v3 solved the recall problem; v4 focuses on precision (fewer false positives) while nudging recall up for far-field positions we hadn't exercised.
 

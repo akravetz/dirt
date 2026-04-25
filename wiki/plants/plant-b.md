@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-04-22
+updated: 2026-04-24
 ---
 
 # Plant B
@@ -18,7 +18,7 @@ updated: 2026-04-22
 
 ## Current State
 
-Day 39, ten days post-topping: densest darkest canopy of the four; moisture very stable 64–65% across all windows (consistent autopot feeding). See [2026-04-22](../daily/2026-04-22.md).
+Day 41, twelve days post-topping, Day 4 of LST: densest dark-green canopy of the four; main shoots bent and anchored (LST started Apr 20, all plants); moisture slightly elevated at 68–69% (up from 64–65% Apr 22) as autopot feeds actively. See [2026-04-24](../daily/2026-04-24.md).
 
 ## Timeline
 
@@ -36,6 +36,9 @@ Day 39, ten days post-topping: densest darkest canopy of the four; moisture very
 - 2026-04-12 — [Day 29: **Topped above node 4**; healthy going in; LST target ~Apr 17–19](../daily/2026-04-12.md)
 - 2026-04-18 — [Day 35: Recovery Day 6; most vigorous canopy; **LST due now**; morning moisture drydown to 3.57% (autopot dry cycle)](../daily/2026-04-18.md)
 - 2026-04-19 — [Day 36: densest canopy of the four; broad dark-green fan leaves; **LST overdue** (Day 7 post-topping); moisture stable ~27%](../daily/2026-04-19.md)
-- 2026-04-20 — [Day 37: darker blue-green; densest canopy; **LST critically overdue** (Day 8 post-topping); moisture spiked to 58% at 14:00 (autopot afternoon feeding)](../daily/2026-04-20.md)
+- 2026-04-20 — [Day 37: darker blue-green; densest canopy; moisture spiked to 58% at 14:00 (autopot afternoon feeding)](../daily/2026-04-20.md)
+- 2026-04-20 — [Day 37: **LST started** — main shoots bent ~45° outward, anchored to pot rim (done evening, after 14:00 photo session)](../daily/2026-04-20.md)
 - 2026-04-21 — [Day 38: photos only; dense dark-green canopy; broad fan leaves; no issues visible](../daily/2026-04-21.md)
 - 2026-04-22 — [Day 39: densest darkest canopy; moisture very stable 64–65% across all windows (consistent autopot feeding)](../daily/2026-04-22.md)
+- 2026-04-23 — [Day 40: photos only; dense dark-green canopy; healthy; no issues visible](../daily/2026-04-23.md)
+- 2026-04-24 — [Day 41: dense dark-green canopy; densest of the four; moisture slightly elevated at 68–69% (up from 64–65%) — autopot active](../daily/2026-04-24.md)

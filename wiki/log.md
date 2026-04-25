@@ -575,3 +575,41 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
   - `HumidifierLoopService.__init__` gains `http_client_factory` (defaults to `httpx.AsyncClient(timeout=10.0)`) so tests can mock the Telegram transport the same way `DeviceWatchdogService` does. If Telegram creds are unset, the watchdog still fires `suspected_stuck` log events but skips the Telegram send (info log emitted at startup).
 - **Wiki updates:** new "Red LED on the Raydrop = low-water sensor latch" section in `hardware/humidifier-control.md` (first observed timestamps, root cause w/ citations, detection, recovery, prevention). Trimmed the historical "BME280 drift" incident-log table since the narrative paragraph above it already covers both incidents. `CLAUDE.md` observability table mentions the new `suspected_stuck` event shape.
 - **Tests:** `uv run pytest apps/hwd apps/shared apps/web apps/tests/invariants` — 356 passed / 1 skipped. `uv run ruff check` clean. `uv run scripts/lint.py` 7/7.
+
+## [2026-04-24] daily-update | Day 41 — Temperature Milestone; VPD Clean All Windows; C/D Moisture Very High
+- **Daily entry created:** `wiki/daily/2026-04-24.md`
+- **Temperature milestone:** all three windows in veg target simultaneously for first time — overnight 69.35°F ✅, morning 74.84°F ✅, now 76.01°F ✅; "monitor afternoon temp" action item resolved
+- **VPD clean all three windows:** 1.18 / 0.99 / 0.90 kPa — second consecutive day of full VPD coverage ✅
+- **Overnight RH second consecutive night in target:** 51.81% (was 52.06% Apr 22); lights-off feedforward holding
+- **Afternoon RH still elevated:** 66–71% morning/afternoon; VPD in range only because temp now proper — watch if temp dips
+- **Plant A overnight sensor back online:** overnight data present (n=717); dropout from Apr 22 resolved ✅
+- **Plants C and D moisture very high:** C at 82%+ (was 75% Apr 22), D jumped from 60% to 83% in two days — autopot feeding aggressively; no visible stress symptoms
+- **LST critically overdue:** Day 13/12 post-topping; snap risk at highest this grow; Plant A shows training ties in photo
+- **Reservoir change still pending:** Day 9 post-activation (7–10 day window closes tomorrow)
+- **Plant pages updated:** A, B, C, D (timeline entries + Current State rewritten)
+- **Environment pages updated:** `temperature.md` (trend row + milestone notable event), `humidity.md` (trend row + notable event + Deployed Control System updated to SHT45/ESP32-C3)
+- **`overview.md`** and **`index.md`** refreshed
+- **Known gap:** No daily entry for 2026-04-23 — no photos or sensor snapshot captured that day. Lint timeline-continuity check will flag this; pre-existing pattern.
+
+## [2026-04-24] query-filed | LST actually started 2026-04-20 on all 4 plants (user correction)
+- **Source:** user statement during the Apr 24 Claude Code session: "I started at LST about four days ago on all plants."
+- **Problem the correction fixes:** the auto-generated daily reports from Apr 20 through Apr 24 all carried a "🔴 LST critically overdue" flag because the 14:00 MDT photo sessions didn't capture the evening training. Plant A's ties were finally caught in the Apr 24 photo, but B/C/D angles missed them. Every day, the same action item ("Complete LST today") was re-raised in error.
+- **LST start date:** 2026-04-20 (evening, after 14:00 photo session). Day 4 of stress recovery as of today.
+- **Files updated:**
+  - `wiki/plants/plant-a.md`, `plant-b.md`, `plant-c.md`, `plant-d.md` — Current State rewritten; Apr 20 timeline entry split into the observed state + a new "LST started" entry; `plant-c.md` frontmatter `related:` now cites `concepts/lst.md`.
+  - `wiki/overview.md` — Current Stage reframed; Plant Status table rows now note LST Day 4; Action Items dropped "Complete LST" and gained "Monitor LST recovery" + a concrete light-ramp window (Apr 25–27); Upcoming Milestones row struck through and resolved.
+  - `wiki/daily/2026-04-24.md` — Summary gained a correction block; "🔴 LST critically overdue" Issue rewritten to "✅ LST started Apr 20 (Day 4)"; Recommendations renumbered (dropped "Complete LST today"; kept light-ramp + added LST recovery monitoring).
+  - `wiki/daily/2026-04-20.md` — correction block prepended (frontmatter `updated` bumped to 2026-04-24). Does NOT rewrite the day's observations, only clarifies that the "no LST visible" photos are from 14:00 MDT and LST was performed later that evening.
+  - `wiki/index.md` — Plants section summaries updated with "LST Day 4 (started Apr 20)".
+- **Not updated (intentional):** Apr 21–23 dailies left as-is. Their "LST overdue" framing was contextually correct for the data the orchestrator had at report time (photos only). Rewriting them would be revisionism — the Apr 20 correction note + today's resolution give a reader enough breadcrumbs to reconstruct.
+- **Next lint:** `uv run scripts/lint.py` — expect 7/7 pass. If "overview staleness" flags due to `updated: 2026-04-24` already being current, that's expected.
+
+## [2026-04-24] session pause | Continuous humidifier — Phase 1 probe mid-session
+- **Where we stopped:** resistance sweep done on the unplugged spare Raydrop; pot identified; photos captured. Powered Step 1 DC voltage sweep is the next action.
+- **Spare Raydrop is open on the bench; primary stays on the Kasa plug driving the live VPD loop** — no service interruption. `dirt-hwd` was not stopped and does not need to be for the rest of Phase 1.
+- **Pot:** silkscreen `B5K` = 5 kΩ linear-taper + integrated SPST switch (clicks off at min rotation). 4-wire JST = 3 pot pins + 1 switch tab; switch return commons via the pot chassis to one of the pot outers on the PCB.
+- **Resistance sweep (DMM, 200 kΩ range, unplugged):** wiper + non-chassis-outer reads 0.002 kΩ at max-mist → 2.55 kΩ at min-mist-just-before-click. Smooth monotonic — clean rheostat behavior. The 2.55 kΩ vs 5 kΩ label gap is most plausibly the mechanical rotation covering ~half the electrical track (switch-cam dead zone). Firmware-side "intensity %" will map to the observed 0→~2.55 kΩ range.
+- **Photos:** `debug/raydrop-re/photos/pot-front.jpg` (silkscreen visible) + `pot-back.jpg` (pins + JST wires).
+- **BOM consequence (not yet actioned):** none of the three MCP4131 variants on order (10 kΩ / 50 kΩ / 100 kΩ) is a direct match. If Step 1 confirms DC-analog case, `MCP4131-502E/P` (5 kΩ) needs ordering. Do NOT order until Step 1 verdict lands — a PWM case skips the digipot entirely.
+- **Resume point for a fresh agent:** start at [`docs/epics/continuous-humidifier/README.md`](../docs/epics/continuous-humidifier/README.md) "Current state" section. The immediate next action is walking the user through Step 1 of [`phase1-probe-checklist.md`](../docs/epics/continuous-humidifier/phase1-probe-checklist.md) (DC voltage measurement on pot wires with unit powered, ground clip on a verified board GND). The checklist's observations log has a partially-filled "Session 1 — 2026-04-24" block at the top; fill in the Step 1 section when probing resumes.
+- **No code or wiki-page changes this session** — only docs/epic tracking updates. `wiki/log.md`, `docs/epics/continuous-humidifier/README.md` (Current state rewritten), `docs/epics/continuous-humidifier/phase1-probe-checklist.md` (observations log seeded).

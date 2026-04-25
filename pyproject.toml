@@ -20,6 +20,7 @@ dev-dependencies = [
     "pre-commit>=4.5.1",
     "datamodel-code-generator>=0.56.1",
     "dirt-contracts",
+    "kaggle>=2.1.0",
 ]
 
 [tool.uv.sources]
@@ -54,7 +55,7 @@ line-length = 88
 # its own style conventions (pragma allowed). Both would drown the
 # signal-to-noise in ASYNC/T20/TID/RUF/S audits (PY-04/06/08) with
 # pre-existing cosmetic drift agents aren't supposed to police.
-extend-exclude = ["docs", ".claude", "scripts", "firmware", "debug"]
+extend-exclude = ["docs", ".claude", "scripts", "firmware", "debug", "training"]
 
 [tool.ruff.lint]
 # Rule-set rationale (kept next to the select):

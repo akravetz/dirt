@@ -2,9 +2,9 @@
 title: Plant C — Secondary Candidate
 type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
-related: [wiki/concepts/anthocyanin.md, wiki/concepts/coco-coir.md, wiki/environment/nutrients.md]
+related: [wiki/concepts/anthocyanin.md, wiki/concepts/coco-coir.md, wiki/concepts/lst.md, wiki/environment/nutrients.md]
 created: 2026-04-06
-updated: 2026-04-22
+updated: 2026-04-24
 ---
 
 # Plant C
@@ -18,7 +18,7 @@ updated: 2026-04-22
 
 ## Current State
 
-Day 39, ten days post-topping: compact healthy multi-branch canopy; stress-induced purple on petioles/stems ongoing; moisture running high at 75%+ (autopot feeding continuously) — monitor root zone. See [2026-04-22](../daily/2026-04-22.md).
+Day 41, twelve days post-topping, Day 4 of LST: compact medium-green bushy canopy; main shoots bent and anchored (LST started Apr 20, all plants); moisture very high at 82%+ (rose from 75% on Apr 22) — autopot feeding continuously; monitor root zone for stress signs. See [2026-04-24](../daily/2026-04-24.md).
 
 ## Timeline
 
@@ -36,6 +36,9 @@ Day 39, ten days post-topping: compact healthy multi-branch canopy; stress-induc
 - 2026-04-12 — [Day 29: **Topped above node 4**; leaf issue diagnosed as foliar burn (splash), not pH lockout — resolved; normal recovery expected](../daily/2026-04-12.md)
 - 2026-04-18 — [Day 35: Recovery Day 6; compact healthy branching; **LST due now**; moisture stable ~40–42%](../daily/2026-04-18.md)
 - 2026-04-19 — [Day 36: compact healthy canopy; **LST overdue** (Day 7 post-topping); moisture stable ~45%](../daily/2026-04-19.md)
-- 2026-04-20 — [Day 37: compact symmetrical medium-green canopy; clean leaves; **LST critically overdue** (Day 8 post-topping); moisture stable ~51%](../daily/2026-04-20.md)
+- 2026-04-20 — [Day 37: compact symmetrical medium-green canopy; clean leaves; moisture stable ~51%](../daily/2026-04-20.md)
+- 2026-04-20 — [Day 37: **LST started** — main shoots bent ~45° outward, anchored to pot rim (done evening, after 14:00 photo session)](../daily/2026-04-20.md)
 - 2026-04-21 — [Day 38: photos only; compact symmetrical bushy canopy; lighter medium-green; healthy; no issues visible](../daily/2026-04-21.md)
 - 2026-04-22 — [Day 39: compact healthy canopy; stress-induced purple on petioles/stems; moisture high and rising (75.75% now) — monitor root zone](../daily/2026-04-22.md)
+- 2026-04-23 — [Day 40: photos only; compact medium-green bushy canopy; stress-induced purple on petioles visible; healthy overall](../daily/2026-04-23.md)
+- 2026-04-24 — [Day 41: compact medium-green bushy canopy; moisture very high at 82%+ (rose from 75% Apr 22) — autopot feeding continuously; root zone monitoring ongoing](../daily/2026-04-24.md)

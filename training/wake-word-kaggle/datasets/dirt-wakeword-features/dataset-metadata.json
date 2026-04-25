@@ -1,0 +1,8 @@
+{
+  "title": "Dirt Wake Word — precomputed openwakeword features",
+  "id": "akravetz/dirt-wakeword-features",
+  "licenses": [{"name": "other"}],
+  "isPrivate": true,
+  "keywords": ["wake-word", "audio", "features"],
+  "description": "Precomputed openwakeword feature .npy files re-hosted from huggingface.co/datasets/davidscripka/openwakeword_features: ACAV100M 2000-hour training features (~2.8 GB) + 11-hour validation set features. Upload once, reuse every training run. Re-pull upstream if david's feature schema changes."
+}

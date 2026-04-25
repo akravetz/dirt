@@ -1,7 +1,7 @@
 ---
 title: Index
 type: index
-updated: 2026-04-22
+updated: 2026-04-24
 ---
 
 # Grow Wiki Index
@@ -9,12 +9,13 @@ updated: 2026-04-22
 ## Overview
 - [Grow Overview](overview.md) — Current status, plant table, active action items, milestones
 - [Activity Log](log.md) — Append-only ingestion and update history
+- [Oregon Breeding Group (OBG)](concepts/oregon-breeding-group.md) — Wayne / Serious Black / BS01 breeding-stock pack; next-grow phenotypic selection + breeding plan
 
 ## Plants
-- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; vigor leader; strong purple contender; **topped Apr 11** (Day 11 post-top); moisture stable ~53%; overnight sensor dropout Apr 22
-- [Plant B](plants/plant-b.md) — 🟡 Secondary; no purple; **topped Apr 12** (Day 10 post-top); densest darkest canopy; moisture very stable 64–65%
-- [Plant C](plants/plant-c.md) — 🟡 Secondary; **topped Apr 12** (Day 10 post-top); leaf issue resolved; moisture high 75%+ — monitor root zone
-- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; strong purple contender; **topped Apr 12** (Day 10 post-top); color improving (lighter medium-green, no longer alarming)
+- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; vigor leader; strong purple contender; **topped Apr 11** (Day 13 post-top); **LST Day 4** (started Apr 20); moisture stable ~56%
+- [Plant B](plants/plant-b.md) — 🟡 Secondary; no purple; **topped Apr 12** (Day 12 post-top); **LST Day 4** (started Apr 20); densest dark-green canopy; moisture 68–69%
+- [Plant C](plants/plant-c.md) — 🟡 Secondary; **topped Apr 12** (Day 12 post-top); **LST Day 4** (started Apr 20); moisture very high 82%+ — monitor root zone
+- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; strong purple contender; **topped Apr 12** (Day 12 post-top); **LST Day 4** (started Apr 20); moisture jumped 60% → 83% in 2 days — autopot active
 
 ## Daily Logs
 - [2026-03-27](daily/2026-03-27.md) — Day 13: Pre-transplant; 2–3 leaf sets
@@ -33,6 +34,8 @@ updated: 2026-04-22
 - [2026-04-20](daily/2026-04-20.md) — Day 37: daytime env in target (75.04°F ✅, 1.12 kPa VPD ✅); overnight RH regressed (74.37% ⚠️ — service restart pending); LST critically overdue; Plant D lighter green — monitoring
 - [2026-04-21](daily/2026-04-21.md) — Day 38: photos only; no sensor data captured; all plants healthy
 - [2026-04-22](daily/2026-04-22.md) — Day 39: overnight env breakthrough (RH 52% ✅, temp 70.17°F ✅ — both in target first time); reservoir change due (Day 7); Plant D color improving; Plant A overnight sensor dropout
+- [2026-04-23](daily/2026-04-23.md) — Day 40: photos only; no sensor snapshot; humidifier oscillation + Raydrop red-LED latch incidents; BME280 retired → SHT45 cutover
+- [2026-04-24](daily/2026-04-24.md) — Day 41: temperature fully in range all windows (first time) ✅✅; VPD clean all windows; C/D moisture 82–83% ⚠️; LST and reservoir change critically overdue
 
 ## Environment
 - [Temperature](environment/temperature.md) — Trend log; targets by phase; notable events
@@ -82,7 +85,9 @@ updated: 2026-04-22
 - [Agent Runtime — Shell-Out to Claude Code CLI (2026-04-14)](decisions/2026-04-14-agent-runtime-shell-out.md) — Use `claude -p` subprocess to leverage Max subscription instead of API billing
 - [Voice Pipeline Selections (2026-04-16)](decisions/2026-04-16-voice-pipeline-selections.md) — ElevenLabs TTS ("Claudia" voice) + openWakeWord wake phrase + Deepgram STT
 - [Wake-Word Training Strategy (2026-04-16)](decisions/2026-04-16-wake-word-training-strategy.md) — Retrain openWakeWord with voice-clone positives + captured RIRs to fix far-field recall
-- [Wake-Word v4 Plan (2026-04-18)](decisions/2026-04-18-wake-word-v4-plan.md) — Precision-focused retraining: harvested hard negatives from deployment + mined meeting audio + synthesized phonetic neighbors + additional RIRs; near-miss audio capture live as of 2026-04-18
+- [Wake-Word v4 Plan (2026-04-18)](decisions/2026-04-18-wake-word-v4-plan.md) — Precision-focused retraining: harvested hard negatives from deployment + mined meeting audio + synthesized phonetic neighbors + additional RIRs; near-miss audio capture live as of 2026-04-18. **Superseded by v5 2026-04-23.**
+- [Wake-Word v5 Plan (2026-04-23)](decisions/2026-04-23-wake-word-v5-passive-harvest.md) — Passive-harvest mode (`DIRT_VOICE_HARVEST_ONLY=1`): operator runs dirt-voice for ~2 days without saying the wake word, every above-floor capture is a guaranteed negative — eliminates v4's manual triage. Floor lowered to 0.15; ElevenLabs positives + `max_negative_weight=800` carry forward from v4.
+- [Speaker Verifier (2026-04-24)](decisions/2026-04-24-speaker-verifier.md) — ECAPA-TDNN via speechbrain as a second-stage filter after the wake model fires; rejects any voice that isn't the enrolled user's. Orthogonal to v5 retraining; addresses meeting FPs at root. Ship before v5 to re-enable dirt-voice safely without waiting on the harvest cycle.
 - [ESP32-C3 GPIO3 + IDF ADC (2026-04-14)](decisions/2026-04-14-esp32-c3-gpio3-adc.md) — GPIO3 over GPIO4 (JTAG conflict); `adc1_get_raw()` over Arduino `analogRead()` (WiFi instability)
 - [Server-Side Auto-Calibration (2026-04-14)](decisions/2026-04-14-server-side-auto-calibration.md) — Calibration lives in DB, auto-widens extrema per (location, metric); firmware sends raw only
 - [Lights-Off-Aware Humidifier Control (2026-04-19)](decisions/2026-04-19-lights-off-aware-humidifier.md) — Schedule-driven feedforward added to the humidifier loop: pre-lights-off prep window forces OFF for the last 30 min of lights-on; lights-off subtracts 0.3 kPa from the stage band. Lights schedule stored on `growstate` (user-editable); rejected derivative control in favor of feedforward on a known-periodic disturbance.

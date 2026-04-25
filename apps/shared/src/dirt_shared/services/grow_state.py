@@ -75,6 +75,21 @@ class LightsState:
 
 
 @dataclass(frozen=True)
+class GrowContext:
+    """Snapshot of stage + lights + target bands from one ``get_state()`` fetch.
+
+    Callers in hot paths (control loops ticking every ~30s) should prefer
+    ``GrowStateService.current_context()`` over separate ``current_stage()``/
+    ``lights_state()``/``current_targets()`` calls, which each round-trip to the
+    DB for the same row.
+    """
+
+    stage: Stage
+    lights: LightsState
+    targets: dict[str, tuple[float, float]]
+
+
+@dataclass(frozen=True)
 class GrowCurrentPayload:
     germination_date: date
     flower_start_date: date | None
@@ -145,16 +160,53 @@ class GrowStateService:
             state = result.first()
             return state or GrowState(germination_date=GROW_START, is_current=True)
 
-    async def current_stage(self) -> Stage:
-        """Veg vs early vs late flower, derived from flower_start_date."""
-        state = await self.get_state()
-        today = self._clock().astimezone(tent_tz(state)).date()
+    @staticmethod
+    def _derive_stage(state: GrowState, today: date) -> Stage:
         if state.flower_start_date is None or today < state.flower_start_date:
             return "veg"
         days_in_flower = (today - state.flower_start_date).days
         if days_in_flower < _LATE_FLOWER_DAY:
             return "flower_early"
         return "flower_late"
+
+    @staticmethod
+    def _derive_lights(state: GrowState, now_local: datetime) -> LightsState:
+        tz = now_local.tzinfo
+        on_time = state.lights_on_local
+        off_time = state.lights_off_local
+
+        now_t = now_local.time()
+        if on_time < off_time:
+            on = on_time <= now_t < off_time
+        else:
+            # Lights-on crosses midnight (handled but not the current schedule).
+            on = now_t >= on_time or now_t < off_time
+
+        off_dt = datetime.combine(now_local.date(), off_time, tzinfo=tz)
+        if off_dt <= now_local:
+            off_dt = datetime.combine(
+                now_local.date() + timedelta(days=1), off_time, tzinfo=tz
+            )
+        minutes_until_off = (off_dt - now_local).total_seconds() / 60.0
+
+        on_dt = datetime.combine(now_local.date(), on_time, tzinfo=tz)
+        if on_dt <= now_local:
+            on_dt = datetime.combine(
+                now_local.date() + timedelta(days=1), on_time, tzinfo=tz
+            )
+        minutes_until_on = (on_dt - now_local).total_seconds() / 60.0
+
+        return LightsState(
+            on=on,
+            minutes_until_off=minutes_until_off,
+            minutes_until_on=minutes_until_on,
+        )
+
+    async def current_stage(self) -> Stage:
+        """Veg vs early vs late flower, derived from flower_start_date."""
+        state = await self.get_state()
+        today = self._clock().astimezone(tent_tz(state)).date()
+        return self._derive_stage(state, today)
 
     async def grow_week(self) -> int:
         """1-indexed week since germination. Day 1-7 = week 1."""
@@ -169,56 +221,28 @@ class GrowStateService:
     async def lights_state(self) -> LightsState:
         """Are lights on right now, and how long until the next on/off transition?"""
         state = await self.get_state()
-        tz = tent_tz(state)
-        now_local = self._clock().astimezone(tz)
-        on_time = state.lights_on_local
-        off_time = state.lights_off_local
+        now_local = self._clock().astimezone(tent_tz(state))
+        return self._derive_lights(state, now_local)
 
-        now_t = now_local.time()
-        if on_time < off_time:
-            on = on_time <= now_t < off_time
-        else:
-            # Lights-on crosses midnight (handled but not the current schedule).
-            on = now_t >= on_time or now_t < off_time
+    async def current_context(self) -> GrowContext:
+        """Stage + lights + target bands from one ``get_state()`` fetch.
 
-        # Always-positive countdown to the NEXT lights-off.
-        off_dt = datetime.combine(now_local.date(), off_time, tzinfo=tz)
-        if off_dt <= now_local:
-            off_dt = datetime.combine(
-                now_local.date() + timedelta(days=1),
-                off_time,
-                tzinfo=tz,
-            )
-        minutes_until_off = (off_dt - now_local).total_seconds() / 60.0
-
-        # Always-positive countdown to the NEXT lights-on.
-        on_dt = datetime.combine(now_local.date(), on_time, tzinfo=tz)
-        if on_dt <= now_local:
-            on_dt = datetime.combine(
-                now_local.date() + timedelta(days=1),
-                on_time,
-                tzinfo=tz,
-            )
-        minutes_until_on = (on_dt - now_local).total_seconds() / 60.0
-
-        return LightsState(
-            on=on,
-            minutes_until_off=minutes_until_off,
-            minutes_until_on=minutes_until_on,
-        )
+        Hot-path helper for control loops — avoids three DB round-trips per tick.
+        """
+        state = await self.get_state()
+        now_local = self._clock().astimezone(tent_tz(state))
+        stage = self._derive_stage(state, now_local.date())
+        lights = self._derive_lights(state, now_local)
+        return GrowContext(stage=stage, lights=lights, targets=STAGE_TARGETS[stage])
 
     async def get_grow_current_payload(self) -> GrowCurrentPayload:
         """One-shot assembler for ``GET /api/grow/current``."""
         state = await self.get_state()
-        today = self._clock().astimezone(tent_tz(state)).date()
+        now_local = self._clock().astimezone(tent_tz(state))
+        today = now_local.date()
 
-        if state.flower_start_date is None or today < state.flower_start_date:
-            stage: Stage = "veg"
-        else:
-            days_in_flower = (today - state.flower_start_date).days
-            stage = (
-                "flower_early" if days_in_flower < _LATE_FLOWER_DAY else "flower_late"
-            )
+        stage = self._derive_stage(state, today)
+        lights = self._derive_lights(state, now_local)
 
         grow_week_number = (today - state.germination_date).days // 7 + 1
         day_number = (today - state.germination_date).days + 1
@@ -228,7 +252,6 @@ class GrowStateService:
             ).days // 7 + 1
         else:
             flower_week_number = None
-        lights = await self.lights_state()
 
         return GrowCurrentPayload(
             germination_date=state.germination_date,

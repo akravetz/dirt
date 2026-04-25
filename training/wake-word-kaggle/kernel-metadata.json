@@ -1,0 +1,19 @@
+{
+  "id": "akravetz/dirt-wake-word-hey-claudia",
+  "title": "Dirt Wake Word — hey claudia",
+  "code_file": "train_hey_claudia.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_tpu": true,
+  "enable_internet": true,
+  "keywords": ["wake-word", "openwakeword", "audio"],
+  "dataset_sources": [
+    "akravetz/dirt-wakeword-mine",
+    "akravetz/dirt-wakeword-bg",
+    "akravetz/dirt-wakeword-features"
+  ],
+  "kernel_sources": [],
+  "competition_sources": []
+}

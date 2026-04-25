@@ -1,22 +1,49 @@
 # Epic: Continuous Humidifier Intensity Control
 
-Status: planning — waiting on hardware delivery
+Status: in-progress — Phase 1 probe session mid-flight (paused 2026-04-24)
 Priority: medium
 Created: 2026-04-23
-Last touched: 2026-04-23
+Last touched: 2026-04-24
 
 ## Current state (resume point for a fresh agent)
 
-**Where we are:** planning complete, parts being shipped. The user stops here until packages arrive (next 1–3 days).
+**Where we are:** mid-Phase-1. Spare Raydrop is open on the bench. Pot identified, resistance swept, photos captured. Next action is the powered voltage sweep (Step 1 of the checklist, DC-vs-PWM determination). **User paused here to sync the wiki before continuing.**
 
-**Parts procurement** — see [bom.md](bom.md) for full detail:
-- ✅ In-hand: heat-shrink, E12 resistor kit
-- ✅ Ordered: DigiKey (1× each MCP4131 digipot at 10 kΩ / 50 kΩ / 100 kΩ), Adafruit (MCP4725 DAC, BSS138 level shifter, headers/jumpers), Amazon Raydrop spare (ASIN `B0CDL8XCJ5`)
-- 🛒 To order: BOJACK ceramic cap kit (Amazon ASIN `B085RDTCCV`, $9.99)
+**The primary Raydrop stays on the Kasa plug driving the VPD loop during this work** — all probing is on the spare. No need to stop `dirt-hwd` or touch the live humidifier.
 
-All four Phase-1 → Phase-2 matrix rows are covered by what's on order; no additional purchasing needed based on the probe verdict.
+### Findings so far (unit unplugged, DMM-only)
 
-**What to do when parts arrive:** execute [phase1-probe-checklist.md](phase1-probe-checklist.md) end-to-end. That doc has the full walkthrough (disassembly → multimeter sweep → optional LA capture → driver-IC identification → verdict). The fill-in-the-blanks observations log at the bottom of that checklist captures the session output; paste the verdict back into the [decision doc](../../../wiki/decisions/2026-04-23-raydrop-mcu-mist-control.md) as a "Phase 1 findings" revision block and flip this epic's status to in-progress.
+- **Pot:** silkscreen reads `B5K` — **5 kΩ linear-taper, integrated SPST power switch** (clicks off at min rotation).
+- **JST topology:** 4 wires total = 3 pot pins (outer-A / wiper / outer-B) + 1 switch tab. Switch return is internally commoned to the pot's metal chassis, which ties to one of the pot outers on the PCB — so "the switch pair" that beeped in continuity mode was (switch tab) + (chassis-tied outer).
+- **Resistance sweep** across the wiper + non-chassis-outer pair (DMM 200 kΩ range, unit unplugged): smooth, monotonic, **0.002 kΩ at max-mist → 2.55 kΩ at min-mist-just-before-click**. Clean rheostat behavior.
+- **2.55 kΩ vs 5 kΩ label discrepancy:** most likely explained by mechanical rotation covering ~half the electrical track (switch-cam dead zone consumes the rest). Doesn't block progress — the driver IC sees 0→~2.55 kΩ as the useful control range, and firmware will map "intensity %" to the actual observed range.
+- **Photos:** `debug/raydrop-re/photos/pot-front.jpg` + `pot-back.jpg`.
+
+### Not yet done
+
+- **Step 1 DC voltage sweep** (unit powered). This is the next action — answers the DC-analog-vs-PWM question that gates the Phase 2 part choice.
+- Photograph the ultrasonic driver IC with readable markings → `debug/raydrop-re/photos/driver-ic.jpg`. Feeds Step 3 (IC identification).
+- Full PCB top-down photo → `board-top.jpg`.
+- Step 2 logic-analyzer capture (only if Step 1 is inconclusive).
+
+### Immediate next action for a resuming agent
+
+Walk the user through **Step 1 of [phase1-probe-checklist.md](phase1-probe-checklist.md)**:
+
+1. Plug the spare Raydrop into a direct wall outlet (not Kasa). Turn it on.
+2. DMM → **DC Volts, 20 V range**.
+3. Establish a GND reference on the board (barrel-jack shield, large-cap negative, heatsink tab — verify it's really GND).
+4. Measure voltage on each of the 3 pot wires (ignore the switch tab) at **knob max-mist** and at **knob min-mist-just-before-click**. Report the 6 numbers.
+5. Interpret per the checklist's Step 1 table:
+   - Wiper sweeps smoothly 0 → Vref → DC analog → digipot replacement path.
+   - Wiper bounces / averages to mid-value → probably PWM-through-RC → Step 2 (LA capture).
+   - Wiper stuck regardless of knob → re-check GND, then Step 2.
+
+Record findings in the checklist's observations log (partially filled in already).
+
+### BOM consequence to flag (don't order yet)
+
+None of the three MCP4131 variants on order (10k / 50k / 100k) is a direct match for this 5 kΩ pot. **If Step 1 confirms DC-analog rheostat, we'll need MCP4131-502E/P (5 kΩ, 128-step)** — not currently in the BOM. Decision is gated on the Step 1 verdict; if the Raydrop turns out to be a PWM case, the digipot is moot and we drive directly from ESP32 LEDC.
 
 **Do not proceed past Phase 1 without user review.** The Phase 1 → Phase 2 matrix at the bottom of [bom.md](bom.md) tells you which parts get used based on the probe verdict; if the verdict lands outside the matrix (e.g. encoded comms), stop and reassess before ordering more parts or writing firmware.
 

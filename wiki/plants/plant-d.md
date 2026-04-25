@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-04-22
+updated: 2026-04-24
 ---
 
 # Plant D
@@ -18,7 +18,7 @@ updated: 2026-04-22
 
 ## Current State
 
-Day 39, ten days post-topping: color improving — lighter medium-green, no longer alarming vs. Apr 20; compact symmetrical canopy; moisture rising to 60% (autopot active). See [2026-04-22](../daily/2026-04-22.md).
+Day 41, twelve days post-topping, Day 4 of LST: medium-green healthy canopy; main shoots bent and anchored (LST started Apr 20, all plants); moisture jumped from 60% (Apr 22) to 83% today — autopot feeding aggressively; no visible stress, continue monitoring root zone. See [2026-04-24](../daily/2026-04-24.md).
 
 ## Timeline
 
@@ -36,6 +36,9 @@ Day 39, ten days post-topping: color improving — lighter medium-green, no long
 - 2026-04-12 — [Day 29: **Topped above node 4**; both primaries now in recovery; LST target ~Apr 17–19](../daily/2026-04-12.md)
 - 2026-04-18 — [Day 35: Recovery Day 6; healthy multi-branch canopy; **LST due now**; v1.2 sensor → v2.0 swap](../daily/2026-04-18.md)
 - 2026-04-19 — [Day 36: healthy multi-branch canopy; **LST overdue** (Day 7 post-topping); moisture stable ~26%](../daily/2026-04-19.md)
-- 2026-04-20 — [Day 37: ⚠️ lighter green than peers — monitoring; **LST critically overdue** (Day 8 post-topping); moisture stable ~42%](../daily/2026-04-20.md)
+- 2026-04-20 — [Day 37: ⚠️ lighter green than peers — monitoring; moisture stable ~42%](../daily/2026-04-20.md)
+- 2026-04-20 — [Day 37: **LST started** — main shoots bent ~45° outward, anchored to pot rim (done evening, after 14:00 photo session)](../daily/2026-04-20.md)
 - 2026-04-21 — [Day 38: photos only; compact bushy lighter-green canopy; no spots or damage; consistent with prior lighter-green observations](../daily/2026-04-21.md)
 - 2026-04-22 — [Day 39: color improving — lighter medium-green, no longer alarming vs. Apr 20; compact symmetrical canopy; moisture rising to 60% (autopot active)](../daily/2026-04-22.md)
+- 2026-04-23 — [Day 40: photos only; medium-to-lighter green canopy; healthy; heavy humidity haze in tent (humidifier oscillation events earlier)](../daily/2026-04-23.md)
+- 2026-04-24 — [Day 41: medium-green healthy canopy; moisture jumped from 60% (Apr 22) to 83% — autopot feeding aggressively; no visible stress](../daily/2026-04-24.md)

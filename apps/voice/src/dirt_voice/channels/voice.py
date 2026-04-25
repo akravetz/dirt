@@ -95,6 +95,15 @@ WAKE_AUDIO_CAPTURE_FLOOR = 0.3  # save WAV when score is in ambiguous zone
 WAKE_DEBOUNCE_S = 3.0
 WAKE_WARMUP_FRAMES = 12  # ~1s at 80ms/frame — drop post-conversation echo tail
 
+# Harvest-only mode (DIRT_VOICE_HARVEST_ONLY=1): every wake fire is logged and
+# the audio clip is saved, but no Pipecat conversation opens. Used to collect
+# guaranteed-negative captures for wake-word v5 retraining — operator runs the
+# service while NOT saying the wake word, so anything that fires above the
+# (lowered) floor is a hard negative by construction. See
+# wiki/decisions/2026-04-23-wake-word-v5-passive-harvest.md.
+HARVEST_AUDIO_CAPTURE_FLOOR = 0.15  # lower floor — no UX cost to firing
+HARVEST_DEBOUNCE_S = 5.0  # longer debounce — avoid near-duplicate spam
+
 # Ring buffer of recent audio frames for hard-negative harvesting. 24 frames
 # * 80 ms = ~1.9 s of context, enough to capture the full wake-phrase window
 # regardless of where within the frame the peak score lands.
@@ -248,8 +257,14 @@ def _save_wake_audio_clip(
         w.writeframes(audio_bytes)
 
 
-async def wait_for_wake(device: int, *, wake_audio_dir: Path) -> float:
+async def wait_for_wake(
+    device: int, *, wake_audio_dir: Path, harvest_only: bool = False
+) -> float:
     """Listen until 'hey Claudia' fires. Returns the detection score."""
+    capture_floor = (
+        HARVEST_AUDIO_CAPTURE_FLOOR if harvest_only else WAKE_AUDIO_CAPTURE_FLOOR
+    )
+    debounce_s = HARVEST_DEBOUNCE_S if harvest_only else WAKE_DEBOUNCE_S
     model, model_name = _load_wake_model()
     # openwakeword carries ~1.5s of internal mel/embedding state across calls.
     # Without this, stale features from the prior conversation (plus TTS tail
@@ -295,7 +310,7 @@ async def wait_for_wake(device: int, *, wake_audio_dir: Path) -> float:
             if frames_seen <= WAKE_WARMUP_FRAMES:
                 continue
             now = time.monotonic()
-            if score >= WAKE_THRESHOLD and (now - last_fire) >= WAKE_DEBOUNCE_S:
+            if score >= WAKE_THRESHOLD and (now - last_fire) >= debounce_s:
                 last_fire = now
                 logger.info(f"wake detected (score={score:.3f})")
                 log_event(
@@ -329,7 +344,7 @@ async def wait_for_wake(device: int, *, wake_audio_dir: Path) -> float:
                 # best hard-negative corpus for the next training run.
                 # Scores below 0.3 are mostly noise/silence, not worth
                 # hoarding.
-                if score >= WAKE_AUDIO_CAPTURE_FLOOR:
+                if score >= capture_floor:
                     _save_wake_audio_clip(
                         recent_frames,
                         score,
@@ -545,31 +560,51 @@ async def main() -> None:
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, main_task.cancel)
 
+    harvest_only = settings.voice_harvest_only
     jabra = find_jabra()
     logger.info(f"Jabra device index: {jabra} (pid={os.getpid()})")
+    if harvest_only:
+        logger.info(
+            "Harvest-only mode: wake fires will be captured but no conversation "
+            f"will start. Floor lowered to {HARVEST_AUDIO_CAPTURE_FLOOR}."
+        )
     _log_event(
-        {"type": "channel_started", "device_index": jabra},
+        {
+            "type": "channel_started",
+            "device_index": jabra,
+            "harvest_only": harvest_only,
+        },
         sessions_dir,
     )
 
     try:
         while True:
-            score = await wait_for_wake(jabra, wake_audio_dir=wake_audio_dir)
+            score = await wait_for_wake(
+                jabra, wake_audio_dir=wake_audio_dir, harvest_only=harvest_only
+            )
             # One ID per wake, threaded through: the voice session log, sub-agent
             # invocations (via the CONVERSATION_ID ContextVar), and
             # `conversation_end`. Lets `jq` join a voice turn to its ask_wiki
             # traces after the fact.
             conversation_id = str(uuid.uuid4())
-            cid_token = CONVERSATION_ID.set(conversation_id)
             _log_event(
                 {
                     "type": "wake",
                     "score": round(score, 3),
                     "conversation_id": conversation_id,
+                    "harvest_only": harvest_only,
                 },
                 sessions_dir,
             )
 
+            if harvest_only:
+                # No conversation, no sub-agents — skip the ContextVar entirely.
+                logger.info(
+                    "← harvest-only: skipping conversation, back to listening\n"
+                )
+                continue
+
+            cid_token = CONVERSATION_ID.set(conversation_id)
             try:
                 context = await run_conversation(
                     jabra,

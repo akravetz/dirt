@@ -107,17 +107,42 @@ Write the IC part number to the observations log.
 
 ## Observations log (fill in during the session)
 
+### Session 1 — 2026-04-24 (paused mid-flight)
+
 ```
-Date: _____________
-Duration (min): _____________
+Date: 2026-04-24
+Duration (min): ~45 (paused before Step 1 voltage sweep)
 
 === Board photos ===
-[list file names]
+debug/raydrop-re/photos/pot-front.jpg   — pot body with B5K silkscreen + switch tab visible
+debug/raydrop-re/photos/pot-back.jpg    — pot pins + heat-shrunk JST wires
+[TODO] board-top.jpg   — full PCB top-down
+[TODO] driver-ic.jpg   — ultrasonic driver IC close-up with readable markings
 
 === Pot identification ===
-Silkscreen designator:  _____________
-Resistance code on body: _____________   (e.g. "103" = 10 kΩ)
-3-pin orientation:       _____________
+Silkscreen designator:  B5K
+Resistance code on body: (B5K = 5 kΩ linear-taper, standard Asian convention)
+3-pin orientation:       Standard 3-pin + integrated SPST power switch on a bent tab off
+                         the metal housing (clicks off at min rotation).
+                         4-wire JST = 3 pot pins + 1 switch tab.
+                         Switch return commons internally to the pot chassis, which ties
+                         to one of the pot outers on the PCB — so the continuity-beeping
+                         "switch pair" is (switch tab) + (chassis-tied outer).
+
+=== Resistance sweep (DMM, unit unplugged; done before Step 1 voltage probe) ===
+Probed between wiper + non-chassis-outer, DMM range 200 kΩ:
+  Knob at max-mist:                    0.002 kΩ  (≈ probe lead residual; effectively 0)
+  Knob at min-mist (just before click): 2.55 kΩ
+  Sweep behavior:                       smooth, monotonic — clean rheostat
+
+Anomaly: measured max (2.55 kΩ) is half the label (5 kΩ).
+Most likely cause: mechanical knob rotation covers only ~half the electrical track;
+switch-cam dead zone consumes the rest. Driver IC sees 0→~2.55 kΩ as the effective
+control range. Firmware "intensity %" will map to the observed range, not the
+nominal label.
+
+=== Step 1 voltage sweep (unit powered) ===
+[TODO — next session]
 Outer A measured:        _____ V
 Outer B measured:        _____ V
 Wiper @ min knob:        _____ V
@@ -126,7 +151,8 @@ Wiper @ max knob:        _____ V
 Sweep behavior:          [smoothly varying / bouncing / stuck / other]
 
 === Verdict (Step 1) ===
-[ ] DC analog     — Vref = _____ V,  pot = _____ Ω  → digipot MCP41xxx
+[ ] DC analog     — Vref = _____ V,  pot = 5 kΩ labeled / 2.55 kΩ observed range
+                    → digipot MCP4131-502E/P (5 kΩ; NOT in current BOM, needs ordering)
 [ ] PWM suspected — proceed to Step 2
 [ ] Stuck / weird — proceed to Step 2 for nearby-pin survey
 
@@ -143,18 +169,29 @@ Duty cycle @ max knob:   _____ %
 [ ] Encoded comms — reverse-engineer separately
 
 === Driver IC ===
-Markings:                _____________
+Markings:                [TODO — photograph and identify]
 Datasheet URL:           _____________
 Intensity input pin:     _____________
 Expected signal:         [DC / PWM / other]
 
 === Phase 2 recommendation ===
-[ ] Digipot MCP4131/MCP41050/MCP41100 on SPI (DC replacement)
+[ ] Digipot MCP4131-502 (5 kΩ) — DC-analog replacement (pending Step 1 verdict)
+[ ] Digipot MCP4131-103/503/104 (10 kΩ / 50 kΩ / 100 kΩ, already on order) — NOT a drop-in match
 [ ] ESP32 GPIO direct PWM via LEDC (PWM replacement)
 [ ] Other: _____________
 
 === Follow-ups / gotchas ===
-[notes]
+- Primary Raydrop stays on Kasa plug + VPD loop throughout probing (spare is the victim).
+  No need to stop `dirt-hwd`.
+- Switch wiring: SPST common is internally tied to one pot outer. When we replace the
+  pot with a digipot, we must preserve the switch path — otherwise the Raydrop won't
+  power on. Easiest: leave the switch tab + chassis-outer wiring intact, only replace
+  the (other outer) + (wiper) connections with the digipot.
+- None of the three MCP4131 variants on order (10/50/100 kΩ) matches the 5 kΩ pot.
+  Need MCP4131-502E/P before Phase 2 hardware work starts — do NOT order until Step 1
+  confirms DC-analog case (PWM case skips the digipot entirely).
 ```
 
-After filling this in, paste the verdict into the [decision doc](../../../wiki/decisions/2026-04-23-raydrop-mcu-mist-control.md) as a "Phase 1 findings" revision block, and the epic can move from "planning" to "in-progress." `debug/raydrop-re/` stays as scratch for photos + `.sr` capture files — gitignored by design per `CLAUDE.md` (`debug/` is the agent sandbox).
+---
+
+After filling this in, paste the verdict into the [decision doc](../../../wiki/decisions/2026-04-23-raydrop-mcu-mist-control.md) as a "Phase 1 findings" revision block. `debug/raydrop-re/` stays as scratch for photos + `.sr` capture files — gitignored by design per `CLAUDE.md` (`debug/` is the agent sandbox).

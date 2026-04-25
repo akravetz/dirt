@@ -2,9 +2,9 @@
 title: "Hardware — Voice Channel (Claudia) — Pipecat pipeline"
 type: hardware
 sources: []
-related: [wiki/hardware/jabra.md, wiki/decisions/2026-04-16-voice-pipeline-selections.md, wiki/decisions/2026-04-16-wake-word-training-strategy.md, docs/adrs/005-agent-architecture.md, docs/references/pipecat/INDEX.md, docs/epics/live-audio/README.md]
+related: [wiki/hardware/jabra.md, wiki/decisions/2026-04-16-voice-pipeline-selections.md, wiki/decisions/2026-04-16-wake-word-training-strategy.md, wiki/decisions/2026-04-23-wake-word-v5-passive-harvest.md, docs/adrs/005-agent-architecture.md, docs/references/pipecat/INDEX.md, docs/epics/live-audio/README.md]
 created: 2026-04-18
-updated: 2026-04-18
+updated: 2026-04-23
 ---
 
 # Voice Channel (Claudia)
@@ -126,6 +126,10 @@ Then `systemctl --user restart dirt-voice` and reproduce. In the DEBUG output, c
 4. `LLMRunFrame` → Anthropic request — did the LLM run?
 
 Whichever stage is missing its event on the failed turn is where the bug lives. Revert to INFO when done; DEBUG is noisy.
+
+## Harvest-only mode (wake-word v5 passive negative collection)
+
+Set `DIRT_VOICE_HARVEST_ONLY=1` in the service environment and restart `dirt-voice` to enter passive-harvest mode: every wake fire is logged + saved as a WAV, but **no Pipecat conversation opens**. Used to bulk-collect guaranteed-negative captures during a "no wake word said" window for v5 retraining. Capture floor drops from 0.3 → 0.15 and debounce rises from 3 s → 5 s. Wake events in `sessions/voice/*.jsonl` get a `harvest_only: true` flag for filtering. Full operator workflow + rationale: [Wake-Word v5 Plan](../decisions/2026-04-23-wake-word-v5-passive-harvest.md).
 
 ## Deferred Enhancements
 

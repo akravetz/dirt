@@ -20,14 +20,17 @@
 //     return the same count.
 //   - ESC scoped onKeyDown → onClose.
 import type { ReactNode } from "react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
+import { HoverTimestamp } from "@/ui/HoverTimestamp";
 import {
   type PlantCode,
   STICKER_BG,
+  STICKER_FILL,
   STICKER_STROKE,
   type StickerColor,
 } from "@/ui/plant-types";
+import { RangeSwitch, type SparklineRange } from "@/ui/RangeSwitch";
 
 // react-markdown wraps output in <p> by default. Timeline entries sit
 // inside <span>s and the note already has an italic <p> wrapper, so we
@@ -70,9 +73,16 @@ interface PlantDetailPayload {
 interface PlantDetailProps {
   payload: PlantDetailPayload;
   moistureHistory: readonly MoistureHistoryPoint[];
-  irrigationEvents24h: number;
+  moistureRange: SparklineRange;
+  onMoistureRangeChange: (next: SparklineRange) => void;
   onClose: () => void;
 }
+
+const RANGE_LABEL: Record<SparklineRange, string> = {
+  "1h": "last 1h",
+  "24h": "last 24h",
+  "7d": "last 7d",
+};
 
 const STATUS_LABEL: Record<PlantDetailPayload["status"], string> = {
   primary: "Primary",
@@ -211,53 +221,128 @@ function MoistureHero({
   );
 }
 
-// SVG chart dimensions chosen to read like the band in
-// docs/plans/refs/plant-detail-a.png.
-const CHART_W = 480;
-const CHART_H = 80;
+// Normalized viewBox mirrors ui/Sparkline.tsx so the crosshair / area-fill
+// treatment reads identically in the drawer. vector-effect=non-scaling-stroke
+// keeps strokes crisp when the svg is stretched to h-20 w-full.
+const CHART_VB_W = 100;
+const CHART_VB_H = 30;
 
 function MoistureChart({
   points,
   stickerColor,
+  hoverIndex,
+  onHoverIndex,
 }: {
   points: readonly MoistureHistoryPoint[];
   stickerColor: StickerColor;
+  hoverIndex: number | null;
+  onHoverIndex: (index: number | null) => void;
 }): ReactNode {
   if (points.length === 0) return null;
   const values = points.map((p) => p.value);
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = max - min || 1;
-  const n = points.length;
-  const path = points
+  const stepX = points.length === 1 ? 0 : CHART_VB_W / (points.length - 1);
+  const xFor = (i: number): number =>
+    points.length === 1 ? CHART_VB_W / 2 : i * stepX;
+  const yFor = (v: number): number => CHART_VB_H - ((v - min) / range) * CHART_VB_H;
+
+  const linePath = points
     .map((p, i) => {
-      const x = (i / Math.max(n - 1, 1)) * CHART_W;
-      const y = CHART_H - ((p.value - min) / range) * CHART_H;
-      return `${i === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
+      const cmd = i === 0 ? "M" : "L";
+      return `${cmd} ${xFor(i).toFixed(2)} ${yFor(p.value).toFixed(2)}`;
     })
     .join(" ");
+  const areaPath = `${linePath} L ${CHART_VB_W.toFixed(2)} ${CHART_VB_H} L 0 ${CHART_VB_H} Z`;
+
+  const handleMove = (event: React.PointerEvent<SVGSVGElement>): void => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (rect.width <= 0) {
+      onHoverIndex(null);
+      return;
+    }
+    const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+    onHoverIndex(Math.round(ratio * (points.length - 1)));
+  };
+
+  const clampedHover =
+    hoverIndex === null ? null : Math.max(0, Math.min(points.length - 1, hoverIndex));
+  const hovered = clampedHover === null ? null : (points[clampedHover] ?? null);
+  const hoverX = clampedHover === null ? null : xFor(clampedHover);
+  const hoverY = hovered ? yFor(hovered.value) : null;
+  const hoverRatio =
+    clampedHover === null ? null : clampedHover / (points.length - 1 || 1);
+
   return (
-    <svg
-      aria-label="moisture history"
-      role="img"
-      viewBox={`0 0 ${CHART_W} ${CHART_H}`}
-      preserveAspectRatio="none"
-      className="h-20 w-full"
-      fill="none"
-    >
-      <title>24h soil moisture</title>
-      <path d={path} className={STICKER_STROKE[stickerColor]} strokeWidth="1.5" />
-    </svg>
+    <div className="relative cursor-crosshair">
+      <svg
+        aria-label="moisture history"
+        role="img"
+        viewBox={`0 0 ${CHART_VB_W} ${CHART_VB_H}`}
+        preserveAspectRatio="none"
+        className="block h-20 w-full"
+        fill="none"
+        onPointerMove={handleMove}
+        onPointerLeave={() => {
+          onHoverIndex(null);
+        }}
+      >
+        <path d={areaPath} className={STICKER_FILL[stickerColor]} opacity="0.1" />
+        <path
+          d={linePath}
+          className={STICKER_STROKE[stickerColor]}
+          strokeWidth="0.8"
+          fill="none"
+          vectorEffect="non-scaling-stroke"
+        />
+        {hoverX !== null && hoverY !== null ? (
+          <g aria-label="crosshair">
+            <line
+              x1={hoverX}
+              y1={0}
+              x2={hoverX}
+              y2={CHART_VB_H}
+              className="stroke-ink"
+              strokeWidth="0.4"
+              strokeDasharray="1 1"
+              vectorEffect="non-scaling-stroke"
+              opacity="0.55"
+            />
+            <circle
+              cx={hoverX}
+              cy={hoverY}
+              r="1.3"
+              className={`${STICKER_FILL[stickerColor]} stroke-paper`}
+              strokeWidth="0.5"
+              vectorEffect="non-scaling-stroke"
+            />
+          </g>
+        ) : null}
+      </svg>
+      {hovered !== null && hoverRatio !== null ? (
+        <span
+          role="tooltip"
+          // eslint-disable-next-line no-restricted-syntax -- runtime-computed hover position; not expressible in build-time Tailwind classes
+          style={{ left: `${hoverRatio * 100}%` }}
+          className="pointer-events-none absolute -top-3.5 -translate-x-1/2 whitespace-nowrap border border-rule-strong bg-paper px-1.5 py-px font-mono text-fs-10 tabular-nums text-ink"
+        >
+          {Math.round(hovered.value)}%
+        </span>
+      ) : null}
+    </div>
   );
 }
 
 export function PlantDetail({
   payload,
   moistureHistory,
-  irrigationEvents24h,
+  moistureRange,
+  onMoistureRangeChange,
   onClose,
 }: PlantDetailProps): ReactNode {
   const dialogRef = useRef<HTMLElement | null>(null);
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   // Imperative focus-on-mount so ESC + screen-reader pickup work
   // without an extra click.
   useEffect(() => {
@@ -325,17 +410,24 @@ export function PlantDetail({
         <MoistureHero currentPct={payload.moisture.current_pct} target={bandTarget} />
 
         <section className="flex flex-col gap-2">
-          <header className="flex items-baseline justify-between">
+          <header className="flex items-baseline justify-between gap-3">
             <h3 className="font-sans text-fs-10 font-semibold uppercase tracking-cap-med text-ink-3">
-              Soil moisture · last 24h
+              Soil moisture · {RANGE_LABEL[moistureRange]}
             </h3>
-            <span className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
-              {irrigationEvents24h} irrigation
-            </span>
+            <div className="flex items-baseline gap-3">
+              <HoverTimestamp
+                hoverIndex={hoverIndex}
+                points={moistureHistory}
+                className="font-mono text-fs-10 tabular-nums text-ink-2"
+              />
+              <RangeSwitch value={moistureRange} onChange={onMoistureRangeChange} />
+            </div>
           </header>
           <MoistureChart
             points={moistureHistory}
             stickerColor={payload.sticker_color}
+            hoverIndex={hoverIndex}
+            onHoverIndex={setHoverIndex}
           />
         </section>
 

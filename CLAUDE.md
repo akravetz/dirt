@@ -79,6 +79,9 @@ The backend runs as two systemd-managed processes: `dirt-hwd` (hardware + ingest
 - **Firmware test**: `cd firmware && pio test -e native` (runs on host, no hardware needed)
 - **Firmware build**: `cd firmware && pio run -e nano`
 - **Firmware upload**: `cd firmware && pio run -e nano -t upload`
+- **Web UI dev server**: `pnpm --dir web-ui dev` (Vite on :5173, MSW mocks on)
+- **Web UI production build**: `pnpm --dir web-ui build` — writes `web-ui/dist/` which the running `dirt-web` service serves directly (SPA fallback + `/assets/` mount; no restart needed, just reload the browser).
+- **Web UI typecheck / lint / test**: `pnpm --dir web-ui {typecheck,lint,test}`
 
 ### Database
 

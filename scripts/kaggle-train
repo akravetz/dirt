@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# Push the wake-word training kernel to Kaggle, poll until it finishes, pull
+# the trained ONNX + tflite artifacts into the current directory.
+#
+# Prerequisites:
+#   - kaggle is installed as a workspace dev dep (`uv add --dev kaggle`)
+#   - ~/.kaggle/kaggle.json with a valid API token (chmod 600)
+#   - The three datasets referenced in kernel-metadata.json exist in Kaggle.
+#
+# Usage:
+#   scripts/kaggle-train              # push + poll + pull
+#   scripts/kaggle-train --push-only  # push, skip polling (check web UI)
+#   scripts/kaggle-train --pull-only  # skip push + poll, only pull latest output
+#   scripts/kaggle-train --resume     # skip push, poll + pull (use after a manual push or interrupted run)
+
+set -euo pipefail
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+KERNEL_DIR="$REPO_ROOT/training/wake-word-kaggle"
+META="$KERNEL_DIR/kernel-metadata.json"
+POLL_INTERVAL=20
+OUT_DIR="${KAGGLE_TRAIN_OUT_DIR:-$REPO_ROOT/training/wake-word-kaggle/artifacts}"
+
+KAGGLE=(uv run --project "$REPO_ROOT" kaggle)
+"${KAGGLE[@]}" --version >/dev/null 2>&1 || {
+  echo "error: kaggle CLI not available via uv. Run: uv add --dev kaggle" >&2
+  exit 1
+}
+
+[ -f "$META" ] || { echo "error: missing $META" >&2; exit 1; }
+
+KERNEL_ID=$(python3 -c "import json,sys; print(json.load(open('$META'))['id'])")
+echo "kernel: $KERNEL_ID"
+
+mode=${1:-full}
+
+if [ "$mode" != "--pull-only" ] && [ "$mode" != "--resume" ]; then
+  echo "==> pushing kernel"
+  "${KAGGLE[@]}" kernels push -p "$KERNEL_DIR"
+fi
+
+if [ "$mode" = "--push-only" ]; then
+  echo "push complete. Watch progress at https://www.kaggle.com/code/$KERNEL_ID"
+  exit 0
+fi
+
+if [ "$mode" != "--pull-only" ]; then
+  echo "==> polling (every ${POLL_INTERVAL}s; Ctrl-C to stop — kernel keeps running)"
+  while true; do
+    raw=$("${KAGGLE[@]}" kernels status "$KERNEL_ID" 2>&1 | tail -n 1)
+    echo "  $(date +%H:%M:%S) $raw"
+    # Status line shape: '<id> has status "KernelWorkerStatus.RUNNING"'.
+    # Match against the known terminal enum values, not arbitrary substrings —
+    # otherwise a permission-denied message containing "error" trips early-exit.
+    case "$raw" in
+      *KernelWorkerStatus.COMPLETE*) break ;;
+      *KernelWorkerStatus.ERROR*|*KernelWorkerStatus.CANCEL*)
+        echo "kernel did not succeed. See https://www.kaggle.com/code/$KERNEL_ID" >&2
+        exit 1
+        ;;
+    esac
+    sleep "$POLL_INTERVAL"
+  done
+fi
+
+echo "==> pulling output -> $OUT_DIR"
+mkdir -p "$OUT_DIR"
+"${KAGGLE[@]}" kernels output "$KERNEL_ID" -p "$OUT_DIR"
+ls -lh "$OUT_DIR"

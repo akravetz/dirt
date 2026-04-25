@@ -23,6 +23,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { type components, createDirtApiClient } from "@/api-client";
 import { Gauge } from "@/ui/Gauge";
+import { HoverTimestamp } from "@/ui/HoverTimestamp";
 import { HumidifierStrip } from "@/ui/HumidifierStrip";
 import { HumidifierTile } from "@/ui/HumidifierTile";
 import { PlantDetail } from "@/ui/PlantDetail";
@@ -97,38 +98,6 @@ function formatInteger(value: number): string {
   return `${Math.round(value)}`;
 }
 
-// Shared timestamp shown in the History section header while any
-// sparkline is hovered. All five sparklines fetch with the same `range`
-// and therefore share a bucket grid — so `points[hoverIndex].ts` is the
-// same across metrics and can be read off whichever result has data.
-const HISTORY_TS_FMT = new Intl.DateTimeFormat(undefined, {
-  month: "short",
-  day: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false,
-});
-
-function HistoryHoverTs({
-  hoverIndex,
-  points,
-}: {
-  hoverIndex: number | null;
-  points: readonly { ts: string }[];
-}) {
-  if (hoverIndex === null) return null;
-  const clamped = Math.max(0, Math.min(points.length - 1, hoverIndex));
-  const ts = points[clamped]?.ts;
-  if (!ts) return null;
-  const date = new Date(ts);
-  if (Number.isNaN(date.getTime())) return null;
-  return (
-    <span className="font-mono text-fs-11 tabular-nums text-ink-2">
-      {HISTORY_TS_FMT.format(date)}
-    </span>
-  );
-}
-
 function DashboardPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["sensors.current"],
@@ -146,6 +115,7 @@ function DashboardPage() {
   // is enabled exactly when this is non-null, so flipping the state
   // fires GET /api/plants/{code}.
   const [selectedPlant, setSelectedPlant] = useState<PlantCode | null>(null);
+  const [plantMoistureRange, setPlantMoistureRange] = useState<SparklineRange>("24h");
 
   // Five parallel history queries keyed on [range, metric]. useQueries
   // is the correct idiom for a fixed-shape fan-out: one result slot per
@@ -246,11 +216,14 @@ function DashboardPage() {
     enabled: selectedPlant !== null,
   });
   const plantMoistureQuery = useQuery({
-    queryKey: ["plants.moisture", selectedPlant, "24h"] as const,
+    queryKey: ["plants.moisture", selectedPlant, plantMoistureRange] as const,
     queryFn: async () => {
       if (selectedPlant === null) throw new Error("no plant selected");
       const { data, error } = await api.GET("/api/plants/{code}/moisture", {
-        params: { path: { code: selectedPlant }, query: { range: "24h" } },
+        params: {
+          path: { code: selectedPlant },
+          query: { range: plantMoistureRange },
+        },
       });
       if (error) throw error;
       return data;
@@ -324,7 +297,7 @@ function DashboardPage() {
             <h2 className="font-sans text-fs-11 font-semibold uppercase tracking-cap-wide text-ink-2">
               History
             </h2>
-            <HistoryHoverTs
+            <HoverTimestamp
               hoverIndex={hoverIndex}
               points={historyResults.find((r) => r.data)?.data?.points ?? []}
             />
@@ -366,7 +339,8 @@ function DashboardPage() {
         <PlantDetail
           payload={plantDetailQuery.data}
           moistureHistory={plantMoistureQuery.data?.points ?? []}
-          irrigationEvents24h={plantMoistureQuery.data?.irrigation_events_24h ?? 0}
+          moistureRange={plantMoistureRange}
+          onMoistureRangeChange={setPlantMoistureRange}
           onClose={() => {
             setSelectedPlant(null);
           }}

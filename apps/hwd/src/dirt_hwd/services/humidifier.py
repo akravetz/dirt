@@ -187,9 +187,10 @@ class HumidifierLoopService:
                     await plug.update()
                     is_on = bool(plug.is_on)
 
-                    stage = await self._grow.current_stage()
-                    lights = await self._grow.lights_state()
-                    vpd_lo, vpd_hi = (await self._grow.current_targets())["vpd_kpa"]
+                    ctx = await self._grow.current_context()
+                    stage = ctx.stage
+                    lights = ctx.lights
+                    vpd_lo, vpd_hi = ctx.targets["vpd_kpa"]
                     turn_on_above = vpd_hi
                     turn_off_below = vpd_hi - deadband
 

@@ -4,7 +4,7 @@ type: environment
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/environment/temperature.md, wiki/concepts/vpd.md, wiki/overview.md, wiki/hardware/humidifier-control.md, wiki/decisions/2026-04-17-humidifier-kasa-ep10.md]
 created: 2026-04-06
-updated: 2026-04-22
+updated: 2026-04-24
 ---
 
 
@@ -45,6 +45,7 @@ VPD is the control-loop setpoint; RH is informational (temperature determines wh
 | 2026-04-19 | 54.69% now ✅ / 70.79% overnight avg ⚠️; VPD 1.51 kPa now ⚠️ / 0.68 kPa overnight | Overnight RH improving (76.95% → 70.79%); overnight VPD improving (0.46 → 0.68 kPa); daytime VPD above 1.2 ceiling → [2026-04-19](../daily/2026-04-19.md) |
 | 2026-04-20 | 62.37% now ✅ / 74.37% overnight avg ⚠️; VPD 1.12 kPa now ✅ / 0.57 kPa overnight | Daytime VPD in target at 14:00 (1.12 kPa ✅) — first time in range; overnight RH regressed (70.79% → 74.37%) — `dirt-hwd` restart still pending → [2026-04-20](../daily/2026-04-20.md) |
 | 2026-04-22 | 69.19% now ⚠️ / 52.06% overnight avg ✅; VPD 0.84 kPa now ✅ / 1.21 kPa overnight ✅ | **Overnight breakthrough**: RH 74.37% → 52.06% (in 45–55% veg target); VPD 0.57 → 1.21 kPa overnight; `dirt-hwd` restart confirmed effective; afternoon RH elevated (69%) but VPD in range (0.84 kPa) due to lower temp → [2026-04-22](../daily/2026-04-22.md) |
+| 2026-04-24 | 70.63% now ⚠️ / 51.81% overnight avg ✅; VPD 0.90 kPa now ✅ / 1.18 kPa overnight ✅ | Second consecutive overnight in 45–55% veg target; afternoon RH elevated (70.63%) but VPD in range (0.90 kPa) — proper tent temp (76°F) now providing the margin → [2026-04-24](../daily/2026-04-24.md) |
 
 ## Notable Events
 - **2026-03-20** — Dome propped open, room humidifier added to tent after RH consistently below 50% → [2026-03-27 daily](../daily/2026-03-27.md)
@@ -58,12 +59,13 @@ VPD is the control-loop setpoint; RH is informational (temperature determines wh
 - **2026-04-19** — Overnight improvement continues: RH 70.79% (was 76.95%), VPD 0.68 kPa (was 0.46). Daytime VPD running above ceiling: 1.31 kPa morning, 1.51 kPa at 14:00. Lights-off-aware feedforward and dropped safety timers deployed today; should further improve overnight profile. See [decisions/2026-04-19-lights-off-aware-humidifier.md](../decisions/2026-04-19-lights-off-aware-humidifier.md) and [decisions/2026-04-19-drop-humidifier-safety-timers.md](../decisions/2026-04-19-drop-humidifier-safety-timers.md).
 - **2026-04-20** — Daytime VPD reached 1.12 kPa at 14:00 — in the 0.8–1.2 veg target for the first time. Overnight profile regressed: RH 74.37% (was 70.79%), VPD 0.57 kPa (was 0.68). Regression confirms `dirt-hwd` service restart is still pending — lights-off feedforward cannot activate until restarted. → [2026-04-20](../daily/2026-04-20.md)
 - **2026-04-22** — Overnight RH breakthrough: 52.06% avg (was 74.37%) — within the 45–55% veg target for the first time. Overnight VPD 1.21 kPa (was 0.57) — at the target ceiling. Both overnight metrics in veg target simultaneously for the first time this grow. Confirms `dirt-hwd` service restart activated the lights-off feedforward. Afternoon RH elevated (69.19%) but VPD (0.84 kPa) remains within target due to slightly lower tent temp (72.34°F). → [2026-04-22](../daily/2026-04-22.md)
+- **2026-04-24** — Overnight RH second consecutive night in veg target (51.81%). Afternoon RH still elevated (70.63%) but VPD holds in range (0.90 kPa) because tent temperature now tracks 74–76°F properly. New steady-state pattern: overnight in target, afternoon elevated but offset by correct temperature. VPD is clean across all three windows for the second consecutive day. → [2026-04-24](../daily/2026-04-24.md)
 
 ## Deployed Control System
 
 Bang-bang VPD controller on the `dirt` host:
 
-- **Sensor:** BME280 on the Arduino Nano tent-hub (I²C, addr `0x76`); `vpd_kpa` derived at ingest and stored alongside `humidity_pct` / `temperature_f`. Barometric pressure also captured. Replaced the original DHT22 on 2026-04-13 — see [decision 2026-04-20](../decisions/2026-04-20-bme280-sensor-swap.md).
+- **Sensor:** Sensirion SHT45 (PTFE cap, I²C `0x44`, GPIO 4/5) on the combined fan-controller ESP32-C3 SuperMini. Replaced the Arduino Nano + BME280 on 2026-04-23 after the BME280 was found to be +3.5°F / +23%RH off vs a calibrated handheld reference — see [decision 2026-04-22](../decisions/2026-04-22-sht45-tent-node-esp32.md). Historical `source=arduino` tent readings prior to 2026-04-23 00:22 MDT carry a +23%RH / +3.5°F caveat. `vpd_kpa`, `temperature_f`, `dew_point_f` derived at ingest from `temperature_c + humidity_pct`.
 - **Actuator:** Raydrop 4L ultrasonic humidifier plugged into a **TP-Link Kasa Ultra Mini EP10** smart plug, commanded over the LAN via [`python-kasa`](https://github.com/python-kasa/python-kasa).
 - **Logic:** `ON` when `vpd > upper_band`, `OFF` when `vpd < upper_band − 0.1 kPa`. Upper band is the current stage's VPD ceiling (1.2 kPa veg / 1.3 early flower / 1.5 late flower).
 - **Guards:** minimum off-time between switches (relay protection + let the last pulse reach the sensor) and a max-on safety timeout.
