@@ -60,15 +60,20 @@ def install_dependencies() -> None:
         "--index-url https://download.pytorch.org/whl/cu121"
     )
 
-    # Clone openwakeword's source — we need (a) shell-out to
-    # openwakeword/openwakeword/train.py for --generate_clips and (b)
-    # openwakeword/examples/custom_model.yml as the YAML baseline.
+    # Clone openwakeword's source — we install it from source via
+    # `pip install --no-deps`, NOT from PyPI, because:
+    #   - openwakeword 0.6.0 (last PyPI release with our auto_train shape)
+    #     declares Requires-Python <3.9; Kaggle's runtime is 3.12.
+    #   - Newer GitHub versions support 3.12 but transitively pull
+    #     `tflite-runtime`, which isn't published for cp312 + Linux on PyPI.
+    # The `--no-deps` flag dodges the tflite-runtime resolver failure;
+    # we install all the actual deps explicitly in the next pip call.
     if not (WORK / "openwakeword").exists():
         sh("git clone https://github.com/dscripka/openwakeword")
+    sh("pip install --quiet --no-deps ./openwakeword")
 
     sh(
         "pip install --quiet "
-        "openwakeword==0.6.0 "
         "mutagen==1.47.0 torchinfo==1.8.0 torchmetrics==1.2.0 "
         "speechbrain==0.5.14 audiomentations==0.33.0 torch-audiomentations==0.11.0 "
         "acoustics==0.2.6 onnxruntime==1.22.1 ai_edge_litert==1.4.0 onnxsim "
