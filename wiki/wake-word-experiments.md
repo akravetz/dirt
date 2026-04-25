@@ -368,3 +368,86 @@ Three independent fixes, each cheap to apply, expected to compound.
 
 #### Results
 *Pending.* Push after v7 lands; expected v8 lift over v7: +5–15 pp F1 net.
+
+### v9 — 2026-04-25 (failed in 4 min)
+
+**Status:** failed at install — `ModuleNotFoundError: No module named 'openwakeword'`
+**Kernel commit:** `a811829`
+**Wall time:** ~4 minutes (crashed before training started)
+
+#### What changed (vs v8 plan)
+- Same training architecture as v8 (per-subset aug, real-audio F1 selection,
+  512/50/200 batch composition).
+- Pipeline restructured: kernel is now a thin shim that installs deps + clones
+  repo at a pinned SHA + hands off to the `dirt_wake_word.main` library.
+- SHA-injection in `scripts/kaggle-train` so each push pins to
+  `git rev-parse HEAD`. Kernel was reproducibly tied to commit `a811829`.
+
+#### Why it failed
+After the library extract (commit `5a8f23b`) imports moved to
+top-of-file in `dirt_wake_word/train.py`:
+
+```python
+from openwakeword.data import mmap_batch_generator   # line 22
+```
+
+A previous commit (`20f88eb`) had dropped `pip install -e ./openwakeword
+--no-deps` from the shim, on the wrong assumption that Kaggle's base
+image ships openwakeword 0.6.0. **It does not.** The module is niche
+enough that it's not in the GPU base image. The eager top-level import
+crashed at module load:
+
+```
+File "/kaggle/working/dirt/apps/wake-word/src/dirt_wake_word/train.py", line 22
+    from openwakeword.data import mmap_batch_generator
+ModuleNotFoundError: No module named 'openwakeword'
+```
+
+#### Fix
+Add `openwakeword==0.6.0` to the existing pip install batch in the shim's
+`install_dependencies()`. PyPI install (not editable) — the cloned
+openwakeword source is still needed for two specific files (the
+train.py CLI shell-out for `--generate_clips` and the
+`examples/custom_model.yml` baseline) but the package itself comes from
+PyPI. Commit: `d7a9704`.
+
+#### Lesson
+The lesson the local pre-flight import check now codifies: assumptions
+about base-image contents are unreliable across image refreshes.
+Pre-flight catches this class only if the [wake-word] extras are
+installed locally — when they aren't, the check explicitly returns
+"deps not installed locally — skipping deeper check" and we lose the
+guarantee. Either install the [wake-word] extras locally, or accept
+that this exact bug class will surface on Kaggle. v9 was the bill for
+that trade-off.
+
+### v10 — 2026-04-25 (in flight)
+
+**Status:** running on Kaggle (kernel version 15, pushed 12:14)
+**Model artifact:** `var/wake-word/models/2026-04-25-v10/hey_claudia.onnx` (when pulled)
+**Kernel commit:** `d7a9704`
+
+#### What changed (vs v9)
+- Restored `openwakeword==0.6.0` to the shim's pip install batch (the
+  v9 fix above).
+- No training-architecture changes — this is the **first successful
+  run of the v8 design** (per-subset aug, real-audio F1 selection,
+  512/50/200 batch composition).
+
+#### Why
+v9 was a pure-infrastructure failure; v10 is the actual baseline for
+all the v8 architectural choices we've staged.
+
+#### Training config
+Identical to v8:
+- `max_negative_weight`: 500
+- `batch_n_per_class`: 512 / 50 / 200
+- `steps`: 20 000
+- Per-subset augmentation (realmic_*/harvested_* skip RIR)
+- Best-checkpoint: real-audio F1 against `validation/` (28 good / 76 bad)
+
+#### Validation set
+- Same as v8 (28 good / 76 bad — `dirt-wakeword-validation` v2)
+
+#### Results
+*Pending.* ~30–90 min on free GPU tier.
