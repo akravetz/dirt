@@ -43,12 +43,16 @@ testpaths = [
     "apps/shared/tests",
     "apps/mcp/tests",
     "apps/voice/tests",
+    "apps/wake-word/tests",
 ]
 asyncio_mode = "auto"
 asyncio_default_test_loop_scope = "session"
+markers = [
+    "smoke: end-to-end pipeline tests on tiny data; opt in via `pytest -m smoke`",
+]
 
 [tool.ruff]
-src = ["apps/hwd/src", "apps/web/src", "apps/shared/src", "apps/mcp/src", "apps/voice/src"]
+src = ["apps/hwd/src", "apps/web/src", "apps/shared/src", "apps/mcp/src", "apps/voice/src", "apps/wake-word/src"]
 line-length = 88
 # Agent-owned surfaces only. .claude/ is harness / skill scaffolding
 # shipped from upstream; scripts/ holds one-off maintenance tooling with
