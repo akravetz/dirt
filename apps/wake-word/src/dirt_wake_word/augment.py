@@ -15,9 +15,11 @@ unphysical 2-room cascade.
 from __future__ import annotations
 
 import os
+import wave
 from itertools import chain
 from pathlib import Path
 
+import numpy as np
 import torch
 import yaml
 from openwakeword.data import augment_clips
@@ -49,10 +51,42 @@ def _is_real_audio(name: str) -> bool:
     return name.startswith("realmic_") or name.startswith("harvested_")
 
 
+def _compute_total_length(positive_test_dir: Path, *, n_sample: int = 50) -> int:
+    """Median clip length + 750 ms buffer, floored at 32000 (2 s @ 16 kHz).
+
+    Ports upstream openwakeword/train.py's calculation — soft-fork skipped it.
+    """
+    clips = sorted(positive_test_dir.glob("*.wav"))
+    if not clips:
+        return 32000
+    rng = np.random.default_rng(0)
+    sampled = rng.choice(clips, size=min(n_sample, len(clips)), replace=False)
+    durations = []
+    for path in sampled:
+        with wave.open(str(path), "rb") as w:
+            durations.append(w.getnframes())
+    total = int(round(np.median(durations) / 1000) * 1000) + 12000
+    if total < 32000 or abs(total - 32000) <= 4000:
+        total = 32000
+    return total
+
+
 def augment_and_compute_features(*, work_dir: Path, out_dir: Path) -> None:
     """Run the per-subset augmentation pipeline + write feature .npys."""
     config = yaml.safe_load((work_dir / "my_model.yaml").read_text())
     feature_save_dir = out_dir / TARGET_WORD
+
+    # Upstream's train.py computes total_length post-generate_clips and stuffs
+    # it back into the config dict. Soft-fork skipped that hop, so we do it
+    # here before any augment_clips call. Persist it so _custom_train_model
+    # reads the same value on its own yaml reload.
+    total_length = _compute_total_length(feature_save_dir / "positive_test")
+    config["total_length"] = total_length
+    (work_dir / "my_model.yaml").write_text(yaml.dump(config))
+    print(
+        f"=== total_length = {total_length} samples ({total_length / 16000:.2f}s) ===",
+        flush=True,
+    )
 
     # background_paths handling (mirrors upstream)
     bg_dup = config.get("background_paths_duplication_rate") or [1] * len(
