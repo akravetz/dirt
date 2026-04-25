@@ -612,11 +612,11 @@ Switch to editable install: `pip install --no-deps -e ./openwakeword`.
 With `-e`, the runtime `__file__` points back at /kaggle/working/openwakeword/,
 which is exactly where our wget lands the resource files. Commit: `adadf02`.
 
-### v14 — 2026-04-25 (in flight)
+### v14 — 2026-04-25 (failed at 4 min on import)
 
-**Status:** running on Kaggle (kernel version 19)
-**Model artifact:** `var/wake-word/models/2026-04-25-v14/hey_claudia.onnx` (when pulled)
+**Status:** editable install completed but `import openwakeword` failed
 **Kernel commit:** `adadf02`
+**Wall time:** ~4 min
 
 #### What changed (vs v13)
 - Editable openwakeword install (the v13 fix above).
@@ -634,6 +634,67 @@ Sixth attempt at the v8 architectural baseline. The bug-tour table:
 | v13 | 22 m  | AudioFeatures resource path (non-editable install) |
 
 v14 should reach training proper.
+
+#### Training config
+Identical to v8 staged.
+
+#### Validation set
+- Same as v8 (28 good / 76 bad).
+
+#### Results
+The editable install ran (51 s wall, pip recognized openwakeword 0.6.0
+during a later install's resolver pass) but at runtime:
+
+```
+File ".../dirt_wake_word/train.py", line 22, in <module>
+    from openwakeword.data import mmap_batch_generator
+ModuleNotFoundError: No module named 'openwakeword'
+```
+
+`pip install -e` evidently lands a `.pth` somewhere the runtime python
+doesn't pick up on Kaggle's locked-down env (likely a user-local
+site-packages dir). Verified by the v13 history: same shim minus `-e`
+worked end-to-end through 22 minutes of generate_clips.
+
+#### Fix (v15)
+Revert to non-editable install (`pip install --no-deps ./openwakeword`)
+and instead address the *resource path* problem from a different angle:
+
+1. After install, discover the installed location via subprocess:
+   `python -c "import openwakeword; print(Path(openwakeword.__file__).parent)"`
+2. wget bundled resources into the cloned location (existing behavior).
+3. cp them into the installed location too.
+
+So both paths have the resources — robust to whichever side
+`AudioFeatures()` resolves from. Commit: `15a7dfc`.
+
+### v15 — 2026-04-25 (in flight)
+
+**Status:** running on Kaggle (kernel version 20)
+**Model artifact:** `var/wake-word/models/2026-04-25-v15/hey_claudia.onnx` (when pulled)
+**Kernel commit:** `15a7dfc`
+
+#### What changed (vs v14)
+- Reverted to non-editable openwakeword install.
+- Added resource-path discovery + dual-write (cloned + installed).
+- Otherwise identical to v14 / v13 / … / v8 staged.
+
+#### Why
+Seventh attempt at the v8 architectural baseline:
+
+| ver | wall  | failed at                                                  |
+|-----|-------|------------------------------------------------------------|
+| v9  |  4 m  | top-level openwakeword import                              |
+| v10 |  4 m  | pip install openwakeword (no py3.12 wheel)                 |
+| v11 |  6 m  | git checkout SHA (unpushed)                                |
+| v12 | 47 m  | augment.py KeyError: 'total_length'                        |
+| v13 | 22 m  | AudioFeatures resource path (non-editable, but no cp step) |
+| v14 |  4 m  | editable install — `import openwakeword` failed at runtime |
+
+If v15 doesn't reach training, this is becoming a tour rather than a
+fix sequence — at that point we should consider running upstream's
+unmodified Colab notebook on Kaggle to establish a baseline before
+soft-forking again.
 
 #### Training config
 Identical to v8 staged.
