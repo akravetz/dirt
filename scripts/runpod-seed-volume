@@ -1,4 +1,4 @@
-#!/usr/bin/env -S uv run --project /home/akcom/code/dirt python
+#!/usr/bin/env -S uv run --project /home/akcom/code/dirt python -u
 """One-time seed of a RunPod Network Volume with Kaggle datasets.
 
 Spawns a small CPU pod with python:3.11-slim, mounts the Network Volume at
@@ -35,7 +35,9 @@ from dotenv import load_dotenv
 
 REST_BASE = "https://rest.runpod.io/v1"
 POLL_EVERY_S = 30
-MAX_WALL_S = 60 * 60  # 1 h hard cap; expected ~10 min
+# 17 GB features dataset's download + unzip is the long pole, ~60-90 min
+# on RunPod's outbound. 2.5 h gives runway for retries.
+MAX_WALL_S = int(2.5 * 60 * 60)
 
 DATASETS = [
     "akravetz/dirt-wakeword-mine",
@@ -65,15 +67,55 @@ def _load_kaggle_creds() -> tuple[str, str]:
 
 
 def _build_seed_command(force: bool) -> str:
-    """Single bash one-liner: install kaggle CLI, download each slug, summarize."""
+    """Single bash command: start sshd (so we can debug if stalled), pip-install
+    kaggle, download each slug to /workspace/input/, summarize.
+
+    Keep this self-contained — python:3.11-slim has no sshd and no kaggle CLI;
+    every binary used here gets installed at the top.
+    """
     flag = "--force" if force else ""
     slugs = " ".join(DATASETS)
     return (
         "set -euo pipefail; "
+        # sshd + unzip — neither ships in python:3.11-slim. Unzip is for the
+        # partial-download recovery path further down.
+        "apt-get update -q && apt-get install -y -q openssh-server unzip >/dev/null; "
+        "mkdir -p /run/sshd /root/.ssh; "
+        'if [ -n "${PUBLIC_KEY:-}" ]; then '
+        '  echo "$PUBLIC_KEY" >> /root/.ssh/authorized_keys; '
+        "  chmod 700 /root/.ssh && chmod 600 /root/.ssh/authorized_keys; "
+        "fi; "
+        "/usr/sbin/sshd; "
+        # Real work: kaggle CLI install + downloads.
+        # Skip slugs whose target dir already has >50 MB of content — the
+        # network volume persists across pod deletes, so a partial seed run
+        # (or full re-run after a timeout) shouldn't redo what's done.
+        # 50 MB is well above the empty-dir size and below every dataset.
         "pip install --quiet kaggle; "
         "mkdir -p /workspace/input && cd /workspace/input; "
+        # Three states per slug:
+        #   1. Complete  — dir has >50 MB AND no leftover .zip → skip entirely.
+        #   2. Partial   — leftover .zip from an interrupted run → re-extract
+        #                  the existing zip (skip the download). Wipe everything
+        #                  EXCEPT the zip first so the unzip writes cleanly.
+        #   3. Empty/new — dir missing or tiny → full kaggle download + unzip.
         f"for slug in {slugs}; do "
         '  name="${slug##*/}"; '
+        '  size=$(du -sm "$name" 2>/dev/null | cut -f1 || echo 0); '
+        '  zip_path=$(find "$name" -maxdepth 1 -name "*.zip" -print -quit 2>/dev/null); '
+        '  if [ "$size" -gt 50 ] && [ -z "$zip_path" ]; then '
+        '    echo "==> skipping $name (already $size MB, no zip)"; '
+        "    continue; "
+        "  fi; "
+        '  if [ -n "$zip_path" ]; then '
+        '    echo "==> $name has leftover zip ($zip_path) — re-extracting in place"; '
+        # Move zip aside, wipe stale extraction, restore zip, unzip + rm.
+        '    mv "$zip_path" "/tmp/$(basename "$zip_path")"; '
+        '    rm -rf "$name"; mkdir -p "$name"; '
+        '    mv "/tmp/$(basename "$zip_path")" "$name/"; '
+        '    (cd "$name" && unzip -q -o "$(basename "$zip_path")" && rm -f "$(basename "$zip_path")"); '
+        "    continue; "
+        "  fi; "
         '  echo "==> downloading $name"; '
         f'  kaggle datasets download -d "$slug" --unzip -p "$name" {flag}; '
         "done; "
@@ -107,6 +149,9 @@ def main() -> int:
         timeout=30.0,
     )
 
+    pub_key_path = Path.home() / ".ssh" / "runpod_ed25519.pub"
+    public_key = pub_key_path.read_text().strip() if pub_key_path.exists() else ""
+
     body = {
         "name": f"wakeword-seed-{time.strftime('%Y%m%d-%H%M%S')}",
         "imageName": "python:3.11-slim",
@@ -116,11 +161,15 @@ def main() -> int:
         "containerDiskInGb": 20,
         "networkVolumeId": network_volume_id,
         "volumeMountPath": "/workspace",
+        "ports": ["22/tcp"],
+        "supportPublicIp": True,
         "cloudType": "SECURE",
         "interruptible": False,
         "env": {
             "KAGGLE_USERNAME": kaggle_user,
             "KAGGLE_KEY": kaggle_key,
+            "PUBLIC_KEY": public_key,
+            "PYTHONUNBUFFERED": "1",
         },
         "dockerStartCmd": ["bash", "-c", _build_seed_command(args.force)],
     }
