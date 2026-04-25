@@ -207,6 +207,18 @@ def build_config() -> Path:
     config["output_dir"] = str(OUT_DIR)
     config["max_negative_weight"] = FALSE_ACTIVATION_PENALTY
     config["target_false_positives_per_hour"] = TARGET_FP_PER_HOUR
+    # v8 — rebalance batch composition. Upstream defaults
+    #   ACAV100M_sample=1024, adversarial_negative=50, positive=50
+    # mean only 50 positive gradient slots per batch. With 2018+180 positive
+    # files (real-mic at 10× duplication), each batch sees ~4 real-mic
+    # positives in expectation — too few for the recall-floor failure mode.
+    # Bumping positive→200 + halving ACAV→512 keeps total batch size
+    # manageable while quadrupling per-batch positive gradient diversity.
+    config["batch_n_per_class"] = {
+        "ACAV100M_sample": 512,
+        "adversarial_negative": 50,
+        "positive": 200,
+    }
 
     # Kaggle-mounted paths
     config["background_paths"] = [
@@ -345,8 +357,129 @@ def custom_train(config_path: Path) -> None:
     """
     train_py = WORK / "openwakeword/openwakeword/train.py"
     sh(f"{sys.executable} {train_py} --training_config {config_path} --generate_clips")
-    sh(f"{sys.executable} {train_py} --training_config {config_path} --augment_clips")
+    # v8: replace upstream's --augment_clips with our per-subset variant.
+    # Real-mic and harvested clips already have RIR + ambient baked in;
+    # convolving them with another RIR is an unphysical 2-room cascade.
+    _augment_and_compute_features()
     _custom_train_model()
+
+
+def _augment_and_compute_features() -> None:
+    """v8 — soft-fork of `train.py --augment_clips` with per-subset augmentation.
+
+    For each of the 4 feature subsets (positive_train, negative_train,
+    positive_test, negative_test) we split files by filename prefix:
+
+      synth (default):    Piper-generated UUIDs, synth_clone_*, synth_neighbor_*
+      real-room recorded: realmic_*, harvested_*
+
+    Synth gets the default augmentation pipeline. Real-room recorded gets
+    `RIR=0.0` + `AddBackgroundNoise=0.5` (down from 0.75) — additive noise is
+    still useful for robustness; the RIR is omitted because the clip already
+    carries the deployment room's reverb.
+
+    `n_total` for `compute_features_from_generator` is properly scaled by
+    `augmentation_rounds` (upstream has a latent bug here when rounds > 1).
+    """
+    from itertools import chain
+
+    import torch
+    from openwakeword.data import augment_clips
+    from openwakeword.utils import compute_features_from_generator
+
+    config = yaml.safe_load((WORK / "my_model.yaml").read_text())
+    feature_save_dir = OUT_DIR / TARGET_WORD
+
+    # Build the background and RIR file lists (mirrors upstream's __main__).
+    bg_dup = config.get("background_paths_duplication_rate") or [
+        1
+    ] * len(config["background_paths"])
+    if len(bg_dup) != len(config["background_paths"]):
+        bg_dup = [1] * len(config["background_paths"])
+    bg_paths: list[str] = []
+    for path, rate in zip(config["background_paths"], bg_dup, strict=False):
+        bg_paths.extend([i.path for i in os.scandir(path)] * rate)
+    rir_paths = [i.path for j in config["rir_paths"] for i in os.scandir(j)]
+
+    DEFAULTS = {
+        "SevenBandParametricEQ": 0.25,
+        "TanhDistortion": 0.25,
+        "PitchShift": 0.25,
+        "BandStopFilter": 0.25,
+        "AddColoredNoise": 0.25,
+        "AddBackgroundNoise": 0.75,
+        "Gain": 1.0,
+        "RIR": 0.5,
+    }
+    REAL_AUDIO = {**DEFAULTS, "RIR": 0.0, "AddBackgroundNoise": 0.5}
+
+    rounds = config["augmentation_rounds"]
+    n_cpus = os.cpu_count() or 1
+    ncpu = 1 if torch.cuda.is_available() else max(1, n_cpus // 2)
+    device = "gpu" if torch.cuda.is_available() else "cpu"
+
+    SUBSETS = (
+        ("positive_train", "positive_features_train.npy"),
+        ("negative_train", "negative_features_train.npy"),
+        ("positive_test", "positive_features_test.npy"),
+        ("negative_test", "negative_features_test.npy"),
+    )
+
+    def is_real_audio(name: str) -> bool:
+        return name.startswith("realmic_") or name.startswith("harvested_")
+
+    print("=== per-subset augmentation + feature compute (v8) ===", flush=True)
+    for subset_name, out_npy in SUBSETS:
+        subset_dir = OUT_DIR / TARGET_WORD / subset_name
+        all_files = sorted(str(f) for f in subset_dir.glob("*.wav"))
+        synth = [f for f in all_files if not is_real_audio(Path(f).name)]
+        real = [f for f in all_files if is_real_audio(Path(f).name)]
+        if not synth and not real:
+            print(f"  {subset_name}: empty, skipping", flush=True)
+            continue
+
+        synth_input = synth * rounds
+        real_input = real * rounds
+        n_total = len(synth_input) + len(real_input)
+
+        gens = []
+        if synth_input:
+            gens.append(
+                augment_clips(
+                    synth_input,
+                    total_length=config["total_length"],
+                    batch_size=config["augmentation_batch_size"],
+                    augmentation_probabilities=DEFAULTS,
+                    background_clip_paths=bg_paths,
+                    RIR_paths=rir_paths,
+                )
+            )
+        if real_input:
+            gens.append(
+                augment_clips(
+                    real_input,
+                    total_length=config["total_length"],
+                    batch_size=config["augmentation_batch_size"],
+                    augmentation_probabilities=REAL_AUDIO,
+                    background_clip_paths=bg_paths,
+                    RIR_paths=rir_paths,
+                )
+            )
+
+        out_path = feature_save_dir / out_npy
+        print(
+            f"  {subset_name}: {len(synth)} synth (×{rounds}, RIR=0.5) + "
+            f"{len(real)} realroom (×{rounds}, RIR=0) → {out_path.name}",
+            flush=True,
+        )
+        compute_features_from_generator(
+            chain(*gens),
+            n_total=n_total,
+            clip_duration=config["total_length"],
+            output_file=str(out_path),
+            device=device,
+            ncpu=ncpu,
+        )
 
 
 def _custom_train_model() -> None:
@@ -469,37 +602,125 @@ def _custom_train_model() -> None:
         val_set_hrs=11.3,
     )
 
-    # ---- Pick best checkpoint -------------------------------------------
-    # Upstream auto_train averages the top-90th-percentile checkpoints across
-    # 3 sequences. We have one sequence — pick the highest-recall checkpoint
-    # subject to a sane FP/hour ceiling. Future iteration: pick by F1 against
-    # the real-audio validation set (requires per-step real-audio eval).
-    if oww.best_models:
-        scores = oww.best_model_scores
-        # Filter to checkpoints with sane FP/hour, then take max recall
-        ok = [
-            (i, s)
-            for i, s in enumerate(scores)
-            if float(s["val_fp_per_hr"]) <= 2.0
-        ]
-        if not ok:
-            ok = list(enumerate(scores))
-        best_idx, best_scores = max(ok, key=lambda kv: float(kv[1]["val_recall"]))
-        best_model = oww.best_models[best_idx]
-        print(
-            f"Best checkpoint: step {best_scores['training_step_ndx']} | "
-            f"val_recall={float(best_scores['val_recall']):.3f} | "
-            f"val_acc={float(best_scores['val_accuracy']):.3f} | "
-            f"val_fp/hr={float(best_scores['val_fp_per_hr']):.3f}"
-        )
-    else:
-        print("No checkpoints saved — falling back to final model state", file=sys.stderr)
-        best_model = oww.model
+    # ---- v8: pick best checkpoint by REAL-AUDIO F1 ------------------------
+    # Synthetic Piper-test recall (`val_recall`) drifts meaningfully from
+    # deployment recall — v5 hit 38 % synthetic → 56 % real on the small set
+    # and 36 % real on the expanded set. Selecting on synthetic ships the
+    # wrong checkpoint. Score every saved checkpoint against the hand-labeled
+    # real-audio set and pick max F1 at threshold 0.5.
+    best_model = _select_best_by_real_f1(oww)
 
     oww.export_model(
         model=best_model, model_name=TARGET_WORD, output_dir=str(OUT_DIR)
     )
     print(f"Exported ONNX → {OUT_DIR / (TARGET_WORD + '.onnx')}")
+
+
+def _select_best_by_real_f1(oww, threshold: float = 0.5):
+    """v8 — pick the saved checkpoint with the highest F1 against real audio.
+
+    For each candidate in `oww.best_models`, export a temporary ONNX,
+    score every WAV in `validation/{good,bad}/`, compute F1 at the given
+    threshold, and pick max. Tiebreak by recall.
+
+    The cost is ~few hundred ms per candidate (export + ~104 forward passes
+    on CPU); with 20 saved checkpoints that's a couple of minutes of
+    post-training overhead — small relative to the 60-minute training run
+    and bought us a meaningful win in v5 retrospect (the checkpoint we
+    shipped was *not* the best by real-audio F1).
+    """
+    import wave
+
+    import numpy as np
+    from openwakeword.model import Model as InferenceModel
+
+    if not oww.best_models:
+        print(
+            "No checkpoints saved — falling back to final model state",
+            file=sys.stderr,
+        )
+        return oww.model
+
+    chunk = 1280  # 80 ms at 16 kHz
+
+    def load_wav(p: Path) -> np.ndarray:
+        with wave.open(str(p), "rb") as w:
+            return np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16)
+
+    def score_clips(model: InferenceModel, name: str, paths: list[Path]) -> list[float]:
+        out = []
+        for path in paths:
+            wav = load_wav(path)
+            model.reset()
+            peak = 0.0
+            for s in range(0, len(wav) - chunk + 1, chunk):
+                v = float(model.predict(wav[s : s + chunk])[name])
+                if v > peak:
+                    peak = v
+            out.append(peak)
+        return out
+
+    good_paths = sorted(EXPECTED_INPUTS["validation_good"].glob("*.wav"))
+    bad_paths = sorted(EXPECTED_INPUTS["validation_bad"].glob("*.wav"))
+    n_good, n_bad = len(good_paths), len(bad_paths)
+    if n_good == 0 or n_bad == 0:
+        print(
+            "Validation set empty; falling back to synthetic-recall selection",
+            file=sys.stderr,
+        )
+        scores = oww.best_model_scores
+        ok = [(i, s) for i, s in enumerate(scores) if float(s["val_fp_per_hr"]) <= 2.0]
+        if not ok:
+            ok = list(enumerate(scores))
+        best_idx, _ = max(ok, key=lambda kv: float(kv[1]["val_recall"]))
+        return oww.best_models[best_idx]
+
+    tmp_dir = WORK / "_candidates"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+
+    print(
+        f"=== real-audio F1 checkpoint selection: {len(oww.best_models)} candidates "
+        f"vs {n_good} good / {n_bad} bad ===",
+        flush=True,
+    )
+
+    rows: list[tuple[int, float, float, float, int]] = []
+    for i, model in enumerate(oww.best_models):
+        slug = f"cand_{i:03d}"
+        oww.export_model(
+            model=model, model_name=slug, output_dir=str(tmp_dir)
+        )
+        onnx_path = tmp_dir / f"{slug}.onnx"
+        infer = InferenceModel(wakeword_model_paths=[str(onnx_path)])
+        name = next(iter(infer.models.keys()))
+        good_scores = score_clips(infer, name, good_paths)
+        bad_scores = score_clips(infer, name, bad_paths)
+        tp = sum(1 for s in good_scores if s >= threshold)
+        fp = sum(1 for s in bad_scores if s >= threshold)
+        recall = tp / n_good
+        precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+        f1 = (
+            2 * precision * recall / (precision + recall)
+            if (precision + recall) > 0
+            else 0.0
+        )
+        step = oww.best_model_scores[i].get("training_step_ndx", -1)
+        rows.append((i, recall, precision, f1, int(step)))
+        print(
+            f"  cand {i:>3} step={step:>5} | recall={recall:.3f} "
+            f"prec={precision:.3f} f1={f1:.3f}",
+            flush=True,
+        )
+        onnx_path.unlink(missing_ok=True)
+
+    # Pick max F1; tie-break by recall, then by latest step
+    rows.sort(key=lambda r: (r[3], r[1], r[4]), reverse=True)
+    best_i, best_r, best_p, best_f1, best_step = rows[0]
+    print(
+        f"\nBest checkpoint by real-audio F1: cand {best_i} step={best_step} "
+        f"(recall={best_r:.3f}, precision={best_p:.3f}, F1={best_f1:.3f})"
+    )
+    return oww.best_models[best_i]
 
 
 def validate_against_real_set() -> None:

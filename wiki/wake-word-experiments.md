@@ -287,3 +287,84 @@ locally against the *current* validation set (28/76, post-real-mic).
 
 #### Results
 *Pending.* Run after v6 finishes; bump both Kaggle datasets first.
+
+### v8 — planned
+
+**Status:** planned, kernel staged
+**Kernel commit:** *pending push after v7 finishes*
+
+Architectural upgrade based on a two-agent review (training architecture +
+data augmentation). Three changes from v7, ranked by expected impact:
+
+#### What changed (vs v7)
+
+1. **Pick best checkpoint by real-audio F1, not synthetic `val_recall`.** Each
+   saved checkpoint is exported to a temp ONNX, scored against the
+   hand-labeled `var/wake-word/validation/{good,bad}/` set, and the one with
+   highest F1 at threshold 0.5 wins. Synthetic Piper-test recall has been
+   empirically misleading (v5: 38 % synthetic → 36 % real on the expanded
+   set). Adds ~2 min of post-training overhead on CPU. Implementation:
+   `_select_best_by_real_f1()` in the kernel.
+2. **Per-subset augmentation.** Replaces upstream's `--augment_clips`
+   shell-out with `_augment_and_compute_features()`, which splits clips by
+   filename prefix: `realmic_*` and `harvested_*` clips get `RIR=0.0` +
+   `AddBackgroundNoise=0.5` (their RIR is already baked in from real-room
+   recording — convolving with another RIR is an unphysical 2-room cascade);
+   synthetic clips keep the upstream defaults (`RIR=0.5`, `AddBackgroundNoise=0.75`).
+   Promotes the option-2 TODO that's been sitting in the kernel since v5.
+3. **Batch composition rebalance.** `batch_n_per_class` from upstream's
+   `1024 ACAV / 50 adversarial / 50 positive` → `512 ACAV / 50 adversarial /
+   200 positive`. Smaller batch (1124 → 762) but 4× the per-batch positive
+   gradient slots. With real-mic at ~8 % of the duplicated positive pool,
+   each batch now sees ~16 real-mic positives in expectation (was ~4) —
+   directly targets the real-mic recall floor we've been chasing.
+
+#### Why
+
+Both reviewing agents independently flagged synthetic-vs-real metric drift
+as the dominant unhandled failure mode. The training agent estimated +5–10 pp
+F1 from real-audio checkpoint selection alone — essentially "the right
+checkpoint was already in `oww.best_models`, we were picking the wrong one."
+
+The augmentation agent flagged the double-RIR problem as a real (not in-the-
+noise) bias: real-mic clips in v7 are convolved with a random in-room RIR on
+top of their already-baked-in deployment RIR.
+
+The training agent flagged that 50 positive batch slots × 8 % real-mic
+fraction = 4 real-mic positives per batch, which is gradient-starved given
+those are the ones we're trying to teach the model on.
+
+Three independent fixes, each cheap to apply, expected to compound.
+
+#### What we explicitly skipped
+
+- **SpecAugment** (suggested by augmentation agent). Wrong abstraction
+  level — openwakeword's training inputs are 96-dim *embedding* vectors
+  (16-frame stacks), not raw mel-spectrograms. Masking learned embedding
+  dimensions doesn't have the natural frequency-band semantics SpecAugment
+  exploits. The training agent independently rejected this for the same
+  reason. Could revisit at the raw-mel stage, but that requires a deeper
+  pipeline fork.
+- **AdamW + grad-clip + cosine LR + EMA weights** (training agent R2/R3/R5).
+  Bundled together and deferred to v9 — they all require inline-forking
+  upstream's `Model.train_model()` inner loop (~80 LOC of surgical edits
+  with overlap risk). Promoting after v8 produces a baseline.
+- **Background corpus expansion** (TV/dialog/HVAC) and **augmentation_rounds = 3**
+  and **mixup**. All deferred to v10 (data-side bundle, separate from
+  training-architecture changes for clean attribution).
+
+#### Training config
+
+- `max_negative_weight`: 500 (unchanged)
+- `target_false_positives_per_hour`: 10 (unchanged; still unused)
+- `batch_n_per_class`: **512 / 50 / 200** (was 1024 / 50 / 50)
+- `steps`: 20 000 (unchanged)
+- Driver: soft-fork `_custom_train_model` + new `_augment_and_compute_features`
+- Best-checkpoint: real-audio **F1 at threshold 0.5** against `validation/`,
+  tiebreak by recall, then by latest training step
+
+#### Validation set
+- Same as v7 (28 good / 76 bad — `dirt-wakeword-validation` v2)
+
+#### Results
+*Pending.* Push after v7 lands; expected v8 lift over v7: +5–15 pp F1 net.
