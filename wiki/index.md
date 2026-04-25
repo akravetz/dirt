@@ -14,10 +14,10 @@ updated: 2026-04-24
 - [Wake-Word Experiment Log](wake-word-experiments.md) — append-only log of every "hey Claudia" model trained: what changed, why, training config, validation results
 
 ## Plants
-- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; vigor leader; strong purple contender; **topped Apr 11** (Day 13 post-top); **LST Day 4** (started Apr 20); moisture stable ~56%
-- [Plant B](plants/plant-b.md) — 🟡 Secondary; no purple; **topped Apr 12** (Day 12 post-top); **LST Day 4** (started Apr 20); densest dark-green canopy; moisture 68–69%
-- [Plant C](plants/plant-c.md) — 🟡 Secondary; **topped Apr 12** (Day 12 post-top); **LST Day 4** (started Apr 20); moisture very high 82%+ — monitor root zone
-- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; strong purple contender; **topped Apr 12** (Day 12 post-top); **LST Day 4** (started Apr 20); moisture jumped 60% → 83% in 2 days — autopot active
+- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; vigor leader; strong purple contender; **topped Apr 11** (Day 14 post-top); **LST Day 5** (started Apr 20); moisture stable ~57%
+- [Plant B](plants/plant-b.md) — 🟡 Secondary; no purple; **topped Apr 12** (Day 13 post-top); **LST Day 5** (started Apr 20); densest dark-green canopy; moisture rising 68% → 74.6% — watch
+- [Plant C](plants/plant-c.md) — 🟡 Secondary; **topped Apr 12** (Day 13 post-top); **LST Day 5** (started Apr 20); moisture stable at 84% (very high) — monitor root zone
+- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; strong purple contender; **topped Apr 12** (Day 13 post-top); **LST Day 5** (started Apr 20); moisture peaked 87.1% overnight; 86.0% now — monitor root zone
 
 ## Daily Logs
 - [2026-03-27](daily/2026-03-27.md) — Day 13: Pre-transplant; 2–3 leaf sets
@@ -38,6 +38,7 @@ updated: 2026-04-24
 - [2026-04-22](daily/2026-04-22.md) — Day 39: overnight env breakthrough (RH 52% ✅, temp 70.17°F ✅ — both in target first time); reservoir change due (Day 7); Plant D color improving; Plant A overnight sensor dropout
 - [2026-04-23](daily/2026-04-23.md) — Day 40: photos only; no sensor snapshot; humidifier oscillation + Raydrop red-LED latch incidents; BME280 retired → SHT45 cutover
 - [2026-04-24](daily/2026-04-24.md) — Day 41: temperature fully in range all windows (first time) ✅✅; VPD clean all windows; C/D moisture 82–83% ⚠️; LST and reservoir change critically overdue
+- [2026-04-25](daily/2026-04-25.md) — Day 42: afternoon VPD 0.63 kPa below floor ⚠️; temperature regression (72°F vs yesterday's 76°F); C/D moisture 84–86%; reservoir change Day 10 (overdue)
 
 ## Environment
 - [Temperature](environment/temperature.md) — Trend log; targets by phase; notable events
@@ -90,6 +91,7 @@ updated: 2026-04-24
 - [Wake-Word v4 Plan (2026-04-18)](decisions/2026-04-18-wake-word-v4-plan.md) — Precision-focused retraining: harvested hard negatives from deployment + mined meeting audio + synthesized phonetic neighbors + additional RIRs; near-miss audio capture live as of 2026-04-18. **Superseded by v5 2026-04-23.**
 - [Wake-Word v5 Plan (2026-04-23)](decisions/2026-04-23-wake-word-v5-passive-harvest.md) — Passive-harvest mode (`DIRT_VOICE_HARVEST_ONLY=1`): operator runs dirt-voice for ~2 days without saying the wake word, every above-floor capture is a guaranteed negative — eliminates v4's manual triage. Floor lowered to 0.15; ElevenLabs positives + `max_negative_weight=800` carry forward from v4.
 - [Speaker Verifier (2026-04-24)](decisions/2026-04-24-speaker-verifier.md) — ECAPA-TDNN via speechbrain as a second-stage filter after the wake model fires; rejects any voice that isn't the enrolled user's. Orthogonal to v5 retraining; addresses meeting FPs at root. Ship before v5 to re-enable dirt-voice safely without waiting on the harvest cycle.
+- [Wake-Word Training Pipeline — Kaggle → RunPod (2026-04-25)](decisions/2026-04-25-runpod-migration.md) — After v9–v15 each failed on a different Kaggle-environment quirk (base-image contents, py3.12 PyPI wheels, editable-install path, locked-down package layout), abandoned Kaggle Notebooks for a self-controlled Docker image on RunPod Pods. Image bakes everything; Network Volume holds the four Kaggle datasets. The v8 architectural design carries over unchanged.
 - [ESP32-C3 GPIO3 + IDF ADC (2026-04-14)](decisions/2026-04-14-esp32-c3-gpio3-adc.md) — GPIO3 over GPIO4 (JTAG conflict); `adc1_get_raw()` over Arduino `analogRead()` (WiFi instability)
 - [Server-Side Auto-Calibration (2026-04-14)](decisions/2026-04-14-server-side-auto-calibration.md) — Calibration lives in DB, auto-widens extrema per (location, metric); firmware sends raw only
 - [Lights-Off-Aware Humidifier Control (2026-04-19)](decisions/2026-04-19-lights-off-aware-humidifier.md) — Schedule-driven feedforward added to the humidifier loop: pre-lights-off prep window forces OFF for the last 30 min of lights-on; lights-off subtracts 0.3 kPa from the stage band. Lights schedule stored on `growstate` (user-editable); rejected derivative control in favor of feedforward on a known-periodic disturbance.

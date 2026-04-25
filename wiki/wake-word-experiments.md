@@ -668,10 +668,11 @@ and instead address the *resource path* problem from a different angle:
 So both paths have the resources — robust to whichever side
 `AudioFeatures()` resolves from. Commit: `15a7dfc`.
 
-### v15 — 2026-04-25 (in flight)
+### v15 — 2026-04-25 (failed at 1h51m, deepest run yet)
 
-**Status:** running on Kaggle (kernel version 20)
-**Model artifact:** `var/wake-word/models/2026-04-25-v15/hey_claudia.onnx` (when pulled)
+**Status:** ERROR after 1 h 51 m wall time — past install, generate_clips,
+augment+features. Failed somewhere inside `_custom_train_model` or
+post-train selection/export.
 **Kernel commit:** `15a7dfc`
 
 #### What changed (vs v14)
@@ -703,4 +704,34 @@ Identical to v8 staged.
 - Same as v8 (28 good / 76 bad).
 
 #### Results
-*Pending.* ~30–90 min on free GPU tier.
+v15 reached training proper — install ✓, generate_clips ✓, augment+features ✓
+(the v13 resource-path fix held). Then ERROR at 1 h 51 m wall, deep
+inside `_custom_train_model`, post-train selection, or export. Detailed
+log was not pulled — the strategic decision to migrate off Kaggle made
+debugging the dead Kaggle path low value.
+
+| ver | wall    | failed at                                                  |
+|-----|---------|------------------------------------------------------------|
+| v9  |  4 m    | top-level openwakeword import                              |
+| v10 |  4 m    | pip install openwakeword (no py3.12 wheel)                 |
+| v11 |  6 m    | git checkout SHA (unpushed)                                |
+| v12 | 47 m    | augment.py KeyError: 'total_length'                        |
+| v13 | 22 m    | AudioFeatures resource path (non-editable, but no cp step) |
+| v14 |  4 m    | editable install — `import openwakeword` failed at runtime |
+| v15 | **1h51m** | deep in train phase — root cause not investigated          |
+
+Each iteration cleared the previous failure mode and surfaced a new one.
+The cumulative pattern — every fix was a Kaggle-environment quirk
+(base-image contents, py3.12 PyPI wheels, editable-install path
+quirks, locked-down package layout) — is what triggered the platform
+migration. See **`wiki/decisions/2026-04-25-runpod-migration.md`**.
+
+### Migration: Kaggle → RunPod (2026-04-25)
+
+After v15, abandoned Kaggle Notebooks in favor of a self-controlled
+Docker image on RunPod. Rationale + setup details in
+[`wiki/decisions/2026-04-25-runpod-migration.md`](decisions/2026-04-25-runpod-migration.md).
+
+The v8 architectural design (per-subset aug, real-audio F1 selection,
+512/50/200 batch composition) is unchanged — what changed is the
+runtime environment. v16+ entries below correspond to RunPod runs.
