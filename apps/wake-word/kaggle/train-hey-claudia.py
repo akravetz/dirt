@@ -70,14 +70,14 @@ def install_dependencies() -> None:
     # we install all the actual deps explicitly in the next pip call.
     if not (WORK / "openwakeword").exists():
         sh("git clone https://github.com/dscripka/openwakeword")
-    # Editable (`-e`) install matters here. AudioFeatures() resolves
-    # `resources/models/melspectrogram.onnx` via `__file__` of the installed
-    # package. A non-editable install copies the source into site-packages,
-    # so our later wget into /kaggle/working/openwakeword/.../resources/
-    # never reaches the runtime path. With `-e` the installed location IS
-    # /kaggle/working/openwakeword/, so the resource files land where the
-    # runtime looks for them.
-    sh("pip install --quiet --no-deps -e ./openwakeword")
+    # Non-editable install — pip copies the source tree into site-packages
+    # at /usr/local/lib/python3.12/dist-packages/openwakeword/. We tried
+    # `pip install -e` (v14) hoping AudioFeatures() would resolve resources
+    # from the cloned location, but it produced a `ModuleNotFoundError:
+    # openwakeword` at import time on Kaggle (likely a sys.path / .pth
+    # placement quirk in the locked-down env). Stick with non-editable
+    # and instead wget the resources to BOTH locations.
+    sh("pip install --quiet --no-deps ./openwakeword")
 
     sh(
         "pip install --quiet "
@@ -88,9 +88,23 @@ def install_dependencies() -> None:
         "datasets==2.14.6 deep-phonemizer==0.0.19"
     )
 
-    # openwakeword's bundled embedding + mel ONNX models
-    resources = WORK / "openwakeword/openwakeword/resources/models"
-    resources.mkdir(parents=True, exist_ok=True)
+    # Discover the installed openwakeword location at runtime — Kaggle's path
+    # is /usr/local/lib/python3.12/dist-packages/openwakeword/ today, but
+    # hardcoding the python version is brittle.
+    installed_pkg = subprocess.check_output(
+        [sys.executable, "-c", "import openwakeword, pathlib; print(pathlib.Path(openwakeword.__file__).parent)"],
+        text=True,
+    ).strip()
+    print(f"openwakeword installed at: {installed_pkg}", flush=True)
+
+    # openwakeword's bundled embedding + mel ONNX models. Write to BOTH
+    # the cloned source path (for any tooling that reads it from there) and
+    # the installed site-packages path (where AudioFeatures() actually
+    # resolves them via __file__).
+    cloned_resources = WORK / "openwakeword/openwakeword/resources/models"
+    installed_resources = Path(installed_pkg) / "resources" / "models"
+    cloned_resources.mkdir(parents=True, exist_ok=True)
+    installed_resources.mkdir(parents=True, exist_ok=True)
     base = "https://github.com/dscripka/openWakeWord/releases/download/v0.5.1"
     for name in (
         "embedding_model.onnx",
@@ -98,9 +112,12 @@ def install_dependencies() -> None:
         "melspectrogram.onnx",
         "melspectrogram.tflite",
     ):
-        dest = resources / name
-        if not dest.exists():
-            sh(f"wget -q {base}/{name} -O {dest}")
+        cloned_dest = cloned_resources / name
+        installed_dest = installed_resources / name
+        if not cloned_dest.exists():
+            sh(f"wget -q {base}/{name} -O {cloned_dest}")
+        if not installed_dest.exists():
+            sh(f"cp {cloned_dest} {installed_dest}")
 
 
 def install_dirt_repo() -> None:
