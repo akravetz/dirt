@@ -18,13 +18,24 @@ Required datasets (attach via kernel-metadata.json `dataset_sources`):
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
 import sys
+import time
+import wave
+from contextlib import contextmanager
+from itertools import chain
 from pathlib import Path
 
 import yaml
+
+# Lazy-import note: anything that lives in a package only available *after*
+# install_dependencies() runs (openwakeword, torch, numpy, audiomentations
+# etc) is imported inside the function that uses it. `_verify_imports()` runs
+# right after install_dependencies and tries every deferred import — if any
+# is wrong, the kernel crashes in seconds, not 90 minutes into training.
 
 # ---------------------------------------------------------------------------
 # Tunables — mirror the @param sliders from the Colab notebook
@@ -109,6 +120,55 @@ def sh(cmd: str, *, cwd: Path | None = None) -> None:
     """Run a shell command, stream stdout, raise on non-zero exit."""
     print(f"$ {cmd}", flush=True)
     subprocess.run(cmd, shell=True, check=True, cwd=cwd)
+
+
+@contextmanager
+def phase(name: str):
+    """Wall-clock phase timer. Logs `=== phase {name} START / END elapsed=Ns`
+    so a single grep over the kernel log gives a per-phase profile.
+
+    Bracketed message format keeps phase entries greppable from upstream's
+    chatter (Piper progress bars, openwakeword INFO lines, tqdm output)."""
+    print(f"\n=== phase {name} START", flush=True)
+    t0 = time.monotonic()
+    try:
+        yield
+    finally:
+        elapsed = time.monotonic() - t0
+        m, s = divmod(elapsed, 60)
+        print(
+            f"=== phase {name} END elapsed={elapsed:.1f}s ({int(m)}m{s:.1f}s)",
+            flush=True,
+        )
+
+
+def _verify_imports() -> None:
+    """Fail-fast import verification. Runs after install_dependencies() so a
+    wrong import path / missing pin / version mismatch crashes the kernel
+    within seconds — not 90 minutes into a training run.
+
+    Adding a new lazy import elsewhere in this file? Add it here too.
+    """
+    print("=== verifying deferred imports", flush=True)
+    try:
+        import numpy as _np  # noqa: F401
+        import torch as _torch  # noqa: F401
+        from openwakeword.data import (  # noqa: F401
+            augment_clips as _augment_clips,
+            mmap_batch_generator as _mmap_batch_generator,
+        )
+        from openwakeword.model import Model as _InferenceModel  # noqa: F401
+        from openwakeword.train import Model as _TrainingModel  # noqa: F401
+        from openwakeword.utils import (  # noqa: F401
+            compute_features_from_generator as _compute_features_from_generator,
+        )
+    except ImportError as e:
+        sys.exit(
+            f"FATAL: required import failed after install_dependencies(): {e}\n"
+            "Check that install_dependencies pinned all required packages and "
+            "that the openwakeword module path is correct."
+        )
+    print("  all imports OK", flush=True)
 
 
 def verify_inputs() -> None:
@@ -318,6 +378,66 @@ def prepare_seed_clips() -> None:
     )
 
 
+def restore_tts_cache_if_mounted() -> bool:
+    """v8 — if a `dirt-wakeword-tts-cache` Kaggle dataset is attached, copy
+    the cached Piper-generated WAVs into the four pre-train directories.
+    Upstream's `--generate_clips` then sees ≥95 % of `n_samples` already in
+    place and skips Piper entirely (saves ~10–20 min per run, depending on
+    what the timing instrumentation tells us).
+
+    Cache is invalidated by a key mismatch — fail loud rather than silently
+    train on stale TTS data. Operator workflow for rebuilding the cache lives
+    in `training/wake-word/CLAUDE.md`.
+
+    Returns True if the cache was used. The dataset isn't yet attached —
+    this hook is wired up in code so the moment we add it to
+    `kernel-metadata.json:dataset_sources`, it activates with no further
+    code change.
+    """
+    cache_dir = _find_dataset("dirt-wakeword-tts-cache")
+    if not cache_dir.exists():
+        print("(no TTS cache attached — `--generate_clips` will run Piper)")
+        return False
+    cache_key_path = cache_dir / "cache-key.json"
+    if not cache_key_path.exists():
+        print(
+            f"WARNING: TTS cache attached at {cache_dir} but cache-key.json missing — "
+            "ignoring cache and running Piper"
+        )
+        return False
+
+    expected = {
+        "target_phrase": TARGET_WORD.replace("_", " "),
+        "n_samples": NUMBER_OF_EXAMPLES,
+        "n_samples_val": max(500, NUMBER_OF_EXAMPLES // 10),
+    }
+    actual = json.loads(cache_key_path.read_text())
+    if actual != expected:
+        sys.exit(
+            f"FATAL: TTS cache key mismatch.\n  cache: {actual}\n  run:   {expected}\n"
+            "Rebuild the cache (operator workflow in training/wake-word/CLAUDE.md) "
+            "or detach the dataset from this kernel."
+        )
+
+    print(f"=== TTS cache hit: copying cached WAVs from {cache_dir}")
+    total = 0
+    for subdir in ("positive_train", "negative_train", "positive_test", "negative_test"):
+        src = cache_dir / subdir
+        if not src.is_dir():
+            print(f"  (warning) {subdir}/ missing from cache; that subset will fall through to Piper")
+            continue
+        dst = OUT_DIR / TARGET_WORD / subdir
+        dst.mkdir(parents=True, exist_ok=True)
+        n = 0
+        for wav in src.glob("*.wav"):
+            shutil.copy(wav, dst / wav.name)
+            n += 1
+        total += n
+        print(f"  {subdir}: {n} WAVs restored")
+    print(f"  TTS cache total: {total} WAVs (Piper TTS will be skipped)")
+    return True
+
+
 # ---------------------------------------------------------------------------
 # Step 4: run openwakeword training pipeline (custom driver — soft-fork)
 # ---------------------------------------------------------------------------
@@ -356,12 +476,17 @@ def custom_train(config_path: Path) -> None:
         from /kaggle/input/dirt-wakeword-validation/
     """
     train_py = WORK / "openwakeword/openwakeword/train.py"
-    sh(f"{sys.executable} {train_py} --training_config {config_path} --generate_clips")
+    with phase("restore_tts_cache"):
+        restore_tts_cache_if_mounted()
+    with phase("generate_clips"):
+        sh(f"{sys.executable} {train_py} --training_config {config_path} --generate_clips")
     # v8: replace upstream's --augment_clips with our per-subset variant.
     # Real-mic and harvested clips already have RIR + ambient baked in;
     # convolving them with another RIR is an unphysical 2-room cascade.
-    _augment_and_compute_features()
-    _custom_train_model()
+    with phase("augment+features"):
+        _augment_and_compute_features()
+    with phase("train_loop"):
+        _custom_train_model()
 
 
 def _augment_and_compute_features() -> None:
@@ -381,8 +506,6 @@ def _augment_and_compute_features() -> None:
     `n_total` for `compute_features_from_generator` is properly scaled by
     `augmentation_rounds` (upstream has a latent bug here when rounds > 1).
     """
-    from itertools import chain
-
     import torch
     from openwakeword.data import augment_clips
     from openwakeword.utils import compute_features_from_generator
@@ -486,10 +609,11 @@ def _custom_train_model() -> None:
     """The soft-fork meat: replace upstream's --train_model __main__ block."""
     # Imports happen lazily so the module can still load when openwakeword
     # isn't installed (e.g., on the operator's laptop while editing).
+    # `_verify_imports()` already validated these paths at the start of main.
     import numpy as np
     import torch
     from openwakeword.data import mmap_batch_generator
-    from openwakeword.openwakeword.model import Model
+    from openwakeword.train import Model
 
     config = yaml.safe_load((WORK / "my_model.yaml").read_text())
     feature_save_dir = OUT_DIR / TARGET_WORD
@@ -629,8 +753,6 @@ def _select_best_by_real_f1(oww, threshold: float = 0.5):
     and bought us a meaningful win in v5 retrospect (the checkpoint we
     shipped was *not* the best by real-audio F1).
     """
-    import wave
-
     import numpy as np
     from openwakeword.model import Model as InferenceModel
 
@@ -646,6 +768,8 @@ def _select_best_by_real_f1(oww, threshold: float = 0.5):
     def load_wav(p: Path) -> np.ndarray:
         with wave.open(str(p), "rb") as w:
             return np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16)
+
+
 
     def score_clips(model: InferenceModel, name: str, paths: list[Path]) -> list[float]:
         out = []
@@ -731,8 +855,6 @@ def validate_against_real_set() -> None:
     deployment (38% synthetic → 56% real-audio in v5 first run). Always look
     here before deciding ship/no-ship.
     """
-    import wave
-
     import numpy as np
     from openwakeword.model import Model
 
@@ -820,14 +942,30 @@ def export() -> None:
 
 
 def main() -> None:
-    verify_inputs()
-    install_dependencies()
-    config_path = build_config()
-    prepare_seed_clips()
-    custom_train(config_path)
-    export()
-    validate_against_real_set()
-    print("Training complete. Pull artifacts with: kaggle kernels output <kernel-slug>")
+    t_start = time.monotonic()
+    with phase("verify_inputs"):
+        verify_inputs()
+    with phase("install_dependencies"):
+        install_dependencies()
+    with phase("verify_imports"):
+        _verify_imports()
+    with phase("build_config"):
+        config_path = build_config()
+    with phase("prepare_seed_clips"):
+        prepare_seed_clips()
+    with phase("custom_train"):
+        custom_train(config_path)  # itself contains nested `phase()` blocks
+    with phase("export"):
+        export()
+    with phase("validate_against_real_set"):
+        validate_against_real_set()
+    total = time.monotonic() - t_start
+    m, s = divmod(total, 60)
+    print(
+        f"\n=== TOTAL elapsed={total:.1f}s ({int(m)}m{s:.1f}s)\n"
+        "Training complete. Pull artifacts with: "
+        "kaggle kernels output <kernel-slug>"
+    )
 
 
 if __name__ == "__main__":
