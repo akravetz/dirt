@@ -40,14 +40,14 @@ Retrain the base wake-word model with:
    - Target 2,000+ samples across 4 phrase variants: "hey claudia," "Hey, Claudia," "hey Clowdia," "Hey, Clowdia"
    - Cycled across 5 TTS-setting presets (varied stability, similarity_boost, speed) for acoustic diversity
    - Output format: 16 kHz mono WAV (openWakeWord's native format) via `pcm_16000` ElevenLabs output
-   - Script: `debug/elevenlabs_clone_batch.py` (resume-safe: targets are absolute, not deltas)
+   - Script: `training/wake-word/data-gen/elevenlabs-clones-batch.py` (resume-safe: targets are absolute, not deltas)
    - Voice ID: `mjXJZpUEgv69eq6xrhlW` (cloned 2026-04-16)
 
 2. **Captured Room Impulse Responses** from our actual environment
    - 4 positions captured via exponential sine sweep + Farina deconvolution (see `concepts/room-impulse-response.md`)
    - SNR 65–77 dB across all captures (threshold: 25 dB)
    - Replace the default MIT RIR dataset in training config
-   - Scripts: `debug/capture_rir_record.py` (Jabra host), `debug/capture_rir_play.py` (laptop)
+   - Scripts: `training/wake-word/data-gen/capture-rir-record.py` (Jabra host), `training/wake-word/data-gen/capture-rir-play.py` (laptop)
 
 3. **Colab training** using the existing `openwakeword/train.py` pipeline
    - Pre-populate `positive_train/` with voice-clone samples (Piper generation is automatically skipped once directory is 95% full)
@@ -70,7 +70,7 @@ Retrain the base wake-word model with:
 
 ## Success criteria
 
-Re-run `debug/wake_word_test.py` at both close and far distances after training. Targets:
+Re-run `training/wake-word/validation/live-test.py` at both close and far distances after training. Targets:
 
 - Close range: ≥ 90% recall at threshold 0.5
 - Far range: ≥ 70% recall at threshold 0.5
@@ -102,4 +102,4 @@ Key lessons:
 - **`max_negative_weight` tunes the precision/recall tradeoff directly.** Dropping it from 1500 to 500 moved real-world recall from 71% → 89% at the cost of pushing validation FP/hour from 1.3 to 6.6 (still unknown how that translates to real household audio).
 - **Confidence jumped qualitatively, not just quantitatively.** v3's clean hits land at 0.95–0.99 where v2's topped out around 0.88. This means the runtime threshold has headroom — could be raised to 0.5 or higher to trade a bit of recall for precision without losing most clean fires.
 
-Final model shipped at `debug/hey_claudia.onnx` (~206 KB ONNX). Older versions archived at `hey_claudia_v1.onnx` (Piper-only baseline) and `hey_claudia_v2.onnx` (conservative).
+Final model shipped at `var/wake-word/models/current/hey_claudia.onnx` (~206 KB ONNX). Older versions archived at `hey_claudia_v1.onnx` (Piper-only baseline) and `hey_claudia_v2.onnx` (conservative).

@@ -65,8 +65,8 @@ These complement the mined meeting negatives (real acoustics) with synthetic neg
 
 During v4 testing we identified far-field positions not covered by v3's 9 RIRs — notably *beyond* the `tent_far` position. Capture 2–3 more using the existing scripts:
 
-- `debug/capture_rir_record.py` (Jabra host)
-- `debug/capture_rir_play.py` (laptop)
+- `training/wake-word/data-gen/capture-rir-record.py` (Jabra host)
+- `training/wake-word/data-gen/capture-rir-play.py` (laptop)
 
 Add to the RIR set that training augmentation consumes. Target SNR still ≥ 25 dB, aim for 65+ dB as v3 achieved.
 
@@ -102,7 +102,7 @@ Neither of these requires a retraining cycle; both can layer on top of v3 today 
 4. Synthesize phonetic-neighbor samples via ElevenLabs.
 5. Capture 2–3 new far-field RIRs.
 6. Retrain in Colab with expanded negatives + `max_negative_weight=800`.
-7. Swap `debug/hey_claudia.onnx` → v4, restart service, run `debug/wake_word_test.py` at close / far / meeting-ambient-background conditions.
+7. Swap `var/wake-word/models/current/hey_claudia.onnx` → v4, restart service, run `training/wake-word/validation/live-test.py` at close / far / meeting-ambient-background conditions.
 
 ## Success criteria
 
@@ -117,4 +117,4 @@ Neither of these requires a retraining cycle; both can layer on top of v3 today 
 - [ ] Phonetic-neighbor synthesis via ElevenLabs.
 - [ ] Additional RIRs captured.
 - [ ] v4 Colab training run.
-- [ ] v4 `.onnx` deployed; before/after metrics on `debug/wake_word_test.py`.
+- [ ] v4 `.onnx` deployed; before/after metrics on `training/wake-word/validation/live-test.py`.

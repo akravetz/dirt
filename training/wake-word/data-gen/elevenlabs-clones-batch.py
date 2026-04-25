@@ -1,31 +1,13 @@
-"""Batch-generate phonetic-neighbor negatives via ElevenLabs voice cloning.
+"""Batch-generate voice-clone samples for openWakeWord training data.
 
-Sister script to `elevenlabs_clone_batch.py` — same voice, same settings spread,
-different phrase list. The output WAVs are *hard negatives* for openWakeWord
-training: phrases that share enough acoustic structure with "hey claudia" to
-trick a model that learned only on the positive set + broad ACAV background,
-but which a human would clearly reject.
+Generates samples across a mix of text variants and voice settings,
+saving as 16 kHz mono WAV files suitable for dropping into the
+openWakeWord `positive_train/` directory.
 
-Phrase strategy:
-- Decomposition negatives (`hey`, `claudia`): force the model to require BOTH
-  halves rather than firing on either alone. Heaviest weight.
-- Prefix swaps (`okay claudia`, `play claudia`): test that the wake word
-  *prefix* matters, not just the suffix.
-- Phoneme-shifted suffixes (`hey claire`, `hey clyde`, `hey clay`): test that
-  the model requires the specific "claudia" phoneme sequence, not just
-  "hey C-something".
-- Distant rhymes (`hey clouds`, `hey kappa`): cheap padding for variety.
-
-These are *synthetic* negatives. They MUST be paired with real-world harvested
-false-positives from `var/logs/wake_audio/near_miss_*.wav` for a robust model
-— TTS-rendered phonemes can have artifacts the model latches onto, so don't
-ship a training run that uses *only* this bucket as hard negatives.
-
-Output: var/elevenlabs/voice_samples_neighbors/<slug>_NNN_s..b..v...wav (16 kHz mono)
-Cost: ~470 short phrases at ElevenLabs streaming rates ≈ <$1 in credits.
+Edit PHRASES and SETTINGS below to control the batch composition.
 
 Usage:
-    uv run python scripts/elevenlabs-neighbors-batch.py
+    uv run python training/wake-word/data-gen/elevenlabs-clones-batch.py
 """
 
 from __future__ import annotations
@@ -39,7 +21,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 from elevenlabs import ElevenLabs, VoiceSettings
 
-ROOT = Path(__file__).resolve().parent.parent
+# File lives at training/wake-word/data-gen/<this>.py — 4 parents up to repo root.
+ROOT = Path(__file__).resolve().parents[3]
 load_dotenv(ROOT / ".env")
 
 API_KEY = os.environ.get("ELABS_API_KEY")
@@ -49,25 +32,20 @@ if not API_KEY:
 VOICE_ID = "mjXJZpUEgv69eq6xrhlW"
 MODEL_ID = "eleven_multilingual_v2"
 SAMPLE_RATE = 16000
-OUTPUT_DIR = ROOT / "var" / "elevenlabs" / "voice_samples_neighbors"
+OUTPUT_DIR = ROOT / "var" / "wake-word" / "voice-clones"
 
-# (prompt text, count) — see module docstring for the rationale per group.
+# (prompt text, count)
 PHRASES: list[tuple[str, int]] = [
-    # Decomposition: most important. Model must require both halves.
-    ("hey", 75),
-    ("claudia", 75),
-    # Prefix swaps: same suffix, different leading word.
-    ("okay claudia", 50),
-    ("play claudia", 30),
-    # Phoneme-shifted suffixes: hardest distractor class.
-    ("hey claire", 50),
-    ("hey clyde", 50),
-    ("hey clay", 50),
-    # Distant rhymes: cheap padding for diversity.
-    ("hey clouds", 30),
-    ("hey kappa", 30),
+    ("hey claudia", 500),
+    ("Hey, Claudia", 500),
+    ("hey Clowdia", 500),
+    ("Hey, Clowdia", 500),
 ]
 
+# Settings presets we cycle through to introduce acoustic diversity.
+# Stability low -> more expressive variation. Similarity_boost high ->
+# closer to the clone reference. Speed spread simulates natural pacing
+# differences.
 SETTINGS_PRESETS: list[dict] = [
     {"stability": 0.30, "similarity_boost": 1.00, "speed": 1.00},
     {"stability": 0.45, "similarity_boost": 0.90, "speed": 1.10},
@@ -76,7 +54,7 @@ SETTINGS_PRESETS: list[dict] = [
     {"stability": 0.40, "similarity_boost": 1.00, "speed": 1.00},
 ]
 
-SEED = 42
+SEED = 42  # reproducible settings ordering across runs
 
 
 def save_pcm_as_wav(pcm_bytes: bytes, path: Path, sample_rate: int) -> None:
@@ -92,11 +70,17 @@ def slugify(text: str) -> str:
 
 
 def main() -> None:
-    """PHRASES values are TARGETS, not deltas — resume-safe across runs."""
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    """Generate until each phrase in PHRASES has reached its target count.
+
+    PHRASES values are TARGETS, not deltas — resume-safe. Running the
+    script multiple times with the same PHRASES config converges on the
+    target; each run only generates what's missing.
+    """
+    OUTPUT_DIR.mkdir(exist_ok=True)
     client = ElevenLabs(api_key=API_KEY)
     rng = random.Random(SEED)
 
+    # Figure out what still needs to be generated per phrase
     todo = []
     for phrase, target in PHRASES:
         slug = slugify(phrase)
@@ -109,7 +93,7 @@ def main() -> None:
     print(f"Voice: {VOICE_ID}")
     for phrase, _slug, existing, target, to_gen in todo:
         status = "✓" if to_gen == 0 else f"needs {to_gen}"
-        print(f"  {phrase!r:<22}  {existing}/{target}  {status}")
+        print(f"  {phrase!r:<25}  {existing}/{target}  {status}")
     print()
 
     if total_to_generate == 0:

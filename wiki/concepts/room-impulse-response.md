@@ -63,12 +63,12 @@ The inverse filter is `x_inv(t) = x(T − t) · e^(−tR/T)` — time-reversed s
 
 Two-device setup (laptop speaker is across the room from the Jabra, so each host runs its own script):
 
-- **Jabra host** (monitoring machine): `debug/capture_rir_record.py <label>` — records 30–45s through the Jabra, deconvolves, saves IR + raw WAV
-- **Laptop** (desk): `debug/capture_rir_play.py` — plays the matching sweep through the laptop speaker at ~80% volume
+- **Jabra host** (monitoring machine): `training/wake-word/data-gen/capture-rir-record.py <label>` — records 30–45s through the Jabra, deconvolves, saves IR + raw WAV
+- **Laptop** (desk): `training/wake-word/data-gen/capture-rir-play.py` — plays the matching sweep through the laptop speaker at ~80% volume
 
 Both scripts use identical sweep parameters (SAMPLE_RATE, F_START, F_END, SWEEP_DURATION) as module constants so they generate bit-identical sweeps independently — no file sync needed. The recorder's 45s window is deliberately longer than the sweep so there's time to start the player after the recorder.
 
-Output: `debug/rirs/ir/<label>.wav` (the clean IR, for training) and `debug/rirs/raw/<label>.wav` (the unprocessed recording, for re-deconvolution if parameters change).
+Output: `var/wake-word/rirs/<label>.wav` (the clean IR, for training) and `var/wake-word/rirs-raw/<label>.wav` (the unprocessed recording, for re-deconvolution if parameters change).
 
 ## Results
 
@@ -76,10 +76,10 @@ Four IRs captured at the most likely wake-word interaction positions:
 
 | Position | SNR | File |
 |----------|-----|------|
-| `loft_primary` | 65.8 dB | `debug/rirs/ir/loft_primary.wav` |
-| `stairs_top` | 69.6 dB | `debug/rirs/ir/stairs_top.wav` |
-| `couch` | 67.1 dB | `debug/rirs/ir/couch.wav` |
-| `next_to_tent` | 77.3 dB | `debug/rirs/ir/next_to_tent.wav` |
+| `loft_primary` | 65.8 dB | `var/wake-word/rirs/loft_primary.wav` |
+| `stairs_top` | 69.6 dB | `var/wake-word/rirs/stairs_top.wav` |
+| `couch` | 67.1 dB | `var/wake-word/rirs/couch.wav` |
+| `next_to_tent` | 77.3 dB | `var/wake-word/rirs/next_to_tent.wav` |
 
 All >25 dB SNR (our target minimum), most well above 60 dB. The close-range `next_to_tent` at 77.3 dB is cleanest because the direct path dominates. Each IR is 1505 ms long (IR_LEAD_MS + IR_KEEP_MS in the recorder), capturing direct path + first reflections + decay.
 

@@ -16,10 +16,10 @@
 set -euo pipefail
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
-KERNEL_DIR="$REPO_ROOT/training/wake-word-kaggle"
+KERNEL_DIR="$REPO_ROOT/training/wake-word/kaggle"
 META="$KERNEL_DIR/kernel-metadata.json"
 POLL_INTERVAL=20
-OUT_DIR="${KAGGLE_TRAIN_OUT_DIR:-$REPO_ROOT/training/wake-word-kaggle/artifacts}"
+OUT_DIR="${KAGGLE_TRAIN_OUT_DIR:-$REPO_ROOT/var/wake-word/models}"
 
 KAGGLE=(uv run --project "$REPO_ROOT" kaggle)
 "${KAGGLE[@]}" --version >/dev/null 2>&1 || {

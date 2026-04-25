@@ -4,7 +4,7 @@ Runs as a Kaggle Script Kernel (`kernel_type: script` in kernel-metadata.json).
 End-to-end: generate synthetic positives (piper) -> augment -> train -> export
 ONNX + tflite to /kaggle/working, which Kaggle auto-publishes as kernel output.
 
-Source: debug/automatic_model_training.py (Colab). The three bulk-download cells
+Source: training/wake-word/reference/automatic_model_training.py (Colab). The three bulk-download cells
 (MIT RIRs, AudioSet, FMA, 2000h features, 11h validation features) are replaced
 with /kaggle/input/* mounts — those corpora are uploaded once as Kaggle Datasets
 and mounted read-only at runtime. Edit EXPECTED_INPUTS below if you rename them.
@@ -32,14 +32,28 @@ import yaml
 TARGET_WORD = "hey_claudia"
 NUMBER_OF_EXAMPLES = 30_000
 NUMBER_OF_TRAINING_STEPS = 20_000
-FALSE_ACTIVATION_PENALTY = 3_000  # per-class loss weight cap (linspace 1 -> this over training)
+# max_negative_weight floor for auto_train. Critical knob: openwakeword's
+# auto_train *automatically doubles* this value (up to twice) when validation
+# FP/hour exceeds TARGET_FP_PER_HOUR. So 500 → 1000 → 2000 in the worst case.
+# Setting this too high (we tried 3000) starves the model of positive signal —
+# v5 first run collapsed to 21% recall because auto_train escalated to 12000.
+# v3 (89% recall) used 500.
+FALSE_ACTIVATION_PENALTY = 500
+# How many FP/hour we tolerate before auto_train escalates max_negative_weight.
+# Upstream default 0.2 → 1.0 still escalated twice (recall capped at 38%). The
+# `best_val_fp` checked against this is the *training-time* validation FP/hr,
+# which runs much higher than the final-model FP/hr; setting this very high
+# disables escalation so max_negative_weight stays at its starting value.
+# Speaker-verifier (parallel work) handles the precision tail; the wake model
+# biases for recall.
+TARGET_FP_PER_HOUR = 10.0
 
 # Per-source duplication factors for files we seed into positive_train/ and
 # negative_train/ before --generate_clips. Duplicating a clip on disk is
 # openwakeword's only mechanism for per-sample weighting — the dataloader
 # samples files uniformly, so a clip present N times has N× pull on the loss.
-CLONE_DUPLICATION = 1       # ElevenLabs voice clones (synthetic positives)
-NEIGHBOR_DUPLICATION = 1    # ElevenLabs phonetic-neighbor negatives (synthetic)
+CLONE_DUPLICATION = 5  # ElevenLabs voice clones (synthetic positives, hi-fi)
+NEIGHBOR_DUPLICATION = 1  # ElevenLabs phonetic-neighbor negatives (synthetic)
 HARVESTED_DUPLICATION = 10  # Real false-positives from var/logs/wake_audio/ (gold)
 
 # ---------------------------------------------------------------------------
@@ -114,6 +128,7 @@ def verify_inputs() -> None:
 # Step 1: install dependencies + clone training repo
 # ---------------------------------------------------------------------------
 
+
 def install_dependencies() -> None:
     os.chdir(WORK)
 
@@ -151,8 +166,12 @@ def install_dependencies() -> None:
     resources = WORK / "openwakeword/openwakeword/resources/models"
     resources.mkdir(parents=True, exist_ok=True)
     base = "https://github.com/dscripka/openWakeWord/releases/download/v0.5.1"
-    for name in ("embedding_model.onnx", "embedding_model.tflite",
-                 "melspectrogram.onnx", "melspectrogram.tflite"):
+    for name in (
+        "embedding_model.onnx",
+        "embedding_model.tflite",
+        "melspectrogram.onnx",
+        "melspectrogram.tflite",
+    ):
         dest = resources / name
         if not dest.exists():
             sh(f"wget -q {base}/{name} -O {dest}")
@@ -161,6 +180,7 @@ def install_dependencies() -> None:
 # ---------------------------------------------------------------------------
 # Step 2: build the training YAML pointing at Kaggle mounts
 # ---------------------------------------------------------------------------
+
 
 def build_config() -> Path:
     base_yaml = WORK / "openwakeword/examples/custom_model.yml"
@@ -171,17 +191,21 @@ def build_config() -> Path:
     config["n_samples"] = NUMBER_OF_EXAMPLES
     config["n_samples_val"] = max(500, NUMBER_OF_EXAMPLES // 10)
     config["steps"] = NUMBER_OF_TRAINING_STEPS
-    config["target_accuracy"] = 0.5
-    config["target_recall"] = 0.25
+    # NOTE: target_accuracy and target_recall are dead keys in openwakeword's
+    # train.py — never read. The actual quality knob is target_fp_per_hour
+    # (which controls auto_train's max_negative_weight escalation).
     config["output_dir"] = str(OUT_DIR)
     config["max_negative_weight"] = FALSE_ACTIVATION_PENALTY
+    config["target_false_positives_per_hour"] = TARGET_FP_PER_HOUR
 
     # Kaggle-mounted paths
     config["background_paths"] = [
         str(EXPECTED_INPUTS["audioset_16k"]),
         str(EXPECTED_INPUTS["fma"]),
     ]
-    config["false_positive_validation_data_path"] = str(EXPECTED_INPUTS["validation_features"])
+    config["false_positive_validation_data_path"] = str(
+        EXPECTED_INPUTS["validation_features"]
+    )
     config["feature_data_files"] = {
         "ACAV100M_sample": str(EXPECTED_INPUTS["train_features"]),
     }
@@ -208,6 +232,7 @@ def build_config() -> Path:
 #   negative_train/synth_neighbor_<orig>.wav   ElevenLabs phonetic neighbors
 #   negative_train/harvested_<orig>.wav        Real var/logs/wake_audio/ captures
 
+
 def _seed_dir(src_files, dest_dir: Path, prefix: str, n_dup: int) -> int:
     written = 0
     for src in src_files:
@@ -233,9 +258,14 @@ def prepare_seed_clips() -> None:
     n_synth = n_harv = 0
     if neg_src.exists():
         harvested = sorted(neg_src.glob("harvested_*.wav"))
-        synthetic = [p for p in sorted(neg_src.glob("*.wav"))
-                     if not p.name.startswith("harvested_")]
-        n_synth = _seed_dir(synthetic, neg_train, "synth_neighbor_", NEIGHBOR_DUPLICATION)
+        synthetic = [
+            p
+            for p in sorted(neg_src.glob("*.wav"))
+            if not p.name.startswith("harvested_")
+        ]
+        n_synth = _seed_dir(
+            synthetic, neg_train, "synth_neighbor_", NEIGHBOR_DUPLICATION
+        )
         n_harv = _seed_dir(harvested, neg_train, "harvested_", HARVESTED_DUPLICATION)
 
     print(
@@ -249,15 +279,28 @@ def prepare_seed_clips() -> None:
 # Step 4: run openwakeword training pipeline
 # ---------------------------------------------------------------------------
 
+
 def train(config_path: Path) -> None:
     train_py = WORK / "openwakeword/openwakeword/train.py"
     for flag in ("--generate_clips", "--augment_clips", "--train_model"):
-        sh(f"{sys.executable} {train_py} --training_config {config_path} {flag}")
+        try:
+            sh(f"{sys.executable} {train_py} --training_config {config_path} {flag}")
+        except subprocess.CalledProcessError:
+            # openwakeword's --train_model ends with an onnx_tf-based ONNX→tflite
+            # conversion that's been broken since python 3.11 (the upstream Colab
+            # monkey-patches around it). The .onnx file is saved before the
+            # broken step, so if it exists we proceed; export() does the tflite
+            # conversion cleanly via onnx2tf.
+            if flag == "--train_model" and (OUT_DIR / f"{TARGET_WORD}.onnx").exists():
+                print("--train_model exited non-zero but ONNX exists; continuing.")
+                continue
+            raise
 
 
 # ---------------------------------------------------------------------------
 # Step 4: export tflite + stage outputs to /kaggle/working (auto-published)
 # ---------------------------------------------------------------------------
+
 
 def export() -> None:
     onnx_path = OUT_DIR / f"{TARGET_WORD}.onnx"
@@ -277,6 +320,7 @@ def export() -> None:
 
 
 # ---------------------------------------------------------------------------
+
 
 def main() -> None:
     verify_inputs()

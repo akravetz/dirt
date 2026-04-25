@@ -83,10 +83,13 @@ from dirt_voice.tools.wiki import build_wiki_tools
 REPO_ROOT = Path(__file__).resolve().parents[5]
 
 # Wake model — trained on user-voice ElevenLabs clones + captured RIRs.
-# See wiki/decisions/2026-04-16-wake-word-training-strategy.md.
-# Lives at <repo>/debug/hey_claudia.onnx (gitignored scratch dir; the .onnx
-# file is a trained artifact we keep on disk but not in git).
-WAKE_MODEL_PATH = REPO_ROOT / "debug" / "hey_claudia.onnx"
+# See wiki/decisions/2026-04-16-wake-word-training-strategy.md and the
+# retraining workflow at training/wake-word/. The `current` symlink under
+# var/wake-word/models/ points to the active version (currently 2026-04-16-v3).
+# var/ is gitignored — trained artifacts live on disk but not in git.
+WAKE_MODEL_PATH = (
+    REPO_ROOT / "var" / "wake-word" / "models" / "current" / "hey_claudia.onnx"
+)
 WAKE_SAMPLE_RATE = 16000
 WAKE_CHUNK_SAMPLES = int(WAKE_SAMPLE_RATE * 0.08)  # 80 ms
 WAKE_THRESHOLD = 0.6
