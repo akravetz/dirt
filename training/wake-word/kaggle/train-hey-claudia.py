@@ -53,8 +53,14 @@ TARGET_FP_PER_HOUR = 10.0
 # negative_train/ before --generate_clips. Duplicating a clip on disk is
 # openwakeword's only mechanism for per-sample weighting — the dataloader
 # samples files uniformly, so a clip present N times has N× pull on the loss.
-CLONE_DUPLICATION = 5  # ElevenLabs voice clones (synthetic positives, hi-fi)
+#
+# Pool-share targeting: with N source clones and M source realmic, real-mic's
+# share of the duplicated pool is M*REALMIC / (N*CLONE + M*REALMIC). At
+# 2000 clones × 1 + 18 realmic × 10, real-mic = 180/2180 ≈ 8% of positives.
+CLONE_DUPLICATION = 1  # ElevenLabs voice clones (synthetic positives)
 NEIGHBOR_DUPLICATION = 1  # ElevenLabs phonetic-neighbor negatives (synthetic)
+REALMIC_POSITIVE_DUPLICATION = 10  # Hand-recorded "hey claudia" through the Jabra (gold)
+REALMIC_NEGATIVE_DUPLICATION = 10  # Hand-recorded non-wake phrases through the Jabra (gold)
 HARVESTED_DUPLICATION = 10  # Real false-positives from var/logs/wake_audio/ (gold)
 
 # ---------------------------------------------------------------------------
@@ -233,7 +239,9 @@ def build_config() -> Path:
 #
 # Naming convention used here (matters for the option-2 augmentation fork):
 #   positive_train/synth_clone_<orig>.wav      ElevenLabs voice clones (TTS)
+#   positive_train/realmic_pos_<orig>.wav      Hand-recorded "hey claudia"
 #   negative_train/synth_neighbor_<orig>.wav   ElevenLabs phonetic neighbors
+#   negative_train/realmic_neg_<orig>.wav      Hand-recorded non-wake phrases
 #   negative_train/harvested_<orig>.wav        Real var/logs/wake_audio/ captures
 
 
@@ -253,29 +261,48 @@ def prepare_seed_clips() -> None:
     pos_train.mkdir(parents=True, exist_ok=True)
     neg_train.mkdir(parents=True, exist_ok=True)
 
-    # Positives — ElevenLabs voice clones
-    clones = sorted(EXPECTED_INPUTS["voice_samples"].glob("*.wav"))
-    n_pos = _seed_dir(clones, pos_train, "synth_clone_", CLONE_DUPLICATION)
+    # ---- Positives: split synthetic-clone from real-mic by filename prefix ----
+    pos_src = EXPECTED_INPUTS["voice_samples"]
+    realmic_pos = sorted(pos_src.glob("realmic-pos_*.wav"))
+    synth_clones = [
+        p for p in sorted(pos_src.glob("*.wav"))
+        if not p.name.startswith("realmic-pos_")
+    ]
+    n_clones = _seed_dir(synth_clones, pos_train, "synth_clone_", CLONE_DUPLICATION)
+    n_realmic_pos = _seed_dir(
+        realmic_pos, pos_train, "realmic_pos_", REALMIC_POSITIVE_DUPLICATION
+    )
 
-    # Negatives — split harvested (real) from synthetic (TTS neighbors) by name
+    # ---- Negatives: split synthetic / harvested / realmic by filename prefix ----
     neg_src = MINE / "negatives"
-    n_synth = n_harv = 0
+    n_synth = n_harv = n_realmic_neg = 0
     if neg_src.exists():
-        harvested = sorted(neg_src.glob("harvested_*.wav"))
+        all_negs = sorted(neg_src.glob("*.wav"))
+        harvested = [p for p in all_negs if p.name.startswith("harvested_")]
+        realmic_neg = [p for p in all_negs if p.name.startswith("realmic-neg_")]
         synthetic = [
-            p
-            for p in sorted(neg_src.glob("*.wav"))
+            p for p in all_negs
             if not p.name.startswith("harvested_")
+            and not p.name.startswith("realmic-neg_")
         ]
         n_synth = _seed_dir(
             synthetic, neg_train, "synth_neighbor_", NEIGHBOR_DUPLICATION
         )
+        n_realmic_neg = _seed_dir(
+            realmic_neg, neg_train, "realmic_neg_", REALMIC_NEGATIVE_DUPLICATION
+        )
         n_harv = _seed_dir(harvested, neg_train, "harvested_", HARVESTED_DUPLICATION)
 
     print(
-        f"Seeded {n_pos} positives | "
-        f"{n_synth} synthetic-neighbor + {n_harv} harvested negatives "
-        f"(harvested duplicated {HARVESTED_DUPLICATION}x)"
+        f"Seeded positives: {n_clones} synth-clone (×{CLONE_DUPLICATION}) "
+        f"+ {n_realmic_pos} realmic-pos (×{REALMIC_POSITIVE_DUPLICATION}) "
+        f"= {n_clones + n_realmic_pos} total"
+    )
+    print(
+        f"Seeded negatives: {n_synth} synth-neighbor (×{NEIGHBOR_DUPLICATION}) "
+        f"+ {n_realmic_neg} realmic-neg (×{REALMIC_NEGATIVE_DUPLICATION}) "
+        f"+ {n_harv} harvested (×{HARVESTED_DUPLICATION}) "
+        f"= {n_synth + n_realmic_neg + n_harv} total"
     )
 
 

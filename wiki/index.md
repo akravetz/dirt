@@ -11,6 +11,7 @@ updated: 2026-04-24
 - [Activity Log](log.md) — Append-only ingestion and update history
 - [Oregon Breeding Group (OBG)](concepts/oregon-breeding-group.md) — Wayne / Serious Black / BS01 breeding-stock pack; next-grow phenotypic selection + breeding plan
 - [Cannabis Genomics](concepts/cannabis-genomics.md) — bioinformatics pipeline: reference assemblies, variant calling, SnpEff, kinship/PCA, MAS workflow
+- [Wake-Word Experiment Log](wake-word-experiments.md) — append-only log of every "hey Claudia" model trained: what changed, why, training config, validation results
 
 ## Plants
 - [Plant A](plants/plant-a.md) — 🔴 Primary keeper; vigor leader; strong purple contender; **topped Apr 11** (Day 13 post-top); **LST Day 4** (started Apr 20); moisture stable ~56%

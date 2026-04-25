@@ -3,6 +3,12 @@
 Wake-word retraining pipeline for the `dirt-voice` channel ("hey Claudia").
 Read this before touching any wake-word code, data, or model deployment.
 
+> **First stop for "what models exist and how did they perform":**
+> [`wiki/wake-word-experiments.md`](../../wiki/wake-word-experiments.md) — the
+> append-only experiment log. **Every time you train a new model, append a new
+> entry there.** The log's own "Maintenance protocol" section spells out the
+> per-experiment ritual.
+
 ## Layout
 
 **Code (committed, this directory):**

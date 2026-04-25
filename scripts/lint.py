@@ -377,7 +377,12 @@ def check_frontmatter() -> list[str]:
 
 MAX_LINES_WARN = 200
 MAX_LINES_FAIL = 400
-LENGTH_SKIP_FILES = {"index.md", "log.md", "CLAUDE.md"}
+LENGTH_SKIP_FILES = {
+    "index.md",
+    "log.md",
+    "CLAUDE.md",
+    "wake-word-experiments.md",  # append-only experiment log; grows naturally
+}
 
 
 def check_file_length() -> list[str]:
