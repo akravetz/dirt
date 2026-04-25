@@ -17,6 +17,7 @@ though the orchestrator only reads the sentinel).
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import sys
@@ -27,6 +28,8 @@ INPUT = Path(os.environ.setdefault("DIRT_KAGGLE_INPUT", "/workspace/input"))
 WORKING = Path(os.environ.setdefault("DIRT_KAGGLE_WORKING", "/workspace/working"))
 OUT = Path("/workspace/out")
 TARGET_WORD = "hey_claudia"
+TTS_CACHE_DIR = INPUT / "dirt-wakeword-tts-cache"
+TTS_SUBDIRS = ("positive_train", "negative_train", "positive_test", "negative_test")
 
 
 def _publish_artifacts() -> None:
@@ -42,6 +45,56 @@ def _publish_artifacts() -> None:
         shutil.copy2(report, OUT / "validation-report.txt")
 
 
+def _persist_tts_cache() -> None:
+    """Copy generated TTS WAVs to the volume so future runs skip Piper.
+
+    The library's `restore_tts_cache_if_mounted()` hook (in tts_cache.py)
+    looks for `/workspace/input/dirt-wakeword-tts-cache/` with a matching
+    cache-key.json. If we wrote that here, the next run reads it and
+    short-circuits the ~22 min `--generate_clips` Piper phase.
+
+    Skips silently when the cache is already populated and matches the
+    current run's parameters — re-running v2 onwards shouldn't redo the
+    write since prepare_seed_clips already restored the same WAVs.
+    """
+    from dirt_wake_word.config import NUMBER_OF_EXAMPLES, TARGET_WORD as _tw
+
+    expected_key = {
+        "target_phrase": _tw.replace("_", " "),
+        "n_samples": NUMBER_OF_EXAMPLES,
+        "n_samples_val": max(500, NUMBER_OF_EXAMPLES // 10),
+    }
+    key_path = TTS_CACHE_DIR / "cache-key.json"
+    if key_path.exists():
+        existing = json.loads(key_path.read_text())
+        if existing == expected_key:
+            print(
+                f"=== TTS cache already up-to-date at {TTS_CACHE_DIR} (skipping persist)",
+                flush=True,
+            )
+            return
+
+    print(f"=== persisting TTS cache to {TTS_CACHE_DIR} ===", flush=True)
+    TTS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    src_root = WORKING / "my_custom_model"
+    total = 0
+    for subdir in TTS_SUBDIRS:
+        src = src_root / subdir
+        if not src.is_dir():
+            print(f"  (warning) {subdir}/ missing — skipping in cache", flush=True)
+            continue
+        dst = TTS_CACHE_DIR / subdir
+        dst.mkdir(parents=True, exist_ok=True)
+        n = 0
+        for wav in src.glob("*.wav"):
+            shutil.copy2(wav, dst / wav.name)
+            n += 1
+        total += n
+        print(f"  {subdir}: {n} WAVs cached", flush=True)
+    key_path.write_text(json.dumps(expected_key, indent=2) + "\n")
+    print(f"  total {total} WAVs; cache-key.json written", flush=True)
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     WORKING.mkdir(parents=True, exist_ok=True)
@@ -55,6 +108,12 @@ def main() -> None:
 
         wake_word_main()
         _publish_artifacts()
+        # Persist generated TTS WAVs so v2+ runs skip the ~22 min Piper phase.
+        # Best-effort: a failure here shouldn't fail the run.
+        try:
+            _persist_tts_cache()
+        except Exception as exc:
+            print(f"WARN: TTS cache persist failed: {exc!r}", flush=True)
     except BaseException:
         OUT.mkdir(parents=True, exist_ok=True)
         (OUT / "FAILURE").write_text(traceback.format_exc())
