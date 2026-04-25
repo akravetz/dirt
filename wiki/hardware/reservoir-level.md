@@ -4,7 +4,7 @@ type: hardware
 sources: []
 related: [wiki/concepts/autopot.md, wiki/decisions/2026-04-18-reservoir-level-pressure-transducer.md, wiki/decisions/2026-04-11-reservoir-stand.md, wiki/hardware/esp32-plant-nodes.md]
 created: 2026-04-18
-updated: 2026-04-18
+updated: 2026-04-25
 ---
 
 # Reservoir Level (Autopot 25-gal FlexiTank Pro)
@@ -17,13 +17,29 @@ Method: **submerged hydrostatic pressure transducer** at the bottom of the tank.
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| DFRobot KIT0139 pressure transducer | ⏳ Planned | Submersible 316L stainless probe, 5m cable, 4–20mA loop output, 0–5m H₂O range |
-| 4–20mA → 0–5V converter | ⏳ Planned | DFRobot SEN0262 ships in the KIT0139 box; alternative is a discrete precision shunt resistor (~250 Ω) — choice deferred |
+| DFRobot KIT0139 pressure transducer | ⏳ Ordered, in transit | Submersible 316L stainless probe, 5m cable, 4–20mA loop output, 0–5m H₂O range. Arriving 2026-04-25 |
+| 4–20mA → 0–5V converter | ✅ Decided | DFRobot SEN0262 (ships in the KIT0139 box). Discrete precision-shunt alternative deferred to v2 only if SEN0262 fails |
 | ADS1115 16-bit I²C ADC | ⏳ Planned | Reads the converter's voltage output cleanly; sidesteps the ESP32-C3's noisy/non-linear native ADC (see [ESP32-C3 ADC over-reporting note](esp32-plant-nodes.md#known-quirks)) |
-| 12V DC supply for transmitter | ⏳ Planned | Transmitter needs 12–36V; ESP32-C3 USB-5V cannot drive it. Sourcing TBD |
+| 12V DC supply for transmitter | ✅ Ordered (2026-04-25) | Security-01 12V/1A UL-listed regulated brick, 5.5×2.1 mm barrel center-positive. Dedicated to the loop + node — not shared with the LED rail. [Amazon B01DB91P46](https://www.amazon.com/100-240V-Supply-Adapter-Barrel-Camera/dp/B01DB91P46) |
 | ESP32-C3 SuperMini node | ⏳ Planned | Same board family as the plant nodes; new dedicated node, working name `dirt-reservoir.local` (location label `reservoir`, IP TBD) |
 | Firmware | ⏳ Planned | New `firmware/reservoir_node/` PIO project; mirrors `plant_node/` skeleton (WiFi, OTA, ingest POST), swaps the ADC driver for ADS1115 over I²C, drops the per-plant `PLANT_ID` flag |
 | Server-side ingest | ✅ Existing path works | `POST /api/ingest/sensors` already accepts arbitrary `(location, metric, value)` triples — no schema change needed; will land as `location="reservoir"`, `metric="reservoir_depth_cm"` (and/or `reservoir_pressure_pa`) |
+
+## Bill of Materials
+
+| Qty | Part | Purpose | Source |
+|----:|------|---------|--------|
+| 1 | DFRobot KIT0139 submersible pressure transducer + SEN0262 4–20mA→V converter | Sensing element + signal conditioner | [dfrobot.com product-1863](https://www.dfrobot.com/product-1863.html) |
+| 1 | Security-01 12V/1A UL-listed power adapter, 5.5×2.1 mm barrel | Powers the 4–20mA loop and feeds the node's buck | [Amazon B01DB91P46](https://www.amazon.com/100-240V-Supply-Adapter-Barrel-Camera/dp/B01DB91P46) — **purchased 2026-04-25** |
+| 1 | 5.5×2.1 mm female barrel pigtail w/ screw terminals | Lands the brick's bare wires into the loop / buck without cutting the adapter cord | Amazon (any 5-pack, ~$6) |
+| 1 | 12V→5V buck converter (e.g. mini-360) | Feeds 5V to the ESP32-C3 SuperMini from the same brick | Amazon (any 3-pack, ~$8) |
+| 1 | ADS1115 16-bit I²C ADC breakout | Clean ADC for the 0–5 V SEN0262 output (sidesteps the C3's native ADC) | Adafruit / Amazon |
+| 1 | ESP32-C3 SuperMini | WiFi MCU; new node `dirt-reservoir.local`, location label `reservoir` | On-hand (same family as plant nodes) |
+| 1 | M16 cable gland (or similar) | Tank-lid pass-through for the probe cable + atmospheric vent | Amazon |
+| — | Project box (small IP54 enclosure, ~80×60×40 mm) | Houses the SEN0262 + ADS1115 + ESP32 outside the tank, dry side of the cable vent | Any |
+| — | Hookup wire, 22 AWG, 4-conductor (red / black / SDA / SCL) | Probe-to-enclosure I²C and power | On-hand |
+
+Loop draw is ~20 mA + node ~150 mA peak ≈ 200 mA total — the 1 A brick has 5× headroom. Do **not** upsize to a 2 A brick; bigger supplies tend to ripple harder on a precision analog rail.
 
 ## Hardware
 
@@ -92,28 +108,55 @@ See the [decision record](../decisions/2026-04-18-reservoir-level-pressure-trans
 
 ## Mounting Notes
 
-From the manufacturer's spec sheet:
+From the manufacturer's spec sheet, plus our own:
 
 - Probe must hang **vertically downward** in the tank. Don't lay it sideways.
+- **Suspend ~2 cm above the tank bottom** on the probe's own cable. Resting on the bottom puts the diaphragm into root-mat sediment and biases readings high.
 - Keep the probe **away from the float-valve outlet** so suction transients don't show up as depth oscillations.
 - **Cable seal must stay above the waterline.** The diaphragm is IP68; the cable terminations are not. Run the cable out the top of the tank, not through a side hole.
+- **The cable contains an atmospheric vent.** The dry end of the cable must terminate in a non-condensing space so the gauge reference stays at room atmospheric pressure. House the SEN0262 / ADS1115 / ESP32 in a small enclosure with a sachet of desiccant; do not seal the cable end into a humid pocket inside the tent. A wet vent reads as fictitious depth changes that drift over hours-to-days.
 - Allow ~30 min after first power-up for the reading to settle.
 
 ## Calibration
 
-Two-point linear:
+Two-point linear, run once per deployment, persisted in the `sensorcalibration` table with `metric="reservoir_depth_cm"`:
 
-1. Empty tank → record raw ADS1115 counts (should correspond to ~4 mA, the loop's "alive but no pressure" baseline).
-2. Fill to a measured depth (use a tape measure inside the tank), record counts.
+1. **Zero (dry-air)**: probe held in air at tank height. Record ADS1115 counts → that's the 0 cm anchor (should correspond to ~4 mA on the loop).
+2. **Span**: fill to a tape-measured depth near the top of the usable range (e.g. ~40 cm in the FlexiTank), wait ~30 min for the reading to settle, record counts.
+3. Compute slope from those two points; depth(counts) is linear between them.
+4. **Verify** at a third independent depth (e.g. ~20 cm). Reject the calibration and re-do if the verification point misses by more than **10 mm**.
 
-Slope and intercept from those two points convert future readings to cm. Persist the calibration in the same `sensorcalibration` table the soil probes use, with `metric="reservoir_depth_cm"`.
+Auto-extrema calibration like the soil sensors do is wrong here — the probe is absolute, not relative — so the loop in `src/dirt/services/readings.py:_update_calibration` must NOT include `reservoir_depth_cm` in `AUTO_CALIBRATED_METRICS`.
 
-(Auto-extrema calibration like the soil sensors do is wrong here — the probe is absolute, not relative — so the loop in `src/dirt/services/readings.py:_update_calibration` should NOT include `reservoir_depth_cm` in `AUTO_CALIBRATED_METRICS`.)
+### Density correction
+
+A pressure sensor measures `ρ·g·h`, so a denser fluid reads as deeper than it is. Hydroponic nutrient solution runs ~1.005–1.010 g/mL, biasing depth high by ~0.7–1.0% (≈3–5 mm at 0.5 m full). We apply a single config constant `RESERVOIR_DENSITY_REL = 1.007` and divide depth by it before persisting. Recalibrate the slope rather than tweaking the constant if the recipe changes substantially (e.g. switching base nutrient brands).
+
+### Volume conversion (separate calibration)
+
+The FlexiTank's base is approximately a 21" × 21" prism, so depth → liters is roughly linear, but the corners are slightly radiused. To get an honest L number for "days until refill" estimates:
+
+1. Empty tank.
+2. Add water in 5 L increments from a measuring jug, recording depth after each addition.
+3. Store the (depth_cm → liters) lookup table in config; piecewise-linear interpolate at runtime.
+
+Publish both `reservoir_depth_cm` (raw, calibrated) and `reservoir_volume_l` (derived) so depth is recoverable if the volume table ever needs to be redone.
+
+## Fault detection
+
+In firmware, before publishing each reading:
+
+- **Loop fault**: SEN0262 output below the equivalent of 2.4 mA on the loop (i.e. well under the 4 mA "alive" floor) → publish `loop_fault=true` and skip the depth value. Catches cable cut, broken probe, or lost loop power without requiring the server to infer it.
+- **Refill event**: depth jumps by > 10 cm in < 5 min → emit a `reservoir_refilled` ingest event in addition to the normal sample. Anchors the daily report and prevents "rapid level change" alerting from firing on hand-fills.
+
+These are cheap server-trustable signals — no need for the ingest path to second-guess depth values that already failed sanity at the source.
+
+## Deferred / v2
+
+- **Reclaiming ADC dynamic range.** With a 0–5 m sensor on a 0.5 m tank, we use only ~10% of the 4–20 mA span. Replacing the SEN0262's burden resistor with a larger value (and dividing back to ADS1115 range) would put our usable depth into the upper end of the converter's voltage span and push effective resolution from ~25 mm toward ~5 mm. **Not doing on day one** — adds a custom hardware mod and breaks the manufacturer's calibration. Re-evaluate if day-to-day evapotranspiration trends are too noisy to read.
 
 ## Open Questions
 
-- **Current-to-voltage conversion path:** SEN0262 module (out of the box, but adds another point of failure) vs a soldered precision shunt resistor (simpler, no extra board). Decide when assembling.
-- **12 V supply:** dedicated brick, or share an existing 12 V rail in the closet? TBD.
 - **Node IP:** static reservation alongside the plant nodes. To be assigned.
 - **Sensor housing:** cable strain relief at the tank exit. A standard cable gland through the tank lid is the obvious answer; confirm the FlexiTank lid is drillable / that we're OK modifying it.
 - **Alerting thresholds:** "low reservoir" alert wiring is out of scope for this page; capture once the depth metric is flowing and we have a few weeks of consumption data to set a meaningful floor.
