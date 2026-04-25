@@ -71,6 +71,19 @@ sys.exit(0 if ok else 1)
   # is reproducibly tied to a specific repo state. Source file is restored
   # after push regardless of pass/fail.
   SHA=$(git -C "$REPO_ROOT" rev-parse HEAD)
+
+  # The kernel does `git clone https://github.com/akravetz/dirt && git checkout $SHA`
+  # against origin. If $SHA isn't pushed yet, that checkout exits 128 and the
+  # kernel dies 5 minutes in for nothing. Verify the SHA is reachable from
+  # origin/main before burning a Kaggle slot. v11 ate one of these.
+  echo "==> verifying $SHA is on origin/main"
+  git -C "$REPO_ROOT" fetch --quiet origin main
+  if ! git -C "$REPO_ROOT" merge-base --is-ancestor "$SHA" origin/main; then
+    echo "error: HEAD ($SHA) is not on origin/main." >&2
+    echo "       Push first (git push origin main) — the kernel clones the public repo," >&2
+    echo "       so unpushed commits will fail at \`git checkout\` inside Kaggle." >&2
+    exit 1
+  fi
   KERNEL_FILE="$KERNEL_DIR/train-hey-claudia.py"
   KERNEL_BACKUP=$(mktemp)
   cp "$KERNEL_FILE" "$KERNEL_BACKUP"
