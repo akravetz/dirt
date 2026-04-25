@@ -70,7 +70,14 @@ def install_dependencies() -> None:
     # we install all the actual deps explicitly in the next pip call.
     if not (WORK / "openwakeword").exists():
         sh("git clone https://github.com/dscripka/openwakeword")
-    sh("pip install --quiet --no-deps ./openwakeword")
+    # Editable (`-e`) install matters here. AudioFeatures() resolves
+    # `resources/models/melspectrogram.onnx` via `__file__` of the installed
+    # package. A non-editable install copies the source into site-packages,
+    # so our later wget into /kaggle/working/openwakeword/.../resources/
+    # never reaches the runtime path. With `-e` the installed location IS
+    # /kaggle/working/openwakeword/, so the resource files land where the
+    # runtime looks for them.
+    sh("pip install --quiet --no-deps -e ./openwakeword")
 
     sh(
         "pip install --quiet "
