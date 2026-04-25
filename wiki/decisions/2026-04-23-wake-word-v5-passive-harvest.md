@@ -60,16 +60,16 @@ Original v5 dropped ElevenLabs phonetic-neighbor synthesis on the theory that pa
 1. The harvest hasn't run yet. We need a baseline negative pool to train v5 on *now* — synthetic neighbors fill that role.
 2. Synthetic and harvested are **complementary**, not redundant. Synthetic covers phonetically-adjacent phrases the operator might never say in a 2-day window (`hey claire`, `hey clyde`, `hey clay`); harvest covers ambient/meeting/TV cases the operator can't enumerate. Both go into `negative_train/`, separately weighted (see `## Negative-handling architecture` below).
 
-Generated 2026-04-24 via `scripts/elevenlabs-neighbors-batch.py` (sister to `elevenlabs_clone_batch.py`). 440 WAVs in `var/elevenlabs/voice_samples_neighbors/` covering 9 phrases:
+Generated 2026-04-24 via `training/wake-word/data-gen/elevenlabs-neighbors-batch.py` (sister to `elevenlabs-clones-batch.py`). 360 WAVs in `var/wake-word/neighbors/` covering 7 phrases:
 
 | Phrase | Count | Purpose |
 |---|---:|---|
 | `hey` | 75 | Decomposition: model must require BOTH halves |
 | `claudia` | 75 | Decomposition |
-| `okay claudia` | 50 | Prefix swap |
-| `play claudia` | 30 | Prefix swap (likely real-life utterance) |
 | `hey claire` / `clyde` / `clay` | 50 each | Phoneme-shifted suffix |
 | `hey clouds` / `kappa` | 30 each | Distant rhymes (cheap padding) |
+
+> **2026-04-25 update:** `okay claudia` (50) and `play claudia` (30) were initially generated but removed — both share the `claudia` suffix with the wake word and the operator decided firing on those is acceptable (low UX cost). Don't re-add without re-evaluating that call.
 
 Cost: <$1 in ElevenLabs credits. Re-runnable by editing the `PHRASES` list at the top of the script.
 
@@ -90,7 +90,7 @@ All private to the `akravetz` account.
 
 | Dataset | Size | Contents | Refresh cadence |
 |---|---:|---|---|
-| `akravetz/dirt-wakeword-mine` | ~80 MB | Positives (`voice_samples/`, 2000 ElevenLabs clones), captured RIRs (`rirs/`, 9 WAVs), negatives (`negatives/`, 440 ElevenLabs neighbors as v2; harvested clips will land here as v3+) | Bumped on every harvest cycle (`kaggle datasets version -p ... -m "..."`) |
+| `akravetz/dirt-wakeword-mine` | ~80 MB | Positives (`voice_samples/`, 2000 ElevenLabs clones), captured RIRs (`rirs/`, 9 WAVs), negatives (`negatives/`, 360 ElevenLabs neighbors as v2; harvested clips will land here as v3+) | Bumped on every harvest cycle (`kaggle datasets version -p ... -m "..."`) |
 | `akravetz/dirt-wakeword-bg` | ~265 MB WAV | 500 AudioSet clips + 120 FMA-small clips, all converted to 16 kHz mono PCM. Used for `background_paths` augmentation (mixed *into* training clips, not as standalone negatives). | One-time; re-run `scripts/stage-kaggle-data` only if upstream parquets change |
 | `akravetz/dirt-wakeword-features` | ~17 GB `.npy` | Precomputed openwakeword features from `davidscripka/openwakeword_features` HF: `openwakeword_features_ACAV100M_2000_hrs_16bit.npy` (training negatives) + `validation_set_features.npy` (FP-rate validation) | One-time; refresh only if upstream feature schema changes |
 
@@ -152,11 +152,11 @@ Not blocked on v5 — can ship before, after, or alongside. Tracked separately s
 **Infrastructure (Kaggle pipeline) — done 2026-04-24:**
 - [x] Harvest-only mode implemented in `apps/voice/src/dirt_voice/channels/voice.py` (env var `DIRT_VOICE_HARVEST_ONLY=1`).
 - [x] `kaggle` CLI added as workspace dev dep (`uv add --dev kaggle`); auth at `~/.kaggle/kaggle.json` (legacy API key, not the new "Access Token" — the latter doesn't work with the CLI's write endpoints).
-- [x] Three Kaggle datasets created and `status: ready`: `akravetz/dirt-wakeword-mine` (v2: positives + RIRs + 440 ElevenLabs phonetic neighbors), `akravetz/dirt-wakeword-bg` (AudioSet+FMA WAVs), `akravetz/dirt-wakeword-features` (17 GB `.npy`s).
+- [x] Three Kaggle datasets created and `status: ready`: `akravetz/dirt-wakeword-mine` (v2: positives + RIRs + 360 ElevenLabs phonetic neighbors), `akravetz/dirt-wakeword-bg` (AudioSet+FMA WAVs), `akravetz/dirt-wakeword-features` (17 GB `.npy`s).
 - [x] `scripts/stage-kaggle-data` — idempotent local staging via direct parquet read.
 - [x] `scripts/kaggle-train` — push + poll + pull wrapper.
 - [x] `training/wake-word/kaggle/train_hey_claudia.py` — training kernel with `prepare_seed_clips()` wired (option 1: uniform augmentation + 10× duplication for harvested negatives).
-- [x] `scripts/elevenlabs-neighbors-batch.py` — sister to `elevenlabs_clone_batch.py`. 440 phonetic neighbors generated in `var/elevenlabs/voice_samples_neighbors/`.
+- [x] `training/wake-word/data-gen/elevenlabs-neighbors-batch.py` — sister to `elevenlabs-clones-batch.py`. 360 phonetic neighbors generated in `var/wake-word/neighbors/`.
 
 **Next agent picks up here:**
 - [ ] **First v5 Kaggle training run on synthetic-only negatives.** `scripts/kaggle-train`. ~30–60 min on TPU. Pulls `hey_claudia.onnx` + `.tflite` to `var/wake-word/models/`. This is the **baseline** — no harvested data yet, but real ElevenLabs neighbors at 1× weight.

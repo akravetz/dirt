@@ -53,13 +53,15 @@ SAMPLE_RATE = 16000
 OUTPUT_DIR = ROOT / "var" / "wake-word" / "neighbors"
 
 # (prompt text, count) — see module docstring for the rationale per group.
+#
+# `okay claudia` and `play claudia` were generated initially but removed
+# 2026-04-25 — they share the "claudia" suffix with the wake word and were
+# decided to be acceptable false-positive triggers. Don't add them back
+# unless we've reconsidered that call.
 PHRASES: list[tuple[str, int]] = [
     # Decomposition: most important. Model must require both halves.
     ("hey", 75),
     ("claudia", 75),
-    # Prefix swaps: same suffix, different leading word.
-    ("okay claudia", 50),
-    ("play claudia", 30),
     # Phoneme-shifted suffixes: hardest distractor class.
     ("hey claire", 50),
     ("hey clyde", 50),

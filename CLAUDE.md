@@ -27,12 +27,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **`apps/web/`** — `dirt-web` service (port 8001). UI + JSON API + MCP mount. Cookie-session auth. Slated for rewrite.
 - **`apps/shared/`** — `dirt-shared`. Models, db, config, observability, non-HW services (capture, photos, telegram, daily_report, daily_sensors, daily_synthesis, readings, snapshots, grow_state).
 - **`apps/mcp/`** — `dirt-mcp`. MCP server (mounted at `/mcp` inside dirt-web).
-- **`apps/voice/`** — `dirt-voice`. Claudia wake-word → Pipecat pipeline → Jabra audio I/O.
+- **`apps/voice/`** — `dirt-voice`. Claudia wake-word → Pipecat pipeline → Jabra audio I/O. Reads the deployed wake-word model from `var/wake-word/models/current/`; retraining workflow is at [`training/wake-word/CLAUDE.md`](training/wake-word/CLAUDE.md).
+- **`training/<model-name>/`** — model retraining infrastructure (Kaggle kernels, data-gen scripts, validation harness, reference material). Currently: `training/wake-word/` for the "hey Claudia" wake word; `training/speaker-verifier/` is a planned sibling. Code is committed; data artifacts (synthetic clips, captured RIRs, trained `.onnx`/`.tflite`, validation sets, local pipeline staging) live gitignored under `var/<model-name>/`. Read the per-model `CLAUDE.md` before touching anything in this tree.
 - **`apps/tests/invariants/`** — cross-cutting architectural invariants (HUMAN-OWNED).
 - **`apps/<app>/tests/`** — per-app unit + integration tests.
 - **`contracts/`** — (future) OpenAPI spec + generated TS client + generated Pydantic models.
 - **`web-ui/`** — Vite + React + TypeScript + TanStack Router + TanStack Query + Tailwind v4 + Biome. Skeleton exists with a single placeholder route at `/`. Dev server on :5173 (`pnpm --dir web-ui dev`). Phase 2 generator agents extend this against the frozen API contract.
-- **`var/`** — runtime data: `snapshots/`, `logs/`, `sessions/`, `raw/photos/`, `outputs/`, `db-backups/`, plus the `dirt.db.pre-pg-cutover` sqlite rollback artifact (retained 2 weeks post-cutover, ADR-006). The live DB is Postgres (composition roots construct an engine via `dirt_shared.app_wiring.build_core_services`; no module-level singleton), not a file under `var/`. Gitignored. Override the root via `DIRT_DATA_DIR` env var (defaults to `<repo>/var`).
+- **`var/`** — runtime data: `snapshots/`, `logs/`, `sessions/`, `raw/photos/`, `outputs/`, `db-backups/`, `wake-word/` (training data + trained models for `training/wake-word/` — see that subsystem's CLAUDE.md), plus the `dirt.db.pre-pg-cutover` sqlite rollback artifact (retained 2 weeks post-cutover, ADR-006). The live DB is Postgres (composition roots construct an engine via `dirt_shared.app_wiring.build_core_services`; no module-level singleton), not a file under `var/`. Gitignored. Override the root via `DIRT_DATA_DIR` env var (defaults to `<repo>/var`).
 
 Services are user-level systemd units under `systemd/`; `scripts/install-systemd` symlinks them into `~/.config/systemd/user/`.
 
