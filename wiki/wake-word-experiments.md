@@ -557,11 +557,11 @@ called at the top of `augment_and_compute_features()`, and persist the
 value back into `my_model.yaml` so `_custom_train_model`'s later
 `yaml.safe_load(...)` sees the same int. Commit: `51abdd8`.
 
-### v13 — 2026-04-25 (in flight)
+### v13 — 2026-04-25 (failed at augment.py)
 
-**Status:** running on Kaggle (kernel version 18)
-**Model artifact:** `var/wake-word/models/2026-04-25-v13/hey_claudia.onnx` (when pulled)
+**Status:** install + generate_clips (cached) + total_length-calc OK; crashed on resource lookup in `compute_features_from_generator`
 **Kernel commit:** `51abdd8`
+**Wall time:** ~22 min (TTS regenerated since cache key changed; new bug surfaced just after v12's bug)
 
 #### What changed (vs v12)
 - `_compute_total_length()` added in augment.py (the v12 fix above).
@@ -579,6 +579,61 @@ a different failure stage:
 | v12 | 47 m  | augment.py KeyError: 'total_length'  |
 
 v13 should be the first run to actually train.
+
+#### Training config
+Identical to v8 staged.
+
+#### Validation set
+- Same as v8 (28 good / 76 bad).
+
+#### Results
+total_length fix worked. generate_clips ran again (cache invalidated)
+and `_compute_total_length()` produced the right value. Then crashed
+one frame later in compute_features_from_generator → AudioFeatures():
+
+```
+onnxruntime.capi.onnxruntime_pybind11_state.NoSuchFile:
+  Load model from
+  /usr/local/lib/python3.12/dist-packages/openwakeword/resources/models/
+  melspectrogram.onnx failed. File doesn't exist
+```
+
+`AudioFeatures()` resolves the bundled mel/embedding ONNX paths via
+`__file__` of the *installed* openwakeword package. Our shim:
+1. `pip install --no-deps ./openwakeword` — pip *copies* the source
+   into `/usr/local/lib/python3.12/dist-packages/openwakeword/`.
+2. `wget melspectrogram.onnx → /kaggle/working/openwakeword/openwakeword/resources/models/`
+
+Step 2 lands in the *cloned* path, not the installed path. The runtime
+looks at the installed path → file not found.
+
+#### Fix (v14)
+Switch to editable install: `pip install --no-deps -e ./openwakeword`.
+With `-e`, the runtime `__file__` points back at /kaggle/working/openwakeword/,
+which is exactly where our wget lands the resource files. Commit: `adadf02`.
+
+### v14 — 2026-04-25 (in flight)
+
+**Status:** running on Kaggle (kernel version 19)
+**Model artifact:** `var/wake-word/models/2026-04-25-v14/hey_claudia.onnx` (when pulled)
+**Kernel commit:** `adadf02`
+
+#### What changed (vs v13)
+- Editable openwakeword install (the v13 fix above).
+- Otherwise identical to v13 / v12 / v11 / v10 / v9 / v8 staged.
+
+#### Why
+Sixth attempt at the v8 architectural baseline. The bug-tour table:
+
+| ver | wall  | failed at                                    |
+|-----|-------|----------------------------------------------|
+| v9  |  4 m  | top-level openwakeword import                |
+| v10 |  4 m  | pip install openwakeword (no py3.12)         |
+| v11 |  6 m  | git checkout SHA (unpushed)                  |
+| v12 | 47 m  | augment.py KeyError: 'total_length'          |
+| v13 | 22 m  | AudioFeatures resource path (non-editable install) |
+
+v14 should reach training proper.
 
 #### Training config
 Identical to v8 staged.
