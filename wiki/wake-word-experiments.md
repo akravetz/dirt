@@ -455,11 +455,11 @@ tflite-runtime resolver failure entirely; the explicit dep list in the
 next pip call covers everything that's actually needed at runtime.
 Commit: `a11882f`.
 
-### v11 — 2026-04-25 (in flight)
+### v11 — 2026-04-25 (failed in 5 min)
 
-**Status:** running on Kaggle (kernel version 16)
-**Model artifact:** `var/wake-word/models/2026-04-25-v11/hey_claudia.onnx` (when pulled)
+**Status:** failed at `git checkout` — kernel SHA was unpushed to origin
 **Kernel commit:** `a11882f`
+**Wall time:** ~5.5 min
 
 #### What changed (vs v10)
 - `pip install --quiet --no-deps ./openwakeword` (cloned source) — dodges
@@ -479,6 +479,50 @@ Identical to v8:
 - `steps`: 20 000
 - Per-subset augmentation (realmic_*/harvested_* skip RIR)
 - Best-checkpoint: real-audio F1 against `validation/` (28 good / 76 bad)
+
+#### Validation set
+- Same as v8 (28 good / 76 bad — `dirt-wakeword-validation` v2)
+
+#### Results
+Install phase succeeded. Training never started — the shim's
+`git checkout $DIRT_REPO_SHA` exited 128 because `a11882f` had been
+committed locally but never pushed to origin/main. The kernel clones
+the public `https://github.com/akravetz/dirt`; only commits already
+on origin are reachable.
+
+```
+subprocess.CalledProcessError: Command 'git checkout a11882f...'
+returned non-zero exit status 128.
+```
+
+#### Fix (v12)
+Add a pre-push guard to `scripts/kaggle-train`:
+`git fetch origin main && git merge-base --is-ancestor HEAD origin/main`.
+Aborts with a clear "push first" message when HEAD isn't on origin/main,
+saving the 5-min Kaggle no-op. Commit: `e83c5f1`.
+
+### v12 — 2026-04-25 (in flight)
+
+**Status:** running on Kaggle (kernel version 17, pushed 12:28)
+**Model artifact:** `var/wake-word/models/2026-04-25-v12/hey_claudia.onnx` (when pulled)
+**Kernel commit:** `e83c5f1`
+
+#### What changed (vs v11)
+- Pre-push verification of HEAD on origin/main (the v11 fix above).
+- All commits actually pushed before kernel push.
+- Otherwise identical to v11 (which was identical to v10/v9/v8 staged):
+  per-subset aug + real-audio F1 selection + 512/50/200 batch composition.
+
+#### Why
+Fourth attempt at the v8 architectural baseline. v9–v11 were all
+infrastructure failures (each fixed a different stacked bug):
+1. v9 (a811829): no openwakeword install → ModuleNotFoundError.
+2. v10 (d7a9704): pip install openwakeword==0.6.0 → no PyPI wheel for py3.12.
+3. v11 (a11882f): pip install --no-deps from source → SHA not on origin.
+v12 should be the first attempt that actually reaches the train phase.
+
+#### Training config
+Identical to v8 staged.
 
 #### Validation set
 - Same as v8 (28 good / 76 bad — `dirt-wakeword-validation` v2)
