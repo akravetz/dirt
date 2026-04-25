@@ -10,9 +10,10 @@ with /kaggle/input/* mounts — those corpora are uploaded once as Kaggle Datase
 and mounted read-only at runtime. Edit EXPECTED_INPUTS below if you rename them.
 
 Required datasets (attach via kernel-metadata.json `dataset_sources`):
-  - <user>/dirt-wakeword-mine       ElevenLabs clones + captured RIRs + curated negatives
-  - <user>/dirt-wakeword-bg         audioset_16k/ + fma/ as WAV trees
-  - <user>/dirt-wakeword-features   ACAV100M 2000h features .npy + validation_set_features.npy
+  - <user>/dirt-wakeword-mine        ElevenLabs clones + captured RIRs + curated negatives
+  - <user>/dirt-wakeword-bg          audioset_16k/ + fma/ as WAV trees
+  - <user>/dirt-wakeword-features    ACAV100M 2000h features .npy + validation_set_features.npy
+  - <user>/dirt-wakeword-validation  hand-labeled good/+bad/ WAVs (real-audio metric)
 """
 
 from __future__ import annotations
@@ -81,6 +82,7 @@ def _find_dataset(slug: str) -> Path:
 MINE = _find_dataset("dirt-wakeword-mine")
 BG = _find_dataset("dirt-wakeword-bg")
 FEATURES = _find_dataset("dirt-wakeword-features")
+VALIDATION = _find_dataset("dirt-wakeword-validation")
 
 EXPECTED_INPUTS = {
     "voice_samples": MINE / "voice_samples",
@@ -89,6 +91,8 @@ EXPECTED_INPUTS = {
     "fma": BG / "fma",
     "train_features": FEATURES / "openwakeword_features_ACAV100M_2000_hrs_16bit.npy",
     "validation_features": FEATURES / "validation_set_features.npy",
+    "validation_good": VALIDATION / "good",
+    "validation_bad": VALIDATION / "bad",
 }
 
 WORK = Path("/kaggle/working")
@@ -276,25 +280,270 @@ def prepare_seed_clips() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Step 4: run openwakeword training pipeline
+# Step 4: run openwakeword training pipeline (custom driver — soft-fork)
 # ---------------------------------------------------------------------------
 
 
-def train(config_path: Path) -> None:
+def custom_train(config_path: Path) -> None:
+    """Soft-fork of openwakeword's --train_model.
+
+    Reasons we don't shell out to upstream's --train_model:
+
+    1. `auto_train` has a bug — `self.best_val_fp = 1000` is initialized and
+       never updated, so `if self.best_val_fp > target_fp_per_hour:` always
+       fires twice. End result: max_negative_weight is 4× whatever we
+       configured, model converges precision-collapsed (recall 21–38%).
+    2. `auto_train` ends by calling `convert_onnx_to_tflite` which imports
+       `onnx_tf` — incompatible with python 3.11+ in current openwakeword.
+       The .onnx is saved before the broken step but the process exit code
+       is non-zero.
+    3. We want real-audio validation (`var/wake-word/validation/`) as the
+       canonical metric, not synthetic Piper-test recall (which was
+       empirically misleading: 38% synthetic ≈ 56% real-audio recall).
+
+    What we keep from upstream:
+
+      - `--generate_clips` (Piper TTS); works fine
+      - `--augment_clips` (audiomentations + feature compute); works fine
+      - `Model` class + `train_model()` inner loop; the actual training
+        mechanics are correct — only `auto_train`'s outer loop is broken
+      - `export_model()` ONNX export
+
+    What we replace:
+
+      - `auto_train`'s 3-sequence escalation → single `train_model()` call
+        with a linear weight schedule
+      - synthetic-Piper-test as canonical metric → real-audio validation
+        from /kaggle/input/dirt-wakeword-validation/
+    """
     train_py = WORK / "openwakeword/openwakeword/train.py"
-    for flag in ("--generate_clips", "--augment_clips", "--train_model"):
-        try:
-            sh(f"{sys.executable} {train_py} --training_config {config_path} {flag}")
-        except subprocess.CalledProcessError:
-            # openwakeword's --train_model ends with an onnx_tf-based ONNX→tflite
-            # conversion that's been broken since python 3.11 (the upstream Colab
-            # monkey-patches around it). The .onnx file is saved before the
-            # broken step, so if it exists we proceed; export() does the tflite
-            # conversion cleanly via onnx2tf.
-            if flag == "--train_model" and (OUT_DIR / f"{TARGET_WORD}.onnx").exists():
-                print("--train_model exited non-zero but ONNX exists; continuing.")
-                continue
-            raise
+    sh(f"{sys.executable} {train_py} --training_config {config_path} --generate_clips")
+    sh(f"{sys.executable} {train_py} --training_config {config_path} --augment_clips")
+    _custom_train_model()
+
+
+def _custom_train_model() -> None:
+    """The soft-fork meat: replace upstream's --train_model __main__ block."""
+    # Imports happen lazily so the module can still load when openwakeword
+    # isn't installed (e.g., on the operator's laptop while editing).
+    import numpy as np
+    import torch
+    from openwakeword.data import mmap_batch_generator
+    from openwakeword.openwakeword.model import Model
+
+    config = yaml.safe_load((WORK / "my_model.yaml").read_text())
+    feature_save_dir = OUT_DIR / TARGET_WORD
+
+    # Input shape derived from the positive_test feature file (same as upstream).
+    input_shape = np.load(feature_save_dir / "positive_features_test.npy").shape[1:]
+
+    oww = Model(
+        n_classes=1,
+        input_shape=input_shape,
+        model_type=config["model_type"],
+        layer_dim=config["layer_size"],
+        seconds_per_example=1280 * input_shape[0] / 16000,
+    )
+
+    # ---- X_train: IterDataset over mmap'd feature files (mirrors upstream) ----
+    def reshape_neg(x, n=input_shape[0]):
+        """Reshape negative feature batches to model input length if needed."""
+        if n != x.shape[1]:
+            x = np.vstack(x)
+            return np.array([x[i : i + n, :] for i in range(0, x.shape[0] - n, n)])
+        return x
+
+    data_transforms = {key: reshape_neg for key in config["feature_data_files"]}
+    label_transforms = {
+        key: (lambda x, k=key: [1 if k == "positive" else 0 for _ in x])
+        for key in (
+            ["positive"] + list(config["feature_data_files"]) + ["adversarial_negative"]
+        )
+    }
+
+    feature_data_files = dict(config["feature_data_files"])
+    feature_data_files["positive"] = str(feature_save_dir / "positive_features_train.npy")
+    feature_data_files["adversarial_negative"] = str(
+        feature_save_dir / "negative_features_train.npy"
+    )
+
+    batch_generator = mmap_batch_generator(
+        feature_data_files,
+        n_per_class=config["batch_n_per_class"],
+        data_transform_funcs=data_transforms,
+        label_transform_funcs=label_transforms,
+    )
+
+    class IterDataset(torch.utils.data.IterableDataset):
+        def __init__(self, gen):
+            self.gen = gen
+
+        def __iter__(self):
+            return self.gen
+
+    n_cpus = os.cpu_count() or 1
+    n_cpus = max(1, n_cpus // 2)
+    X_train = torch.utils.data.DataLoader(
+        IterDataset(batch_generator),
+        batch_size=None,
+        num_workers=n_cpus,
+        prefetch_factor=16,
+    )
+
+    # ---- X_val_fp: 11.3 h ACAV speech, FP/hour metric ----
+    X_val_fp_arr = np.load(config["false_positive_validation_data_path"])
+    X_val_fp_arr = np.array(
+        [X_val_fp_arr[i : i + input_shape[0]] for i in range(0, X_val_fp_arr.shape[0] - input_shape[0], 1)]
+    )
+    X_val_fp_labels = np.zeros(X_val_fp_arr.shape[0]).astype(np.float32)
+    X_val_fp = torch.utils.data.DataLoader(
+        torch.utils.data.TensorDataset(
+            torch.from_numpy(X_val_fp_arr), torch.from_numpy(X_val_fp_labels)
+        ),
+        batch_size=len(X_val_fp_labels),
+    )
+
+    # ---- X_val: synthetic Piper test set (we keep this for inner-loop tracking;
+    #             the real metric is post-training real-audio validation) ----
+    X_val_pos = np.load(feature_save_dir / "positive_features_test.npy")
+    X_val_neg = np.load(feature_save_dir / "negative_features_test.npy")
+    val_labels = np.hstack(
+        (np.ones(X_val_pos.shape[0]), np.zeros(X_val_neg.shape[0]))
+    ).astype(np.float32)
+    X_val = torch.utils.data.DataLoader(
+        torch.utils.data.TensorDataset(
+            torch.from_numpy(np.vstack((X_val_pos, X_val_neg))),
+            torch.from_numpy(val_labels),
+        ),
+        batch_size=len(val_labels),
+    )
+
+    # ---- Single training pass; no auto_train escalation ------------------
+    steps = config["steps"]
+    max_negative_weight = config["max_negative_weight"]
+    weights = np.linspace(1, max_negative_weight, int(steps)).tolist()
+    val_steps = np.linspace(steps - int(steps * 0.25), steps, 20).astype(np.int64)
+
+    print(
+        f"=== custom training: {steps} steps, "
+        f"max_neg_weight ramps 1 → {max_negative_weight} ===",
+        flush=True,
+    )
+    oww.train_model(
+        X=X_train,
+        X_val=X_val,
+        false_positive_val_data=X_val_fp,
+        max_steps=steps,
+        negative_weight_schedule=weights,
+        val_steps=val_steps,
+        warmup_steps=steps // 5,
+        hold_steps=steps // 3,
+        lr=1e-4,
+        val_set_hrs=11.3,
+    )
+
+    # ---- Pick best checkpoint -------------------------------------------
+    # Upstream auto_train averages the top-90th-percentile checkpoints across
+    # 3 sequences. We have one sequence — pick the highest-recall checkpoint
+    # subject to a sane FP/hour ceiling. Future iteration: pick by F1 against
+    # the real-audio validation set (requires per-step real-audio eval).
+    if oww.best_models:
+        scores = oww.best_model_scores
+        # Filter to checkpoints with sane FP/hour, then take max recall
+        ok = [
+            (i, s)
+            for i, s in enumerate(scores)
+            if float(s["val_fp_per_hr"]) <= 2.0
+        ]
+        if not ok:
+            ok = list(enumerate(scores))
+        best_idx, best_scores = max(ok, key=lambda kv: float(kv[1]["val_recall"]))
+        best_model = oww.best_models[best_idx]
+        print(
+            f"Best checkpoint: step {best_scores['training_step_ndx']} | "
+            f"val_recall={float(best_scores['val_recall']):.3f} | "
+            f"val_acc={float(best_scores['val_accuracy']):.3f} | "
+            f"val_fp/hr={float(best_scores['val_fp_per_hr']):.3f}"
+        )
+    else:
+        print("No checkpoints saved — falling back to final model state", file=sys.stderr)
+        best_model = oww.model
+
+    oww.export_model(
+        model=best_model, model_name=TARGET_WORD, output_dir=str(OUT_DIR)
+    )
+    print(f"Exported ONNX → {OUT_DIR / (TARGET_WORD + '.onnx')}")
+
+
+def validate_against_real_set() -> None:
+    """Score the trained ONNX against var/wake-word/validation/. Save report.
+
+    This is the canonical metric. The synthetic Piper-test recall reported by
+    Model.train_model's inner loop has been empirically misleading vs real
+    deployment (38% synthetic → 56% real-audio in v5 first run). Always look
+    here before deciding ship/no-ship.
+    """
+    import wave
+
+    import numpy as np
+    from openwakeword.model import Model
+
+    onnx_path = OUT_DIR / f"{TARGET_WORD}.onnx"
+    if not onnx_path.exists():
+        print("validate: no ONNX produced; skipping", file=sys.stderr)
+        return
+
+    chunk = 1280  # 80 ms at 16 kHz — openwakeword inference frame size
+    model = Model(wakeword_model_paths=[str(onnx_path)])
+    name = next(iter(model.models.keys()))
+
+    def peak(wav_path: Path) -> float:
+        with wave.open(str(wav_path), "rb") as w:
+            wav = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16)
+        model.reset()
+        p = 0.0
+        for start in range(0, len(wav) - chunk + 1, chunk):
+            s = float(model.predict(wav[start : start + chunk])[name])
+            if s > p:
+                p = s
+        return p
+
+    good = [
+        peak(p) for p in sorted(EXPECTED_INPUTS["validation_good"].glob("*.wav"))
+    ]
+    bad = [
+        peak(p) for p in sorted(EXPECTED_INPUTS["validation_bad"].glob("*.wav"))
+    ]
+
+    lines = [
+        "VALIDATION REPORT (real audio)",
+        "=" * 50,
+        f"Model:  {onnx_path.name}",
+        f"good/:  {len(good)} positives",
+        f"bad/:   {len(bad)} negatives (in-the-wild false-positives)",
+        "",
+        f"{'thresh':>7} | {'recall':>7} | {'fps':>7} | {'precision':>9} | {'f1':>5}",
+        "-" * 50,
+    ]
+    for t in (0.30, 0.40, 0.50, 0.60, 0.70):
+        tp = sum(1 for s in good if s >= t)
+        fp = sum(1 for s in bad if s >= t)
+        recall = tp / len(good) if good else 0.0
+        precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+        f1 = (
+            2 * precision * recall / (precision + recall)
+            if (precision + recall) > 0
+            else 0.0
+        )
+        lines.append(
+            f"  {t:>5.2f} | {recall:>7.1%} | {fp:>2}/{len(bad):<3}  | {precision:>9.1%} | {f1:>.3f}"
+        )
+
+    report = "\n".join(lines)
+    print()
+    print(report)
+    print()
+    (WORK / "validation-report.txt").write_text(report + "\n")
 
 
 # ---------------------------------------------------------------------------
@@ -327,8 +576,9 @@ def main() -> None:
     install_dependencies()
     config_path = build_config()
     prepare_seed_clips()
-    train(config_path)
+    custom_train(config_path)
     export()
+    validate_against_real_set()
     print("Training complete. Pull artifacts with: kaggle kernels output <kernel-slug>")
 
 

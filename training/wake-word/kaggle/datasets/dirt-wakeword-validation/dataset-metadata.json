@@ -1,0 +1,8 @@
+{
+  "title": "Dirt Wake Word — hand-labeled validation set",
+  "id": "akravetz/dirt-wakeword-validation",
+  "licenses": [{"name": "CC0-1.0"}],
+  "isPrivate": true,
+  "keywords": ["audio"],
+  "description": "Hand-labeled real-audio validation set for the 'hey Claudia' wake-word model. good/ contains real wake-word utterances the model SHOULD fire on; bad/ contains in-the-wild false positives the model SHOULD reject. This is the canonical metric for model quality (synthetic Piper-test recall is misleading — see wiki/decisions/2026-04-23-wake-word-v5-passive-harvest.md). Bumped whenever new captures get hand-labeled."
+}
