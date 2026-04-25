@@ -60,15 +60,15 @@ def install_dependencies() -> None:
         "--index-url https://download.pytorch.org/whl/cu121"
     )
 
-    # Clone openwakeword's source — we don't pip-install it (Kaggle's base
-    # image already has openwakeword 0.6.0). We need the source repo only
-    # to (a) shell out to openwakeword/openwakeword/train.py for --generate_clips
-    # and (b) read openwakeword/examples/custom_model.yml as the YAML baseline.
+    # Clone openwakeword's source — we need (a) shell-out to
+    # openwakeword/openwakeword/train.py for --generate_clips and (b)
+    # openwakeword/examples/custom_model.yml as the YAML baseline.
     if not (WORK / "openwakeword").exists():
         sh("git clone https://github.com/dscripka/openwakeword")
 
     sh(
         "pip install --quiet "
+        "openwakeword==0.6.0 "
         "mutagen==1.47.0 torchinfo==1.8.0 torchmetrics==1.2.0 "
         "speechbrain==0.5.14 audiomentations==0.33.0 torch-audiomentations==0.11.0 "
         "acoustics==0.2.6 onnxruntime==1.22.1 ai_edge_litert==1.4.0 onnxsim "
