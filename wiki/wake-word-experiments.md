@@ -421,22 +421,56 @@ guarantee. Either install the [wake-word] extras locally, or accept
 that this exact bug class will surface on Kaggle. v9 was the bill for
 that trade-off.
 
-### v10 — 2026-04-25 (in flight)
+### v10 — 2026-04-25 (failed in 4 min)
 
-**Status:** running on Kaggle (kernel version 15, pushed 12:14)
-**Model artifact:** `var/wake-word/models/2026-04-25-v10/hey_claudia.onnx` (when pulled)
+**Status:** failed at install — `pip install openwakeword==0.6.0` had no eligible release for python 3.12
 **Kernel commit:** `d7a9704`
+**Wall time:** ~3.5 min
 
 #### What changed (vs v9)
-- Restored `openwakeword==0.6.0` to the shim's pip install batch (the
-  v9 fix above).
-- No training-architecture changes — this is the **first successful
-  run of the v8 design** (per-subset aug, real-audio F1 selection,
-  512/50/200 batch composition).
+- Added `openwakeword==0.6.0` to the shim's pip install batch (the v9 fix).
+
+#### Why it failed
+Two stacked PyPI compatibility issues against Kaggle's python 3.12:
+
+```
+ERROR: Ignored the following versions that require a different python version:
+  0.5.0/0.5.1/0.6.0 Requires-Python >=3.6,<3.9
+ERROR: Could not find a version that satisfies the requirement
+  tflite-runtime<3,>=2.8.0; platform_system == "Linux" (from openwakeword)
+```
+
+1. openwakeword 0.6.0 — the last PyPI release with the auto_train shape
+   our soft-fork builds on — declares `Requires-Python <3.9`. Kaggle is
+   3.12, so pip silently skips it.
+2. Newer GitHub-only versions DO support 3.12 but transitively pull
+   `tflite-runtime`, which is not published for cp312 + Linux on PyPI.
+
+So no version constraint works against PyPI on Kaggle's runtime.
+
+#### Fix (v11)
+Install openwakeword from the cloned GitHub source with `--no-deps`.
+Same approach v6 quietly used. The `--no-deps` flag dodges the
+tflite-runtime resolver failure entirely; the explicit dep list in the
+next pip call covers everything that's actually needed at runtime.
+Commit: `a11882f`.
+
+### v11 — 2026-04-25 (in flight)
+
+**Status:** running on Kaggle (kernel version 16)
+**Model artifact:** `var/wake-word/models/2026-04-25-v11/hey_claudia.onnx` (when pulled)
+**Kernel commit:** `a11882f`
+
+#### What changed (vs v10)
+- `pip install --quiet --no-deps ./openwakeword` (cloned source) — dodges
+  both PyPI incompatibilities documented in v10.
+- Otherwise identical to v9 / v10 / v8 staged: per-subset aug, real-audio
+  F1 checkpoint selection, 512/50/200 batch composition.
 
 #### Why
-v9 was a pure-infrastructure failure; v10 is the actual baseline for
-all the v8 architectural choices we've staged.
+First actual run of the v8 architectural design. v9 + v10 were both
+pure-infrastructure failures; v11 should produce a real model unless
+something else fails downstream of `install_dependencies`.
 
 #### Training config
 Identical to v8:
