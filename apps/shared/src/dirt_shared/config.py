@@ -60,6 +60,11 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     elabs_api_key: str = ""
     elabs_voice_id: str = ""
+    # RunPod — wake-word retraining runs on a one-shot Pod via the REST v1
+    # API. See docs/references/runpod/INDEX.md and scripts/runpod-train.
+    runpod_api_key: str = ""
+    runpod_ghcr_auth_id: str = ""
+    runpod_network_volume_id: str = ""
     # Passive harvest mode: when true, the voice channel logs/saves wake fires
     # but never opens a Pipecat conversation. Used to bulk-collect guaranteed
     # negatives during a no-wake-word window. See wake-word v5 plan.

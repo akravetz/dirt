@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Build + push the wake-word trainer image to GHCR.
+#
+# Prereqs:
+#   - Docker daemon running locally (with buildx for linux/amd64 cross-build).
+#   - `gh auth token` works AND grants write:packages, OR you've already
+#     `docker login ghcr.io` with a PAT that has write:packages scope.
+#
+# Usage:
+#   scripts/runpod-build-image                       # tag :latest, push
+#   scripts/runpod-build-image v1                    # tag :v1, push
+#   scripts/runpod-build-image latest --no-push      # build only
+
+set -euo pipefail
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+GHCR_OWNER="${GHCR_OWNER:-akravetz}"
+IMAGE="ghcr.io/${GHCR_OWNER}/dirt-wake-word-trainer"
+TAG="${1:-latest}"
+NO_PUSH=0
+[ "${2:-}" = "--no-push" ] && NO_PUSH=1
+
+cd "$REPO_ROOT/apps/wake-word"
+
+# Ensure GHCR login. If `gh` is around, use its token; otherwise rely on a
+# previous `docker login`.
+if command -v gh >/dev/null 2>&1 && gh auth token >/dev/null 2>&1; then
+  gh auth token | docker login ghcr.io -u "$GHCR_OWNER" --password-stdin
+fi
+
+echo "==> docker buildx build linux/amd64 -> $IMAGE:$TAG"
+if [ "$NO_PUSH" = "1" ]; then
+  docker buildx build \
+    --platform linux/amd64 \
+    -f docker/Dockerfile \
+    -t "$IMAGE:$TAG" \
+    --load \
+    .
+  echo "built (--no-push); image is in your local docker daemon as $IMAGE:$TAG"
+else
+  docker buildx build \
+    --platform linux/amd64 \
+    -f docker/Dockerfile \
+    -t "$IMAGE:$TAG" \
+    --push \
+    .
+  echo "pushed $IMAGE:$TAG"
+fi

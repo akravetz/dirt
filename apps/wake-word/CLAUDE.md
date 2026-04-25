@@ -61,7 +61,15 @@ scripts/stage-kaggle-data
 # Then `kaggle datasets version -p <stage-dir> -m "msg"` for each
 # (mine, bg, features, validation) dataset that was modified.
 
-# 3. Trigger a training run:
+# 3. Trigger a training run (RunPod path — preferred since v15+):
+scripts/runpod-build-image           # build + push image to ghcr.io
+scripts/runpod-train                 # POST /v1/pods → poll → SCP artifacts → DELETE
+# Artifacts land at var/wake-word/models/<date>-runpod/. ~30–90 min on a
+# 4090 / L4. The Network Volume seeded by `scripts/runpod-seed-volume`
+# carries the four Kaggle datasets at /workspace/input/.
+# Reference pack: docs/references/runpod/INDEX.md.
+
+# 3'. Legacy Kaggle path (keep until RunPod path is proven):
 scripts/kaggle-train
 # Wraps: kaggle kernels push → poll status every 20s → pull artifacts to
 # var/wake-word/models/<datestamp>/. ~30-90 min on free GPU tier.

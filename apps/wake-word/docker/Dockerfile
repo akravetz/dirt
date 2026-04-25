@@ -1,0 +1,86 @@
+# Wake-word trainer image. Self-contained: deps, openwakeword source,
+# resource files, piper sample generator, and the dirt_wake_word library are
+# all baked at build time so the runtime entrypoint is just `python -m
+# dirt_wake_word.main`. Training data is NOT in the image — it lives on a
+# RunPod Network Volume mounted at /workspace/input/, seeded once by
+# scripts/runpod-seed-volume.
+#
+# RunPod requires linux/amd64 (see docs/references/runpod/docker-image.md).
+# The runpod/pytorch base ships PyTorch + CUDA + sshd already wired so SCP
+# off the running pod just works once PUBLIC_KEY env var is injected.
+
+# syntax=docker/dockerfile:1.7
+FROM runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04
+
+ENV PYTHONUNBUFFERED=1 \
+    DIRT_KAGGLE_INPUT=/workspace/input \
+    DIRT_KAGGLE_WORKING=/workspace/working \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /opt
+
+# Most of these are present in the runpod/pytorch base image; explicit just
+# in case a future tag drops one.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        git wget ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# ----------------------------------------------------------------------------
+# openwakeword from cloned source (PyPI versions don't work on py3.11/3.12 —
+# 0.6.0 declares Requires-Python <3.9, newer versions transitively pull
+# tflite-runtime which has no cp311+ Linux wheel). --no-deps avoids the
+# resolver failure; the actual deps are installed below.
+# ----------------------------------------------------------------------------
+RUN git clone https://github.com/dscripka/openwakeword \
+ && pip install --no-deps ./openwakeword
+
+# ----------------------------------------------------------------------------
+# piper-sample-generator + libritts checkpoint, pinned to the SHA the kaggle
+# pipeline used.
+# ----------------------------------------------------------------------------
+RUN git clone https://github.com/rhasspy/piper-sample-generator \
+ && cd piper-sample-generator \
+ && wget -q -O models/en_US-libritts_r-medium.pt \
+       https://github.com/rhasspy/piper-sample-generator/releases/download/v2.0.0/en_US-libritts_r-medium.pt \
+ && git checkout 213d4d5
+
+# ----------------------------------------------------------------------------
+# Audio + ML stack (the heavy pip batch the Kaggle shim used to do at run
+# time). Pinning the same versions that worked on Kaggle.
+# ----------------------------------------------------------------------------
+RUN pip install \
+        piper-tts piper-phonemize-cross webrtcvad \
+        mutagen==1.47.0 torchinfo==1.8.0 torchmetrics==1.2.0 \
+        speechbrain==0.5.14 audiomentations==0.33.0 torch-audiomentations==0.11.0 \
+        acoustics==0.2.6 onnxruntime==1.22.1 ai_edge_litert==1.4.0 onnxsim \
+        onnx2tf onnx==1.19.1 onnx_graphsurgeon sng4onnx pronouncing==0.2.0 \
+        datasets==2.14.6 deep-phonemizer==0.0.19
+
+# ----------------------------------------------------------------------------
+# openwakeword's bundled embedding + melspectrogram ONNX/tflite resources.
+# Written to BOTH the cloned source location and the installed site-packages
+# location — AudioFeatures() resolves via __file__ of the installed package.
+# (Kaggle v13 burned 22 min discovering this.)
+# ----------------------------------------------------------------------------
+RUN ow_pkg=$(python -c "import openwakeword, pathlib; print(pathlib.Path(openwakeword.__file__).parent)") \
+ && mkdir -p "$ow_pkg/resources/models" /opt/openwakeword/openwakeword/resources/models \
+ && for f in embedding_model.onnx embedding_model.tflite melspectrogram.onnx melspectrogram.tflite; do \
+        wget -q "https://github.com/dscripka/openWakeWord/releases/download/v0.5.1/$f" \
+             -O "/opt/openwakeword/openwakeword/resources/models/$f" \
+        && cp "/opt/openwakeword/openwakeword/resources/models/$f" "$ow_pkg/resources/models/$f"; \
+    done
+
+# ----------------------------------------------------------------------------
+# Our library and the in-container entrypoint. Last layer so iteration on
+# library code only invalidates this layer (everything above is cached).
+# ----------------------------------------------------------------------------
+COPY src/dirt_wake_word /opt/dirt_wake_word/dirt_wake_word
+ENV PYTHONPATH=/opt/dirt_wake_word
+
+COPY docker/entrypoint.py /app/entrypoint.py
+
+# /workspace is the RunPod volume mount path — survives the container
+# restart and is visible over SCP. The runpod/pytorch base starts sshd
+# automatically and reads $PUBLIC_KEY into /root/.ssh/authorized_keys.
+CMD ["python", "/app/entrypoint.py"]

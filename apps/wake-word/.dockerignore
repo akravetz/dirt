@@ -1,0 +1,8 @@
+# Build context is apps/wake-word/. Only src/ and docker/ need to ship.
+*
+!src/
+!docker/
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+**/.mypy_cache/

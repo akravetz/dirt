@@ -1,0 +1,263 @@
+#!/usr/bin/env -S uv run --project /home/akcom/code/dirt python
+"""Submit one wake-word training job to RunPod, wait, pull artifacts back.
+
+Mirrors `scripts/kaggle-train`'s shape (push → poll → pull) but against
+RunPod Pods via the REST v1 API. See docs/references/runpod/INDEX.md for
+the rationale behind every field choice.
+
+Required env (load via `.env`):
+  RUNPOD_API_KEY              — bearer token; create at console.runpod.io/user/settings
+  RUNPOD_NETWORK_VOLUME_ID    — pre-created Network Volume holding seeded datasets
+  RUNPOD_GHCR_AUTH_ID         — (optional) for private registry images
+
+SSH key:
+  ~/.ssh/runpod_ed25519[.pub] — the public key gets passed via PUBLIC_KEY env
+  to the container (the runpod/pytorch base writes it to authorized_keys).
+  The private key is used by SCP to pull artifacts.
+
+Usage:
+  scripts/runpod-train                          # default image, 4090 first
+  scripts/runpod-train --image <ref>            # custom image tag
+  scripts/runpod-train --gpu "NVIDIA L4"        # override GPU choice
+  scripts/runpod-train --keep                   # skip DELETE on success (debug only)
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import subprocess
+import sys
+import time
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Iterator
+
+import httpx
+from dotenv import load_dotenv
+
+REST_BASE = "https://rest.runpod.io/v1"
+DEFAULT_IMAGE = "ghcr.io/akravetz/dirt-wake-word-trainer:latest"
+DEFAULT_GPU_PRIORITY = [
+    "NVIDIA GeForce RTX 4090",
+    "NVIDIA L4",
+    "NVIDIA RTX A4000",
+]
+POLL_EVERY_S = 20
+ENDPOINT_POLL_S = 5
+MAX_WALL_S = 4 * 60 * 60  # 4 h hard cap; expected 30–90 min
+SSH_KEY = Path.home() / ".ssh" / "runpod_ed25519"
+
+
+def _env(name: str, *, required: bool = True) -> str:
+    v = os.environ.get(name, "").strip()
+    if required and not v:
+        sys.exit(f"error: {name} not set in environment (.env)")
+    return v
+
+
+def _client(api_key: str) -> httpx.Client:
+    return httpx.Client(
+        base_url=REST_BASE,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        timeout=30.0,
+    )
+
+
+def _create_pod(
+    client: httpx.Client,
+    *,
+    name: str,
+    image: str,
+    gpu_priority: list[str],
+    network_volume_id: str,
+    public_key: str,
+    registry_auth_id: str | None,
+) -> str:
+    body: dict = {
+        "name": name,
+        "imageName": image,
+        "computeType": "GPU",
+        "gpuTypeIds": gpu_priority,
+        "gpuTypePriority": "availability",
+        "gpuCount": 1,
+        "containerDiskInGb": 50,
+        # Network volume mounts at volumeMountPath, so the seeded datasets
+        # land at /workspace/input/<slug>/ — exactly what dirt_wake_word
+        # expects via DIRT_KAGGLE_INPUT.
+        "networkVolumeId": network_volume_id,
+        "volumeMountPath": "/workspace",
+        "ports": ["22/tcp"],
+        "supportPublicIp": True,
+        "cloudType": "SECURE",
+        "interruptible": False,
+        "env": {"PUBLIC_KEY": public_key},
+    }
+    if registry_auth_id:
+        body["containerRegistryAuthId"] = registry_auth_id
+
+    r = client.post("/pods", json=body)
+    if r.status_code >= 400:
+        sys.exit(f"error: POST /pods → {r.status_code}: {r.text}")
+    pod_id = r.json()["id"]
+    print(f"created pod {pod_id} (image={image})")
+    return pod_id
+
+
+def _get_pod(client: httpx.Client, pod_id: str) -> dict:
+    r = client.get(f"/pods/{pod_id}")
+    r.raise_for_status()
+    return r.json()
+
+
+def _delete_pod(client: httpx.Client, pod_id: str) -> None:
+    try:
+        r = client.delete(f"/pods/{pod_id}")
+        r.raise_for_status()
+        print(f"deleted pod {pod_id}")
+    except Exception as exc:
+        print(f"WARN: pod {pod_id} delete failed: {exc!r}", file=sys.stderr)
+
+
+@contextmanager
+def _leased_pod(
+    client: httpx.Client, pod_id: str, *, keep_on_success: bool
+) -> Iterator[None]:
+    """Always DELETE on exit unless --keep was passed AND the run succeeded."""
+    succeeded = False
+    try:
+        yield
+        succeeded = True
+    finally:
+        if keep_on_success and succeeded:
+            print(f"--keep set; leaving pod {pod_id} alive (DELETE manually)")
+        else:
+            _delete_pod(client, pod_id)
+
+
+def _wait_for_endpoint(
+    client: httpx.Client, pod_id: str, deadline: float
+) -> tuple[str, int]:
+    """Wait until publicIp + portMappings['22'] are populated."""
+    while time.monotonic() < deadline:
+        pod = _get_pod(client, pod_id)
+        ip = (pod.get("publicIp") or "").strip()
+        port = (pod.get("portMappings") or {}).get("22")
+        if ip and port:
+            return ip, int(port)
+        time.sleep(ENDPOINT_POLL_S)
+    raise TimeoutError(f"pod {pod_id} never published an SSH endpoint")
+
+
+def _wait_for_exit(client: httpx.Client, pod_id: str, deadline: float) -> str:
+    while time.monotonic() < deadline:
+        pod = _get_pod(client, pod_id)
+        status = pod.get("desiredStatus", "")
+        ts = time.strftime("%H:%M:%S")
+        print(f"  {ts} pod {pod_id} status={status}")
+        if status in ("EXITED", "TERMINATED"):
+            return status
+        time.sleep(POLL_EVERY_S)
+    raise TimeoutError(f"pod {pod_id} did not finish within {MAX_WALL_S}s")
+
+
+def _scp_outputs(*, ip: str, port: int, remote_dir: str, local_dest: Path) -> None:
+    local_dest.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        [
+            "scp",
+            "-i", str(SSH_KEY),
+            "-o", "StrictHostKeyChecking=accept-new",
+            "-o", "UserKnownHostsFile=/dev/null",
+            "-P", str(port),
+            "-r",
+            f"root@{ip}:{remote_dir}/.",
+            str(local_dest),
+        ],
+        check=True,
+    )
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--image", default=DEFAULT_IMAGE)
+    parser.add_argument(
+        "--gpu",
+        action="append",
+        default=None,
+        help="GPU priority list (repeat for multiple). Default: 4090, L4, A4000.",
+    )
+    parser.add_argument(
+        "--keep",
+        action="store_true",
+        help="Skip DELETE on success — for inspecting a finished pod.",
+    )
+    args = parser.parse_args()
+
+    repo_root = Path(__file__).resolve().parent.parent
+    load_dotenv(repo_root / ".env")
+    api_key = _env("RUNPOD_API_KEY")
+    network_volume_id = _env("RUNPOD_NETWORK_VOLUME_ID")
+    registry_auth_id = _env("RUNPOD_GHCR_AUTH_ID", required=False) or None
+
+    pub_key_path = SSH_KEY.with_suffix(".pub")
+    if not pub_key_path.exists():
+        sys.exit(
+            f"error: missing SSH public key at {pub_key_path}\n"
+            "  Generate with: ssh-keygen -t ed25519 -f ~/.ssh/runpod_ed25519 -N ''"
+        )
+    public_key = pub_key_path.read_text().strip()
+
+    name = f"wakeword-train-{time.strftime('%Y%m%d-%H%M%S')}"
+    local_dest = repo_root / "var" / "wake-word" / "models" / time.strftime("%Y-%m-%d-runpod")
+    deadline = time.monotonic() + MAX_WALL_S
+    gpu_priority = args.gpu or DEFAULT_GPU_PRIORITY
+
+    client = _client(api_key)
+    pod_id = _create_pod(
+        client,
+        name=name,
+        image=args.image,
+        gpu_priority=gpu_priority,
+        network_volume_id=network_volume_id,
+        public_key=public_key,
+        registry_auth_id=registry_auth_id,
+    )
+
+    with _leased_pod(client, pod_id, keep_on_success=args.keep):
+        ip, port = _wait_for_endpoint(client, pod_id, deadline)
+        print(f"pod {pod_id} reachable at {ip}:{port}")
+
+        status = _wait_for_exit(client, pod_id, deadline)
+        if status != "EXITED":
+            raise RuntimeError(f"pod {pod_id} ended in {status}, not EXITED")
+
+        print(f"==> pulling /workspace/out -> {local_dest}")
+        _scp_outputs(
+            ip=ip, port=port, remote_dir="/workspace/out", local_dest=local_dest,
+        )
+
+        if (local_dest / "SUCCESS").exists():
+            print(f"=== training succeeded; artifacts at {local_dest} ===")
+            return 0
+
+        if (local_dest / "FAILURE").exists():
+            print(
+                f"=== training failed; see {local_dest / 'FAILURE'} for traceback ===",
+                file=sys.stderr,
+            )
+            return 1
+
+        print(
+            f"=== no SUCCESS or FAILURE sentinel in {local_dest} — pod exited "
+            "without running the entrypoint? ===",
+            file=sys.stderr,
+        )
+        return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

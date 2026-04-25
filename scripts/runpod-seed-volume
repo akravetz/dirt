@@ -1,0 +1,163 @@
+#!/usr/bin/env -S uv run --project /home/akcom/code/dirt python
+"""One-time seed of a RunPod Network Volume with Kaggle datasets.
+
+Spawns a small CPU pod with python:3.11-slim, mounts the Network Volume at
+/workspace, pip-installs the kaggle CLI, and downloads four datasets to
+/workspace/input/<slug>/. The pod exits when the downloads complete; the
+data persists on the Network Volume after `DELETE /pods/{id}`.
+
+Run once per fresh Network Volume — re-running is safe but wastes ~10 min.
+
+Required env (load via `.env`):
+  RUNPOD_API_KEY              — bearer token
+  RUNPOD_NETWORK_VOLUME_ID    — Network Volume to seed (create via the console)
+
+Kaggle auth: reads ~/.kaggle/kaggle.json on the local machine (chmod 600)
+and forwards username/key to the pod as KAGGLE_USERNAME / KAGGLE_KEY env
+vars. The pod never gets the json file directly.
+
+Usage:
+  scripts/runpod-seed-volume                # download all four datasets
+  scripts/runpod-seed-volume --force        # redownload (--unzip overwrites)
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import time
+from pathlib import Path
+
+import httpx
+from dotenv import load_dotenv
+
+REST_BASE = "https://rest.runpod.io/v1"
+POLL_EVERY_S = 30
+MAX_WALL_S = 60 * 60  # 1 h hard cap; expected ~10 min
+
+DATASETS = [
+    "akravetz/dirt-wakeword-mine",
+    "akravetz/dirt-wakeword-bg",
+    "akravetz/dirt-wakeword-features",
+    "akravetz/dirt-wakeword-validation",
+]
+
+
+def _env(name: str, *, required: bool = True) -> str:
+    v = os.environ.get(name, "").strip()
+    if required and not v:
+        sys.exit(f"error: {name} not set in environment (.env)")
+    return v
+
+
+def _load_kaggle_creds() -> tuple[str, str]:
+    path = Path.home() / ".kaggle" / "kaggle.json"
+    if not path.exists():
+        sys.exit(
+            f"error: missing kaggle credentials at {path}\n"
+            "  Generate at https://www.kaggle.com/settings/account → Create New API Token,\n"
+            "  then place at ~/.kaggle/kaggle.json (chmod 600)."
+        )
+    blob = json.loads(path.read_text())
+    return blob["username"], blob["key"]
+
+
+def _build_seed_command(force: bool) -> str:
+    """Single bash one-liner: install kaggle CLI, download each slug, summarize."""
+    flag = "--force" if force else ""
+    slugs = " ".join(DATASETS)
+    return (
+        "set -euo pipefail; "
+        "pip install --quiet kaggle; "
+        "mkdir -p /workspace/input && cd /workspace/input; "
+        f"for slug in {slugs}; do "
+        '  name="${slug##*/}"; '
+        '  echo "==> downloading $name"; '
+        f'  kaggle datasets download -d "$slug" --unzip -p "$name" {flag}; '
+        "done; "
+        "echo '==> seed complete; tree:'; "
+        "ls -la /workspace/input; "
+        "du -sh /workspace/input/*"
+    )
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Pass --force to kaggle CLI to redownload existing datasets.",
+    )
+    args = parser.parse_args()
+
+    repo_root = Path(__file__).resolve().parent.parent
+    load_dotenv(repo_root / ".env")
+    api_key = _env("RUNPOD_API_KEY")
+    network_volume_id = _env("RUNPOD_NETWORK_VOLUME_ID")
+    kaggle_user, kaggle_key = _load_kaggle_creds()
+
+    client = httpx.Client(
+        base_url=REST_BASE,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        timeout=30.0,
+    )
+
+    body = {
+        "name": f"wakeword-seed-{time.strftime('%Y%m%d-%H%M%S')}",
+        "imageName": "python:3.11-slim",
+        "computeType": "CPU",
+        "vcpuCount": 4,
+        "minRAMPerGPU": 8,
+        "containerDiskInGb": 20,
+        "networkVolumeId": network_volume_id,
+        "volumeMountPath": "/workspace",
+        "cloudType": "SECURE",
+        "interruptible": False,
+        "env": {
+            "KAGGLE_USERNAME": kaggle_user,
+            "KAGGLE_KEY": kaggle_key,
+        },
+        "dockerStartCmd": ["bash", "-c", _build_seed_command(args.force)],
+    }
+
+    r = client.post("/pods", json=body)
+    if r.status_code >= 400:
+        sys.exit(f"error: POST /pods → {r.status_code}: {r.text}")
+    pod_id = r.json()["id"]
+    print(f"created seed pod {pod_id}")
+    print("  inspect logs at https://www.console.runpod.io/pods")
+
+    deadline = time.monotonic() + MAX_WALL_S
+    final_status = ""
+    try:
+        while time.monotonic() < deadline:
+            pod = client.get(f"/pods/{pod_id}").json()
+            status = pod.get("desiredStatus", "")
+            ts = time.strftime("%H:%M:%S")
+            print(f"  {ts} pod {pod_id} status={status}")
+            if status in ("EXITED", "TERMINATED"):
+                final_status = status
+                break
+            time.sleep(POLL_EVERY_S)
+        else:
+            sys.exit(f"timeout: pod {pod_id} did not finish within {MAX_WALL_S}s")
+    finally:
+        try:
+            client.delete(f"/pods/{pod_id}").raise_for_status()
+            print(f"deleted pod {pod_id}")
+        except Exception as exc:
+            print(f"WARN: pod {pod_id} delete failed: {exc!r}", file=sys.stderr)
+
+    if final_status != "EXITED":
+        sys.exit(f"seed pod did not reach EXITED (was: {final_status})")
+    print("=== seed complete; volume is ready for trainer pods ===")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
