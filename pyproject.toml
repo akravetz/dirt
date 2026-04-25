@@ -149,6 +149,14 @@ ignore = ["ASYNC240", "RUF001", "RUF002", "RUF003"]
 # so non-voice deployments can boot without dashing through every
 # secret.
 "apps/shared/src/dirt_shared/config.py" = ["S105", "S106"]
+# Wake-word library is operator-facing kernel-runtime code: print() calls
+# are how operators see progress during a 90-min Kaggle run (no logging
+# infrastructure attached); the timing.sh helper genuinely needs
+# shell=True for piped commands; long log f-strings occasionally exceed
+# 88 cols; multi-keyword-arg signatures + list-concat are deliberate.
+"apps/wake-word/src/dirt_wake_word/*.py" = [
+    "T201", "S602", "E501", "PLR0913", "RUF005",
+]
 
 [tool.ruff.format]
 quote-style = "double"

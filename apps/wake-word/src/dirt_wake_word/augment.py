@@ -1,0 +1,124 @@
+"""Per-subset augmentation + feature compute (replaces upstream's --augment_clips).
+
+For each of the 4 feature subsets (positive_train, negative_train,
+positive_test, negative_test) we split files by filename prefix:
+
+    synth (default):    Piper-generated UUIDs, synth_clone_*, synth_neighbor_*
+    real-room recorded: realmic_*, harvested_*
+
+Synth gets the default augmentation pipeline. Real-room recorded gets
+RIR=0.0 + AddBackgroundNoise=0.5 (down from 0.75) — the clip already
+carries the deployment room's reverb, so convolving with another RIR is an
+unphysical 2-room cascade.
+"""
+
+from __future__ import annotations
+
+import os
+from itertools import chain
+from pathlib import Path
+
+import torch
+import yaml
+from openwakeword.data import augment_clips
+from openwakeword.utils import compute_features_from_generator
+
+from .config import TARGET_WORD
+
+DEFAULTS = {
+    "SevenBandParametricEQ": 0.25,
+    "TanhDistortion": 0.25,
+    "PitchShift": 0.25,
+    "BandStopFilter": 0.25,
+    "AddColoredNoise": 0.25,
+    "AddBackgroundNoise": 0.75,
+    "Gain": 1.0,
+    "RIR": 0.5,
+}
+REAL_AUDIO = {**DEFAULTS, "RIR": 0.0, "AddBackgroundNoise": 0.5}
+
+SUBSETS = (
+    ("positive_train", "positive_features_train.npy"),
+    ("negative_train", "negative_features_train.npy"),
+    ("positive_test", "positive_features_test.npy"),
+    ("negative_test", "negative_features_test.npy"),
+)
+
+
+def _is_real_audio(name: str) -> bool:
+    return name.startswith("realmic_") or name.startswith("harvested_")
+
+
+def augment_and_compute_features(*, work_dir: Path, out_dir: Path) -> None:
+    """Run the per-subset augmentation pipeline + write feature .npys."""
+    config = yaml.safe_load((work_dir / "my_model.yaml").read_text())
+    feature_save_dir = out_dir / TARGET_WORD
+
+    # background_paths handling (mirrors upstream)
+    bg_dup = config.get("background_paths_duplication_rate") or [1] * len(
+        config["background_paths"]
+    )
+    if len(bg_dup) != len(config["background_paths"]):
+        bg_dup = [1] * len(config["background_paths"])
+    bg_paths: list[str] = []
+    for path, rate in zip(config["background_paths"], bg_dup, strict=False):
+        bg_paths.extend([i.path for i in os.scandir(path)] * rate)
+    rir_paths = [i.path for j in config["rir_paths"] for i in os.scandir(j)]
+
+    rounds = config["augmentation_rounds"]
+    n_cpus = os.cpu_count() or 1
+    ncpu = 1 if torch.cuda.is_available() else max(1, n_cpus // 2)
+    device = "gpu" if torch.cuda.is_available() else "cpu"
+
+    print("=== per-subset augmentation + feature compute (v8) ===", flush=True)
+    for subset_name, out_npy in SUBSETS:
+        subset_dir = out_dir / TARGET_WORD / subset_name
+        all_files = sorted(str(f) for f in subset_dir.glob("*.wav"))
+        synth = [f for f in all_files if not _is_real_audio(Path(f).name)]
+        real = [f for f in all_files if _is_real_audio(Path(f).name)]
+        if not synth and not real:
+            print(f"  {subset_name}: empty, skipping", flush=True)
+            continue
+
+        synth_input = synth * rounds
+        real_input = real * rounds
+        n_total = len(synth_input) + len(real_input)
+
+        gens = []
+        if synth_input:
+            gens.append(
+                augment_clips(
+                    synth_input,
+                    total_length=config["total_length"],
+                    batch_size=config["augmentation_batch_size"],
+                    augmentation_probabilities=DEFAULTS,
+                    background_clip_paths=bg_paths,
+                    RIR_paths=rir_paths,
+                )
+            )
+        if real_input:
+            gens.append(
+                augment_clips(
+                    real_input,
+                    total_length=config["total_length"],
+                    batch_size=config["augmentation_batch_size"],
+                    augmentation_probabilities=REAL_AUDIO,
+                    background_clip_paths=bg_paths,
+                    RIR_paths=rir_paths,
+                )
+            )
+
+        out_path = feature_save_dir / out_npy
+        print(
+            f"  {subset_name}: {len(synth)} synth (×{rounds}, RIR=0.5) + "
+            f"{len(real)} realroom (×{rounds}, RIR=0) → {out_path.name}",
+            flush=True,
+        )
+        compute_features_from_generator(
+            chain(*gens),
+            n_total=n_total,
+            clip_duration=config["total_length"],
+            output_file=str(out_path),
+            device=device,
+            ncpu=ncpu,
+        )
