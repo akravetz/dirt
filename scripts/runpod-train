@@ -103,15 +103,22 @@ def main() -> int:
         action="store_true",
         help="Skip DELETE on success — for inspecting a finished pod.",
     )
+    parser.add_argument(
+        "--run-group",
+        default=None,
+        help="W&B run-group label. Default: solo-YYYYMMDD. Sweeps share one.",
+    )
     args = parser.parse_args()
 
     rp.load_env()
     api_key = rp.env("RUNPOD_API_KEY")
     network_volume_id = rp.env("RUNPOD_NETWORK_VOLUME_ID")
     registry_auth_id = rp.env("RUNPOD_GHCR_AUTH_ID", required=False) or None
+    wandb_api_key = rp.env("WANDB_API_KEY", required=False) or ""
     pub_key = rp.public_key(required=True)
 
     name = f"wakeword-train-{time.strftime('%Y%m%d-%H%M%S')}"
+    run_group = args.run_group or f"solo-{time.strftime('%Y%m%d')}"
     local_dest = (
         rp.repo_root() / "var" / "wake-word" / "models"
         / time.strftime("%Y-%m-%d-%H%M%S-runpod")
@@ -132,6 +139,17 @@ def main() -> int:
     }
     if registry_auth_id:
         body["containerRegistryAuthId"] = registry_auth_id
+    # W&B + provenance env. WANDB_API_KEY empty → entrypoint skips W&B init
+    # cleanly (locally-good run, no remote trace). DIRT_IMAGE_REF lets the
+    # in-container run-manifest record what image actually ran (the bare
+    # ENV-baked git SHA isn't enough — the operator may run a stale image).
+    if wandb_api_key:
+        body["env"]["WANDB_API_KEY"] = wandb_api_key
+    body["env"] |= {
+        "WANDB_RUN_GROUP": run_group,
+        "WANDB_NAME": name,
+        "DIRT_IMAGE_REF": args.image,
+    }
 
     http = rp.client(api_key)
     pod_id = rp.create_pod(http, body)

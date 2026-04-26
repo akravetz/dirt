@@ -1,5 +1,19 @@
 #!/usr/bin/env -S uv run --project /home/akcom/code/dirt python -u
-"""One-time seed of a RunPod Network Volume with the four Kaggle datasets.
+"""LEGACY — disaster-recovery bootstrap of a RunPod Network Volume from
+the (now-retired) Kaggle datasets.
+
+This script is no longer the routine path. As of 2026-04-26 the RunPod
+volume is the sole source of truth for training data; the routine
+publish verb is `scripts/wakeword-volume-bump`, and the durability
+backup is `scripts/wakeword-volume-snapshot` mirroring to
+`var/wake-word/_volume-mirror/`. See
+`wiki/decisions/2026-04-25-runpod-migration.md` (Update 2026-04-26).
+
+Kept for the rare case of needing to recreate a volume from the Kaggle
+mirror (e.g. RunPod loses a region's volume capacity AND the local
+mirror is unusable). For the common DR case, restore from the local
+mirror — it's faster, doesn't require Kaggle auth, and matches the
+authoritative content hashes recorded in MANIFEST.json.
 
 Spawns a small CPU pod with python:3.11-slim, mounts the Network Volume at
 /workspace, downloads the four Kaggle datasets to /workspace/input/<slug>/,

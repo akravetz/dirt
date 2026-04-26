@@ -15,7 +15,7 @@ Read this before touching any wake-word code, data, or model deployment.
 
 | Path | Purpose |
 |---|---|
-| `src/dirt_wake_word/` | The trainer library — pure Python, no Kaggle/RunPod glue. Entry point: `dirt_wake_word.main.main()`. |
+| `src/dirt_wake_word/` | The trainer library — pure Python, no platform glue. Entry point: `dirt_wake_word.main.main()`. |
 | `docker/Dockerfile` | Trainer image. Bakes deps + openwakeword source + bundled resources + library at build time. `runpod/pytorch` base. |
 | `docker/entrypoint.py` | In-container runtime: env wiring → `main()` → publish artifacts → SUCCESS/FAILURE sentinel → sleep (so orchestrator can SCP). |
 | `data-gen/elevenlabs-clones-batch.py` | Generate synthetic positives via ElevenLabs voice clone. |
@@ -43,12 +43,14 @@ Read this before touching any wake-word code, data, or model deployment.
 
 | Script | Purpose |
 |---|---|
-| `scripts/runpod-seed-volume` | One-time fill of the RunPod Network Volume from Kaggle's hosted datasets. |
-| `scripts/runpod-build-image` | `docker buildx` the trainer + smoke-test it locally + push to GHCR. |
+| `scripts/runpod-build-image` | `docker buildx` the trainer + smoke-test it locally + push to GHCR. Bakes the current git SHA in via `--build-arg DIRT_GIT_SHA`. |
 | `scripts/runpod-train` | Submit one training job: POST a pod → wait for endpoint → SSH-poll for sentinel → SCP artifacts → DELETE. |
+| `scripts/wakeword-volume-bump` | Push a local subdir into the Network Volume's `/workspace/input/<slug>/`, recompute its content hash, atomically update the on-volume `MANIFEST.json`. Replaces the legacy `kaggle datasets version` flow. |
+| `scripts/wakeword-volume-snapshot` | Pull the volume contents to `var/wake-word/_volume-mirror/` for DR. Volume loss = data loss now that Kaggle is retired. |
 | `scripts/smoke-trainer-image` | End-to-end docker-run against `var/wake-word/smoke-fixtures/`. Asserts SUCCESS sentinel + .onnx. |
 | `scripts/gen-smoke-fixtures` | Write the tiny smoke corpus to `var/wake-word/smoke-fixtures/`. |
 | `scripts/validate-wake-model.py` | Score a model against the real-audio validation set. Recall/precision per threshold. |
+| `scripts/runpod-seed-volume` | **Legacy** — one-time bootstrap fill from Kaggle. Kept for disaster-recovery from the local `_volume-mirror/`; no longer the routine path. |
 
 ## Retraining workflow
 
@@ -58,9 +60,13 @@ uv run python apps/wake-word/data-gen/elevenlabs-clones-batch.py
 uv run python apps/wake-word/data-gen/elevenlabs-neighbors-batch.py
 # RIR capture is two-machine — see capture-rir-record.py docstring.
 
-# 2. (One-time per dataset bump) push fresh data to Kaggle:
-#    `kaggle datasets version -p <stage-dir> -m "msg"` per dataset.
-#    Then re-run scripts/runpod-seed-volume --reset to repopulate the volume.
+# 2. (One-time per dataset bump) push fresh data into the Network Volume:
+scripts/wakeword-volume-bump dirt-wakeword-mine ./staged/mine \
+    --notes "added 200 realmic positives from <session>"
+# Spins a small CPU pod with the volume mounted, SCPs the local subdir
+# up, recomputes the content hash, atomically rewrites MANIFEST.json.
+# The volume IS the source of truth — content_hash is what shows up in
+# the next run's wandb.config + run-manifest.json. No Kaggle round-trip.
 
 # 3. Build + push trainer image (only if Dockerfile or src/ changed):
 scripts/runpod-build-image
@@ -92,7 +98,7 @@ systemctl --user restart dirt-voice
 
 ## Critical gotchas
 
-- **Don't commit anything under `var/`** — gitignored on purpose. WAVs, ONNX, NPYs, parquets, smoke fixtures all stay local. The Kaggle datasets are the durable copy of training data.
+- **Don't commit anything under `var/`** — gitignored on purpose. WAVs, ONNX, NPYs, parquets, smoke fixtures all stay local. The RunPod Network Volume is now the **only** durable copy of training data (Kaggle is retired). Run `scripts/wakeword-volume-snapshot` periodically so `var/wake-word/_volume-mirror/` is a known-good local backup; volume loss = data loss otherwise.
 - **`auto_train` in upstream openwakeword is broken** (`self.best_val_fp` initialized to 1000 and never updated; escalation always fires twice). We soft-fork around it in `dirt_wake_word.train.custom_train` — call `openwakeword.train.Model.train_model()` directly with sane settings + post-train F1 selection against `var/wake-word/validation/`. See the v5 collapse rationale in `wiki/wake-word-experiments.md`.
 - **The container ALWAYS exits 0** (entrypoint catches BaseException, writes FAILURE sentinel, returns). RunPod auto-restarts on non-zero exit, which silently burns $/hr on crash loops. Communicate failure via the sentinel, never via exit status.
 - **Direct-TCP SSH to RunPod pods is flaky** even when the pod is RUNNING per the API — community-wide issue, not our config. The orchestrator polls via SSH for the sentinel and tolerates transient refusals; the proxy SSH (`ssh.runpod.io`) works for interactive but doesn't pass SCP.
@@ -102,7 +108,7 @@ systemctl --user restart dirt-voice
 
 `var/wake-word/validation/{good,bad}/` is the canonical real-audio metric. The synthetic recall reported by openwakeword on Piper-generated test clips is empirically misleading — v5 hit 38% synthetic but only 56% real-audio. **Always validate against this set before deploying.**
 
-When you grow the validation set: place real utterances in `good/`, hand-curated false-positives (typically pulled from `var/logs/wake_audio/` after listening) in `bad/`. Then bump the `dirt-wakeword-validation` Kaggle dataset with `kaggle datasets version` and re-seed the RunPod volume so future runs select against the larger set.
+When you grow the validation set: place real utterances in `good/`, hand-curated false-positives (typically pulled from `var/logs/wake_audio/` after listening) in `bad/`. Then run `scripts/wakeword-volume-bump dirt-wakeword-validation <staged-dir>` to push it to the volume — future runs will see the larger set and the new content hash will be recorded in their `run-manifest.json`.
 
 ## Where to look for context
 

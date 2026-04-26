@@ -12,7 +12,7 @@ FROM nvidia/cuda:12.4.0-runtime-ubuntu22.04 AS base
 ENV WANDB_PROJECT=dirt-wake-word \
     WANDB_DIR=/workspace/wandb \
     WANDB_SILENT=true \
-    WANDB_CONSOLE=off
+    WANDB_CONSOLE=redirect
 
 # WANDB_API_KEY is intentionally NOT set here — injected at runtime via RunPod's env block.
 ```
@@ -21,8 +21,8 @@ Why these:
 
 - **`WANDB_PROJECT=dirt-wake-word`** — saves having to pass `project=` on every `wandb.init` call.
 - **`WANDB_DIR=/workspace/wandb`** — the SDK stages local logs (history, config, system metrics) to `$WANDB_DIR/wandb/run-<id>` before upload. `/workspace` is the RunPod **volume disk** mount; it survives across container restarts (until pod delete) and is what you SCP off if you need post-mortem state.
-- **`WANDB_SILENT=true`** — suppresses the SDK's "View run at https://..." banner and progress chatter. Keeps `journalctl --user -u dirt-voice -f` (or the RunPod console) readable.
-- **`WANDB_CONSOLE=off`** — tells the SDK not to capture stdout/stderr and re-emit it to the W&B run's "logs" tab. The RunPod stdout is already captured by RunPod itself; double-piping is wasteful and creates noise.
+- **`WANDB_SILENT=true`** — suppresses the SDK's "View run at https://..." banner and progress chatter. Keeps the RunPod console readable.
+- **`WANDB_CONSOLE=redirect`** — captures the container's stdout/stderr at the file-descriptor level (`os.dup2`) and streams it to the W&B run's "Logs" tab live. **This is the durable, agent-readable text trace of the run.** The harness orchestrator's flow is `POST /pods` → poll → SCP artifacts → `DELETE /pods/{id}` in `finally:`, which means RunPod's own console-log retention is ephemeral — the moment we delete the pod, that history is gone. W&B-side capture survives the pod, is queryable mid-run via `wandb.Api().run(id).file("output.log").download(...)`, and is the only path that catches subprocess output too (the soft-fork still shells out to upstream `train.py` for `--generate_clips`, ~22 min of the run; `WANDB_CONSOLE=wrap` patches `sys.stdout`/`stderr` at the Python level and would miss that). Use `off` only if you have a different durable text channel — for this harness, we don't.
 
 ## Env vars to inject at pod-create (per-invocation)
 

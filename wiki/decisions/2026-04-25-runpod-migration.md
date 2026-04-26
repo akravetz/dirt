@@ -4,7 +4,7 @@ type: decision
 sources: []
 related: [wiki/decisions/2026-04-23-wake-word-v5-passive-harvest.md, wiki/wake-word-experiments.md, docs/references/runpod/INDEX.md]
 created: 2026-04-25
-updated: 2026-04-25
+updated: 2026-04-26
 ---
 
 # Wake-Word Training Pipeline — Kaggle → RunPod migration
@@ -124,6 +124,32 @@ problem is upstream of platform choice — likely in our soft-fork of
 iterating; run upstream's `automatic_model_training.py` Colab notebook
 unmodified to establish a known-good baseline, then re-introduce our
 v8 architectural changes one at a time.
+
+## Update 2026-04-26 — Kaggle fully retired
+
+The "What we kept from Kaggle" section above no longer applies. The
+RunPod Network Volume `jj3zksmx29` is now the **sole** durable copy of
+training data; Kaggle is not consulted at runtime or as a backup. Two
+operational consequences:
+
+1. **Versioning surface moved to the volume.** Each subdir's content
+   hash lives in `/workspace/input/MANIFEST.json`, computed at bump
+   time. The trainer reads it on init and stamps it into
+   `wandb.config` + `/workspace/out/run-manifest.json` so any run is
+   round-trippable to the bytes it consumed. No more `dirt-wakeword-mine
+   v4 → v5` Kaggle version-string trust.
+
+2. **Bump and DR workflows replaced.** `scripts/wakeword-volume-bump
+   <slug> <local-dir>` is the new "publish fresh data" verb (replaces
+   `kaggle datasets version` + `runpod-seed-volume --reset`).
+   `scripts/wakeword-volume-snapshot` mirrors the volume to
+   `var/wake-word/_volume-mirror/` for DR — RunPod has already lost a
+   volume on us once (the original `dirt_data` in `US-CA-2`), and
+   without Kaggle as a fallback, snapshot is the only safety net.
+
+`scripts/runpod-seed-volume` is kept in the repo as a legacy
+disaster-recovery path (Kaggle CLI → fresh volume), but is not part of
+the routine workflow.
 
 ## Sources
 

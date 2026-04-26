@@ -1,7 +1,7 @@
 ---
 title: Index
 type: index
-updated: 2026-04-24
+updated: 2026-04-26
 ---
 
 # Grow Wiki Index
@@ -14,10 +14,10 @@ updated: 2026-04-24
 - [Wake-Word Experiment Log](wake-word-experiments.md) — append-only log of every "hey Claudia" model trained: what changed, why, training config, validation results
 
 ## Plants
-- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; vigor leader; strong purple contender; **topped Apr 11** (Day 14 post-top); **LST Day 5** (started Apr 20); moisture stable ~57%
-- [Plant B](plants/plant-b.md) — 🟡 Secondary; no purple; **topped Apr 12** (Day 13 post-top); **LST Day 5** (started Apr 20); densest dark-green canopy; moisture rising 68% → 74.6% — watch
-- [Plant C](plants/plant-c.md) — 🟡 Secondary; **topped Apr 12** (Day 13 post-top); **LST Day 5** (started Apr 20); moisture stable at 84% (very high) — monitor root zone
-- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; strong purple contender; **topped Apr 12** (Day 13 post-top); **LST Day 5** (started Apr 20); moisture peaked 87.1% overnight; 86.0% now — monitor root zone
+- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; vigor leader; strong purple contender; **topped Apr 11** (Day 15 post-top); **LST Day 6** (started Apr 20); moisture stable ~57%
+- [Plant B](plants/plant-b.md) — 🟡 Secondary; no purple; **topped Apr 12** (Day 14 post-top); **LST Day 6** (started Apr 20); densest dark-green canopy; moisture rising to 79.3% — approaching C/D range
+- [Plant C](plants/plant-c.md) — 🟡 Secondary; **topped Apr 12** (Day 14 post-top); **LST Day 6** (started Apr 20); moisture stable at 85–86% (very high, 4+ days) — monitor root zone
+- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; strong purple contender; **topped Apr 12** (Day 14 post-top); **LST Day 6** (started Apr 20); moisture peaked 88.48% overnight, stabilizing ~87% — monitor root zone
 
 ## Daily Logs
 - [2026-03-27](daily/2026-03-27.md) — Day 13: Pre-transplant; 2–3 leaf sets
@@ -39,6 +39,7 @@ updated: 2026-04-24
 - [2026-04-23](daily/2026-04-23.md) — Day 40: photos only; no sensor snapshot; humidifier oscillation + Raydrop red-LED latch incidents; BME280 retired → SHT45 cutover
 - [2026-04-24](daily/2026-04-24.md) — Day 41: temperature fully in range all windows (first time) ✅✅; VPD clean all windows; C/D moisture 82–83% ⚠️; LST and reservoir change critically overdue
 - [2026-04-25](daily/2026-04-25.md) — Day 42: afternoon VPD 0.63 kPa below floor ⚠️; temperature regression (72°F vs yesterday's 76°F); C/D moisture 84–86%; reservoir change Day 10 (overdue)
+- [2026-04-26](daily/2026-04-26.md) — Day 43: VPD 0.68 kPa below floor 2nd day 🔴; all temp windows below targets ⚠️; overnight RH 59.5% above veg target ⚠️; B moisture rising to 79%; reservoir change Day 11+ critically overdue
 
 ## Environment
 - [Temperature](environment/temperature.md) — Trend log; targets by phase; notable events
@@ -77,7 +78,19 @@ updated: 2026-04-24
 - [Wake-Word Detection](concepts/wake-word-detection.md) — openWakeWord architecture, training data, FRR diagnostics, threshold tuning, custom verifier models
 - [Room Impulse Response (RIR)](concepts/room-impulse-response.md) — What an IR is; exponential sine sweep capture (Farina method); using IRs as training augmentation
 
+## Breeding
+- [Breeding Section README](breeding/README.md) — two-track SBxBS01 F2 program: pollen banking (Track A) + phenotype hunt (Track B) → F2 cross
+- [Nomenclature](breeding/nomenclature.md) — F1/F2/BX/S1/IBL vocabulary tied to our SBxBS01 program
+- [Timeline](breeding/timeline.md) — dated calendar from launch through F2 seed harvest (active document)
+- [Isolation](breeding/isolation.md) — separate-room contamination protocol; gating for everything else
+- [Cloning](breeding/cloning.md) — procedure, equipment, mother management; safety net for the entire program
+- [Phenotype Hunt Protocol](breeding/pheno-hunt-protocol.md) — selection criteria, scoring rubric, weekly cadence
+- [Male Evaluation](breeding/male-evaluation.md) — pre-pollen male selection (stem color, vigor, structure, terps, hermie watch)
+- [Pollen Handling](breeding/pollen-handling.md) — collection, drying, 4:1 flour cut, aliquoting, freezer storage, single-thaw discipline
+- [Cross Procedure](breeding/cross-procedure.md) — paintbrush pollination, branch labeling, seed maturation, harvest
+
 ## Decisions
+- [Breeding Program Launch (2026-04-26)](decisions/2026-04-26-breeding-program-launch.md) — Two-track SBxBS01 F2 selection program; pollen banking + 10-pack pheno hunt → F2 cross. Scope, alternatives, trait priorities.
 - [Medium, Nutrients & Training (2026-03-16)](decisions/2026-03-16-medium-and-training.md) — Coco/perlite, Canna A+B, single top → LST → SCROG
 - [Anthocyanin Priority Shift (2026-04-01)](decisions/2026-04-01-anthocyanin-priority.md) — Plants A & D elevated to primary keeper candidates
 - [Reservoir Stand (2026-04-11)](decisions/2026-04-11-reservoir-stand.md) — Oak step stool 6" height for FlexiTank Pro gravity feed; alternatives considered
@@ -92,7 +105,7 @@ updated: 2026-04-24
 - [Wake-Word v4 Plan (2026-04-18)](decisions/2026-04-18-wake-word-v4-plan.md) — Precision-focused retraining: harvested hard negatives from deployment + mined meeting audio + synthesized phonetic neighbors + additional RIRs; near-miss audio capture live as of 2026-04-18. **Superseded by v5 2026-04-23.**
 - [Wake-Word v5 Plan (2026-04-23)](decisions/2026-04-23-wake-word-v5-passive-harvest.md) — Passive-harvest mode (`DIRT_VOICE_HARVEST_ONLY=1`): operator runs dirt-voice for ~2 days without saying the wake word, every above-floor capture is a guaranteed negative — eliminates v4's manual triage. Floor lowered to 0.15; ElevenLabs positives + `max_negative_weight=800` carry forward from v4.
 - [Speaker Verifier (2026-04-24)](decisions/2026-04-24-speaker-verifier.md) — ECAPA-TDNN via speechbrain as a second-stage filter after the wake model fires; rejects any voice that isn't the enrolled user's. Orthogonal to v5 retraining; addresses meeting FPs at root. Ship before v5 to re-enable dirt-voice safely without waiting on the harvest cycle.
-- [Wake-Word Training Pipeline — Kaggle → RunPod (2026-04-25)](decisions/2026-04-25-runpod-migration.md) — After v9–v15 each failed on a different Kaggle-environment quirk (base-image contents, py3.12 PyPI wheels, editable-install path, locked-down package layout), abandoned Kaggle Notebooks for a self-controlled Docker image on RunPod Pods. Image bakes everything; Network Volume holds the four Kaggle datasets. The v8 architectural design carries over unchanged.
+- [Wake-Word Training Pipeline — Kaggle → RunPod (2026-04-25; updated 2026-04-26)](decisions/2026-04-25-runpod-migration.md) — After v9–v15 each failed on a different Kaggle-environment quirk (base-image contents, py3.12 PyPI wheels, editable-install path, locked-down package layout), abandoned Kaggle Notebooks for a self-controlled Docker image on RunPod Pods. Image bakes everything; the Network Volume `jj3zksmx29` is now the **sole** durable copy of training data (Kaggle fully retired 2026-04-26). The v8 architectural design carries over unchanged.
 - [ESP32-C3 GPIO3 + IDF ADC (2026-04-14)](decisions/2026-04-14-esp32-c3-gpio3-adc.md) — GPIO3 over GPIO4 (JTAG conflict); `adc1_get_raw()` over Arduino `analogRead()` (WiFi instability)
 - [Server-Side Auto-Calibration (2026-04-14)](decisions/2026-04-14-server-side-auto-calibration.md) — Calibration lives in DB, auto-widens extrema per (location, metric); firmware sends raw only
 - [Lights-Off-Aware Humidifier Control (2026-04-19)](decisions/2026-04-19-lights-off-aware-humidifier.md) — Schedule-driven feedforward added to the humidifier loop: pre-lights-off prep window forces OFF for the last 30 min of lights-on; lights-off subtracts 0.3 kPa from the stage band. Lights schedule stored on `growstate` (user-editable); rejected derivative control in favor of feedforward on a known-periodic disturbance.
@@ -103,4 +116,5 @@ updated: 2026-04-24
 - [Reservoir Level Sensing (2026-04-18)](decisions/2026-04-18-reservoir-level-pressure-transducer.md) — Submerged DFRobot KIT0139 pressure transducer (4–20mA, 0–5m) → ADS1115 16-bit I²C ADC → new dedicated ESP32-C3 reservoir node. Alternatives (float, ultrasonic, capacitive strip) considered and rejected.
 - [Tent-Hub Sensor Swap — DHT22 → BME280 (2026-04-20)](decisions/2026-04-20-bme280-sensor-swap.md) — Replaced the DHT22 on the Arduino Nano tent-hub with a Bosch BME280 (I²C `0x76`) after DHT22 hardware failure and for tighter drift characteristics. Topology and humidifier control loop unchanged; 0.1 kPa deadband kept. Pressure now captured as a free side channel. **Superseded 2026-04-22.**
 - [Tent Sensor + Transport Swap — SHT45 on ESP32-C3 (2026-04-22)](decisions/2026-04-22-sht45-tent-node-esp32.md) — Both sensor (BME280 → Sensirion SHT45 + PTFE cap, I²C `0x44`, GPIO4/5) and host board (Arduino Nano + USB serial → ESP32-C3 SuperMini + HTTP ingest) replaced. Firmware restructured into `firmware/{plant_node, tent_node, common}/` peer projects with a shared C++ lib tree. Motivated by recurring BME280 stuck-state and the last USB-serial tether being the lone asymmetric ingest path. **Revised same day:** SHT45 integrated onto the fan-controller ESP32 instead of a dedicated tent_node board; hardware bring-up validated; `firmware/tent_node/` obsoleted.
-- [Continuous Humidifier Intensity — Raydrop MCU-Controlled Mist (2026-04-23)](decisions/2026-04-23-raydrop-mcu-mist-control.md) — Replace the Raydrop KC-RD03A's analog intensity potentiometer with MCU-driven control (digipot or DAC on the fan-controller ESP32) + a host-side PI loop on VPD error. Retires today's bang-bang Kasa-plug control. Motivated by three failure modes observed 2026-04-23: actuator-overshoot oscillation, fan-coupling saturation (dial as hidden input to the control stack), and the low-water-latch red-LED failure. Kasa plug stays as hard-off authority. Tracked in [epic: continuous-humidifier](../docs/epics/continuous-humidifier/README.md). Phase 1 (investigation) is the stop-gate on Phases 2–4.
+- [Continuous Humidifier Intensity — Raydrop MCU-Controlled Mist (2026-04-23, **superseded 2026-04-26**)](decisions/2026-04-23-raydrop-mcu-mist-control.md) — Original plan to replace the Raydrop KC-RD03A's analog intensity potentiometer with MCU-driven control (digipot or DAC on the fan-controller ESP32) + a host-side PI loop on VPD error. Phase 4 prep landed (PI controller, ~45 tests, FOPDT fit, shadow-mode logging, analyzer/replay harness — all carry over to the Govee deployment). **Superseded by the 2026-04-26 hardware pivot** to a Wi-Fi-native Govee H7142 humidifier; PI controller stays live as the dispatch source.
+- [Humidifier Hardware Pivot — Govee H71xx Wi-Fi Humidifier (deployed: H7142, 2026-04-26)](decisions/2026-04-26-govee-humidifier-pivot.md) — Abandon the Raydrop MCU-mod path; replace the Raydrop + Kasa EP10 + planned digipot stack with a GoveeLife Smart Humidifier H7142 (6 L cool-mist, 9 Manual-mode levels via API) integrated via Govee Public API v2. H7140 (3 L, 8 levels) en route as backup; H7142 is the deployment. **Drive in Manual mode (9 discrete intensity levels) from the existing host-side VPD PI controller** — VPD-targeting (per 2026-04-18 decision) stays; the H7142 just becomes the actuator at the dispatch boundary. The PI controller, plant-in-loop tests, shadow logging, and analyzer/replay harness all carry over; FOPDT plant model needs refitting against H7142 mist rate (graduated step test). Trade-offs: cloud-only API (Internet outage = no humidifier), 10K/day quota, quantization dead-zones needed at level boundaries. Built-in `lackWaterEvent` replaces the home-grown stuck-actuator watchdog. API surface in [docs/references/govee-api/INDEX.md](../docs/references/govee-api/INDEX.md).

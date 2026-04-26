@@ -28,7 +28,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **`apps/shared/`** — `dirt-shared`. Models, db, config, observability, non-HW services (capture, photos, telegram, daily_report, daily_sensors, daily_synthesis, readings, snapshots, grow_state).
 - **`apps/mcp/`** — `dirt-mcp`. MCP server (mounted at `/mcp` inside dirt-web).
 - **`apps/voice/`** — `dirt-voice`. Claudia wake-word → Pipecat pipeline → Jabra audio I/O. Reads the deployed wake-word model from `var/wake-word/models/current/`; retraining workflow is at [`apps/wake-word/CLAUDE.md`](apps/wake-word/CLAUDE.md).
-- **`apps/wake-word/`** — model retraining infrastructure for the "hey Claudia" wake word: testable `dirt-wake-word` library + Kaggle kernel shim + data-gen scripts + validation harness. Code is committed; data artifacts (synthetic clips, captured RIRs, trained `.onnx`/`.tflite`, validation sets, local pipeline staging) live gitignored under `var/wake-word/`. `apps/speaker-verifier/` is a planned sibling. Read [`apps/wake-word/CLAUDE.md`](apps/wake-word/CLAUDE.md) before touching anything here.
+- **`apps/wake-word/`** — model retraining infrastructure for the "hey Claudia" wake word: testable `dirt-wake-word` library + RunPod Docker trainer image + data-gen scripts + validation harness. Code is committed; data artifacts (synthetic clips, captured RIRs, trained `.onnx`/`.tflite`, validation sets, local pipeline staging, periodic mirror of the RunPod Network Volume) live gitignored under `var/wake-word/`. `apps/speaker-verifier/` is a planned sibling. Read [`apps/wake-word/CLAUDE.md`](apps/wake-word/CLAUDE.md) before touching anything here.
 - **`apps/tests/invariants/`** — cross-cutting architectural invariants (HUMAN-OWNED).
 - **`apps/<app>/tests/`** — per-app unit + integration tests.
 - **`contracts/`** — (future) OpenAPI spec + generated TS client + generated Pydantic models.
@@ -51,6 +51,7 @@ Knowledge packs live in `docs/references/`. Before writing code that touches any
 - **MSW v2** — `docs/references/msw-v2/INDEX.md`. Consult when writing or modifying any code under `web-ui/src/mocks/**`, importing from `msw` / `msw/browser` / `msw/node`, defining a request handler (`http.get`/`post`/`put`/`patch`/`delete`), configuring `setupWorker` or `setupServer`, running `msw init <public-dir>`, or adding a fixture for an FE feature that needs a mocked backend response during parallel BE/FE development. MSW v2 (Oct 2023) was a ground-up rewrite of v1 — training data reliably suggests v1 patterns (`rest.get(...)`, `(req, res, ctx) => res(ctx.json(...))`, `req.url.searchParams`, `ctx.status(...)`, `import { setupWorker } from "msw"` without `/browser`), all of which are wrong for v2.
 - **Weights & Biases (wandb)** — `docs/references/wandb/INDEX.md`. Consult when writing or editing any code that imports `wandb` (in `apps/wake-word/src/dirt_wake_word/` or `apps/wake-word/docker/entrypoint.py`), calls `wandb.init` / `wandb.log` / `wandb.finish` / `wandb.log_artifact` / `wandb.Table` / `wandb.alert`, polls `wandb.Api().run(id).state` from an orchestrator (e.g. `scripts/runpod-train`), sets a `WANDB_*` env var in a Dockerfile / `.env.example` / systemd unit, or designs a sweep config. Anchors to the current SDK (>=0.21.x); training data still suggests `wandb.plots.*` (removed 0.17.0), `wandb.beta.workflows.log_model` (removed 0.24.0), `WANDB_DISABLE_SERVICE=true` (errors in 0.20+), `run.project_name()` and friends (deprecated 0.19.10), and `Table.add_row(...)` (use `add_data`).
 - **RunPod** — `docs/references/runpod/INDEX.md`. Consult when writing code that calls `https://rest.runpod.io/v1/...` or `https://api.runpod.io/graphql`, imports the `runpod` PyPI package, shells out to `runpodctl`, or otherwise orchestrates a one-shot GPU training job on RunPod (the wake-word retraining pipeline is migrating off Kaggle Notebooks onto RunPod Pods). Anchors to the **REST API v1** (launched 2025-03-10) as the canonical surface and overrides training-data instincts toward `runpod.create_pod()` (still GraphQL underneath), the older `api.runpod.io/graphql` endpoint, Serverless-for-batch-training, the `ssh.runpod.io` proxy (which doesn't pass SCP), and stop-instead-of-delete cleanup (which leaks $0.20/GB-month indefinitely).
+- **Govee Public API v2** — `docs/references/govee-api/INDEX.md`. Consult when writing or modifying any code that calls `https://openapi.api.govee.com/router/api/v1/...`, sends a body shaped like `{requestId, payload: {sku, device, capability: {type, instance, value}}}`, sets the `Govee-API-Key` header, or touches the humidifier control loop in `apps/hwd/src/dirt_hwd/services/humidifier.py` after the 2026-04-26 pivot from Raydrop+Kasa to a Wi-Fi-native Govee H7142 (6 L cool-mist ultrasonic; H7140 also on hand as backup). Anchors to Public API v2; training data still mixes the legacy v1 surface (`developer-api.govee.com/v1/devices/control` with `cmd: {name, value}` payload) and gets the auth header name wrong (suggests `X-Govee-API-Key` or `Authorization: Bearer …`, but the actual header is exactly `Govee-API-Key`). Also covers the H71xx humidifier line's discovered capability list (Manual/Custom/Auto work modes, 9 discrete mist levels in Manual on H7142 / 8 on H7140 & H7143, 40–80% RH range in Auto, `lackWaterEvent` for empty-tank), the dual rate-limit ceilings (10K/account/day + ~10 changes/min/device), and the cloud-only constraint (no LAN fallback unlike Kasa — confirmed across the entire H71xx line).
 
 ## Commands
 
@@ -91,11 +92,44 @@ The backend runs as two systemd-managed processes: `dirt-hwd` (hardware + ingest
 - **Live DB**: PostgreSQL 17 at `127.0.0.1:5432`, database `dirt`. Managed as a system service (`systemctl status postgresql`).
 - **Credentials**: `DIRT_PG_{HOST,PORT,USER,PASSWORD,DATABASE}` in `.env`. The app composes `DATABASE_URL=postgresql+asyncpg://...` at startup (see `apps/shared/src/dirt_shared/config.py:_derive_data_paths`).
 - **Connect**: `set -a; source .env; set +a; PGPASSWORD=$DIRT_PG_PASSWORD psql -h 127.0.0.1 -U dirt -d dirt`
+- **Schema cheat sheet** — most-queried tables. Always confirm with `\d <table>` before guessing; this list is a starting point, not a contract:
+  - `sensornode` — one row per `SensorLocation` enum (`tent`, `plant-a/b/c/d`, `reservoir`). Columns: `id, location, ip, firmware_version, uptime_ms, last_seen`. No `name` / `kind` columns — those are display strings constructed in app code (e.g. `device_status` log events).
+  - `sensorreading` — append-only fact table, ~20 rows / 20s. Columns: `id, ts, sensornode_id, metric, value, source`. Location lives on `sensornode` — join via `sensornode_id`. Common `metric` values: `temperature_c`, `temperature_f`, `humidity_pct`, `vpd_kpa`, `dew_point_f`, `fan_duty_pct`, `humidifier_on`, plus per-plant `soil_moisture_pct` etc.
+  - `growstate` — single-row table holding `germination_date`, `flower_start_date`, `lights_on_local`, `lights_off_local`, `timezone`. Source of truth for grow stage (see `apps/shared/src/dirt_shared/services/grow_state.py`).
+  - `plant` — one row per A–D, FK to `sensornode`. `snapshot` — daily-photo metadata.
+- **Common query patterns:**
+  ```sql
+  -- latest reading per metric for a location
+  SELECT sr.ts, sr.metric, sr.value
+  FROM sensorreading sr JOIN sensornode sn ON sn.id = sr.sensornode_id
+  WHERE sn.location = 'tent' AND sr.ts > NOW() - INTERVAL '30 minutes'
+  ORDER BY sr.ts DESC;
+
+  -- node freshness (post-USB-unplug etc.)
+  SELECT location, ip, last_seen, NOW() - last_seen AS staleness
+  FROM sensornode ORDER BY location;
+  ```
 - **Schema changes**: edit SQLModel classes in `apps/shared/src/dirt_shared/models/`, then `atlas migrate diff <name> --env local` (writes plain SQL to `migrations/`) → review the generated file → `atlas migrate apply --env local`. NEVER run DDL from app code — `apps/tests/invariants/test_schema_managed_by_atlas.py` enforces this. Full workflow + HCL reference: `docs/references/atlas/INDEX.md`.
 - **Dev-db for Atlas diffs**: Docker-ephemeral `docker://postgres/17/dev?search_path=public`. Atlas spins a short-lived container per `migrate diff` — blast radius cannot reach prod.
 - **Backups**: manual for now (`pg_dump dirt > var/db-backups/dirt-$(date +%F).sql`). Automation deferred per `docs/proposals/pg-cutover-plan.md` §6 non-scope.
 - **Rollback artifact**: pre-cutover sqlite preserved at `var/dirt.db.pre-pg-cutover` through ~2026-05-03; restore procedure in [ADR-006](docs/adrs/006-postgres-and-atlas.md).
 - **Why Postgres + Atlas**: [ADR-006](docs/adrs/006-postgres-and-atlas.md).
+
+### Web API auth (when curl-ing `dirt-web` :8001)
+
+`dirt-web` enforces cookie-session auth on every `/api/*` route except `/api/auth/*`. An unauthenticated `curl http://127.0.0.1:8001/api/...` returns `{"detail":"unauthorized"}`. **Prefer psql for ad-hoc state checks** — the DB has the same data without the auth dance. Only reach for the API when you specifically need an API-shaped response (e.g. reproducing a UI bug).
+
+- **Credentials**: `AUTH_USERNAME` / `AUTH_PASSWORD` in `.env` (defaults `admin` / `changeme`). Loaded into `settings.auth_username` / `settings.auth_password` via Pydantic env mapping in `apps/shared/src/dirt_shared/config.py`.
+- **Login + call pattern (with cookie jar):**
+  ```bash
+  set -a; source .env; set +a
+  COOKIES=$(mktemp)
+  curl -sS -c "$COOKIES" -H 'Content-Type: application/json' \
+    -d "{\"username\":\"$AUTH_USERNAME\",\"password\":\"$AUTH_PASSWORD\"}" \
+    http://127.0.0.1:8001/api/auth/login >/dev/null
+  curl -sS -b "$COOKIES" http://127.0.0.1:8001/api/system/devices | jq .
+  ```
+- **MCP** (`/mcp` mount) uses a separate bearer token (`MCP_BEARER_TOKEN` env / `settings.mcp_bearer_token`), not the session cookie.
 
 ### PTZ Camera
 

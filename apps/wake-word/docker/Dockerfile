@@ -12,11 +12,25 @@
 # syntax=docker/dockerfile:1.7
 FROM runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04
 
+# DIRT_GIT_SHA is passed by scripts/runpod-build-image (--build-arg) and
+# echoed into ENV so the entrypoint can stamp it into run-manifest.json.
+# Empty default keeps `docker build` working outside the script (e.g.
+# IDE-driven builds), but those builds aren't pushed.
+ARG DIRT_GIT_SHA=""
+
 ENV PYTHONUNBUFFERED=1 \
     DIRT_WAKEWORD_INPUT=/workspace/input \
     DIRT_WAKEWORD_WORKING=/workspace/working \
+    DIRT_GIT_SHA=${DIRT_GIT_SHA} \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    WANDB_PROJECT=dirt-wake-word \
+    WANDB_DIR=/workspace/wandb \
+    WANDB_SILENT=true \
+    WANDB_CONSOLE=redirect
+# WANDB_API_KEY is intentionally NOT baked — image is pushed to GHCR;
+# the orchestrator (scripts/runpod-train) injects the key at pod-create
+# time via the env block. See docs/references/wandb/docker-and-runpod.md.
 
 WORKDIR /opt
 
@@ -54,7 +68,8 @@ RUN pip install \
         speechbrain==0.5.14 audiomentations==0.33.0 torch-audiomentations==0.11.0 \
         acoustics==0.2.6 onnxruntime==1.22.1 onnx \
         pronouncing==0.2.0 datasets==2.14.6 deep-phonemizer==0.0.19 \
-        "scipy<1.15"
+        "scipy<1.15" \
+        "wandb>=0.21,<0.22"
 # onnx — needed by torch.onnx.export (openwakeword.export_model) to write
 # the trained .onnx artifact. Not the same as onnxruntime (inference).
 # scipy<1.15 — acoustics 0.2.6 imports `sph_harm` from scipy.special, which

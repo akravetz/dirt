@@ -32,6 +32,27 @@ esac
 
 cd "$REPO_ROOT/apps/wake-word"
 
+# Bake the git SHA into the image (DIRT_GIT_SHA build-arg → ENV) so the
+# trainer can stamp it into run-manifest.json. When pushing, the SHA must
+# be both clean (no uncommitted changes) and pushed to origin/main —
+# otherwise the recorded SHA is unreachable and the run isn't reproducible.
+# This guards the bug class v11 burned us on (unpushed SHA, kernel git
+# checkout failed). On --no-push we allow dirty/unpushed since the image
+# stays on the local Docker daemon and the operator is iterating.
+GIT_SHA=$(git -C "$REPO_ROOT" rev-parse HEAD)
+if [ "$NO_PUSH" != "1" ]; then
+  if ! git -C "$REPO_ROOT" diff-index --quiet HEAD --; then
+    echo "error: working tree has uncommitted changes; commit or pass --no-push" >&2
+    exit 1
+  fi
+  git -C "$REPO_ROOT" fetch origin main --quiet
+  if ! git -C "$REPO_ROOT" merge-base --is-ancestor "$GIT_SHA" origin/main; then
+    echo "error: HEAD ($GIT_SHA) is not on origin/main; push first or pass --no-push" >&2
+    exit 1
+  fi
+fi
+echo "==> baking DIRT_GIT_SHA=$GIT_SHA"
+
 # GHCR login (only matters for the push step but cheap to do up-front).
 if command -v gh >/dev/null 2>&1 && gh auth token >/dev/null 2>&1; then
   gh auth token | docker login ghcr.io -u "$GHCR_OWNER" --password-stdin
@@ -41,6 +62,7 @@ fi
 echo "==> docker buildx build linux/amd64 -> $IMAGE:$TAG"
 docker buildx build \
   --platform linux/amd64 \
+  --build-arg "DIRT_GIT_SHA=$GIT_SHA" \
   -f docker/Dockerfile \
   -t "$IMAGE:$TAG" \
   --load \

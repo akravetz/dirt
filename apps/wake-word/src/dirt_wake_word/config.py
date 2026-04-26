@@ -56,6 +56,26 @@ REALMIC_NEGATIVE_DUPLICATION = 10
 HARVESTED_DUPLICATION = 10
 
 
+def current_tunables() -> dict[str, object]:
+    """Snapshot of every training tunable at runtime. Single source of truth
+    for `wandb.init(config=...)` and the run-manifest's resolved_config field
+    — keeping both readers off independent constant lists that drift apart.
+    """
+    return {
+        "target_word": TARGET_WORD,
+        "n_samples": NUMBER_OF_EXAMPLES,
+        "n_samples_val": NUMBER_OF_EXAMPLES_VAL,
+        "steps": NUMBER_OF_TRAINING_STEPS,
+        "false_activation_penalty": FALSE_ACTIVATION_PENALTY,
+        "target_fp_per_hour": TARGET_FP_PER_HOUR,
+        "clone_duplication": CLONE_DUPLICATION,
+        "neighbor_duplication": NEIGHBOR_DUPLICATION,
+        "realmic_positive_duplication": REALMIC_POSITIVE_DUPLICATION,
+        "realmic_negative_duplication": REALMIC_NEGATIVE_DUPLICATION,
+        "harvested_duplication": HARVESTED_DUPLICATION,
+    }
+
+
 def build_config(
     *,
     work_dir: Path,

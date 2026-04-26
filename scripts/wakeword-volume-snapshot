@@ -1,0 +1,151 @@
+#!/usr/bin/env -S uv run --project /home/akcom/code/dirt python -u
+"""Snapshot the wake-word RunPod Network Volume to a local mirror for DR.
+
+Volume loss = data loss now that Kaggle is retired (the migration ADR's
+original "Kaggle is the durable copy" claim no longer holds; see
+wiki/decisions/2026-04-25-runpod-migration.md). RunPod has already burned
+us once on this — `dirt_data` in `US-CA-2` was abandoned when capacity
+dried up. This script pulls the volume into `var/wake-word/_volume-mirror/`
+so we always have a known-good local copy.
+
+Mechanics: spawns a small CPU pod with python:3.11-slim, mounts the
+volume at /workspace, waits for sshd, SCPs /workspace/input/ down,
+tears down. Same lifecycle pattern as scripts/runpod-seed-volume.
+
+Cost: per-second CPU pod billing for the SCP wall-time; ~$0.01 per GB
+at 100 Mbps egress. Full-volume snapshot of the current ~17 GB corpus
+is ~$0.20 and ~30 min. Run weekly (eventually wired to a systemd timer).
+
+Required env (.env):
+  RUNPOD_API_KEY              — bearer token
+  RUNPOD_NETWORK_VOLUME_ID    — volume to snapshot
+
+Status: NEW SCRIPT — first invocation needs validation against an actual
+volume. The orchestration shape mirrors scripts/runpod-seed-volume which
+is known-working; the SCP-down direction is the only new bit.
+
+Usage:
+  scripts/wakeword-volume-snapshot                       # full mirror
+"""
+
+from __future__ import annotations
+
+import argparse
+import subprocess
+import sys
+import textwrap
+import time
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _runpod_lib as rp  # noqa: E402
+
+MAX_WALL_S = 2 * 60 * 60  # 2h cap covers ~50 GB at 100 Mbps + slack.
+
+
+def _build_remote_command() -> str:
+    """Bash for the snapshot pod. Just brings sshd up and sleeps; the
+    orchestrator does the SCP from the local side."""
+    return textwrap.dedent("""\
+        #!/usr/bin/env bash
+        set -uo pipefail
+        apt-get update -q && apt-get install -y -q openssh-server >/dev/null
+        mkdir -p /run/sshd /root/.ssh
+        if [ -n "${PUBLIC_KEY:-}" ]; then
+          echo "$PUBLIC_KEY" >> /root/.ssh/authorized_keys
+          chmod 700 /root/.ssh && chmod 600 /root/.ssh/authorized_keys
+        fi
+        /usr/sbin/sshd
+        echo "(snapshot pod up; awaiting orchestrator-side SCP pull)"
+        exec sleep infinity
+        """)
+
+
+def _ssh_check_alive(ip: str, port: int) -> bool:
+    """Return True once sshd accepts a trivial command."""
+    try:
+        r = subprocess.run(
+            [
+                "ssh",
+                "-i", str(rp.SSH_KEY_PATH),
+                "-o", "StrictHostKeyChecking=accept-new",
+                "-o", "UserKnownHostsFile=/dev/null",
+                "-o", "ConnectTimeout=10",
+                "-p", str(port),
+                f"root@{ip}",
+                "true",
+            ],
+            capture_output=True, timeout=20,
+        )
+        return r.returncode == 0
+    except subprocess.SubprocessError:
+        return False
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--dest",
+        type=Path,
+        default=None,
+        help="Local destination (default: var/wake-word/_volume-mirror/).",
+    )
+    args = parser.parse_args()
+
+    rp.load_env()
+    api_key = rp.env("RUNPOD_API_KEY")
+    network_volume_id = rp.env("RUNPOD_NETWORK_VOLUME_ID")
+    pub_key = rp.public_key(required=True)
+
+    dest = args.dest or (
+        rp.repo_root() / "var" / "wake-word" / "_volume-mirror"
+    )
+    dest.mkdir(parents=True, exist_ok=True)
+
+    body = rp.common_pod_body(
+        name=f"wakeword-snapshot-{time.strftime('%Y%m%d-%H%M%S')}",
+        network_volume_id=network_volume_id,
+        public_key=pub_key,
+    ) | {
+        "imageName": "python:3.11-slim",
+        "computeType": "CPU",
+        "vcpuCount": 4,
+        "minRAMPerGPU": 8,
+        "containerDiskInGb": 20,
+        "dockerStartCmd": ["bash", "-c", _build_remote_command()],
+    }
+    body["env"]["PYTHONUNBUFFERED"] = "1"
+
+    http = rp.client(api_key)
+    pod_id = rp.create_pod(http, body)
+    print(f"created snapshot pod {pod_id}")
+
+    deadline = time.monotonic() + MAX_WALL_S
+
+    with rp.leased_pod(http, pod_id):
+        ip, port = rp.wait_for_endpoint(http, pod_id, deadline=deadline)
+        print(f"pod reachable at {ip}:{port}; waiting for sshd")
+
+        # sshd usually takes ~10 s to come up after the endpoint publishes.
+        while time.monotonic() < deadline:
+            if _ssh_check_alive(ip, port):
+                break
+            time.sleep(10)
+        else:
+            raise TimeoutError(f"sshd never came up on pod {pod_id}")
+
+        print(f"==> SCP /workspace/input → {dest}")
+        # Use SCP (built-in) rather than rsync (would need install on the
+        # pod). For multi-GB transfers the per-byte SCP overhead is fine.
+        rp.scp_pull(
+            ip=ip, port=port,
+            remote_dir="/workspace/input",
+            local_dest=dest,
+        )
+        print(f"=== snapshot complete → {dest}")
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

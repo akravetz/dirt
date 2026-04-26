@@ -1,0 +1,277 @@
+#!/usr/bin/env -S uv run --project /home/akcom/code/dirt python -u
+"""Push a local directory into the wake-word RunPod Network Volume and
+record the new content hash in the volume's MANIFEST.json.
+
+Replaces the legacy `kaggle datasets version` → `runpod-seed-volume --reset`
+dance. The volume is now the sole source of truth for training data
+(Kaggle is retired); MANIFEST.json is the version surface — each subdir's
+content hash is what `wandb.config` and `run-manifest.json` record so a
+training run is round-trippable to the bytes it consumed.
+
+Mechanics: spawns a small CPU pod with python:3.11-slim, mounts the volume
+at /workspace, waits for sshd, SCPs the local subdir up, runs a remote
+bash that computes a sha256 over sorted `relpath\\tsize\\tsha256(content)`
+lines and atomically rewrites /workspace/input/MANIFEST.json. Tears down.
+
+Idempotent: re-running with the same content produces the same hash + a
+no-op MANIFEST update. Bumps are rare so we don't optimize the hash —
+~30s per GB of data.
+
+Required env (.env):
+  RUNPOD_API_KEY              — bearer token
+  RUNPOD_NETWORK_VOLUME_ID    — volume to update
+
+Status: NEW SCRIPT — first invocation needs validation against an actual
+volume. The orchestration shape mirrors scripts/runpod-seed-volume which
+is known-working; the SCP-up direction and remote manifest math are new.
+
+Usage:
+  scripts/wakeword-volume-bump dirt-wakeword-mine ./staged/mine \\
+      --notes "added 200 realmic positives from 2026-04-25 capture"
+"""
+
+from __future__ import annotations
+
+import argparse
+import re
+import subprocess
+import sys
+import textwrap
+import time
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _runpod_lib as rp  # noqa: E402
+
+# 1 h hard cap. Fits multi-GB rsync + sha256 over the full subdir.
+MAX_WALL_S = 60 * 60
+
+BUMP_OK = "/workspace/BUMP_OK"
+BUMP_FAILED = "/workspace/BUMP_FAILED"
+SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,63}$")
+
+
+def _validate_slug(slug: str) -> str:
+    if not SLUG_RE.match(slug):
+        sys.exit(
+            f"error: slug {slug!r} must match {SLUG_RE.pattern} "
+            "(lowercase alnum + dashes; the on-volume directory name)"
+        )
+    return slug
+
+
+def _build_remote_bump_command(*, slug: str, notes: str) -> str:
+    """Bash that runs in the bump pod after SCP completes.
+
+    Same three contracts as scripts/runpod-seed-volume: always-exit-0,
+    write a sentinel for the orchestrator to poll, then sleep so sshd
+    stays up for sentinel SSH-poll + manifest pull-back.
+    """
+    notes_escaped = notes.replace("'", "'\\''")
+    return textwrap.dedent(f"""\
+        #!/usr/bin/env bash
+        set -uo pipefail
+        apt-get update -q && apt-get install -y -q openssh-server jq python3 >/dev/null
+        mkdir -p /run/sshd /root/.ssh
+        if [ -n "${{PUBLIC_KEY:-}}" ]; then
+          echo "$PUBLIC_KEY" >> /root/.ssh/authorized_keys
+          chmod 700 /root/.ssh && chmod 600 /root/.ssh/authorized_keys
+        fi
+        /usr/sbin/sshd
+        echo "(pod up; awaiting SCP push to /workspace/input/{slug}/)"
+
+        # Block on a small marker file the orchestrator will write
+        # post-SCP — atomic per-file move to avoid hashing mid-upload.
+        while [ ! -f /workspace/.bump_uploaded ]; do
+          sleep 5
+        done
+        echo "==> upload complete; computing content hash for {slug}"
+
+        run_bump() {{
+          set -e
+          cd "/workspace/input/{slug}"
+          # Sorted (relpath, size, sha256) digest. Sort by NUL-delimited
+          # paths so newlines/spaces in filenames don't reorder things.
+          find . -type f -print0 | sort -z | python3 -c '
+import hashlib, sys
+agg = hashlib.sha256()
+size = 0
+count = 0
+for raw in sys.stdin.buffer.read().split(b"\\0"):
+    if not raw: continue
+    p = raw.decode("utf-8", "surrogateescape")
+    h = hashlib.sha256()
+    with open(p, "rb") as f:
+        while True:
+            chunk = f.read(1 << 20)
+            if not chunk: break
+            h.update(chunk)
+            size += len(chunk)
+    agg.update(f"{{p}}\\t{{h.hexdigest()}}\\n".encode())
+    count += 1
+print(f"{{agg.hexdigest()}} {{count}} {{size}}")
+          ' > /workspace/.bump_digest
+          read -r DIGEST FILE_COUNT SIZE_BYTES < /workspace/.bump_digest
+          BUMPED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          # Atomically rewrite MANIFEST.json. Read existing if present;
+          # else seed an empty manifest.
+          MF=/workspace/input/MANIFEST.json
+          [ -f "$MF" ] || echo '{{"schema_version":1,"datasets":{{}}}}' > "$MF"
+
+          jq --arg slug "{slug}" \\
+             --arg hash "sha256:$DIGEST" \\
+             --argjson count "$FILE_COUNT" \\
+             --argjson size "$SIZE_BYTES" \\
+             --arg ts "$BUMPED_AT" \\
+             --arg notes '{notes_escaped}' '
+            .updated_at = $ts
+            | .datasets[$slug] = {{
+                content_hash: $hash,
+                file_count: $count,
+                size_bytes: $size,
+                bumped_at: $ts,
+                notes: $notes
+              }}
+          ' "$MF" > "$MF.tmp" && mv "$MF.tmp" "$MF"
+
+          echo "==> {slug} content_hash=sha256:$DIGEST files=$FILE_COUNT bytes=$SIZE_BYTES"
+        }}
+
+        if run_bump > /workspace/bump.log 2>&1; then
+          tail -10 /workspace/bump.log
+          touch {BUMP_OK}
+          echo "=== BUMP_OK ==="
+        else
+          rc=$?
+          echo "=== BUMP FAILED (exit $rc) ===" >&2
+          tail -50 /workspace/bump.log >&2
+          {{ echo "exit=$rc"; tail -50 /workspace/bump.log; }} > {BUMP_FAILED}
+        fi
+
+        echo "(work done; sleeping for orchestrator)"
+        exec sleep infinity
+        """)
+
+
+def _ssh_run(ip: str, port: int, cmd: str, *, timeout: int = 30) -> tuple[int, str]:
+    r = subprocess.run(
+        [
+            "ssh",
+            "-i", str(rp.SSH_KEY_PATH),
+            "-o", "StrictHostKeyChecking=accept-new",
+            "-o", "UserKnownHostsFile=/dev/null",
+            "-o", "ConnectTimeout=10",
+            "-p", str(port),
+            f"root@{ip}",
+            cmd,
+        ],
+        capture_output=True, text=True, timeout=timeout,
+    )
+    return r.returncode, (r.stdout + r.stderr).strip()
+
+
+def _scp_push(local_dir: Path, *, ip: str, port: int, remote_dir: str) -> None:
+    subprocess.run(
+        [
+            "scp",
+            "-i", str(rp.SSH_KEY_PATH),
+            "-o", "StrictHostKeyChecking=accept-new",
+            "-o", "UserKnownHostsFile=/dev/null",
+            "-P", str(port),
+            "-r",
+            str(local_dir) + "/.",
+            f"root@{ip}:{remote_dir}",
+        ],
+        check=True,
+    )
+
+
+def _wait_for_sentinel(ip: str, port: int, *, deadline: float) -> str:
+    cmd = (
+        f"if [ -f {BUMP_OK} ]; then echo OK; "
+        f"elif [ -f {BUMP_FAILED} ]; then echo FAILED; cat {BUMP_FAILED}; fi"
+    )
+    while time.monotonic() < deadline:
+        rc, out = _ssh_run(ip, port, cmd, timeout=20)
+        if rc == 0 and out.startswith("OK"):
+            return "OK"
+        if rc == 0 and out.startswith("FAILED"):
+            print(out, file=sys.stderr)
+            return "FAILED"
+        print(f"  {time.strftime('%H:%M:%S')} (waiting for hash + manifest update)")
+        time.sleep(20)
+    raise TimeoutError("bump pod did not write a sentinel within deadline")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("slug", help="On-volume directory name (e.g. dirt-wakeword-mine).")
+    parser.add_argument("local_dir", type=Path, help="Local source directory.")
+    parser.add_argument("--notes", default="", help="Bump message recorded in MANIFEST.")
+    args = parser.parse_args()
+
+    slug = _validate_slug(args.slug)
+    if not args.local_dir.is_dir():
+        sys.exit(f"error: {args.local_dir} is not a directory")
+
+    rp.load_env()
+    api_key = rp.env("RUNPOD_API_KEY")
+    network_volume_id = rp.env("RUNPOD_NETWORK_VOLUME_ID")
+    pub_key = rp.public_key(required=True)
+
+    body = rp.common_pod_body(
+        name=f"wakeword-bump-{slug}-{time.strftime('%Y%m%d-%H%M%S')}",
+        network_volume_id=network_volume_id,
+        public_key=pub_key,
+    ) | {
+        "imageName": "python:3.11-slim",
+        "computeType": "CPU",
+        "vcpuCount": 4,
+        "minRAMPerGPU": 8,
+        "containerDiskInGb": 20,
+        "dockerStartCmd": [
+            "bash", "-c",
+            _build_remote_bump_command(slug=slug, notes=args.notes),
+        ],
+    }
+    body["env"]["PYTHONUNBUFFERED"] = "1"
+
+    http = rp.client(api_key)
+    pod_id = rp.create_pod(http, body)
+    print(f"created bump pod {pod_id}")
+
+    deadline = time.monotonic() + MAX_WALL_S
+    sentinel: str | None = None
+
+    with rp.leased_pod(http, pod_id):
+        ip, port = rp.wait_for_endpoint(http, pod_id, deadline=deadline)
+        print(f"pod reachable at {ip}:{port}")
+
+        # Prep target dir, then SCP + drop the upload-complete marker.
+        rc, out = _ssh_run(ip, port, f"mkdir -p /workspace/input/{slug} && rm -rf /workspace/input/{slug}/*")
+        if rc != 0:
+            print(f"WARN: pre-scp mkdir/clean failed: {out}", file=sys.stderr)
+        print(f"==> SCP {args.local_dir} → /workspace/input/{slug}/")
+        _scp_push(args.local_dir, ip=ip, port=port, remote_dir=f"/workspace/input/{slug}/")
+        _ssh_run(ip, port, "touch /workspace/.bump_uploaded")
+
+        sentinel = _wait_for_sentinel(ip, port, deadline=deadline)
+        if sentinel == "OK":
+            # Pull just MANIFEST.json — full-volume mirror is the
+            # snapshot script's job, not the bump's. Cats over SSH so
+            # we don't pay multi-GB SCP for one JSON file.
+            mirror = rp.repo_root() / "var" / "wake-word" / "_volume-mirror"
+            mirror.mkdir(parents=True, exist_ok=True)
+            rc, mf_text = _ssh_run(ip, port, "cat /workspace/input/MANIFEST.json")
+            if rc == 0:
+                (mirror / "MANIFEST.json").write_text(mf_text + "\n")
+                print(f"=== bump complete; MANIFEST.json mirrored → {mirror}")
+            else:
+                print(f"WARN: could not pull MANIFEST.json: {mf_text}", file=sys.stderr)
+
+    return 0 if sentinel == "OK" else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
