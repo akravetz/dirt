@@ -54,7 +54,7 @@ def default_input(
     vpd_age_s: float = 10.0,
     rh: float | None = 50.0,
     stage_vpd_band: tuple[float, float] = (0.8, 1.2),
-    stage_rh_max: float = 55.0,
+    stage_humidity_band: tuple[float, float] = (40.0, 55.0),
     lights_on: bool = True,
     minutes_until_off: float = 300.0,
     minutes_until_on: float = 600.0,
@@ -66,7 +66,7 @@ def default_input(
         vpd_ts=vpd_ts,
         rh=rh,
         stage_vpd_band=stage_vpd_band,
-        stage_rh_max=stage_rh_max,
+        stage_humidity_band=stage_humidity_band,
         lights_on=lights_on,
         minutes_until_off=minutes_until_off,
         minutes_until_on=minutes_until_on,
@@ -242,11 +242,11 @@ def test_lights_on_uses_day_setpoint():
 # ---------------------------------------------------------------------------
 
 
-def test_rh_at_or_above_ceiling_forces_zero_even_with_high_vpd_error():
+def test_rh_above_ceiling_forces_zero_even_with_high_vpd_error():
     inp = default_input(
         vpd=2.5,  # nominally drives u to saturation
-        rh=cfg_default_rh_max(),  # at the ceiling
-        stage_rh_max=cfg_default_rh_max(),
+        rh=70.0,  # well above the band's upper edge of 55
+        stage_humidity_band=(40.0, 55.0),
     )
     out = step(PIState(), inp)
     assert out.u == 0.0
@@ -254,8 +254,16 @@ def test_rh_at_or_above_ceiling_forces_zero_even_with_high_vpd_error():
     assert out.reason is Reason.RH_CEILING
 
 
-def cfg_default_rh_max() -> float:
-    return 55.0  # mirrors default_input default
+def test_rh_at_ceiling_does_not_trigger():
+    """Boundary-inclusive band semantics — RH exactly at the upper edge is
+    still "in band", consistent with band_status('ok' iff lo <= v <= hi)."""
+    inp = default_input(
+        vpd=2.5,
+        rh=55.0,  # exactly at upper edge
+        stage_humidity_band=(40.0, 55.0),
+    )
+    out = step(PIState(), inp)
+    assert out.reason is Reason.PI_ACTIVE  # ceiling did NOT fire
 
 
 def test_rh_ceiling_freezes_integrator():
@@ -265,10 +273,12 @@ def test_rh_ceiling_freezes_integrator():
         last_tick_ts=T0 - timedelta(seconds=30),
         plug_on_for_threshold=False,
     )
-    # 30 ticks of high VPD error but RH pinned at ceiling — integrator must not grow.
+    # 30 ticks of high VPD error but RH well above ceiling — integrator must not grow.
     final, _ = run_n(
         state,
-        lambda _i, now: default_input(now=now, vpd=2.5, rh=80.0, stage_rh_max=55.0),
+        lambda _i, now: default_input(
+            now=now, vpd=2.5, rh=80.0, stage_humidity_band=(40.0, 55.0)
+        ),
         cfg,
         n=30,
         dt_s=30.0,

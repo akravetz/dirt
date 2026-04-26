@@ -1,54 +1,134 @@
 # Epic: Continuous Humidifier Intensity Control
 
-Status: in-progress — Phase 1 paused awaiting replacement spare; Phase 4 prep work proceeding in parallel
+Status: Phase 1 hardware paused (waiting on replacement spare); Phase 4 prep landed end-to-end and live in shadow mode; production tuning blocked on Phase 1–3 hardware
 Priority: medium
 Created: 2026-04-23
 Last touched: 2026-04-25
 
-## Current state (resume point for a fresh agent)
+---
 
-**Where we are:** Phase 1 paused — the spare Raydrop on the bench was destroyed during disassembly. New spare on order. The primary Raydrop on the Kasa plug continues to drive the live VPD loop unchanged.
+## Current state (resume point for a fresh agent — read this top-down)
 
-**Phase 4 prep work proceeds in parallel** during the hardware wait. Plan-of-record: [phase4-test-plan.md](phase4-test-plan.md). Most of the controller, its property tests, and the FOPDT fit against existing logs are hardware-independent — they let Phase 4 land as a config-flip rather than a bring-up once Phases 2/3 complete.
+The work breaks into three layers. Read them in order:
 
-### Phase 1 hardware findings so far (unit unplugged, DMM-only)
+1. **Hardware (Phase 1):** PAUSED. Original spare Raydrop destroyed during disassembly. Replacement on order. Findings from the destroyed spare still apply (identical KC-RD03A unit).
+2. **Phase 4 prep:** ALL 7 steps from the [test plan](phase4-test-plan.md) DONE. Controller, tests (28 property + 16 plant-in-loop), shadow-mode logging, and analyzer/replay harness are all committed and live.
+3. **Live shadow data + tuning gap:** dirt-hwd is generating high-cadence shadow output. The conservative starter gains (Kc=8, Ki=0.01) are demonstrably too conservative — the analyzer shows shadow's `u` is below the 5% sub-threshold on every observed pi_active tick. **Real production tuning is blocked on Phase 2/3 hardware** (the graduated step test we'll run during acceptance is the only way to get clean continuous-input data; bang-bang data brackets gains, doesn't pin them).
+
+### Hardware status
+
+- Phase 1 paused. Original spare Raydrop on the bench was destroyed during disassembly. Replacement on order.
+- Primary Raydrop continues to drive the live VPD bang-bang loop unchanged via the Kasa EP10 plug.
+- Probe findings from the original spare (still valid for identical KC-RD03A unit): see [Phase 1 hardware findings](#phase-1-hardware-findings-from-destroyed-spare) below.
+
+### Phase 4 prep status — all 7 steps done
+
+| # | Step | Status | Where |
+|---|---|---|---|
+| 1 | Acceptance criteria + plan committed | ✅ | [phase4-test-plan.md](phase4-test-plan.md) |
+| 2 | FOPDT fit script + verdict | ✅ | `debug/humidifier-fopdt/fit.py`, [findings](fopdt-fit-findings.md) |
+| 3 | Property tests (red) | ✅ | `apps/hwd/tests/test_humidifier_pi.py` (29 tests) |
+| 4 | Controller skeleton + property tests green | ✅ | `apps/hwd/src/dirt_hwd/services/humidifier_pi.py` |
+| 5 | Shadow-mode wiring (`humidifier_shadow` stream, no actuation) | ✅ live | `apps/hwd/src/dirt_hwd/services/humidifier.py` + `var/logs/humidifier_shadow/*.jsonl` |
+| 6 | Plant-in-loop tests | ✅ | `apps/hwd/tests/test_humidifier_pi_plant.py` (16 tests) |
+| 7 | Analyzer + replay harness against shadow logs | ✅ | `debug/humidifier-shadow/analyze.py` |
+
+### Live state of the shadow controller
+
+- `dirt-hwd` is running. Shadow PI emits one `tick` event per ~30 s into `var/logs/humidifier_shadow/`.
+- Conservative gains: `Kc=8.0`, `Ki=0.01`, integrator clamp 50%, sub-threshold cutoff at 5% with 1% hysteresis, night offset −0.3 kPa. (See `_SHADOW_PI_*` constants near top of `humidifier.py`.)
+- Stage targets in effect: `STAGE_TARGETS` in `apps/shared/src/dirt_shared/services/grow_state.py`. Veg humidity_pct band is **(40, 70)** — mold-prevention envelope, not a VPD-coupled setpoint. See "Centralization + band fix" timeline note below.
+- Bang-bang controller is unchanged and remains authoritative. Shadow does not actuate.
+
+### What the analyzer revealed (run 2026-04-25 ~21:00 MDT, 610 ticks)
+
+```
+Reason distribution under config that was live during each tick:
+  rh_ceiling : 84% — heavy because 511 of 610 ticks were under the OLD humidity band (45,55)
+  pi_active  : 16%
+
+Replay (current compute() against same logged inputs, with NEW band (40,70)):
+  rh_ceiling : 38% — drops by half
+  pi_active  : 62% — 280 of the historical ceiling fires were spurious
+
+Plug command divergence in replay: 0/610.
+```
+
+The replay confirmed the band fix worked. But it also surfaced a separate insight: **plug_on_shadow was OFF on every observed tick, both old and new config.** The PI math is producing `u` below the 5% threshold every time, so the sub-threshold cutoff fires and the plug is commanded OFF regardless of regime. Conservative starter gains are conservative *enough* that they don't drive any actuation under current conditions.
+
+This is fine for shadow mode (it's still generating tuning data) but means **the gains-as-shipped won't be operationally useful in production** — they'd never turn the plug on. Real tuning at Phase 2/3 acceptance will need higher Ki and/or a lower threshold.
+
+### Where to start, as a fresh agent
+
+- **Working on Phase 1 hardware** (replacement spare arrived): walk the user through Step 1 of [phase1-probe-checklist.md](phase1-probe-checklist.md). Findings update [the decision doc](../../../wiki/decisions/2026-04-23-raydrop-mcu-mist-control.md) as a revision block; BOM consequences captured in [bom.md](bom.md).
+- **Working on tuning analysis**: run `uv run --package dirt-shared python debug/humidifier-shadow/analyze.py` against current shadow data. Compare to the snapshot above.
+- **Hardware just landed (Phase 2/3 done)**: the binding next step is a **graduated step test** — hold u=25%, 50%, 75% for 20 min each in lights-on steady state. That's the only data that will pin τ and K precisely. Re-fit FOPDT against the result, derive new IMC gains (the analyzer script's `fopdt` section will do this from the new shadow logs once continuous-input data exists), update `_SHADOW_PI_*` constants in `humidifier.py`. See [phase4-test-plan.md](phase4-test-plan.md) §"Acceptance soak."
+- **Operating the shadow loop**: see "Re-running the analyzer" below.
+
+---
+
+## Timeline of significant changes
+
+- **2026-04-23**: [Decision committed](../../../wiki/decisions/2026-04-23-raydrop-mcu-mist-control.md) to replace bang-bang with continuous PI. Phase 1 began on bench.
+- **2026-04-25**: Phase 1 paused; primary spare destroyed during disassembly. Phase 4 prep work proceeded in parallel: FOPDT fit script, controller, property tests, plant-in-loop tests, shadow logging all landed.
+- **2026-04-25 PM**: Discovered `STAGE_TARGETS["humidity_pct"]` was internally inconsistent with `vpd_kpa` — at typical room T, the (45, 55) RH band corresponds to VPD ~1.4–1.7 kPa, well outside the (0.8, 1.2) VPD target. Reframed humidity bands as mold-prevention envelopes (not VPD-coupled targets); centralized band-comparison logic into `dirt_shared.services.grow_state` (`in_band`, `above_band`, `below_band` alongside the existing `band_status`). Refactored the voice tool's ad-hoc band check and the humidifier PI's RH-ceiling guard. Live shadow controller restarted with new bands; the constant `rh_ceiling` trigger went away (~84% → ~38% projected).
+- **2026-04-25 evening**: Analyzer + replay script `debug/humidifier-shadow/analyze.py` landed. Revealed conservative gains produce `u` below threshold on every pi_active tick — production tuning will need higher Ki.
+
+---
+
+## Re-running the analyzer
+
+The analyzer reads `var/logs/humidifier_shadow/*.jsonl` and produces six sections:
+
+```bash
+uv run --package dirt-shared python debug/humidifier-shadow/analyze.py
+  [--days N]                    # window in days (default: all available logs)
+  [--section reasons,divergence,pi,ceiling,fopdt,replay]   # subset
+```
+
+Sections:
+
+- `reasons` — distribution over `pi_active` / `rh_ceiling` / `outside_lights_window` / `failsafe_stale_sensor`. Quick health snapshot.
+- `divergence` — on `pi_active` ticks only, agreement matrix between `plug_on_shadow` and `plug_on_actual`. Quantifies "would continuous control have actuated differently."
+- `pi` — integrator/error/u distributions, P vs I split, sub-threshold cutoff hit rate. Catches windup or stuck-at-saturation.
+- `ceiling` — when does `rh_ceiling` fire (RH/VPD/time-of-day distributions). Catches "tent structurally too humid for the stage envelope."
+- `fopdt` — refit FOPDT plant model from `(vpd, plug_on_actual)` at shadow's 30s cadence. Per-regime split (lights_on vs lights_off) — better than the original `debug/humidifier-fopdt/fit.py` which couldn't separate regimes.
+- `replay` — runs the *current* `compute()` against every logged tick's inputs to show what the controller would have decided under today's config. Useful after any tuning change.
+
+The analyzer is throwaway debug code (gitignored under `debug/`). Output is stdout; redirect to a file for later comparison.
+
+---
+
+## Phase 1 hardware findings (from destroyed spare)
+
+These observations are from the original spare Raydrop, taken before disassembly damage. Apply to the identical KC-RD03A unit:
 
 - **Pot:** silkscreen reads `B5K` — **5 kΩ linear-taper, integrated SPST power switch** (clicks off at min rotation).
-- **JST topology:** 4 wires total = 3 pot pins (outer-A / wiper / outer-B) + 1 switch tab. Switch return is internally commoned to the pot's metal chassis, which ties to one of the pot outers on the PCB — so "the switch pair" that beeped in continuity mode was (switch tab) + (chassis-tied outer).
-- **Resistance sweep** across the wiper + non-chassis-outer pair (DMM 200 kΩ range, unit unplugged): smooth, monotonic, **0.002 kΩ at max-mist → 2.55 kΩ at min-mist-just-before-click**. Clean rheostat behavior.
-- **2.55 kΩ vs 5 kΩ label discrepancy:** most likely explained by mechanical rotation covering ~half the electrical track (switch-cam dead zone consumes the rest). Doesn't block progress — the driver IC sees 0→~2.55 kΩ as the useful control range, and firmware will map "intensity %" to the actual observed range.
+- **JST topology:** 4 wires total = 3 pot pins (outer-A / wiper / outer-B) + 1 switch tab. Switch return is internally commoned to the pot's metal chassis, which ties to one of the pot outers on the PCB.
+- **Resistance sweep** across the wiper + non-chassis-outer pair (DMM 200 kΩ, unit unplugged): smooth, monotonic, **0.002 kΩ at max-mist → 2.55 kΩ at min-mist-just-before-click**. Clean rheostat behavior.
+- **2.55 kΩ vs 5 kΩ label discrepancy:** mechanical rotation covers ~half the electrical track (switch-cam dead zone consumes the rest). Doesn't block progress — the driver IC sees 0→~2.55 kΩ as the useful control range; firmware will map "intensity %" to the actual observed range.
 - **Photos:** `debug/raydrop-re/photos/pot-front.jpg` + `pot-back.jpg`.
 
-### Not yet done
+### Phase 1 not yet done (blocked on replacement)
 
-- **Step 1 DC voltage sweep** (unit powered). This is the next action — answers the DC-analog-vs-PWM question that gates the Phase 2 part choice.
-- Photograph the ultrasonic driver IC with readable markings → `debug/raydrop-re/photos/driver-ic.jpg`. Feeds Step 3 (IC identification).
+- **Step 1 DC voltage sweep** (unit powered) — answers DC-analog-vs-PWM, gates Phase 2 part choice.
+- Photograph driver IC with readable markings → `debug/raydrop-re/photos/driver-ic.jpg` (Step 3).
 - Full PCB top-down photo → `board-top.jpg`.
-- Step 2 logic-analyzer capture (only if Step 1 is inconclusive).
+- Step 2 logic-analyzer capture (only if Step 1 inconclusive).
 
-### Immediate next actions
+### BOM consequence (don't order yet)
 
-**Phase 1 (blocked on hardware):** when the replacement spare arrives, walk the user through **Step 1 of [phase1-probe-checklist.md](phase1-probe-checklist.md)** — powered DC voltage sweep on the 3 pot pins to determine DC-analog vs PWM-through-RC. Findings recorded in the checklist's observations log.
-
-**Phase 4 prep (unblocked, do now):** follow [phase4-test-plan.md](phase4-test-plan.md) order of operations:
-
-1. Acceptance criteria + plan committed (this doc + test plan). ✅
-2. **FOPDT fit script** against existing humidifier logs — `debug/humidifier-fopdt/fit.py`. ✅ Verdict: data brackets gains (Kc ≈ 8–12 %u/kPa, Ki ≈ 0.01–0.02 %u/(kPa·s) at λ = 2τ–3τ) but doesn't pin them — bang-bang segments too short for clean asymptotes. Full analysis: [fopdt-fit-findings.md](fopdt-fit-findings.md). Phase 4 ships at the low end of the bracket, refines under shadow mode + a graduated step test in Phase 2/3 acceptance.
-3. **Property tests (red) for the controller.** ✅ `apps/hwd/tests/test_humidifier_pi.py` — 28 tests covering output range, monotonicity in error, failsafe stale, lights-window guards (incl. pre-lights-on ramp), RH ceiling guard, threshold + hysteresis, anti-windup bounds + release, dt invariance, clock-jump robustness, stage-flip-no-reset, output contract.
-4. **Controller skeleton + placeholder gains → property tests green.** ✅ `apps/hwd/src/dirt_hwd/services/humidifier_pi.py` — pure-function `compute(cfg, state, inp) → output`. Conservative starting gains: Kc=8, Ki=0.01, threshold=5%, hysteresis=1%, integrator clamp=50%, night offset=−0.3 kPa.
-5. **Shadow-mode wiring (`humidifier_shadow` log stream, no actuation).** ✅ Wired into `humidifier.py` between the existing state-change emit and the stuck-watchdog. Each tick computes PI output and logs full state (u, plug_on_shadow vs plug_on_actual, setpoint, error, P/I split, integrator, reason, plus inputs). Stream registered with 14-day retention. **Activates on next `dirt-hwd` restart.** No actuator change — bang-bang still drives the plug.
-6. **Plant-in-loop tests parameterized by step #2 output.** ✅ `apps/hwd/tests/test_humidifier_pi_plant.py` — 16 tests covering step response, lights-cycle transition, fan-coupling step (the specific failure mode that motivated the rewrite), and integrator-clamp saturation. Plant simulator parametrized over τ/K/V_dry_eq corners from the FOPDT bracket. Tests assert behaviors not numbers.
-7. Replay tests after ≥ 24 h shadow data.
-
-### BOM consequence to flag (don't order yet)
-
-None of the three MCP4131 variants on order (10k / 50k / 100k) is a direct match for this 5 kΩ pot. **If Step 1 confirms DC-analog rheostat, we'll need MCP4131-502E/P (5 kΩ, 128-step)** — not currently in the BOM. Decision is gated on the Step 1 verdict; if the Raydrop turns out to be a PWM case, the digipot is moot and we drive directly from ESP32 LEDC.
+None of the three MCP4131 variants on order (10k / 50k / 100k) is a direct match for the 5 kΩ pot. **If Step 1 confirms DC-analog rheostat, we'll need MCP4131-502E/P (5 kΩ, 128-step)** — not currently in the BOM. Decision is gated on the Step 1 verdict; if the Raydrop turns out to be a PWM case, the digipot is moot and we drive directly from ESP32 LEDC.
 
 **Do not proceed past Phase 1 without user review.** The Phase 1 → Phase 2 matrix at the bottom of [bom.md](bom.md) tells you which parts get used based on the probe verdict; if the verdict lands outside the matrix (e.g. encoded comms), stop and reassess before ordering more parts or writing firmware.
 
+---
+
 ## Goal
 
-Replace the Raydrop humidifier's binary on/off control with continuous mist intensity (0–100 %), driven by a PI loop on tent VPD. Collapses three classes of operational failures observed 2026-04-23: bang-bang overshoot oscillation, fan-coupling actuator saturation, and "hidden analog dial" operational gotcha. Rationale, alternatives, and acceptance live in [wiki decision 2026-04-23](../../../wiki/decisions/2026-04-23-raydrop-mcu-mist-control.md); this epic tracks the work.
+Replace the Raydrop humidifier's binary on/off control with continuous mist intensity (0–100%), driven by a PI loop on tent VPD. Collapses three classes of operational failures observed 2026-04-23: bang-bang overshoot oscillation, fan-coupling actuator saturation, and "hidden analog dial" operational gotcha. Rationale, alternatives, and acceptance live in [wiki decision 2026-04-23](../../../wiki/decisions/2026-04-23-raydrop-mcu-mist-control.md); this epic tracks the work.
+
+For the conceptual primer on PI control, FOPDT models, and IMC tuning, see [`wiki/concepts/control-theory-primer.md`](../../../wiki/concepts/control-theory-primer.md).
 
 ## Scope
 
@@ -57,11 +137,11 @@ Replace the Raydrop humidifier's binary on/off control with continuous mist inte
   - Add a digipot / DAC driven by the existing fan-controller ESP32-C3 (already in the tent).
   - Extend `firmware/fan_controller` with `POST /mist` / `GET /mist` endpoints.
   - Shared Python client (`MistClient` or extend `FanNodeClient`).
-  - Replace bang-bang in `HumidifierLoopService` with a PI controller on VPD error, with anti-windup clamp and a sub-threshold Kasa-plug cutoff.
-  - Update the stuck-actuator watchdog to key off `intensity > 0 + VPD not falling` instead of `plug ON + VPD not falling`.
-  - Narrow the VPD deadband once intensity control lands (currently 0.3 kPa — actuator-overshoot-sized).
-  - Integrator state logged in the `humidifier` observability stream for diagnosability.
-  - Revision block + per-class plan-shape update in `wiki/concepts/multi-actuator-environment-control.md` (landed in `5b8698a`).
+  - Replace bang-bang in `HumidifierLoopService` with a PI controller on VPD error, with anti-windup clamp and a sub-threshold Kasa-plug cutoff. ✅ controller + shadow done; cutover to authoritative blocked on Phases 2–3.
+  - Update the stuck-actuator watchdog to key off `intensity > 0 + VPD not falling` instead of `plug ON + VPD not falling`. (One-line change at cutover.)
+  - Narrow the VPD deadband once intensity control lands (currently 0.4 kPa — actuator-overshoot-sized).
+  - Integrator state logged in the `humidifier_shadow` observability stream for diagnosability. ✅
+  - Centralize band-comparison logic + reframe humidity bands as mold-prevention envelopes. ✅
 - **Out of scope**
   - PID with derivative term — the SHT45 heater-cycle noise floor makes D unhelpful.
   - Dehumidifier integration (separate decision when the unit arrives).
@@ -71,31 +151,32 @@ Replace the Raydrop humidifier's binary on/off control with continuous mist inte
 
 ## Phases
 
-Phased rollout with a hard stop-gate after Phase 1. Each phase maps 1:1 to a GitHub issue labeled `epic:continuous-humidifier`.
+Phased rollout with a hard stop-gate after Phase 1.
 
-1. **Phase 1 — Investigation.** Open the Raydrop. Identify the ultrasonic driver IC (chip markings → datasheet). Probe the intensity potentiometer with multimeter + HiLetgo logic analyzer; confirm DC voltage vs PWM vs encoded comms. Decide digipot-vs-DAC-vs-direct-PWM based on findings. Step-by-step walkthrough: [phase1-probe-checklist.md](phase1-probe-checklist.md). Scratch artifacts (photos, `.sr` captures) go to `debug/raydrop-re/` (gitignored); final verdict pasted into the decision doc as a revision block. **This is the stop gate**: if the circuit is weird (encoded comms, HV isolation, atypical driver), reassess before proceeding.
+1. **Phase 1 — Investigation.** Open the Raydrop. Identify the ultrasonic driver IC (chip markings → datasheet). Probe the intensity potentiometer with multimeter + HiLetgo logic analyzer; confirm DC voltage vs PWM vs encoded comms. Decide digipot-vs-DAC-vs-direct-PWM based on findings. Step-by-step walkthrough: [phase1-probe-checklist.md](phase1-probe-checklist.md). **CURRENT STATUS: paused on hardware (destroyed spare).**
 2. **Phase 2 — Hardware.** Wire the chosen control mechanism between the fan-controller ESP32 and the Raydrop's intensity input. Keep the Kasa plug in the loop for hard-off authority. Fail-to-zero on boot and on MCU crash.
 3. **Phase 3 — Firmware.** `POST /mist {"intensity_pct": 0..100}` + `GET /mist` on `firmware/fan_controller`, mirroring `/fan`. Shared-client update in `apps/shared/src/dirt_shared/services/`.
-4. **Phase 4 — PI control loop.** Replace bang-bang in `HumidifierLoopService`. Log integrator + output in the `humidifier` stream. Update the stuck-actuator watchdog trigger. Narrow the deadband. Tune Kp (and Ki if needed) empirically through a full lights-on/off cycle.
+4. **Phase 4 — PI control loop.** ✅ prep landed; cutover blocked on hardware. Replace bang-bang in `HumidifierLoopService` with the PI controller already shadow-running. Update the stuck-actuator watchdog trigger (`plug.is_on` → `u > 0`). Narrow the deadband. Tune gains empirically using the **graduated step test** (the binding next-step) through a full lights-on/off cycle.
 5. **Phase 5 — Physical cleanup (optional).** Remove or relabel the physical dial on the Raydrop if the pot was replaced fully. Hardware-page pass.
 
 ## Acceptance Criteria
 
 Authoritative list lives in [phase4-test-plan.md](phase4-test-plan.md) §"Acceptance criteria (refined)". Headline criteria:
 
-1. **Tracking.** Fan duty ∈ [25, 60] %, VPD within ±0.1 kPa of upper edge across an 18-h lights-on period.
+1. **Tracking.** Fan duty ∈ [25, 60]%, VPD within ±0.1 kPa of upper edge across an 18-h lights-on period.
 2. **Switching count.** Kasa-plug transitions ≤ 6 / day (down from ~once-per-minute today).
-3. **Envelope respected.** RH never exceeds `stage_rh_max` due to controller action — RH ceiling guard verified in unit + soak.
+3. **Envelope respected.** RH never exceeds the stage humidity band's upper edge due to controller action — RH ceiling guard verified in unit + soak.
 4. **Dial retired.** No longer a control input the operator must reason about.
 5. **Watchdog still works.** `suspected_stuck` fires on a deliberate drained-tank test with the upgraded `u > 0` trigger.
-6. **Diagnosability.** Integrator state, P/I split, error, and `u` per-tick in `var/logs/humidifier/*.jsonl`. Replay test demonstrates `u` is re-derivable from logged inputs.
+6. **Diagnosability.** Integrator state, P/I split, error, and `u` per-tick in `var/logs/humidifier_shadow/*.jsonl` (already true for shadow; carries to authoritative logs after cutover). Replay test demonstrates `u` is re-derivable from logged inputs.
 7. **Property tests pass.** Full structural-invariant suite (see test plan).
-8. **Plant-in-loop tests pass.** With FOPDT params fit from real data.
+8. **Plant-in-loop tests pass.** With FOPDT params fit from real (post-step-test) data.
 
 ## Risks
 
-- **Magic smoke on the Raydrop driver board.** $40 unit, have a spare on hand before opening.
-- **PI tuning instability.** Mitigation: start with Kp-only, add Ki once proportional tracking is stable. Dry runs on a known-good lights cycle before letting the loop run unattended.
+- **Magic smoke on the Raydrop driver board.** $40 unit, have a spare on hand before opening. (Already burned one — be more careful.)
+- **PI tuning instability.** Mitigation: shadow-mode + analyzer in place; we'll see oscillation in shadow data before it becomes operational. Start with Kp-only at the cutover, add Ki once proportional tracking is stable.
+- **Conservative starter gains too conservative.** Already observed via analyzer — `u` below threshold on every pi_active tick. At cutover, re-tune from the graduated step test data; don't ship the current `_SHADOW_PI_*` constants as production values without retuning.
 - **Digipot / DAC failure mode during power loss.** Design for fail-to-zero: digipot boots to 0 or last-persisted value; firmware defaults to intensity=0 on boot.
 
 ## Issues
@@ -108,5 +189,6 @@ Find issues for this epic: `gh issue list --repo akravetz/dirt --label "epic:con
 - Phase 4 test plan: [phase4-test-plan.md](phase4-test-plan.md)
 - FOPDT fit findings (2026-04-25): [fopdt-fit-findings.md](fopdt-fit-findings.md)
 - Architecture context: [wiki/concepts/multi-actuator-environment-control.md](../../../wiki/concepts/multi-actuator-environment-control.md)
+- Conceptual primer: [wiki/concepts/control-theory-primer.md](../../../wiki/concepts/control-theory-primer.md)
 - Current loop: [wiki/hardware/humidifier-control.md](../../../wiki/hardware/humidifier-control.md)
 - Companion fan node: [wiki/hardware/ac-infinity-fan-control.md](../../../wiki/hardware/ac-infinity-fan-control.md)

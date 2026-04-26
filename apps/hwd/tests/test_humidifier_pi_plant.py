@@ -9,10 +9,10 @@ controller fights itself across regime changes, saturation handling). Does NOT
 validate tuning — the simulator is FOPDT, the real tent isn't. Acceptance soak
 on real hardware (phase4-test-plan.md criterion #1) remains the binding test.
 
-The RH ceiling guard is disabled in these tests by setting `stage_rh_max` very
-high. The guard's correctness is covered by property tests with synthetic
-inputs; mixing it into the dynamics tests would fragment the behavior under
-test without adding coverage.
+The RH ceiling guard is disabled in these tests by setting the humidity band's
+upper edge very high. The guard's correctness is covered by property tests
+with synthetic inputs; mixing it into the dynamics tests would fragment the
+behavior under test without adding coverage.
 """
 
 from __future__ import annotations
@@ -166,7 +166,7 @@ def simulate(
     dt_s: float = DT_S,
     fan_at: Callable[[int], float] = lambda _i: 25.0,
     lights_at: Callable[[int], tuple[bool, float, float]] = _default_lights,
-    rh_ceiling: float = 99.0,  # disabled for dynamics tests
+    rh_band: tuple[float, float] = (0.0, 99.0),  # disabled for dynamics tests
     band: tuple[float, float] = (0.8, 1.2),
     pi_state: PIState | None = None,
     start: datetime = T0,
@@ -189,7 +189,7 @@ def simulate(
             vpd_ts=now,  # fresh sensor — no failsafe
             rh=plant.rh_pct,
             stage_vpd_band=band,
-            stage_rh_max=rh_ceiling,
+            stage_humidity_band=rh_band,
             lights_on=lights_on,
             minutes_until_off=until_off,
             minutes_until_on=until_on,

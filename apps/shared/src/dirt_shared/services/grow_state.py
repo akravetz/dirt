@@ -41,26 +41,53 @@ def tent_tz(state: GrowState) -> ZoneInfo:
 
 
 # Stage → metric → (low, high) target band.
+#
+# Semantics by metric:
+#
+#   temperature_f, vpd_kpa  — primary targets. Controller setpoints; what we're
+#                              actively trying to hold the tent at.
+#
+#   humidity_pct            — *envelope*, not a setpoint. RH and VPD are
+#                              mathematically coupled at constant T (RH = 1 - VPD/SVP),
+#                              so an RH "target" duplicating the VPD target is
+#                              a bug. Instead, the RH band is a horticultural
+#                              envelope: the lower edge protects against
+#                              defensive stomatal closure (too dry); the upper
+#                              edge is the mold/bud-rot threshold for the
+#                              stage. The bands intentionally span more than the
+#                              VPD target's RH-equivalent range so envelope
+#                              guards (e.g. humidifier PI ceiling) only fire on
+#                              real envelope violations, not on every VPD-in-band
+#                              sample. See wiki/concepts/control-theory-primer.md
+#                              §13 and wiki/concepts/vpd.md.
+#
+#   fan_pct                 — operational envelope, not a setpoint. The fan
+#                              firmware (firmware/fan_controller/src/main.cpp:
+#                              fan_speed_to_wire_duty) abstracts the motor's
+#                              22% wire-duty stall threshold internally: API
+#                              speed_pct=0 is off, speed_pct=1..100 maps
+#                              linearly onto the full running range. So the
+#                              band here is a free policy choice — currently
+#                              "fairly slow but running" (20%) up to a
+#                              "suspicious if sustained" ceiling (80%). Same
+#                              across all stages until closed-loop fan control
+#                              lands and per-stage targets become meaningful.
 STAGE_TARGETS: dict[Stage, dict[str, tuple[float, float]]] = {
     "veg": {
         "temperature_f": (70, 82),
-        "humidity_pct": (45, 55),
+        "humidity_pct": (40, 70),  # envelope: <40 stomata close, >70 mold risk
         "vpd_kpa": (0.8, 1.2),
-        # Loose operational envelope — 20% is the motor's measured stall
-        # floor from the protocol sweep; 80% is an anomaly ceiling, not a
-        # control-loop setpoint. Same band across all stages until the
-        # closed-loop VPD service lands and can inform a tighter target.
         "fan_pct": (20, 80),
     },
     "flower_early": {
         "temperature_f": (68, 80),
-        "humidity_pct": (45, 50),
+        "humidity_pct": (40, 60),  # envelope: bud rot risk climbs above 60 in flower
         "vpd_kpa": (1.0, 1.3),
         "fan_pct": (20, 80),
     },
     "flower_late": {
         "temperature_f": (65, 78),
-        "humidity_pct": (40, 45),
+        "humidity_pct": (35, 55),  # envelope: bud rot is the dominant late-flower risk
         "vpd_kpa": (1.2, 1.5),
         "fan_pct": (20, 80),
     },
@@ -123,6 +150,38 @@ def band_status(value: float, band: tuple[float, float] | None) -> BandStatus:
     if lo - half_width <= value <= hi + half_width:
         return "warn"
     return "crit"
+
+
+def in_band(value: float, band: tuple[float, float] | None) -> bool:
+    """True iff ``value`` is inside ``band=(lo, hi)`` (inclusive endpoints).
+
+    ``band=None`` means "no target defined" → always in-band (vacuously true)."""
+    if band is None:
+        return True
+    lo, hi = band
+    return lo <= value <= hi
+
+
+def above_band(value: float, band: tuple[float, float] | None) -> bool:
+    """True iff ``value`` is strictly above the band's upper edge.
+
+    The one-sided comparison used by envelope guards — e.g. the humidifier
+    PI controller's RH ceiling: "stop adding moisture if RH walked above
+    the stage's mold-prevention upper edge regardless of what VPD says."
+    ``band=None`` → never above (no envelope defined)."""
+    if band is None:
+        return False
+    return value > band[1]
+
+
+def below_band(value: float, band: tuple[float, float] | None) -> bool:
+    """True iff ``value`` is strictly below the band's lower edge.
+
+    Symmetric counterpart to ``above_band`` — used by future dehumidifier
+    guards / floor-only comparisons. ``band=None`` → never below."""
+    if band is None:
+        return False
+    return value < band[0]
 
 
 class GrowStateService:

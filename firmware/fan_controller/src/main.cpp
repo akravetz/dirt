@@ -89,6 +89,13 @@ void fire_heater_pulse() {
 
 // --- Fan control ----------------------------------------------------------
 
+// API contract: speed_pct is the host-facing 0..100 control input.
+//   speed_pct == 0   → fan off (wire duty 0%)
+//   speed_pct == 1   → lowest running speed (wire duty == D_PLUS_MIN_WIRE)
+//   speed_pct == 100 → full speed (wire duty 100%)
+// The 22% wire-duty stall threshold (D_PLUS_MIN_WIRE) is hidden from the
+// host — callers should never need to know about it. There is no API-side
+// stall floor; pct=1 is already a useful "barely running" command.
 float fan_speed_to_wire_duty(uint8_t speed_pct) {
     if (speed_pct == 0) return 0.0f;
     if (speed_pct > 100) speed_pct = 100;

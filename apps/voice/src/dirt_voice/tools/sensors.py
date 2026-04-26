@@ -20,7 +20,7 @@ from dirt_shared.models.sensor_calibration import SensorCalibration
 from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.sensor_contract import persisted_metrics
-from dirt_shared.services.grow_state import GrowStateService
+from dirt_shared.services.grow_state import GrowStateService, in_band
 from dirt_shared.services.readings import (
     ReadingsService,
     compute_calibrated_pct,
@@ -120,7 +120,7 @@ def build_sensor_tools(
 
             if metric in targets:
                 lo, hi = targets[metric]
-                if not (lo <= r.value <= hi):
+                if not in_band(r.value, (lo, hi)):
                     out_of_range.append(
                         {
                             "label": _LABELS[metric],

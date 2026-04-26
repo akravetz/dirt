@@ -4,7 +4,7 @@ type: hardware
 sources: [debug/fan-pwm/sweep-v2.sr, debug/fan-pwm/sweep-11steps.sr, debug/fan-pwm/sweep-v3.sr]
 related: [wiki/hardware/humidifier-control.md, wiki/hardware/esp32-plant-nodes.md, wiki/decisions/2026-04-22-sht45-tent-node-esp32.md]
 created: 2026-04-18
-updated: 2026-04-23
+updated: 2026-04-25
 ---
 
 # AC Infinity Cloudline LITE 6" Fan Control + Tent Environmental Sensor
@@ -47,7 +47,7 @@ Derived from a 20-second logic-analyzer sweep stepping through all 11 dial posit
 
 - Linear PWM mapping 22%–100% for "running" speeds. 0% = OFF (line held low). Below ~22% the motor likely buzzes without spinning — avoid unless explicitly testing stall.
 - The ~8% inter-click step is a remote-side UX choice, **not** a protocol limit. Underlying resolution is ≈1%, so we can command any duty we want; the 10-position dial is a coarse abstraction over a continuous range.
-- Driver API: `set_fan_speed(uint8_t pct)` in `firmware/fan_controller/src/main.cpp`. `pct=0` → 0% duty (off); `pct=1..100` → linearly remapped to 22%–100% D+ wire duty; the inversion math (MCU duty = 100 − wire duty, since our MOSFET pulls D+ low when the GPIO is high) is handled inside the helper.
+- Driver API: `set_fan_speed(uint8_t pct)` in `firmware/fan_controller/src/main.cpp`. `pct=0` → 0% duty (off); `pct=1..100` → linearly remapped to 22%–100% D+ wire duty; the inversion math (MCU duty = 100 − wire duty, since our MOSFET pulls D+ low when the GPIO is high) is handled inside the helper. **API-contract note for callers:** the 22% wire-duty stall threshold is hidden by the firmware. Hosts should treat `pct=1` as "lowest running speed" and `pct=100` as "full speed" — there is no API-side stall floor to avoid. Operational policy bands (e.g. `STAGE_TARGETS["fan_pct"]`) are free to use any 1..100 range.
 
 ### Electrical topology
 

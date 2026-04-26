@@ -17,6 +17,8 @@ from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import Enum
 
+from dirt_shared.services.grow_state import above_band
+
 # Hard cap on per-tick dt (s) used for integral updates. A long gap (sleep,
 # service restart, NTP step forward) shouldn't let the integrator jump by
 # hours of accumulated error in a single tick. Picked larger than a normal
@@ -65,7 +67,7 @@ class PIInput:
     vpd_ts: datetime | None
     rh: float | None  # relative humidity %; None → ceiling check skipped
     stage_vpd_band: tuple[float, float]  # (lo, hi) kPa
-    stage_rh_max: float  # upper edge of stage RH band
+    stage_humidity_band: tuple[float, float]  # (lo, hi) %; envelope, not setpoint
     lights_on: bool
     minutes_until_off: float  # always positive
     minutes_until_on: float  # always positive
@@ -147,8 +149,10 @@ def compute(cfg: PIConfig, state: PIState, inp: PIInput) -> PIOutput:
         return _failsafe_output(state, inp.now, setpoint, Reason.OUTSIDE_LIGHTS_WINDOW)
 
     # ---- RH ceiling ---------------------------------------------------------
-    # Best-effort: if RH sensor is unavailable, fall through to PI.
-    if inp.rh is not None and inp.rh >= inp.stage_rh_max:
+    # Mold-prevention envelope, NOT a VPD-derived target. Force u=0 if RH
+    # walked above the stage's mold-prevention upper edge regardless of what
+    # VPD says. Best-effort: if RH sensor is unavailable, fall through to PI.
+    if inp.rh is not None and above_band(inp.rh, inp.stage_humidity_band):
         return _failsafe_output(state, inp.now, setpoint, Reason.RH_CEILING)
 
     # ---- PI active -----------------------------------------------------------

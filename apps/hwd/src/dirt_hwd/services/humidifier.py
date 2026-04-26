@@ -306,14 +306,14 @@ class HumidifierLoopService:
                     # docs/epics/continuous-humidifier/phase4-test-plan.md.
                     rh_reading = await self._readings.get_latest_reading("humidity_pct")
                     rh = rh_reading.value if rh_reading else None
-                    rh_max = ctx.targets["humidity_pct"][1]
+                    rh_band = ctx.targets["humidity_pct"]
                     pi_inp = PIInput(
                         now=now,
                         vpd=vpd,
                         vpd_ts=reading.ts if reading else None,
                         rh=rh,
                         stage_vpd_band=(vpd_lo, vpd_hi),
-                        stage_rh_max=rh_max,
+                        stage_humidity_band=rh_band,
                         lights_on=lights.on,
                         minutes_until_off=lights.minutes_until_off,
                         minutes_until_on=lights.minutes_until_on,
@@ -338,7 +338,7 @@ class HumidifierLoopService:
                         stage=stage,
                         upper_band_kpa=vpd_hi,
                         lower_band_kpa=vpd_lo,
-                        rh_ceiling_pct=rh_max,
+                        rh_ceiling_pct=rh_band[1],
                         lights_on=lights.on,
                         minutes_until_off=round(lights.minutes_until_off, 1),
                         minutes_until_on=round(lights.minutes_until_on, 1),
