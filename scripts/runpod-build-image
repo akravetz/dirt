@@ -33,16 +33,21 @@ esac
 cd "$REPO_ROOT/apps/wake-word"
 
 # Bake the git SHA into the image (DIRT_GIT_SHA build-arg → ENV) so the
-# trainer can stamp it into run-manifest.json. When pushing, the SHA must
-# be both clean (no uncommitted changes) and pushed to origin/main —
-# otherwise the recorded SHA is unreachable and the run isn't reproducible.
-# This guards the bug class v11 burned us on (unpushed SHA, kernel git
-# checkout failed). On --no-push we allow dirty/unpushed since the image
-# stays on the local Docker daemon and the operator is iterating.
+# trainer can stamp it into run-manifest.json. When pushing, the build
+# context (apps/wake-word/) must be clean AND HEAD must be on origin/main
+# — otherwise the recorded SHA either misrepresents the image contents
+# or is unreachable, breaking reproducibility. Guards the bug class v11
+# burned us on (unpushed SHA, kernel git checkout failed).
+#
+# Scoped to apps/wake-word/ rather than the whole repo — uncommitted
+# changes elsewhere (e.g. wiki notes, an in-flight PR in another app)
+# don't affect the image content and shouldn't block a wake-word push.
+# On --no-push we allow dirty/unpushed since the image stays local.
 GIT_SHA=$(git -C "$REPO_ROOT" rev-parse HEAD)
 if [ "$NO_PUSH" != "1" ]; then
-  if ! git -C "$REPO_ROOT" diff-index --quiet HEAD --; then
-    echo "error: working tree has uncommitted changes; commit or pass --no-push" >&2
+  if ! git -C "$REPO_ROOT" diff-index --quiet HEAD -- apps/wake-word/; then
+    echo "error: apps/wake-word/ has uncommitted changes; commit or pass --no-push" >&2
+    git -C "$REPO_ROOT" status --short -- apps/wake-word/ >&2
     exit 1
   fi
   git -C "$REPO_ROOT" fetch origin main --quiet
