@@ -21,6 +21,7 @@ dev-dependencies = [
     "datamodel-code-generator>=0.56.1",
     "dirt-contracts",
     "kaggle>=2.1.0",
+    "wandb>=0.21,<0.22",
 ]
 
 [tool.uv.sources]
