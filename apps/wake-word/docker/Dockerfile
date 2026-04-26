@@ -23,7 +23,7 @@ WORKDIR /opt
 # Most of these are present in the runpod/pytorch base image; explicit just
 # in case a future tag drops one.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        git wget ca-certificates \
+        git wget ca-certificates cmake build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 # ----------------------------------------------------------------------------
@@ -55,7 +55,12 @@ RUN pip install \
         speechbrain==0.5.14 audiomentations==0.33.0 torch-audiomentations==0.11.0 \
         acoustics==0.2.6 onnxruntime==1.22.1 ai_edge_litert==1.4.0 onnxsim \
         onnx2tf onnx==1.19.1 onnx_graphsurgeon sng4onnx pronouncing==0.2.0 \
-        datasets==2.14.6 deep-phonemizer==0.0.19
+        datasets==2.14.6 deep-phonemizer==0.0.19 \
+        "scipy<1.15"
+# scipy<1.15 — acoustics 0.2.6 imports `sph_harm` from scipy.special, which
+# scipy 1.15 removed (renamed to sph_harm_y with a transposed signature).
+# The runpod/pytorch base ships scipy 1.15+, so without this pin every
+# import of openwakeword.data dies. Burned one $3 H100 run finding this out.
 
 # ----------------------------------------------------------------------------
 # openwakeword's bundled embedding + melspectrogram ONNX/tflite resources.
@@ -79,6 +84,11 @@ COPY src/dirt_wake_word /opt/dirt_wake_word/dirt_wake_word
 ENV PYTHONPATH=/opt/dirt_wake_word
 
 COPY docker/entrypoint.py /app/entrypoint.py
+
+# Build-time smoke test: every transitive import in the library must resolve
+# against the installed deps in this image. If a pip pin is wrong, the build
+# fails here instead of paying $3 of H100 wall time discovering it at runtime.
+RUN python -c "from dirt_wake_word.main import main; print('imports OK')"
 
 # /workspace is the RunPod volume mount path — survives the container
 # restart and is visible over SCP. The runpod/pytorch base starts sshd
