@@ -75,6 +75,19 @@ We **do not** ship "best guess" Kp/Ki and call it tuned. We ship at the low end 
 - Plant-in-loop tests (step 6) **landed 2026-04-25** and use this bracket directly: `τ ∈ [300, 1200] s`, `|K| ∈ [0.02, 0.06]` kPa/%u, `V_dry_eq ∈ [1.3, 1.7]`. Each design test parametrizes over 4 corner/midpoint plant configs. A future re-fit on shadow data will tighten the test envelope automatically by narrowing `PLANT_PARAMS` in the test file.
 - Acceptance criterion #1 (VPD within ±0.1 kPa of upper edge across 18 h) is unchanged — that's the empirical end-state, not a tuning target.
 
+## What shadow-mode operation surfaced (2026-04-25 evening)
+
+Once the band fix landed and shadow data started accumulating cleanly, the analyzer (`debug/humidifier-shadow/analyze.py`) revealed a separate practical finding: **the conservative starter gains produce `u` below the 5% sub-threshold cutoff on every observed `pi_active` tick.** Across 99 pi_active ticks, the median commanded `u` was 0.0% and the maximum was below threshold — `plug_on_shadow` was False on 100% of ticks, regardless of regime.
+
+Mechanically: at `Kc=8, Ki=0.01`, conservative IMC tuning, the controller's response to a typical mid-band error of ~0.2 kPa is `P = 1.6` plus a slowly-accumulating I term. With `intensity_threshold=5.0`, the controller would need either ~3× larger error or ~30 minutes of integrator buildup to clear the cutoff. Under realistic tent dynamics with bang-bang absorbing the big errors before shadow can integrate, that buildup never happens.
+
+**Implication for production tuning:** the IMC formula's "conservative" end (λ = 2τ–3τ) is conservative to the point of inertness when combined with a sub-threshold cutoff sized for ultrasonic minimum-running-power. Real production gains will likely need:
+- Smaller λ (closer to τ, maybe smaller) → larger Kc and Ki, OR
+- Lower `intensity_threshold` (1–2% instead of 5%) so the integrator has somewhere to land, OR
+- Both.
+
+This isn't a controller bug — the controller is doing exactly what conservative tuning + sub-threshold cutoff means. It IS a tuning surprise: the bracket we derived from FOPDT-fit-IMC math doesn't include "controller never actuates" as a degenerate case, but in this regime it is one. Worth knowing before the graduated step test, so we don't ship the conservative end as-is and conclude "it doesn't work" — it works as designed; the design is just inert.
+
 ## What plant-in-loop testing surfaced
 
 Writing the tests revealed that **conservative gains (Kc=8, Ki=0.01) cannot fully reject a fan-duty disturbance within reasonable settling time** at the slow corners of the bracket — integrator-driven re-tuning to a new fan regime can take many hours. The tests now assert directional correctness (u rises, integrator grows, peak deviation bounded) rather than full re-settling. This is informative for the eventual tuning pass: production gains will likely need higher Ki than the IMC bracket suggests, or a different control structure (e.g. feedforward on fan duty) for the fan-coupling response specifically. Captured here so the eventual tuning pass starts from "we know this is a thing" rather than "why is it slow."
