@@ -11,8 +11,10 @@ Wraps `dirt_wake_word.main.main()` with three things the orchestrator needs:
    orchestrator can distinguish a clean exit from a crash — RunPod's REST
    API does NOT expose container exit codes.
 
-Re-raises on failure so the Pod exits non-zero (helps surface in logs even
-though the orchestrator only reads the sentinel).
+Always exits 0 — RunPod's container runtime auto-restarts on non-zero
+exit, which would silently burn $/hr in a crash loop. The FAILURE
+sentinel + traceback is the failure signal; the orchestrator polls for
+it via SCP after seeing desiredStatus=EXITED.
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ import json
 import os
 import shutil
 import sys
+import time
 import traceback
 from pathlib import Path
 
@@ -119,17 +122,39 @@ def main() -> None:
                 flush=True,
             )
     except BaseException:
+        # Catch + log + exit 0 so RunPod doesn't auto-restart the container.
+        # The FAILURE sentinel + traceback is what the orchestrator reads.
+        tb = traceback.format_exc()
+        print(f"=== ENTRYPOINT FAILED ===\n{tb}", flush=True, file=sys.stderr)
         OUT.mkdir(parents=True, exist_ok=True)
-        (OUT / "FAILURE").write_text(traceback.format_exc())
+        (OUT / "FAILURE").write_text(tb)
         try:
-            _publish_artifacts()  # best-effort: any partial artifacts help post-mortems
+            _publish_artifacts()  # any partial artifacts help post-mortems
         except OSError:
             pass
-        raise
+        return
 
     (OUT / "SUCCESS").write_text("ok\n")
-    print("=== entrypoint: SUCCESS sentinel written, exiting 0 ===", flush=True)
+    print("=== entrypoint: SUCCESS sentinel written ===", flush=True)
+
+
+def _hold() -> None:
+    """Keep the container alive so the orchestrator can SCP off /workspace/out/.
+
+    RunPod auto-restarts on non-zero exit; we always exit 0. But exit-0
+    means sshd dies, so the orchestrator can't SCP. Block forever; the
+    orchestrator's `finally: delete_pod` is the cleanup path.
+
+    DIRT_TRAINER_NO_HOLD=1 (set by scripts/smoke-trainer-image) skips this
+    so the local docker-run smoke can let the container exit naturally.
+    """
+    if os.environ.get("DIRT_TRAINER_NO_HOLD"):
+        return
+    print("(work done; sleeping for orchestrator to pull artifacts)", flush=True)
+    while True:
+        time.sleep(3600)
 
 
 if __name__ == "__main__":
-    sys.exit(main() or 0)
+    main()
+    _hold()

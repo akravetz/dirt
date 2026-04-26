@@ -25,6 +25,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -55,6 +56,37 @@ def _classify_outcome(local_dest: Path) -> tuple[int, str]:
         f"=== no SUCCESS or FAILURE sentinel in {local_dest} — "
         "container exited before the entrypoint could write one ==="
     )
+
+
+def _wait_for_sentinel(ip: str, port: int, *, deadline: float) -> str:
+    """SSH-poll for /workspace/out/SUCCESS or /workspace/out/FAILURE."""
+    cmd = (
+        "if [ -f /workspace/out/SUCCESS ]; then echo SUCCESS; "
+        "elif [ -f /workspace/out/FAILURE ]; then echo FAILURE; fi"
+    )
+    while time.monotonic() < deadline:
+        try:
+            r = subprocess.run(
+                [
+                    "ssh",
+                    "-i", str(rp.SSH_KEY_PATH),
+                    "-o", "StrictHostKeyChecking=accept-new",
+                    "-o", "UserKnownHostsFile=/dev/null",
+                    "-o", "ConnectTimeout=10",
+                    "-p", str(port),
+                    f"root@{ip}",
+                    cmd,
+                ],
+                capture_output=True, text=True, timeout=20,
+            )
+            out = r.stdout.strip()
+            if out in ("SUCCESS", "FAILURE"):
+                return out
+        except subprocess.SubprocessError:
+            pass  # sshd not yet up, or transient — retry
+        print(f"  {time.strftime('%H:%M:%S')} (waiting for sentinel)")
+        time.sleep(30)
+    raise TimeoutError("trainer did not write a sentinel within deadline")
 
 
 def main() -> int:
@@ -109,11 +141,11 @@ def main() -> int:
         ip, port = rp.wait_for_endpoint(http, pod_id, deadline=deadline)
         print(f"pod {pod_id} reachable at {ip}:{port}")
 
-        status = rp.wait_for_exit(http, pod_id, deadline=deadline)
-        if status != "EXITED":
-            raise RuntimeError(f"pod {pod_id} ended in {status}, not EXITED")
-
-        print(f"==> pulling /workspace/out -> {local_dest}")
+        # Container always exits 0; on completion it writes SUCCESS or
+        # FAILURE under /workspace/out and `_hold()`s so sshd stays up.
+        # SSH-poll the sentinel; once seen, SCP /workspace/out off.
+        sentinel = _wait_for_sentinel(ip, port, deadline=deadline)
+        print(f"==> sentinel={sentinel}; pulling /workspace/out -> {local_dest}")
         rp.scp_pull(ip=ip, port=port, remote_dir="/workspace/out", local_dest=local_dest)
 
     rc, msg = _classify_outcome(local_dest)

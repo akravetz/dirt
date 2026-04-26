@@ -41,6 +41,7 @@ docker run --rm \
   -e DIRT_WAKE_WORD_N_SAMPLES=20 \
   -e DIRT_WAKE_WORD_N_SAMPLES_VAL=10 \
   -e DIRT_WAKE_WORD_STEPS=20 \
+  -e DIRT_TRAINER_NO_HOLD=1 \
   -v "$FIXTURES:/workspace/input:ro" \
   -v "$SCRATCH/working:/workspace/working" \
   -v "$SCRATCH/out:/workspace/out" \

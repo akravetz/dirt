@@ -2,30 +2,34 @@
 """One-time seed of a RunPod Network Volume with the four Kaggle datasets.
 
 Spawns a small CPU pod with python:3.11-slim, mounts the Network Volume at
-/workspace, downloads the four datasets to /workspace/input/<slug>/. Pod
-exits when the downloads complete; the data persists on the Network Volume
-after `DELETE /pods/{id}`.
+/workspace, downloads the four Kaggle datasets to /workspace/input/<slug>/,
+writes /workspace/SEED_OK or /workspace/SEED_FAILED on completion, then
+sleeps so the orchestrator can SSH-poll for the sentinel.
 
-Run once per fresh Network Volume — re-running is idempotent (skips
-already-extracted slugs; resumes a partial unzip in place without
-re-downloading the .zip).
+The container ALWAYS exits 0 (after sleep). RunPod's container runtime
+auto-restarts on non-zero exit, which silently burns $/hr on crash loops;
+this contract eliminates that class of failure entirely.
+
+Recovery is "skip if dir non-trivially populated, else wipe and
+redownload." No clever in-place resume — the partial-zip optimization
+already burned us with corrupt zips that wouldn't extract.
 
 Required env (.env):
   RUNPOD_API_KEY              — bearer token
   RUNPOD_NETWORK_VOLUME_ID    — Network Volume to seed (create via console)
 
-Kaggle auth: reads ~/.kaggle/kaggle.json on the local machine and forwards
-username/key to the pod as KAGGLE_USERNAME / KAGGLE_KEY env vars.
+Kaggle auth: reads ~/.kaggle/kaggle.json, forwards username+key as env.
 
 Usage:
-  scripts/runpod-seed-volume                # idempotent fill
-  scripts/runpod-seed-volume --force        # redownload (--force on kaggle CLI)
+  scripts/runpod-seed-volume                # idempotent (skip already-present)
+  scripts/runpod-seed-volume --reset        # wipe + redownload all four
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 import textwrap
 import time
@@ -34,9 +38,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _runpod_lib as rp  # noqa: E402
 
-# 17 GB features dataset's download + unzip is the long pole, ~60–90 min on
-# RunPod's outbound. 2.5 h gives runway for retries.
-MAX_WALL_S = int(2.5 * 60 * 60)
+# 17 GB features dataset is the long pole, ~30–60 min download + extract.
+# 2 h hard cap leaves room for retries / network blips.
+MAX_WALL_S = 2 * 60 * 60
 
 DATASETS = [
     "akravetz/dirt-wakeword-mine",
@@ -44,6 +48,9 @@ DATASETS = [
     "akravetz/dirt-wakeword-features",
     "akravetz/dirt-wakeword-validation",
 ]
+
+SEED_OK = "/workspace/SEED_OK"
+SEED_FAILED = "/workspace/SEED_FAILED"
 
 
 def _load_kaggle_creds() -> tuple[str, str]:
@@ -58,28 +65,30 @@ def _load_kaggle_creds() -> tuple[str, str]:
     return blob["username"], blob["key"]
 
 
-def _build_seed_command(*, force: bool) -> str:
-    """Bash that runs in the seed pod. textwrap.dedent + heredoc so the body
-    reads as actual bash; only `force` and slug list interpolate.
+def _build_seed_command(*, reset: bool) -> str:
+    """Bash that runs in the seed pod.
 
-    python:3.11-slim ships nothing useful — sshd, unzip, and the kaggle CLI
-    all get installed at the top. The for-loop has three branches per slug:
-      partial (zip present)       — re-extract in place, no re-download
-      complete (>50 MB, no zip)   — skip
-      empty/new                   — kaggle download + unzip
-    --force routes through to kaggle CLI, which makes the empty/new branch
-    overwrite. The partial branch always re-extracts regardless of --force
-    since a leftover zip is a strong signal of an interrupted prior run.
+    Three contracts, in order of importance:
+      1. ALWAYS exits 0 (RunPod auto-restarts on non-zero).
+      2. Writes /workspace/SEED_OK on success or /workspace/SEED_FAILED on
+         failure (with the failing log line). Sole signal to orchestrator.
+      3. After writing the sentinel, blocks on `sleep infinity` so sshd
+         stays up for the orchestrator to read the sentinel via SSH.
     """
-    force_flag = " --force" if force else ""
     slugs = " ".join(DATASETS)
+    reset_block = (
+        "echo '==> --reset: wiping /workspace/input/'\n"
+        "        rm -rf /workspace/input/*"
+        if reset
+        else "echo '(skip-if-present mode; pass --reset to wipe and redownload)'"
+    )
     return textwrap.dedent(f"""\
-        set -euo pipefail
-
-        apt-get update -q && apt-get install -y -q openssh-server unzip >/dev/null
+        #!/usr/bin/env bash
+        # Tooling + sshd setup OUTSIDE the err-trap so an apt failure still
+        # leaves us with a debuggable container.
+        set -uo pipefail
+        apt-get update -q && apt-get install -y -q openssh-server >/dev/null
         pip install --quiet kaggle
-
-        # SSH for live debugging if a download stalls.
         mkdir -p /run/sshd /root/.ssh
         if [ -n "${{PUBLIC_KEY:-}}" ]; then
           echo "$PUBLIC_KEY" >> /root/.ssh/authorized_keys
@@ -87,40 +96,76 @@ def _build_seed_command(*, force: bool) -> str:
         fi
         /usr/sbin/sshd
 
-        mkdir -p /workspace/input && cd /workspace/input
-        for slug in {slugs}; do
-          name="${{slug##*/}}"
-          zip="$name/$name.zip"
+        run_seed() {{
+          set -e
+          {reset_block}
+          mkdir -p /workspace/input && cd /workspace/input
+          for slug in {slugs}; do
+            name="${{slug##*/}}"
+            size=$(du -sm "$name" 2>/dev/null | cut -f1 || echo 0)
+            if [ "$size" -gt 50 ]; then
+              echo "==> $name: already $size MB, skipping"
+              continue
+            fi
+            echo "==> $name: downloading"
+            # Wipe before download — kaggle CLI fails ungracefully on a
+            # corrupt partial download. Cheaper to redo than to diagnose.
+            rm -rf "$name"
+            kaggle datasets download -d "$slug" --unzip -p "$name"
+          done
+        }}
 
-          if [ -f "$zip" ]; then
-            echo "==> $name: re-extracting existing zip"
-            find "$name" -mindepth 1 -not -name "*.zip" -delete
-            (cd "$name" && unzip -q -o "$name.zip" && rm -f "$name.zip")
-            continue
-          fi
+        if run_seed > /workspace/seed.log 2>&1; then
+          tail -20 /workspace/seed.log
+          du -sh /workspace/input/*
+          touch {SEED_OK}
+          echo "=== SEED_OK ==="
+        else
+          rc=$?
+          echo "=== SEED FAILED (exit $rc) ===" >&2
+          tail -50 /workspace/seed.log >&2
+          {{ echo "exit=$rc"; tail -50 /workspace/seed.log; }} > {SEED_FAILED}
+        fi
 
-          size=$(du -sm "$name" 2>/dev/null | cut -f1 || echo 0)
-          if [ "$size" -gt 50 ]; then
-            echo "==> $name: already $size MB, skipping"
-            continue
-          fi
-
-          echo "==> $name: downloading"
-          kaggle datasets download -d "$slug" --unzip -p "$name"{force_flag}
-        done
-
-        echo "==> seed complete"
-        ls -la /workspace/input
-        du -sh /workspace/input/*
+        echo "(work done; sleeping for orchestrator)"
+        exec sleep infinity
         """)
+
+
+def _ssh_check_sentinel(ip: str, port: int) -> str | None:
+    """SSH and check for SEED_OK / SEED_FAILED. None = neither yet."""
+    try:
+        result = subprocess.run(
+            [
+                "ssh",
+                "-i", str(rp.SSH_KEY_PATH),
+                "-o", "StrictHostKeyChecking=accept-new",
+                "-o", "UserKnownHostsFile=/dev/null",
+                "-o", "ConnectTimeout=10",
+                "-p", str(port),
+                f"root@{ip}",
+                f"if [ -f {SEED_OK} ]; then echo OK; "
+                f"elif [ -f {SEED_FAILED} ]; then echo FAILED; cat {SEED_FAILED}; fi",
+            ],
+            capture_output=True, text=True, timeout=20,
+        )
+        out = result.stdout.strip()
+        if out.startswith("OK"):
+            return "OK"
+        if out.startswith("FAILED"):
+            print(out, file=sys.stderr)
+            return "FAILED"
+        return None
+    except subprocess.SubprocessError:
+        return None
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--force",
+        "--reset",
         action="store_true",
-        help="Pass --force to kaggle CLI to redownload existing datasets.",
+        help="Wipe /workspace/input/* before download — for clean recovery.",
     )
     args = parser.parse_args()
 
@@ -128,7 +173,7 @@ def main() -> int:
     api_key = rp.env("RUNPOD_API_KEY")
     network_volume_id = rp.env("RUNPOD_NETWORK_VOLUME_ID")
     kaggle_user, kaggle_key = _load_kaggle_creds()
-    pub_key = rp.public_key(required=False)
+    pub_key = rp.public_key(required=True)  # required: we SSH-poll for sentinels
 
     body = rp.common_pod_body(
         name=f"wakeword-seed-{time.strftime('%Y%m%d-%H%M%S')}",
@@ -140,7 +185,7 @@ def main() -> int:
         "vcpuCount": 4,
         "minRAMPerGPU": 8,
         "containerDiskInGb": 20,
-        "dockerStartCmd": ["bash", "-c", _build_seed_command(force=args.force)],
+        "dockerStartCmd": ["bash", "-c", _build_seed_command(reset=args.reset)],
     }
     body["env"] |= {
         "KAGGLE_USERNAME": kaggle_user,
@@ -154,13 +199,28 @@ def main() -> int:
     print("  inspect logs at https://www.console.runpod.io/pods")
 
     deadline = time.monotonic() + MAX_WALL_S
-    with rp.leased_pod(http, pod_id):
-        status = rp.wait_for_exit(http, pod_id, deadline=deadline, poll_every=30)
+    sentinel: str | None = None
 
-    if status != "EXITED":
-        sys.exit(f"seed pod ended in {status}, not EXITED")
-    print("=== seed complete; volume is ready for trainer pods ===")
-    return 0
+    with rp.leased_pod(http, pod_id):
+        ip, port = rp.wait_for_endpoint(http, pod_id, deadline=deadline)
+        print(f"pod reachable at {ip}:{port}; polling for sentinel")
+
+        while time.monotonic() < deadline:
+            sentinel = _ssh_check_sentinel(ip, port)
+            if sentinel:
+                print(f"  {time.strftime('%H:%M:%S')} sentinel={sentinel}")
+                break
+            print(f"  {time.strftime('%H:%M:%S')} (waiting)")
+            time.sleep(30)
+
+    if sentinel == "OK":
+        print("=== seed complete; volume is ready for trainer pods ===")
+        return 0
+    if sentinel == "FAILED":
+        print("=== seed FAILED — see traceback above ===", file=sys.stderr)
+        return 1
+    print(f"=== seed timed out after {MAX_WALL_S}s ===", file=sys.stderr)
+    return 2
 
 
 if __name__ == "__main__":
