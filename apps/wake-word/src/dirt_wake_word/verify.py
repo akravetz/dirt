@@ -1,11 +1,13 @@
 """Fail-fast import verification.
 
-Runs after install_dependencies() so a wrong import path / missing pin /
-version mismatch crashes the kernel within seconds — not 90 minutes into a
-training run. Adding a new lazy import elsewhere in the library? Add it here too.
+Hits every transitive openwakeword + torch import the library uses, so a
+bad pin / wrong module path / missing dep dies in seconds instead of 90 min
+into training. The Dockerfile's build-time `python -c "from
+dirt_wake_word.main import main"` smoke test covers the same ground at
+build time; `verify_imports()` is the runtime backstop. Adding a new lazy
+import to a sibling module? Add it here too.
 """
-# ruff: noqa: F401 — unused-import is the point of this module; the imports
-# exist so a wrong module path crashes here instead of 90 min into training.
+# ruff: noqa: F401 — unused-import is the point; aliasing forces resolution.
 
 from __future__ import annotations
 
@@ -27,8 +29,9 @@ def verify_imports() -> None:
         )
     except ImportError as e:
         sys.exit(
-            f"FATAL: required import failed after install_dependencies(): {e}\n"
-            "Check that install_dependencies pinned all required packages and "
-            "that the openwakeword module path is correct."
+            f"FATAL: required import failed: {e}\n"
+            "On RunPod this means the Docker image is missing a pin — check "
+            "apps/wake-word/docker/Dockerfile's pip install. On Kaggle, check "
+            "the kernel shim's install_dependencies()."
         )
     print("  all imports OK", flush=True)

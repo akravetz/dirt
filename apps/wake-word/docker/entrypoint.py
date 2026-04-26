@@ -2,14 +2,14 @@
 
 Wraps `dirt_wake_word.main.main()` with three things the orchestrator needs:
 
-1. Set DIRT_KAGGLE_INPUT / DIRT_KAGGLE_WORKING to the volume-mounted paths
-   so the library's `paths.py` resolves training data from the Network
-   Volume seeded by `scripts/runpod-seed-volume`.
-2. Copy the produced ONNX / tflite / validation report into /workspace/out/
-   so SCP-off-the-pod hits one stable directory.
+1. Set DIRT_WAKEWORD_INPUT / DIRT_WAKEWORD_WORKING to the volume-mounted
+   paths so the library's `paths.py` resolves training data from the
+   Network Volume seeded by `scripts/runpod-seed-volume`.
+2. Copy the produced .onnx + validation report into /workspace/out/ so
+   SCP-off-the-pod hits one stable directory.
 3. Write /workspace/out/SUCCESS or /workspace/out/FAILURE so the
-   orchestrator can distinguish a clean exit from a crash — the RunPod
-   REST API does NOT expose container exit codes.
+   orchestrator can distinguish a clean exit from a crash — RunPod's REST
+   API does NOT expose container exit codes.
 
 Re-raises on failure so the Pod exits non-zero (helps surface in logs even
 though the orchestrator only reads the sentinel).
@@ -24,61 +24,64 @@ import sys
 import traceback
 from pathlib import Path
 
-INPUT = Path(os.environ.setdefault("DIRT_KAGGLE_INPUT", "/workspace/input"))
-WORKING = Path(os.environ.setdefault("DIRT_KAGGLE_WORKING", "/workspace/working"))
+INPUT = Path(os.environ.setdefault("DIRT_WAKEWORD_INPUT", "/workspace/input"))
+WORKING = Path(os.environ.setdefault("DIRT_WAKEWORD_WORKING", "/workspace/working"))
 OUT = Path("/workspace/out")
 TARGET_WORD = "hey_claudia"
 TTS_CACHE_DIR = INPUT / "dirt-wakeword-tts-cache"
-TTS_SUBDIRS = ("positive_train", "negative_train", "positive_test", "negative_test")
+
+
+def _hardlink_or_copy(src: Path, dst: Path) -> None:
+    """os.link is ~free (same fs) — only fall back to copy on EXDEV/EPERM."""
+    try:
+        if dst.exists():
+            dst.unlink()
+        os.link(src, dst)
+    except OSError:
+        shutil.copy2(src, dst)
 
 
 def _publish_artifacts() -> None:
-    """Copy what the orchestrator needs to pull off the pod into one dir."""
+    """Stage what the orchestrator pulls off the pod into /workspace/out/."""
     OUT.mkdir(parents=True, exist_ok=True)
-    artifacts_src = WORKING / "my_custom_model"
-    for fname in (f"{TARGET_WORD}.onnx", f"{TARGET_WORD}.tflite"):
-        src = artifacts_src / fname
-        if src.exists():
-            shutil.copy2(src, OUT / fname)
-    report = WORKING / "validation-report.txt"
-    if report.exists():
-        shutil.copy2(report, OUT / "validation-report.txt")
+    onnx_src = WORKING / "my_custom_model" / f"{TARGET_WORD}.onnx"
+    if onnx_src.exists():
+        _hardlink_or_copy(onnx_src, OUT / onnx_src.name)
+    report_src = WORKING / "validation-report.txt"
+    if report_src.exists():
+        _hardlink_or_copy(report_src, OUT / report_src.name)
 
 
 def _persist_tts_cache() -> None:
-    """Copy generated TTS WAVs to the volume so future runs skip Piper.
+    """Hardlink generated TTS WAVs to the volume so future runs skip Piper.
 
-    The library's `restore_tts_cache_if_mounted()` hook (in tts_cache.py)
-    looks for `/workspace/input/dirt-wakeword-tts-cache/` with a matching
-    cache-key.json. If we wrote that here, the next run reads it and
-    short-circuits the ~22 min `--generate_clips` Piper phase.
-
-    Skips silently when the cache is already populated and matches the
-    current run's parameters — re-running v2 onwards shouldn't redo the
-    write since prepare_seed_clips already restored the same WAVs.
+    `restore_tts_cache_if_mounted()` (in tts_cache.py) reads
+    /workspace/input/dirt-wakeword-tts-cache/ at the next run's start; if
+    its cache-key.json matches the current config, the entire ~22 min
+    Piper phase is short-circuited.
     """
-    from dirt_wake_word.config import NUMBER_OF_EXAMPLES, TARGET_WORD as _tw
+    from dirt_wake_word.config import (
+        NUMBER_OF_EXAMPLES,
+        NUMBER_OF_EXAMPLES_VAL,
+        TARGET_WORD as _tw,
+    )
+    from dirt_wake_word.subsets import SUBSETS
 
     expected_key = {
         "target_phrase": _tw.replace("_", " "),
         "n_samples": NUMBER_OF_EXAMPLES,
-        "n_samples_val": max(500, NUMBER_OF_EXAMPLES // 10),
+        "n_samples_val": NUMBER_OF_EXAMPLES_VAL,
     }
     key_path = TTS_CACHE_DIR / "cache-key.json"
-    if key_path.exists():
-        existing = json.loads(key_path.read_text())
-        if existing == expected_key:
-            print(
-                f"=== TTS cache already up-to-date at {TTS_CACHE_DIR} (skipping persist)",
-                flush=True,
-            )
-            return
+    if key_path.exists() and json.loads(key_path.read_text()) == expected_key:
+        print(f"=== TTS cache already up-to-date at {TTS_CACHE_DIR}", flush=True)
+        return
 
     print(f"=== persisting TTS cache to {TTS_CACHE_DIR} ===", flush=True)
     TTS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     src_root = WORKING / "my_custom_model"
     total = 0
-    for subdir in TTS_SUBDIRS:
+    for subdir in SUBSETS:
         src = src_root / subdir
         if not src.is_dir():
             print(f"  (warning) {subdir}/ missing — skipping in cache", flush=True)
@@ -87,7 +90,7 @@ def _persist_tts_cache() -> None:
         dst.mkdir(parents=True, exist_ok=True)
         n = 0
         for wav in src.glob("*.wav"):
-            shutil.copy2(wav, dst / wav.name)
+            _hardlink_or_copy(wav, dst / wav.name)
             n += 1
         total += n
         print(f"  {subdir}: {n} WAVs cached", flush=True)
@@ -98,29 +101,29 @@ def _persist_tts_cache() -> None:
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     WORKING.mkdir(parents=True, exist_ok=True)
-    print(f"DIRT_KAGGLE_INPUT={INPUT}", flush=True)
-    print(f"DIRT_KAGGLE_WORKING={WORKING}", flush=True)
+    print(f"DIRT_WAKEWORD_INPUT={INPUT}", flush=True)
+    print(f"DIRT_WAKEWORD_WORKING={WORKING}", flush=True)
 
     try:
-        # Imported here so an ImportError shows up in the FAILURE sentinel
-        # rather than blowing up before we have a place to write it.
+        # Library import inside try so any ImportError lands in the FAILURE
+        # sentinel rather than killing the entrypoint silently.
         from dirt_wake_word.main import main as wake_word_main
 
         wake_word_main()
         _publish_artifacts()
-        # Persist generated TTS WAVs so v2+ runs skip the ~22 min Piper phase.
-        # Best-effort: a failure here shouldn't fail the run.
         try:
             _persist_tts_cache()
-        except Exception as exc:
-            print(f"WARN: TTS cache persist failed: {exc!r}", flush=True)
+        except OSError:
+            print(
+                f"WARN: TTS cache persist failed:\n{traceback.format_exc()}",
+                flush=True,
+            )
     except BaseException:
         OUT.mkdir(parents=True, exist_ok=True)
         (OUT / "FAILURE").write_text(traceback.format_exc())
-        # Best-effort copy of any partial artifacts so post-mortems have data.
         try:
-            _publish_artifacts()
-        except Exception:
+            _publish_artifacts()  # best-effort: any partial artifacts help post-mortems
+        except OSError:
             pass
         raise
 

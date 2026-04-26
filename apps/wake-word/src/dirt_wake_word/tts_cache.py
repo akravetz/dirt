@@ -1,9 +1,10 @@
 """TTS cache hook — skip Piper TTS when a cached dataset is mounted.
 
-If a `dirt-wakeword-tts-cache` Kaggle dataset is attached to the kernel,
-copy the cached Piper-generated WAVs into the four pre-train directories.
-Upstream's `--generate_clips` then sees ≥95 % of `n_samples` already in
-place and skips Piper entirely.
+If a `dirt-wakeword-tts-cache` dataset (Kaggle attachment, or RunPod
+network-volume directory at /workspace/input/dirt-wakeword-tts-cache/)
+is present, hardlink the cached Piper-generated WAVs into the four
+pre-train directories. Upstream's `--generate_clips` then sees ≥95% of
+n_samples already in place and skips Piper entirely.
 
 Cache invalidation by key file (target_phrase + n_samples + n_samples_val).
 A mismatch causes loud sys.exit, never silent stale-data training.
@@ -12,12 +13,24 @@ A mismatch causes loud sys.exit, never silent stale-data training.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import sys
 from pathlib import Path
 
-from .config import NUMBER_OF_EXAMPLES, TARGET_WORD
+from .config import NUMBER_OF_EXAMPLES, NUMBER_OF_EXAMPLES_VAL, TARGET_WORD
 from .paths import find_dataset
+from .subsets import SUBSETS
+
+
+def _link(src: Path, dst: Path) -> None:
+    """Hardlink src→dst (cheap, same fs); copy on EXDEV (different fs)."""
+    try:
+        if dst.exists():
+            dst.unlink()
+        os.link(src, dst)
+    except OSError:
+        shutil.copy(src, dst)
 
 
 def restore_tts_cache_if_mounted(out_dir: Path) -> bool:
@@ -29,43 +42,39 @@ def restore_tts_cache_if_mounted(out_dir: Path) -> bool:
     cache_key_path = cache_dir / "cache-key.json"
     if not cache_key_path.exists():
         print(
-            f"WARNING: TTS cache attached at {cache_dir} but cache-key.json missing — "
-            "ignoring cache and running Piper"
+            f"WARNING: TTS cache attached at {cache_dir} but cache-key.json "
+            "missing — ignoring cache and running Piper"
         )
         return False
 
     expected = {
         "target_phrase": TARGET_WORD.replace("_", " "),
         "n_samples": NUMBER_OF_EXAMPLES,
-        "n_samples_val": max(500, NUMBER_OF_EXAMPLES // 10),
+        "n_samples_val": NUMBER_OF_EXAMPLES_VAL,
     }
     actual = json.loads(cache_key_path.read_text())
     if actual != expected:
         sys.exit(
             f"FATAL: TTS cache key mismatch.\n  cache: {actual}\n  run:   {expected}\n"
             "Rebuild the cache (operator workflow in apps/wake-word/CLAUDE.md) "
-            "or detach the dataset from this kernel."
+            "or clear /workspace/input/dirt-wakeword-tts-cache/."
         )
 
-    print(f"=== TTS cache hit: copying cached WAVs from {cache_dir}")
+    print(f"=== TTS cache hit: hardlinking cached WAVs from {cache_dir}")
     total = 0
-    for subdir in (
-        "positive_train",
-        "negative_train",
-        "positive_test",
-        "negative_test",
-    ):
+    for subdir in SUBSETS:
         src = cache_dir / subdir
         if not src.is_dir():
             print(
-                f"  (warning) {subdir}/ missing from cache; that subset falls through to Piper"
+                f"  (warning) {subdir}/ missing from cache; "
+                "that subset falls through to Piper"
             )
             continue
         dst = out_dir / TARGET_WORD / subdir
         dst.mkdir(parents=True, exist_ok=True)
         n = 0
         for wav in src.glob("*.wav"):
-            shutil.copy(wav, dst / wav.name)
+            _link(wav, dst / wav.name)
             n += 1
         total += n
         print(f"  {subdir}: {n} WAVs restored")

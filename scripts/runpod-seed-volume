@@ -1,43 +1,41 @@
 #!/usr/bin/env -S uv run --project /home/akcom/code/dirt python -u
-"""One-time seed of a RunPod Network Volume with Kaggle datasets.
+"""One-time seed of a RunPod Network Volume with the four Kaggle datasets.
 
 Spawns a small CPU pod with python:3.11-slim, mounts the Network Volume at
-/workspace, pip-installs the kaggle CLI, and downloads four datasets to
-/workspace/input/<slug>/. The pod exits when the downloads complete; the
-data persists on the Network Volume after `DELETE /pods/{id}`.
+/workspace, downloads the four datasets to /workspace/input/<slug>/. Pod
+exits when the downloads complete; the data persists on the Network Volume
+after `DELETE /pods/{id}`.
 
-Run once per fresh Network Volume — re-running is safe but wastes ~10 min.
+Run once per fresh Network Volume — re-running is idempotent (skips
+already-extracted slugs; resumes a partial unzip in place without
+re-downloading the .zip).
 
-Required env (load via `.env`):
+Required env (.env):
   RUNPOD_API_KEY              — bearer token
-  RUNPOD_NETWORK_VOLUME_ID    — Network Volume to seed (create via the console)
+  RUNPOD_NETWORK_VOLUME_ID    — Network Volume to seed (create via console)
 
-Kaggle auth: reads ~/.kaggle/kaggle.json on the local machine (chmod 600)
-and forwards username/key to the pod as KAGGLE_USERNAME / KAGGLE_KEY env
-vars. The pod never gets the json file directly.
+Kaggle auth: reads ~/.kaggle/kaggle.json on the local machine and forwards
+username/key to the pod as KAGGLE_USERNAME / KAGGLE_KEY env vars.
 
 Usage:
-  scripts/runpod-seed-volume                # download all four datasets
-  scripts/runpod-seed-volume --force        # redownload (--unzip overwrites)
+  scripts/runpod-seed-volume                # idempotent fill
+  scripts/runpod-seed-volume --force        # redownload (--force on kaggle CLI)
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 import textwrap
 import time
 from pathlib import Path
 
-import httpx
-from dotenv import load_dotenv
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _runpod_lib as rp  # noqa: E402
 
-REST_BASE = "https://rest.runpod.io/v1"
-POLL_EVERY_S = 30
-# 17 GB features dataset's download + unzip is the long pole, ~60-90 min
-# on RunPod's outbound. 2.5 h gives runway for retries.
+# 17 GB features dataset's download + unzip is the long pole, ~60–90 min on
+# RunPod's outbound. 2.5 h gives runway for retries.
 MAX_WALL_S = int(2.5 * 60 * 60)
 
 DATASETS = [
@@ -48,31 +46,24 @@ DATASETS = [
 ]
 
 
-def _env(name: str, *, required: bool = True) -> str:
-    v = os.environ.get(name, "").strip()
-    if required and not v:
-        sys.exit(f"error: {name} not set in environment (.env)")
-    return v
-
-
 def _load_kaggle_creds() -> tuple[str, str]:
     path = Path.home() / ".kaggle" / "kaggle.json"
     if not path.exists():
         sys.exit(
             f"error: missing kaggle credentials at {path}\n"
-            "  Generate at https://www.kaggle.com/settings/account → Create New API Token,\n"
-            "  then place at ~/.kaggle/kaggle.json (chmod 600)."
+            "  Create at https://www.kaggle.com/settings/account → API → "
+            "Create New API Token, save to ~/.kaggle/kaggle.json (chmod 600)."
         )
     blob = json.loads(path.read_text())
     return blob["username"], blob["key"]
 
 
-def _build_seed_command(force: bool) -> str:
-    """Bash that runs in the seed pod. Kept here as a textwrap-dedented heredoc
-    instead of Python string concatenation so it reads as actual bash.
+def _build_seed_command(*, force: bool) -> str:
+    """Bash that runs in the seed pod. textwrap.dedent + heredoc so the body
+    reads as actual bash; only `force` and slug list interpolate.
 
     python:3.11-slim ships nothing useful — sshd, unzip, and the kaggle CLI
-    all get installed at the top. The for-loop has three branches:
+    all get installed at the top. The for-loop has three branches per slug:
       partial (zip present)       — re-extract in place, no re-download
       complete (>50 MB, no zip)   — skip
       empty/new                   — kaggle download + unzip
@@ -133,76 +124,41 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    repo_root = Path(__file__).resolve().parent.parent
-    load_dotenv(repo_root / ".env")
-    api_key = _env("RUNPOD_API_KEY")
-    network_volume_id = _env("RUNPOD_NETWORK_VOLUME_ID")
+    rp.load_env()
+    api_key = rp.env("RUNPOD_API_KEY")
+    network_volume_id = rp.env("RUNPOD_NETWORK_VOLUME_ID")
     kaggle_user, kaggle_key = _load_kaggle_creds()
+    pub_key = rp.public_key(required=False)
 
-    client = httpx.Client(
-        base_url=REST_BASE,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        timeout=30.0,
-    )
-
-    pub_key_path = Path.home() / ".ssh" / "runpod_ed25519.pub"
-    public_key = pub_key_path.read_text().strip() if pub_key_path.exists() else ""
-
-    body = {
-        "name": f"wakeword-seed-{time.strftime('%Y%m%d-%H%M%S')}",
+    body = rp.common_pod_body(
+        name=f"wakeword-seed-{time.strftime('%Y%m%d-%H%M%S')}",
+        network_volume_id=network_volume_id,
+        public_key=pub_key,
+    ) | {
         "imageName": "python:3.11-slim",
         "computeType": "CPU",
         "vcpuCount": 4,
         "minRAMPerGPU": 8,
         "containerDiskInGb": 20,
-        "networkVolumeId": network_volume_id,
-        "volumeMountPath": "/workspace",
-        "ports": ["22/tcp"],
-        "supportPublicIp": True,
-        "cloudType": "SECURE",
-        "interruptible": False,
-        "env": {
-            "KAGGLE_USERNAME": kaggle_user,
-            "KAGGLE_KEY": kaggle_key,
-            "PUBLIC_KEY": public_key,
-            "PYTHONUNBUFFERED": "1",
-        },
-        "dockerStartCmd": ["bash", "-c", _build_seed_command(args.force)],
+        "dockerStartCmd": ["bash", "-c", _build_seed_command(force=args.force)],
+    }
+    body["env"] |= {
+        "KAGGLE_USERNAME": kaggle_user,
+        "KAGGLE_KEY": kaggle_key,
+        "PYTHONUNBUFFERED": "1",
     }
 
-    r = client.post("/pods", json=body)
-    if r.status_code >= 400:
-        sys.exit(f"error: POST /pods → {r.status_code}: {r.text}")
-    pod_id = r.json()["id"]
+    http = rp.client(api_key)
+    pod_id = rp.create_pod(http, body)
     print(f"created seed pod {pod_id}")
     print("  inspect logs at https://www.console.runpod.io/pods")
 
     deadline = time.monotonic() + MAX_WALL_S
-    final_status = ""
-    try:
-        while time.monotonic() < deadline:
-            pod = client.get(f"/pods/{pod_id}").json()
-            status = pod.get("desiredStatus", "")
-            ts = time.strftime("%H:%M:%S")
-            print(f"  {ts} pod {pod_id} status={status}")
-            if status in ("EXITED", "TERMINATED"):
-                final_status = status
-                break
-            time.sleep(POLL_EVERY_S)
-        else:
-            sys.exit(f"timeout: pod {pod_id} did not finish within {MAX_WALL_S}s")
-    finally:
-        try:
-            client.delete(f"/pods/{pod_id}").raise_for_status()
-            print(f"deleted pod {pod_id}")
-        except Exception as exc:
-            print(f"WARN: pod {pod_id} delete failed: {exc!r}", file=sys.stderr)
+    with rp.leased_pod(http, pod_id):
+        status = rp.wait_for_exit(http, pod_id, deadline=deadline, poll_every=30)
 
-    if final_status != "EXITED":
-        sys.exit(f"seed pod did not reach EXITED (was: {final_status})")
+    if status != "EXITED":
+        sys.exit(f"seed pod ended in {status}, not EXITED")
     print("=== seed complete; volume is ready for trainer pods ===")
     return 0
 

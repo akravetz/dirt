@@ -1,15 +1,21 @@
 #!/usr/bin/env bash
-# Build + push the wake-word trainer image to GHCR.
+# Build + smoke + push the wake-word trainer image to GHCR.
 #
 # Prereqs:
 #   - Docker daemon running locally (with buildx for linux/amd64 cross-build).
 #   - `gh auth token` works AND grants write:packages, OR you've already
 #     `docker login ghcr.io` with a PAT that has write:packages scope.
 #
+# Three steps, in order, each blocking the next:
+#   1. buildx build → tag locally (always loaded, even when pushing)
+#   2. scripts/smoke-trainer-image → tiny end-to-end run against fixtures
+#   3. push to GHCR (skipped on --no-push or --skip-smoke-and-push)
+#
 # Usage:
-#   scripts/runpod-build-image                       # tag :latest, push
-#   scripts/runpod-build-image v1                    # tag :v1, push
-#   scripts/runpod-build-image latest --no-push      # build only
+#   scripts/runpod-build-image                       # build + smoke + push
+#   scripts/runpod-build-image v1                    # tag :v1
+#   scripts/runpod-build-image latest --no-push      # build + smoke, skip push
+#   scripts/runpod-build-image latest --skip-smoke   # build + push without smoke (debug only)
 
 set -euo pipefail
 
@@ -18,31 +24,41 @@ GHCR_OWNER="${GHCR_OWNER:-akravetz}"
 IMAGE="ghcr.io/${GHCR_OWNER}/dirt-wake-word-trainer"
 TAG="${1:-latest}"
 NO_PUSH=0
-[ "${2:-}" = "--no-push" ] && NO_PUSH=1
+SKIP_SMOKE=0
+case "${2:-}" in
+  --no-push)     NO_PUSH=1 ;;
+  --skip-smoke)  SKIP_SMOKE=1 ;;
+esac
 
 cd "$REPO_ROOT/apps/wake-word"
 
-# Ensure GHCR login. If `gh` is around, use its token; otherwise rely on a
-# previous `docker login`.
+# GHCR login (only matters for the push step but cheap to do up-front).
 if command -v gh >/dev/null 2>&1 && gh auth token >/dev/null 2>&1; then
   gh auth token | docker login ghcr.io -u "$GHCR_OWNER" --password-stdin
 fi
 
+# Build, always --load so the local daemon has the tag available for smoke.
 echo "==> docker buildx build linux/amd64 -> $IMAGE:$TAG"
-if [ "$NO_PUSH" = "1" ]; then
-  docker buildx build \
-    --platform linux/amd64 \
-    -f docker/Dockerfile \
-    -t "$IMAGE:$TAG" \
-    --load \
-    .
-  echo "built (--no-push); image is in your local docker daemon as $IMAGE:$TAG"
+docker buildx build \
+  --platform linux/amd64 \
+  -f docker/Dockerfile \
+  -t "$IMAGE:$TAG" \
+  --load \
+  .
+
+# Smoke. Blocks push on failure — saves a $3 H100 round-trip per regression.
+if [ "$SKIP_SMOKE" = "1" ]; then
+  echo "==> --skip-smoke set; SKIPPING smoke (debug only)"
 else
-  docker buildx build \
-    --platform linux/amd64 \
-    -f docker/Dockerfile \
-    -t "$IMAGE:$TAG" \
-    --push \
-    .
-  echo "pushed $IMAGE:$TAG"
+  echo "==> running end-to-end smoke against $IMAGE:$TAG"
+  "$REPO_ROOT/scripts/smoke-trainer-image" "$TAG"
 fi
+
+if [ "$NO_PUSH" = "1" ]; then
+  echo "built + smoked (--no-push); image tagged $IMAGE:$TAG locally"
+  exit 0
+fi
+
+echo "==> docker push $IMAGE:$TAG"
+docker push "$IMAGE:$TAG"
+echo "pushed $IMAGE:$TAG"

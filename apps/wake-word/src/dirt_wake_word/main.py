@@ -1,8 +1,9 @@
-"""Orchestrator. Called by the Kaggle kernel shim.
+"""End-to-end training orchestrator.
 
-The shim's job is to install runtime deps and put us on the path, then call
-this `main()` — which from this point on operates entirely through the
-testable library.
+Called by the trainer entrypoint (apps/wake-word/docker/entrypoint.py on
+RunPod, apps/wake-word/kaggle/train-hey-claudia.py on the legacy Kaggle
+path). Each phase is wrapped in `phase(...)` for wall-time accounting in
+the run log.
 """
 
 from __future__ import annotations
@@ -10,7 +11,6 @@ from __future__ import annotations
 import time
 
 from .config import TARGET_WORD, build_config
-from .export import export_artifacts
 from .paths import KAGGLE_WORKING, expected_inputs, out_dir, verify_inputs
 from .seed import prepare_seed_clips
 from .timing import phase
@@ -27,8 +27,6 @@ def main() -> None:
 
     with phase("verify_inputs"):
         verify_inputs(inputs)
-    # NOTE: install_dependencies runs in the kernel shim BEFORE this main()
-    # is imported. By the time we get here, all heavy ML deps are installed.
     with phase("verify_imports"):
         verify_imports()
     with phase("build_config"):
@@ -42,17 +40,12 @@ def main() -> None:
             out_dir=out,
             target_word=TARGET_WORD,
         )
-    with phase("export"):
-        export_artifacts(out_dir=out, working_dir=work, target_word=TARGET_WORD)
     with phase("validate_against_real_set"):
         validate_against_real_set(work_dir=work, out_dir=out, expected_inputs=inputs)
+
     total = time.monotonic() - t_start
     m, s = divmod(total, 60)
-    print(
-        f"\n=== TOTAL elapsed={total:.1f}s ({int(m)}m{s:.1f}s)\n"
-        "Training complete. Pull artifacts with: "
-        "kaggle kernels output <kernel-slug>"
-    )
+    print(f"\n=== TOTAL elapsed={total:.1f}s ({int(m)}m{s:.1f}s) ===")
 
 
 if __name__ == "__main__":

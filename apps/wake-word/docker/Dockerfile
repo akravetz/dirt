@@ -13,15 +13,16 @@
 FROM runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04
 
 ENV PYTHONUNBUFFERED=1 \
-    DIRT_KAGGLE_INPUT=/workspace/input \
-    DIRT_KAGGLE_WORKING=/workspace/working \
+    DIRT_WAKEWORD_INPUT=/workspace/input \
+    DIRT_WAKEWORD_WORKING=/workspace/working \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1
 
 WORKDIR /opt
 
-# Most of these are present in the runpod/pytorch base image; explicit just
-# in case a future tag drops one.
+# cmake + build-essential are needed to build acoustics 0.2.6 from source
+# (no manylinux wheel for cp311). Other tools are usually present in the
+# base; explicit so a future base-image tag dropping them isn't silent.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         git wget ca-certificates cmake build-essential \
     && rm -rf /var/lib/apt/lists/*
@@ -45,22 +46,26 @@ RUN git clone https://github.com/rhasspy/piper-sample-generator \
        https://github.com/rhasspy/piper-sample-generator/releases/download/v2.0.0/en_US-libritts_r-medium.pt \
  && git checkout 213d4d5
 
-# ----------------------------------------------------------------------------
-# Audio + ML stack (the heavy pip batch the Kaggle shim used to do at run
-# time). Pinning the same versions that worked on Kaggle.
-# ----------------------------------------------------------------------------
+# Audio + ML stack. Pinned versions that worked on the Kaggle path port
+# cleanly to the RunPod base image given the scipy<1.15 constraint below.
 RUN pip install \
         piper-tts piper-phonemize-cross webrtcvad \
         mutagen==1.47.0 torchinfo==1.8.0 torchmetrics==1.2.0 \
         speechbrain==0.5.14 audiomentations==0.33.0 torch-audiomentations==0.11.0 \
-        acoustics==0.2.6 onnxruntime==1.22.1 ai_edge_litert==1.4.0 onnxsim \
-        onnx2tf onnx==1.19.1 onnx_graphsurgeon sng4onnx pronouncing==0.2.0 \
-        datasets==2.14.6 deep-phonemizer==0.0.19 \
+        acoustics==0.2.6 onnxruntime==1.22.1 onnx \
+        pronouncing==0.2.0 datasets==2.14.6 deep-phonemizer==0.0.19 \
         "scipy<1.15"
+# onnx — needed by torch.onnx.export (openwakeword.export_model) to write
+# the trained .onnx artifact. Not the same as onnxruntime (inference).
 # scipy<1.15 — acoustics 0.2.6 imports `sph_harm` from scipy.special, which
 # scipy 1.15 removed (renamed to sph_harm_y with a transposed signature).
-# The runpod/pytorch base ships scipy 1.15+, so without this pin every
-# import of openwakeword.data dies. Burned one $3 H100 run finding this out.
+# The runpod/pytorch base ships scipy 1.15+, so the pin is mandatory.
+#
+# Not running `pip check` — openwakeword pins `ai-edge-litert` and
+# `speexdsp-ns` for its tflite inference path which we don't use, and the
+# runpod/pytorch base has unrelated noise (pygobject/pycairo). The
+# `from dirt_wake_word.main import main` smoke at the end of this file
+# exercises the actual import chain we care about.
 
 # ----------------------------------------------------------------------------
 # openwakeword's bundled embedding + melspectrogram ONNX/tflite resources.

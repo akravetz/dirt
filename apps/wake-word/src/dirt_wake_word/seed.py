@@ -6,17 +6,14 @@ The canonical injection is to drop files into
 `--generate_clips` — upstream's `--generate_clips` then sees `len(...) >=
 0.95 * n_samples` and either skips TTS or tops up the rest.
 
-Naming convention (matters for the per-subset augmentation in augment.py):
-    positive_train/synth_clone_<orig>.wav      ElevenLabs voice clones
-    positive_train/realmic_pos_<orig>.wav      Hand-recorded "hey claudia"
-    negative_train/synth_neighbor_<orig>.wav   ElevenLabs phonetic neighbors
-    negative_train/realmic_neg_<orig>.wav      Hand-recorded non-wake phrases
-    negative_train/harvested_<orig>.wav        Real var/logs/wake_audio/ captures
+The filename prefixes here (synth_clone_, realmic_pos_, etc.) are the
+contract that augment.py reads to pick the per-subset augmentation
+pipeline. The canonical list lives in `subsets.py`.
 """
 
 from __future__ import annotations
 
-import shutil
+import os
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -28,6 +25,25 @@ from .config import (
     REALMIC_POSITIVE_DUPLICATION,
     TARGET_WORD,
 )
+from .subsets import (
+    PREFIX_HARVESTED,
+    PREFIX_REALMIC_NEG,
+    PREFIX_REALMIC_POS,
+    PREFIX_SYNTH_CLONE,
+    PREFIX_SYNTH_NEIGHBOR,
+)
+
+
+def _link_dup(src: Path, dst: Path) -> None:
+    """Hardlink src→dst (cheap on the same fs); fall back to copy on EXDEV."""
+    try:
+        if dst.exists():
+            dst.unlink()
+        os.link(src, dst)
+    except OSError:
+        import shutil
+
+        shutil.copy(src, dst)
 
 
 def seed_dir(
@@ -36,15 +52,16 @@ def seed_dir(
     prefix: str,
     n_dup: int,
 ) -> int:
-    """Copy each source file into dest_dir n_dup times with `prefix` filename.
+    """Hardlink each source into dest_dir n_dup times with `prefix` filename.
 
     Returns the number of files written (= len(src_files) × n_dup).
+    Always uses a `_dupN` suffix so re-runs with a different `n_dup` produce
+    consistent filenames.
     """
     written = 0
     for src in src_files:
         for i in range(n_dup):
-            suffix = f"_dup{i}" if n_dup > 1 else ""
-            shutil.copy(src, dest_dir / f"{prefix}{src.stem}{suffix}.wav")
+            _link_dup(src, dest_dir / f"{prefix}{src.stem}_dup{i}.wav")
             written += 1
     return written
 
@@ -56,15 +73,13 @@ def prepare_seed_clips(
 ) -> dict[str, int]:
     """Seed positive_train/ + negative_train/ with all our user-provided WAVs.
 
-    Returns a dict of counts (after duplication) for logging:
-      {clones, realmic_pos, synth_neg, realmic_neg, harvested}
+    Returns a dict of post-duplication counts for logging.
     """
     pos_train = out_dir / TARGET_WORD / "positive_train"
     neg_train = out_dir / TARGET_WORD / "negative_train"
     pos_train.mkdir(parents=True, exist_ok=True)
     neg_train.mkdir(parents=True, exist_ok=True)
 
-    # ---- Positives: split synthetic-clone from real-mic by filename prefix ----
     pos_src = expected_inputs["voice_samples"]
     realmic_pos_files = sorted(pos_src.glob("realmic-pos_*.wav"))
     synth_clone_files = [
@@ -72,31 +87,29 @@ def prepare_seed_clips(
         for p in sorted(pos_src.glob("*.wav"))
         if not p.name.startswith("realmic-pos_")
     ]
-    n_clones = seed_dir(synth_clone_files, pos_train, "synth_clone_", CLONE_DUPLICATION)
+    n_clones = seed_dir(
+        synth_clone_files, pos_train, PREFIX_SYNTH_CLONE, CLONE_DUPLICATION
+    )
     n_realmic_pos = seed_dir(
-        realmic_pos_files, pos_train, "realmic_pos_", REALMIC_POSITIVE_DUPLICATION
+        realmic_pos_files, pos_train, PREFIX_REALMIC_POS, REALMIC_POSITIVE_DUPLICATION
     )
 
-    # ---- Negatives: split synthetic / realmic / harvested by filename prefix ----
-    neg_src = expected_inputs["negatives_dir"]
     n_synth = n_realmic_neg = n_harv = 0
+    neg_src = expected_inputs["negatives_dir"]
     if neg_src.exists():
         all_negs = sorted(neg_src.glob("*.wav"))
         harvested = [p for p in all_negs if p.name.startswith("harvested_")]
         realmic_neg = [p for p in all_negs if p.name.startswith("realmic-neg_")]
         synthetic = [
-            p
-            for p in all_negs
-            if not p.name.startswith("harvested_")
-            and not p.name.startswith("realmic-neg_")
+            p for p in all_negs if not p.name.startswith(("harvested_", "realmic-neg_"))
         ]
         n_synth = seed_dir(
-            synthetic, neg_train, "synth_neighbor_", NEIGHBOR_DUPLICATION
+            synthetic, neg_train, PREFIX_SYNTH_NEIGHBOR, NEIGHBOR_DUPLICATION
         )
         n_realmic_neg = seed_dir(
-            realmic_neg, neg_train, "realmic_neg_", REALMIC_NEGATIVE_DUPLICATION
+            realmic_neg, neg_train, PREFIX_REALMIC_NEG, REALMIC_NEGATIVE_DUPLICATION
         )
-        n_harv = seed_dir(harvested, neg_train, "harvested_", HARVESTED_DUPLICATION)
+        n_harv = seed_dir(harvested, neg_train, PREFIX_HARVESTED, HARVESTED_DUPLICATION)
 
     print(
         f"Seeded positives: {n_clones} synth-clone (×{CLONE_DUPLICATION}) "

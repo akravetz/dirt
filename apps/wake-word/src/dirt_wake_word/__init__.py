@@ -1,7 +1,6 @@
-"""dirt-wake-word — wake-word retraining pipeline.
+"""dirt-wake-word — wake-word retraining pipeline library.
 
-This package is a placeholder during the refactor. The real library code
-will be extracted from `apps/wake-word/kaggle/train-hey-claudia.py` in
-upcoming steps. For now the package just exists so the uv workspace loads
-and pytest can collect tests.
+Entry point: `dirt_wake_word.main.main()`. Called from the RunPod docker
+entrypoint (apps/wake-word/docker/entrypoint.py) and the legacy Kaggle
+kernel shim. See apps/wake-word/CLAUDE.md for the full operating manual.
 """

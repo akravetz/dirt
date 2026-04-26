@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
+# LEGACY — prefer scripts/runpod-train. Kept until the RunPod path produces
+# its first successful trained model (see wiki/decisions/2026-04-25-runpod-migration.md).
+#
 # Push the wake-word training kernel to Kaggle, poll until it finishes, pull
-# the trained ONNX + tflite artifacts into the current directory.
+# the trained .onnx into the current directory.
 #
 # Prerequisites:
 #   - kaggle is installed as a workspace dev dep (`uv add --dev kaggle`)

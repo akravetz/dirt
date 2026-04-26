@@ -26,6 +26,7 @@ from openwakeword.data import augment_clips
 from openwakeword.utils import compute_features_from_generator
 
 from .config import TARGET_WORD
+from .subsets import SUBSETS, is_real_audio
 
 DEFAULTS = {
     "SevenBandParametricEQ": 0.25,
@@ -39,22 +40,19 @@ DEFAULTS = {
 }
 REAL_AUDIO = {**DEFAULTS, "RIR": 0.0, "AddBackgroundNoise": 0.5}
 
-SUBSETS = (
-    ("positive_train", "positive_features_train.npy"),
-    ("negative_train", "negative_features_train.npy"),
-    ("positive_test", "positive_features_test.npy"),
-    ("negative_test", "negative_features_test.npy"),
-)
 
-
-def _is_real_audio(name: str) -> bool:
-    return name.startswith("realmic_") or name.startswith("harvested_")
+# openwakeword expects feature files at well-known names per subset.
+def _features_filename(subset: str) -> str:
+    pos_neg, train_test = subset.split("_")
+    return f"{pos_neg}_features_{train_test}.npy"
 
 
 def _compute_total_length(positive_test_dir: Path, *, n_sample: int = 50) -> int:
-    """Median clip length + 750 ms buffer, floored at 32000 (2 s @ 16 kHz).
+    """Median clip length + 750 ms buffer, floored at 32000 samples (2 s).
 
-    Ports upstream openwakeword/train.py's calculation — soft-fork skipped it.
+    Ported from upstream openwakeword/train.py — our soft-fork skips the
+    code path that originally set config["total_length"]. Numbers are in
+    samples (16 kHz), so 1000 ≈ 62.5 ms and 12000 ≈ 750 ms.
     """
     clips = sorted(positive_test_dir.glob("*.wav"))
     if not clips:
@@ -66,6 +64,8 @@ def _compute_total_length(positive_test_dir: Path, *, n_sample: int = 50) -> int
         with wave.open(str(path), "rb") as w:
             durations.append(w.getnframes())
     total = int(round(np.median(durations) / 1000) * 1000) + 12000
+    # Snap to 32 000 for both "below 2 s" and "near 2 s" clips — upstream
+    # convention; simplifies feature-shape assumptions downstream.
     if total < 32000 or abs(total - 32000) <= 4000:
         total = 32000
     return total
@@ -105,11 +105,11 @@ def augment_and_compute_features(*, work_dir: Path, out_dir: Path) -> None:
     device = "gpu" if torch.cuda.is_available() else "cpu"
 
     print("=== per-subset augmentation + feature compute (v8) ===", flush=True)
-    for subset_name, out_npy in SUBSETS:
+    for subset_name in SUBSETS:
         subset_dir = out_dir / TARGET_WORD / subset_name
         all_files = sorted(str(f) for f in subset_dir.glob("*.wav"))
-        synth = [f for f in all_files if not _is_real_audio(Path(f).name)]
-        real = [f for f in all_files if _is_real_audio(Path(f).name)]
+        synth = [f for f in all_files if not is_real_audio(Path(f).name)]
+        real = [f for f in all_files if is_real_audio(Path(f).name)]
         if not synth and not real:
             print(f"  {subset_name}: empty, skipping", flush=True)
             continue
@@ -142,7 +142,7 @@ def augment_and_compute_features(*, work_dir: Path, out_dir: Path) -> None:
                 )
             )
 
-        out_path = feature_save_dir / out_npy
+        out_path = feature_save_dir / _features_filename(subset_name)
         print(
             f"  {subset_name}: {len(synth)} synth (×{rounds}, RIR=0.5) + "
             f"{len(real)} realroom (×{rounds}, RIR=0) → {out_path.name}",

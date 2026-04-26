@@ -23,7 +23,12 @@ from openwakeword.data import mmap_batch_generator
 from openwakeword.train import Model
 
 from .augment import augment_and_compute_features
-from .paths import expected_inputs as _expected_inputs_for_validation
+from .paths import (
+    expected_inputs as _expected_inputs_for_validation,
+)
+from .paths import (
+    find_openwakeword_source,
+)
 from .select import select_best_by_real_f1
 from .timing import phase, sh
 from .tts_cache import restore_tts_cache_if_mounted
@@ -37,7 +42,7 @@ def custom_train(
     target_word: str,
 ) -> None:
     """End-to-end training: TTS-cache restore → generate → augment → train."""
-    train_py = work_dir / "openwakeword/openwakeword/train.py"
+    train_py = find_openwakeword_source() / "openwakeword/train.py"
     with phase("restore_tts_cache"):
         restore_tts_cache_if_mounted(out_dir)
     with phase("generate_clips"):

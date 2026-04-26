@@ -1,10 +1,15 @@
-"""Kaggle path discovery + EXPECTED_INPUTS mapping.
+"""Trainer path discovery — input datasets and working scratch.
 
-All paths are env-overridable so the test suite can point them at a
-tmp_path-backed fake `/kaggle/input/` and `/kaggle/working/` tree:
+Two runtimes:
+  - RunPod (primary): a Network Volume mounts at /workspace, with seeded
+    datasets at /workspace/input/<slug>/ and trainer scratch at
+    /workspace/working/.
+  - Legacy Kaggle kernel: /kaggle/input + /kaggle/working.
 
-    DIRT_KAGGLE_INPUT    overrides /kaggle/input
-    DIRT_KAGGLE_WORKING  overrides /kaggle/working
+Roots are env-overridable so the smoke test can point them at tmp_path
+fixtures. Both env-var names accept either prefix; new code should use
+DIRT_WAKEWORD_*, but the older DIRT_KAGGLE_* names work for the Kaggle
+shim until that path is retired (see wiki/decisions/2026-04-25-runpod-migration.md).
 """
 
 from __future__ import annotations
@@ -13,26 +18,57 @@ import os
 import sys
 from pathlib import Path
 
-KAGGLE_INPUT = Path(os.environ.get("DIRT_KAGGLE_INPUT", "/kaggle/input"))
-KAGGLE_WORKING = Path(os.environ.get("DIRT_KAGGLE_WORKING", "/kaggle/working"))
+
+def _root(*env_names: str, default: str) -> Path:
+    """First non-empty env value, else default."""
+    for name in env_names:
+        v = os.environ.get(name, "").strip()
+        if v:
+            return Path(v)
+    return Path(default)
 
 
-def find_dataset(slug: str, owner: str = "akravetz") -> Path:
-    """Return the mount path for a Kaggle dataset, probing both possible layouts.
+# DIRT_KAGGLE_* names retained as fallbacks for the legacy shim.
+KAGGLE_INPUT = _root(
+    "DIRT_WAKEWORD_INPUT", "DIRT_KAGGLE_INPUT", default="/kaggle/input"
+)
+KAGGLE_WORKING = _root(
+    "DIRT_WAKEWORD_WORKING", "DIRT_KAGGLE_WORKING", default="/kaggle/working"
+)
 
-    GPU/CPU runtimes mount at /kaggle/input/<slug>/.
-    TPU runtime mounts at /kaggle/input/datasets/<owner>/<slug>/.
-    Returns the first candidate that exists; if neither does, returns the
-    primary candidate (caller's `verify_inputs` will print a useful tree).
-    """
-    candidates = [
-        KAGGLE_INPUT / slug,
-        KAGGLE_INPUT / "datasets" / owner / slug,
-    ]
+
+def _first_existing(candidates: list[Path]) -> Path | None:
     for c in candidates:
         if c.exists():
             return c
-    return candidates[0]
+    return None
+
+
+def find_openwakeword_source() -> Path:
+    """Locate the cloned openwakeword source repo (used by build_config + train).
+
+    RunPod: cloned at Docker build time into /opt/openwakeword/.
+    Kaggle: cloned by the kernel shim into /kaggle/working/openwakeword/.
+    """
+    candidates = [Path("/opt/openwakeword"), KAGGLE_WORKING / "openwakeword"]
+    found = _first_existing(candidates)
+    if found is None:
+        raise FileNotFoundError(
+            f"openwakeword source repo not found in any of: {candidates}"
+        )
+    return found
+
+
+def find_dataset(slug: str, owner: str = "akravetz") -> Path:
+    """Return the mount path for a dataset, probing both Kaggle layouts.
+
+    Standard layout (RunPod + Kaggle GPU/CPU): <input>/<slug>/.
+    Legacy Kaggle TPU layout: <input>/datasets/<owner>/<slug>/.
+    Returns the first candidate that exists; falls back to the primary so
+    `verify_inputs` can print a useful diagnostic.
+    """
+    candidates = [KAGGLE_INPUT / slug, KAGGLE_INPUT / "datasets" / owner / slug]
+    return _first_existing(candidates) or candidates[0]
 
 
 def expected_inputs(target_word: str) -> dict[str, Path]:
@@ -56,27 +92,34 @@ def expected_inputs(target_word: str) -> dict[str, Path]:
 
 
 def out_dir() -> Path:
-    """Where trained model artifacts get written. Auto-published by Kaggle."""
+    """Trainer artifact root — written under <working>/my_custom_model/.
+
+    On RunPod the entrypoint copies the .onnx + report up to /workspace/out/
+    after training. On Kaggle, files here are auto-published as kernel output.
+    """
     return KAGGLE_WORKING / "my_custom_model"
 
 
 def verify_inputs(expected: dict[str, Path]) -> None:
     """Fail fast if any expected mount is missing."""
     missing = [name for name, p in expected.items() if not p.exists()]
-    if missing:
-        print("=== /kaggle/input/ tree (3 levels) ===", file=sys.stderr)
-        if KAGGLE_INPUT.exists():
-            for path in sorted(KAGGLE_INPUT.rglob("*")):
-                rel = path.relative_to(KAGGLE_INPUT)
-                if len(rel.parts) <= 3:
-                    print(f"  {rel}", file=sys.stderr)
-        else:
-            print("  (input root does not exist)", file=sys.stderr)
-        print("=== expected mounts ===", file=sys.stderr)
-        for name in missing:
-            print(f"  MISSING: {name} -> {expected[name]}", file=sys.stderr)
-        raise SystemExit(
-            "One or more expected Kaggle dataset mounts are missing. "
-            "Check kernel-metadata.json `dataset_sources` and dataset contents."
-        )
-    print("All expected input mounts present.")
+    if not missing:
+        print("All expected input mounts present.")
+        return
+
+    print(f"=== {KAGGLE_INPUT}/ tree (3 levels) ===", file=sys.stderr)
+    if KAGGLE_INPUT.exists():
+        for path in sorted(KAGGLE_INPUT.rglob("*")):
+            rel = path.relative_to(KAGGLE_INPUT)
+            if len(rel.parts) <= 3:
+                print(f"  {rel}", file=sys.stderr)
+    else:
+        print("  (input root does not exist)", file=sys.stderr)
+    print("=== expected mounts ===", file=sys.stderr)
+    for name in missing:
+        print(f"  MISSING: {name} -> {expected[name]}", file=sys.stderr)
+    raise SystemExit(
+        "One or more expected dataset mounts are missing. "
+        "On RunPod, re-run scripts/runpod-seed-volume; "
+        "on Kaggle, check kernel-metadata.json dataset_sources."
+    )

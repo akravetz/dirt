@@ -82,7 +82,9 @@ def select_best_by_real_f1(
         slug = f"cand_{i:03d}"
         oww.export_model(model=model, model_name=slug, output_dir=str(tmp_dir))
         onnx_path = tmp_dir / f"{slug}.onnx"
-        infer = InferenceModel(wakeword_model_paths=[str(onnx_path)])
+        infer = InferenceModel(
+            wakeword_models=[str(onnx_path)], inference_framework="onnx"
+        )
         name = next(iter(infer.models.keys()))
         good_scores = _score_clips(infer, name, good_paths)
         bad_scores = _score_clips(infer, name, bad_paths)

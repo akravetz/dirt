@@ -29,7 +29,7 @@ def validate_against_real_set(
         return
 
     chunk = 1280  # 80 ms at 16 kHz
-    model = Model(wakeword_model_paths=[str(onnx_path)])
+    model = Model(wakeword_models=[str(onnx_path)], inference_framework="onnx")
     name = next(iter(model.models.keys()))
 
     def peak(wav_path: Path) -> float:

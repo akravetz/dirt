@@ -1,0 +1,101 @@
+#!/usr/bin/env -S uv run --project /home/akcom/code/dirt python -u
+"""Generate the smoke-test fixture tree at var/wake-word/smoke-fixtures/.
+
+Mirrors apps/wake-word/tests/conftest.py:fake_kaggle but writes to disk so
+docker can mount it as /workspace/input/. Idempotent — re-running rewrites
+the same WAVs/NPYs in place.
+
+Layout produced:
+  var/wake-word/smoke-fixtures/
+    dirt-wakeword-mine/
+      voice_samples/      (5 hey_claudia + 2 realmic-pos)
+      rirs/               (2 RIRs)
+      negatives/          (5 hey_clyde + 2 realmic-neg)
+    dirt-wakeword-bg/
+      audioset_16k/       (50 noisy WAVs)
+      fma/                (50 noisy WAVs)
+    dirt-wakeword-features/
+      openwakeword_features_ACAV100M_2000_hrs_16bit.npy  (zeros stub)
+      validation_set_features.npy                         (zeros stub)
+    dirt-wakeword-validation/
+      good/               (4 noisy WAVs)
+      bad/                (4 noisy WAVs)
+
+Total ~50 MB on disk.
+"""
+
+from __future__ import annotations
+
+import wave
+from pathlib import Path
+
+import numpy as np
+
+SR = 16000
+
+
+def _write_noisy_wav(path: Path, duration_s: float = 1.5, amplitude: int = 1000) -> None:
+    n_samples = int(duration_s * SR)
+    rng = np.random.default_rng(hash(str(path)) & 0xFFFFFFFF)
+    data = rng.integers(-amplitude, amplitude, size=n_samples, dtype=np.int16)
+    with wave.open(str(path), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(SR)
+        w.writeframes(data.tobytes())
+
+
+def main() -> None:
+    repo_root = Path(__file__).resolve().parent.parent
+    root = repo_root / "var" / "wake-word" / "smoke-fixtures"
+    print(f"writing fixtures to {root}")
+
+    mine = root / "dirt-wakeword-mine"
+    (mine / "voice_samples").mkdir(parents=True, exist_ok=True)
+    (mine / "rirs").mkdir(parents=True, exist_ok=True)
+    (mine / "negatives").mkdir(parents=True, exist_ok=True)
+    for i in range(5):
+        _write_noisy_wav(mine / "voice_samples" / f"hey_claudia_{i:03d}.wav", amplitude=2000)
+    for i in range(2):
+        _write_noisy_wav(mine / "voice_samples" / f"realmic-pos_{i:03d}.wav", amplitude=2000)
+    for i in range(2):
+        _write_noisy_wav(mine / "rirs" / f"pos_{i}.wav", duration_s=0.2, amplitude=4000)
+    for i in range(5):
+        _write_noisy_wav(mine / "negatives" / f"hey_clyde_{i:03d}.wav", amplitude=2000)
+    for i in range(2):
+        _write_noisy_wav(mine / "negatives" / f"realmic-neg_{i:03d}.wav", amplitude=2000)
+
+    bg = root / "dirt-wakeword-bg"
+    (bg / "audioset_16k").mkdir(parents=True, exist_ok=True)
+    (bg / "fma").mkdir(parents=True, exist_ok=True)
+    for i in range(50):
+        _write_noisy_wav(bg / "audioset_16k" / f"as_{i:03d}.wav", duration_s=2.0)
+        _write_noisy_wav(bg / "fma" / f"fma_{i:03d}.wav", duration_s=2.0)
+
+    features = root / "dirt-wakeword-features"
+    features.mkdir(parents=True, exist_ok=True)
+    # Real openwakeword features are 16-frame stacks of 96-dim vectors. For
+    # the smoke test we just need the file to exist and have the right dtype/
+    # shape so np.load + reshape doesn't blow up; the actual tensor values
+    # don't drive any assertions in this run.
+    np.save(
+        features / "openwakeword_features_ACAV100M_2000_hrs_16bit.npy",
+        np.zeros((1000, 96), dtype=np.float32),
+    )
+    np.save(
+        features / "validation_set_features.npy",
+        np.zeros((1000, 96), dtype=np.float32),
+    )
+
+    validation = root / "dirt-wakeword-validation"
+    (validation / "good").mkdir(parents=True, exist_ok=True)
+    (validation / "bad").mkdir(parents=True, exist_ok=True)
+    for i in range(4):
+        _write_noisy_wav(validation / "good" / f"good_{i:03d}.wav")
+        _write_noisy_wav(validation / "bad" / f"bad_{i:03d}.wav")
+
+    print("done")
+
+
+if __name__ == "__main__":
+    main()
