@@ -27,6 +27,14 @@ from datetime import UTC, datetime
 import httpx
 from kasa import Credentials, Device, Discover
 
+from dirt_hwd.services.humidifier_pi import (
+    PIConfig,
+    PIInput,
+    PIState,
+)
+from dirt_hwd.services.humidifier_pi import (
+    compute as pi_compute,
+)
 from dirt_shared.config import HumidifierConfig
 from dirt_shared.models.enums import SensorLocation, SensorSource
 from dirt_shared.observability import log_event
@@ -37,6 +45,19 @@ from dirt_shared.services.telegram import TelegramClient, TelegramError
 logger = logging.getLogger(__name__)
 
 STREAM = "humidifier"
+SHADOW_STREAM = "humidifier_shadow"
+
+# Conservative starting gains (Phase 4 prep — shadow only, not actuating).
+# Sourced from FOPDT-fit findings (2026-04-25) at the *low end* of the
+# bracket; refined under shadow-mode + graduated-step test in Phase 2/3
+# acceptance, not by edits to this constant during the prep phase.
+# See: docs/epics/continuous-humidifier/fopdt-fit-findings.md
+_SHADOW_PI_KC = 8.0
+_SHADOW_PI_KI = 0.01
+_SHADOW_PI_INTEGRATOR_CLAMP = 50.0
+_SHADOW_PI_THRESHOLD = 5.0
+_SHADOW_PI_THRESHOLD_HYSTERESIS = 1.0
+_SHADOW_PI_NIGHT_OFFSET_KPA = -0.3
 
 
 async def _safe_disconnect(plug: Device | None) -> None:
@@ -161,6 +182,17 @@ class HumidifierLoopService:
 
         plug: Device | None = None
         stuck_state = StuckState()
+        pi_state = PIState()
+        pi_cfg = PIConfig(
+            kc=_SHADOW_PI_KC,
+            ki=_SHADOW_PI_KI,
+            integrator_clamp=_SHADOW_PI_INTEGRATOR_CLAMP,
+            intensity_threshold=_SHADOW_PI_THRESHOLD,
+            threshold_hysteresis=_SHADOW_PI_THRESHOLD_HYSTERESIS,
+            night_offset_kpa=_SHADOW_PI_NIGHT_OFFSET_KPA,
+            failsafe_stale_s=cfg.failsafe_stale_seconds,
+            lights_off_prep_minutes=cfg.lights_off_prep_minutes,
+        )
 
         async with self._http_factory() as http:
             telegram: TelegramClient | None = None
@@ -265,6 +297,55 @@ class HumidifierLoopService:
                             lights.on,
                             allowed,
                         )
+
+                    # Shadow-mode PI controller. Computes what the continuous
+                    # intensity would be each tick and logs to a separate
+                    # stream — no actuator action. Safe to fail under any
+                    # input edge (None RH, missing sensor, etc.) since the
+                    # controller is total-functional. See
+                    # docs/epics/continuous-humidifier/phase4-test-plan.md.
+                    rh_reading = await self._readings.get_latest_reading("humidity_pct")
+                    rh = rh_reading.value if rh_reading else None
+                    rh_max = ctx.targets["humidity_pct"][1]
+                    pi_inp = PIInput(
+                        now=now,
+                        vpd=vpd,
+                        vpd_ts=reading.ts if reading else None,
+                        rh=rh,
+                        stage_vpd_band=(vpd_lo, vpd_hi),
+                        stage_rh_max=rh_max,
+                        lights_on=lights.on,
+                        minutes_until_off=lights.minutes_until_off,
+                        minutes_until_on=lights.minutes_until_on,
+                    )
+                    pi_out = pi_compute(pi_cfg, pi_state, pi_inp)
+                    pi_state = pi_out.new_state
+                    log_event(
+                        SHADOW_STREAM,
+                        "tick",
+                        u_pct=round(pi_out.u, 2),
+                        plug_on_shadow=pi_out.plug_on,
+                        plug_on_actual=is_on,
+                        setpoint_kpa=round(pi_out.setpoint_vpd, 3),
+                        error_kpa=round(pi_out.error, 4),
+                        p_term=round(pi_out.p_term, 3),
+                        i_term=round(pi_out.i_term, 3),
+                        integrator=round(pi_state.integral, 3),
+                        reason=pi_out.reason.value,
+                        vpd=vpd,
+                        vpd_age_s=round(age, 2) if age is not None else None,
+                        rh=rh,
+                        stage=stage,
+                        upper_band_kpa=vpd_hi,
+                        lower_band_kpa=vpd_lo,
+                        rh_ceiling_pct=rh_max,
+                        lights_on=lights.on,
+                        minutes_until_off=round(lights.minutes_until_off, 1),
+                        minutes_until_on=round(lights.minutes_until_on, 1),
+                        kc=pi_cfg.kc,
+                        ki=pi_cfg.ki,
+                        threshold_pct=pi_cfg.intensity_threshold,
+                    )
 
                     stuck_state, fire_alert = update_stuck_state(
                         stuck_state,

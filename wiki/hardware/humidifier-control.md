@@ -4,7 +4,7 @@ type: hardware
 sources: []
 related: [wiki/decisions/2026-04-17-humidifier-kasa-ep10.md, wiki/environment/humidity.md, wiki/concepts/vpd.md]
 created: 2026-04-14
-updated: 2026-04-23
+updated: 2026-04-25
 ---
 
 # Humidifier Control
@@ -52,21 +52,7 @@ Superseded the SSR-on-Arduino approach — see [decision 2026-04-17](../decision
 
 ## Control Library
 
-[`python-kasa`](https://github.com/python-kasa/python-kasa) — async API, explicit EP10 support, talks directly to the plug over the LAN. No TP-Link cloud dependency.
-
-Sketch (not final code):
-
-```python
-from kasa import SmartPlug
-plug = SmartPlug("192.168.1.XX")
-await plug.update()
-await plug.turn_on()
-await plug.turn_off()
-is_on = plug.is_on
-watts = plug.emeter_realtime.power  # real-time wattage
-```
-
-`python-kasa` is also usable from its CLI (`kasa` command) for out-of-band testing.
+[`python-kasa`](https://github.com/python-kasa/python-kasa) — async API, explicit EP10 support, talks directly to the plug over the LAN. No TP-Link cloud dependency. Also usable from its CLI (`kasa` command) for out-of-band testing. Real call-site: `apps/hwd/src/dirt_hwd/services/humidifier.py`.
 
 ## Known Issues
 
@@ -197,4 +183,8 @@ Wattage field is absent because this firmware doesn't expose an Energy module.
 
 ### Continuous humidifier intensity control
 
-**Scoped and tracked** per [decision 2026-04-23](../decisions/2026-04-23-raydrop-mcu-mist-control.md) and [epic: continuous-humidifier](../../docs/epics/continuous-humidifier/README.md). Replaces the Raydrop's analog potentiometer with MCU-driven intensity (digipot or DAC on the fan-controller ESP32) + a PI control loop, in place of today's bang-bang Kasa-plug control. Collapses the actuator-overshoot deadband, the fan-coupling saturation failure mode, and the "turn the dial" operational gotcha. Phase 1 (open-and-probe investigation) is the gate on Phases 2–4.
+**Scoped and tracked** per [decision 2026-04-23](../decisions/2026-04-23-raydrop-mcu-mist-control.md) and [epic: continuous-humidifier](../../docs/epics/continuous-humidifier/README.md). Replaces the Raydrop's analog potentiometer with MCU-driven intensity + a PI control loop, in place of today's bang-bang Kasa-plug control. Collapses the actuator-overshoot deadband, the fan-coupling saturation failure mode, and the "turn the dial" operational gotcha. Phase 1 (open-and-probe investigation) is the gate on Phases 2–4.
+
+For a conceptual walkthrough of *why* PI, what FOPDT means, and how IMC maps a plant model to gains, see [`concepts/control-theory-primer.md`](../concepts/control-theory-primer.md).
+
+**Phase 4 prep landed 2026-04-25** — pure-function PI controller (`apps/hwd/src/dirt_hwd/services/humidifier_pi.py`), 28 property tests + 16 plant-in-loop tests (FOPDT-simulator + parametrized plant bracket), and shadow-mode logging on a new `humidifier_shadow` stream (per-tick `u_pct`, `plug_on_shadow` vs `plug_on_actual`, setpoint, error, P/I split, integrator, reason). No actuator action; bang-bang above still drives the plug. Conservative starting gains (Kc=8, Ki=0.01) at the low end of the [FOPDT-fit bracket](../../docs/epics/continuous-humidifier/fopdt-fit-findings.md); refined under shadow data + a graduated step test in Phase 2/3 acceptance. New `rh_ceiling` envelope guard forces u=0 when RH ≥ stage_rh_max — addresses the "VPD looks fine because tent went cold and humid" failure mode that scalar VPD alone can't catch.

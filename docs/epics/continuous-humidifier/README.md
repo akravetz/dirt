@@ -1,17 +1,17 @@
 # Epic: Continuous Humidifier Intensity Control
 
-Status: in-progress — Phase 1 probe session mid-flight (paused 2026-04-24)
+Status: in-progress — Phase 1 paused awaiting replacement spare; Phase 4 prep work proceeding in parallel
 Priority: medium
 Created: 2026-04-23
-Last touched: 2026-04-24
+Last touched: 2026-04-25
 
 ## Current state (resume point for a fresh agent)
 
-**Where we are:** mid-Phase-1. Spare Raydrop is open on the bench. Pot identified, resistance swept, photos captured. Next action is the powered voltage sweep (Step 1 of the checklist, DC-vs-PWM determination). **User paused here to sync the wiki before continuing.**
+**Where we are:** Phase 1 paused — the spare Raydrop on the bench was destroyed during disassembly. New spare on order. The primary Raydrop on the Kasa plug continues to drive the live VPD loop unchanged.
 
-**The primary Raydrop stays on the Kasa plug driving the VPD loop during this work** — all probing is on the spare. No need to stop `dirt-hwd` or touch the live humidifier.
+**Phase 4 prep work proceeds in parallel** during the hardware wait. Plan-of-record: [phase4-test-plan.md](phase4-test-plan.md). Most of the controller, its property tests, and the FOPDT fit against existing logs are hardware-independent — they let Phase 4 land as a config-flip rather than a bring-up once Phases 2/3 complete.
 
-### Findings so far (unit unplugged, DMM-only)
+### Phase 1 hardware findings so far (unit unplugged, DMM-only)
 
 - **Pot:** silkscreen reads `B5K` — **5 kΩ linear-taper, integrated SPST power switch** (clicks off at min rotation).
 - **JST topology:** 4 wires total = 3 pot pins (outer-A / wiper / outer-B) + 1 switch tab. Switch return is internally commoned to the pot's metal chassis, which ties to one of the pot outers on the PCB — so "the switch pair" that beeped in continuity mode was (switch tab) + (chassis-tied outer).
@@ -26,20 +26,19 @@ Last touched: 2026-04-24
 - Full PCB top-down photo → `board-top.jpg`.
 - Step 2 logic-analyzer capture (only if Step 1 is inconclusive).
 
-### Immediate next action for a resuming agent
+### Immediate next actions
 
-Walk the user through **Step 1 of [phase1-probe-checklist.md](phase1-probe-checklist.md)**:
+**Phase 1 (blocked on hardware):** when the replacement spare arrives, walk the user through **Step 1 of [phase1-probe-checklist.md](phase1-probe-checklist.md)** — powered DC voltage sweep on the 3 pot pins to determine DC-analog vs PWM-through-RC. Findings recorded in the checklist's observations log.
 
-1. Plug the spare Raydrop into a direct wall outlet (not Kasa). Turn it on.
-2. DMM → **DC Volts, 20 V range**.
-3. Establish a GND reference on the board (barrel-jack shield, large-cap negative, heatsink tab — verify it's really GND).
-4. Measure voltage on each of the 3 pot wires (ignore the switch tab) at **knob max-mist** and at **knob min-mist-just-before-click**. Report the 6 numbers.
-5. Interpret per the checklist's Step 1 table:
-   - Wiper sweeps smoothly 0 → Vref → DC analog → digipot replacement path.
-   - Wiper bounces / averages to mid-value → probably PWM-through-RC → Step 2 (LA capture).
-   - Wiper stuck regardless of knob → re-check GND, then Step 2.
+**Phase 4 prep (unblocked, do now):** follow [phase4-test-plan.md](phase4-test-plan.md) order of operations:
 
-Record findings in the checklist's observations log (partially filled in already).
+1. Acceptance criteria + plan committed (this doc + test plan). ✅
+2. **FOPDT fit script** against existing humidifier logs — `debug/humidifier-fopdt/fit.py`. ✅ Verdict: data brackets gains (Kc ≈ 8–12 %u/kPa, Ki ≈ 0.01–0.02 %u/(kPa·s) at λ = 2τ–3τ) but doesn't pin them — bang-bang segments too short for clean asymptotes. Full analysis: [fopdt-fit-findings.md](fopdt-fit-findings.md). Phase 4 ships at the low end of the bracket, refines under shadow mode + a graduated step test in Phase 2/3 acceptance.
+3. **Property tests (red) for the controller.** ✅ `apps/hwd/tests/test_humidifier_pi.py` — 28 tests covering output range, monotonicity in error, failsafe stale, lights-window guards (incl. pre-lights-on ramp), RH ceiling guard, threshold + hysteresis, anti-windup bounds + release, dt invariance, clock-jump robustness, stage-flip-no-reset, output contract.
+4. **Controller skeleton + placeholder gains → property tests green.** ✅ `apps/hwd/src/dirt_hwd/services/humidifier_pi.py` — pure-function `compute(cfg, state, inp) → output`. Conservative starting gains: Kc=8, Ki=0.01, threshold=5%, hysteresis=1%, integrator clamp=50%, night offset=−0.3 kPa.
+5. **Shadow-mode wiring (`humidifier_shadow` log stream, no actuation).** ✅ Wired into `humidifier.py` between the existing state-change emit and the stuck-watchdog. Each tick computes PI output and logs full state (u, plug_on_shadow vs plug_on_actual, setpoint, error, P/I split, integrator, reason, plus inputs). Stream registered with 14-day retention. **Activates on next `dirt-hwd` restart.** No actuator change — bang-bang still drives the plug.
+6. **Plant-in-loop tests parameterized by step #2 output.** ✅ `apps/hwd/tests/test_humidifier_pi_plant.py` — 16 tests covering step response, lights-cycle transition, fan-coupling step (the specific failure mode that motivated the rewrite), and integrator-clamp saturation. Plant simulator parametrized over τ/K/V_dry_eq corners from the FOPDT bracket. Tests assert behaviors not numbers.
+7. Replay tests after ≥ 24 h shadow data.
 
 ### BOM consequence to flag (don't order yet)
 
@@ -82,12 +81,16 @@ Phased rollout with a hard stop-gate after Phase 1. Each phase maps 1:1 to a Git
 
 ## Acceptance Criteria
 
-- With the fan at any duty in [25, 60] %, tent VPD tracks the stage upper edge within ±0.1 kPa across a full 18-h lights-on period — no bang-bang oscillation, no sustained off-band excursions.
-- Kasa-plug state transitions drop from today's ~once-per-minute to ≤ 6 per day (once-per-mode-change rather than once-per-cycle).
-- The "Raydrop dial" is no longer a control input the operator has to reason about — either removed physically or overridden in software, documented on the hardware page.
-- `suspected_stuck` watchdog still fires on the Raydrop low-water-latch failure mode (re-verified with a deliberate drained-tank test).
-- Control-loop integrator state is visible in `var/logs/humidifier/*.jsonl` for post-hoc tuning analysis.
-- `HumidifierLoopService` tests pass; at least one new property-style test covers PI output monotonicity (higher VPD error → non-decreasing commanded intensity, within saturation).
+Authoritative list lives in [phase4-test-plan.md](phase4-test-plan.md) §"Acceptance criteria (refined)". Headline criteria:
+
+1. **Tracking.** Fan duty ∈ [25, 60] %, VPD within ±0.1 kPa of upper edge across an 18-h lights-on period.
+2. **Switching count.** Kasa-plug transitions ≤ 6 / day (down from ~once-per-minute today).
+3. **Envelope respected.** RH never exceeds `stage_rh_max` due to controller action — RH ceiling guard verified in unit + soak.
+4. **Dial retired.** No longer a control input the operator must reason about.
+5. **Watchdog still works.** `suspected_stuck` fires on a deliberate drained-tank test with the upgraded `u > 0` trigger.
+6. **Diagnosability.** Integrator state, P/I split, error, and `u` per-tick in `var/logs/humidifier/*.jsonl`. Replay test demonstrates `u` is re-derivable from logged inputs.
+7. **Property tests pass.** Full structural-invariant suite (see test plan).
+8. **Plant-in-loop tests pass.** With FOPDT params fit from real data.
 
 ## Risks
 
@@ -102,6 +105,8 @@ Find issues for this epic: `gh issue list --repo akravetz/dirt --label "epic:con
 ## Related
 
 - Decision: [wiki/decisions/2026-04-23-raydrop-mcu-mist-control.md](../../../wiki/decisions/2026-04-23-raydrop-mcu-mist-control.md)
+- Phase 4 test plan: [phase4-test-plan.md](phase4-test-plan.md)
+- FOPDT fit findings (2026-04-25): [fopdt-fit-findings.md](fopdt-fit-findings.md)
 - Architecture context: [wiki/concepts/multi-actuator-environment-control.md](../../../wiki/concepts/multi-actuator-environment-control.md)
 - Current loop: [wiki/hardware/humidifier-control.md](../../../wiki/hardware/humidifier-control.md)
 - Companion fan node: [wiki/hardware/ac-infinity-fan-control.md](../../../wiki/hardware/ac-infinity-fan-control.md)

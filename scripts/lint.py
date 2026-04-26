@@ -382,6 +382,7 @@ LENGTH_SKIP_FILES = {
     "log.md",
     "CLAUDE.md",
     "wake-word-experiments.md",  # append-only experiment log; grows naturally
+    "control-theory-primer.md",  # teaching reference doc; depth > brevity by design
 }
 
 

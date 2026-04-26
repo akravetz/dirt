@@ -10,13 +10,15 @@ related:
   - wiki/decisions/2026-04-18-vpd-targeting.md
   - wiki/decisions/2026-04-22-sht45-tent-node-esp32.md
 created: 2026-04-23
-updated: 2026-04-23
+updated: 2026-04-25
 ---
 
 # Decision: Replace Raydrop Analog Potentiometer with MCU-Controlled Mist Intensity
 
 **Date:** 2026-04-23
-**Status:** Accepted — Phase 1 (investigation) scheduled; Phases 2–4 contingent on Phase 1 findings.
+**Status:** Accepted — Phase 1 (investigation) paused awaiting replacement spare; Phase 4 prep work proceeding in parallel.
+
+**Revision 2026-04-25.** Phase 4 development plan committed: TDD-first against structural invariants, FOPDT-fit driving plant-in-loop tests and starting Kp/Ki, shadow-mode logging during the hardware wait. Two design refinements landed: **(a) RH ceiling guard** as a hard envelope around the PI loop (force `u=0` when `RH ≥ stage_rh_max` regardless of VPD error — addresses the "VPD looks fine because tent went cold and humid" failure mode that single-scalar VPD targeting cannot catch), and **(b) explicit "behaviors not numbers"** test discipline (no test pins Kp/Ki/threshold values; tests assert monotonicity, saturation, anti-windup, failsafe). Full plan + acceptance criteria: [docs/epics/continuous-humidifier/phase4-test-plan.md](../../docs/epics/continuous-humidifier/phase4-test-plan.md). The control-loop and PI-only choices in this decision are unchanged.
 
 ## Context
 

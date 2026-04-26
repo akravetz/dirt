@@ -68,6 +68,7 @@ updated: 2026-04-24
 - [Trichome Stages](concepts/trichome-stages.md) — Harvest timing; clear/cloudy/amber; pheno hunt evaluation criteria
 - [VPD](concepts/vpd.md) — Vapor Pressure Deficit: formula, targets by stage, current situation, coco interaction
 - [Multi-Actuator Environment Control (future)](concepts/multi-actuator-environment-control.md) — Design principles for when the dehumidifier + PWM fan arrive: 2D (T, RH) target zones, cascaded SISO state-machine, feedforward on lights. Rejects MIMO/PID. Implementation deferred until hardware is in.
+- [Control Theory Primer](concepts/control-theory-primer.md) — Walks the ladder bang-bang → P-only → PI → PI + envelope guards → PI + feedforward. Covers anti-windup, FOPDT modeling, IMC tuning (with worked numerical example), stability intuition, drone-PID vs slow-process-PI contrast, cascade vs multi-actuator dispatch. Runnable demos in `debug/control-theory-demos/`.
 - [Topping](concepts/topping.md) — HST technique: cut apical meristem at node 4–5 to create two main stems; imminent for Plant A
 - [pH Lockout](concepts/ph-lockout.md) — Nutrient unavailability from root zone pH drift; active diagnosis for Plant C
 - [Nutrient Burn](concepts/nutrient-burn.md) — Excess salt damage from high EC; symptoms, diagnosis, correction
