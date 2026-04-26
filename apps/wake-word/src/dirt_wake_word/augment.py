@@ -101,7 +101,12 @@ def augment_and_compute_features(*, work_dir: Path, out_dir: Path) -> None:
 
     rounds = config["augmentation_rounds"]
     n_cpus = os.cpu_count() or 1
-    ncpu = 1 if torch.cuda.is_available() else max(1, n_cpus // 2)
+    # The compute_features_from_generator pipeline is GPU-bound for the mel +
+    # embedding ONNX inference but CPU-bound for the audiomentations chain
+    # (RIR convolution, EQ, pitch shift, background noise mix). Even on a GPU
+    # pod we have 8+ vCPUs idle, so parallelize the CPU side regardless of
+    # device. (Original `1 if cuda else N` cost ~25 min per training run.)
+    ncpu = max(1, n_cpus // 2)
     device = "gpu" if torch.cuda.is_available() else "cpu"
 
     print("=== per-subset augmentation + feature compute (v8) ===", flush=True)
