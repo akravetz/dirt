@@ -3,7 +3,7 @@
 Status: Phase 1 hardware paused (waiting on replacement spare); Phase 4 prep landed end-to-end and live in shadow mode; production tuning blocked on Phase 1–3 hardware
 Priority: medium
 Created: 2026-04-23
-Last touched: 2026-04-25
+Last touched: 2026-04-26
 
 ---
 
@@ -40,29 +40,40 @@ The work breaks into three layers. Read them in order:
 - Stage targets in effect: `STAGE_TARGETS` in `apps/shared/src/dirt_shared/services/grow_state.py`. Veg humidity_pct band is **(40, 70)** — mold-prevention envelope, not a VPD-coupled setpoint. See "Centralization + band fix" timeline note below.
 - Bang-bang controller is unchanged and remains authoritative. Shadow does not actuate.
 
-### What the analyzer revealed (run 2026-04-25 ~21:00 MDT, 610 ticks)
+### What the analyzer revealed (overnight run, 1832 ticks across 15.3 h, full lights cycle)
 
 ```
-Reason distribution under config that was live during each tick:
-  rh_ceiling : 84% — heavy because 511 of 610 ticks were under the OLD humidity band (45,55)
-  pi_active  : 16%
+Live reason distribution (config switched mid-window from old to new humidity band):
+  outside_lights_window : 39%   ← captured the full dark period
+  pi_active             : 33%   ← was 16% in the 5-h yesterday-only snapshot
+  rh_ceiling            : 28%   ← was 84% before the band fix
 
-Replay (current compute() against same logged inputs, with NEW band (40,70)):
-  rh_ceiling : 38% — drops by half
-  pi_active  : 62% — 280 of the historical ceiling fires were spurious
-
-Plug command divergence in replay: 0/610.
+Replay (current compute() against same inputs, current bands throughout):
+  pi_active             : 48%
+  outside_lights_window : 39%
+  rh_ceiling            : 13%   ← what we'd see if all 1832 ticks ran under today's band
 ```
 
-The replay confirmed the band fix worked. But it also surfaced a separate insight: **plug_on_shadow was OFF on every observed tick, both old and new config.** The PI math is producing `u` below the 5% threshold every time, so the sub-threshold cutoff fires and the plug is commanded OFF regardless of regime. Conservative starter gains are conservative *enough* that they don't drive any actuation under current conditions.
+**Three findings from the overnight data:**
 
-This is fine for shadow mode (it's still generating tuning data) but means **the gains-as-shipped won't be operationally useful in production** — they'd never turn the plug on. Real tuning at Phase 2/3 acceptance will need higher Ki and/or a lower threshold.
+1. **The lights-on FOPDT fit is now trustworthy.** Per-regime split was useless yesterday (only lights-on data); now we have 1112 lights-on samples and 716 lights-off samples. Lights-on regime: **τ = 133 s, K = −0.72 kPa, V_dry_eq = 1.56, V_wet_eq = 0.84**. Physically credible: ~2-min closed-loop response with mist on producing ~0.7 kPa drop, asymptotes straddling the band edges. **First trustworthy plant fit we have**, though K here is "binary input" (mist plug ON vs OFF, not continuous u). Multiply by ~0.01 to get a starting K_per_pct. Lights-off regime has β = 0 / K = 0 — plug forced off all night, no actuator signal, expected.
+
+2. **IMC against the new lights-on fit suggests gains 5–12× higher than current.** With τ = 133 s, L = 60 s, K = −0.72 kPa (binary), the IMC formulae give Kc ≈ 40–95, Ki ≈ 0.3–1.1 across λ ∈ [3τ, τ/2]. Current shadow gains: Kc = 8, Ki = 0.01. **Don't wire these in yet** — the binary-input fit's K is on a different scale than continuous control's K_per_pct (the Raydrop dial setting + bang-bang ON gives a fixed mist rate, which isn't the same as u=100% continuous), and the graduated step test at Phase 2/3 acceptance is the only way to pin K_per_pct cleanly. But this is a much better starting bracket than yesterday's 81-s noise-floor-dominated fit suggested.
+
+3. **The −0.3 kPa night offset appears to be overcorrecting.** During the pre-lights-on ramp window (lights-off, last 30 min before lights return), the controller is `pi_active` against a setpoint of 0.9 kPa (1.2 day setpoint − 0.3 night offset). VPD naturally sits at ~0.85–0.95 kPa during this window because the tent is cool/wet. Result: error skews negative (median err = −0.133 kPa, "too wet"), integrator accumulates negative bias (median I = −5.2, range [−24.8, +2.8], well within the ±50 clamp). The controller wants to dehumidify but has no actuator to do so; the integrator is just absorbing the bias. Not a bug — bounded and harmless — but the first concrete data point that **the night offset value is probably wrong** for our tent's actual lights-off equilibrium. Worth re-tuning during Phase 4 acceptance once we have continuous control. Not urgent.
+
+### What still hasn't changed
+
+- **Sub-threshold cutoff still fires on every pi_active tick.** 0/601 ticks cleared the 5% threshold under either config — same as yesterday's snapshot, just with more ticks confirming. Conservative gains remain inert.
+- **Plug divergence stays one-sided:** 432 cases of shadow-OFF / actual-ON, longest streak 189 ticks (94.5 min). Bang-bang fires for VPD crossings, shadow stays asleep.
+- **No daemon errors over 15 h.** System is healthy.
 
 ### Where to start, as a fresh agent
 
 - **Working on Phase 1 hardware** (replacement spare arrived): walk the user through Step 1 of [phase1-probe-checklist.md](phase1-probe-checklist.md). Findings update [the decision doc](../../../wiki/decisions/2026-04-23-raydrop-mcu-mist-control.md) as a revision block; BOM consequences captured in [bom.md](bom.md).
 - **Working on tuning analysis**: run `uv run --package dirt-shared python debug/humidifier-shadow/analyze.py` against current shadow data. Compare to the snapshot above.
-- **Hardware just landed (Phase 2/3 done)**: the binding next step is a **graduated step test** — hold u=25%, 50%, 75% for 20 min each in lights-on steady state. That's the only data that will pin τ and K precisely. Re-fit FOPDT against the result, derive new IMC gains (the analyzer script's `fopdt` section will do this from the new shadow logs once continuous-input data exists), update `_SHADOW_PI_*` constants in `humidifier.py`. See [phase4-test-plan.md](phase4-test-plan.md) §"Acceptance soak."
+- **Hardware just landed (Phase 2/3 done)**: the binding next step is a **graduated step test** — hold u=25%, 50%, 75% for 20 min each in lights-on steady state. That's the only data that will pin τ and K precisely. Re-fit FOPDT against the result, derive new IMC gains (the analyzer script's `fopdt` section will do this from the new shadow logs once continuous-input data exists), update `_SHADOW_PI_*` constants in `humidifier.py`. **Sanity check against the 2026-04-26 fit**: lights-on τ should land near 130 s and K_per_pct should land near −0.005 kPa/%u (the 2026-04-26 binary-input K of −0.72 kPa, divided by ~100 + a Raydrop-dial-setting fudge). Big disagreement suggests either the dial is in a different position or the bang-bang fit was anomalous. See [phase4-test-plan.md](phase4-test-plan.md) §"Acceptance soak."
+- **Tuning the night offset**: deferred until continuous control lands. Current −0.3 kPa is overcorrecting (analyzer revealed the integrator drifts negative during the ramp window). When you re-tune, look at the actual lights-off VPD equilibrium in shadow data and pick an offset that matches it.
 - **Operating the shadow loop**: see "Re-running the analyzer" below.
 
 ---
@@ -73,6 +84,7 @@ This is fine for shadow mode (it's still generating tuning data) but means **the
 - **2026-04-25**: Phase 1 paused; primary spare destroyed during disassembly. Phase 4 prep work proceeded in parallel: FOPDT fit script, controller, property tests, plant-in-loop tests, shadow logging all landed.
 - **2026-04-25 PM**: Discovered `STAGE_TARGETS["humidity_pct"]` was internally inconsistent with `vpd_kpa` — at typical room T, the (45, 55) RH band corresponds to VPD ~1.4–1.7 kPa, well outside the (0.8, 1.2) VPD target. Reframed humidity bands as mold-prevention envelopes (not VPD-coupled targets); centralized band-comparison logic into `dirt_shared.services.grow_state` (`in_band`, `above_band`, `below_band` alongside the existing `band_status`). Refactored the voice tool's ad-hoc band check and the humidifier PI's RH-ceiling guard. Live shadow controller restarted with new bands; the constant `rh_ceiling` trigger went away (~84% → ~38% projected).
 - **2026-04-25 evening**: Analyzer + replay script `debug/humidifier-shadow/analyze.py` landed. Revealed conservative gains produce `u` below threshold on every pi_active tick — production tuning will need higher Ki.
+- **2026-04-26 morning**: Overnight run captured a full lights cycle (1832 ticks). Three new findings: (a) lights-on FOPDT fit is now trustworthy at τ=133 s, K=−0.72 kPa; (b) IMC against the new fit suggests gains 5–12× higher than current; (c) the −0.3 kPa night offset is probably overcorrecting, integrator drifts negative during the pre-lights-on ramp because VPD is naturally below the night-shifted setpoint. None warrant code changes pre-hardware. See "What the analyzer revealed" above + [fopdt-fit-findings.md](fopdt-fit-findings.md) §"Refit on shadow data (2026-04-26)".
 
 ---
 
