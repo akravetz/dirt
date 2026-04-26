@@ -1,25 +1,43 @@
 #!/usr/bin/env -S uv run --project /home/akcom/code/dirt python -u
-"""Submit one wake-word training job to RunPod, poll, pull artifacts back.
+"""Submit one wake-word training job to RunPod, wait for clean exit, pull
+artifacts off the volume via a puller pod, DELETE everything.
 
-POST a pod via the
-RunPod Pods via the REST v1 API. See docs/references/runpod/INDEX.md for
-the rationale behind every field choice; shared lifecycle primitives live
-in scripts/_runpod_lib.py.
+Architecture:
+
+  POST training pod (GPU, image with our entrypoint)
+    → entrypoint runs, writes /workspace/out/<pod_id>/{onnx,manifest,SUCCESS}
+    → entrypoint exits 0 cleanly
+  Poll RunPod API for desiredStatus=EXITED on training pod
+  POST puller pod (CPU, python:3.11-slim, same volume mounted)
+    → SSH up
+    → orchestrator-side SCPs /workspace/out/<train_pod_id>/ → local
+  DELETE puller, DELETE training pod
+
+Why this shape:
+
+- The entrypoint exits cleanly. sshd dies with the container. We CAN'T
+  SCP from a dead pod. So we use a separate live puller pod that mounts
+  the same Network Volume.
+- Direct-TCP SSH on RunPod is documented as flaky. The puller's SSH
+  attempts can retry a few times to ride through transient refusals
+  without burning training time.
+- Per-run output directory (`/workspace/out/<train_pod_id>/`) means
+  concurrent runs can't trample each other's artifacts on the volume.
 
 Required env (.env):
-  RUNPOD_API_KEY              — bearer token (console.runpod.io/user/settings)
+  RUNPOD_API_KEY              — bearer token
   RUNPOD_NETWORK_VOLUME_ID    — volume holding the seeded datasets
   RUNPOD_GHCR_AUTH_ID         — (optional) for private GHCR images
+  WANDB_API_KEY               — (optional) injected into trainer for W&B
 
-SSH key: ~/.ssh/runpod_ed25519[.pub]. Public key gets injected into the
-container via PUBLIC_KEY env (the runpod/pytorch base wires it into
-authorized_keys); private key drives the post-EXIT SCP pull.
+SSH key: ~/.ssh/runpod_ed25519[.pub].
 
 Usage:
-  scripts/runpod-train                      # default image, 4090 first
+  scripts/runpod-train                          # default image + GPU priority
   scripts/runpod-train --image <ref>
-  scripts/runpod-train --gpu "NVIDIA L4"    # override; repeat for fallback
-  scripts/runpod-train --keep               # debug only — leave pod alive on success
+  scripts/runpod-train --gpu "NVIDIA L4"
+  scripts/runpod-train --run-group sweep-XYZ    # W&B grouping for sweeps
+  scripts/runpod-train --keep                   # skip DELETE on success
 """
 
 from __future__ import annotations
@@ -27,6 +45,7 @@ from __future__ import annotations
 import argparse
 import subprocess
 import sys
+import textwrap
 import time
 from pathlib import Path
 
@@ -44,8 +63,109 @@ DEFAULT_GPU_PRIORITY = [
 MAX_WALL_S = 4 * 60 * 60
 
 
+def _puller_remote_command() -> str:
+    """Bash for the puller pod: bring sshd up, then sleep so the orchestrator
+    can SCP. Same shape as runpod-seed-volume."""
+    return textwrap.dedent("""\
+        #!/usr/bin/env bash
+        set -uo pipefail
+        apt-get update -q && apt-get install -y -q openssh-server >/dev/null
+        mkdir -p /run/sshd /root/.ssh
+        if [ -n "${PUBLIC_KEY:-}" ]; then
+          echo "$PUBLIC_KEY" >> /root/.ssh/authorized_keys
+          chmod 700 /root/.ssh && chmod 600 /root/.ssh/authorized_keys
+        fi
+        /usr/sbin/sshd
+        echo "(puller pod up; awaiting orchestrator SCP)"
+        exec sleep infinity
+        """)
+
+
+def _ssh_alive(ip: str, port: int, *, key: Path) -> bool:
+    try:
+        r = subprocess.run(
+            [
+                "ssh",
+                "-i", str(key),
+                "-o", "StrictHostKeyChecking=accept-new",
+                "-o", "UserKnownHostsFile=/dev/null",
+                "-o", "ConnectTimeout=10",
+                "-p", str(port),
+                f"root@{ip}",
+                "true",
+            ],
+            capture_output=True, timeout=20,
+        )
+        return r.returncode == 0
+    except subprocess.SubprocessError:
+        return False
+
+
+def _wait_ssh_alive(ip: str, port: int, *, deadline: float, label: str) -> None:
+    while time.monotonic() < deadline:
+        if _ssh_alive(ip, port, key=rp.SSH_KEY_PATH):
+            return
+        print(f"  {time.strftime('%H:%M:%S')} ({label}: waiting for sshd)")
+        time.sleep(10)
+    raise TimeoutError(f"{label}: sshd never came up within deadline")
+
+
+def _pull_artifacts(
+    *,
+    http,
+    train_pod_id: str,
+    network_volume_id: str,
+    pub_key: str,
+    deadline: float,
+    local_dest: Path,
+) -> None:
+    """Spawn a CPU puller pod with the same volume, SCP /workspace/out/<train_pod_id>/, DELETE."""
+    body = rp.common_pod_body(
+        name=f"wakeword-puller-{train_pod_id[:8]}-{time.strftime('%H%M%S')}",
+        network_volume_id=network_volume_id,
+        public_key=pub_key,
+    ) | {
+        "imageName": "python:3.11-slim",
+        "computeType": "CPU",
+        "vcpuCount": 4,
+        "minRAMPerGPU": 8,
+        "containerDiskInGb": 20,
+        "dockerStartCmd": ["bash", "-c", _puller_remote_command()],
+    }
+
+    puller_id = rp.create_pod(http, body)
+    print(f"==> created puller pod {puller_id}; waiting for endpoint")
+    try:
+        with rp.leased_pod(http, puller_id):
+            ip, port = rp.wait_for_endpoint(http, puller_id, deadline=deadline)
+            _wait_ssh_alive(ip, port, deadline=deadline, label="puller")
+
+            remote = f"/workspace/out/{train_pod_id}"
+            print(f"==> SCP {remote} → {local_dest}")
+            # Direct-TCP SCP can flake; retry a few times.
+            attempts = 3
+            last_exc: Exception | None = None
+            for i in range(1, attempts + 1):
+                try:
+                    rp.scp_pull(
+                        ip=ip, port=port,
+                        remote_dir=remote,
+                        local_dest=local_dest,
+                    )
+                    last_exc = None
+                    break
+                except subprocess.CalledProcessError as exc:
+                    last_exc = exc
+                    print(f"  scp attempt {i}/{attempts} failed: {exc!r}; retrying")
+                    time.sleep(15)
+            if last_exc is not None:
+                raise last_exc
+    except Exception:
+        raise
+
+
 def _classify_outcome(local_dest: Path) -> tuple[int, str]:
-    """Read sentinels from the SCP'd /workspace/out/ — single-source result."""
+    """Read sentinels from the SCP'd run dir — single-source result."""
     if (local_dest / "SUCCESS").exists():
         return 0, f"=== training succeeded; artifacts at {local_dest} ==="
     if (local_dest / "FAILURE").exists():
@@ -56,37 +176,6 @@ def _classify_outcome(local_dest: Path) -> tuple[int, str]:
         f"=== no SUCCESS or FAILURE sentinel in {local_dest} — "
         "container exited before the entrypoint could write one ==="
     )
-
-
-def _wait_for_sentinel(ip: str, port: int, *, deadline: float) -> str:
-    """SSH-poll for /workspace/out/SUCCESS or /workspace/out/FAILURE."""
-    cmd = (
-        "if [ -f /workspace/out/SUCCESS ]; then echo SUCCESS; "
-        "elif [ -f /workspace/out/FAILURE ]; then echo FAILURE; fi"
-    )
-    while time.monotonic() < deadline:
-        try:
-            r = subprocess.run(
-                [
-                    "ssh",
-                    "-i", str(rp.SSH_KEY_PATH),
-                    "-o", "StrictHostKeyChecking=accept-new",
-                    "-o", "UserKnownHostsFile=/dev/null",
-                    "-o", "ConnectTimeout=10",
-                    "-p", str(port),
-                    f"root@{ip}",
-                    cmd,
-                ],
-                capture_output=True, text=True, timeout=20,
-            )
-            out = r.stdout.strip()
-            if out in ("SUCCESS", "FAILURE"):
-                return out
-        except subprocess.SubprocessError:
-            pass  # sshd not yet up, or transient — retry
-        print(f"  {time.strftime('%H:%M:%S')} (waiting for sentinel)")
-        time.sleep(30)
-    raise TimeoutError("trainer did not write a sentinel within deadline")
 
 
 def main() -> int:
@@ -119,10 +208,6 @@ def main() -> int:
 
     name = f"wakeword-train-{time.strftime('%Y%m%d-%H%M%S')}"
     run_group = args.run_group or f"solo-{time.strftime('%Y%m%d')}"
-    local_dest = (
-        rp.repo_root() / "var" / "wake-word" / "models"
-        / time.strftime("%Y-%m-%d-%H%M%S-runpod")
-    )
     deadline = time.monotonic() + MAX_WALL_S
 
     body = rp.common_pod_body(
@@ -139,10 +224,9 @@ def main() -> int:
     }
     if registry_auth_id:
         body["containerRegistryAuthId"] = registry_auth_id
-    # W&B + provenance env. WANDB_API_KEY empty → entrypoint skips W&B init
+    # W&B + provenance env. Empty WANDB_API_KEY → entrypoint skips W&B init
     # cleanly (locally-good run, no remote trace). DIRT_IMAGE_REF lets the
-    # in-container run-manifest record what image actually ran (the bare
-    # ENV-baked git SHA isn't enough — the operator may run a stale image).
+    # in-container run-manifest record what image actually ran.
     if wandb_api_key:
         body["env"]["WANDB_API_KEY"] = wandb_api_key
     body["env"] |= {
@@ -152,21 +236,48 @@ def main() -> int:
     }
 
     http = rp.client(api_key)
-    pod_id = rp.create_pod(http, body)
-    print(f"created pod {pod_id} (image={args.image})")
+    train_pod_id = rp.create_pod(http, body)
+    print(f"==> created training pod {train_pod_id} (image={args.image})")
 
-    with rp.leased_pod(http, pod_id, keep_on_success=args.keep):
-        ip, port = rp.wait_for_endpoint(http, pod_id, deadline=deadline)
-        print(f"pod {pod_id} reachable at {ip}:{port}")
+    # local destination is keyed on TRAINING pod id so it's stable across the
+    # script run (even if puller is spun up minutes later) and matches the
+    # path the entrypoint wrote to on the volume.
+    local_dest = (
+        rp.repo_root() / "var" / "wake-word" / "models"
+        / f"{time.strftime('%Y-%m-%d-%H%M%S')}-{train_pod_id[:12]}"
+    )
 
-        # Container always exits 0; on completion it writes SUCCESS or
-        # FAILURE under /workspace/out and `_hold()`s so sshd stays up.
-        # SSH-poll the sentinel; once seen, SCP /workspace/out off.
-        sentinel = _wait_for_sentinel(ip, port, deadline=deadline)
-        print(f"==> sentinel={sentinel}; pulling /workspace/out -> {local_dest}")
-        rp.scp_pull(ip=ip, port=port, remote_dir="/workspace/out", local_dest=local_dest)
+    rc = 2
+    msg = "(unset)"
+    try:
+        with rp.leased_pod(http, train_pod_id, keep_on_success=args.keep):
+            # Poll the API for terminal state — no SSH-tail-the-pod, no
+            # _hold(). The entrypoint exits 0 cleanly; RunPod marks
+            # desiredStatus=EXITED.
+            print(f"==> polling training pod {train_pod_id} for EXITED")
+            status = rp.wait_for_exit(http, train_pod_id, deadline=deadline)
+            print(f"==> training pod reached terminal state: {status}")
 
-    rc, msg = _classify_outcome(local_dest)
+            # Pull artifacts via a puller pod that mounts the same volume.
+            # The training pod's container disk is gone but the volume
+            # contents at /workspace/out/<train_pod_id>/ persist.
+            _pull_artifacts(
+                http=http,
+                train_pod_id=train_pod_id,
+                network_volume_id=network_volume_id,
+                pub_key=pub_key,
+                deadline=deadline,
+                local_dest=local_dest,
+            )
+
+        rc, msg = _classify_outcome(local_dest)
+    except Exception as exc:
+        print(f"=== orchestrator error: {exc!r} ===", file=sys.stderr)
+        if local_dest.exists():
+            rc, msg = _classify_outcome(local_dest)
+        else:
+            rc, msg = 3, "=== orchestrator failed before pulling artifacts ==="
+
     print(msg, file=sys.stderr if rc else sys.stdout)
     return rc
 

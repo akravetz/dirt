@@ -36,27 +36,30 @@ fi
 # working + out are scratch dirs the container creates fresh per run.
 mkdir -p "$SCRATCH/working" "$SCRATCH/out"
 
-echo "==> running smoke against $IMAGE:$TAG"
+RUN_ID="smoke-$(date +%Y%m%d-%H%M%S)"
+echo "==> running smoke against $IMAGE:$TAG (run_id=$RUN_ID)"
 docker run --rm \
   -e DIRT_WAKE_WORD_N_SAMPLES=20 \
   -e DIRT_WAKE_WORD_N_SAMPLES_VAL=10 \
   -e DIRT_WAKE_WORD_STEPS=20 \
-  -e DIRT_TRAINER_NO_HOLD=1 \
+  -e DIRT_RUN_ID="$RUN_ID" \
   -v "$FIXTURES:/workspace/input:ro" \
   -v "$SCRATCH/working:/workspace/working" \
   -v "$SCRATCH/out:/workspace/out" \
   "$IMAGE:$TAG"
 
-if [ -f "$SCRATCH/out/SUCCESS" ] && [ -f "$SCRATCH/out/hey_claudia.onnx" ]; then
-  size=$(stat -c%s "$SCRATCH/out/hey_claudia.onnx")
+# Per-run dir under /workspace/out — same layout production uses.
+RUN_OUT="$SCRATCH/out/$RUN_ID"
+if [ -f "$RUN_OUT/SUCCESS" ] && [ -f "$RUN_OUT/hey_claudia.onnx" ]; then
+  size=$(stat -c%s "$RUN_OUT/hey_claudia.onnx")
   echo "==> SMOKE OK (.onnx = ${size} bytes)"
   exit 0
 fi
 
 echo "==> SMOKE FAIL" >&2
-[ -f "$SCRATCH/out/FAILURE" ] && {
-  echo "--- /workspace/out/FAILURE ---" >&2
-  cat "$SCRATCH/out/FAILURE" >&2
+[ -f "$RUN_OUT/FAILURE" ] && {
+  echo "--- $RUN_OUT/FAILURE ---" >&2
+  cat "$RUN_OUT/FAILURE" >&2
 }
-ls -la "$SCRATCH/out/" >&2
+ls -laR "$SCRATCH/out/" >&2
 exit 1

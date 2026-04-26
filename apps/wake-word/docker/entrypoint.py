@@ -3,25 +3,37 @@
 Wraps `dirt_wake_word.main.main()` with the harness-boundary concerns the
 library shouldn't know about:
 
-1. Set DIRT_WAKEWORD_INPUT / DIRT_WAKEWORD_WORKING to the volume-mounted
-   paths so `paths.py` resolves training data from the Network Volume.
-2. Open a W&B run in `console="redirect"` mode so the container's
+1. Compute a run-scoped namespace on the shared Network Volume so concurrent
+   runs (sweeps, parallel SHAs) cannot collide. RUN_ID is taken from
+   DIRT_RUN_ID, else RUNPOD_POD_ID, else a generated `local-<timestamp>`.
+   Every volume write the trainer does — `/workspace/out/<RUN_ID>/` for
+   artifacts, `/workspace/working/<RUN_ID>/` for scratch — is namespaced.
+   Stale files from a prior run never leak into a new run.
+2. Set DIRT_WAKEWORD_INPUT / DIRT_WAKEWORD_WORKING to the resolved paths
+   so the library's `paths.py` picks up the per-run scratch dir without
+   needing to know about run isolation.
+3. Open a W&B run in `console="redirect"` mode so the container's
    stdout/stderr (including subprocess output) streams live to the run's
    "Logs" tab and survives `DELETE /pods/{id}`. See
    docs/references/wandb/docker-and-runpod.md for env-var rationale.
-3. Write `/workspace/out/run-manifest.json` recording git SHA, image tag,
-   pod ID, GPU, volume manifest, resolved config, timestamps, W&B run URL.
-   This is the durable provenance record — `runs.jsonl` (Phase 3) reads it.
-4. Copy the produced .onnx + validation report into /workspace/out/ so
-   SCP-off-the-pod hits one stable directory.
-5. Write /workspace/out/SUCCESS or /workspace/out/FAILURE so the
-   orchestrator can distinguish a clean exit from a crash — RunPod's REST
-   API does NOT expose container exit codes.
+4. Write `<OUT>/run-manifest.json` recording git SHA, image tag, pod ID,
+   GPU, volume manifest, resolved config, timestamps, W&B run URL.
+   Durable provenance record for the future runs.jsonl rollup.
+5. Copy the produced .onnx + validation report into `<OUT>/` so an
+   orchestrator-side puller that mounts the volume hits one stable
+   directory.
+6. Write `<OUT>/SUCCESS` or `<OUT>/FAILURE` on completion. The orchestrator
+   checks for this file inside the run's namespaced dir, never the bare
+   `/workspace/out/`. RunPod's REST API does NOT expose container exit
+   codes, so the sentinel is the truth.
 
 Always exits 0 — RunPod's container runtime auto-restarts on non-zero
 exit, which would silently burn $/hr in a crash loop. The FAILURE
-sentinel + traceback is the failure signal; the orchestrator polls for
-it via SCP after seeing desiredStatus=EXITED.
+sentinel + traceback is the failure signal.
+
+Container exits cleanly when done; **no `_hold()` sleep**. The orchestrator
+polls RunPod's API for `desiredStatus=EXITED` (not SSH-tail-the-pod) and
+then spawns a tiny puller pod to SCP artifacts off the volume by run_id.
 """
 
 from __future__ import annotations
@@ -31,15 +43,29 @@ import os
 import shutil
 import subprocess
 import sys
-import time
 import traceback
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+# ---------------------------------------------------------------------------
+# Per-run namespace on the shared volume. Resolve before any other path
+# decision so the library + entrypoint agree on where everything lives.
+# ---------------------------------------------------------------------------
+RUN_ID = (
+    os.environ.get("DIRT_RUN_ID")
+    or os.environ.get("RUNPOD_POD_ID")
+    or f"local-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}"
+)
+os.environ["DIRT_RUN_ID"] = RUN_ID  # propagate to subprocesses
+
 INPUT = Path(os.environ.setdefault("DIRT_WAKEWORD_INPUT", "/workspace/input"))
-WORKING = Path(os.environ.setdefault("DIRT_WAKEWORD_WORKING", "/workspace/working"))
-OUT = Path("/workspace/out")
+# Library reads DIRT_WAKEWORD_WORKING; we override it to the per-run dir
+# *before* the library is imported. Operator-set override wins (smoke test).
+WORKING = Path(
+    os.environ.setdefault("DIRT_WAKEWORD_WORKING", f"/workspace/working/{RUN_ID}")
+)
+OUT = Path(os.environ.get("DIRT_WAKEWORD_OUT") or f"/workspace/out/{RUN_ID}")
 TARGET_WORD = "hey_claudia"
 TTS_CACHE_DIR = INPUT / "dirt-wakeword-tts-cache"
 VOLUME_MANIFEST_PATH = INPUT / "MANIFEST.json"
@@ -56,7 +82,7 @@ def _hardlink_or_copy(src: Path, dst: Path) -> None:
 
 
 def _publish_artifacts() -> None:
-    """Stage what the orchestrator pulls off the pod into /workspace/out/."""
+    """Stage what the orchestrator's puller pulls from <OUT>/ for this run."""
     OUT.mkdir(parents=True, exist_ok=True)
     onnx_src = WORKING / "my_custom_model" / f"{TARGET_WORD}.onnx"
     if onnx_src.exists():
@@ -67,12 +93,12 @@ def _publish_artifacts() -> None:
 
 
 def _persist_tts_cache() -> None:
-    """Hardlink generated TTS WAVs to the volume so future runs skip Piper.
-
-    `restore_tts_cache_if_mounted()` (in tts_cache.py) reads
-    /workspace/input/dirt-wakeword-tts-cache/ at the next run's start; if
-    its cache-key.json matches the current config, the entire ~22 min
-    Piper phase is short-circuited.
+    """Hardlink generated TTS WAVs into the shared volume cache so future
+    runs skip Piper. The cache is content-keyed (cache-key.json) so
+    concurrent runs with the same config collide benignly — both produce
+    identical files. `restore_tts_cache_if_mounted()` (in tts_cache.py)
+    reads the cache at the next run's start; on key match the entire
+    ~22 min Piper phase is short-circuited.
     """
     from dirt_wake_word.config import (
         NUMBER_OF_EXAMPLES,
@@ -140,10 +166,10 @@ def _read_volume_manifest() -> dict[str, Any] | None:
 
 def _start_manifest(resolved_config: dict[str, Any]) -> dict[str, Any]:
     """Collect every fact knowable at run start. Mutated later with the
-    finish_at timestamp, status, and W&B run URL. Written exactly once,
-    in the appropriate sentinel branch."""
+    finish_at timestamp, status, and W&B run URL."""
     return {
         "schema_version": 1,
+        "run_id": RUN_ID,
         "started_at": datetime.now(UTC).isoformat(),
         "finished_at": None,
         "status": None,
@@ -178,8 +204,10 @@ def _maybe_init_wandb(manifest: dict[str, Any]) -> Any | None:
         run = wandb.init(
             job_type="train",
             config=manifest["resolved_config"],
-            tags=[t for t in [manifest["git_sha"], manifest["gpu_name"]] if t],
-            notes=f"image={manifest['image_ref']} pod={manifest['pod_id']}",
+            tags=[
+                t for t in [manifest["git_sha"], manifest["gpu_name"], RUN_ID] if t
+            ],
+            notes=f"image={manifest['image_ref']} pod={manifest['pod_id']} run_id={RUN_ID}",
         )
         manifest["wandb_run_url"] = getattr(run, "url", None)
         manifest["wandb_run_id"] = getattr(run, "id", None)
@@ -203,8 +231,10 @@ def _finalize_wandb(run: Any | None, *, exit_code: int) -> None:
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     WORKING.mkdir(parents=True, exist_ok=True)
+    print(f"DIRT_RUN_ID={RUN_ID}", flush=True)
     print(f"DIRT_WAKEWORD_INPUT={INPUT}", flush=True)
     print(f"DIRT_WAKEWORD_WORKING={WORKING}", flush=True)
+    print(f"OUT={OUT}", flush=True)
 
     # Library import inside try so any ImportError lands in the FAILURE
     # sentinel rather than killing the entrypoint silently.
@@ -256,23 +286,17 @@ def main() -> None:
     print("=== entrypoint: SUCCESS sentinel written ===", flush=True)
 
 
-def _hold() -> None:
-    """Keep the container alive so the orchestrator can SCP off /workspace/out/.
-
-    RunPod auto-restarts on non-zero exit; we always exit 0. But exit-0
-    means sshd dies, so the orchestrator can't SCP. Block forever; the
-    orchestrator's `finally: delete_pod` is the cleanup path.
-
-    DIRT_TRAINER_NO_HOLD=1 (set by scripts/smoke-trainer-image) skips this
-    so the local docker-run smoke can let the container exit naturally.
-    """
-    if os.environ.get("DIRT_TRAINER_NO_HOLD"):
-        return
-    print("(work done; sleeping for orchestrator to pull artifacts)", flush=True)
-    while True:
-        time.sleep(3600)
-
-
 if __name__ == "__main__":
-    main()
-    _hold()
+    # Outer safety net: even if main()'s BaseException handler itself raises
+    # (e.g. disk full while writing FAILURE), the process must still exit 0.
+    # RunPod auto-restarts on non-zero exit, which would silently burn $/hr.
+    try:
+        main()
+    except BaseException:
+        traceback.print_exc()
+        try:
+            OUT.mkdir(parents=True, exist_ok=True)
+            (OUT / "FAILURE").write_text(traceback.format_exc())
+        except Exception:
+            pass
+    sys.exit(0)
