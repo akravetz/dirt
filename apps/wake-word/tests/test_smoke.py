@@ -2,7 +2,7 @@
 
 Marked `@pytest.mark.smoke` so pre-commit doesn't run it on every commit
 (too slow for that). Run via `uv run pytest -m smoke apps/wake-word/tests`
-or as a pre-flight gate in `scripts/kaggle-train`.
+or as a pre-flight gate in `scripts/runpod-build-image`.
 
 This catches the entire class of "training runs but produces a degenerate
 model" bugs (loss-sign flips, label-mapping inversions, optimizer
@@ -24,7 +24,7 @@ import pytest
 @pytest.mark.skip(
     reason="Smoke harness pending — needs n_samples/steps overrides on main()."
 )
-def test_train_smoke(fake_kaggle) -> None:
+def test_train_smoke(fake_volume) -> None:
     """End-to-end: run main() with tiny data, assert .onnx is produced.
 
     Skipped pending a follow-up commit that adds:

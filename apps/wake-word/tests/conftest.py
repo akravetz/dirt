@@ -4,13 +4,14 @@ Strategy:
 - `pytest.importorskip("openwakeword")` on collection, so a fresh checkout
   without the [wake-word] extra installed reports tests as skipped rather
   than failing collection.
-- `fake_kaggle` fixture: tmp_path-backed `/kaggle/input/` and
-  `/kaggle/working/` trees with a tiny corpus (5 voice clones, 2 RIRs,
-  100-clip background, 4 validation clips). Tests can run end-to-end on
-  CPU in <3 minutes against this rather than the real ~17 GB datasets.
-- The `dirt_wake_word.paths` module reads `DIRT_KAGGLE_INPUT` /
-  `DIRT_KAGGLE_WORKING` env vars; the fixture monkeypatches them so the
-  library behaves identically to a real Kaggle run, just against tmp paths.
+- `fake_volume` fixture: tmp_path-backed input/ + working/ trees with a
+  tiny corpus (5 voice clones, 2 RIRs, 100-clip background, 4 validation
+  clips). Tests run end-to-end on CPU in <3 min against this instead of
+  the real ~17 GB datasets.
+- The `dirt_wake_word.paths` module reads `DIRT_WAKEWORD_INPUT` /
+  `DIRT_WAKEWORD_WORKING` env vars; the fixture monkeypatches them so
+  the library behaves identically to a real RunPod pod, just against
+  tmp paths.
 """
 
 from __future__ import annotations
@@ -67,8 +68,8 @@ def _write_noisy_wav(
 
 
 @pytest.fixture
-def fake_kaggle(tmp_path, monkeypatch):
-    """Mock the Kaggle environment.
+def fake_volume(tmp_path, monkeypatch):
+    """Mock a RunPod-style network volume layout for the trainer.
 
     Layout:
         tmp_path/
@@ -80,17 +81,16 @@ def fake_kaggle(tmp_path, monkeypatch):
                 dirt-wakeword-bg/
                     audioset_16k/       (50 noisy WAVs)
                     fma/                (50 noisy WAVs)
-                dirt-wakeword-features/ (.npy files; written by tests as needed)
+                dirt-wakeword-features/ (.npy stubs)
                 dirt-wakeword-validation/
                     good/               (4 noisy WAVs)
                     bad/                (4 noisy WAVs)
             working/                   # writable scratch
                 my_custom_model/
-                openwakeword/          # placeholder so build_config can find YAML
 
-    Yields a (input_root, working_root) tuple. The library's paths module
-    is monkeypatched to read these via env vars, so no production code
-    needs to be aware of the mock.
+    Yields (input_root, working_root). The library's paths module is
+    monkeypatched to read these via env vars, so production code doesn't
+    need to know it's running against fakes.
     """
     input_root = tmp_path / "input"
     working_root = tmp_path / "working"
@@ -155,8 +155,8 @@ def fake_kaggle(tmp_path, monkeypatch):
     # Working dir
     (working_root / "my_custom_model").mkdir()
 
-    monkeypatch.setenv("DIRT_KAGGLE_INPUT", str(input_root))
-    monkeypatch.setenv("DIRT_KAGGLE_WORKING", str(working_root))
+    monkeypatch.setenv("DIRT_WAKEWORD_INPUT", str(input_root))
+    monkeypatch.setenv("DIRT_WAKEWORD_WORKING", str(working_root))
     # paths module reads env at import time — must reload to pick up changes.
     for mod_name in [m for m in list(sys.modules) if m.startswith("dirt_wake_word")]:
         del sys.modules[mod_name]

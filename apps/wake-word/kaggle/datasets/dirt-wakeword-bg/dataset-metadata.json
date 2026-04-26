@@ -1,8 +1,0 @@
-{
-  "title": "Dirt Wake Word — backgrounds (AudioSet+FMA)",
-  "id": "akravetz/dirt-wakeword-bg",
-  "licenses": [{"name": "other"}],
-  "isPrivate": true,
-  "keywords": ["wake-word", "audio", "negative-samples"],
-  "description": "Re-host of openwakeword's background noise + music corpora, converted to 16 kHz mono PCM WAV. AudioSet from agkphysics/AudioSet bal_train/00.parquet (500 clips, FLAC); FMA-small from benjamin-paine/free-music-archive-small train-00000 (120 clips, MP3). Direct parquet read via pyarrow + soundfile (no HF datasets library). Upload once, reuse every training run. Mixed upstream licenses — personal/non-commercial use only, see openwakeword notebook for details."
-}

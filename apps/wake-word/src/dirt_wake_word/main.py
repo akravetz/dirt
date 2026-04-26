@@ -1,9 +1,8 @@
 """End-to-end training orchestrator.
 
-Called by the trainer entrypoint (apps/wake-word/docker/entrypoint.py on
-RunPod, apps/wake-word/kaggle/train-hey-claudia.py on the legacy Kaggle
-path). Each phase is wrapped in `phase(...)` for wall-time accounting in
-the run log.
+Called by the docker entrypoint (apps/wake-word/docker/entrypoint.py).
+Each phase is wrapped in `phase(...)` for wall-time accounting in the
+run log.
 """
 
 from __future__ import annotations
@@ -11,7 +10,7 @@ from __future__ import annotations
 import time
 
 from .config import TARGET_WORD, build_config
-from .paths import KAGGLE_WORKING, expected_inputs, out_dir, verify_inputs
+from .paths import WORKING_ROOT, expected_inputs, out_dir, verify_inputs
 from .seed import prepare_seed_clips
 from .timing import phase
 from .train import custom_train
@@ -23,7 +22,7 @@ def main() -> None:
     t_start = time.monotonic()
     inputs = expected_inputs(TARGET_WORD)
     out = out_dir()
-    work = KAGGLE_WORKING
+    work = WORKING_ROOT
 
     with phase("verify_inputs"):
         verify_inputs(inputs)

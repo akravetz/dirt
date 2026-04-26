@@ -37,7 +37,7 @@ RUN git clone https://github.com/dscripka/openwakeword \
  && pip install --no-deps ./openwakeword
 
 # ----------------------------------------------------------------------------
-# piper-sample-generator + libritts checkpoint, pinned to the SHA the kaggle
+# piper-sample-generator + libritts checkpoint, pinned to a known-good SHA
 # pipeline used.
 # ----------------------------------------------------------------------------
 RUN git clone https://github.com/rhasspy/piper-sample-generator \

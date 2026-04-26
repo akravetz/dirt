@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --project /home/akcom/code/dirt python -u
 """Submit one wake-word training job to RunPod, poll, pull artifacts back.
 
-Mirrors `scripts/kaggle-train`'s shape (push → poll → pull) but against
+POST a pod via the
 RunPod Pods via the REST v1 API. See docs/references/runpod/INDEX.md for
 the rationale behind every field choice; shared lifecycle primitives live
 in scripts/_runpod_lib.py.

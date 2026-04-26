@@ -81,25 +81,40 @@ Plus three new env vars wired through `dirt_shared.config`:
 
 ## What we kept from Kaggle
 
-- The `dirt_wake_word` library is unchanged. It already reads
-  `DIRT_KAGGLE_INPUT` / `DIRT_KAGGLE_WORKING` from env (so the test
-  suite could mock the Kaggle environment) — RunPod uses the same env
-  vars pointing at `/workspace/input` / `/workspace/working`.
-- `apps/wake-word/kaggle/` and `scripts/kaggle-train` left intact as
-  fallback. Once a RunPod model trains successfully and validates, we
-  can delete the Kaggle path.
 - The four Kaggle datasets (`dirt-wakeword-{mine,bg,features,validation}`)
   remain the durable copy of training data. The seed pod pulls from
   them via the Kaggle CLI.
+- The `dirt_wake_word` library is unchanged in shape. It reads
+  `DIRT_WAKEWORD_INPUT` / `DIRT_WAKEWORD_WORKING` from env (RunPod
+  mounts `/workspace/input` / `/workspace/working`) — the legacy
+  `DIRT_KAGGLE_*` aliases were dropped along with the Kaggle path.
 
-## Operational state at decision time
+## Status update — Kaggle path removed
 
-- Image built and pushed: `ghcr.io/akravetz/dirt-wake-word-trainer:latest`
-  (12 GB, ~30 min first push, subsequent pushes ~5 min for changed layers).
+The first successful RunPod training run landed on 2026-04-25
+(`hey_claudia.onnx`, 205 KB, 35.7% recall against the 28/76 real-mic
+validation set). With RunPod proven end-to-end, the Kaggle scaffolding
+was deleted in a follow-up commit:
+
+- `apps/wake-word/kaggle/` (kernel shim, dataset metadata, README) — gone.
+- `scripts/kaggle-train` — gone.
+- `DIRT_KAGGLE_*` env-var aliases in `paths.py` — gone (now `DIRT_WAKEWORD_*` only).
+- `find_openwakeword_source` / `find_dataset` candidate-list logic for the
+  Kaggle TPU layout — gone (Docker path is the only path).
+
+Future references to Kaggle in this repo are about the data source
+(Kaggle hosts our datasets), not the training runtime.
+
+## Operational state
+
+- Trainer image: `ghcr.io/akravetz/dirt-wake-word-trainer:latest` (~12 GB).
 - GHCR auth registered with RunPod: ID `cmoev2n9x0016ju07p15dhc3r`.
-- Network Volume created (`dirt_data`, ID `b7rdtnmhkd`, 50 GB, US-CA-2).
-- Volume seed pod **in flight** at time of writing.
-- First trainer run pending volume seed.
+- Active Network Volume: `dirt_data_il`, ID `jj3zksmx29`, 50 GB, `US-IL-1`.
+  (The original `dirt_data` in `US-CA-2` was abandoned when capacity dried up.)
+- First successful end-to-end run: 2026-04-25, ~64 min wall, ~$0.74.
+  Per-phase analysis in `debug/runpod_logs.txt`; the `ncpu` parallelism
+  fix in commit `6d32ec0` is expected to drop typical run wall to ~30 min
+  (or ~10 min after the TTS cache is primed on the volume).
 
 ## When to reconsider
 

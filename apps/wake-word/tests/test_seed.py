@@ -59,7 +59,7 @@ def test_seed_dir_n_dup_one_no_suffix(tmp_path: Path) -> None:
     assert files[0].name == "x_src.wav"  # no _dup0
 
 
-def test_prepare_seed_clips_splits_by_prefix(fake_kaggle, monkeypatch) -> None:
+def test_prepare_seed_clips_splits_by_prefix(fake_volume, monkeypatch) -> None:
     """realmic-pos clips go through realmic_pos_ prefix + 10× dup; clones
     go through synth_clone_ prefix + 1× dup. Same for negatives."""
     from dirt_wake_word.paths import expected_inputs, out_dir

@@ -67,9 +67,9 @@ def build_config(
     Loads upstream's `examples/custom_model.yml` as a baseline, overrides
     every key we care about, writes `<work_dir>/my_model.yaml`.
     """
-    from .paths import find_openwakeword_source
+    from .paths import OPENWAKEWORD_SOURCE
 
-    base_yaml = find_openwakeword_source() / "examples/custom_model.yml"
+    base_yaml = OPENWAKEWORD_SOURCE / "examples/custom_model.yml"
     config = yaml.safe_load(base_yaml.read_text())
 
     config["target_phrase"] = [TARGET_WORD.replace("_", " ")]

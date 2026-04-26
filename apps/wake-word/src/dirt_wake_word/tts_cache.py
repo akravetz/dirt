@@ -1,10 +1,10 @@
 """TTS cache hook — skip Piper TTS when a cached dataset is mounted.
 
-If a `dirt-wakeword-tts-cache` dataset (Kaggle attachment, or RunPod
-network-volume directory at /workspace/input/dirt-wakeword-tts-cache/)
-is present, hardlink the cached Piper-generated WAVs into the four
-pre-train directories. Upstream's `--generate_clips` then sees ≥95% of
-n_samples already in place and skips Piper entirely.
+If `/workspace/input/dirt-wakeword-tts-cache/` is present (populated by a
+prior successful run via entrypoint._persist_tts_cache), hardlink the
+cached Piper-generated WAVs into the four pre-train directories.
+Upstream's `--generate_clips` then sees ≥95% of n_samples already in
+place and skips Piper entirely — saves ~20 min per run.
 
 Cache invalidation by key file (target_phrase + n_samples + n_samples_val).
 A mismatch causes loud sys.exit, never silent stale-data training.
@@ -56,8 +56,8 @@ def restore_tts_cache_if_mounted(out_dir: Path) -> bool:
     if actual != expected:
         sys.exit(
             f"FATAL: TTS cache key mismatch.\n  cache: {actual}\n  run:   {expected}\n"
-            "Rebuild the cache (operator workflow in apps/wake-word/CLAUDE.md) "
-            "or clear /workspace/input/dirt-wakeword-tts-cache/."
+            "Clear /workspace/input/dirt-wakeword-tts-cache/ on the volume "
+            "(SSH to a pod and `rm -rf`, or re-seed) so the next run rebuilds it."
         )
 
     print(f"=== TTS cache hit: hardlinking cached WAVs from {cache_dir}")

@@ -64,7 +64,6 @@ line-length = 88
 # The library at apps/wake-word/src/dirt_wake_word/ is normally linted.
 extend-exclude = [
     "docs", ".claude", "scripts", "firmware", "debug",
-    "apps/wake-word/kaggle",
     "apps/wake-word/docker",
     "apps/wake-word/data-gen",
     "apps/wake-word/validation",
