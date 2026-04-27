@@ -1030,3 +1030,78 @@ v20 is a strict win on the lab metric. Held-out is a wash. Recommendation lean: 
 #### Operational notes
 - Scratch-cleanup landed in this image (commit `7836787`'s `_cleanup_working()` runs on success and failure). Volume usage scan after run: 31.06 GB / 200 GB used (15.5 %). Cleanup is working — pre-cleanup steady-state was leaking ~1-2 GB per run.
 - `aws s3 sync` paginator bug fired again on artifact pull. Same workaround: `scripts/wakeword-pull-pod-out f6x0z33zcpal7v`. This is now four consecutive runs where the orchestrator's sync fails and direct-HEAD download recovers — switch the orchestrator off `aws s3 sync` permanently.
+
+### v21 — 2026-04-27
+
+**Status:** trained, validated (**not deployed** — precision regression on lab set)
+**Model artifact:** `var/wake-word/models/2026-04-27-145636-o4e1ctum4rfrlt/hey_claudia.onnx`
+**Trainer commit:** `552dc1a` (80/20 train/test split for realmic-{pos,neg})
+**W&B run:** [`dn8p52uf`](https://wandb.ai/adkravetz/dirt-wake-word/runs/dn8p52uf) (group `exp6-harvest-negs-split-v21-20260427-145635`)
+**Pod:** `o4e1ctum4rfrlt`, RTX 4090
+**Wall:** 32m19s (TTS cache HIT, augment cache MISS — mine content_hash changed → new key)
+
+#### What changed (vs v20)
+- **30 new realmic-neg clips** added to `dirt-wakeword-mine/negatives/` (idx 100-129) from the 2026-04-27 harvest mode capture (36 reviewed, all keepers, 30/6 split between training and held-out validation). mine total: 2473 files (2056 voice_samples + 408 negatives + 9 RIRs), new content_hash.
+- **6 new realmic-neg clips** added to `dirt-wakeword-validation/bad/` (idx h00-h05). validation/bad/ now 82 (was 76).
+- **`seed.py` 80/20 train/test split** for realmic-pos and realmic-neg (sorted-by-name + idx % 5 == 0 → test). Previously every realmic clip went 100% to *_train and *_test was 100% Piper synth. Now:
+  - realmic-pos: 45 train / 11 test (×10 dup each = 450/110 in seed pool)
+  - realmic-neg: 39 train / 9 test (×10 dup each = 390/90 in seed pool)
+- Same Gain-only realmic augmentation as v20.
+
+#### Why
+Two related changes bundled into one experiment:
+1. Bigger real-mic negative pool (18 → 48 train, ~2.7× growth) so the model has more in-distribution false-positive shapes to push against.
+2. The per-epoch lab metric was synth-blind — `*_test` was 100% Piper-generated audio, so checkpoint selection optimized for synth-style precision/recall, not for real audio. Splitting realmic into *_test gives the selector a real-audio signal.
+
+#### Results — original 28/76 set (apples-to-apples with v17/v20)
+
+| Threshold | Recall | Precision | F1 | False positives |
+|---:|---:|---:|---:|---:|
+| 0.30 | 64.3 % | 69.2 % | 0.667 | 9/76 |
+| 0.40 | 60.7 % | 68.0 % | 0.642 | 8/76 |
+| 0.50 | 57.1 % | 66.7 % | 0.615 | 8/76 |
+| 0.60 | 50.0 % | 66.7 % | 0.571 | 7/76 |
+| 0.70 | 42.9 % | 66.7 % | 0.522 | 6/76 |
+
+#### Results — augmented 28/82 set (with 6 new harvest negs)
+
+| Threshold | Recall | Precision | F1 | False positives |
+|---:|---:|---:|---:|---:|
+| 0.30 | 78.6 % | 68.8 % | 0.733 | 10/82 |
+| 0.50 | 60.7 % | 68.0 % | 0.642 | 8/82 |
+| 0.60 | 57.1 % | 69.6 % | 0.627 | 7/82 |
+| 0.70 | 46.4 % | 76.5 % | 0.578 | 4/82 |
+
+#### Results — held-out 38-clip real-mic set (`/tmp/v17-eval-newclips/good/`)
+
+| Model | Recall@0.5 |
+|---|---:|
+| v17 | 36.8 % (14/38) |
+| v19 | 23.7 % (9/38) |
+| v20 | 34.2 % (13/38) |
+| **v21** | **44.7 %** (17/38) |
+
+**+8pp held-out real-mic recall, biggest jump yet.** The bigger negative pool + the train/test split combination is doing something useful for real-mic generalization.
+
+#### Comparison summary @ production threshold 0.6
+
+| Model | recall | precision | F1 | FPs (76 lab bad) |
+|---|---:|---:|---:|---:|
+| v17 | 46.4 % | 100 % | 0.634 | 0/76 |
+| v20 | **60.7 %** | **100 %** | **0.756** | **0/76** |
+| v21 | 50.0 % | 66.7 % | 0.571 | 7/76 |
+
+v20 still wins on the production threshold. v21 is **not deployable** — 7 FPs out of 76 on a set v17 and v20 perfectly rejected is a hard regression for hands-free use.
+
+#### Hypothesis on the precision drop
+v17/v20's per-epoch `*_test` was 100% Piper synth. The best-checkpoint selector (max F1 against `*_test`) was therefore picking checkpoints that were synth-precision-optimal, which empirically also held up on the real-audio 76-bad set. v21's `*_test` now has 11 realmic-pos + 9 realmic-neg, so the selector is picking a checkpoint optimized for catching real-mic positives — at the cost of being more permissive on the kinds of audio the original 76-bad set captures (TV, kitchen sounds, ambient speech). Held-out real-mic recall is a direct beneficiary; lab precision is a direct casualty.
+
+#### What to try next
+- **Decouple the two changes.** Either (a) keep the 30 new harvest negatives in mine but revert seed.py to 100% realmic→train (so `*_test` stays synth-only, like v20). That isolates whether the harvest-negs alone help. Or (b) keep the seed split but revert the harvest-negs bump.
+- **More representative validation/bad/ growth.** Add ambient-room-noise / TV / kitchen captures to the bad set so the selector's *_test reflects the real-world FP distribution we care about, not just the harvest-near-miss distribution.
+- **Variance check.** Same-config retrains have ~20% F1 spread (per v17 lineage notes); v21 may be a low-tail draw. A second retrain at the same config would tell us how much of the 0.756→0.571 F1@0.6 drop is real signal.
+
+#### Operational notes
+- First run on the new `runpod-train` direct-download path (commit `5d2b527` dropped `aws s3 sync` for `pull_artifacts`). Worked end-to-end — artifacts pulled cleanly, no paginator bug, orchestrator's `finally:` got a clean DELETE on the post-sentinel pod.
+- Volume usage post-run: 31.06 GB / 200 GB (15.5 % — same as post-v20, since `_cleanup_working` ran). Stale per-pod working/ dirs from v17/v18/v19/v20 also wiped earlier today (~70k keys removed).
+- TTS cache invalidation behavior: cache stayed valid (target_phrase + n_samples + n_samples_val unchanged). Augment cache invalidated (mine content_hash changed → new key).
