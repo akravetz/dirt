@@ -147,7 +147,9 @@ Tried adding a 10 µF ceramic across A0 → GND to filter brick switching noise.
 - **Location:** `firmware/reservoir_node/`, two PlatformIO envs:
   - `reservoir-bench` — USB-only, no WiFi/OTA, prints `ts_ms,raw_mean,volts` to serial. Used for bring-up + calibration captures. **In service.**
   - `reservoir` — full WiFi + OTA + ingest path. **Production target.**
-- **Behavior per cycle (every 30 s):** read 32 samples from the ADS1115 channel 0 (averaged), convert raw counts to depth via the compiled-in two-point calibration constants, divide by `DENSITY_REL = 1.007` to correct for nutrient solution density, divide by `CM_PER_INCH = 2.54` to publish in inches, POST `{reservoir_pressure_raw: <mean_count>, reservoir_in: <converted>}` to the existing `/api/ingest/sensors` endpoint with `location="reservoir"`.
+- **Behavior per cycle (every 30 s):** read 32 samples from the ADS1115 channel 0 (averaged), convert raw counts to water column above the probe via the compiled-in two-point calibration constants, divide by `DENSITY_REL = 1.007` to correct for nutrient solution density, add `PROBE_OFFSET_CM = 2.0` so the published value represents tank water depth from the floor (not column above the probe diaphragm), divide by `CM_PER_INCH = 2.54` to publish in inches, POST `{reservoir_pressure_raw: <mean_count>, reservoir_in: <converted>}` to the existing `/api/ingest/sensors` endpoint with `location="reservoir"`.
+
+  Note: because the probe physically can't see the bottom 2 cm, the published depth bottoms out at `PROBE_OFFSET_CM / CM_PER_INCH ≈ 0.79 in` when the diaphragm is in air. Refill alerting should fire well above that floor.
 - **Why both raw and depth?** The raw count is the recovery anchor for after-the-fact recalibration (if cal constants change, history can be re-derived from raw). The depth-in-inches is the value queries actually use. Mirrors the soil-moisture pattern (`soil_moisture_raw` + auto-cal'd `_pct`) but with **fixed cal constants in firmware** instead of auto-tracked extrema in the DB — see "Calibration" below.
 
 - **Why inches on the wire?** The contract (`reservoir_in`) and the dashboard already speak inches; the operator measures fill depth with a tape measure in inches. Doing the cm→in conversion at the firmware publish boundary means the server stores values that match the contract 1:1 and zero unit-translation infrastructure has to live in the API layer. The internal cal math stays in cm because the cal procedure measures cm with a tape and the probe spec sheet is metric.
@@ -168,9 +170,10 @@ Recalibration = edit the constants in `firmware/reservoir_node/src/main.cpp`, OT
 
 Live values compiled into `firmware/reservoir_node/src/main.cpp`. Update this table on every (re)calibration in the same change as the firmware constants — the firmware ships with whatever's here, so a desync means depth values silently drift away from truth.
 
-| Date | Source | `RAW_AT_ZERO_CM` | `COUNTS_PER_CM` | `DENSITY_REL` | Cal points used | Notes |
-|---|---|---|---|---|---|---|
-| 2026-04-26 | Bench bring-up | 18540 | 116.7 | 1.007 | 0 cm = 0.5793 V (raw 18540) ; 64.5 cm = 0.8146 V (raw 26069) | Provisional. Probe out of tank for the zero point, suspended ~1 cm above floor for the span point with 25.8 in (65.5 cm) of water. Skipped the 30 min settling step and the third-point verification — re-take per the cal procedure once the probe is in its permanent mount. |
+| Date | Source | `RAW_AT_ZERO_CM` | `COUNTS_PER_CM` | `DENSITY_REL` | `PROBE_OFFSET_CM` | Cal points used | Notes |
+|---|---|---|---|---|---|---|---|
+| 2026-04-26 | Bench bring-up | 18540 | 116.7 | 1.007 | — | 0 cm = 0.5793 V (raw 18540) ; 64.5 cm = 0.8146 V (raw 26069) | Provisional. Probe out of tank for the zero point, suspended ~1 cm above floor for the span point with 25.8 in (65.5 cm) of water. Skipped the 30 min settling step and the third-point verification. Firmware at this rev published "column above probe" (no probe-offset constant yet), so the dashboard under-read tank depth by ~0.4 in (the 1 cm probe offset). **Superseded by 2026-04-26 (final mount).** |
+| 2026-04-26 (final mount) | Mounted-position cal | 18540 | 109.10 | 1.007 | 2.0 | raw_zero = 18540 (carried forward — it's a property of the probe in air, independent of mounting); raw_high = 25471 (mean of 15 settled posts at 30 s cadence; stddev 60, p-p 244) at 63.532 cm of water column above the probe diaphragm (= 25.8 in tank water depth − 2 cm probe offset). Skipped the ~half-depth verification point — should be re-taken before next refill cycle if depth values look off. Firmware now adds `PROBE_OFFSET_CM` after density correction so the published `reservoir_in` represents tank water depth from the floor, not column above the diaphragm. **Active.** |
 
 ## Mounting Notes
 

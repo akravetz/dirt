@@ -43,15 +43,24 @@ const char* const HOSTNAME = "dirt-reservoir";
 
 // --- Calibration ----------------------------------------------------------
 //
-// Provisional two-point linear cal from bench bring-up 2026-04-26. Re-take
-// against final mounted position per wiki/hardware/reservoir-level.md cal
-// procedure (probe suspended ~2cm above tank floor; tape-measured fill;
-// 30 min settle; verify with a third point at ~half depth, reject if
-// >10mm off). When updating, also update the bench-cal table in the wiki.
+// Two-point linear cal in final mounted position 2026-04-26 (supersedes
+// the bench-bring-up cal of the same date). Re-take per the cal
+// procedure in wiki/hardware/reservoir-level.md whenever the probe is
+// remounted or the recipe changes substantially. When updating, also
+// update the cal table in the wiki — the firmware ships whatever is
+// here, so a desync silently drifts the depth values.
 //
-//   raw_count(0 cm head)    = 18540
-//   raw_count(64.5 cm head) = 26069
-//   slope ≈ (26069 - 18540) / 64.5 = 116.7 counts/cm
+//   raw_count(0 cm head)    = 18540  (4 mA loop floor, probe in air)
+//   raw_count(63.532 cm head) = 25471 (mean of 15 settled readings,
+//     probe suspended 2 cm above tank floor, water at 25.8 in / 65.532 cm)
+//   slope = (25471 - 18540) / 63.532 = 109.10 counts/cm
+//   (assumes cal fluid ≈ water; for nutrient at 1.007, slope = 108.34)
+//
+// PROBE_OFFSET_CM lets the published value represent water depth from
+// the tank floor (what "Reservoir: X in" means to a human) rather than
+// water column above the diaphragm. The probe physically can't see the
+// bottom 2 cm, so the published depth bottoms out at PROBE_OFFSET_CM /
+// CM_PER_INCH ≈ 0.79 in when the diaphragm is in air.
 //
 // Internal math is cm because the cal procedure measures cm with a tape;
 // we convert to inches at the publish boundary because the contract +
@@ -59,12 +68,13 @@ const char* const HOSTNAME = "dirt-reservoir";
 //
 // Density correction: hydroponic nutrient solution runs ~1.005-1.010 g/mL,
 // which biases hydrostatic depth high by ~0.7-1.0%. Divide by this constant
-// before publishing. Recalibrate the slope rather than tweaking the constant
-// if the recipe changes substantially.
+// before adding the geometric probe offset. Recalibrate the slope rather
+// than tweaking the constant if the recipe changes substantially.
 
 constexpr float CAL_RAW_AT_ZERO_CM = 18540.0f;
-constexpr float CAL_COUNTS_PER_CM  = 116.7f;
+constexpr float CAL_COUNTS_PER_CM  = 109.10f;
 constexpr float DENSITY_REL        = 1.007f;
+constexpr float PROBE_OFFSET_CM    = 2.0f;
 constexpr float CM_PER_INCH        = 2.54f;
 
 // --- State ----------------------------------------------------------------
@@ -86,11 +96,12 @@ int16_t readPressureRaw() {
     return (int16_t)(sum / SAMPLE_COUNT);
 }
 
-// Convert raw ADS counts to water depth in inches via the two-point cal,
-// density correction, and cm→in conversion.
+// Convert raw ADS counts to water depth (from the tank floor) in inches:
+// two-point cal → density correction → add probe offset → cm→in.
 float rawToDepthIn(int16_t raw) {
-    float depth_cm = (raw - CAL_RAW_AT_ZERO_CM) / CAL_COUNTS_PER_CM;
-    return depth_cm / DENSITY_REL / CM_PER_INCH;
+    float column_cm = (raw - CAL_RAW_AT_ZERO_CM) / CAL_COUNTS_PER_CM / DENSITY_REL;
+    float tank_cm  = column_cm + PROBE_OFFSET_CM;
+    return tank_cm / CM_PER_INCH;
 }
 
 // --- Lifecycle ------------------------------------------------------------
