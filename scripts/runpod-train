@@ -64,6 +64,11 @@ def main() -> int:
             "WANDB_RUN_GROUP": run_group,
             "WANDB_NAME": name,
             "DIRT_IMAGE_REF": args.image,
+            # Pass our RunPod API key into the container so the entrypoint
+            # can self-DELETE after writing the sentinel. Belt-and-suspenders
+            # with the orchestrator's `finally:` DELETE — if the orchestrator
+            # dies mid-run, the entrypoint stops the pod itself.
+            "RUNPOD_API_KEY": api_key,
         },
     }
     if registry_auth_id:

@@ -175,8 +175,51 @@ def _finalize_wandb(run: Any | None, *, exit_code: int) -> None:
         print(f"WARN: wandb.finish failed: {exc!r}", flush=True)
 
 
+def _self_delete() -> None:
+    """DELETE this pod via the RunPod REST API. Best-effort.
+
+    Belt-and-suspenders to the orchestrator's own `finally: DELETE`. If the
+    orchestrator dies (or never existed), this stops the pod from running
+    indefinitely after training finishes — RunPod auto-restarts containers
+    on exit while the pod is leased, so without DELETE the GPU keeps
+    billing on a tight restart loop. DELETE-on-already-gone is idempotent
+    on the orchestrator side (404 swallowed by leased_pod's finally)."""
+    pod_id = os.environ.get("RUNPOD_POD_ID")
+    api_key = os.environ.get("RUNPOD_API_KEY")
+    if not pod_id or not api_key:
+        print("(self-DELETE skipped: RUNPOD_POD_ID or RUNPOD_API_KEY missing)", flush=True)
+        return
+    import urllib.error
+    import urllib.request
+
+    req = urllib.request.Request(
+        f"https://rest.runpod.io/v1/pods/{pod_id}",
+        method="DELETE",
+        headers={"Authorization": f"Bearer {api_key}"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            print(f"=== self-DELETE pod={pod_id} status={resp.status} ===", flush=True)
+    except (urllib.error.URLError, OSError, TimeoutError) as exc:
+        print(f"WARN: self-DELETE failed: {exc!r}", flush=True)
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
+
+    # Quick-exit if a sentinel already exists from a prior incarnation of
+    # this pod. RunPod auto-restarts the container on exit while the pod
+    # is leased; without this guard, every restart would re-run training
+    # (or FATAL on cache state) and burn cycles. Self-DELETE on the way
+    # out in case nothing else has cleaned up the pod.
+    if (OUT / "SUCCESS").exists() or (OUT / "FAILURE").exists():
+        print(
+            f"=== sentinel already present at {OUT}; auto-restart detected, quick-exiting ===",
+            flush=True,
+        )
+        _self_delete()
+        return
+
     WORKING.mkdir(parents=True, exist_ok=True)
     print(f"DIRT_RUN_ID={RUN_ID}", flush=True)
     print(f"DIRT_WAKEWORD_INPUT={INPUT}", flush=True)
@@ -204,6 +247,7 @@ def main() -> None:
         manifest["status"] = "failure"
         (OUT / "run-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
         _finalize_wandb(run, exit_code=1)
+        _self_delete()
         return
 
     manifest["finished_at"] = datetime.now(UTC).isoformat()
@@ -212,6 +256,7 @@ def main() -> None:
     _finalize_wandb(run, exit_code=0)
     (OUT / "SUCCESS").write_text("ok\n")
     print("=== entrypoint: SUCCESS sentinel written ===", flush=True)
+    _self_delete()
 
 
 if __name__ == "__main__":
@@ -222,6 +267,10 @@ if __name__ == "__main__":
         try:
             OUT.mkdir(parents=True, exist_ok=True)
             (OUT / "FAILURE").write_text(traceback.format_exc())
+        except Exception:
+            pass
+        try:
+            _self_delete()
         except Exception:
             pass
     sys.exit(0)

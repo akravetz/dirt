@@ -56,6 +56,18 @@ The Pod stays leased after the container exits. A "stopped" pod still bills volu
 
 DELETE is also what actually stops the container. RunPod's container runtime keeps the container alive (auto-restarting on exit) for as long as the pod is leased.
 
+## Defense-in-depth: self-DELETE from inside the container
+
+Orchestrator-side `finally: DELETE` is necessary but not sufficient: if the orchestrator process dies mid-run (we've seen this — KeyboardInterrupt from a sibling process, OOM, ssh disconnect, etc.), the pod runs unsupervised at $0.34/h until something else cleans up.
+
+Defense: pass `RUNPOD_API_KEY` into the container's env block on `POST /pods`, and have the entrypoint issue `DELETE /pods/<self_pod_id>` as the last step before exit (after the volume artifacts are written). DELETE-on-already-gone is idempotent (orchestrator's finally returns 404, swallow as success).
+
+Additionally: the entrypoint should **quick-exit if `out/<pod_id>/SUCCESS` or `out/<pod_id>/FAILURE` already exists** at the top of `main()`. RunPod auto-restarts the container on exit; without this guard, a successful run that writes SUCCESS triggers a restart that re-runs training (or FATAL'd in our case on a partial-cache state). Quick-exit + self-DELETE in the quick-exit branch closes the loop in the case where the orchestrator missed its first poll window.
+
+## Account-level spend cap
+
+Set at https://www.console.runpod.io/user/billing — console-only (no REST API). The default $80/hr account-wide cap is hard; raising requires a support ticket (https://contact.runpod.io/). Tighten as much as your budget tolerates; this is the last-line backstop if both the orchestrator and the in-container self-DELETE fail.
+
 ## Race window
 
 Between the moment the entrypoint writes SUCCESS to the volume and the moment the orchestrator polls + DELETEs, RunPod may auto-restart the container. With a 30 s poll interval, the race window is ≤ 30 s — at GPU rates that's a few cents of wasted compute. Negligible. (Don't poll faster — the API has rate limits and a faster cadence doesn't materially shrink the cost.)
