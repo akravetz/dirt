@@ -105,7 +105,7 @@ documented. Kept for reference.
 
 ### v3 — 2026-04-16
 
-**Status:** deployed (currently `var/wake-word/models/current` symlink)
+**Status:** superseded (deployed 2026-04-16 → 2026-04-27; replaced by v16)
 **Model artifact:** `var/wake-word/models/2026-04-16-v3/hey_claudia.onnx`
 
 The model that's been running in production since mid-April. Trained in
@@ -738,8 +738,8 @@ runtime environment. v16+ entries below correspond to RunPod runs.
 
 ### v16 — 2026-04-27
 
-**Status:** trained, validated (deploy decision pending)
-**Model artifact:** `var/wake-word/models/2026-04-26-225546-95hpev0e07b2ea/hey_claudia.onnx`
+**Status:** **deployed** (currently `var/wake-word/models/current` symlink, deployed 2026-04-27)
+**Model artifact:** `var/wake-word/models/2026-04-27-v16/hey_claudia.onnx` (renamed from `2026-04-26-225546-95hpev0e07b2ea` for convention)
 **Trainer commit:** `1d10a93` (TTS-cache reciprocal-bug fix landed mid-run; pod ran on the prior image's code)
 **Image digest:** `sha256:f552c860573e2a6a2ed63e3ef46ad55af45c8d377102275e1c77ff52e69c7763`
 **W&B run:** [`bwwafjyq`](https://wandb.ai/adkravetz/dirt-wake-word/runs/bwwafjyq) (group `exp1-realmic-20260426-225544`)
