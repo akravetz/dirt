@@ -24,16 +24,13 @@ __pycache__/
 
 # Firmware build artifacts
 firmware/.pio/
-firmware/plant_node/.pio/
-firmware/fan_controller/.pio/
+firmware/*/.pio/
 
 # Camera daemon compiled binary (build output, not source)
 services/camera-daemon/dirt-camera-daemon
 
 # Firmware secrets (WiFi creds, OTA password, ingest token) — one per node project
-firmware/plant_node/src/secrets.h
-firmware/fan_controller/include/secrets.h
-firmware/reservoir_node/src/secrets.h
+firmware/*/*/secrets.h
 
 # Distribution
 dist/

@@ -101,8 +101,12 @@ def wait_for_s3_sentinel(
 
 
 # ---------------------------------------------------------------------------
-# Network Volume S3 API. Endpoint: https://s3api-<dc-lower>.runpod.io/.
-# Bucket = volume id; volume contents map to bucket-root paths.
+# Network Volume S3 client. Endpoint: https://s3api-<dc-lower>.runpod.io/.
+# Bucket = volume id; volume contents map to bucket-root paths. Bulk
+# transfers use `aws s3 sync` (CLI shell-out) to dodge two RunPod-S3 bugs:
+# bulk DeleteObjects 307s, and list_objects_v2 paginator leaks tokens
+# across prefixes. The single-key get_object/put_object/head_object
+# operations the boto3 client is used for here are not affected.
 # ---------------------------------------------------------------------------
 
 
@@ -117,67 +121,3 @@ def s3_client():
         aws_secret_access_key=env("RUNPOD_S3_SECRET_ACCESS_KEY"),
         region_name=dc,
     )
-
-
-def s3_download_prefix(s3, *, bucket: str, prefix: str, local_dest: Path) -> int:
-    """Download every key under prefix. Same RunPod-paginator workaround as
-    s3_delete_prefix: raw list_objects_v2 + ContinuationToken in a loop,
-    deduping seen keys to break out if the listing leaks outside prefix."""
-    local_dest.mkdir(parents=True, exist_ok=True)
-    seen: set[str] = set()
-    token: str | None = None
-    n = 0
-    while True:
-        kwargs = {"Bucket": bucket, "Prefix": prefix, "MaxKeys": 1000}
-        if token:
-            kwargs["ContinuationToken"] = token
-        r = s3.list_objects_v2(**kwargs)
-        new_keys = [
-            o["Key"] for o in (r.get("Contents") or []) if o["Key"] not in seen
-        ]
-        if not new_keys:
-            return n
-        for key in new_keys:
-            if not key.startswith(prefix):
-                continue  # paginator leaked; skip foreign keys
-            rel = key[len(prefix):].lstrip("/")
-            if not rel:
-                continue
-            dst = local_dest / rel
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            s3.download_file(bucket, key, str(dst))
-            seen.add(key)
-            n += 1
-        if not r.get("IsTruncated"):
-            return n
-        token = r.get("NextContinuationToken")
-        if not token:
-            return n
-
-
-def s3_upload_dir(s3, *, local_dir: Path, bucket: str, prefix: str) -> int:
-    n = 0
-    for path in local_dir.rglob("*"):
-        if not path.is_file():
-            continue
-        rel = path.relative_to(local_dir).as_posix()
-        s3.upload_file(str(path), bucket, f"{prefix.rstrip('/')}/{rel}")
-        n += 1
-    return n
-
-
-def s3_delete_prefix(s3, *, bucket: str, prefix: str) -> int:
-    """Delete every key under prefix. Uses raw list_objects_v2 + per-batch
-    delete in a loop because RunPod's paginator returns ContinuationTokens
-    that leak outside the requested prefix, which boto3 (correctly) rejects."""
-    deleted = 0
-    while True:
-        r = s3.list_objects_v2(Bucket=bucket, Prefix=prefix, MaxKeys=1000)
-        contents = r.get("Contents") or []
-        if not contents:
-            return deleted
-        s3.delete_objects(
-            Bucket=bucket,
-            Delete={"Objects": [{"Key": o["Key"]} for o in contents]},
-        )
-        deleted += len(contents)

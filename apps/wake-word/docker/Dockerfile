@@ -20,7 +20,6 @@ ARG DIRT_GIT_SHA=""
 
 ENV PYTHONUNBUFFERED=1 \
     DIRT_WAKEWORD_INPUT=/workspace/input \
-    DIRT_WAKEWORD_WORKING=/workspace/working \
     DIRT_GIT_SHA=${DIRT_GIT_SHA} \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1 \
@@ -28,6 +27,10 @@ ENV PYTHONUNBUFFERED=1 \
     WANDB_DIR=/workspace/wandb \
     WANDB_SILENT=true \
     WANDB_CONSOLE=redirect
+# DIRT_WAKEWORD_WORKING intentionally NOT baked here — entrypoint computes
+# /workspace/working/<RUN_ID> per-run via os.environ.setdefault, which
+# loses to a baked Dockerfile env. Leaving it unset lets the per-run
+# isolation actually work.
 # WANDB_API_KEY is intentionally NOT baked — image is pushed to GHCR;
 # the orchestrator (scripts/runpod-train) injects the key at pod-create
 # time via the env block. See docs/references/wandb/docker-and-runpod.md.

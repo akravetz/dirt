@@ -13,6 +13,8 @@ poll-interval-sized race is bounded waste.
 from __future__ import annotations
 
 import argparse
+import os
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -81,16 +83,29 @@ def main() -> int:
     s3 = rp.s3_client()
 
     prefix = f"out/{train_pod_id}/"
+    dc = os.environ.get("RUNPOD_VOLUME_DATACENTER", "US-IL-1")
     with rp.leased_pod(http, train_pod_id, keep_on_success=args.keep):
         sentinel = rp.wait_for_s3_sentinel(
             s3, bucket=network_volume_id, prefix=prefix, deadline=deadline,
         )
         print(f"==> sentinel={sentinel} at s3://{network_volume_id}/{prefix}")
-        print(f"==> S3 download → {local_dest}")
-        n = rp.s3_download_prefix(
-            s3, bucket=network_volume_id, prefix=prefix, local_dest=local_dest,
+        print(f"==> aws s3 sync s3://{network_volume_id}/{prefix} → {local_dest}")
+        local_dest.mkdir(parents=True, exist_ok=True)
+        subprocess.run(
+            [
+                "aws", "s3", "sync",
+                f"s3://{network_volume_id}/{prefix}",
+                str(local_dest),
+                "--size-only",
+                "--region", dc,
+                "--endpoint-url", f"https://s3api-{dc.lower()}.runpod.io/",
+            ],
+            env=os.environ | {
+                "AWS_ACCESS_KEY_ID": rp.env("RUNPOD_S3_ACCESS_KEY_ID"),
+                "AWS_SECRET_ACCESS_KEY": rp.env("RUNPOD_S3_SECRET_ACCESS_KEY"),
+            },
+            check=True,
         )
-        print(f"  pulled {n} files")
 
     if (local_dest / "SUCCESS").exists():
         print(f"=== training succeeded; artifacts at {local_dest} ===")
