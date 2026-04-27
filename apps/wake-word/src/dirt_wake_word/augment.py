@@ -7,9 +7,11 @@ positive_test, negative_test) we split files by filename prefix:
     real-room recorded: realmic_*, harvested_*
 
 Synth gets the default augmentation pipeline. Real-room recorded gets
-RIR=0.0 + AddBackgroundNoise=0.5 (down from 0.75) — the clip already
-carries the deployment room's reverb, so convolving with another RIR is an
-unphysical 2-room cascade.
+ALL probabilities zeroed — the clip already carries deployment-room reverb
+and ambient noise, so any further augmentation pushes the training distribution
+away from the actual inference distribution (raw Jabra audio). v17 was
+trained with REAL_AUDIO matching DEFAULTS minus RIR; even on its own training
+clips it only fired on 33-37%, which traced to this distribution mismatch.
 """
 
 from __future__ import annotations
@@ -52,7 +54,7 @@ DEFAULTS = {
     "Gain": 1.0,
     "RIR": 0.5,
 }
-REAL_AUDIO = {**DEFAULTS, "RIR": 0.0, "AddBackgroundNoise": 0.5}
+REAL_AUDIO = dict.fromkeys(DEFAULTS, 0.0)
 
 # Bump this if the cache layout/contract changes (e.g. new .npy file
 # added, or augment_clips behavior changes upstream).
@@ -265,8 +267,8 @@ def augment_and_compute_features(*, work_dir: Path, out_dir: Path) -> None:
 
         out_path = feature_save_dir / _features_filename(subset_name)
         print(
-            f"  {subset_name}: {len(synth)} synth (×{rounds}, RIR=0.5) + "
-            f"{len(real)} realroom (×{rounds}, RIR=0) → {out_path.name}",
+            f"  {subset_name}: {len(synth)} synth (×{rounds}, default aug) + "
+            f"{len(real)} realroom (×{rounds}, no aug) → {out_path.name}",
             flush=True,
         )
         compute_features_from_generator(
