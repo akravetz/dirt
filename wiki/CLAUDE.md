@@ -22,11 +22,12 @@ Answer from the smallest relevant file first. The table below tells you where to
 | "what is VPD / LST / DLI / flushing / …" | `concepts/<topic>.md` |
 | environment trends (temp, humidity, nutrients) | `environment/<topic>.md` |
 | hardware (sensors, camera, voice, humidifier) | `hardware/<device>.md` |
+| breeding program (pollen, pheno hunt, cross procedure, F1/F2 vocab) | `breeding/README.md` first; then specific page (`breeding/<topic>.md`) |
 
 ### Don't
 
 - **Don't `Read` `log.md`.** Append-only activity log, grows unboundedly, almost never answers a question directly. Grep only as a last resort.
-- **Don't glob for files that don't exist.** Full top-level layout: `concepts/  daily/  decisions/  environment/  hardware/  plants/`, plus `index.md`, `log.md`, `overview.md`. There is no `schedule/`, `timeline/`, or `journal/`.
+- **Don't glob for files that don't exist.** Full top-level layout: `breeding/  concepts/  daily/  decisions/  environment/  hardware/  plants/`, plus `index.md`, `log.md`, `overview.md`, `wake-word-experiments.md`. There is no `schedule/`, `timeline/`, or `journal/`.
 - **Don't read multiple full files when one section of `overview.md` answers the question.** Start there.
 
 ### Canonical sections in `overview.md`
@@ -80,6 +81,7 @@ outputs/    Generated reports, summaries, exports. Derived from wiki, never prim
 - `hardware/` — One file per deployed system (sensors, cameras, controllers). Operational state, wiring, configuration.
 - `concepts/` — Reference knowledge for both growing and technical domains (e.g., VPD, LST, EC metering, sensor placement).
 - `decisions/` — Dated decision records (e.g., switching to flower, choosing a PTZ camera, defoliating).
+- `breeding/` — Operating manual for the small breeding program (pollen handling, pheno-hunt protocol, cross procedure, isolation). Frontmatter `type: breeding`. Background on the breeder lives in `concepts/oregon-breeding-group.md`.
 - `index.md` — Master catalog. Always up to date.
 - `log.md` — Append-only activity log. Never edited, only appended.
 - `overview.md` — High-level grow status + system status. Refreshed on each update.

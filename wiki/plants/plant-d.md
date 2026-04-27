@@ -18,7 +18,7 @@ updated: 2026-04-24
 
 ## Current State
 
-Day 41, twelve days post-topping, Day 4 of LST: medium-green healthy canopy; main shoots bent and anchored (LST started Apr 20, all plants); moisture jumped from 60% (Apr 22) to 83% today — autopot feeding aggressively; no visible stress, continue monitoring root zone. See [2026-04-24](../daily/2026-04-24.md).
+Day 43, fourteen days post-topping, Day 6 of LST: medium-green healthy canopy; moisture peaked overnight at 88.48%, now stabilizing at ~87% — slightly easing during lights-on; no visible stress signs. See [2026-04-26](../daily/2026-04-26.md).
 
 ## Timeline
 
@@ -42,3 +42,4 @@ Day 41, twelve days post-topping, Day 4 of LST: medium-green healthy canopy; mai
 - 2026-04-22 — [Day 39: color improving — lighter medium-green, no longer alarming vs. Apr 20; compact symmetrical canopy; moisture rising to 60% (autopot active)](../daily/2026-04-22.md)
 - 2026-04-23 — [Day 40: photos only; medium-to-lighter green canopy; healthy; heavy humidity haze in tent (humidifier oscillation events earlier)](../daily/2026-04-23.md)
 - 2026-04-24 — [Day 41: medium-green healthy canopy; moisture jumped from 60% (Apr 22) to 83% — autopot feeding aggressively; no visible stress](../daily/2026-04-24.md)
+- 2026-04-26 — [Day 43: medium-green healthy canopy; moisture peaked overnight at 88.48%, stabilizing at ~87% during lights-on; no visible stress](../daily/2026-04-26.md)

@@ -18,7 +18,7 @@ updated: 2026-04-24
 
 ## Current State
 
-Day 41, thirteen days post-topping, Day 4 of LST: medium-green multi-branch canopy at SCROG net level; training ties visible anchoring main shoots (LST started Apr 20, all plants); moisture stable ~56%; overnight sensor dropout from Apr 22 resolved. See [2026-04-24](../daily/2026-04-24.md).
+Day 43, fifteen days post-topping, Day 6 of LST: medium-light green multi-branch canopy with good lateral spread through SCROG net squares; moisture stable ~57%; no concerns. See [2026-04-26](../daily/2026-04-26.md).
 
 ## Timeline
 
@@ -42,3 +42,4 @@ Day 41, thirteen days post-topping, Day 4 of LST: medium-green multi-branch cano
 - 2026-04-22 — [Day 39: vigorous medium-green canopy at SCROG net level; moisture stable ~53%; overnight sensor dropout (null data 00–06)](../daily/2026-04-22.md)
 - 2026-04-23 — [Day 40: photos only; medium-green multi-branch canopy; healthy structure; no issues visible](../daily/2026-04-23.md)
 - 2026-04-24 — [Day 41: medium-green multi-branch canopy; training ties visible (LST Day 4); moisture stable ~56%; overnight sensor dropout resolved](../daily/2026-04-24.md)
+- 2026-04-26 — [Day 43: medium-light green multi-branch canopy; good lateral spread through SCROG net; moisture stable ~57%; no issues](../daily/2026-04-26.md)

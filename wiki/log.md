@@ -2,7 +2,7 @@
 title: Activity Log
 type: log
 created: 2026-04-06
-updated: 2026-04-22
+updated: 2026-04-26
 order: chronological — oldest entries at top, newest appended at bottom. Do NOT insert entries out of date order.
 ---
 
@@ -613,3 +613,62 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - **BOM consequence (not yet actioned):** none of the three MCP4131 variants on order (10 kΩ / 50 kΩ / 100 kΩ) is a direct match. If Step 1 confirms DC-analog case, `MCP4131-502E/P` (5 kΩ) needs ordering. Do NOT order until Step 1 verdict lands — a PWM case skips the digipot entirely.
 - **Resume point for a fresh agent:** start at [`docs/epics/continuous-humidifier/README.md`](../docs/epics/continuous-humidifier/README.md) "Current state" section. The immediate next action is walking the user through Step 1 of [`phase1-probe-checklist.md`](../docs/epics/continuous-humidifier/phase1-probe-checklist.md) (DC voltage measurement on pot wires with unit powered, ground clip on a verified board GND). The checklist's observations log has a partially-filled "Session 1 — 2026-04-24" block at the top; fill in the Step 1 section when probing resumes.
 - **No code or wiki-page changes this session** — only docs/epic tracking updates. `wiki/log.md`, `docs/epics/continuous-humidifier/README.md` (Current state rewritten), `docs/epics/continuous-humidifier/phase1-probe-checklist.md` (observations log seeded).
+
+## [2026-04-26] query-filed | Breeding program section created
+- **Trigger:** working session synthesizing breeding-program research (cannabis pollen viability, pheno-hunting practice, SBxBS01 hybrid genetics, F1/F2 nomenclature) into a working manual ahead of the Track A male grow starting this week.
+- **New top-level section:** `wiki/breeding/` — operating manual for the small home breeding program. Frontmatter `type: breeding`. Concept-level OBG background remains in `concepts/oregon-breeding-group.md`; the new pages are protocol.
+- **Pages created:**
+  - `wiki/breeding/README.md` — section index, two-track structure (pollen production + pheno hunt → F2 cross), goals, page reading order
+  - `wiki/breeding/nomenclature.md` — F1/F2/BX/S1/IBL definitions tied to our SBxBS01 program; clarifies that our F1 = breeder's F1 and our cross produces F2
+  - `wiki/breeding/timeline.md` — dated calendar from program launch through F2 seed harvest (active document; will be updated as phases land)
+  - `wiki/breeding/isolation.md` — separate-room contamination protocol; phase-based hygiene rules; tools/clothes discipline
+  - `wiki/breeding/cloning.md` — procedure, equipment list, space requirements, mother management, take-rate expectations
+  - `wiki/breeding/pheno-hunt-protocol.md` — six selection axes (color/terps/structure primary; finish/vigor/resilience secondary), weighted scoring rubric, weekly schedule
+  - `wiki/breeding/male-evaluation.md` — pre-pollen-collection male scoring; stem color + hermie tendency are gating criteria
+  - `wiki/breeding/pollen-handling.md` — collection, drying, 4:1 baked-flour cut, aliquoting, freezer storage, single-thaw discipline
+  - `wiki/breeding/cross-procedure.md` — paintbrush pollination, branch labeling, seed maturation stages, harvest timing
+- **Decision page:** `wiki/decisions/2026-04-26-breeding-program-launch.md` — captures rationale, alternatives considered, trait priorities, scope exclusions, hardware acquisitions, critical-path commitments. Open questions explicitly listed (second-pack BS line choice; keeper female source; cross direction count).
+- **CLAUDE.md updates:** added `breeding/` to the layout list, the question-routing table, and the wiki/ subfolder taxonomy.
+- **Index update:** `wiki/index.md` gained a "Breeding" section between "Concepts" and "Decisions" with all 9 new page links + the launch decision link.
+- **Open follow-ups:** second-pack BS line decision (BS01/BS13/BS35/BS45) before mid-July; first cloning batch this week to preserve A/B/C/D as breeding candidates; isolation-room outfit (light, fan, environment); portable freezer acquisition.
+
+## [2026-04-26] decision-pivot | Humidifier — abandon Raydrop MCU mod, pivot to Wi-Fi-native Govee H7140
+- **Trigger:** replacement spare Raydrop arrived; Phase 1 probe session ran deep but stalled. Pot characterized as a 5 kΩ rheostat (only 2 of 3 terminals wired); clean DC voltage sweep on the wiper couldn't be obtained — multiple ground-reference candidates failed and the low-water sensor was suppressing the entire oscillator stage so the wiper had no signal to read in the first place. Defeating the water sensor and redoing the bench setup was on the path back to "finished probe," but the user surfaced the better question: why are we doing $40 of bespoke MCU-mod work when a $45 Wi-Fi-native humidifier with a documented HTTP API exists?
+- **Decision:** order a GoveeLife Smart Humidifier Lite (H7140) and integrate via Govee Public API v2. Arrives 2026-04-27. Integration shape is **Manual mode + the existing host-side VPD PI controller** — the H7140 becomes the actuator at the dispatch boundary, with `u_pct ∈ [0, 100]` quantized to one of 8 discrete Manual-mode levels (with hysteresis dead-zones at boundaries to prevent limit-cycle chatter). VPD-targeting (per 2026-04-18 decision) stays. The device's built-in Auto mode (RH setpoint + internal closed loop) is RH-only — using it would walk back the VPD decision, so we don't.
+- **What gets retired:** Raydrop KC-RD03A + Kasa EP10 plug stack; the planned digipot mod and firmware work; the home-grown stuck-actuator watchdog for empty-tank (replaced by the device's built-in `lackWaterEvent`).
+- **What stays live (becomes production):** the PI controller + plant-in-loop tests + shadow logging + analyzer harness all carry over — the H7140 is just a different actuator at the dispatch boundary. FOPDT plant model needs refitting against H7140 mist rate (graduated step test, originally Phase 4 acceptance — same methodology, new actuator). Surrounding loop logic (stage-band setpoint, lights-off prep, failsafe, observability) is unchanged.
+- **Concerns flagged in the decision:** cloud-only API (Internet outage = no humidifier control), 10K calls/account/day quota (comfortable for the 30 s loop with "POST only when level changes"), quantization needs hysteresis dead-zone at level boundaries to avoid limit cycling, FOPDT needs refitting (planned step), net-new SaaS dependency.
+- **Files updated:**
+  - **New:** `wiki/decisions/2026-04-26-govee-h7140-pivot.md` (decision doc with full alternatives, rollout, consequences).
+  - **New:** `docs/references/govee-api/INDEX.md` + `control.md` + `h7140-capabilities.md` + `rate-limits.md` + `gotchas.md` — full reference pack pinned to Public API v2 (`openapi.api.govee.com/router/api/v1/`); H7140-specific capability map includes the Manual/Custom/Auto work modes, 40-80% RH range, `lackWaterEvent`, plus the Option A / Option B integration choice writeup.
+  - **Updated:** `docs/epics/continuous-humidifier/README.md` — marked ABANDONED at top with pivot pointers; original "Current state" preserved below as historical archaeology.
+  - **Updated:** `wiki/decisions/2026-04-23-raydrop-mcu-mist-control.md` — status flipped to SUPERSEDED with pointer to the pivot decision; control-theory analysis (PI vs PID, FOPDT, IMC) explicitly noted as still applicable for the Option B fallback.
+  - **Updated:** `wiki/hardware/humidifier-control.md` — frontmatter updated; banner at top noting the impending swap and pointing to the pivot decision + Govee reference pack. Body content preserved (still describes live state until cutover).
+  - **Updated:** `wiki/index.md` — Raydrop decision marked superseded; new pivot decision added to the Decisions list.
+  - **Updated:** `CLAUDE.md` — added Govee Public API v2 to the Framework/API References list with the standard "consult when / training-data drift" framing.
+- **Resume point for cutover (when hardware arrives 2026-04-27):** see "Rollout" section of `wiki/decisions/2026-04-26-govee-humidifier-pivot.md` for the 9-step plan (provision → API key in `.env` → discovery sanity check → bench script → production client at `apps/shared/src/dirt_shared/services/govee.py` → graduated step test → loop swap in `HumidifierLoopService` → 48-72h soak → physical decommission of Raydrop+Kasa).
+
+## [2026-04-26] decision-revise | Humidifier — switched deployment SKU from Govee H7140 to H7142 (same line, more granularity + bigger tank)
+- **Trigger:** after a fuller side-by-side comparison across the Govee H71xx line later the same day, the H7142 (6 L cool-mist) emerged as the better choice over the originally-ordered H7140 (3 L Lite). Two axes: **9 Manual-mode API levels** vs the H7140/H7143's 8 (one extra level — small win), and **6 L tank** vs the H7140's 3 L (would require daily refills in flower-stage demand vs ~3-day cadence on the H7142).
+- **Hardware status:** H7140 still en route 2026-04-27 (the original-order backup; will be retained as spare or returned). H7142 ordered 2026-04-26, arrives 2026-04-28.
+- **What changed:** SKU string only. Same API contract across the H71xx line — `workMode` STRUCT capability with Manual/Custom/Auto sub-modes, `humidity` 40-80% range, `lackWaterEvent`, `powerSwitch`, plus nightlight/UVC/aroma extras we ignore. Quantization at the dispatch boundary becomes `u_pct → level 1..9` instead of `1..8`. Graduated step test sample points become 2/5/8 instead of 1/4/8. Everything else (PI controller, plant-in-loop tests, shadow logging, analyzer, surrounding loop logic) is unaffected.
+- **Considered also:** local-control alternatives. SwitchBot Smart Humidifier (BLE local, ~$50, 3.5 L) was the first-choice "escape cloud" option but is no longer available on Amazon. Tuya/SmartLife humidifiers via LocalTuya (~$30-80) require ~30 min one-time local-key extraction + typically only 3 mist levels (worse than Govee). SwitchBot Evaporative ($240, Matter) is the price ceiling and uses evaporative not ultrasonic physics. The Dreo HM713S was specifically considered (6 L, popular Amazon listing) but has only 3 mist levels AND is cloud-only — strictly worse than Govee on both axes. The cloud-dependency cost on Govee is bounded — failsafe-OFF on cloud unreachability + Telegram alert keeps the worst case at "tent gets a little dry during a multi-hour outage" — not worth the local-control premium.
+- **Files updated:**
+  - **Renamed:** `docs/references/govee-api/h7140-capabilities.md` → `h714x-capabilities.md` (line-wide spec, H7142 deployment-specifics inline). `wiki/decisions/2026-04-26-govee-h7140-pivot.md` → `2026-04-26-govee-humidifier-pivot.md` (model-agnostic name).
+  - **Rewritten:** `docs/references/govee-api/h714x-capabilities.md` — H7142 deployment spec, per-SKU comparison table (H7140 / H7142 / H7143), updated dispatch shape (`modeValue ∈ 1..9`), inferred capability list with explicit "verify against live discovery once provisioned" note since the H7142's full capability list hasn't been captured from a live device yet.
+  - **Updated:** `wiki/decisions/2026-04-26-govee-humidifier-pivot.md` — title + decision body now reflect H7142 as deployment SKU; revision block explains the same-day switch from H7140; alternatives table expanded to call out H7140/H7143/SwitchBot/Tuya/Dreo as considered-and-rejected within the H71xx line; rollout steps updated to reflect both arrivals (H7140 backup 2026-04-27, H7142 primary 2026-04-28).
+  - **Updated:** `docs/references/govee-api/INDEX.md` — example SKU strings flipped to H7142, deployment description updated, links to renamed `h714x-capabilities.md`, source links extended with H7142-specific manual + Amazon listing.
+  - **Updated:** `docs/references/govee-api/control.md` and `gotchas.md` — example SKU strings + line-wide framing.
+  - **Updated:** `docs/epics/continuous-humidifier/README.md` — abandoned-status block now references H7142 as the deployment SKU + renamed pivot decision.
+  - **Updated:** `wiki/decisions/2026-04-23-raydrop-mcu-mist-control.md` — superseded link points at renamed pivot file; superseded text reframes "may be re-applied" → "carries over" since we're going Manual+PI from day one (not Auto-mode-first as the earlier pivot draft assumed).
+  - **Updated:** `wiki/hardware/humidifier-control.md` — banner reflects both arrivals + renamed pivot decision.
+  - **Updated:** `wiki/index.md` — pivot-decision entry retitled and rewritten to reflect H7142 deployment + 9 levels.
+  - **Updated:** `CLAUDE.md` — Govee reference pack pointer now mentions H7142 deployment + 9 vs 8 level distinction across the H71xx line.
+
+## [2026-04-26] daily | Day 43 — VPD below floor day 2; B moisture rising; all temp windows below targets
+- Created `wiki/daily/2026-04-26.md` — Day 43; overnight VPD 0.94 kPa ✅ / morning 0.99 kPa ✅ / now 0.68 kPa 🔴 (below floor, 2nd consecutive day); all temperature windows marginally below veg targets; overnight RH 59.48% above 45–55% target for first time; Plant B moisture rising to 79.3%; C/D stable at 85–87%; reservoir change critically overdue (Day 11+)
+- Photos: all four plants healthy, vibrant green, good SCROG fill; no humidity haze; A med-light green; B darkest/densest; C bushy med-dark green; D medium green
+- Updated plant timeline + current state: plant-a (stable 57%), plant-b (rising 79%), plant-c (stable 85–86%), plant-d (stabilizing 87%)
+- Updated `wiki/environment/humidity.md` — trend log entry + notable event: afternoon VPD below floor day 2; overnight RH above veg target first time; all windows above RH targets
+- Updated `wiki/environment/temperature.md` — trend log entry + notable event: all windows below veg targets second consecutive day
+- Refreshed `wiki/overview.md` and `wiki/index.md`

@@ -18,7 +18,7 @@ updated: 2026-04-24
 
 ## Current State
 
-Day 41, twelve days post-topping, Day 4 of LST: densest dark-green canopy of the four; main shoots bent and anchored (LST started Apr 20, all plants); moisture slightly elevated at 68–69% (up from 64–65% Apr 22) as autopot feeds actively. See [2026-04-24](../daily/2026-04-24.md).
+Day 43, fourteen days post-topping, Day 6 of LST: densest and darkest canopy in the tent; moisture rising to 79.3% (from 74.6% yesterday, 68% Apr 24) — on trajectory toward the 82%+ range seen in C/D; watch for stress signs. See [2026-04-26](../daily/2026-04-26.md).
 
 ## Timeline
 
@@ -42,3 +42,4 @@ Day 41, twelve days post-topping, Day 4 of LST: densest dark-green canopy of the
 - 2026-04-22 — [Day 39: densest darkest canopy; moisture very stable 64–65% across all windows (consistent autopot feeding)](../daily/2026-04-22.md)
 - 2026-04-23 — [Day 40: photos only; dense dark-green canopy; healthy; no issues visible](../daily/2026-04-23.md)
 - 2026-04-24 — [Day 41: dense dark-green canopy; densest of the four; moisture slightly elevated at 68–69% (up from 64–65%) — autopot active](../daily/2026-04-24.md)
+- 2026-04-26 — [Day 43: dense dark-green canopy; moisture rising to 79.3% (was 74.6% yesterday) — approaching C/D high range; watch](../daily/2026-04-26.md)
