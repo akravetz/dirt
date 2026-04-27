@@ -7,11 +7,19 @@ positive_test, negative_test) we split files by filename prefix:
     real-room recorded: realmic_*, harvested_*
 
 Synth gets the default augmentation pipeline. Real-room recorded gets
-ALL probabilities zeroed — the clip already carries deployment-room reverb
-and ambient noise, so any further augmentation pushes the training distribution
-away from the actual inference distribution (raw Jabra audio). v17 was
-trained with REAL_AUDIO matching DEFAULTS minus RIR; even on its own training
-clips it only fired on 33-37%, which traced to this distribution mismatch.
+Gain=1.0 only, every other prob 0. Reasoning:
+- Spectral distortions (RIR / EQ / TanhDistortion / PitchShift / BandStopFilter
+  / AddColoredNoise / AddBackgroundNoise) push the training distribution off
+  the inference distribution (raw Jabra audio carries the deployment-room
+  reverb already; mixing in another RIR is unphysical, and adding more bg
+  noise on top of clips that already include ambient noise just spreads the
+  positive class.
+- Gain randomization is pure amplitude scaling — same waveform, different
+  level. It DOES help generalization (mic distance, speech volume) without
+  shifting the spectral distribution. v19 went too far by zeroing Gain too,
+  which left the trainer with N exact-duplicate pairs of each clip per epoch
+  (rounds=2) and the model overfit to those exact waveforms — held-out
+  realmic recall dropped 36.8% (v17) → 23.7% (v19).
 """
 
 from __future__ import annotations
@@ -54,7 +62,7 @@ DEFAULTS = {
     "Gain": 1.0,
     "RIR": 0.5,
 }
-REAL_AUDIO = dict.fromkeys(DEFAULTS, 0.0)
+REAL_AUDIO = {**dict.fromkeys(DEFAULTS, 0.0), "Gain": 1.0}
 
 # Bump this if the cache layout/contract changes (e.g. new .npy file
 # added, or augment_clips behavior changes upstream).
@@ -268,7 +276,7 @@ def augment_and_compute_features(*, work_dir: Path, out_dir: Path) -> None:
         out_path = feature_save_dir / _features_filename(subset_name)
         print(
             f"  {subset_name}: {len(synth)} synth (×{rounds}, default aug) + "
-            f"{len(real)} realroom (×{rounds}, no aug) → {out_path.name}",
+            f"{len(real)} realroom (×{rounds}, gain-only) → {out_path.name}",
             flush=True,
         )
         compute_features_from_generator(
