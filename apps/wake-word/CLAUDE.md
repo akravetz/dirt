@@ -88,7 +88,16 @@ uv run python apps/wake-word/validation/live-test.py \
     var/wake-word/models/<datestamp>/hey_claudia.onnx
 # (speak; Ctrl-C; restart service)
 
-# 7. Deploy if validation looks good:
+# 7. **REQUIRED — log the experiment.** Append a new entry to
+#    `wiki/wake-word-experiments.md` for EVERY trained model, deployed or not.
+#    Use the most recent entry as a template (vN, status, commit, image digest,
+#    W&B run, pod id, wall, what changed, training data, training config,
+#    validation results table, per-phase wall, operational notes). If you
+#    deploy, also flip the previous deployed entry's `**Status:**` to `superseded`.
+#    Skipping this step means the next agent has to dig through git/W&B/S3 to
+#    reconstruct what was run and why — don't make them.
+
+# 8. Deploy if validation looks good:
 ln -sfn <datestamp>-runpod var/wake-word/models/current
 systemctl --user restart dirt-voice
 ```

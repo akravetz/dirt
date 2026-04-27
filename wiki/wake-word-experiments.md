@@ -898,3 +898,85 @@ Next same-data run should drop to **~7 min** (TTS + augment caches both HIT).
 
 #### Threshold tuning question
 Production currently uses `WAKE_THRESHOLD = 0.6` (set in `apps/voice/src/dirt_voice/channels/voice.py:95`). At 0.6, v17 gets 46.4 % recall / 100 % precision / F1 0.634. At 0.5, v17 gets 57.1 % recall / 100 % precision / F1 0.727. Lowering to 0.5 picks up an extra 11 pp of recall with no precision cost — worth considering after some real-world soak.
+
+### v18 — 2026-04-27
+
+**Status:** **superseded by v17** (not deployed; v17 stayed in production)
+**Model artifact:** `var/wake-word/models/2026-04-27-013813-iz72df0qooa32e/hey_claudia.onnx`
+**Trainer commit:** `fec0916` (same as v17 — TTS-cache path fix)
+**W&B run:** [`wfgvxv7r`](https://wandb.ai/adkravetz/dirt-wake-word/runs/wfgvxv7r) (group `exp3-realmic-v18-20260427-013811`)
+**Pod:** `iz72df0qooa32e`, RTX 4090
+**Wall:** 32m46s (TTS cache HIT, augment cache HIT — saved ~44 min vs v17 cold-cache wall)
+
+#### What changed (vs v17)
+- **38 new real-mic positive clips added** to `dirt-wakeword-mine` (54 → 56 files at the realmic-pos prefix; mine total 2443 files / 84.5 MB / hash `sha256:023bf1f2…`). Recorded by user across multiple condo locations and intonations on 2026-04-27, dumped, audio-reviewed, 11 weak/clipped takes pruned, 38 promoted. Held-out 38 ADDITIONAL clips kept locally at `/tmp/v17-eval-newclips/good/` so they're never seen by training.
+- Same training config, same RIRs, same bg, same features cache.
+
+#### Why
+Address v17's modest 36.8 % real-mic recall (measured against held-out clips) by giving the model more in-distribution positive examples.
+
+#### Results — canonical 28/76 set
+
+| Threshold | Recall | Precision | F1 | False positives |
+|---:|---:|---:|---:|---:|
+| 0.30 | 57.1 % | 72.7 % | 0.640 | 6/76 |
+| 0.40 | 57.1 % | 80.0 % | 0.667 | 4/76 |
+| 0.50 | 57.1 % | 94.1 % | 0.711 | 1/76 |
+| 0.60 | 46.4 % | **100.0 %** | 0.634 | **0/76** |
+| 0.70 | 39.3 % | 100.0 % | 0.564 | 0/76 |
+
+vs v17 @ 0.50: same recall, **lost 5.9 pp precision** (0 → 1 FP). vs v17 @ 0.30: same recall, **lost 13 pp precision** (3 → 6 FPs). v17 still wins on the lab metric.
+
+#### Key finding (drove v19 hypothesis)
+On v18's OWN training clips (the 56 realmic-pos in `mine`), v18 only fires on 31/56 at threshold 0.5 — **45 % recall on data the model just saw**. Same pattern on v17 (33-37 %). Conclusion: model is trained on RIR-convolved + bg-noise + EQ-distorted + pitch-shifted versions of the realmic clips, but inference sees raw Jabra audio. Train/inference distribution mismatch is capping real-world recall regardless of how many realmic clips we add.
+
+This is what the validation set's recall curve was hiding — its 28 positives are mostly synth-style; the held-out 38-clip realmic set is a much harsher signal and shows v17/v18 ~33-37 % real-mic recall, far below the 57 % canonical-set recall. v19 was designed to test whether removing realmic augmentation closes the gap.
+
+#### Operational notes
+- Caches both HIT for the first time end-to-end: `restore_tts_cache` skipped Piper TTS, `_restore_cache` hardlinked the 4 feature .npys. Wall dropped from ~50 min (v17 cold cache) to ~33 min (v18 warm). Most of the remaining wall is `train_loop` (20k steps) at 6m08s plus boot/init/validation overhead.
+- Watchdog + self-DELETE fired correctly. `aws s3 sync` of `out/<pod_id>/` again hit the RunPod paginator bug; pulled artifacts via `scripts/wakeword-pull-pod-out iz72df0qooa32e`.
+
+### v19 — 2026-04-27
+
+**Status:** **failed (not deployed)** — v17 stays as `current`
+**Model artifact:** `var/wake-word/models/2026-04-27-121815-x186go75fyff8g/hey_claudia.onnx`
+**Trainer commit:** `7836787` (zero augmentation for realmic + entrypoint scratch cleanup; built on `db5ce3d` augment.py change)
+**W&B run:** [`338x9yk6`](https://wandb.ai/adkravetz/dirt-wake-word/runs/338x9yk6) (group `exp4-realmic-no-aug-v19-20260427-121814`)
+**Pod:** `x186go75fyff8g`, RTX 4090
+**Wall:** 39m28s (TTS cache HIT, augment cache **MISS** — REAL_AUDIO change invalidated key)
+
+#### What changed (vs v18)
+- **`REAL_AUDIO = dict.fromkeys(DEFAULTS, 0.0)`** — every augmentation probability set to 0 for `realmic_*` and `harvested_*` filename prefixes (synth clones / neighbors still get the default pipeline). See `apps/wake-word/src/dirt_wake_word/augment.py:55`.
+- Same data, same training config otherwise.
+
+#### Why
+v17/v18 only fire on ~33-37 % of held-out real-mic clips — same model class, same data, just the filename-prefix-keyed augmentation pipeline. Hypothesis: zeroing all augmentation on real-mic clips puts training distribution onto raw Jabra audio (the inference distribution), closing the train/inference gap. If correct, real-mic recall on the held-out 38 clips should climb from 36.8 % (v17) toward 60-80 %.
+
+#### Results — canonical 28/76 set
+
+| Threshold | Recall | Precision | F1 | False positives |
+|---:|---:|---:|---:|---:|
+| 0.30 | 60.7 % | 70.8 % | 0.654 | 7/76 |
+| 0.40 | 57.1 % | 76.2 % | 0.653 | 5/76 |
+| 0.50 | 57.1 % | 80.0 % | 0.667 | 4/76 |
+| 0.60 | 46.4 % | 86.7 % | 0.605 | 2/76 |
+| 0.70 | 42.9 % | 85.7 % | 0.571 | 2/76 |
+
+#### Results — held-out 38-clip real-mic set (`/tmp/v17-eval-newclips/good/`)
+
+| Model | Recall@0.5 | Precision@0.5 |
+|---|---:|---:|
+| v17 | **36.8 %** (14/38) | 100.0 % |
+| v19 | 23.7 % (9/38) | 100.0 % |
+
+#### Hypothesis falsified
+v19 lost ground on every metric: held-out real-mic recall **dropped 13 pp** (36.8 → 23.7), lab F1 **dropped 0.08** (0.735 → 0.654 at 0.30), lab precision **lost 20 pp** at 0.50 (100 → 80, 4 new FPs). The "remove augmentation to close the distribution gap" hypothesis is rejected.
+
+Likely explanation: with `augmentation_rounds=2` and all probs=0, the trainer sees N exact-duplicate pairs of each realmic clip per epoch (no within-class variance from augmentation). Model overfits to those specific waveforms instead of generalizing. v17's "DEFAULTS minus RIR=0, AddBg=0.5" was the better balance — augmentation provides within-class variance that helps generalization, RIR-skip avoids the unphysical two-room reverb cascade.
+
+Better next experiments: keep `Gain=1.0` only (pure amplitude variation, no spectral distortion); or drop `realmic_positive_duplication` from 10 → 2-3 so identical-augmented copies don't dominate the loss; or just collect more raw realmic clips.
+
+#### Operational notes
+- **Volume quota incident.** First four v19 submission attempts produced 0-byte FAILURE files within 30-80 s. Root cause: the 50 GB volume was full (per-pod `working/<pod_id>/` scratch never cleaned up across runs; 2 augment-features cache entries × ~5 GB each; ~15 GB of stale `working/my_custom_model/` from pre-isolation runs). Direct S3 PUT confirmed `InsufficientStorage: bucket storage quota exceeded`. Fix: bumped volume to 200 GB via `PATCH /v1/networkvolumes/<id>` (`{"size":200}`), wiped all stale `working/<pod_id>/` and `working/my_custom_model/` prefixes, and added `_cleanup_working()` to the entrypoint that wipes `WORKING/` after success or failure (commit `7836787`). Future runs won't slow-leak the volume.
+- Augment cache key now keys on the augmentation prob dicts (`augmentation_synth`, `augmentation_real`), so the v19 REAL_AUDIO change invalidated v18's cache and forced a recompute (~22 min). v17 and v18 cache entries still on the volume; v19's new cache entry (different key) coexists.
+- `aws s3 sync` of `out/<pod_id>/` again hit the RunPod paginator bug. Recovery: `scripts/wakeword-pull-pod-out x186go75fyff8g`. Same as every prior run — should permanently switch the orchestrator off `aws s3 sync` to direct head/download by known filename.
