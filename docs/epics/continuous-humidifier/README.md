@@ -1,13 +1,28 @@
 # Epic: Continuous Humidifier Intensity Control
 
-Status: Phase 1 hardware paused (waiting on replacement spare); Phase 4 prep landed end-to-end and live in shadow mode; production tuning blocked on Phase 1–3 hardware
-Priority: medium
+**Status: ABANDONED 2026-04-26 — superseded by hardware pivot to Wi-Fi-native humidifier (Govee H7142).**
 Created: 2026-04-23
-Last touched: 2026-04-26
+Closed: 2026-04-26
 
 ---
 
-## Current state (resume point for a fresh agent — read this top-down)
+## Why this epic was abandoned
+
+The replacement spare Raydrop arrived 2026-04-26. The Phase 1 probe session went deep but stalled — the intensity pot was characterized (5 kΩ rheostat, 2 of 3 terminals wired) but a clean DC voltage sweep on the wiper couldn't be obtained: ground-reference candidates kept failing, and the low-water sensor was suppressing the entire oscillator stage so the wiper had no signal to read in the first place. Defeating the water sensor and redoing the bench setup was on the path back to "finished probe," but during that pause the user surfaced the better question: **why are we doing $40-of-bespoke-MCU-mod work when a $50–60 Wi-Fi-native humidifier with a documented HTTP API exists?**
+
+Decision: order a Govee H71xx-line humidifier (deployed: H7142, 6 L cool-mist, 9 Manual-mode levels via API; H7140 also en route as backup), retire the Raydrop + Kasa EP10 stack, integrate via the Govee Public API v2.
+
+- **Pivot decision**: [wiki/decisions/2026-04-26-govee-humidifier-pivot.md](../../../wiki/decisions/2026-04-26-govee-humidifier-pivot.md)
+- **API reference pack**: [docs/references/govee-api/INDEX.md](../../references/govee-api/INDEX.md)
+- **What carries over (still live, will be the production path)**: the PI controller (`apps/hwd/src/dirt_hwd/services/humidifier_pi.py`), plant-in-loop tests, shadow logging stream, and analyzer/replay harness. The H7142 just becomes the actuator — `u_pct ∈ [0, 100]` quantizes to one of 9 discrete Manual-mode levels at the dispatch boundary. VPD-targeting (per [decision 2026-04-18](../../../wiki/decisions/2026-04-18-vpd-targeting.md)) is unchanged. See [h714x-capabilities.md](../../references/govee-api/h714x-capabilities.md) §"How we use this device" for the dispatch shape.
+- **What gets refit, not abandoned**: the Raydrop FOPDT plant model. The H7142's mist rate ≠ Raydrop's, so τ and K_per_pct need re-derivation from a graduated step test against the H7142 (originally planned for Phase 4 acceptance — same methodology, new actuator). The IMC tuning math + the `analyze.py --section fopdt` refit code work unchanged.
+- **What gets deleted (eventually)**: the Phase 1 hardware checklist, the BOM, the spare-pot BOM consequence, the digipot/PWM Phase 2/3 firmware plans — none of it applies to the H7142. The 2026-04-26 FOPDT findings doc stays as a methodology reference. Sweep in a couple of weeks once the H7142 is soaking in production.
+
+The historical content below is preserved for archaeology only. **Do not start work from it.** If you're a fresh agent looking at the humidifier subsystem, read the pivot decision and the Govee reference pack, then look at `wiki/hardware/humidifier-control.md` for current state.
+
+---
+
+## Original current state (preserved from 2026-04-26 morning, no longer applicable)
 
 The work breaks into three layers. Read them in order:
 
