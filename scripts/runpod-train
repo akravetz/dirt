@@ -39,30 +39,32 @@ def main() -> int:
     network_volume_id = rp.env("RUNPOD_NETWORK_VOLUME_ID")
     registry_auth_id = rp.env("RUNPOD_GHCR_AUTH_ID", required=False) or None
     wandb_api_key = rp.env("WANDB_API_KEY", required=False) or ""
-    pub_key = rp.public_key(required=False)
 
     name = f"wakeword-train-{time.strftime('%Y%m%d-%H%M%S')}"
     run_group = args.run_group or f"solo-{time.strftime('%Y%m%d')}"
 
-    body = rp.common_pod_body(
-        name=name, network_volume_id=network_volume_id, public_key=pub_key,
-    ) | {
+    body = {
+        "name": name,
+        "networkVolumeId": network_volume_id,
+        "volumeMountPath": "/workspace",
+        "cloudType": "SECURE",
+        "interruptible": False,
         "imageName": args.image,
         "computeType": "GPU",
         "gpuTypeIds": args.gpu or DEFAULT_GPU_PRIORITY,
         "gpuTypePriority": "availability",
         "gpuCount": 1,
         "containerDiskInGb": 50,
+        "env": {
+            "WANDB_RUN_GROUP": run_group,
+            "WANDB_NAME": name,
+            "DIRT_IMAGE_REF": args.image,
+        },
     }
     if registry_auth_id:
         body["containerRegistryAuthId"] = registry_auth_id
     if wandb_api_key:
         body["env"]["WANDB_API_KEY"] = wandb_api_key
-    body["env"] |= {
-        "WANDB_RUN_GROUP": run_group,
-        "WANDB_NAME": name,
-        "DIRT_IMAGE_REF": args.image,
-    }
 
     http = rp.client(api_key)
     train_pod_id = rp.create_pod(http, body)

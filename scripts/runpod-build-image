@@ -7,13 +7,17 @@ set -euo pipefail
 REPO_ROOT=$(git rev-parse --show-toplevel)
 GHCR_OWNER="${GHCR_OWNER:-akravetz}"
 IMAGE="ghcr.io/${GHCR_OWNER}/dirt-wake-word-trainer"
-TAG="${1:-latest}"
+TAG="latest"
 NO_PUSH=0
 SKIP_SMOKE=0
-case "${2:-}" in
-  --no-push)     NO_PUSH=1 ;;
-  --skip-smoke)  SKIP_SMOKE=1 ;;
-esac
+for arg in "$@"; do
+  case "$arg" in
+    --no-push)     NO_PUSH=1 ;;
+    --skip-smoke)  SKIP_SMOKE=1 ;;
+    -*)            echo "unknown flag: $arg" >&2; exit 1 ;;
+    *)             TAG="$arg" ;;
+  esac
+done
 
 cd "$REPO_ROOT/apps/wake-word"
 

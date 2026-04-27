@@ -25,7 +25,6 @@ RUN_ID = (
     or os.environ.get("RUNPOD_POD_ID")
     or f"local-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}"
 )
-os.environ["DIRT_RUN_ID"] = RUN_ID
 
 INPUT = Path(os.environ.setdefault("DIRT_WAKEWORD_INPUT", "/workspace/input"))
 WORKING = Path(
@@ -103,7 +102,10 @@ def _probe_gpu_name() -> str | None:
         )
     except (OSError, subprocess.SubprocessError):
         return None
-    return (r.stdout.strip().splitlines() or [None])[0] if r.returncode == 0 else None
+    if r.returncode != 0:
+        return None
+    lines = r.stdout.strip().splitlines()
+    return lines[0] if lines else None
 
 
 def _read_volume_manifest() -> dict[str, Any] | None:
@@ -123,9 +125,9 @@ def _start_manifest(resolved_config: dict[str, Any]) -> dict[str, Any]:
         "started_at": datetime.now(UTC).isoformat(),
         "finished_at": None,
         "status": None,
-        "git_sha": os.environ.get("DIRT_GIT_SHA") or None,
-        "image_ref": os.environ.get("DIRT_IMAGE_REF") or None,
-        "pod_id": os.environ.get("RUNPOD_POD_ID") or None,
+        "git_sha": os.environ.get("DIRT_GIT_SHA"),
+        "image_ref": os.environ.get("DIRT_IMAGE_REF"),
+        "pod_id": os.environ.get("RUNPOD_POD_ID"),
         "gpu_name": _probe_gpu_name(),
         "wandb_run_url": None,
         "wandb_run_id": None,
@@ -198,10 +200,6 @@ def main() -> None:
         manifest["finished_at"] = datetime.now(UTC).isoformat()
         manifest["status"] = "failure"
         (OUT / "run-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
-        try:
-            _publish_artifacts()
-        except OSError:
-            pass
         _finalize_wandb(run, exit_code=1)
         return
 

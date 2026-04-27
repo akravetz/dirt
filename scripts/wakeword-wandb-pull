@@ -1,12 +1,12 @@
 #!/usr/bin/env -S uv run --project /home/akcom/code/dirt python -u
-"""Agent-side W&B reader.
+"""Agent-side W&B reader. JSON output for pipe-into-jq.
 
-  show RUN          — full dump (config, summary, tags, group, system,
-                      runtime); downloads files to var/wake-word/wandb-pulls/<id>/
-  group GROUP       — table of every run in a WANDB_RUN_GROUP
-  latest [--n N]    — N most recent runs (default 5)
+  show RUN          — full dump (config, summary, tags, system); downloads
+                      output.log + metadata files to var/wake-word/wandb-pulls/<id>/
+  group GROUP       — every run in a WANDB_RUN_GROUP (id/state/name/runtime only)
+  latest [--n N]    — N most recent runs (default 5; same row shape as group)
 
-All commands accept --json. RUN may be `run_id` or `entity/project/run_id`.
+RUN may be `run_id` or `entity/project/run_id`.
 """
 
 from __future__ import annotations
@@ -17,7 +17,6 @@ import os
 import sys
 import warnings
 from pathlib import Path
-from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _runpod_lib as rp  # noqa: E402
@@ -32,9 +31,8 @@ SAVED_FILES = (
 )
 
 
-def _api(*, silent: bool = False):
-    if silent:
-        os.environ.setdefault("WANDB_SILENT", "true")
+def _api():
+    os.environ.setdefault("WANDB_SILENT", "true")
     import wandb
 
     rp.load_env()
@@ -43,150 +41,91 @@ def _api(*, silent: bool = False):
     return wandb.Api()
 
 
-def _resolve_run_path(run: str, default_entity: str) -> str:
-    parts = run.split("/")
-    if len(parts) == 1:
-        return f"{default_entity}/{DEFAULT_PROJECT}/{parts[0]}"
-    if len(parts) == 3:
-        return run
-    sys.exit(f"error: {run!r} — expected run_id or entity/project/run_id")
-
-
-def _save_files(run, dest: Path) -> dict[str, Path]:
-    dest.mkdir(parents=True, exist_ok=True)
-    saved: dict[str, Path] = {}
-    for f in run.files():
-        if f.name in SAVED_FILES:
-            f.download(root=str(dest), replace=True, exist_ok=True)
-            saved[f.name] = dest / f.name
-    return saved
-
-
-def _run_summary(run, *, include_system: bool, dest: Path | None) -> dict[str, Any]:
-    d = {
+def _run_row(run) -> dict:
+    return {
         "id": run.id,
         "name": run.name,
         "url": run.url,
         "state": run.state,
         "group": run.group,
-        "job_type": run.job_type,
         "tags": list(run.tags),
         "created_at": str(run.created_at),
-        "config": dict(run.config),
-        "summary": {k: v for k, v in run.summary.items() if not k.startswith("_")},
         "runtime_s": run.summary.get("_runtime"),
     }
-    if include_system and dest is not None:
+
+
+def _run_full(run, *, dest: Path) -> dict:
+    d = _run_row(run)
+    d["job_type"] = run.job_type
+    d["config"] = dict(run.config)
+    d["summary"] = {k: v for k, v in run.summary.items() if not k.startswith("_")}
+
+    dest.mkdir(parents=True, exist_ok=True)
+    saved: list[str] = []
+    for name in SAVED_FILES:
         try:
-            saved = _save_files(run, dest)
-            d["local_files"] = sorted(str(p) for p in saved.values())
-            md_path = saved.get("wandb-metadata.json")
-            if md_path and md_path.exists():
-                meta = json.loads(md_path.read_text())
-                d["system"] = {
-                    "host": meta.get("host"),
-                    "python": meta.get("python"),
-                    "os": meta.get("os"),
-                    "gpu": meta.get("gpu"),
-                    "cpu_count": meta.get("cpu_count"),
-                    "git_commit": (meta.get("git") or {}).get("commit"),
-                }
-        except Exception as exc:  # noqa: BLE001
+            run.file(name).download(root=str(dest), replace=True, exist_ok=True)
+            saved.append(str(dest / name))
+        except Exception:  # noqa: BLE001 — file may not exist yet for in-flight runs
+            pass
+    d["local_files"] = saved
+
+    md = dest / "wandb-metadata.json"
+    if md.exists():
+        try:
+            meta = json.loads(md.read_text())
+            d["system"] = {
+                "host": meta.get("host"),
+                "python": meta.get("python"),
+                "os": meta.get("os"),
+                "gpu": meta.get("gpu"),
+                "cpu_count": meta.get("cpu_count"),
+                "git_commit": (meta.get("git") or {}).get("commit"),
+            }
+        except (OSError, json.JSONDecodeError) as exc:
             d["system"] = {"_error": repr(exc)}
     return d
-
-
-def _print_show(d: dict[str, Any]) -> None:
-    print(f"=== {d['id']}  state={d['state']}  name={d['name']!r}")
-    print(f"url:       {d['url']}")
-    print(f"created:   {d['created_at']}")
-    print(f"group:     {d['group']}")
-    print(f"tags:      {d['tags']}")
-    rt = d.get("runtime_s")
-    if rt is not None:
-        m, s = divmod(int(rt), 60)
-        print(f"runtime:   {rt:.1f}s ({m}m{s}s)")
-    s = d.get("system") or {}
-    if s and "_error" not in s:
-        gpu = s.get("gpu") or "—"
-        print(f"host:      {s.get('host')}  python={s.get('python')}  gpu={gpu}")
-    print("\n--- config ---")
-    for k, v in sorted(d["config"].items()):
-        print(f"  {k}: {v}")
-    if d["summary"]:
-        print("\n--- summary ---")
-        for k, v in sorted(d["summary"].items()):
-            print(f"  {k}: {v}")
-    log = next((Path(p) for p in d.get("local_files") or [] if p.endswith("output.log")), None)
-    if log and log.exists():
-        print(f"\n--- output.log saved: {log} ({log.stat().st_size} bytes) ---")
-        print(f"  tail -20 {log}:")
-        for line in log.read_text().splitlines()[-20:]:
-            print(f"    {line}")
 
 
 def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--entity")
     p.add_argument("--project", default=DEFAULT_PROJECT)
-    p.add_argument("--json", action="store_true", dest="as_json")
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("show").add_argument("run")
     sub.add_parser("group").add_argument("group")
-    sp_latest = sub.add_parser("latest")
-    sp_latest.add_argument("--n", type=int, default=5)
+    sub.add_parser("latest").add_argument("--n", type=int, default=5)
     args = p.parse_args()
 
-    api = _api(silent=args.as_json)
+    api = _api()
     entity = args.entity or api.default_entity
 
     if args.cmd == "show":
-        path = _resolve_run_path(args.run, entity)
-        run = api.run(path)
-        d = _run_summary(run, include_system=True, dest=PULLS_ROOT / run.id)
-        if args.as_json:
-            json.dump(d, sys.stdout, indent=2, default=str)
-            sys.stdout.write("\n")
+        parts = args.run.split("/")
+        if len(parts) == 1:
+            path = f"{entity}/{args.project}/{parts[0]}"
+        elif len(parts) == 3:
+            path = args.run
         else:
-            _print_show(d)
-        return 0
+            sys.exit(f"error: {args.run!r} — expected run_id or entity/project/run_id")
+        run = api.run(path)
+        d = _run_full(run, dest=PULLS_ROOT / run.id)
 
-    if args.cmd == "group":
+    elif args.cmd == "group":
         runs = sorted(
             api.runs(f"{entity}/{args.project}", filters={"group": args.group}),
             key=lambda r: r.created_at,
         )
         if not runs:
             sys.exit(f"no runs in group {args.group!r} under {entity}/{args.project}")
-        rows = [_run_summary(r, include_system=False, dest=None) for r in runs]
-        if args.as_json:
-            json.dump(rows, sys.stdout, indent=2, default=str)
-            sys.stdout.write("\n")
-            return 0
-        print(f"=== group: {args.group}  ({len(rows)} runs) ===")
-        print(f"{'created_at':<22} {'id':<10} {'state':<10} {'name':<28} runtime")
-        for r in rows:
-            rt = f"{r['runtime_s']:.0f}s" if r.get("runtime_s") is not None else "—"
-            print(
-                f"{str(r['created_at'])[:19]:<22} {r['id']:<10} "
-                f"{r['state']:<10} {(r['name'] or '')[:28]:<28} {rt}"
-            )
-        return 0
+        d = [_run_row(r) for r in runs]
 
-    # latest
-    runs = list(api.runs(f"{entity}/{args.project}", per_page=args.n))[: args.n]
-    rows = [_run_summary(r, include_system=False, dest=None) for r in runs]
-    if args.as_json:
-        json.dump(rows, sys.stdout, indent=2, default=str)
-        sys.stdout.write("\n")
-        return 0
-    print(f"=== latest {len(rows)} runs in {entity}/{args.project} ===")
-    print(f"{'created_at':<22} {'id':<10} {'state':<10} {'group':<40} {'name'}")
-    for r in rows:
-        print(
-            f"{str(r['created_at'])[:19]:<22} {r['id']:<10} "
-            f"{r['state']:<10} {(r['group'] or '')[:40]:<40} {r['name'] or ''}"
-        )
+    else:  # latest
+        runs = list(api.runs(f"{entity}/{args.project}", per_page=args.n))[: args.n]
+        d = [_run_row(r) for r in runs]
+
+    json.dump(d, sys.stdout, indent=2, default=str)
+    sys.stdout.write("\n")
     return 0
 
 

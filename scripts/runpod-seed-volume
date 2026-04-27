@@ -56,6 +56,32 @@ import _runpod_lib as rp  # noqa: E402
 # 2 h hard cap leaves room for retries / network blips.
 MAX_WALL_S = 2 * 60 * 60
 
+SSH_KEY_PATH = Path.home() / ".ssh" / "runpod_ed25519"
+
+
+def _public_key() -> str:
+    pub = SSH_KEY_PATH.with_suffix(".pub")
+    if pub.exists():
+        return pub.read_text().strip()
+    sys.exit(
+        f"error: missing SSH public key at {pub}\n"
+        "  Generate with: ssh-keygen -t ed25519 -f ~/.ssh/runpod_ed25519 -N ''\n"
+        "  Then upload the .pub at https://www.console.runpod.io/user/settings"
+    )
+
+
+def _wait_for_endpoint(
+    http, pod_id: str, *, deadline: float, poll_every: int = 5
+) -> tuple[str, int]:
+    while time.monotonic() < deadline:
+        pod = rp.get_pod(http, pod_id)
+        ip = (pod.get("publicIp") or "").strip()
+        port = (pod.get("portMappings") or {}).get("22")
+        if ip and port:
+            return ip, int(port)
+        time.sleep(poll_every)
+    raise TimeoutError(f"pod {pod_id} never published an SSH endpoint")
+
 DATASETS = [
     "akravetz/dirt-wakeword-mine",
     "akravetz/dirt-wakeword-bg",
@@ -152,7 +178,7 @@ def _ssh_check_sentinel(ip: str, port: int) -> str | None:
         result = subprocess.run(
             [
                 "ssh",
-                "-i", str(rp.SSH_KEY_PATH),
+                "-i", str(SSH_KEY_PATH),
                 "-o", "StrictHostKeyChecking=accept-new",
                 "-o", "UserKnownHostsFile=/dev/null",
                 "-o", "ConnectTimeout=10",
@@ -187,24 +213,28 @@ def main() -> int:
     api_key = rp.env("RUNPOD_API_KEY")
     network_volume_id = rp.env("RUNPOD_NETWORK_VOLUME_ID")
     kaggle_user, kaggle_key = _load_kaggle_creds()
-    pub_key = rp.public_key(required=True)  # required: we SSH-poll for sentinels
+    pub_key = _public_key()
 
-    body = rp.common_pod_body(
-        name=f"wakeword-seed-{time.strftime('%Y%m%d-%H%M%S')}",
-        network_volume_id=network_volume_id,
-        public_key=pub_key,
-    ) | {
+    body = {
+        "name": f"wakeword-seed-{time.strftime('%Y%m%d-%H%M%S')}",
+        "networkVolumeId": network_volume_id,
+        "volumeMountPath": "/workspace",
+        "ports": ["22/tcp"],
+        "supportPublicIp": True,
+        "cloudType": "SECURE",
+        "interruptible": False,
         "imageName": "python:3.11-slim",
         "computeType": "CPU",
         "vcpuCount": 4,
         "minRAMPerGPU": 8,
         "containerDiskInGb": 20,
         "dockerStartCmd": ["bash", "-c", _build_seed_command(reset=args.reset)],
-    }
-    body["env"] |= {
-        "KAGGLE_USERNAME": kaggle_user,
-        "KAGGLE_KEY": kaggle_key,
-        "PYTHONUNBUFFERED": "1",
+        "env": {
+            "PUBLIC_KEY": pub_key,
+            "KAGGLE_USERNAME": kaggle_user,
+            "KAGGLE_KEY": kaggle_key,
+            "PYTHONUNBUFFERED": "1",
+        },
     }
 
     http = rp.client(api_key)
@@ -216,7 +246,7 @@ def main() -> int:
     sentinel: str | None = None
 
     with rp.leased_pod(http, pod_id):
-        ip, port = rp.wait_for_endpoint(http, pod_id, deadline=deadline)
+        ip, port = _wait_for_endpoint(http, pod_id, deadline=deadline)
         print(f"pod reachable at {ip}:{port}; polling for sentinel")
 
         while time.monotonic() < deadline:
