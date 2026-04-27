@@ -181,6 +181,19 @@ def _finalize_wandb(run: Any | None, *, exit_code: int) -> None:
         print(f"WARN: wandb.finish failed: {exc!r}", flush=True)
 
 
+def _cleanup_working() -> None:
+    """Remove WORKING/ scratch (per-run features, augmented WAVs, model build).
+
+    The volume is the only durable copy of the dataset, so leaving N+1
+    copies of 30k augmented WAVs around per training run blows past the
+    quota in days. Sentinel + artifacts in OUT/ are preserved.
+    """
+    if not WORKING.exists():
+        return
+    print(f"=== cleaning up scratch dir {WORKING} ===", flush=True)
+    shutil.rmtree(WORKING, ignore_errors=True)
+
+
 def _self_delete() -> None:
     """DELETE this pod via the RunPod REST API. Best-effort.
 
@@ -253,6 +266,7 @@ def main() -> None:
         manifest["status"] = "failure"
         (OUT / "run-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
         _finalize_wandb(run, exit_code=1)
+        _cleanup_working()
         _self_delete()
         return
 
@@ -262,6 +276,7 @@ def main() -> None:
     _finalize_wandb(run, exit_code=0)
     (OUT / "SUCCESS").write_text("ok\n")
     print("=== entrypoint: SUCCESS sentinel written ===", flush=True)
+    _cleanup_working()
     _self_delete()
 
 
@@ -273,6 +288,10 @@ if __name__ == "__main__":
         try:
             OUT.mkdir(parents=True, exist_ok=True)
             (OUT / "FAILURE").write_text(traceback.format_exc())
+        except Exception:
+            pass
+        try:
+            _cleanup_working()
         except Exception:
             pass
         try:
