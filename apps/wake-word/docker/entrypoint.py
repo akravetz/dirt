@@ -76,7 +76,13 @@ def _persist_tts_cache() -> None:
     }
     print(f"=== persisting TTS cache to {TTS_CACHE_DIR} ===", flush=True)
     TTS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    src_root = WORKING / "my_custom_model"
+    # WAVs actually live under .../my_custom_model/<TARGET_WORD>/<subset>/ —
+    # that's where restore_tts_cache_if_mounted puts them and where
+    # augment_and_compute_features reads them. Earlier code looked at
+    # .../my_custom_model/<subset>/ (no TARGET_WORD level), so persist
+    # always wrote cache-key.json with empty subdirs. Pre-existing bug,
+    # masked until restore went strict.
+    src_root = WORKING / "my_custom_model" / TARGET_WORD
     total = 0
     for subdir in SUBSETS:
         src = src_root / subdir
