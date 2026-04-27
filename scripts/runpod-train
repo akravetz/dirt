@@ -1,10 +1,13 @@
 #!/usr/bin/env -S uv run --project /home/akcom/code/dirt python -u
-"""Submit one wake-word training job to RunPod, wait for clean exit, pull
-artifacts off the volume via the S3 API, DELETE.
+"""Submit one wake-word training job to RunPod, S3-poll for the volume
+sentinel, pull artifacts via the S3 API, DELETE.
 
-The entrypoint writes /workspace/out/<RUNPOD_POD_ID>/ on the volume; the
-orchestrator polls RunPod's REST API for desiredStatus=EXITED and then
-S3-downloads s3://<volume>/out/<train_pod_id>/. No SSH, no puller pod.
+The entrypoint writes /workspace/out/<RUNPOD_POD_ID>/{SUCCESS,FAILURE}
+on the volume. The orchestrator polls s3://<volume>/out/<pod_id>/ for
+that sentinel via S3 head, then S3-downloads the per-run dir and
+DELETEs the pod. desiredStatus is user-intent (not container state) so
+RunPod will auto-restart the container on exit until we DELETE; the
+poll-interval-sized race is bounded waste.
 """
 
 from __future__ import annotations
@@ -77,12 +80,13 @@ def main() -> int:
     deadline = time.monotonic() + MAX_WALL_S
     s3 = rp.s3_client()
 
+    prefix = f"out/{train_pod_id}/"
     with rp.leased_pod(http, train_pod_id, keep_on_success=args.keep):
-        status = rp.wait_for_exit(http, train_pod_id, deadline=deadline)
-        print(f"==> training pod reached terminal state: {status}")
-
-        prefix = f"out/{train_pod_id}/"
-        print(f"==> S3 download s3://{network_volume_id}/{prefix} → {local_dest}")
+        sentinel = rp.wait_for_s3_sentinel(
+            s3, bucket=network_volume_id, prefix=prefix, deadline=deadline,
+        )
+        print(f"==> sentinel={sentinel} at s3://{network_volume_id}/{prefix}")
+        print(f"==> S3 download → {local_dest}")
         n = rp.s3_download_prefix(
             s3, bucket=network_volume_id, prefix=prefix, local_dest=local_dest,
         )

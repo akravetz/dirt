@@ -44,33 +44,18 @@ Why per-invocation:
 - **`WANDB_RUN_GROUP`** — varies per harness session. The orchestrator decides which "research session" each pod belongs to.
 - **`WANDB_NAME`** — optional; useful for human-readable run names like `candidate-7`. Without it, W&B generates `crisp-paper-42`-style names.
 
-## The exit-code dance
+## Completion signal — the volume sentinel, not `desiredStatus`
 
-RunPod's pod state machine is independent from W&B's run state machine. The orchestrator will see **two** signals:
+**`desiredStatus` is unusable for completion detection.** It's RunPod user-intent, not container state — see [pod-lifecycle.md](../runpod/pod-lifecycle.md). RunPod auto-restarts the container on exit until you DELETE, so polling `desiredStatus=EXITED` never fires.
 
-| Signal source | What it tells you |
-|---|---|
-| `wandb.Api().run(...).state` | Did the trainer reach a terminal W&B state? (`finished` / `failed` / `crashed`) |
-| `GET /pods/{id}` `.desiredStatus` | Did the container exit? (`RUNNING` / `EXITED`) |
+Two valid completion signals:
 
-Ideally these agree:
-
-| Trainer outcome | W&B state | RunPod desiredStatus |
+| Signal | Source | Latency |
 |---|---|---|
-| Clean success, `wandb.finish(0)` called | `finished` | `EXITED` |
-| Caught exception, `wandb.finish(1)` called, then `sys.exit(1)` | `failed` | `EXITED` |
-| Uncaught exception, `__exit__` calls `wandb.finish(1)`, Python exits 1 | `failed` | `EXITED` |
-| OOM kill / SIGKILL | `crashed` (after heartbeat timeout) | `EXITED` |
-| Trainer hangs forever | `running` | `RUNNING` |
+| Volume sentinel | `s3.head_object(Bucket=vol, Key=f"out/{pod_id}/SUCCESS|FAILURE")` | seconds (entrypoint writes immediately before `wandb.finish`) |
+| W&B run state | `wandb.Api().run(...).state` in `{finished, failed, crashed}` | tens of seconds (wandb-core flushes to server async) |
 
-The harness orchestrator's poll should treat **either** signal as terminal — first-to-fire wins:
-
-```python
-def is_done(pod_status: str, wandb_state: str) -> bool:
-    return pod_status == "EXITED" or wandb_state in {"finished", "failed", "crashed", "killed"}
-```
-
-In practice, if the trainer's `entrypoint.py` is well-behaved (see [init-log-finish.md](init-log-finish.md) for the bullet-proof pattern), W&B will reach `finished` or `failed` ~5–30 s before the pod EXITED state. Use whichever the orchestrator polls first.
+The volume sentinel is the canonical signal — it's the same artifact channel the orchestrator already uses for SCP. The W&B state is useful as a backup or for sweep-level tracking; for a single-run orchestrator, just poll the sentinel.
 
 ## `wandb.finish()` blocks on upload
 

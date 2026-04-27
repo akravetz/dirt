@@ -77,17 +77,27 @@ def leased_pod(
             delete_pod(http, pod_id)
 
 
-def wait_for_exit(
-    http: httpx.Client, pod_id: str, *, deadline: float, poll_every: int = 20
+def wait_for_s3_sentinel(
+    s3, *, bucket: str, prefix: str, deadline: float, poll_every: int = 30
 ) -> str:
+    """Poll s3://bucket/<prefix>/{SUCCESS,FAILURE} until one appears. Returns
+    'SUCCESS' or 'FAILURE'. The pod's `desiredStatus` is user-intent, not
+    container state — it never transitions on its own — so we use the
+    on-volume sentinel as the actual completion signal."""
+    from botocore.exceptions import ClientError
+
+    prefix = prefix.rstrip("/") + "/"
     while time.monotonic() < deadline:
-        pod = get_pod(http, pod_id)
-        status = pod.get("desiredStatus", "")
-        print(f"  {time.strftime('%H:%M:%S')} pod {pod_id} status={status}")
-        if status in ("EXITED", "TERMINATED"):
-            return status
+        for sentinel in ("SUCCESS", "FAILURE"):
+            try:
+                s3.head_object(Bucket=bucket, Key=f"{prefix}{sentinel}")
+                return sentinel
+            except ClientError as exc:
+                if exc.response["Error"]["Code"] not in ("404", "NoSuchKey"):
+                    raise
+        print(f"  {time.strftime('%H:%M:%S')} (waiting for sentinel at s3://{bucket}/{prefix})")
         time.sleep(poll_every)
-    raise TimeoutError(f"pod {pod_id} did not reach a terminal state within deadline")
+    raise TimeoutError(f"sentinel never appeared at s3://{bucket}/{prefix}")
 
 
 # ---------------------------------------------------------------------------

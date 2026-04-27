@@ -3,49 +3,62 @@
 The full flow for a one-shot training job:
 
 ```
-POST /v1/pods                  -> 201, body has pod.id
-GET  /v1/pods/{pod.id}         -> poll until desiredStatus == "EXITED"
-scp -P <port> root@<ip>:...    -> pull artifacts (see artifacts.md)
-DELETE /v1/pods/{pod.id}       -> reclaim resources
+POST /v1/pods                              -> 201, body has pod.id
+HEAD s3://<vol>/out/<pod.id>/SUCCESS|FAILURE -> poll until one appears
+[S3 download s3://<vol>/out/<pod.id>/]     -> pull artifacts
+DELETE /v1/pods/{pod.id}                   -> tear down + reclaim resources
 ```
 
-Source: https://docs.runpod.io/api-reference/openapi.json (`/pods` endpoint family).
+Source: https://docs.runpod.io/api-reference/openapi.json (`/pods` endpoint family) + https://docs.runpod.io/serverless/storage/s3-api (Network Volume S3 access).
 
-## Status enum
+## Critical: `desiredStatus` is user-intent, NOT container state
 
-`GET /v1/pods/{podId}` returns a Pod object whose runtime state is in **`desiredStatus`**, with three values:
+This is empirically demonstrated and contradicts what the early version of this doc claimed. **`desiredStatus` is the state YOU want the pod in, not the state the container is in.** It does not transition on its own when the container exits.
 
 | Value | Meaning |
 |---|---|
-| `RUNNING` | Pod has been requested up. The container is booting or has booted and is running. |
-| `EXITED` | Container has exited (your `dockerStartCmd` returned, or it crashed). The Pod is still leased — billing for storage continues. |
-| `TERMINATED` | Pod has been deleted. Volume disk is gone. |
+| `RUNNING` | You asked for the pod to be up. RunPod keeps the container alive and **auto-restarts it on any exit** (exit-0 included) until you ask otherwise. |
+| `EXITED` | You explicitly stopped the pod (e.g. via `POST /pods/{id}/stop`). |
+| `TERMINATED` | You DELETEd the pod. It's gone. |
 
-Source: https://docs.runpod.io/api-reference/pods/GET/pods (response schema).
+What this means for orchestration: **you cannot poll `desiredStatus` to detect "training finished."** The container will exit cleanly, RunPod will auto-restart it, your training script will run a SECOND time, your trained-model artifacts (already on the volume) will be overwritten, and your wallet will keep emptying. We learned this empirically — see W&B group `phase1-final-20260426-201259` where two runs (`m1f811ys` finished, `e8xl0tiz` running) were created from a single orchestrator submission because the orchestrator was polling `desiredStatus=EXITED` (which never fires).
 
-There is **no `exitCode`** field. There is **no `containerStatus`** field. The REST API does not surface whether your script returned 0 or non-zero. To distinguish success from crash, write a sentinel from inside your training entrypoint:
+There is **no `exitCode`** field, **no `containerStatus`** field, **no `lastExitedAt`** field exposed by the REST API.
+
+## The right signal: a sentinel on the volume, polled via S3
+
+The training entrypoint writes `out/<RUNPOD_POD_ID>/SUCCESS` (or `FAILURE` with a traceback) to the Network Volume. The orchestrator polls the volume's S3 endpoint for that key:
 
 ```python
-# at end of train.py
-Path("/workspace/out/SUCCESS").touch()
+from botocore.exceptions import ClientError
+import time
+
+while time.monotonic() < deadline:
+    for sentinel in ("SUCCESS", "FAILURE"):
+        try:
+            s3.head_object(Bucket=volume_id, Key=f"out/{pod_id}/{sentinel}")
+            break  # found it
+        except ClientError as exc:
+            if exc.response["Error"]["Code"] not in ("404", "NoSuchKey"):
+                raise
+    else:
+        time.sleep(30)
+        continue
+    break
+# now S3-download out/<pod_id>/ and DELETE the pod
 ```
 
-…then check for `/workspace/out/SUCCESS` after `desiredStatus == "EXITED"` (read it via SSH or just attempt SCP and treat absence as failure).
+The volume is the durable substrate; it persists across pod restarts and is accessible via S3 even when no pod is mounting it. See [artifacts.md](artifacts.md) for the S3 endpoint format.
 
-## "Phantom RUNNING" gotcha
+## Why DELETE matters
 
-`desiredStatus` is the **desired** state — i.e. what you asked for, not what's actually true on the host right now. A Pod whose container OOM-killed or crash-looped will still show `RUNNING` for a window before the platform marks it `EXITED`. Two consequences:
+The Pod stays leased after the container exits. A "stopped" pod still bills volume disk at $0.20/GB-month. **Always `DELETE` in a `finally:` block** — a forgotten pod accrues storage forever. (Source: https://docs.runpod.io/pods/storage/types, https://docs.runpod.io/pods/pricing.)
 
-1. Don't poll faster than ~10–20 s. The state machine has lag; faster polling just burns API quota.
-2. **Always cap your polling with a wall-clock timeout** (e.g. 2× expected training duration). If the timeout fires, force `DELETE /pods/{id}` and treat it as a failure — don't trust `desiredStatus` to eventually flip.
+DELETE is also what actually stops the container. RunPod's container runtime keeps the container alive (auto-restarting on exit) for as long as the pod is leased.
 
-Source: this is empirical from `desiredStatus` being a "desired" field in the schema (https://docs.runpod.io/api-reference/pods/POST/pods response), not a "current" field; the docs at https://docs.runpod.io/pods/manage-pods explicitly call out troubleshooting "ensure you have an idle job (e.g., `sleep infinity`)" which is a tell that container-level health and Pod-level state can drift.
+## Race window
 
-## Why we use `EXITED`, not `RUNNING → not-listed`
-
-The Pod **stays in the system** after the container exits. A successful run lands in `EXITED`, *not* deleted. This is RunPod's storage-revenue contract: they keep your `/workspace` around (and bill volume disk at $0.20/GB-month) until you `DELETE`. (Source: https://docs.runpod.io/pods/storage/types — "Volume disk … is retained throughout the Pod's lease" and https://docs.runpod.io/pods/pricing — stopped/exited volume rate is $0.20/GB-month.)
-
-So the polling loop watches for `EXITED`, then proceeds to artifact retrieval, then `DELETE`. **Never skip the `DELETE`** — a forgotten exited Pod will accrue storage forever.
+Between the moment the entrypoint writes SUCCESS to the volume and the moment the orchestrator polls + DELETEs, RunPod may auto-restart the container. With a 30 s poll interval, the race window is ≤ 30 s — at GPU rates that's a few cents of wasted compute. Negligible. (Don't poll faster — the API has rate limits and a faster cadence doesn't materially shrink the cost.)
 
 ## REST endpoint cheat sheet
 
@@ -53,42 +66,21 @@ All under `https://rest.runpod.io/v1/`:
 
 | Method | Path | Use |
 |---|---|---|
-| `POST` | `/pods` | Create. Returns `201` with body `{id, name, image, desiredStatus, ...}`. See [rest-api-pods.md](rest-api-pods.md) for body. |
-| `GET` | `/pods/{podId}` | Read one. Use this for polling. |
+| `POST` | `/pods` | Create. Returns `201` with body `{id, name, image, desiredStatus, ...}`. See [rest-api-pods.md](rest-api-pods.md). |
+| `GET` | `/pods/{podId}` | Read one. Useful for diagnostics, **not** for completion polling. |
 | `GET` | `/pods` | List. Useful for "find any leftover pods to clean up". |
-| `POST` | `/pods/{podId}/start` | Start a stopped pod. Not used in one-shot flow. |
-| `POST` | `/pods/{podId}/stop` | Stop. **Don't use** for end-of-run cleanup — use `DELETE`. |
-| `POST` | `/pods/{podId}/restart` | Restart. Not used. |
-| `POST` | `/pods/{podId}/reset` | Reset to initial. Not used. |
-| `PATCH` | `/pods/{podId}` | Modify post-create (image, env, ports). Not used in one-shot flow. |
+| `POST` | `/pods/{podId}/stop` | Stop. **Don't use** for end-of-run cleanup — leaves the volume disk billing. Use `DELETE`. |
 | `DELETE` | `/pods/{podId}` | Terminate. **Use this in `finally:`.** |
 
-Source: https://docs.runpod.io/api-reference/openapi.json.
-
-## Polling cadence
-
-Match the existing Kaggle pattern (~20 s) — that's a good default for RunPod too:
-
-```python
-import time, httpx
-while True:
-    r = httpx.get(f"https://rest.runpod.io/v1/pods/{pod_id}",
-                  headers={"Authorization": f"Bearer {key}"})
-    r.raise_for_status()
-    status = r.json()["desiredStatus"]
-    if status in ("EXITED", "TERMINATED"):
-        break
-    if time.monotonic() - start > MAX_WALL_S:
-        # bail out: force DELETE in caller's finally
-        raise TimeoutError("training pod exceeded budget")
-    time.sleep(20)
-```
+Other endpoints (`/start`, `/restart`, `/reset`, `PATCH`) are not used in the one-shot flow.
 
 ## Sources
 
+- Empirical: pod `xqwcy9djxraai9` (2026-04-27, group `phase1-final-20260426-201259`) demonstrated container auto-restart on clean exit while `desiredStatus` stayed `RUNNING`.
 - https://docs.runpod.io/api-reference/openapi.json
 - https://docs.runpod.io/api-reference/pods/POST/pods
 - https://docs.runpod.io/api-reference/pods/GET/pods
 - https://docs.runpod.io/pods/manage-pods
 - https://docs.runpod.io/pods/storage/types
 - https://docs.runpod.io/pods/pricing
+- https://docs.runpod.io/serverless/storage/s3-api
