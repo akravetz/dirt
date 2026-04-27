@@ -735,3 +735,85 @@ Docker image on RunPod. Rationale + setup details in
 The v8 architectural design (per-subset aug, real-audio F1 selection,
 512/50/200 batch composition) is unchanged — what changed is the
 runtime environment. v16+ entries below correspond to RunPod runs.
+
+### v16 — 2026-04-27
+
+**Status:** trained, validated (deploy decision pending)
+**Model artifact:** `var/wake-word/models/2026-04-26-225546-95hpev0e07b2ea/hey_claudia.onnx`
+**Trainer commit:** `1d10a93` (TTS-cache reciprocal-bug fix landed mid-run; pod ran on the prior image's code)
+**Image digest:** `sha256:f552c860573e2a6a2ed63e3ef46ad55af45c8d377102275e1c77ff52e69c7763`
+**W&B run:** [`bwwafjyq`](https://wandb.ai/adkravetz/dirt-wake-word/runs/bwwafjyq) (group `exp1-realmic-20260426-225544`)
+**Pod:** `95hpev0e07b2ea`, RTX 4090 / 64 vCPU / 270 GB RAM
+**Wall:** ~47 min total (per-phase below)
+
+#### What changed (vs v6/m1f811ys)
+- **Real-mic training data**, finally landed. 18 `realmic-pos_*.wav` (×10 dup = 180) + 18 `realmic-neg_*.wav` (×10 dup = 180) included in the seed pool. v8's plan, finally executed end-to-end. (Prior runs reverted to synthetic-only because the data hadn't survived the Kaggle→RunPod migration.)
+- **WORKING dir per-run-isolated** for real (Dockerfile previously baked `DIRT_WAKEWORD_WORKING=/workspace/working` at the bare path, beating the entrypoint's per-run `setdefault` — every run inherited the prior run's Piper output. Fix: drop the bake. `259fff7`).
+- **TTS cache reciprocal-bug fix landed but did not affect this run** — the cache-key.json was deleted from the volume just before the run, so this run did Piper from scratch (~19 min). Persist will populate the cache cleanly for future runs (`1d10a93`).
+- All four datasets now in `/workspace/input/MANIFEST.json` with content_hashes; trainer reads and stamps in `run-manifest.json`.
+
+#### Why
+v3 (deployed) and v5 both flooored at 35-43 % recall on the canonical 28/76 set; m1f811ys regressed to 21 % recall on the same set. The pattern: synthetic-only training doesn't generalize to real-mic positives. Real-mic-in-training was the explicit hypothesis.
+
+#### Training data
+- **Positives:** 2 000 ElevenLabs voice clones (×1) + 18 real-mic positives (×10) = 2 180 seeds → 30 000 augmented features
+- **Negatives:** 360 ElevenLabs phonetic neighbors (×1) + 18 real-mic negatives (×10) + 0 harvested = 540 seeds → 30 000 augmented features
+- **RIRs:** 9 captured room impulse responses
+- **Background:** AudioSet_16k (1 000 clips) + FMA (~120 clips) from `dirt-wakeword-bg`
+- **Feature corpus:** ACAV100M 2 000 h from `dirt-wakeword-features`
+- Volume MANIFEST hashes:
+  - `dirt-wakeword-mine`: sha256:6ee63220876e8296189aee2d211f01d8954d59cfb257cc8c749598df2c30fdae
+  - `dirt-wakeword-bg`: sha256:05bf46e62edd60fa2…
+  - `dirt-wakeword-validation`: sha256:93b03266683cb5b2b71ec25057883a475ff2c24a17e2e3e7891d503e1e623767
+  - `dirt-wakeword-features`: sha256:0ee81d9a761139a6c033ac7014e01f30c45e1547767fa644c583d3e69132b836
+
+#### Training config
+- `max_negative_weight`: 500
+- `batch_n_per_class`: 512 / 50 / 200 (ACAV / adversarial / positive — v8 rebalance)
+- `steps`: 20 000
+- `target_false_positives_per_hour`: 10 (unused — soft-fork)
+- Per-subset augmentation: `realmic_*` clips skip RIR (already room-baked)
+- Driver: soft-fork `_custom_train_model`
+- DataLoader sharing strategy: `file_system` (workaround for Linux fd-exhaustion on RunPod hosts; see v9-v15 history)
+- Best-checkpoint: real-audio F1 against `validation/`
+
+#### Validation set
+- `var/wake-word/validation/good/`: 28 positives (canonical 28/76 set, `dirt-wakeword-validation` content_hash sha256:93b03266…)
+- `var/wake-word/validation/bad/`: 76 in-the-wild negatives
+
+#### Results — sweep on the canonical 28/76 set
+
+| Threshold | Recall | Precision | F1 | False positives |
+|---:|---:|---:|---:|---:|
+| 0.30 | 57.1 % | 59.3 % | **0.582** | 11/76 |
+| 0.40 | 50.0 % | 66.7 % | 0.571 | 7/76 |
+| 0.50 | 46.4 % | 72.2 % | 0.565 | 5/76 |
+| 0.60 | 46.4 % | 76.5 % | 0.578 | 4/76 |
+| 0.70 | 39.3 % | 84.6 % | 0.537 | 2/76 |
+
+**Best F1 0.582 at threshold 0.30**; same recall as v3 (43 %) at threshold 0.50 with **3× the precision** (72 % vs 24 %).
+
+Comparison vs prior:
+| Model | recall@0.5 | F1@0.5 |
+|---|---:|---:|
+| v3 (deployed) | 42.9 % | 0.308 |
+| v5 | 35.7 % | 0.513 |
+| m1f811ys | 21.4 % | 0.324 |
+| **v16** | **46.4 %** | **0.565** |
+
+#### Per-phase wall time
+| Phase | Wall |
+|---:|---:|
+| verify_inputs / imports / build_config / prepare_seed_clips | ~3 s |
+| restore_tts_cache (MISS — cache-key deleted to force rebuild) | 0 s |
+| generate_clips (Piper TTS — full from-scratch) | **18m57s** |
+| augment+features | ~22 min |
+| train_loop (20 000 steps) | ~5 min |
+| validate_against_real_set | <1 s |
+| **TOTAL** | **~47 min** |
+
+#### Operational notes
+- The orchestrator (`scripts/runpod-train`) died at ~14 min (root cause not yet identified — possible KeyboardInterrupt from a sibling process). Pod kept running; training succeeded; SUCCESS sentinel written. RunPod's container auto-restart then triggered a second container that FATAL'd on the partial-cache state and wrote FAILURE 34 s later. Pod was eventually reaped by RunPod's account spend cap.
+- Artifacts recovered post-hoc via the new `scripts/wakeword-pull-pod-out 95hpev0e07b2ea` helper (direct boto3 head_object / download_file by known filename — no list_objects, immune to RunPod's paginator bug).
+- Net result: training success, ~$0.10 of wasted GPU on the auto-restart loop, but artifacts intact on the volume.
+- Open follow-up: orchestrator watchdog / quick-exit-on-existing-sentinel + container-side self-DELETE — see chat history for design.

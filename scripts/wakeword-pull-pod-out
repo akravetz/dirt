@@ -1,0 +1,79 @@
+#!/usr/bin/env -S uv run --project /home/akcom/code/dirt python -u
+"""Pull a training pod's `out/<pod_id>/` artifacts from the volume via S3.
+
+Useful when the orchestrator died mid-run (pod kept training, wrote
+sentinel, but nothing pulled the .onnx + manifest + report). RunPod's
+list_objects_v2 is broken at scale, so we head_object the 5 known
+filenames directly instead of listing.
+
+Usage:
+  scripts/wakeword-pull-pod-out POD_ID [--dest DIR]
+
+The destination defaults to var/wake-word/models/<datestamp>-<pod_id>/.
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+import time
+from pathlib import Path
+
+from botocore.exceptions import ClientError
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _runpod_lib as rp  # noqa: E402
+
+KNOWN_FILES = (
+    "SUCCESS",
+    "FAILURE",
+    "hey_claudia.onnx",
+    "run-manifest.json",
+    "validation-report.txt",
+)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("pod_id")
+    parser.add_argument("--dest", type=Path, default=None)
+    args = parser.parse_args()
+
+    rp.load_env()
+    bucket = rp.env("RUNPOD_NETWORK_VOLUME_ID")
+    s3 = rp.s3_client()
+
+    dest = args.dest or (
+        rp.repo_root() / "var" / "wake-word" / "models"
+        / f"{time.strftime('%Y-%m-%d-%H%M%S')}-{args.pod_id}"
+    )
+    dest.mkdir(parents=True, exist_ok=True)
+
+    pulled = 0
+    for fn in KNOWN_FILES:
+        key = f"out/{args.pod_id}/{fn}"
+        try:
+            s3.download_file(bucket, key, str(dest / fn))
+            sz = (dest / fn).stat().st_size
+            print(f"pulled  {fn:<24}  ({sz} bytes)")
+            pulled += 1
+        except ClientError as exc:
+            code = exc.response["Error"]["Code"]
+            if code in ("404", "NoSuchKey", "InvalidArgument"):
+                print(f"absent  {fn}")
+            else:
+                print(f"error   {fn}  ({code})")
+                raise
+
+    print(f"\n=== pulled {pulled}/{len(KNOWN_FILES)} files → {dest} ===")
+    if (dest / "SUCCESS").exists():
+        print("training succeeded")
+    elif (dest / "FAILURE").exists():
+        print("training failed; see FAILURE file for traceback")
+    else:
+        print("WARN: no SUCCESS or FAILURE sentinel — entrypoint never finished?")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
