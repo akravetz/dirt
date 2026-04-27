@@ -15,6 +15,7 @@ updated: 2026-04-24
 **Sticker:** orange
 **Priority:** 🟡 Secondary candidate
 **Purple Signal:** ❌ None observed
+**Morphology:** Indica-leaning — tighter internodes, bushier, lateral-dominant; barely reaching SCROG net (Day 43). Encourage upward growth — do NOT tuck.
 
 ## Current State
 

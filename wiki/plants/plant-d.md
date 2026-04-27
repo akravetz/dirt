@@ -15,6 +15,7 @@ updated: 2026-04-24
 **Sticker:** blue
 **Priority:** 🔴 Primary keeper candidate
 **Purple Signal:** ✅ Strongest signal — stem, petioles, cotyledons
+**Morphology:** Sativa-leaning — longer internodes, less bushy, vertical-dominant; already at SCROG net, starting to fill (Day 43). Tuck candidate per [pheno-flip-strategy](../decisions/2026-04-26-pheno-flip-strategy.md).
 
 ## Current State
 

@@ -48,7 +48,24 @@ Footprint of an active dome: 10×20 inches = ~1.5 sq ft + clearance. A single do
 
 Realistic minimum space for the program: a 2×4 ft shelf or small closet that can hold one active dome and ~4–6 1-gallon pots under a 100–150W LED at 18/6.
 
-**Mothers can be aggressively pruned** to keep them small — top them, lollipop them, hold them at ~12" tall by selectively removing growth tips. They produce more cuttings per pruning event when kept compact.
+### Stasis mode vs. productive-mother mode
+
+There are two operating modes for clones, and they need different space + medium decisions:
+
+- **Stasis mode** — the program just needs the genetics alive while a longer process plays out (e.g., waiting for pheno hunt results). Clones stay in **16oz solo cups**, get minimal water and no nutrients, and grow imperceptibly. A closet shelf with a 30–50W LED bar at 18/6 is enough for 8–16 clones in stasis. **For this grow, the 8 clones taken from A/B/C/D will live in stasis on a closet shelf in another room from 2026-05 through ~2026-08 until the keeper is identified.**
+- **Productive-mother mode** — once a keeper is named, *that one* gets up-potted to 1-gal, moved under stronger light, fed normally, and run as the donor for the next grow's cuttings. The other clones in stasis can be culled at that point.
+
+### Medium choice for stasis pots
+
+For stasis-mode solo cups, **buffered peat-based soil (e.g., FoxFarm Happy Frog) is preferred over coco/perlite**. Reason: stasis mode is about *infrequent attention*. Coco demands daily watering; soil holds moisture for 3–4 days, lets you ignore the shelf safely while attention is elsewhere (current grow, male tent, pheno-hunt prep). The $15 cost of one small soil bag is worth the lower-effort path.
+
+For productive-mother mode (post-keeper-selection), match whatever the next grow runs in (likely coco/perlite to match the main tent).
+
+**Mothers can be aggressively pruned** to keep them small — top them, lollipop them, hold them at ~12" tall by selectively removing growth tips. They produce more cuttings per pruning event when kept compact. (Stasis-mode clones don't even need this — they're not producing, just surviving.)
+
+### Where the cloning station lives in this setup
+
+The cloning dome and stasis-mode solo cups go on **a closet shelf in another room — not inside any tent.** The main tent stays focused on the current grow, and the male 2×2×4 isolation tent (per [isolation.md](isolation.md)) is dedicated to males + flowering keeper clone, not cuttings. Cuttings + young plants near a flowering male is a contamination risk and an environmental mismatch (high humidity dome + low humidity male tent don't mix in one space).
 
 ## Procedure (full)
 
@@ -84,9 +101,9 @@ Realistic minimum space for the program: a 2×4 ft shelf or small closet that ca
 
 ### Day 14–21 — transplant
 
-- When roots are 2–3" long and visibly healthy: transplant to 1-gallon pot of coco/perlite or whatever the mother is in.
+- When roots are 2–3" long and visibly healthy: transplant to **16oz solo cups of Happy Frog soil for stasis mode** (default for this program — see "Stasis mode vs. productive-mother mode" above), OR to a 1-gal pot in coco/perlite if going straight into productive-mother mode.
 - Harden off out of the dome over 2–3 days: leave outside the dome for 2 hours, then 4, then 8, then full removal.
-- Move under stronger light (100–150 PPFD) and start watering with light nutrients (~EC 0.6–0.8).
+- Stasis: move to closet shelf under 30–50W LED at 18/6, water sparingly, no nutrients for the first 2 weeks then very light feed (~EC 0.6) every other watering only. Productive: move under stronger light (100–150 PPFD) and start watering with light nutrients (~EC 0.6–0.8).
 
 ## Take rate expectations
 

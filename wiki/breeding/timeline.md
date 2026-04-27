@@ -11,7 +11,7 @@ updated: 2026-04-26
 
 Active calendar from program launch through F2 seed harvest. Dates are *targets* and will drift with reality — update this page as actual events happen, and link daily entries when relevant work occurs. The program took shape in [the launch decision](../decisions/2026-04-26-breeding-program-launch.md).
 
-> **Anchor dates:** current grow germination 2026-03-15 (Day 0). Today (program launch) is 2026-04-26 (Day 42 of veg). Current grow flower flip target ~2026-05-15.
+> **Anchor dates:** current grow germination 2026-03-15 (Day 0). Today (program launch) is 2026-04-26 (Day 43 of veg). Current grow flower flip target window **2026-05-10 → 2026-05-17**, gated on ~60% net coverage with all four plants at the net plane (see [`decisions/2026-04-26-pheno-flip-strategy.md`](../decisions/2026-04-26-pheno-flip-strategy.md)).
 
 ## High-level sequencing
 
@@ -31,21 +31,23 @@ F2 seed harvest                                                                 
 
 ## Detailed schedule
 
-### Phase 0 — program launch (this week, 2026-04-26 → 2026-05-02)
+### Phase 0 — program launch (this week, 2026-04-26 → 2026-05-09)
 
-- [ ] Set up cloning station (see [cloning.md](cloning.md)). Dome, rooter cubes, hormone, light, heat mat. ~$50–80.
-- [ ] Acquire portable freezer for pollen storage. Digital thermostat, -18 °C / 0 °F target. Place in separate room.
-- [ ] Take clones from all 4 current SBxBS01 plants (A, B, C, D). 2–3 cuttings per plant for redundancy. Label by mother.
-- [ ] Pop 5 SBxBS01 regulars from the original-order pack. Germinate in paper towel or directly in rapid rooters.
-- [ ] Set up the male isolation room: light (50–100W LED is fine for 2–3 small males), small fan, rough environmental control. See [isolation.md](isolation.md).
+Locked gear plan as of 2026-04-26 (decision: [clone + male tent gear](../decisions/2026-04-26-pheno-flip-strategy.md) — and shopping detail in [cloning.md](cloning.md) and [isolation.md](isolation.md)):
+
+- [ ] **Cloning station** on a closet shelf in another room (NOT inside any tent): humidity dome (≥7" tall), Rapid Rooter 50-pack, Clonex gel, heat mat, 30–50W LED bar on 18/6 timer, 16oz solo cups + small bag of Happy Frog soil for post-rooting stasis pots, spray bottle, plant tags. ~$130 one-time.
+- [ ] **Portable freezer** for pollen storage. Digital thermostat, -18 °C / 0 °F target. Located in the male isolation room.
+- [ ] **Male isolation: 2×2×4 grow tent** (already on hand) placed in a separate room. Outfit with: 100W LED quantum board (Spider Farmer SF1000 or generic Amazon), 4" inline fan + carbon filter combo (mandatory — pollen containment relies on negative pressure inside the tent), 6" oscillating clip fan, 1-gal fabric pots (5-pack), digital hygrometer, jeweler's loupe 40× for early sex confirmation, paper lunch bags, 1.5 mL Eppendorf tubes (50-pack) for pollen aliquots, silica desiccant packs. ~$245 one-time. Medium = existing coco/perlite. Nutrients = existing veg formula (half-strength).
+- [ ] **Take clones** from all 4 current SBxBS01 plants (A, B, C, D). 2 cuttings per plant (8 total — redundancy). Target session: **2026-04-28 (gear arrives) or 2026-04-29** — moved up from the original 2026-05-03 → 2026-05-10 window because mid-veg tissue (Day 45–46) roots more readily than near-flip tissue, and an early take leaves time to redo the cut if take rate is poor. Reservoir was refreshed 2026-04-26 (mothers in good donor state). Asymmetric strategy: take from **lower laterals on A and D** (sativa-leaning, already at SCROG net — these branches are lollipop candidates anyway), take from **middle laterals on B and C** (indica-leaning, still need lower growth to reach the net). Label by mother. See [cloning.md](cloning.md).
+- [ ] **Germinate all 10 SBxBS01 regulars** from the original-order pack. ~50/50 sex split → expect ~5 males from 10, P(<2 males) ≈ 1%. Larger candidate pool means real male selection (per [male-evaluation.md](male-evaluation.md)) instead of "take whatever survives." Reserves are illusory — the existing 4 SBxBS01 F1 plants in the main tent (A/B/C/D) are already the genetic library; holding 4 unstarted seeds doesn't unlock anything beyond what banked pollen + clones already provide. Germination starts as soon as the cloning station is up (heat mat helps both).
 - [ ] Confirm/finalize second-pack selection (which BS line). Order arrives ~2 weeks after order.
 
 ### Phase 1 — current grow flips, regulars sex (~2026-05-10 → 2026-05-22)
 
-- [ ] **~2026-05-15:** Flip current grow (4 plants) to 12/12. Clones already rooted by this point — they preserve A/B/C/D regardless of how the flower goes.
+- [ ] **2026-05-10 → 2026-05-17 (gated on ~60% net coverage):** flip current grow (4 plants) to 12/12 per [pheno-flip-strategy](../decisions/2026-04-26-pheno-flip-strategy.md). Clones already rooted by this point — they preserve A/B/C/D regardless of how the flower goes.
 - [ ] **~2026-05-15 → 2026-05-22:** Regulars (Day 21–28 from germ) start showing pre-flowers. Identify sex via loupe at nodes 4–6.
-- [ ] **As soon as confirmed:** move males into isolation room, flip them to 12/12 immediately. Cull females (or veg as bonus, but they take space).
-- [ ] If <2 males survive, pop a second batch of 5 regulars. Pollen banking is the gating prerequisite for the cross.
+- [ ] **As soon as confirmed:** confine males to the 2×2×4 isolation tent, flip them to 12/12 immediately. Cull females (don't keep — space is tight and the keeper hunt happens in Track B).
+- [ ] If <2 males survive the full 10-seed batch (P ≈ 1%), source another small pack from OBG. Pollen banking is the gating prerequisite for the cross.
 
 ### Phase 2 — male evaluation + pollen collection (~2026-05-22 → 2026-06-30)
 

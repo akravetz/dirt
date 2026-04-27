@@ -31,7 +31,7 @@ updated: 2026-04-26
 
 **Afternoon VPD below floor for 2nd consecutive day (0.68 kPa)** — all temperature windows marginally below veg targets; overnight RH (59.48%) now above the 45–55% target. Humidifier output reduction is the immediate fix.
 
-**Reservoir change critically overdue** — Day 11+ post-activation (window was Apr 22–25).
+**Reservoir refilled 2026-04-26 afternoon** — was Day 11+ overdue, now reset (next change window ~2026-05-03–06). Reservoir state suitable as a clone-donor baseline for the breeding program.
 
 **Breeding program launched 2026-04-26** — Two-track SBxBS01 F2 program: pollen banking (Track A) + pheno hunt → F2 cross (Track B). See [breeding/README.md](breeding/README.md) and [decision 2026-04-26](decisions/2026-04-26-breeding-program-launch.md).
 
@@ -64,13 +64,15 @@ updated: 2026-04-26
 
 ## Active Action Items
 
-1. **Perform reservoir change** 🔴 — Day 11+ post-activation (critically overdue, window Apr 22–25 closed). EC 0.8–1.0; pH 5.8 after nutrients; Denver tap 8.5–8.8 requires GH pH Down at every fill.
-2. **Reduce humidifier output during lights-on** 🔴 — Afternoon VPD 0.68 kPa (below floor, 2nd consecutive day); overnight RH 59.48% now above veg target. Lower intensity to pull afternoon RH below 65%.
-3. **Step light 40% → 50% Fold-650** 🟡 — LST Day 6; ramp window open Apr 25–27. No stress signs in today's photos.
-4. **Monitor Plant B moisture** 🟡 — Rising daily (64% → 69% → 74.6% → 79.3%); trajectory to reach 82%+ in 1–2 days. Consider closing B float valve briefly if moisture exceeds 85% and stress appears.
-5. **Investigate temperature drop — reduce exhaust fan speed** 🟡 — Second consecutive day below 74°F floor; reducing fan speed marginally may recover 1–2°F and simultaneously improve afternoon VPD.
-6. **Monitor Plants C and D root zones** 🟡 — C at 85.7%, D at 87.1% (4+ days). Still no visible stress; watch for yellowing, wilting, drooping, or sour smell.
+1. **Reduce humidifier output during lights-on** 🔴 — Afternoon VPD 0.68 kPa (below floor, 2nd consecutive day); overnight RH 59.48% now above veg target. Lower intensity to pull afternoon RH below 65%.
+2. **Tuck sativa-leaning canopy (A, D)** 🟡 — Per [pheno-flip-strategy](decisions/2026-04-26-pheno-flip-strategy.md): bend tallest A/D growth horizontally back under SCROG net to slow vertical and let B/C catch up. First pass today/tomorrow. Re-evaluate every 3 days; flip target ~60% net coverage.
+3. **Take clones (Wed 2026-04-29)** 🟡 — Clone gear arrives Tue 2026-04-28; plan first cuttings the following morning. 2 cuttings per plant (8 total). Lower laterals on A/D, middle laterals on B/C. See [breeding/cloning.md](breeding/cloning.md).
+4. **Step light 40% → 50% Fold-650** 🟡 — LST Day 6; ramp window open Apr 25–27. No stress signs in today's photos.
+5. **Monitor Plant B moisture** 🟡 — Rising daily (64% → 69% → 74.6% → 79.3%); trajectory to reach 82%+ in 1–2 days. Consider closing B float valve briefly if moisture exceeds 85% and stress appears.
+6. **Investigate temperature drop — reduce exhaust fan speed** 🟡 — Second consecutive day below 74°F floor; reducing fan speed marginally may recover 1–2°F and simultaneously improve afternoon VPD.
+7. **Monitor Plants C and D root zones** 🟡 — C at 85.7%, D at 87.1% (4+ days). Still no visible stress; watch for yellowing, wilting, drooping, or sour smell.
 
+_Resolved 2026-04-26: "Perform reservoir change" — refilled 2026-04-26 afternoon; next change window ~2026-05-03–06._
 _Resolved 2026-04-25: "LST Day 5 — light ramp window open" → ramp window noted open; step to 50% due today (Day 6)._
 _Resolved 2026-04-24: "Complete LST today" — user confirmed LST was started Apr 20 on all 4 plants ✅_
 _Resolved 2026-04-24: "Monitor afternoon temperature" — milestone Apr 24 (all windows in target); regression began Apr 25._
@@ -87,11 +89,14 @@ _Resolved 2026-04-22: "Monitor Plant D color" — color improved; Apr 24 photo s
 | ~~Float valve activation~~ | ✅ Done Apr 15 |
 | ~~SCROG net install~~ | ✅ Done Apr 18 (11" above canopy / 18" above pot base) |
 | ~~LST all plants~~ | ✅ Started Apr 20 (all 4 plants; recovery complete Day 6) |
-| **Reservoir change** | **Critically overdue — do today** |
+| ~~Reservoir change~~ | ✅ Refilled 2026-04-26 afternoon |
 | **Light step 40% → 50%** | **Due today (Apr 25–27 window)** |
+| Clone gear arrival | 2026-04-28 |
+| Take 8 clones (A/B/C/D × 2) | 2026-04-29 |
 | Govee H7140 backup arrival | 2026-04-27 |
 | Govee H7142 cutover (primary) | 2026-04-28 (arrival); cutover same day or Apr 29 |
-| 12/12 flip | SCROG 70% full |
+| Germinate all 10 SBxBS01 regulars (Track A) | ~2026-04-29 (alongside clones) |
+| 12/12 flip | ~60% SCROG coverage with all four at net plane; window 2026-05-10 → 2026-05-17 (per [pheno-flip-strategy](decisions/2026-04-26-pheno-flip-strategy.md)) |
 | Clone selection | Flower weeks 3–4 |
 | Final pheno evaluation | Flower weeks 5–6 |
 | Breeding — F2 cross | After pheno evaluation; best male × A or D |

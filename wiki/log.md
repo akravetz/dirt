@@ -672,3 +672,43 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - Updated `wiki/environment/humidity.md` — trend log entry + notable event: afternoon VPD below floor day 2; overnight RH above veg target first time; all windows above RH targets
 - Updated `wiki/environment/temperature.md` — trend log entry + notable event: all windows below veg targets second consecutive day
 - Refreshed `wiki/overview.md` and `wiki/index.md`
+
+## [2026-04-26] decision + breeding-update | Pheno-split flip strategy + locked clone/male gear list
+- **Trigger:** user inspection at Day 43 confirmed the 4 plants have split into two morphological groups — sativa-leaning (already at the net, starting to fill) and indica-leaning (barely reaching the net). Generic "flip at 70% coverage" guidance doesn't fit the asymmetric stretch profile. Separately, user committed to launching Track A this week with a 2×2×4 grow tent in another room (already on hand) and locked the gear shopping list.
+- **Decision:** flip target window **2026-05-10 → 2026-05-17**, gated on **~60% net coverage with all four plants reaching the net plane** (not on a calendar date). Strategy: aggressively tuck the sativas under the net to slow vertical and force lateral spread; encourage indicas to keep climbing toward the net (light step-up window). Re-evaluate every 3 days. ~60% (not 70%+) is correct for this grow because mixed phenos have asymmetric stretch and a too-late flip traps sativa growth above the net while the indicas finally arrive.
+- **Locked gear:**
+  - Clones (closet shelf, ~$130): Rapid Rooter 50-pack, 7"+ humidity dome + tray, Clonex gel, heat mat, 30–50W LED bar, solo cups + Happy Frog soil for stasis pots, spray bottle, plant tags. Soil over coco for stasis to allow 3–4 day watering cadence (low-attention mode while focus is on current grow + male tent).
+  - Males (2×2×4 tent in separate room, ~$245): 100W LED quantum board (Spider Farmer SF1000 or generic), 4" inline fan + carbon filter combo (mandatory for negative-pressure pollen containment), 6" oscillating clip fan, 1-gal fabric pots, digital hygrometer, jeweler's loupe 40×, paper lunch bags, 1.5 mL Eppendorf tubes, silica desiccant. Existing coco/perlite + veg formula at half-strength.
+  - Germinate **6 of 10** SBxBS01 regulars (4 held in reserve); ~3 males expected from a 50/50 split. **Revised same day to germinate all 10 — see following entry.**
+- **Files updated:**
+  - **Created:** `wiki/decisions/2026-04-26-pheno-flip-strategy.md` — flip-target rationale, alternatives considered (40% / 70%+ / 90%), risk/mitigation table, breeding-program implications (clone window 2026-05-03 → 2026-05-10), open items (per-plant pheno assignment + daily coverage % tracking).
+  - **Updated:** `wiki/breeding/timeline.md` — Phase 0 rewritten with locked gear list and the clone-taking window; Phase 1 flip date updated to the 2026-05-10–17 range gated on coverage; anchor-dates block now references the flip-strategy decision.
+  - **Updated:** `wiki/breeding/cloning.md` — added "Stasis mode vs. productive-mother mode" section explaining the two operating modes; added "Medium choice for stasis pots" specifying Happy Frog over coco for low-attention stasis; added "Where the cloning station lives" section (closet shelf, not in any tent); transplant step (Day 14–21) updated to default to solo-cup stasis.
+  - **Updated:** `wiki/breeding/isolation.md` — setup table rewritten to describe the 2-layer containment (closed-door room + 2×2×4 tent inside); concrete gear list with cost references; "Notes specific to our setup" updated to note the cloning station lives in a different room (incompatible with the male tent's environmental targets).
+  - **Updated:** `wiki/index.md` — new pheno-flip-strategy decision added to the Decisions list.
+
+## [2026-04-26] update | Pheno morphology assignments confirmed (A & D sativa, B & C indica)
+- User-confirmed at Day 43: Plants A and D are sativa-leaning (longer internodes, vertical-dominant, already at SCROG net); Plants B and C are indica-leaning (tighter internodes, bushy, barely reaching net). Notable: the sativa pair is also the primary-keeper pair (purple signal pair) — every tuck pass on A/D matters more.
+- **Files updated:**
+  - **Updated:** `wiki/plants/plant-a.md`, `wiki/plants/plant-b.md`, `wiki/plants/plant-c.md`, `wiki/plants/plant-d.md` — added "Morphology" header field with phenotype lean + SCROG action (tuck for A/D, encourage-upward for B/C).
+  - **Updated:** `wiki/decisions/2026-04-26-pheno-flip-strategy.md` — phenotype-split table filled in (A, D sativa; B, C indica); added a note that the sativa pair coincides with the primary-keeper pair; closed two open items.
+
+## [2026-04-26] update | Reservoir refilled (afternoon) + clone session moved up to 2026-04-29
+- Reservoir refilled 2026-04-26 afternoon (after the morning report was generated) — clears the Day 11+ overdue flag from today's daily and overview.md. Next change window ~2026-05-03 → 2026-05-06. Mothers are in good donor state for the clone session, which is one of the reasons we're moving the clone session up.
+- Clone gear arrives Tue 2026-04-28; first cuttings planned Wed 2026-04-29. Original timeline window was 2026-05-03 → 2026-05-10 (~7-10 days before flip); moving it up because (a) mid-veg tissue at Day 45–46 roots more readily than tissue from plants approaching flip, (b) early take leaves a redo window if rate is poor (~70% expected), (c) lower laterals on A/D at the SCROG net are about to be lollipopped anyway, (d) decouples the cut from the busy flip-week. Asymmetric cut: lower laterals on A/D (sativa, already at net), middle laterals on B/C (indica, still need lower growth to reach the net).
+- **Files updated:**
+  - **Updated:** `wiki/breeding/timeline.md` Phase 0 — clone session moved to 2026-04-28/29 with rationale + asymmetric strategy.
+  - **Updated:** `wiki/overview.md` — reservoir-overdue flag cleared; new action items for sativa-tucking + clone session; upcoming-milestones table now lists the clone gear/session arrivals + the corrected flip-target window.
+  - **Updated:** `wiki/daily/2026-04-26.md` — reservoir flag flipped from 🔴 to ✅; added "Breeding-program scheduling" supplementary block summarizing today's filings.
+
+## [2026-04-26] revise | Track A germination — pop all 10 regulars (revised from 6 of 10)
+- **Trigger:** user pushed back on the "germinate 6, hold 4 in reserve" plan from earlier today. After re-examining the tradeoff, agreed: germ all 10 is the right call.
+- **Reasoning:**
+  - **Stochastic risk:** P(<2 males) drops from ~11% (with 6 seeds) to ~1% (with 10).
+  - **Selection power:** picking the best of ~5 males is a real selection event per [`male-evaluation.md`](../wiki/breeding/male-evaluation.md); picking the best of ~3 is barely selection at all. Selection is the whole point of the breeding program.
+  - **Reserves are illusory:** the existing 4 SBxBS01 F1s in the main tent (A/B/C/D) are already the genetic library + cloned for keeper preservation; holding 4 unstarted seeds doesn't add anything that banked pollen + clones don't already provide. If germ technique fails, it likely fails the same way on a second batch.
+  - **Cost is small:** germ-stage effort identical; ~5 females to cull at sex confirmation vs ~3; peak male tent occupancy ~5 in a 2×2×4 is tight but fine since non-keepers get culled within 1–3 weeks of co-flowering anyway.
+- **Files updated:**
+  - **Updated:** `wiki/breeding/timeline.md` Phase 0 — germ count flipped to all 10 with rationale; Phase 1 fallback updated (sourcing another OBG pack only if <2 males surface from the full batch, P ≈ 1%).
+  - **Updated:** `wiki/overview.md` — upcoming-milestones germ entry updated to "all 10".
+  - **Updated:** `wiki/log.md` — prior entry annotated with the same-day revision pointer.

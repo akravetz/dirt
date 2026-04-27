@@ -217,7 +217,7 @@ Two ways to use feedforward in our controller:
 
 **1. Setpoint scheduling.** When lights are off, shift the VPD setpoint downward (the "night offset"). This is a static lookup, not a model — at lights-off we know the equilibrium VPD will be lower, so we lower our target to match. See [`2026-04-19-lights-off-aware-humidifier.md`](../decisions/2026-04-19-lights-off-aware-humidifier.md). Implementation: 3 lines of code in `compute()` — `setpoint = upper_band + (0 if lights_on else night_offset_kpa)`.
 
-**2. Operating-mode dispatch.** During the 30-min window before lights-off (the "prep window"), force the actuator off — we know mist now will linger after lights turn off and contribute to a damping-off RH spike. During the 30-min window before lights-on (the "ramp window"), allow the controller to pre-warm against the day setpoint. This is a discrete state machine layered on top of the continuous PI loop.
+**2. Operating-mode dispatch.** During the prep window before lights-off (currently 5 min, was 30 until 2026-04-27), force the actuator off — we know mist now will linger after lights turn off and contribute to a damping-off RH spike. The ramp window before lights-on (same 5 min, symmetric) allows the controller to resume against the day setpoint. This is a discrete state machine layered on top of the continuous PI loop.
 
 Why feedforward beats derivative for our case: the lights schedule is a **known periodic disturbance**. Differentiating VPD to anticipate the disturbance would be using noisy sensor data to detect something we already know exactly when it happens. Feedforward is mathematically optimal here; D is at best a noisy substitute.
 

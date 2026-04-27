@@ -13,14 +13,22 @@ updated: 2026-04-26
 
 ## The setup
 
+Two layers of containment: a separate room with a closed door, and **inside that room, a dedicated 2×2×4 grow tent** that holds the males and (later) the flowering keeper clone. The tent gives us proper negative pressure and a sealed enclosure; the surrounding closed-door room is the second layer for any pollen that escapes the tent during a sloppy collection session.
+
 | Element | Spec |
 |---|---|
-| **Isolation space** | Separate room with a closed door from the main tent. Confirmed available 2026-04-26. |
+| **Isolation room** | Separate room with a closed door from the main tent. Confirmed available 2026-04-26. |
 | **Door** | Closed at all times when males or pollinated plants are inside. Add a draft-stopper at the bottom if there's a visible gap. |
-| **Ventilation** | Isolation room exhaust should not return to the main tent's intake. Easiest: window vent or basement-level exhaust. Negative pressure on the isolation room (slightly more exhaust than intake) is ideal but not required. |
-| **Light** | 50–150W LED for 1–3 small males (males don't need flower-grade PAR — they just need to flower, and they flower in low light). For pollinated keeper clone: same as main tent flower light specs. |
-| **Air movement** | A small clip fan during normal operation, **off** during pollen collection or pollination day. |
-| **Environment** | Doesn't need to match the main tent precisely. Males tolerate 65–80 °F and 30–60% RH without complaint. Pollinated clone needs main-tent flower targets. |
+| **Containment tent** | 2×2×4 ft grow tent (already on hand) inside the isolation room. Zipped closed during all male flowering. Gives a true sealed-enclosure boundary that a closed-door alone cannot. |
+| **Tent ventilation** | 4" inline fan + carbon filter combo (~$80) running in extraction mode pulls air *out* of the tent through the carbon filter — creates negative pressure inside the tent (sides bow inward slightly when sealed). Pollen can't migrate against negative-pressure exhaust. **Mandatory**, not optional, for breeding. |
+| **Tent light** | 100W LED quantum board (Spider Farmer SF1000 or generic Amazon, ~$90). Sufficient for 1–3 small males and a single flowering keeper clone — males don't need flower-grade PAR, but the keeper clone does. Sized to do double duty. |
+| **Tent air movement** | 6" oscillating clip fan inside the tent (~$15). On during normal operation, **off during pollen collection or pollination day** to prevent pollen scatter. |
+| **Tent environment monitoring** | Cheap digital hygrometer/thermometer (~$10) inside the tent. Doesn't need to match the main tent precisely — males tolerate 65–80 °F and 30–60% RH without complaint. Pollinated keeper clone needs main-tent flower targets (humidifier deferred unless RH falls below 40%). |
+| **Pots / medium** | 1-gal fabric pots (5-pack ~$15), filled with the existing coco/perlite mix from the main grow. Males don't need bigger pots for pollen yield. |
+| **Pollen-handling supplies (kept in tent)** | Jeweler's loupe 40× for early sex confirmation (~$10), paper lunch bags for branch-bagging individual sacs (~$5), 1.5 mL Eppendorf tubes 50-pack for pollen aliquots (~$15), silica desiccant packs for drying (~$5). |
+| **Freezer** | Dedicated portable freezer with digital thermostat at -18 °C / 0 °F, located on a stable shelf inside the isolation room (NOT inside the tent — heat exhaust + sealed environment don't mix). See [pollen-handling.md](pollen-handling.md). |
+
+Total isolation-room outfit (excluding existing tent and freezer): **~$245 one-time**. Decision and trade-offs in [`decisions/2026-04-26-pheno-flip-strategy.md`](../decisions/2026-04-26-pheno-flip-strategy.md) (covers gear-list rationale alongside the flip-strategy decision).
 
 ## What goes in the isolation room
 
@@ -138,6 +146,7 @@ Symptoms: random calyx swelling on multiple plants outside the keeper, white pis
 
 ## Notes specific to our setup
 
-- The separate room with closed door (confirmed 2026-04-26) is the gating prerequisite — without this, the breeding program doesn't run.
-- Portable freezer arrives this week; placement is on a stable shelf in the isolation room, away from the door.
-- The current main tent is in vegetative stage as of 2026-04-26; pollen risk is **zero** until flower flip (~2026-05-15). Track A males are scheduled to enter Phase B around the same time as the main tent flips, so the main-tent contamination risk window opens then.
+- The separate room with closed door (confirmed 2026-04-26) is the gating prerequisite — without this, the breeding program doesn't run. The 2×2×4 grow tent inside that room is the second containment layer; both must be in place before males flower.
+- Portable freezer arrives this week; placement is on a stable shelf in the isolation room, **outside the tent**, away from the door.
+- The current main tent is in vegetative stage as of 2026-04-26; pollen risk is **zero** until flower flip (target window 2026-05-10 → 2026-05-17, gated on net coverage — see [`decisions/2026-04-26-pheno-flip-strategy.md`](../decisions/2026-04-26-pheno-flip-strategy.md)). Track A males are scheduled to enter Phase B around the same time as the main tent flips, so the main-tent contamination risk window opens then.
+- The cloning station (humidity dome + stasis-mode clones) lives **on a closet shelf in another room — not inside the isolation tent or the isolation room.** High-humidity domes and low-humidity flowering males are environmentally incompatible, and putting young clones near a flowering male invites contamination.
