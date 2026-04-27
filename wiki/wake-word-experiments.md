@@ -980,3 +980,53 @@ Better next experiments: keep `Gain=1.0` only (pure amplitude variation, no spec
 - **Volume quota incident.** First four v19 submission attempts produced 0-byte FAILURE files within 30-80 s. Root cause: the 50 GB volume was full (per-pod `working/<pod_id>/` scratch never cleaned up across runs; 2 augment-features cache entries × ~5 GB each; ~15 GB of stale `working/my_custom_model/` from pre-isolation runs). Direct S3 PUT confirmed `InsufficientStorage: bucket storage quota exceeded`. Fix: bumped volume to 200 GB via `PATCH /v1/networkvolumes/<id>` (`{"size":200}`), wiped all stale `working/<pod_id>/` and `working/my_custom_model/` prefixes, and added `_cleanup_working()` to the entrypoint that wipes `WORKING/` after success or failure (commit `7836787`). Future runs won't slow-leak the volume.
 - Augment cache key now keys on the augmentation prob dicts (`augmentation_synth`, `augmentation_real`), so the v19 REAL_AUDIO change invalidated v18's cache and forced a recompute (~22 min). v17 and v18 cache entries still on the volume; v19's new cache entry (different key) coexists.
 - `aws s3 sync` of `out/<pod_id>/` again hit the RunPod paginator bug. Recovery: `scripts/wakeword-pull-pod-out x186go75fyff8g`. Same as every prior run — should permanently switch the orchestrator off `aws s3 sync` to direct head/download by known filename.
+
+### v20 — 2026-04-27
+
+**Status:** trained, validated (deploy decision pending)
+**Model artifact:** `var/wake-word/models/2026-04-27-142640-f6x0z33zcpal7v/hey_claudia.onnx`
+**Trainer commit:** `db525c2` (gain-only realmic augmentation)
+**W&B run:** [`qr3g3kx3`](https://wandb.ai/adkravetz/dirt-wake-word/runs/qr3g3kx3) (group `exp5-realmic-gain-only-v20-20260427-142639`)
+**Pod:** `f6x0z33zcpal7v`, RTX 4090
+**Wall:** 33m03s (TTS cache HIT, augment cache **MISS** — REAL_AUDIO change invalidated key)
+
+#### What changed (vs v19)
+- **`REAL_AUDIO = {**dict.fromkeys(DEFAULTS, 0.0), "Gain": 1.0}`** — same all-zero spectral augmentation as v19, but Gain prob restored to 1.0. Pure amplitude randomization gives within-class variance without changing the frequency content (the inference distribution is raw Jabra audio; the deployment-room reverb / ambient noise are baked into the recording, so spectral augmentation pushes training off-distribution).
+- Same data, same training config otherwise.
+
+#### Why
+v17 (DEFAULTS minus RIR=0, AddBg=0.5) was the best deployable model so far — 100% lab precision at 0.5/0.6, 36.8% held-out real-mic recall. v19 (all aug zeroed) overfit to identical-duplicate clip pairs and lost ground on every metric. Gain-only is the thinnest aug-pipeline above v19 — restores within-class variance without re-introducing the spectral mismatch.
+
+#### Results — canonical 28/76 set
+
+| Threshold | Recall | Precision | F1 | False positives |
+|---:|---:|---:|---:|---:|
+| 0.30 | 64.3 % | 90.0 % | 0.750 | 2/76 |
+| 0.40 | 60.7 % | 94.4 % | 0.739 | 1/76 |
+| 0.50 | 60.7 % | 94.4 % | 0.739 | 1/76 |
+| 0.60 | 60.7 % | **100.0 %** | **0.756** | **0/76** |
+| 0.70 | 50.0 % | 100.0 % | 0.667 | 0/76 |
+
+#### Results — held-out 38-clip real-mic set (`/tmp/v17-eval-newclips/good/`)
+
+| Threshold | Recall | Precision | F1 |
+|---:|---:|---:|---:|
+| 0.50 | 34.2 % (13/38) | 100.0 % | 0.510 |
+
+#### Comparison
+
+| Model | Best F1 (thresh) | @0.60 recall / precision | Held-out 38 recall@0.5 |
+|---|---:|---:|---:|
+| v17 | 0.735 (@0.30) | 46.4 % / 100 % | **36.8 %** (14/38) |
+| v18 | 0.711 (@0.50) | 46.4 % / 100 % | (not measured) |
+| v19 | 0.667 (@0.50) | 46.4 % / 86.7 % | 23.7 % (9/38) |
+| **v20** | **0.756 (@0.60)** | **60.7 % / 100 %** | 34.2 % (13/38) |
+
+At production `WAKE_THRESHOLD = 0.6`, v20 picks up **+14 pp recall** (46.4 → 60.7) over v17 with no precision cost. Held-out real-mic recall is within statistical noise of v17 (1-clip delta on a 38-clip set).
+
+#### Deploy decision (pending)
+v20 is a strict win on the lab metric. Held-out is a wash. Recommendation lean: deploy v20, mark v17 superseded. Open question: whether the held-out 1-clip drop is real signal or noise — would need more held-out clips to disambiguate.
+
+#### Operational notes
+- Scratch-cleanup landed in this image (commit `7836787`'s `_cleanup_working()` runs on success and failure). Volume usage scan after run: 31.06 GB / 200 GB used (15.5 %). Cleanup is working — pre-cleanup steady-state was leaking ~1-2 GB per run.
+- `aws s3 sync` paginator bug fired again on artifact pull. Same workaround: `scripts/wakeword-pull-pod-out f6x0z33zcpal7v`. This is now four consecutive runs where the orchestrator's sync fails and direct-HEAD download recovers — switch the orchestrator off `aws s3 sync` permanently.
