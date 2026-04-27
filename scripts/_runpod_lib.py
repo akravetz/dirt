@@ -120,19 +120,39 @@ def s3_client():
 
 
 def s3_download_prefix(s3, *, bucket: str, prefix: str, local_dest: Path) -> int:
+    """Download every key under prefix. Same RunPod-paginator workaround as
+    s3_delete_prefix: raw list_objects_v2 + ContinuationToken in a loop,
+    deduping seen keys to break out if the listing leaks outside prefix."""
     local_dest.mkdir(parents=True, exist_ok=True)
+    seen: set[str] = set()
+    token: str | None = None
     n = 0
-    for page in s3.get_paginator("list_objects_v2").paginate(Bucket=bucket, Prefix=prefix):
-        for obj in page.get("Contents") or []:
-            key = obj["Key"]
+    while True:
+        kwargs = {"Bucket": bucket, "Prefix": prefix, "MaxKeys": 1000}
+        if token:
+            kwargs["ContinuationToken"] = token
+        r = s3.list_objects_v2(**kwargs)
+        new_keys = [
+            o["Key"] for o in (r.get("Contents") or []) if o["Key"] not in seen
+        ]
+        if not new_keys:
+            return n
+        for key in new_keys:
+            if not key.startswith(prefix):
+                continue  # paginator leaked; skip foreign keys
             rel = key[len(prefix):].lstrip("/")
             if not rel:
                 continue
             dst = local_dest / rel
             dst.parent.mkdir(parents=True, exist_ok=True)
             s3.download_file(bucket, key, str(dst))
+            seen.add(key)
             n += 1
-    return n
+        if not r.get("IsTruncated"):
+            return n
+        token = r.get("NextContinuationToken")
+        if not token:
+            return n
 
 
 def s3_upload_dir(s3, *, local_dir: Path, bucket: str, prefix: str) -> int:
@@ -147,9 +167,17 @@ def s3_upload_dir(s3, *, local_dir: Path, bucket: str, prefix: str) -> int:
 
 
 def s3_delete_prefix(s3, *, bucket: str, prefix: str) -> int:
-    keys: list[dict[str, str]] = []
-    for page in s3.get_paginator("list_objects_v2").paginate(Bucket=bucket, Prefix=prefix):
-        keys.extend({"Key": obj["Key"]} for obj in page.get("Contents") or [])
-    for i in range(0, len(keys), 1000):
-        s3.delete_objects(Bucket=bucket, Delete={"Objects": keys[i:i + 1000]})
-    return len(keys)
+    """Delete every key under prefix. Uses raw list_objects_v2 + per-batch
+    delete in a loop because RunPod's paginator returns ContinuationTokens
+    that leak outside the requested prefix, which boto3 (correctly) rejects."""
+    deleted = 0
+    while True:
+        r = s3.list_objects_v2(Bucket=bucket, Prefix=prefix, MaxKeys=1000)
+        contents = r.get("Contents") or []
+        if not contents:
+            return deleted
+        s3.delete_objects(
+            Bucket=bucket,
+            Delete={"Objects": [{"Key": o["Key"]} for o in contents]},
+        )
+        deleted += len(contents)

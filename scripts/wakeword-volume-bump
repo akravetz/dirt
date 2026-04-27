@@ -17,6 +17,8 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+from botocore.exceptions import ClientError
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _runpod_lib as rp  # noqa: E402
 
@@ -70,7 +72,11 @@ def main() -> int:
     print(f"==> updating {MANIFEST_KEY}")
     try:
         manifest = json.loads(s3.get_object(Bucket=bucket, Key=MANIFEST_KEY)["Body"].read())
-    except s3.exceptions.NoSuchKey:
+    except ClientError as exc:
+        # RunPod's S3 returns InvalidArgument for missing keys; standard S3
+        # uses NoSuchKey/404. Treat both as "manifest doesn't exist yet".
+        if exc.response["Error"]["Code"] not in ("NoSuchKey", "404", "InvalidArgument"):
+            raise
         manifest = {"schema_version": 1, "datasets": {}}
     bumped_at = datetime.now(UTC).isoformat()
     manifest["updated_at"] = bumped_at
