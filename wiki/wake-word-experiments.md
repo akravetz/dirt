@@ -738,7 +738,7 @@ runtime environment. v16+ entries below correspond to RunPod runs.
 
 ### v16 — 2026-04-27
 
-**Status:** **deployed** (currently `var/wake-word/models/current` symlink, deployed 2026-04-27)
+**Status:** superseded (deployed 2026-04-27 → 2026-04-27 same-day; replaced by v17)
 **Model artifact:** `var/wake-word/models/2026-04-27-v16/hey_claudia.onnx` (renamed from `2026-04-26-225546-95hpev0e07b2ea` for convention)
 **Trainer commit:** `1d10a93` (TTS-cache reciprocal-bug fix landed mid-run; pod ran on the prior image's code)
 **Image digest:** `sha256:f552c860573e2a6a2ed63e3ef46ad55af45c8d377102275e1c77ff52e69c7763`
@@ -817,3 +817,84 @@ Comparison vs prior:
 - Artifacts recovered post-hoc via the new `scripts/wakeword-pull-pod-out 95hpev0e07b2ea` helper (direct boto3 head_object / download_file by known filename — no list_objects, immune to RunPod's paginator bug).
 - Net result: training success, ~$0.10 of wasted GPU on the auto-restart loop, but artifacts intact on the volume.
 - Open follow-up: orchestrator watchdog / quick-exit-on-existing-sentinel + container-side self-DELETE — see chat history for design.
+
+### v17 — 2026-04-27
+
+**Status:** **deployed** (currently `var/wake-word/models/current` symlink, deployed 2026-04-27)
+**Model artifact:** `var/wake-word/models/2026-04-27-v17/hey_claudia.onnx`
+**Trainer commit:** `fec0916` (TTS-cache path fix — persist now reads from `WORKING/my_custom_model/<TARGET_WORD>/<subset>/`, not `WORKING/my_custom_model/<subset>/`)
+**Image digest:** `sha256:7ed5e8d1641ef9f057438c4034c789a2e580b67b2074959bb950e5cd7119511f`
+**W&B run:** [`812kjhu1`](https://wandb.ai/adkravetz/dirt-wake-word/runs/812kjhu1) (group `exp2-infra-validate-20260427-002635`)
+**Pod:** `1t3ppxo6m9jjwo`, RTX 4090 / 64 vCPU
+**Wall:** 50m54s
+
+#### What changed (vs v16)
+- **Same training data and config as v16** — this run was originally an infrastructure validation (validate ncpu bump, augment cache, watchdog self-DELETE). Identical mine/bg/features/validation content_hashes.
+- **Variance from un-seeded randomness in augment + train.** `augment_clips` draws random RIRs / background-noise samples per call; model init / batch order also un-seeded. Same config + same data = ~20 % F1 spread across runs. v16 was a low-tail draw; v17 is a high-tail draw.
+- **Augment-features cache landed and populated** (`input/dirt-wakeword-features-cache/6fbde72c9424563a/{4 npys + cache-metadata.json}`). Next same-data run hits cache and skips augment+features (~24 min saved).
+- **TTS cache populated correctly for the first time ever** (66 000 WAVs hardlinked across all 4 subset dirs; cache-key.json + content match for the first time). Pre-existing path-mismatch bug fixed in commit `fec0916`.
+- **Watchdog (`_self_delete` after sentinel write) verified.** Pod gone post-run; no orchestrator-driven DELETE was needed.
+
+#### Why
+Originally just an infra-validation run, but the F1 jump from 0.582 (v16) → 0.735 (v17) on identical data made the deploy decision easy. Variance is real — a run-to-run spread of this magnitude argues for either (a) running 3-5 retrains with explicit seeds and picking the median, or (b) just deploying the high-tail and relying on real-world soak to catch surprises.
+
+#### Training data (UNCHANGED from v16)
+- Positives: 2 000 ElevenLabs voice clones (×1) + 18 real-mic positives (×10) = 2 180 seeds
+- Negatives: 360 ElevenLabs phonetic neighbors (×1) + 18 real-mic negatives (×10) = 540 seeds
+- RIRs: 9 captured room impulse responses
+- Background: AudioSet_16k + FMA from `dirt-wakeword-bg`
+- Feature corpus: ACAV100M 2 000 h from `dirt-wakeword-features`
+
+#### Training config (UNCHANGED from v16)
+- `max_negative_weight`: 500
+- `batch_n_per_class`: 512 / 50 / 200
+- `steps`: 20 000
+- DataLoader sharing strategy: `file_system`
+- Per-subset augmentation: `realmic_*` skips RIR
+- Best-checkpoint: real-audio F1 against `validation/`
+- ncpu = `os.cpu_count() - 2` (62 on this 64-core host) — was `// 2` before; ~5 % wall-time gain on augment+features. Less than the 1.5× projected, suggesting the bottleneck is something other than CPU saturation (likely background-WAV I/O or GIL contention in the audiomentations chain).
+
+#### Validation set
+- `var/wake-word/validation/{good,bad}/`: 28 / 76 (canonical, MANIFEST hash sha256:93b03266…)
+
+#### Results — sweep on the canonical 28/76 set
+
+| Threshold | Recall | Precision | F1 | False positives |
+|---:|---:|---:|---:|---:|
+| 0.30 | 64.3 % | 85.7 % | **0.735** | 3/76 |
+| 0.40 | 57.1 % | 94.1 % | 0.711 | 1/76 |
+| 0.50 | 57.1 % | **100.0 %** | 0.727 | **0/76** |
+| 0.60 | 46.4 % | 100.0 % | 0.634 | 0/76 |
+| 0.70 | 46.4 % | 100.0 % | 0.634 | 0/76 |
+
+**0 false positives at threshold 0.5** — meaningful operational improvement vs v16 (5/76 at the same threshold).
+
+| Model | recall@0.5 | precision@0.5 | F1@0.5 | FP@0.5 |
+|---|---:|---:|---:|---:|
+| v3 (deployed before v16) | 42.9 % | 24.0 % | 0.308 | 38/76 |
+| v5 | 35.7 % | — | 0.513 | — |
+| v16 | 46.4 % | 72.2 % | 0.565 | 5/76 |
+| **v17** | **57.1 %** | **100.0 %** | **0.727** | **0/76** |
+
+#### Per-phase wall time
+| Phase | Wall |
+|---:|---:|
+| boot + init | ~3 min |
+| restore_tts_cache (MISS — cache-key was deleted to force rebuild) | 0 s |
+| generate_clips (Piper, full from-scratch) | 20m46s |
+| augment+features (MISS — first run with cache code) | 23m37s |
+| train_loop (20 000 steps) | 6m08s |
+| validate_against_real_set | 9.5 s |
+| persist TTS cache (66 000 WAVs hardlinked) | <1 s |
+| persist augment cache (4 npys hardlinked) | <1 s |
+| **TOTAL** | **50m54s** |
+
+Next same-data run should drop to **~7 min** (TTS + augment caches both HIT).
+
+#### Operational notes
+- Self-DELETE fired correctly (entrypoint's `_self_delete()` after writing SUCCESS). Pod was gone before the orchestrator could issue its own DELETE — orchestrator's `finally:` got 404 (idempotent).
+- Orchestrator's `aws s3 sync` of `out/<pod_id>/` crashed on the RunPod paginator bug (familiar). Recovery: `scripts/wakeword-pull-pod-out 1t3ppxo6m9jjwo` direct-HEAD by known filename — got all 4 artifacts.
+- Caches verified populated on the volume; S3 `list_objects_v2` returns `KeyCount=0 IsTruncated=True` for prefixes with many entries (RunPod listing bug — files are physically on the mounted filesystem, just not enumerable via the S3 API). Restore-side uses `Path.is_dir()` + `glob("*.wav")` directly on the mount, so the broken listing doesn't affect runtime.
+
+#### Threshold tuning question
+Production currently uses `WAKE_THRESHOLD = 0.6` (set in `apps/voice/src/dirt_voice/channels/voice.py:95`). At 0.6, v17 gets 46.4 % recall / 100 % precision / F1 0.634. At 0.5, v17 gets 57.1 % recall / 100 % precision / F1 0.727. Lowering to 0.5 picks up an extra 11 pp of recall with no precision cost — worth considering after some real-world soak.
