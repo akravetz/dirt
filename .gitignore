@@ -33,6 +33,7 @@ services/camera-daemon/dirt-camera-daemon
 # Firmware secrets (WiFi creds, OTA password, ingest token) — one per node project
 firmware/plant_node/src/secrets.h
 firmware/fan_controller/include/secrets.h
+firmware/reservoir_node/src/secrets.h
 
 # Distribution
 dist/

@@ -102,7 +102,7 @@ Each is a few lines once the schedule-aware plumbing is in place (which it alrea
 
 4. **Dehumidifier cycle limit.** Compressor-based dehumidifiers have minimum off-time requirements (~5 min) to let the refrigerant equalize. Unlike the humidifier relay, this is a hardware constraint we *should* respect. Don't drop the `min_off` idea entirely for the dehumidifier.
 
-5. **Room-air coupling.** The fan's effect on tent RH depends on makeup-air RH. In a humid summer, "fan up" may *raise* tent RH. Worth a sanity check once we have a room BME280 to compare against.
+5. **Room-air coupling.** The fan's effect on tent RH depends on makeup-air RH. In a humid summer, "fan up" may *raise* tent RH. Worth a sanity check once we have a room SHT (or equivalent) to compare against.
 
 ## Proposed implementation shape
 
@@ -138,7 +138,7 @@ All of the above waits on hardware:
 
 1. Dehumidifier procured, plugged into a second Kasa EP10 (requires DHCP reservation, firmware check for KLAP v2).
 2. PWM fan control wired through the ESP32 or a dedicated driver.
-3. Room BME280 (for makeup-air context) — optional but nice.
+3. Room temp/RH sensor (e.g. another SHT45 node, for makeup-air context) — optional but nice.
 
 Migration path from today's loop: keep `humidifier.py` running until `environment.py` is tested end-to-end. Don't partial-port. The value is in the unified state machine; half-implementation is worse than the current single-loop design.
 

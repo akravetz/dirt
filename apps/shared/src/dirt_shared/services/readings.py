@@ -387,9 +387,10 @@ class ReadingsService:
         so the contract endpoint can hand them to ``HistoryPoint``
         without a str-format round-trip.
 
-        Callers are responsible for validating ``metric`` is a DB-backed
-        metric — ``reservoir_in`` is a pure-function mock with its own
-        history helper in ``mock_sensors``.
+        Filters only by ``metric`` name (not location), since each
+        emitted metric in this codebase comes from exactly one node
+        (e.g. ``reservoir_depth_cm`` only ever comes from the reservoir
+        node).
         """
         delta = RANGE_DELTAS[range_key]
         cutoff = self._clock() - delta

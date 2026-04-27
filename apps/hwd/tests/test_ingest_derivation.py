@@ -24,6 +24,8 @@ _PLAUSIBLE: dict[str, float] = {
     "temperature_c": 24.0,
     "humidity_pct": 55.0,
     "soil_moisture_raw": 1800.0,
+    "reservoir_pressure_raw": 22000.0,
+    "reservoir_in": 12.0,
 }
 
 

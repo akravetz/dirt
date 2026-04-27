@@ -48,7 +48,7 @@ updated: 2026-04-26
 
 ## Hardware
 - [ESP32-C3 Per-Plant Nodes](hardware/esp32-plant-nodes.md) — Wireless soil moisture nodes (A/B/C/D); **all four live as of 2026-04-16** (A/D on v1.2 sensors, B/C on v2.0)
-- [Humidifier Control](hardware/humidifier-control.md) — Raydrop 4L gated by a Kasa Ultra Mini EP10 smart plug, driven by a host-side Python service via `python-kasa`; bang-bang hysteresis on tent BME280-derived VPD. Plug on hand, service not yet built.
+- [Humidifier Control](hardware/humidifier-control.md) — Raydrop 4L gated by a Kasa Ultra Mini EP10 smart plug, driven by a host-side Python service via `python-kasa`; bang-bang hysteresis on tent SHT45-derived VPD. In service.
 - [PTZ Camera (OBSBOT Tiny 2 Lite + daemon)](hardware/ptz-camera.md) — Programmable gimbal + zoom; persistent C++ daemon + `scripts/camera` CLI; per-plant presets calibrated
 - [Jabra Speak 410](hardware/jabra.md) — USB speakerphone for voice I/O; ElevenLabs "Claudia" TTS + Nova-3 STT + openWakeWord ("hey claudia"). Device quirks, firmware, volume tuning.
 - [Voice Channel (Claudia)](hardware/voice-channel.md) — Production Pipecat pipeline on top of the Jabra; `dirt-voice.service`; agent tools; session logs. **Deployed 2026-04-18.**

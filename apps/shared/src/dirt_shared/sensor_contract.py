@@ -37,7 +37,7 @@ EMITTED_METRICS: dict[SensorLocation, frozenset[str]] = {
     SensorLocation.PLANT_B: frozenset({"soil_moisture_raw"}),
     SensorLocation.PLANT_C: frozenset({"soil_moisture_raw"}),
     SensorLocation.PLANT_D: frozenset({"soil_moisture_raw"}),
-    SensorLocation.RESERVOIR: frozenset(),
+    SensorLocation.RESERVOIR: frozenset({"reservoir_pressure_raw", "reservoir_in"}),
 }
 
 PERSISTED_METRICS: dict[SensorLocation, frozenset[str]] = {
@@ -53,7 +53,7 @@ PERSISTED_METRICS: dict[SensorLocation, frozenset[str]] = {
     SensorLocation.PLANT_B: frozenset({"soil_moisture_raw"}),
     SensorLocation.PLANT_C: frozenset({"soil_moisture_raw"}),
     SensorLocation.PLANT_D: frozenset({"soil_moisture_raw"}),
-    SensorLocation.RESERVOIR: frozenset(),
+    SensorLocation.RESERVOIR: frozenset({"reservoir_pressure_raw", "reservoir_in"}),
 }
 
 

@@ -2,16 +2,20 @@
 title: "Hardware — Humidifier Control (Raydrop 4L + Kasa EP10 smart plug)"
 type: hardware
 sources: []
-related: [wiki/decisions/2026-04-17-humidifier-kasa-ep10.md, wiki/environment/humidity.md, wiki/concepts/vpd.md]
+related: [wiki/decisions/2026-04-17-humidifier-kasa-ep10.md, wiki/decisions/2026-04-26-govee-humidifier-pivot.md, wiki/environment/humidity.md, wiki/concepts/vpd.md]
 created: 2026-04-14
-updated: 2026-04-25
+updated: 2026-04-26
 ---
+
+> **🔄 Hardware swap in progress (2026-04-26)** — A Govee H7142 Wi-Fi humidifier arrives 2026-04-28 and will replace the Raydrop + Kasa EP10 stack documented below (H7140 also en route 2026-04-27 as the de-risking backup). The MCU mist-intensity mod ([decision 2026-04-23](../decisions/2026-04-23-raydrop-mcu-mist-control.md)) was abandoned in favor of buying a smart humidifier off the shelf — see [pivot decision 2026-04-26](../decisions/2026-04-26-govee-humidifier-pivot.md). Until cutover, everything below is still live. After cutover, this page will be updated for the new actuator; the operational lessons (bang-bang oscillation, fan-coupling saturation, low-water latch, hard-water descale) generalize to any ultrasonic humidifier and stay relevant.
+>
+> Future-agent integration shape lives in [docs/references/govee-api/INDEX.md](../../docs/references/govee-api/INDEX.md).
 
 # Humidifier Control
 
-Closed-loop VPD control: tent BME280 reading → VPD calc → Python service on the `dirt` host → WiFi command to Kasa EP10 smart plug → mains power to the Raydrop 4L humidifier.
+Closed-loop VPD control: tent SHT45 reading → VPD calc → Python service on the `dirt` host → WiFi command to Kasa EP10 smart plug → mains power to the Raydrop 4L humidifier.
 
-(Temp/RH sensor was a DHT22 until 2026-04-13 — swapped after a hardware failure and for tighter drift characteristics. See [decision 2026-04-20](../decisions/2026-04-20-bme280-sensor-swap.md). The control loop is sensor-agnostic; deadband and feedforward were not retuned.)
+(Sensor history: DHT22 → BME280 (2026-04-13, [decision](../decisions/2026-04-20-bme280-sensor-swap.md)) → SHT45 on the combined fan-controller ESP32-C3 (2026-04-23, [decision](../decisions/2026-04-22-sht45-tent-node-esp32.md)) after the BME280 was found to be reading +3.5 °F / +23 %RH off vs. a calibrated handheld. The control loop is sensor-agnostic; deadband was widened on 2026-04-23 after the SHT45 cutover exposed actuator overshoot — see "0.4 kPa deadband" below.)
 
 The loop targets **VPD** against the current stage's upper band (from `dirt.services.grow_state.current_targets()`), not a fixed RH. Night behavior is free — cooler air drops VPD on its own, so the humidifier shuts off during lights-off without needing a schedule. See [decision 2026-04-18](../decisions/2026-04-18-vpd-targeting.md) for the switch from fixed-RH control.
 

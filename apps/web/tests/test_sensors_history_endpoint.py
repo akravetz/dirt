@@ -1,10 +1,11 @@
 """Unit tests for GET /api/sensors/history.
 
 The endpoint returns bucketed ``(ts, value)`` points for one metric over
-the requested range. DB-backed metrics query ``ReadingsService``; the
-still-mocked ``reservoir_in`` metric comes from the deterministic helper
-in ``mock_sensors``. The contract name ``fan_pct`` is bridged to the DB
-metric ``fan_duty_pct`` at the endpoint boundary.
+the requested range. All metrics query ``ReadingsService``. Only
+``fan_pct`` has a contract↔DB name mismatch (resolves to
+``fan_duty_pct`` at the endpoint boundary); every other metric — now
+including ``reservoir_in`` (firmware emits inches natively after
+2026-04-26) — uses the contract name directly.
 
 Tests drive the full ASGI stack with an isolated Postgres DB and assert
 the response body deserializes into the generated
@@ -29,29 +30,42 @@ from dirt_shared.models.sensor_reading import SensorReading
 from dirt_web.app import create_app
 
 
+async def _node_id(s: AsyncSession, location: SensorLocation) -> int:
+    """Find-or-create the SensorNode for ``location`` and return its id."""
+    result = await s.exec(select(SensorNode.id).where(SensorNode.location == location))
+    node_id = result.first()
+    if node_id is None:
+        node = SensorNode(location=location)
+        s.add(node)
+        await s.commit()
+        await s.refresh(node)
+        node_id = node.id
+    return node_id
+
+
 async def _seed_tent_series(engine, hours: int = 48) -> None:
-    """Insert a dense temperature_f + humidity_pct + fan_duty_pct series."""
+    """Insert a dense series for the four DB-backed sparkline metrics."""
     async with AsyncSession(engine) as s:
-        result = await s.exec(
-            select(SensorNode.id).where(SensorNode.location == SensorLocation.TENT)
-        )
-        tent_id = result.first()
-        assert tent_id is not None
+        tent_id = await _node_id(s, SensorLocation.TENT)
+        reservoir_id = await _node_id(s, SensorLocation.RESERVOIR)
 
         now = datetime.now(UTC)
         readings: list[SensorReading] = []
         # Every 5 minutes, so 1h → ~12 raw, 24h → ~288 pre-bucket rows.
         for i in range(hours * 12):
             ts = now - timedelta(minutes=5 * i)
-            for metric, value in (
-                ("temperature_f", 72.0 + (i % 10) * 0.5),
-                ("humidity_pct", 50.0 + (i % 10) * 0.3),
-                ("fan_duty_pct", 30.0 + (i % 5)),
+            for node_id, metric, value in (
+                (tent_id, "temperature_f", 72.0 + (i % 10) * 0.5),
+                (tent_id, "humidity_pct", 50.0 + (i % 10) * 0.3),
+                (tent_id, "fan_duty_pct", 30.0 + (i % 5)),
+                # Reservoir sweeps 20.0 → 29.0 in so bucket averages have
+                # variance without crossing zero.
+                (reservoir_id, "reservoir_in", 20.0 + (i % 10)),
             ):
                 readings.append(
                     SensorReading(
                         ts=ts,
-                        sensornode_id=tent_id,
+                        sensornode_id=node_id,
                         metric=metric,
                         value=value,
                         source=SensorSource.ARDUINO,
@@ -147,19 +161,20 @@ async def test_sensors_history_fan_bridges_to_fan_duty_pct(
         assert pt.ts.tzinfo is not None
 
 
-async def test_sensors_history_mock_metric_reservoir(client: AsyncClient) -> None:
-    """reservoir_in is synthesized from mock_sensors and bounded to physical range."""
+async def test_sensors_history_reservoir_in(client: AsyncClient) -> None:
+    """``reservoir_in`` is read straight through (firmware emits inches)."""
     response = await client.get(
         "/api/sensors/history",
-        params={"range": "7d", "metric": "reservoir_in"},
+        params={"range": "24h", "metric": "reservoir_in"},
     )
     assert response.status_code == 200
     model = SensorsHistoryResponse.model_validate(response.json())
     assert model.metric.value == "reservoir_in"
     assert model.unit == "in"
     assert len(model.points) > 0
+    # Seeded sweep is 20–29 in; every bucket average lands inside.
     for pt in model.points:
-        assert 4.0 <= pt.value <= 9.0
+        assert 20.0 <= pt.value <= 29.0
 
 
 async def test_sensors_history_invalid_range(client: AsyncClient) -> None:
