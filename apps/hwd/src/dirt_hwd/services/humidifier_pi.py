@@ -94,7 +94,7 @@ def _allowed_window(inp: PIInput, prep_minutes: float) -> bool:
       - lights_on AND minutes_until_off >= prep_minutes (full-day phase), OR
       - lights_off AND minutes_until_on <= prep_minutes (pre-lights-on ramp).
 
-    Force-off everywhere else (last 30 min of day; most of dark period)."""
+    Force-off everywhere else (last `prep_minutes` of day; most of dark period)."""
     if inp.lights_on:
         return inp.minutes_until_off >= prep_minutes
     return inp.minutes_until_on <= prep_minutes

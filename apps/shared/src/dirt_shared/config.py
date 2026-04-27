@@ -84,9 +84,16 @@ class Settings(BaseSettings):
     vpd_deadband_kpa: float = 0.4
     # Margin (minutes) around lights transitions during which the humidifier
     # is forced OFF — extends the off-window from `lights_off - margin` through
-    # `lights_on - margin`. With the default 30 + a 23:00 → 05:00 dark cycle,
-    # the humidifier is allowed to run only between 04:30 and 22:30.
-    lights_off_prep_minutes: int = 30
+    # `lights_on - margin`. With the default 5 + a 23:00 → 05:00 dark cycle,
+    # the humidifier is allowed to run only between 04:55 and 22:55.
+    # Sized to one tent-fan-volume turnover so the humidifier isn't actively
+    # misting at the lights transition. Tightened from 30 → 5 on 2026-04-27
+    # after Govee H7142 data showed RH clears 63%→43% within 5 min of OFF —
+    # the legacy 30-min margin was leaving VPD ~0.4 kPa above the veg upper
+    # band for ~25 min/day with no observable benefit (no residual mist rise,
+    # 20°F dew-point margin to ambient at lights-off). See
+    # wiki/decisions/2026-04-19-lights-off-aware-humidifier.md update note.
+    lights_off_prep_minutes: int = 5
     humidifier_poll_interval: int = 30
     humidifier_failsafe_stale_seconds: int = 300
     # Stuck-humidifier watchdog — fires a Telegram alert when the plug has
