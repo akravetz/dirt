@@ -60,20 +60,27 @@ def restore_tts_cache_if_mounted(out_dir: Path) -> bool:
             "(SSH to a pod and `rm -rf`, or re-seed) so the next run rebuilds it."
         )
 
+    # If cache-key matches but subset dirs are missing/empty, the cache is
+    # corrupt-partial. Hard-fail rather than silently falling through to
+    # Piper — silent fallthrough is what kept this state alive across runs
+    # (the old _persist_tts_cache short-circuited on matching key, so
+    # corruption never got repaired).
+    missing = [s for s in SUBSETS if not (cache_dir / s).is_dir()]
+    if missing:
+        sys.exit(
+            f"FATAL: TTS cache key matches but subset dirs missing: {missing}\n"
+            f"Either delete /workspace/input/dirt-wakeword-tts-cache/cache-key.json "
+            f"on the volume to force a clean rebuild on the next run, or run a "
+            f"server-side cp -al from /workspace/working/my_custom_model/."
+        )
+
     print(f"=== TTS cache hit: hardlinking cached WAVs from {cache_dir}")
     total = 0
     for subdir in SUBSETS:
-        src = cache_dir / subdir
-        if not src.is_dir():
-            print(
-                f"  (warning) {subdir}/ missing from cache; "
-                "that subset falls through to Piper"
-            )
-            continue
         dst = out_dir / TARGET_WORD / subdir
         dst.mkdir(parents=True, exist_ok=True)
         n = 0
-        for wav in src.glob("*.wav"):
+        for wav in (cache_dir / subdir).glob("*.wav"):
             _link(wav, dst / wav.name)
             n += 1
         total += n

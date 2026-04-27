@@ -55,7 +55,13 @@ def _publish_artifacts() -> None:
 
 
 def _persist_tts_cache() -> None:
-    """TTS cache is content-keyed; concurrent writes collide benignly."""
+    """Always rewrite the cache, never short-circuit on matching cache-key.
+
+    Earlier versions skipped writing when cache-key.json already matched —
+    but if a prior run wrote the key while subset dirs were partial/missing,
+    the cache stayed broken forever (subsequent runs hit the early return
+    and never repaired). Hardlinks are essentially free, so always rebuild.
+    """
     from dirt_wake_word.config import (
         NUMBER_OF_EXAMPLES,
         NUMBER_OF_EXAMPLES_VAL,
@@ -68,11 +74,6 @@ def _persist_tts_cache() -> None:
         "n_samples": NUMBER_OF_EXAMPLES,
         "n_samples_val": NUMBER_OF_EXAMPLES_VAL,
     }
-    key_path = TTS_CACHE_DIR / "cache-key.json"
-    if key_path.exists() and json.loads(key_path.read_text()) == expected_key:
-        print(f"=== TTS cache already up-to-date at {TTS_CACHE_DIR}", flush=True)
-        return
-
     print(f"=== persisting TTS cache to {TTS_CACHE_DIR} ===", flush=True)
     TTS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     src_root = WORKING / "my_custom_model"
@@ -80,7 +81,7 @@ def _persist_tts_cache() -> None:
     for subdir in SUBSETS:
         src = src_root / subdir
         if not src.is_dir():
-            print(f"  (warning) {subdir}/ missing — skipping in cache", flush=True)
+            print(f"  (warning) {subdir}/ missing in WORKING — skipping", flush=True)
             continue
         dst = TTS_CACHE_DIR / subdir
         dst.mkdir(parents=True, exist_ok=True)
@@ -90,7 +91,9 @@ def _persist_tts_cache() -> None:
             n += 1
         total += n
         print(f"  {subdir}: {n} WAVs cached", flush=True)
-    key_path.write_text(json.dumps(expected_key, indent=2) + "\n")
+    (TTS_CACHE_DIR / "cache-key.json").write_text(
+        json.dumps(expected_key, indent=2) + "\n"
+    )
     print(f"  total {total} WAVs; cache-key.json written", flush=True)
 
 
