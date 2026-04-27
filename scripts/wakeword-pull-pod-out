@@ -2,9 +2,9 @@
 """Pull a training pod's `out/<pod_id>/` artifacts from the volume via S3.
 
 Useful when the orchestrator died mid-run (pod kept training, wrote
-sentinel, but nothing pulled the .onnx + manifest + report). RunPod's
-list_objects_v2 is broken at scale, so we head_object the 5 known
-filenames directly instead of listing.
+sentinel, but nothing pulled the .onnx + manifest + report). The same
+helper runpod-train uses for its post-sentinel pull, just with manual
+pod-id input.
 
 Usage:
   scripts/wakeword-pull-pod-out POD_ID [--dest DIR]
@@ -19,18 +19,8 @@ import sys
 import time
 from pathlib import Path
 
-from botocore.exceptions import ClientError
-
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _runpod_lib as rp  # noqa: E402
-
-KNOWN_FILES = (
-    "SUCCESS",
-    "FAILURE",
-    "hey_claudia.onnx",
-    "run-manifest.json",
-    "validation-report.txt",
-)
 
 
 def main() -> int:
@@ -47,25 +37,15 @@ def main() -> int:
         rp.repo_root() / "var" / "wake-word" / "models"
         / f"{time.strftime('%Y-%m-%d-%H%M%S')}-{args.pod_id}"
     )
-    dest.mkdir(parents=True, exist_ok=True)
+    pulled = rp.pull_artifacts(
+        s3,
+        bucket=bucket,
+        prefix=f"out/{args.pod_id}/",
+        dest=dest,
+        filenames=rp.TRAINER_ARTIFACTS,
+    )
 
-    pulled = 0
-    for fn in KNOWN_FILES:
-        key = f"out/{args.pod_id}/{fn}"
-        try:
-            s3.download_file(bucket, key, str(dest / fn))
-            sz = (dest / fn).stat().st_size
-            print(f"pulled  {fn:<24}  ({sz} bytes)")
-            pulled += 1
-        except ClientError as exc:
-            code = exc.response["Error"]["Code"]
-            if code in ("404", "NoSuchKey", "InvalidArgument"):
-                print(f"absent  {fn}")
-            else:
-                print(f"error   {fn}  ({code})")
-                raise
-
-    print(f"\n=== pulled {pulled}/{len(KNOWN_FILES)} files → {dest} ===")
+    print(f"\n=== pulled {pulled}/{len(rp.TRAINER_ARTIFACTS)} files → {dest} ===")
     if (dest / "SUCCESS").exists():
         print("training succeeded")
     elif (dest / "FAILURE").exists():

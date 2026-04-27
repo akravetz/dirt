@@ -102,12 +102,26 @@ def wait_for_s3_sentinel(
 
 # ---------------------------------------------------------------------------
 # Network Volume S3 client. Endpoint: https://s3api-<dc-lower>.runpod.io/.
-# Bucket = volume id; volume contents map to bucket-root paths. Bulk
-# transfers use `aws s3 sync` (CLI shell-out) to dodge two RunPod-S3 bugs:
-# bulk DeleteObjects 307s, and list_objects_v2 paginator leaks tokens
-# across prefixes. The single-key get_object/put_object/head_object
-# operations the boto3 client is used for here are not affected.
+# Bucket = volume id; volume contents map to bucket-root paths. RunPod's
+# list_objects_v2 leaks ContinuationTokens across prefixes (returns
+# IsTruncated=True / KeyCount=0 with cursors pointing OUTSIDE the requested
+# Prefix), so anything that lists — `aws s3 sync`, `aws s3 rm --recursive`,
+# the boto3 paginator — eventually crashes with "same next token received
+# twice". Single-key head_object / get_object / put_object / delete_object
+# work fine. Pull artifacts by known filename instead of listing.
 # ---------------------------------------------------------------------------
+
+# Wake-word training artifacts written to /workspace/out/<pod_id>/ by the
+# trainer entrypoint. Used by both runpod-train (post-sentinel pull) and
+# wakeword-pull-pod-out (manual recovery). Sentinels first so the function
+# can decide success/failure without a separate pass.
+TRAINER_ARTIFACTS: tuple[str, ...] = (
+    "SUCCESS",
+    "FAILURE",
+    "hey_claudia.onnx",
+    "run-manifest.json",
+    "validation-report.txt",
+)
 
 
 def s3_client():
@@ -121,3 +135,30 @@ def s3_client():
         aws_secret_access_key=env("RUNPOD_S3_SECRET_ACCESS_KEY"),
         region_name=dc,
     )
+
+
+def pull_artifacts(
+    s3, *, bucket: str, prefix: str, dest: Path, filenames: tuple[str, ...]
+) -> int:
+    """Download each known filename under prefix into dest. Returns count
+    pulled. Missing files (404 / NoSuchKey / InvalidArgument) are reported
+    and skipped — typical case is FAILURE absent on success runs and vice
+    versa. Built around RunPod's broken listing — never use `aws s3 sync`."""
+    from botocore.exceptions import ClientError
+
+    prefix = prefix.rstrip("/") + "/"
+    dest.mkdir(parents=True, exist_ok=True)
+    pulled = 0
+    for fn in filenames:
+        try:
+            s3.download_file(bucket, f"{prefix}{fn}", str(dest / fn))
+            sz = (dest / fn).stat().st_size
+            print(f"  pulled  {fn:<24}  ({sz} bytes)")
+            pulled += 1
+        except ClientError as exc:
+            code = exc.response["Error"]["Code"]
+            if code in ("404", "NoSuchKey", "InvalidArgument"):
+                print(f"  absent  {fn}")
+            else:
+                raise
+    return pulled

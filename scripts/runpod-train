@@ -4,7 +4,9 @@ sentinel, pull artifacts via the S3 API, DELETE.
 
 The entrypoint writes /workspace/out/<RUNPOD_POD_ID>/{SUCCESS,FAILURE}
 on the volume. The orchestrator polls s3://<volume>/out/<pod_id>/ for
-that sentinel via S3 head, then S3-downloads the per-run dir and
+that sentinel via S3 head, then downloads each known artifact filename
+directly (RunPod's list_objects_v2 leaks tokens across prefixes, so
+anything that lists — including `aws s3 sync` — eventually loops) and
 DELETEs the pod. desiredStatus is user-intent (not container state) so
 RunPod will auto-restart the container on exit until we DELETE; the
 poll-interval-sized race is bounded waste.
@@ -13,8 +15,6 @@ poll-interval-sized race is bounded waste.
 from __future__ import annotations
 
 import argparse
-import os
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -88,28 +88,18 @@ def main() -> int:
     s3 = rp.s3_client()
 
     prefix = f"out/{train_pod_id}/"
-    dc = os.environ.get("RUNPOD_VOLUME_DATACENTER", "US-IL-1")
     with rp.leased_pod(http, train_pod_id, keep_on_success=args.keep):
         sentinel = rp.wait_for_s3_sentinel(
             s3, bucket=network_volume_id, prefix=prefix, deadline=deadline,
         )
         print(f"==> sentinel={sentinel} at s3://{network_volume_id}/{prefix}")
-        print(f"==> aws s3 sync s3://{network_volume_id}/{prefix} → {local_dest}")
-        local_dest.mkdir(parents=True, exist_ok=True)
-        subprocess.run(
-            [
-                "aws", "s3", "sync",
-                f"s3://{network_volume_id}/{prefix}",
-                str(local_dest),
-                "--size-only",
-                "--region", dc,
-                "--endpoint-url", f"https://s3api-{dc.lower()}.runpod.io/",
-            ],
-            env=os.environ | {
-                "AWS_ACCESS_KEY_ID": rp.env("RUNPOD_S3_ACCESS_KEY_ID"),
-                "AWS_SECRET_ACCESS_KEY": rp.env("RUNPOD_S3_SECRET_ACCESS_KEY"),
-            },
-            check=True,
+        print(f"==> pulling artifacts → {local_dest}")
+        rp.pull_artifacts(
+            s3,
+            bucket=network_volume_id,
+            prefix=prefix,
+            dest=local_dest,
+            filenames=rp.TRAINER_ARTIFACTS,
         )
 
     if (local_dest / "SUCCESS").exists():
