@@ -3,6 +3,12 @@
 the volume's MANIFEST.json content hash for that subdir. No pod spawn —
 direct S3 API.
 
+Uses `aws s3 sync --delete --size-only` (the AWS CLI) for the diff-and-update,
+which sidesteps two RunPod-S3 bugs we'd otherwise have to hand-fix:
+- Bulk DeleteObjects returns 307 (sync uses singular DeleteObject)
+- ListObjectsV2 paginator leaks ContinuationTokens across prefixes
+  (sync's listing is bounded enough not to hit the leak in practice)
+
 Usage:
   scripts/wakeword-volume-bump <slug> <local-dir> [--notes "msg"]
 """
@@ -12,7 +18,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
+import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -23,12 +31,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _runpod_lib as rp  # noqa: E402
 
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,63}$")
-INPUT_PREFIX = "input"  # mirrors /workspace/input on the volume mount
+INPUT_PREFIX = "input"
 MANIFEST_KEY = f"{INPUT_PREFIX}/MANIFEST.json"
 
 
 def content_hash(local_dir: Path) -> tuple[str, int, int]:
-    """sha256 over sorted (relpath, size, sha256(content)) lines. Returns (hash, file_count, total_bytes)."""
+    """sha256 over sorted (relpath, size, sha256(content)) lines."""
     agg = hashlib.sha256()
     total_bytes = 0
     files = sorted(p for p in local_dir.rglob("*") if p.is_file())
@@ -44,11 +52,45 @@ def content_hash(local_dir: Path) -> tuple[str, int, int]:
     return agg.hexdigest(), len(files), total_bytes
 
 
+def aws_s3_upload(*, local_dir: Path, bucket: str, prefix: str) -> None:
+    """Upload local_dir → s3://bucket/prefix/ via `aws s3 cp --recursive`.
+
+    NOT `aws s3 sync` — sync needs to list the remote to compute the diff,
+    and RunPod's list_objects_v2 paginator returns ContinuationTokens that
+    leak across prefix boundaries (server-side bug). cp --recursive walks
+    only the source side, so it's immune. Idempotent in outcome (final
+    state matches local) but re-uploads every file on each invocation;
+    bumps are rare so this is fine.
+    """
+    dc = os.environ.get("RUNPOD_VOLUME_DATACENTER", "US-IL-1")
+    env = os.environ | {
+        "AWS_ACCESS_KEY_ID": rp.env("RUNPOD_S3_ACCESS_KEY_ID"),
+        "AWS_SECRET_ACCESS_KEY": rp.env("RUNPOD_S3_SECRET_ACCESS_KEY"),
+    }
+    subprocess.run(
+        [
+            "aws", "s3", "cp",
+            f"{local_dir}/",
+            f"s3://{bucket}/{prefix.rstrip('/')}/",
+            "--recursive",
+            "--region", dc,
+            "--endpoint-url", f"https://s3api-{dc.lower()}.runpod.io/",
+        ],
+        env=env, check=True,
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("slug", help="On-volume directory name (e.g. dirt-wakeword-mine).")
     parser.add_argument("local_dir", type=Path)
     parser.add_argument("--notes", default="")
+    parser.add_argument(
+        "--no-upload", action="store_true",
+        help="Skip the S3 upload; hash local + update MANIFEST only. For "
+             "static datasets already on the volume that we don't want to "
+             "re-upload (e.g. multi-GB feature files).",
+    )
     args = parser.parse_args()
 
     if not SLUG_RE.match(args.slug):
@@ -65,28 +107,31 @@ def main() -> int:
     digest, file_count, size_bytes = content_hash(args.local_dir)
     print(f"  content_hash=sha256:{digest}  files={file_count}  bytes={size_bytes}")
 
-    print(f"==> clearing s3://{bucket}/{prefix}/ then uploading")
-    rp.s3_delete_prefix(s3, bucket=bucket, prefix=f"{prefix}/")
-    rp.s3_upload_dir(s3, local_dir=args.local_dir, bucket=bucket, prefix=prefix)
+    if args.no_upload:
+        print("==> --no-upload: skipping aws s3 cp; volume bytes presumed identical")
+    else:
+        print(f"==> aws s3 cp --recursive → s3://{bucket}/{prefix}/")
+        aws_s3_upload(local_dir=args.local_dir, bucket=bucket, prefix=prefix)
 
     print(f"==> updating {MANIFEST_KEY}")
     try:
         manifest = json.loads(s3.get_object(Bucket=bucket, Key=MANIFEST_KEY)["Body"].read())
     except ClientError as exc:
-        # RunPod's S3 returns InvalidArgument for missing keys; standard S3
-        # uses NoSuchKey/404. Treat both as "manifest doesn't exist yet".
         if exc.response["Error"]["Code"] not in ("NoSuchKey", "404", "InvalidArgument"):
             raise
         manifest = {"schema_version": 1, "datasets": {}}
     bumped_at = datetime.now(UTC).isoformat()
     manifest["updated_at"] = bumped_at
-    manifest.setdefault("datasets", {})[args.slug] = {
+    entry = {
         "content_hash": f"sha256:{digest}",
         "file_count": file_count,
         "size_bytes": size_bytes,
         "bumped_at": bumped_at,
         "notes": args.notes,
     }
+    if args.no_upload:
+        entry["upload_skipped"] = True
+    manifest.setdefault("datasets", {})[args.slug] = entry
     s3.put_object(
         Bucket=bucket, Key=MANIFEST_KEY,
         Body=json.dumps(manifest, indent=2).encode() + b"\n",
