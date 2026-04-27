@@ -66,19 +66,42 @@ def seed_dir(
     return written
 
 
+def _split_train_test(
+    files: list[Path], test_every: int = 5
+) -> tuple[list[Path], list[Path]]:
+    """Deterministic 80/20 split for held-out test signal in the per-epoch
+    metric. Sorted-by-name + modulo `test_every` (idx 0, 5, 10, ... → test).
+    Stable across retrains: same input set → same split, no random seed.
+    """
+    train, test = [], []
+    for i, f in enumerate(sorted(files)):
+        (test if i % test_every == 0 else train).append(f)
+    return train, test
+
+
 def prepare_seed_clips(
     *,
     out_dir: Path,
     expected_inputs: dict[str, Path],
 ) -> dict[str, int]:
-    """Seed positive_train/ + negative_train/ with all our user-provided WAVs.
+    """Seed positive_{train,test}/ + negative_{train,test}/ with all our
+    user-provided WAVs.
+
+    Synth clones / synth neighbors / harvested all go to *_train (the
+    per-epoch test set is intended to mirror the inference distribution,
+    which means real-mic). Realmic-pos and realmic-neg get a deterministic
+    80/20 split between *_train and *_test so the per-epoch lab metric
+    actually sees real audio — prior to this, *_test was 100% Piper synth
+    and the model selection signal was synth-blind.
 
     Returns a dict of post-duplication counts for logging.
     """
     pos_train = out_dir / TARGET_WORD / "positive_train"
+    pos_test = out_dir / TARGET_WORD / "positive_test"
     neg_train = out_dir / TARGET_WORD / "negative_train"
-    pos_train.mkdir(parents=True, exist_ok=True)
-    neg_train.mkdir(parents=True, exist_ok=True)
+    neg_test = out_dir / TARGET_WORD / "negative_test"
+    for d in (pos_train, pos_test, neg_train, neg_test):
+        d.mkdir(parents=True, exist_ok=True)
 
     pos_src = expected_inputs["voice_samples"]
     realmic_pos_files = sorted(pos_src.glob("realmic-pos_*.wav"))
@@ -90,11 +113,15 @@ def prepare_seed_clips(
     n_clones = seed_dir(
         synth_clone_files, pos_train, PREFIX_SYNTH_CLONE, CLONE_DUPLICATION
     )
-    n_realmic_pos = seed_dir(
-        realmic_pos_files, pos_train, PREFIX_REALMIC_POS, REALMIC_POSITIVE_DUPLICATION
+    realmic_pos_train, realmic_pos_test = _split_train_test(realmic_pos_files)
+    n_realmic_pos_train = seed_dir(
+        realmic_pos_train, pos_train, PREFIX_REALMIC_POS, REALMIC_POSITIVE_DUPLICATION
+    )
+    n_realmic_pos_test = seed_dir(
+        realmic_pos_test, pos_test, PREFIX_REALMIC_POS, REALMIC_POSITIVE_DUPLICATION
     )
 
-    n_synth = n_realmic_neg = n_harv = 0
+    n_synth = n_realmic_neg_train = n_realmic_neg_test = n_harv = 0
     neg_src = expected_inputs["negatives_dir"]
     if neg_src.exists():
         all_negs = sorted(neg_src.glob("*.wav"))
@@ -106,19 +133,30 @@ def prepare_seed_clips(
         n_synth = seed_dir(
             synthetic, neg_train, PREFIX_SYNTH_NEIGHBOR, NEIGHBOR_DUPLICATION
         )
-        n_realmic_neg = seed_dir(
-            realmic_neg, neg_train, PREFIX_REALMIC_NEG, REALMIC_NEGATIVE_DUPLICATION
+        realmic_neg_train, realmic_neg_test = _split_train_test(realmic_neg)
+        n_realmic_neg_train = seed_dir(
+            realmic_neg_train,
+            neg_train,
+            PREFIX_REALMIC_NEG,
+            REALMIC_NEGATIVE_DUPLICATION,
+        )
+        n_realmic_neg_test = seed_dir(
+            realmic_neg_test, neg_test, PREFIX_REALMIC_NEG, REALMIC_NEGATIVE_DUPLICATION
         )
         n_harv = seed_dir(harvested, neg_train, PREFIX_HARVESTED, HARVESTED_DUPLICATION)
 
+    n_realmic_pos = n_realmic_pos_train + n_realmic_pos_test
+    n_realmic_neg = n_realmic_neg_train + n_realmic_neg_test
     print(
         f"Seeded positives: {n_clones} synth-clone (×{CLONE_DUPLICATION}) "
-        f"+ {n_realmic_pos} realmic-pos (×{REALMIC_POSITIVE_DUPLICATION}) "
+        f"+ {n_realmic_pos_train}/{n_realmic_pos_test} realmic-pos train/test "
+        f"(×{REALMIC_POSITIVE_DUPLICATION}) "
         f"= {n_clones + n_realmic_pos} total"
     )
     print(
         f"Seeded negatives: {n_synth} synth-neighbor (×{NEIGHBOR_DUPLICATION}) "
-        f"+ {n_realmic_neg} realmic-neg (×{REALMIC_NEGATIVE_DUPLICATION}) "
+        f"+ {n_realmic_neg_train}/{n_realmic_neg_test} realmic-neg train/test "
+        f"(×{REALMIC_NEGATIVE_DUPLICATION}) "
         f"+ {n_harv} harvested (×{HARVESTED_DUPLICATION}) "
         f"= {n_synth + n_realmic_neg + n_harv} total"
     )
