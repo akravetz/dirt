@@ -17,6 +17,7 @@ This pack is for the Dirt wake-word retraining workflow migrating off Kaggle Not
 Read this INDEX first (and the linked topic files) before writing code that:
 
 - Calls `https://rest.runpod.io/v1/...` or `https://api.runpod.io/graphql`
+- Calls `https://s3api-<dc>.runpod.io/...` (Network Volume S3 API) or shells out to `aws s3 cp/sync` against a RunPod volume
 - Imports `runpod` (PyPI package, not "runpod-python")
 - Shells out to `runpodctl`
 - Builds a Docker image intended to be pulled by RunPod (private registry auth, base image, entrypoint)
@@ -42,6 +43,7 @@ A complete working orchestration pattern is in [orchestration-recipe.md](orchest
 - **[auth.md](auth.md)** — API keys: where to create, scopes (`All` / `Restricted` / `Read Only`), how the bearer header is shaped, what the user has to do once.
 - **[pod-vs-serverless.md](pod-vs-serverless.md)** — Why **Pods** is the right surface for a 30–90 min, run-once-then-exit training job. What Serverless is actually for, and why retrofitting it for batch training is a mistake.
 - **[pod-lifecycle.md](pod-lifecycle.md)** — `POST /pods` → S3-poll the volume sentinel → S3-download → `DELETE /pods/{id}`. Why `desiredStatus` is unusable as a completion signal (user-intent, not container-state) and why the container auto-restarts on exit until DELETE.
+- **[network-volume-s3.md](network-volume-s3.md)** — RunPod's S3-compatible Network Volume API: endpoint format, dedicated S3 keys (separate from the REST `RUNPOD_API_KEY`), the documented 10K-file/10GB pagination wall, the unsupported bulk `DeleteObjects`, and the empirical paginator-leak / `InvalidArgument`-vs-`NoSuchKey` quirks. Crucial: prefer `aws s3 cp --recursive` over `aws s3 sync` for large local→volume pushes.
 - **[rest-api-pods.md](rest-api-pods.md)** — Full request body for `POST /pods`: every field we care about (`imageName`, `gpuTypeIds`, `gpuCount`, `containerDiskInGb`, `volumeInGb`, `dockerStartCmd`, `dockerEntrypoint`, `env`, `ports`, `cloudType`, `supportPublicIp`, `dataCenterIds`, `containerRegistryAuthId`, `interruptible`, `networkVolumeId`).
 - **[private-registry.md](private-registry.md)** — `POST /v1/containerregistryauth` to register Docker Hub / GHCR credentials, then pass the returned ID as `containerRegistryAuthId` on `POST /pods`. The token gotchas (GHCR username must be lowercase; whitespace bites).
 - **[docker-image.md](docker-image.md)** — Dockerfile constraints: `linux/amd64`, CUDA-bearing base, what the image must do for SCP to work (start sshd if you skip the proxy), and what a sensible base image looks like (`runpod/pytorch:...`, NVIDIA CUDA, plain Ubuntu).
@@ -69,6 +71,7 @@ These are the patterns LLMs will reach for from training data that are **wrong, 
 - ❌ **Polling without a budget cap.** The default $80/hr account spend cap is the only safety net. ✅ Always pair `POST /pods` with a max-wall timeout in your orchestrator, and `DELETE /pods/{id}` in a `finally:` block. See [orchestration-recipe.md](orchestration-recipe.md).
 - ❌ **The `runpod` PyPI package being called `runpod-python`.** The repo on GitHub is `runpod/runpod-python`; the install name is `pip install runpod`; the import is `import runpod`. ✅ `pip install runpod`. See [python-sdk.md](python-sdk.md).
 - ❌ **Polling `GET /pods/{id}` `.desiredStatus` for completion.** `desiredStatus` is what YOU asked for (`RUNNING` because you POSTed the pod), not what the container is doing. It does not transition on container exit; RunPod auto-restarts the container as long as the pod is leased. ✅ Write a sentinel file at the end of the entrypoint (`/workspace/out/<pod_id>/SUCCESS` or `FAILURE`) and S3-poll the volume for it. The volume is the durable substrate. See [pod-lifecycle.md](pod-lifecycle.md).
+- ❌ **`aws s3 sync` against large RunPod Network Volumes (>10K files in the bucket).** Sync lists the remote to compute its diff; RunPod's listing implementation pages through the underlying filesystem and applies the prefix filter post-page, so the `ContinuationToken` can leak across prefix boundaries. boto3 and awscli correctly raise `PaginationError` on duplicate tokens — but a partial sync may have already issued **incorrect deletes** before crashing. Documented by RunPod themselves; their recommended workaround is `aws s3 cp --recursive` (walks local only, never lists remote). ✅ Use `aws s3 cp --recursive` for local→volume; batch by subdir for volume→local. See [network-volume-s3.md](network-volume-s3.md).
 
 ## Sources
 
