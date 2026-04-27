@@ -121,7 +121,13 @@ def main() -> int:
         d = [_run_row(r) for r in runs]
 
     else:  # latest
-        runs = list(api.runs(f"{entity}/{args.project}", per_page=args.n))[: args.n]
+        runs = list(
+            api.runs(
+                f"{entity}/{args.project}",
+                order="-created_at",
+                per_page=args.n,
+            )
+        )[: args.n]
         d = [_run_row(r) for r in runs]
 
     json.dump(d, sys.stdout, indent=2, default=str)
