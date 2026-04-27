@@ -57,10 +57,7 @@ HARVESTED_DUPLICATION = 10
 
 
 def current_tunables() -> dict[str, object]:
-    """Snapshot of every training tunable at runtime. Single source of truth
-    for `wandb.init(config=...)` and the run-manifest's resolved_config field
-    — keeping both readers off independent constant lists that drift apart.
-    """
+    """Snapshot of training tunables for wandb.config + run-manifest."""
     return {
         "target_word": TARGET_WORD,
         "n_samples": NUMBER_OF_EXAMPLES,

@@ -1,22 +1,8 @@
-"""Shared RunPod orchestration primitives for the wake-word scripts.
-
-`scripts/runpod-train` and `scripts/runpod-seed-volume` both POST a pod
-spec, poll its lifecycle, and DELETE in a finally block. This module
-holds the bits they share: REST client, env loading, common pod body
-fields, lifecycle helpers, and SCP. Each caller still owns its own
-script-specific body fields (GPU type, dockerStartCmd, etc.).
-
-Reference doc: docs/references/runpod/orchestration-recipe.md.
-
-Importable as `_runpod_lib` from sibling scripts via:
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    import _runpod_lib as rp
-"""
+"""Shared RunPod primitives: REST control-plane + Network Volume S3 access."""
 
 from __future__ import annotations
 
 import os
-import subprocess
 import sys
 import time
 from collections.abc import Iterator
@@ -31,25 +17,21 @@ SSH_KEY_PATH = Path.home() / ".ssh" / "runpod_ed25519"
 
 
 def repo_root() -> Path:
-    """Resolve the repo root from this file's location (scripts/ → repo)."""
     return Path(__file__).resolve().parent.parent
 
 
+def load_env() -> None:
+    load_dotenv(repo_root() / ".env")
+
+
 def env(name: str, *, required: bool = True) -> str:
-    """Read an env var (after `.env` has been loaded). Exits if required+missing."""
     v = os.environ.get(name, "").strip()
     if required and not v:
         sys.exit(f"error: {name} not set in environment (.env)")
     return v
 
 
-def load_env() -> None:
-    """Load `.env` from the repo root. Idempotent — safe to call multiple times."""
-    load_dotenv(repo_root() / ".env")
-
-
 def public_key(*, required: bool) -> str:
-    """Read ~/.ssh/runpod_ed25519.pub. Empty string if optional and missing."""
     pub = SSH_KEY_PATH.with_suffix(".pub")
     if pub.exists():
         return pub.read_text().strip()
@@ -63,7 +45,6 @@ def public_key(*, required: bool) -> str:
 
 
 def client(api_key: str) -> httpx.Client:
-    """REST client with bearer auth + JSON content type."""
     return httpx.Client(
         base_url=REST_BASE,
         headers={
@@ -74,13 +55,7 @@ def client(api_key: str) -> httpx.Client:
     )
 
 
-def common_pod_body(
-    *,
-    name: str,
-    network_volume_id: str,
-    public_key: str,
-) -> dict:
-    """Fields every pod we create needs. Caller adds compute/image/cmd."""
+def common_pod_body(*, name: str, network_volume_id: str, public_key: str) -> dict:
     return {
         "name": name,
         "networkVolumeId": network_volume_id,
@@ -94,7 +69,6 @@ def common_pod_body(
 
 
 def create_pod(http: httpx.Client, body: dict) -> str:
-    """POST /pods, exit on 4xx/5xx, return new pod id."""
     r = http.post("/pods", json=body)
     if r.status_code >= 400:
         sys.exit(f"error: POST /pods → {r.status_code}: {r.text}")
@@ -108,7 +82,6 @@ def get_pod(http: httpx.Client, pod_id: str) -> dict:
 
 
 def delete_pod(http: httpx.Client, pod_id: str) -> None:
-    """Best-effort delete. Cleanup must not mask the original failure."""
     try:
         http.delete(f"/pods/{pod_id}").raise_for_status()
         print(f"deleted pod {pod_id}")
@@ -120,7 +93,6 @@ def delete_pod(http: httpx.Client, pod_id: str) -> None:
 def leased_pod(
     http: httpx.Client, pod_id: str, *, keep_on_success: bool = False
 ) -> Iterator[None]:
-    """Always DELETE on exit unless keep_on_success and the block raised nothing."""
     succeeded = False
     try:
         yield
@@ -135,7 +107,6 @@ def leased_pod(
 def wait_for_endpoint(
     http: httpx.Client, pod_id: str, *, deadline: float, poll_every: int = 5
 ) -> tuple[str, int]:
-    """Block until publicIp + portMappings['22'] are populated."""
     while time.monotonic() < deadline:
         pod = get_pod(http, pod_id)
         ip = (pod.get("publicIp") or "").strip()
@@ -147,46 +118,74 @@ def wait_for_endpoint(
 
 
 def wait_for_exit(
-    http: httpx.Client,
-    pod_id: str,
-    *,
-    deadline: float,
-    poll_every: int = 20,
+    http: httpx.Client, pod_id: str, *, deadline: float, poll_every: int = 20
 ) -> str:
-    """Block until desiredStatus is EXITED or TERMINATED. Print every poll."""
     while time.monotonic() < deadline:
         pod = get_pod(http, pod_id)
         status = pod.get("desiredStatus", "")
-        ts = time.strftime("%H:%M:%S")
-        print(f"  {ts} pod {pod_id} status={status}")
+        print(f"  {time.strftime('%H:%M:%S')} pod {pod_id} status={status}")
         if status in ("EXITED", "TERMINATED"):
             return status
         time.sleep(poll_every)
-    raise TimeoutError(
-        f"pod {pod_id} did not reach a terminal state within deadline"
+    raise TimeoutError(f"pod {pod_id} did not reach a terminal state within deadline")
+
+
+# ---------------------------------------------------------------------------
+# Network Volume S3 API. Endpoint format: https://s3api-<dc-lower>.runpod.io/.
+# Bucket name = volume id; volume contents map to bucket-root paths.
+# Authenticated with separate S3 keys (RUNPOD_S3_*), not the REST API key.
+# ---------------------------------------------------------------------------
+
+
+def s3_client():
+    import boto3
+
+    dc = os.environ.get("RUNPOD_VOLUME_DATACENTER", "US-IL-1")
+    return boto3.client(
+        "s3",
+        endpoint_url=f"https://s3api-{dc.lower()}.runpod.io/",
+        aws_access_key_id=env("RUNPOD_S3_ACCESS_KEY_ID"),
+        aws_secret_access_key=env("RUNPOD_S3_SECRET_ACCESS_KEY"),
+        region_name=dc,
     )
 
 
-def scp_pull(
-    *,
-    ip: str,
-    port: int,
-    remote_dir: str,
-    local_dest: Path,
-    ssh_key: Path = SSH_KEY_PATH,
-) -> None:
-    """SCP-r remote_dir/* into local_dest. Throws on failure."""
+def s3_download_prefix(s3, *, bucket: str, prefix: str, local_dest: Path) -> int:
+    """Download every key under prefix into local_dest, preserving relative paths."""
     local_dest.mkdir(parents=True, exist_ok=True)
-    subprocess.run(
-        [
-            "scp",
-            "-i", str(ssh_key),
-            "-o", "StrictHostKeyChecking=accept-new",
-            "-o", "UserKnownHostsFile=/dev/null",
-            "-P", str(port),
-            "-r",
-            f"root@{ip}:{remote_dir}/.",
-            str(local_dest),
-        ],
-        check=True,
-    )
+    paginator = s3.get_paginator("list_objects_v2")
+    n = 0
+    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+        for obj in page.get("Contents") or []:
+            key = obj["Key"]
+            rel = key[len(prefix):].lstrip("/")
+            if not rel:
+                continue
+            dst = local_dest / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            s3.download_file(bucket, key, str(dst))
+            n += 1
+    return n
+
+
+def s3_upload_dir(s3, *, local_dir: Path, bucket: str, prefix: str) -> int:
+    """Upload every file under local_dir to bucket/prefix/<relpath>."""
+    n = 0
+    for path in local_dir.rglob("*"):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(local_dir).as_posix()
+        s3.upload_file(str(path), bucket, f"{prefix.rstrip('/')}/{rel}")
+        n += 1
+    return n
+
+
+def s3_delete_prefix(s3, *, bucket: str, prefix: str) -> int:
+    """Delete every key under prefix. Used to clear a per-run dir before upload."""
+    paginator = s3.get_paginator("list_objects_v2")
+    keys: list[dict[str, str]] = []
+    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+        keys.extend({"Key": obj["Key"]} for obj in page.get("Contents") or [])
+    for i in range(0, len(keys), 1000):
+        s3.delete_objects(Bucket=bucket, Delete={"Objects": keys[i:i + 1000]})
+    return len(keys)

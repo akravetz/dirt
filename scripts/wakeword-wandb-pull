@@ -1,30 +1,12 @@
 #!/usr/bin/env -S uv run --project /home/akcom/code/dirt python -u
-"""Agent-side W&B reader for the wake-word training harness.
+"""Agent-side W&B reader.
 
-Pulls everything an autoresearch agent needs to read a run without
-clicking around in the W&B UI: state, config, summary, tags, group,
-name, system metadata, file list, and the full captured output.log.
+  show RUN          — full dump (config, summary, tags, group, system,
+                      runtime); downloads files to var/wake-word/wandb-pulls/<id>/
+  group GROUP       — table of every run in a WANDB_RUN_GROUP
+  latest [--n N]    — N most recent runs (default 5)
 
-Three subcommands:
-  show RUN         — full dump of one run (pretty by default; --json for re-ingest)
-  group GROUP      — table of every run in a group with key metrics
-  latest [--n N]   — N most recent runs in the project (default 5)
-
-RUN may be a bare run-id (`rm9efgdd`) or a fully qualified path
-(`adkravetz/dirt-wake-word/rm9efgdd`). Bare IDs use the default entity
-(from WANDB_ENTITY or the API key's owner) and project (dirt-wake-word).
-
-Files (output.log, config.yaml, wandb-metadata.json, wandb-summary.json,
-requirements.txt) get downloaded to `var/wake-word/wandb-pulls/<run-id>/`
-so subsequent `grep`-style analysis is one command away.
-
-Required env: WANDB_API_KEY (in .env).
-
-Examples:
-  scripts/wakeword-wandb-pull show rm9efgdd
-  scripts/wakeword-wandb-pull show rm9efgdd --json | jq '.summary'
-  scripts/wakeword-wandb-pull group phase1-local-smoke-20260426-151233
-  scripts/wakeword-wandb-pull latest --n 10
+All commands accept --json. RUN may be `run_id` or `entity/project/run_id`.
 """
 
 from __future__ import annotations
@@ -40,20 +22,17 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _runpod_lib as rp  # noqa: E402
 
-# Silence wandb 0.21.4's pydantic-field warnings — upstream noise, not ours.
-warnings.filterwarnings("ignore", message=".*UnsupportedFieldAttribute.*")
 warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
 
 DEFAULT_PROJECT = "dirt-wake-word"
 PULLS_ROOT = rp.repo_root() / "var" / "wake-word" / "wandb-pulls"
+SAVED_FILES = (
+    "output.log", "config.yaml", "requirements.txt",
+    "wandb-metadata.json", "wandb-summary.json",
+)
 
 
 def _api(*, silent: bool = False):
-    """Lazy wandb import — keeps import time off subcommands that error early.
-
-    silent=True suppresses the SDK's "Currently logged in as ..." banner
-    so --json output is pipe-clean.
-    """
     if silent:
         os.environ.setdefault("WANDB_SILENT", "true")
     import wandb
@@ -65,29 +44,30 @@ def _api(*, silent: bool = False):
 
 
 def _resolve_run_path(run: str, default_entity: str) -> str:
-    """Accept `run_id` or `entity/project/run_id`. Fill in defaults."""
     parts = run.split("/")
     if len(parts) == 1:
         return f"{default_entity}/{DEFAULT_PROJECT}/{parts[0]}"
     if len(parts) == 3:
         return run
-    sys.exit(
-        f"error: {run!r} — expected run_id or entity/project/run_id, "
-        f"got {len(parts)} segments"
-    )
+    sys.exit(f"error: {run!r} — expected run_id or entity/project/run_id")
 
 
-def _default_entity(api) -> str:
-    return api.default_entity
+def _save_files(run, dest: Path) -> dict[str, Path]:
+    dest.mkdir(parents=True, exist_ok=True)
+    saved: dict[str, Path] = {}
+    for f in run.files():
+        if f.name in SAVED_FILES:
+            f.download(root=str(dest), replace=True, exist_ok=True)
+            saved[f.name] = dest / f.name
+    return saved
 
 
-def _run_to_dict(run: Any, *, include_system: bool = True) -> dict[str, Any]:
-    """Flatten a wandb Run into a JSON-serializable dict an agent can re-ingest."""
+def _run_summary(run, *, include_system: bool, dest: Path | None) -> dict[str, Any]:
     d = {
         "id": run.id,
         "name": run.name,
         "url": run.url,
-        "state": run.state,  # running | finished | failed | crashed | killed
+        "state": run.state,
         "group": run.group,
         "job_type": run.job_type,
         "tags": list(run.tags),
@@ -96,150 +76,111 @@ def _run_to_dict(run: Any, *, include_system: bool = True) -> dict[str, Any]:
         "summary": {k: v for k, v in run.summary.items() if not k.startswith("_")},
         "runtime_s": run.summary.get("_runtime"),
     }
-    if include_system:
+    if include_system and dest is not None:
         try:
-            md = run.file("wandb-metadata.json").download(
-                root="/tmp", replace=True, exist_ok=True
-            )
-            with open(md.name) as f:
-                meta = json.load(f)
-            d["system"] = {
-                "host": meta.get("host"),
-                "python": meta.get("python"),
-                "os": meta.get("os"),
-                "gpu": meta.get("gpu"),
-                "cpu_count": meta.get("cpu_count"),
-                "git_commit": (meta.get("git") or {}).get("commit"),
-            }
+            saved = _save_files(run, dest)
+            d["local_files"] = sorted(str(p) for p in saved.values())
+            md_path = saved.get("wandb-metadata.json")
+            if md_path and md_path.exists():
+                meta = json.loads(md_path.read_text())
+                d["system"] = {
+                    "host": meta.get("host"),
+                    "python": meta.get("python"),
+                    "os": meta.get("os"),
+                    "gpu": meta.get("gpu"),
+                    "cpu_count": meta.get("cpu_count"),
+                    "git_commit": (meta.get("git") or {}).get("commit"),
+                }
         except Exception as exc:  # noqa: BLE001
             d["system"] = {"_error": repr(exc)}
     return d
 
 
-def _save_files(run: Any, *, dest: Path) -> list[str]:
-    """Download the small text/json files into dest. Returns local paths."""
-    dest.mkdir(parents=True, exist_ok=True)
-    saved = []
-    wanted = {
-        "output.log",
-        "config.yaml",
-        "requirements.txt",
-        "wandb-metadata.json",
-        "wandb-summary.json",
-    }
-    for f in run.files():
-        if f.name in wanted:
-            f.download(root=str(dest), replace=True, exist_ok=True)
-            saved.append(str(dest / f.name))
-    return saved
-
-
-def _pretty_show(d: dict[str, Any], *, output_log_path: Path | None) -> None:
+def _print_show(d: dict[str, Any]) -> None:
     print(f"=== {d['id']}  state={d['state']}  name={d['name']!r}")
     print(f"url:       {d['url']}")
     print(f"created:   {d['created_at']}")
     print(f"group:     {d['group']}")
-    print(f"job_type:  {d['job_type']}")
     print(f"tags:      {d['tags']}")
-    runtime = d.get("runtime_s")
-    if runtime is not None:
-        m, s = divmod(int(runtime), 60)
-        print(f"runtime:   {runtime:.1f}s ({m}m{s}s)")
-    if "system" in d and "_error" not in d["system"]:
-        s = d["system"]
-        gpu = (s.get("gpu") or {})
-        gpu_str = (
-            f"{gpu.get('count', '?')}× {gpu[0]['name']}"
-            if isinstance(gpu, list) and gpu
-            else gpu.get("name") or "—"
-        )
-        print(f"host:      {s.get('host')}  python={s.get('python')}  gpu={gpu_str}")
-        if s.get("git_commit"):
-            print(f"git_sha:   {s['git_commit']}")
-    print()
-    print("--- config ---")
+    rt = d.get("runtime_s")
+    if rt is not None:
+        m, s = divmod(int(rt), 60)
+        print(f"runtime:   {rt:.1f}s ({m}m{s}s)")
+    s = d.get("system") or {}
+    if s and "_error" not in s:
+        gpu = s.get("gpu") or "—"
+        print(f"host:      {s.get('host')}  python={s.get('python')}  gpu={gpu}")
+    print("\n--- config ---")
     for k, v in sorted(d["config"].items()):
         print(f"  {k}: {v}")
     if d["summary"]:
-        print()
-        print("--- summary ---")
+        print("\n--- summary ---")
         for k, v in sorted(d["summary"].items()):
             print(f"  {k}: {v}")
-    if output_log_path and output_log_path.exists():
-        print()
-        print(f"--- output.log saved: {output_log_path} ({output_log_path.stat().st_size} bytes) ---")
-        print(f"  tail -20 {output_log_path}:")
-        with open(output_log_path) as f:
-            for line in f.readlines()[-20:]:
-                print(f"    {line.rstrip()}")
+    log = next((Path(p) for p in d.get("local_files") or [] if p.endswith("output.log")), None)
+    if log and log.exists():
+        print(f"\n--- output.log saved: {log} ({log.stat().st_size} bytes) ---")
+        print(f"  tail -20 {log}:")
+        for line in log.read_text().splitlines()[-20:]:
+            print(f"    {line}")
 
 
-def cmd_show(args: argparse.Namespace) -> int:
-    api = _api(silent=args.json)
-    path = _resolve_run_path(args.run, _default_entity(api))
-    run = api.run(path)
-    d = _run_to_dict(run, include_system=True)
+def main() -> int:
+    p = argparse.ArgumentParser()
+    p.add_argument("--entity")
+    p.add_argument("--project", default=DEFAULT_PROJECT)
+    p.add_argument("--json", action="store_true", dest="as_json")
+    sub = p.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("show").add_argument("run")
+    sub.add_parser("group").add_argument("group")
+    sp_latest = sub.add_parser("latest")
+    sp_latest.add_argument("--n", type=int, default=5)
+    args = p.parse_args()
 
-    output_log_path: Path | None = None
-    if args.save:
-        dest = PULLS_ROOT / run.id
-        saved = _save_files(run, dest=dest)
-        d["local_files"] = saved
-        for p in saved:
-            if p.endswith("output.log"):
-                output_log_path = Path(p)
+    api = _api(silent=args.as_json)
+    entity = args.entity or api.default_entity
 
-    if args.json:
-        json.dump(d, sys.stdout, indent=2, default=str)
-        sys.stdout.write("\n")
-    else:
-        _pretty_show(d, output_log_path=output_log_path)
-    return 0
-
-
-def cmd_group(args: argparse.Namespace) -> int:
-    api = _api(silent=args.json)
-    entity = args.entity or _default_entity(api)
-    project = args.project or DEFAULT_PROJECT
-    runs = list(api.runs(f"{entity}/{project}", filters={"group": args.group}))
-    runs.sort(key=lambda r: r.created_at)
-
-    if not runs:
-        sys.exit(f"no runs in group {args.group!r} under {entity}/{project}")
-
-    rows = [_run_to_dict(r, include_system=False) for r in runs]
-
-    if args.json:
-        json.dump(rows, sys.stdout, indent=2, default=str)
-        sys.stdout.write("\n")
+    if args.cmd == "show":
+        path = _resolve_run_path(args.run, entity)
+        run = api.run(path)
+        d = _run_summary(run, include_system=True, dest=PULLS_ROOT / run.id)
+        if args.as_json:
+            json.dump(d, sys.stdout, indent=2, default=str)
+            sys.stdout.write("\n")
+        else:
+            _print_show(d)
         return 0
 
-    print(f"=== group: {args.group}  ({len(rows)} runs) ===")
-    print(f"{'created_at':<22} {'id':<10} {'state':<10} {'name':<28} runtime")
-    for r in rows:
-        runtime = r.get("runtime_s")
-        rt = f"{runtime:.0f}s" if runtime is not None else "—"
-        print(
-            f"{str(r['created_at'])[:19]:<22} {r['id']:<10} "
-            f"{r['state']:<10} {(r['name'] or '')[:28]:<28} {rt}"
+    if args.cmd == "group":
+        runs = sorted(
+            api.runs(f"{entity}/{args.project}", filters={"group": args.group}),
+            key=lambda r: r.created_at,
         )
-    return 0
+        if not runs:
+            sys.exit(f"no runs in group {args.group!r} under {entity}/{args.project}")
+        rows = [_run_summary(r, include_system=False, dest=None) for r in runs]
+        if args.as_json:
+            json.dump(rows, sys.stdout, indent=2, default=str)
+            sys.stdout.write("\n")
+            return 0
+        print(f"=== group: {args.group}  ({len(rows)} runs) ===")
+        print(f"{'created_at':<22} {'id':<10} {'state':<10} {'name':<28} runtime")
+        for r in rows:
+            rt = f"{r['runtime_s']:.0f}s" if r.get("runtime_s") is not None else "—"
+            print(
+                f"{str(r['created_at'])[:19]:<22} {r['id']:<10} "
+                f"{r['state']:<10} {(r['name'] or '')[:28]:<28} {rt}"
+            )
+        return 0
 
-
-def cmd_latest(args: argparse.Namespace) -> int:
-    api = _api(silent=args.json)
-    entity = args.entity or _default_entity(api)
-    project = args.project or DEFAULT_PROJECT
-    runs = list(api.runs(f"{entity}/{project}", per_page=args.n))[: args.n]
-
-    rows = [_run_to_dict(r, include_system=False) for r in runs]
-
-    if args.json:
+    # latest
+    runs = list(api.runs(f"{entity}/{args.project}", per_page=args.n))[: args.n]
+    rows = [_run_summary(r, include_system=False, dest=None) for r in runs]
+    if args.as_json:
         json.dump(rows, sys.stdout, indent=2, default=str)
         sys.stdout.write("\n")
         return 0
-
-    print(f"=== latest {len(rows)} runs in {entity}/{project} ===")
+    print(f"=== latest {len(rows)} runs in {entity}/{args.project} ===")
     print(f"{'created_at':<22} {'id':<10} {'state':<10} {'group':<40} {'name'}")
     for r in rows:
         print(
@@ -247,40 +188,6 @@ def cmd_latest(args: argparse.Namespace) -> int:
             f"{r['state']:<10} {(r['group'] or '')[:40]:<40} {r['name'] or ''}"
         )
     return 0
-
-
-def main() -> int:
-    common = argparse.ArgumentParser(add_help=False)
-    common.add_argument("--entity", help="W&B entity (default: API key owner)")
-    common.add_argument("--project", help=f"W&B project (default: {DEFAULT_PROJECT})")
-    common.add_argument("--json", action="store_true", help="Emit JSON to stdout.")
-
-    parser = argparse.ArgumentParser()
-    sub = parser.add_subparsers(dest="cmd", required=True)
-
-    sp_show = sub.add_parser("show", parents=[common], help="Full dump of one run.")
-    sp_show.add_argument("run", help="Run id or entity/project/run_id.")
-    sp_show.add_argument(
-        "--save",
-        action="store_true",
-        default=True,
-        help="Download files to var/wake-word/wandb-pulls/<id>/ (default: on).",
-    )
-    sp_show.add_argument(
-        "--no-save", dest="save", action="store_false", help="Skip file download."
-    )
-    sp_show.set_defaults(func=cmd_show)
-
-    sp_group = sub.add_parser("group", parents=[common], help="Table of every run in a group.")
-    sp_group.add_argument("group", help="WANDB_RUN_GROUP value to filter on.")
-    sp_group.set_defaults(func=cmd_group)
-
-    sp_latest = sub.add_parser("latest", parents=[common], help="N most recent runs.")
-    sp_latest.add_argument("--n", type=int, default=5)
-    sp_latest.set_defaults(func=cmd_latest)
-
-    args = parser.parse_args()
-    return args.func(args)
 
 
 if __name__ == "__main__":

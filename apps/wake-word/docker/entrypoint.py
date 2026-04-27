@@ -1,39 +1,11 @@
 """Wake-word trainer entrypoint inside the RunPod container.
 
-Wraps `dirt_wake_word.main.main()` with the harness-boundary concerns the
-library shouldn't know about:
+RUN_ID = DIRT_RUN_ID || RUNPOD_POD_ID || `local-<timestamp>`. Every
+volume write is namespaced under it: /workspace/out/<RUN_ID>/ for
+artifacts, /workspace/working/<RUN_ID>/ for scratch. The orchestrator
+S3-downloads out/<RUN_ID>/ once the pod is EXITED.
 
-1. Compute a run-scoped namespace on the shared Network Volume so concurrent
-   runs (sweeps, parallel SHAs) cannot collide. RUN_ID is taken from
-   DIRT_RUN_ID, else RUNPOD_POD_ID, else a generated `local-<timestamp>`.
-   Every volume write the trainer does — `/workspace/out/<RUN_ID>/` for
-   artifacts, `/workspace/working/<RUN_ID>/` for scratch — is namespaced.
-   Stale files from a prior run never leak into a new run.
-2. Set DIRT_WAKEWORD_INPUT / DIRT_WAKEWORD_WORKING to the resolved paths
-   so the library's `paths.py` picks up the per-run scratch dir without
-   needing to know about run isolation.
-3. Open a W&B run in `console="redirect"` mode so the container's
-   stdout/stderr (including subprocess output) streams live to the run's
-   "Logs" tab and survives `DELETE /pods/{id}`. See
-   docs/references/wandb/docker-and-runpod.md for env-var rationale.
-4. Write `<OUT>/run-manifest.json` recording git SHA, image tag, pod ID,
-   GPU, volume manifest, resolved config, timestamps, W&B run URL.
-   Durable provenance record for the future runs.jsonl rollup.
-5. Copy the produced .onnx + validation report into `<OUT>/` so an
-   orchestrator-side puller that mounts the volume hits one stable
-   directory.
-6. Write `<OUT>/SUCCESS` or `<OUT>/FAILURE` on completion. The orchestrator
-   checks for this file inside the run's namespaced dir, never the bare
-   `/workspace/out/`. RunPod's REST API does NOT expose container exit
-   codes, so the sentinel is the truth.
-
-Always exits 0 — RunPod's container runtime auto-restarts on non-zero
-exit, which would silently burn $/hr in a crash loop. The FAILURE
-sentinel + traceback is the failure signal.
-
-Container exits cleanly when done; **no `_hold()` sleep**. The orchestrator
-polls RunPod's API for `desiredStatus=EXITED` (not SSH-tail-the-pod) and
-then spawns a tiny puller pod to SCP artifacts off the volume by run_id.
+Always exits 0 — RunPod auto-restarts on non-zero exit.
 """
 
 from __future__ import annotations
@@ -48,20 +20,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-# ---------------------------------------------------------------------------
-# Per-run namespace on the shared volume. Resolve before any other path
-# decision so the library + entrypoint agree on where everything lives.
-# ---------------------------------------------------------------------------
 RUN_ID = (
     os.environ.get("DIRT_RUN_ID")
     or os.environ.get("RUNPOD_POD_ID")
     or f"local-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}"
 )
-os.environ["DIRT_RUN_ID"] = RUN_ID  # propagate to subprocesses
+os.environ["DIRT_RUN_ID"] = RUN_ID
 
 INPUT = Path(os.environ.setdefault("DIRT_WAKEWORD_INPUT", "/workspace/input"))
-# Library reads DIRT_WAKEWORD_WORKING; we override it to the per-run dir
-# *before* the library is imported. Operator-set override wins (smoke test).
 WORKING = Path(
     os.environ.setdefault("DIRT_WAKEWORD_WORKING", f"/workspace/working/{RUN_ID}")
 )
@@ -72,7 +38,6 @@ VOLUME_MANIFEST_PATH = INPUT / "MANIFEST.json"
 
 
 def _hardlink_or_copy(src: Path, dst: Path) -> None:
-    """os.link is ~free (same fs) — only fall back to copy on EXDEV/EPERM."""
     try:
         if dst.exists():
             dst.unlink()
@@ -82,8 +47,6 @@ def _hardlink_or_copy(src: Path, dst: Path) -> None:
 
 
 def _publish_artifacts() -> None:
-    """Stage what the orchestrator's puller pulls from <OUT>/ for this run."""
-    OUT.mkdir(parents=True, exist_ok=True)
     onnx_src = WORKING / "my_custom_model" / f"{TARGET_WORD}.onnx"
     if onnx_src.exists():
         _hardlink_or_copy(onnx_src, OUT / onnx_src.name)
@@ -93,13 +56,7 @@ def _publish_artifacts() -> None:
 
 
 def _persist_tts_cache() -> None:
-    """Hardlink generated TTS WAVs into the shared volume cache so future
-    runs skip Piper. The cache is content-keyed (cache-key.json) so
-    concurrent runs with the same config collide benignly — both produce
-    identical files. `restore_tts_cache_if_mounted()` (in tts_cache.py)
-    reads the cache at the next run's start; on key match the entire
-    ~22 min Piper phase is short-circuited.
-    """
+    """TTS cache is content-keyed; concurrent writes collide benignly."""
     from dirt_wake_word.config import (
         NUMBER_OF_EXAMPLES,
         NUMBER_OF_EXAMPLES_VAL,
@@ -139,7 +96,6 @@ def _persist_tts_cache() -> None:
 
 
 def _probe_gpu_name() -> str | None:
-    """Best-effort `nvidia-smi` probe. None on CPU pods / smoke test."""
     try:
         r = subprocess.run(
             ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
@@ -147,26 +103,20 @@ def _probe_gpu_name() -> str | None:
         )
     except (OSError, subprocess.SubprocessError):
         return None
-    if r.returncode != 0:
-        return None
-    return (r.stdout.strip().splitlines() or [None])[0] or None
+    return (r.stdout.strip().splitlines() or [None])[0] if r.returncode == 0 else None
 
 
 def _read_volume_manifest() -> dict[str, Any] | None:
-    """Read /workspace/input/MANIFEST.json. None if missing — graceful for
-    first runs / local smoke before the manifest is bootstrapped."""
-    if not VOLUME_MANIFEST_PATH.exists():
-        return None
     try:
         return json.loads(VOLUME_MANIFEST_PATH.read_text())
+    except FileNotFoundError:
+        return None
     except (OSError, json.JSONDecodeError) as exc:
         print(f"WARN: could not parse {VOLUME_MANIFEST_PATH}: {exc!r}", flush=True)
         return None
 
 
 def _start_manifest(resolved_config: dict[str, Any]) -> dict[str, Any]:
-    """Collect every fact knowable at run start. Mutated later with the
-    finish_at timestamp, status, and W&B run URL."""
     return {
         "schema_version": 1,
         "run_id": RUN_ID,
@@ -184,15 +134,7 @@ def _start_manifest(resolved_config: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _write_manifest(manifest: dict[str, Any]) -> None:
-    OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / "run-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
-
-
 def _maybe_init_wandb(manifest: dict[str, Any]) -> Any | None:
-    """Open a W&B run, attach manifest fields as run config + tags. Returns
-    the run handle, or None on any failure (we never let W&B problems block
-    a training run — local artifacts + run-manifest.json are sufficient)."""
     if os.environ.get("WANDB_MODE") == "disabled":
         return None
     if not os.environ.get("WANDB_API_KEY"):
@@ -211,10 +153,10 @@ def _maybe_init_wandb(manifest: dict[str, Any]) -> Any | None:
         )
         manifest["wandb_run_url"] = getattr(run, "url", None)
         manifest["wandb_run_id"] = getattr(run, "id", None)
-    except Exception as exc:  # noqa: BLE001 — degrade, never block training
+        return run
+    except Exception as exc:  # noqa: BLE001
         print(f"WARN: wandb.init failed; continuing without W&B: {exc!r}", flush=True)
         return None
-    return run
 
 
 def _finalize_wandb(run: Any | None, *, exit_code: int) -> None:
@@ -236,17 +178,8 @@ def main() -> None:
     print(f"DIRT_WAKEWORD_WORKING={WORKING}", flush=True)
     print(f"OUT={OUT}", flush=True)
 
-    # Library import inside try so any ImportError lands in the FAILURE
-    # sentinel rather than killing the entrypoint silently.
-    try:
-        from dirt_wake_word.config import current_tunables
-        from dirt_wake_word.main import main as wake_word_main
-    except BaseException:
-        tb = traceback.format_exc()
-        print(f"=== ENTRYPOINT IMPORT FAILED ===\n{tb}", flush=True, file=sys.stderr)
-        OUT.mkdir(parents=True, exist_ok=True)
-        (OUT / "FAILURE").write_text(tb)
-        return
+    from dirt_wake_word.config import current_tunables
+    from dirt_wake_word.main import main as wake_word_main
 
     manifest = _start_manifest(current_tunables())
     run = _maybe_init_wandb(manifest)
@@ -257,22 +190,16 @@ def main() -> None:
         try:
             _persist_tts_cache()
         except OSError:
-            print(
-                f"WARN: TTS cache persist failed:\n{traceback.format_exc()}",
-                flush=True,
-            )
+            print(f"WARN: TTS cache persist failed:\n{traceback.format_exc()}", flush=True)
     except BaseException:
-        # Catch + log + exit 0 so RunPod doesn't auto-restart the container.
-        # The FAILURE sentinel + traceback is what the orchestrator reads.
         tb = traceback.format_exc()
         print(f"=== ENTRYPOINT FAILED ===\n{tb}", flush=True, file=sys.stderr)
-        OUT.mkdir(parents=True, exist_ok=True)
         (OUT / "FAILURE").write_text(tb)
         manifest["finished_at"] = datetime.now(UTC).isoformat()
         manifest["status"] = "failure"
-        _write_manifest(manifest)
+        (OUT / "run-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
         try:
-            _publish_artifacts()  # any partial artifacts help post-mortems
+            _publish_artifacts()
         except OSError:
             pass
         _finalize_wandb(run, exit_code=1)
@@ -280,16 +207,13 @@ def main() -> None:
 
     manifest["finished_at"] = datetime.now(UTC).isoformat()
     manifest["status"] = "success"
-    _write_manifest(manifest)
+    (OUT / "run-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     _finalize_wandb(run, exit_code=0)
     (OUT / "SUCCESS").write_text("ok\n")
     print("=== entrypoint: SUCCESS sentinel written ===", flush=True)
 
 
 if __name__ == "__main__":
-    # Outer safety net: even if main()'s BaseException handler itself raises
-    # (e.g. disk full while writing FAILURE), the process must still exit 0.
-    # RunPod auto-restarts on non-zero exit, which would silently burn $/hr.
     try:
         main()
     except BaseException:

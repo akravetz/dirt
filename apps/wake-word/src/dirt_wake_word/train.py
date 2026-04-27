@@ -29,14 +29,10 @@ from .select import select_best_by_real_f1
 from .timing import phase, sh
 from .tts_cache import restore_tts_cache_if_mounted
 
-# Use shm-backed sharing instead of fd-passing for DataLoader IPC. Default
-# `file_descriptor` strategy uses ~1 fd per shared tensor, which exhausts
-# the container's `ulimit -n` (1024 default) at our scale (N workers × M
-# batches in flight × shared tensor count). Crash signature is
-# "RuntimeError: Too many open files. Communication with the workers is
-# no longer possible." — see the 2026-04-26 RunPod failure (W&B run
-# 164sz2ad). Module-level so the strategy is set before any DataLoader
-# spawns workers, regardless of call path.
+# shm-backed shared tensors instead of fd-passing IPC; default
+# `file_descriptor` strategy exhausts the container's ulimit -n at our
+# DataLoader-worker × prefetch × tensor-count scale. Set at import so it
+# wins regardless of call path. See W&B run 164sz2ad (2026-04-26).
 torch.multiprocessing.set_sharing_strategy("file_system")
 
 

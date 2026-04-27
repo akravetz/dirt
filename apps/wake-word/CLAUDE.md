@@ -44,9 +44,9 @@ Read this before touching any wake-word code, data, or model deployment.
 | Script | Purpose |
 |---|---|
 | `scripts/runpod-build-image` | `docker buildx` the trainer + smoke-test it locally + push to GHCR. Bakes the current git SHA in via `--build-arg DIRT_GIT_SHA`. |
-| `scripts/runpod-train` | Submit one training job: POST a pod → wait for endpoint → SSH-poll for sentinel → SCP artifacts → DELETE. |
-| `scripts/wakeword-volume-bump` | Push a local subdir into the Network Volume's `/workspace/input/<slug>/`, recompute its content hash, atomically update the on-volume `MANIFEST.json`. Replaces the legacy `kaggle datasets version` flow. |
-| `scripts/wakeword-volume-snapshot` | Pull the volume contents to `var/wake-word/_volume-mirror/` for DR. Volume loss = data loss now that Kaggle is retired. |
+| `scripts/runpod-train` | Submit one training job: POST pod → poll API for `desiredStatus=EXITED` → S3-download `out/<pod_id>/` → DELETE. |
+| `scripts/wakeword-volume-bump` | Push a local subdir into the Network Volume via the S3 API, recompute its content hash, atomically update the on-volume `MANIFEST.json`. Replaces the legacy `kaggle datasets version` flow. |
+| `scripts/wakeword-volume-snapshot` | S3-mirror the volume to `var/wake-word/_volume-mirror/` for DR. Volume loss = data loss now that Kaggle is retired. |
 | `scripts/smoke-trainer-image` | End-to-end docker-run against `var/wake-word/smoke-fixtures/`. Asserts SUCCESS sentinel + .onnx. |
 | `scripts/gen-smoke-fixtures` | Write the tiny smoke corpus to `var/wake-word/smoke-fixtures/`. |
 | `scripts/validate-wake-model.py` | Score a model against the real-audio validation set. Recall/precision per threshold. |
@@ -63,22 +63,19 @@ uv run python apps/wake-word/data-gen/elevenlabs-neighbors-batch.py
 # 2. (One-time per dataset bump) push fresh data into the Network Volume:
 scripts/wakeword-volume-bump dirt-wakeword-mine ./staged/mine \
     --notes "added 200 realmic positives from <session>"
-# Spins a small CPU pod with the volume mounted, SCPs the local subdir
-# up, recomputes the content hash, atomically rewrites MANIFEST.json.
-# The volume IS the source of truth — content_hash is what shows up in
-# the next run's wandb.config + run-manifest.json. No Kaggle round-trip.
+# Direct S3 upload to the volume; recomputes content hash; rewrites
+# MANIFEST.json. The volume IS the source of truth — content_hash is
+# what shows up in the next run's wandb.config + run-manifest.json.
 
 # 3. Build + push trainer image (only if Dockerfile or src/ changed):
 scripts/runpod-build-image
-# Builds linux/amd64, runs scripts/smoke-trainer-image locally to catch
-# import-class regressions, pushes to ghcr.io/<owner>/dirt-wake-word-trainer.
+# Builds linux/amd64, smoke-tests, pushes to ghcr.io/<owner>/dirt-wake-word-trainer.
 
 # 4. Trigger a training run:
 scripts/runpod-train
-# POST /v1/pods → wait endpoint → SSH-poll for SUCCESS/FAILURE sentinel
-# → SCP /workspace/out/ → DELETE in finally. Artifacts land at
-# var/wake-word/models/<date>-runpod/. ~30–60 min on a 4090 (~$0.40-0.70).
-# Reference pack: docs/references/runpod/INDEX.md.
+# POST training pod → poll API for desiredStatus=EXITED → S3-download
+# out/<pod_id>/ → DELETE pod. Artifacts land at
+# var/wake-word/models/<date>-<pod_id>/. ~30-60 min on a 4090, ~$0.40-0.70.
 
 # 5. Validate the new model offline:
 uv run python scripts/validate-wake-model.py \
@@ -100,8 +97,8 @@ systemctl --user restart dirt-voice
 
 - **Don't commit anything under `var/`** — gitignored on purpose. WAVs, ONNX, NPYs, parquets, smoke fixtures all stay local. The RunPod Network Volume is now the **only** durable copy of training data (Kaggle is retired). Run `scripts/wakeword-volume-snapshot` periodically so `var/wake-word/_volume-mirror/` is a known-good local backup; volume loss = data loss otherwise.
 - **`auto_train` in upstream openwakeword is broken** (`self.best_val_fp` initialized to 1000 and never updated; escalation always fires twice). We soft-fork around it in `dirt_wake_word.train.custom_train` — call `openwakeword.train.Model.train_model()` directly with sane settings + post-train F1 selection against `var/wake-word/validation/`. See the v5 collapse rationale in `wiki/wake-word-experiments.md`.
-- **The container ALWAYS exits 0** (entrypoint catches BaseException, writes FAILURE sentinel, returns). RunPod auto-restarts on non-zero exit, which silently burns $/hr on crash loops. Communicate failure via the sentinel, never via exit status.
-- **Direct-TCP SSH to RunPod pods is flaky** even when the pod is RUNNING per the API — community-wide issue, not our config. The orchestrator polls via SSH for the sentinel and tolerates transient refusals; the proxy SSH (`ssh.runpod.io`) works for interactive but doesn't pass SCP.
+- **The container ALWAYS exits 0** (entrypoint catches BaseException, writes FAILURE sentinel, returns). RunPod auto-restarts on non-zero exit, which silently burns $/hr on crash loops. Communicate failure via the sentinel under `out/<run_id>/`, never via exit status.
+- **Don't reach for SSH/SCP for moving files between local and the volume.** Direct-TCP SSH on RunPod is documented-flaky and the proxy SSH doesn't support SCP. Use the S3-compatible API (`s3api-<dc>.runpod.io/`) — `wakeword-volume-bump`, `wakeword-volume-snapshot`, and `runpod-train`'s artifact pull all use it.
 - **`target_recall` and `target_accuracy`** are dead keys in upstream's `train.py` — never read. Don't waste time tuning them.
 
 ## Validation set

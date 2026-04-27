@@ -22,6 +22,7 @@ dev-dependencies = [
     "dirt-contracts",
     "kaggle>=2.1.0",
     "wandb>=0.21,<0.22",
+    "boto3>=1.36",
 ]
 
 [tool.uv.sources]
