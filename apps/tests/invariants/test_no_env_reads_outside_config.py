@@ -1,7 +1,7 @@
 """
 INVARIANT TEST — HUMAN-OWNED
 
-This test is protected by Claude Code hooks and MUST NOT be modified by
+This test is protected by Codex hooks and MUST NOT be modified by
 the agent. If this test fails, the agent must fix its code (route the
 env read through ``dirt_shared.config.Settings``) — never modify this
 file's ALLOWED set to paper over a new smell.

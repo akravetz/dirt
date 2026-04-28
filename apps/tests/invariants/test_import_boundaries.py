@@ -1,7 +1,7 @@
 """
 INVARIANT TEST — HUMAN-OWNED
 
-This test is protected by Claude Code hooks and MUST NOT be modified by
+This test is protected by Codex hooks and MUST NOT be modified by
 the agent. If it fails, the agent must fix the offending production code
 to satisfy the contracts in ``import_boundaries.invariant.ini`` —
 never modify the .ini file or this wrapper.
@@ -77,7 +77,7 @@ def test_import_boundaries() -> None:
         "    a service in dirt_shared.services (or dirt_hwd.services if\n"
         "    HW-owning). The api route should call the service function.\n\n"
         "DO NOT edit import_boundaries.invariant.ini or this test file.\n"
-        "Both are HUMAN-OWNED and protected by Claude Code hooks. Fix\n"
+        "Both are HUMAN-OWNED and protected by Codex hooks. Fix\n"
         "the production code instead.\n"
     )
 

@@ -1,7 +1,7 @@
 """
 INVARIANT TEST — HUMAN-OWNED
 
-This test is protected by Claude Code hooks and MUST NOT be modified by
+This test is protected by Codex hooks and MUST NOT be modified by
 the agent. If this test fails, the agent must fix its code to satisfy
 the test, never modify this file.
 
@@ -307,8 +307,8 @@ def test_expected_missing_endpoint_has_feature_id(
     endpoint: tuple[str, str],
 ) -> None:
     """Every EXPECTED_MISSING entry maps to a non-empty feature id (which
-    must match a feature in docs/plans/webapp-rewrite.json once the plan
-    JSON exists). Empty/None values mean the human forgot to plan it."""
+    is a dotted identifier for the planned feature or route family.
+    Empty/None values mean the human forgot to plan it."""
     feature_id = EXPECTED_MISSING[endpoint]
     assert feature_id, f"EXPECTED_MISSING[{endpoint!r}] has empty feature_id"
     assert "." in feature_id, (

@@ -1,7 +1,7 @@
 """
 INVARIANT TEST — HUMAN-OWNED
 
-This test is protected by Claude Code hooks and MUST NOT be modified by
+This test is protected by Codex hooks and MUST NOT be modified by
 the agent. If this test fails, the agent must move the query into a
 service (or a model, or a migration) — never modify this file's ALLOWED
 prefixes to paper over a new smell.

@@ -1,7 +1,7 @@
 """
 INVARIANT TEST — HUMAN-OWNED
 
-This test is protected by Claude Code hooks and MUST NOT be modified by
+This test is protected by Codex hooks and MUST NOT be modified by
 the agent. If this test fails, fix the offending package's
 ``pyproject.toml`` (add the missing dep, drop the unused one, or add a
 justified ``[tool.deptry.per_rule_ignores]`` entry) — never modify this

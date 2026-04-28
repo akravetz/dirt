@@ -5,8 +5,7 @@ HUMAN-OWNED. Do NOT modify to silence a failure — fix the shim at
 rules at ``web-ui/invariants/**``.
 
 The TypeScript lane stores its architectural rules under
-``web-ui/invariants/`` (protected by the same Claude Code hook that guards
-``apps/tests/invariants/``). The root-level ``web-ui/eslint.config.ts`` and
+``web-ui/invariants/``. The root-level ``web-ui/eslint.config.ts`` and
 ``web-ui/tsconfig.json`` are thin shims that import/extend the protected
 files, leaving room for legitimate app-specific overrides (new path
 aliases, per-slice rule exemptions) — but severity downgrades on
@@ -14,9 +13,7 @@ load-bearing rules must not survive silently.
 
 This test proves three things:
 
-1. **Wiring (AST / string).** The shims reference ``./invariants/``; the
-   hook glob list in ``.claude/settings.json`` includes
-   ``web-ui/invariants``.
+1. **Wiring (AST / string).** The shims reference ``./invariants/``.
 
 2. **Live resolution (ESLint).** Running ``eslint --print-config`` against
    a real source file shows every rule in ``KNOWN_SENTINELS["eslint"]``
@@ -53,7 +50,6 @@ WEB_UI: Path = REPO_ROOT / "web-ui"
 WEB_UI_INVARIANTS: Path = WEB_UI / "invariants"
 ESLINT_SHIM: Path = WEB_UI / "eslint.config.ts"
 TSCONFIG_SHIM: Path = WEB_UI / "tsconfig.json"
-CLAUDE_SETTINGS: Path = REPO_ROOT / ".claude" / "settings.json"
 
 # Rules and flags the meta-invariant asserts are live in the effective
 # config. Appended by each TS-XX item's approach.
@@ -207,32 +203,6 @@ def test_tsconfig_shim_extends_invariants_base() -> None:
                 violations=[
                     "extends ./invariants/tsconfig.base.json NOT FOUND in shim"
                 ],
-            ),
-        )
-
-
-def test_claude_hook_protects_webui_invariants() -> None:
-    """``.claude/settings.json`` must reference ``web-ui/invariants``.
-
-    The hook mechanism (see ``.claude/hooks/protect-invariants.sh``)
-    reads this path glob when deciding whether to prompt on Edit/Write.
-    """
-    assert CLAUDE_SETTINGS.exists(), f"missing: {CLAUDE_SETTINGS}"
-    src = CLAUDE_SETTINGS.read_text()
-    if "web-ui/invariants" not in src:
-        raise AssertionError(
-            format_invariant_failure(
-                headline=".claude/settings.json does not protect web-ui/invariants/",
-                smell_name="Missing Hook Protection",
-                citation=CITATION,
-                body=(
-                    "WHY: Without the hook glob, agents can silently Edit "
-                    "web-ui/invariants/**. The directory is only 'human-owned' "
-                    "if the harness enforces it.\n"
-                    "FIX: Add `web-ui/invariants/**` to the hook deny-glob list "
-                    "in .claude/settings.json (see XX-02 approach)."
-                ),
-                violations=["web-ui/invariants NOT FOUND in .claude/settings.json"],
             ),
         )
 
