@@ -1,28 +1,39 @@
 """Capture real-mic samples for wake-word training + validation.
 
-Records continuously from the Jabra mic to one long WAV, then segments it on
-silence (≥2 s gap) into individual utterance clips. Use for collecting both
-positive samples (real "hey Claudia" utterances at varied positions/voices)
-and negative samples (varied phrases that aren't the wake word).
+Records continuously from the Jabra mic to one long WAV, then segments it
+with silero-vad into individual utterance clips. Use for collecting both
+positive samples (real "hey Claudia" utterances at varied positions and
+voices) and negative samples (varied phrases that aren't the wake word).
+
+VAD-based segmentation distinguishes speech from non-speech using a neural
+model, so it works in noisy conditions (TV, music, kitchen sounds) where
+the older RMS-silence approach would treat the whole recording as one big
+clip or cut at false silences in the music.
 
 Workflow:
     1. Run with --label realmic-pos (or whatever).
     2. Script announces "listening" and starts recording.
-    3. Speak a phrase, pause ≥2 s, speak another, pause, etc.
-       The 2-s gap is the segmentation signal — be deliberate about quiet pauses.
+    3. Speak utterances naturally — pauses can be short, background can
+       be loud. silero-vad finds the speech regions after the fact.
     4. Ctrl-C when done.
     5. Script post-processes the recording, writes:
         var/wake-word/realmic-stage/<TS>/<label>_NNN.wav   one per utterance
         var/wake-word/realmic-stage/<TS>/_full-recording.wav     kept for re-segmenting
-        var/wake-word/realmic-stage/<TS>/segments.csv      timing + peak RMS audit
+        var/wake-word/realmic-stage/<TS>/segments.csv      timing audit
 
 Tip: review the extracted clips with `scripts/audio-review` before promoting
 into var/wake-word/voice-clones/, neighbors/, or validation/.
 
-Usage:
-    uv run python apps/wake-word/data-gen/capture-realmic.py --label realmic-pos
-    uv run python apps/wake-word/data-gen/capture-realmic.py --label realmic-neg
-    uv run python apps/wake-word/data-gen/capture-realmic.py --label me-far --silence-rms 350
+silero-vad is not a regular dirt-wake-word dep (it pulls a 2 GB CUDA
+torch stack). Invoke with `uv run --with silero-vad` so the trainer
+image stays lean:
+
+    uv run --with silero-vad python apps/wake-word/data-gen/capture-realmic.py --label realmic-pos
+    uv run --with silero-vad python apps/wake-word/data-gen/capture-realmic.py --label realmic-neg
+
+Re-segment an existing recording with a different threshold:
+    uv run --with silero-vad python apps/wake-word/data-gen/capture-realmic.py \
+        --out-dir var/wake-word/realmic-stage/<TS> --vad-threshold 0.4
 """
 
 from __future__ import annotations
@@ -46,13 +57,9 @@ SAMPLE_RATE = 16000
 CHANNELS = 1
 SAMPLE_WIDTH = 2  # 16-bit PCM
 
-# VAD knobs (tune via CLI if room is unusual)
-FRAME_MS = 100
-FRAME_SAMPLES = SAMPLE_RATE * FRAME_MS // 1000  # 1600
-DEFAULT_SILENCE_RMS = 250  # int16 RMS; floor of typical Jabra noise
-MIN_SILENCE_FRAMES = 20  # 20 × 100 ms = 2.0 s — the segmentation gap
-LEAD_MS = 150  # padding before each detected utterance
-TAIL_MS = 200  # padding after
+DEFAULT_VAD_THRESHOLD = 0.5  # silero-vad confidence cutoff (0-1)
+SPEECH_PAD_MS = 200  # padding around each detected utterance
+MIN_SPEECH_DURATION_MS = 250  # drop sub-quarter-second pops as not-speech
 
 
 def find_jabra() -> int:
@@ -80,8 +87,8 @@ def record_until_sigint(device: int, target_path: Path) -> Path:
     signal.signal(signal.SIGINT, handle_sigint)
 
     print(
-        f"listening on Jabra (device {device}) — speak phrases with ≥2 s gaps. "
-        "Ctrl-C to stop.",
+        f"listening on Jabra (device {device}) — speak naturally; pauses can "
+        "be short and background can be loud. Ctrl-C to stop.",
         flush=True,
     )
 
@@ -91,7 +98,7 @@ def record_until_sigint(device: int, target_path: Path) -> Path:
         dtype=np.int16,
         device=device,
         callback=callback,
-        blocksize=FRAME_SAMPLES,
+        blocksize=SAMPLE_RATE // 10,  # 100 ms blocks
     ):
         elapsed = 0
         while not interrupted:
@@ -111,82 +118,70 @@ def record_until_sigint(device: int, target_path: Path) -> Path:
         w.setframerate(SAMPLE_RATE)
         w.writeframes(audio.tobytes())
     duration = len(audio) / SAMPLE_RATE
-    print(f"  wrote {target_path.name} ({duration:.1f}s, {len(audio)/1e6:.1f} Msamples)")
+    print(f"  wrote {target_path.name} ({duration:.1f}s, {len(audio) / 1e6:.1f} Msamples)")
     return target_path
 
 
-def find_utterances(audio: np.ndarray, threshold: int) -> list[tuple[int, int, float]]:
-    """Return (start_frame, end_frame, peak_rms) for each detected utterance.
-
-    Frames are FRAME_SAMPLES wide. An utterance is a contiguous run of
-    above-threshold frames; runs are split when ≥MIN_SILENCE_FRAMES of
-    consecutive below-threshold frames appear.
+def find_utterances_vad(audio: np.ndarray, threshold: float) -> list[tuple[int, int]]:
+    """Return (start_sample, end_sample) for each detected utterance using
+    silero-vad. Padding (SPEECH_PAD_MS on each side) is applied by the VAD
+    itself; clamping to clip bounds is handled by the segmenter.
     """
-    n_frames = len(audio) // FRAME_SAMPLES
-    if n_frames == 0:
-        return []
-    frames = audio[: n_frames * FRAME_SAMPLES].reshape(n_frames, FRAME_SAMPLES)
-    rms = np.sqrt(np.mean(frames.astype(np.float32) ** 2, axis=1))
-    is_active = rms > threshold
+    try:
+        import torch
+        from silero_vad import get_speech_timestamps, load_silero_vad
+    except ImportError:
+        sys.exit(
+            "silero-vad not available. Re-run with:\n"
+            "  uv run --with silero-vad python apps/wake-word/data-gen/capture-realmic.py ..."
+        )
 
-    utterances: list[tuple[int, int, float]] = []
-    i = 0
-    while i < n_frames:
-        if not is_active[i]:
-            i += 1
-            continue
-        start = i
-        last_active = i
-        silent_run = 0
-        while i < n_frames:
-            if is_active[i]:
-                last_active = i
-                silent_run = 0
-            else:
-                silent_run += 1
-                if silent_run >= MIN_SILENCE_FRAMES:
-                    break
-            i += 1
-        peak = float(rms[start : last_active + 1].max())
-        utterances.append((start, last_active, peak))
-        # Skip past the silence so we don't re-enter the same utterance
-        i = last_active + silent_run + 1
-    return utterances
+    audio_tensor = torch.from_numpy(audio.astype(np.float32) / 32768.0)
+    model = load_silero_vad()
+    timestamps = get_speech_timestamps(
+        audio_tensor,
+        model,
+        sampling_rate=SAMPLE_RATE,
+        threshold=threshold,
+        min_speech_duration_ms=MIN_SPEECH_DURATION_MS,
+        speech_pad_ms=SPEECH_PAD_MS,
+    )
+    return [(int(ts["start"]), int(ts["end"])) for ts in timestamps]
 
 
 def segment_and_extract(
-    full_wav: Path, out_dir: Path, label: str, threshold: int
+    full_wav: Path, out_dir: Path, label: str, vad_threshold: float
 ) -> int:
     """Split the long recording into per-utterance WAVs + write segments.csv."""
     with wave.open(str(full_wav), "rb") as w:
         audio = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16)
-    utterances = find_utterances(audio, threshold)
+
+    utterances = find_utterances_vad(audio, vad_threshold)
     if not utterances:
-        print(f"no utterances found at threshold={threshold} — try a lower value", file=sys.stderr)
+        print(
+            f"no utterances found at vad_threshold={vad_threshold} — "
+            "try a lower value (e.g. 0.3) for quieter speech",
+            file=sys.stderr,
+        )
         return 0
 
-    lead = LEAD_MS * SAMPLE_RATE // 1000
-    tail = TAIL_MS * SAMPLE_RATE // 1000
     csv_path = out_dir / "segments.csv"
-
     with csv_path.open("w") as f:
         wr = csv.writer(f)
-        wr.writerow(["index", "filename", "start_s", "duration_s", "peak_rms"])
+        wr.writerow(["index", "filename", "start_s", "duration_s"])
         print(f"\nextracting {len(utterances)} utterances → {out_dir}/")
-        for idx, (start_frame, end_frame, peak) in enumerate(utterances, start=1):
-            sample_start = max(0, start_frame * FRAME_SAMPLES - lead)
-            sample_end = min(len(audio), (end_frame + 1) * FRAME_SAMPLES + tail)
-            clip = audio[sample_start:sample_end]
+        for idx, (start, end) in enumerate(utterances, start=1):
+            clip = audio[start:end]
             fname = f"{label}_{idx:03d}.wav"
             with wave.open(str(out_dir / fname), "wb") as w:
                 w.setnchannels(CHANNELS)
                 w.setsampwidth(SAMPLE_WIDTH)
                 w.setframerate(SAMPLE_RATE)
                 w.writeframes(clip.tobytes())
-            duration = (sample_end - sample_start) / SAMPLE_RATE
-            offset = sample_start / SAMPLE_RATE
-            wr.writerow([idx, fname, f"{offset:.2f}", f"{duration:.2f}", f"{peak:.0f}"])
-            print(f"  {fname}  @{offset:6.1f}s  +{duration:.2f}s  peak_rms={peak:.0f}")
+            duration = (end - start) / SAMPLE_RATE
+            offset = start / SAMPLE_RATE
+            wr.writerow([idx, fname, f"{offset:.2f}", f"{duration:.2f}"])
+            print(f"  {fname}  @{offset:6.1f}s  +{duration:.2f}s")
     return len(utterances)
 
 
@@ -204,13 +199,16 @@ def main() -> None:
         "--out-dir",
         type=Path,
         default=None,
-        help="Output dir (default: var/wake-word/realmic-stage/<timestamp>/).",
+        help="Output dir (default: var/wake-word/realmic-stage/<timestamp>/). "
+        "Pointing at an existing dir re-segments its _full-recording.wav "
+        "without re-recording.",
     )
     p.add_argument(
-        "--silence-rms",
-        type=int,
-        default=DEFAULT_SILENCE_RMS,
-        help=f"Frames with RMS below this count as silence. Default {DEFAULT_SILENCE_RMS}.",
+        "--vad-threshold",
+        type=float,
+        default=DEFAULT_VAD_THRESHOLD,
+        help=f"silero-vad speech-confidence cutoff (0-1). "
+        f"Lower → more permissive. Default {DEFAULT_VAD_THRESHOLD}.",
     )
     args = p.parse_args()
 
@@ -224,15 +222,18 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     full_wav = out_dir / "_full-recording.wav"
-    record_until_sigint(find_jabra(), full_wav)
+    if full_wav.exists() and args.out_dir is not None:
+        print(f"re-segmenting existing {full_wav.name} (skipping record)", flush=True)
+    else:
+        record_until_sigint(find_jabra(), full_wav)
 
-    n = segment_and_extract(full_wav, out_dir, args.label, args.silence_rms)
+    n = segment_and_extract(full_wav, out_dir, args.label, args.vad_threshold)
     print(
         f"\nDone. {n} utterances extracted to {out_dir}/\n"
         f"Review with: uv run python scripts/audio-review.py {out_dir}\n"
-        f"Re-segment with a different threshold (full recording kept):\n"
-        f"  uv run python apps/wake-word/data-gen/capture-realmic.py "
-        f"--out-dir {out_dir} --silence-rms <new>"
+        f"Re-segment with a different VAD threshold (full recording kept):\n"
+        f"  uv run --with silero-vad python apps/wake-word/data-gen/capture-realmic.py "
+        f"--out-dir {out_dir} --vad-threshold <new>"
     )
 
 
