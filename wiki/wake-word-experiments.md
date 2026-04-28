@@ -820,7 +820,7 @@ Comparison vs prior:
 
 ### v17 — 2026-04-27
 
-**Status:** **deployed** (currently `var/wake-word/models/current` symlink, deployed 2026-04-27)
+**Status:** superseded (deployed 2026-04-27 → 2026-04-27; replaced by v20)
 **Model artifact:** `var/wake-word/models/2026-04-27-v17/hey_claudia.onnx`
 **Trainer commit:** `fec0916` (TTS-cache path fix — persist now reads from `WORKING/my_custom_model/<TARGET_WORD>/<subset>/`, not `WORKING/my_custom_model/<subset>/`)
 **Image digest:** `sha256:7ed5e8d1641ef9f057438c4034c789a2e580b67b2074959bb950e5cd7119511f`
@@ -983,8 +983,8 @@ Better next experiments: keep `Gain=1.0` only (pure amplitude variation, no spec
 
 ### v20 — 2026-04-27
 
-**Status:** trained, validated (deploy decision pending)
-**Model artifact:** `var/wake-word/models/2026-04-27-142640-f6x0z33zcpal7v/hey_claudia.onnx`
+**Status:** **deployed** (currently `var/wake-word/models/current` symlink, deployed 2026-04-27 18:45 MDT, harvest mode still active to keep gathering negatives)
+**Model artifact:** `var/wake-word/models/2026-04-27-v20/hey_claudia.onnx`
 **Trainer commit:** `db525c2` (gain-only realmic augmentation)
 **W&B run:** [`qr3g3kx3`](https://wandb.ai/adkravetz/dirt-wake-word/runs/qr3g3kx3) (group `exp5-realmic-gain-only-v20-20260427-142639`)
 **Pod:** `f6x0z33zcpal7v`, RTX 4090
@@ -1105,3 +1105,53 @@ v17/v20's per-epoch `*_test` was 100% Piper synth. The best-checkpoint selector 
 - First run on the new `runpod-train` direct-download path (commit `5d2b527` dropped `aws s3 sync` for `pull_artifacts`). Worked end-to-end — artifacts pulled cleanly, no paginator bug, orchestrator's `finally:` got a clean DELETE on the post-sentinel pod.
 - Volume usage post-run: 31.06 GB / 200 GB (15.5 % — same as post-v20, since `_cleanup_working` ran). Stale per-pod working/ dirs from v17/v18/v19/v20 also wiped earlier today (~70k keys removed).
 - TTS cache invalidation behavior: cache stayed valid (target_phrase + n_samples + n_samples_val unchanged). Augment cache invalidated (mine content_hash changed → new key).
+
+### v22 — 2026-04-28
+
+**Status:** failed (not deployed) — disambiguation experiment, settled the v21 question
+**Model artifact:** `var/wake-word/models/2026-04-27-181403-slmoc0pzxrj90q/hey_claudia.onnx`
+**Trainer commit:** `7480df2` (revert seed.py 80/20 split — `revert(wake-word): drop 80/20 in-run split for v22 disambiguation`)
+**W&B run:** [`spc3gpnk`](https://wandb.ai/adkravetz/dirt-wake-word/runs/spc3gpnk) (group `exp7-harvest-negs-no-split-v22-20260427-181402`)
+**Pod:** `slmoc0pzxrj90q`, RTX 4090
+**Wall:** 9m29s (TTS cache HIT, augment cache HIT — same mine + same REAL_AUDIO + same training params as v21 → keys matched, no recompute)
+
+#### What changed (vs v21)
+- **Reverted seed.py 80/20 split.** All realmic-pos / realmic-neg back to 100% `*_train`; `*_test` is again 100% Piper synth. Same as v20-era logic.
+- **Kept** the 30 new harvest realmic-neg clips in `dirt-wakeword-mine/negatives/` (mine content_hash unchanged from v21).
+- Same Gain-only realmic augmentation as v20/v21.
+
+#### Why
+v21 changed two things at once (harvest-negs bump + seed split) and the held-out gain (+8 pp) was confounded with the lab-precision regression (100 % → 67 %). v22 isolates the harvest-negs alone to see whether they carry the held-out signal or whether the split alone was responsible.
+
+#### Results — original 28/76 set (apples-to-apples)
+
+| Threshold | Recall | Precision | F1 | False positives |
+|---:|---:|---:|---:|---:|
+| 0.30 | 53.6 % | 65.2 % | 0.588 | 8/76 |
+| 0.40 | 50.0 % | 73.7 % | 0.596 | 5/76 |
+| 0.50 | 46.4 % | 72.2 % | 0.565 | 5/76 |
+| 0.60 | 39.3 % | 84.6 % | 0.537 | 2/76 |
+| 0.70 | 35.7 % | 100.0 % | 0.526 | 0/76 |
+
+#### Results — held-out 38
+
+| Model | Recall@0.5 |
+|---|---:|
+| v17 | 36.8 % (14/38) |
+| v20 | 34.2 % (13/38) |
+| v21 (split + negs) | 44.7 % (17/38) |
+| **v22 (negs only)** | 28.9 % (11/38) |
+
+#### Disambiguation conclusion
+- Harvest-negs alone (v22): worse than v20 on every metric (lab F1 0.756 → 0.537, held-out 34.2 % → 28.9 %). Adding 30 harvest negatives to a 378-negative pool doesn't move the needle, and may have nudged the model in a worse direction (within variance).
+- Split alone is the lever that drove v21's +8 pp held-out recall — at the cost of lab precision. The split changes which checkpoint the F1 selector picks (real-mic-permissive vs synth-style-precision-optimal); the harvest-negs are the smaller effect.
+
+#### Variance caveat
+Same-config retrains have ~20 % F1 spread (v17 vs v18 evidence). v22 may be a low-tail draw and v20 a high-tail draw of the same underlying distribution. A 3-5 retrain at v20 config would be needed to confirm any individual experiment's signal.
+
+#### Decision
+v20 stays deployed. Don't ship harvest-negs-only and don't ship the split alone. Future experiments should either (a) retrain v20 a few times to confirm it wasn't lucky, or (b) wait for the validation/bad/ set to grow with more harvest data so the held-out signal is less noisy than ±1 clip.
+
+#### Operational notes
+- First run with both caches (TTS + augment) hitting → 9m29s wall, the fastest end-to-end retrain on record. Boot + init dominates the wall now.
+- Direct-download artifact pull worked end-to-end again (commit `5d2b527`).
