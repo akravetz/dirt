@@ -1,6 +1,6 @@
 [Unit]
 Description=Fire dirt-daily-report.service at 14:00 MDT (20:00 UTC)
-Documentation=file://%h/code/dirt/CLAUDE.md
+Documentation=file://%h/code/dirt/AGENTS.md
 
 [Timer]
 # 20:00 UTC = 14:00 MDT (UTC-6).

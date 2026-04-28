@@ -2,7 +2,7 @@
 """dirt daily report — pan all camera presets, snapshot sensors, hand off
 to a synthesis sub-agent that writes the wiki entry, deliver via Telegram.
 
-See `wiki/CLAUDE.md` (Daily Update Workflow) and
+See `wiki/AGENTS.md` (Daily Update Workflow) and
 `docs/references/claude-agent-sdk/INDEX.md`.
 
 Usage:

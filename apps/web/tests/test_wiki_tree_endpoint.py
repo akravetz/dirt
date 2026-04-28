@@ -32,8 +32,8 @@ def _seed_wiki(root: Path) -> None:
         "# Wiki Index\n\nentry\n",
         encoding="utf-8",
     )
-    # Agent-facing CLAUDE.md must be excluded from the tree.
-    (root / "CLAUDE.md").write_text("# agent-only\n", encoding="utf-8")
+    # Agent-facing AGENTS.md must be excluded from the tree.
+    (root / "AGENTS.md").write_text("# agent-only\n", encoding="utf-8")
 
     plants = root / "plants"
     plants.mkdir()
@@ -104,8 +104,8 @@ async def test_wiki_tree_returns_contract_shape(client: AsyncClient):
     # Root files first, then folders (alphabetical).
     root_names = [n.root.name for n in model.tree if isinstance(n.root, WikiTreeFile)]
     assert root_names == ["index.md", "overview.md"]
-    # CLAUDE.md excluded.
-    assert "CLAUDE.md" not in root_names
+    # AGENTS.md excluded.
+    assert "AGENTS.md" not in root_names
 
     folder_names = [
         n.root.name for n in model.tree if isinstance(n.root, WikiTreeFolder)

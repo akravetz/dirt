@@ -4,7 +4,7 @@
 # Hashes the worktree's top-level absolute path into a port in the
 # 5170–5199 range (30 slots). Same worktree → same port every time.
 # Main repo at /home/akcom/code/dirt resolves to one port; each
-# agent worktree under .claude/worktrees/<name> resolves to its own.
+# agent worktree under .agents/worktrees/<name> resolves to its own.
 #
 # Used by web-ui/vite.config.ts (server.port) and
 # web-ui/playwright.config.ts (baseURL) via the WEBUI_DEV_PORT env

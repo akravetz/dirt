@@ -14,7 +14,7 @@ Two properties pinned here:
    invariant stays pure (no DB) so hypothesis can explore the full
    date space without fixtures.
 
-The oracle here is the canonical logic documented in CLAUDE.md
+The oracle here is the canonical logic documented in AGENTS.md
 ("Deriving stage without the DB") and in
 ``apps/shared/src/dirt_shared/services/grow_state.py:GrowStateService.current_stage``.
 The property test duplicates that logic in a local ``derive_stage``

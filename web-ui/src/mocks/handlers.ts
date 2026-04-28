@@ -17,7 +17,8 @@ import { HttpResponse, http, type RequestHandler } from "msw";
 // re-running the script; the JSON diff is the contract-drift signal.
 // Endpoints still using inline fixture data (auth login/logout, feed,
 // ptz mutations, wiki tree/file/search) have drift behavior that isn't
-// reducible to a flat capture — see docs/plans/contract-drift-report.md.
+// reducible to a flat capture; keep those handlers aligned with their
+// consuming route tests and contract fixtures.
 import authMe from "./fixtures/auth.me.json";
 import growCurrent from "./fixtures/grow.current.json";
 import plantA from "./fixtures/plants.a.json";
@@ -239,8 +240,7 @@ export const handlers: RequestHandler[] = [
   // (boundaries forbids mocks/ → api-client/, so no `import type` from
   // generated schema — consumer typecheck catches drift).
   //
-  // Sticker colours: one per plant, matching the mockup reference
-  // (docs/plans/refs/dashboard.png) — A yellow, B orange, C pink, D blue.
+  // Sticker colours: one per plant — A yellow, B orange, C pink, D blue.
   // `moisture_pct` chosen distinct per plant so the spec can match each
   // card's moisture-bar width to its plant's reading without ambiguity.
   // -------------------------------------------------------------------------
@@ -336,8 +336,7 @@ export const handlers: RequestHandler[] = [
   //   PTZZoomResponse so the UI's onSuccess → invalidate → refetch sees
   //   the updated values.
   //
-  // Preset ids baked in: overview + plant_a..d (matches the mockup
-  // reference docs/plans/refs/live.png).
+  // Preset ids baked in: overview + plant_a..d.
   // -------------------------------------------------------------------------
 
   // A 1×1 baseline JPEG, produced offline and inlined as bytes. 125 bytes
@@ -488,7 +487,7 @@ export const handlers: RequestHandler[] = [
   //   plants/ (plant-a..d.md, each with the matching PlantStickerColor)
   //   concepts/ (topping.md, anthocyanin.md, lst.md)
   //   daily/ (one entry per recent grow day)
-  // CLAUDE.md is excluded server-side; we mirror that by not emitting it
+  // AGENTS.md is excluded server-side; we mirror that by not emitting it
   // at all. Sorting: root files first (alphabetical), then folders
   // (alphabetical) — same order the backend's `get_tree` produces.
   //

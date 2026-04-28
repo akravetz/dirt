@@ -1,6 +1,6 @@
 [Unit]
 Description=Dirt daily report run (photos + sensor synthesis + Telegram)
-Documentation=file://%h/code/dirt/CLAUDE.md
+Documentation=file://%h/code/dirt/AGENTS.md
 After=dirt-camera.service network-online.target
 Wants=network-online.target
 

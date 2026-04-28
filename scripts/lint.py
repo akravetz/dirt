@@ -95,9 +95,9 @@ def check_index_sync() -> list[str]:
             pass  # link points outside wiki/
 
     # All content .md files in wiki/ — skip meta files (index.md is the
-    # catalog itself; CLAUDE.md is the operating manual; log.md is an
+    # catalog itself; AGENTS.md is the operating manual; log.md is an
     # append-only activity log, skipped here too for consistency).
-    META_FILES = {"index.md", "CLAUDE.md", "log.md"}
+    META_FILES = {"index.md", "AGENTS.md", "log.md"}
     all_wiki: set[str] = {
         p.resolve().relative_to(WIKI.resolve()).as_posix()
         for p in WIKI.rglob("*.md")
@@ -353,7 +353,7 @@ def check_overview_staleness() -> list[str]:
 # ─── check 6: frontmatter validation ─────────────────────────────────────────
 
 REQUIRED_FIELDS = {"title", "type", "created", "updated"}
-SKIP_FILES = {"index.md", "log.md", "CLAUDE.md"}
+SKIP_FILES = {"index.md", "log.md", "AGENTS.md"}
 
 
 def check_frontmatter() -> list[str]:
@@ -380,14 +380,14 @@ MAX_LINES_FAIL = 400
 LENGTH_SKIP_FILES = {
     "index.md",
     "log.md",
-    "CLAUDE.md",
+    "AGENTS.md",
     "wake-word-experiments.md",  # append-only experiment log; grows naturally
     "control-theory-primer.md",  # teaching reference doc; depth > brevity by design
 }
 
 
 def check_file_length() -> list[str]:
-    """Flag wiki files that are getting long enough to consider splitting."""
+    """Warn when wiki files are long enough to consider splitting."""
     issues = []
     for md_file in sorted(WIKI.rglob("*.md")):
         if md_file.name in LENGTH_SKIP_FILES:
@@ -397,11 +397,15 @@ def check_file_length() -> list[str]:
         rel = md_file.relative_to(REPO)
         if line_count > MAX_LINES_FAIL:
             issues.append(
-                f"  {rel}: {line_count} lines (>{MAX_LINES_FAIL}) — should be split"
+                f"  {rel}: {line_count} lines (>{MAX_LINES_FAIL}) — split if there "
+                "is a logically cohesive split that would make the document more "
+                "readable; keep it as one page otherwise"
             )
         elif line_count > MAX_LINES_WARN:
             issues.append(
-                f"  {rel}: {line_count} lines (>{MAX_LINES_WARN}) — consider splitting"
+                f"  {rel}: {line_count} lines (>{MAX_LINES_WARN}) — consider "
+                "splitting if there is a logically cohesive split that would make "
+                "the document more readable; keep it as one page otherwise"
             )
     return issues
 
@@ -418,15 +422,21 @@ CHECKS = [
     ("File length",            check_file_length),
 ]
 
+WARN_CHECKS = {"File length"}
+
 
 def main() -> int:
     total_issues = 0
+    total_warnings = 0
     results: list[tuple[str, list[str]]] = []
 
     for name, fn in CHECKS:
         issues = fn()
         results.append((name, issues))
-        total_issues += len(issues)
+        if name in WARN_CHECKS:
+            total_warnings += len(issues)
+        else:
+            total_issues += len(issues)
 
     width = 52
     print("=" * width)
@@ -434,21 +444,34 @@ def main() -> int:
     print("=" * width)
 
     failed = 0
+    warned = 0
     for name, issues in results:
         if issues:
-            failed += 1
-            print(f"\n[FAIL] {name}")
+            if name in WARN_CHECKS:
+                warned += 1
+                print(f"\n[WARN] {name}")
+            else:
+                failed += 1
+                print(f"\n[FAIL] {name}")
             for issue in issues:
                 print(issue)
         else:
             print(f"\n[ OK ] {name}")
 
-    passed = len(CHECKS) - failed
+    passed = len(CHECKS) - failed - warned
     print(f"\n{'=' * width}")
-    if total_issues == 0:
-        print(f"  {passed}/{len(CHECKS)} checks passed — no issues found")
+    if total_issues == 0 and total_warnings == 0:
+        print(f"  {passed}/{len(CHECKS)} checks passed — no issues or warnings found")
+    elif total_issues == 0:
+        print(
+            f"  {passed}/{len(CHECKS)} checks passed, {warned} warning check(s) — "
+            f"{total_warnings} warning(s), no failures"
+        )
     else:
-        print(f"  {passed}/{len(CHECKS)} checks passed — {total_issues} issue(s) found")
+        print(
+            f"  {passed}/{len(CHECKS)} checks passed, {warned} warning check(s) — "
+            f"{total_issues} issue(s), {total_warnings} warning(s)"
+        )
     print("=" * width)
 
     print(

@@ -229,7 +229,7 @@ def _extract_subtitle(body: str) -> str | None:
 # Tree walk
 # ============================================================
 
-_IGNORED_NAMES = {"CLAUDE.md"}
+_IGNORED_NAMES = {"AGENTS.md"}
 
 
 def _sticker_color_for(code: str) -> str:
@@ -240,7 +240,7 @@ def _sticker_color_for(code: str) -> str:
 
 def get_tree() -> WikiTree:
     """Walk ``wiki/``; each subdirectory becomes a folder, root ``*.md``
-    files land in ``root_files``. Hidden dirs + ``CLAUDE.md`` skipped."""
+    files land in ``root_files``. Hidden dirs + ``AGENTS.md`` skipped."""
     root = wiki_dir()
     if not root.exists():
         return WikiTree(root_files=[], folders=[])

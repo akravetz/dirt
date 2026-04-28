@@ -1,6 +1,6 @@
 [Unit]
 Description=Dirt hardware daemon — humidifier, archive, device watchdog, ingest API
-Documentation=file://%h/code/dirt/CLAUDE.md
+Documentation=file://%h/code/dirt/AGENTS.md
 After=default.target network-online.target
 Wants=network-online.target
 # Ordered after the camera daemon — capture loop talks to its socket.

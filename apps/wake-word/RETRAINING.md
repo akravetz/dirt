@@ -1,6 +1,6 @@
 # Wake-Word Retraining Workflow
 
-Read before building a trainer image, kicking off a RunPod training job, or deploying a new model. The numbered chain in `apps/wake-word/CLAUDE.md` is the summary; this file is the actual command sequence with explanation.
+Read before building a trainer image, kicking off a RunPod training job, or deploying a new model. The numbered chain in `apps/wake-word/AGENTS.md` is the summary; this file is the actual command sequence with explanation.
 
 ```bash
 # 1. (Optional, infrequent) refresh data:
@@ -54,4 +54,4 @@ systemctl --user restart dirt-voice
 
 - The container ALWAYS exits 0 (entrypoint catches BaseException, writes FAILURE sentinel, returns). Communicate failure via the sentinel under `out/<run_id>/`, never via exit status.
 - Don't reach for SSH/SCP for moving files between local and the volume. Use the S3-compatible API (`s3api-<dc>.runpod.io/`) — `wakeword-volume-bump`, `wakeword-volume-snapshot`, and `runpod-train`'s artifact pull all use it.
-- See `apps/wake-word/CLAUDE.md` "Critical gotchas" for the full hazards list.
+- See `apps/wake-word/AGENTS.md` "Critical gotchas" for the full hazards list.

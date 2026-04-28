@@ -74,7 +74,7 @@ def build_wiki_tools(*, grow: GrowStateService) -> list[ToolSpec]:
         prompt = (
             f"Today is {today}, week {week} of the grow. "
             "You're in the grow wiki (this directory). Start by reading "
-            "`CLAUDE.md` — it's the wiki's operating manual and has a routing "
+            "`AGENTS.md` — it's the wiki's operating manual and has a routing "
             "table that tells you which file to read for each question shape. "
             "Most questions are answered by one section of `overview.md`; read "
             "there before greping or reading `log.md`.\n\n"

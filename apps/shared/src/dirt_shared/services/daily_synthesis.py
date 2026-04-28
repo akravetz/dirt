@@ -60,7 +60,7 @@ _SYSTEM_PROMPT_APPEND = (
     "You are the dirt daily-report sub-agent. Your job: produce today's "
     "daily entry, propagate updates per the wiki Daily Update Workflow, "
     "and emit a Telegram-ready summary. "
-    "STEP 1: Read `CLAUDE.md` (the operating manual) before doing anything "
+    "STEP 1: Read `AGENTS.md` (the operating manual) before doing anything "
     "else. STEP 2: Follow the Daily Update Workflow there exactly — write "
     "`wiki/daily/<DATE>.md` with photo observations and sensor readings, "
     "update each plant's Timeline + Current State (one-liner each, no "
