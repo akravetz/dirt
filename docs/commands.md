@@ -1,0 +1,85 @@
+# Commands Reference
+
+Every dev/test/lint/firmware/web-ui command an agent typically reaches for. Read before running anything; pull the exact command from here rather than reconstructing it.
+
+## Browser automation
+
+Use the **`agent-browser`** CLI for every agentic browser interaction (navigating, screenshotting, snapshotting the a11y tree, clicking, typing, evaluating JS). Do NOT reach for a Playwright MCP, a raw `playwright` script, or `curl` + HTML parsing when the goal is actually "drive a browser". Run `agent-browser --help` (and `agent-browser skills get core --full`) to get the full command surface on demand.
+
+## Committing
+
+Before `git add` + `git commit`, run **`scripts/agent-fix`**. It applies every formatter and safe lint-fix in one pass (ruff format, ruff check --fix, Biome check --write, ESLint --fix) so the pre-commit hooks don't bounce you back for cosmetic drift.
+
+The pre-commit hooks run in **write-mode** (not check-mode). If a hook still modifies files during the commit, pre-commit aborts with "files were modified by this hook" — the recovery is `git add -A && git commit ...` again, NOT chasing each formatter's `--write` flag separately. If a hook fails for a non-cosmetic reason (test failure, type error, invariant violation), fix the underlying code; never edit the hook config or skip with `--no-verify`.
+
+## Monitoring app (Python services)
+
+The backend runs as two systemd-managed processes: `dirt-hwd` (hardware + ingest, :8000) and `dirt-web` (UI + MCP, :8001). There is no single `main.py`.
+
+- **Service control**: `systemctl --user {start,stop,restart,status} dirt-hwd dirt-web`
+- **Tail logs**: `journalctl --user -u dirt-hwd -f` (or `dirt-web`)
+- **Dev foreground run**: `systemctl --user stop dirt-hwd && uv run --package dirt-hwd python -m dirt_hwd.main` (same pattern for `dirt-web`)
+- **Install systemd units from repo**: `scripts/install-systemd`
+- **Test all**: `uv run pytest -q` (runs invariants + all per-app suites per `testpaths`)
+- **Invariants only**: `uv run pytest apps/tests/invariants/ -q`
+- **One app's tests**: `cd apps/hwd && uv run pytest -q` (or `apps/web`, `apps/shared`, `apps/mcp`)
+- **Single test**: `uv run pytest apps/<app>/tests/test_foo.py::test_name -v`
+- **Lint**: `uv run ruff check`
+- **Format**: `uv run ruff format`
+- **Add dependency**: `uv add --package dirt-<app> <package>` (targets a specific workspace member; dev deps stay at root via `uv add --dev`)
+
+## Firmware
+
+- **Firmware test**: `cd firmware && pio test -e native` (runs on host, no hardware needed)
+- **Firmware build**: `cd firmware && pio run -e nano`
+- **Firmware upload**: `cd firmware && pio run -e nano -t upload`
+
+## Web UI
+
+- **Dev server**: `pnpm --dir web-ui dev` (Vite on :5173, MSW mocks on)
+- **Production build**: `pnpm --dir web-ui build` — writes `web-ui/dist/` which the running `dirt-web` service serves directly (SPA fallback + `/assets/` mount; no restart needed, just reload the browser).
+- **Typecheck / lint / test**: `pnpm --dir web-ui {typecheck,lint,test}`
+
+## Web API auth (when curl-ing dirt-web :8001)
+
+`dirt-web` enforces cookie-session auth on every `/api/*` route except `/api/auth/*`. An unauthenticated `curl http://127.0.0.1:8001/api/...` returns `{"detail":"unauthorized"}`. **Prefer psql for ad-hoc state checks** — the DB has the same data without the auth dance. Only reach for the API when you specifically need an API-shaped response (e.g. reproducing a UI bug).
+
+- **Credentials**: `AUTH_USERNAME` / `AUTH_PASSWORD` in `.env` (defaults `admin` / `changeme`). Loaded into `settings.auth_username` / `settings.auth_password` via Pydantic env mapping in `apps/shared/src/dirt_shared/config.py`.
+- **Login + call pattern (with cookie jar):**
+  ```bash
+  set -a; source .env; set +a
+  COOKIES=$(mktemp)
+  curl -sS -c "$COOKIES" -H 'Content-Type: application/json' \
+    -d "{\"username\":\"$AUTH_USERNAME\",\"password\":\"$AUTH_PASSWORD\"}" \
+    http://127.0.0.1:8001/api/auth/login >/dev/null
+  curl -sS -b "$COOKIES" http://127.0.0.1:8001/api/system/devices | jq .
+  ```
+- **MCP** (`/mcp` mount) uses a separate bearer token (`MCP_BEARER_TOKEN` env / `settings.mcp_bearer_token`), not the session cookie.
+
+## PTZ camera
+
+- **Go to a preset**: `scripts/camera look <overview|plant_a|plant_b|plant_c|plant_d|home>`
+- **Relative move** (user-frame): `scripts/camera nudge left 5` or compound `scripts/camera nudge left=3 up=2`
+- **Zoom**: `scripts/camera zoom +0.2` (relative) or `scripts/camera zoom-to 1.5` (absolute)
+- **Current state**: `scripts/camera where` (adds `--json` for structured output)
+- **Daemon status**: `systemctl --user status dirt-camera` / `journalctl --user -u dirt-camera -f`
+- **Full operational spec**: `wiki/hardware/ptz-camera.md`. Do NOT bypass the CLI by calling the daemon's socket directly or running debug/obsbot_* binaries — the CLI handles user-frame translation, preset lookup, and error reporting.
+
+## Voice channel (Claudia)
+
+- **Service status**: `systemctl --user status dirt-voice` / `journalctl --user -u dirt-voice -f`
+- **Stop / start / restart**: `systemctl --user {stop,start,restart} dirt-voice`
+- **Session transcripts**: `var/sessions/voice/YYYY-MM-DD.jsonl` — append-only, one JSON event per line (`wake`, `conversation_end`, etc.)
+- **Emergency stop (bypass systemd)**: `kill $(cat var/logs/voice.pid)`. PID file is written on startup, unlinked on clean exit. Use over `pkill -f` — pattern matching the voice-channel string will SIGKILL the invoking shell.
+- **Full operational spec**: `wiki/hardware/voice-channel.md` (pipeline, tools, config); `wiki/hardware/jabra.md` (device quirks). Do NOT run `python -m dirt_voice.channels.voice` directly while the service is up — both processes will fight for the Jabra ALSA handle.
+- **Manual foreground run (dev)**: `systemctl --user stop dirt-voice && uv run --package dirt-voice python -m dirt_voice.channels.voice`. Restart the service when done.
+- **Pipecat v1.0 is a major departure from v0.x** — training data will suggest obsolete patterns (`OpenAILLMContext`, `TransportParams(vad_analyzer=...)`, `allow_interruptions=True`). Always read `docs/references/pipecat/INDEX.md` before editing `apps/voice/src/dirt_voice/channels/voice.py`, `_audio_transport.py`, or `apps/voice/src/dirt_voice/tools/`.
+
+## Daily report (automated 14:00 MDT)
+
+- **Manual run**: `scripts/daily_report` (today, skip if marker exists) or `scripts/daily_report --force` (re-run today) or `scripts/daily_report --date 2026-04-19 --force`.
+- **Service / timer status**: `systemctl --user status dirt-daily-report.timer` and `journalctl --user -u dirt-daily-report.service -n 100`.
+- **Marker files**: `var/logs/daily_report/<DATE>.completed` and `var/logs/daily_report/<DATE>.failed`. The `.completed` marker is what makes the next run skip — delete it (or pass `--force`) to re-run.
+- **Synthesis trace**: `var/logs/daily_report/<DATE>.synthesis.json` — full sub-agent tool trace, usage, cost. Produced even on failure.
+- **Failure → Telegram alert**: Phases 1–4 (capture, validate, snapshot, synthesize) all bail-on-fail and post a `<b>⚠ Daily report failed</b>` message to the configured chat. Phase 5 (Telegram delivery) is non-fatal — wiki is the durable record; failed deliveries log to journal only.
+- **Pipeline source**: `apps/shared/src/dirt_shared/services/daily_report.py` (orchestrator), `apps/shared/src/dirt_shared/services/{photos,daily_sensors,daily_synthesis,telegram}.py` (per-phase). Workflow detail in `wiki/CLAUDE.md` (Daily Update Workflow).

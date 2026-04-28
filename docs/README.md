@@ -1,32 +1,37 @@
 # Dirt Documentation
 
-Dirt is a home grow monitoring system with three components:
+Index for the progressive-disclosure docs tree. The root `CLAUDE.md` (or `AGENTS.md` under Codex) points here for everything except the most universal context. Each entry below has a triggering description — read the linked doc *before* doing the listed activity.
 
-1. **Web UI** — Lightweight dashboard showing live webcam feed, temperature/humidity graphs over time
-2. **Backend** — API serving sensor data, webcam captures, and historical readings
-3. **MCP Server** — Claude Desktop integration for querying latest screenshots, sensor history, and grow status
+## Operations
 
-## Documentation Map
+| Doc | Read before |
+|---|---|
+| [commands.md](commands.md) | running anything (dev, test, lint, firmware, web-ui, web-api auth, PTZ, voice, daily report). The exhaustive command surface. |
+| [database.md](database.md) | writing SQL, editing `apps/shared/src/dirt_shared/models/`, or running `atlas migrate`. Schema cheat sheet, query patterns, Atlas workflow, backup/rollback. |
+| [observability.md](observability.md) | calling `log_event()`, debugging across logs, writing tests that touch `var/logs/` or `var/sessions/`, or adding a new log stream. Full stream registry + retention + correlation. |
+
+## Grow context
+
+| Doc | Read before |
+|---|---|
+| [grow-state.md](grow-state.md) | writing code that branches on stage (veg / flower_early / flower_late) or that needs the current germination/flower-flip date. |
+
+## Framework anchors
+
+| Doc | Read before |
+|---|---|
+| [references/INDEX.md](references/INDEX.md) | writing code that touches Pipecat, TanStack Router, Tailwind v4, Govee API, Atlas, MSW v2, Wandb, RunPod, Claude Agent SDK, Deepgram, or modern TS idioms. Each pack has its own deep-dive `INDEX.md` plus topic files. |
+
+## Architecture & process
 
 | Directory | Purpose |
-|-----------|---------|
-| `adrs/` | Architecture Decision Records — why we made key technical choices |
-| `epics/` | Epic and issue tracking — feature planning, tasks, and progress |
-| `progress/` | Feature progress tracking between PRs |
-| `rules/` | Codebase rules and conventions Claude must follow |
+|---|---|
+| [adrs/](adrs/) | Architecture Decision Records ([Nygard format](https://www.cognitect.com/blog/2011/11/15/documenting-architecture-decisions)). Read before proposing alternatives to settled choices. Numbered sequentially, never reused. |
+| [epics/](epics/) | Epic and issue context — major features, scope, in-flight work. Read the relevant epic README before starting work in that area. Issues tracked on the [GitHub project board](https://github.com/users/akravetz/projects/1/views/1) — find issues for an epic with `gh issue list --repo akravetz/dirt --label "epic:<slug>"`. |
+| [progress/](progress/) | Feature progress tracking between PRs. Update after completing work. |
+| [rules/](rules/) | Codebase rules and conventions. Read before making changes in affected areas. |
+| [proposals/](proposals/) | Design proposals not yet promoted to ADRs (or that informed multiple ADRs). |
 
-## ADRs
+## Wiki (the grow knowledge base)
 
-ADRs follow the [Nygard format](https://www.cognitect.com/blog/2011/11/15/documenting-architecture-decisions). Each records a single decision with Context, Decision, and Consequences. Numbered sequentially, never reused. See `adrs/` for the full list.
-
-## Epics
-
-`epics/` organizes work into epics (major features) and issues (individual tasks). Each epic is a directory with a README and an `issues/` subdirectory. See `epics/README.md` for format details and rules for Claude.
-
-## Progress Tracking
-
-`progress/` tracks feature progress between PRs. Lightweight status updates — see `epics/` for the full work breakdown.
-
-## Rules
-
-`rules/` contains codebase-specific conventions and constraints. Claude should read relevant rule files before making changes in affected areas.
+The `wiki/` directory at the repo root is a separate progressive-disclosure tree maintained by the daily-report agent. For any wiki work — ingestion, daily updates, page conventions, linting, query filing, plant labeling — start at [`../wiki/CLAUDE.md`](../wiki/CLAUDE.md).

@@ -1,242 +1,78 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+**Dirt** — home grow monitoring + agent-maintained wiki. Python ≥3.13 (uv workspace, 5 services under `apps/`), Vite/React frontend (`web-ui/`), PostgreSQL 17, ESP32 firmware (`firmware/`).
 
-## Project Overview
-
-**Dirt** — Home grow monitoring and tracking system. Two halves:
-
-1. **Monitoring app** — Webcam live feed, temperature/humidity sensors graphed over time, and an MCP server for Claude Desktop integration. Python >=3.13, managed with `uv`.
-2. **Grow wiki** — Agent-maintained knowledge base tracking 4 plants over time. Raw materials (daily photos, sensor readings, chat notes) are synthesized into a structured, non-duplicated wiki.
-
-- **Repo**: https://github.com/akravetz/dirt
-- **Project Board**: https://github.com/users/akravetz/projects/1/views/1
-
-### Current grow
-
-- **Germination date:** 2026-03-15 (authoritative: `growstate.germination_date` in the Postgres `dirt` database; inspect with `set -a; source .env; set +a; PGPASSWORD=$DIRT_PG_PASSWORD psql -h 127.0.0.1 -U dirt -d dirt`).
-- **Flower start date:** not yet set (still in vegetative stage). Once flower is flipped, `growstate.flower_start_date` becomes the authoritative source.
-- **Deriving stage without the DB:** if `flower_start_date` is NULL (or `today` is before it) → `veg`. If set and `today - flower_start_date < 21` → `flower_early`. If ≥ 21 → `flower_late`. See `apps/shared/src/dirt_shared/services/grow_state.py` for the canonical logic and `STAGE_TARGETS` (temp/RH/VPD bands per stage).
-- **Update this file** whenever the grow is flipped, terminated, or a new grow is started — don't rely on the DB alone, since agents without DB access still need to know the stage.
+> **IMPORTANT — read this first.** Before writing any code or running any
+> command, scan the documentation map below and load the deep-dive doc(s)
+> that match what you're about to do. The triggers tell you *when* each
+> doc is load-bearing. Don't proceed on this index alone.
 
 ## Repository layout
 
-`uv` workspace with five Python packages under `apps/`, each its own package with its own `pyproject.toml` and tests:
+- `apps/{hwd,web,shared,mcp,voice,wake-word}/` — Python services (uv workspace; each has its own `pyproject.toml` + tests). `dirt-hwd` runs on :8000 (production keep-alive — no routine rewrites), `dirt-web` on :8001 (UI + MCP).
+- `apps/tests/invariants/` — **HUMAN-OWNED** architectural rules. Never modify; fix code to satisfy the test instead.
+- `apps/wake-word/` — wake-word retraining infra; data artifacts gitignored under `var/wake-word/`. Read [`apps/wake-word/CLAUDE.md`](apps/wake-word/CLAUDE.md) before touching.
+- `firmware/{fan_controller,reservoir_node,…}/` — ESP32 firmware (PlatformIO).
+- `web-ui/` — Vite + React + TS + TanStack Router/Query + Tailwind v4 + Biome. Dev server :5173.
+- `wiki/` — agent-maintained grow knowledge base. Start at [`wiki/CLAUDE.md`](wiki/CLAUDE.md) for any wiki work.
+- `var/` — runtime data (snapshots, logs, sessions, photos, db-backups, wake-word artifacts). Gitignored. Override root via `DIRT_DATA_DIR`.
+- `contracts/` — OpenAPI spec + generated Pydantic + TS schema.
+- `debug/` — agent sandbox. Write throwaway scripts here; never imported by app code.
+- `docs/` — progressive-disclosure index (next section).
+- `systemd/` — user-level systemd units; `scripts/install-systemd` symlinks them.
 
-- **`apps/hwd/`** — `dirt-hwd` service (port 8000). Serial reader, humidifier loop, archive loop, capture loop, ESP32 ingest endpoint. OFF-LIMITS to routine rewrites — it's the keep-alive daemon running in production.
-- **`apps/web/`** — `dirt-web` service (port 8001). UI + JSON API + MCP mount. Cookie-session auth. Slated for rewrite.
-- **`apps/shared/`** — `dirt-shared`. Models, db, config, observability, non-HW services (capture, photos, telegram, daily_report, daily_sensors, daily_synthesis, readings, snapshots, grow_state).
-- **`apps/mcp/`** — `dirt-mcp`. MCP server (mounted at `/mcp` inside dirt-web).
-- **`apps/voice/`** — `dirt-voice`. Claudia wake-word → Pipecat pipeline → Jabra audio I/O. Reads the deployed wake-word model from `var/wake-word/models/current/`; retraining workflow is at [`apps/wake-word/CLAUDE.md`](apps/wake-word/CLAUDE.md).
-- **`apps/wake-word/`** — model retraining infrastructure for the "hey Claudia" wake word: testable `dirt-wake-word` library + RunPod Docker trainer image + data-gen scripts + validation harness. Code is committed; data artifacts (synthetic clips, captured RIRs, trained `.onnx`/`.tflite`, validation sets, local pipeline staging, periodic mirror of the RunPod Network Volume) live gitignored under `var/wake-word/`. `apps/speaker-verifier/` is a planned sibling. Read [`apps/wake-word/CLAUDE.md`](apps/wake-word/CLAUDE.md) before touching anything here.
-- **`apps/tests/invariants/`** — cross-cutting architectural invariants (HUMAN-OWNED).
-- **`apps/<app>/tests/`** — per-app unit + integration tests.
-- **`contracts/`** — (future) OpenAPI spec + generated TS client + generated Pydantic models.
-- **`web-ui/`** — Vite + React + TypeScript + TanStack Router + TanStack Query + Tailwind v4 + Biome. Skeleton exists with a single placeholder route at `/`. Dev server on :5173 (`pnpm --dir web-ui dev`). Phase 2 generator agents extend this against the frozen API contract.
-- **`var/`** — runtime data: `snapshots/`, `logs/`, `sessions/`, `raw/photos/`, `outputs/`, `db-backups/`, `wake-word/` (training data + trained models for `apps/wake-word/` — see that subsystem's CLAUDE.md), plus the `dirt.db.pre-pg-cutover` sqlite rollback artifact (retained 2 weeks post-cutover, ADR-006). The live DB is Postgres (composition roots construct an engine via `dirt_shared.app_wiring.build_core_services`; no module-level singleton), not a file under `var/`. Gitignored. Override the root via `DIRT_DATA_DIR` env var (defaults to `<repo>/var`).
+## Documentation map
 
-Services are user-level systemd units under `systemd/`; `scripts/install-systemd` symlinks them into `~/.config/systemd/user/`.
+Read the linked doc *before* doing the activity in the trigger column.
 
-## Framework/API References
+### Operations
 
-Knowledge packs live in `docs/references/`. Before writing code that touches any of these concepts, read the linked `INDEX.md` first — the pack anchors to current practice and should override any conflicting training-data instincts.
+| Doc | Read before |
+|---|---|
+| [`docs/commands.md`](docs/commands.md) | running anything (dev/test/lint/firmware/web-ui/PTZ/voice/daily-report/web-api auth) |
+| [`docs/database.md`](docs/database.md) | writing SQL, editing `apps/shared/src/dirt_shared/models/`, running `atlas migrate` |
+| [`docs/observability.md`](docs/observability.md) | calling `log_event()`, debugging across `var/logs/`, adding a new log stream, writing tests that touch shared filesystem |
+| [`docs/grow-state.md`](docs/grow-state.md) | writing code that branches on stage (veg / flower_early / flower_late) or needs current germination/flower-flip date |
 
-- **Deepgram TTS (Aura-2)** — `docs/references/deepgram-tts-aura-2/INDEX.md`. Consult when writing any code that calls Deepgram text-to-speech (REST `POST /v1/speak` or WebSocket `wss://api.deepgram.com/v1/speak`), picking a voice/model id, setting up the voice agent's TTS output, or handling Deepgram auth.
-- **Modern Idiomatic TypeScript** — `docs/references/modern-idiomatic-typescript/INDEX.md`. Consult when writing or refactoring any `.ts`/`.tsx` file, choosing lint/format tooling, or editing `tsconfig.json` — anchors to current practice (`satisfies`, discriminated unions, branded types, Biome) and overrides training-data defaults like `enum`, `namespace`, `any`, and ESLint+Prettier scaffolds.
-- **TanStack Router v1** — `docs/references/tanstack-router-v1/INDEX.md`. Consult when writing or modifying routes in `src/routes/`, using `createFileRoute` / `createRootRoute` / `createRouter`, handling route loaders (`loader`, `beforeLoad`, `loaderDeps`, `staleTime`), or reading/writing URL search params (`validateSearch`, `useSearch`, `<Link search>`, search middlewares) in a TanStack Router v1 app. Overrides training-data instincts to reach for `react-router-dom`, v0 `new Router()` / `new RootRoute()` syntax, `useSearchParams`, or `useEffect`-based data fetching.
-- **Pipecat v1.0** — `docs/references/pipecat/INDEX.md`. Consult when writing code that imports from `pipecat.*`, building a `Pipeline`/`PipelineTask`/`PipelineRunner`, instantiating a Pipecat service (`AnthropicLLMService`, `DeepgramSTTService`, `ElevenLabsTTSService`, etc.), configuring a transport (`LocalAudioTransport`, `DailyTransport`), or wiring a VAD/`SileroVADAnalyzer` into a pipeline. Pipecat v1.0.0 shipped 2026-04-14 with major breaking changes from v0.x — training data will suggest `OpenAILLMContext`, `llm.create_context_aggregator(...)`, `TransportParams(vad_analyzer=...)`, and `allow_interruptions=True`, all of which are gone or relocated in v1.0.
-- **Claude Agent SDK (Python)** — `docs/references/claude-agent-sdk/INDEX.md`. Consult when writing code that imports from `claude_agent_sdk`, calls `query()` or `ClaudeSDKClient`, configures `ClaudeAgentOptions` (cwd, allowed_tools, disallowed_tools, permission_mode, system_prompt, hooks, can_use_tool), or builds a local Claude-Code-style research sub-agent — e.g. any edit to `apps/voice/src/dirt_voice/tools/wiki.py` or a new sub-agent under `apps/voice/src/dirt_voice/tools/`. The package was renamed from `claude-code-sdk` at v0.1.0; training data suggests `ClaudeCodeOptions`, `api_key=...` parameters, and `allowed_tools` as an availability filter — all wrong for current versions.
-- **Tailwind CSS v4** — `docs/references/tailwind-v4/INDEX.md`. Consult when writing or refactoring Tailwind utility classes in `web-ui/src/`, editing `web-ui/src/styles.css` (global `@import "tailwindcss"` + `@theme` directive), wiring `vite.config.ts` for the `@tailwindcss/vite` plugin, porting the Dirt paper/ink/magenta palette and Fraunces / IBM Plex Mono / Inter fonts from `debug/webapp.zip/colors_and_type.css`, adding custom utilities with `@utility`, or overriding dark mode with `@custom-variant`. Tailwind v4 (v4.2.x) is a ground-up rewrite — training data reliably suggests v3 patterns (`tailwind.config.js` with `content:` / `theme.extend`, the three `@tailwind base/components/utilities` directives, `postcss-cli` + `autoprefixer` boilerplate, PurgeCSS, JS plugin API, `resolveConfig()`), all obsolete in v4.
-- **Atlas (ariga/atlas)** — `docs/references/atlas/INDEX.md`. Consult when writing or modifying Atlas HCL schema files, editing `atlas.hcl` config, running `atlas migrate diff` / `atlas migrate apply` / `atlas migrate lint`, configuring the SQLAlchemy external schema loader to derive HCL from SQLModel models in `apps/shared/src/dirt_shared/models/`, or authoring migration files under `migrations/`. Anchors to current Atlas v1.2 practice and overrides training-data instincts toward Alembic, hand-written SQL migrations, or pre-v1 Atlas flag names (`--dev` → `--dev-url`, `atlas migrate validate` → `atlas migrate hash`).
-- **MSW v2** — `docs/references/msw-v2/INDEX.md`. Consult when writing or modifying any code under `web-ui/src/mocks/**`, importing from `msw` / `msw/browser` / `msw/node`, defining a request handler (`http.get`/`post`/`put`/`patch`/`delete`), configuring `setupWorker` or `setupServer`, running `msw init <public-dir>`, or adding a fixture for an FE feature that needs a mocked backend response during parallel BE/FE development. MSW v2 (Oct 2023) was a ground-up rewrite of v1 — training data reliably suggests v1 patterns (`rest.get(...)`, `(req, res, ctx) => res(ctx.json(...))`, `req.url.searchParams`, `ctx.status(...)`, `import { setupWorker } from "msw"` without `/browser`), all of which are wrong for v2.
-- **Weights & Biases (wandb)** — `docs/references/wandb/INDEX.md`. Consult when writing or editing any code that imports `wandb` (in `apps/wake-word/src/dirt_wake_word/` or `apps/wake-word/docker/entrypoint.py`), calls `wandb.init` / `wandb.log` / `wandb.finish` / `wandb.log_artifact` / `wandb.Table` / `wandb.alert`, polls `wandb.Api().run(id).state` from an orchestrator (e.g. `scripts/runpod-train`), sets a `WANDB_*` env var in a Dockerfile / `.env.example` / systemd unit, or designs a sweep config. Anchors to the current SDK (>=0.21.x); training data still suggests `wandb.plots.*` (removed 0.17.0), `wandb.beta.workflows.log_model` (removed 0.24.0), `WANDB_DISABLE_SERVICE=true` (errors in 0.20+), `run.project_name()` and friends (deprecated 0.19.10), and `Table.add_row(...)` (use `add_data`).
-- **RunPod** — `docs/references/runpod/INDEX.md`. Consult when writing code that calls `https://rest.runpod.io/v1/...` or `https://api.runpod.io/graphql`, imports the `runpod` PyPI package, shells out to `runpodctl`, or otherwise orchestrates a one-shot GPU training job on RunPod (the wake-word retraining pipeline is migrating off Kaggle Notebooks onto RunPod Pods). Anchors to the **REST API v1** (launched 2025-03-10) as the canonical surface and overrides training-data instincts toward `runpod.create_pod()` (still GraphQL underneath), the older `api.runpod.io/graphql` endpoint, Serverless-for-batch-training, the `ssh.runpod.io` proxy (which doesn't pass SCP), and stop-instead-of-delete cleanup (which leaks $0.20/GB-month indefinitely).
-- **Govee Public API v2** — `docs/references/govee-api/INDEX.md`. Consult when writing or modifying any code that calls `https://openapi.api.govee.com/router/api/v1/...`, sends a body shaped like `{requestId, payload: {sku, device, capability: {type, instance, value}}}`, sets the `Govee-API-Key` header, or touches the humidifier control loop in `apps/hwd/src/dirt_hwd/services/humidifier.py` after the 2026-04-26 pivot from Raydrop+Kasa to a Wi-Fi-native Govee H7142 (6 L cool-mist ultrasonic; H7140 also on hand as backup). Anchors to Public API v2; training data still mixes the legacy v1 surface (`developer-api.govee.com/v1/devices/control` with `cmd: {name, value}` payload) and gets the auth header name wrong (suggests `X-Govee-API-Key` or `Authorization: Bearer …`, but the actual header is exactly `Govee-API-Key`). Also covers the H71xx humidifier line's discovered capability list (Manual/Custom/Auto work modes, 9 discrete mist levels in Manual on H7142 / 8 on H7140 & H7143, 40–80% RH range in Auto, `lackWaterEvent` for empty-tank), the dual rate-limit ceilings (10K/account/day + ~10 changes/min/device), and the cloud-only constraint (no LAN fallback unlike Kasa — confirmed across the entire H71xx line).
+### Framework anchors (override training-data drift)
 
-## Commands
+`docs/references/<pack>/INDEX.md` for any of these — full trigger + drift-warning text in [`docs/references/INDEX.md`](docs/references/INDEX.md).
 
-### Browser Automation
+| Pack | Read before |
+|---|---|
+| `pipecat/` | importing `pipecat.*`, building Pipeline/PipelineTask, Pipecat services, transports, VAD |
+| `tanstack-router-v1/` | `web-ui/src/routes/`, `createFileRoute`/`createRouter`, route loaders, search params |
+| `tailwind-v4/` | utility classes in `web-ui/src/`, `web-ui/src/styles.css`, vite tailwind config |
+| `govee-api/` | `openapi.api.govee.com/router/api/v1/...`, humidifier loop edits |
+| `atlas/` | Atlas HCL schema, `atlas.hcl`, `atlas migrate diff/apply/lint`, files under `migrations/` |
+| `msw-v2/` | `web-ui/src/mocks/**`, `msw` imports, http handlers, `setupWorker`/`setupServer` |
+| `wandb/` | `wandb` imports in `apps/wake-word/`, `wandb.*` calls, `WANDB_*` env vars, sweep configs |
+| `runpod/` | `rest.runpod.io/v1/...`, `runpod` PyPI package, `runpodctl`, GPU training orchestration |
+| `claude-agent-sdk/` | `claude_agent_sdk` imports, `query()`/`ClaudeSDKClient`, sub-agents under `apps/voice/src/dirt_voice/tools/` |
+| `deepgram-tts-aura-2/` | Deepgram TTS REST/WebSocket calls, voice id, TTS auth |
+| `modern-idiomatic-typescript/` | any `.ts`/`.tsx` authoring, `tsconfig.json`, lint/format tooling choices |
 
-Use the **`agent-browser`** CLI for every agentic browser interaction (navigating, screenshotting, snapshotting the a11y tree, clicking, typing, evaluating JS). Do NOT reach for a Playwright MCP, a raw `playwright` script, or `curl` + HTML parsing when the goal is actually "drive a browser". Run `agent-browser --help` (and `agent-browser skills get core --full`) to get the full command surface on demand.
+### Architecture & process
 
-### Committing (read this once before your first commit)
+- [`docs/README.md`](docs/README.md) — full doc index (front door for the docs/ tree)
+- [`docs/adrs/`](docs/adrs/) — settled decisions; read before proposing alternatives
+- [`docs/epics/`](docs/epics/) — in-flight epic context
+- [`docs/progress/`](docs/progress/) — feature progress between PRs
+- [`docs/rules/`](docs/rules/) — codebase rules and conventions
 
-Before `git add` + `git commit`, run **`scripts/agent-fix`**. It applies every formatter and safe lint-fix in one pass (ruff format, ruff check --fix, Biome check --write, ESLint --fix) so the pre-commit hooks don't bounce you back for cosmetic drift.
+## How agents work here
 
-The pre-commit hooks themselves now run in **write-mode** (not check-mode). If a hook still modifies files during the commit, pre-commit aborts with "files were modified by this hook" — the recovery is `git add -A && git commit ...` again, NOT chasing each formatter's `--write` flag separately. If a hook fails for a non-cosmetic reason (test failure, type error, invariant violation), fix the underlying code; never edit the hook config or skip with `--no-verify`.
+- **Scratch dir**: write throwaway scripts to `debug/`. Don't clutter `apps/` or `scripts/`.
+- **Commits**: run `scripts/agent-fix` before `git add` + `git commit`. Pre-commit hooks are write-mode; if a hook modifies files, re-add and re-commit. Never `--no-verify`. Don't auto-amend.
+- **Tests**: `apps/tests/invariants/` is HUMAN-OWNED — fix your code to pass invariants, never modify them. Per-app tests under `apps/<app>/tests/` are agent-owned. Tests that write to disk must use `tmp_path` and the autouse `isolate_observability_logs` fixture (see [`docs/observability.md`](docs/observability.md)).
+- **Risky actions**: confirm before destructive ops (force push, hard reset, rm of unfamiliar files), shared-state mutations, or anything visible to others (chat sends, PR comments). Auto mode does not override this.
 
-### Monitoring App
+## Help
 
-The backend runs as two systemd-managed processes: `dirt-hwd` (hardware + ingest, :8000) and `dirt-web` (UI + MCP, :8001). There is no single `main.py`.
+- `/help` for Claude Code help.
+- Feedback: https://github.com/anthropics/claude-code/issues
 
-- **Service control**: `systemctl --user {start,stop,restart,status} dirt-hwd dirt-web`
-- **Tail logs**: `journalctl --user -u dirt-hwd -f` (or `dirt-web`)
-- **Dev foreground run**: `systemctl --user stop dirt-hwd && uv run --package dirt-hwd python -m dirt_hwd.main` (same pattern for `dirt-web`)
-- **Install systemd units from repo**: `scripts/install-systemd`
-- **Test all**: `uv run pytest -q` (runs invariants + all per-app suites per `testpaths`)
-- **Invariants only**: `uv run pytest apps/tests/invariants/ -q`
-- **One app's tests**: `cd apps/hwd && uv run pytest -q` (or `apps/web`, `apps/shared`, `apps/mcp`)
-- **Single test**: `uv run pytest apps/<app>/tests/test_foo.py::test_name -v`
-- **Lint**: `uv run ruff check`
-- **Format**: `uv run ruff format`
-- **Add dependency**: `uv add --package dirt-<app> <package>` (targets a specific workspace member; dev deps stay at root via `uv add --dev`)
-- **Firmware test**: `cd firmware && pio test -e native` (runs on host, no hardware needed)
-- **Firmware build**: `cd firmware && pio run -e nano`
-- **Firmware upload**: `cd firmware && pio run -e nano -t upload`
-- **Web UI dev server**: `pnpm --dir web-ui dev` (Vite on :5173, MSW mocks on)
-- **Web UI production build**: `pnpm --dir web-ui build` — writes `web-ui/dist/` which the running `dirt-web` service serves directly (SPA fallback + `/assets/` mount; no restart needed, just reload the browser).
-- **Web UI typecheck / lint / test**: `pnpm --dir web-ui {typecheck,lint,test}`
+## Repo + project board
 
-### Database
-
-- **Live DB**: PostgreSQL 17 at `127.0.0.1:5432`, database `dirt`. Managed as a system service (`systemctl status postgresql`).
-- **Credentials**: `DIRT_PG_{HOST,PORT,USER,PASSWORD,DATABASE}` in `.env`. The app composes `DATABASE_URL=postgresql+asyncpg://...` at startup (see `apps/shared/src/dirt_shared/config.py:_derive_data_paths`).
-- **Connect**: `set -a; source .env; set +a; PGPASSWORD=$DIRT_PG_PASSWORD psql -h 127.0.0.1 -U dirt -d dirt`
-- **Schema cheat sheet** — most-queried tables. Always confirm with `\d <table>` before guessing; this list is a starting point, not a contract:
-  - `sensornode` — one row per `SensorLocation` enum (`tent`, `plant-a/b/c/d`, `reservoir`). Columns: `id, location, ip, firmware_version, uptime_ms, last_seen`. No `name` / `kind` columns — those are display strings constructed in app code (e.g. `device_status` log events).
-  - `sensorreading` — append-only fact table, ~20 rows / 20s. Columns: `id, ts, sensornode_id, metric, value, source`. Location lives on `sensornode` — join via `sensornode_id`. Common `metric` values: `temperature_c`, `temperature_f`, `humidity_pct`, `vpd_kpa`, `dew_point_f`, `fan_duty_pct`, `humidifier_on`, plus per-plant `soil_moisture_pct` etc.
-  - `growstate` — single-row table holding `germination_date`, `flower_start_date`, `lights_on_local`, `lights_off_local`, `timezone`. Source of truth for grow stage (see `apps/shared/src/dirt_shared/services/grow_state.py`).
-  - `plant` — one row per A–D, FK to `sensornode`. `snapshot` — daily-photo metadata.
-- **Common query patterns:**
-  ```sql
-  -- latest reading per metric for a location
-  SELECT sr.ts, sr.metric, sr.value
-  FROM sensorreading sr JOIN sensornode sn ON sn.id = sr.sensornode_id
-  WHERE sn.location = 'tent' AND sr.ts > NOW() - INTERVAL '30 minutes'
-  ORDER BY sr.ts DESC;
-
-  -- node freshness (post-USB-unplug etc.)
-  SELECT location, ip, last_seen, NOW() - last_seen AS staleness
-  FROM sensornode ORDER BY location;
-  ```
-- **Schema changes**: edit SQLModel classes in `apps/shared/src/dirt_shared/models/`, then `atlas migrate diff <name> --env local` (writes plain SQL to `migrations/`) → review the generated file → `atlas migrate apply --env local`. NEVER run DDL from app code — `apps/tests/invariants/test_schema_managed_by_atlas.py` enforces this. Full workflow + HCL reference: `docs/references/atlas/INDEX.md`.
-- **Dev-db for Atlas diffs**: Docker-ephemeral `docker://postgres/17/dev?search_path=public`. Atlas spins a short-lived container per `migrate diff` — blast radius cannot reach prod.
-- **Backups**: manual for now (`pg_dump dirt > var/db-backups/dirt-$(date +%F).sql`). Automation deferred per `docs/proposals/pg-cutover-plan.md` §6 non-scope.
-- **Rollback artifact**: pre-cutover sqlite preserved at `var/dirt.db.pre-pg-cutover` through ~2026-05-03; restore procedure in [ADR-006](docs/adrs/006-postgres-and-atlas.md).
-- **Why Postgres + Atlas**: [ADR-006](docs/adrs/006-postgres-and-atlas.md).
-
-### Web API auth (when curl-ing `dirt-web` :8001)
-
-`dirt-web` enforces cookie-session auth on every `/api/*` route except `/api/auth/*`. An unauthenticated `curl http://127.0.0.1:8001/api/...` returns `{"detail":"unauthorized"}`. **Prefer psql for ad-hoc state checks** — the DB has the same data without the auth dance. Only reach for the API when you specifically need an API-shaped response (e.g. reproducing a UI bug).
-
-- **Credentials**: `AUTH_USERNAME` / `AUTH_PASSWORD` in `.env` (defaults `admin` / `changeme`). Loaded into `settings.auth_username` / `settings.auth_password` via Pydantic env mapping in `apps/shared/src/dirt_shared/config.py`.
-- **Login + call pattern (with cookie jar):**
-  ```bash
-  set -a; source .env; set +a
-  COOKIES=$(mktemp)
-  curl -sS -c "$COOKIES" -H 'Content-Type: application/json' \
-    -d "{\"username\":\"$AUTH_USERNAME\",\"password\":\"$AUTH_PASSWORD\"}" \
-    http://127.0.0.1:8001/api/auth/login >/dev/null
-  curl -sS -b "$COOKIES" http://127.0.0.1:8001/api/system/devices | jq .
-  ```
-- **MCP** (`/mcp` mount) uses a separate bearer token (`MCP_BEARER_TOKEN` env / `settings.mcp_bearer_token`), not the session cookie.
-
-### PTZ Camera
-
-- **Go to a preset**: `scripts/camera look <overview|plant_a|plant_b|plant_c|plant_d|home>`
-- **Relative move** (user-frame): `scripts/camera nudge left 5` or compound `scripts/camera nudge left=3 up=2`
-- **Zoom**: `scripts/camera zoom +0.2` (relative) or `scripts/camera zoom-to 1.5` (absolute)
-- **Current state**: `scripts/camera where` (adds `--json` for structured output)
-- **Daemon status**: `systemctl --user status dirt-camera` / `journalctl --user -u dirt-camera -f`
-- **Full operational spec**: `wiki/hardware/ptz-camera.md`. Do NOT bypass the CLI by calling the daemon's socket directly or running debug/obsbot_* binaries — the CLI handles user-frame translation, preset lookup, and error reporting.
-
-### Voice Channel (Claudia)
-
-- **Service status**: `systemctl --user status dirt-voice` / `journalctl --user -u dirt-voice -f`
-- **Stop / start / restart**: `systemctl --user {stop,start,restart} dirt-voice`
-- **Session transcripts**: `var/sessions/voice/YYYY-MM-DD.jsonl` — append-only, one JSON event per line (`wake`, `conversation_end`, etc.)
-- **Emergency stop (bypass systemd)**: `kill $(cat var/logs/voice.pid)`. PID file is written on startup, unlinked on clean exit. Use over `pkill -f` — pattern matching the voice-channel string will SIGKILL the invoking shell.
-- **Full operational spec**: `wiki/hardware/voice-channel.md` (pipeline, tools, config); `wiki/hardware/jabra.md` (device quirks). Do NOT run `python -m dirt_voice.channels.voice` directly while the service is up — both processes will fight for the Jabra ALSA handle.
-- **Manual foreground run (dev)**: `systemctl --user stop dirt-voice && uv run --package dirt-voice python -m dirt_voice.channels.voice`. Restart the service when done.
-- **Pipecat v1.0 is a major departure from v0.x** — training data will suggest obsolete patterns (`OpenAILLMContext`, `TransportParams(vad_analyzer=...)`, `allow_interruptions=True`). Always read `docs/references/pipecat/INDEX.md` before editing `apps/voice/src/dirt_voice/channels/voice.py`, `_audio_transport.py`, or `apps/voice/src/dirt_voice/tools/`.
-
-### Daily Report (automated 14:00 MDT)
-
-- **Manual run**: `scripts/daily_report` (today, skip if marker exists) or `scripts/daily_report --force` (re-run today) or `scripts/daily_report --date 2026-04-19 --force`.
-- **Service / timer status**: `systemctl --user status dirt-daily-report.timer` and `journalctl --user -u dirt-daily-report.service -n 100`.
-- **Marker files**: `var/logs/daily_report/<DATE>.completed` and `var/logs/daily_report/<DATE>.failed`. The `.completed` marker is what makes the next run skip — delete it (or pass `--force`) to re-run.
-- **Synthesis trace**: `var/logs/daily_report/<DATE>.synthesis.json` — full sub-agent tool trace, usage, cost. Produced even on failure.
-- **Failure → Telegram alert**: Phases 1–4 (capture, validate, snapshot, synthesize) all bail-on-fail and post a `<b>⚠ Daily report failed</b>` message to the configured chat. Phase 5 (Telegram delivery) is non-fatal — wiki is the durable record; failed deliveries log to journal only.
-- **Pipeline source**: `apps/shared/src/dirt_shared/services/daily_report.py` (orchestrator), `apps/shared/src/dirt_shared/services/{photos,daily_sensors,daily_synthesis,telegram}.py` (per-phase). Workflow detail in `wiki/CLAUDE.md` (Daily Update Workflow).
-
-## Documentation (Progressive Disclosure)
-
-This file is the discovery layer. Read deeper docs before starting work in an area.
-
-- **`docs/README.md`** — Full project description, documentation map
-- **`docs/adrs/`** — Architecture Decision Records. Read before proposing alternatives to settled choices.
-- **`docs/epics/`** — Epic context and scope. Read the relevant epic README before starting work. Issues are tracked on the [GitHub project board](https://github.com/users/akravetz/projects/1/views/1) — find issues for an epic with `gh issue list --repo akravetz/dirt --label "epic:<slug>"`.
-- **`docs/progress/`** — Feature progress tracking between PRs. Update after completing work.
-- **`docs/rules/`** — Codebase rules and conventions. Read before making changes.
-- **`docs/references/`** — Version-pinned reference packs. See the "Framework/API References" section at the top of this file for the list and triggers.
-
-## Test Ownership
-
-- **`apps/tests/invariants/`** — HUMAN-OWNED. You MUST NOT modify these files. They encode sacred architectural rules: cross-app import boundaries, auth boundary on the web app, hwd route allowlist. If an invariant fails, fix your code to satisfy the test — never modify the test. Flag invariant failures to the user.
-- **`apps/<app>/tests/`** — Agent-owned. Per-app unit + integration tests. Create and update freely.
-- **`conftest.py`** (repo root) — autouse fixture that isolates observability logs to a per-test `tmp_path / "logs"`. Applies to every test under any app.
-
-## Scratch / Sandbox
-
-- **`debug/`** — Agent sandbox. Write scratch scripts here freely when you need to probe an API, exercise a library, capture a throwaway artifact, or test hardware interaction before wiring it into the real app. Nothing in this directory is production code, imported by the app, or covered by tests. Use it instead of cluttering `src/` or `scripts/` with one-off experiments.
-
-## Observability
-
-Logs are first-class diagnostic artifacts. Two families with different contracts:
-
-### `sessions/<channel>/YYYY-MM-DD.jsonl` — conversation records (long-lived)
-
-What the user and agent said. Append-only, agent-readable. Kept indefinitely (ops cleanup only). One JSON object per line with channel-specific fields. Streams:
-- `var/sessions/voice/` — voice channel turns (wake, conversation_end). See `wiki/hardware/voice-channel.md`.
-- `var/sessions/telegram/` — telegram channel turns (future).
-
-### `logs/<stream>/YYYY-MM-DD.jsonl` — operational instrumentation (short-lived)
-
-Structured JSONL for debugging. Rotated by filename date on first write of the day. All events share one envelope: `{ts, conversation_id, stream, event, ...fields}`.
-
-| Stream | What it records | Retention | Source |
-|---|---|---|---|
-| `wake_scores` | Every wake-model score ≥ `WAKE_NEAR_MISS_FLOOR` (`near_miss`) and every threshold-crossing wake (`wake_detected`). | 1 day | `apps/voice/src/dirt_voice/channels/voice.py:wait_for_wake` |
-| `audio_rms` | Input amplitude (int16 RMS) at ~1 Hz during pipecat conversations. Only fires while a conversation is active; silent otherwise. | 1 day | `apps/voice/src/dirt_voice/channels/_audio_transport.py:SoundDeviceInputTransport` |
-| `audio_playback` | Per-assistant-turn duration metric: `tts_stream_duration_s` (pipecat's "bot done speaking" time) vs `playback_duration_s` (speaker actually finished), and `excess_buffer_s` gap. Detects ring-buffer decoupling anomalies. | 1 day | `apps/voice/src/dirt_voice/channels/_audio_transport.py:SoundDeviceOutputTransport` |
-| `pipecat_frames` | Every non-raw-data frame pushed through the pipeline — turn lifecycle (`BotSpeakingFrame`, `UserStartedSpeakingFrame`, …), STT/LLM/TTS signals (`TranscriptionFrame`, `TTSStoppedFrame`, `LLMRunFrame`, …), interruptions, errors. Denylist excludes `AudioRawFrame`, `ImageRawFrame`, `HeartbeatFrame`. | 1 day | `apps/voice/src/dirt_voice/channels/_observers.py:FrameFlowObserver` |
-| `subagent_calls` | Full Claude Agent SDK trace per `ask_wiki` invocation — question, every tool_use/tool_result, final answer, usage, cost, duration. | 10 days | `apps/voice/src/dirt_voice/tools/wiki.py:_ask_wiki` |
-| `humidifier` | Govee H7142 actuator transitions + watchdog events. `state_change` (power on/off; carries `power`, `level: 1..9 \| null`, `u_pct`, `reason` ∈ {`pi_active`, `failsafe_stale_sensor`, `outside_lights_window`, `rh_ceiling`}, VPD/RH/stage/band/lights context, `bucket_width_pct`); `level_change` (level transitions while on; `from_level`, `to_level`, `u_pct`); `lack_water` / `lack_water_cleared` (rising/falling edge of the H7142's `lackWaterEvent` empty-tank alarm; rising edge fires one Telegram per refill cycle); `device_offline` / `device_online` (Govee cloud reachability flips); `skip_offline` (per-tick when device is unreachable; PI ran but no actuation); `suspected_ineffective` (commanded mist for ≥`humidifier_ineffective_alert_after_s` with VPD drop <`humidifier_ineffective_min_vpd_drop_kpa` — atomization fouling / firmware glitch / mist-not-reaching-canopy); `rate_limited` (HTTP/code 429 from Govee; quiet — next tick retries); `error` (any other exception in the tick body). Loop targets the stage's VPD upper edge and forces off outside the allowed lights window (`lights_on − margin` through `lights_off − margin`) — see `wiki/hardware/humidifier-control.md`. | 30 days | `apps/hwd/src/dirt_hwd/services/humidifier.py:HumidifierLoopService.run` |
-| `humidifier_shadow` | Per-tick raw PI output, decoupled from dispatch quantization for diagnosability. One `tick` event per ~30 s loop iteration with `u_pct` (commanded intensity 0–100), `plug_on_shadow`, `setpoint_kpa`, `error_kpa`, `p_term`, `i_term`, `integrator`, `reason` (`pi_active` / `failsafe_stale_sensor` / `outside_lights_window` / `rh_ceiling`), plus inputs (vpd, vpd_age_s, rh, stage, band edges, lights state) and active gains (kc, ki, threshold). Pair with `humidifier` stream to see how `u_pct` quantizes into discrete H7142 levels. Analyzer + replay harness at `debug/humidifier-shadow/analyze.py`. | 14 days | `apps/hwd/src/dirt_hwd/services/humidifier.py:HumidifierLoopService.run` (calls `apps/hwd/src/dirt_hwd/services/humidifier_pi.py:compute`) |
-| `lights` | State transitions of the Kasa plug driving the grow lights. One `state_change` event per on/off change with `reason` (`scheduled_on` / `scheduled_off`) and `minutes_until_off` / `minutes_until_on`. Also emits `error` events on loop exceptions. Schedule comes from `growstate.lights_on_local` / `growstate.lights_off_local`, interpreted in `growstate.timezone`. | 30 days | `apps/hwd/src/dirt_hwd/services/lights.py:LightsLoopService.run` |
-| `daily_report` | Per-phase markers for the daily report run (`run_started`, `capture_finished`, `validate_finished`, `snapshot_finished`, `synthesis_finished`, `deliver_finished`, `run_completed`, `run_failed`, `deliver_failed`). | 30 days | `apps/shared/src/dirt_shared/services/daily_report.py` |
-| `device_status` | Offline/online transitions from the device watchdog. One `state_change` event per cross of the `offline` boundary in either direction (`name`, `kind`, `old`, `new`, `last_seen`). Cold-start seeds silently from `var/logs/device_watchdog/state.json` so a systemd restart doesn't replay every already-offline device. Also emits `error` events on loop exceptions. | 30 days | `apps/hwd/src/dirt_hwd/services/device_watchdog.py:DeviceWatchdogService.run` |
-| `metric_freshness` | Per-(location, metric) dropout transitions. One `state_change` event per fresh↔stale flip for a metric declared in `dirt_shared.sensor_contract.PERSISTED_METRICS` (`location`, `metric`, `old`, `new`, `last_seen`). Gated on `sensornode.last_seen` so whole-node outages (handled by `device_status`) don't fan out into N metric alerts. Cold-start seeds from `var/logs/metric_freshness/state.json` to suppress first-seen replays. Also emits `error` events on loop exceptions. | 30 days | `apps/hwd/src/dirt_hwd/services/metric_freshness.py:MetricFreshnessService.run` |
-
-### Adding a new log stream
-
-Call `log_event(stream, event, **fields)` from `dirt_shared.observability`. It handles path, rotation, timestamp, and correlation ID. Register non-default retention in `_RETENTION` in `apps/shared/src/dirt_shared/observability.py`. That's the whole API — don't invent per-stream helpers.
-
-### Test isolation
-
-`logs_dir()` reads the `DIRT_LOGS_DIR` env var on every write. The autouse fixture in `conftest.py` at the repo root (`isolate_observability_logs`) sets it to a per-test `tmp_path / "logs"` so no test ever appends to the production log tree. Production code paths leave `DIRT_LOGS_DIR` unset and fall back to `settings.data_dir / "logs"` — which resolves to `var/logs/` by default (override the root via `DIRT_DATA_DIR`). Apply this pattern (env-var-based isolation + autouse fixture) when adding new modules that write to disk under `var/logs/`, `var/sessions/`, or similar shared locations.
-
-### Correlation across streams
-
-Every entry stamped with `conversation_id` (UUID generated per voice wake). To reconstruct a single user interaction:
-
-```bash
-CID=f1918a9c-1545-4033-beaa-9adc4f5b3dbf
-jq -c "select(.conversation_id==\"$CID\")" \
-  var/sessions/voice/*.jsonl var/logs/*/*.jsonl 2>/dev/null
-```
-
-### Free-text operational logs
-
-Loguru output (voice service) goes to stderr → systemd journal:
-
-```bash
-journalctl --user -u dirt-voice -f           # live tail
-journalctl --user -u dirt-voice --since "1 hour ago"
-```
-
-Retention is governed by systemd's journal config, not us. Use this for free-text tailing during a live incident; use the `logs/*/` JSONL streams for programmatic / agent-readable analysis.
-
-## Grow Wiki
-
-Agent-maintained knowledge base at `wiki/`. For ANY work touching the wiki — ingestion, daily updates, page conventions, linting, query filing, plant labeling, or routing a question to the right file — **start at [`wiki/CLAUDE.md`](wiki/CLAUDE.md)**. That file is the full operating manual (data architecture across `var/sessions/`/`var/raw/`/`wiki/`/`var/outputs/`, wiki-specific commands, page conventions, workflows, linting, plant labeling A-D). The `ask_wiki` sub-agent (`apps/voice/src/dirt_voice/tools/wiki.py`) also reads it as its first step.
+- Repo: https://github.com/akravetz/dirt
+- Project board: https://github.com/users/akravetz/projects/1/views/1
