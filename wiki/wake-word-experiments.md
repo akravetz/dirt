@@ -1213,3 +1213,68 @@ Deployed at 20:53 MDT. Harvest mode drop-in still active so we keep collecting n
   1. The promotion script initially copied to slots 057-082 without checking that 057-070 already had original realmic-pos files. Fixed by pulling the 14 originals back from the volume's S3 mirror and re-promoting at slots 071-096.
   2. The new `_stage-mine` rebuild lost the 30 v21 harvest-negs at first (they only ever lived in `_stage-mine/negatives/`, not in `var/wake-word/neighbors/`). Fixed by pulling them back from the volume.
 - `capture-realmic.py` VAD-segmented 27 utterances from a 131-second noisy capture cleanly. silero-vad correctly avoided cutting on quiet musical moments, which the RMS-silence segmenter would have done.
+
+### v24 — 2026-04-28
+
+**Status:** trained, validated (**not deployed** — v23 keeps the better held-out recall)
+**Model artifact:** `var/wake-word/models/2026-04-27-210739-ckpa3c4bugokqa/hey_claudia.onnx`
+**Trainer commit:** `111e512` (mix realmic-neg into bg-noise pool + lower WAKE_THRESHOLD to 0.5)
+**W&B run:** [`zzo1wwi9`](https://wandb.ai/adkravetz/dirt-wake-word/runs/zzo1wwi9) (group `exp9-bg-enrich-v24-20260427-210738`)
+**Pod:** `ckpa3c4bugokqa`, RTX 4090
+**Wall:** 28m05s (TTS cache HIT, augment cache **MISS** — schema bumped to v2 + `extra_bg_files` field added → new key)
+
+#### What changed (vs v23)
+- **Realmic-neg captures (48 files: 18 hand-recorded + 30 v21 harvest) added to the AddBackgroundNoise pool for synth augmentation.** Mixed with `extra_bg_dup=20` so they're ~62 % of the bg-noise samples drawn during synth augmentation. Synth phonetic neighbors are excluded (they're speech and would push the model toward firing on speech).
+- **Production threshold `WAKE_THRESHOLD = 0.6 → 0.5`** in `apps/voice/src/dirt_voice/channels/voice.py:95`. Trades 3 FPs/76 lab for ~11 pp recall gain.
+- **Cache schema bumped to v2** so v23's stored cache wouldn't be reused.
+
+#### Why
+Held-out real-mic recall has been the persistent ceiling. The hypothesis: the 2000 ElevenLabs synth clones get `AddBackgroundNoise` from generic AudioSet/FMA — generic music/sound effects nothing like our actual deployment-room ambient. Mixing in real captures from the room should push synth clips closer to the inference distribution, helping the model generalize to real-mic better.
+
+#### Results — original 28/76 set
+
+| Threshold | Recall | Precision | F1 | False positives |
+|---:|---:|---:|---:|---:|
+| 0.30 | 67.9 % | 90.5 % | **0.776** | 2/76 |
+| 0.40 | 64.3 % | 90.0 % | 0.750 | 2/76 |
+| 0.50 | 57.1 % | **100.0 %** | 0.727 | **0/76** |
+| 0.60 | 53.6 % | 100.0 % | 0.698 | 0/76 |
+| 0.70 | 39.3 % | 100.0 % | 0.564 | 0/76 |
+
+#### Results — held-out 38
+
+| Model | Recall@0.5 |
+|---|---:|
+| v17 | 36.8 % (14/38) |
+| v20 | 34.2 % (13/38) |
+| v21 (split + negs) | 44.7 % (17/38) |
+| v22 (negs only) | 28.9 % (11/38) |
+| v23 (deployed) | **42.1 %** (16/38) |
+| **v24** | 36.8 % (14/38) |
+
+#### Comparison @ 0.5 threshold
+
+| Model | Lab R/P/F1 | Held-out 38 | FPs (lab 76) |
+|---|---|---:|---:|
+| v23 (deployed) | 53.6 % / 83.3 % / 0.652 | **42.1 %** (16/38) | 3 |
+| v24 | 57.1 % / **100 %** / 0.727 | 36.8 % (14/38) | **0** |
+
+#### Hypothesis didn't pan out
+v24 essentially reverted to v17-like behavior on both metrics — bg-noise enrichment did *not* push held-out recall up. Three possible explanations, in order of likelihood:
+
+1. **Variance.** Same-config retrains have ~20 % F1 spread (v17/v18 evidence). v23's 42.1 % was a high-tail draw and v24 reverted to the mean (~36-37 %). Most likely explanation given the magnitude.
+2. **Over-weighted bg pool.** `extra_bg_dup=20` made realmic-neg ~62 % of the bg-noise samples, crowding out generic AudioSet/FMA. The model may have over-fit to deployment-room ambient and lost some generalization the generic bg corpus was providing. Could test with `extra_bg_dup=3-5` (~20 % representation).
+3. **Wrong target.** Bg-noise mixing helps the model learn "wake-word + ambient" but the limiting factor on held-out may be acoustic *positives* (speaker variation, mic distance, room shape). In which case more realmic-pos > more bg-noise enrichment.
+
+#### Decision
+Don't deploy v24. v23 with `WAKE_THRESHOLD=0.5` keeps the better held-out recall. Lab precision drop at 0.5 (3 FPs/76 vs v24's 0/76) is a real cost but small in absolute terms — the 76-bad set is in-the-wild captures we don't see often.
+
+#### What to try next (in priority order)
+- **More realmic-pos.** 50-100 more clips in unseen acoustic conditions (bathroom / hallway / bedroom / across-room / quiet voice). Direct attack on the held-out ceiling. Effort: ~30-45 min capture session per condition.
+- **Variance bracket.** Run 2-3 retrains at v23 config (no code changes) to measure how much of the v17→v23 progression is real. Free except for compute.
+- **Tune `extra_bg_dup`.** Try ×5 instead of ×20 in case v24's reversion was bg-pool over-weighting.
+
+#### Operational notes
+- Cache schema bump (`_CACHE_SCHEMA_VERSION = 2`) cleanly invalidated v23's cache. New v24 cache landed under a fresh key.
+- Wall dropped from v23's 33m to v24's 28m despite the augment cache MISS — augment recompute time has been steadily decreasing as we tune ncpu and cache layout.
+- Threshold `0.5` change in production is independent of v24 — it's tied to the deployed v23 model right now.
