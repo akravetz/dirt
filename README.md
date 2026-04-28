@@ -26,9 +26,9 @@ To add/remove a language, edit the `langs` list in the workflow.
 
 ## Docs
 
-- [`CLAUDE.md`](CLAUDE.md) — operating manual for agents (commands, invariants, observability)
+- [`AGENTS.md`](AGENTS.md) — operating manual for agents (commands, invariants, observability)
 - [`docs/README.md`](docs/README.md) — full documentation map, ADRs, epics, references
-- [`wiki/CLAUDE.md`](wiki/CLAUDE.md) — wiki conventions and daily update workflow
+- [`wiki/AGENTS.md`](wiki/AGENTS.md) — wiki conventions and daily update workflow
 
 ## Project
 

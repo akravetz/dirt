@@ -15,12 +15,8 @@ __pycache__/
 # Playwright MCP
 .playwright-mcp/
 
-# Screenshots (temp). Phase-2 evaluator reference screenshots under
-# docs/plans/refs/ are committed — they're the visual acceptance
-# anchors for the rewrite, regenerated from debug/offline.html via
-# agent-browser. Keep this carve-out scoped to that directory only.
+# Screenshots (temp).
 *.png
-!docs/plans/refs/*.png
 
 # Firmware build artifacts
 firmware/.pio/
@@ -36,7 +32,7 @@ firmware/*/*/secrets.h
 dist/
 *.egg-info/
 
-# Scratch / sandbox (see CLAUDE.md)
+# Scratch / sandbox (see AGENTS.md)
 debug/
 
 # macOS Finder metadata
@@ -45,4 +41,4 @@ debug/
 # Runtime data directory: dirt.db, snapshots/, archives/, logs/, sessions/,
 # raw/photos/, outputs/, db-backups/. Set DIRT_DATA_DIR to override.
 var/
-.claude/worktrees/
+.agents/worktrees/
