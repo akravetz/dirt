@@ -66,7 +66,9 @@ REAL_AUDIO = {**dict.fromkeys(DEFAULTS, 0.0), "Gain": 1.0}
 
 # Bump this if the cache layout/contract changes (e.g. new .npy file
 # added, or augment_clips behavior changes upstream).
-_CACHE_SCHEMA_VERSION = 1
+# v2: extra_background_files (realmic-neg captures) now mixed into bg-noise
+# pool for synth augmentation — features differ from v23's stored cache.
+_CACHE_SCHEMA_VERSION = 2
 _CACHE_ROOT = INPUT_ROOT / "dirt-wakeword-features-cache"
 
 
@@ -130,6 +132,7 @@ def _cache_inputs(*, total_length: int, config: dict) -> dict | None:
         },
         "augmentation_synth": DEFAULTS,
         "augmentation_real": REAL_AUDIO,
+        "extra_bg_files": len(config.get("extra_background_files") or []),
         "rounds": config.get("augmentation_rounds"),
         "batch_size": config.get("augmentation_batch_size"),
         "total_length": total_length,
@@ -225,6 +228,13 @@ def augment_and_compute_features(*, work_dir: Path, out_dir: Path) -> None:
     bg_paths: list[str] = []
     for path, rate in zip(config["background_paths"], bg_dup, strict=False):
         bg_paths.extend([i.path for i in os.scandir(path)] * rate)
+    # Deployment-room captures from build_config — duplicate enough that they
+    # actually compete with the much-larger AudioSet/FMA pool when sampled.
+    # Without dup, ~50 realmic-neg vs ~600 generic bg ≈ 8 % representation;
+    # ×20 dup → ~62 % representation, biasing AddBackgroundNoise toward
+    # in-room ambient.
+    extra_bg_dup = 20
+    bg_paths.extend(config.get("extra_background_files", []) * extra_bg_dup)
     rir_paths = [i.path for j in config["rir_paths"] for i in os.scandir(j)]
 
     rounds = config["augmentation_rounds"]
