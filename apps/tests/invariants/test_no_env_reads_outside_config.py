@@ -56,7 +56,7 @@ ALLOWED: frozenset[str] = frozenset(
         "shared/src/dirt_shared/config.py",
         # observability.py: reads DIRT_LOGS_DIR on every write so the pytest
         # isolate_observability_logs autouse fixture can redirect writes
-        # per-test. Documented in CLAUDE.md (Observability / Test isolation)
+        # per-test. Documented in docs/observability.md ("Test isolation")
         # and again in the module docstring.
         "shared/src/dirt_shared/observability.py",
         # services/capture.py + services/system_status.py: discover the PTZ

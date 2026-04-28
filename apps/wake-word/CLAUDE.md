@@ -1,7 +1,6 @@
 # apps/wake-word/ — operating manual
 
-Wake-word retraining pipeline for the `dirt-voice` channel ("hey Claudia").
-Read this before touching any wake-word code, data, or model deployment.
+Wake-word retraining pipeline for the `dirt-voice` channel ("hey Claudia"). Read this before touching any wake-word code, data, or model deployment.
 
 > **First stop for "what models exist and how did they perform":**
 > [`wiki/wake-word-experiments.md`](../../wiki/wake-word-experiments.md) — the
@@ -52,55 +51,11 @@ Read this before touching any wake-word code, data, or model deployment.
 | `scripts/validate-wake-model.py` | Score a model against the real-audio validation set. Recall/precision per threshold. |
 | `scripts/runpod-seed-volume` | **Legacy** — one-time bootstrap fill from Kaggle. Kept for disaster-recovery from the local `_volume-mirror/`; no longer the routine path. |
 
-## Retraining workflow
+## Retraining — summary chain
 
-```bash
-# 1. (Optional, infrequent) refresh data:
-uv run python apps/wake-word/data-gen/elevenlabs-clones-batch.py
-uv run python apps/wake-word/data-gen/elevenlabs-neighbors-batch.py
-# RIR capture is two-machine — see capture-rir-record.py docstring.
+`data-gen → volume-bump → build-image → runpod-train → validate → log experiment → deploy`
 
-# 2. (One-time per dataset bump) push fresh data into the Network Volume:
-scripts/wakeword-volume-bump dirt-wakeword-mine ./staged/mine \
-    --notes "added 200 realmic positives from <session>"
-# Direct S3 upload to the volume; recomputes content hash; rewrites
-# MANIFEST.json. The volume IS the source of truth — content_hash is
-# what shows up in the next run's wandb.config + run-manifest.json.
-
-# 3. Build + push trainer image (only if Dockerfile or src/ changed):
-scripts/runpod-build-image
-# Builds linux/amd64, smoke-tests, pushes to ghcr.io/<owner>/dirt-wake-word-trainer.
-
-# 4. Trigger a training run:
-scripts/runpod-train
-# POST training pod → poll API for desiredStatus=EXITED → S3-download
-# out/<pod_id>/ → DELETE pod. Artifacts land at
-# var/wake-word/models/<date>-<pod_id>/. ~30-60 min on a 4090, ~$0.40-0.70.
-
-# 5. Validate the new model offline:
-uv run python scripts/validate-wake-model.py \
-    var/wake-word/models/<datestamp>/hey_claudia.onnx
-# Compare recall/precision against var/wake-word/models/current/.
-
-# 6. (Optional) live-test through the Jabra:
-systemctl --user stop dirt-voice
-uv run python apps/wake-word/validation/live-test.py \
-    var/wake-word/models/<datestamp>/hey_claudia.onnx
-# (speak; Ctrl-C; restart service)
-
-# 7. **REQUIRED — log the experiment.** Append a new entry to
-#    `wiki/wake-word-experiments.md` for EVERY trained model, deployed or not.
-#    Use the most recent entry as a template (vN, status, commit, image digest,
-#    W&B run, pod id, wall, what changed, training data, training config,
-#    validation results table, per-phase wall, operational notes). If you
-#    deploy, also flip the previous deployed entry's `**Status:**` to `superseded`.
-#    Skipping this step means the next agent has to dig through git/W&B/S3 to
-#    reconstruct what was run and why — don't make them.
-
-# 8. Deploy if validation looks good:
-ln -sfn <datestamp>-runpod var/wake-word/models/current
-systemctl --user restart dirt-voice
-```
+Full command sequence with explanation: [`RETRAINING.md`](RETRAINING.md). Read that file before kicking off a training run.
 
 ## Critical gotchas
 
@@ -116,11 +71,11 @@ systemctl --user restart dirt-voice
 
 When you grow the validation set: place real utterances in `good/`, hand-curated false-positives (typically pulled from `var/logs/wake_audio/` after listening) in `bad/`. Then run `scripts/wakeword-volume-bump dirt-wakeword-validation <staged-dir>` to push it to the volume — future runs will see the larger set and the new content hash will be recorded in their `run-manifest.json`.
 
-## Where to look for context
+## Where to look for further context
 
-- **Migration off Kaggle:** `wiki/decisions/2026-04-25-runpod-migration.md`.
-- **What's currently deployed and why:** `wiki/decisions/2026-04-23-wake-word-v5-passive-harvest.md`.
+- **Migration off Kaggle:** `wiki/decisions/2026-04-25-runpod-migration.md`
+- **What's currently deployed and why:** `wiki/decisions/2026-04-23-wake-word-v5-passive-harvest.md`
 - **The runtime side:** `apps/voice/src/dirt_voice/channels/voice.py` reads `var/wake-word/models/current/hey_claudia.onnx`. `wiki/hardware/voice-channel.md` is the production operating manual.
-- **Wake-word concept primer:** `wiki/concepts/wake-word-detection.md`.
-- **RIR-capture method:** `wiki/concepts/room-impulse-response.md`.
-- **The "what's the model doing" diagnostic:** `validation/live-test.py` (interactive) + `scripts/validate-wake-model.py` (batch).
+- **Wake-word concept primer:** `wiki/concepts/wake-word-detection.md`
+- **RIR-capture method:** `wiki/concepts/room-impulse-response.md`
+- **The "what's the model doing" diagnostic:** `validation/live-test.py` (interactive) + `scripts/validate-wake-model.py` (batch)

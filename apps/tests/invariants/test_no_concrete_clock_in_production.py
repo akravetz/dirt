@@ -78,8 +78,9 @@ from ._helpers import (
 # clock parameter for no testability gain.
 SHELL_MODULES: frozenset[str] = frozenset(
     {
-        # observability owns log timestamps + filename rotation per CLAUDE.md
-        # ("log_event handles path, rotation, timestamp, and correlation ID").
+        # observability owns log timestamps + filename rotation per
+        # docs/observability.md ("log_event handles path, rotation,
+        # timestamp, and correlation ID").
         "shared/src/dirt_shared/observability.py",
         # voice.py: time boundary for session logs and audio clips
         # (same role observability plays for web/hwd).
