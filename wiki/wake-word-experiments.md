@@ -983,7 +983,7 @@ Better next experiments: keep `Gain=1.0` only (pure amplitude variation, no spec
 
 ### v20 — 2026-04-27
 
-**Status:** **deployed** (currently `var/wake-word/models/current` symlink, deployed 2026-04-27 18:45 MDT, harvest mode still active to keep gathering negatives)
+**Status:** superseded (deployed 2026-04-27 18:45 → 2026-04-27 20:53 MDT; replaced by v23)
 **Model artifact:** `var/wake-word/models/2026-04-27-v20/hey_claudia.onnx`
 **Trainer commit:** `db525c2` (gain-only realmic augmentation)
 **W&B run:** [`qr3g3kx3`](https://wandb.ai/adkravetz/dirt-wake-word/runs/qr3g3kx3) (group `exp5-realmic-gain-only-v20-20260427-142639`)
@@ -1155,3 +1155,61 @@ v20 stays deployed. Don't ship harvest-negs-only and don't ship the split alone.
 #### Operational notes
 - First run with both caches (TTS + augment) hitting → 9m29s wall, the fastest end-to-end retrain on record. Boot + init dominates the wall now.
 - Direct-download artifact pull worked end-to-end again (commit `5d2b527`).
+
+### v23 — 2026-04-27
+
+**Status:** **deployed** (currently `var/wake-word/models/current` symlink, deployed 2026-04-27 20:53 MDT; harvest mode still active)
+**Model artifact:** `var/wake-word/models/2026-04-27-v23/hey_claudia.onnx`
+**Trainer commit:** `00ae467` (capture-realmic VAD swap; trainer code identical to v22's `7480df2`)
+**W&B run:** [`oj84cygb`](https://wandb.ai/adkravetz/dirt-wake-word/runs/oj84cygb) (group `exp8-noisy-realmic-v23-20260427-200209`)
+**Pod:** `hdnj1ebbi4rqp5`, RTX 4090
+**Wall:** 33m16s (TTS cache HIT, augment cache **MISS** — mine content_hash changed → new key)
+
+#### What changed (vs v22)
+- **26 new realmic-pos clips** captured in noisy conditions (TV / music / kitchen) added to `dirt-wakeword-mine/voice_samples/` at slots `realmic-pos_071..096.wav`. mine total realmic-pos: 56 → 82 (+46 %).
+- Capture method: `capture-realmic.py` was upgraded to use silero-vad for segmentation (commit `00ae467`); the older RMS-silence segmenter falls apart with background noise.
+- **Augmentation pipeline UNCHANGED** — same Gain-only `REAL_AUDIO` from v20/v21/v22. The new clips already carry real bg noise, so layering `AddBackgroundNoise` on top would push training further from the inference distribution, not closer; pure amplitude randomization is the right pipeline for noise-baked-in clips.
+- Same v20-era seed.py logic (no 80/20 split, all realmic → train).
+
+#### Why
+v20's 34 % held-out recall ceiling was a sign that 56 realmic-pos clips weren't enough acoustic diversity — most existing clips were collected in quiet conditions and didn't cover the "TV/music/kitchen on" inference scenarios. Adding 26 noisy-environment clips directly addresses that gap.
+
+#### Results — original 28/76 set
+
+| Threshold | Recall | Precision | F1 | False positives |
+|---:|---:|---:|---:|---:|
+| 0.30 | 64.3 % | 69.2 % | 0.667 | 8/76 |
+| 0.40 | 57.1 % | 80.0 % | 0.667 | 4/76 |
+| 0.50 | 53.6 % | 83.3 % | 0.652 | 3/76 |
+| 0.60 | 42.9 % | **100.0 %** | 0.600 | **0/76** |
+| 0.70 | 39.3 % | 100.0 % | 0.564 | 0/76 |
+
+#### Results — held-out 38-clip real-mic set
+
+| Model | Recall@0.5 |
+|---|---:|
+| v17 | 36.8 % (14/38) |
+| v20 | 34.2 % (13/38) |
+| v21 (split + negs) | 44.7 % (17/38) |
+| v22 (negs only) | 28.9 % (11/38) |
+| **v23** | **42.1 %** (16/38) |
+
+#### Comparison @ production threshold 0.6
+
+| Model | Lab recall | Lab precision | Lab F1 | Held-out 38 recall |
+|---|---:|---:|---:|---:|
+| v17 | 46.4 % | 100 % | 0.634 | 36.8 % |
+| v20 (was deployed) | **60.7 %** | 100 % | **0.756** | 34.2 % |
+| v23 (now deployed) | 42.9 % | 100 % | 0.600 | **42.1 %** |
+
+**Trade-off:** v23 catches 5 fewer of the 28 lab positives than v20 (synth-style clips it can no longer fire on), but catches 3 more of the 38 held-out real-mic clips. Lab precision is preserved at 100 % (zero FPs at threshold 0.6). Held-out is the metric closer to actual hands-free behavior, so the +8 pp held-out gain is the right thing to optimize.
+
+#### Deploy decision
+Deployed at 20:53 MDT. Harvest mode drop-in still active so we keep collecting negatives under v23. The lab-recall regression is real but acceptable given the held-out gain at preserved precision.
+
+#### Operational notes
+- Mine content_hash changed (added 26 voice_sample WAVs), invalidating the augment cache. TTS cache key (`target_phrase` + `n_samples` + `n_samples_val`) unchanged → cache HIT, saved ~22 min on Piper.
+- Two near-misses in the v23 prep workflow worth noting:
+  1. The promotion script initially copied to slots 057-082 without checking that 057-070 already had original realmic-pos files. Fixed by pulling the 14 originals back from the volume's S3 mirror and re-promoting at slots 071-096.
+  2. The new `_stage-mine` rebuild lost the 30 v21 harvest-negs at first (they only ever lived in `_stage-mine/negatives/`, not in `var/wake-word/neighbors/`). Fixed by pulling them back from the volume.
+- `capture-realmic.py` VAD-segmented 27 utterances from a 131-second noisy capture cleanly. silero-vad correctly avoided cutting on quiet musical moments, which the RMS-silence segmenter would have done.
