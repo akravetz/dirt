@@ -1,0 +1,356 @@
+{
+  "epic": "codex-migration",
+  "title": "Codex Migration",
+  "status": "done",
+  "created": "2026-04-28",
+  "last_updated": "2026-04-28",
+  "status_values": [
+    "not started",
+    "in progress",
+    "blocked",
+    "done"
+  ],
+  "tasks": [
+    {
+      "id": "task-01-rename-agent-manuals",
+      "title": "Rename agent manuals",
+      "status": "done",
+      "items": [
+        {
+          "id": "task-01-a",
+          "description": "Rename root CLAUDE.md to AGENTS.md.",
+          "status": "done"
+        },
+        {
+          "id": "task-01-b",
+          "description": "Rename wiki/CLAUDE.md to wiki/AGENTS.md.",
+          "status": "done"
+        },
+        {
+          "id": "task-01-c",
+          "description": "Rename apps/wake-word/CLAUDE.md to apps/wake-word/AGENTS.md.",
+          "status": "done"
+        },
+        {
+          "id": "task-01-d",
+          "description": "Update active references from CLAUDE.md to AGENTS.md in docs, scripts, systemd Documentation links, tests, and comments.",
+          "status": "done"
+        },
+        {
+          "id": "task-01-e",
+          "description": "Preserve nested AGENTS.md placement so Codex guidance stays scoped to root, wiki, and wake-word work.",
+          "status": "done"
+        },
+        {
+          "id": "task-01-f",
+          "description": "Remove Claude compatibility manual files rather than leaving CLAUDE.md symlinks.",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "task-02-migrate-protected-path-hooks",
+      "title": "Migrate protected-path hooks",
+      "status": "done",
+      "items": [
+        {
+          "id": "task-02-a",
+          "description": "Replace .claude/settings.json with minimal Codex hook config in .codex/config.toml and/or .codex/hooks.json.",
+          "status": "done"
+        },
+        {
+          "id": "task-02-b",
+          "description": "Enable Codex hooks with [features].codex_hooks = true.",
+          "status": "done"
+        },
+        {
+          "id": "task-02-c",
+          "description": "Move hook scripts from .claude/hooks/ to .codex/hooks/.",
+          "status": "done"
+        },
+        {
+          "id": "task-02-d",
+          "description": "Port the Bash protected-path hook to Codex PreToolUse for Bash.",
+          "status": "done"
+        },
+        {
+          "id": "task-02-e",
+          "description": "Port the Edit/Write protected-path hook to Codex PreToolUse for apply_patch, using tool_input.command rather than Claude's tool_input.file_path.",
+          "status": "done"
+        },
+        {
+          "id": "task-02-f",
+          "description": "Protect apps/tests/invariants/** except apps/tests/invariants/contract_status.json.",
+          "status": "done"
+        },
+        {
+          "id": "task-02-g",
+          "description": "Protect .githooks/**.",
+          "status": "done"
+        },
+        {
+          "id": "task-02-h",
+          "description": "Protect web-ui/invariants/**.",
+          "status": "done"
+        },
+        {
+          "id": "task-02-i",
+          "description": "Protect web-ui/src/api-client/generated/**.",
+          "status": "done"
+        },
+        {
+          "id": "task-02-j",
+          "description": "Return permissionDecision: deny for protected writes.",
+          "status": "done"
+        },
+        {
+          "id": "task-02-k",
+          "description": "Include a clear hook denial reason telling the agent to stop and ask the user for an explicit migration or human-owned-file exception.",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "task-03-simplify-harness-invariants",
+      "title": "Simplify harness invariants",
+      "status": "done",
+      "items": [
+        {
+          "id": "task-03-a",
+          "description": "Rename test comments and documentation in test_webui_invariants_wired.py from Claude-specific language to Codex or harness language.",
+          "status": "done"
+        },
+        {
+          "id": "task-03-b",
+          "description": "Delete the .claude/settings.json assertion from test_webui_invariants_wired.py.",
+          "status": "done"
+        },
+        {
+          "id": "task-03-c",
+          "description": "Keep the existing ESLint shim, TypeScript shim, and sentinel checks.",
+          "status": "done"
+        },
+        {
+          "id": "task-03-d",
+          "description": "Do not add a replacement pytest that checks Codex hook configuration.",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "task-04-migrate-skills",
+      "title": "Migrate skills",
+      "status": "done",
+      "items": [
+        {
+          "id": "task-04-a",
+          "description": "Move .claude/skills/unstuck to .agents/skills/unstuck.",
+          "status": "done"
+        },
+        {
+          "id": "task-04-b",
+          "description": "Move .claude/skills/reference-builder to .agents/skills/reference-builder.",
+          "status": "done"
+        },
+        {
+          "id": "task-04-c",
+          "description": "Remove .claude/skills/review-issue.",
+          "status": "done"
+        },
+        {
+          "id": "task-04-d",
+          "description": "Remove .claude/skills/close-issue.",
+          "status": "done"
+        },
+        {
+          "id": "task-04-e",
+          "description": "Remove .claude/skills/create-issue.",
+          "status": "done"
+        },
+        {
+          "id": "task-04-f",
+          "description": "Remove .claude/skills/skill-creator unless there is a specific local reason to keep it instead of Codex's bundled skill creator.",
+          "status": "done"
+        },
+        {
+          "id": "task-04-g",
+          "description": "Audit retained skills for Claude-only fields and assumptions.",
+          "status": "done"
+        },
+        {
+          "id": "task-04-h",
+          "description": "Remove .codex/skills -> ../.agents/skills symlink.",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "task-05-minimal-codex-config",
+      "title": "Create minimal Codex config",
+      "status": "done",
+      "items": [
+        {
+          "id": "task-05-a",
+          "description": "Add only the project-level Codex config needed for shared hook behavior.",
+          "status": "done"
+        },
+        {
+          "id": "task-05-b",
+          "description": "Do not port Claude permission allow/ask/deny lists.",
+          "status": "done"
+        },
+        {
+          "id": "task-05-c",
+          "description": "Do not build Codex rules or sandbox profiles unless a concrete failure shows yolo mode plus hooks is insufficient.",
+          "status": "done"
+        },
+        {
+          "id": "task-05-d",
+          "description": "Update docs that tell agents to use Claude-specific commands, permission modes, or approval flows.",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "task-06-worktrees-and-legacy-plans",
+      "title": "Move worktrees and remove legacy plans",
+      "status": "done",
+      "items": [
+        {
+          "id": "task-06-a",
+          "description": "Move manual agent worktrees to .agents/worktrees.",
+          "status": "done"
+        },
+        {
+          "id": "task-06-b",
+          "description": "Add .agents/worktrees/ to .gitignore.",
+          "status": "done"
+        },
+        {
+          "id": "task-06-c",
+          "description": "Update scripts/worktree-port and active docs that still reference .claude/worktrees.",
+          "status": "done"
+        },
+        {
+          "id": "task-06-d",
+          "description": "Remove docs/plans/ and anything in it as legacy Claude-era planning cruft.",
+          "status": "done"
+        },
+        {
+          "id": "task-06-e",
+          "description": "Do not migrate old generator or orchestrator docs unless a currently active workflow still depends on them.",
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": "task-07-runtime-claude-integrations",
+      "title": "Keep runtime Claude integrations out of scope",
+      "status": "done",
+      "items": [
+        {
+          "id": "task-07-a",
+          "description": "Do not include runtime claude -p, claude-agent-sdk, Telegram bot, or Anthropic model migration in this epic.",
+          "status": "done"
+        },
+        {
+          "id": "task-07-b",
+          "description": "Track runtime agent migration as a separate Codex/OpenAI epic if we decide to move those systems.",
+          "status": "done"
+        },
+        {
+          "id": "task-07-c",
+          "description": "Leave the application MCP server under apps/mcp/ alone.",
+          "status": "done"
+        },
+        {
+          "id": "task-07-d",
+          "description": "Do not add Codex MCP client config as part of this epic because we do not currently use MCP clients.",
+          "status": "done"
+        }
+      ]
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "ac-01",
+      "description": "No active checked-in operating manual is named CLAUDE.md; intended manuals are named AGENTS.md.",
+      "status": "done",
+      "verification": "find excludes .git/.venv/node_modules/.agents/worktrees and finds no active CLAUDE.md files; AGENTS.md exists at repo root, wiki/, and apps/wake-word/."
+    },
+    {
+      "id": "ac-02",
+      "description": "Root, wiki, and wake-word Codex guidance loads from the expected AGENTS.md files.",
+      "status": "done",
+      "verification": "AGENTS.md files exist at repo root, wiki/AGENTS.md, and apps/wake-word/AGENTS.md."
+    },
+    {
+      "id": "ac-03",
+      "description": "Active references in docs, scripts, systemd units, comments, and tests use AGENTS.md and Codex terminology where appropriate.",
+      "status": "done",
+      "verification": "rg over active docs/scripts/systemd/tests/harness paths finds no stale CLAUDE.md/.claude/docs/plans references except runtime Claude integration under apps/voice, which is explicitly out of scope."
+    },
+    {
+      "id": "ac-04",
+      "description": ".claude/ project harness config is removed after any still-useful hooks and skills are migrated.",
+      "status": "done",
+      "verification": "find .claude reports no such directory after moving hooks/skills/worktrees and deleting legacy project harness config."
+    },
+    {
+      "id": "ac-05",
+      "description": ".codex/skills symlink is removed.",
+      "status": "done",
+      "verification": "test ! -e .codex/skills passes."
+    },
+    {
+      "id": "ac-06",
+      "description": ".agents/skills contains the retained skills: simplify, unstuck, and reference-builder.",
+      "status": "done",
+      "verification": "find .agents/skills -maxdepth 2 shows simplify, unstuck, and reference-builder."
+    },
+    {
+      "id": "ac-07",
+      "description": ".agents/worktrees/ is gitignored and active worktree docs/scripts point there.",
+      "status": "done",
+      "verification": ".gitignore contains .agents/worktrees/; scripts/worktree-port references .agents/worktrees; git worktree list --porcelain shows registered worktrees under .agents/worktrees."
+    },
+    {
+      "id": "ac-08",
+      "description": "docs/plans/ is removed if no active workflow depends on it.",
+      "status": "done",
+      "verification": "docs/plans/ removed; active docs/scripts/tests no longer reference docs/plans after excluding historical progress/reference snapshots."
+    },
+    {
+      "id": "ac-09",
+      "description": "Codex hooks are enabled and block protected writes to the same paths the Claude hooks protected, with the contract_status.json carve-out preserved.",
+      "status": "done",
+      "verification": "python3 tomllib parse of .codex/config.toml passes; .codex/hooks/protect-invariants-*.sh return permissionDecision deny for protected writes and preserve the contract_status.json carve-out."
+    },
+    {
+      "id": "ac-10",
+      "description": "Hook behavior is tested directly for Bash and apply_patch protected-write attempts.",
+      "status": "done",
+      "verification": "bash .codex/hooks/test-protect-invariants.sh: 17 passed, 0 failed, covering Bash and apply_patch protected-write attempts."
+    },
+    {
+      "id": "ac-11",
+      "description": "The .claude/settings.json assertion is removed from test_webui_invariants_wired.py; no replacement pytest checks Codex hook wiring.",
+      "status": "done",
+      "verification": "uv run pytest apps/tests/invariants/test_webui_invariants_wired.py -q: 5 passed; the .claude/settings.json assertion was removed and no replacement pytest checks Codex hook wiring."
+    },
+    {
+      "id": "ac-12",
+      "description": "Existing test and lint workflows still pass after the migration.",
+      "status": "done",
+      "verification": "Verified locally: bash .codex/hooks/test-protect-invariants.sh passed 17/17; uv run ruff check passed; uv run pytest apps/tests/invariants/ -q passed 105, 1 skipped; uv run pytest -q passed 464, 1 skipped; pnpm --dir web-ui lint/typecheck/test passed; uv run scripts/lint.py exits 0 with one accepted File length warning."
+    }
+  ],
+  "open_questions": [
+    {
+      "id": "oq-01",
+      "question": "For protected writes, is hard deny plus a human exception workflow acceptable, given Codex PreToolUse does not currently support ask?",
+      "status": "done",
+      "resolution": "Resolved for this migration by implementing hard-deny Codex PreToolUse hooks with explicit stop-and-ask denial reasons; no ask/allow PreToolUse behavior is used."
+    }
+  ]
+}

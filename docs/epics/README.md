@@ -61,7 +61,7 @@ This creates a GitHub issue with our standard template and the correct epic labe
 | [telegram-bot](telegram-bot/README.md) | planning | high |
 | [codex-migration](codex-migration/README.md) | planning | high |
 
-## Rules for Claude
+## Rules for Agents
 
 1. **Before starting work**, read the relevant epic README for context.
 2. **Find your assigned issue** with `gh issue list --repo akravetz/dirt --label "epic:<slug>"`.

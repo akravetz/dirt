@@ -12,7 +12,7 @@ Establish two layers of test defense: human-owned invariant tests that encode sa
 
 ### Layer 1: Invariant Tests (human-owned, agent-protected)
 
-- `tests/invariants/` directory protected by Claude Code hooks
+- `tests/invariants/` directory protected by Codex hooks
 - Auth boundary test — every route except `/login` and `/logout` requires authentication
 - Import boundary tests — modules don't reach across architectural layers (pytestarch)
 - PreToolUse hooks block agent from modifying these files
@@ -26,8 +26,8 @@ Establish two layers of test defense: human-owned invariant tests that encode sa
 
 ### Enforcement
 
-- PreToolUse hooks in `.claude/settings.json` (committed to repo)
-- CLAUDE.md rules declaring test ownership
+- Codex PreToolUse hooks in `.codex/config.toml` (committed to repo)
+- AGENTS.md rules declaring test ownership
 - If an invariant test fails, the agent must fix its code — never the test
 
 ## Acceptance Criteria
@@ -37,7 +37,7 @@ Establish two layers of test defense: human-owned invariant tests that encode sa
 3. `tests/e2e/test_login_flow.py` — full login/logout cycle in Playwright
 4. `tests/e2e/test_live_feed.py` — page loads, image element present
 5. PreToolUse hooks block modifications to `tests/invariants/`
-6. CLAUDE.md updated with test ownership rules
+6. AGENTS.md updated with test ownership rules
 7. All tests passing
 
 ## Out of Scope

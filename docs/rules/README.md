@@ -1,6 +1,6 @@
 # Codebase Rules
 
-This directory contains conventions and constraints that Claude must follow when working in this codebase. Read relevant rule files before making changes in affected areas.
+This directory contains conventions and constraints that agents must follow when working in this codebase. Read relevant rule files before making changes in affected areas.
 
 ## Rules Index
 

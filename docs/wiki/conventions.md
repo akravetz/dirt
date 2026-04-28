@@ -26,7 +26,7 @@ updated: YYYY-MM-DD
 - Decision pages: `wiki/decisions/YYYY-MM-DD-<decision-name>.md`
 - Environment pages: `wiki/environment/<topic>.md` (e.g., `temperature.md`, `vpd.md`, `nutrients.md`)
 - Hardware pages: `wiki/hardware/<system-name>.md` (e.g., `arduino-nano.md`, `ptz-camera.md`)
-- Plant pages: `wiki/plants/plant-{a,b,c,d}.md` (canonical labels — see "Plant labeling" in `wiki/CLAUDE.md`)
+- Plant pages: `wiki/plants/plant-{a,b,c,d}.md` (canonical labels — see "Plant labeling" in `wiki/AGENTS.md`)
 
 ## NO DUPLICATION
 

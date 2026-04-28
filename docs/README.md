@@ -1,6 +1,6 @@
 # Dirt Documentation
 
-Index for the progressive-disclosure docs tree. The root `CLAUDE.md` (or `AGENTS.md` under Codex) points here for everything except the most universal context. Each entry below has a triggering description — read the linked doc *before* doing the listed activity.
+Index for the progressive-disclosure docs tree. The root `AGENTS.md` points here for everything except the most universal context. Each entry below has a triggering description — read the linked doc *before* doing the listed activity.
 
 ## Operations
 
@@ -34,4 +34,4 @@ Index for the progressive-disclosure docs tree. The root `CLAUDE.md` (or `AGENTS
 
 ## Wiki (the grow knowledge base)
 
-The `wiki/` directory at the repo root is a separate progressive-disclosure tree maintained by the daily-report agent. For any wiki work — ingestion, daily updates, page conventions, linting, query filing, plant labeling — start at [`../wiki/CLAUDE.md`](../wiki/CLAUDE.md).
+The `wiki/` directory at the repo root is a separate progressive-disclosure tree maintained by the daily-report agent. For any wiki work — ingestion, daily updates, page conventions, linting, query filing, plant labeling — start at [`../wiki/AGENTS.md`](../wiki/AGENTS.md).

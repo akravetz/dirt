@@ -451,7 +451,7 @@ Drives the sidebar file tree.
 }
 ```
 
-Walks `wiki/` on disk (excludes `CLAUDE.md` and hidden files); extracts `title` from markdown frontmatter (stripping the `type: plant|concept|...` prefix if present — `"Plant A — Purple Keeper Candidate"` becomes just `"Plant A"` for plant pages, because the sidebar has limited width; we can adjust in iteration).
+Walks `wiki/` on disk (excludes `AGENTS.md` and hidden files); extracts `title` from markdown frontmatter (stripping the `type: plant|concept|...` prefix if present — `"Plant A — Purple Keeper Candidate"` becomes just `"Plant A"` for plant pages, because the sidebar has limited width; we can adjust in iteration).
 
 ### GET /api/wiki/file?path=wiki/plants/plant-a.md
 

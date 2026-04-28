@@ -194,4 +194,4 @@ Expected signal:         [DC / PWM / other]
 
 ---
 
-After filling this in, paste the verdict into the [decision doc](../../../wiki/decisions/2026-04-23-raydrop-mcu-mist-control.md) as a "Phase 1 findings" revision block. `debug/raydrop-re/` stays as scratch for photos + `.sr` capture files — gitignored by design per `CLAUDE.md` (`debug/` is the agent sandbox).
+After filling this in, paste the verdict into the [decision doc](../../../wiki/decisions/2026-04-23-raydrop-mcu-mist-control.md) as a "Phase 1 findings" revision block. `debug/raydrop-re/` stays as scratch for photos + `.sr` capture files — gitignored by design per `AGENTS.md` (`debug/` is the agent sandbox).
