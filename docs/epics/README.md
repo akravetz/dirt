@@ -59,6 +59,7 @@ This creates a GitHub issue with our standard template and the correct epic labe
 | [ptz-camera](ptz-camera/README.md) | planning | high |
 | [live-audio](live-audio/README.md) | planning | medium |
 | [telegram-bot](telegram-bot/README.md) | planning | high |
+| [codex-migration](codex-migration/README.md) | planning | high |
 
 ## Rules for Claude
 
