@@ -25,8 +25,8 @@ _FAKE_JPEG = b"\xff\xd8\xff\xe0fake-live-frame"
 
 
 @pytest.fixture
-async def client(app_engine):
-    app = create_app(engine=app_engine, run_mcp=False)
+async def client():
+    app = create_app(run_mcp=False)
 
     async def _fake_capture() -> bytes | None:
         return _FAKE_JPEG
@@ -55,8 +55,8 @@ async def test_live_jpg_returns_bytes_and_no_store(client: AsyncClient):
     assert response.content == _FAKE_JPEG
 
 
-async def test_live_jpg_returns_503_when_daemon_unreachable(app_engine):
-    app = create_app(engine=app_engine, run_mcp=False)
+async def test_live_jpg_returns_503_when_daemon_unreachable():
+    app = create_app(run_mcp=False)
 
     async def _down_capture() -> bytes | None:
         return None
@@ -75,8 +75,8 @@ async def test_live_jpg_returns_503_when_daemon_unreachable(app_engine):
         assert response.status_code == 503
 
 
-async def test_live_jpg_requires_auth(app_engine):
-    app = create_app(engine=app_engine, run_mcp=False)
+async def test_live_jpg_requires_auth():
+    app = create_app(run_mcp=False)
     transport = ASGITransport(app=app)
     async with AsyncClient(
         transport=transport, base_url="http://test", follow_redirects=False
@@ -89,7 +89,7 @@ async def test_live_jpg_requires_auth(app_engine):
     "path",
     ["/feed/live", "/feed/image", "/feed/status"],
 )
-def test_legacy_feed_routes_unregistered(app_engine, path: str):
+def test_legacy_feed_routes_unregistered(path: str):
     """The three legacy HTMX/feed routes MUST no longer be registered.
 
     The SPA-fallback middleware rewrites all non-``/api/`` 404s into
@@ -98,7 +98,7 @@ def test_legacy_feed_routes_unregistered(app_engine, path: str):
     assertion is structural: the handler entries are gone from
     ``app.routes``.
     """
-    app = create_app(engine=app_engine, run_mcp=False)
+    app = create_app(run_mcp=False)
     registered = {
         (route.path, method)
         for route in app.routes

@@ -121,8 +121,8 @@ async def client(app_engine):
         yield ac
 
 
-async def test_sensors_current_requires_auth(app_engine):
-    app = create_app(engine=app_engine, run_mcp=False)
+async def test_sensors_current_requires_auth():
+    app = create_app(run_mcp=False)
     transport = ASGITransport(app=app)
     async with AsyncClient(
         transport=transport, base_url="http://test", follow_redirects=False

@@ -54,8 +54,8 @@ def fake_wiki(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-async def client(app_engine, fake_wiki):
-    app = create_app(engine=app_engine, run_mcp=False)
+async def client(fake_wiki):
+    app = create_app(run_mcp=False)
     transport = ASGITransport(app=app)
     async with AsyncClient(
         transport=transport, base_url="http://test", follow_redirects=False
@@ -68,8 +68,8 @@ async def client(app_engine, fake_wiki):
         yield ac
 
 
-async def test_wiki_file_requires_auth(app_engine, fake_wiki):
-    app = create_app(engine=app_engine, run_mcp=False)
+async def test_wiki_file_requires_auth(fake_wiki):
+    app = create_app(run_mcp=False)
     transport = ASGITransport(app=app)
     async with AsyncClient(
         transport=transport, base_url="http://test", follow_redirects=False

@@ -19,8 +19,8 @@ from dirt_web.app import create_app
 
 
 @pytest.fixture
-async def client(app_engine):
-    app = create_app(engine=app_engine, run_mcp=False)
+async def client():
+    app = create_app(run_mcp=False)
     transport = ASGITransport(app=app)
     async with AsyncClient(
         transport=transport, base_url="http://test", follow_redirects=False

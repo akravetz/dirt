@@ -56,8 +56,8 @@ def _make_ptz(tmp_path, rpc_response):
 
 
 @pytest.fixture
-async def client(app_engine, tmp_path):
-    app = create_app(engine=app_engine, run_mcp=False)
+async def client(tmp_path):
+    app = create_app(run_mcp=False)
     ptz = _make_ptz(
         tmp_path,
         {
@@ -104,8 +104,8 @@ async def test_ptz_state_returns_contract_shape(client: AsyncClient):
     assert by_id["overview"].sticker_color is None
 
 
-async def test_ptz_state_disconnected_when_daemon_down(app_engine, tmp_path):
-    app = create_app(engine=app_engine, run_mcp=False)
+async def test_ptz_state_disconnected_when_daemon_down(tmp_path):
+    app = create_app(run_mcp=False)
     ptz = _make_ptz(tmp_path, {"_status": "error", "msg": "daemon_unreachable"})
     app.dependency_overrides[get_ptz] = lambda: ptz
     transport = ASGITransport(app=app)
@@ -129,8 +129,8 @@ async def test_ptz_state_disconnected_when_daemon_down(app_engine, tmp_path):
         assert {p.id for p in model.presets} == {"overview", "plant_a", "plant_b"}
 
 
-async def test_ptz_state_preset_null_when_not_at_preset(app_engine, tmp_path):
-    app = create_app(engine=app_engine, run_mcp=False)
+async def test_ptz_state_preset_null_when_not_at_preset(tmp_path):
+    app = create_app(run_mcp=False)
     ptz = _make_ptz(
         tmp_path,
         {
@@ -157,8 +157,8 @@ async def test_ptz_state_preset_null_when_not_at_preset(app_engine, tmp_path):
         assert model.preset is None
 
 
-async def test_ptz_state_requires_auth(app_engine):
-    app = create_app(engine=app_engine, run_mcp=False)
+async def test_ptz_state_requires_auth():
+    app = create_app(run_mcp=False)
     transport = ASGITransport(app=app)
     async with AsyncClient(
         transport=transport, base_url="http://test", follow_redirects=False

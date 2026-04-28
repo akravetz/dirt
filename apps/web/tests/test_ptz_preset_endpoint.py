@@ -58,10 +58,10 @@ def _write_config(tmp_path):
 
 
 @pytest.fixture
-async def ptz_harness(app_engine, tmp_path):
+async def ptz_harness(tmp_path):
     rpc = _RecordingRpc()
     ptz = PTZService(rpc=rpc, config_path=_write_config(tmp_path))
-    app = create_app(engine=app_engine, run_mcp=False)
+    app = create_app(run_mcp=False)
     app.dependency_overrides[get_ptz] = lambda: ptz
     transport = ASGITransport(app=app)
     async with AsyncClient(
@@ -103,10 +103,10 @@ async def test_preset_404_on_unknown(ptz_harness):
     assert rpc.calls == []
 
 
-async def test_preset_requires_auth(app_engine, tmp_path):
+async def test_preset_requires_auth(tmp_path):
     rpc = _RecordingRpc()
     ptz = PTZService(rpc=rpc, config_path=_write_config(tmp_path))
-    app = create_app(engine=app_engine, run_mcp=False)
+    app = create_app(run_mcp=False)
     app.dependency_overrides[get_ptz] = lambda: ptz
     transport = ASGITransport(app=app)
     async with AsyncClient(

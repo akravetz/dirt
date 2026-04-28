@@ -94,8 +94,8 @@ class _FakeSystemStatusService:
 
 
 @pytest.fixture
-async def client(app_engine):
-    app = create_app(engine=app_engine, run_mcp=False)
+async def client():
+    app = create_app(run_mcp=False)
     fake = _FakeSystemStatusService(datetime.now(UTC))
     app.dependency_overrides[get_system_status] = lambda: fake
     transport = ASGITransport(app=app)
@@ -110,9 +110,9 @@ async def client(app_engine):
         yield ac
 
 
-async def test_system_devices_requires_auth(app_engine):
+async def test_system_devices_requires_auth():
     """No session cookie → 401 before the handler runs."""
-    app = create_app(engine=app_engine, run_mcp=False)
+    app = create_app(run_mcp=False)
     transport = ASGITransport(app=app)
     async with AsyncClient(
         transport=transport, base_url="http://test", follow_redirects=False

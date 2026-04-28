@@ -67,11 +67,11 @@ class _FakeDaemon:
 
 
 @pytest.fixture
-async def look_harness(app_engine, tmp_path):
+async def look_harness(tmp_path):
     def _build(cur_yaw: float = 0.0, cur_pitch: float = 0.0):
         daemon = _FakeDaemon(cur_yaw=cur_yaw, cur_pitch=cur_pitch)
         ptz = PTZService(rpc=daemon, config_path=_write_config(tmp_path))
-        app = create_app(engine=app_engine, run_mcp=False)
+        app = create_app(run_mcp=False)
         app.dependency_overrides[get_ptz] = lambda: ptz
         return app, daemon
 
@@ -79,11 +79,11 @@ async def look_harness(app_engine, tmp_path):
 
 
 @pytest.fixture
-async def authed_client(app_engine, tmp_path):
+async def authed_client(tmp_path):
     async def _build(cur_yaw: float = 0.0, cur_pitch: float = 0.0):
         daemon = _FakeDaemon(cur_yaw=cur_yaw, cur_pitch=cur_pitch)
         ptz = PTZService(rpc=daemon, config_path=_write_config(tmp_path))
-        app = create_app(engine=app_engine, run_mcp=False)
+        app = create_app(run_mcp=False)
         app.dependency_overrides[get_ptz] = lambda: ptz
         transport = ASGITransport(app=app)
         ac = AsyncClient(

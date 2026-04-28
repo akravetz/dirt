@@ -15,7 +15,7 @@ from __future__ import annotations
 import html
 import logging
 import re
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from enum import StrEnum
@@ -82,7 +82,7 @@ class _Clock(Protocol):
 
 
 class DailyReport:
-    def __init__(  # noqa: PLR0913 — orchestrator: 9 collaborators wired from the composition root; a deps dataclass would just move the same count behind an extra indirection.
+    def __init__(  # noqa: PLR0913 — orchestrator collaborators wired from the composition root; a deps dataclass would just move the same count behind an extra indirection.
         self,
         *,
         camera: CameraClient,
@@ -94,6 +94,7 @@ class DailyReport:
         marker_dir: Path,
         wiki_root: Path,
         clock: _Clock = lambda: datetime.now(UTC),
+        stamp_jpeg: Callable[[bytes, datetime], bytes] = stamp_exif_datetime,
     ) -> None:
         if not telegram_chat_id:
             raise ValueError("telegram_chat_id is required")
@@ -106,6 +107,7 @@ class DailyReport:
         self._marker_dir = marker_dir
         self._wiki_root = wiki_root
         self._clock = clock
+        self._stamp_jpeg = stamp_jpeg
 
     # --- public entrypoints ---
 
@@ -169,7 +171,7 @@ class DailyReport:
                     f"capture failed at preset {preset!r}: {e}",
                 ) from e
             try:
-                stamped = stamp_exif_datetime(jpeg, self._clock())
+                stamped = self._stamp_jpeg(jpeg, self._clock())
             except Exception as e:
                 raise _Bail(
                     Phase.CAPTURE,

@@ -7,19 +7,11 @@ marker file.
 
 from __future__ import annotations
 
-import io
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
-from PIL import Image
-from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
-
-from dirt_shared.models.enums import SensorLocation, SensorSource
-from dirt_shared.models.sensor_calibration import SensorCalibration
-from dirt_shared.models.sensor_node import SensorNode
-from dirt_shared.models.sensor_reading import SensorReading
+from dirt_shared.models.enums import SensorLocation
 from dirt_shared.services.daily_report import (
     MAX_TELEGRAM_BODY_CHARS,
     DailyReport,
@@ -30,10 +22,9 @@ from dirt_shared.services.daily_report import (
     balance_html_tags,
 )
 from dirt_shared.services.daily_sensors import (
-    PLANT_LOCATIONS,
-    SOIL_METRIC,
-    TENT_LOCATION,
-    SensorReader,
+    DailySensorSnapshot,
+    ValidationFailure,
+    WindowAvg,
 )
 from dirt_shared.services.daily_synthesis import SynthesisResult
 
@@ -41,10 +32,7 @@ from dirt_shared.services.daily_synthesis import SynthesisResult
 
 
 def _tiny_jpeg() -> bytes:
-    im = Image.new("RGB", (4, 4), (200, 50, 50))
-    buf = io.BytesIO()
-    im.save(buf, format="JPEG")
-    return buf.getvalue()
+    return b"\xff\xd8\xff\xe0fake-daily-report-image"
 
 
 # 14:30 MDT -> 20:30 UTC on Apr 19 2026
@@ -54,53 +42,6 @@ TARGET_DATE = date(2026, 4, 19)
 
 def _clock() -> datetime:
     return NOW
-
-
-async def _node_ids(engine) -> dict[SensorLocation, int]:
-    async with AsyncSession(engine) as s:
-        result = await s.exec(select(SensorNode))
-        return {n.location: n.id for n in result.all()}
-
-
-async def _seed_clean(engine):
-    fresh_ts = NOW - timedelta(seconds=10)
-    ids = await _node_ids(engine)
-    async with AsyncSession(engine) as s:
-        for m, v in [
-            ("temperature_f", 80.0),
-            ("humidity_pct", 50.0),
-            ("pressure_hpa", 843.0),
-            ("vpd_kpa", 1.5),
-            ("dew_point_f", 58.0),
-        ]:
-            s.add(
-                SensorReading(
-                    sensornode_id=ids[TENT_LOCATION],
-                    metric=m,
-                    value=v,
-                    ts=fresh_ts,
-                    source=SensorSource.ARDUINO,
-                )
-            )
-        for loc in PLANT_LOCATIONS:
-            s.add(
-                SensorReading(
-                    sensornode_id=ids[loc],
-                    metric=SOIL_METRIC,
-                    value=2500.0,
-                    ts=fresh_ts,
-                    source=SensorSource.ESP32,
-                )
-            )
-            s.add(
-                SensorCalibration(
-                    sensornode_id=ids[loc],
-                    metric=SOIL_METRIC,
-                    raw_low=1370.0,
-                    raw_high=3880.0,
-                )
-            )
-        await s.commit()
 
 
 class _FakeCamera:
@@ -118,6 +59,39 @@ class _FakeCamera:
 
             raise CameraError(f"injected failure at {preset}")
         return self.jpeg
+
+
+class _FakeSensorReader:
+    def __init__(
+        self,
+        *,
+        failures: list[ValidationFailure] | None = None,
+        snapshot: DailySensorSnapshot | None = None,
+    ) -> None:
+        self.failures = failures or []
+        self._snapshot = snapshot or DailySensorSnapshot(
+            date_mdt=TARGET_DATE,
+            tent={
+                "temperature_f": {
+                    "overnight": WindowAvg(avg=77.0, n=3),
+                    "morning": WindowAvg(avg=80.0, n=2),
+                    "now": 81.0,
+                }
+            },
+            plants={
+                "a": {
+                    "overnight_pct": WindowAvg(avg=55.0, n=3),
+                    "morning_pct": WindowAvg(avg=54.0, n=2),
+                    "now_pct": 53.5,
+                }
+            },
+        )
+
+    async def validate(self) -> list[ValidationFailure]:
+        return self.failures
+
+    async def snapshot(self, target_date: date) -> DailySensorSnapshot:
+        return self._snapshot
 
 
 class _FakeSynthesis:
@@ -224,23 +198,23 @@ class _FakeTelegram:
 
 def _build_orchestrator(
     *,
-    engine,
     tmp_path,
     camera=None,
+    sensor_reader=None,
     synthesis=None,
     telegram=None,
-) -> tuple[DailyReport, _FakeCamera, _FakeSynthesis, _FakeTelegram]:
+) -> tuple[DailyReport, _FakeCamera, _FakeSensorReader, _FakeSynthesis, _FakeTelegram]:
     photos_dir = tmp_path / "raw" / "photos"
     marker_dir = tmp_path / "logs" / "daily_report"
     wiki_root = tmp_path / "wiki"
     wiki_root.mkdir(parents=True, exist_ok=True)
     cam = camera or _FakeCamera()
+    reader = sensor_reader or _FakeSensorReader()
     synth = synthesis or _FakeSynthesis(wiki_root, marker_dir)
     tg = telegram or _FakeTelegram()
-    reader = SensorReader(engine, clock=_clock, max_age_s=300)
     orch = DailyReport(
         camera=cam,  # type: ignore[arg-type]
-        sensor_reader=reader,
+        sensor_reader=reader,  # type: ignore[arg-type]
         synthesis=synth,
         telegram=tg,
         telegram_chat_id="12345",
@@ -248,17 +222,16 @@ def _build_orchestrator(
         marker_dir=marker_dir,
         wiki_root=wiki_root,
         clock=_clock,
+        stamp_jpeg=lambda data, _now: data,
     )
-    return orch, cam, synth, tg
+    return orch, cam, reader, synth, tg
 
 
 # --- happy path ---
 
 
-async def test_run_full_pipeline_happy_path(pg_engine, tmp_path):
-    engine = pg_engine
-    await _seed_clean(engine)
-    orch, cam, synth, tg = _build_orchestrator(engine=engine, tmp_path=tmp_path)
+async def test_run_full_pipeline_happy_path(tmp_path):
+    orch, cam, _reader, synth, tg = _build_orchestrator(tmp_path=tmp_path)
 
     result = await orch.run(TARGET_DATE)
 
@@ -295,13 +268,10 @@ async def test_run_full_pipeline_happy_path(pg_engine, tmp_path):
 # --- failure modes ---
 
 
-async def test_capture_failure_sends_alert_and_skips_synthesis(pg_engine, tmp_path):
-    engine = pg_engine
-    await _seed_clean(engine)
+async def test_capture_failure_sends_alert_and_skips_synthesis(tmp_path):
     cam = _FakeCamera()
     cam.raise_on = "plant_b"
-    orch, _cam, synth, tg = _build_orchestrator(
-        engine=engine,
+    orch, _cam, _reader, synth, tg = _build_orchestrator(
         tmp_path=tmp_path,
         camera=cam,
     )
@@ -325,51 +295,23 @@ async def test_capture_failure_sends_alert_and_skips_synthesis(pg_engine, tmp_pa
 
 
 async def test_validation_failure_sends_alert_and_skips_synthesis(
-    pg_engine,
     tmp_path,
 ):
-    engine = pg_engine
-    # seed with humidity=0 (zero-trigger)
-    fresh_ts = NOW - timedelta(seconds=10)
-    ids = await _node_ids(engine)
-    async with AsyncSession(engine) as s:
-        for m, v in [
-            ("temperature_f", 80.0),
-            ("humidity_pct", 0.0),
-            ("pressure_hpa", 843.0),
-            ("vpd_kpa", 1.5),
-            ("dew_point_f", 58.0),
-        ]:
-            s.add(
-                SensorReading(
-                    sensornode_id=ids[TENT_LOCATION],
-                    metric=m,
-                    value=v,
-                    ts=fresh_ts,
-                    source=SensorSource.ARDUINO,
-                )
+    sensor_reader = _FakeSensorReader(
+        failures=[
+            ValidationFailure(
+                location=SensorLocation.TENT,
+                metric="humidity_pct",
+                value=0.0,
+                age_s=10.0,
+                reason="zero",
             )
-        for loc in PLANT_LOCATIONS:
-            s.add(
-                SensorReading(
-                    sensornode_id=ids[loc],
-                    metric=SOIL_METRIC,
-                    value=2500.0,
-                    ts=fresh_ts,
-                    source=SensorSource.ESP32,
-                )
-            )
-            s.add(
-                SensorCalibration(
-                    sensornode_id=ids[loc],
-                    metric=SOIL_METRIC,
-                    raw_low=1370.0,
-                    raw_high=3880.0,
-                )
-            )
-        await s.commit()
+        ]
+    )
 
-    orch, _cam, synth, tg = _build_orchestrator(engine=engine, tmp_path=tmp_path)
+    orch, _cam, _reader, synth, tg = _build_orchestrator(
+        tmp_path=tmp_path, sensor_reader=sensor_reader
+    )
     result = await orch.run(TARGET_DATE)
 
     assert not result.success
@@ -380,15 +322,12 @@ async def test_validation_failure_sends_alert_and_skips_synthesis(
     assert "validate" in tg.messages[0]["text"]
 
 
-async def test_synthesis_failure_sends_alert(pg_engine, tmp_path):
-    engine = pg_engine
-    await _seed_clean(engine)
+async def test_synthesis_failure_sends_alert(tmp_path):
     wiki_root = tmp_path / "wiki"
     wiki_root.mkdir(parents=True, exist_ok=True)
     marker_dir = tmp_path / "logs" / "daily_report"
     synth = _FakeSynthesis(wiki_root, marker_dir, succeed=False, error="cli_not_found")
-    orch, _cam, _synth, tg = _build_orchestrator(
-        engine=engine,
+    orch, _cam, _reader, _synth, tg = _build_orchestrator(
         tmp_path=tmp_path,
         synthesis=synth,
     )
@@ -403,17 +342,15 @@ async def test_synthesis_failure_sends_alert(pg_engine, tmp_path):
     assert "synthesize" in tg.messages[0]["text"]
 
 
-async def test_sidecar_missing_delivers_photos_only(pg_engine, tmp_path):
+async def test_sidecar_missing_delivers_photos_only(tmp_path):
     """Sub-agent forgot to write the Telegram HTML sidecar. Photos still
     go out, no sendMessage, run still marked completed (non-fatal)."""
-    engine = pg_engine
-    await _seed_clean(engine)
     wiki_root = tmp_path / "wiki"
     wiki_root.mkdir(parents=True, exist_ok=True)
     marker_dir = tmp_path / "logs" / "daily_report"
     synth = _FakeSynthesis(wiki_root, marker_dir, write_sidecar=False)
-    orch, _cam, _synth, tg = _build_orchestrator(
-        engine=engine, tmp_path=tmp_path, synthesis=synth
+    orch, _cam, _reader, _synth, tg = _build_orchestrator(
+        tmp_path=tmp_path, synthesis=synth
     )
 
     result = await orch.run(TARGET_DATE)
@@ -424,14 +361,11 @@ async def test_sidecar_missing_delivers_photos_only(pg_engine, tmp_path):
     assert (marker_dir / "2026-04-19.completed").exists()
 
 
-async def test_telegram_failure_does_not_fail_overall_run(pg_engine, tmp_path):
-    engine = pg_engine
+async def test_telegram_failure_does_not_fail_overall_run(tmp_path):
     """Telegram is delivery, not the durable record. A send failure should
     leave the run as 'completed' with the wiki entry intact."""
-    await _seed_clean(engine)
     tg = _FakeTelegram(fail_send_media=True)
-    orch, _cam, _synth, _tg = _build_orchestrator(
-        engine=engine,
+    orch, _cam, _reader, _synth, _tg = _build_orchestrator(
         tmp_path=tmp_path,
         telegram=tg,
     )
@@ -447,14 +381,12 @@ async def test_telegram_failure_does_not_fail_overall_run(pg_engine, tmp_path):
 # --- idempotency ---
 
 
-async def test_run_skips_when_completed_marker_exists(pg_engine, tmp_path):
-    engine = pg_engine
-    await _seed_clean(engine)
+async def test_run_skips_when_completed_marker_exists(tmp_path):
     marker_dir = tmp_path / "logs" / "daily_report"
     marker_dir.mkdir(parents=True, exist_ok=True)
     (marker_dir / "2026-04-19.completed").write_text("prev")
 
-    orch, cam, synth, tg = _build_orchestrator(engine=engine, tmp_path=tmp_path)
+    orch, cam, _reader, synth, tg = _build_orchestrator(tmp_path=tmp_path)
     result = await orch.run(TARGET_DATE)
 
     assert result.success
@@ -463,29 +395,24 @@ async def test_run_skips_when_completed_marker_exists(pg_engine, tmp_path):
     assert tg.messages == []
 
 
-async def test_force_overrides_completed_marker(pg_engine, tmp_path):
-    engine = pg_engine
-    await _seed_clean(engine)
+async def test_force_overrides_completed_marker(tmp_path):
     marker_dir = tmp_path / "logs" / "daily_report"
     marker_dir.mkdir(parents=True, exist_ok=True)
     (marker_dir / "2026-04-19.completed").write_text("prev")
 
-    orch, cam, _synth, _tg = _build_orchestrator(engine=engine, tmp_path=tmp_path)
+    orch, cam, _reader, _synth, _tg = _build_orchestrator(tmp_path=tmp_path)
     result = await orch.run(TARGET_DATE, force=True)
 
     assert result.success
     assert len(cam.calls) == 5  # full re-run
 
 
-async def test_failed_marker_cleared_on_re_run(pg_engine, tmp_path):
-    engine = pg_engine
-    await _seed_clean(engine)
+async def test_failed_marker_cleared_on_re_run(tmp_path):
     marker_dir = tmp_path / "logs" / "daily_report"
     marker_dir.mkdir(parents=True, exist_ok=True)
     (marker_dir / "2026-04-19.failed").write_text("capture\nold failure\n")
 
-    orch, _cam, _synth, _tg = _build_orchestrator(
-        engine=engine,
+    orch, _cam, _reader, _synth, _tg = _build_orchestrator(
         tmp_path=tmp_path,
     )
     result = await orch.run(TARGET_DATE)

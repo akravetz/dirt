@@ -49,11 +49,11 @@ class _FakeDaemon:
 
 
 @pytest.fixture
-async def authed_client(app_engine, tmp_path):
+async def authed_client(tmp_path):
     async def _build(cur_zoom: float = 1.0):
         daemon = _FakeDaemon(cur_zoom=cur_zoom)
         ptz = PTZService(rpc=daemon, config_path=_write_config(tmp_path))
-        app = create_app(engine=app_engine, run_mcp=False)
+        app = create_app(run_mcp=False)
         app.dependency_overrides[get_ptz] = lambda: ptz
         transport = ASGITransport(app=app)
         ac = AsyncClient(
@@ -127,10 +127,10 @@ async def test_zoom_xor_violation_returns_400(authed_client, body):
         await client.aclose()
 
 
-async def test_zoom_requires_auth(app_engine, tmp_path):
+async def test_zoom_requires_auth(tmp_path):
     daemon = _FakeDaemon()
     ptz = PTZService(rpc=daemon, config_path=_write_config(tmp_path))
-    app = create_app(engine=app_engine, run_mcp=False)
+    app = create_app(run_mcp=False)
     app.dependency_overrides[get_ptz] = lambda: ptz
     transport = ASGITransport(app=app)
     async with AsyncClient(

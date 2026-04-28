@@ -53,8 +53,8 @@ async def test_latest_snapshot_returns_image(client: AsyncClient, app_engine, tm
     assert response.headers["content-type"] == "image/jpeg"
 
 
-async def test_latest_snapshot_requires_auth(app_engine):
-    app = create_app(engine=app_engine, run_mcp=False)
+async def test_latest_snapshot_requires_auth():
+    app = create_app(run_mcp=False)
     transport = ASGITransport(app=app)
     async with AsyncClient(
         transport=transport, base_url="http://test", follow_redirects=False
@@ -63,14 +63,14 @@ async def test_latest_snapshot_requires_auth(app_engine):
         assert response.status_code == 401
 
 
-def test_legacy_snapshots_latest_unregistered(app_engine):
+def test_legacy_snapshots_latest_unregistered():
     """``GET /api/snapshots/latest`` MUST be gone after the rename.
 
     Unlike the /feed/* HTMX routes, this path IS under ``/api/`` so
     ``SPAFallbackMiddleware`` would leave a live handler's response
     untouched — but the durable check is still structural.
     """
-    app = create_app(engine=app_engine, run_mcp=False)
+    app = create_app(run_mcp=False)
     registered = {
         (route.path, method)
         for route in app.routes

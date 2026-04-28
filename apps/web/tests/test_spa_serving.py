@@ -42,8 +42,8 @@ def dist_dir(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-async def client(app_engine, dist_dir: Path):
-    app = create_app(engine=app_engine, web_ui_dist_dir=dist_dir, run_mcp=False)
+async def client(dist_dir: Path):
+    app = create_app(web_ui_dist_dir=dist_dir, run_mcp=False)
     transport = ASGITransport(app=app)
     async with AsyncClient(
         transport=transport, base_url="http://test", follow_redirects=False
@@ -123,12 +123,12 @@ async def test_api_auth_me_without_cookie_returns_401_json(client: AsyncClient):
     assert "location" not in response.headers
 
 
-async def test_missing_dist_returns_503(app_engine, tmp_path: Path):
+async def test_missing_dist_returns_503(tmp_path: Path):
     # Fresh clone without `pnpm --dir web-ui build` — the app must boot
     # and non-/api/ 404s become 503 placeholders rather than ambiguous
     # 404s or a crash.
     missing_dist = tmp_path / "nope"
-    app = create_app(engine=app_engine, web_ui_dist_dir=missing_dist, run_mcp=False)
+    app = create_app(web_ui_dist_dir=missing_dist, run_mcp=False)
     transport = ASGITransport(app=app)
     async with AsyncClient(
         transport=transport, base_url="http://test", follow_redirects=False
