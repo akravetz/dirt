@@ -4,7 +4,7 @@ type: hardware
 sources: [debug/fan-pwm/sweep-v2.sr, debug/fan-pwm/sweep-11steps.sr, debug/fan-pwm/sweep-v3.sr]
 related: [wiki/hardware/humidifier-control.md, wiki/hardware/esp32-plant-nodes.md, wiki/decisions/2026-04-22-sht45-tent-node-esp32.md]
 created: 2026-04-18
-updated: 2026-04-25
+updated: 2026-04-27
 ---
 
 # AC Infinity Cloudline LITE 6" Fan Control + Tent Environmental Sensor
@@ -157,7 +157,7 @@ Three stages, executed 2026-04-20:
 
 Canonical source: [`firmware/fan_controller/`](../../firmware/fan_controller/). PlatformIO project with two envs: `fan` (USB flash over `/dev/ttyACM*`, required for initial flash) and `fan-ota` (WiFi flash via `fan-controller.local`, preferred after first USB flash). Consumes the shared libs in `firmware/common/{wifi_client, ota, ingest_client}/`. Dual-role: LEDC PWM for D+/B5 on GPIO 6/7, I²C SHT45 on GPIO 4/5.
 
-Firmware `0.2.0` does five things: **(1)** fan driver — 2 s max-speed failsafe blast at boot, then settles to `BOOT_SPEED_PCT` (currently 30 %); inversion math and 22–100 % wire-duty remap unchanged from bring-up. **(2)** SHT45 heater cycle — see below. **(3)** Ingest POST every 60 s with `{temperature_c, humidity_pct, fan_duty_pct}` at `location=tent`, `source=esp32`; overloads the tent location rather than adding a new `SensorLocation` enum value. **(4)** HTTP control surface on :80 — `POST /fan {"duty_pct":0..100}` sets the fan; `GET /fan` returns `{"set_duty_pct":N,"reported_duty_pct":N}`. `reported_duty_pct` is MOCKED (echoes set value) until D− tach is wired; JSON shape stays stable across that transition. **(5)** OTA — mDNS `fan-controller.local:3232`, fleet-wide `PLANT_OTA_PASSWORD`.
+Firmware `0.3.0` does six things: **(1)** fan driver — 2 s max-speed failsafe blast at boot, then settles to the **NVS-restored last-commanded duty** (falls back to `BOOT_SPEED_PCT=15 %` on first-flash or after an NVS erase); inversion math and 22–100 % wire-duty remap unchanged from bring-up. **(2)** SHT45 heater cycle — see below. **(3)** Ingest POST every 60 s with `{temperature_c, humidity_pct, fan_duty_pct}` at `location=tent`, `source=esp32`; overloads the tent location rather than adding a new `SensorLocation` enum value. **(4)** HTTP control surface on :80 — `POST /fan {"duty_pct":0..100}` sets the fan AND persists the new value to NVS (with a diff-check to avoid flash wear); `GET /fan` returns `{"set_duty_pct":N,"reported_duty_pct":N}`. `reported_duty_pct` is MOCKED (echoes set value) until D− tach is wired; JSON shape stays stable across that transition. **(5)** Duty persistence — `Preferences` library writes to NVS namespace `fan` key `duty_pct` on every `POST /fan` that changes the value; restored on boot. Survives soft + power-cycle resets. The 2 s max-speed failsafe blast still happens before the restored value is applied — over-ventilation remains the safer failure mode during the boot window. **(6)** OTA — mDNS `fan-controller.local:3232`, fleet-wide `PLANT_OTA_PASSWORD`.
 
 Host-side client: `apps/shared/src/dirt_shared/services/fan_node.py` (`FanNodeClient`) — pure plumbing until a control loop calls it. See [Future integration](#future-integration).
 

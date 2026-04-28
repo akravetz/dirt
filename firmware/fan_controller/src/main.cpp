@@ -24,6 +24,7 @@
 // max. Intentional failsafe: over-ventilation is the safer failure mode.
 
 #include <Arduino.h>
+#include <Preferences.h>
 #include <WebServer.h>
 #include <Wire.h>
 #include <Adafruit_SHT4x.h>
@@ -49,12 +50,22 @@ constexpr float    B5_MCU_DUTY_PCT  = 1.4f;
 constexpr float    D_PLUS_MIN_WIRE  = 22.0f;
 constexpr float    D_PLUS_MAX_WIRE  = 100.0f;
 
-constexpr uint8_t  BOOT_SPEED_PCT   = 30;
+// Used only when NVS has no saved value (first-flash, NVS erased). Once
+// the host posts a /fan command, the value persists across reboots and
+// this default is no longer consulted. See "duty persistence" in
+// wiki/hardware/ac-infinity-fan-control.md.
+constexpr uint8_t  BOOT_SPEED_PCT   = 15;
 constexpr uint32_t EQUILIBRATE_MS   = 59000;
 constexpr uint32_t SENSOR_RETRY_MS  = 5000;
 
 constexpr const char* LOCATION = "tent";
 constexpr const char* HOSTNAME = "fan-controller";
+
+// NVS-backed duty persistence — survives soft + power-cycle resets.
+// Diff-check before writing keeps flash wear bounded if a future host-
+// side closed loop writes frequently.
+constexpr const char* NVS_NAMESPACE = "fan";
+constexpr const char* NVS_KEY_DUTY  = "duty_pct";
 
 // --- State ----------------------------------------------------------------
 
@@ -63,6 +74,7 @@ bool sht_ready = false;
 
 WebServer http_server(80);
 IngestClient ingest(SERVER_URL, SENSOR_INGEST_TOKEN, FIRMWARE_VERSION);
+Preferences prefs;
 
 uint8_t  g_set_duty_pct      = BOOT_SPEED_PCT;
 uint32_t g_equilibrate_start = 0;
@@ -152,6 +164,9 @@ void handle_post_fan() {
     }
     g_set_duty_pct = (uint8_t)duty;
     apply_fan_speed(g_set_duty_pct);
+    if (prefs.getUChar(NVS_KEY_DUTY, 255) != g_set_duty_pct) {
+        prefs.putUChar(NVS_KEY_DUTY, g_set_duty_pct);
+    }
     char resp[48];
     snprintf(resp, sizeof(resp), "{\"duty_pct\":%u}", g_set_duty_pct);
     http_server.send(200, "application/json", resp);
@@ -270,8 +285,14 @@ void setup() {
     Serial.println("[boot] D+ initial:  MCU duty=0.0%  wire=100.0%  (fan at max)");
     delay(2000);
 
+    // Restore last commanded duty from NVS — survives reboots.
+    // Falls back to BOOT_SPEED_PCT on first-flash or after `nvs_flash_erase`.
+    prefs.begin(NVS_NAMESPACE, /*readOnly=*/false);
+    uint8_t saved = prefs.getUChar(NVS_KEY_DUTY, BOOT_SPEED_PCT);
+    if (saved > 100) saved = BOOT_SPEED_PCT;  // corrupt → fall back
+    g_set_duty_pct = saved;
     apply_fan_speed(g_set_duty_pct);
-    Serial.printf("[boot] fan -> %u%%\n", g_set_duty_pct);
+    Serial.printf("[boot] fan -> %u%% (restored from NVS)\n", g_set_duty_pct);
 
     // WiFi + OTA + HTTP control surface
     wifi_client::connect(WIFI_SSID, WIFI_PASSWORD, HOSTNAME);
