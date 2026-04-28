@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-04-24
+updated: 2026-04-27
 ---
 
 # Plant B
@@ -19,7 +19,7 @@ updated: 2026-04-24
 
 ## Current State
 
-Day 43, fourteen days post-topping, Day 6 of LST: densest and darkest canopy in the tent; moisture rising to 79.3% (from 74.6% yesterday, 68% Apr 24) — on trajectory toward the 82%+ range seen in C/D; watch for stress signs. See [2026-04-26](../daily/2026-04-26.md).
+Day 44, fifteen days post-topping, Day 7 of LST: densest and darkest canopy; moisture crossed 80% today (81.84% now) — now in the C/D elevated zone; watch for stress signs. See [2026-04-27](../daily/2026-04-27.md).
 
 ## Timeline
 
@@ -44,3 +44,4 @@ Day 43, fourteen days post-topping, Day 6 of LST: densest and darkest canopy in 
 - 2026-04-23 — [Day 40: photos only; dense dark-green canopy; healthy; no issues visible](../daily/2026-04-23.md)
 - 2026-04-24 — [Day 41: dense dark-green canopy; densest of the four; moisture slightly elevated at 68–69% (up from 64–65%) — autopot active](../daily/2026-04-24.md)
 - 2026-04-26 — [Day 43: dense dark-green canopy; moisture rising to 79.3% (was 74.6% yesterday) — approaching C/D high range; watch](../daily/2026-04-26.md)
+- 2026-04-27 — [Day 44: dense dark-green canopy; moisture crossed 80% (81.84% now, up from 79.3% Apr 26) — entering C/D elevated range; monitor root zone](../daily/2026-04-27.md)

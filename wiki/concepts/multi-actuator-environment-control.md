@@ -2,28 +2,28 @@
 title: "Multi-Actuator Tent Environment Control — Design Principles (future work)"
 type: concept
 sources: []
-related: [wiki/hardware/humidifier-control.md, wiki/decisions/2026-04-19-lights-off-aware-humidifier.md, wiki/decisions/2026-04-18-vpd-targeting.md, wiki/decisions/2026-04-23-raydrop-mcu-mist-control.md, wiki/concepts/vpd.md]
+related: [wiki/hardware/humidifier-control.md, wiki/decisions/2026-04-19-lights-off-aware-humidifier.md, wiki/decisions/2026-04-18-vpd-targeting.md, wiki/decisions/2026-04-27-h7142-deployed.md, wiki/concepts/vpd.md]
 created: 2026-04-19
-updated: 2026-04-23
+updated: 2026-04-27
 ---
 
 # Multi-Actuator Tent Environment Control
 
-**Status: design notes, not yet implemented.** Captured 2026-04-19 before the dehumidifier and PWM exhaust fan arrive. Revisit when both actuators are provisioned.
+**Status: design notes, not yet fully implemented.** Captured 2026-04-19 before the dehumidifier and PWM exhaust fan arrive. Revisit when both actuators are provisioned.
 
-**Revision 2026-04-23.** The humidifier actuator model is being upgraded from binary to continuous per [2026-04-23 Raydrop MCU-controlled mist rate](../decisions/2026-04-23-raydrop-mcu-mist-control.md) (epic: [continuous-humidifier](../../docs/epics/continuous-humidifier/README.md)). Dispatch-class taxonomy, cross-actuator mutex, feedforward compounds, and failure-mode design are **unchanged**; only the per-class plan shape shifts:
+**Revision 2026-04-27.** The humidifier actuator model is now continuous in production: the **Govee H7142** exposes 9 discrete Manual-mode mist levels via the Public API v2, driven by a host-side PI controller + dispatch quantizer (deployed 2026-04-27, replacing the Raydrop+Kasa bang-bang). Dispatch-class taxonomy, cross-actuator mutex, feedforward compounds, and failure-mode design from the original 2026-04-19 design are **unchanged**; the per-class plan shape now lands on continuous intensity:
 
-- `hum_on: bool` → `hum_intensity: 0..100`
+- `hum_on: bool` → `hum_intensity: 0..100` (quantized to one of 9 H7142 levels at the dispatch boundary)
 - `intensity == 0` replaces `hum_on == false` in plan output
-- Per-class handlers gain the option to set an intermediate intensity (e.g. `intensity=60` in a shallow-`dry` class) instead of always 100
+- Per-class handlers can set an intermediate intensity (e.g. `intensity=60` in a shallow-`dry` class) instead of always 100
 
-The `multi-actuator-environment-control` doc's "no PID" rule still holds for the cross-output dispatch — PI control inside the Raydrop decision is for *within-actuator intensity given that it's commanded on*, not for picking which actuator to use. Class-based dispatch remains authoritative at the system level.
+The "no PID" rule still holds for the cross-output dispatch — PI control inside the humidifier decision is for *within-actuator intensity given that it's commanded on*, not for picking which actuator to use. Class-based dispatch remains authoritative at the system level.
 
 When the PWM fan and dehumidifier land, their actuator models are already continuous in the plan shape below. No rewrite needed.
 
 ## What changes
 
-Current loop is SISO — one actuator (Raydrop humidifier), one output (VPD). Targets the upper-band edge; can only push VPD down. See [hardware/humidifier-control.md](../hardware/humidifier-control.md).
+Current loop is SISO — one actuator (Govee H7142 humidifier), one output (VPD). Targets the upper-band edge; can only push VPD down. See [hardware/humidifier-control.md](../hardware/humidifier-control.md).
 
 Planned additions:
 - **Dehumidifier on a second Kasa EP10** — bidirectional humidity control becomes possible (we can push VPD up at night too).

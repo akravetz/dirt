@@ -51,6 +51,7 @@ class SensorMetric(StrEnum):
     dew_point_f = "dew_point_f"
     pressure_hpa = "pressure_hpa"
     fan_pct = "fan_pct"
+    humidifier_intensity_pct = "humidifier_intensity_pct"
     reservoir_in = "reservoir_in"
 
 
@@ -186,6 +187,7 @@ class Metrics(BaseModel):
     humidity_pct: MetricEnvelope
     vpd_kpa: MetricEnvelope
     fan_pct: MetricEnvelope
+    humidifier_intensity_pct: MetricEnvelope
     reservoir_in: MetricEnvelope
 
 
@@ -211,40 +213,45 @@ class SensorsHistoryResponse(BaseModel):
     points: list[HistoryPoint]
 
 
-class HumidifierState(BaseModel):
+class SensorMetricMetadata(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    on: bool
-    since: AwareDatetime
+    metric: SensorMetric
+    display_name: str
+    unit: str
+    accent: str
     """
-    Timestamp of the last transition.
+    FE palette key — `"temp"`, `"humidity"`, `"vpd"`, `"fan"`,
+    `"reservoir"`. SPA maps to colors in its accent table.
+
     """
-    duration_s: conint(ge=0)
+    y_min: float | None = None
     """
-    Seconds since `since`.
+    Sparkline lower bound; null = auto-scale.
     """
-    cycles_24h: conint(ge=0)
+    y_max: float | None = None
     """
-    Off→on transitions in the last 24h.
+    Sparkline upper bound; null = auto-scale.
     """
-    ts: AwareDatetime
+    has_target_band: bool
+    """
+    Whether the gauge tile renders a target-band overlay.
+    Bands themselves come from `/api/sensors/current` per stage;
+    this flag tells the SPA whether the band field will ever be
+    populated for this metric.
+
+    """
 
 
-class HumidifierTransition(BaseModel):
+class SensorsMetadataResponse(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    ts: AwareDatetime
-    on: bool
-
-
-class HumidifierHistory(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    range: Range
-    points: list[HumidifierTransition]
+    metrics: list[SensorMetricMetadata]
+    """
+    Dashboard render order.
+    """
 
 
 class Plant(BaseModel):

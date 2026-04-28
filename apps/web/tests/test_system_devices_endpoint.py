@@ -72,7 +72,7 @@ class _FakeSystemStatusService:
                 last_seen=self._now,
             ),
             DeviceStatus(
-                name="Humidifier (Kasa EP10)",
+                name="Humidifier (Govee H7142)",
                 kind="actuator",
                 status="warn",
                 last_seen=self._now,

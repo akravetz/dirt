@@ -1,13 +1,19 @@
-"""Sensor endpoints — current envelope + single-metric history.
+"""Sensor endpoints — current envelope + single-metric history + metadata.
 
 ``/api/sensors/current`` composes the latest ``sensorreading`` rows for
-the five dashboard metrics (temperature, humidity, VPD, fan, reservoir)
-with target bands and status colors from ``grow_state``. The SPA is a
-pure renderer — all band/status computation happens server-side so the
-front end can't drift.
+the dashboard metrics with target bands and status colors from
+``grow_state``. The SPA is a pure renderer — all band/status computation
+happens server-side so the front end can't drift.
 
 ``/api/sensors/history`` returns bucketed ``(ts, value)`` points for one
-metric over the requested range — drives the five sparklines.
+metric over the requested range — drives the sparklines.
+
+``/api/sensors/metadata`` returns the registry-driven dashboard config
+(per-metric display name / unit / accent / y-axis bounds / band-presence
+flag). The SPA fetches this once at boot to render its tile grid.
+
+Per-metric metadata (db name, unit, transform, accent, y-axis bounds)
+lives in ``metric_registry.METRICS``. Add a metric there, not here.
 """
 
 import asyncio
@@ -23,8 +29,10 @@ from dirt_contracts.webapp_v1.models import (
     Metrics,
     Range,
     SensorMetric,
+    SensorMetricMetadata,
     SensorsCurrent,
     SensorsHistoryResponse,
+    SensorsMetadataResponse,
     TargetBand,
 )
 from fastapi import APIRouter, Depends, Query
@@ -35,6 +43,11 @@ from dirt_shared.services.grow_state import (
     band_status,
 )
 from dirt_shared.services.readings import ReadingsService
+from dirt_web.api.metric_registry import (
+    dashboard_metrics,
+    metric_spec,
+    transform_value,
+)
 from dirt_web.deps import get_grow, get_readings
 
 
@@ -55,30 +68,9 @@ class _ReadingLike(Protocol):
 router = APIRouter(tags=["sensors"])
 
 
-# Contract-name → DB-metric-name bridge. The API contract exposes
-# ``fan_pct`` (kept stable to avoid contract churn) but the firmware
-# writes ``fan_duty_pct``. Map here rather than rename either side.
-_CONTRACT_TO_DB_METRIC: dict[SensorMetric, str] = {
-    SensorMetric.fan_pct: "fan_duty_pct",
-}
-
-# Per-metric display unit shared between /api/sensors/current and
-# /api/sensors/history. Kept local to the router to avoid threading yet
-# another constants module through the services layer.
-_METRIC_UNITS: dict[SensorMetric, str] = {
-    SensorMetric.temperature_f: "°F",
-    SensorMetric.humidity_pct: "%",
-    SensorMetric.vpd_kpa: "kPa",
-    SensorMetric.dew_point_f: "°F",
-    SensorMetric.pressure_hpa: "hPa",
-    SensorMetric.fan_pct: "%",
-    SensorMetric.reservoir_in: "in",
-}
-
-
 def _envelope(
     reading: _ReadingLike | None,
-    unit: str,
+    metric: SensorMetric,
     band: tuple[float, float] | None,
     fallback_ts: datetime,
 ) -> MetricEnvelope:
@@ -88,13 +80,20 @@ def _envelope(
     envelope at value=0 so the contract shape stays valid; the client
     can check ``stale`` on the enclosing envelope to render the "no
     data" affordance. ``band=None`` for metrics without a stage-defined
-    target (currently reservoir_in); ``band_status`` returns "ok" there.
+    target; ``band_status`` returns "ok" there.
+
+    Applies the registry's value transform (e.g. mist level → percent)
+    so the envelope's ``value`` is always in display units.
     """
-    value = reading.value if reading is not None else 0.0
+    spec = metric_spec(metric)
+    raw = reading.value if reading is not None else 0.0
+    value = transform_value(metric, raw)
     ts = reading.ts if reading is not None else fallback_ts
     target = TargetBand(root=[band[0], band[1]]) if band is not None else None
     status = ContractBandStatus(band_status(value, band))
-    return MetricEnvelope(value=value, unit=unit, target=target, status=status, ts=ts)
+    return MetricEnvelope(
+        value=value, unit=spec.unit, target=target, status=status, ts=ts
+    )
 
 
 @router.get("/api/sensors/current", response_model=SensorsCurrent)
@@ -102,16 +101,29 @@ async def sensors_current(
     readings: ReadingsService = Depends(get_readings),
     grow: GrowStateService = Depends(get_grow),
 ) -> SensorsCurrent:
-    """Return the five-metric envelope with target bands, statuses, and stale flag."""
-    # All independent latest-reading queries fan out concurrently —
-    # otherwise we'd pay sequential round-trip latency on every render.
-    stage, temp, hum, vpd, fan, reservoir, stale = await asyncio.gather(
+    """Dashboard-metric envelope with target bands, statuses, stale flag."""
+    # Resolve DB read tuples (metric, location) from the registry, then
+    # fan out concurrently — sequential awaits would pay round-trip
+    # latency on every render. Stage + stale are independent reads.
+    temp_spec = metric_spec(SensorMetric.temperature_f)
+    hum_spec = metric_spec(SensorMetric.humidity_pct)
+    vpd_spec = metric_spec(SensorMetric.vpd_kpa)
+    fan_spec = metric_spec(SensorMetric.fan_pct)
+    humidifier_spec = metric_spec(SensorMetric.humidifier_intensity_pct)
+    reservoir_spec = metric_spec(SensorMetric.reservoir_in)
+
+    stage, temp, hum, vpd, fan, humidifier, reservoir, stale = await asyncio.gather(
         grow.current_stage(),
-        readings.get_latest_reading("temperature_f"),
-        readings.get_latest_reading("humidity_pct"),
-        readings.get_latest_reading("vpd_kpa"),
-        readings.get_latest_reading("fan_duty_pct"),
-        readings.get_latest_reading("reservoir_in", "reservoir"),
+        readings.get_latest_reading(temp_spec.db_metric, temp_spec.db_location),
+        readings.get_latest_reading(hum_spec.db_metric, hum_spec.db_location),
+        readings.get_latest_reading(vpd_spec.db_metric, vpd_spec.db_location),
+        readings.get_latest_reading(fan_spec.db_metric, fan_spec.db_location),
+        readings.get_latest_reading(
+            humidifier_spec.db_metric, humidifier_spec.db_location
+        ),
+        readings.get_latest_reading(
+            reservoir_spec.db_metric, reservoir_spec.db_location
+        ),
         readings.is_sensor_stale(),
     )
     targets = STAGE_TARGETS[stage]
@@ -119,15 +131,26 @@ async def sensors_current(
     # Top-level ``ts`` = newest reading seen across all real metrics
     # ("when did the tent last report?"). Fall back to the injected
     # clock when the DB is cold so the envelope is always well-formed.
-    real_readings = [r for r in (temp, hum, vpd, fan, reservoir) if r is not None]
+    real_readings = [
+        r for r in (temp, hum, vpd, fan, humidifier, reservoir) if r is not None
+    ]
     top_ts = max((r.ts for r in real_readings), default=readings.now())
 
     metrics = Metrics(
-        temperature_f=_envelope(temp, "°F", targets.get("temperature_f"), top_ts),
-        humidity_pct=_envelope(hum, "%", targets.get("humidity_pct"), top_ts),
-        vpd_kpa=_envelope(vpd, "kPa", targets.get("vpd_kpa"), top_ts),
-        fan_pct=_envelope(fan, "%", targets.get("fan_pct"), top_ts),
-        reservoir_in=_envelope(reservoir, "in", targets.get("reservoir_in"), top_ts),
+        temperature_f=_envelope(
+            temp, SensorMetric.temperature_f, targets.get("temperature_f"), top_ts
+        ),
+        humidity_pct=_envelope(
+            hum, SensorMetric.humidity_pct, targets.get("humidity_pct"), top_ts
+        ),
+        vpd_kpa=_envelope(vpd, SensorMetric.vpd_kpa, targets.get("vpd_kpa"), top_ts),
+        fan_pct=_envelope(fan, SensorMetric.fan_pct, targets.get("fan_pct"), top_ts),
+        humidifier_intensity_pct=_envelope(
+            humidifier, SensorMetric.humidifier_intensity_pct, None, top_ts
+        ),
+        reservoir_in=_envelope(
+            reservoir, SensorMetric.reservoir_in, targets.get("reservoir_in"), top_ts
+        ),
     )
 
     return SensorsCurrent(ts=top_ts, stale=stale, metrics=metrics)
@@ -141,22 +164,48 @@ async def sensors_history(
 ) -> SensorsHistoryResponse:
     """Return bucketed ``(ts, value)`` points for one metric over ``range``.
 
-    ``fan_pct`` resolves to its DB-side name ``fan_duty_pct`` via
-    ``_CONTRACT_TO_DB_METRIC``; every other metric's contract name
-    matches the persisted name 1:1.
+    DB metric name + value transform come from the registry. ``fan_pct``
+    resolves to its DB-side name ``fan_duty_pct``;
+    ``humidifier_intensity_pct`` resolves to ``humidifier_mist_level``
+    with a ``× 100/9`` transform.
 
     FastAPI rejects out-of-enum ``range`` / ``metric`` values at the
     query layer with 422 before the handler runs — the contract's 400
-    response covers the same intent, and the SPA treats any 4xx as
-    "invalid input, don't retry."
+    response covers the same intent.
     """
-    unit = _METRIC_UNITS[metric]
-    db_metric = _CONTRACT_TO_DB_METRIC.get(metric, metric.value)
-    raw = await readings.get_metric_history(db_metric, range.value)
-    points = [HistoryPoint(ts=ts, value=round(value, 2)) for ts, value in raw]
+    spec = metric_spec(metric)
+    raw = await readings.get_metric_history(spec.db_metric, range.value)
+    points = [
+        HistoryPoint(ts=ts, value=round(transform_value(metric, value), 2))
+        for ts, value in raw
+    ]
     return SensorsHistoryResponse(
         range=range,
         metric=metric,
-        unit=unit,
+        unit=spec.unit,
         points=points,
+    )
+
+
+@router.get("/api/sensors/metadata", response_model=SensorsMetadataResponse)
+async def sensors_metadata() -> SensorsMetadataResponse:
+    """Return per-metric display metadata for the dashboard.
+
+    Read once at SPA boot; drives the gauge + sparkline grid. Stable
+    across stage flips — target *values* come from ``/api/sensors/current``,
+    only the *presence* of a band is declared here.
+    """
+    return SensorsMetadataResponse(
+        metrics=[
+            SensorMetricMetadata(
+                metric=spec.metric,
+                display_name=spec.display_name,
+                unit=spec.unit,
+                accent=spec.accent,
+                y_min=spec.y_min,
+                y_max=spec.y_max,
+                has_target_band=spec.has_target_band,
+            )
+            for spec in dashboard_metrics()
+        ]
     )

@@ -9,11 +9,11 @@ Each provider is a one-liner. The wiring is in ``dirt_web.app.create_app``.
 Only three providers exist today because only three services are
 reached via ``Depends(...)``: Settings, SnapshotsService, ReadingsService.
 The rest of the ``CoreServices`` bundle (plants, grow, plant_detail,
-humidifier_state, system_status) is still constructed and placed on
-``app.state`` by ``dirt_shared.app_wiring.build_core_services`` for
-future webapp-rewrite endpoints — add a provider here when an endpoint
-actually needs one. Don't pre-scaffold: unused providers drift out of
-sync with the services they wrap.
+system_status) is still constructed and placed on ``app.state`` by
+``dirt_shared.app_wiring.build_core_services`` for future webapp-rewrite
+endpoints — add a provider here when an endpoint actually needs one.
+Don't pre-scaffold: unused providers drift out of sync with the
+services they wrap.
 """
 
 from fastapi import Request
@@ -21,7 +21,6 @@ from fastapi import Request
 from dirt_shared.config import Settings
 from dirt_shared.services.capture import FrameCapturer, capture_frame
 from dirt_shared.services.grow_state import GrowStateService
-from dirt_shared.services.humidifier_state import HumidifierStateService
 from dirt_shared.services.plants import PlantsService
 from dirt_shared.services.ptz import PTZService
 from dirt_shared.services.readings import ReadingsService
@@ -43,10 +42,6 @@ def get_readings(request: Request) -> ReadingsService:
 
 def get_grow(request: Request) -> GrowStateService:
     return request.app.state.grow
-
-
-def get_humidifier_state(request: Request) -> HumidifierStateService:
-    return request.app.state.humidifier_state
 
 
 def get_plants(request: Request) -> PlantsService:

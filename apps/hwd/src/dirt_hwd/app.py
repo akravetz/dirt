@@ -199,7 +199,6 @@ def create_app(
     app.state.snapshots = core.snapshots
     app.state.plant_detail = core.plant_detail
     app.state.plants = core.plants
-    app.state.humidifier_state = core.humidifier_state
     app.state.system_status = core.system_status
     app.state.background_services = services
 

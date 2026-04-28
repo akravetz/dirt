@@ -71,17 +71,36 @@ class Settings(BaseSettings):
     voice_harvest_only: bool = Field(
         default=False, validation_alias="DIRT_VOICE_HARVEST_ONLY"
     )
-    # Kasa EP10 humidifier plug. See wiki/hardware/humidifier-control.md.
+    # Kasa EP10 plug — now lights-only post-2026-04-27 H7142 cutover. The
+    # humidifier moved off Kasa entirely; see HumidifierConfig below.
     kasa_username: str = ""
     kasa_password: str = ""
-    kasa_humidifier_host: str = "192.168.1.220"
     # Kasa plug driving the grow lights. Swapped in 2026-04-23 for the
     # unreliable analog push-pin 24-hour timer. Schedule lives on
     # growstate.lights_on_local / lights_off_local (per-grow-timezone
     # wall clock); this host is just the plug endpoint.
     kasa_lights_host: str = "192.168.1.181"
     lights_poll_interval: int = 30
-    vpd_deadband_kpa: float = 0.4
+    # Govee Public API v2 — drives the H7142 humidifier. Cloud-only; see
+    # docs/references/govee-api/INDEX.md and wiki/hardware/humidifier-control.md.
+    # MAC must be the colon-separated form Govee returns from /user/devices
+    # (e.g. "14:38:60:74:F4:DD:B9:46"); empty → discover by SKU at startup.
+    govee_api_key: str = ""
+    govee_humidifier_sku: str = "H7142"
+    govee_humidifier_mac: str = ""
+    # Manual-mode mist levels exposed by the H7142 (verified 2026-04-27).
+    humidifier_mist_levels: int = 9
+    humidifier_level_hysteresis_pct: float = 3.0
+    # PI gains (formerly module-level shadow constants in humidifier.py).
+    # Sourced from Raydrop FOPDT fit (2026-04-25); needs re-fitting against
+    # H7142 mist rate via graduated step test. Conservative defaults are
+    # safe to ship while the refit is gathering data.
+    humidifier_pi_kc: float = 8.0
+    humidifier_pi_ki: float = 0.01
+    humidifier_pi_integrator_clamp: float = 50.0
+    humidifier_pi_threshold_pct: float = 5.0
+    humidifier_pi_threshold_hysteresis_pct: float = 1.0
+    humidifier_pi_night_offset_kpa: float = -0.3
     # Margin (minutes) around lights transitions during which the humidifier
     # is forced OFF — extends the off-window from `lights_off - margin` through
     # `lights_on - margin`. With the default 5 + a 23:00 → 05:00 dark cycle,
@@ -96,13 +115,14 @@ class Settings(BaseSettings):
     lights_off_prep_minutes: int = 5
     humidifier_poll_interval: int = 30
     humidifier_failsafe_stale_seconds: int = 300
-    # Stuck-humidifier watchdog — fires a Telegram alert when the plug has
-    # been continuously ON for this long without VPD dropping by the
-    # configured threshold. Catches the failure mode from 2026-04-23 where
-    # the Raydrop's low-water sensor latched red despite a full reservoir:
-    # loop keeps asking for mist, plug electrically on, no moisture emitted.
-    humidifier_stuck_alert_after_s: int = 1200  # 20 min
-    humidifier_stuck_min_vpd_drop_kpa: float = 0.15
+    # Ineffective-humidifier watchdog — fires a Telegram alert when the
+    # device has been commanded to mist (level ≥ 1) continuously for this
+    # long without VPD dropping by the configured threshold. Replaces the
+    # Raydrop "stuck red LED" check; on the H7142 the empty-tank case is
+    # already covered by lackWaterEvent so this catches the residual
+    # failure modes (atomization plate fouling, firmware glitch).
+    humidifier_ineffective_alert_after_s: int = 1200  # 20 min
+    humidifier_ineffective_min_vpd_drop_kpa: float = 0.15
     # Device watchdog — fires Telegram alerts on ok/warn → offline and
     # offline → ok transitions. 60s is prompt given the moisture-node
     # offline threshold is 5min. See services/device_watchdog.py.
@@ -165,15 +185,22 @@ class Settings(BaseSettings):
 
     def humidifier(self) -> HumidifierConfig:
         return HumidifierConfig(
-            kasa_username=self.kasa_username,
-            kasa_password=self.kasa_password,
-            kasa_humidifier_host=self.kasa_humidifier_host,
-            vpd_deadband_kpa=self.vpd_deadband_kpa,
+            govee_api_key=self.govee_api_key,
+            govee_sku=self.govee_humidifier_sku,
+            govee_mac=self.govee_humidifier_mac,
+            mist_levels=self.humidifier_mist_levels,
+            level_hysteresis_pct=self.humidifier_level_hysteresis_pct,
+            pi_kc=self.humidifier_pi_kc,
+            pi_ki=self.humidifier_pi_ki,
+            pi_integrator_clamp=self.humidifier_pi_integrator_clamp,
+            pi_threshold_pct=self.humidifier_pi_threshold_pct,
+            pi_threshold_hysteresis_pct=self.humidifier_pi_threshold_hysteresis_pct,
+            pi_night_offset_kpa=self.humidifier_pi_night_offset_kpa,
             lights_off_prep_minutes=self.lights_off_prep_minutes,
             poll_interval=self.humidifier_poll_interval,
             failsafe_stale_seconds=self.humidifier_failsafe_stale_seconds,
-            stuck_alert_after_s=self.humidifier_stuck_alert_after_s,
-            stuck_min_vpd_drop_kpa=self.humidifier_stuck_min_vpd_drop_kpa,
+            ineffective_alert_after_s=self.humidifier_ineffective_alert_after_s,
+            ineffective_min_vpd_drop_kpa=self.humidifier_ineffective_min_vpd_drop_kpa,
             telegram_bot_token=self.telegram_bot_token,
             telegram_chat_id=self.telegram_allowed_user_id,
         )
@@ -211,15 +238,22 @@ class LightsConfig:
 
 @dataclass(frozen=True)
 class HumidifierConfig:
-    kasa_username: str
-    kasa_password: str
-    kasa_humidifier_host: str
-    vpd_deadband_kpa: float
+    govee_api_key: str
+    govee_sku: str
+    govee_mac: str  # empty → discover by SKU at startup
+    mist_levels: int
+    level_hysteresis_pct: float
+    pi_kc: float
+    pi_ki: float
+    pi_integrator_clamp: float
+    pi_threshold_pct: float
+    pi_threshold_hysteresis_pct: float
+    pi_night_offset_kpa: float
     lights_off_prep_minutes: int  # margin around lights transitions
     poll_interval: int
     failsafe_stale_seconds: int
-    stuck_alert_after_s: int
-    stuck_min_vpd_drop_kpa: float
+    ineffective_alert_after_s: int
+    ineffective_min_vpd_drop_kpa: float
     telegram_bot_token: str
     telegram_chat_id: str
 

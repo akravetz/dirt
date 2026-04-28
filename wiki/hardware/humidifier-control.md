@@ -1,194 +1,222 @@
 ---
-title: "Hardware — Humidifier Control (Raydrop 4L + Kasa EP10 smart plug)"
+title: "Hardware — Humidifier Control (Govee H7142 + PI controller)"
 type: hardware
 sources: []
-related: [wiki/decisions/2026-04-17-humidifier-kasa-ep10.md, wiki/decisions/2026-04-26-govee-humidifier-pivot.md, wiki/environment/humidity.md, wiki/concepts/vpd.md]
+related: [wiki/decisions/2026-04-26-govee-humidifier-pivot.md, wiki/decisions/2026-04-27-h7142-deployed.md, wiki/environment/humidity.md, wiki/concepts/vpd.md, docs/references/govee-api/INDEX.md]
 created: 2026-04-14
-updated: 2026-04-26
+updated: 2026-04-27
 ---
-
-> **🔄 Hardware swap in progress (2026-04-26)** — A Govee H7142 Wi-Fi humidifier arrives 2026-04-28 and will replace the Raydrop + Kasa EP10 stack documented below (H7140 also en route 2026-04-27 as the de-risking backup). The MCU mist-intensity mod ([decision 2026-04-23](../decisions/2026-04-23-raydrop-mcu-mist-control.md)) was abandoned in favor of buying a smart humidifier off the shelf — see [pivot decision 2026-04-26](../decisions/2026-04-26-govee-humidifier-pivot.md). Until cutover, everything below is still live. After cutover, this page will be updated for the new actuator; the operational lessons (bang-bang oscillation, fan-coupling saturation, low-water latch, hard-water descale) generalize to any ultrasonic humidifier and stay relevant.
->
-> Future-agent integration shape lives in [docs/references/govee-api/INDEX.md](../../docs/references/govee-api/INDEX.md).
 
 # Humidifier Control
 
-Closed-loop VPD control: tent SHT45 reading → VPD calc → Python service on the `dirt` host → WiFi command to Kasa EP10 smart plug → mains power to the Raydrop 4L humidifier.
+Closed-loop VPD control: tent SHT45 reading → VPD calc → PI controller in `dirt-hwd` → discrete Manual-mode mist level via Govee Public API v2 → **GoveeLife H7142** Wi-Fi humidifier (6 L cool-mist ultrasonic).
 
-(Sensor history: DHT22 → BME280 (2026-04-13, [decision](../decisions/2026-04-20-bme280-sensor-swap.md)) → SHT45 on the combined fan-controller ESP32-C3 (2026-04-23, [decision](../decisions/2026-04-22-sht45-tent-node-esp32.md)) after the BME280 was found to be reading +3.5 °F / +23 %RH off vs. a calibrated handheld. The control loop is sensor-agnostic; deadband was widened on 2026-04-23 after the SHT45 cutover exposed actuator overshoot — see "0.4 kPa deadband" below.)
+The H7142 was deployed 2026-04-27, replacing the Raydrop 4L + Kasa EP10 stack. The Raydrop had no software-readable intensity control — every overshoot, fan-coupling saturation event, and "stuck red LED" incident traced back to a $5-cost-saving design decision in a unit that didn't expose the dial. The H7142 exposes 9 discrete intensity levels via API at a similar price point. See [pivot decision 2026-04-26](../decisions/2026-04-26-govee-humidifier-pivot.md) and [deployment decision 2026-04-27](../decisions/2026-04-27-h7142-deployed.md). The Raydrop + Kasa stack was unplugged the same day.
 
 The loop targets **VPD** against the current stage's upper band (from `dirt.services.grow_state.current_targets()`), not a fixed RH. Night behavior is free — cooler air drops VPD on its own, so the humidifier shuts off during lights-off without needing a schedule. See [decision 2026-04-18](../decisions/2026-04-18-vpd-targeting.md) for the switch from fixed-RH control.
-
-Superseded the SSR-on-Arduino approach — see [decision 2026-04-17](../decisions/2026-04-17-humidifier-kasa-ep10.md). No mains wiring, no custom enclosure, no GPIO.
 
 ## Deployment Status
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| Raydrop 4L humidifier | ✅ In tent | Knob set to a moderate fixed output (~50–60%) |
-| Kasa Ultra Mini EP10 smart plug | ✅ Provisioned | Alias `dirt-humidifier`; DHCP-reserved `192.168.1.220`; MAC `10:5A:95:8B:E8:B7`; firmware `1.1.1 Build 250908` |
-| `python-kasa` integration | ✅ Working | Pinned to [PR #1580 fork branch](https://github.com/ZeliardM/python-kasa/tree/feature/new-klap) until KLAP v2 support lands upstream — stock python-kasa fails auth on this firmware (see "Known Issues" below) |
-| Control service | ✅ Deployed 2026-04-18 | `src/dirt/services/humidifier.py`, run from the FastAPI lifespan alongside capture / archive / serial |
-| Plug state logging | ✅ | `humidifier_on` (0/1) written to `sensorreading` every poll; state transitions emitted to `logs/humidifier/` stream with reason + VPD |
-| Energy monitoring | ❌ Not exposed | This EP10 firmware does not publish an `Energy` module — only `is_on` is readable. Good-enough: control loop uses VPD, not wattage |
+| GoveeLife H7142 humidifier | ✅ In tent | LAN IP `192.168.1.247` (DHCP-reserved); MAC `14:38:60:74:F4:DD:B9:46`; SKU `H7142`; account name `dirt-humidifier` |
+| Govee Public API v2 | ✅ Working | `https://openapi.api.govee.com/router/api/v1/`; cloud-only, no LAN fallback for H71xx line |
+| API key | ✅ Provisioned | `GOVEE_API_KEY` in `.env`; account-wide; rotate via Govee Home app |
+| Control service | ✅ Deployed 2026-04-27 | `apps/hwd/src/dirt_hwd/services/humidifier.py`; runs in `dirt-hwd` lifespan |
+| PI controller | ✅ Authoritative | `apps/hwd/src/dirt_hwd/services/humidifier_pi.py` (was shadow-mode 2026-04-25 → 2026-04-27) |
+| Quantizer | ✅ Authoritative | `apps/hwd/src/dirt_hwd/services/humidifier_dispatch.py` — u_pct → Manual-mode level (1..9) with hysteresis |
+| Plug state logging | ✅ | `humidifier_on` (0/1) + `humidifier_mist_level` (0..9) written every poll; transitions emitted to `logs/humidifier/` stream |
+| `lackWaterEvent` watchdog | ✅ | Tank-empty alarm surfaced via `/device/state` → Telegram alert (rising-edge-deduped) |
+| Ineffective-actuator watchdog | ✅ | Replaces Raydrop "red LED" check — fires when VPD doesn't drop after sustained mist commands |
+| Raydrop 4L + Kasa EP10 | ⛔ Retired 2026-04-27 | Unplugged. Kasa EP10 (alias `dirt-humidifier`, MAC `10:5A:95:8B:E8:B7`, IP `192.168.1.220`) deprovisioned from the loop |
 
 ## Hardware
 
-### Raydrop 4L Ultrasonic Humidifier
+### GoveeLife Smart Humidifier H7142
 
-- **Control interface:** analog potentiometer knob for mist intensity. No digital / WiFi / BLE control.
-- **Power:** 120 VAC wall plug.
-- **Strategy:** knob set once to a moderate output (~50–60%). Dynamic control is purely ON/OFF gating of mains power via the Kasa plug — never by driving the knob.
+- **Capacity:** 6 L cool-mist ultrasonic.
+- **Control interface:** Wi-Fi via Govee Public API v2 (cloud-only — no LAN fallback for the H71xx line, confirmed 2026-04-27).
+- **Power:** 120 VAC wall plug. No smart plug between wall and humidifier — smart control is native.
+- **Capability list (live discovery, 2026-04-27):**
+  - `powerSwitch` (on/off, ENUM 0/1)
+  - `workMode` (STRUCT `{workMode, modeValue}`; Manual=1 / Custom=2 / Auto=3)
+  - `humidity` (INTEGER 40–70%, used in Auto only — we don't use Auto)
+  - `lackWaterEvent` (event-only, fires when tank empty; alarmType 51, single state `lack=1`)
+- **9 Manual-mode mist levels** confirmed via API (one more than the H7140/H7143). The marketing claim and the API match — verified 2026-04-27. Quantizer maps `u_pct ∈ [0, 100]` from the PI controller into one of these 9 buckets with hysteresis at level boundaries.
+- **No UVC, no aroma pad, no nightlight** capabilities exposed by the API. The H7142 marketing copy implies these as features — the API doesn't surface them. We don't use them anyway.
+- **Cloud-only constraint:** every control / state read is an HTTP round-trip through `openapi.api.govee.com`. State polls counted against a 10K/account/day quota; we poll once per 30 s loop tick → 2,880 calls/day, well under the budget. See [docs/references/govee-api/rate-limits.md](../../docs/references/govee-api/rate-limits.md).
 
-### TP-Link Kasa Ultra Mini EP10 Smart Plug
-
-- **Switching:** internal relay; UL-listed sealed consumer device — all mains switching stays inside the plug.
-- **Connectivity:** 2.4 GHz WiFi. Controlled over LAN (not via TP-Link cloud).
-- **Protocol:** modern Kasa plugs use the KLAP protocol; `python-kasa` handles both legacy Kasa and KLAP transparently.
-- **Energy monitoring:** reports instantaneous wattage. Useful as a ground-truth signal — a humidifier that's been unplugged, has run dry, or has hit its own safety cutout will read ~0 W even when the plug is ON.
-- **Relay lifetime:** plug relays are mechanical — rated on the order of 10⁴–10⁵ cycles. The VPD deadband alone keeps switching low (a natural on-phase ends when the tent moistens past the turn-off edge, typically tens of minutes); no additional min-off or max-on guards are used.
+History: DHT22 → BME280 (2026-04-13) → SHT45 ESP32-C3 fan-controller (2026-04-23) for the *sensor*; Arduino-SSR → Kasa EP10 + Raydrop (2026-04-17) → H7142 native (2026-04-27) for the *actuator*. The control loop is sensor- and actuator-agnostic at module boundaries — the PI controller and quantizer don't know which device they're driving.
 
 ## Network / Provisioning
 
-- Onboard the plug using the Kasa mobile app (one-time; WiFi credentials baked into the plug).
-- Assign the plug a **static DHCP reservation** on the LAN so the control service can reach it by a stable IP (or mDNS name if preferred).
-- Note the plug's MAC + IP in this file once deployed.
+- Onboard the H7142 using the Govee Home app (one-time; account binds the device).
+- Apply for an API key in the Govee Home app: **Profile → About Us → Apply for API Key** (24h email turnaround). The key is account-wide.
+- Set `GOVEE_API_KEY` and (optionally) `GOVEE_HUMIDIFIER_MAC` in `.env`. Empty MAC → loop discovers by SKU at startup.
+- DHCP-reserve the H7142's LAN IP for orderly network maps; control doesn't actually use the LAN.
 
 ## Control Library
 
-[`python-kasa`](https://github.com/python-kasa/python-kasa) — async API, explicit EP10 support, talks directly to the plug over the LAN. No TP-Link cloud dependency. Also usable from its CLI (`kasa` command) for out-of-band testing. Real call-site: `apps/hwd/src/dirt_hwd/services/humidifier.py`.
-
-## Known Issues
-
-### KLAP v2 authentication (firmware 1.1.1 Build 250908)
-
-Our plug ships with KLAP `Login version: 2`, and stock `python-kasa` (0.10.2) fails the second-stage handshake with "Device response did not match our challenge" even with correct TP-Link Cloud credentials. Fix is in [python-kasa PR #1580](https://github.com/python-kasa/python-kasa/pull/1580) (approved, not yet merged). We pin to the contributor's branch in `pyproject.toml`:
-
-```toml
-"python-kasa @ git+https://github.com/ZeliardM/python-kasa.git@feature/new-klap"
-```
-
-Once PR #1580 merges and releases, swap back to a pinned version.
-
-### Provisioning note
-
-"Remote Control" must be **enabled** in the Kasa app for LAN KLAP auth to work. It's nominally a cloud-relay toggle, but the plug's KLAP credentials are only valid once it's bound to a TP-Link Cloud account.
-
-### Red LED on the Raydrop = low-water sensor latch
-
-**First observed 2026-04-23 10:00 MDT:** plug ON continuously 1h 30m+, VPD above upper band and *not* falling, tent RH drifting down despite the loop commanding mist. Physical check: unit LED red (normally green), no visible mist. Unplug/replug (bypass Kasa briefly, then reconnect) cleared it — immediately began misting.
-
-**Model & root cause:** Raydrop **KC-RD03A** ([manual](https://manuals.plus/raydrop/kc-rd03a-cool-mist-humidifiers-manual)). The low-water float sensor latches the "empty" state even with water in the tank; controller red-lights and disables the ultrasonic until a power cycle drops the latch. Trigger is mineral scale or biofilm on the float stem and/or the ultrasonic atomizer disc — same substrate fouls both. No thermal cutout and no other documented red-LED state. **Confirmed 2026-04-23:** physically cleaning the atomizer disc resolved today's latch, matching the scale/biofilm hypothesis.
-
-**Detection (automated, 2026-04-23):** `HumidifierLoopService` runs a stuck-actuator watchdog via `update_stuck_state` — each tick advances a `StuckState` tracking the current continuous-ON streak and the VPD at streak start. When elapsed-on ≥ `humidifier_stuck_alert_after_s` (default 1200 s = 20 min) and VPD dropped less than `humidifier_stuck_min_vpd_drop_kpa` (default 0.15 kPa), a `suspected_stuck` event lands in the `humidifier` stream and a Telegram alert fires with start/now VPD and a "check red LED / water level / misting" prompt. Fires once per streak — suppressed until the plug transitions OFF.
-
-**Recovery:** unplug Raydrop from the Kasa, plug directly into wall for ~10 s, reconnect through the Kasa. Loop sees misting resume within the next cycle.
-
-**Prevention:** distilled or RO water only (tap water is the root cause of both float sticking and transducer fouling — one problem, not two). Weekly 1:1 white-vinegar descale of the base (float + piezo disc), 15–20 min, rinse, air dry.
-
-### BME280 drift (resolved-by-transition 2026-04-23)
-
-**Resolved** by retiring the Arduino Nano + BME280 for the ESP32-C3 + SHT45 combined fan-controller board (see [fan control + tent sensor](ac-infinity-fan-control.md), [decision 2026-04-22](../decisions/2026-04-22-sht45-tent-node-esp32.md)). Handheld hygrometer side-by-side with both sensors on 2026-04-23 00:15 MDT: **69 °F / 49 %RH**; SHT45: **69.6 °F / 53 %**; BME280: **72.5 °F / 73 %** — BME280 was off by +3.5 °F and +23 %RH, much larger than the prior "stuck-state" pattern.
-
-**Historical-data caveat.** All `source=arduino` tent readings prior to 2026-04-23 00:22 MDT are biased high on RH / low on VPD by an unquantified amount. The humidifier VPD loop has been under-humidifying for some time — tent was drier than wiki/daily-reports indicated. Current-grow trend claims based on pre-cutover sensor data should be read against this caveat.
+Custom thin client at [`apps/shared/src/dirt_shared/services/govee.py`](../../apps/shared/src/dirt_shared/services/govee.py). Wraps `httpx.AsyncClient` with envelope handling, error mapping (`GoveeError` / `GoveeRateLimitError`), and a `StateSnapshot` parser. No retries — the loop is the retry boundary. Wire format anchored to [`docs/references/govee-api/`](../../docs/references/govee-api/).
 
 ## Control Logic (deployed)
 
-Bang-bang with hysteresis, targeting the **upper edge** of the stage-appropriate VPD band. The humidifier only pushes VPD down (adds moisture), so the upper edge is the right setpoint: kick on when VPD climbs past it, kick off once it falls back below by a small deadband.
+**PI control on VPD with feedforward lights gating.** Continuous `u_pct ∈ [0, 100]` from the PI module, quantized to a discrete H7142 Manual-mode level (1..9) with hysteresis at boundaries. The PI controller has been live since 2026-04-25 in shadow mode — it became authoritative on 2026-04-27 when the H7142 cutover let us replace the Kasa bang-bang as the actuator.
+
+```
+loop every ~30s:
+    stage           = current_stage()
+    lights          = lights_state()       # (on, minutes_until_off, minutes_until_on)
+    vpd_lo, vpd_hi  = current_targets()["vpd_kpa"]
+    rh_lo, rh_hi    = current_targets()["humidity_pct"]   # mold-prevention envelope
+
+    vpd, vpd_ts     = latest vpd_kpa reading
+    rh              = latest humidity_pct reading
+
+    # 1. PI: u_pct = clamp(Kc*err + Ki*∫err·dt, 0, 100)
+    pi_out = pi_compute(cfg, state, PIInput(vpd, vpd_ts, rh, ...))
+    # 2. Quantize: u_pct → discrete level 1..9 (or OFF)
+    target = quantize(disp_cfg, disp_state, pi_out.u, pi_out.plug_on)
+    # 3. Read live device state (online, power, mode_value, lack_water)
+    snap = govee.get_state(sku, mac)
+    # 4. Diff (current device, target) → minimal API calls
+    diff = plan_dispatch(snap.power_on, snap.mode_value, target.target_level)
+    # 5. Dispatch (interleaved with 200ms sleep on the boot tick)
+    if diff.set_power_on is not None: govee.set_power(...)
+    if diff.interleave: await sleep(0.2)
+    if diff.set_level is not None: govee.set_manual_level(...)
+```
+
+### PI controller
+
+Pure-function module at `humidifier_pi.py`. Guards in priority order:
+
+1. **Failsafe — stale or missing VPD** → u=0 (force off; prefer brief dryness over runaway mist)
+2. **Outside lights window** → u=0 (don't run during dark period; humidifier off `lights_off - 5min` through `lights_on - 5min`)
+3. **RH ceiling** → u=0 (mold-prevention envelope; force off when RH ≥ stage upper RH cap regardless of what VPD says)
+4. **PI active** — `error = vpd - setpoint`, where setpoint = stage VPD upper band (with `-0.3 kPa` night offset during dark period)
+
+Sub-threshold cutoff with hysteresis converts `u_pct` to the binary `plug_on` gate that the quantizer reads. Anti-windup integrator clamp at ±50 %u keeps the integrator bounded under sustained saturation. Conservative starting gains: `Kc=8.0`, `Ki=0.01` — sourced from a Raydrop FOPDT fit and not yet refit for the H7142. Step-test refit is week-1 work.
+
+### Quantizer (dispatch boundary)
+
+Pure-function module at `humidifier_dispatch.py`. Maps `u_pct → modeValue ∈ {1..9}` with `bucket_width = 100/9 ≈ 11.11%`. Hysteresis at every boundary (default 3 percentage points) — once at level N, `u_pct` has to walk past `boundary ± hyst` before stepping. Prevents 4↔5 chatter at steady state.
+
+### Dispatch state machine
+
+The loop diffs the **live device state** (not our last-commanded value) against the target, so a divergence — user toggled via the Govee app, dropped command, network blip — self-heals on the next tick. Five cases:
+
+| Current | Target | API calls |
+|---|---|---|
+| OFF | OFF | none |
+| ON at N | OFF | `set_power(off)` |
+| OFF | level N (≠ device's last level) | `set_power(on)` → 200ms → `set_manual_level(N)` |
+| OFF | level N (= device's last level) | `set_power(on)` only — H7142 preserves workMode across power cycles |
+| ON at N | level N | none (~99% of ticks at steady state) |
+| ON at N | level M | `set_manual_level(M)` |
+
+The 200ms inline pause on the boot tick exists because the H7142 occasionally drops a closer-spaced second command (verified empirically). 200ms is generous for the cloud round-trip.
+
+### Stage band reference
 
 Stage → VPD band lookup comes from `dirt.services.grow_state.STAGE_TARGETS`:
 
-| Stage | VPD band (kPa) | Upper edge (turn-on threshold) |
+| Stage | VPD band (kPa) | Setpoint (PI) |
 |---|---|---|
-| `veg` | 0.8 – 1.2 | 1.2 |
-| `flower_early` (days 0–20 of 12/12) | 1.0 – 1.3 | 1.3 |
-| `flower_late` (day 21+ of 12/12) | 1.2 – 1.5 | 1.5 |
+| `veg` | 0.7 – 1.0 | 1.0 (lights-on); 0.7 (lights-off, with -0.3 kPa night offset) |
+| `flower_early` (days 0–20 of 12/12) | 1.0 – 1.3 | 1.3 / 1.0 |
+| `flower_late` (day 21+ of 12/12) | 1.2 – 1.5 | 1.5 / 1.2 |
 
-Lights schedule comes from `growstate.lights_on_local` / `growstate.lights_off_local`, interpreted in `growstate.timezone` (default `America/Denver`). Defaults: veg 18/6 → (05:00, 23:00). Flip via SQL when the photoperiod changes; the loop picks it up on the next poll.
+RH ceiling envelope (mold prevention): `veg=(40,70)`, `flower_early=(40,60)`, `flower_late=(35,55)`.
 
-```
-deadband          = 0.4   # kPa  (vpd_deadband_kpa)
-night_offset      = -0.3  # kPa  (vpd_lights_off_offset_kpa)  — dark-period band shift
-prep_minutes      = 5     # min  (lights_off_prep_minutes)    — pre-lights-off cutoff
-FAILSAFE_STALE_S  = 300   # 5 min without fresh VPD → force OFF
-
-loop every ~30s:
-    stage                = current_stage()
-    lights               = lights_state()        # (on: bool, minutes_until_off: float)
-    offset               = 0 if lights.on else night_offset
-    lo_day, hi_day       = current_targets()["vpd_kpa"]
-    turn_on_above        = hi_day + offset
-    turn_off_below       = hi_day + offset - deadband
-    in_prep_window       = lights.on and lights.minutes_until_off < prep_minutes
-
-    vpd, ts              = latest vpd_kpa reading
-
-    if vpd is None or (now - ts) > FAILSAFE_STALE_S:
-        plug.off(); continue
-
-    if in_prep_window:
-        plug.off()                   # A: don't dose mist pre-lights-off
-        continue
-
-    if vpd > turn_on_above and not plug.is_on:
-        plug.on()
-    elif vpd < turn_off_below and plug.is_on:
-        plug.off()
-    # else: hold — the deadband is intentional
-```
+Lights schedule comes from `growstate.lights_on_local` / `growstate.lights_off_local`, interpreted in `growstate.timezone` (default `America/Denver`). Defaults: veg 18/6 → (05:00, 23:00). Flip via SQL when the photoperiod changes; the loop picks it up on the next tick.
 
 **Why these choices:**
 
-- **VPD, not RH.** RH at a fixed setpoint mis-targets the plant: when temperature falls at night, the same RH produces a much lower VPD (e.g. 60% RH at 63°F = 0.46 kPa, seedling range). VPD collapses this into one number that's correct across the day/night swing. See [concepts/vpd.md](../concepts/vpd.md).
-- **Upper-edge setpoint.** The humidifier only adds moisture; there's nothing to do when VPD is already in or below the band. Acting only at the dry edge keeps the duty cycle low and the relay count manageable.
-- **Bang-bang, not PID.** Binary actuator. Big dead time. Asymmetric transfer function (can add moisture, can't actively remove). Plants don't need ±0.05 kPa.
-- **0.4 kPa deadband.** Originally 0.1 kPa (sized to DHT22 noise floor and kept through the BME280 swap). Widened to 0.3 kPa on 2026-04-23 after the SHT45 cutover exposed severe bang-bang flapping: the Raydrop running for one minute drops VPD ~0.45 kPa (from ~1.35 to ~0.87 in veg-ambient conditions), overshooting the 0.1 kPa deadband by 4× every cycle and clicking the plug relay every 60 s at lights-on. Widened again to 0.4 kPa later on 2026-04-23 after the UI showed 128 cycles/24h — at the low end of the EP10's 10⁴–10⁵-cycle relay rating, that's ~2.5 months of life in the worst case. 0.4 kPa stretches the natural off-phase from ~5–10 min toward ~15–20 min without any hardware change. Not sensor-noise-sized anymore — it's actuator-overshoot-sized. The proper long-term fix is the two-actuator fan+humidifier loop (see [fan control](ac-infinity-fan-control.md) "Future integration"), which lets the fan counteract the humidifier's overshoot and tighten the band back up.
-- **Feedforward, not derivative.** The dominant disturbance (lights on/off) is scheduled and periodic, so we use the clock to anticipate it rather than estimating `dVPD/dt`. Derivative on sensor noise would have a 5 min smoothing lag and near-unit SNR for the signals we care about. See [decisions/2026-04-19-lights-off-aware-humidifier.md](../decisions/2026-04-19-lights-off-aware-humidifier.md).
-- **−0.3 kPa night offset, not percentage.** Preserves deadband width across stages (a percentage factor compresses the band below sensor noise). Falls inside the published "0.2–0.4 kPa below day" range (Pulse Grow, GrowSensor, Anden).
-- **5 min prep window.** Sized to one tent-fan-volume turnover so the humidifier isn't actively misting at the lights transition. **Originally 30 min** (Apr 19); tightened to 5 min on 2026-04-27 after Govee H7142 data showed RH clears 63%→43% within 5 minutes of OFF. The legacy 30-min margin had been left over from the Raydrop era and was leaving VPD ~0.4 kPa above the veg upper band for ~25 min/day with no observable benefit (no residual mist rise, dew-point stayed 50–55°F vs 70–75°F ambient at lights-off — ~20°F condensation margin). Same value applies symmetrically pre-lights-on (humidifier resumes 5 min before lights, not 30).
-- **No max-on safety, no min-off guard.** The Raydrop has its own low-water cutoff, so a stuck-high VPD reading self-limits when the reservoir runs dry. Min-off was redundant with the deadband (hysteresis already prevents chatter). Earlier versions fought the safety timers — ops learning 2026-04-19: max-on at 20 min terminated on-phases before the deadband could, turning the safety into the primary (and poorly-tuned) controller. See [decisions/2026-04-19-drop-humidifier-safety-timers.md](../decisions/2026-04-19-drop-humidifier-safety-timers.md).
-- **Failsafe OFF on stale reads** — prefer brief dryness over a damping-off tent.
-- **Stage band + lights schedule re-read every tick** — a veg→flower flip or a photoperiod change in the DB takes effect on the next poll with no restart.
-
-## Coupling with fan exhaust rate
-
-The humidifier competes directly with the tent exhaust fan — a coupling invisible in the BME280 era (bogus +23 %RH kept the loop from seriously demanding humidity) but immediately observable after the SHT45 cutover. 2026-04-23: at fan 30 % + mid-dial Raydrop, VPD tracked setpoint and the humidifier oscillated gently. Bumping fan to 40 % tipped the balance — exhaust exceeded the Raydrop's dialed-down emission rate, the plug pinned ON continuously, VPD *climbed* 1.20 → 1.50 kPa over 1h 40m. User turned the Raydrop dial up and RH recovered.
-
-**Implications:** (1) The Raydrop potentiometer is a hidden input to the control stack — its setting caps the max mist rate the loop can ask for, and software has no visibility into it. (2) Fan speed is part of the humidity-control surface even though nothing in the loop models it. **Diagnostic:** humidifier stuck ON >30 min with VPD still rising ⇒ physical actuator saturation, not a loop bug. Dial up the Raydrop or dial down the fan.
+- **VPD, not RH.** RH at a fixed setpoint mis-targets the plant: when temperature falls at night, the same RH produces a much lower VPD. VPD collapses this into one number that's correct across the day/night swing. See [concepts/vpd.md](../concepts/vpd.md).
+- **Upper-edge setpoint.** The humidifier only adds moisture; there's nothing to do when VPD is already in or below the band. Acting only at the dry edge keeps the duty cycle low.
+- **PI, not bang-bang.** Continuous-intensity actuator (9 levels). Big dead time. Asymmetric transfer function (can add moisture, can't actively remove). PI gives smooth response without the relay-cycling problem the bang-bang had on the Kasa. The 0.4 kPa deadband in the old loop was actuator-overshoot-sized — the PI eliminates it by ramping intensity instead of slamming the plug on/off.
+- **Feedforward, not derivative.** Dominant disturbance (lights on/off) is scheduled and periodic — use the clock to anticipate it. Derivative on sensor noise has 5-min smoothing lag and near-unit SNR for the signals we care about.
+- **−0.3 kPa night offset.** Falls inside the published "0.2–0.4 kPa below day" range (Pulse Grow, GrowSensor, Anden). Preserves band width across stages.
+- **5 min prep window.** Sized to one tent-fan-volume turnover so the humidifier isn't actively misting at the lights transition. Symmetric pre-lights-off and pre-lights-on.
+- **Live-state diffing.** Source of truth is what the device reports, not what we last commanded. Divergence self-heals.
+- **No max-on / min-off guard.** PI integrator clamp (anti-windup) is the right tool for that — bounding u, not the plug.
+- **Failsafe OFF on stale reads** — prefer brief dryness over runaway mist.
 
 ## State Logging
 
-Two streams, each serving a different consumer:
+Three streams feed three consumers:
 
-- **`sensorreading.humidifier_on`** — 0/1 every poll (~30s), `source="kasa"`, `location="tent"`. Written even when no state change occurred, so the web UI's time-series graphs show a continuous step function alongside `vpd_kpa`.
-- **`logs/humidifier/YYYY-MM-DD.jsonl`** — state-change events with full context (reason, VPD at decision time, VPD-reading age, stage, and the upper/lower band edges in effect). Short-retention operational stream for incident review.
+- **`sensorreading`** (DB):
+  - `humidifier_on` (0/1) every poll, `source="govee"`, `location="tent"`
+  - `humidifier_mist_level` (0..9) every poll — actuator commanded level
+- **`logs/humidifier/YYYY-MM-DD.jsonl`** — operational state-change events:
+  - `state_change` (power transitions, with new level/u_pct/reason/VPD/band/lights context)
+  - `level_change` (level transitions while powered, with from/to and u_pct)
+  - `lack_water` / `lack_water_cleared` (rising/falling edges of lackWaterEvent)
+  - `device_offline` / `device_online` (Govee cloud reachability transitions)
+  - `suspected_ineffective` (commanded mist for ≥20 min, VPD didn't drop ≥0.15 kPa)
+  - `rate_limited` (HTTP/code 429 from Govee — quiet log; next tick retries)
+  - `error` (any other exception in the tick body)
+  - `skip_offline` (per-tick when device offline; PI ran but no actuation)
+- **`logs/humidifier_shadow/YYYY-MM-DD.jsonl`** — per-tick PI raw output (u_pct, P/I split, integrator, error, setpoint, reason) for diagnostic replay against the analyzer at `debug/humidifier-shadow/analyze.py`. Promoted from "what would PI do" (2026-04-25 to 2026-04-27) to "what PI is actually emitting before quantization" — same fields, different role.
 
-State-change reasons: `vpd_above_upper_band`, `vpd_below_upper_band`, `failsafe_stale_sensor`, `lights_off_prep`. Each event also carries `lights_on`, `minutes_until_off`, and `band_offset_kpa` so a log line fully determines which rule fired. Manual overrides via the Kasa app or `uv run kasa --host 192.168.1.220 on/off` are NOT tagged — the loop just observes the new state on its next poll and records it.
+State-change reasons (from PI): `pi_active`, `failsafe_stale_sensor`, `outside_lights_window`, `rh_ceiling`. Each event also carries `lights_on`, `minutes_until_off`, and the active stage band so a log line fully determines which rule fired. Manual overrides via the Govee Home app are observed on the next state read and dispatched against (the loop will revert them within 30 s if they conflict with the PI's current target).
 
-Wattage field is absent because this firmware doesn't expose an Energy module.
+## Known Issues
+
+### Tank empty (`lackWaterEvent`)
+
+The H7142 surfaces tank-empty as an `event`-typed capability — `/device/state` includes a `lackWaterEvent` capability **only while the event is active**. Loop tracks the rising and falling edges, fires a single Telegram alert per refill cycle, and emits `lack_water` / `lack_water_cleared` log events. Replaces the Raydrop "red LED latch" check entirely.
+
+Refill the 6 L tank — the H7142 resumes misting on its own once water clears the float sensor. No power-cycle dance needed.
+
+### Ineffective actuator (still possible)
+
+The `lackWaterEvent` only catches the empty-tank case. Other failure modes — atomization plate fouled by mineral scale, mist landing on the room not the canopy, firmware glitch — show up as "we keep commanding mist but VPD doesn't drop." Watchdog at `humidifier.py:update_ineffective_state` fires when commanded level ≥ 1 for ≥ `ineffective_alert_after_s` (default 1200 s = 20 min) with VPD drop < `ineffective_min_vpd_drop_kpa` (default 0.15 kPa). One Telegram alert per streak.
+
+**Prevention:** distilled or RO water only. Weekly 1:1 white-vinegar descale of the base + atomization disc, 15–20 min, rinse, air dry.
+
+### Govee cloud reachability
+
+API is cloud-only. If `openapi.api.govee.com` is unreachable (ISP outage, Govee maintenance), the loop:
+- Logs `error` events (failed control or state calls)
+- Emits `device_offline` when the H7142's `online` state flips false (it goes offline ~1 min after losing Govee cloud sync, even if the LAN side is fine)
+- Skips dispatch while offline; PI continues to compute u_pct for shadow logging
+
+No LAN fallback exists for the H71xx humidifier line — confirmed via Govee API docs and live testing 2026-04-27.
+
+### BME280 drift (resolved-by-transition 2026-04-23)
+
+**Resolved** by retiring the Arduino Nano + BME280 for the ESP32-C3 + SHT45 combined fan-controller board (see [fan control + tent sensor](ac-infinity-fan-control.md), [decision 2026-04-22](../decisions/2026-04-22-sht45-tent-node-esp32.md)). All `source=arduino` tent readings prior to 2026-04-23 00:22 MDT are biased high on RH / low on VPD by an unquantified amount. Current-grow trend claims based on pre-cutover sensor data should be read against this caveat.
+
+## Coupling with fan exhaust rate
+
+Pre-H7142 observation: at fan 30 % + Raydrop dial mid, VPD tracked setpoint and the bang-bang oscillated gently. Bumping fan to 40 % tipped the balance — exhaust exceeded the Raydrop's max emission rate, the plug pinned ON, VPD climbed 1.20 → 1.50 kPa over 1h 40m. Raydrop dial was a hidden input.
+
+**Post-H7142:** the dial is gone — the H7142 has 9 levels of mist, all software-readable + writable. The PI integrator can ramp through them in response to error. Fan-vs-humidifier saturation is still possible (the H7142 max output is 300 ml/h cool-mist; if the fan is at 100% the loop will saturate at level 9), but the watchdog catches it (`suspected_ineffective` after 20 min). Saturation now triggers an alert instead of silently failing.
 
 ## Safety / Operational Notes
 
-- **No mains wiring to do.** The EP10 is a sealed consumer device; all high-voltage switching is internal.
-- **Plug placement:** keep the plug outside the tent's splash zone. A short extension cord into the tent is fine; the plug itself should be in dry air.
-- **Humidifier knob:** set to ~50–60% output, not max. If the plug ever fails closed (rare but possible — relays can weld), a lower knob setting limits the overshoot rate before a human notices.
-- **Empty-reservoir behavior:** the Raydrop has its own low-water cutoff. Combined with the EP10's wattage reporting (~0 W even when `is_on`), the control service can detect "humidifier plugged in but not actually running" and surface it.
-- **Fail-safe priority:** stuck-off is safer than stuck-on. Damping-off and mold are worse than a dry spell. The loop defaults to OFF on any ambiguity.
+- **No mains wiring to do.** H7142 is a sealed consumer device; smart control is native.
+- **Plug placement:** the H7142 itself plugs into a wall outlet outside the tent's splash zone. A short cord into the tent is fine.
+- **Fail-safe priority:** stuck-off is safer than stuck-on. Damping-off and mold are worse than a dry spell. The PI defaults to `u=0` on any ambiguity (stale sensor, outside-window, RH ceiling, transport error).
 
 ## Acceptance
 
-- Humidifier cycles on/off through the EP10 based on tent VPD without manual intervention.
-- VPD stays inside the active stage band for 24h continuous across the day/night swing.
-- Plug state logged alongside VPD; state-change events carry the band edges that were active at decision time.
-- Simulated sensor failure triggers failsafe OFF within the failsafe window.
+- H7142 cycles through Manual-mode levels via Govee API based on tent VPD without manual intervention.
+- VPD stays inside the active stage band for 24h continuous across the day/night swing (re-verify post-step-test refit; conservative gains may track a bit slowly initially).
+- Plug state + commanded level logged alongside VPD; transition events carry the band edges that were active at decision time.
+- Simulated sensor failure triggers failsafe `u=0` within the failsafe window (300 s default).
 - Veg→flower flip (via a `grow_state.flower_start_date` write) shifts the upper-edge setpoint on the next poll without a service restart.
+- `lackWaterEvent` rising edge fires exactly one Telegram alert per refill cycle.
 
 ## Future work
 
-### Continuous humidifier intensity control
+### FOPDT refit for H7142
 
-**Scoped and tracked** per [decision 2026-04-23](../decisions/2026-04-23-raydrop-mcu-mist-control.md) and [epic: continuous-humidifier](../../docs/epics/continuous-humidifier/README.md). Replaces the Raydrop's analog potentiometer with MCU-driven intensity + a PI control loop, in place of today's bang-bang Kasa-plug control. Collapses the actuator-overshoot deadband, the fan-coupling saturation failure mode, and the "turn the dial" operational gotcha. Phase 1 (open-and-probe investigation) is the gate on Phases 2–4.
+Step-test the H7142 to derive new IMC gains. Hold each of `{level 2, 5, 8}` for ~20 min in lights-on steady state, capture the shadow-stream traces, refit FOPDT against the result, derive `(Kc, Ki)`. Methodology unchanged from the abandoned Raydrop FOPDT plan (see [docs/epics/continuous-humidifier/fopdt-fit-findings.md](../../docs/epics/continuous-humidifier/fopdt-fit-findings.md)) — only the input data source changes from "shadow stream against Kasa actuation" to "shadow stream against H7142 Manual-mode actuation."
 
-For a conceptual walkthrough of *why* PI, what FOPDT means, and how IMC maps a plant model to gains, see [`concepts/control-theory-primer.md`](../concepts/control-theory-primer.md).
+### Hysteresis tuning
 
-**Phase 4 prep landed 2026-04-25** — pure-function PI controller (`apps/hwd/src/dirt_hwd/services/humidifier_pi.py`), 29 property tests + 16 plant-in-loop tests (FOPDT-simulator + parametrized plant bracket), shadow-mode logging on a new `humidifier_shadow` stream, and an analyzer + replay harness at `debug/humidifier-shadow/analyze.py` that reads the shadow stream and reports reasons / divergence / PI math health / RH ceiling patterns / FOPDT refit / current-controller replay against historical inputs. Stage humidity bands updated late 2026-04-25 to mold-prevention envelopes (veg=(40,70), flower_early=(40,60), flower_late=(35,55)) — the previous (45,55) values were internally inconsistent with the VPD targets and caused the rh_ceiling guard to fire constantly. Full state for resumption: [`docs/epics/continuous-humidifier/README.md`](../../docs/epics/continuous-humidifier/README.md) (per-tick `u_pct`, `plug_on_shadow` vs `plug_on_actual`, setpoint, error, P/I split, integrator, reason). No actuator action; bang-bang above still drives the plug. Conservative starting gains (Kc=8, Ki=0.01) at the low end of the [FOPDT-fit bracket](../../docs/epics/continuous-humidifier/fopdt-fit-findings.md); refined under shadow data + a graduated step test in Phase 2/3 acceptance. New `rh_ceiling` envelope guard forces u=0 when RH ≥ stage_rh_max — addresses the "VPD looks fine because tent went cold and humid" failure mode that scalar VPD alone can't catch.
+3% half-band at level boundaries is a default — may be too tight or too loose against the H7142's actual mist-rate granularity. Watch `level_change` event cadence; aim for < 5 transitions per hour at steady state.

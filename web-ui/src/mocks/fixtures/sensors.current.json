@@ -30,6 +30,13 @@
       "status": "ok",
       "ts": "2026-04-22T15:21:34.555253Z"
     },
+    "humidifier_intensity_pct": {
+      "value": 33.33,
+      "unit": "%",
+      "target": null,
+      "status": "ok",
+      "ts": "2026-04-22T15:21:34.555253Z"
+    },
     "reservoir_in": {
       "value": 15.73,
       "unit": "in",

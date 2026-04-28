@@ -1,12 +1,12 @@
 ---
 title: Govee API — Control & State Endpoints
 parent: docs/references/govee-api/INDEX.md
-updated: 2026-04-26
+updated: 2026-04-27
 ---
 
 # Endpoints, request/response shapes, auth
 
-All endpoints are POST against `https://openapi.api.govee.com/router/api/v1/`. JSON body required even on operations that look like reads. Auth is a single header.
+Endpoints live under `https://openapi.api.govee.com/router/api/v1/`. **Discovery is `GET`** (`/user/devices`); state and control are `POST` with JSON bodies. Auth is a single header.
 
 ## Auth
 
@@ -22,13 +22,17 @@ The key is **account-wide** — it can address every device on the account. Rota
 
 ## Endpoints
 
-| Path | Purpose | When to call |
-|---|---|---|
-| `POST /user/devices` | List every device on the account, with full capability discovery per device | Once at startup; cache result. **Re-fetch only on device add/remove.** |
-| `POST /device/state` | Read current state of one device | Whenever you need fresh state. Counts against quota — don't poll. |
-| `POST /device/control` | Send a single capability change to one device | Every time you want the device to do something different |
+| Path | Method | Purpose | When to call |
+|---|---|---|---|
+| `/user/devices` | **GET** | List every device on the account, with full capability discovery per device | Once at startup; cache result. **Re-fetch only on device add/remove.** |
+| `/device/state` | POST | Read current state of one device | Whenever you need fresh state. Counts against quota — don't poll. |
+| `/device/control` | POST | Send a single capability change to one device | Every time you want the device to do something different |
 
-## Request envelope (every call)
+`GET /user/devices` takes no body and no query params — auth header only. `POST /user/devices` returns **400 Bad Request** (verified live 2026-04-27 against H7142). The earlier "POST with empty body" shape some readme.io renders suggest does not work.
+
+## Request envelope
+
+POST endpoints (`/device/state`, `/device/control`) take this body:
 
 ```json
 {
@@ -39,16 +43,20 @@ The key is **account-wide** — it can address every device on the account. Rota
 
 `requestId` is purely a correlation id you choose — Govee echoes it in the response. **It is not idempotency-keyed**: sending the same `requestId` twice does not deduplicate. If you want at-most-once semantics, dedupe on your side.
 
+`GET /user/devices` has no body and no `requestId`.
+
 ## Response envelope (every call)
 
 ```json
 {
-  "requestId": "<echo of yours>",
+  "requestId": "<echo of yours, omitted on GET>",
   "msg":  "success",
   "code": 200,
   "data": { ...endpoint-specific... }
 }
 ```
+
+The success-message field name is **`message`** on `GET /user/devices` and **`msg`** on the POST endpoints (verified 2026-04-27 — both observed against the same account). Tolerate both when parsing. The success-code semantics are unchanged.
 
 `code` mirrors HTTP status for the happy path; for application-level failures the HTTP layer can still be 200 while `code` is 400/401/403/429. **Always check `code`, not just HTTP status.** Common failure codes:
 
@@ -60,11 +68,11 @@ The key is **account-wide** — it can address every device on the account. Rota
 | 429 | Rate limit exceeded (see [rate-limits.md](rate-limits.md)) |
 | 500 | Govee cloud error — retry with backoff |
 
-## `POST /user/devices` — discovery
+## `GET /user/devices` — discovery
 
-**Request payload:** empty object `{}` (the body is `{requestId, payload: {}}`).
+**Method is GET** — no body, no query params, just the `Govee-API-Key` header.
 
-**Response `data.devices`:** array of device objects. Each one looks like:
+**Response `data`:** flat array of device objects (not `{devices: [...]}` as some older renders show — confirmed against H7142 on 2026-04-27). Each one looks like:
 
 ```json
 {

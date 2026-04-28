@@ -55,6 +55,7 @@ class SensorSource(StrEnum):
     ARDUINO = "arduino"
     ESP32 = "esp32"
     KASA = "kasa"
+    GOVEE = "govee"
     MOCK = "mock"
 
 

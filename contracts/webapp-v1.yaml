@@ -30,8 +30,6 @@ tags:
     description: Current grow identity (day, week, stage)
   - name: sensors
     description: Live + historical sensor readings
-  - name: humidifier
-    description: Humidifier on/off state + transition history
   - name: plants
     description: Per-plant cards, detail drawer, moisture history
   - name: system
@@ -175,42 +173,20 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  # ============================================================
-  # 4. Humidifier
-  # ============================================================
-
-  /api/humidifier/state:
+  /api/sensors/metadata:
     get:
-      tags: [humidifier]
-      operationId: humidifierState
-      summary: Current humidifier on/off + last transition
+      tags: [sensors]
+      operationId: sensorsMetadata
+      summary: Per-metric display metadata (name, unit, accent, y-axis bounds)
+      description: |
+        Single source of truth for the dashboard tile layout. The SPA reads
+        this once at boot and uses it to drive the gauges + sparkline grid.
       responses:
         '200':
-          description: Current humidifier state envelope.
+          description: Ordered list of metric metadata for the dashboard.
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/HumidifierState' }
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
-  /api/humidifier/history:
-    get:
-      tags: [humidifier]
-      operationId: humidifierHistory
-      summary: Humidifier on/off transitions over the requested range
-      parameters:
-        - name: range
-          in: query
-          required: true
-          schema: { $ref: '#/components/schemas/Range' }
-      responses:
-        '200':
-          description: List of transitions; render as `(ts, on)` pairs.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/HumidifierHistory' }
-        '400':
-          $ref: '#/components/responses/BadRequest'
+              schema: { $ref: '#/components/schemas/SensorsMetadataResponse' }
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -576,6 +552,7 @@ components:
         - dew_point_f
         - pressure_hpa
         - fan_pct
+        - humidifier_intensity_pct
         - reservoir_in
 
     PlantCode:
@@ -718,13 +695,15 @@ components:
             - humidity_pct
             - vpd_kpa
             - fan_pct
+            - humidifier_intensity_pct
             - reservoir_in
           properties:
-            temperature_f: { $ref: '#/components/schemas/MetricEnvelope' }
-            humidity_pct:  { $ref: '#/components/schemas/MetricEnvelope' }
-            vpd_kpa:       { $ref: '#/components/schemas/MetricEnvelope' }
-            fan_pct:       { $ref: '#/components/schemas/MetricEnvelope' }
-            reservoir_in:  { $ref: '#/components/schemas/MetricEnvelope' }
+            temperature_f:            { $ref: '#/components/schemas/MetricEnvelope' }
+            humidity_pct:             { $ref: '#/components/schemas/MetricEnvelope' }
+            vpd_kpa:                  { $ref: '#/components/schemas/MetricEnvelope' }
+            fan_pct:                  { $ref: '#/components/schemas/MetricEnvelope' }
+            humidifier_intensity_pct: { $ref: '#/components/schemas/MetricEnvelope' }
+            reservoir_in:             { $ref: '#/components/schemas/MetricEnvelope' }
 
     SensorsHistoryResponse:
       type: object
@@ -738,45 +717,46 @@ components:
           type: array
           items: { $ref: '#/components/schemas/HistoryPoint' }
 
-    # ---- Humidifier ----
+    # ---- Sensor metadata ----
 
-    HumidifierState:
+    SensorMetricMetadata:
       type: object
       additionalProperties: false
-      required: [on, since, duration_s, cycles_24h, ts]
+      required: [metric, display_name, unit, accent, has_target_band]
       properties:
-        on: { type: boolean }
-        since:
+        metric: { $ref: '#/components/schemas/SensorMetric' }
+        display_name: { type: string }
+        unit: { type: string }
+        accent:
           type: string
-          format: date-time
-          description: Timestamp of the last transition.
-        duration_s:
-          type: integer
-          minimum: 0
-          description: Seconds since `since`.
-        cycles_24h:
-          type: integer
-          minimum: 0
-          description: Off→on transitions in the last 24h.
-        ts: { type: string, format: date-time }
+          description: |
+            FE palette key — `"temp"`, `"humidity"`, `"vpd"`, `"fan"`,
+            `"reservoir"`. SPA maps to colors in its accent table.
+        y_min:
+          type: number
+          nullable: true
+          description: Sparkline lower bound; null = auto-scale.
+        y_max:
+          type: number
+          nullable: true
+          description: Sparkline upper bound; null = auto-scale.
+        has_target_band:
+          type: boolean
+          description: |
+            Whether the gauge tile renders a target-band overlay.
+            Bands themselves come from `/api/sensors/current` per stage;
+            this flag tells the SPA whether the band field will ever be
+            populated for this metric.
 
-    HumidifierTransition:
+    SensorsMetadataResponse:
       type: object
       additionalProperties: false
-      required: [ts, on]
+      required: [metrics]
       properties:
-        ts: { type: string, format: date-time }
-        on: { type: boolean }
-
-    HumidifierHistory:
-      type: object
-      additionalProperties: false
-      required: [range, points]
-      properties:
-        range: { $ref: '#/components/schemas/Range' }
-        points:
+        metrics:
           type: array
-          items: { $ref: '#/components/schemas/HumidifierTransition' }
+          description: Dashboard render order.
+          items: { $ref: '#/components/schemas/SensorMetricMetadata' }
 
     # ---- Plants ----
 

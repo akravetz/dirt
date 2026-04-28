@@ -7,7 +7,7 @@ Eight rows in the mockup (``dashboard.jsx:SystemTable``):
 - ESP32-C3 · plant_{a,b,c,d}  — per-plant sensornode's ``last_seen``
 - OBSBOT Tiny 2 Lite          — dirt-camera daemon's ``get_state`` RPC
 - Jabra Speak 410 (Claudia)   — tail of ``var/sessions/voice/*.jsonl``
-- Humidifier (Kasa EP10)      — latest ``humidifier_on`` reading timestamp
+- Humidifier (Govee H7142)    — latest ``humidifier_on`` reading timestamp
 
 All heterogenous — DB rows, a unix socket, a JSONL file — so we normalise
 them into a single ``DeviceStatus`` dataclass with a small status taxonomy.
@@ -237,7 +237,7 @@ class SystemStatusService:
                 last_seen = last.ts
         status = _status_from_age(now, last_seen, "actuator")
         return DeviceStatus(
-            name="Humidifier (Kasa EP10)",
+            name="Humidifier (Govee H7142)",
             kind="actuator",
             status=status,
             last_seen=last_seen,

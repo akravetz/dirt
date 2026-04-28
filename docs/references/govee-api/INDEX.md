@@ -3,7 +3,7 @@ title: Govee Developer API Reference Pack
 concept: govee-api
 mode: hosted-cloud-api
 api_version: Public API v2 (openapi.api.govee.com/router/api/v1)
-updated: 2026-04-26
+updated: 2026-04-27
 ---
 
 # Govee Developer API (Public v2)
@@ -44,10 +44,10 @@ Govee-API-Key: <your api key>
 }
 ```
 
-Discovery shape (one-time at startup, then cache):
+Discovery shape (one-time at startup, then cache) — **`GET`, not `POST`** (verified live 2026-04-27 against the H7142; `POST /user/devices` returns 400):
 
 ```http
-POST https://openapi.api.govee.com/router/api/v1/user/devices
+GET https://openapi.api.govee.com/router/api/v1/user/devices
 Govee-API-Key: <your api key>
 ```
 

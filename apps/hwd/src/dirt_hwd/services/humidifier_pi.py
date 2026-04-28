@@ -1,14 +1,15 @@
-"""PI controller for continuous humidifier intensity (Phase 4 prep).
+"""PI controller for continuous humidifier intensity.
 
 Pure-function module — no I/O, no actuator coupling. ``compute()`` takes
-(config, state, input) and returns (new_state, output). Designed for shadow-
-mode logging today and authoritative use once Phase 2/3 lands a continuous-
-intensity actuator.
+(config, state, input) and returns (new_state, output). Drives the Govee
+H7142 dispatch boundary in ``humidifier.py`` (authoritative since the
+2026-04-27 cutover); was shadow-only against the Kasa/Raydrop bang-bang
+2026-04-25 → 2026-04-27.
 
 See:
-  - docs/epics/continuous-humidifier/phase4-test-plan.md
-  - docs/epics/continuous-humidifier/fopdt-fit-findings.md (gain bracket)
-  - wiki/decisions/2026-04-23-raydrop-mcu-mist-control.md
+  - wiki/decisions/2026-04-27-h7142-deployed.md
+  - docs/epics/continuous-humidifier/fopdt-fit-findings.md (gain bracket;
+    sourced against the Raydrop, awaiting H7142 step-test refit)
 """
 
 from __future__ import annotations
@@ -133,7 +134,8 @@ def compute(cfg: PIConfig, state: PIState, inp: PIInput) -> PIOutput:
       4. Normal — PI on (setpoint - VPD).
 
     Sub-threshold cutoff + hysteresis converts the continuous ``u`` into the
-    binary ``plug_on`` for the Kasa hard-off authority.
+    binary ``plug_on`` gate that the dispatch quantizer reads to decide
+    OFF vs. a discrete Manual-mode level on the H7142.
     """
     setpoint = _setpoint(inp, cfg.night_offset_kpa)
 

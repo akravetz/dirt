@@ -205,7 +205,7 @@ def test_generated_pydantic_models_import() -> None:
     for name in (
         "GrowCurrent",
         "SensorsCurrent",
-        "HumidifierState",
+        "SensorMetricMetadata",
         "PlantsResponse",
         "PlantDetail",
         "PTZState",

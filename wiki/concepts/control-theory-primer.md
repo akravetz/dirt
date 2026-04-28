@@ -2,16 +2,16 @@
 title: "Control Theory Primer — PID, FOPDT, and How Our Humidifier Loop Works"
 type: concept
 sources: []
-related: [wiki/hardware/humidifier-control.md, wiki/decisions/2026-04-23-raydrop-mcu-mist-control.md, wiki/decisions/2026-04-19-lights-off-aware-humidifier.md, wiki/concepts/multi-actuator-environment-control.md, wiki/concepts/vpd.md]
+related: [wiki/hardware/humidifier-control.md, wiki/decisions/2026-04-27-h7142-deployed.md, wiki/decisions/2026-04-19-lights-off-aware-humidifier.md, wiki/concepts/multi-actuator-environment-control.md, wiki/concepts/vpd.md]
 created: 2026-04-25
-updated: 2026-04-25
+updated: 2026-04-27
 ---
 
 # Control Theory Primer
 
 A conceptual + practical walkthrough of feedback control as it shows up in this project. Written for someone who has tuned a racing-drone PID by trial-and-error and now wants the math + intuition behind it. Each section has a runnable companion script under [`debug/control-theory-demos/`](../../debug/control-theory-demos/) — the wiki text gives you the model, the script lets you play.
 
-The home-grow humidifier is a useful teaching plant: slow, single-direction, with a real engineering history (we replaced bang-bang with PI, and you can read the [decision](../decisions/2026-04-23-raydrop-mcu-mist-control.md) and [test plan](../../docs/epics/continuous-humidifier/phase4-test-plan.md) to see the trade-offs in action).
+The home-grow humidifier is a useful teaching plant: slow, single-direction, with a real engineering history (we replaced bang-bang with PI on the live system as of 2026-04-27 with the [Govee H7142 cutover](../decisions/2026-04-27-h7142-deployed.md); the original [Raydrop MCU-mod plan](../decisions/2026-04-23-raydrop-mcu-mist-control.md) and [test plan](../../docs/epics/continuous-humidifier/phase4-test-plan.md) document the trade-offs in action).
 
 ## 1. The fundamental problem
 

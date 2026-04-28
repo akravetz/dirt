@@ -18,7 +18,6 @@ from dirt_shared.services.ptz import PTZService
 from dirt_web.api.auth import router as auth_router
 from dirt_web.api.feed import router as feed_router
 from dirt_web.api.grow import router as grow_router
-from dirt_web.api.humidifier import router as humidifier_router
 from dirt_web.api.plants import router as plants_router
 from dirt_web.api.ptz import router as ptz_router
 from dirt_web.api.sensors import router as sensors_router
@@ -93,7 +92,6 @@ def create_app(
     app.state.grow = core.grow
     app.state.plant_detail = core.plant_detail
     app.state.plants = core.plants
-    app.state.humidifier_state = core.humidifier_state
     app.state.system_status = core.system_status
     app.state.ptz = PTZService()
     app.state.sessions = sessions
@@ -110,7 +108,6 @@ def create_app(
     app.include_router(feed_router)
     app.include_router(sensors_router)
     app.include_router(grow_router)
-    app.include_router(humidifier_router)
     app.include_router(plants_router)
     app.include_router(ptz_router)
     app.include_router(system_router)

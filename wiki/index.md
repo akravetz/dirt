@@ -1,7 +1,7 @@
 ---
 title: Index
 type: index
-updated: 2026-04-26
+updated: 2026-04-27
 ---
 
 # Grow Wiki Index
@@ -14,10 +14,10 @@ updated: 2026-04-26
 - [Wake-Word Experiment Log](wake-word-experiments.md) — append-only log of every "hey Claudia" model trained: what changed, why, training config, validation results
 
 ## Plants
-- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; vigor leader; strong purple contender; **topped Apr 11** (Day 15 post-top); **LST Day 6** (started Apr 20); moisture stable ~57%
-- [Plant B](plants/plant-b.md) — 🟡 Secondary; no purple; **topped Apr 12** (Day 14 post-top); **LST Day 6** (started Apr 20); densest dark-green canopy; moisture rising to 79.3% — approaching C/D range
-- [Plant C](plants/plant-c.md) — 🟡 Secondary; **topped Apr 12** (Day 14 post-top); **LST Day 6** (started Apr 20); moisture stable at 85–86% (very high, 4+ days) — monitor root zone
-- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; strong purple contender; **topped Apr 12** (Day 14 post-top); **LST Day 6** (started Apr 20); moisture peaked 88.48% overnight, stabilizing ~87% — monitor root zone
+- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; vigor leader; strong purple contender; **topped Apr 11** (Day 16 post-top); **LST Day 7** (started Apr 20); moisture stable ~58%
+- [Plant B](plants/plant-b.md) — 🟡 Secondary; no purple; **topped Apr 12** (Day 15 post-top); **LST Day 7** (started Apr 20); densest dark-green canopy; moisture crossed 80% (81.84%) — entering C/D elevated range
+- [Plant C](plants/plant-c.md) — 🟡 Secondary; **topped Apr 12** (Day 15 post-top); **LST Day 7** (started Apr 20); moisture stable 86–87% (very high, 5+ days) — monitor root zone
+- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; strong purple contender; **topped Apr 12** (Day 15 post-top); **LST Day 7** (started Apr 20); moisture easing (85.78%, off 88.48% peak) — lighter growth tips visible, monitoring
 
 ## Daily Logs
 - [2026-03-27](daily/2026-03-27.md) — Day 13: Pre-transplant; 2–3 leaf sets
@@ -40,6 +40,7 @@ updated: 2026-04-26
 - [2026-04-24](daily/2026-04-24.md) — Day 41: temperature fully in range all windows (first time) ✅✅; VPD clean all windows; C/D moisture 82–83% ⚠️; LST and reservoir change critically overdue
 - [2026-04-25](daily/2026-04-25.md) — Day 42: afternoon VPD 0.63 kPa below floor ⚠️; temperature regression (72°F vs yesterday's 76°F); C/D moisture 84–86%; reservoir change Day 10 (overdue)
 - [2026-04-26](daily/2026-04-26.md) — Day 43: VPD 0.68 kPa below floor 2nd day 🔴; all temp windows below targets ⚠️; overnight RH 59.5% above veg target ⚠️; B moisture rising to 79%; reservoir change Day 11+ critically overdue
+- [2026-04-27](daily/2026-04-27.md) — Day 44: VPD fully recovered all windows ✅ (1.01 kPa); overnight temp crossed 68°F floor ✅; overnight RH 5-night upward drift (64.4%) ⚠️; B moisture crossed 80%
 
 ## Environment
 - [Temperature](environment/temperature.md) — Trend log; targets by phase; notable events
@@ -48,11 +49,12 @@ updated: 2026-04-26
 
 ## Hardware
 - [ESP32-C3 Per-Plant Nodes](hardware/esp32-plant-nodes.md) — Wireless soil moisture nodes (A/B/C/D); **all four live as of 2026-04-16** (A/D on v1.2 sensors, B/C on v2.0)
-- [Humidifier Control](hardware/humidifier-control.md) — Raydrop 4L gated by a Kasa Ultra Mini EP10 smart plug, driven by a host-side Python service via `python-kasa`; bang-bang hysteresis on tent SHT45-derived VPD. In service.
+- [Humidifier Control](hardware/humidifier-control.md) — **GoveeLife H7142** (6 L cool-mist, 9 Manual-mode levels via Govee Public API v2) driven by a host-side PI controller + 9-bucket dispatch quantizer on tent SHT45-derived VPD. In service since 2026-04-27 (replaced Raydrop+Kasa).
 - [PTZ Camera (OBSBOT Tiny 2 Lite + daemon)](hardware/ptz-camera.md) — Programmable gimbal + zoom; persistent C++ daemon + `scripts/camera` CLI; per-plant presets calibrated
 - [Jabra Speak 410](hardware/jabra.md) — USB speakerphone for voice I/O; ElevenLabs "Claudia" TTS + Nova-3 STT + openWakeWord ("hey claudia"). Device quirks, firmware, volume tuning.
 - [Voice Channel (Claudia)](hardware/voice-channel.md) — Production Pipecat pipeline on top of the Jabra; `dirt-voice.service`; agent tools; session logs. **Deployed 2026-04-18.**
 - [Reservoir Level (Autopot)](hardware/reservoir-level.md) — Submerged hydrostatic pressure transducer (DFRobot KIT0139) → ADS1115 → dedicated ESP32-C3 reservoir node → `reservoir_depth_cm` ingest. Planned, parts on roadmap.
+- [Reservoir Level — Bench Bring-up](hardware/reservoir-level-bringup.md) — Detailed bench validation notes: wiring, provisional cal captures, noise characterization, capacitor experiment (2026-04-26).
 - [AC Infinity Fan Control + Tent Environmental Sensor](hardware/ac-infinity-fan-control.md) — Combined ESP32-C3 SuperMini node: drives the Cloudline LITE 6" fan via 2× 2N7000 MOSFETs on D+/B5 **and** reads an Adafruit SHT45 + PTFE cap over I²C (GPIO 4/5) for tent temp/RH/VPD. **Fan D+ bring-up + SHT45 read both validated 2026-04-22.** Combined firmware at `firmware/fan_controller/`. Tach (D−) deferred. WiFi/OTA/ingest integration next.
 
 ## Concepts

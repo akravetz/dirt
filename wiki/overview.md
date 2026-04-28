@@ -4,7 +4,7 @@ type: overview
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/index.md, wiki/plants/plant-a.md, wiki/plants/plant-b.md, wiki/plants/plant-c.md, wiki/plants/plant-d.md]
 created: 2026-04-06
-updated: 2026-04-26
+updated: 2026-04-27
 ---
 
 # Grow Overview
@@ -23,57 +23,59 @@ updated: 2026-04-26
 | **Water system** | Autopot 4-Pot XL + 25-gal FlexiTank (active since Apr 15) |
 | **Training** | Single top at node 4–5 → LST → SCROG |
 | **Start date** | 2026-03-15 (germination) |
-| **Grow day** | Day 43 (as of 2026-04-26) |
+| **Grow day** | Day 44 (as of 2026-04-27) |
 
 ## Current Stage
 
-**Early Veg** — Autopot active since Apr 15. **All four plants topped** (A: Apr 11; B/C/D: Apr 12) — Day 15/14 post-topping. **SCROG net installed Apr 18** at 11" above canopy / 18" above pot base. **LST started Apr 20 on all 4 plants** — Day 6 of LST, recovery complete; light step-up window open (Apr 25–27).
+**Early Veg** — Autopot active since Apr 15. **All four plants topped** (A: Apr 11; B/C/D: Apr 12) — Day 16/15 post-topping. **SCROG net installed Apr 18** at 11" above canopy / 18" above pot base. **LST started Apr 20 on all 4 plants** — Day 7 of LST, recovery complete.
 
-**Afternoon VPD below floor for 2nd consecutive day (0.68 kPa)** — all temperature windows marginally below veg targets; overnight RH (59.48%) now above the 45–55% target. Humidifier output reduction is the immediate fix.
+**VPD fully recovered today (1.01 kPa now)** — all three windows back in target (0.86/1.05/1.01 kPa) after two-day below-floor streak. Humidifier reduction is working. Overnight RH continues five-night upward drift (64.4% now vs 45–55% veg target); day temperature still marginally below 74°F floor (73.71°F).
 
-**Reservoir refilled 2026-04-26 afternoon** — was Day 11+ overdue, now reset (next change window ~2026-05-03–06). Reservoir state suitable as a clone-donor baseline for the breeding program.
+**Reservoir refilled 2026-04-26 afternoon** — next change window ~2026-05-03–06.
 
 **Breeding program launched 2026-04-26** — Two-track SBxBS01 F2 program: pollen banking (Track A) + pheno hunt → F2 cross (Track B). See [breeding/README.md](breeding/README.md) and [decision 2026-04-26](decisions/2026-04-26-breeding-program-launch.md).
 
 **Light schedule:** 18/6 (lights on ~05:00–23:00 MDT)
-**Light intensity:** ~40% Fold-650 (step to 50% due now — LST Day 6, window open)
+**Light intensity:** ~40% Fold-650 (**step to 50% due today — window closes Apr 27**)
 
 ## Plant Status
 
 | Plant | Post-top | Purple | Priority | Status |
 |-------|----------|--------|----------|--------|
-| Plant A | Day 15 | ✅ Confirmed genetic | 🔴 Primary | Medium-light green canopy; good SCROG spread; moisture stable ~57% |
-| Plant B | Day 14 | ❌ None | 🟡 Secondary | Densest dark-green canopy; moisture rising to 79.3% (was 74.6% yesterday) — trending toward C/D range; watch |
-| Plant C | Day 14 | ⚠️ Stress-induced only | 🟡 Secondary | Dense medium-dark green bushy canopy; moisture stable 85–86% (very high, 4+ days); no visible stress |
-| Plant D | Day 14 | ✅ Confirmed genetic | 🔴 Primary | Medium-green healthy canopy; moisture peaked overnight 88.48%, now stabilizing ~87%; no visible stress |
+| Plant A | Day 16 | ✅ Confirmed genetic | 🔴 Primary | Medium-light green canopy; good SCROG spread; moisture stable ~58% |
+| Plant B | Day 15 | ❌ None | 🟡 Secondary | Densest dark-green canopy; moisture crossed 80% today (81.84%) — now in C/D elevated range; watch |
+| Plant C | Day 15 | ⚠️ Stress-induced only | 🟡 Secondary | Dense medium-dark green bushy canopy; moisture stable 86–87% (very high, 5+ days); no visible stress |
+| Plant D | Day 15 | ✅ Confirmed genetic | 🔴 Primary | Medium-green canopy; moisture easing (85.78%, off 88.48% peak); lighter growth tips in photo — monitoring |
 
-## Environment (Last Reading: Apr 26 14:00 MDT)
+## Environment (Last Reading: Apr 27 14:00 MDT)
 
 | Metric | Value | Target | Status |
 |--------|-------|--------|--------|
-| Temperature (now) | 73.17°F | 74–76°F day | ⚠️ Below floor |
-| Temperature (morning avg) | 73.02°F | 74–76°F day | ⚠️ Below floor |
-| Temperature (overnight avg) | 67.85°F | 68–72°F night | ⚠️ 0.15°F below floor |
-| Humidity (now) | 75.63% | 55–65% | ⚠️ Elevated |
-| Humidity (overnight avg) | 59.48% | 45–55% | ⚠️ Above target (first time) |
-| VPD (now) | 0.68 kPa | 0.8–1.2 kPa | 🔴 Below floor (2nd day) |
-| VPD (morning avg) | 0.99 kPa | 0.8–1.2 kPa | ✅ In range |
-| VPD (overnight avg) | 0.94 kPa | 0.8–1.2 kPa | ✅ In range |
+| Temperature (now) | 73.71°F | 74–76°F day | ⚠️ Below floor |
+| Temperature (morning avg) | 73.47°F | 74–76°F day | ⚠️ Below floor |
+| Temperature (overnight avg) | 68.87°F | 68–72°F night | ✅ Just in range |
+| Humidity (now) | 64.57% | 45–55% veg | ⚠️ Elevated |
+| Humidity (overnight avg) | 64.41% | 45–55% veg | ⚠️ Above target |
+| VPD (now) | 1.01 kPa | 0.8–1.2 kPa | ✅ In range |
+| VPD (morning avg) | 1.05 kPa | 0.8–1.2 kPa | ✅ In range |
+| VPD (overnight avg) | 0.86 kPa | 0.8–1.2 kPa | ✅ In range |
 | pH (watering) | 5.8 (target) | 5.5–6.0 | — |
-| EC (reservoir) | — | 0.8–1.0 | ⚠️ Change overdue — verify at reservoir change |
+| EC (reservoir) | — | 0.8–1.0 | ⚠️ Verify at next reservoir change |
 
 ## Active Action Items
 
-1. **Reduce humidifier output during lights-on** 🔴 — Afternoon VPD 0.68 kPa (below floor, 2nd consecutive day); overnight RH 59.48% now above veg target. Lower intensity to pull afternoon RH below 65%.
-2. **Tuck sativa-leaning canopy (A, D)** 🟡 — Per [pheno-flip-strategy](decisions/2026-04-26-pheno-flip-strategy.md): bend tallest A/D growth horizontally back under SCROG net to slow vertical and let B/C catch up. First pass today/tomorrow. Re-evaluate every 3 days; flip target ~60% net coverage.
-3. **Take clones (Wed 2026-04-29)** 🟡 — Clone gear arrives Tue 2026-04-28; plan first cuttings the following morning. 2 cuttings per plant (8 total). Lower laterals on A/D, middle laterals on B/C. See [breeding/cloning.md](breeding/cloning.md).
-4. **Step light 40% → 50% Fold-650** 🟡 — LST Day 6; ramp window open Apr 25–27. No stress signs in today's photos.
-5. **Monitor Plant B moisture** 🟡 — Rising daily (64% → 69% → 74.6% → 79.3%); trajectory to reach 82%+ in 1–2 days. Consider closing B float valve briefly if moisture exceeds 85% and stress appears.
-6. **Investigate temperature drop — reduce exhaust fan speed** 🟡 — Second consecutive day below 74°F floor; reducing fan speed marginally may recover 1–2°F and simultaneously improve afternoon VPD.
-7. **Monitor Plants C and D root zones** 🟡 — C at 85.7%, D at 87.1% (4+ days). Still no visible stress; watch for yellowing, wilting, drooping, or sour smell.
+1. **Step light 40% → 50% Fold-650 TODAY** 🔴 — LST Day 7; ramp window closes today (Apr 25–27). No stress signs across all four plants.
+2. **Tuck sativa-leaning canopy (A, D)** 🟡 — Per [pheno-flip-strategy](decisions/2026-04-26-pheno-flip-strategy.md): bend tallest A/D growth horizontally back under SCROG net; re-evaluate every 3 days; flip target ~60% net coverage.
+3. **Take clones (Wed 2026-04-29)** 🟡 — Clone gear arrives Tue 2026-04-28; plan first cuttings Wednesday morning. 2 cuttings per plant (8 total). Lower laterals on A/D, middle laterals on B/C. See [breeding/cloning.md](breeding/cloning.md).
+4. **Continue overnight humidifier reduction** 🟡 — Daytime VPD recovered; but overnight RH has drifted upward five consecutive nights (52.1% → 64.4%). Pull overnight RH back toward 55% range.
+5. **Monitor Plant B moisture** 🟡 — Crossed 80% today (81.84%); now in C/D elevated range. Consider closing B float valve briefly if moisture exceeds 85% and stress appears.
+6. **Monitor Plants B, C, D root zones** 🟡 — B at 81.8%, C at 86.8%, D at 85.8% (all high); no visible stress across any plant; watch for yellowing, wilting, drooping, or sour smell.
+7. **Monitor Plant D lighter growth tips** 🟡 — Lighter/pale growth visible in upper portion of plant-d photo; likely new sativa-leaning tips, but watch for chlorosis progression.
+8. **Investigate temperature below floor — reduce exhaust fan speed** 🟡 — Day windows still 73.5–73.7°F (below 74°F floor); overnight recovering. Reducing fan speed slightly may recover 1–2°F.
 
+_Resolved 2026-04-27: "Reduce humidifier output during lights-on" — daytime VPD recovered to 1.01 kPa (in 0.8–1.2 range) ✅. Overnight RH drift continues; monitored under "Continue overnight humidifier reduction"._
 _Resolved 2026-04-26: "Perform reservoir change" — refilled 2026-04-26 afternoon; next change window ~2026-05-03–06._
-_Resolved 2026-04-25: "LST Day 5 — light ramp window open" → ramp window noted open; step to 50% due today (Day 6)._
+_Resolved 2026-04-25: "LST Day 5 — light ramp window open" → ramp window open; step to 50% due today (Day 7, last day of window)._
 _Resolved 2026-04-24: "Complete LST today" — user confirmed LST was started Apr 20 on all 4 plants ✅_
 _Resolved 2026-04-24: "Monitor afternoon temperature" — milestone Apr 24 (all windows in target); regression began Apr 25._
 _Resolved 2026-04-24: "Verify Plant A sensor node" — overnight data present (n=717), node stable ✅_
@@ -88,13 +90,13 @@ _Resolved 2026-04-22: "Monitor Plant D color" — color improved; Apr 24 photo s
 | ~~Topping all plants~~ | ✅ Done Apr 11–12 |
 | ~~Float valve activation~~ | ✅ Done Apr 15 |
 | ~~SCROG net install~~ | ✅ Done Apr 18 (11" above canopy / 18" above pot base) |
-| ~~LST all plants~~ | ✅ Started Apr 20 (all 4 plants; recovery complete Day 6) |
+| ~~LST all plants~~ | ✅ Started Apr 20 (all 4 plants; recovery complete Day 7) |
 | ~~Reservoir change~~ | ✅ Refilled 2026-04-26 afternoon |
-| **Light step 40% → 50%** | **Due today (Apr 25–27 window)** |
-| Clone gear arrival | 2026-04-28 |
+| **Light step 40% → 50%** | **Due TODAY (Apr 27 — last day of Apr 25–27 window)** |
+| Govee H7140 backup arrival | 2026-04-27 (today) |
+| Clone gear + Govee H7142 arrival | 2026-04-28 (tomorrow) |
+| Govee H7142 cutover (primary) | 2026-04-28 arrival; cutover same day or Apr 29 |
 | Take 8 clones (A/B/C/D × 2) | 2026-04-29 |
-| Govee H7140 backup arrival | 2026-04-27 |
-| Govee H7142 cutover (primary) | 2026-04-28 (arrival); cutover same day or Apr 29 |
 | Germinate all 10 SBxBS01 regulars (Track A) | ~2026-04-29 (alongside clones) |
 | 12/12 flip | ~60% SCROG coverage with all four at net plane; window 2026-05-10 → 2026-05-17 (per [pheno-flip-strategy](decisions/2026-04-26-pheno-flip-strategy.md)) |
 | Clone selection | Flower weeks 3–4 |
@@ -105,7 +107,7 @@ _Resolved 2026-04-22: "Monitor Plant D color" — color improved; Apr 24 photo s
 
 **Primary keepers:** Plants A and D — both strong purple contenders with confirmed genetic anthocyanin expression.
 - **Plant A** — vigor leader, confirmed genetic anthocyanin. Most vigorous plant overall. Standout candidate.
-- **Plant D** — confirmed genetic anthocyanin (stem, petioles, cotyledons). Color concern from Apr 20 resolved by Apr 22; medium-green healthy canopy Apr 26.
+- **Plant D** — confirmed genetic anthocyanin (stem, petioles, cotyledons). Color concern from Apr 20 resolved by Apr 22; medium-green healthy canopy Apr 27; lighter new growth tips visible — monitoring.
 
 **Plant C purple note:** Stress-induced purple (stems/petioles, Day 25) concurrent with worsening leaf symptoms — pH/deficiency stress, not genetic. Does not change secondary status.
 
@@ -122,7 +124,7 @@ _Resolved 2026-04-22: "Monitor Plant D color" — color improved; Apr 24 photo s
 | **Plant-D ESP32-C3 node** | Online (2026-04-18, v2.0) | GPIO3 capacitive |
 | **CO2 sensor** (MH-Z19B) | Planned | Not yet deployed |
 | **Reservoir level** (XKC-Y25-T12V) | Planned | Not yet deployed |
-| **Humidifier** | Raydrop KC-RD03A active (Kasa EP10); **Govee H7142 arriving 2026-04-28** (primary replacement); H7140 arriving 2026-04-27 (backup). See [decisions/2026-04-26-govee-humidifier-pivot.md](decisions/2026-04-26-govee-humidifier-pivot.md) and [hardware/humidifier-control.md](hardware/humidifier-control.md). |
+| **Humidifier** | Raydrop KC-RD03A active (Kasa EP10); **Govee H7142 arriving 2026-04-28** (primary replacement); H7140 arriving 2026-04-27 (backup, today). See [decisions/2026-04-26-govee-humidifier-pivot.md](decisions/2026-04-26-govee-humidifier-pivot.md) and [hardware/humidifier-control.md](hardware/humidifier-control.md). |
 | **PTZ camera** (OBSBOT Tiny 2 Lite) | Online (2026-04-15) | USB self-disconnect incident 2026-04-22 08:58 MDT (resolved ~09:23). See [hardware/ptz-camera.md](hardware/ptz-camera.md). |
 | **Jabra Speak 410** (voice I/O) | Connected 2026-04-15 | Voice pipeline `dirt-voice.service` deployed 2026-04-18; v5 wake-word passive-harvest mode active. |
 | **AC Infinity Cloudline LITE 6" fan control** | Online (fw 0.2.0, 2026-04-22) | WiFi + HTTP control surface live; VPD-coupled closed-loop deferred. |

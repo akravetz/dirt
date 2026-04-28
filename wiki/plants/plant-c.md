@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/coco-coir.md, wiki/concepts/lst.md, wiki/environment/nutrients.md]
 created: 2026-04-06
-updated: 2026-04-24
+updated: 2026-04-27
 ---
 
 # Plant C
@@ -19,7 +19,7 @@ updated: 2026-04-24
 
 ## Current State
 
-Day 43, fourteen days post-topping, Day 6 of LST: dense medium-dark green bushy canopy; moisture stable at 85–86% (very high, sustained 4+ days) with no visible stress signs; continue monitoring root zone. See [2026-04-26](../daily/2026-04-26.md).
+Day 44, fifteen days post-topping, Day 7 of LST: dense medium-dark green bushy canopy at SCROG net; moisture stable 86–87% (very high, 5+ days) with no visible stress signs; continue monitoring root zone. See [2026-04-27](../daily/2026-04-27.md).
 
 ## Timeline
 
@@ -44,3 +44,4 @@ Day 43, fourteen days post-topping, Day 6 of LST: dense medium-dark green bushy 
 - 2026-04-23 — [Day 40: photos only; compact medium-green bushy canopy; stress-induced purple on petioles visible; healthy overall](../daily/2026-04-23.md)
 - 2026-04-24 — [Day 41: compact medium-green bushy canopy; moisture very high at 82%+ (rose from 75% Apr 22) — autopot feeding continuously; root zone monitoring ongoing](../daily/2026-04-24.md)
 - 2026-04-26 — [Day 43: dense medium-dark green bushy canopy; moisture stable at 85–86% (very high, 4+ days); no visible stress in photo](../daily/2026-04-26.md)
+- 2026-04-27 — [Day 44: dense medium-dark green bushy canopy; moisture stable 86–87% (very high, 5+ days); no visible stress](../daily/2026-04-27.md)

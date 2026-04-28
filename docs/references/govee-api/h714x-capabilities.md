@@ -2,7 +2,7 @@
 title: Govee API — H71xx Humidifier Line Capability Map (deployed: H7142)
 parent: docs/references/govee-api/INDEX.md
 deployed_sku: H7142
-updated: 2026-04-26
+updated: 2026-04-27
 ---
 
 # Govee H71xx Humidifier Line — Capability Map
@@ -37,28 +37,24 @@ History: ordered an H7140 first (arriving 2026-04-27 as a backup; was the cheape
 
 The H7142's "kitchen-sink" extras (aroma pad, UVC light) are firmware capabilities we ignore — additional `toggle`/`mode` capabilities will appear in the discovery response, just don't bind to them.
 
-## Shared capability list (verified for H7140 per disforw/goveelife issue #6, **expected to apply to H7142 with one extra Manual-level value and additional UVC/aroma capabilities**)
+## H7142 capability list (verified against live device 2026-04-27)
 
-Always verify against your specific device's live discovery response — Govee can ship capability changes via firmware update without warning, and the H7142's full list hasn't been captured here yet from a live device. Re-discover at runtime and update this doc once the H7142 is provisioned 2026-04-28.
-
-> **⚠ The "9 Manual-mode levels" claim is from marketing, not from a live API discovery.** The H7142 user manual states "9 levels of mist via the Govee Home App," but the API can drift from the app UI — the H7140's manual says "low/med/high" but its API exposes 8 levels. **Run discovery against the physical H7142 once provisioned and confirm the actual `workMode.parameters.fields.modeValue.range` value.** If the API exposes 8 levels (or any other count), update the level count throughout this doc and the dispatch quantization in `humidifier.py` to match. Not a blocker — the controller and tests don't hard-code the level count.
+Captured from `GET /user/devices` for the deployed H7142 (`dirt-humidifier`). Full probe + script lives at `debug/govee_probe.py`.
 
 | # | type | instance | dataType | What it does | Send to control |
 |---|---|---|---|---|---|
 | 1 | `devices.capabilities.on_off` | `powerSwitch` | ENUM | Master on/off | `value: 1` (on) / `value: 0` (off) |
 | 2 | `devices.capabilities.work_mode` | `workMode` | STRUCT | Mode + mode-specific level | See "Work modes" below |
-| 3 | `devices.capabilities.range` | `humidity` | INTEGER | Auto-mode RH setpoint, **40–80%** | `value: 55` for 55% RH target |
-| 4 | `devices.capabilities.toggle` | `nightlightToggle` | ENUM | Nightlight on/off | `value: 1` / `value: 0` |
-| 5 | `devices.capabilities.range` | `brightness` | INTEGER | Nightlight brightness, **1–100** | `value: 50` |
-| 6 | `devices.capabilities.color_setting` | `colorRgb` | INTEGER | Nightlight RGB packed as 24-bit int (`R<<16 \| G<<8 \| B`), **0–16777215** | `value: 16711680` (red) |
-| 7 | `devices.capabilities.mode` | `nightlightScene` | ENUM | Preset scene: Forest / Ocean / Wetland / Leisurely / Sleep | `value: <enum from discovery>` |
-| 8 | `devices.capabilities.event` | `lackWaterEvent` | EVENT (read-only) | Fires when the tank is empty (alarm type 51, single state `"lack"`) | n/a — read via `POST /device/state` |
+| 3 | `devices.capabilities.range` | `humidity` | INTEGER, range **40–70%** (precision 1) | RH setpoint (informational — we don't use Auto) | `value: 55` for 55% RH |
+| 4 | `devices.capabilities.event` | `lackWaterEvent` | EVENT (read-only) — `alarmType: 51`, single state `lack=1` | Fires when the tank is empty | n/a — read via `POST /device/state` |
 
-**H7142 likely adds** (un-confirmed pending live discovery; H7142 user manual lists these as features):
-- A `toggle` for **UVC sterilization light** on/off
-- Possibly a `mode` capability for **aroma pad** behavior (or it may be passive — just toggleable nightlight rotation)
+That's the complete set. **Four capabilities, period.** No nightlight, no UVC, no aroma — the H7142's marketed extras are absent from the API surface, and the line-level expectation that "H7142 likely adds UVC/aroma capabilities" was wrong. Code targeting the H7142 should bind only to the four above.
 
-**Discover and confirm before relying on any of those.** If the H7142's Manual-mode `modeValue` range turns out to be `1..8` instead of `1..9` (firmware can drift between SKU advertised in marketing and what the API actually exposes), nothing breaks — the dispatch quantization just rounds to one fewer level.
+`workMode.parameters.fields.modeValue.options[Manual]` exposes **9 discrete values (1..9)**, confirming the marketing claim. The Auto-mode `modeValue.range` for the same field is **40..80%** (wider than the standalone `humidity` capability's 40..70). If you ever drive Auto, use the `workMode` STRUCT with `{workMode: 3, modeValue: <40..80>}` rather than the `humidity` capability — the wider range is what the device actually accepts in Auto.
+
+Disambiguating from earlier H7140 community captures (disforw/goveelife issue #6): the H7140 reportedly exposes `nightlightToggle` / `brightness` / `colorRgb` / `nightlightScene` capabilities. The H7142 does not. If a future firmware update adds them, re-run `debug/govee_probe.py` and update this table.
+
+State response also surfaces **`devices.capabilities.online` / `online`** as a read-only `state.value: bool` — not part of the discovery `capabilities` list, but appears in `/device/state` responses. Useful for "is the device reachable from Govee cloud right now" without doing a control round-trip.
 
 ## Work modes — the one to actually understand
 
@@ -70,7 +66,7 @@ Always verify against your specific device's live discovery response — Govee c
 | 2 | **Custom** | A preset slot (1–N) that the user has saved in the Govee Home app. We won't use this. |
 | 3 | **Auto** | Target RH setpoint. The device runs its own internal closed loop against the `humidity` capability's setpoint and decides when to mist on its own. |
 
-The exact enum mapping (does `workMode: 1` map to "Manual" or "Custom"?) **must be confirmed against the actual discovery response** — the Govee docs and the community integrations disagree on the numbering for some SKUs. Run discovery, log `parameters.fields[*].options` for the `workMode` field, and trust that.
+The enum mapping was a question across community integrations. **Confirmed live on the deployed H7142 (2026-04-27)**: `1=Manual`, `2=Custom`, `3=Auto`. Re-verify with `debug/govee_probe.py` if the SKU changes.
 
 ## How we use this device — Manual mode + our VPD PI loop
 

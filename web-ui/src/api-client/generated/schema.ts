@@ -106,32 +106,19 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/humidifier/state": {
+  "/api/sensors/metadata": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** Current humidifier on/off + last transition */
-    get: operations["humidifierState"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/humidifier/history": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Humidifier on/off transitions over the requested range */
-    get: operations["humidifierHistory"];
+    /**
+     * Per-metric display metadata (name, unit, accent, y-axis bounds)
+     * @description Single source of truth for the dashboard tile layout. The SPA reads
+     *     this once at boot and uses it to drive the gauges + sparkline grid.
+     */
+    get: operations["sensorsMetadata"];
     put?: never;
     post?: never;
     delete?: never;
@@ -382,6 +369,7 @@ export interface components {
       | "dew_point_f"
       | "pressure_hpa"
       | "fan_pct"
+      | "humidifier_intensity_pct"
       | "reservoir_in";
     /**
      * @description Stable lowercase letter; URL path param.
@@ -459,6 +447,7 @@ export interface components {
         humidity_pct: components["schemas"]["MetricEnvelope"];
         vpd_kpa: components["schemas"]["MetricEnvelope"];
         fan_pct: components["schemas"]["MetricEnvelope"];
+        humidifier_intensity_pct: components["schemas"]["MetricEnvelope"];
         reservoir_in: components["schemas"]["MetricEnvelope"];
       };
     };
@@ -468,28 +457,30 @@ export interface components {
       unit: string;
       points: components["schemas"]["HistoryPoint"][];
     };
-    HumidifierState: {
-      on: boolean;
+    SensorMetricMetadata: {
+      metric: components["schemas"]["SensorMetric"];
+      display_name: string;
+      unit: string;
       /**
-       * Format: date-time
-       * @description Timestamp of the last transition.
+       * @description FE palette key — `"temp"`, `"humidity"`, `"vpd"`, `"fan"`,
+       *     `"reservoir"`. SPA maps to colors in its accent table.
        */
-      since: string;
-      /** @description Seconds since `since`. */
-      duration_s: number;
-      /** @description Off→on transitions in the last 24h. */
-      cycles_24h: number;
-      /** Format: date-time */
-      ts: string;
+      accent: string;
+      /** @description Sparkline lower bound; null = auto-scale. */
+      y_min?: number | null;
+      /** @description Sparkline upper bound; null = auto-scale. */
+      y_max?: number | null;
+      /**
+       * @description Whether the gauge tile renders a target-band overlay.
+       *     Bands themselves come from `/api/sensors/current` per stage;
+       *     this flag tells the SPA whether the band field will ever be
+       *     populated for this metric.
+       */
+      has_target_band: boolean;
     };
-    HumidifierTransition: {
-      /** Format: date-time */
-      ts: string;
-      on: boolean;
-    };
-    HumidifierHistory: {
-      range: components["schemas"]["Range"];
-      points: components["schemas"]["HumidifierTransition"][];
+    SensorsMetadataResponse: {
+      /** @description Dashboard render order. */
+      metrics: components["schemas"]["SensorMetricMetadata"][];
     };
     Plant: {
       code: components["schemas"]["PlantCode"];
@@ -886,7 +877,7 @@ export interface operations {
       401: components["responses"]["Unauthorized"];
     };
   };
-  humidifierState: {
+  sensorsMetadata: {
     parameters: {
       query?: never;
       header?: never;
@@ -895,39 +886,15 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Current humidifier state envelope. */
+      /** @description Ordered list of metric metadata for the dashboard. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["HumidifierState"];
+          "application/json": components["schemas"]["SensorsMetadataResponse"];
         };
       };
-      401: components["responses"]["Unauthorized"];
-    };
-  };
-  humidifierHistory: {
-    parameters: {
-      query: {
-        range: components["schemas"]["Range"];
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description List of transitions; render as `(ts, on)` pairs. */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HumidifierHistory"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
     };
   };

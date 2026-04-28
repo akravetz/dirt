@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-04-24
+updated: 2026-04-27
 ---
 
 # Plant D
@@ -19,7 +19,7 @@ updated: 2026-04-24
 
 ## Current State
 
-Day 43, fourteen days post-topping, Day 6 of LST: medium-green healthy canopy; moisture peaked overnight at 88.48%, now stabilizing at ~87% — slightly easing during lights-on; no visible stress signs. See [2026-04-26](../daily/2026-04-26.md).
+Day 44, fifteen days post-topping, Day 7 of LST: medium-green canopy at SCROG net; moisture easing slightly (85.78% now, off 88.48% peak Apr 26); lighter growth tips visible in upper frame — likely new sativa shoots, monitoring. See [2026-04-27](../daily/2026-04-27.md).
 
 ## Timeline
 
@@ -44,3 +44,4 @@ Day 43, fourteen days post-topping, Day 6 of LST: medium-green healthy canopy; m
 - 2026-04-23 — [Day 40: photos only; medium-to-lighter green canopy; healthy; heavy humidity haze in tent (humidifier oscillation events earlier)](../daily/2026-04-23.md)
 - 2026-04-24 — [Day 41: medium-green healthy canopy; moisture jumped from 60% (Apr 22) to 83% — autopot feeding aggressively; no visible stress](../daily/2026-04-24.md)
 - 2026-04-26 — [Day 43: medium-green healthy canopy; moisture peaked overnight at 88.48%, stabilizing at ~87% during lights-on; no visible stress](../daily/2026-04-26.md)
+- 2026-04-27 — [Day 44: medium-green canopy; moisture easing slightly (85.78%, off 88.48% peak); lighter growth tips visible in photo — monitoring](../daily/2026-04-27.md)

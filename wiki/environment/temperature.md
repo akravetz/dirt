@@ -4,7 +4,7 @@ type: environment
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/environment/humidity.md, wiki/overview.md]
 created: 2026-04-06
-updated: 2026-04-24
+updated: 2026-04-27
 ---
 
 # Temperature
@@ -44,6 +44,7 @@ updated: 2026-04-24
 | 2026-04-22 | 72.34°F now ⚠️ / 70.17°F overnight avg ✅ / 73.94°F morning avg ⚠️ | Overnight in veg night target (68–72°F) for the first time — service restart confirmed; day/morning slightly below 74°F floor (~10 hPa pressure drop suggests weather system) → [2026-04-22](../daily/2026-04-22.md) |
 | 2026-04-24 | 76.01°F now ✅ / 69.35°F overnight avg ✅ / 74.84°F morning avg ✅ | **Milestone: all three windows in veg target simultaneously for first time this grow.** Overnight 68–72°F ✅, morning 74–76°F ✅, now 74–76°F ✅. Temperature action item resolved → [2026-04-24](../daily/2026-04-24.md) |
 | 2026-04-26 | 73.17°F now ⚠️ / 67.85°F overnight avg ⚠️ / 73.02°F morning avg ⚠️ | Second consecutive day with all windows below veg targets; overnight 0.15°F below 68°F floor. Pattern mirrors Apr 25. Possible persistent weather system or fan speed effect — reducing exhaust fan speed during lights-on may recover 1–2°F and improve afternoon VPD simultaneously → [2026-04-26](../daily/2026-04-26.md) |
+| 2026-04-27 | 73.71°F now ⚠️ / 68.87°F overnight avg ✅ / 73.47°F morning avg ⚠️ | Overnight just crossed the 68°F veg night floor (68.87°F) — first time in four nights. Day and morning windows still marginally below 74°F veg day floor; slow recovery continuing. → [2026-04-27](../daily/2026-04-27.md) |
 
 ## Notable Events
 - **2026-03-21** — Overnight low of 59.5°F due to exhaust fan running too fast at night; resolved by throttling fan after lights-out → [2026-03-27 daily](../daily/2026-03-27.md)
@@ -54,3 +55,4 @@ updated: 2026-04-24
 - **2026-04-22** — Overnight temperature 70.17°F — within veg night target (68–72°F) for the first time. Confirms `dirt-hwd` service was restarted and lights-off feedforward is active. Day temp running slightly cool (72–74°F, below 74°F floor) — likely ambient effect from a passing weather system (~10 hPa pressure drop from 841 → 831 hPa). → [2026-04-22](../daily/2026-04-22.md)
 - **2026-04-24** — Temperature milestone: all three measurement windows simultaneously within veg targets for the first time this grow. Overnight 69.35°F (68–72°F ✅), morning 74.84°F (74–76°F ✅), now 76.01°F (74–76°F ✅). Weather-system cooling from Apr 22 has fully resolved. → [2026-04-24](../daily/2026-04-24.md)
 - **2026-04-26** — Second consecutive day with all measurement windows below their respective veg targets. Overnight 67.85°F (below 68–72°F floor by 0.15°F), morning 73.02°F and now 73.17°F (both below 74°F day floor). Apr 22 associated a similar dip with a ~10 hPa weather-system pressure drop; conditions may have remained cool. Reducing exhaust fan speed during lights-on may recover the 1–2°F needed and simultaneously improve afternoon VPD by allowing warmer air to hold more moisture. → [2026-04-26](../daily/2026-04-26.md)
+- **2026-04-27** — Overnight crossed the 68°F veg night floor (68.87°F) for the first time in four nights. Day and morning windows still marginally below the 74°F floor (73.47°F morning, 73.71°F now). Recovery trajectory ~0.5°F/day from the Apr 25 trough. → [2026-04-27](../daily/2026-04-27.md)

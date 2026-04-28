@@ -2,7 +2,7 @@
 title: Activity Log
 type: log
 created: 2026-04-06
-updated: 2026-04-26
+updated: 2026-04-27
 order: chronological — oldest entries at top, newest appended at bottom. Do NOT insert entries out of date order.
 ---
 
@@ -712,3 +712,29 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
   - **Updated:** `wiki/breeding/timeline.md` Phase 0 — germ count flipped to all 10 with rationale; Phase 1 fallback updated (sourcing another OBG pack only if <2 males surface from the full batch, P ≈ 1%).
   - **Updated:** `wiki/overview.md` — upcoming-milestones germ entry updated to "all 10".
   - **Updated:** `wiki/log.md` — prior entry annotated with the same-day revision pointer.
+
+## 2026-04-27 daily-update | Day 44: VPD fully recovered; overnight RH drift continues; B moisture crossed 80%
+
+- **Photos:** 5 presets captured 14:00 MDT (overview, plant-a, plant-b, plant-c, plant-d)
+- **Key findings:** VPD recovered across all three windows (0.86/1.05/1.01 kPa) after two-day below-floor streak; humidifier reduction effective. Overnight RH five-night upward drift continues (52.1% → 64.4%). Plant B moisture crossed 80% (81.84%), entering C/D elevated range. Plant D moisture easing slightly off 88.48% peak. Temperature overnight crossed 68°F floor (68.87°F) for first time in four nights; day/morning still marginally below 74°F.
+- **Files created/updated:**
+  - **Created:** `wiki/daily/2026-04-27.md`
+  - **Updated:** `wiki/plants/plant-a.md` — timeline + current state
+  - **Updated:** `wiki/plants/plant-b.md` — timeline + current state
+  - **Updated:** `wiki/plants/plant-c.md` — timeline + current state
+  - **Updated:** `wiki/plants/plant-d.md` — timeline + current state
+  - **Updated:** `wiki/environment/humidity.md` — trend row + notable event
+  - **Updated:** `wiki/environment/temperature.md` — trend row + notable event
+  - **Updated:** `wiki/overview.md`
+  - **Updated:** `wiki/index.md`
+
+## [2026-04-27] hardware + control | Govee H7142 humidifier deployed; PI controller promoted to authoritative
+- **Hardware cutover:** GoveeLife H7142 (6 L cool-mist ultrasonic, 9 Manual-mode mist levels via Govee Public API v2) provisioned at `192.168.1.247` (MAC `14:38:60:74:F4:DD:B9:46`, account name `dirt-humidifier`). Raydrop 4L + Kasa EP10 plug physically retired and unplugged. Raydrop kept as a spare; Kasa EP10 deprovisioned from the humidifier loop (lights still on a separate Kasa plug).
+- **Control upgrade:** the host-side PI controller (`apps/hwd/src/dirt_hwd/services/humidifier_pi.py`) — running in shadow mode against the Kasa bang-bang since 2026-04-25 — promoted to authoritative. New module `humidifier_dispatch.py` quantizes its `u_pct ∈ [0, 100]` into a discrete H7142 Manual-mode level (1..9) with hysteresis at boundaries. New module `apps/shared/src/dirt_shared/services/govee.py` is the async API client (verified `GET /user/devices` discovery, POST state/control endpoints, `lackWaterEvent` parsing).
+- **Loop rewrite:** `HumidifierLoopService.run` now diffs live device state against the PI/quantizer target each tick, sending the minimal set of API calls (state read + 0–2 control calls). Boot-tick path collapses `set_power(on)` + `set_manual_level(N)` into one tick with a 200 ms inline pause. New event types in the `humidifier` stream: `state_change` (with `power`/`level`/`u_pct`), `level_change` (level transitions while powered), `lack_water` / `lack_water_cleared` (rising/falling edge of the H7142's empty-tank alarm), `device_offline` / `device_online`, `suspected_ineffective` (replaces the Raydrop-specific `suspected_stuck`), `rate_limited`, `skip_offline`. `_record_actuator` writes `humidifier_on` + `humidifier_mist_level` every tick as the heartbeat for `SystemStatusService`.
+- **Gain tweak:** `HUMIDIFIER_PI_KC` set to 40 in `.env` (default was 8.0, sourced from a Raydrop FOPDT fit). With Kc=8 the PI threshold gate (`u ≥ 5.5%`) needed VPD overshoot ≥ 0.69 kPa before engaging — too sluggish. Kc=40 engages at error ≈ 0.14 kPa (typical veg-stage overshoot). Live trace at the cutover: VPD 1.36 kPa → PI engaged at u=5.53% → quantizer picked level 1 → H7142 acknowledged `powerSwitch=1, workMode={1, 1}`.
+- **Live API findings (against pre-deploy reference pack):** `/user/devices` is GET, not POST as our 2026-04-26 pack had it; H7142 capability list is exactly `powerSwitch` / `workMode` / `humidity` / `lackWaterEvent` (no UVC/aroma/nightlight as speculated); `humidity` cap range is 40–70%, not 40–80%; `workMode` enum is `1=Manual, 2=Custom, 3=Auto`. Reference pack updated; live discovery captured at `apps/shared/tests/fixtures/govee_h7142_discovery.json`.
+- **Atlas migration `20260428003304_add_govee_sensor_source.sql`** — adds `govee` to the `sensor_source` Postgres enum so the new actuator breadcrumbs (`humidifier_on`, `humidifier_mist_level`) record `source=govee`. Applied.
+- **Tests:** 14 new tests for the Govee client (`apps/shared/tests/test_govee.py`), 20 property tests for the dispatch quantizer (`apps/hwd/tests/test_humidifier_dispatch.py`), 18 helper unit tests + 7 single-tick integration tests for the rewritten loop (`apps/hwd/tests/test_humidifier_helpers.py`, `test_humidifier_loop.py`). Old `test_humidifier_stuck.py` deleted (semantics changed). Total: 477 passed across the workspace, 1 skipped, no invariant violations.
+- **Updated:** `wiki/decisions/2026-04-27-h7142-deployed.md` (new), `wiki/hardware/humidifier-control.md` (full rewrite for H7142 + PI), `wiki/overview.md`, `wiki/index.md`, `wiki/environment/humidity.md`, `docs/references/govee-api/{INDEX,control,h714x-capabilities}.md` (corrections from live discovery), `apps/shared/src/dirt_shared/services/system_status.py` (`Humidifier (Kasa EP10)` → `Humidifier (Govee H7142)`), `apps/web/tests/test_system_devices_endpoint.py`, `web-ui/src/mocks/fixtures/system.devices.json`, `CLAUDE.md` (`humidifier` log stream description rewritten for the new event taxonomy).
+- **Open items:** week-1 graduated step test for FOPDT refit against the H7142 (current gains carry over from the abandoned Raydrop fit). Watch `humidifier_shadow` traces for level-change cadence — tighten hysteresis if > 5 transitions/hour at steady state.

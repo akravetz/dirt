@@ -24,8 +24,6 @@ import { useState } from "react";
 import { type components, createDirtApiClient } from "@/api-client";
 import { Gauge } from "@/ui/Gauge";
 import { HoverTimestamp } from "@/ui/HoverTimestamp";
-import { HumidifierStrip } from "@/ui/HumidifierStrip";
-import { HumidifierTile } from "@/ui/HumidifierTile";
 import { PlantDetail } from "@/ui/PlantDetail";
 import { PlantsStrip } from "@/ui/PlantsStrip";
 import type { PlantCode } from "@/ui/plant-types";
@@ -41,49 +39,32 @@ const api = createDirtApiClient();
 
 type SensorsCurrent = components["schemas"]["SensorsCurrent"];
 type MetricEnvelope = components["schemas"]["MetricEnvelope"];
+type MetricMeta = components["schemas"]["SensorMetricMetadata"];
+type SparklineAccent = "temp" | "humidity" | "vpd" | "moisture" | "neutral";
 
-// Single source of truth for the dashboard's five metric tiles. The
-// gauges section indexes SensorsCurrent.metrics by `metric`; the
-// sparklines section below passes the same `metric` through as
-// /api/sensors/history's ?metric= query param (the openapi `SensorMetric`
-// enum is a superset — dew_point_f / pressure_hpa are valid history
-// metrics but not surfaced on the gauge envelope, so the tighter type
-// here is `keyof SensorsCurrent["metrics"]`). `integer` drops the
-// decimal on whole-percent and whole-unit metrics (fan_pct,
-// reservoir_in both read better as integers).
-// Fixed y-axis domains for the history sparklines. Picked wide enough to
-// cover realistic excursions across every grow stage so the axes don't
-// shift when the range switches, but tight enough to still show in-band
-// movement. Union of STAGE_TARGETS plus excursion headroom; reservoir is
-// the physical float range.
-const METRIC_TILES: ReadonlyArray<{
-  metric: keyof SensorsCurrent["metrics"];
-  name: string;
-  accent: "temp" | "humidity" | "vpd" | "moisture" | "neutral";
-  integer?: boolean;
-  yMin: number;
-  yMax: number;
-}> = [
-  { metric: "temperature_f", name: "Temperature", accent: "temp", yMin: 60, yMax: 95 },
-  {
-    metric: "humidity_pct",
-    name: "Humidity",
-    accent: "humidity",
-    integer: true,
-    yMin: 30,
-    yMax: 80,
-  },
-  { metric: "vpd_kpa", name: "VPD", accent: "vpd", yMin: 0.3, yMax: 2.0 },
-  {
-    metric: "fan_pct",
-    name: "Fan",
-    accent: "neutral",
-    integer: true,
-    yMin: 0,
-    yMax: 100,
-  },
-  { metric: "reservoir_in", name: "Reservoir", accent: "moisture", yMin: 10, yMax: 40 },
-] as const;
+// Whitelist the accent strings the FE knows how to render. Anything else
+// from the registry falls back to "neutral" so a future BE addition
+// can't break the SPA visually.
+const KNOWN_ACCENTS: ReadonlySet<SparklineAccent> = new Set([
+  "temp",
+  "humidity",
+  "vpd",
+  "moisture",
+  "neutral",
+]);
+
+function asAccent(raw: string): SparklineAccent {
+  return KNOWN_ACCENTS.has(raw as SparklineAccent)
+    ? (raw as SparklineAccent)
+    : "neutral";
+}
+
+// Metrics that display as integers (no decimal). Driven by the unit
+// being unitless `%` or `in`; keeps the formatter rule local to the FE
+// without dragging a bool through the contract.
+function isIntegerMetric(m: MetricMeta): boolean {
+  return m.unit === "%" || m.unit === "in";
+}
 
 function toBand(target: MetricEnvelope["target"]): readonly [number, number] | null {
   if (target === null) return null;
@@ -99,6 +80,21 @@ function formatInteger(value: number): string {
 }
 
 function DashboardPage() {
+  // Per-metric display metadata — name, unit, accent, y-axis bounds —
+  // driven by the BE registry at /api/sensors/metadata. Read once at
+  // boot. `staleTime: Infinity` because the registry only changes via
+  // a deploy, not at runtime.
+  const metaQuery = useQuery({
+    queryKey: ["sensors.metadata"],
+    queryFn: async () => {
+      const { data, error } = await api.GET("/api/sensors/metadata");
+      if (error) throw error;
+      return data;
+    },
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+  const metaList = metaQuery.data?.metrics ?? [];
+
   const { data, isLoading, error } = useQuery({
     queryKey: ["sensors.current"],
     queryFn: async () => {
@@ -117,48 +113,24 @@ function DashboardPage() {
   const [selectedPlant, setSelectedPlant] = useState<PlantCode | null>(null);
   const [plantMoistureRange, setPlantMoistureRange] = useState<SparklineRange>("24h");
 
-  // Five parallel history queries keyed on [range, metric]. useQueries
-  // is the correct idiom for a fixed-shape fan-out: one result slot per
-  // metric, all invalidated when `range` changes → the network layer
-  // observes five fresh GET /api/sensors/history requests per range
-  // switch (one per metric).
+  // Parallel history queries — one per dashboard metric. `useQueries`
+  // is the right idiom for a metadata-driven fan-out: one result slot
+  // per metric, all invalidated when `range` changes → one fresh GET
+  // /api/sensors/history per metric per range switch. `enabled` defers
+  // the fan-out until metadata loads so we don't fire requests against
+  // an empty list and then re-fire them once metadata arrives.
   const historyResults = useQueries({
-    queries: METRIC_TILES.map(({ metric }) => ({
-      queryKey: ["sensors.history", range, metric] as const,
+    queries: metaList.map((m) => ({
+      queryKey: ["sensors.history", range, m.metric] as const,
       queryFn: async () => {
         const { data, error } = await api.GET("/api/sensors/history", {
-          params: { query: { range, metric } },
+          params: { query: { range, metric: m.metric } },
         });
         if (error) throw error;
         return data;
       },
+      enabled: metaQuery.isSuccess,
     })),
-  });
-
-  // /api/humidifier/state: current on/off + last transition. Not keyed
-  // on `range` — only the duty-cycle strip below switches with it.
-  const humidifierState = useQuery({
-    queryKey: ["humidifier.state"],
-    queryFn: async () => {
-      const { data, error } = await api.GET("/api/humidifier/state");
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  // /api/humidifier/history — keyed on the same `range` state the
-  // sparklines use, so toggling 1h/24h/7d invalidates this query and
-  // issues exactly one fresh fetch alongside the per-metric sparkline
-  // fetches.
-  const humidifierHistory = useQuery({
-    queryKey: ["humidifier.history", range] as const,
-    queryFn: async () => {
-      const { data, error } = await api.GET("/api/humidifier/history", {
-        params: { query: { range } },
-      });
-      if (error) throw error;
-      return data;
-    },
   });
 
   // /api/grow/current — reused from the root loader cache; the Plants
@@ -231,7 +203,7 @@ function DashboardPage() {
     enabled: selectedPlant !== null,
   });
 
-  if (isLoading) {
+  if (isLoading || metaQuery.isLoading) {
     return (
       <main className="flex-1 overflow-auto p-6">
         <p className="font-mono text-xs uppercase tracking-caps text-ink-3">
@@ -241,7 +213,7 @@ function DashboardPage() {
     );
   }
 
-  if (error || !data) {
+  if (error || !data || metaQuery.error || !metaQuery.data) {
     return (
       <main className="flex-1 overflow-auto p-6">
         <p className="font-mono text-xs uppercase tracking-caps text-accent-magenta">
@@ -265,32 +237,25 @@ function DashboardPage() {
         </div>
         <div className="grid grid-cols-1 gap-px border border-rule-strong bg-rule sm:grid-cols-2 lg:grid-cols-6">
           <section aria-label="Environment gauges" className="contents">
-            {METRIC_TILES.map(({ metric, name, accent, integer }) => {
-              const envelope = data.metrics[metric];
-              const formatProp = integer ? { format: formatInteger } : {};
+            {metaList.map((m) => {
+              const envelope =
+                data.metrics[m.metric as keyof SensorsCurrent["metrics"]];
+              if (envelope === undefined) return null;
+              const formatProp = isIntegerMetric(m) ? { format: formatInteger } : {};
               return (
                 <Gauge
-                  key={metric}
-                  name={name}
+                  key={m.metric}
+                  name={m.display_name}
                   value={envelope.value}
                   unit={envelope.unit}
                   band={toBand(envelope.target)}
                   status={envelope.status}
-                  accent={accent}
+                  accent={asAccent(m.accent)}
                   {...formatProp}
                 />
               );
             })}
           </section>
-          {humidifierState.data ? (
-            <section aria-label="Humidifier" className="contents">
-              <HumidifierTile
-                on={humidifierState.data.on}
-                durationS={humidifierState.data.duration_s}
-                cycles24h={humidifierState.data.cycles_24h}
-              />
-            </section>
-          ) : null}
         </div>
         <section aria-label="Environment history" className="flex flex-col">
           <header className="flex items-baseline justify-between border-b border-rule px-0.5 py-2">
@@ -303,25 +268,27 @@ function DashboardPage() {
             />
           </header>
           <div className="grid grid-cols-1 border border-rule-strong bg-paper-2 sm:grid-cols-2 lg:grid-cols-3">
-            {METRIC_TILES.map(({ metric, name, accent, yMin, yMax }, idx) => {
+            {metaList.map((m, idx) => {
               const result = historyResults[idx];
               const points = result?.data?.points ?? [];
-              const unit = result?.data?.unit ?? "";
+              const unit = result?.data?.unit ?? m.unit;
+              const yProps = {
+                ...(m.y_min !== null && m.y_min !== undefined ? { yMin: m.y_min } : {}),
+                ...(m.y_max !== null && m.y_max !== undefined ? { yMax: m.y_max } : {}),
+              };
               return (
                 <Sparkline
-                  key={metric}
-                  name={name}
+                  key={m.metric}
+                  name={m.display_name}
                   points={points}
                   unit={unit}
-                  accent={accent}
+                  accent={asAccent(m.accent)}
                   hoverIndex={hoverIndex}
                   onHoverIndex={setHoverIndex}
-                  yMin={yMin}
-                  yMax={yMax}
+                  {...yProps}
                 />
               );
             })}
-            <HumidifierStrip points={humidifierHistory.data?.points ?? []} />
           </div>
         </section>
         {plantsQuery.data ? (

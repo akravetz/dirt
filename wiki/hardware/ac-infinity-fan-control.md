@@ -163,7 +163,7 @@ Host-side client: `apps/shared/src/dirt_shared/services/fan_node.py` (`FanNodeCl
 
 ### SHT45 heater schedule
 
-Follows Sensirion's [Creep Mitigation SHT4x app note](https://sensirion.com/media/documents/A88858C9/629626D4/Application_Note_Creep_Mitigation_SHT4x.pdf) §3 exactly: **1 s @ 200 mW pulse (SHT4X_HIGH_HEATER_1S) → 59 s equilibration → read + post → immediately chain the next pulse.** Cycle total 60 s, heater duty ≈ **1.67 %** (datasheet cap is 10 %). Purpose is continuous creep mitigation — prolonged >90 %RH exposure swells the polymer and biases RH up by ~+3 %RH over 60 h, which would silently defeat the humidifier VPD loop. Pulsing keeps the element dry enough that the drift never accumulates; also de-dews the PTFE cap if Raydrop mist lands on it.
+Follows Sensirion's [Creep Mitigation SHT4x app note](https://sensirion.com/media/documents/A88858C9/629626D4/Application_Note_Creep_Mitigation_SHT4x.pdf) §3 exactly: **1 s @ 200 mW pulse (SHT4X_HIGH_HEATER_1S) → 59 s equilibration → read + post → immediately chain the next pulse.** Cycle total 60 s, heater duty ≈ **1.67 %** (datasheet cap is 10 %). Purpose is continuous creep mitigation — prolonged >90 %RH exposure swells the polymer and biases RH up by ~+3 %RH over 60 h, which would silently defeat the humidifier VPD loop. Pulsing keeps the element dry enough that the drift never accumulates; also de-dews the PTFE cap if humidifier mist lands on it.
 
 **Debug gotcha:** the `SHT4X_HIGH_HEATER_1S` command itself returns a measurement taken at the end of the heat pulse — invalid (sensor ~50 °C hot) and discarded. The reading posted to ingest is the *next* read after a full 59 s equilibration. Don't mistake the 1 s heater-blocking window at the start of each cycle for a dropout.
 

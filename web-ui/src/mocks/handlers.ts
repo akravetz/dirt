@@ -20,10 +20,6 @@ import { HttpResponse, http, type RequestHandler } from "msw";
 // reducible to a flat capture — see docs/plans/contract-drift-report.md.
 import authMe from "./fixtures/auth.me.json";
 import growCurrent from "./fixtures/grow.current.json";
-import humidifierHistory1h from "./fixtures/humidifier.history.1h.json";
-import humidifierHistory7d from "./fixtures/humidifier.history.7d.json";
-import humidifierHistory24h from "./fixtures/humidifier.history.24h.json";
-import humidifierState from "./fixtures/humidifier.state.json";
 import plantA from "./fixtures/plants.a.json";
 import plantAMoisture1h from "./fixtures/plants.a.moisture.1h.json";
 import plantAMoisture7d from "./fixtures/plants.a.moisture.7d.json";
@@ -44,20 +40,24 @@ import plantsList from "./fixtures/plants.json";
 import ptzStateInitial from "./fixtures/ptz.state.json";
 import sensorsCurrent from "./fixtures/sensors.current.json";
 import sensorsHistory1hFanPct from "./fixtures/sensors.history.1h.fan_pct.json";
+import sensorsHistory1hHumidifierIntensityPct from "./fixtures/sensors.history.1h.humidifier_intensity_pct.json";
 import sensorsHistory1hHumidityPct from "./fixtures/sensors.history.1h.humidity_pct.json";
 import sensorsHistory1hReservoirIn from "./fixtures/sensors.history.1h.reservoir_in.json";
 import sensorsHistory1hTemperatureF from "./fixtures/sensors.history.1h.temperature_f.json";
 import sensorsHistory1hVpdKpa from "./fixtures/sensors.history.1h.vpd_kpa.json";
 import sensorsHistory7dFanPct from "./fixtures/sensors.history.7d.fan_pct.json";
+import sensorsHistory7dHumidifierIntensityPct from "./fixtures/sensors.history.7d.humidifier_intensity_pct.json";
 import sensorsHistory7dHumidityPct from "./fixtures/sensors.history.7d.humidity_pct.json";
 import sensorsHistory7dReservoirIn from "./fixtures/sensors.history.7d.reservoir_in.json";
 import sensorsHistory7dTemperatureF from "./fixtures/sensors.history.7d.temperature_f.json";
 import sensorsHistory7dVpdKpa from "./fixtures/sensors.history.7d.vpd_kpa.json";
 import sensorsHistory24hFanPct from "./fixtures/sensors.history.24h.fan_pct.json";
+import sensorsHistory24hHumidifierIntensityPct from "./fixtures/sensors.history.24h.humidifier_intensity_pct.json";
 import sensorsHistory24hHumidityPct from "./fixtures/sensors.history.24h.humidity_pct.json";
 import sensorsHistory24hReservoirIn from "./fixtures/sensors.history.24h.reservoir_in.json";
 import sensorsHistory24hTemperatureF from "./fixtures/sensors.history.24h.temperature_f.json";
 import sensorsHistory24hVpdKpa from "./fixtures/sensors.history.24h.vpd_kpa.json";
+import sensorsMetadata from "./fixtures/sensors.metadata.json";
 import systemDevices from "./fixtures/system.devices.json";
 
 // ---------------------------------------------------------------------------
@@ -184,16 +184,19 @@ export const handlers: RequestHandler[] = [
       "1h:humidity_pct": sensorsHistory1hHumidityPct,
       "1h:vpd_kpa": sensorsHistory1hVpdKpa,
       "1h:fan_pct": sensorsHistory1hFanPct,
+      "1h:humidifier_intensity_pct": sensorsHistory1hHumidifierIntensityPct,
       "1h:reservoir_in": sensorsHistory1hReservoirIn,
       "24h:temperature_f": sensorsHistory24hTemperatureF,
       "24h:humidity_pct": sensorsHistory24hHumidityPct,
       "24h:vpd_kpa": sensorsHistory24hVpdKpa,
       "24h:fan_pct": sensorsHistory24hFanPct,
+      "24h:humidifier_intensity_pct": sensorsHistory24hHumidifierIntensityPct,
       "24h:reservoir_in": sensorsHistory24hReservoirIn,
       "7d:temperature_f": sensorsHistory7dTemperatureF,
       "7d:humidity_pct": sensorsHistory7dHumidityPct,
       "7d:vpd_kpa": sensorsHistory7dVpdKpa,
       "7d:fan_pct": sensorsHistory7dFanPct,
+      "7d:humidifier_intensity_pct": sensorsHistory7dHumidifierIntensityPct,
       "7d:reservoir_in": sensorsHistory7dReservoirIn,
     };
     if (!range || !["1h", "24h", "7d"].includes(range)) {
@@ -201,9 +204,14 @@ export const handlers: RequestHandler[] = [
     }
     if (
       !metric ||
-      !["temperature_f", "humidity_pct", "vpd_kpa", "fan_pct", "reservoir_in"].includes(
-        metric,
-      )
+      ![
+        "temperature_f",
+        "humidity_pct",
+        "vpd_kpa",
+        "fan_pct",
+        "humidifier_intensity_pct",
+        "reservoir_in",
+      ].includes(metric)
     ) {
       return HttpResponse.json({ detail: "bad_metric" }, { status: 400 });
     }
@@ -212,44 +220,15 @@ export const handlers: RequestHandler[] = [
   }),
 
   // -------------------------------------------------------------------------
-  // frontend.dashboard.humidifier — /api/humidifier/state + /api/humidifier/history
+  // frontend.dashboard.metadata — /api/sensors/metadata
   //
-  // Fixtures for the dashboard humidifier tile + duty-cycle strip. Shapes
-  // duck-typed against contracts/webapp-v1.yaml
-  // #/components/schemas/{HumidifierState,HumidifierHistory,HumidifierTransition}
-  // (boundaries forbids mocks/ → api-client/, so no `import type` from
-  // generated schema — consumer typecheck catches drift).
-  //
-  // /api/humidifier/state — stable "on since ~2h ago, 8 cycles in the
-  // last 24h" fixture. `since` anchored to a fixed timestamp so the
-  // duration-text assertion isn't a moving target as test time advances.
-  //
-  // /api/humidifier/history — range-dependent transition counts so the
-  // e2e can observe the strip re-rendering when the user switches ranges.
-  // Bucket counts per range (chosen distinct and not too large):
-  //   1h  → 4 transitions
-  //   24h → 12 transitions
-  //   7d  → 28 transitions
-  // Transitions alternate on/off, first transition = on=true. Same
-  // (range) → identical points[] so rectangle-count assertions are stable.
+  // Per-metric display metadata (display_name, unit, accent, y-axis
+  // bounds, has_target_band). Read once at SPA boot to drive the gauge
+  // + sparkline grid. Stable across stage flips — band *values* come
+  // from /api/sensors/current per stage; only band *presence* lives here.
   // -------------------------------------------------------------------------
 
-  http.get("/api/humidifier/state", () => HttpResponse.json(humidifierState)),
-
-  http.get("/api/humidifier/history", ({ request }) => {
-    const url = new URL(request.url);
-    const range = url.searchParams.get("range");
-    const FIXTURES: Record<string, Record<string, unknown>> = {
-      "1h": humidifierHistory1h,
-      "24h": humidifierHistory24h,
-      "7d": humidifierHistory7d,
-    };
-    const fixture = range ? FIXTURES[range] : undefined;
-    if (!fixture) {
-      return HttpResponse.json({ detail: "bad_range" }, { status: 400 });
-    }
-    return HttpResponse.json(fixture);
-  }),
+  http.get("/api/sensors/metadata", () => HttpResponse.json(sensorsMetadata)),
 
   // -------------------------------------------------------------------------
   // frontend.dashboard.plants_strip — /api/plants

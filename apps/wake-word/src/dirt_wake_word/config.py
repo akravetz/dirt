@@ -126,12 +126,8 @@ def build_config(
     # speech and would push the model toward firing on speech).
     neg_dir = expected_inputs["negatives_dir"]
     config["extra_background_files"] = sorted(
-        str(p)
-        for p in neg_dir.glob("realmic-neg_*.wav")
-    ) + sorted(
-        str(p)
-        for p in neg_dir.glob("harvested_*.wav")
-    )
+        str(p) for p in neg_dir.glob("realmic-neg_*.wav")
+    ) + sorted(str(p) for p in neg_dir.glob("harvested_*.wav"))
     config["false_positive_validation_data_path"] = str(
         expected_inputs["validation_features"]
     )

@@ -1,0 +1,139 @@
+{
+    "code": 200,
+    "message": "success",
+    "data": [
+        {
+            "sku": "H7142",
+            "device": "14:38:60:74:F4:DD:B9:46",
+            "deviceName": "dirt-humidifier",
+            "type": "devices.types.humidifier",
+            "capabilities": [
+                {
+                    "type": "devices.capabilities.on_off",
+                    "instance": "powerSwitch",
+                    "parameters": {
+                        "dataType": "ENUM",
+                        "options": [
+                            {
+                                "name": "on",
+                                "value": 1
+                            },
+                            {
+                                "name": "off",
+                                "value": 0
+                            }
+                        ]
+                    }
+                },
+                {
+                    "type": "devices.capabilities.work_mode",
+                    "instance": "workMode",
+                    "parameters": {
+                        "dataType": "STRUCT",
+                        "fields": [
+                            {
+                                "fieldName": "workMode",
+                                "dataType": "ENUM",
+                                "options": [
+                                    {
+                                        "name": "Manual",
+                                        "value": 1
+                                    },
+                                    {
+                                        "name": "Custom",
+                                        "value": 2
+                                    },
+                                    {
+                                        "name": "Auto",
+                                        "value": 3
+                                    }
+                                ],
+                                "required": true
+                            },
+                            {
+                                "fieldName": "modeValue",
+                                "dataType": "ENUM",
+                                "options": [
+                                    {
+                                        "name": "Manual",
+                                        "options": [
+                                            {
+                                                "value": 1
+                                            },
+                                            {
+                                                "value": 2
+                                            },
+                                            {
+                                                "value": 3
+                                            },
+                                            {
+                                                "value": 4
+                                            },
+                                            {
+                                                "value": 5
+                                            },
+                                            {
+                                                "value": 6
+                                            },
+                                            {
+                                                "value": 7
+                                            },
+                                            {
+                                                "value": 8
+                                            },
+                                            {
+                                                "value": 9
+                                            }
+                                        ],
+                                        "required": true
+                                    },
+                                    {
+                                        "defaultValue": 0,
+                                        "name": "Custom",
+                                        "required": false
+                                    },
+                                    {
+                                        "name": "Auto",
+                                        "range": {
+                                            "min": 40,
+                                            "max": 80
+                                        },
+                                        "required": true
+                                    }
+                                ],
+                                "required": false
+                            }
+                        ]
+                    }
+                },
+                {
+                    "type": "devices.capabilities.range",
+                    "instance": "humidity",
+                    "parameters": {
+                        "unit": "unit.percent",
+                        "dataType": "INTEGER",
+                        "range": {
+                            "min": 40,
+                            "max": 70,
+                            "precision": 1
+                        }
+                    }
+                },
+                {
+                    "type": "devices.capabilities.event",
+                    "instance": "lackWaterEvent",
+                    "alarmType": 51,
+                    "eventState": {
+                        "options": [
+                            {
+                                "name": "lack",
+                                "value": 1,
+                                "message": "Lack of Water"
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    ]
+}

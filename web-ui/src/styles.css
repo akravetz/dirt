@@ -175,16 +175,9 @@
   --default-transition-duration: var(--dur-fast);
   --default-transition-timing-function: var(--ease);
 
-  --animate-hum-pulse: humPulse 1.2s ease-in-out infinite;
   --animate-pd-fade: pdFade 160ms var(--ease);
   --animate-pd-slide: pdSlide 240ms var(--ease);
   --animate-cmdk-in: cmdkIn 120ms var(--ease);
-}
-
-@keyframes humPulse {
-  50% {
-    box-shadow: 0 0 0 5px rgba(176, 42, 106, 0.08);
-  }
 }
 
 @keyframes pdFade {
@@ -257,18 +250,6 @@
   );
   background-size: 16px 16px;
   background-position: 0 0;
-}
-
-/* HumidifierTile pulsing dot. The keyframe drives a magenta halo;
- * size/color baked in so callers just need `<span class="humidifier-dot"/>`. */
-@utility humidifier-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--color-accent-magenta);
-  box-shadow: 0 0 0 0 rgba(176, 42, 106, 0.18);
-  animation: var(--animate-hum-pulse);
 }
 
 /* ZoomSlider thumb: 14px square, ink body, magenta 2px border. Applies
