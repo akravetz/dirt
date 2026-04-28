@@ -1,9 +1,8 @@
 // Botanical split-screen /login form.
 //
-// Left panel: dotted-paper background with the dirt. brand, a short
-// italic subtitle, and a field-notes block listing GROW / DAY / PLANTS
-// / LOC / AGENT. The field-notes block is deliberately hardcoded copy —
-// no /api/grow/current call from this pre-auth screen per the plan.
+// Left panel: dotted-paper background with the dirt. brand and a short
+// italic subtitle. Pre-auth avoids grow/device status so the screen
+// does not show stale operational values before the app has a session.
 //
 // Right panel: "Sign in" heading + native <form> with username +
 // password + a primary submit button. The ui/ layer is pure
@@ -22,18 +21,6 @@ interface LoginScreenProps {
    */
   onSubmit: (creds: { username: string; password: string }) => Promise<string | null>;
 }
-
-// Field-notes copy mirrors the mockup (docs/plans/refs/login.png). Kept
-// as a const table so swapping values for a demo or pre-launch flag is
-// a one-line edit, and so the acceptance script's case-insensitive
-// token scan (grow / day / plants / loc / agent) stays satisfied.
-const FIELD_NOTES = [
-  { label: "GROW", value: "Sirius Black × BS01" },
-  { label: "DAY", value: "29 · flower wk 2" },
-  { label: "PLANTS", value: "A · B · C · D" },
-  { label: "LOC", value: "Denver, MT · closet tent" },
-  { label: "AGENT", value: "Claudia · listening" },
-] as const;
 
 export function LoginScreen({ onSubmit }: LoginScreenProps) {
   const [error, setError] = useState<string | null>(null);
@@ -97,16 +84,6 @@ export function LoginScreen({ onSubmit }: LoginScreenProps) {
             <br />
             feel it under your nails
           </p>
-          <dl className="mt-10 flex flex-col gap-1 border-t border-rule-strong pt-4 font-mono text-fs-11">
-            {FIELD_NOTES.map(({ label, value }) => (
-              <div key={label} className="flex gap-3">
-                <dt className="w-15 uppercase tracking-cap-narrow text-ink-3">
-                  {label}
-                </dt>
-                <dd className="text-ink">{value}</dd>
-              </div>
-            ))}
-          </dl>
         </div>
       </section>
 

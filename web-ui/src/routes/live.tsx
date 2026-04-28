@@ -91,7 +91,7 @@ function LivePage() {
     },
   });
 
-  const presets = toPresetRows(stateQuery.data);
+  const presets = stateQuery.data ? toPresetRows(stateQuery.data) : [];
   const activePreset = stateQuery.data?.preset ?? null;
 
   return (
@@ -109,20 +109,28 @@ function LivePage() {
             }}
           />
           <aside className="flex flex-col gap-4">
-            <PresetList
-              presets={presets}
-              activeId={activePreset}
-              onSelect={(id) => {
-                presetMutation.mutate(id);
-              }}
-            />
-            <ZoomSlider
-              value={localZoom}
-              onChange={setLocalZoom}
-              onCommit={(next) => {
-                zoomMutation.mutate(next);
-              }}
-            />
+            {stateQuery.isLoading ? (
+              <PTZStatePanel message="Loading PTZ state…" />
+            ) : stateQuery.error ? (
+              <PTZStatePanel message="PTZ state unavailable" tone="error" />
+            ) : (
+              <>
+                <PresetList
+                  presets={presets}
+                  activeId={activePreset}
+                  onSelect={(id) => {
+                    presetMutation.mutate(id);
+                  }}
+                />
+                <ZoomSlider
+                  value={localZoom}
+                  onChange={setLocalZoom}
+                  onCommit={(next) => {
+                    zoomMutation.mutate(next);
+                  }}
+                />
+              </>
+            )}
           </aside>
         </div>
       </div>
@@ -130,17 +138,29 @@ function LivePage() {
   );
 }
 
+function PTZStatePanel({
+  message,
+  tone = "muted",
+}: {
+  message: string;
+  tone?: "muted" | "error";
+}) {
+  const toneClass = tone === "error" ? "text-accent-magenta" : "text-ink-3";
+  return (
+    <section
+      aria-label="PTZ state"
+      className="border border-rule-strong bg-paper-2 p-4"
+    >
+      <p className={`font-mono text-fs-10 uppercase tracking-caps ${toneClass}`}>
+        {message}
+      </p>
+    </section>
+  );
+}
+
 // Adapt PTZState.presets (full contract shape) to the narrower shape
-// PresetList consumes. Defaults to the mockup's five-preset set when
-// /api/ptz/state is still loading so the right rail has stable layout
-// while the query resolves.
-const FALLBACK_PRESETS: readonly PresetRow[] = [
-  { id: "overview", label: "Overview", stickerColor: null },
-  { id: "plant_a", label: "Plant A", stickerColor: "yellow" },
-  { id: "plant_b", label: "Plant B", stickerColor: "orange" },
-  { id: "plant_c", label: "Plant C", stickerColor: "pink" },
-  { id: "plant_d", label: "Plant D", stickerColor: "blue" },
-] as const;
+// PresetList consumes. Until /api/ptz/state returns, the right rail
+// shows a loading/error panel instead of invented preset rows.
 
 const DISPLAY_LABELS: Record<string, string> = {
   overview: "Overview",
@@ -150,8 +170,7 @@ const DISPLAY_LABELS: Record<string, string> = {
   plant_d: "Plant D",
 };
 
-function toPresetRows(state: PTZState | undefined): readonly PresetRow[] {
-  if (!state) return FALLBACK_PRESETS;
+function toPresetRows(state: PTZState): readonly PresetRow[] {
   return state.presets.map((preset) => ({
     id: preset.id,
     label: DISPLAY_LABELS[preset.id] ?? preset.label,

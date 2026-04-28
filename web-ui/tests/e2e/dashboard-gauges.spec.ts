@@ -16,7 +16,7 @@ import { expect, test } from "@playwright/test";
 test.describe("dashboard gauges", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
-    // Wait for the dashboard's sensors query to settle — the five
+    // Wait for the dashboard's sensors query to settle — the metric
     // tiles are rendered only after /api/sensors/current resolves, so
     // every assertion below needs to wait past the "Loading sensors…"
     // placeholder. One deterministic landmark to wait on.
@@ -25,11 +25,11 @@ test.describe("dashboard gauges", () => {
     ).toBeVisible();
   });
 
-  test("five gauge tiles render with the expected metric headings", async ({
+  test("six gauge tiles render with the expected metric headings", async ({
     page,
   }) => {
     // The <article aria-label={name}> per-tile contract is the spec's
-    // handle onto each metric. Five metrics expected, one per key in
+    // handle onto each metric. Six dashboard metrics expected, one per
     // SensorsCurrent.metrics. `exact: true` prevents substring matches
     // against the sparkline strip below, whose tiles are labelled
     // "{Metric} sparkline" (frontend.dashboard.sparklines).
@@ -44,6 +44,9 @@ test.describe("dashboard gauges", () => {
     ).toBeVisible();
     await expect(
       page.getByRole("article", { name: "Fan", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("article", { name: "Humidifier", exact: true }),
     ).toBeVisible();
     await expect(
       page.getByRole("article", { name: "Reservoir", exact: true }),
@@ -65,6 +68,9 @@ test.describe("dashboard gauges", () => {
       page.getByRole("heading", { level: 2, name: "Fan" }),
     ).toBeVisible();
     await expect(
+      page.getByRole("heading", { level: 2, name: "Humidifier" }),
+    ).toBeVisible();
+    await expect(
       page.getByRole("heading", { level: 2, name: "Reservoir" }),
     ).toBeVisible();
 
@@ -74,7 +80,7 @@ test.describe("dashboard gauges", () => {
     const gaugesArticles = page
       .getByRole("region", { name: "Environment gauges" })
       .locator("article[aria-label]");
-    await expect(gaugesArticles).toHaveCount(5);
+    await expect(gaugesArticles).toHaveCount(6);
   });
 
   test("each tile renders a numeric reading and the expected unit", async ({
@@ -90,6 +96,7 @@ test.describe("dashboard gauges", () => {
       ["Humidity", "%"],
       ["VPD", "kPa"],
       ["Fan", "%"],
+      ["Humidifier", "%"],
       ["Reservoir", "in"],
     ];
     for (const [name, unit] of TILES) {
@@ -130,6 +137,11 @@ test.describe("dashboard gauges", () => {
     ).toHaveCount(0);
     await expect(
       page
+        .getByRole("article", { name: "Humidifier", exact: true })
+        .getByLabel("target band"),
+    ).toHaveCount(0);
+    await expect(
+      page
         .getByRole("article", { name: "Reservoir", exact: true })
         .getByLabel("target band"),
     ).toHaveCount(0);
@@ -149,7 +161,14 @@ test.describe("dashboard gauges", () => {
     // contract — status text is one of the enum values and matches the
     // data attribute.
     const STATUS_PATTERN = /^(ok|warn|crit)$/;
-    for (const name of ["Temperature", "Humidity", "VPD", "Fan", "Reservoir"]) {
+    for (const name of [
+      "Temperature",
+      "Humidity",
+      "VPD",
+      "Fan",
+      "Humidifier",
+      "Reservoir",
+    ]) {
       const tile = page.getByRole("article", { name, exact: true });
       const status = tile.getByRole("status");
       await expect(status).toHaveText(STATUS_PATTERN);

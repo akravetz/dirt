@@ -8,7 +8,7 @@
 //
 // Fixtures come from the MSW handler for /api/sensors/history in
 // web-ui/src/mocks/handlers.ts (bucket count is 12 / 48 / 168 for
-// 1h / 24h / 7d, deterministic triangle-wave values per metric). MSW
+// 1h / 24h / 7d, deterministic values per metric). MSW
 // intercepts in dev AND in the Vite build Playwright runs against, so
 // the spec is independent of the backend stack.
 //
@@ -26,7 +26,7 @@ import { expect, test } from "@playwright/test";
 test.describe("dashboard sparklines", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
-    // Wait for the five-sparkline strip to render — the Sparkline
+    // Wait for the sparkline strip to render — the Sparkline
     // components only mount after /api/sensors/history resolves for at
     // least the first metric. Waiting on the section landmark is the
     // least brittle signal.
@@ -34,31 +34,40 @@ test.describe("dashboard sparklines", () => {
       page.getByRole("region", { name: "Environment history" }),
     ).toBeVisible();
     // Wait until the first sparkline actually has data — one of the
-    // five articles must show its SVG sparkline before hover assertions
+    // articles must show an SVG sparkline before hover assertions
     // make sense. `exact` prevents getByLabel from also matching each
     // article's "{Metric} sparkline" accessible name.
-    await expect(page.getByLabel("sparkline", { exact: true }).first()).toBeVisible();
+    await expect(
+      page.getByLabel("sparkline", { exact: true }).first(),
+    ).toBeVisible();
   });
 
-  test("five sparklines render under the gauges (one per metric)", async ({
+  test("six sparklines render under the gauges (one per metric)", async ({
     page,
   }) => {
-    // One <article aria-label="{Metric} sparkline"> per metric, matching
-    // the GAUGE_TILES / SPARKLINE_TILES ordering in routes/index.tsx.
+    // One <article aria-label="{Metric} sparkline"> per dashboard metric,
+    // matching /api/sensors/metadata ordering.
     await expect(
       page.getByRole("article", { name: "Temperature sparkline" }),
     ).toBeVisible();
     await expect(
       page.getByRole("article", { name: "Humidity sparkline" }),
     ).toBeVisible();
-    await expect(page.getByRole("article", { name: "VPD sparkline" })).toBeVisible();
-    await expect(page.getByRole("article", { name: "Fan sparkline" })).toBeVisible();
+    await expect(
+      page.getByRole("article", { name: "VPD sparkline" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("article", { name: "Fan sparkline" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("article", { name: "Humidifier sparkline" }),
+    ).toBeVisible();
     await expect(
       page.getByRole("article", { name: "Reservoir sparkline" }),
     ).toBeVisible();
 
-    // Exactly five sparkline chart surfaces.
-    await expect(page.getByLabel("sparkline", { exact: true })).toHaveCount(5);
+    // Exactly six sparkline chart surfaces.
+    await expect(page.getByLabel("sparkline", { exact: true })).toHaveCount(6);
 
     // The sparklines strip is anchored under the gauges region.
     const gaugesY = await page
@@ -70,7 +79,7 @@ test.describe("dashboard sparklines", () => {
     expect(sparklinesY).toBeGreaterThanOrEqual(gaugesY);
   });
 
-  test("clicking 1h / 24h / 7d triggers 5 fresh GET /api/sensors/history per range change", async ({
+  test("clicking 1h / 24h / 7d triggers 6 fresh GET /api/sensors/history per range change", async ({
     page,
   }) => {
     // Count every /api/sensors/history request the browser dispatches
@@ -87,27 +96,29 @@ test.describe("dashboard sparklines", () => {
       }
     });
 
-    // Fresh reload so we observe the initial 5 baseline fetches (for
+    // Fresh reload so we observe the initial 6 baseline fetches (for
     // the default range) + every subsequent range switch deterministically.
     await page.goto("/");
-    await expect(page.getByLabel("sparkline", { exact: true }).first()).toBeVisible();
+    await expect(
+      page.getByLabel("sparkline", { exact: true }).first(),
+    ).toBeVisible();
 
-    // Capture baseline count (5 — one per metric — for the default range).
+    // Capture baseline count (6 — one per metric — for the default range).
     const baselineCount = requests.length;
-    expect(baselineCount).toBe(5);
+    expect(baselineCount).toBe(6);
 
     const rangeGroup = page.getByRole("group", { name: "Sparkline range" });
 
-    // Switch to 1h → 5 more fetches keyed on range=1h.
+    // Switch to 1h → 6 more fetches keyed on range=1h.
     const before1h = requests.length;
     await rangeGroup.getByRole("button", { name: "1h" }).click();
     await expect
       .poll(() => requests.filter((r) => r.range === "1h").length, {
         timeout: 5000,
       })
-      .toBe(5);
-    expect(requests.length - before1h).toBe(5);
-    // All 5 metrics represented in this range's batch.
+      .toBe(6);
+    expect(requests.length - before1h).toBe(6);
+    // All 6 metrics represented in this range's batch.
     const onehMetrics = new Set(
       requests.filter((r) => r.range === "1h").map((r) => r.metric),
     );
@@ -117,28 +128,29 @@ test.describe("dashboard sparklines", () => {
         "humidity_pct",
         "vpd_kpa",
         "fan_pct",
+        "humidifier_intensity_pct",
         "reservoir_in",
       ]),
     );
 
-    // Switch to 7d → another 5 fetches keyed on range=7d.
+    // Switch to 7d → another 6 fetches keyed on range=7d.
     const before7d = requests.length;
     await rangeGroup.getByRole("button", { name: "7d" }).click();
     await expect
       .poll(() => requests.filter((r) => r.range === "7d").length, {
         timeout: 5000,
       })
-      .toBe(5);
-    expect(requests.length - before7d).toBe(5);
+      .toBe(6);
+    expect(requests.length - before7d).toBe(6);
 
-    // Switch back to 24h → another 5 (distinct from baseline because
-    // we went via 1h then 7d; react-query's cache still re-reports the
-    // request on refetch when the fresh option is toggled).
+    // Switch back to 24h after visiting the other ranges. The 24h
+    // range was already fetched during boot, so this may be served
+    // entirely from cache.
     const before24h = requests.length;
     await rangeGroup.getByRole("button", { name: "24h" }).click();
     // The 24h key already existed from the initial load, so
     // react-query may serve from cache without a re-fetch. The plan's
-    // "5 fetches per range change" claim holds for moves *between*
+    // "one fetch per metric per range change" claim holds for moves *between*
     // distinct ranges (1h→7d→24h hit ranges we haven't cached in the
     // switch-sequence above; the 24h cache from boot is still valid).
     // Assert AT LEAST 0 additional — we'd rather under-count than
@@ -147,13 +159,13 @@ test.describe("dashboard sparklines", () => {
     expect(requests.length - before24h).toBeGreaterThanOrEqual(0);
   });
 
-  test("hovering one sparkline draws a crosshair shared across all five", async ({
+  test("hovering one sparkline draws a crosshair shared across all six", async ({
     page,
   }) => {
     // The crosshair is rendered inside each sparkline's SVG whenever
     // hoverIndex !== null. Moving the pointer over one sparkline sets
     // hoverIndex in the shared route state; every sparkline reads that
-    // same state, so five crosshairs appear simultaneously.
+    // same state, so six crosshairs appear simultaneously.
     const temperature = page
       .getByRole("article", { name: "Temperature sparkline" })
       .getByLabel("sparkline", { exact: true });
@@ -162,8 +174,8 @@ test.describe("dashboard sparklines", () => {
     // Hover near the center of the temperature sparkline.
     await temperature.hover({ position: { x: box.width / 2, y: box.height / 2 } });
 
-    // All five sparklines show their crosshair.
-    await expect(page.getByLabel("crosshair")).toHaveCount(5);
+    // All six sparklines show their crosshair.
+    await expect(page.getByLabel("crosshair")).toHaveCount(6);
   });
 
   test("hover tooltip shows the per-metric unit suffix", async ({ page }) => {
@@ -174,12 +186,14 @@ test.describe("dashboard sparklines", () => {
     //   humidity_pct  → "%"
     //   vpd_kpa       → "kPa"
     //   fan_pct       → "%"
+    //   humidifier_intensity_pct → "%"
     //   reservoir_in  → "in"
     const expectations: ReadonlyArray<{ name: string; unit: string }> = [
       { name: "Temperature sparkline", unit: "°F" },
       { name: "Humidity sparkline", unit: "%" },
       { name: "VPD sparkline", unit: "kPa" },
       { name: "Fan sparkline", unit: "%" },
+      { name: "Humidifier sparkline", unit: "%" },
       { name: "Reservoir sparkline", unit: "in" },
     ];
     for (const { name, unit } of expectations) {

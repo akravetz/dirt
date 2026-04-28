@@ -117,23 +117,30 @@ function MoistureHero({
   currentPct: number | null;
   target: readonly [number, number] | null;
 }): ReactNode {
-  const [lo, hi] = target ?? [55, 70];
-  const pct = currentPct ?? lo;
+  const hasTarget = target !== null;
+  const lo = target?.[0] ?? null;
+  const hi = target?.[1] ?? null;
+  const pct = currentPct ?? TRACK_MIN;
   const pctFraction = (x: number): number =>
     ((x - TRACK_MIN) / (TRACK_MAX - TRACK_MIN)) * 100;
-  const bandX = pctFraction(lo);
-  const bandW = pctFraction(hi) - bandX;
+  const bandX = hasTarget ? pctFraction(lo as number) : 0;
+  const bandW = hasTarget ? pctFraction(hi as number) - bandX : 0;
   const markerX = pctFraction(Math.max(TRACK_MIN, Math.min(TRACK_MAX, pct)));
   const statusText =
     currentPct === null
       ? "No reading"
-      : currentPct < lo
-        ? "below target — irrigation due"
-        : currentPct > hi
-          ? "above target — drying down"
-          : "in target band";
+      : !hasTarget
+        ? "target unavailable"
+        : currentPct < (lo as number)
+          ? "below target — irrigation due"
+          : currentPct > (hi as number)
+            ? "above target — drying down"
+            : "in target band";
   const dotClass =
-    currentPct !== null && currentPct >= lo && currentPct <= hi
+    currentPct !== null &&
+    hasTarget &&
+    currentPct >= (lo as number) &&
+    currentPct <= (hi as number)
       ? "text-sensor-vpd"
       : "text-accent-magenta";
 
@@ -170,7 +177,7 @@ function MoistureHero({
           className="h-10 w-full"
         >
           <title>
-            Target band {lo}–{hi}% · current{" "}
+            {hasTarget ? `Target band ${lo}-${hi}%` : "Target unavailable"} · current{" "}
             {currentPct === null ? "—" : Math.round(currentPct)}%
           </title>
           {/* Base rule running across the track. */}
@@ -183,23 +190,29 @@ function MoistureHero({
             strokeWidth="0.4"
           />
           {/* Target-band tint. */}
-          <rect
-            x={bandX}
-            y="6"
-            width={bandW}
-            height="8"
-            className="fill-sensor-vpd opacity-30"
-          />
+          {hasTarget ? (
+            <rect
+              x={bandX}
+              y="6"
+              width={bandW}
+              height="8"
+              className="fill-sensor-vpd opacity-30"
+            />
+          ) : null}
           {/* Marker line + dot. */}
-          <line
-            x1={markerX}
-            y1="3"
-            x2={markerX}
-            y2="17"
-            className="stroke-accent-magenta"
-            strokeWidth="0.8"
-          />
-          <circle cx={markerX} cy="10" r="2" className="fill-accent-magenta" />
+          {currentPct !== null ? (
+            <>
+              <line
+                x1={markerX}
+                y1="3"
+                x2={markerX}
+                y2="17"
+                className="stroke-accent-magenta"
+                strokeWidth="0.8"
+              />
+              <circle cx={markerX} cy="10" r="2" className="fill-accent-magenta" />
+            </>
+          ) : null}
           {/* Tick labels — SVG text avoids HTML inline-style attrs. */}
           {TRACK_TICKS.map((tick) => (
             <text
@@ -214,7 +227,7 @@ function MoistureHero({
           ))}
         </svg>
         <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
-          target {lo}–{hi}%
+          {hasTarget ? `target ${lo}-${hi}%` : "target unavailable"}
         </p>
       </div>
     </section>
@@ -442,7 +455,7 @@ export function PlantDetail({
                 : "border-l-2 border-transparent pl-3";
               return (
                 <li
-                  key={entry.date}
+                  key={`${entry.date}-${entry.day}-${entry.text}`}
                   aria-label="timeline entry"
                   className={`grid grid-cols-[100px_40px_1fr] items-baseline gap-3 border-b border-rule py-2 last:border-b-0 ${highlightRow}`}
                 >
@@ -485,7 +498,6 @@ export function PlantDetail({
 
         <footer className="mt-auto flex items-center justify-between border-t border-rule-strong pt-3 font-mono text-fs-10 uppercase tracking-cap-narrow text-ink-3">
           <span>→ {payload.wiki_path}</span>
-          <span>→ live · preset plant_{payload.code}</span>
         </footer>
       </aside>
     </>

@@ -79,6 +79,16 @@ function formatInteger(value: number): string {
   return `${Math.round(value)}`;
 }
 
+function freshnessLabel(data: SensorsCurrent): {
+  label: string;
+  dotClass: string;
+} {
+  if (data.stale) {
+    return { label: "stale", dotClass: "text-status-warn" };
+  }
+  return { label: "live", dotClass: "text-status-ok" };
+}
+
 function DashboardPage() {
   // Per-metric display metadata — name, unit, accent, y-axis bounds —
   // driven by the BE registry at /api/sensors/metadata. Read once at
@@ -223,15 +233,17 @@ function DashboardPage() {
     );
   }
 
+  const freshness = freshnessLabel(data);
+
   return (
     <main className="flex-1 overflow-auto">
       <div className="mx-auto flex max-w-350 flex-col gap-6 px-8 pb-16 pt-7">
         <div className="flex items-center justify-end gap-4 border-b border-rule-strong pb-3">
           <span className="inline-flex items-center gap-1.5 font-mono text-fs-11 text-ink-3">
-            <span aria-hidden="true" className="text-status-ok">
+            <span aria-hidden="true" className={freshness.dotClass}>
               ◉
             </span>
-            live
+            {freshness.label}
           </span>
           <RangeSwitch value={range} onChange={setRange} />
         </div>

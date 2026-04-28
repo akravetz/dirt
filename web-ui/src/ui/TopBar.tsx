@@ -28,9 +28,10 @@ interface TopBarProps {
    * grow identity (the TopBar itself is already hidden on /login).
    */
   growContext?: { dayNumber: number; strain: string } | null;
+  onLogout: () => void;
 }
 
-export function TopBar({ growContext = null }: TopBarProps) {
+export function TopBar({ growContext = null, onLogout }: TopBarProps) {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [theme, setTheme] = useState<Theme>(readStoredTheme);
@@ -101,9 +102,7 @@ export function TopBar({ growContext = null }: TopBarProps) {
         </button>
         <button
           type="button"
-          onClick={() => {
-            void navigate({ to: "/" });
-          }}
+          onClick={onLogout}
           className="border border-rule px-2.5 py-1.25 font-mono text-fs-10 uppercase tracking-caps text-ink-3 transition hover:border-ink-2 hover:text-ink"
         >
           Log out

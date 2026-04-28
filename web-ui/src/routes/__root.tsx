@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   createRootRouteWithContext,
   Outlet,
+  useNavigate,
   useRouterState,
 } from "@tanstack/react-router";
 import { createDirtApiClient } from "@/api-client";
@@ -19,8 +20,10 @@ const api = createDirtApiClient();
 // router is sitting on it. Dashboard / Live / Wiki all keep the TopBar
 // and get the Day N · strain grow-context summary from /api/grow/current.
 function RootComponent() {
+  const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isLogin = pathname === "/login";
+  const { queryClient } = Route.useRouteContext();
 
   // Cached query: one fetch shared by every non-login route. Disabled
   // on /login to avoid firing while unauthenticated (the call would
@@ -37,9 +40,20 @@ function RootComponent() {
 
   const growContext = data ? { dayNumber: data.day_number, strain: data.strain } : null;
 
+  const logout = () => {
+    void (async () => {
+      try {
+        await api.POST("/api/auth/logout");
+      } finally {
+        queryClient.clear();
+        await navigate({ to: "/login" });
+      }
+    })();
+  };
+
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-paper font-sans text-ink">
-      {isLogin ? null : <TopBar growContext={growContext} />}
+      {isLogin ? null : <TopBar growContext={growContext} onLogout={logout} />}
       <Outlet />
     </div>
   );
