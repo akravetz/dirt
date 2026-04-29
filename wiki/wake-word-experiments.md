@@ -1278,3 +1278,86 @@ Don't deploy v24. v23 with `WAKE_THRESHOLD=0.5` keeps the better held-out recall
 - Cache schema bump (`_CACHE_SCHEMA_VERSION = 2`) cleanly invalidated v23's cache. New v24 cache landed under a fresh key.
 - Wall dropped from v23's 33m to v24's 28m despite the augment cache MISS — augment recompute time has been steadily decreasing as we tune ncpu and cache layout.
 - Threshold `0.5` change in production is independent of v24 — it's tied to the deployed v23 model right now.
+
+### v25 — 2026-04-29
+
+**Status:** trained, validated (**not deployed** — precision regression vs deployed v23)
+**Model artifact:** `var/wake-word/models/2026-04-28-215735-vezabn1edxmozc/hey_claudia.onnx`
+**Trainer commit:** `0e31d9e` (split synth/real source buckets; remove `harvested`; remove v24 realmic-neg background mixing)
+**W&B run:** [`knjh48kw`](https://wandb.ai/adkravetz/dirt-wake-word/runs/knjh48kw) (group `exp10-v25-20260429`)
+**Pod:** `vezabn1edxmozc`, RTX 4090
+**Wall:** 2h24m06s (TTS cache HIT, augment cache **MISS** — mine content_hash changed + cache schema v3)
+
+#### What changed (vs v24)
+- **64 newly reviewed deployment-mic negatives** added to training data. `dirt-wakeword-mine` now has 112 realmic negatives total.
+- Local source buckets were split by meaning:
+  - positives: `synth-clones/` and `realmic-positives/`
+  - negatives: `synth-neighbors/` and `realmic-negatives/`
+- Removed the historical `harvested_*` training category after confirming no live files/use remained.
+- Removed v24's realmic-negative-as-background-noise experiment. Realmic negatives are training negatives again, not `AddBackgroundNoise` material.
+- Added `scripts/stage-wakeword-mine` so the split local buckets are staged into the legacy RunPod volume layout without re-mixing source semantics.
+
+#### Why
+The immediate goal was to test whether the 64 confirmed new real deployment-mic negatives improve precision while keeping v23's held-out real-mic recall. The cleanup also makes future experiments easier to reason about: synth neighbors and real-mic negatives can be counted and augmented independently.
+
+#### Training data
+- Positives: 2000 synth clones x1 + 82 realmic positives x10 = 2820 seeded positives.
+- Negatives: 360 synth neighbors x1 + 112 realmic negatives x10 = 1480 seeded negatives.
+- Backgrounds: AudioSet/FMA from `dirt-wakeword-bg`; no realmic-neg extra background pool.
+- Feature corpus: ACAV100M 2000 h from `dirt-wakeword-features`.
+
+#### Training config
+- `max_negative_weight`: 500
+- `target_false_positives_per_hour`: 10
+- `steps`: 20 000
+- Driver: soft-fork `_custom_train_model`
+- Best-checkpoint selection: real-audio F1 over checkpoint candidates; selected step 17105 (recall 60.7 %, precision 73.9 %, F1 0.667 on 28/82).
+
+#### Validation set
+- Canonical RunPod validation: 28 positives / 82 negatives.
+- Local apples-to-apples validation: 28 positives / 76 negatives (local checkout lacks the 6 v21 harvest validation bad clips).
+- Held-out real-mic positives: 38 clips in `/tmp/v17-eval-newclips/good/`.
+
+#### Results — current 28/82 validation set
+
+| Threshold | Recall | Precision | F1 | False positives |
+|---:|---:|---:|---:|---:|
+| 0.30 | 67.9 % | 65.5 % | 0.667 | 10/82 |
+| 0.40 | 67.9 % | 70.4 % | 0.691 | 8/82 |
+| 0.50 | 64.3 % | 75.0 % | 0.692 | 6/82 |
+| 0.60 | 57.1 % | 72.7 % | 0.640 | 6/82 |
+| 0.70 | 50.0 % | 77.8 % | 0.609 | 4/82 |
+
+#### Results — original 28/76 set
+
+| Threshold | Recall | Precision | F1 | False positives |
+|---:|---:|---:|---:|---:|
+| 0.30 | 67.9 % | 67.9 % | 0.679 | 9/76 |
+| 0.40 | 60.7 % | 81.0 % | 0.694 | 4/76 |
+| 0.50 | 57.1 % | 88.9 % | 0.696 | 2/76 |
+| 0.60 | 50.0 % | 87.5 % | 0.636 | 2/76 |
+| 0.70 | 42.9 % | 92.3 % | 0.585 | 1/76 |
+
+#### Results — held-out 38
+
+| Model | Recall@0.5 |
+|---|---:|
+| v17 | 36.8 % (14/38) |
+| v20 | 34.2 % (13/38) |
+| v21 (split + negs) | 44.7 % (17/38) |
+| v22 (negs only) | 28.9 % (11/38) |
+| v23 (deployed) | **42.1 %** (16/38) |
+| v24 | 36.8 % (14/38) |
+| **v25** | 39.5 % (15/38) |
+
+#### Deploy decision
+Do **not** deploy v25. At the production threshold `0.5`, v25 improves current-set recall over v23 (64.3 % vs 57.1 %) but takes a large precision hit: 6/82 false positives vs v23's 1/82. Held-out real-mic recall is also worse than deployed v23 (15/38 vs 16/38). This is not a good trade for a hands-free wake word.
+
+#### What we learned
+- More confirmed realmic negatives did not automatically improve precision. With the current weighting and checkpoint selection, they pushed the selected model toward a more permissive operating point.
+- v24's background-mixing path was not the cause of the v25 precision drop; v25 removed it and still regressed on false positives.
+- The next useful data move is still more realmic positives in varied acoustic conditions, plus a larger real validation set before using real examples as an in-run selector.
+
+#### Operational notes
+- `augment+features` dominated wall time: 83m04s after the mine content hash/cache schema invalidated the cache. `train_loop` took 55m52s.
+- The current launcher/W&B setup has poor live visibility during long phases: W&B showed `running` but did not upload `output.log` until the end. Add phase heartbeat files or scalar `wandb.log()` calls before the next long experiment.
