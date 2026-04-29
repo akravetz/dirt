@@ -156,7 +156,7 @@ async def test_sensors_current_returns_contract_shape(client: AsyncClient, app_e
     assert model.metrics.fan_pct.target is not None
     assert model.metrics.reservoir_in.target is None
 
-    # Veg-stage bands: temp 70-82, humidity 45-55, VPD 0.8-1.2, fan 20-80.
+    # Veg-stage bands: temp 70-82, humidity envelope, tightened VPD, fan 20-80.
     # Seeded values sit inside each band → status "ok".
     assert model.metrics.temperature_f.status.value == "ok"
     assert model.metrics.humidity_pct.status.value == "ok"

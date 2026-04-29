@@ -148,7 +148,7 @@ export const handlers: RequestHandler[] = [
   // Bands per metric:
   //   temperature_f: (70, 82)    → 76 is mid-band
   //   humidity_pct:  (45, 55)    → 50 is mid-band
-  //   vpd_kpa:       (0.8, 1.2)  → 1.0 is mid-band
+  //   vpd_kpa:       (0.9, 1.1)  → 1.0 is mid-band
   //   fan_pct, reservoir_in: no band (null target) — gauge renders without
   //   an arc, status is "ok" by band_status(value, null) convention.
   // -------------------------------------------------------------------------

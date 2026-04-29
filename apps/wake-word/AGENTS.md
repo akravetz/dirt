@@ -28,8 +28,10 @@ Wake-word retraining pipeline for the `dirt-voice` channel ("hey Claudia"). Read
 
 | Path | Contents |
 |---|---|
-| `voice-clones/` | ElevenLabs synthetic positives (~2000 WAVs). |
-| `neighbors/` | ElevenLabs synthetic negatives (~360 WAVs across 7 phrases). |
+| `synth-clones/` | ElevenLabs synthetic "hey Claudia" positives (~2000 WAVs). |
+| `realmic-positives/` | Reviewed real deployment-mic "hey Claudia" positives. |
+| `synth-neighbors/` | ElevenLabs synthetic phonetic-neighbor negatives (~360 WAVs across 7 phrases). |
+| `realmic-negatives/` | Reviewed real deployment-mic false fires / near misses for training negatives. |
 | `rirs/` | Captured room impulse responses (9 WAVs). |
 | `rirs-raw/` | Raw sweep recordings before deconvolution. |
 | `validation/good/` | Hand-labeled real "hey claudia" utterances. |
@@ -44,6 +46,7 @@ Wake-word retraining pipeline for the `dirt-voice` channel ("hey Claudia"). Read
 |---|---|
 | `scripts/runpod-build-image` | `docker buildx` the trainer + smoke-test it locally + push to GHCR. Bakes the current git SHA in via `--build-arg DIRT_GIT_SHA`. |
 | `scripts/runpod-train` | Submit one training job: POST pod → poll API for `desiredStatus=EXITED` → S3-download `out/<pod_id>/` → DELETE. |
+| `scripts/stage-wakeword-mine` | Assemble local split source dirs (`synth-clones/`, `realmic-positives/`, `synth-neighbors/`, `realmic-negatives/`, `rirs/`) into `var/wake-word/_stage-mine/` before a volume bump. |
 | `scripts/wakeword-volume-bump` | Push a local subdir into the Network Volume via the S3 API, recompute its content hash, atomically update the on-volume `MANIFEST.json`. Replaces the legacy `kaggle datasets version` flow. |
 | `scripts/wakeword-volume-snapshot` | S3-mirror the volume to `var/wake-word/_volume-mirror/` for DR. Volume loss = data loss now that Kaggle is retired. |
 | `scripts/smoke-trainer-image` | End-to-end docker-run against `var/wake-word/smoke-fixtures/`. Asserts SUCCESS sentinel + .onnx. |

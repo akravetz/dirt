@@ -32,7 +32,7 @@ if not API_KEY:
 VOICE_ID = "mjXJZpUEgv69eq6xrhlW"
 MODEL_ID = "eleven_multilingual_v2"
 SAMPLE_RATE = 16000
-OUTPUT_DIR = ROOT / "var" / "wake-word" / "voice-clones"
+OUTPUT_DIR = ROOT / "var" / "wake-word" / "synth-clones"
 
 # (prompt text, count)
 PHRASES: list[tuple[str, int]] = [

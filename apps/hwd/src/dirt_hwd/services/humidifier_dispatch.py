@@ -39,6 +39,8 @@ class DispatchState:
 class DispatchOutput:
     new_state: DispatchState
     target_level: int | None  # None ⇒ OFF
+    naive_level: int | None  # no-hysteresis level pick; None ⇒ OFF
+    held_by_hysteresis: bool
     bucket_width: float  # exposed for logging
 
 
@@ -78,6 +80,8 @@ def quantize(
         return DispatchOutput(
             new_state=DispatchState(last_level=None),
             target_level=None,
+            naive_level=None,
+            held_by_hysteresis=False,
             bucket_width=width,
         )
 
@@ -89,6 +93,8 @@ def quantize(
         return DispatchOutput(
             new_state=replace(state, last_level=naive),
             target_level=naive,
+            naive_level=naive,
+            held_by_hysteresis=False,
             bucket_width=width,
         )
 
@@ -105,10 +111,13 @@ def quantize(
 
     step_up_blocked = naive > last and u_pct <= upper_edge + hyst
     step_down_blocked = naive < last and u_pct >= lower_edge - hyst
-    target = last if (step_up_blocked or step_down_blocked) else naive
+    held = step_up_blocked or step_down_blocked
+    target = last if held else naive
 
     return DispatchOutput(
         new_state=replace(state, last_level=target),
         target_level=target,
+        naive_level=naive,
+        held_by_hysteresis=held,
         bucket_width=width,
     )

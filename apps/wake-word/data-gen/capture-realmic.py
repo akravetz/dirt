@@ -22,7 +22,7 @@ Workflow:
         var/wake-word/realmic-stage/<TS>/segments.csv      timing audit
 
 Tip: review the extracted clips with `scripts/audio-review` before promoting
-into var/wake-word/voice-clones/, neighbors/, or validation/.
+into var/wake-word/realmic-positives/, realmic-negatives/, or validation/.
 
 silero-vad is not a regular dirt-wake-word dep (it pulls a 2 GB CUDA
 torch stack). Invoke with `uv run --with silero-vad` so the trainer

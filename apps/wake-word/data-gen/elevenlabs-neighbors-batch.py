@@ -16,12 +16,12 @@ Phrase strategy:
   "hey C-something".
 - Distant rhymes (`hey clouds`, `hey kappa`): cheap padding for variety.
 
-These are *synthetic* negatives. They MUST be paired with real-world harvested
-false-positives from `var/logs/wake_audio/near_miss_*.wav` for a robust model
+These are *synthetic* negatives. They MUST be paired with real deployment-mic
+false positives from `var/logs/wake_audio/near_miss_*.wav` for a robust model
 — TTS-rendered phonemes can have artifacts the model latches onto, so don't
 ship a training run that uses *only* this bucket as hard negatives.
 
-Output: var/elevenlabs/voice_samples_neighbors/<slug>_NNN_s..b..v...wav (16 kHz mono)
+Output: var/wake-word/synth-neighbors/<slug>_NNN_s..b..v...wav (16 kHz mono)
 Cost: ~470 short phrases at ElevenLabs streaming rates ≈ <$1 in credits.
 
 Usage:
@@ -50,7 +50,7 @@ if not API_KEY:
 VOICE_ID = "mjXJZpUEgv69eq6xrhlW"
 MODEL_ID = "eleven_multilingual_v2"
 SAMPLE_RATE = 16000
-OUTPUT_DIR = ROOT / "var" / "wake-word" / "neighbors"
+OUTPUT_DIR = ROOT / "var" / "wake-word" / "synth-neighbors"
 
 # (prompt text, count) — see module docstring for the rationale per group.
 #

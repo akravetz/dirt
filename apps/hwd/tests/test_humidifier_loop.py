@@ -94,7 +94,7 @@ def _veg_lights_on() -> GrowContext:
         stage="veg",
         lights=LightsState(on=True, minutes_until_off=600, minutes_until_on=600),
         targets={
-            "vpd_kpa": (0.7, 1.0),
+            "vpd_kpa": (0.9, 1.1),
             "humidity_pct": (50.0, 70.0),
         },
     )
@@ -105,7 +105,7 @@ def _veg_lights_off() -> GrowContext:
         stage="veg",
         lights=LightsState(on=False, minutes_until_off=600, minutes_until_on=120),
         targets={
-            "vpd_kpa": (0.7, 1.0),
+            "vpd_kpa": (0.9, 1.1),
             "humidity_pct": (50.0, 70.0),
         },
     )
@@ -210,7 +210,7 @@ async def test_loop_boot_tick_powers_on_and_sets_level_with_interleave():
     set_power(on=True) AND set_manual_level on the same tick, with the
     inline sleep separating them."""
     cfg = _config()
-    # error = 5.0 - 1.0 = 4.0 → p = 8 * 4 = 32 → bucket 3
+    # error = 5.0 - 1.1 = 3.9 → p = 8 * 3.9 = 31.2 → bucket 3
     readings = FakeReadings(vpd=5.0, rh=55.0, ts=T0)
     grow = FakeGrow(_veg_lights_on())
     stop_event = asyncio.Event()
@@ -254,7 +254,7 @@ async def test_loop_boot_tick_powers_on_and_sets_level_with_interleave():
     assert workmode_call["type"] == "devices.capabilities.work_mode"
     assert workmode_call["instance"] == "workMode"
     assert workmode_call["value"]["workMode"] == 1
-    # u_pct from 4.0 kPa error * kc=8 = 32 → bucket ceil(32/11.11) = 3.
+    # u_pct from 3.9 kPa error * kc=8 = 31.2 → bucket ceil(31.2/11.11) = 3.
     assert workmode_call["value"]["modeValue"] == 3
 
     # Actuator breadcrumb recorded with the dispatched level.
@@ -272,7 +272,7 @@ async def test_loop_steady_state_at_target_no_api_calls():
     # VPD slightly above setpoint → small u → low level. Pick a state that
     # already matches whatever the PI/quantizer outputs to verify the
     # no_op path. Use VPD just over the setpoint so u stays small.
-    readings = FakeReadings(vpd=1.05, rh=55.0, ts=T0)
+    readings = FakeReadings(vpd=1.15, rh=55.0, ts=T0)
     grow = FakeGrow(_veg_lights_on())
     stop_event = asyncio.Event()
 
@@ -371,7 +371,7 @@ async def test_loop_offline_device_skips_control():
 async def test_loop_discovers_mac_when_unset():
     """govee_mac empty → loop calls /user/devices once at startup."""
     cfg = _config(govee_mac="")
-    readings = FakeReadings(vpd=1.05, rh=55.0, ts=T0)  # off path
+    readings = FakeReadings(vpd=1.15, rh=55.0, ts=T0)  # off path
     grow = FakeGrow(_veg_lights_on())
     stop_event = asyncio.Event()
 

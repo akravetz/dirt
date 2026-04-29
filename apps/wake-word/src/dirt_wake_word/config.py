@@ -53,7 +53,6 @@ CLONE_DUPLICATION = 1
 NEIGHBOR_DUPLICATION = 1
 REALMIC_POSITIVE_DUPLICATION = 10
 REALMIC_NEGATIVE_DUPLICATION = 10
-HARVESTED_DUPLICATION = 10
 
 
 def current_tunables() -> dict[str, object]:
@@ -69,7 +68,6 @@ def current_tunables() -> dict[str, object]:
         "neighbor_duplication": NEIGHBOR_DUPLICATION,
         "realmic_positive_duplication": REALMIC_POSITIVE_DUPLICATION,
         "realmic_negative_duplication": REALMIC_NEGATIVE_DUPLICATION,
-        "harvested_duplication": HARVESTED_DUPLICATION,
     }
 
 
@@ -117,17 +115,6 @@ def build_config(
         str(expected_inputs["audioset_16k"]),
         str(expected_inputs["fma"]),
     ]
-    # Real captures of "things in the deployment room that almost fired" (and
-    # of-the-room ambient background captured by the harvest mode). Mixing
-    # these into AddBackgroundNoise on synth clips effectively teaches the
-    # 2000 ElevenLabs clones to fire correctly with our actual room ambient
-    # under the positive — closer to inference-time distribution than
-    # generic AudioSet/FMA. Synth-phonetic-neighbors are excluded (they're
-    # speech and would push the model toward firing on speech).
-    neg_dir = expected_inputs["negatives_dir"]
-    config["extra_background_files"] = sorted(
-        str(p) for p in neg_dir.glob("realmic-neg_*.wav")
-    ) + sorted(str(p) for p in neg_dir.glob("harvested_*.wav"))
     config["false_positive_validation_data_path"] = str(
         expected_inputs["validation_features"]
     )

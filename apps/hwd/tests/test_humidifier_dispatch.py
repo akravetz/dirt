@@ -28,6 +28,8 @@ def _q(u_pct: float, plug_on: bool, last: int | None = None) -> DispatchOutput:
 def test_plug_off_yields_target_none_regardless_of_u():
     out = _q(50.0, plug_on=False, last=5)
     assert out.target_level is None
+    assert out.naive_level is None
+    assert out.held_by_hysteresis is False
     assert out.new_state.last_level is None
 
 
@@ -90,24 +92,32 @@ def test_step_up_blocked_within_hysteresis_above_upper_edge():
     # last=5, upper edge = 5W = 55.55. u=57 (within 55.55 + 3 = 58.55) holds.
     out = _q(57.0, plug_on=True, last=5)
     assert out.target_level == 5
+    assert out.naive_level == 6
+    assert out.held_by_hysteresis is True
 
 
 def test_step_up_allowed_past_upper_edge_plus_hysteresis():
     # u = 5W + 3.5 = 59.05  → past hyst boundary, step to 6.
     out = _q(5 * W + 3.5, plug_on=True, last=5)
     assert out.target_level == 6
+    assert out.naive_level == 6
+    assert out.held_by_hysteresis is False
 
 
 def test_step_down_blocked_within_hysteresis_below_lower_edge():
     # last=5, lower edge = 4W = 44.44. u=42 (within 44.44 - 3 = 41.44) holds.
     out = _q(42.0, plug_on=True, last=5)
     assert out.target_level == 5
+    assert out.naive_level == 4
+    assert out.held_by_hysteresis is True
 
 
 def test_step_down_allowed_past_lower_edge_minus_hysteresis():
     # u = 4W - 3.5 = 40.94  → past hyst boundary, step to 4.
     out = _q(4 * W - 3.5, plug_on=True, last=5)
     assert out.target_level == 4
+    assert out.naive_level == 4
+    assert out.held_by_hysteresis is False
 
 
 def test_large_u_jump_skips_levels():
@@ -168,3 +178,10 @@ def test_zero_levels_rejected():
 def test_bucket_width_exposed_for_logging():
     out = _q(50.0, plug_on=True, last=None)
     assert out.bucket_width == pytest.approx(100.0 / 9)
+
+
+def test_diagnostic_fields_exposed_for_logging():
+    out = _q(57.0, plug_on=True, last=5)
+    assert out.naive_level == 6
+    assert out.target_level == 5
+    assert out.held_by_hysteresis is True

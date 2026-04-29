@@ -26,12 +26,10 @@ PREFIX_SYNTH_CLONE = "synth_clone_"
 PREFIX_REALMIC_POS = "realmic_pos_"
 PREFIX_SYNTH_NEIGHBOR = "synth_neighbor_"
 PREFIX_REALMIC_NEG = "realmic_neg_"
-PREFIX_HARVESTED = "harvested_"
 
 REAL_AUDIO_PREFIXES: tuple[str, ...] = (
     PREFIX_REALMIC_POS,
     PREFIX_REALMIC_NEG,
-    PREFIX_HARVESTED,
 )
 
 

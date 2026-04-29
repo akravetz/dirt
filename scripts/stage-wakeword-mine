@@ -1,0 +1,88 @@
+#!/usr/bin/env -S uv run --project /home/akcom/code/dirt python -u
+# ruff: noqa: T201
+"""Assemble local wake-word source WAVs into the RunPod mine dataset layout.
+
+Local source directories are split by semantics so we can count and reason
+about them independently:
+
+  var/wake-word/synth-clones/        -> dirt-wakeword-mine/voice_samples/
+  var/wake-word/realmic-positives/   -> dirt-wakeword-mine/voice_samples/
+  var/wake-word/synth-neighbors/     -> dirt-wakeword-mine/negatives/
+  var/wake-word/realmic-negatives/   -> dirt-wakeword-mine/negatives/
+  var/wake-word/rirs/                -> dirt-wakeword-mine/rirs/
+
+The trainer consumes only the assembled `dirt-wakeword-mine` layout. Filename
+prefixes inside `negatives/` drive the training semantics: `realmic-neg_*.wav`
+gets real-audio handling, everything else is treated as synthetic neighbor
+audio.
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import shutil
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+WAKE_ROOT = REPO_ROOT / "var" / "wake-word"
+
+
+def _link_or_copy(src: Path, dst: Path) -> None:
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    if dst.exists():
+        dst.unlink()
+    try:
+        os.link(src, dst)
+    except OSError:
+        shutil.copy2(src, dst)
+
+
+def _stage_files(src_dir: Path, dst_dir: Path, pattern: str = "*.wav") -> int:
+    if not src_dir.is_dir():
+        sys.exit(f"missing source directory: {src_dir}")
+    files = sorted(src_dir.glob(pattern))
+    for src in files:
+        _link_or_copy(src, dst_dir / src.name)
+    return len(files)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=WAKE_ROOT / "_stage-mine",
+        help="Output staging directory (default: var/wake-word/_stage-mine).",
+    )
+    args = parser.parse_args()
+
+    out = args.out
+    if out.exists():
+        shutil.rmtree(out)
+
+    voice_samples = out / "voice_samples"
+    negatives = out / "negatives"
+    rirs = out / "rirs"
+
+    n_synth_pos = _stage_files(WAKE_ROOT / "synth-clones", voice_samples)
+    n_realmic_pos = _stage_files(WAKE_ROOT / "realmic-positives", voice_samples)
+    n_synth_neg = _stage_files(WAKE_ROOT / "synth-neighbors", negatives)
+    n_realmic_neg = _stage_files(WAKE_ROOT / "realmic-negatives", negatives)
+    n_rirs = _stage_files(WAKE_ROOT / "rirs", rirs)
+
+    print(f"staged mine dataset -> {out}")
+    print(f"  voice_samples: {n_synth_pos} synth clones + {n_realmic_pos} realmic")
+    print(f"  negatives:     {n_synth_neg} synth neighbors + {n_realmic_neg} realmic")
+    print(f"  rirs:          {n_rirs}")
+    print()
+    print(
+        "next: scripts/wakeword-volume-bump dirt-wakeword-mine "
+        f"{out} --notes \"...\""
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

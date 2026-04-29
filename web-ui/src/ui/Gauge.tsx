@@ -42,7 +42,7 @@ interface GaugeProps {
   band: readonly [number, number] | null;
   /** Backend-computed status. Drives the status-word colour. */
   status: GaugeStatus;
-  /** Sensor accent (drives band-arc stroke when status is ok). */
+  /** Sensor accent (drives band-arc stroke). */
   accent?: GaugeAccent;
   /**
    * Optional value formatter; defaults to one decimal place. Useful for
@@ -80,12 +80,10 @@ function defaultFormat(value: number): string {
 function Arc({
   band,
   value,
-  status,
   accent,
 }: {
   band: readonly [number, number];
   value: number;
-  status: GaugeStatus;
   accent: GaugeAccent;
 }): ReactNode {
   const [lo, hi] = band;
@@ -117,12 +115,7 @@ function Arc({
   const [blx, bly] = pointAt(bandLoT);
   const [bhx, bhy] = pointAt(bandHiT);
 
-  const bandStrokeClass =
-    status === "crit"
-      ? "stroke-status-err"
-      : status === "warn"
-        ? "stroke-status-warn"
-        : ACCENT_STROKE[accent];
+  const bandStrokeClass = ACCENT_STROKE[accent];
 
   return (
     <svg
@@ -194,9 +187,7 @@ export function Gauge({
           {unit}
         </p>
       ) : null}
-      {band !== null ? (
-        <Arc band={band} value={value} status={status} accent={accent} />
-      ) : null}
+      {band !== null ? <Arc band={band} value={value} accent={accent} /> : null}
     </article>
   );
 }

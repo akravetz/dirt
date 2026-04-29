@@ -9,7 +9,8 @@ uv run python apps/wake-word/data-gen/elevenlabs-neighbors-batch.py
 # RIR capture is two-machine — see capture-rir-record.py docstring.
 
 # 2. (One-time per dataset bump) push fresh data into the Network Volume:
-scripts/wakeword-volume-bump dirt-wakeword-mine ./staged/mine \
+scripts/stage-wakeword-mine
+scripts/wakeword-volume-bump dirt-wakeword-mine var/wake-word/_stage-mine \
     --notes "added 200 realmic positives from <session>"
 # Direct S3 upload to the volume; recomputes content hash; rewrites
 # MANIFEST.json. The volume IS the source of truth — content_hash is

@@ -639,6 +639,10 @@ class HumidifierLoopService:
             kc=pi_cfg.kc,
             ki=pi_cfg.ki,
             threshold_pct=pi_cfg.intensity_threshold,
+            naive_level=disp_out.naive_level,
+            held_by_hysteresis=disp_out.held_by_hysteresis,
+            bucket_width_pct=round(disp_out.bucket_width, 2),
+            level_hysteresis_pct=round(self._config.level_hysteresis_pct, 2),
         )
 
     # ------------------------------------------------------------------

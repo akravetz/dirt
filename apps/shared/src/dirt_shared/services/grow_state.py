@@ -76,7 +76,7 @@ STAGE_TARGETS: dict[Stage, dict[str, tuple[float, float]]] = {
     "veg": {
         "temperature_f": (70, 82),
         "humidity_pct": (40, 70),  # envelope: <40 stomata close, >70 mold risk
-        "vpd_kpa": (0.8, 1.2),
+        "vpd_kpa": (0.9, 1.1),
         "fan_pct": (20, 80),
     },
     "flower_early": {

@@ -77,7 +77,6 @@ def test_prepare_seed_clips_splits_by_prefix(fake_volume, monkeypatch) -> None:
     # Negatives: 5 synth + 2 realmic-neg × 10
     assert counts["synth_neg"] == 5
     assert counts["realmic_neg"] == 20
-    assert counts["harvested"] == 0  # no harvested in fake Kaggle yet
 
     # Verify on disk
     pos_train = out / "hey_claudia" / "positive_train"

@@ -19,14 +19,12 @@ from pathlib import Path
 
 from .config import (
     CLONE_DUPLICATION,
-    HARVESTED_DUPLICATION,
     NEIGHBOR_DUPLICATION,
     REALMIC_NEGATIVE_DUPLICATION,
     REALMIC_POSITIVE_DUPLICATION,
     TARGET_WORD,
 )
 from .subsets import (
-    PREFIX_HARVESTED,
     PREFIX_REALMIC_NEG,
     PREFIX_REALMIC_POS,
     PREFIX_SYNTH_CLONE,
@@ -101,22 +99,18 @@ def prepare_seed_clips(
         realmic_pos_files, pos_train, PREFIX_REALMIC_POS, REALMIC_POSITIVE_DUPLICATION
     )
 
-    n_synth = n_realmic_neg = n_harv = 0
+    n_synth = n_realmic_neg = 0
     neg_src = expected_inputs["negatives_dir"]
     if neg_src.exists():
         all_negs = sorted(neg_src.glob("*.wav"))
-        harvested = [p for p in all_negs if p.name.startswith("harvested_")]
         realmic_neg = [p for p in all_negs if p.name.startswith("realmic-neg_")]
-        synthetic = [
-            p for p in all_negs if not p.name.startswith(("harvested_", "realmic-neg_"))
-        ]
+        synthetic = [p for p in all_negs if not p.name.startswith("realmic-neg_")]
         n_synth = seed_dir(
             synthetic, neg_train, PREFIX_SYNTH_NEIGHBOR, NEIGHBOR_DUPLICATION
         )
         n_realmic_neg = seed_dir(
             realmic_neg, neg_train, PREFIX_REALMIC_NEG, REALMIC_NEGATIVE_DUPLICATION
         )
-        n_harv = seed_dir(harvested, neg_train, PREFIX_HARVESTED, HARVESTED_DUPLICATION)
 
     print(
         f"Seeded positives: {n_clones} synth-clone (×{CLONE_DUPLICATION}) "
@@ -126,13 +120,11 @@ def prepare_seed_clips(
     print(
         f"Seeded negatives: {n_synth} synth-neighbor (×{NEIGHBOR_DUPLICATION}) "
         f"+ {n_realmic_neg} realmic-neg (×{REALMIC_NEGATIVE_DUPLICATION}) "
-        f"+ {n_harv} harvested (×{HARVESTED_DUPLICATION}) "
-        f"= {n_synth + n_realmic_neg + n_harv} total"
+        f"= {n_synth + n_realmic_neg} total"
     )
     return {
         "clones": n_clones,
         "realmic_pos": n_realmic_pos,
         "synth_neg": n_synth,
         "realmic_neg": n_realmic_neg,
-        "harvested": n_harv,
     }
