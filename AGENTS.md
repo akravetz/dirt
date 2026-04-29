@@ -62,6 +62,7 @@ Read the linked doc *before* doing the activity in the trigger column.
 
 ## How agents work here
 
+- **Source-level cleanup bias**: When a change reveals stale naming, unit mismatch, duplicated truth, legacy branches, or test-harness friction, prefer fixing the source contract over adding adapters or compatibility glue. First trace producer → storage/API → consumer → tests; identify the canonical owner; search live legacy usage/data with `rg`/`find`; delete dead paths instead of preserving them. If agent-owned tests encode the old contract, update them. Never edit human-owned invariants; treat failures as architecture feedback. Examples: split mixed wake-word data buckets instead of documenting around misleading names; normalize sensor units at the producing service/shared model boundary instead of converting in every consumer.
 - **Scratch dir**: write throwaway scripts to `debug/`. Don't clutter `apps/` or `scripts/`.
 - **Commits**: run `scripts/agent-fix` before `git add` + `git commit`. Pre-commit hooks are write-mode; if a hook modifies files, re-add and re-commit. Never `--no-verify`. Don't auto-amend.
 - **Tests**: `apps/tests/invariants/` is HUMAN-OWNED — fix your code to pass invariants, never modify them. Per-app tests under `apps/<app>/tests/` are agent-owned. Tests that write to disk must use `tmp_path` and the autouse `isolate_observability_logs` fixture (see [`docs/observability.md`](docs/observability.md)).

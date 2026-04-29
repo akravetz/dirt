@@ -112,7 +112,8 @@ See [`voice-channel.md`](voice-channel.md) for the full code + service layout.
 - `var/wake-word/models/current/hey_claudia.onnx` — **current wake-word model (v3)**: 89% real-world recall at threshold 0.35, peaks 0.95–0.99. Trained on 1500 voice-clone positives + 9 captured RIRs + ACAV100M negatives.
 - `var/wake-word/models/2026-04-16-v2/hey_claudia.onnx` — conservative v2 (70% recall). Kept for comparison.
 - `var/wake-word/models/2026-04-15-v1/hey_claudia.onnx` — Piper-only baseline (40-70% recall depending on distance). Kept for comparison.
-- `var/wake-word/voice-clones/` — 2,000 ElevenLabs voice-clone WAVs (16 kHz mono). 4 phrase variants × 500 each. Training data for wake-word model.
+- `var/wake-word/synth-clones/` — 2,000 ElevenLabs voice-clone WAVs (16 kHz mono). 4 phrase variants × 500 each. Synthetic positive source data for the wake-word model.
+- `var/wake-word/realmic-positives/` — reviewed real Jabra/deployment-mic "hey Claudia" positives.
 - `var/wake-word/rirs/` — 9 captured room impulse responses (16 kHz mono, 1505ms each, 65–77 dB SNR). Used as augmentation RIRs during training.
 - `var/wake-word/rirs-raw/` — raw sweep recordings before deconvolution. For re-processing if needed.
 - `debug/openwakeword_src/` — cloned openWakeWord repo (includes `train.py`, `data.py`, `examples/custom_model.yml`)

@@ -47,7 +47,7 @@ The harvest-only branch is gated by an env var (`DIRT_VOICE_HARVEST_ONLY=1`) rea
 
 **Kept:**
 
-- ElevenLabs voice-clone positives (2000 currently in `var/wake-word/voice-clones/`; regenerate via `apps/wake-word/data-gen/elevenlabs-clones-batch.py` if the pool needs refreshing).
+- ElevenLabs voice-clone positives (2000 currently in `var/wake-word/synth-clones/`; regenerate via `apps/wake-word/data-gen/elevenlabs-clones-batch.py` if the pool needs refreshing).
 - `max_negative_weight: 500 → 800 → 3000`. v4 bumped 500 → 800; v5 pushes to **3000** because (a) the deployment is FP-hostile (a false wake interrupts; a false reject just costs a re-say) and (b) openwakeword's auto-train loop will still escalate further if FP/hour stays high. See `apps/voice` precision priorities.
 - Same `openwakeword/train.py` pipeline (same `target_recall: 0.85`, 20k-step baseline). What changed is the *runtime* — see `## Kaggle training infrastructure` below.
 

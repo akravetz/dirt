@@ -738,3 +738,11 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - **Tests:** 14 new tests for the Govee client (`apps/shared/tests/test_govee.py`), 20 property tests for the dispatch quantizer (`apps/hwd/tests/test_humidifier_dispatch.py`), 18 helper unit tests + 7 single-tick integration tests for the rewritten loop (`apps/hwd/tests/test_humidifier_helpers.py`, `test_humidifier_loop.py`). Old `test_humidifier_stuck.py` deleted (semantics changed). Total: 477 passed across the workspace, 1 skipped, no invariant violations.
 - **Updated:** `wiki/decisions/2026-04-27-h7142-deployed.md` (new), `wiki/hardware/humidifier-control.md` (full rewrite for H7142 + PI), `wiki/overview.md`, `wiki/index.md`, `wiki/environment/humidity.md`, `docs/references/govee-api/{INDEX,control,h714x-capabilities}.md` (corrections from live discovery), `apps/shared/src/dirt_shared/services/system_status.py` (`Humidifier (Kasa EP10)` → `Humidifier (Govee H7142)`), `apps/web/tests/test_system_devices_endpoint.py`, `web-ui/src/mocks/fixtures/system.devices.json`, `CLAUDE.md` (`humidifier` log stream description rewritten for the new event taxonomy).
 - **Open items:** week-1 graduated step test for FOPDT refit against the H7142 (current gains carry over from the abandoned Raydrop fit). Watch `humidifier_shadow` traces for level-change cadence — tighten hysteresis if > 5 transitions/hour at steady state.
+
+## [2026-04-28] daily | Day 45 — photos + sensors; Plant B moisture escalation; Govee H7142 day 1
+- Photos captured at 14:00 MDT across 5 presets (overview, A, B, C, D). All four plants at or above SCROG net; canopy healthy across all plants.
+- **Plant B moisture escalation:** jumped from 81.84% (Apr 27 now) to 86.74% — now matches C/D elevated zone (B: 86.7%, C: 88.0%, D: 86.1%); no visible stress.
+- **Govee H7142 first full day:** daytime RH dropped 8.6 points (64.6% → 56.0%); VPD 1.19 kPa ✅. Overnight RH 65.55% — first overnight under H7142 PI control; performance review pending tomorrow.
+- **Temperature regression:** overnight 67.76°F — back below 68°F floor after yesterdays 68.87°F recovery.
+- Clone gear arrived today; clones + SBxBS01 regular germination (10 seeds, Track A) planned 2026-04-29.
+- Updated: `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.

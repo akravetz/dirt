@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-04-27
+updated: 2026-04-28
 ---
 
 # Plant B
@@ -19,7 +19,7 @@ updated: 2026-04-27
 
 ## Current State
 
-Day 44, fifteen days post-topping, Day 7 of LST: densest and darkest canopy; moisture crossed 80% today (81.84% now) — now in the C/D elevated zone; watch for stress signs. See [2026-04-27](../daily/2026-04-27.md).
+Day 45, sixteen days post-topping, Day 8 of LST: densest dark-green canopy at SCROG net; moisture jumped to 86.74% overnight — now matches C/D elevated zone (86–88%); no visible stress but watch closely. See [2026-04-28](../daily/2026-04-28.md).
 
 ## Timeline
 
@@ -45,3 +45,4 @@ Day 44, fifteen days post-topping, Day 7 of LST: densest and darkest canopy; moi
 - 2026-04-24 — [Day 41: dense dark-green canopy; densest of the four; moisture slightly elevated at 68–69% (up from 64–65%) — autopot active](../daily/2026-04-24.md)
 - 2026-04-26 — [Day 43: dense dark-green canopy; moisture rising to 79.3% (was 74.6% yesterday) — approaching C/D high range; watch](../daily/2026-04-26.md)
 - 2026-04-27 — [Day 44: dense dark-green canopy; moisture crossed 80% (81.84% now, up from 79.3% Apr 26) — entering C/D elevated range; monitor root zone](../daily/2026-04-27.md)
+- 2026-04-28 — [Day 45: dense dark-green canopy; moisture jumped from 81.84% (Apr 27) to 86.74% now — now in C/D elevated zone (86–88%); no visible stress](../daily/2026-04-28.md)

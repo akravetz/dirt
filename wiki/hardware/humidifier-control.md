@@ -92,15 +92,15 @@ loop every ~30s:
 Pure-function module at `humidifier_pi.py`. Guards in priority order:
 
 1. **Failsafe — stale or missing VPD** → u=0 (force off; prefer brief dryness over runaway mist)
-2. **Outside lights window** → u=0 (don't run during dark period; humidifier off `lights_off - 5min` through `lights_on - 5min`)
+2. **Outside lights window** → u=0 (don't run during the configured dark-period guard window)
 3. **RH ceiling** → u=0 (mold-prevention envelope; force off when RH ≥ stage upper RH cap regardless of what VPD says)
-4. **PI active** — `error = vpd - setpoint`, where setpoint = stage VPD upper band (with `-0.3 kPa` night offset during dark period)
+4. **PI active** — `error = vpd - setpoint`, where setpoint is derived from the active stage VPD band plus the configured night offset when applicable
 
-Sub-threshold cutoff with hysteresis converts `u_pct` to the binary `plug_on` gate that the quantizer reads. Anti-windup integrator clamp at ±50 %u keeps the integrator bounded under sustained saturation. Conservative starting gains: `Kc=8.0`, `Ki=0.01` — sourced from a Raydrop FOPDT fit and not yet refit for the H7142. Step-test refit is week-1 work.
+Sub-threshold cutoff with hysteresis converts `u_pct` to the binary `plug_on` gate that the quantizer reads. The anti-windup clamp keeps the integrator bounded under sustained saturation. Current gains, threshold, clamp, and schedule margins are config-owned; read `HumidifierConfig` and environment overrides for live values. Step-test refit is week-1 work.
 
 ### Quantizer (dispatch boundary)
 
-Pure-function module at `humidifier_dispatch.py`. Maps `u_pct → modeValue ∈ {1..9}` with `bucket_width = 100/9 ≈ 11.11%`. Hysteresis at every boundary (default 3 percentage points) — once at level N, `u_pct` has to walk past `boundary ± hyst` before stepping. Prevents 4↔5 chatter at steady state.
+Pure-function module at `humidifier_dispatch.py`. Maps `u_pct` to the configured H7142 Manual-mode level range, with bucket width derived from the configured level count. Hysteresis at every boundary requires `u_pct` to walk past the current boundary by the configured margin before stepping. Prevents adjacent-level chatter at steady state.
 
 ### Dispatch state machine
 
@@ -119,17 +119,27 @@ The 200ms inline pause on the boot tick exists because the H7142 occasionally dr
 
 ### Stage band reference
 
-Stage → VPD band lookup comes from `dirt.services.grow_state.STAGE_TARGETS`:
+Stage targets are code-owned, not wiki-owned. Agents should read
+`STAGE_TARGETS` in [`apps/shared/src/dirt_shared/services/grow_state.py`](../../apps/shared/src/dirt_shared/services/grow_state.py)
+for the current VPD bands and RH ceiling envelopes. The humidifier loop reads
+those values through `GrowStateService.current_context()` each tick, so target
+changes should happen in code and tests rather than by editing this page.
 
-| Stage | VPD band (kPa) | Setpoint (PI) |
-|---|---|---|
-| `veg` | 0.7 – 1.0 | 1.0 (lights-on); 0.7 (lights-off, with -0.3 kPa night offset) |
-| `flower_early` (days 0–20 of 12/12) | 1.0 – 1.3 | 1.3 / 1.0 |
-| `flower_late` (day 21+ of 12/12) | 1.2 – 1.5 | 1.5 / 1.2 |
+The active grow stage is derived from the singleton `growstate` database row
+(`germination_date`, `flower_start_date`, lights schedule, timezone). See
+[`docs/grow-state.md`](../../docs/grow-state.md) for the current-grow pointer
+and update procedure.
 
-RH ceiling envelope (mold prevention): `veg=(40,70)`, `flower_early=(40,60)`, `flower_late=(35,55)`.
+The PI setpoint policy lives in
+[`apps/hwd/src/dirt_hwd/services/humidifier_pi.py`](../../apps/hwd/src/dirt_hwd/services/humidifier_pi.py):
+the deployed controller targets the selected edge of the active stage VPD band,
+then applies the configured night offset during the pre-lights-on window.
+Runtime tuning values such as gains, threshold, night offset, and lights margin
+come from `HumidifierConfig` in
+[`apps/shared/src/dirt_shared/config.py`](../../apps/shared/src/dirt_shared/config.py)
+and may be overridden by environment variables.
 
-Lights schedule comes from `growstate.lights_on_local` / `growstate.lights_off_local`, interpreted in `growstate.timezone` (default `America/Denver`). Defaults: veg 18/6 → (05:00, 23:00). Flip via SQL when the photoperiod changes; the loop picks it up on the next tick.
+Lights schedule comes from `growstate.lights_on_local` / `growstate.lights_off_local`, interpreted in `growstate.timezone`. Flip via SQL when the photoperiod changes; the loop picks it up on the next tick.
 
 **Why these choices:**
 
@@ -137,8 +147,8 @@ Lights schedule comes from `growstate.lights_on_local` / `growstate.lights_off_l
 - **Upper-edge setpoint.** The humidifier only adds moisture; there's nothing to do when VPD is already in or below the band. Acting only at the dry edge keeps the duty cycle low.
 - **PI, not bang-bang.** Continuous-intensity actuator (9 levels). Big dead time. Asymmetric transfer function (can add moisture, can't actively remove). PI gives smooth response without the relay-cycling problem the bang-bang had on the Kasa. The 0.4 kPa deadband in the old loop was actuator-overshoot-sized — the PI eliminates it by ramping intensity instead of slamming the plug on/off.
 - **Feedforward, not derivative.** Dominant disturbance (lights on/off) is scheduled and periodic — use the clock to anticipate it. Derivative on sensor noise has 5-min smoothing lag and near-unit SNR for the signals we care about.
-- **−0.3 kPa night offset.** Falls inside the published "0.2–0.4 kPa below day" range (Pulse Grow, GrowSensor, Anden). Preserves band width across stages.
-- **5 min prep window.** Sized to one tent-fan-volume turnover so the humidifier isn't actively misting at the lights transition. Symmetric pre-lights-off and pre-lights-on.
+- **Configured night offset.** The runtime `HumidifierConfig` value shifts the active setpoint lower during the pre-lights-on window. Keep the exact value in config so tuning changes do not require wiki edits.
+- **Configured prep window.** The runtime `HumidifierConfig` value defines the margin around lights transitions when the humidifier is forced off. Keep the exact value in config so schedule-tuning changes stay code-owned.
 - **Live-state diffing.** Source of truth is what the device reports, not what we last commanded. Divergence self-heals.
 - **No max-on / min-off guard.** PI integrator clamp (anti-windup) is the right tool for that — bounding u, not the plug.
 - **Failsafe OFF on stale reads** — prefer brief dryness over runaway mist.
@@ -155,7 +165,7 @@ Three streams feed three consumers:
   - `level_change` (level transitions while powered, with from/to and u_pct)
   - `lack_water` / `lack_water_cleared` (rising/falling edges of lackWaterEvent)
   - `device_offline` / `device_online` (Govee cloud reachability transitions)
-  - `suspected_ineffective` (commanded mist for ≥20 min, VPD didn't drop ≥0.15 kPa)
+  - `suspected_ineffective` (commanded mist for the configured watchdog window, VPD did not drop by the configured threshold)
   - `rate_limited` (HTTP/code 429 from Govee — quiet log; next tick retries)
   - `error` (any other exception in the tick body)
   - `skip_offline` (per-tick when device offline; PI ran but no actuation)
@@ -173,7 +183,7 @@ Refill the 6 L tank — the H7142 resumes misting on its own once water clears t
 
 ### Ineffective actuator (still possible)
 
-The `lackWaterEvent` only catches the empty-tank case. Other failure modes — atomization plate fouled by mineral scale, mist landing on the room not the canopy, firmware glitch — show up as "we keep commanding mist but VPD doesn't drop." Watchdog at `humidifier.py:update_ineffective_state` fires when commanded level ≥ 1 for ≥ `ineffective_alert_after_s` (default 1200 s = 20 min) with VPD drop < `ineffective_min_vpd_drop_kpa` (default 0.15 kPa). One Telegram alert per streak.
+The `lackWaterEvent` only catches the empty-tank case. Other failure modes — atomization plate fouled by mineral scale, mist landing on the room not the canopy, firmware glitch — show up as "we keep commanding mist but VPD doesn't drop." Watchdog at `humidifier.py:update_ineffective_state` fires when commanded level ≥ 1 for the configured watchdog window with VPD drop below the configured threshold. One Telegram alert per streak.
 
 **Prevention:** distilled or RO water only. Weekly 1:1 white-vinegar descale of the base + atomization disc, 15–20 min, rinse, air dry.
 
@@ -194,7 +204,7 @@ No LAN fallback exists for the H71xx humidifier line — confirmed via Govee API
 
 Pre-H7142 observation: at fan 30 % + Raydrop dial mid, VPD tracked setpoint and the bang-bang oscillated gently. Bumping fan to 40 % tipped the balance — exhaust exceeded the Raydrop's max emission rate, the plug pinned ON, VPD climbed 1.20 → 1.50 kPa over 1h 40m. Raydrop dial was a hidden input.
 
-**Post-H7142:** the dial is gone — the H7142 has 9 levels of mist, all software-readable + writable. The PI integrator can ramp through them in response to error. Fan-vs-humidifier saturation is still possible (the H7142 max output is 300 ml/h cool-mist; if the fan is at 100% the loop will saturate at level 9), but the watchdog catches it (`suspected_ineffective` after 20 min). Saturation now triggers an alert instead of silently failing.
+**Post-H7142:** the dial is gone — the H7142 has software-readable and writable mist levels. The PI integrator can ramp through them in response to error. Fan-vs-humidifier saturation is still possible; if exhaust exceeds the humidifier's maximum output, the loop saturates at the top manual level and the watchdog catches it with `suspected_ineffective`. Saturation now triggers an alert instead of silently failing.
 
 ## Safety / Operational Notes
 
@@ -215,7 +225,7 @@ Pre-H7142 observation: at fan 30 % + Raydrop dial mid, VPD tracked setpoint and 
 
 ### FOPDT refit for H7142
 
-Step-test the H7142 to derive new IMC gains. Hold each of `{level 2, 5, 8}` for ~20 min in lights-on steady state, capture the shadow-stream traces, refit FOPDT against the result, derive `(Kc, Ki)`. Methodology unchanged from the abandoned Raydrop FOPDT plan (see [docs/epics/continuous-humidifier/fopdt-fit-findings.md](../../docs/epics/continuous-humidifier/fopdt-fit-findings.md)) — only the input data source changes from "shadow stream against Kasa actuation" to "shadow stream against H7142 Manual-mode actuation."
+Step-test the H7142 to derive new IMC gains. Hold representative low, middle, and high manual levels in lights-on steady state, capture the shadow-stream traces, refit FOPDT against the result, derive `(Kc, Ki)`. Methodology unchanged from the abandoned Raydrop FOPDT plan (see [docs/epics/continuous-humidifier/fopdt-fit-findings.md](../../docs/epics/continuous-humidifier/fopdt-fit-findings.md)) — only the input data source changes from "shadow stream against Kasa actuation" to "shadow stream against H7142 Manual-mode actuation."
 
 ### Hysteresis tuning
 
