@@ -209,9 +209,15 @@ class DailyReport:
         photos: Sequence[Path],
         snapshot: DailySensorSnapshot,
     ) -> SynthesisResult:
-        result = await self._synthesis.run(
-            target_date, photos, snapshot.to_prompt_dict()
-        )
+        try:
+            result = await self._synthesis.run(
+                target_date, photos, snapshot.to_prompt_dict()
+            )
+        except Exception as e:
+            raise _Bail(
+                Phase.SYNTHESIZE,
+                f"synthesis crashed: {type(e).__name__}: {e}",
+            ) from e
         if not result.success:
             raise _Bail(
                 Phase.SYNTHESIZE,

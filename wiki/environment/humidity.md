@@ -4,7 +4,7 @@ type: environment
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/environment/temperature.md, wiki/concepts/vpd.md, wiki/overview.md, wiki/hardware/humidifier-control.md, wiki/decisions/2026-04-17-humidifier-kasa-ep10.md]
 created: 2026-04-06
-updated: 2026-04-28
+updated: 2026-04-29
 ---
 
 
@@ -49,6 +49,7 @@ VPD is the control-loop setpoint; RH is informational (temperature determines wh
 | 2026-04-26 | 75.63% now ⚠️ / 59.48% overnight avg ⚠️; VPD 0.68 kPa now 🔴 / 0.94 kPa overnight ✅ | Afternoon VPD below floor second consecutive day (0.68 kPa; yesterday 0.63). Overnight RH now above 45–55% veg target (59.48%) — all windows simultaneously above RH target. Temperature regression (73°F day) is compounding: cool tent + high RH = low VPD. → [2026-04-26](../daily/2026-04-26.md) |
 | 2026-04-27 | 64.57% now ⚠️ / 64.41% overnight avg ⚠️; VPD 1.01 kPa now ✅ / 0.86 kPa overnight ✅ | VPD fully recovered across all three windows (0.86/1.05/1.01 kPa) — major reversal from two-day below-floor streak. Recovery driven by ~11% daytime RH drop (75.6% → 64.6%) following humidifier reduction. Overnight RH five-night upward drift continues (52.1% → 64.4%); all windows still above 45–55% veg target. → [2026-04-27](../daily/2026-04-27.md) |
 | 2026-04-28 | 56.0% now ⚠️ / 65.55% overnight avg ⚠️; VPD 1.19 kPa now ✅ / 0.80 kPa overnight ✅ | **Govee H7142 first full day**: daytime RH dropped 8.6 points (64.57% → 56.0%) vs. prior day; VPD improved to 1.19 kPa ✅. Overnight RH 65.55% — still above veg target but represents first overnight under H7142 PI control; assess tomorrow. Overnight VPD 0.80 kPa — at the floor of the 0.8–1.2 veg band. → [2026-04-28](../daily/2026-04-28.md) |
+| 2026-04-29 | 64.04% now ⚠️ / 67.41% overnight avg ⚠️; VPD 0.98 kPa now ✅ / 0.76 kPa overnight ⚠️ | **H7142 second overnight needs tuning**: overnight RH worsened 65.55% → 67.41%, and overnight VPD slipped below the 0.8 kPa floor. Morning/now VPD remains in range, but visible mist + 64% now RH means the tent is still wetter than the veg RH guide. → [2026-04-29](../daily/2026-04-29.md) |
 
 ## Notable Events
 - **2026-03-20** — Dome propped open, room humidifier added to tent after RH consistently below 50% → [2026-03-27 daily](../daily/2026-03-27.md)
@@ -67,6 +68,7 @@ VPD is the control-loop setpoint; RH is informational (temperature determines wh
 - **2026-04-27** — VPD recovered to target across all three windows (0.86/1.05/1.01 kPa) after two-day below-floor streak. Recovery driven primarily by humidifier output reduction (~11% daytime RH drop: 75.6% → 64.6%). Overnight RH five-night upward drift continues (52.1% → 64.4%); all windows still above 45–55% veg target. Day temperature 73.7°F still below 74°F floor but recovering. → [2026-04-27](../daily/2026-04-27.md)
 - **2026-04-27 evening** — Humidifier hardware cutover: Raydrop 4L + Kasa EP10 retired; **GoveeLife H7142** (6 L, 9 Manual-mode levels via Govee Public API v2) deployed as the new actuator. PI controller (live in shadow mode since 2026-04-25) promoted to authoritative; bang-bang retired. PI gain `Kc` bumped from 8.0 → 40.0 to engage at typical veg overshoot levels. See [decision 2026-04-27](../decisions/2026-04-27-h7142-deployed.md).
 - **2026-04-28** — Govee H7142 first full 24-hour cycle. Daytime RH dropped 8.6 points (64.57% → 56.0%) vs. prior day; VPD held at 1.19 kPa ✅. Overnight RH 65.55% — above veg target but representing the first overnight under H7142 PI control with -0.3 kPa night offset; performance assessment pending tomorrow. → [2026-04-28](../daily/2026-04-28.md)
+- **2026-04-29** — Second H7142 overnight underperformed: RH rose to 67.41% and VPD fell to 0.76 kPa. Daytime VPD remains acceptable, so review controller logs/night offset/off-gate behavior before changing hardware. → [2026-04-29](../daily/2026-04-29.md)
 
 ## Deployed Control System
 

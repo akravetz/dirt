@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-04-28
+updated: 2026-04-29
 ---
 
 # Plant D
@@ -19,7 +19,7 @@ updated: 2026-04-28
 
 ## Current State
 
-Day 45, sixteen days post-topping, Day 8 of LST: medium-light green sativa-leaning canopy above SCROG net; lighter new growth tips persist (new sativa shoots, not chlorosis); moisture stable ~86%; tuck candidate. See [2026-04-28](../daily/2026-04-28.md).
+Day 46, seventeen days post-topping, Day 9 of LST: medium-light green sativa-leaning canopy with tall shoots above SCROG net; lighter fast-growth tips persist without chlorosis pattern; moisture stable ~87%; tuck candidate. See [2026-04-29](../daily/2026-04-29.md).
 
 ## Timeline
 
@@ -46,3 +46,4 @@ Day 45, sixteen days post-topping, Day 8 of LST: medium-light green sativa-leani
 - 2026-04-26 — [Day 43: medium-green healthy canopy; moisture peaked overnight at 88.48%, stabilizing at ~87% during lights-on; no visible stress](../daily/2026-04-26.md)
 - 2026-04-27 — [Day 44: medium-green canopy; moisture easing slightly (85.78%, off 88.48% peak); lighter growth tips visible in photo — monitoring](../daily/2026-04-27.md)
 - 2026-04-28 — [Day 45: medium-light green sativa-leaning canopy above SCROG net; lighter new growth tips (new sativa shoots, not chlorosis); moisture ~86%; tuck candidate](../daily/2026-04-28.md)
+- 2026-04-29 — [Day 46: medium-light green sativa-leaning canopy; tall shoots above SCROG net; lighter fast-growth tips persist; moisture stable ~87%; tuck candidate](../daily/2026-04-29.md)

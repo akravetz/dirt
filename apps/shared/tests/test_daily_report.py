@@ -154,6 +154,11 @@ class _FakeSynthesis:
         )
 
 
+class _CrashingSynthesis:
+    async def run(self, target_date, photo_paths, sensor_payload) -> SynthesisResult:
+        raise RuntimeError("boom")
+
+
 class _FakeTelegram:
     def __init__(
         self, *, fail_send_message: bool = False, fail_send_media: bool = False
@@ -340,6 +345,26 @@ async def test_synthesis_failure_sends_alert(tmp_path):
     assert len(tg.media_groups) == 0  # never reached delivery
     assert len(tg.messages) == 1
     assert "synthesize" in tg.messages[0]["text"]
+
+
+async def test_synthesis_crash_sends_alert_and_failed_marker(tmp_path):
+    synth = _CrashingSynthesis()
+    orch, _cam, _reader, _synth, tg = _build_orchestrator(
+        tmp_path=tmp_path,
+        synthesis=synth,
+    )
+
+    result = await orch.run(TARGET_DATE)
+
+    assert not result.success
+    assert result.failed_phase == Phase.SYNTHESIZE
+    assert "RuntimeError: boom" in (result.error or "")
+    assert len(tg.media_groups) == 0
+    assert len(tg.messages) == 1
+    assert "synthesize" in tg.messages[0]["text"]
+    failed = tmp_path / "logs" / "daily_report" / "2026-04-19.failed"
+    assert failed.exists()
+    assert "synthesis crashed" in failed.read_text()
 
 
 async def test_sidecar_missing_delivers_photos_only(tmp_path):

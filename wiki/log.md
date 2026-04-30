@@ -746,3 +746,11 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - **Temperature regression:** overnight 67.76°F — back below 68°F floor after yesterdays 68.87°F recovery.
 - Clone gear arrived today; clones + SBxBS01 regular germination (10 seeds, Track A) planned 2026-04-29.
 - Updated: `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-04-29] daily | Day 46 — Plant B moisture action; H7142 overnight low VPD
+- Photos captured at 14:00 MDT across 5 presets (overview, A, B, C, D). Canopy remains healthy; A/D are sativa-leaning tuck candidates, B/C are denser and should continue growing upward into the net.
+- **Plant B moisture action:** now 91.93% (up from 86.74% Apr 28 and 81.84% Apr 27) with no visible stress. Close B float valve today and dry back before reopening.
+- **H7142 overnight issue:** overnight RH worsened to 67.41% and VPD fell to 0.76 kPa; morning/now VPD remains in range (1.12 / 0.98 kPa), but all RH windows are above the 45–55% veg guide.
+- **Temperature still cool:** 67.71°F overnight, 71.97°F morning, 72.63°F now — all below current veg targets.
+- Clones + SBxBS01 regular germination are due today; light step to 50% remains overdue if not already done.
+- Updated: `daily/2026-04-29.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.

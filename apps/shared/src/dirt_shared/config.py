@@ -142,6 +142,18 @@ class Settings(BaseSettings):
     daily_report_sensor_min_raw: float = 30.0
     daily_report_sensor_max_raw: float = 4000.0
     daily_report_sensor_max_age_s: int = 300
+    daily_report_synthesis_backend: str = Field(
+        default="codex", validation_alias="DIRT_DAILY_REPORT_SYNTHESIS_BACKEND"
+    )
+    daily_report_codex_bin: str = Field(
+        default="codex", validation_alias="DIRT_DAILY_REPORT_CODEX_BIN"
+    )
+    daily_report_codex_model: str = Field(
+        default="", validation_alias="DIRT_DAILY_REPORT_CODEX_MODEL"
+    )
+    daily_report_codex_sandbox: str = Field(
+        default="workspace-write", validation_alias="DIRT_DAILY_REPORT_CODEX_SANDBOX"
+    )
 
     @model_validator(mode="after")
     def _derive_data_paths(self) -> Settings:
