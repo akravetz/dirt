@@ -1361,3 +1361,82 @@ Do **not** deploy v25. At the production threshold `0.5`, v25 improves current-s
 #### Operational notes
 - `augment+features` dominated wall time: 83m04s after the mine content hash/cache schema invalidated the cache. `train_loop` took 55m52s.
 - The current launcher/W&B setup has poor live visibility during long phases: W&B showed `running` but did not upload `output.log` until the end. Add phase heartbeat files or scalar `wandb.log()` calls before the next long experiment.
+
+### v26 — 2026-05-01
+
+**Status:** trained, validated (**not deployed** — recall collapse)
+**Model artifact:** `var/wake-word/models/2026-05-01-084240-l5ijbwvzwrp1ju/hey_claudia.onnx`
+**Trainer commit:** `f36f3ee` (fresh image with v25 source-bucket cleanup + W&B/runpod polling fixes)
+**Image digest:** `ghcr.io/akravetz/dirt-wake-word-trainer:latest@sha256:1423bddcbc3a43b3bdf3099fab3ec8ce650db54b9399c1e5804a5c6ad042bf68`
+**W&B run:** [`nmo2hvi9`](https://wandb.ai/adkravetz/dirt-wake-word/runs/nmo2hvi9) (group `exp11-passive-harvest-v26-20260501`)
+**Pod:** `l5ijbwvzwrp1ju`, RTX 4090
+**Wall:** 33m05s
+
+#### What changed (vs v25)
+- Promoted the new passive-harvest clips from `var/logs/wake_audio/`:
+  - 136 clips into `var/wake-word/realmic-negatives/` for training.
+  - 34 clips held out locally in `var/wake-word/validation/bad/` as `harvest-v26_*`.
+- `dirt-wakeword-mine` content hash: `sha256:c2255fe0f9119b0ee7391b6301cca78cb229b3683112ca1161992a1f3da756f7`.
+- Rebuilt and pushed the trainer image before the final run so it used the v25+ split-source trainer, not the stale v24-era image.
+
+#### Why
+Test whether a much larger passive-harvest realmic-negative set improves precision without hurting the deployed v23 recall floor.
+
+#### Training data
+- Positives: 2000 synth clones x1 + 82 realmic positives x10 = 2820 seeded positives.
+- Negatives: 360 synth neighbors x1 + 248 realmic negatives x10 = 2840 seeded negatives.
+- Backgrounds: AudioSet/FMA from `dirt-wakeword-bg`; no realmic-neg extra background pool.
+- Feature corpus: ACAV100M 2000 h from `dirt-wakeword-features`.
+
+#### Training config
+- `max_negative_weight`: 500
+- `target_false_positives_per_hour`: 10
+- `steps`: 20 000
+- Driver: soft-fork `_custom_train_model`
+- Best-checkpoint selection: real-audio F1 over checkpoint candidates.
+
+#### Validation set
+- RunPod canonical validation: 28 positives / 82 negatives.
+- Local expanded validation: 28 positives / 110 negatives. This is the local 28/76 set plus the 34 v26 held-out harvest negatives; it does not include the 6 remote-only v21 validation bad clips.
+- Held-out real-mic positives: 38 clips in `/tmp/v17-eval-newclips/good/`.
+
+#### Results — RunPod 28/82 validation
+
+| Threshold | Recall | Precision | F1 | False positives |
+|---:|---:|---:|---:|---:|
+| 0.30 | 60.7 % | 68.0 % | 0.642 | 8/82 |
+| 0.40 | 53.6 % | 71.4 % | 0.612 | 6/82 |
+| 0.50 | 53.6 % | 88.2 % | 0.667 | 2/82 |
+| 0.60 | 46.4 % | 86.7 % | 0.605 | 2/82 |
+| 0.70 | 35.7 % | 90.9 % | 0.513 | 1/82 |
+
+#### Results — local expanded 28/110 validation
+
+| Threshold | Recall | Precision | F1 | False positives |
+|---:|---:|---:|---:|---:|
+| 0.30 | 46.4 % | 54.2 % | 0.500 | 11/110 |
+| 0.40 | 42.9 % | 63.2 % | 0.511 | 7/110 |
+| 0.50 | 42.9 % | 70.6 % | 0.533 | 5/110 |
+| 0.60 | 25.0 % | 70.0 % | 0.368 | 3/110 |
+| 0.70 | 17.9 % | 100.0 % | 0.303 | 0/110 |
+
+#### Results — held-out 38
+
+| Model | Recall@0.5 |
+|---|---:|
+| v23 (deployed) | 42.1 % (16/38) |
+| v25 | 39.5 % (15/38) |
+| **v26 corrected** | **13.2 % (5/38)** |
+
+#### Deploy decision
+Do **not** deploy v26. It reduces false positives compared with v25 on the canonical RunPod validation set, but it does so by making the model too conservative: recall falls to 53.6 % on RunPod validation, 42.9 % on the expanded local set, and only 13.2 % on the held-out 38 positives. This is worse than deployed v23 for the hands-free user experience.
+
+#### What we learned
+- More realmic negatives at the current 10x duplication are not automatically helpful. With 248 realmic negatives x10, the model shifts toward rejection and loses too much positive sensitivity.
+- The next training move should not be "more negatives only." Prefer more varied realmic positives, real-positive augmentation, or an explicit weighting experiment that caps realmic-negative influence.
+- If we test the same data again, try reducing `REALMIC_NEGATIVE_DUPLICATION` before changing the positive path, and keep the local 34 held-out harvest clips as a precision check.
+
+#### Operational notes
+- First attempted pod `0hk4s3733z6w2y` was aborted by the local orchestrator after a transient RunPod S3 `401` during sentinel polling. Fixed in `f36f3ee`: S3 auth errors during sentinel polling are now retried instead of unwinding and deleting the pod.
+- Second pod `o3hewjip1lzbaz` completed, but used the stale image from trainer commit `111e5128` (v24-era behavior). It is not a valid v26 candidate, even though it scored 57.9 % on held-out 38; ignore it for deploy decisions.
+- W&B still did not expose useful live console logs during the corrected run. The refreshed image uploaded `config.yaml`, metadata, requirements, and summary after finish, but no `output.log` or multipart `logs/*` appeared mid-run. The settings change alone is insufficient; add explicit `wandb.log()` heartbeats or write phase status artifacts if live visibility matters.
