@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-04-29
+updated: 2026-05-01
 ---
 
 # Plant B
@@ -19,7 +19,7 @@ updated: 2026-04-29
 
 ## Current State
 
-Day 46, seventeen days post-topping, Day 9 of LST: densest dark-green canopy at SCROG net; moisture 91.93% and rising from 86.74% yesterday — close the float valve today; no visible stress. See [2026-04-29](../daily/2026-04-29.md).
+Day 48, nineteen days post-topping, Day 11 of LST: dense healthy canopy at the SCROG net with no visible wilt, but root-zone moisture is still very high at 93.90%. Keep the float valve closed or close it now and dry back before reopening. See [2026-05-01](../daily/2026-05-01.md).
 
 ## Timeline
 
@@ -47,3 +47,5 @@ Day 46, seventeen days post-topping, Day 9 of LST: densest dark-green canopy at 
 - 2026-04-27 — [Day 44: dense dark-green canopy; moisture crossed 80% (81.84% now, up from 79.3% Apr 26) — entering C/D elevated range; monitor root zone](../daily/2026-04-27.md)
 - 2026-04-28 — [Day 45: dense dark-green canopy; moisture jumped from 81.84% (Apr 27) to 86.74% now — now in C/D elevated zone (86–88%); no visible stress](../daily/2026-04-28.md)
 - 2026-04-29 — [Day 46: dense dark-green canopy; moisture 91.93% (up from 86.74% yesterday) — close float valve today; no visible stress](../daily/2026-04-29.md)
+- 2026-04-30 — [Day 47: photo set present; no sensor snapshot provided; carry forward B dryback watch](../daily/2026-04-30.md)
+- 2026-05-01 — [Day 48: dense canopy still photo-stable, but moisture remains very high at 93.90%; dryback action still required](../daily/2026-05-01.md)

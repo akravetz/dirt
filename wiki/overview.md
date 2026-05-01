@@ -4,7 +4,7 @@ type: overview
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/index.md, wiki/plants/plant-a.md, wiki/plants/plant-b.md, wiki/plants/plant-c.md, wiki/plants/plant-d.md]
 created: 2026-04-06
-updated: 2026-04-29
+updated: 2026-05-01
 ---
 
 # Grow Overview
@@ -23,60 +23,59 @@ updated: 2026-04-29
 | **Water system** | Autopot 4-Pot XL + 25-gal FlexiTank (active since Apr 15) |
 | **Training** | Single top at node 4–5 → LST → SCROG |
 | **Start date** | 2026-03-15 (germination) |
-| **Grow day** | Day 46 (as of 2026-04-29) |
+| **Grow day** | Day 48 (as of 2026-05-01) |
 
 ## Current Stage
 
-**Early Veg** — Autopot active since Apr 15. **All four plants topped** (A: Apr 11; B/C/D: Apr 12) — Day 18/17 post-topping. **SCROG net installed Apr 18** at 11" above canopy / 18" above pot base. **LST started Apr 20 on all 4 plants** — Day 9 of LST, recovery complete.
+**Early Veg** — Autopot active since Apr 15. **All four plants topped** (A: Apr 11; B/C/D: Apr 12) — Day 20/19 post-topping. **SCROG net installed Apr 18** at 11" above canopy / 18" above pot base. **LST started Apr 20 on all 4 plants** — Day 11 of LST, recovery complete.
 
-**Plant B root-zone moisture is the top action** — now 91.93% (up from 86.74% Apr 28 and 81.84% Apr 27). No visible stress yet, but the fast climb crossed the intervention threshold. Close B's float valve today and dry back before reopening.
+**Plant B root-zone moisture is still the top action** — now 93.90% after 91.93% Apr 29 and 86.74% Apr 28. No visible wilt yet, but B needs a deliberate dryback: keep/close the float valve and verify the tray is not continuously feeding.
 
-**H7142 second overnight needs tuning** — overnight RH worsened to 67.41% and VPD slipped below floor at 0.76 kPa. Morning/now VPD is still in range (1.12 / 0.98 kPa), but all RH windows remain above the 45–55% veg guide and active mist is visible in photos.
+**Humidity/VPD remains wet-edge** — overnight VPD again averaged 0.76 kPa below floor, and current RH climbed to 71.3%. Morning/now VPD is technically in range (0.90 / 0.84 kPa), but the tent is too humid for the veg guide and the H7142/night clearing behavior still needs review.
 
-**Temperature remains cool** — 67.71°F overnight, 71.97°F morning, 72.63°F now; all windows below current veg targets. Light step to 50% and/or lower exhaust speed remain the practical levers.
+**Temperature is partly recovered** — now is in the day target at 74.55°F, but morning averaged 73.75°F and overnight stayed below floor at 67.31°F. Keep the warmer daytime setup while preventing lights-off cooling below 68°F.
 
-**Clone gear arrived 2026-04-28** — first cuttings (8 total) + SBxBS01 regular germination are due today (2026-04-29).
+**Clone gear arrived 2026-04-28** — first cuttings (8 total) + SBxBS01 regular germination were due 2026-04-29; confirm completion or do now.
 
 **Reservoir refilled 2026-04-26 afternoon** — next change window ~2026-05-03–06.
 
 **Breeding program launched 2026-04-26** — Two-track SBxBS01 F2 program: pollen banking (Track A) + pheno hunt → F2 cross (Track B). See [breeding/README.md](breeding/README.md) and [decision 2026-04-26](decisions/2026-04-26-breeding-program-launch.md).
 
 **Light schedule:** 18/6 (lights on ~05:00–23:00 MDT)
-**Light intensity:** ~40% Fold-650 (**step to 50% overdue — window was Apr 25–27**)
+**Light intensity:** ~40% Fold-650 unless already stepped (**50% step remains the preferred warmer/drier lever**)
 
 ## Plant Status
 
 | Plant | Post-top | Purple | Priority | Status |
 |-------|----------|--------|----------|--------|
-| Plant A | Day 18 | ✅ Confirmed genetic | 🔴 Primary | Medium-light green sativa-leaning canopy; tall shoots above SCROG net; moisture stable ~60%; tuck candidate |
-| Plant B | Day 17 | ❌ None | 🟡 Secondary | Densest dark-green canopy; moisture 91.93% and rising — close float valve today; no visible stress |
-| Plant C | Day 17 | ⚠️ Stress-induced only | 🟡 Secondary | Dense medium-green bushy canopy; moisture stable ~89%; no visible stress; monitor saturated root zone |
-| Plant D | Day 17 | ✅ Confirmed genetic | 🔴 Primary | Medium-light green sativa canopy; lighter fast-growth tips; moisture stable ~87%; tuck candidate |
+| Plant A | Day 20 | ✅ Confirmed genetic | 🔴 Primary | Medium-light green sativa canopy; tall shoots at/above SCROG; moisture stable ~60%; tuck candidate |
+| Plant B | Day 19 | ❌ None | 🟡 Secondary | Dense canopy; no visible wilt; moisture still very high at 93.90% — dryback action required |
+| Plant C | Day 19 | ⚠️ Stress-induced only | 🟡 Secondary | Compact medium-green canopy; moisture ~90%; photo-stable but saturated root-zone monitoring active |
+| Plant D | Day 19 | ✅ Confirmed genetic | 🔴 Primary | Medium-light green sativa canopy; lighter fast-growth tips; moisture high but easing at 86.85%; tuck candidate |
 
-## Environment (Last Reading: Apr 29 14:00 MDT)
+## Environment (Last Reading: May 1 14:00 MDT)
 
 | Metric | Value | Target | Status |
 |--------|-------|--------|--------|
-| Temperature (now) | 72.63°F | 74–76°F day | ⚠️ Below floor |
-| Temperature (morning avg) | 71.97°F | 74–76°F day | ⚠️ Below floor |
-| Temperature (overnight avg) | 67.71°F | 68–72°F night | ⚠️ Below floor |
-| Humidity (now) | 64.04% | 45–55% veg | ⚠️ Above target |
-| Humidity (overnight avg) | 67.41% | 45–55% veg | ⚠️ Above target |
-| VPD (now) | 0.98 kPa | 0.8–1.2 kPa | ✅ In range |
-| VPD (morning avg) | 1.12 kPa | 0.8–1.2 kPa | ✅ In range |
+| Temperature (now) | 74.55°F | 74–76°F day | ✅ In range |
+| Temperature (morning avg) | 73.75°F | 74–76°F day | ⚠️ Slightly below floor |
+| Temperature (overnight avg) | 67.31°F | 68–72°F night | ⚠️ Below floor |
+| Humidity (now) | 71.3% | 45–55% veg | ⚠️ Above target |
+| Humidity (overnight avg) | 66.79% | 45–55% veg | ⚠️ Above target |
+| VPD (now) | 0.84 kPa | 0.8–1.2 kPa | ✅ Low end of range |
+| VPD (morning avg) | 0.90 kPa | 0.8–1.2 kPa | ✅ Low end of range |
 | VPD (overnight avg) | 0.76 kPa | 0.8–1.2 kPa | ⚠️ Below floor |
 | pH (watering) | 5.8 (target) | 5.5–6.0 | — |
 | EC (reservoir) | — | 0.8–1.0 | ⚠️ Verify at next reservoir change |
 
 ## Active Action Items
 
-1. **Close Plant B float valve TODAY** 🔴 — B is 91.93% now, up from 86.74% yesterday and 81.84% Apr 27. Dry back toward 70–75% before reopening unless manual inspection proves sensor error.
-2. **Take 8 clones + germinate SBxBS01 regulars TODAY (Apr 29)** 🔴 — 2 cuttings per plant (lower laterals on A/D, middle laterals on B/C). Germinate all 10 SBxBS01 regulars (Track A) alongside. See [breeding/cloning.md](breeding/cloning.md) and [breeding/README.md](breeding/README.md).
-3. **Step light 40% → 50% NOW (overdue)** 🔴 — Window was Apr 25–27; photos show no light-stress response, and the extra heat helps the cool day window.
+1. **Keep/close Plant B float valve** 🔴 — B is 93.90% now after 91.93% Apr 29. Verify tray/valve behavior and dry back toward 70–75% before reopening unless manual inspection proves sensor error.
+2. **Bias H7142/control drier overnight** 🔴 — Overnight VPD remains 0.76 kPa and current RH is 71.3%. Review night offset, RH ceiling/off-gate behavior, and clearing before allowing more mist.
+3. **Confirm clones + SBxBS01 regular germination** 🔴 — Apr 29 task is overdue unless already done: 2 cuttings per plant (lower laterals on A/D, middle laterals on B/C) plus all 10 SBxBS01 regulars. See [breeding/cloning.md](breeding/cloning.md) and [breeding/README.md](breeding/README.md).
 4. **Tuck sativa-leaning canopy (A, D)** 🟡 — Per [pheno-flip-strategy](decisions/2026-04-26-pheno-flip-strategy.md): bend tallest A/D growth horizontally back under SCROG net; re-evaluate every 3 days; flip target ~60% net coverage.
-5. **Review H7142 overnight control** 🟡 — Overnight RH worsened to 67.41% and VPD dropped to 0.76 kPa. Confirm the controller is not misting into already-low VPD; review night offset/PI logs before changing hardware.
-6. **Reduce exhaust fan speed / recover temperature** 🟡 — Overnight 67.71°F and day 72–73°F remain below targets. Fan speed reduction and the overdue light step are the main recovery levers.
-7. **Monitor Plants C and D root zones** 🟡 — C 89.24%, D 87.09%; both high but visually stable. Watch for yellowing, wilting, drooping, stalled growth, or sour smell.
+5. **Inspect Plants C and D root zones** 🟡 — C 90.29%, D 86.85%; both high, with C still saturated. Watch for yellowing, wilting, drooping, stalled growth, or sour smell.
+6. **Hold warmer/drier setup** 🟡 — Now temp is in range, but overnight is still 67.31°F. Maintain or complete the 50% light step if not already done and avoid exhaust settings that cool lights-off below 68°F.
 
 _Resolved 2026-04-28: "Govee H7140 backup arrival" — arrived._
 _Resolved 2026-04-28: "Clone gear + Govee H7142 arrival" — clone gear arrived; H7142 deployed 2026-04-27._
@@ -96,8 +95,8 @@ _Resolved 2026-04-26: "Perform reservoir change" — refilled 2026-04-26 afterno
 | ~~Govee H7140 backup arrival~~ | ✅ Arrived 2026-04-28 |
 | ~~Clone gear + Govee H7142 arrival~~ | ✅ Clone gear arrived 2026-04-28; H7142 deployed 2026-04-27 |
 | ~~Govee H7142 cutover (primary)~~ | ✅ Done 2026-04-27 |
-| **Take 8 clones (A/B/C/D × 2)** | **TODAY 2026-04-29** |
-| **Germinate all 10 SBxBS01 regulars (Track A)** | **TODAY 2026-04-29** |
+| **Take 8 clones (A/B/C/D × 2)** | Due 2026-04-29 — confirm complete or do now |
+| **Germinate all 10 SBxBS01 regulars (Track A)** | Due 2026-04-29 — confirm complete or do now |
 | 12/12 flip | ~60% SCROG coverage with all four at net plane; window 2026-05-10 → 2026-05-17 (per [pheno-flip-strategy](decisions/2026-04-26-pheno-flip-strategy.md)) |
 | Clone selection | Flower weeks 3–4 |
 | Final pheno evaluation | Flower weeks 5–6 |

@@ -14,10 +14,10 @@ updated: 2026-05-01
 - [Wake-Word Experiment Log](wake-word-experiments.md) — append-only log of every "hey Claudia" model trained: what changed, why, training config, validation results
 
 ## Plants
-- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; vigor leader; strong purple contender; **topped Apr 11** (Day 18 post-top); **LST Day 9** (started Apr 20); moisture stable ~60%; tuck candidate
-- [Plant B](plants/plant-b.md) — 🟡 Secondary; no purple; **topped Apr 12** (Day 17 post-top); **LST Day 9** (started Apr 20); densest dark-green canopy; moisture 91.93% and rising — close float valve today
-- [Plant C](plants/plant-c.md) — 🟡 Secondary; **topped Apr 12** (Day 17 post-top); **LST Day 9** (started Apr 20); moisture stable ~89% — monitor saturated root zone
-- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; strong purple contender; **topped Apr 12** (Day 17 post-top); **LST Day 9** (started Apr 20); moisture ~87%; lighter fast-growth tips; tuck candidate
+- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; vigor leader; strong purple contender; **topped Apr 11** (Day 20 post-top); **LST Day 11** (started Apr 20); moisture stable ~60%; tuck candidate
+- [Plant B](plants/plant-b.md) — 🟡 Secondary; no purple; **topped Apr 12** (Day 19 post-top); **LST Day 11** (started Apr 20); dense canopy; moisture 93.90% — dryback action required
+- [Plant C](plants/plant-c.md) — 🟡 Secondary; **topped Apr 12** (Day 19 post-top); **LST Day 11** (started Apr 20); moisture ~90% — monitor saturated root zone
+- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; strong purple contender; **topped Apr 12** (Day 19 post-top); **LST Day 11** (started Apr 20); moisture high but easing ~87%; tuck candidate
 
 ## Daily Logs
 - [2026-03-27](daily/2026-03-27.md) — Day 13: Pre-transplant; 2–3 leaf sets
@@ -43,6 +43,8 @@ updated: 2026-05-01
 - [2026-04-27](daily/2026-04-27.md) — Day 44: VPD fully recovered all windows ✅ (1.01 kPa); overnight temp crossed 68°F floor ✅; overnight RH 5-night upward drift (64.4%) ⚠️; B moisture crossed 80%
 - [2026-04-28](daily/2026-04-28.md) — Day 45: Plant B moisture jumped to 86.74% — now in C/D elevated zone ⚠️; Govee H7142 day 1 (daytime RH 56% ✅, VPD 1.19 kPa ✅); overnight temp regression (67.76°F); clone gear arrived
 - [2026-04-29](daily/2026-04-29.md) — Day 46: Plant B moisture 91.93% 🔴; close float valve; H7142 overnight VPD low (0.76 kPa); temps below target; clones + regular germination due today
+- [2026-04-30](daily/2026-04-30.md) — Day 47: continuity entry for existing photo set; no sensor snapshot provided
+- [2026-05-01](daily/2026-05-01.md) — Day 48: Plant B moisture still very high at 93.90% 🔴; current RH 71.3% with wet-edge VPD; now temp recovered to 74.55°F; tuck A/D
 
 ## Environment
 - [Temperature](environment/temperature.md) — Trend log; targets by phase; notable events

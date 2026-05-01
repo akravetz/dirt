@@ -754,3 +754,16 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - **Temperature still cool:** 67.71°F overnight, 71.97°F morning, 72.63°F now — all below current veg targets.
 - Clones + SBxBS01 regular germination are due today; light step to 50% remains overdue if not already done.
 - Updated: `daily/2026-04-29.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-05-01] daily | Day 48 — B dryback still required; humidity wet-edge; day temp recovered
+- Photos captured across 5 presets (overview, A, B, C, D). Canopy remains broadly healthy; A/D are still sativa-leaning tuck candidates, while B/C remain denser at the net.
+- **Plant B moisture remains critical:** 93.90% now after 91.93% Apr 29 and 86.74% Apr 28. Photo still lacks obvious wilt, but keep/close the B float valve and dry back before reopening.
+- **Humidity/VPD still wet-edge:** overnight VPD again averaged 0.76 kPa and current RH climbed to 71.3%; daytime VPD is in range but low (0.90 morning, 0.84 now).
+- **Temperature partly recovered:** current temp is back in target at 74.55°F, but overnight remains below floor at 67.31°F.
+- **Root zones:** C remains saturated around 90%; D is high but easing to 86.85%; A remains stable around 60%.
+- Updated: `daily/2026-05-01.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-05-01] lint backfill | 2026-04-30 continuity daily
+- `uv run scripts/lint.py` found the existing 2026-04-30 raw photo set without a matching daily page, causing photo coverage and timeline-continuity failures.
+- Added `wiki/daily/2026-04-30.md` as a continuity entry only; no Apr 30 sensor readings were available in the May 1 prompt, so the page does not invent sensor values.
+- Added one-line Apr 30 plant timeline backlinks and indexed the daily page.

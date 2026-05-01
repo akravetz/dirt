@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-04-29
+updated: 2026-05-01
 ---
 
 # Plant A
@@ -18,7 +18,7 @@ updated: 2026-04-29
 
 ## Current State
 
-Day 46, eighteen days post-topping, Day 9 of LST: medium-light green sativa-leaning canopy with multiple tall shoots above the SCROG net; moisture stable ~60%; active tuck candidate. See [2026-04-29](../daily/2026-04-29.md).
+Day 48, twenty days post-topping, Day 11 of LST: medium-light green sativa-leaning canopy with tall shoots at or above the SCROG net; moisture remains stable around 60%. Keep tucking the tallest growth laterally under the net. See [2026-05-01](../daily/2026-05-01.md).
 
 ## Timeline
 
@@ -46,3 +46,5 @@ Day 46, eighteen days post-topping, Day 9 of LST: medium-light green sativa-lean
 - 2026-04-27 — [Day 44: medium-light green multi-branch canopy; good SCROG lateral spread; moisture stable ~58%; no issues](../daily/2026-04-27.md)
 - 2026-04-28 — [Day 45: medium-light green sativa-leaning canopy above SCROG net; vigorous upward shoots; moisture stable ~59%; tuck candidate](../daily/2026-04-28.md)
 - 2026-04-29 — [Day 46: medium-light green sativa-leaning canopy; multiple tall shoots above SCROG net; moisture stable ~60%; active tuck candidate](../daily/2026-04-29.md)
+- 2026-04-30 — [Day 47: photo set present; no sensor snapshot provided; carry forward SCROG tuck watch](../daily/2026-04-30.md)
+- 2026-05-01 — [Day 48: medium-light green sativa-leaning canopy; moisture stable ~60%; keep tucking tallest shoots under SCROG](../daily/2026-05-01.md)
