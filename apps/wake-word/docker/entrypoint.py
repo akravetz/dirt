@@ -201,10 +201,23 @@ def _maybe_init_wandb(manifest: dict[str, Any]) -> Any | None:
         )
         manifest["wandb_run_url"] = getattr(run, "url", None)
         manifest["wandb_run_id"] = getattr(run, "id", None)
+        _register_wandb_output_log(run)
         return run
     except Exception as exc:
         print(f"WARN: wandb.init failed; continuing without W&B: {exc!r}", flush=True)
         return None
+
+
+def _register_wandb_output_log(run: Any) -> None:
+    """Make W&B's console log visible through the Files/Public API path."""
+    try:
+        run_dir = Path(str(run.dir))
+        output_log = run_dir / "output.log"
+        output_log.touch(exist_ok=True)
+        saved = run.save(str(output_log), base_path=str(run_dir), policy="live")
+        print(f"=== wandb live-save registered output.log: {saved} ===", flush=True)
+    except Exception as exc:
+        print(f"WARN: could not register W&B output.log: {exc!r}", flush=True)
 
 
 def _wandb_smoke_config() -> dict[str, Any]:
