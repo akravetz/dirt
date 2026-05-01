@@ -72,7 +72,7 @@ RUN pip install \
         acoustics==0.2.6 onnxruntime==1.22.1 onnx \
         pronouncing==0.2.0 datasets==2.14.6 deep-phonemizer==0.0.19 \
         "scipy<1.15" \
-        "wandb>=0.21,<0.22"
+        "wandb>=0.26,<0.27"
 # onnx — needed by torch.onnx.export (openwakeword.export_model) to write
 # the trained .onnx artifact. Not the same as onnxruntime (inference).
 # scipy<1.15 — acoustics 0.2.6 imports `sph_harm` from scipy.special, which

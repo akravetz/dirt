@@ -2,14 +2,14 @@
 title: Weights & Biases (wandb) Reference Pack
 concept: wandb
 mode: hosted-api
-sdk_version: wandb >= 0.21 (Python)
+sdk_version: wandb >= 0.26 (Python)
 api_surface: SDK + Public API + REST automations
-updated: 2026-04-25
+updated: 2026-04-29
 ---
 
 # Weights & Biases (wandb)
 
-[Weights & Biases](https://wandb.ai/) is an experiment-tracking + artifact-versioning + lightweight-orchestration SaaS for ML training. This pack covers the **`wandb` Python SDK (>=0.21.x)** and the **Public API (`wandb.Api()`)** — only the surface needed to instrument a one-shot training run, log scalars / tables / artifacts, and externally poll the run's terminal state from an orchestrator.
+[Weights & Biases](https://wandb.ai/) is an experiment-tracking + artifact-versioning + lightweight-orchestration SaaS for ML training. This pack covers the **`wandb` Python SDK (>=0.26.x)** and the **Public API (`wandb.Api()`)** — only the surface needed to instrument a one-shot training run, log scalars / tables / artifacts, and externally poll the run's terminal state from an orchestrator.
 
 This pack exists for the Dirt wake-word retraining workflow. The pipeline shape: a RunPod GPU pod runs `dirt_wake_word.main.main()` inside a Docker container, the trainer logs metrics + the per-checkpoint candidate sweep + the final `.onnx`/`.tflite` to W&B, and a local orchestrator (`scripts/runpod-train`) polls `wandb.Api().run(id).state` instead of SSH-pinging a sentinel file.
 
@@ -34,7 +34,7 @@ Prefer what is in this pack over recollection. The SDK has been actively breakin
 4. **Artifacts.** The trained `.onnx`, `.tflite`, and `validation-report.txt` all go through `wandb.Artifact("hey-claudia-model", type="model")` → `art.add_file(...)` → `run.log_artifact(art, aliases=["latest", "candidate-2026-04-25"])`. The `production` alias is the promotion gate the harness will gate deploys on. See [artifacts.md](artifacts.md).
 5. **Finish.** Inside the context manager, an unhandled exception sets `exit_code=1` automatically (state → `failed`). For the Docker `entrypoint.py` wrapper, catch the exception, call `wandb.finish(exit_code=1)` explicitly, and re-raise — the pod must report a non-zero exit so the orchestrator sees `state=failed`, not `state=crashed` (the latter requires a heartbeat timeout, ~5 min wait). See [init-log-finish.md](init-log-finish.md), [run-state-and-the-api.md](run-state-and-the-api.md).
 6. **Poll externally.** `wandb.Api().run(f"{entity}/{project}/{run_id}").state` returns one of `running` / `finished` / `failed` / `crashed` / `killed` / `pending`. Poll every 20–30 s; call `Api().flush()` between polls because the SDK caches Run objects locally. See [run-state-and-the-api.md](run-state-and-the-api.md).
-7. **Container hygiene.** `WANDB_DIR=/workspace/wandb` so the SDK's local logs survive in the volume disk (which is what gets SCP'd off). `WANDB_SILENT=true` to keep stdout clean for journalctl. If a pod is offline, `WANDB_MODE=offline` + `wandb sync` post-hoc — but the auto-research harness's polling design assumes online mode. See [docker-and-runpod.md](docker-and-runpod.md).
+7. **Container hygiene.** `WANDB_DIR=/workspace/wandb` so the SDK's local logs survive in the volume disk (which is what gets SCP'd off). `WANDB_SILENT=true` to keep stdout clean for journalctl. Configure console capture in `wandb.init(settings=wandb.Settings(console="redirect", console_multipart=True, console_chunk_max_seconds=30, console_chunk_max_bytes=512 * 1024))` so long RunPod jobs upload console chunks during the run instead of only producing a final `output.log`. If a pod is offline, `WANDB_MODE=offline` + `wandb sync` post-hoc — but the auto-research harness's polling design assumes online mode. See [docker-and-runpod.md](docker-and-runpod.md).
 
 A working orchestration shape (init → log → finish vs. external poll) is sketched in [init-log-finish.md](init-log-finish.md) and [run-state-and-the-api.md](run-state-and-the-api.md).
 

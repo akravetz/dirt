@@ -22,7 +22,33 @@ Why these:
 - **`WANDB_PROJECT=dirt-wake-word`** — saves having to pass `project=` on every `wandb.init` call.
 - **`WANDB_DIR=/workspace/wandb`** — the SDK stages local logs (history, config, system metrics) to `$WANDB_DIR/wandb/run-<id>` before upload. `/workspace` is the RunPod **volume disk** mount; it survives across container restarts (until pod delete) and is what you SCP off if you need post-mortem state.
 - **`WANDB_SILENT=true`** — suppresses the SDK's "View run at https://..." banner and progress chatter. Keeps the RunPod console readable.
-- **`WANDB_CONSOLE=redirect`** — captures the container's stdout/stderr at the file-descriptor level (`os.dup2`) and streams it to the W&B run's "Logs" tab live. **This is the durable, agent-readable text trace of the run.** The harness orchestrator's flow is `POST /pods` → poll → SCP artifacts → `DELETE /pods/{id}` in `finally:`, which means RunPod's own console-log retention is ephemeral — the moment we delete the pod, that history is gone. W&B-side capture survives the pod, is queryable mid-run via `wandb.Api().run(id).file("output.log").download(...)`, and is the only path that catches subprocess output too (the soft-fork still shells out to upstream `train.py` for `--generate_clips`, ~22 min of the run; `WANDB_CONSOLE=wrap` patches `sys.stdout`/`stderr` at the Python level and would miss that). Use `off` only if you have a different durable text channel — for this harness, we don't.
+- **`WANDB_CONSOLE=redirect`** — default console capture mode. The trainer also passes `wandb.Settings(console="redirect", console_multipart=True, console_chunk_max_seconds=30, console_chunk_max_bytes=512 * 1024)` at `wandb.init()` time. Redirect mode captures stdout/stderr at the file-descriptor level (`os.dup2`), so subprocess output from upstream `train.py` is included. Multipart mode writes timestamped `logs/` chunks and uploads each closed chunk during long runs; this is the agent-readable path for near-real-time logs. The legacy single `output.log` may not be downloadable via the Public API until `wandb.finish()`.
+
+## Console logs for long RunPod jobs
+
+Use explicit `wandb.Settings` rather than relying on environment variables alone:
+
+```python
+run = wandb.init(
+    job_type="train",
+    config=resolved_config,
+    settings=wandb.Settings(
+        console="redirect",
+        console_multipart=True,
+        console_chunk_max_seconds=30,
+        console_chunk_max_bytes=512 * 1024,
+    ),
+)
+```
+
+Why:
+
+- **`console="redirect"`** captures stdout/stderr at file-descriptor level, including subprocess output. `wrap` patches Python streams and can miss shell/subprocess logs.
+- **`console_multipart=True`** avoids the v25 failure mode where `output.log` existed only after `wandb.finish()`.
+- **`console_chunk_max_seconds=30`** closes a log chunk every 30 seconds even if the trainer is in a long phase.
+- **`console_chunk_max_bytes=512 * 1024`** closes large chunks early at 512 KiB.
+
+When pulling logs mid-run, prefer files under the W&B run's `logs/` namespace. Keep `output.log` support as a post-finish fallback because older runs and non-multipart runs still use it.
 
 ## Env vars to inject at pod-create (per-invocation)
 
@@ -123,6 +149,8 @@ For a 90-min training run with `run.log()` every 100 steps, expect ~10–50 MB. 
 ## Sources
 
 - https://docs.wandb.ai/models/track/environment-variables/
+- https://docs.wandb.ai/models/app/console-logs
+- https://docs.wandb.ai/models/ref/python/experiments/settings
 - https://docs.wandb.ai/models/ref/python/functions/finish/
 - https://docs.wandb.ai/models/ref/cli/wandb-offline/
 - https://github.com/wandb/wandb/blob/main/CHANGELOG.md (0.18.x `wandb-core` rename, 0.20.0 `WANDB_DISABLE_SERVICE` removal)

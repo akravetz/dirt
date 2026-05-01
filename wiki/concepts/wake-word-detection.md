@@ -2,9 +2,9 @@
 title: "Wake-Word Detection"
 type: concept
 sources: []
-related: [wiki/hardware/jabra.md, wiki/concepts/room-impulse-response.md, wiki/decisions/2026-04-16-voice-pipeline-selections.md, wiki/decisions/2026-04-16-wake-word-training-strategy.md, wiki/decisions/2026-04-18-wake-word-v4-plan.md, wiki/decisions/2026-04-23-wake-word-v5-passive-harvest.md]
+related: [wiki/hardware/jabra.md, wiki/concepts/wake-word-augmentation.md, wiki/concepts/room-impulse-response.md, wiki/decisions/2026-04-16-voice-pipeline-selections.md, wiki/decisions/2026-04-16-wake-word-training-strategy.md, wiki/decisions/2026-04-18-wake-word-v4-plan.md, wiki/decisions/2026-04-23-wake-word-v5-passive-harvest.md]
 created: 2026-04-16
-updated: 2026-04-23
+updated: 2026-05-01
 ---
 
 # Wake-Word Detection

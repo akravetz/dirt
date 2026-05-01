@@ -107,7 +107,9 @@ def _probe_gpu_name() -> str | None:
     try:
         r = subprocess.run(
             ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -157,15 +159,19 @@ def _maybe_init_wandb(manifest: dict[str, Any]) -> Any | None:
         run = wandb.init(
             job_type="train",
             config=manifest["resolved_config"],
-            tags=[
-                t for t in [manifest["git_sha"], manifest["gpu_name"], RUN_ID] if t
-            ],
+            settings=wandb.Settings(
+                console="redirect",
+                console_multipart=True,
+                console_chunk_max_seconds=30,
+                console_chunk_max_bytes=512 * 1024,
+            ),
+            tags=[t for t in [manifest["git_sha"], manifest["gpu_name"], RUN_ID] if t],
             notes=f"image={manifest['image_ref']} pod={manifest['pod_id']} run_id={RUN_ID}",
         )
         manifest["wandb_run_url"] = getattr(run, "url", None)
         manifest["wandb_run_id"] = getattr(run, "id", None)
         return run
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         print(f"WARN: wandb.init failed; continuing without W&B: {exc!r}", flush=True)
         return None
 
@@ -177,7 +183,7 @@ def _finalize_wandb(run: Any | None, *, exit_code: int) -> None:
         import wandb
 
         wandb.finish(exit_code=exit_code)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         print(f"WARN: wandb.finish failed: {exc!r}", flush=True)
 
 
@@ -206,7 +212,9 @@ def _self_delete() -> None:
     pod_id = os.environ.get("RUNPOD_POD_ID")
     api_key = os.environ.get("RUNPOD_API_KEY")
     if not pod_id or not api_key:
-        print("(self-DELETE skipped: RUNPOD_POD_ID or RUNPOD_API_KEY missing)", flush=True)
+        print(
+            "(self-DELETE skipped: RUNPOD_POD_ID or RUNPOD_API_KEY missing)", flush=True
+        )
         return
     import urllib.error
     import urllib.request
@@ -257,7 +265,9 @@ def main() -> None:
         try:
             _persist_tts_cache()
         except OSError:
-            print(f"WARN: TTS cache persist failed:\n{traceback.format_exc()}", flush=True)
+            print(
+                f"WARN: TTS cache persist failed:\n{traceback.format_exc()}", flush=True
+            )
     except BaseException:
         tb = traceback.format_exc()
         print(f"=== ENTRYPOINT FAILED ===\n{tb}", flush=True, file=sys.stderr)

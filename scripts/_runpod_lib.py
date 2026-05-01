@@ -93,9 +93,18 @@ def wait_for_s3_sentinel(
                 s3.head_object(Bucket=bucket, Key=f"{prefix}{sentinel}")
                 return sentinel
             except ClientError as exc:
-                if exc.response["Error"]["Code"] not in ("404", "NoSuchKey"):
+                code = exc.response["Error"]["Code"]
+                if code in ("401", "403", "Unauthorized", "AccessDenied"):
+                    print(
+                        f"  {time.strftime('%H:%M:%S')} transient S3 auth error "
+                        f"while polling {sentinel}: {code}; retrying"
+                    )
+                    continue
+                if code not in ("404", "NoSuchKey"):
                     raise
-        print(f"  {time.strftime('%H:%M:%S')} (waiting for sentinel at s3://{bucket}/{prefix})")
+        print(
+            f"  {time.strftime('%H:%M:%S')} (waiting for sentinel at s3://{bucket}/{prefix})"
+        )
         time.sleep(poll_every)
     raise TimeoutError(f"sentinel never appeared at s3://{bucket}/{prefix}")
 

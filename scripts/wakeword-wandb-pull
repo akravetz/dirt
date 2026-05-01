@@ -2,7 +2,7 @@
 """Agent-side W&B reader. JSON output for pipe-into-jq.
 
   show RUN          — full dump (config, summary, tags, system); downloads
-                      output.log + metadata files to var/wake-word/wandb-pulls/<id>/
+                      console logs + metadata files to var/wake-word/wandb-pulls/<id>/
   group GROUP       — every run in a WANDB_RUN_GROUP (id/state/name/runtime only)
   latest [--n N]    — N most recent runs (default 5; same row shape as group)
 
@@ -19,15 +19,18 @@ import warnings
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import _runpod_lib as rp  # noqa: E402
+import _runpod_lib as rp
 
 warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
 
 DEFAULT_PROJECT = "dirt-wake-word"
 PULLS_ROOT = rp.repo_root() / "var" / "wake-word" / "wandb-pulls"
 SAVED_FILES = (
-    "output.log", "config.yaml", "requirements.txt",
-    "wandb-metadata.json", "wandb-summary.json",
+    "output.log",
+    "config.yaml",
+    "requirements.txt",
+    "wandb-metadata.json",
+    "wandb-summary.json",
 )
 
 
@@ -62,13 +65,21 @@ def _run_full(run, *, dest: Path) -> dict:
 
     dest.mkdir(parents=True, exist_ok=True)
     saved: list[str] = []
+    pull_warnings: list[str] = []
     for name in SAVED_FILES:
         try:
             run.file(name).download(root=str(dest), replace=True, exist_ok=True)
             saved.append(str(dest / name))
-        except Exception:  # noqa: BLE001 — file may not exist yet for in-flight runs
-            pass
+        except Exception as exc:
+            pull_warnings.append(f"{name}: {exc!r}")
+    try:
+        for file in run.files(pattern="logs/*", per_page=200):
+            file.download(root=str(dest), replace=True, exist_ok=True)
+            saved.append(str(dest / file.name))
+    except Exception as exc:
+        pull_warnings.append(f"logs/*: {exc!r}")
     d["local_files"] = saved
+    d["pull_warnings"] = pull_warnings
 
     md = dest / "wandb-metadata.json"
     if md.exists():

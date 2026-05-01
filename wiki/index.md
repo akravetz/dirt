@@ -1,7 +1,7 @@
 ---
 title: Index
 type: index
-updated: 2026-04-29
+updated: 2026-05-01
 ---
 
 # Grow Wiki Index
@@ -80,6 +80,7 @@ updated: 2026-04-29
 - [EC (Electrical Conductivity)](concepts/ec.md) — Measuring nutrient concentration; targets by stage; TDS-3 meter usage
 - [Capacitive Soil Moisture Sensors](concepts/capacitive-soil-moisture.md) — How v1.2 sensors work; voltage ranges; failure modes; multimeter diagnostic
 - [Wake-Word Detection](concepts/wake-word-detection.md) — openWakeWord architecture, training data, FRR diagnostics, threshold tuning, custom verifier models
+- [Wake-Word Augmentation](concepts/wake-word-augmentation.md) — Current realmic vs synthetic augmentation behavior and ranked experiment backlog for improving real-mic coverage
 - [Room Impulse Response (RIR)](concepts/room-impulse-response.md) — What an IR is; exponential sine sweep capture (Farina method); using IRs as training augmentation
 
 ## Breeding
