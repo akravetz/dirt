@@ -130,6 +130,7 @@ TRAINER_ARTIFACTS: tuple[str, ...] = (
     "hey_claudia.onnx",
     "run-manifest.json",
     "validation-report.txt",
+    "wandb-smoke.txt",
 )
 
 

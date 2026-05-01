@@ -15,6 +15,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 import traceback
 from datetime import UTC, datetime
 from pathlib import Path
@@ -34,6 +35,40 @@ OUT = Path(os.environ.get("DIRT_WAKEWORD_OUT") or f"/workspace/out/{RUN_ID}")
 TARGET_WORD = "hey_claudia"
 TTS_CACHE_DIR = INPUT / "dirt-wakeword-tts-cache"
 VOLUME_MANIFEST_PATH = INPUT / "MANIFEST.json"
+
+
+def _env_bool(name: str, *, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_int(name: str, *, default: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return default
+    return int(raw)
+
+
+def _env_float(name: str, *, default: float) -> float:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return default
+    return float(raw)
+
+
+def _wandb_console_config() -> dict[str, Any]:
+    return {
+        "console": os.environ.get("DIRT_WANDB_CONSOLE", "redirect"),
+        "console_multipart": _env_bool("DIRT_WANDB_CONSOLE_MULTIPART", default=True),
+        "console_chunk_max_seconds": _env_int(
+            "DIRT_WANDB_CONSOLE_CHUNK_SECONDS", default=30
+        ),
+        "console_chunk_max_bytes": _env_int(
+            "DIRT_WANDB_CONSOLE_CHUNK_BYTES", default=512 * 1024
+        ),
+    }
 
 
 def _hardlink_or_copy(src: Path, dst: Path) -> None:
@@ -156,15 +191,11 @@ def _maybe_init_wandb(manifest: dict[str, Any]) -> Any | None:
     try:
         import wandb
 
+        console_config = _wandb_console_config()
         run = wandb.init(
-            job_type="train",
+            job_type=os.environ.get("DIRT_WANDB_JOB_TYPE", "train"),
             config=manifest["resolved_config"],
-            settings=wandb.Settings(
-                console="redirect",
-                console_multipart=True,
-                console_chunk_max_seconds=30,
-                console_chunk_max_bytes=512 * 1024,
-            ),
+            settings=wandb.Settings(**console_config),
             tags=[t for t in [manifest["git_sha"], manifest["gpu_name"], RUN_ID] if t],
             notes=f"image={manifest['image_ref']} pod={manifest['pod_id']} run_id={RUN_ID}",
         )
@@ -174,6 +205,100 @@ def _maybe_init_wandb(manifest: dict[str, Any]) -> Any | None:
     except Exception as exc:
         print(f"WARN: wandb.init failed; continuing without W&B: {exc!r}", flush=True)
         return None
+
+
+def _wandb_smoke_config() -> dict[str, Any]:
+    return {
+        "wandb_smoke": True,
+        "seconds": _env_float("DIRT_WANDB_SMOKE_SECONDS", default=90.0),
+        "interval_seconds": _env_float("DIRT_WANDB_SMOKE_INTERVAL", default=5.0),
+        "console_settings": _wandb_console_config(),
+        "wandb_silent": os.environ.get("WANDB_SILENT"),
+        "wandb_console_env": os.environ.get("WANDB_CONSOLE"),
+    }
+
+
+def _wandb_local_tree(run: Any | None) -> list[str]:
+    if run is None:
+        return []
+    run_dir = Path(str(run.dir)).parent
+    if not run_dir.exists():
+        return [f"(missing local run dir {run_dir})"]
+    entries: list[str] = []
+    for path in sorted(run_dir.rglob("*")):
+        if path.is_file():
+            rel = path.relative_to(run_dir).as_posix()
+            entries.append(f"{rel}\t{path.stat().st_size}")
+    return entries
+
+
+def _run_wandb_smoke(run: Any | None, manifest: dict[str, Any]) -> None:
+    """Exercise W&B console capture without running wake-word training."""
+    config = manifest["resolved_config"]
+    seconds = float(config["seconds"])
+    interval = float(config["interval_seconds"])
+    started = time.monotonic()
+    end_at = started + seconds
+    step = 0
+    lines: list[str] = []
+
+    print("=== W&B CONSOLE SMOKE START ===", flush=True)
+    print(f"run_id={RUN_ID}", flush=True)
+    print(f"wandb_run_id={manifest.get('wandb_run_id')}", flush=True)
+    print(f"wandb_run_url={manifest.get('wandb_run_url')}", flush=True)
+    print(f"console_settings={config['console_settings']}", flush=True)
+    print(f"WANDB_SILENT={config['wandb_silent']}", flush=True)
+
+    while True:
+        elapsed = time.monotonic() - started
+        line = f"smoke step={step} elapsed={elapsed:.1f}s"
+        print(f"STDOUT print {line}", flush=True)
+        print(f"STDERR print {line}", file=sys.stderr, flush=True)
+        os.write(1, f"FD1 os.write {line}\n".encode())
+        os.write(2, f"FD2 os.write {line}\n".encode())
+        subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import sys; "
+                    f"print('SUBPROCESS stdout {line}'); "
+                    f"print('SUBPROCESS stderr {line}', file=sys.stderr)"
+                ),
+            ],
+            check=False,
+        )
+        if run is not None:
+            run.log({"smoke/step": step, "smoke/elapsed_s": elapsed})
+        lines.append(line)
+        if time.monotonic() >= end_at:
+            break
+        step += 1
+        time.sleep(interval)
+
+    local_tree = _wandb_local_tree(run)
+    print("=== W&B LOCAL RUN FILES ===", flush=True)
+    for entry in local_tree:
+        print(entry, flush=True)
+    (OUT / "wandb-smoke.txt").write_text(
+        "\n".join(
+            [
+                "W&B console smoke",
+                f"run_id={RUN_ID}",
+                f"wandb_run_id={manifest.get('wandb_run_id')}",
+                f"wandb_run_url={manifest.get('wandb_run_url')}",
+                f"console_settings={json.dumps(config['console_settings'], sort_keys=True)}",
+                "",
+                "emitted_lines:",
+                *lines,
+                "",
+                "local_run_files:",
+                *local_tree,
+            ]
+        )
+        + "\n"
+    )
+    print("=== W&B CONSOLE SMOKE END ===", flush=True)
 
 
 def _finalize_wandb(run: Any | None, *, exit_code: int) -> None:
@@ -252,6 +377,34 @@ def main() -> None:
     print(f"DIRT_WAKEWORD_INPUT={INPUT}", flush=True)
     print(f"DIRT_WAKEWORD_WORKING={WORKING}", flush=True)
     print(f"OUT={OUT}", flush=True)
+
+    if _env_bool("DIRT_WANDB_SMOKE"):
+        manifest = _start_manifest(_wandb_smoke_config())
+        run = _maybe_init_wandb(manifest)
+        try:
+            _run_wandb_smoke(run, manifest)
+        except BaseException:
+            tb = traceback.format_exc()
+            print(f"=== W&B SMOKE FAILED ===\n{tb}", flush=True, file=sys.stderr)
+            (OUT / "FAILURE").write_text(tb)
+            manifest["finished_at"] = datetime.now(UTC).isoformat()
+            manifest["status"] = "failure"
+            (OUT / "run-manifest.json").write_text(
+                json.dumps(manifest, indent=2) + "\n"
+            )
+            _finalize_wandb(run, exit_code=1)
+            _cleanup_working()
+            _self_delete()
+            return
+        manifest["finished_at"] = datetime.now(UTC).isoformat()
+        manifest["status"] = "success"
+        (OUT / "run-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+        _finalize_wandb(run, exit_code=0)
+        (OUT / "SUCCESS").write_text("ok\n")
+        print("=== entrypoint: W&B smoke SUCCESS sentinel written ===", flush=True)
+        _cleanup_working()
+        _self_delete()
+        return
 
     from dirt_wake_word.config import current_tunables
     from dirt_wake_word.main import main as wake_word_main

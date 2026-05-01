@@ -1,0 +1,183 @@
+#!/usr/bin/env -S uv run --project /home/akcom/code/dirt python -u
+# ruff: noqa: T201, PLR0915
+"""Run a tiny W&B console-capture smoke pod.
+
+This uses the same trainer image and entrypoint as training, but sets
+DIRT_WANDB_SMOKE=1 so the container only emits stdout/stderr/subprocess logs,
+logs a scalar heartbeat, writes a sentinel, and exits. It lets us iterate on
+W&B console settings in minutes without running wake-word training.
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+import time
+from contextlib import suppress
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _runpod_lib as rp
+
+DEFAULT_IMAGE = "ghcr.io/akravetz/dirt-wake-word-trainer:latest"
+DEFAULT_GPU_PRIORITY = [
+    "NVIDIA L4",
+    "NVIDIA RTX A4000",
+    "NVIDIA GeForce RTX 4090",
+]
+POLL_EVERY_S = 15
+MAX_WALL_S = 15 * 60
+
+
+def _wandb_run_for_pod(*, group: str, pod_id: str):
+    import wandb
+
+    api = wandb.Api()
+    api.flush()
+    entity = api.default_entity
+    runs = api.runs(f"{entity}/dirt-wake-word", filters={"group": group})
+    for run in runs:
+        if pod_id in set(run.tags):
+            return run
+    return None
+
+
+def _wandb_file_names(run) -> list[str]:
+    with suppress(Exception):
+        return sorted(file.name for file in run.files(per_page=200))
+    return []
+
+
+def _sentinel_or_none(s3, *, bucket: str, prefix: str) -> str | None:
+    from botocore.exceptions import ClientError
+
+    for sentinel in ("SUCCESS", "FAILURE"):
+        try:
+            s3.head_object(Bucket=bucket, Key=f"{prefix.rstrip('/')}/{sentinel}")
+            return sentinel
+        except ClientError as exc:
+            code = exc.response["Error"]["Code"]
+            if code in ("401", "403", "Unauthorized", "AccessDenied"):
+                print(f"  transient S3 auth error while polling {sentinel}: {code}")
+                return None
+            if code not in ("404", "NoSuchKey"):
+                raise
+    return None
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--image", default=DEFAULT_IMAGE)
+    parser.add_argument("--gpu", action="append", default=None)
+    parser.add_argument("--keep", action="store_true")
+    parser.add_argument("--seconds", type=float, default=90.0)
+    parser.add_argument("--interval", type=float, default=5.0)
+    parser.add_argument("--chunk-seconds", type=int, default=10)
+    parser.add_argument("--chunk-bytes", type=int, default=32 * 1024)
+    parser.add_argument("--console", default="redirect")
+    parser.add_argument(
+        "--multipart", action=argparse.BooleanOptionalAction, default=True
+    )
+    parser.add_argument(
+        "--silent", action=argparse.BooleanOptionalAction, default=False
+    )
+    parser.add_argument("--run-group", default=None)
+    args = parser.parse_args()
+
+    rp.load_env()
+    api_key = rp.env("RUNPOD_API_KEY")
+    network_volume_id = rp.env("RUNPOD_NETWORK_VOLUME_ID")
+    registry_auth_id = rp.env("RUNPOD_GHCR_AUTH_ID", required=False) or None
+    wandb_api_key = rp.env("WANDB_API_KEY", required=False) or ""
+
+    name = f"wandb-smoke-{time.strftime('%Y%m%d-%H%M%S')}"
+    run_group = args.run_group or f"wandb-smoke-{time.strftime('%Y%m%d-%H%M%S')}"
+
+    body = {
+        "name": name,
+        "networkVolumeId": network_volume_id,
+        "volumeMountPath": "/workspace",
+        "cloudType": "SECURE",
+        "interruptible": False,
+        "imageName": args.image,
+        "computeType": "GPU",
+        "gpuTypeIds": args.gpu or DEFAULT_GPU_PRIORITY,
+        "gpuTypePriority": "availability",
+        "gpuCount": 1,
+        "containerDiskInGb": 20,
+        "env": {
+            "DIRT_IMAGE_REF": args.image,
+            "DIRT_WANDB_JOB_TYPE": "wandb-smoke",
+            "DIRT_WANDB_SMOKE": "1",
+            "DIRT_WANDB_SMOKE_SECONDS": str(args.seconds),
+            "DIRT_WANDB_SMOKE_INTERVAL": str(args.interval),
+            "DIRT_WANDB_CONSOLE": args.console,
+            "DIRT_WANDB_CONSOLE_MULTIPART": "1" if args.multipart else "0",
+            "DIRT_WANDB_CONSOLE_CHUNK_SECONDS": str(args.chunk_seconds),
+            "DIRT_WANDB_CONSOLE_CHUNK_BYTES": str(args.chunk_bytes),
+            "RUNPOD_API_KEY": api_key,
+            "WANDB_CONSOLE": args.console,
+            "WANDB_NAME": name,
+            "WANDB_RUN_GROUP": run_group,
+            "WANDB_SILENT": "true" if args.silent else "false",
+        },
+    }
+    if registry_auth_id:
+        body["containerRegistryAuthId"] = registry_auth_id
+    if wandb_api_key:
+        body["env"]["WANDB_API_KEY"] = wandb_api_key
+
+    http = rp.client(api_key)
+    pod_id = rp.create_pod(http, body)
+    print(f"==> created W&B smoke pod {pod_id} (image={args.image})")
+    print(f"==> group={run_group} name={name}")
+
+    s3 = rp.s3_client()
+    prefix = f"out/{pod_id}/"
+    local_dest = (
+        rp.repo_root()
+        / "var"
+        / "wake-word"
+        / "wandb-smokes"
+        / f"{time.strftime('%Y-%m-%d-%H%M%S')}-{pod_id}"
+    )
+    deadline = time.monotonic() + MAX_WALL_S
+    seen_run_id: str | None = None
+
+    with rp.leased_pod(http, pod_id, keep_on_success=args.keep):
+        while time.monotonic() < deadline:
+            sentinel = _sentinel_or_none(s3, bucket=network_volume_id, prefix=prefix)
+            run = _wandb_run_for_pod(group=run_group, pod_id=pod_id)
+            if run is not None:
+                seen_run_id = run.id
+                print(
+                    f"  {time.strftime('%H:%M:%S')} wandb={run.id} state={run.state} "
+                    f"files={_wandb_file_names(run)}"
+                )
+            else:
+                print(f"  {time.strftime('%H:%M:%S')} wandb=(not found yet)")
+
+            if sentinel:
+                print(f"==> sentinel={sentinel} at s3://{network_volume_id}/{prefix}")
+                print(f"==> pulling artifacts -> {local_dest}")
+                rp.pull_artifacts(
+                    s3,
+                    bucket=network_volume_id,
+                    prefix=prefix,
+                    dest=local_dest,
+                    filenames=rp.TRAINER_ARTIFACTS,
+                )
+                break
+            time.sleep(POLL_EVERY_S)
+        else:
+            raise TimeoutError(f"smoke sentinel never appeared for pod {pod_id}")
+
+    print(f"==> W&B run: {seen_run_id or '(not found)'}")
+    print(f"==> artifacts: {local_dest}")
+    if (local_dest / "SUCCESS").exists():
+        return 0
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
