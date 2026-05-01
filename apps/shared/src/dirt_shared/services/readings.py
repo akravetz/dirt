@@ -366,6 +366,34 @@ class ReadingsService:
 
             await session.commit()
 
+    async def touch_node(
+        self,
+        location: SensorLocation | str,
+        *,
+        ip: str | None = None,
+        firmware_version: str | None = None,
+        uptime_ms: int | None = None,
+    ) -> None:
+        """Update node heartbeat metadata without writing sensor readings."""
+        now = self._clock()
+        async with AsyncSession(self._engine) as session:
+            node = (
+                await session.exec(
+                    select(SensorNode).where(SensorNode.location == location)
+                )
+            ).first()
+            if node is None:
+                node = SensorNode(location=location)
+            if ip is not None:
+                node.ip = ip
+            if firmware_version is not None:
+                node.firmware_version = firmware_version
+            if uptime_ms is not None:
+                node.uptime_ms = uptime_ms
+            node.last_seen = now
+            session.add(node)
+            await session.commit()
+
     async def get_sensor_history(self, range_key: str) -> dict[str, dict[str, list]]:
         """Return all metrics over the given range, batched."""
         delta = RANGE_DELTAS[range_key]

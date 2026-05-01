@@ -1,9 +1,12 @@
+from pathlib import Path
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_hwd.app import create_app
+from dirt_hwd.services.sensor_quality import SensorQualityConfig, SensorQualityService
 from dirt_shared.config import Settings
 from dirt_shared.models.enums import SensorLocation
 from dirt_shared.models.sensor_calibration import SensorCalibration
@@ -261,3 +264,64 @@ async def test_plant_node_ingest_passthrough_without_temp_rh(
     )
     assert r.status_code == 202
     assert r.json()["count"] == 1
+
+
+async def test_reservoir_fault_payload_is_rejected_but_node_touched(
+    app_engine, tmp_path: Path
+):
+    app = create_app(engine=app_engine, background_services=[])
+    app.state.sensor_quality = SensorQualityService(
+        SensorQualityConfig(
+            state_path=tmp_path / "sensor_quality_state.json",
+            telegram_bot_token="",
+            telegram_chat_id="",
+        )
+    )
+    transport = ASGITransport(app=app)
+    async with AsyncClient(
+        transport=transport, base_url="http://test", follow_redirects=False
+    ) as ac:
+        response = await ac.post(
+            "/api/ingest/sensors",
+            json={
+                "location": "reservoir",
+                "metrics": {
+                    "reservoir_pressure_raw": 8300.0,
+                    "reservoir_in": -35.9,
+                },
+                "firmware_version": "0.1.0",
+                "ip": "192.168.1.23",
+                "uptime_ms": 12345,
+            },
+            headers=_auth_header(),
+        )
+
+    assert response.status_code == 202
+    assert response.json() == {
+        "ok": True,
+        "location": "reservoir",
+        "count": 0,
+        "rejected": ["reservoir_in", "reservoir_pressure_raw"],
+    }
+
+    async with AsyncSession(app_engine) as session:
+        rows = (
+            await session.exec(
+                select(SensorReading)
+                .join(SensorNode, SensorNode.id == SensorReading.sensornode_id)
+                .where(SensorNode.location == SensorLocation.RESERVOIR)
+            )
+        ).all()
+        node = (
+            await session.exec(
+                select(SensorNode).where(
+                    SensorNode.location == SensorLocation.RESERVOIR
+                )
+            )
+        ).one()
+
+    assert rows == []
+    assert str(node.ip) == "192.168.1.23"
+    assert node.firmware_version == "0.1.0"
+    assert node.uptime_ms == 12345
+    assert node.last_seen is not None

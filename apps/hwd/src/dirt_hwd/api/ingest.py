@@ -13,7 +13,8 @@ import math
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
-from dirt_hwd.deps import get_readings, get_settings
+from dirt_hwd.deps import get_readings, get_sensor_quality, get_settings
+from dirt_hwd.services.sensor_quality import SensorQualityService
 from dirt_shared.config import Settings
 from dirt_shared.sensor_contract import missing_emitted
 from dirt_shared.services.readings import ReadingsService
@@ -80,11 +81,12 @@ def _check_token(authorization: str | None, expected_token: str) -> None:
 
 
 @router.post("/api/ingest/sensors", status_code=status.HTTP_202_ACCEPTED)
-async def ingest_sensors(
+async def ingest_sensors(  # noqa: PLR0913 — FastAPI boundary bundles request, auth, services, and settings.
     payload: IngestPayload,
     request: Request,
     authorization: str | None = Header(default=None),
     readings: ReadingsService = Depends(get_readings),
+    sensor_quality: SensorQualityService = Depends(get_sensor_quality),
     settings: Settings = Depends(get_settings),
 ) -> dict[str, object]:
     _check_token(authorization, settings.sensor_ingest_token)
@@ -95,13 +97,35 @@ async def ingest_sensors(
     _warn_on_emitted_drift(payload.location, payload.metrics)
 
     metrics = _augment_temp_rh_metrics(payload.metrics)
+    quality = await sensor_quality.filter_metrics(payload.location, metrics)
+
+    if not quality.metrics:
+        await readings.touch_node(
+            location=payload.location,
+            ip=ip,
+            firmware_version=payload.firmware_version,
+            uptime_ms=payload.uptime_ms,
+        )
+        return {
+            "ok": True,
+            "location": payload.location,
+            "count": 0,
+            "rejected": sorted(quality.rejected),
+        }
 
     await readings.ingest_reading(
         location=payload.location,
-        metrics=metrics,
+        metrics=quality.metrics,
         source=payload.source,
         ip=ip,
         firmware_version=payload.firmware_version,
         uptime_ms=payload.uptime_ms,
     )
-    return {"ok": True, "location": payload.location, "count": len(metrics)}
+    response: dict[str, object] = {
+        "ok": True,
+        "location": payload.location,
+        "count": len(quality.metrics),
+    }
+    if quality.rejected:
+        response["rejected"] = sorted(quality.rejected)
+    return response

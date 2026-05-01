@@ -77,6 +77,7 @@ _RETENTION: dict[str, int] = {
     "daily_report": 30,  # per-phase markers for the daily report run
     "device_status": 30,  # offline/online transitions from the device watchdog
     "metric_freshness": 30,  # per-(location, metric) dropout transitions
+    "sensor_quality": 30,  # invalid sensor payload rejection/recovery transitions
 }
 
 

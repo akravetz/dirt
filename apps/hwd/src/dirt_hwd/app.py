@@ -30,6 +30,7 @@ from dirt_hwd.services.metric_freshness import (
     MetricFreshnessConfig,
     MetricFreshnessService,
 )
+from dirt_hwd.services.sensor_quality import SensorQualityConfig, SensorQualityService
 from dirt_hwd.supervise import supervise
 from dirt_shared.app_wiring import build_core_services
 from dirt_shared.config import Settings
@@ -200,6 +201,13 @@ def create_app(
     app.state.plant_detail = core.plant_detail
     app.state.plants = core.plants
     app.state.system_status = core.system_status
+    app.state.sensor_quality = SensorQualityService(
+        SensorQualityConfig(
+            state_path=settings.data_dir / "logs" / "sensor_quality" / "state.json",
+            telegram_bot_token=settings.telegram_bot_token,
+            telegram_chat_id=settings.telegram_allowed_user_id,
+        )
+    )
     app.state.background_services = services
 
     app.include_router(ingest_router)
