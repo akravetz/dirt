@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from datetime import date
 
 from dirt_shared.services.daily_synthesis import (
@@ -30,6 +31,38 @@ def test_codex_runner_builds_exec_command_with_images(tmp_path):
     assert "gpt-5.5" in cmd
     assert cmd.count("--image") == 2
     assert cmd[-1] == "-"
+
+
+def test_codex_runner_adds_absolute_codex_dir_to_subprocess_path(tmp_path, monkeypatch):
+    codex_bin = tmp_path / "node-v24" / "bin" / "codex"
+    codex_bin.parent.mkdir(parents=True)
+    monkeypatch.setenv("PATH", "/usr/local/bin:/usr/bin")
+
+    runner = CodexSynthesisRunner(
+        repo_root=tmp_path,
+        wiki_root=tmp_path / "wiki",
+        log_dir=tmp_path / "logs",
+        codex_bin=str(codex_bin),
+    )
+
+    env = runner._subprocess_env()
+
+    assert env["PATH"].split(os.pathsep)[:2] == [
+        str(codex_bin.parent),
+        "/usr/local/bin",
+    ]
+
+
+def test_codex_runner_leaves_path_alone_for_path_resolved_codex(tmp_path, monkeypatch):
+    monkeypatch.setenv("PATH", "/usr/local/bin:/usr/bin")
+    runner = CodexSynthesisRunner(
+        repo_root=tmp_path,
+        wiki_root=tmp_path / "wiki",
+        log_dir=tmp_path / "logs",
+        codex_bin="codex",
+    )
+
+    assert runner._subprocess_env()["PATH"] == "/usr/local/bin:/usr/bin"
 
 
 def test_parse_jsonl_events_preserves_unparsed_lines():

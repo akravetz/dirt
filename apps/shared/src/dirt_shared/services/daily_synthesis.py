@@ -347,6 +347,19 @@ class CodexSynthesisRunner:
         cmd.append("-")
         return cmd
 
+    def _subprocess_env(self) -> dict[str, str]:
+        env = os.environ.copy()
+        codex_path = Path(self._codex_bin).expanduser()
+        if codex_path.is_absolute():
+            codex_dir = str(codex_path.parent)
+            existing_path = env.get("PATH")
+            env["PATH"] = (
+                f"{codex_dir}{os.pathsep}{existing_path}"
+                if existing_path
+                else codex_dir
+            )
+        return env
+
     def _build_prompt(
         self,
         target_date: date,
@@ -433,7 +446,7 @@ class CodexSynthesisRunner:
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                env=os.environ.copy(),
+                env=self._subprocess_env(),
             )
             try:
                 stdout_b, stderr_b = await asyncio.wait_for(
