@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/coco-coir.md, wiki/concepts/lst.md, wiki/environment/nutrients.md]
 created: 2026-04-06
-updated: 2026-05-01
+updated: 2026-05-02
 ---
 
 # Plant C
@@ -19,7 +19,7 @@ updated: 2026-05-01
 
 ## Current State
 
-Day 48, nineteen days post-topping, Day 11 of LST: compact medium-green canopy remains photo-stable at the SCROG net, but moisture is still saturated around 90%. Continue root-zone monitoring and intervene only if visible stress appears. See [2026-05-01](../daily/2026-05-01.md).
+Day 49: clone taken 2026-05-02 to preserve Plant C as a secondary breeding candidate before flip; cutting is currently under a humidity dome. Latest photo/sensor state remains from [2026-05-01](../daily/2026-05-01.md): compact canopy remains stable, with root-zone moisture still saturated around 90%. See [2026-05-02](../daily/2026-05-02.md).
 
 ## Timeline
 
@@ -49,3 +49,4 @@ Day 48, nineteen days post-topping, Day 11 of LST: compact medium-green canopy r
 - 2026-04-29 — [Day 46: dense medium-green bushy canopy; moisture stable ~89%; no visible stress; continue root-zone monitoring](../daily/2026-04-29.md)
 - 2026-04-30 — [Day 47: photo set present; no sensor snapshot provided; carry forward saturated-root-zone watch](../daily/2026-04-30.md)
 - 2026-05-01 — [Day 48: compact medium-green canopy remains stable; moisture ~90% keeps root-zone monitoring active](../daily/2026-05-01.md)
+- 2026-05-02 — [Day 49: clone taken to preserve C as a secondary breeding candidate; cutting under humidity dome](../daily/2026-05-02.md)

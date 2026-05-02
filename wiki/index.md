@@ -1,7 +1,7 @@
 ---
 title: Index
 type: index
-updated: 2026-05-01
+updated: 2026-05-02
 ---
 
 # Grow Wiki Index
@@ -14,10 +14,10 @@ updated: 2026-05-01
 - [Wake-Word Experiment Log](wake-word-experiments.md) — append-only log of every "hey Claudia" model trained: what changed, why, training config, validation results
 
 ## Plants
-- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; vigor leader; strong purple contender; **topped Apr 11** (Day 20 post-top); **LST Day 11** (started Apr 20); moisture stable ~60%; tuck candidate
-- [Plant B](plants/plant-b.md) — 🟡 Secondary; no purple; **topped Apr 12** (Day 19 post-top); **LST Day 11** (started Apr 20); dense canopy; moisture 93.90% — dryback action required
-- [Plant C](plants/plant-c.md) — 🟡 Secondary; **topped Apr 12** (Day 19 post-top); **LST Day 11** (started Apr 20); moisture ~90% — monitor saturated root zone
-- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; strong purple contender; **topped Apr 12** (Day 19 post-top); **LST Day 11** (started Apr 20); moisture high but easing ~87%; tuck candidate
+- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; clone taken 2026-05-02 and under humidity dome; latest sensor/photo state: moisture stable ~60%; tuck candidate
+- [Plant B](plants/plant-b.md) — 🟡 Secondary; clone taken 2026-05-02 and under humidity dome; latest sensor/photo state: moisture 93.90% — dryback action required
+- [Plant C](plants/plant-c.md) — 🟡 Secondary; clone taken 2026-05-02 and under humidity dome; latest sensor/photo state: moisture ~90% — monitor saturated root zone
+- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; clone taken 2026-05-02 and under humidity dome; latest sensor/photo state: moisture high but easing ~87%; tuck candidate
 
 ## Daily Logs
 - [2026-03-27](daily/2026-03-27.md) — Day 13: Pre-transplant; 2–3 leaf sets
@@ -45,6 +45,7 @@ updated: 2026-05-01
 - [2026-04-29](daily/2026-04-29.md) — Day 46: Plant B moisture 91.93% 🔴; close float valve; H7142 overnight VPD low (0.76 kPa); temps below target; clones + regular germination due today
 - [2026-04-30](daily/2026-04-30.md) — Day 47: continuity entry for existing photo set; no sensor snapshot provided
 - [2026-05-01](daily/2026-05-01.md) — Day 48: Plant B moisture still very high at 93.90% 🔴; current RH 71.3% with wet-edge VPD; now temp recovered to 74.55°F; tuck A/D
+- [2026-05-02](daily/2026-05-02.md) — Day 49: clones taken from A/B/C/D; SBxBS01 regulars germinated ~2026-04-28; clones and seedlings under humidity dome
 
 ## Environment
 - [Temperature](environment/temperature.md) — Trend log; targets by phase; notable events
@@ -86,19 +87,23 @@ updated: 2026-05-01
 - [Room Impulse Response (RIR)](concepts/room-impulse-response.md) — What an IR is; exponential sine sweep capture (Farina method); using IRs as training augmentation
 
 ## Breeding
-- [Breeding Section README](breeding/README.md) — two-track SBxBS01 F2 program: pollen banking (Track A) + phenotype hunt (Track B) → F2 cross
+- [Breeding Section README](breeding/README.md) — SBxBS01 stabilization program: pollen banking + phenotype selection → F2, then progeny-tested F3/F4 families
 - [Nomenclature](breeding/nomenclature.md) — F1/F2/BX/S1/IBL vocabulary tied to our SBxBS01 program
-- [Timeline](breeding/timeline.md) — dated calendar from launch through F2 seed harvest (active document)
+- [Stabilization Strategy](breeding/stabilization-strategy.md) — target phenotype, F-line vs BX tradeoffs, accelerated generation cycle, male/female clone space model
+- [Timeline](breeding/timeline.md) — dated calendar from launch through F2 seed harvest and stabilization cycles; current propagation status recorded
 - [Isolation](breeding/isolation.md) — separate-room contamination protocol; gating for everything else
 - [Cloning](breeding/cloning.md) — procedure, equipment, mother management; safety net for the entire program
 - [Phenotype Hunt Protocol](breeding/pheno-hunt-protocol.md) — selection criteria, scoring rubric, weekly cadence
-- [Male Evaluation](breeding/male-evaluation.md) — pre-pollen male selection (stem color, vigor, structure, terps, hermie watch)
+- [Male Evaluation](breeding/male-evaluation.md) — pre-pollen male selection (purple stem gate, sativa/trellis structure, vigor, terps, hermie watch)
 - [Pollen Handling](breeding/pollen-handling.md) — collection, drying, 4:1 flour cut, aliquoting, freezer storage, single-thaw discipline
 - [Cross Procedure](breeding/cross-procedure.md) — paintbrush pollination, branch labeling, seed maturation, harvest
+- [Breeding Veg/Female Tent Layout](breeding/veg-tent-layout.md) — 4x4 ebb-and-flow SOG table: 25-site grid, rockwool blocks, external reservoir + sump return
+- [Breeding Program Bill of Materials](breeding/bill-of-materials.md) — running purchase/reuse list for the candidate tent, male tent, cloning shelf, and pollen handling
 
 ## Decisions
 - [Pheno-Split Flip Strategy (2026-04-26)](decisions/2026-04-26-pheno-flip-strategy.md) — Tuck sativa-leaning plants, hold for ~60% net coverage with all four at the net plane; flip target window 2026-05-10 → 2026-05-17. Includes gear-list rationale for the 2×2×4 male tent + closet-shelf cloning station.
 - [Breeding Program Launch (2026-04-26)](decisions/2026-04-26-breeding-program-launch.md) — Two-track SBxBS01 F2 selection program; pollen banking + 10-pack pheno hunt → F2 cross. Scope, alternatives, trait priorities.
+- [Purple Stabilization Strategy (2026-05-02)](decisions/2026-05-02-purple-stabilization-strategy.md) — Narrowed goal to dark-purple, sativa-leaning line; prefer progeny-tested F-generation selection, with BX to A/D as backup anchor route.
 - [Medium, Nutrients & Training (2026-03-16)](decisions/2026-03-16-medium-and-training.md) — Coco/perlite, Canna A+B, single top → LST → SCROG
 - [Anthocyanin Priority Shift (2026-04-01)](decisions/2026-04-01-anthocyanin-priority.md) — Plants A & D elevated to primary keeper candidates
 - [Reservoir Stand (2026-04-11)](decisions/2026-04-11-reservoir-stand.md) — Oak step stool 6" height for FlexiTank Pro gravity feed; alternatives considered

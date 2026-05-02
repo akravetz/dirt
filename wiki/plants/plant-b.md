@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-05-01
+updated: 2026-05-02
 ---
 
 # Plant B
@@ -19,7 +19,7 @@ updated: 2026-05-01
 
 ## Current State
 
-Day 48, nineteen days post-topping, Day 11 of LST: dense healthy canopy at the SCROG net with no visible wilt, but root-zone moisture is still very high at 93.90%. Keep the float valve closed or close it now and dry back before reopening. See [2026-05-01](../daily/2026-05-01.md).
+Day 49: clone taken 2026-05-02 to preserve Plant B as a secondary breeding candidate before flip; cutting is currently under a humidity dome. Latest photo/sensor state remains from [2026-05-01](../daily/2026-05-01.md): dense canopy with no visible wilt but root-zone moisture still very high at 93.90%. See [2026-05-02](../daily/2026-05-02.md).
 
 ## Timeline
 
@@ -49,3 +49,4 @@ Day 48, nineteen days post-topping, Day 11 of LST: dense healthy canopy at the S
 - 2026-04-29 — [Day 46: dense dark-green canopy; moisture 91.93% (up from 86.74% yesterday) — close float valve today; no visible stress](../daily/2026-04-29.md)
 - 2026-04-30 — [Day 47: photo set present; no sensor snapshot provided; carry forward B dryback watch](../daily/2026-04-30.md)
 - 2026-05-01 — [Day 48: dense canopy still photo-stable, but moisture remains very high at 93.90%; dryback action still required](../daily/2026-05-01.md)
+- 2026-05-02 — [Day 49: clone taken to preserve B as a secondary breeding candidate; cutting under humidity dome](../daily/2026-05-02.md)

@@ -2,14 +2,14 @@
 title: Breeding Program Timeline
 type: breeding
 sources: []
-related: [wiki/breeding/README.md, wiki/breeding/cloning.md, wiki/breeding/pollen-handling.md, wiki/breeding/cross-procedure.md, wiki/decisions/2026-04-26-breeding-program-launch.md]
+related: [wiki/breeding/README.md, wiki/breeding/stabilization-strategy.md, wiki/breeding/cloning.md, wiki/breeding/pollen-handling.md, wiki/breeding/cross-procedure.md, wiki/decisions/2026-04-26-breeding-program-launch.md, wiki/decisions/2026-05-02-purple-stabilization-strategy.md]
 created: 2026-04-26
-updated: 2026-04-26
+updated: 2026-05-02
 ---
 
 # Breeding Program Timeline
 
-Active calendar from program launch through F2 seed harvest. Dates are *targets* and will drift with reality — update this page as actual events happen, and link daily entries when relevant work occurs. The program took shape in [the launch decision](../decisions/2026-04-26-breeding-program-launch.md).
+Active calendar from program launch through F2 seed harvest and the first stabilization cycles. Dates are *targets* and will drift with reality — update this page as actual events happen, and link daily entries when relevant work occurs. The program took shape in [the launch decision](../decisions/2026-04-26-breeding-program-launch.md) and was narrowed toward purple/sativa stabilization in [the 2026-05-02 strategy decision](../decisions/2026-05-02-purple-stabilization-strategy.md).
 
 > **Anchor dates:** current grow germination 2026-03-15 (Day 0). Today (program launch) is 2026-04-26 (Day 43 of veg). Current grow flower flip target window **2026-05-10 → 2026-05-17**, gated on ~60% net coverage with all four plants at the net plane (see [`decisions/2026-04-26-pheno-flip-strategy.md`](../decisions/2026-04-26-pheno-flip-strategy.md)).
 
@@ -27,6 +27,7 @@ Track B (10-pack hunt)                                                          
 F2 cross (clone of keeper × banked pollen)                                                                              ▼ pollinate clone
                                                                                                                                   │
 F2 seed harvest                                                                                                                   ▼ harvest seeds
+F3/F4 stabilization                                                                                                                ▼ fast-cycle progeny tests
 ```
 
 ## Detailed schedule
@@ -35,17 +36,17 @@ F2 seed harvest                                                                 
 
 Locked gear plan as of 2026-04-26 (decision: [clone + male tent gear](../decisions/2026-04-26-pheno-flip-strategy.md) — and shopping detail in [cloning.md](cloning.md) and [isolation.md](isolation.md)):
 
-- [ ] **Cloning station** on a closet shelf in another room (NOT inside any tent): humidity dome (≥7" tall), Rapid Rooter 50-pack, Clonex gel, heat mat, 30–50W LED bar on 18/6 timer, 16oz solo cups + small bag of Happy Frog soil for post-rooting stasis pots, spray bottle, plant tags. ~$130 one-time.
+- [ ] **Cloning station** on a closet shelf in another room (NOT inside any tent): humidity dome (≥7" tall), Rapid Rooter 50-pack, Clonex gel, heat mat, 30–50W LED bar on 18/6 timer, 16oz solo cups + small bag of Happy Frog soil for post-rooting stasis pots, spray bottle, plant tags. Humidity dome is active as of 2026-05-02; clones and regular seedlings are under the dome. Confirm shelf placement, lighting, heat mat, and post-rooting stasis supplies.
 - [ ] **Portable freezer** for pollen storage. Digital thermostat, -18 °C / 0 °F target. Located in the male isolation room.
 - [ ] **Male isolation: 2×2×4 grow tent** (already on hand) placed in a separate room. Outfit with: 100W LED quantum board (Spider Farmer SF1000 or generic Amazon), 4" inline fan + carbon filter combo (mandatory — pollen containment relies on negative pressure inside the tent), 6" oscillating clip fan, 1-gal fabric pots (5-pack), digital hygrometer, jeweler's loupe 40× for early sex confirmation, paper lunch bags, 1.5 mL Eppendorf tubes (50-pack) for pollen aliquots, silica desiccant packs. ~$245 one-time. Medium = existing coco/perlite. Nutrients = existing veg formula (half-strength).
-- [ ] **Take clones** from all 4 current SBxBS01 plants (A, B, C, D). 2 cuttings per plant (8 total — redundancy). Target session: **2026-04-28 (gear arrives) or 2026-04-29** — moved up from the original 2026-05-03 → 2026-05-10 window because mid-veg tissue (Day 45–46) roots more readily than near-flip tissue, and an early take leaves time to redo the cut if take rate is poor. Reservoir was refreshed 2026-04-26 (mothers in good donor state). Asymmetric strategy: take from **lower laterals on A and D** (sativa-leaning, already at SCROG net — these branches are lollipop candidates anyway), take from **middle laterals on B and C** (indica-leaning, still need lower growth to reach the net). Label by mother. See [cloning.md](cloning.md).
-- [ ] **Germinate all 10 SBxBS01 regulars** from the original-order pack. ~50/50 sex split → expect ~5 males from 10, P(<2 males) ≈ 1%. Larger candidate pool means real male selection (per [male-evaluation.md](male-evaluation.md)) instead of "take whatever survives." Reserves are illusory — the existing 4 SBxBS01 F1 plants in the main tent (A/B/C/D) are already the genetic library; holding 4 unstarted seeds doesn't unlock anything beyond what banked pollen + clones already provide. Germination starts as soon as the cloning station is up (heat mat helps both).
+- [x] **Take clones** from all 4 current SBxBS01 plants (A, B, C, D). Done 2026-05-02; cuttings are under the humidity dome. Original target was **2026-04-28 (gear arrives) or 2026-04-29** after moving up from the 2026-05-03 → 2026-05-10 window because mid-veg tissue roots more readily than near-flip tissue. Asymmetric strategy remains the intended source plan: **lower laterals on A and D** (sativa-leaning, already at SCROG net — these branches are lollipop candidates anyway), **middle laterals on B and C** (indica-leaning, still need lower growth to reach the net). Label by mother. See [cloning.md](cloning.md) and [2026-05-02](../daily/2026-05-02.md).
+- [x] **Germinate all 10 SBxBS01 regulars** from the original-order pack. Germinated approximately 2026-04-28; regular seedlings are under the humidity dome as of 2026-05-02. ~50/50 sex split → expect ~5 males from 10, P(<2 males) ≈ 1%. Larger candidate pool means real male selection (per [male-evaluation.md](male-evaluation.md)) instead of "take whatever survives." Reserves are illusory — the existing 4 SBxBS01 F1 plants in the main tent (A/B/C/D) are already the genetic library; holding 4 unstarted seeds doesn't unlock anything beyond what banked pollen + clones already provide.
 - [ ] Confirm/finalize second-pack selection (which BS line). Order arrives ~2 weeks after order.
 
 ### Phase 1 — current grow flips, regulars sex (~2026-05-10 → 2026-05-22)
 
-- [ ] **2026-05-10 → 2026-05-17 (gated on ~60% net coverage):** flip current grow (4 plants) to 12/12 per [pheno-flip-strategy](../decisions/2026-04-26-pheno-flip-strategy.md). Clones already rooted by this point — they preserve A/B/C/D regardless of how the flower goes.
-- [ ] **~2026-05-15 → 2026-05-22:** Regulars (Day 21–28 from germ) start showing pre-flowers. Identify sex via loupe at nodes 4–6.
+- [ ] **2026-05-10 → 2026-05-17 (gated on ~60% net coverage):** flip current grow (4 plants) to 12/12 per [pheno-flip-strategy](../decisions/2026-04-26-pheno-flip-strategy.md). Clones were taken 2026-05-02; verify rooting before relying on them as preserved A/B/C/D genetics.
+- [ ] **~2026-05-19 → 2026-05-26:** Regulars (Day 21–28 from approximate 2026-04-28 germination) start showing pre-flowers. Identify sex via loupe at nodes 4–6.
 - [ ] **As soon as confirmed:** confine males to the 2×2×4 isolation tent, flip them to 12/12 immediately. Cull females (don't keep — space is tight and the keeper hunt happens in Track B).
 - [ ] If <2 males survive the full 10-seed batch (P ≈ 1%), source another small pack from OBG. Pollen banking is the gating prerequisite for the cross.
 
@@ -78,23 +79,41 @@ Locked gear plan as of 2026-04-26 (decision: [clone + male tent gear](../decisio
 - [ ] **~2026-12-25 → 2027-01-05 (week 2–3 of flower):** pollinate one or two selected lower branches per [cross-procedure.md](cross-procedure.md). Paintbrush from a thawed pollen aliquot. Label each branch.
 - [ ] **~2027-02-05 → 2027-02-20:** seed harvest from pollinated branches. The rest of the plant produces normal smokable flower. Cure seeds, label, archive.
 
+### Phase 6 — accelerated F2 progeny test (~2027-02-20 → 2027-05)
+
+- [ ] Germinate a high-count F2 test population in small containers.
+- [ ] Veg 14–21 days, then cull hard for early purple stems/petioles, longer internodes, vigor, and clean structure.
+- [ ] Take small backup clones only from female candidates worth flowering; hold them in stasis.
+- [ ] Flower F2 seed plants early. Keep only 2–4 best males long enough to collect separately labeled pollen; cull males after collection.
+- [ ] Pollinate selected F2 females with separate F2 male pollen lots to create F3 family seed lots.
+- [ ] Use the F3 generation as a progeny test: keep the family with the highest percentage of dark-purple, sativa-leaning offspring.
+
+### Phase 7 — repeat family selection toward F4/F5
+
+- [ ] Repeat accelerated selection with the best F3 family.
+- [ ] Continue only families where most seedlings show early purple expression and trellis-friendly structure.
+- [ ] Use backcrossing to A/D only if A or D proves to be the exact phenotype anchor and F-line families fail to improve consistency.
+
 ## What to update on this page
 
 - ✅ Mark each item as it's done.
 - 📅 If a phase slips, edit the date (don't add a new line — keep the schedule readable).
 - 🔗 When a phase milestone happens, link the corresponding daily entry inline.
 - 📌 If the second-pack decision changes scope (e.g., we pick a BS line that needs a different hunt size), edit Phase 4.
+- 📌 If progeny-test results show one family breeding true, edit Phases 6–7 around that family rather than preserving every branch of the plan.
 
 ## Critical-path callouts
 
 These are the items where slippage cascades:
 
-1. **Cloning station up before the flip** — without rooted clones of A/B/C/D, the current grow's plants are unrecoverable after harvest. This must happen this week.
+1. **Cloning station up before the flip** — active as of 2026-05-02, with A/B/C/D cuttings under the humidity dome. Next gate is rooting and maintaining clear clone identity.
 2. **Pollen banked before the keeper female finishes flower** — without pollen, there's no cross. Phase 2 must complete by end of June at the latest.
-3. **Clones taken before the 10-pack flip** — same logic as #1 but for the hunt phenotypes. Single biggest risk in Phase 4.
+3. **Female clone stasis capacity** — every serious selection round needs small backup clones from promising females before flip. The shelf can be tiny, but losing a keeper before progeny testing resets the line.
+4. **Separate pollen lots** — males are short-lived, but their pollen must be separately labeled so F3/F4 families can be progeny-tested.
 
 ## Open dependencies
 
 - Second pack purchase (which BS line) — see [the launch decision](../decisions/2026-04-26-breeding-program-launch.md).
 - Isolation room outfit (light, fan, environmental control) — see [isolation.md](isolation.md).
 - Mother-plant retention space — once clones root we'll have 4 (current) + 10 (hunt) = up to 14 mothers needing veg space. Likely need to cull mothers post-hunt to keep the keeper(s) only.
+- Progeny-test tracking page — create `breeding/project-2026-purple-line.md` once the first cross has parent IDs and seed lots.

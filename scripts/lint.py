@@ -259,6 +259,7 @@ def check_photo_coverage() -> list[str]:
 # Daily entries intentionally without a matching photo in raw/photos/.
 KNOWN_MISSING_PHOTOS = {
     "2026-04-12",  # topping day for B/C/D; no photo taken
+    "2026-05-02",  # manual breeding propagation check-in; no photo taken
 }
 
 

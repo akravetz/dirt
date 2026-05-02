@@ -4,7 +4,7 @@ type: overview
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/index.md, wiki/plants/plant-a.md, wiki/plants/plant-b.md, wiki/plants/plant-c.md, wiki/plants/plant-d.md]
 created: 2026-04-06
-updated: 2026-05-01
+updated: 2026-05-02
 ---
 
 # Grow Overview
@@ -23,11 +23,11 @@ updated: 2026-05-01
 | **Water system** | Autopot 4-Pot XL + 25-gal FlexiTank (active since Apr 15) |
 | **Training** | Single top at node 4–5 → LST → SCROG |
 | **Start date** | 2026-03-15 (germination) |
-| **Grow day** | Day 48 (as of 2026-05-01) |
+| **Grow day** | Day 49 (as of 2026-05-02) |
 
 ## Current Stage
 
-**Early Veg** — Autopot active since Apr 15. **All four plants topped** (A: Apr 11; B/C/D: Apr 12) — Day 20/19 post-topping. **SCROG net installed Apr 18** at 11" above canopy / 18" above pot base. **LST started Apr 20 on all 4 plants** — Day 11 of LST, recovery complete.
+**Early Veg** — Autopot active since Apr 15. **All four plants topped** (A: Apr 11; B/C/D: Apr 12) — Day 21/20 post-topping. **SCROG net installed Apr 18** at 11" above canopy / 18" above pot base. **LST started Apr 20 on all 4 plants** — Day 12 of LST, recovery complete.
 
 **Plant B root-zone moisture is still the top action** — now 93.90% after 91.93% Apr 29 and 86.74% Apr 28. No visible wilt yet, but B needs a deliberate dryback: keep/close the float valve and verify the tray is not continuously feeding.
 
@@ -35,11 +35,11 @@ updated: 2026-05-01
 
 **Temperature is partly recovered** — now is in the day target at 74.55°F, but morning averaged 73.75°F and overnight stayed below floor at 67.31°F. Keep the warmer daytime setup while preventing lights-off cooling below 68°F.
 
-**Clone gear arrived 2026-04-28** — first cuttings (8 total) + SBxBS01 regular germination were due 2026-04-29; confirm completion or do now.
+**Breeding propagation is active** — clones from all four current plants were taken 2026-05-02 and are under a humidity dome. The SBxBS01 regular seeds for Track A were germinated around 2026-04-28; regular seedlings are also currently under the humidity dome. See [2026-05-02](daily/2026-05-02.md) and [breeding/timeline.md](breeding/timeline.md).
 
 **Reservoir refilled 2026-04-26 afternoon** — next change window ~2026-05-03–06.
 
-**Breeding program launched 2026-04-26** — Two-track SBxBS01 F2 program: pollen banking (Track A) + pheno hunt → F2 cross (Track B). See [breeding/README.md](breeding/README.md) and [decision 2026-04-26](decisions/2026-04-26-breeding-program-launch.md).
+**Breeding program launched 2026-04-26; narrowed 2026-05-02** — Main goal is now stabilizing a dark-purple, sativa-leaning SBxBS01 expression through F2 creation and progeny-tested F3/F4 family selection. See [breeding/README.md](breeding/README.md), [stabilization strategy](breeding/stabilization-strategy.md), and [decision 2026-05-02](decisions/2026-05-02-purple-stabilization-strategy.md).
 
 **Light schedule:** 18/6 (lights on ~05:00–23:00 MDT)
 **Light intensity:** ~40% Fold-650 unless already stepped (**50% step remains the preferred warmer/drier lever**)
@@ -48,10 +48,10 @@ updated: 2026-05-01
 
 | Plant | Post-top | Purple | Priority | Status |
 |-------|----------|--------|----------|--------|
-| Plant A | Day 20 | ✅ Confirmed genetic | 🔴 Primary | Medium-light green sativa canopy; tall shoots at/above SCROG; moisture stable ~60%; tuck candidate |
-| Plant B | Day 19 | ❌ None | 🟡 Secondary | Dense canopy; no visible wilt; moisture still very high at 93.90% — dryback action required |
-| Plant C | Day 19 | ⚠️ Stress-induced only | 🟡 Secondary | Compact medium-green canopy; moisture ~90%; photo-stable but saturated root-zone monitoring active |
-| Plant D | Day 19 | ✅ Confirmed genetic | 🔴 Primary | Medium-light green sativa canopy; lighter fast-growth tips; moisture high but easing at 86.85%; tuck candidate |
+| Plant A | Day 21 | ✅ Confirmed genetic | 🔴 Primary | Clone taken 2026-05-02; latest sensor/photo state: moisture stable ~60%, tuck candidate |
+| Plant B | Day 20 | ❌ None | 🟡 Secondary | Clone taken 2026-05-02; latest sensor/photo state: no visible wilt, moisture 93.90% — dryback action required |
+| Plant C | Day 20 | ⚠️ Stress-induced only | 🟡 Secondary | Clone taken 2026-05-02; latest sensor/photo state: photo-stable, moisture ~90%, saturated-root-zone monitoring active |
+| Plant D | Day 20 | ✅ Confirmed genetic | 🔴 Primary | Clone taken 2026-05-02; latest sensor/photo state: high but easing moisture at 86.85%, tuck candidate |
 
 ## Environment (Last Reading: May 1 14:00 MDT)
 
@@ -72,7 +72,7 @@ updated: 2026-05-01
 
 1. **Keep/close Plant B float valve** 🔴 — B is 93.90% now after 91.93% Apr 29. Verify tray/valve behavior and dry back toward 70–75% before reopening unless manual inspection proves sensor error.
 2. **Bias H7142/control drier overnight** 🔴 — Overnight VPD remains 0.76 kPa and current RH is 71.3%. Review night offset, RH ceiling/off-gate behavior, and clearing before allowing more mist.
-3. **Confirm clones + SBxBS01 regular germination** 🔴 — Apr 29 task is overdue unless already done: 2 cuttings per plant (lower laterals on A/D, middle laterals on B/C) plus all 10 SBxBS01 regulars. See [breeding/cloning.md](breeding/cloning.md) and [breeding/README.md](breeding/README.md).
+3. **Manage humidity dome propagation** 🔴 — Clones from A/B/C/D were taken 2026-05-02 and regular seedlings from ~2026-04-28 germination are also under the dome. Keep clone humidity high, but begin venting once seedlings are upright/established to reduce damping-off risk. Confirm labels are secure. See [2026-05-02](daily/2026-05-02.md) and [breeding/cloning.md](breeding/cloning.md).
 4. **Tuck sativa-leaning canopy (A, D)** 🟡 — Per [pheno-flip-strategy](decisions/2026-04-26-pheno-flip-strategy.md): bend tallest A/D growth horizontally back under SCROG net; re-evaluate every 3 days; flip target ~60% net coverage.
 5. **Inspect Plants C and D root zones** 🟡 — C 90.29%, D 86.85%; both high, with C still saturated. Watch for yellowing, wilting, drooping, stalled growth, or sour smell.
 6. **Hold warmer/drier setup** 🟡 — Now temp is in range, but overnight is still 67.31°F. Maintain or complete the 50% light step if not already done and avoid exhaust settings that cool lights-off below 68°F.
@@ -80,6 +80,7 @@ updated: 2026-05-01
 _Resolved 2026-04-28: "Govee H7140 backup arrival" — arrived._
 _Resolved 2026-04-28: "Clone gear + Govee H7142 arrival" — clone gear arrived; H7142 deployed 2026-04-27._
 _Resolved 2026-04-26: "Perform reservoir change" — refilled 2026-04-26 afternoon; next change window ~2026-05-03–06._
+_Resolved 2026-05-02: "Confirm clones + SBxBS01 regular germination" — clones taken 2026-05-02; regular seeds germinated ~2026-04-28; both are under a humidity dome._
 
 ## Upcoming Milestones
 
@@ -95,12 +96,14 @@ _Resolved 2026-04-26: "Perform reservoir change" — refilled 2026-04-26 afterno
 | ~~Govee H7140 backup arrival~~ | ✅ Arrived 2026-04-28 |
 | ~~Clone gear + Govee H7142 arrival~~ | ✅ Clone gear arrived 2026-04-28; H7142 deployed 2026-04-27 |
 | ~~Govee H7142 cutover (primary)~~ | ✅ Done 2026-04-27 |
-| **Take 8 clones (A/B/C/D × 2)** | Due 2026-04-29 — confirm complete or do now |
-| **Germinate all 10 SBxBS01 regulars (Track A)** | Due 2026-04-29 — confirm complete or do now |
+| ~~Take clones from A/B/C/D~~ | ✅ Done 2026-05-02; cuttings under humidity dome |
+| ~~Germinate all 10 SBxBS01 regulars (Track A)~~ | ✅ Germinated ~2026-04-28; seedlings under humidity dome as of 2026-05-02 |
+| Track A seedling sex watch | ~2026-05-19 → 2026-05-26 from approximate 2026-04-28 germination |
 | 12/12 flip | ~60% SCROG coverage with all four at net plane; window 2026-05-10 → 2026-05-17 (per [pheno-flip-strategy](decisions/2026-04-26-pheno-flip-strategy.md)) |
 | Clone selection | Flower weeks 3–4 |
 | Final pheno evaluation | Flower weeks 5–6 |
-| Breeding — F2 cross | After pheno evaluation; best male × A or D |
+| Breeding — F2 cross | After pheno evaluation; selected purple/sativa male × A or D |
+| Breeding — F3 progeny test | After F2 seed harvest; accelerated small-plant cycle per [stabilization strategy](breeding/stabilization-strategy.md) |
 
 ## Pheno Hunt Summary
 
@@ -110,7 +113,7 @@ _Resolved 2026-04-26: "Perform reservoir change" — refilled 2026-04-26 afterno
 
 **Plant C purple note:** Stress-induced purple (stems/petioles, Day 25) concurrent with worsening leaf symptoms — pH/deficiency stress, not genetic. Does not change secondary status.
 
-**Strategy:** Run all 4 to flower weeks 5–6. Evaluate purple calyx depth, aroma, bud structure, stretch, health. Clone top candidate(s) before flower weeks 3–4 for Grow #2. **Breeding program** (launched 2026-04-26): pollen bank the reversed SB male (Track A) → F2 cross with winner of pheno hunt (Track B). See [breeding/README.md](breeding/README.md).
+**Strategy:** Run all 4 to flower weeks 5–6. Evaluate purple calyx depth, aroma, bud structure, stretch, health. Clones from all four current plants were taken 2026-05-02 and are under a humidity dome, preserving A/B/C/D as breeding candidates before flip. **Breeding program**: pollen bank selected purple/sativa SBxBS01 male(s) → F2 cross with A/D or another winner → accelerated F2/F3 progeny testing for dark-purple, trellis-friendly consistency. See [breeding/README.md](breeding/README.md) and [stabilization strategy](breeding/stabilization-strategy.md).
 
 ## System Status
 

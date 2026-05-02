@@ -2,9 +2,9 @@
 title: Male Plant Evaluation — Pre-Pollen Selection
 type: breeding
 sources: []
-related: [wiki/breeding/README.md, wiki/breeding/pollen-handling.md, wiki/breeding/isolation.md]
+related: [wiki/breeding/README.md, wiki/breeding/stabilization-strategy.md, wiki/breeding/pollen-handling.md, wiki/breeding/isolation.md]
 created: 2026-04-26
-updated: 2026-04-26
+updated: 2026-05-02
 ---
 
 # Male Plant Evaluation
@@ -57,13 +57,13 @@ How fast did he grow from seedling to sex confirmation? Fast = vigor, which is h
 
 Same axes as female evaluation, but evaluated as proxies for what offspring might inherit:
 
-- Internode distance — tight = good for our space and for offspring expressed in tight space.
+- Internode distance — for the 2026-05-02 stabilization target, longer/open internodes are preferred because offspring should train cleanly through a trellis. Avoid both squat indica structure and uncontrolled stretch.
 - Branching pattern — symmetrical, lateral branching is generally desirable.
 - Apical dominance vs even canopy.
 
 ### 4. Leaf morphology
 
-Indica-leaning leaves (broad, dark) vs sativa-leaning (narrow, light) — useful as a hereditary signal even if your selection target isn't strictly one or the other. Note dominant leaf shape per male.
+Indica-leaning leaves (broad, dark) vs sativa-leaning (narrow, light) — useful as a hereditary signal. For the current line, sativa-leaning morphology is preferred if the male also passes the purple-stem and hermie gates.
 
 ### 5. Aroma — stem rub
 
@@ -89,7 +89,7 @@ A male showing any pistils at all = self-pollinating tendency in the line = cull
 | M2 | | | | | | | | |
 | M3 | | | | | | | | |
 
-Score 1–10 per axis. **Stem color is gating** for our color-priority program — a green-stemmed male is automatically deprioritized regardless of other scores. **Hermie tendency is also gating** — any pistils visible = immediate cull.
+Score 1–10 per axis. **Stem color is gating** for our color-priority program — a green-stemmed male is automatically deprioritized regardless of other scores. **Sativa-leaning, trellis-friendly structure is a strong preference** for the current stabilization line. **Hermie tendency is also gating** — any pistils visible = immediate cull.
 
 Pick the highest scorer that passes both gates. The others get culled before any sacs open.
 

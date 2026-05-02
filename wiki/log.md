@@ -767,3 +767,23 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - `uv run scripts/lint.py` found the existing 2026-04-30 raw photo set without a matching daily page, causing photo coverage and timeline-continuity failures.
 - Added `wiki/daily/2026-04-30.md` as a continuity entry only; no Apr 30 sensor readings were available in the May 1 prompt, so the page does not invent sensor values.
 - Added one-line Apr 30 plant timeline backlinks and indexed the daily page.
+
+## [2026-05-02] manual update | Clones taken; Track A regulars germinated
+- User-confirmed breeding propagation status: clones were taken today from all four current SBxBS01 plants (A/B/C/D), and the SBxBS01 regular seeds for Track A were germinated approximately four days earlier (~2026-04-28).
+- Both clone cuttings and regular seedlings are currently under a humidity dome. The next propagation watch is balancing clone humidity against seedling damping-off/stretch risk and preserving clear labels.
+- **Files created/updated:**
+  - **Created:** `wiki/daily/2026-05-02.md`
+  - **Updated:** `wiki/plants/plant-a.md`, `wiki/plants/plant-b.md`, `wiki/plants/plant-c.md`, `wiki/plants/plant-d.md` — current state + timeline entries for clone preservation
+  - **Updated:** `wiki/breeding/README.md`, `wiki/breeding/timeline.md`, `wiki/decisions/2026-04-26-breeding-program-launch.md` — Track A current plan/status corrected to all 10 regulars; Phase 0 clone/germination tasks marked done; regular sex-watch window recalculated from approximate 2026-04-28 germination
+  - **Updated:** `wiki/overview.md`, `wiki/index.md`
+  - **Updated:** `scripts/lint.py` — added 2026-05-02 to the known no-photo daily allowlist because this was a manual non-photo check-in.
+
+## [2026-05-02] strategy update | Stabilize dark-purple sativa-leaning line
+- User clarified the breeding goal: stabilize the most interesting phenotype rather than optimize for yield or broad BS-line exploration. Target seeds should reliably produce dark purple buds, stems, and leaves with longer internodes / sativa-leaning trellis-friendly structure.
+- Added decision logic for F-line selection vs backcrossing: A/D being purple does not prove the alleles are fixed; progeny testing is required. Prefer F2 → selected F3 family lots → F4/F5 selection for stabilization, with BX to A/D reserved as an anchor route if A/D proves exceptional and F-line families do not improve consistency.
+- Added operational plan: fast 14–21 day veg cycles, early flip, hard culling, short-lived male isolation with separately banked pollen, and small female clone stasis space as the undo button.
+- **Files created/updated:**
+  - **Created:** `wiki/breeding/stabilization-strategy.md`
+  - **Created:** `wiki/decisions/2026-05-02-purple-stabilization-strategy.md`
+  - **Updated:** `wiki/breeding/README.md`, `wiki/breeding/timeline.md`, `wiki/breeding/pheno-hunt-protocol.md`, `wiki/breeding/male-evaluation.md`, `wiki/decisions/2026-04-26-breeding-program-launch.md`
+  - **Updated:** `wiki/overview.md`, `wiki/index.md`

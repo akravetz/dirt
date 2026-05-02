@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-05-01
+updated: 2026-05-02
 ---
 
 # Plant D
@@ -19,7 +19,7 @@ updated: 2026-05-01
 
 ## Current State
 
-Day 48, nineteen days post-topping, Day 11 of LST: medium-light green sativa-leaning canopy with tall shoots and lighter fast-growth tips; moisture is still high but easing at 86.85%. Keep tucking the tallest growth under the SCROG while watching older lower-leaf yellowing. See [2026-05-01](../daily/2026-05-01.md).
+Day 49: clone taken 2026-05-02 to preserve Plant D as a primary purple keeper candidate before flip; cutting is currently under a humidity dome. Latest photo/sensor state remains from [2026-05-01](../daily/2026-05-01.md): medium-light green sativa-leaning canopy with high but easing moisture around 86.85%. See [2026-05-02](../daily/2026-05-02.md).
 
 ## Timeline
 
@@ -49,3 +49,4 @@ Day 48, nineteen days post-topping, Day 11 of LST: medium-light green sativa-lea
 - 2026-04-29 — [Day 46: medium-light green sativa-leaning canopy; tall shoots above SCROG net; lighter fast-growth tips persist; moisture stable ~87%; tuck candidate](../daily/2026-04-29.md)
 - 2026-04-30 — [Day 47: photo set present; no sensor snapshot provided; carry forward SCROG tuck and root-zone watch](../daily/2026-04-30.md)
 - 2026-05-01 — [Day 48: sativa-leaning canopy still needs tucking; moisture high but easing to 86.85%; monitor lower leaves](../daily/2026-05-01.md)
+- 2026-05-02 — [Day 49: clone taken to preserve D as a primary purple keeper candidate; cutting under humidity dome](../daily/2026-05-02.md)

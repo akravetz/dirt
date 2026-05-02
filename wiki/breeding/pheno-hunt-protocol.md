@@ -2,14 +2,14 @@
 title: Phenotype Hunt Protocol
 type: breeding
 sources: []
-related: [wiki/breeding/README.md, wiki/breeding/cloning.md, wiki/concepts/anthocyanin.md, wiki/concepts/trichome-stages.md]
+related: [wiki/breeding/README.md, wiki/breeding/stabilization-strategy.md, wiki/breeding/cloning.md, wiki/concepts/anthocyanin.md, wiki/concepts/trichome-stages.md]
 created: 2026-04-26
-updated: 2026-04-26
+updated: 2026-05-02
 ---
 
 # Phenotype Hunt Protocol
 
-How we pick keeper female(s) from a pack of seeds. Applies to both the current-grow 4 plants (A/B/C/D) and the planned 10-pack hunt in Phase 4.
+How we pick keeper female(s) from a pack of seeds. Applies to both the current-grow 4 plants (A/B/C/D), the planned 10-pack hunt in Phase 4, and later stabilization populations. For the current stabilization goal, see [stabilization-strategy.md](stabilization-strategy.md).
 
 ## The fundamental rule
 
@@ -19,7 +19,7 @@ See [cloning.md](cloning.md) for the procedure. Take 2–3 clones per mother for
 
 ## Selection axes (priority order)
 
-This is *our* priority order, tuned to what BS01 was selected for and what we care about. Adjust per project as goals shift.
+This is *our* priority order, tuned to what BS01 was selected for and what we care about. Adjust per project as goals shift. For stabilization runs, the first pass is gate-based: no early purple, no trellis-friendly structure, herm tendency, or uncertain labels remove a plant from breeding consideration before scoring.
 
 ### 1. Color (anthocyanin expression) — primary
 
@@ -45,13 +45,13 @@ Biggest determinant of how much you'll actually enjoy the smoke. Most subjective
 
 ### 3. Structure (internodal distance, branching) — primary
 
-Tight nodes = bushy, dense, fits a 2x2 or 4x4 space. Stretchy = wastes vertical space and harder to manage canopy. Critical for our space constraints.
+For the 2026-05-02 stabilization target, longer internodes and sativa-leaning structure are preferred because they make the plant easier to spread through a trellis. This reverses the earlier yield-focused bias toward compact, bushy plants. Extreme stretch is still undesirable, but the target is open, trainable structure rather than squat density.
 
 **How to score:**
 - End-of-veg: measure internode distance (cm between nodes 4–8 on the main stem). Note branchiness visually.
 - Flip + 3 weeks: measure stretch (height at flip vs height now — most stretch happens in this window).
 - Flower week 9: final height. Bonus criteria: bud spacing (tight nugs vs spaced "popcorn").
-- For our 2x2 space: tight + bushy + apically dominant = wins. Lanky + tall = lose.
+- For the purple/sativa stabilization line: open structure + longer internodes + manageable stretch = wins. Squat, compact indica morphology is a cull unless the plant is otherwise exceptional.
 
 ### 4. Finish time — secondary tiebreaker
 
@@ -84,7 +84,7 @@ For each plant, maintain a row in a scoring spreadsheet (or per-plant page in `b
 | Plant | Color | Terps | Structure | Finish (days) | Vigor | Total | Notes |
 |---|---|---|---|---|---|---|---|
 
-Score each axis 1–10. Total = weighted sum: `Color×3 + Terps×3 + Structure×2 + Vigor×1` (no Finish/Resilience until tiebreaker is needed). Adjust weights per project.
+Score each axis 1–10. For the current stabilization line, first apply hard gates (early purple, structure, no hermie, known labels), then total = weighted sum: `Color×3 + Structure×3 + Terps×2 + Vigor×1` (no Finish/Resilience until tiebreaker is needed). Adjust weights per project.
 
 ## Schedule
 
