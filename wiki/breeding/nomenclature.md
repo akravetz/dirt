@@ -1,10 +1,10 @@
 ---
-title: Breeding Nomenclature — F1, F2, BX, S1, IBL
+title: Breeding Nomenclature — F1, F2, Feminized, BX, S1, IBL
 type: breeding
 sources: []
-related: [wiki/breeding/README.md, wiki/concepts/oregon-breeding-group.md]
+related: [wiki/breeding/README.md, wiki/breeding/feminized-production.md, wiki/concepts/oregon-breeding-group.md]
 created: 2026-04-26
-updated: 2026-04-26
+updated: 2026-05-02
 ---
 
 # Breeding Nomenclature
@@ -19,7 +19,8 @@ Shared vocabulary so generation labels in our project log mean the same thing ev
 | **F1** | First filial — direct offspring of two distinct parent lines (P × P) | Every seed in our SBxBS01 packs (feminized or regular) is F1. F1 from two distinct lines tends to be uniform-ish with hybrid vigor. |
 | **F2** | Cross of two F1 siblings (F1 × F1) | What our first cross produces. **Maximum genetic segregation.** Wide variance is the feature. |
 | **F3, F4, …** | Successive sibling crosses from selected F2/F3 plants | Stabilization over generations. Each generation reduces variance if you select consistently. |
-| **S1** | Selfed — pollinating a plant with its own pollen (via reversal, e.g. colloidal silver) | Not part of our current plan. Useful for locking traits but requires chemical reversal of a female to make pollen. |
+| **Feminized** | Seed made with pollen from a reversed female plant | Not a generation number. A feminized lot can be F3, F4, BX1, S1, etc. Final production goal, but still requires progeny testing. |
+| **S1** | Selfed — pollinating a plant with its own pollen via reversal | Not the default current plan. Useful for locking traits, but it is narrower than the broader feminized-production goal. |
 | **BX** (Backcross) | Crossing offspring back to one of the original parents (e.g. F1 × P) | Not directly available to us — we don't have the original SB and BS01 plants. *Could* loosely apply if we cross an F2 keeper back to one of our retained F1 mothers. |
 | **BX1, BX2** | Successive backcrosses to the same parent | Concentrates that parent's genetics. BX3 is generally considered "stabilized to that parent." |
 | **IBL** (Inbred Line) | Multiple generations of selfing/sibcrossing to fix traits — typically 4–6+ gens | The endpoint of stabilization. *Not* what we're targeting in the first cycle. |
@@ -59,6 +60,7 @@ SBxBS01-F1-A      ← Plant A from the current grow (an F1)
 SBxBS01-F1-M03    ← Male #3 from the regular pack (also F1)
 SBxBS01-F2-2026   ← The F2 seeds we harvest from our first cross
 SBxBS01-F2-K1     ← Keeper #1 selected from the F2 grow
+SBxBS01-F4-fem-01 ← Feminized seed lot made from an F4-family reversed female donor
 ```
 
 Pack/source codes can suffix when there's ambiguity (e.g. `SBxBS45-F1-A` if/when we add a second BS line).

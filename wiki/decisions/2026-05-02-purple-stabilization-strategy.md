@@ -2,14 +2,14 @@
 title: Purple Stabilization Strategy — Progeny-Tested F-Line First
 type: decision
 sources: []
-related: [wiki/breeding/stabilization-strategy.md, wiki/breeding/README.md, wiki/breeding/timeline.md, wiki/breeding/pheno-hunt-protocol.md, wiki/breeding/male-evaluation.md]
+related: [wiki/breeding/stabilization-strategy.md, wiki/breeding/feminized-production.md, wiki/breeding/README.md, wiki/breeding/timeline.md, wiki/breeding/pheno-hunt-protocol.md, wiki/breeding/male-evaluation.md]
 created: 2026-05-02
 updated: 2026-05-02
 ---
 
 # Purple Stabilization Strategy — Progeny-Tested F-Line First
 
-The breeding program goal is narrowed: stabilize a dark-purple, sativa-leaning SBxBS01 expression rather than broadly exploring every available BS line.
+The breeding program goal is narrowed: stabilize a dark-purple, sativa-leaning SBxBS01 expression rather than broadly exploring every available BS line. The long-term endpoint is repeatable feminized seed production, not just one-off regular seed creation.
 
 ## Target phenotype
 
@@ -21,6 +21,8 @@ Seeds from the eventual line should reliably produce plants with:
 - trellis-friendly growth
 
 Yield is not a primary selection criterion. Terpenes, flower quality, vigor, finish time, and resilience remain important, but mostly as tie-breakers or disqualifiers.
+
+The production target is a feminized seed lot where progeny testing shows >90% on-target female offspring.
 
 ## Decision
 
@@ -37,6 +39,8 @@ repeat selection toward F4/F5
 
 Backcrossing to A/D remains available if A or D proves exceptional in flower and the F2 population mostly needs to be pulled back toward that known parent.
 
+Once a family repeatedly passes progeny testing, shift from regular male pollen to a feminized production model: maintain elite female clones, reverse one clone as the pollen donor, pollinate an elite seed mother, and validate the resulting feminized lot before treating it as stable.
+
 ## Rationale
 
 A/D being deeply purple proves that those plants express the target phenotype. It does not prove the relevant alleles are fixed. A/D may be heterozygous at one or more loci, and purple expression may require multiple genes plus the right environment.
@@ -47,7 +51,7 @@ Backcrossing increases average resemblance to A/D, but it does not guarantee all
 
 - Run generations fast because yield is secondary: 14-21 days veg, early clone cuts, early flip, hard culling, pollination at flower day 14-21.
 - Use male plants only as short-lived pollen donors. Keep 2-4 best males, collect and label pollen separately, then cull them.
-- Keep female clones in small stasis mode as an undo button, not as large productive mothers.
+- Keep female clones in small stasis mode as an undo button, not as large productive mothers. In the final feminized production phase, elite female clones become the seed-mother and reversed-pollen-donor stock.
 - Preserve separate family lots. Do not mix pollen unless intentionally making a broad population.
 
 ## Backcross option
@@ -70,3 +74,4 @@ This is valid, but the resulting BX seed still needs progeny testing. It is a wa
 - Female clone stasis space is required for serious selection.
 - Male isolation is required only briefly per generation if pollen is banked correctly.
 - The program likely needs F3/F4/F5 selection before seeds can be expected to consistently reproduce the target.
+- Feminized seed production is a validation phase after stability improves; it does not replace progeny testing.

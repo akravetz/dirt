@@ -2,9 +2,9 @@
 title: Cross Procedure — Pollination, Branch Labeling, Seed Harvest
 type: breeding
 sources: []
-related: [wiki/breeding/README.md, wiki/breeding/pollen-handling.md, wiki/breeding/cloning.md, wiki/breeding/isolation.md]
+related: [wiki/breeding/README.md, wiki/breeding/pollen-handling.md, wiki/breeding/feminized-production.md, wiki/breeding/cloning.md, wiki/breeding/isolation.md]
 created: 2026-04-26
-updated: 2026-04-26
+updated: 2026-05-02
 ---
 
 # Cross Procedure
@@ -12,7 +12,7 @@ updated: 2026-04-26
 The actual cross — applying banked pollen to a flowering female and harvesting the resulting seeds. Assumes you have:
 
 - A rooted clone of the keeper female, flowering in the isolation room (NOT the main tent).
-- A frozen pollen aliquot from your selected male, see [pollen-handling.md](pollen-handling.md).
+- A frozen pollen aliquot from your selected male, or from a reversed female donor in the later feminized-production phase. See [pollen-handling.md](pollen-handling.md) and [feminized-production.md](feminized-production.md).
 - Branch-level labeling intent (we pollinate 1–2 branches, not the whole plant — see *Why selective* below).
 
 ## Why selective branch pollination, not whole-plant
@@ -117,8 +117,8 @@ For a 2-branch cross, expect **150–500 seeds total** — enough for many futur
 
 Every seed jar:
 
-- Cross: `M2 × K1` (where M2 and K1 are the male and female IDs)
-- Strain ancestry: `(SBxBS01) F2`
+- Cross: `M2 × K1` for regular work, or `K1-R × K2` for feminized work where `K1-R` is the reversed female pollen donor
+- Strain ancestry: `(SBxBS01) F2`, `F4 feminized`, `BX1 feminized`, etc.
 - Harvest date
 - Source branch (e.g. `M2 × K1, lower-left`)
 - Seed count
@@ -127,6 +127,6 @@ Maintain an inventory page in the project folder.
 
 ## What you've made
 
-The seeds from this cross are **F2** in our nomenclature (see [nomenclature.md](nomenclature.md)). They will express maximum genetic variance — every seed is a unique recombination of SB and BS01 alleles. Some will lean SB; some will lean BS01; most will be in between but with novel trait combinations.
+If this is the first selected SBxBS01 F1 male x keeper-female cross, the seeds are **F2** in our nomenclature (see [nomenclature.md](nomenclature.md)). They will express maximum genetic variance — every seed is a unique recombination of SB and BS01 alleles. Some will lean SB; some will lean BS01; most will be in between but with novel trait combinations.
 
-This is the raw material for the next pheno hunt cycle, where you select F2 keepers and decide whether to F3-stabilize, BX, or just enjoy what you got.
+If this is a later reversed-female cross, the seeds are feminized but still require progeny testing. Feminized does not mean stable; it only means the pollen donor was genetically female. Stability is measured by the percentage of offspring that pass the target gates.

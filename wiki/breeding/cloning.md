@@ -4,7 +4,7 @@ type: breeding
 sources: []
 related: [wiki/breeding/README.md, wiki/breeding/timeline.md, wiki/breeding/pheno-hunt-protocol.md]
 created: 2026-04-26
-updated: 2026-04-26
+updated: 2026-05-02
 ---
 
 # Cloning
@@ -32,6 +32,9 @@ This page is the practical procedure for our setup. The principles generalize, b
 | Spray bottle | Misting | $3 | RO water or pH-adjusted tap |
 | Light | T5 fluorescent 2-tube OR low-power LED ~50W | $40–80 | Clones don't need flower-rated PAR — full spectrum at low power is correct |
 | Heat mat (optional) | 10×20 with thermostat | $25 | Speeds rooting; target 75–78 °F at the rooter cube |
+| 16 oz solo cups | Drainage holes added | ~$5 | Default stasis pot after rooting |
+| Happy Frog or similar light peat soil | Small bag | ~$15 | Base medium for low-maintenance stasis cups |
+| Extra perlite | Small bag | ~$10 | Mix 20-25% into stasis cups for drainage |
 
 Total all-in: **~$100–130**. One-time cost.
 
@@ -58,6 +61,25 @@ There are two operating modes for clones, and they need different space + medium
 ### Medium choice for stasis pots
 
 For stasis-mode solo cups, **buffered peat-based soil (e.g., FoxFarm Happy Frog) is preferred over coco/perlite**. Reason: stasis mode is about *infrequent attention*. Coco demands daily watering; soil holds moisture for 3–4 days, lets you ignore the shelf safely while attention is elsewhere (current grow, male tent, pheno-hunt prep). The $15 cost of one small soil bag is worth the lower-effort path.
+
+Default stasis mix:
+
+```text
+75-80% FoxFarm Happy Frog or similar light peat-based potting soil
+20-25% extra perlite
+```
+
+Do not use hot super-soil or a heavy amended mix for fresh clone stasis. The goal is healthy and slow, not explosive veg. FoxFarm Ocean Forest is not the first choice for fresh rooted clones because it can be hotter than needed.
+
+Pot-size progression:
+
+| Stage | Pot size | Medium |
+|---|---|---|
+| Fresh rooted backup clone | 16 oz solo cup | Happy Frog / perlite stasis mix |
+| Important finalist clone | 0.5 gal pot | Stasis mix or coco/perlite if preparing for active growth |
+| Confirmed keeper mother | 1 gal pot | Match the next active grow, likely coco/perlite |
+
+First 10-14 days after transplant to stasis cups: plain water only, pH around 6.2-6.6. After that, feed only if the clone pales; use very light feed around EC 0.4-0.6.
 
 For productive-mother mode (post-keeper-selection), match whatever the next grow runs in (likely coco/perlite to match the main tent).
 
@@ -101,7 +123,7 @@ The cloning dome and stasis-mode solo cups go on **a closet shelf in another roo
 
 ### Day 14–21 — transplant
 
-- When roots are 2–3" long and visibly healthy: transplant to **16oz solo cups of Happy Frog soil for stasis mode** (default for this program — see "Stasis mode vs. productive-mother mode" above), OR to a 1-gal pot in coco/perlite if going straight into productive-mother mode.
+- When roots are 2–3" long and visibly healthy: transplant to **16oz solo cups of Happy Frog / perlite stasis mix** (default for this program — see "Stasis mode vs. productive-mother mode" above), OR to a 1-gal pot in coco/perlite if going straight into productive-mother mode.
 - Harden off out of the dome over 2–3 days: leave outside the dome for 2 hours, then 4, then 8, then full removal.
 - Stasis: move to closet shelf under 30–50W LED at 18/6, water sparingly, no nutrients for the first 2 weeks then very light feed (~EC 0.6) every other watering only. Productive: move under stronger light (100–150 PPFD) and start watering with light nutrients (~EC 0.6–0.8).
 

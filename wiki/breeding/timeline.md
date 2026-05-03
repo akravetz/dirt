@@ -2,7 +2,7 @@
 title: Breeding Program Timeline
 type: breeding
 sources: []
-related: [wiki/breeding/README.md, wiki/breeding/stabilization-strategy.md, wiki/breeding/cloning.md, wiki/breeding/pollen-handling.md, wiki/breeding/cross-procedure.md, wiki/decisions/2026-04-26-breeding-program-launch.md, wiki/decisions/2026-05-02-purple-stabilization-strategy.md]
+related: [wiki/breeding/README.md, wiki/breeding/stabilization-strategy.md, wiki/breeding/family-selection.md, wiki/breeding/feminized-production.md, wiki/breeding/cloning.md, wiki/breeding/pollen-handling.md, wiki/breeding/cross-procedure.md, wiki/decisions/2026-04-26-breeding-program-launch.md, wiki/decisions/2026-05-02-purple-stabilization-strategy.md]
 created: 2026-04-26
 updated: 2026-05-02
 ---
@@ -28,6 +28,7 @@ F2 cross (clone of keeper × banked pollen)                                     
                                                                                                                                   │
 F2 seed harvest                                                                                                                   ▼ harvest seeds
 F3/F4 stabilization                                                                                                                ▼ fast-cycle progeny tests
+Feminized production validation                                                                                                    ▼ reverse elite female, produce/test fem lot
 ```
 
 ## Detailed schedule
@@ -85,14 +86,24 @@ Locked gear plan as of 2026-04-26 (decision: [clone + male tent gear](../decisio
 - [ ] Veg 14–21 days, then cull hard for early purple stems/petioles, longer internodes, vigor, and clean structure.
 - [ ] Take small backup clones only from female candidates worth flowering; hold them in stasis.
 - [ ] Flower F2 seed plants early. Keep only 2–4 best males long enough to collect separately labeled pollen; cull males after collection.
-- [ ] Pollinate selected F2 females with separate F2 male pollen lots to create F3 family seed lots.
-- [ ] Use the F3 generation as a progeny test: keep the family with the highest percentage of dark-purple, sativa-leaning offspring.
+- [ ] Pollinate selected F2 females with separate F2 male pollen lots to create 2–4 F3 family seed lots; default max is a 2x2 cross, not a full matrix.
+- [ ] Use the F3 generation as a progeny test: screen families per [family-selection.md](family-selection.md), then keep the family with the highest percentage of dark-purple, sativa-leaning offspring.
 
 ### Phase 7 — repeat family selection toward F4/F5
 
 - [ ] Repeat accelerated selection with the best F3 family.
+- [ ] Make only 1–4 next-generation family lots per cycle; shift from 4-family screens to 2-family comparisons or 1-family validation as consistency improves.
 - [ ] Continue only families where most seedlings show early purple expression and trellis-friendly structure.
 - [ ] Use backcrossing to A/D only if A or D proves to be the exact phenotype anchor and F-line families fail to improve consistency.
+
+### Phase 8 — feminized production validation
+
+- [ ] Select the best progeny-tested family once F3/F4/F5 results show high target consistency.
+- [ ] Maintain elite female clone(s) from that family: one seed mother, one reversal donor, plus backups in stasis.
+- [ ] Reverse the donor clone in isolation and collect separately labeled feminized pollen.
+- [ ] Pollinate the seed mother. Use branch pollination for validation lots; reserve whole-plant pollination for trusted production lots.
+- [ ] Progeny-test the feminized seed lot and record the denominator: seeds germinated, females flowered, on-target females, hermaphrodite failures, and off-type failures.
+- [ ] Treat a lot as production-stable only after it shows >90% on-target females, preferably repeated across more than one run. See [feminized-production.md](feminized-production.md).
 
 ## What to update on this page
 

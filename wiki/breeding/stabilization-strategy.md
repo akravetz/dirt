@@ -2,7 +2,7 @@
 title: Stabilization Strategy — Dark Purple Sativa-Leaning Line
 type: breeding
 sources: []
-related: [wiki/breeding/README.md, wiki/breeding/pheno-hunt-protocol.md, wiki/breeding/male-evaluation.md, wiki/breeding/cloning.md, wiki/breeding/nomenclature.md, wiki/decisions/2026-05-02-purple-stabilization-strategy.md]
+related: [wiki/breeding/README.md, wiki/breeding/family-selection.md, wiki/breeding/feminized-production.md, wiki/breeding/pheno-hunt-protocol.md, wiki/breeding/male-evaluation.md, wiki/breeding/cloning.md, wiki/breeding/nomenclature.md, wiki/decisions/2026-05-02-purple-stabilization-strategy.md]
 created: 2026-05-02
 updated: 2026-05-02
 ---
@@ -17,6 +17,8 @@ The breeding goal is now narrower than "make useful F2 seed": stabilize the most
 - plants that train cleanly through a trellis or SCROG
 
 Yield is secondary. Flower quality, terpene appeal, and hermaphrodite resistance still matter as disqualifiers, but the line is being selected first for purple expression plus trellis-friendly morphology.
+
+The final production endpoint is stable feminized seed: large batches where progeny testing shows >90% on-target female offspring. Regular males remain useful for early F-generation work, but final production should use elite female clones and reversed female pollen.
 
 ## Main implication
 
@@ -77,6 +79,36 @@ repeat toward F4/F5
 ```
 
 Keep A/D clones as backup anchors. Use a BX route only if A/D proves exceptional in flower and the F2 population does not produce a clearly better recombination.
+
+## Family selection scale
+
+For F3/F4/F5 work, do not run a full breeding matrix by default. With a 16-site candidate table, the practical model is:
+
+```text
+make 2-4 family lots
+screen 1-4 families
+advance 1 winning family
+repeat
+```
+
+The default F2 -> F3 plan is a small 2x2 if the population provides two good males and two good females. That creates four F3 families. First screen can be 4 seeds per family, then the best one or two families get deeper tests at 8-16 seeds per family.
+
+See [family-selection.md](family-selection.md) for the operating protocol.
+
+## Feminized production endpoint
+
+Feminized production is the destination, not the shortcut. The early program still needs regular male pollen because F2/F3 selection depends on exposing variation and comparing separate family lots.
+
+Once a family repeatedly passes the purple+sativa gates, switch the production model to female-only parents:
+
+```
+elite proven female clone -> seed mother
+elite proven female clone -> reversed pollen donor
+seed mother x reversed female pollen -> feminized production lot
+progeny test production lot -> require >90% on-target females
+```
+
+This does not require maintaining a permanent father plant. Maintain small elite female clones. Reverse the chosen pollen-donor clone only when a feminized seed run is needed. See [feminized-production.md](feminized-production.md).
 
 ## Feminized backcross option
 

@@ -19,7 +19,7 @@ updated: 2026-05-02
 
 ## Current State
 
-Day 49: clone taken 2026-05-02 to preserve Plant C as a secondary breeding candidate before flip; cutting is currently under a humidity dome. Latest photo/sensor state remains from [2026-05-01](../daily/2026-05-01.md): compact canopy remains stable, with root-zone moisture still saturated around 90%. See [2026-05-02](../daily/2026-05-02.md).
+Day 49: clone taken 2026-05-02; C remains compact with active upper growth, but moisture is still saturated around 90.20% and lower/interior leaves show yellowing/mottling. Continue root-zone inspection rather than treating the upper canopy as deficient. See [2026-05-02](../daily/2026-05-02.md).
 
 ## Timeline
 
@@ -49,4 +49,4 @@ Day 49: clone taken 2026-05-02 to preserve Plant C as a secondary breeding candi
 - 2026-04-29 — [Day 46: dense medium-green bushy canopy; moisture stable ~89%; no visible stress; continue root-zone monitoring](../daily/2026-04-29.md)
 - 2026-04-30 — [Day 47: photo set present; no sensor snapshot provided; carry forward saturated-root-zone watch](../daily/2026-04-30.md)
 - 2026-05-01 — [Day 48: compact medium-green canopy remains stable; moisture ~90% keeps root-zone monitoring active](../daily/2026-05-01.md)
-- 2026-05-02 — [Day 49: clone taken to preserve C as a secondary breeding candidate; cutting under humidity dome](../daily/2026-05-02.md)
+- 2026-05-02 — [Day 49: clone taken; compact top growth stable, lower leaves yellowing/mottled with moisture still ~90%](../daily/2026-05-02.md)

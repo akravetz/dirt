@@ -787,3 +787,38 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
   - **Created:** `wiki/decisions/2026-05-02-purple-stabilization-strategy.md`
   - **Updated:** `wiki/breeding/README.md`, `wiki/breeding/timeline.md`, `wiki/breeding/pheno-hunt-protocol.md`, `wiki/breeding/male-evaluation.md`, `wiki/decisions/2026-04-26-breeding-program-launch.md`
   - **Updated:** `wiki/overview.md`, `wiki/index.md`
+
+## [2026-05-02] daily | Day 49 — photos + sensors; B dryback critical; lights-off cold/wet regression
+- Photos captured across 5 presets (overview, A, B, C, D). Canopy is broadly at the SCROG plane; A/D remain sativa-leaning tuck candidates, while B/C are denser. Lower/interior yellowing is visible, most relevant on C/D given high root-zone moisture.
+- **Plant B moisture remains critical:** 94.93% now after 93.90% May 1 and 91.93% Apr 29; no obvious wilt in photo, but keep/close the float valve and dry back before reopening.
+- **Lights-off environment regressed:** overnight temp 64.98°F, RH 70.95%, VPD 0.62 kPa. Morning/now VPD recovered to 1.09/1.07 kPa because the tent warmed to 77-79°F, not because RH returned to target.
+- **Root zones:** A stable at 60.37%; C remains saturated at 90.20%; D is high but easing at 86.50%.
+- **Propagation:** clones from A/B/C/D and SBxBS01 regular seedlings remain under the humidity dome; manage venting once seedlings are upright and keep labels secure.
+- Updated: `daily/2026-05-02.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-05-02] query-filed | Feminized seed production endpoint clarified
+- User refined the breeding objective: the mature program should produce large feminized seed batches where progeny testing shows >90% of offspring express the dark-purple, vigorous sativa-leaning target.
+- Added `wiki/breeding/feminized-production.md` to define the endpoint: elite female seed mother, reversed female pollen donor, anchor/backup clones, validation thresholds, batch scaling, and failure rules.
+- Updated breeding strategy, timeline, nomenclature, cross procedure, section index, overview, decision summary, and wiki index so feminized production is treated as the final validated phase after F-line progeny testing, not as a shortcut around stabilization.
+
+## [2026-05-02] query-filed | F3/F4/F5 family-selection scale
+- User asked how progeny-tested family selection works in practice with limited plant sites: whether to grow one best cross, a few pairings, or a full matrix.
+- Added `wiki/breeding/family-selection.md` to define the operating rule: make 2–4 family lots, screen 1–4 families, advance one winning family, and avoid full 4x4 matrices by default.
+- Updated breeding README, stabilization strategy, timeline, and index so F2 → F3 and later F-generation work point to the family-selection protocol.
+
+## [2026-05-02] query-filed | Isolation tent and clone potting defaults
+- User chose 1-gal fabric pots for males after considering 0.5-gal; 0.5-gal is acceptable for very short male runs but too dryback-prone in coco/fabric for the default.
+- Documented 2×2 isolation tent water management: hand-watered coco/perlite, 1-gal males, 2-gal seed mother / keeper clone, saucer or boot-tray runoff, and no irrigation automation unless hand-watering proves unreliable.
+- Documented clone stasis potting: 16 oz solo cups with 75-80% Happy Frog or similar light peat soil plus 20-25% extra perlite; 0.5-gal pots reserved for important finalist clones, 1-gal for confirmed keeper mothers.
+- Updated `wiki/breeding/isolation.md`, `wiki/breeding/cloning.md`, and `wiki/breeding/bill-of-materials.md`.
+
+## [2026-05-02] query-filed | Isolation tent drip-assist option
+- User selected the simple free-flow manifold path over a pressure-compensating / buy-once manifold for the 2×2 isolation tent.
+- Documented optional drip-assist plumbing: 5 gal reservoir, Sicce Syncra Silent 1.5, 1/2 inch main line, inline filter, bypass valve back to reservoir, Rain Bird free-flow 6-port manifold, six equal 1/4 inch lines, inline valve per plant, and open stakes or simple halos.
+- Noted that the Syncra Silent 1.5 should be sufficient for free-flow drip assist but is not a pressure-compensating irrigation pump; line output must be calibrated with measuring cups at 5/10/20 second pulses.
+- Updated `wiki/breeding/isolation.md` and `wiki/breeding/bill-of-materials.md`.
+
+## [2026-05-02] wiki refactor | Split isolation tent culture from containment protocol
+- Created `wiki/breeding/isolation-tent-culture.md` for 2×2 pot sizing, coco/perlite use, runoff management, and optional drip-assist plumbing.
+- Trimmed `wiki/breeding/isolation.md` back to containment, hygiene, operational phases, and contamination edge cases.
+- Updated breeding README, BOM, and index links so setup guidance routes to the right page.

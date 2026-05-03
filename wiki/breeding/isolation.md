@@ -2,9 +2,9 @@
 title: Isolation — Separation, Contamination Rules, Hygiene
 type: breeding
 sources: []
-related: [wiki/breeding/README.md, wiki/breeding/male-evaluation.md, wiki/breeding/pollen-handling.md, wiki/breeding/cross-procedure.md]
+related: [wiki/breeding/README.md, wiki/breeding/isolation-tent-culture.md, wiki/breeding/male-evaluation.md, wiki/breeding/pollen-handling.md, wiki/breeding/cross-procedure.md]
 created: 2026-04-26
-updated: 2026-04-26
+updated: 2026-05-02
 ---
 
 # Isolation
@@ -24,7 +24,7 @@ Two layers of containment: a separate room with a closed door, and **inside that
 | **Tent light** | 100W LED quantum board (Spider Farmer SF1000 or generic Amazon, ~$90). Sufficient for 1–3 small males and a single flowering keeper clone — males don't need flower-grade PAR, but the keeper clone does. Sized to do double duty. |
 | **Tent air movement** | 6" oscillating clip fan inside the tent (~$15). On during normal operation, **off during pollen collection or pollination day** to prevent pollen scatter. |
 | **Tent environment monitoring** | Cheap digital hygrometer/thermometer (~$10) inside the tent. Doesn't need to match the main tent precisely — males tolerate 65–80 °F and 30–60% RH without complaint. Pollinated keeper clone needs main-tent flower targets (humidifier deferred unless RH falls below 40%). |
-| **Pots / medium** | 1-gal fabric pots (5-pack ~$15), filled with the existing coco/perlite mix from the main grow. Males don't need bigger pots for pollen yield. |
+| **Pots / medium** | See [isolation-tent-culture.md](isolation-tent-culture.md) for pot sizes, coco/perlite, runoff handling, and optional drip assist. |
 | **Pollen-handling supplies (kept in tent)** | Jeweler's loupe 40× for early sex confirmation (~$10), paper lunch bags for branch-bagging individual sacs (~$5), 1.5 mL Eppendorf tubes 50-pack for pollen aliquots (~$15), silica desiccant packs for drying (~$5). |
 | **Freezer** | Dedicated portable freezer with digital thermostat at -18 °C / 0 °F, located on a stable shelf inside the isolation room (NOT inside the tent — heat exhaust + sealed environment don't mix). See [pollen-handling.md](pollen-handling.md). |
 

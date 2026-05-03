@@ -18,7 +18,7 @@ updated: 2026-05-02
 
 ## Current State
 
-Day 49: clone taken 2026-05-02 to preserve Plant A as a primary purple keeper candidate before flip; cutting is currently under a humidity dome. Latest photo/sensor state remains from [2026-05-01](../daily/2026-05-01.md): medium-light green sativa-leaning canopy with stable moisture around 60%. See [2026-05-02](../daily/2026-05-02.md).
+Day 49: clone taken 2026-05-02; A remains a primary purple keeper candidate with vigorous sativa-leaning growth and stable root-zone moisture at 60.37%. Keep tucking the tallest shoots laterally under the SCROG. See [2026-05-02](../daily/2026-05-02.md).
 
 ## Timeline
 
@@ -48,4 +48,4 @@ Day 49: clone taken 2026-05-02 to preserve Plant A as a primary purple keeper ca
 - 2026-04-29 — [Day 46: medium-light green sativa-leaning canopy; multiple tall shoots above SCROG net; moisture stable ~60%; active tuck candidate](../daily/2026-04-29.md)
 - 2026-04-30 — [Day 47: photo set present; no sensor snapshot provided; carry forward SCROG tuck watch](../daily/2026-04-30.md)
 - 2026-05-01 — [Day 48: medium-light green sativa-leaning canopy; moisture stable ~60%; keep tucking tallest shoots under SCROG](../daily/2026-05-01.md)
-- 2026-05-02 — [Day 49: clone taken to preserve A as a primary purple keeper candidate; cutting under humidity dome](../daily/2026-05-02.md)
+- 2026-05-02 — [Day 49: clone taken; vigorous sativa-leaning canopy, stable ~60% moisture, keep tucking tallest shoots](../daily/2026-05-02.md)

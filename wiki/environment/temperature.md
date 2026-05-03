@@ -4,7 +4,7 @@ type: environment
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/environment/humidity.md, wiki/overview.md]
 created: 2026-04-06
-updated: 2026-05-01
+updated: 2026-05-02
 ---
 
 # Temperature
@@ -48,6 +48,7 @@ updated: 2026-05-01
 | 2026-04-28 | 72.37°F now ⚠️ / 67.76°F overnight avg ⚠️ / 71.83°F morning avg ⚠️ | Overnight regressed back below 68°F floor (67.76°F; yesterday 68.87°F). All three windows below veg targets. Five-day oscillation around the floor without sustained recovery; exhaust fan speed reduction remains the outstanding lever. → [2026-04-28](../daily/2026-04-28.md) |
 | 2026-04-29 | 72.63°F now ⚠️ / 67.71°F overnight avg ⚠️ / 71.97°F morning avg ⚠️ | Second straight overnight below the 68°F floor and another day window below the 74°F floor. Cool tent is compounding RH/VPD control; light step to 50% and/or lower exhaust speed remain the practical recovery levers. → [2026-04-29](../daily/2026-04-29.md) |
 | 2026-05-01 | 74.55°F now ✅ / 67.31°F overnight avg ⚠️ / 73.75°F morning avg ⚠️ | Daytime now recovered into the 74–76°F target, but overnight remains below the 68°F floor. Keep the warmer daytime setup while avoiding overnight exhaust/light-off settings that let the tent fall cold and wet. → [2026-05-01](../daily/2026-05-01.md) |
+| 2026-05-02 | 78.64°F now ⚠️ / 64.98°F overnight avg 🔴 / 77.71°F morning avg ⚠️ | Large day/night split: lights-off averaged 64.98°F, well below the 68°F floor and enough to push VPD down to 0.62 kPa; lights-on rebounded warm at 77-79°F, which restored VPD but overshot the narrow 74-76°F target. → [2026-05-02](../daily/2026-05-02.md) |
 
 ## Notable Events
 - **2026-03-21** — Overnight low of 59.5°F due to exhaust fan running too fast at night; resolved by throttling fan after lights-out → [2026-03-27 daily](../daily/2026-03-27.md)
@@ -62,3 +63,4 @@ updated: 2026-05-01
 - **2026-04-28** — Overnight regressed to 67.76°F after yesterday's 68.87°F recovery — back below 68°F floor. Day and morning windows also below 74°F floor (72.37°F now, 71.83°F morning). Five-day oscillation around the floor without sustained recovery; exhaust fan speed reduction during lights-on remains the outstanding action. → [2026-04-28](../daily/2026-04-28.md)
 - **2026-04-29** — Temperature remains cool: 67.71°F overnight, 71.97°F morning, 72.63°F now. This is not acute, but it keeps the tent under the veg day target and makes high RH harder to clear. → [2026-04-29](../daily/2026-04-29.md)
 - **2026-05-01** — Day temperature improved to 74.55°F, back in target, while overnight stayed cool at 67.31°F. The remaining temperature issue is the lights-off floor; keeping nights above 68°F should help RH/VPD control. → [2026-05-01](../daily/2026-05-01.md)
+- **2026-05-02** — Overnight temperature dropped to 64.98°F while lights-on rose to 77.71°F morning / 78.64°F now. Warmer day air helped restore VPD, but the cold lights-off window is now the main environment anomaly to correct. → [2026-05-02](../daily/2026-05-02.md)
