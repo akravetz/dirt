@@ -44,6 +44,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         git wget ca-certificates cmake build-essential \
     && rm -rf /var/lib/apt/lists/*
 
+RUN pip install uv
+
 # ----------------------------------------------------------------------------
 # openwakeword from cloned source (PyPI versions don't work on py3.11/3.12 —
 # 0.6.0 declares Requires-Python <3.9, newer versions transitively pull
@@ -63,18 +65,18 @@ RUN git clone https://github.com/rhasspy/piper-sample-generator \
        https://github.com/rhasspy/piper-sample-generator/releases/download/v2.0.0/en_US-libritts_r-medium.pt \
  && git checkout 213d4d5
 
-# Audio + ML stack. Pinned versions that worked on the Kaggle path port
-# cleanly to the RunPod base image given the scipy<1.15 constraint below.
-RUN pip install \
-        piper-tts piper-phonemize-cross webrtcvad \
-        mutagen==1.47.0 torchinfo==1.8.0 torchmetrics==1.2.0 \
-        speechbrain==0.5.14 audiomentations==0.33.0 torch-audiomentations==0.11.0 \
-        acoustics==0.2.6 onnxruntime==1.22.1 onnx \
-        pronouncing==0.2.0 datasets==2.14.6 deep-phonemizer==0.0.19 \
-        "scipy<1.15" \
-        "wandb>=0.26,<0.27"
+# Audio + ML stack. uv resolves the requested dependency set before install,
+# so Python package conflicts fail during image build instead of on RunPod.
+COPY docker/trainer-requirements.txt /tmp/trainer-requirements.txt
+COPY docker/trainer-constraints.txt /tmp/trainer-constraints.txt
+RUN uv pip install --system --torch-backend cu124 \
+        -c /tmp/trainer-constraints.txt \
+        -r /tmp/trainer-requirements.txt
 # onnx — needed by torch.onnx.export (openwakeword.export_model) to write
 # the trained .onnx artifact. Not the same as onnxruntime (inference).
+# onnxruntime-gpu — feature extraction uses openwakeword AudioFeatures with
+# CUDAExecutionProvider on RunPod. 1.22.0 is the available CUDA 12 PyPI build
+# matching this image family; 1.22.1 exists for CPU onnxruntime but not GPU.
 # scipy<1.15 — acoustics 0.2.6 imports `sph_harm` from scipy.special, which
 # scipy 1.15 removed (renamed to sph_harm_y with a transposed signature).
 # The runpod/pytorch base ships scipy 1.15+, so the pin is mandatory.
@@ -84,6 +86,23 @@ RUN pip install \
 # runpod/pytorch base has unrelated noise (pygobject/pycairo). The
 # `from dirt_wake_word.main import main` smoke at the end of this file
 # exercises the actual import chain we care about.
+RUN python - <<'PY'
+import onnxruntime as ort
+import torch
+
+providers = ort.get_available_providers()
+print(
+    "torch",
+    torch.__version__,
+    "cuda",
+    torch.version.cuda,
+    "cudnn",
+    torch.backends.cudnn.version(),
+)
+print("onnxruntime", ort.__version__, "providers", providers)
+if "CUDAExecutionProvider" not in providers:
+    raise SystemExit("CUDAExecutionProvider unavailable after dependency install")
+PY
 
 # ----------------------------------------------------------------------------
 # openwakeword's bundled embedding + melspectrogram ONNX/tflite resources.

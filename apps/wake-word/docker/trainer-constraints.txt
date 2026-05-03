@@ -1,0 +1,5 @@
+# Keep uv's resolver aligned with the runpod/pytorch CUDA 12.4 base image.
+# The build uses `uv pip install --torch-backend cu124`, so these resolve to
+# CUDA-enabled PyTorch wheels if uv needs to install or repair them.
+torch==2.4.1
+torchaudio==2.4.1

@@ -177,15 +177,16 @@ test.describe("dashboard gauges", () => {
     }
   });
 
-  test("top bar shows Day {day_number} · {strain} from /api/grow/current", async ({
+  test("top bar shows grow stage, lights, and strain from /api/grow/current", async ({
     page,
   }) => {
     // Shape+presence: banner renders "Day N" for some positive integer
     // N (day_number advances daily, so hard-coding the literal coupled
-    // the spec to the MSW fixture) plus the strain string. The separator
-    // assertion below proves the literal " · " format.
+    // the spec to the MSW fixture) plus stage, lights, and strain.
     const banner = page.getByRole("banner");
     await expect(banner).toContainText(/Day \d+/);
+    await expect(banner).toContainText("Veg");
+    await expect(banner).toContainText("05:00-23:00");
     await expect(banner).toContainText("Sirius Black × BS01");
     // Middle-dot separator is visible (U+00B7 or the ASCII " · " we
     // rendered): the exact literal from TopBar is " · ".

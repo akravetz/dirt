@@ -1,7 +1,7 @@
 ---
 title: Index
 type: index
-updated: 2026-05-02
+updated: 2026-05-03
 ---
 
 # Grow Wiki Index
@@ -14,10 +14,10 @@ updated: 2026-05-02
 - [Wake-Word Experiment Log](wake-word-experiments.md) — append-only log of every "hey Claudia" model trained: what changed, why, training config, validation results
 
 ## Plants
-- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; clone taken 2026-05-02; moisture stable 60.37%; tuck candidate
-- [Plant B](plants/plant-b.md) — 🟡 Secondary; clone taken 2026-05-02; moisture 94.93% — dryback action required
-- [Plant C](plants/plant-c.md) — 🟡 Secondary; clone taken 2026-05-02; moisture 90.20% — lower-leaf/root-zone watch
-- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; clone taken 2026-05-02; moisture high but easing 86.50%; tuck candidate
+- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; Flower Day 0; moisture stable 60.74%; daily stretch tucking
+- [Plant B](plants/plant-b.md) — 🟡 Secondary; Flower Day 0; moisture 95.51% — dryback action required
+- [Plant C](plants/plant-c.md) — 🟡 Secondary; Flower Day 0; moisture 90.16% — lower-leaf/root-zone watch
+- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; Flower Day 0; moisture high but easing 86.66%; tuck candidate
 
 ## Daily Logs
 - [2026-03-27](daily/2026-03-27.md) — Day 13: Pre-transplant; 2–3 leaf sets
@@ -46,6 +46,7 @@ updated: 2026-05-02
 - [2026-04-30](daily/2026-04-30.md) — Day 47: continuity entry for existing photo set; no sensor snapshot provided
 - [2026-05-01](daily/2026-05-01.md) — Day 48: Plant B moisture still very high at 93.90% 🔴; current RH 71.3% with wet-edge VPD; now temp recovered to 74.55°F; tuck A/D
 - [2026-05-02](daily/2026-05-02.md) — Day 49: Plant B moisture 94.93% 🔴; overnight VPD 0.62 kPa with 64.98°F/70.95% RH 🔴; clones taken from A/B/C/D; regular seedlings under dome
+- [2026-05-03](daily/2026-05-03.md) — Day 50 / Flower Day 0: 12/12 started; RH 70-74% and VPD 0.61-0.91 kPa too wet for early flower; Plant B moisture 95.51% 🔴
 
 ## Environment
 - [Temperature](environment/temperature.md) — Trend log; targets by phase; notable events

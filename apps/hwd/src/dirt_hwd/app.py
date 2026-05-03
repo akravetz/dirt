@@ -24,6 +24,7 @@ from dirt_hwd.services.device_watchdog import (
     DeviceWatchdogConfig,
     DeviceWatchdogService,
 )
+from dirt_hwd.services.fan_controller import FanTrimLoopService
 from dirt_hwd.services.humidifier import HumidifierLoopService
 from dirt_hwd.services.lights import LightsLoopService
 from dirt_hwd.services.metric_freshness import (
@@ -97,6 +98,12 @@ def _default_background_services(
         ),
         LightsLoopService(
             settings.lights(),
+            grow=core.grow,
+            clock=core.clock,
+        ),
+        FanTrimLoopService(
+            settings.fan_trim(),
+            readings=core.readings,
             grow=core.grow,
             clock=core.clock,
         ),

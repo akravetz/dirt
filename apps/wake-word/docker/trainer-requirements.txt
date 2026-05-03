@@ -1,0 +1,17 @@
+piper-tts
+piper-phonemize-cross
+webrtcvad
+mutagen==1.47.0
+torchinfo==1.8.0
+torchmetrics==1.2.0
+speechbrain==0.5.14
+audiomentations==0.33.0
+torch-audiomentations==0.11.0
+acoustics==0.2.6
+onnxruntime-gpu==1.22.0
+onnx
+pronouncing==0.2.0
+datasets==2.14.6
+deep-phonemizer==0.0.19
+scipy<1.15
+wandb>=0.26,<0.27

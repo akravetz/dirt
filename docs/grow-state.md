@@ -5,7 +5,8 @@ Read before writing any code that branches on stage (veg / flower_early / flower
 ## Current grow
 
 - **Germination date:** 2026-03-15 (authoritative: `growstate.germination_date` in the Postgres `dirt` database; inspect with `set -a; source .env; set +a; PGPASSWORD=$DIRT_PG_PASSWORD psql -h 127.0.0.1 -U dirt -d dirt`).
-- **Flower start date:** not yet set (still in vegetative stage). Once flower is flipped, `growstate.flower_start_date` becomes the authoritative source.
+- **Flower start date:** 2026-05-03 (authoritative: `growstate.flower_start_date`).
+- **Light schedule:** 12/12, lights on 09:00-21:00 local tent time (`America/Denver`; authoritative: `growstate.lights_on_local`, `growstate.lights_off_local`, `growstate.timezone`).
 
 ## Deriving stage without the DB
 

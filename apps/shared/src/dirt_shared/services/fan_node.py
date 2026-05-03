@@ -5,10 +5,9 @@ The node exposes two endpoints on its LAN interface:
     POST /fan   {"duty_pct": 0..100}   -> sets fan speed
     GET  /fan                           -> {"set_duty_pct":N,"reported_duty_pct":N}
 
-This module is a thin async wrapper used by dirt-hwd (and eventually
-dirt-web + dirt-mcp) to command the fan. Takes an ``httpx.AsyncClient`` by
-injection so tests can swap the transport via ``httpx.MockTransport``
-without monkeypatching.
+This module is a thin async wrapper used by dirt-hwd to command the fan.
+Takes an ``httpx.AsyncClient`` by injection so tests can swap the transport
+via ``httpx.MockTransport`` without monkeypatching.
 
 Notes on ``reported_duty_pct``:
     Currently MOCKED in firmware — the device returns the last value set
@@ -17,14 +16,10 @@ Notes on ``reported_duty_pct``:
     doesn't change. See ``wiki/hardware/ac-infinity-fan-control.md``
     section "Tach (D−) input — deferred".
 
-TODO: host-side closed-loop control.
-    Nothing in dirt calls :meth:`FanNodeClient.set_duty` automatically
-    yet — this module is pure plumbing. When it's time to add the
-    control loop (analogous to ``HumidifierLoopService``), create
-    ``apps/hwd/src/dirt_hwd/services/fan_controller.py`` that reads tent
-    temp/VPD from ``ReadingsService`` and drives ``set_duty`` here.
-    Tracked in ``wiki/hardware/ac-infinity-fan-control.md`` "Future
-    integration".
+Host-side trim:
+    ``dirt_hwd.services.fan_controller.FanTrimLoopService`` reads tent
+    RH/VPD from ``ReadingsService`` and drives ``set_duty`` here. Tracked
+    in ``wiki/hardware/ac-infinity-fan-control.md``.
 """
 
 from __future__ import annotations

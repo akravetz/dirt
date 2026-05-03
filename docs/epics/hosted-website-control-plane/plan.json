@@ -1,0 +1,435 @@
+{
+  "schema_version": 1,
+  "id": "hosted-website-control-plane",
+  "title": "Hosted Website And Cloud Control Plane",
+  "status": "not-started",
+  "created_at": "2026-05-03",
+  "last_updated_at": "2026-05-03",
+  "owner": "agents",
+  "status_values": [
+    "not-started",
+    "in-progress",
+    "blocked",
+    "done"
+  ],
+  "depends_on": [
+    {
+      "plan": "docs/epics/multi-tent-controller/plan.json",
+      "required_status": "done",
+      "reason": "The hosted website should build on stable site/tent/zone/device identities and command idempotency rather than exposing singleton hardware APIs directly."
+    }
+  ],
+  "schema_basis": {
+    "summary": "This JSON is shaped for long-running, resumable agent work: it has explicit milestones, observable acceptance criteria, update rules, decision logs, and validation commands. It favors simple fixed workflows over unnecessary autonomous complexity.",
+    "sources": [
+      {
+        "title": "OpenAI Cookbook: Using PLANS.md for multi-hour problem solving",
+        "url": "https://developers.openai.com/cookbook/articles/codex_exec_plans",
+        "principles_used": [
+          "Make the plan self-contained for future agent sessions.",
+          "Keep progress and decisions inside the plan.",
+          "Use observable acceptance criteria and exact commands.",
+          "Treat the plan as a living document."
+        ]
+      },
+      {
+        "title": "Anthropic Engineering: Building effective agents",
+        "url": "https://www.anthropic.com/engineering/building-effective-agents",
+        "principles_used": [
+          "Use the simplest composable architecture that fits the task.",
+          "Prefer predictable workflows for well-defined work.",
+          "Increase complexity only when needed."
+        ]
+      },
+      {
+        "title": "AWS Durable Execution SDK: Idempotency and retries",
+        "url": "https://docs.aws.amazon.com/durable-execution/patterns/best-practices/idempotency/",
+        "principles_used": [
+          "Assume retries and interruption are normal.",
+          "Protect side effects with idempotency.",
+          "Separate durable intent from execution."
+        ]
+      }
+    ]
+  },
+  "purpose": {
+    "problem": "The frontend is currently coupled to local services running on this box. Exposing it publicly requires hosted auth, hosted APIs, and a cloud-readable state path without making Vercel responsible for hardware control.",
+    "outcome": "A Vercel-hosted frontend and thin API show Dirt state remotely and submit durable command intent while this box remains the only hardware authority.",
+    "non_goal": "Do not move hardware loops, sensor ingestion, camera control, humidifier/fan safety logic, or local fallback automation to Vercel."
+  },
+  "architecture": {
+    "target_topology": [
+      "Browser",
+      "Vercel frontend",
+      "Vercel thin API / backend-for-frontend",
+      "Cloud Postgres or equivalent hosted database",
+      "Object storage for photos/video with signed URLs",
+      "Outbound-only local site gateway running on this box",
+      "Existing local Dirt hardware services"
+    ],
+    "control_plane_rule": "The hosted API records intent, serves remote UI data, handles auth, and provides signed asset URLs. It does not execute hardware actions directly.",
+    "data_plane_rule": "The local site gateway reads local state, pushes telemetry/assets/results to cloud, pulls queued commands, validates them locally, executes only safe commands, and reports final status.",
+    "connectivity_rule": "The local box should initiate outbound connections. Avoid opening inbound router ports for normal operation.",
+    "realtime_rule": "Start with simple HTTP polling and event-shaped records. Upgrade to a broker or realtime service only after measured latency or scale needs justify it."
+  },
+  "repository_context": {
+    "must_read_before_work": [
+      "AGENTS.md",
+      "docs/commands.md",
+      "docs/database.md",
+      "docs/observability.md",
+      "docs/references/tanstack-router-v1/INDEX.md before web route work",
+      "docs/references/tailwind-v4/INDEX.md before styling work",
+      "docs/references/modern-idiomatic-typescript/INDEX.md before TypeScript work",
+      "docs/references/msw-v2/INDEX.md before mock API work",
+      "docs/references/atlas/INDEX.md before Atlas migration work"
+    ],
+    "likely_touched_paths": [
+      "web-ui/",
+      "apps/web/src/dirt_web/",
+      "apps/shared/src/dirt_shared/",
+      "contracts/webapp-v1.yaml",
+      "contracts/python/src/dirt_contracts/webapp_v1/models.py",
+      "web-ui/src/api-client/generated/schema.ts",
+      "systemd/",
+      "scripts/",
+      "migrations/",
+      "docs/epics/hosted-website-control-plane/plan.json"
+    ],
+    "off_limits": [
+      "apps/tests/invariants/**",
+      "web-ui/invariants/**",
+      "web-ui/src/api-client/generated/** except via the repository contract generation command",
+      "hardware service behavior that keeps plants safe unless explicitly in scope"
+    ],
+    "dirty_worktree_warning": "Before editing, run git status --short and inspect overlapping user changes. Do not revert unrelated changes."
+  },
+  "execution_rules": {
+    "one_session_rule": "A future agent should complete one milestone or one explicitly selected task per session unless the user asks for broader execution.",
+    "plan_update_rule": "When work starts, set this plan status to in-progress and update the relevant milestone/task status. When stopping, update progress_log with changed files, validation, deployment notes, and next task.",
+    "decision_rule": "Record provider choices, auth model choices, sync semantics, and command safety decisions in decision_log.",
+    "surprise_rule": "Record platform limits, deployment blockers, network assumptions, and local service incompatibilities in surprises_and_discoveries.",
+    "completion_rule": "Set status to done only when the hosted frontend and API are deployed or a user-approved local equivalent passes all acceptance criteria."
+  },
+  "milestones": [
+    {
+      "id": "hwcp-01-platform-decisions",
+      "title": "Platform Decisions",
+      "status": "not-started",
+      "goal": "Choose the smallest hosted stack that satisfies auth, data persistence, asset storage, deployment, and outbound local sync.",
+      "tasks": [
+        {
+          "id": "hwcp-01-a",
+          "status": "not-started",
+          "description": "Confirm current Vercel limits for Functions, body sizes, background work, cron, environment variables, and supported runtimes from official Vercel docs."
+        },
+        {
+          "id": "hwcp-01-b",
+          "status": "not-started",
+          "description": "Choose hosted Postgres/storage/auth providers or document why existing local services remain the temporary source of truth."
+        },
+        {
+          "id": "hwcp-01-c",
+          "status": "not-started",
+          "description": "Decide whether the thin API is implemented as Vercel Functions, a separately hosted FastAPI service, or a hybrid."
+        },
+        {
+          "id": "hwcp-01-d",
+          "status": "not-started",
+          "description": "Record deployment environments, secrets, and ownership boundaries in decision_log."
+        }
+      ],
+      "acceptance_criteria": [
+        "decision_log records chosen hosting, database, object storage, auth/session, and sync approach.",
+        "The chosen design does not require inbound access to this box for normal operation.",
+        "Known Vercel/platform limits are documented in surprises_and_discoveries or decision_log with links."
+      ],
+      "validation": [
+        {
+          "command": "No code validation required for this milestone.",
+          "expected_result": "Plan updated with concrete provider decisions and rationale."
+        }
+      ]
+    },
+    {
+      "id": "hwcp-02-cloud-data-contract",
+      "title": "Cloud Data Contract",
+      "status": "not-started",
+      "goal": "Define the cloud-readable subset of Dirt state and the durable command/event records shared with the local site gateway.",
+      "tasks": [
+        {
+          "id": "hwcp-02-a",
+          "status": "not-started",
+          "description": "Define cloud tables or schemas for sites, tents, zones, devices, telemetry summaries, latest state, command inbox, command results, asset metadata, alerts, and audit events."
+        },
+        {
+          "id": "hwcp-02-b",
+          "status": "not-started",
+          "description": "Define command statuses and idempotency semantics compatible with the multi-tent-controller plan."
+        },
+        {
+          "id": "hwcp-02-c",
+          "status": "not-started",
+          "description": "Define stale-state fields such as last_seen_at, source_updated_at, synced_at, and offline indicators."
+        },
+        {
+          "id": "hwcp-02-d",
+          "status": "not-started",
+          "description": "Decide retention and aggregation policy so raw high-volume telemetry does not make the hosted UI slow or expensive."
+        }
+      ],
+      "acceptance_criteria": [
+        "Cloud schema can represent current main tent and future breeding tent under one site.",
+        "Command records are durable, target-scoped, idempotent, expirable, and auditable.",
+        "The UI can distinguish live, stale, offline, failed, rejected, and expired command/state conditions.",
+        "Photos/video are represented as metadata plus object storage keys, not raw blobs through Vercel Functions."
+      ],
+      "validation": [
+        {
+          "command": "uv run pytest apps/shared/tests apps/web/tests -q",
+          "expected_result": "Schema/service tests pass if repository code is changed."
+        }
+      ]
+    },
+    {
+      "id": "hwcp-03-local-site-gateway-sync",
+      "title": "Local Site Gateway Sync",
+      "status": "not-started",
+      "goal": "Add an outbound-only local sync process that publishes telemetry/assets/results and consumes cloud command intent.",
+      "tasks": [
+        {
+          "id": "hwcp-03-a",
+          "status": "not-started",
+          "description": "Implement a local sync service or module that reads local Dirt state and sends site/tent scoped updates to the cloud API."
+        },
+        {
+          "id": "hwcp-03-b",
+          "status": "not-started",
+          "description": "Add a local durable outbox so telemetry, asset metadata, and command results survive internet loss and process restart."
+        },
+        {
+          "id": "hwcp-03-c",
+          "status": "not-started",
+          "description": "Poll or otherwise fetch queued cloud commands, validate them locally, execute through existing local services, and publish final command status."
+        },
+        {
+          "id": "hwcp-03-d",
+          "status": "not-started",
+          "description": "Add systemd unit or documented run command for the sync process if it is a new service."
+        }
+      ],
+      "acceptance_criteria": [
+        "The local gateway can run with cloud offline, queue outbound events, and flush them later without duplication.",
+        "The local gateway refuses expired, duplicate, out-of-range, or unsafe commands and records the reason.",
+        "The gateway authenticates to the cloud using a scoped device/site credential, not a browser user token.",
+        "Existing local hardware safety loops continue to run if the sync service is stopped."
+      ],
+      "validation": [
+        {
+          "command": "uv run pytest apps/shared/tests apps/hwd/tests apps/web/tests -q",
+          "expected_result": "Gateway, outbox, and command tests pass."
+        },
+        {
+          "command": "uv run pytest apps/tests/invariants/ -q",
+          "expected_result": "Human-owned invariants pass without edits."
+        }
+      ]
+    },
+    {
+      "id": "hwcp-04-hosted-api",
+      "title": "Hosted API",
+      "status": "not-started",
+      "goal": "Expose a thin hosted API for browser auth, dashboard reads, command creation, sync ingestion, and signed asset URL creation.",
+      "tasks": [
+        {
+          "id": "hwcp-04-a",
+          "status": "not-started",
+          "description": "Implement hosted API routes for auth/session, current state reads, telemetry history reads, command creation/status reads, edge sync ingestion, and signed asset URLs."
+        },
+        {
+          "id": "hwcp-04-b",
+          "status": "not-started",
+          "description": "Ensure browser-facing routes enforce user authorization and edge-facing routes enforce scoped device authentication."
+        },
+        {
+          "id": "hwcp-04-c",
+          "status": "not-started",
+          "description": "Ensure command creation only records intent; hardware execution remains local."
+        },
+        {
+          "id": "hwcp-04-d",
+          "status": "not-started",
+          "description": "Add tests and mock fixtures for offline/stale state, rejected commands, and duplicate command submissions."
+        }
+      ],
+      "acceptance_criteria": [
+        "Authenticated browser users can read current state and command status from the hosted API.",
+        "The hosted API cannot directly reach local hardware services.",
+        "Duplicate command creation with the same idempotency key returns the existing command.",
+        "Edge ingestion endpoints reject missing, invalid, or over-scoped credentials.",
+        "Large media uploads/downloads use signed object storage flows."
+      ],
+      "validation": [
+        {
+          "command": "uv run pytest apps/web/tests apps/shared/tests -q",
+          "expected_result": "Hosted API tests pass if implemented in the Python service."
+        },
+        {
+          "command": "pnpm --dir web-ui test",
+          "expected_result": "Frontend/API client tests pass if implemented in the web workspace."
+        }
+      ]
+    },
+    {
+      "id": "hwcp-05-vercel-frontend",
+      "title": "Vercel Frontend",
+      "status": "not-started",
+      "goal": "Deploy the React/Vite frontend to Vercel with remote-safe state, auth, and environment configuration.",
+      "tasks": [
+        {
+          "id": "hwcp-05-a",
+          "status": "not-started",
+          "description": "Configure web-ui for hosted API base URLs, production environment variables, and preview deployments."
+        },
+        {
+          "id": "hwcp-05-b",
+          "status": "not-started",
+          "description": "Update UI data fetching to use hosted API/client contracts rather than assuming same-origin local dirt-web."
+        },
+        {
+          "id": "hwcp-05-c",
+          "status": "not-started",
+          "description": "Add UI states for offline site gateway, stale sensor data, queued/running/succeeded/failed/rejected/expired commands, and disabled unsafe actions."
+        },
+        {
+          "id": "hwcp-05-d",
+          "status": "not-started",
+          "description": "Use MSW v2 or test fixtures to exercise hosted/offline/stale scenarios in frontend tests."
+        }
+      ],
+      "acceptance_criteria": [
+        "Production build passes and can be deployed to Vercel.",
+        "The hosted UI displays current main tent and future breeding tent identity from the API.",
+        "The UI visibly distinguishes stale/offline data from live data.",
+        "The UI never embeds hardware credentials, device tokens, or local-only secrets.",
+        "Actuator controls create command intent and then render command lifecycle status."
+      ],
+      "validation": [
+        {
+          "command": "pnpm --dir web-ui typecheck",
+          "expected_result": "TypeScript typecheck passes."
+        },
+        {
+          "command": "pnpm --dir web-ui lint",
+          "expected_result": "Biome/ESLint checks pass."
+        },
+        {
+          "command": "pnpm --dir web-ui test",
+          "expected_result": "Frontend tests pass."
+        },
+        {
+          "command": "pnpm --dir web-ui build",
+          "expected_result": "Production build succeeds."
+        }
+      ]
+    },
+    {
+      "id": "hwcp-06-deployment-and-operations",
+      "title": "Deployment And Operations",
+      "status": "not-started",
+      "goal": "Make the hosted system deployable, observable, and recoverable without putting plants at risk.",
+      "tasks": [
+        {
+          "id": "hwcp-06-a",
+          "status": "not-started",
+          "description": "Document required environment variables, secret rotation steps, local gateway credentials, and Vercel project configuration."
+        },
+        {
+          "id": "hwcp-06-b",
+          "status": "not-started",
+          "description": "Add operational checks for gateway last_seen_at, sync backlog depth, command failures, and API health."
+        },
+        {
+          "id": "hwcp-06-c",
+          "status": "not-started",
+          "description": "Verify local fallback behavior by stopping network/cloud sync while confirming hardware automation remains local."
+        },
+        {
+          "id": "hwcp-06-d",
+          "status": "not-started",
+          "description": "Update outcomes_and_retrospective with final deployment URLs, remaining risks, and rollback steps."
+        }
+      ],
+      "acceptance_criteria": [
+        "A remote user can log in, view current state, view history/assets, submit an allowed command, and see the final local execution status.",
+        "If the local gateway is offline, the UI shows stale/offline state and does not imply live control.",
+        "If cloud services are unavailable, the local box continues hardware control using local automation.",
+        "Deployment and rollback instructions are documented in this plan or linked repo docs.",
+        "Relevant backend, frontend, invariant, and deployment checks pass."
+      ],
+      "validation": [
+        {
+          "command": "uv run pytest -q",
+          "expected_result": "Backend and invariant tests pass."
+        },
+        {
+          "command": "pnpm --dir web-ui typecheck && pnpm --dir web-ui lint && pnpm --dir web-ui test && pnpm --dir web-ui build",
+          "expected_result": "Frontend checks and production build pass."
+        },
+        {
+          "command": "Manual hosted smoke test",
+          "expected_result": "Remote login, dashboard read, stale/offline indicator, command lifecycle, and asset view all behave as documented."
+        }
+      ]
+    }
+  ],
+  "top_level_acceptance_criteria": [
+    "The frontend is deployable on Vercel or a user-approved equivalent hosted frontend.",
+    "The hosted API is thin and never directly controls hardware.",
+    "This box remains the only hardware execution authority and uses outbound sync for normal cloud communication.",
+    "Cloud state supports one site with multiple tents and does not reintroduce singleton grow assumptions.",
+    "Commands are durable, idempotent, expirable, target-scoped, and locally validated before execution.",
+    "Photos/video use object storage with signed URLs rather than large Vercel Function payloads.",
+    "Offline/stale states are visible to the user and safe actions are disabled when live control cannot be guaranteed.",
+    "The plan's progress_log, decision_log, surprises_and_discoveries, and outcomes_and_retrospective are updated by implementation agents."
+  ],
+  "risks": [
+    {
+      "risk": "Moving too much backend logic to Vercel makes hardware safety depend on cloud availability.",
+      "mitigation": "Keep Vercel as a control plane and enforce that all hardware execution happens locally."
+    },
+    {
+      "risk": "Trying to synchronize every raw reading creates cost and performance problems.",
+      "mitigation": "Define latest-state and aggregated history contracts; upload only useful raw data where needed."
+    },
+    {
+      "risk": "Media assets exceed serverless request/response limits.",
+      "mitigation": "Use object storage and signed URLs for photos/video."
+    },
+    {
+      "risk": "Hosted controls appear live while the local gateway is offline.",
+      "mitigation": "Use last_seen_at, stale flags, command expiration, and UI disabled states."
+    },
+    {
+      "risk": "Provider decisions are made implicitly by whichever agent starts coding first.",
+      "mitigation": "Require hwcp-01 platform decisions before implementation milestones."
+    }
+  ],
+  "progress_log": [],
+  "decision_log": [
+    {
+      "date": "2026-05-03",
+      "decision": "Split this work after the multi-tent controller refactor.",
+      "rationale": "Stable local site/tent/zone/device identity reduces cloud/API churn and avoids exposing singleton hardware APIs.",
+      "consequences": "This epic should not begin implementation until docs/epics/multi-tent-controller/plan.json is done or explicitly waived by the user."
+    },
+    {
+      "date": "2026-05-03",
+      "decision": "Use outbound local sync as the normal connectivity model.",
+      "rationale": "The local box controls hardware and should not require inbound router exposure for public website access.",
+      "consequences": "Cloudflare Tunnel may be used as a temporary admin bridge, but not as the core architecture unless a later decision changes this."
+    }
+  ],
+  "surprises_and_discoveries": [],
+  "outcomes_and_retrospective": []
+}

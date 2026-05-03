@@ -149,6 +149,7 @@ Lights schedule comes from `growstate.lights_on_local` / `growstate.lights_off_l
 - **Feedforward, not derivative.** Dominant disturbance (lights on/off) is scheduled and periodic — use the clock to anticipate it. Derivative on sensor noise has 5-min smoothing lag and near-unit SNR for the signals we care about.
 - **Configured night offset.** The runtime `HumidifierConfig` value shifts the active setpoint lower during the pre-lights-on window. Keep the exact value in config so tuning changes do not require wiki edits.
 - **Configured prep window.** The runtime `HumidifierConfig` value defines the margin around lights transitions when the humidifier is forced off. Keep the exact value in config so schedule-tuning changes stay code-owned.
+- **Fan owns the too-humid side.** The humidifier PI remains intentionally one-sided: it adds moisture when VPD is too high, then gets out of the way. When plants transpire enough that RH runs high with the humidifier already off, `FanTrimLoopService` is the active control path. It keeps a configured exhaust floor, steps fan duty up/down against the active stage RH/VPD bands, and can run a pre-lights-off dry-down floor so the dark-period temperature drop lands closer to the target VPD band.
 - **Live-state diffing.** Source of truth is what the device reports, not what we last commanded. Divergence self-heals.
 - **No max-on / min-off guard.** PI integrator clamp (anti-windup) is the right tool for that — bounding u, not the plug.
 - **Failsafe OFF on stale reads** — prefer brief dryness over runaway mist.

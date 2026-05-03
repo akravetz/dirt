@@ -36,8 +36,10 @@ from pathlib import Path
 import numpy as np
 import torch
 import yaml
-from openwakeword.data import augment_clips
-from openwakeword.utils import compute_features_from_generator
+from numpy.lib.format import open_memmap
+from openwakeword.data import augment_clips, trim_mmap
+from openwakeword.utils import AudioFeatures
+from tqdm import tqdm
 
 from .config import (
     CLONE_DUPLICATION,
@@ -47,6 +49,17 @@ from .config import (
     REALMIC_NEGATIVE_DUPLICATION,
     REALMIC_POSITIVE_DUPLICATION,
     TARGET_WORD,
+)
+from .feature_device import (
+    FEATURE_DEVICE_ENV,
+    configure_audio_features,
+    execution_providers_for_device,
+    log_cuda_runtime_compat,
+    log_gpu_memory,
+    onnxruntime_providers,
+    preload_onnxruntime_cuda,
+    release_audio_features,
+    resolve_feature_device,
 )
 from .paths import INPUT_ROOT
 from .subsets import SUBSETS, is_real_audio
@@ -67,7 +80,9 @@ REAL_AUDIO = {**dict.fromkeys(DEFAULTS, 0.0), "Gain": 1.0}
 # added, or augment_clips behavior changes upstream).
 # v3: realmic-neg files are no longer mixed into synth AddBackgroundNoise;
 # they are training negatives only.
-_CACHE_SCHEMA_VERSION = 3
+# v4: feature extraction can run through ONNX Runtime CUDAExecutionProvider,
+# so cache entries must not reuse CPU-generated feature arrays.
+_CACHE_SCHEMA_VERSION = 4
 _CACHE_ROOT = INPUT_ROOT / "dirt-wakeword-features-cache"
 
 
@@ -186,6 +201,146 @@ def _persist_cache(key: str, feature_save_dir: Path, inputs: dict) -> None:
     print(f"  augment cache PERSIST key={key} ({persisted} files)")
 
 
+def _compute_features_from_generator_checked(
+    generator,
+    *,
+    features: AudioFeatures,
+    provider: str,
+    n_total: int,
+    clip_duration: int,
+    output_file: str,
+    device: str,
+    ncpu: int,
+) -> None:
+    """openwakeword feature compute with provider visibility and fail-fast GPU."""
+    providers = onnxruntime_providers()
+    print(
+        "    feature extractor: "
+        f"requested_device={device} actual_provider={provider} "
+        f"configured_providers={execution_providers_for_device(device)} "
+        f"onnxruntime_providers={providers} ncpu={ncpu}",
+        flush=True,
+    )
+    if device == "gpu" and provider != "CUDAExecutionProvider":
+        raise RuntimeError(
+            "feature extraction requested GPU but AudioFeatures did not use "
+            f"CUDAExecutionProvider (actual={provider}, providers={providers})"
+        )
+
+    n_feature_cols = features.get_embedding_shape(clip_duration / 16000)
+    output_shape = (n_total, n_feature_cols[0], n_feature_cols[1])
+    fp = open_memmap(output_file, mode="w+", dtype=np.float32, shape=output_shape)
+
+    row_counter = 0
+    audio_data = next(generator)
+    batch_size = audio_data.shape[0]
+    if batch_size > n_total:
+        raise ValueError(
+            f"n_total ({n_total}) is less than batch size ({batch_size}); "
+            "increase n_total to be >= batch size."
+        )
+
+    embedded = features.embed_clips(audio_data, batch_size=batch_size)
+    fp[row_counter : row_counter + embedded.shape[0], :, :] = embedded
+    row_counter += embedded.shape[0]
+    fp.flush()
+
+    for audio_data in tqdm(
+        generator, total=n_total // batch_size, desc="Computing features"
+    ):
+        if row_counter >= n_total:
+            break
+        embedded = features.embed_clips(audio_data, batch_size=batch_size, ncpu=ncpu)
+        if row_counter + embedded.shape[0] > n_total:
+            embedded = embedded[0 : n_total - row_counter]
+        fp[row_counter : row_counter + embedded.shape[0], :, :] = embedded
+        row_counter += embedded.shape[0]
+        fp.flush()
+
+    trim_mmap(output_file)
+
+
+def _new_audio_features(*, device: str, ncpu: int) -> tuple[AudioFeatures, str]:
+    if device == "gpu":
+        preload_onnxruntime_cuda()
+    try:
+        features = AudioFeatures(device=device, ncpu=ncpu)
+    except TypeError as exc:
+        if "device" not in str(exc):
+            raise
+        features = AudioFeatures(ncpu=ncpu)
+    provider = configure_audio_features(features, device=device)
+    return features, provider
+
+
+def _compute_subset_features(
+    *,
+    subset_name: str,
+    feature_save_dir: Path,
+    out_dir: Path,
+    config: dict,
+    rounds: int,
+    bg_paths: list[str],
+    rir_paths: list[str],
+    features: AudioFeatures,
+    provider: str,
+    device: str,
+    ncpu: int,
+) -> None:
+    subset_dir = out_dir / TARGET_WORD / subset_name
+    all_files = sorted(str(f) for f in subset_dir.glob("*.wav"))
+    synth = [f for f in all_files if not is_real_audio(Path(f).name)]
+    real = [f for f in all_files if is_real_audio(Path(f).name)]
+    if not synth and not real:
+        print(f"  {subset_name}: empty, skipping", flush=True)
+        return
+
+    synth_input = synth * rounds
+    real_input = real * rounds
+    n_total = len(synth_input) + len(real_input)
+
+    gens = []
+    if synth_input:
+        gens.append(
+            augment_clips(
+                synth_input,
+                total_length=config["total_length"],
+                batch_size=config["augmentation_batch_size"],
+                augmentation_probabilities=DEFAULTS,
+                background_clip_paths=bg_paths,
+                RIR_paths=rir_paths,
+            )
+        )
+    if real_input:
+        gens.append(
+            augment_clips(
+                real_input,
+                total_length=config["total_length"],
+                batch_size=config["augmentation_batch_size"],
+                augmentation_probabilities=REAL_AUDIO,
+                background_clip_paths=bg_paths,
+                RIR_paths=rir_paths,
+            )
+        )
+
+    out_path = feature_save_dir / _features_filename(subset_name)
+    print(
+        f"  {subset_name}: {len(synth)} synth (×{rounds}, default aug) + "
+        f"{len(real)} realroom (×{rounds}, gain-only) → {out_path.name}",
+        flush=True,
+    )
+    _compute_features_from_generator_checked(
+        chain(*gens),
+        features=features,
+        provider=provider,
+        n_total=n_total,
+        clip_duration=config["total_length"],
+        output_file=str(out_path),
+        device=device,
+        ncpu=ncpu,
+    )
+
+
 def augment_and_compute_features(*, work_dir: Path, out_dir: Path) -> None:
     """Run the per-subset augmentation pipeline + write feature .npys."""
     config = yaml.safe_load((work_dir / "my_model.yaml").read_text())
@@ -229,64 +384,42 @@ def augment_and_compute_features(*, work_dir: Path, out_dir: Path) -> None:
 
     rounds = config["augmentation_rounds"]
     n_cpus = os.cpu_count() or 1
-    # CPU-bound audiomentations dominates wall time. ONNX (mel + embedding)
-    # runs on GPU when available, leaving ~all CPUs free for augmentation.
-    # Reserve 2 cores: main thread + GPU dispatch.
     ncpu = max(1, n_cpus - 2)
-    device = "gpu" if torch.cuda.is_available() else "cpu"
+    log_cuda_runtime_compat()
+    onnx_providers = onnxruntime_providers()
+    device = resolve_feature_device(onnx_providers=onnx_providers)
+    print(
+        "=== feature device: "
+        f"env={os.environ.get(FEATURE_DEVICE_ENV, 'auto')} "
+        f"resolved={device} torch_cuda={torch.cuda.is_available()} "
+        f"onnxruntime_providers={onnx_providers} ===",
+        flush=True,
+    )
 
-    print("=== per-subset augmentation + feature compute (v8) ===", flush=True)
-    for subset_name in SUBSETS:
-        subset_dir = out_dir / TARGET_WORD / subset_name
-        all_files = sorted(str(f) for f in subset_dir.glob("*.wav"))
-        synth = [f for f in all_files if not is_real_audio(Path(f).name)]
-        real = [f for f in all_files if is_real_audio(Path(f).name)]
-        if not synth and not real:
-            print(f"  {subset_name}: empty, skipping", flush=True)
-            continue
-
-        synth_input = synth * rounds
-        real_input = real * rounds
-        n_total = len(synth_input) + len(real_input)
-
-        gens = []
-        if synth_input:
-            gens.append(
-                augment_clips(
-                    synth_input,
-                    total_length=config["total_length"],
-                    batch_size=config["augmentation_batch_size"],
-                    augmentation_probabilities=DEFAULTS,
-                    background_clip_paths=bg_paths,
-                    RIR_paths=rir_paths,
-                )
+    features = None
+    try:
+        log_gpu_memory("before_audio_features")
+        features, provider = _new_audio_features(device=device, ncpu=ncpu)
+        log_gpu_memory("after_audio_features_init")
+        print("=== per-subset augmentation + feature compute (v8) ===", flush=True)
+        for subset_name in SUBSETS:
+            _compute_subset_features(
+                subset_name=subset_name,
+                feature_save_dir=feature_save_dir,
+                out_dir=out_dir,
+                config=config,
+                rounds=rounds,
+                bg_paths=bg_paths,
+                rir_paths=rir_paths,
+                features=features,
+                provider=provider,
+                device=device,
+                ncpu=ncpu,
             )
-        if real_input:
-            gens.append(
-                augment_clips(
-                    real_input,
-                    total_length=config["total_length"],
-                    batch_size=config["augmentation_batch_size"],
-                    augmentation_probabilities=REAL_AUDIO,
-                    background_clip_paths=bg_paths,
-                    RIR_paths=rir_paths,
-                )
-            )
-
-        out_path = feature_save_dir / _features_filename(subset_name)
-        print(
-            f"  {subset_name}: {len(synth)} synth (×{rounds}, default aug) + "
-            f"{len(real)} realroom (×{rounds}, gain-only) → {out_path.name}",
-            flush=True,
-        )
-        compute_features_from_generator(
-            chain(*gens),
-            n_total=n_total,
-            clip_duration=config["total_length"],
-            output_file=str(out_path),
-            device=device,
-            ncpu=ncpu,
-        )
+            log_gpu_memory(f"after_{subset_name}")
+    finally:
+        release_audio_features(features, device=device)
+        log_gpu_memory("after_audio_features_release")
 
     if cache_key and cache_inputs is not None:
         _persist_cache(cache_key, feature_save_dir, cache_inputs)

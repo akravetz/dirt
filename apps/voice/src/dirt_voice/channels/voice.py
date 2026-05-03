@@ -92,7 +92,7 @@ WAKE_MODEL_PATH = (
 )
 WAKE_SAMPLE_RATE = 16000
 WAKE_CHUNK_SAMPLES = int(WAKE_SAMPLE_RATE * 0.08)  # 80 ms
-WAKE_THRESHOLD = 0.5
+WAKE_THRESHOLD = 0.6
 WAKE_NEAR_MISS_FLOOR = 0.1  # temporary: log sub-threshold scores to calibrate
 WAKE_AUDIO_CAPTURE_FLOOR = 0.3  # save WAV when score is in ambiguous zone
 WAKE_DEBOUNCE_S = 3.0

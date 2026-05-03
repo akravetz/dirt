@@ -133,6 +133,21 @@ class Settings(BaseSettings):
     # See services/metric_freshness.py.
     metric_freshness_poll_interval: int = 60
     metric_freshness_stale_after_s: int = 300
+    # Fan trim controller — supervisory humidity/VPD exhaust control layered
+    # beside the humidifier PI. The fan controller ESP32 exposes POST /fan.
+    fan_controller_base_url: str = "http://fan-controller.local"
+    fan_trim_min_pct: int = 15
+    fan_trim_max_pct: int = 60
+    fan_trim_step_pct: int = 5
+    fan_trim_step_interval_s: int = 300
+    fan_trim_poll_interval: int = 60
+    fan_trim_sensor_stale_s: int = 300
+    fan_trim_drydown_minutes: int = 60
+    fan_trim_drydown_pct: int = 45
+    fan_trim_drydown_rh_buffer_pct: float = 2.0
+    fan_trim_recover_rh_buffer_pct: float = 2.0
+    fan_trim_recover_vpd_margin_kpa: float = 0.05
+    fan_trim_recover_hold_s: int = 900
     # Telegram bot. Outbound-only for V1.
     telegram_bot_token: str = ""
     telegram_allowed_user_id: str = ""
@@ -217,6 +232,23 @@ class Settings(BaseSettings):
             telegram_chat_id=self.telegram_allowed_user_id,
         )
 
+    def fan_trim(self) -> FanTrimConfig:
+        return FanTrimConfig(
+            base_url=self.fan_controller_base_url,
+            min_pct=self.fan_trim_min_pct,
+            max_pct=self.fan_trim_max_pct,
+            step_pct=self.fan_trim_step_pct,
+            step_interval_s=self.fan_trim_step_interval_s,
+            poll_interval=self.fan_trim_poll_interval,
+            sensor_stale_s=self.fan_trim_sensor_stale_s,
+            drydown_minutes=self.fan_trim_drydown_minutes,
+            drydown_pct=self.fan_trim_drydown_pct,
+            drydown_rh_buffer_pct=self.fan_trim_drydown_rh_buffer_pct,
+            recover_rh_buffer_pct=self.fan_trim_recover_rh_buffer_pct,
+            recover_vpd_margin_kpa=self.fan_trim_recover_vpd_margin_kpa,
+            recover_hold_s=self.fan_trim_recover_hold_s,
+        )
+
     def auth(self) -> AuthConfig:
         return AuthConfig(
             username=self.auth_username,
@@ -268,6 +300,23 @@ class HumidifierConfig:
     ineffective_min_vpd_drop_kpa: float
     telegram_bot_token: str
     telegram_chat_id: str
+
+
+@dataclass(frozen=True)
+class FanTrimConfig:
+    base_url: str
+    min_pct: int
+    max_pct: int
+    step_pct: int
+    step_interval_s: int
+    poll_interval: int
+    sensor_stale_s: int
+    drydown_minutes: int
+    drydown_pct: int
+    drydown_rh_buffer_pct: float
+    recover_rh_buffer_pct: float
+    recover_vpd_margin_kpa: float
+    recover_hold_s: int
 
 
 @dataclass(frozen=True)

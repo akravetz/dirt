@@ -822,3 +822,10 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - Created `wiki/breeding/isolation-tent-culture.md` for 2×2 pot sizing, coco/perlite use, runoff management, and optional drip-assist plumbing.
 - Trimmed `wiki/breeding/isolation.md` back to containment, hygiene, operational phases, and contamination edge cases.
 - Updated breeding README, BOM, and index links so setup guidance routes to the right page.
+
+## [2026-05-03] daily | Day 50 / Flower Day 0 — 12/12 started; early-flower humidity flag
+- Photos captured across 5 presets (overview, A, B, C, D). Canopy is dense at/above the SCROG; A/D remain sativa-leaning tuck candidates, while B/C remain compact and crowded.
+- **Flower flip:** 2026-05-03 is Day 0 of 12/12. Temperature is inside early-flower bands, but RH 70-74% and VPD 0.61-0.91 kPa are too wet for the new target.
+- **Plant B moisture remains critical:** 95.51% now after 94.93% May 2 and 93.90% May 1; no obvious wilt, but keep/close the float valve and dry back before reopening.
+- **Root zones:** A stable at 60.74%; C remains saturated at 90.16%; D is high but easing at 86.66%.
+- Updated: `daily/2026-05-03.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.

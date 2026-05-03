@@ -1440,3 +1440,191 @@ Do **not** deploy v26. It reduces false positives compared with v25 on the canon
 - First attempted pod `0hk4s3733z6w2y` was aborted by the local orchestrator after a transient RunPod S3 `401` during sentinel polling. Fixed in `f36f3ee`: S3 auth errors during sentinel polling are now retried instead of unwinding and deleting the pod.
 - Second pod `o3hewjip1lzbaz` completed, but used the stale image from trainer commit `111e5128` (v24-era behavior). It is not a valid v26 candidate, even though it scored 57.9 % on held-out 38; ignore it for deploy decisions.
 - W&B still did not expose useful live console logs during the corrected run. The refreshed image uploaded `config.yaml`, metadata, requirements, and summary after finish, but no `output.log` or multipart `logs/*` appeared mid-run. The settings change alone is insufficient; add explicit `wandb.log()` heartbeats or write phase status artifacts if live visibility matters.
+
+### v27 — 2026-05-02
+
+**Status:** trained, validated, **deployed config** (model symlink + threshold; voice service intentionally left off)
+**Model artifact:** `var/wake-word/models/2026-05-02-190816-mdk9mxk41x7xt6/hey_claudia.onnx`
+**Trainer commit:** `d103631e`
+**Image digest:** `ghcr.io/akravetz/dirt-wake-word-trainer:latest@sha256:f0b7da0dcdd4143262165bab5692bc1385893aa1dd3c1f727a18b27088034124`
+**W&B run:** [`mxl7s4yq`](https://wandb.ai/adkravetz/dirt-wake-word/runs/mxl7s4yq) (group `exp12-realmic-pos-v27`)
+**Pod:** `mdk9mxk41x7xt6`, RTX 4090
+**Wall:** 2h29m14s pod runtime; trainer total 144m22.8s
+
+#### What changed (vs v26)
+- Added two new real Jabra-mic positive capture sessions from 2026-05-02.
+- Promoted 96 good clips total, then held out 15 evenly spaced new positives for validation.
+- Training realmic positives increased from 82 to 163 (+81).
+- Validation positives increased from 28 to 43.
+- Excluded the newly reviewed realmic negatives `realmic-neg_330..407` from training for this run. The goal was to isolate the impact of added positives, not mix in more negatives.
+
+#### Why
+v26 showed that adding many realmic negatives alone collapses recall. v27 tests the opposite direction: keep the negative pool at the pre-new-harvest level and add substantially more real deployment-mic positives.
+
+#### Training data
+- Positives: 2000 synth clones x1 + 163 realmic positives x10 = 3630 seeded positives.
+- Negatives: 360 synth neighbors x1 + 248 realmic negatives x10 = 2840 seeded negatives.
+- Backgrounds: AudioSet/FMA from `dirt-wakeword-bg`; no realmic-neg extra background pool.
+- Feature corpus: ACAV100M 2000 h from `dirt-wakeword-features`.
+
+#### Volume hashes
+- `dirt-wakeword-mine`: `sha256:abdb560913c94856cf657143f697dd2e0e4968d157c0e1423d384619c5c301f9` (2780 files, 102.5 MB).
+- `dirt-wakeword-validation`: `sha256:2fc91e8d4adddcfb5cc487c02b5615873a5cc32095c4b5c480a85950835207ac` (153 local files, 8.8 MB).
+
+#### Training config
+- `max_negative_weight`: 500
+- `target_false_positives_per_hour`: 10
+- `steps`: 20 000
+- Driver: soft-fork `_custom_train_model`
+- Best-checkpoint selection: real-audio F1 over 11 checkpoint candidates; selected step 16578.
+
+#### Run timeline
+- TTS cache restore: 3m28s.
+- `augment+features`: 86m37s, cache MISS, persisted key `671e08930e9e0585`.
+- `train_loop`: 51m14s; 20 000 steps completed in 26m52s, then real-audio checkpoint selection/export.
+- Best checkpoint selection on container validation: step 16578, recall 69.8 %, precision 62.5 %, F1 0.659.
+
+#### Validation set notes
+- Container validation reported 43 positives / 116 negatives.
+- Local validation tree is 43 positives / 110 negatives.
+- The mismatch is expected after this bump: `scripts/wakeword-volume-bump` uploads with `aws s3 cp --recursive`, so it does not delete remote-only stale validation files. The manifest hash reflects the local 153-file tree, while the container still saw 6 additional remote validation bad clips.
+
+#### Results — container 43/116 validation
+
+| Threshold | Recall | Precision | F1 | False positives |
+|---:|---:|---:|---:|---:|
+| 0.30 | 81.4 % | 55.6 % | 0.660 | 28/116 |
+| 0.40 | 76.7 % | 57.9 % | 0.660 | 24/116 |
+| 0.50 | 69.8 % | 62.5 % | 0.659 | 18/116 |
+| 0.60 | 67.4 % | 70.7 % | 0.690 | 12/116 |
+| 0.70 | 58.1 % | 75.8 % | 0.658 | 8/116 |
+
+#### Results — local 43/110 validation
+
+| Model | Threshold | Recall | Precision | F1 | False positives |
+|---|---:|---:|---:|---:|---:|
+| current v23 | 0.30 | 55.8 % | 43.6 % | 0.490 | 31/110 |
+| current v23 | 0.40 | 51.2 % | 56.4 % | 0.537 | 17/110 |
+| current v23 | 0.50 | 46.5 % | 62.5 % | 0.533 | 12/110 |
+| current v23 | 0.60 | 39.5 % | 89.5 % | 0.548 | 2/110 |
+| current v23 | 0.70 | 34.9 % | 93.8 % | 0.508 | 1/110 |
+| **v27** | 0.30 | 74.4 % | 57.1 % | 0.646 | 24/110 |
+| **v27** | 0.40 | 67.4 % | 56.9 % | 0.617 | 22/110 |
+| **v27** | 0.50 | 62.8 % | 60.0 % | 0.614 | 18/110 |
+| **v27** | 0.60 | 62.8 % | 67.5 % | 0.651 | 13/110 |
+| **v27** | 0.70 | 55.8 % | 80.0 % | 0.658 | 6/110 |
+
+#### Results — held-out 38 positives
+
+| Model | Recall@0.3 | Recall@0.4 | Recall@0.5 | Recall@0.6 | Recall@0.7 |
+|---|---:|---:|---:|---:|---:|
+| current v23 | 42.1 % (16/38) | 42.1 % (16/38) | 42.1 % (16/38) | 36.8 % (14/38) | 31.6 % (12/38) |
+| **v27** | **84.2 % (32/38)** | **73.7 % (28/38)** | **68.4 % (26/38)** | **60.5 % (23/38)** | **42.1 % (16/38)** |
+
+#### Deploy decision
+Deploy v27 config at threshold `0.6`. The `var/wake-word/models/current` symlink now points at `2026-05-02-190816-mdk9mxk41x7xt6`, and `apps/voice/src/dirt_voice/channels/voice.py` sets `WAKE_THRESHOLD = 0.6`. The `dirt-voice.service` unit is intentionally left inactive while voice-channel changes continue.
+
+At the previous production threshold `0.5`, v27 improves local validation recall from 46.5 % to 62.8 % with false positives rising from 12/110 to 18/110. Threshold `0.6` looks like the better operating point: it keeps the same 62.8 % local recall while reducing false positives to 13/110, and it still beats current v23 on the held-out 38 positives (23/38 vs 14/38 at 0.6).
+
+#### What we learned
+- More realmic positives directly addressed the v26 recall collapse. The held-out 38 result is the clearest signal: v27 gets 26/38 at threshold 0.5 vs deployed v23's 16/38 and v26's 5/38.
+- The added positives did increase false positives relative to current v23 at the same `0.5` threshold, but threshold `0.6` largely restores precision while preserving the recall gain.
+- Before deployment, clean the remote validation prefix so RunPod and local validation counts match, then re-run validation on a single canonical 43/110 or 43/116 set.
+
+#### Operational notes
+- Live W&B `output.log` worked for this run. It exposed phase logs while training was running, though the training loop itself remained quiet until progress completed.
+- Feature extraction still runs through CPU ONNX (`CUDAExecutionProvider` unavailable), dominating wall time on cache misses.
+
+### v28 diagnostic — 2026-05-02
+
+**Status:** trained for instrumentation only (**not deployed**)
+**Model artifact:** `var/wake-word/models/2026-05-02-220123-s8mqxjl5pbbpi9/hey_claudia.onnx`
+**Trainer commit:** `d103631-instrumented` (one-off local instrumentation image)
+**Image ref:** `ghcr.io/akravetz/dirt-wake-word-trainer:instrumented-v27-20260502-215431`
+**Image digest:** `sha256:bdd944ed1c0a7ed20ae78fdc99a25a7a5e5ce6473faa7c94a84f0a76d9a79d0f`
+**W&B run:** [`nt9uzxlu`](https://wandb.ai/adkravetz/dirt-wake-word/runs/nt9uzxlu) (group `exp13-v27-instrumented`)
+**Pod:** `s8mqxjl5pbbpi9`, RTX 4090
+**Wall:** 9m52s pod runtime; trainer total 8m15.1s before post-run TTS cache persist.
+
+#### What changed (vs v27)
+- No intentional data or hyperparameter change.
+- Added timing instrumentation that splits the old broad `train_loop` into:
+  - `prepare_train_inputs`
+  - `fit_model`
+  - `select_checkpoint`
+  - `export_model`
+- Added runtime/device logging for Torch/CUDA, feature array shapes, dataloader worker settings, model device after fit, fit throughput, and per-candidate checkpoint-selection elapsed time.
+
+#### Why
+Diagnose why v27 reported a 51m14s `train_loop` after prior warm-cache runs were usually under 30 minutes end-to-end.
+
+#### Training data
+- Same manifest as v27.
+- Positives: 2000 synth clones x1 + 163 realmic positives x10 = 3630 seeded positives.
+- Negatives: 360 synth neighbors x1 + 248 realmic negatives x10 = 2840 seeded negatives.
+- Feature cache key `671e08930e9e0585` was hot.
+
+#### Run timeline
+- TTS cache restore: 1m06.8s for 69 970 WAVs.
+- `augment+features`: 0.1s, cache HIT.
+- `prepare_train_inputs`: 1.2s.
+- `fit_model`: 4m01.2s, 20 000 steps at 82.92 steps/sec.
+- Model device after fit: `cuda:0` on an NVIDIA GeForce RTX 4090.
+- `select_checkpoint`: 2m40.5s across 11 candidates, about 14.5s/candidate.
+- `export_model`: 0.0s.
+- Container validation: 14.8s.
+- Post-run TTS cache persist rewrote 69 970 WAV links/copies before the success sentinel.
+
+#### Results — container 43/116 validation
+
+| Threshold | Recall | Precision | F1 | False positives |
+|---:|---:|---:|---:|---:|
+| 0.30 | 53.5 % | 57.5 % | 0.554 | 17/116 |
+| 0.40 | 51.2 % | 66.7 % | 0.579 | 11/116 |
+| 0.50 | 48.8 % | 75.0 % | 0.592 | 7/116 |
+| 0.60 | 39.5 % | 73.9 % | 0.515 | 6/116 |
+| 0.70 | 34.9 % | 78.9 % | 0.484 | 4/116 |
+
+#### Deploy decision
+Do **not** deploy v28. It was a diagnostic rerun and underperforms v27's selected model on recall. `var/wake-word/models/current` remains pointed at v27 (`2026-05-02-190816-mdk9mxk41x7xt6`), and the voice service remains inactive.
+
+#### What we learned
+- The negative-weight ramp to 500 is not the explanation for the long v27 wall time. In the instrumented warm-cache rerun, the 20 000-step fit finished in about four minutes on GPU.
+- v27's 144-minute runtime was primarily the feature-cache miss (`augment+features` 86m37s). The remaining discrepancy is mostly that the old `train_loop` label combined true fit, real-audio checkpoint selection, and export, plus an anomalous v27 wrapped-phase delay that did not reproduce.
+- Checkpoint selection is now a visible fixed cost: about 2m40s for 11 candidates on the current 43/116 validation set.
+- The post-run TTS cache persist rewrites all 69 970 cached WAVs even on a cache-hit run. It happens after the printed trainer total and before the success sentinel, so it should be timed or short-circuited separately if pod wall time matters.
+
+### v29 diagnostic — 2026-05-03
+
+**Status:** feature-cache-miss benchmark only (**aborted after feature phase; not deployed**)
+**Model artifact:** none
+**Trainer commit:** `d103631-ortgpu-cachemiss` (one-off schema-v4 GPU feature image)
+**Image ref:** `ghcr.io/akravetz/dirt-wake-word-trainer:ortgpu-cachemiss-v29-20260503-140738`
+**Image digest:** `sha256:f0499aa904a16e4827ed8157cf77daa1311278caddd35908631d733659730a3a`
+**W&B run:** [`5ctqzzxf`](https://wandb.ai/adkravetz/dirt-wake-word/runs/5ctqzzxf) (group `exp14-ortgpu-cachemiss-v29`)
+**Pod:** `v60nmmtp9cyakf`, RTX 4090 (deleted after feature timing)
+**Wall:** aborted after feature phase and partial fit; no model artifacts pulled.
+
+#### What changed
+- Switched the trainer image from CPU `onnxruntime` to `onnxruntime-gpu==1.22.0`.
+- Added `DIRT_WAKEWORD_FEATURE_DEVICE=auto|cpu|gpu` selection for feature extraction.
+- Added fail-fast provider verification: explicit `gpu` requires `AudioFeatures` to use `CUDAExecutionProvider`.
+- Bumped feature-cache schema to v4 so CPU-generated feature arrays are not reused by the GPU benchmark.
+
+#### Why
+Measure the real full-data feature-cache miss path on GPU after v27 spent 86m37s in CPU ONNX feature extraction.
+
+#### Run timeline
+- `prepare_seed_clips`: 18.7s.
+- `restore_tts_cache`: 4m38.7s for 69 970 WAVs.
+- `generate_clips`: 29.5s.
+- `augment+features`: 47m14.4s, cache MISS, key `38fcb98ff35d78fd`, actual provider `CUDAExecutionProvider`, persisted 4 files.
+- `prepare_train_inputs`: 1m09.3s.
+- Run was manually stopped during `fit_model` after the feature benchmark completed; pod deleted. W&B may show crashed/running because the run did not finish normally.
+
+#### What we learned
+- GPU ORT works on RunPod: the provider smoke test resolved `gpu`, Torch saw the RTX 4090, and `AudioFeatures` used `CUDAExecutionProvider`.
+- The cache-miss feature path improved from v27's 86m37s to 47m14s, about a 45 % wall-time reduction / 1.8x speedup.
+- Feature generation is still the dominant cache-miss cost. The remaining time is likely augmentation, memmap writes and flushes, `trim_mmap`, network-volume I/O, and per-subset/session overhead, not only ONNX inference.
+- Repeated ONNX Runtime cuDNN destroy errors appeared once PyTorch training started after GPU feature extraction. Before using this in normal training, isolate GPU feature extraction from the training process or explicitly release ORT sessions and verify fit speed/noise.
+- Next high-value optimization is likely local scratch for feature `.npy` writes/cache persist, less frequent memmap flushing, per-subset timers, and ORT session cleanup or subprocess isolation.

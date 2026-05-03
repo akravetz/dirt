@@ -25,6 +25,7 @@ def test_all_modules_importable() -> None:
         augment,
         config,
         export,
+        feature_device,
         main,
         paths,
         seed,

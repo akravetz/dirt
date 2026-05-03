@@ -237,6 +237,39 @@ async def test_flower_schedule_overridable_via_db(pg_engine):
     assert state.on is False
 
 
+async def test_flip_to_flower_sets_date_and_12_12_schedule(pg_engine):
+    await _set_state(pg_engine, germination=date(2026, 3, 15))
+    svc = _svc(pg_engine, today=date(2026, 5, 3))
+
+    payload = await svc.flip_to_flower(
+        flower_start_date=date(2026, 5, 3),
+        lights_on_local=time(9, 0),
+        lights_off_local=time(21, 0),
+    )
+
+    assert payload.flower_start_date == date(2026, 5, 3)
+    assert payload.flower_week_number == 1
+    assert payload.stage == "flower_early"
+    assert payload.lights_on_local == time(9, 0)
+    assert payload.lights_off_local == time(21, 0)
+
+
+async def test_flip_to_flower_rejects_non_12_12_schedule(pg_engine):
+    await _set_state(pg_engine, germination=date(2026, 3, 15))
+
+    with pytest.raises(ValueError, match="exactly 12 hours"):
+        await _svc(pg_engine, today=date(2026, 5, 3)).flip_to_flower(
+            flower_start_date=date(2026, 5, 3),
+            lights_on_local=time(9, 0),
+            lights_off_local=time(22, 0),
+        )
+
+    state = await GrowStateService(pg_engine).get_state()
+    assert state.flower_start_date is None
+    assert state.lights_on_local == time(5, 0)
+    assert state.lights_off_local == time(23, 0)
+
+
 # ------- get_grow_current_payload -------
 
 

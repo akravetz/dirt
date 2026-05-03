@@ -261,6 +261,22 @@ class GrowStateService:
             minutes_until_on=minutes_until_on,
         )
 
+    @staticmethod
+    def _lights_on_duration_seconds(on_time: time, off_time: time) -> float:
+        on_seconds = (
+            on_time.hour * 60 * 60
+            + on_time.minute * 60
+            + on_time.second
+            + on_time.microsecond / 1_000_000
+        )
+        off_seconds = (
+            off_time.hour * 60 * 60
+            + off_time.minute * 60
+            + off_time.second
+            + off_time.microsecond / 1_000_000
+        )
+        return (off_seconds - on_seconds) % (24 * 60 * 60)
+
     async def current_stage(self) -> Stage:
         """Veg vs early vs late flower, derived from flower_start_date."""
         state = await self.get_state()
@@ -326,3 +342,42 @@ class GrowStateService:
             lights_on_local=state.lights_on_local,
             lights_off_local=state.lights_off_local,
         )
+
+    async def flip_to_flower(
+        self,
+        *,
+        flower_start_date: date,
+        lights_on_local: time,
+        lights_off_local: time,
+    ) -> GrowCurrentPayload:
+        """Persist the current grow's first flower day and 12/12 light schedule."""
+        if (
+            self._lights_on_duration_seconds(lights_on_local, lights_off_local)
+            != 12 * 60 * 60
+        ):
+            raise ValueError("flower light schedule must be exactly 12 hours on")
+
+        async with AsyncSession(self._engine) as session:
+            result = await session.exec(
+                select(GrowState).where(GrowState.is_current.is_(True)).limit(1)
+            )
+            state = result.first()
+            if state is None:
+                state = GrowState(germination_date=GROW_START, is_current=True)
+
+            if flower_start_date < state.germination_date:
+                raise ValueError("flower_start_date cannot be before germination_date")
+
+            if (
+                state.flower_start_date is not None
+                and state.flower_start_date != flower_start_date
+            ):
+                raise ValueError("flower_start_date is already set")
+
+            state.flower_start_date = flower_start_date
+            state.lights_on_local = lights_on_local
+            state.lights_off_local = lights_off_local
+            session.add(state)
+            await session.commit()
+
+        return await self.get_grow_current_payload()

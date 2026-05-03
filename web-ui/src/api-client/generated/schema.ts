@@ -72,6 +72,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/grow/flower-flip": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Set first flower day and switch lights to 12/12 */
+    post: operations["growFlowerFlip"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/sensors/current": {
     parameters: {
       query?: never;
@@ -410,6 +427,23 @@ export interface components {
       minutes_until_off: number;
       /** @description Always-positive countdown to next lights-on. */
       minutes_until_on: number;
+    };
+    GrowFlowerFlipRequest: {
+      /**
+       * Format: date
+       * @description First calendar day under the 12/12 flowering photoperiod.
+       */
+      flower_start_date: string;
+      /**
+       * @description Local-time HH:MM:SS lights-on time in the tent timezone.
+       * @example 09:00:00
+       */
+      lights_on_local: string;
+      /**
+       * @description Local-time HH:MM:SS lights-off time in the tent timezone.
+       * @example 21:00:00
+       */
+      lights_off_local: string;
     };
     GrowCurrent: {
       /** Format: date */
@@ -828,6 +862,39 @@ export interface operations {
           "application/json": components["schemas"]["GrowCurrent"];
         };
       };
+      401: components["responses"]["Unauthorized"];
+    };
+  };
+  growFlowerFlip: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "flower_start_date": "2026-05-03",
+         *       "lights_on_local": "09:00:00",
+         *       "lights_off_local": "21:00:00"
+         *     }
+         */
+        "application/json": components["schemas"]["GrowFlowerFlipRequest"];
+      };
+    };
+    responses: {
+      /** @description Updated current grow identity. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["GrowCurrent"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
     };
   };

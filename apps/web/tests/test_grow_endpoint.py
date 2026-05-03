@@ -7,9 +7,10 @@ deserializes into the generated Pydantic ``GrowCurrent`` model.
 """
 
 from datetime import UTC, date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
-from dirt_contracts.webapp_v1.models import GrowCurrent, Stage
+from dirt_contracts.webapp_v1.models import GrowCurrent, GrowFlowerFlipRequest, Stage
 from httpx import ASGITransport, AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -117,3 +118,46 @@ async def test_grow_current_flower_stage_derivation(client: AsyncClient, app_eng
     assert model.stage == Stage.flower_late
     # 30 days in flower → week 5 (days 29–35).
     assert model.flower_week_number == 5
+
+
+async def test_grow_flower_flip_updates_current_grow(client: AsyncClient, app_engine):
+    await _update_current_grow(app_engine)
+    flower_start = datetime.now(ZoneInfo("America/Denver")).date()
+    payload = GrowFlowerFlipRequest(
+        flower_start_date=flower_start,
+        lights_on_local="09:00:00",
+        lights_off_local="21:00:00",
+    )
+
+    response = await client.post(
+        "/api/grow/flower-flip",
+        json=payload.model_dump(mode="json"),
+    )
+    assert response.status_code == 200
+    model = GrowCurrent.model_validate(response.json())
+
+    assert model.flower_start_date == flower_start
+    assert model.stage == Stage.flower_early
+    assert model.flower_week_number == 1
+    assert model.lights.on_local == "09:00:00"
+    assert model.lights.off_local == "21:00:00"
+
+
+async def test_grow_flower_flip_rejects_non_12_12_schedule(
+    client: AsyncClient, app_engine
+):
+    await _update_current_grow(app_engine)
+
+    response = await client.post(
+        "/api/grow/flower-flip",
+        json={
+            "flower_start_date": "2026-05-03",
+            "lights_on_local": "09:00:00",
+            "lights_off_local": "22:00:00",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "flower light schedule must be exactly 12 hours on"
+    }

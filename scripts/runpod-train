@@ -37,6 +37,13 @@ def main() -> int:
     parser.add_argument("--gpu", action="append", default=None)
     parser.add_argument("--keep", action="store_true")
     parser.add_argument("--run-group", default=None)
+    parser.add_argument(
+        "--env",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help="Extra environment variable to inject into the trainer container.",
+    )
     args = parser.parse_args()
 
     rp.load_env()
@@ -75,6 +82,14 @@ def main() -> int:
         body["containerRegistryAuthId"] = registry_auth_id
     if wandb_api_key:
         body["env"]["WANDB_API_KEY"] = wandb_api_key
+    for item in args.env:
+        if "=" not in item:
+            parser.error(f"--env must be KEY=VALUE, got {item!r}")
+        key, value = item.split("=", 1)
+        key = key.strip()
+        if not key:
+            parser.error(f"--env must have a non-empty key, got {item!r}")
+        body["env"][key] = value
 
     http = rp.client(api_key)
     train_pod_id = rp.create_pod(http, body)

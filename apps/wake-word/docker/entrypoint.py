@@ -104,6 +104,13 @@ def _persist_tts_cache() -> None:
     )
     from dirt_wake_word.subsets import SUBSETS
 
+    if os.environ.get("DIRT_WAKEWORD_TTS_CACHE_MODE", "restore").lower() == "ignore":
+        print(
+            "(DIRT_WAKEWORD_TTS_CACHE_MODE=ignore — skipping TTS cache persist)",
+            flush=True,
+        )
+        return
+
     expected_key = {
         "target_phrase": _tw.replace("_", " "),
         "n_samples": NUMBER_OF_EXAMPLES,

@@ -1,0 +1,402 @@
+{
+  "schema_version": 1,
+  "id": "multi-tent-controller",
+  "title": "Multi-Tent Local Controller Refactor",
+  "status": "not-started",
+  "created_at": "2026-05-03",
+  "last_updated_at": "2026-05-03",
+  "owner": "agents",
+  "status_values": [
+    "not-started",
+    "in-progress",
+    "blocked",
+    "done"
+  ],
+  "schema_basis": {
+    "summary": "This JSON is shaped for multi-session agent execution: it is self-contained, observable, resumable, milestone-based, and explicit about validation. It keeps progress, decisions, surprises, and outcomes inside the file so a later agent can resume without relying on chat history.",
+    "sources": [
+      {
+        "title": "OpenAI Cookbook: Using PLANS.md for multi-hour problem solving",
+        "url": "https://developers.openai.com/cookbook/articles/codex_exec_plans",
+        "principles_used": [
+          "Treat the plan as a living document.",
+          "Make the plan self-contained enough for a fresh agent session.",
+          "Use milestones plus a progress section.",
+          "Phrase acceptance as observable behavior and commands.",
+          "Record decisions, surprises, and retrospective notes."
+        ]
+      },
+      {
+        "title": "Anthropic Engineering: Building effective agents",
+        "url": "https://www.anthropic.com/engineering/building-effective-agents",
+        "principles_used": [
+          "Prefer simple, composable patterns over unnecessary framework complexity.",
+          "Use predefined workflows for well-defined implementation tasks.",
+          "Break complex work into cleanly decomposed subtasks."
+        ]
+      },
+      {
+        "title": "AWS Durable Execution SDK: Idempotency and retries",
+        "url": "https://docs.aws.amazon.com/durable-execution/patterns/best-practices/idempotency/",
+        "principles_used": [
+          "Assume interrupted work may be retried.",
+          "Use idempotency keys for side-effecting work.",
+          "Make retry and replay behavior explicit."
+        ]
+      }
+    ]
+  },
+  "purpose": {
+    "problem": "Dirt currently behaves like a single grow/tent installation. A breeding tent is expected soon, but this same box will remain the local hardware controller for all tents.",
+    "outcome": "The local system can represent one site with multiple tents, zones, devices, sensors, actuators, and grow runs without moving hardware authority out of this box.",
+    "non_goal": "Do not deploy the public website, cloud database, or Vercel API in this epic. This epic prepares the local controller and data model so the hosted website can be added safely later."
+  },
+  "terminology": {
+    "site_id": "Logical installation controlled by this physical Dirt box. For the foreseeable future there is one site.",
+    "tent_id": "Logical tent such as main-grow or breeding. Use tent_id, not tenant_id, because this is not multi-customer tenancy.",
+    "zone_id": "A controllable area within a tent, such as canopy, reservoir, intake, exhaust, drying, or seedling area.",
+    "device_id": "Stable logical identity for a hardware unit or service-controlled device.",
+    "capability_id": "A named action or measurement a device supports, such as temperature, humidity, fan speed, mist level, soil moisture, camera capture, or PTZ movement.",
+    "site_controller": "This box running the local Dirt services and owning all hardware safety decisions."
+  },
+  "repository_context": {
+    "must_read_before_work": [
+      "AGENTS.md",
+      "docs/commands.md",
+      "docs/database.md",
+      "docs/observability.md",
+      "docs/grow-state.md",
+      "docs/references/atlas/INDEX.md before Atlas migration work",
+      "docs/references/tanstack-router-v1/INDEX.md before web route work",
+      "docs/references/tailwind-v4/INDEX.md before Tailwind work",
+      "docs/references/modern-idiomatic-typescript/INDEX.md before TypeScript work"
+    ],
+    "likely_touched_paths": [
+      "apps/shared/src/dirt_shared/models/",
+      "apps/shared/src/dirt_shared/services/",
+      "apps/hwd/src/dirt_hwd/",
+      "apps/web/src/dirt_web/api/",
+      "apps/shared/tests/",
+      "apps/hwd/tests/",
+      "apps/web/tests/",
+      "contracts/webapp-v1.yaml",
+      "contracts/python/src/dirt_contracts/webapp_v1/models.py",
+      "web-ui/src/api-client/generated/schema.ts",
+      "migrations/"
+    ],
+    "off_limits": [
+      "apps/tests/invariants/**",
+      "web-ui/invariants/**",
+      "web-ui/src/api-client/generated/** except via the repository contract generation command",
+      "runtime data under var/** except disposable inspection"
+    ],
+    "dirty_worktree_warning": "Before editing, run git status --short and inspect any overlapping user changes. Do not revert unrelated changes."
+  },
+  "architecture": {
+    "current_boundary": "All hardware control remains local on this box.",
+    "target_boundary": "The local system becomes a single-site controller that can manage multiple logical tents and zones.",
+    "identity_model": [
+      "site",
+      "tent",
+      "zone",
+      "device",
+      "capability",
+      "grow_run"
+    ],
+    "data_scoping_rule": "Every telemetry row, device record, command, photo/snapshot, schedule, grow state, and alert must be scoped to site_id and to the narrowest meaningful target, usually tent_id, zone_id, or device_id.",
+    "compatibility_rule": "Existing single-tent behavior should map to a seeded default site and default main tent during migration. Avoid permanent compatibility adapters where a clean source-level contract can be introduced."
+  },
+  "execution_rules": {
+    "one_session_rule": "A future agent should complete one milestone or one explicitly selected task per session unless the user asks for broader execution.",
+    "plan_update_rule": "When work starts, set this plan status to in-progress and update the relevant milestone/task status. When stopping, update progress_log with what changed, validation run, and next task.",
+    "decision_rule": "Any schema, API, migration, or safety-boundary decision must be recorded in decision_log with date, decision, rationale, and consequences.",
+    "surprise_rule": "Unexpected behavior, migration hazards, hardware assumptions, or test constraints must be recorded in surprises_and_discoveries.",
+    "completion_rule": "Set status to done only when all acceptance criteria pass or are explicitly waived by the user in decision_log."
+  },
+  "milestones": [
+    {
+      "id": "mtc-01-inventory-current-singletons",
+      "title": "Inventory Singleton Assumptions",
+      "status": "not-started",
+      "goal": "Find every place where the system assumes one site, one tent, one grow state, or fixed plant/device identities.",
+      "tasks": [
+        {
+          "id": "mtc-01-a",
+          "status": "not-started",
+          "description": "Search models, services, routes, contracts, tests, and web UI for singleton concepts such as growstate, SensorLocation.tent, plant-a through plant-d, reservoir, snapshot, device status, schedules, and actuator control."
+        },
+        {
+          "id": "mtc-01-b",
+          "status": "not-started",
+          "description": "Create a short implementation note in this plan's progress_log listing canonical owners for site, tent, zone, device, capability, and grow_run."
+        },
+        {
+          "id": "mtc-01-c",
+          "status": "not-started",
+          "description": "Identify which changes require Atlas migrations, contract regeneration, and UI updates."
+        }
+      ],
+      "acceptance_criteria": [
+        "progress_log contains a current singleton inventory with file paths and canonical ownership decisions.",
+        "No production code is changed in this milestone except optional documentation updates to this plan."
+      ],
+      "validation": [
+        {
+          "command": "rg \"growstate|SensorLocation|plant-a|plant-b|plant-c|plant-d|reservoir|snapshot|fan|humidifier|tent\" apps contracts web-ui",
+          "expected_result": "Search results have been reviewed and summarized in progress_log."
+        }
+      ]
+    },
+    {
+      "id": "mtc-02-add-domain-identity-model",
+      "title": "Add Domain Identity Model",
+      "status": "not-started",
+      "goal": "Introduce explicit site, tent, zone, device, capability, and grow run models with seeded defaults for the current installation.",
+      "tasks": [
+        {
+          "id": "mtc-02-a",
+          "status": "not-started",
+          "description": "Add SQLModel entities and relationships for site, tent, zone, device, capability, and grow_run in apps/shared/src/dirt_shared/models/."
+        },
+        {
+          "id": "mtc-02-b",
+          "status": "not-started",
+          "description": "Create an Atlas migration that adds new tables and default rows for this box, the current main tent, and known current zones/devices."
+        },
+        {
+          "id": "mtc-02-c",
+          "status": "not-started",
+          "description": "Add repository/service helpers that resolve default site/tent/zone IDs from configuration or seeded rows without module-level singleton state."
+        }
+      ],
+      "acceptance_criteria": [
+        "A fresh local database migrated from current schema has exactly one default site and one default main tent.",
+        "The default site/tent IDs are stable and queryable through shared services.",
+        "Atlas migration files are generated and reviewed; no app code runs DDL at startup.",
+        "Unit tests cover default identity resolution and missing-row behavior."
+      ],
+      "validation": [
+        {
+          "command": "uv run pytest apps/shared/tests -q",
+          "expected_result": "Shared tests pass."
+        },
+        {
+          "command": "uv run pytest apps/tests/invariants/ -q",
+          "expected_result": "Human-owned invariants pass without edits."
+        }
+      ]
+    },
+    {
+      "id": "mtc-03-scope-telemetry-and-grow-state",
+      "title": "Scope Telemetry And Grow State",
+      "status": "not-started",
+      "goal": "Attach existing readings, nodes, grow state, snapshots, and plant records to the new identity model while preserving current dashboard behavior.",
+      "tasks": [
+        {
+          "id": "mtc-03-a",
+          "status": "not-started",
+          "description": "Migrate sensornode/device concepts so each hardware source maps to a device and zone."
+        },
+        {
+          "id": "mtc-03-b",
+          "status": "not-started",
+          "description": "Scope sensorreading queries by site/tent/zone/device where appropriate, using existing joins instead of duplicating location strings."
+        },
+        {
+          "id": "mtc-03-c",
+          "status": "not-started",
+          "description": "Refactor growstate into a grow_run or tent-scoped current grow model while preserving current germination/flower flip behavior."
+        },
+        {
+          "id": "mtc-03-d",
+          "status": "not-started",
+          "description": "Scope snapshot/photo metadata and plant records to the current tent/grow run."
+        }
+      ],
+      "acceptance_criteria": [
+        "Existing dashboard/API behavior for the current grow remains unchanged when using the default site and main tent.",
+        "Telemetry and grow state services can query by tent_id without relying on hardcoded singleton assumptions.",
+        "Tests cover current default main tent behavior and at least one synthetic second tent with separate grow state."
+      ],
+      "validation": [
+        {
+          "command": "uv run pytest apps/shared/tests apps/web/tests apps/hwd/tests -q",
+          "expected_result": "Application test suites pass."
+        },
+        {
+          "command": "uv run pytest apps/tests/invariants/ -q",
+          "expected_result": "Human-owned invariants pass without edits."
+        }
+      ]
+    },
+    {
+      "id": "mtc-04-update-local-apis-and-contracts",
+      "title": "Update Local APIs And Contracts",
+      "status": "not-started",
+      "goal": "Expose multi-tent identity through API contracts without forcing the frontend to know hardware details.",
+      "tasks": [
+        {
+          "id": "mtc-04-a",
+          "status": "not-started",
+          "description": "Update contract schemas so relevant payloads include site/tent/zone/device identifiers and display names."
+        },
+        {
+          "id": "mtc-04-b",
+          "status": "not-started",
+          "description": "Regenerate generated Python and TypeScript contract clients using the repository command."
+        },
+        {
+          "id": "mtc-04-c",
+          "status": "not-started",
+          "description": "Update web API routes to accept explicit tent selectors where appropriate while defaulting to the current main tent for existing views."
+        },
+        {
+          "id": "mtc-04-d",
+          "status": "not-started",
+          "description": "Update frontend data access only as needed to compile and preserve the current single-tent UI."
+        }
+      ],
+      "acceptance_criteria": [
+        "Generated contract artifacts are updated only through scripts/gen-contract.",
+        "Existing UI routes continue to load against the default tent.",
+        "API tests prove a request can target a synthetic second tent where implemented.",
+        "No browser-facing API exposes raw hardware credentials or local-only secrets."
+      ],
+      "validation": [
+        {
+          "command": "scripts/gen-contract",
+          "expected_result": "Contract artifacts regenerate cleanly."
+        },
+        {
+          "command": "uv run pytest apps/web/tests apps/tests/invariants/ -q",
+          "expected_result": "Web API tests and invariants pass."
+        },
+        {
+          "command": "pnpm --dir web-ui typecheck",
+          "expected_result": "TypeScript typecheck passes."
+        }
+      ]
+    },
+    {
+      "id": "mtc-05-add-command-readiness",
+      "title": "Add Command Lifecycle Readiness",
+      "status": "not-started",
+      "goal": "Prepare local command handling for future remote execution by making physical side effects durable, target-scoped, and idempotent.",
+      "tasks": [
+        {
+          "id": "mtc-05-a",
+          "status": "not-started",
+          "description": "Define a local command model with id, idempotency_key, target type/id, issued_by, payload, status, created_at, expires_at, delivered_at, accepted_at, completed_at, and result_payload."
+        },
+        {
+          "id": "mtc-05-b",
+          "status": "not-started",
+          "description": "Implement command state transitions for queued, delivered, accepted, running, succeeded, failed, rejected, and expired."
+        },
+        {
+          "id": "mtc-05-c",
+          "status": "not-started",
+          "description": "Make repeated delivery of the same command id or idempotency_key return the existing result rather than repeating non-idempotent hardware actions."
+        },
+        {
+          "id": "mtc-05-d",
+          "status": "not-started",
+          "description": "Document which local actuator operations are safe setpoints and which are one-shot side effects."
+        }
+      ],
+      "acceptance_criteria": [
+        "Command tests prove duplicate delivery does not double-run side-effecting actions.",
+        "Expired commands are rejected locally rather than executed late.",
+        "Unsafe or out-of-range commands are rejected by the local controller with a recorded reason.",
+        "No public remote command API is exposed by this milestone unless explicitly requested by the user."
+      ],
+      "validation": [
+        {
+          "command": "uv run pytest apps/shared/tests apps/hwd/tests apps/web/tests -q",
+          "expected_result": "Command and controller tests pass."
+        }
+      ]
+    },
+    {
+      "id": "mtc-06-operator-verification",
+      "title": "Operator Verification",
+      "status": "not-started",
+      "goal": "Prove that the current local installation still works and that the model can represent a breeding tent.",
+      "tasks": [
+        {
+          "id": "mtc-06-a",
+          "status": "not-started",
+          "description": "Run the full backend test suite and web UI validation required by touched files."
+        },
+        {
+          "id": "mtc-06-b",
+          "status": "not-started",
+          "description": "Add a small documented verification scenario showing default main tent queries and synthetic breeding tent queries."
+        },
+        {
+          "id": "mtc-06-c",
+          "status": "not-started",
+          "description": "Update outcomes_and_retrospective with remaining risks and the handoff point for the hosted website epic."
+        }
+      ],
+      "acceptance_criteria": [
+        "Full relevant tests pass.",
+        "A future agent can query both default main tent and synthetic breeding tent data in a repeatable test or documented scenario.",
+        "The hosted website epic has a clear dependency note updated if this implementation changes the planned API shape."
+      ],
+      "validation": [
+        {
+          "command": "uv run pytest -q",
+          "expected_result": "All backend and invariant tests pass."
+        },
+        {
+          "command": "pnpm --dir web-ui typecheck && pnpm --dir web-ui lint && pnpm --dir web-ui test",
+          "expected_result": "Web UI checks pass when web-ui files were touched."
+        }
+      ]
+    }
+  ],
+  "top_level_acceptance_criteria": [
+    "The current single-tent installation still operates through a default site and default main tent.",
+    "The data model can represent a second breeding tent under the same site without adding another deployed backend.",
+    "Telemetry, grow state, snapshots, plants, device status, and commands are scoped by stable identities rather than singleton assumptions.",
+    "Command lifecycle and idempotency are in place before any hosted remote actuator control is exposed.",
+    "Atlas-managed schema changes, generated contracts, backend tests, frontend type checks if touched, and human-owned invariants all pass.",
+    "The plan's progress_log, decision_log, surprises_and_discoveries, and outcomes_and_retrospective are updated by implementation agents."
+  ],
+  "risks": [
+    {
+      "risk": "Schema migration touches hot telemetry tables.",
+      "mitigation": "Use Atlas, inspect generated SQL, back up before apply, and keep migrations additive where possible."
+    },
+    {
+      "risk": "Permanent compatibility shims preserve stale singleton concepts.",
+      "mitigation": "Prefer source-level cleanup and canonical ownership; temporary defaults are allowed only as migration aids."
+    },
+    {
+      "risk": "Second tent support gets modeled as a separate site or service too early.",
+      "mitigation": "Keep one site and one local controller; make tents logical resources under that site."
+    },
+    {
+      "risk": "Remote command readiness overcomplicates local-only work.",
+      "mitigation": "Implement minimal command lifecycle/idempotency primitives only where actuator side effects need future remote safety."
+    }
+  ],
+  "progress_log": [],
+  "decision_log": [
+    {
+      "date": "2026-05-03",
+      "decision": "Use tent_id rather than tenant_id.",
+      "rationale": "The near-term requirement is multiple grow tents under one household site, not multi-customer SaaS tenancy.",
+      "consequences": "Future agents should avoid adding tenant-style auth or billing boundaries as part of this epic."
+    },
+    {
+      "date": "2026-05-03",
+      "decision": "Keep this box as the single local site controller.",
+      "rationale": "The user stated this machine will control all hardware for the foreseeable future.",
+      "consequences": "Do not introduce fleet IoT architecture, per-tent cloud agents, or an external broker unless a later requirement changes the deployment boundary."
+    }
+  ],
+  "surprises_and_discoveries": [],
+  "outcomes_and_retrospective": []
+}

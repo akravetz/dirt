@@ -4,12 +4,12 @@ type: concept
 sources: []
 related: [wiki/hardware/humidifier-control.md, wiki/decisions/2026-04-19-lights-off-aware-humidifier.md, wiki/decisions/2026-04-18-vpd-targeting.md, wiki/decisions/2026-04-27-h7142-deployed.md, wiki/concepts/vpd.md]
 created: 2026-04-19
-updated: 2026-04-27
+updated: 2026-05-03
 ---
 
 # Multi-Actuator Tent Environment Control
 
-**Status: design notes, not yet fully implemented.** Captured 2026-04-19 before the dehumidifier and PWM exhaust fan arrive. Revisit when both actuators are provisioned.
+**Status: design notes, partially implemented.** Captured 2026-04-19 before the dehumidifier and PWM exhaust fan arrive. As of 2026-05-03, the PWM fan has a host-side trim loop and lights-off dry-down feedforward. The full 2D environment state machine still waits on a dehumidifier and, ideally, a room temp/RH sensor.
 
 **Revision 2026-04-27.** The humidifier actuator model is now continuous in production: the **Govee H7142** exposes 9 discrete Manual-mode mist levels via the Public API v2, driven by a host-side PI controller + dispatch quantizer (deployed 2026-04-27, replacing the Raydrop+Kasa bang-bang). Dispatch-class taxonomy, cross-actuator mutex, feedforward compounds, and failure-mode design from the original 2026-04-19 design are **unchanged**; the per-class plan shape now lands on continuous intensity:
 
@@ -19,15 +19,14 @@ updated: 2026-04-27
 
 The "no PID" rule still holds for the cross-output dispatch — PI control inside the humidifier decision is for *within-actuator intensity given that it's commanded on*, not for picking which actuator to use. Class-based dispatch remains authoritative at the system level.
 
-When the PWM fan and dehumidifier land, their actuator models are already continuous in the plan shape below. No rewrite needed.
+The fan trim loop is a deliberately small step toward this design: it gives the fan a baseline floor, raises duty when RH is high or VPD is low, backs down after recovery, and adds a scheduled dry-down before lights-off. The dehumidifier model below remains future work.
 
 ## What changes
 
-Current loop is SISO — one actuator (Govee H7142 humidifier), one output (VPD). Targets the upper-band edge; can only push VPD down. See [hardware/humidifier-control.md](../hardware/humidifier-control.md).
+Current humidity control is two one-sided loops rather than a unified MIMO controller: the Govee H7142 humidifier PI targets the upper VPD edge and can only push VPD down, while the PWM fan trim loop reacts to high RH / low VPD and can push VPD up when room air is drier than tent air. See [hardware/humidifier-control.md](../hardware/humidifier-control.md) and [hardware/ac-infinity-fan-control.md](../hardware/ac-infinity-fan-control.md).
 
-Planned additions:
+Planned addition:
 - **Dehumidifier on a second Kasa EP10** — bidirectional humidity control becomes possible (we can push VPD up at night too).
-- **PWM exhaust fan** — modulated airflow instead of fixed speed. Primary authority: temperature. Secondary authority: humidity (coupled via air exchange).
 
 Now we have three actuators and two physical outputs (T, RH), with the fan affecting both. This is a **MIMO system with interaction**, and it's where reaching for the wrong control paradigm can do real damage.
 
@@ -87,7 +86,8 @@ Predictable disturbances get compensated *before* they arrive. Derivative feedba
 With bidirectional actuators, more feedforward moves become available:
 
 - **Pre-lights-on fan ramp** — start bringing fan up 15 min before lights-on to pre-cool against the incoming heat load.
-- **Pre-lights-off dehumidifier burst** — run dehumidifier for the last 30–45 min of lights-on. Pulls RH down so the thermal crash lands mid-band at night instead of bottom. Replaces today's passive "force humidifier off" rule with something *active*.
+- **Pre-lights-off fan dry-down** — implemented first because the exhaust fan is already available. Run a higher fan floor near lights-off when RH is close to the stage ceiling so the thermal crash lands closer to the VPD band.
+- **Pre-lights-off dehumidifier burst** — future stronger version once the dehumidifier exists. Run dehumidifier for the last 30–45 min of lights-on. Pulls RH down so the thermal crash lands mid-band at night instead of bottom.
 - **Post-lights-on fan floor** — fan minimum lifted during the first hour of lights-on (both T and RH ramping).
 
 Each is a few lines once the schedule-aware plumbing is in place (which it already is — `lights_state()` in `grow_state.py`).

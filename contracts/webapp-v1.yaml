@@ -130,6 +130,31 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /api/grow/flower-flip:
+    post:
+      tags: [grow]
+      operationId: growFlowerFlip
+      summary: Set first flower day and switch lights to 12/12
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GrowFlowerFlipRequest' }
+            example:
+              flower_start_date: '2026-05-03'
+              lights_on_local: '09:00:00'
+              lights_off_local: '21:00:00'
+      responses:
+        '200':
+          description: Updated current grow identity.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GrowCurrent' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   # ============================================================
   # 3. Sensors
   # ============================================================
@@ -619,6 +644,26 @@ components:
         minutes_until_on:
           type: number
           description: Always-positive countdown to next lights-on.
+
+    GrowFlowerFlipRequest:
+      type: object
+      additionalProperties: false
+      required: [flower_start_date, lights_on_local, lights_off_local]
+      properties:
+        flower_start_date:
+          type: string
+          format: date
+          description: First calendar day under the 12/12 flowering photoperiod.
+        lights_on_local:
+          type: string
+          pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$'
+          description: Local-time HH:MM:SS lights-on time in the tent timezone.
+          example: '09:00:00'
+        lights_off_local:
+          type: string
+          pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$'
+          description: Local-time HH:MM:SS lights-off time in the tent timezone.
+          example: '21:00:00'
 
     GrowCurrent:
       type: object

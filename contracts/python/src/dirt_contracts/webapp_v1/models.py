@@ -132,6 +132,28 @@ class LightsState(BaseModel):
     """
 
 
+class GrowFlowerFlipRequest(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    flower_start_date: date_aliased
+    """
+    First calendar day under the 12/12 flowering photoperiod.
+    """
+    lights_on_local: constr(pattern=r"^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$") = (
+        Field(..., examples=["09:00:00"])
+    )
+    """
+    Local-time HH:MM:SS lights-on time in the tent timezone.
+    """
+    lights_off_local: constr(pattern=r"^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$") = (
+        Field(..., examples=["21:00:00"])
+    )
+    """
+    Local-time HH:MM:SS lights-off time in the tent timezone.
+    """
+
+
 class GrowCurrent(BaseModel):
     model_config = ConfigDict(
         extra="forbid",

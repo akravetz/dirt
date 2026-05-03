@@ -159,7 +159,7 @@ Canonical source: [`firmware/fan_controller/`](../../firmware/fan_controller/). 
 
 Firmware `0.3.0` does six things: **(1)** fan driver — 2 s max-speed failsafe blast at boot, then settles to the **NVS-restored last-commanded duty** (falls back to `BOOT_SPEED_PCT=15 %` on first-flash or after an NVS erase); inversion math and 22–100 % wire-duty remap unchanged from bring-up. **(2)** SHT45 heater cycle — see below. **(3)** Ingest POST every 60 s with `{temperature_c, humidity_pct, fan_duty_pct}` at `location=tent`, `source=esp32`; overloads the tent location rather than adding a new `SensorLocation` enum value. **(4)** HTTP control surface on :80 — `POST /fan {"duty_pct":0..100}` sets the fan AND persists the new value to NVS (with a diff-check to avoid flash wear); `GET /fan` returns `{"set_duty_pct":N,"reported_duty_pct":N}`. `reported_duty_pct` is MOCKED (echoes set value) until D− tach is wired; JSON shape stays stable across that transition. **(5)** Duty persistence — `Preferences` library writes to NVS namespace `fan` key `duty_pct` on every `POST /fan` that changes the value; restored on boot. Survives soft + power-cycle resets. The 2 s max-speed failsafe blast still happens before the restored value is applied — over-ventilation remains the safer failure mode during the boot window. **(6)** OTA — mDNS `fan-controller.local:3232`, fleet-wide `PLANT_OTA_PASSWORD`.
 
-Host-side client: `apps/shared/src/dirt_shared/services/fan_node.py` (`FanNodeClient`) — pure plumbing until a control loop calls it. See [Future integration](#future-integration).
+Host-side client: `apps/shared/src/dirt_shared/services/fan_node.py` (`FanNodeClient`) — used by `apps/hwd/src/dirt_hwd/services/fan_controller.py` for the host-side fan trim loop.
 
 ### SHT45 heater schedule
 
@@ -192,9 +192,14 @@ Initial fan bring-up (16:35–16:37 MDT): flashed smoke-test firmware, ran `fan=
 
 No thermal check performed yet; to verify long-term safety, touch-check each 2N7000 after 10+ minutes at mid-speed.
 
-## Future integration
+## Host-side integration
 
-Two deferred follow-ups, both with known designs:
+Implemented control path:
 
-1. **Host-side closed-loop VPD control.** `FanNodeClient` exists (`apps/shared/src/dirt_shared/services/fan_node.py`) and is ready to be called; no service calls it yet. Target shape: a new `apps/hwd/src/dirt_hwd/services/fan_controller.py` analogous to `HumidifierLoopService` — reads tent temp/VPD from `ReadingsService`, decides desired duty, calls `FanNodeClient.set_duty`, emits a `fan_controller` observability stream. Pairs with the humidifier to form a 2-actuator VPD loop; see [Humidifier Control](humidifier-control.md) for the humidifier half and [multi-actuator environment control](../concepts/multi-actuator-environment-control.md) for the combined-loop design (2D target zones, cascaded SISO, feedforward on lights).
-2. **Real tach (D−) input → replace `reported_duty_pct` mock.** Firmware's `GET /fan` currently returns the last-set value for both fields. Prior attempt: 10 kΩ / 4.7 kΩ divider from D− to GPIO 10 — loaded the weak fan-side pull-up below the ESP32 HIGH threshold (DC on D− under load: 0.71 V). Fix options: (a) higher-impedance divider (100 kΩ / 47 kΩ), (b) external VBUS→D− pull-up, or (c) fresh signal-analysis pass. When the real tach is wired, firmware replaces the echo in `handle_get_fan` with a pulse-frequency → RPM → duty estimate; the JSON shape is already designed for the transition.
+- **Fan trim loop.** `FanTrimLoopService` reads tent RH/VPD from `ReadingsService`, stage bands from `GrowStateService`, current fan duty from `FanNodeClient.get_state()`, and raises/lowers exhaust in small steps. It owns the too-humid / low-VPD side of the environment while the humidifier PI continues to own the too-dry side.
+- **Lights-off dry-down feedforward.** During the last configured window before lights-off, the service can jump the fan to a configured dry-down floor when RH is already near the stage ceiling. This is schedule feedforward, not integral feedback.
+- **Observability.** The service emits `fan_controller` tick, state-change, and error events under `var/logs/fan_controller/`.
+
+Deferred follow-up:
+
+1. **Real tach (D−) input → replace `reported_duty_pct` mock.** Firmware's `GET /fan` currently returns the last-set value for both fields. Prior attempt: 10 kΩ / 4.7 kΩ divider from D− to GPIO 10 — loaded the weak fan-side pull-up below the ESP32 HIGH threshold (DC on D− under load: 0.71 V). Fix options: (a) higher-impedance divider (100 kΩ / 47 kΩ), (b) external VBUS→D− pull-up, or (c) fresh signal-analysis pass. When the real tach is wired, firmware replaces the echo in `handle_get_fan` with a pulse-frequency → RPM → duty estimate; the JSON shape is already designed for the transition.

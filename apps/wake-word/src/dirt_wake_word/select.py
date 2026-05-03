@@ -8,6 +8,7 @@ and pick max. Tiebreak by recall, then by latest training step.
 from __future__ import annotations
 
 import sys
+import time
 import wave
 from pathlib import Path
 
@@ -79,6 +80,7 @@ def select_best_by_real_f1(
 
     rows: list[tuple[int, float, float, float, int]] = []
     for i, model in enumerate(oww.best_models):
+        t0 = time.monotonic()
         slug = f"cand_{i:03d}"
         oww.export_model(model=model, model_name=slug, output_dir=str(tmp_dir))
         onnx_path = tmp_dir / f"{slug}.onnx"
@@ -99,9 +101,10 @@ def select_best_by_real_f1(
         )
         step = oww.best_model_scores[i].get("training_step_ndx", -1)
         rows.append((i, recall, precision, f1, int(step)))
+        elapsed = time.monotonic() - t0
         print(
             f"  cand {i:>3} step={step:>5} | recall={recall:.3f} "
-            f"prec={precision:.3f} f1={f1:.3f}",
+            f"prec={precision:.3f} f1={f1:.3f} elapsed={elapsed:.1f}s",
             flush=True,
         )
         onnx_path.unlink(missing_ok=True)

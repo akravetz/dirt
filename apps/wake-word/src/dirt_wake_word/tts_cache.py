@@ -22,6 +22,8 @@ from .config import NUMBER_OF_EXAMPLES, NUMBER_OF_EXAMPLES_VAL, TARGET_WORD
 from .paths import find_dataset
 from .subsets import SUBSETS
 
+TTS_CACHE_MODE_ENV = "DIRT_WAKEWORD_TTS_CACHE_MODE"
+
 
 def _link(src: Path, dst: Path) -> None:
     """Hardlink src→dst (cheap, same fs); copy on EXDEV (different fs)."""
@@ -35,6 +37,16 @@ def _link(src: Path, dst: Path) -> None:
 
 def restore_tts_cache_if_mounted(out_dir: Path) -> bool:
     """Return True if the cache was used; False if Piper still needs to run."""
+    cache_mode = os.environ.get(TTS_CACHE_MODE_ENV, "restore").strip().lower()
+    if cache_mode not in {"restore", "ignore"}:
+        sys.exit(
+            f"FATAL: {TTS_CACHE_MODE_ENV} must be one of restore, ignore; "
+            f"got {cache_mode!r}"
+        )
+    if cache_mode == "ignore":
+        print(f"({TTS_CACHE_MODE_ENV}=ignore — skipping TTS cache restore)")
+        return False
+
     cache_dir = find_dataset("dirt-wakeword-tts-cache")
     if not cache_dir.exists():
         print("(no TTS cache attached — `--generate_clips` will run Piper)")

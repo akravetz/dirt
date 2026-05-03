@@ -74,6 +74,7 @@ _RETENTION: dict[str, int] = {
     # 14d covers tuning workflow without filling disk
     "humidifier_shadow": 14,
     "lights": 30,  # lights plug state transitions — twice-daily
+    "fan_controller": 30,  # fan trim ticks + duty transitions
     "daily_report": 30,  # per-phase markers for the daily report run
     "device_status": 30,  # offline/online transitions from the device watchdog
     "metric_freshness": 30,  # per-(location, metric) dropout transitions

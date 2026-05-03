@@ -13,6 +13,18 @@ const TABS = [
 
 const THEME_STORAGE_KEY = "dirt.theme";
 type Theme = "light" | "dark";
+type GrowStage = "veg" | "flower_early" | "flower_late";
+
+type GrowContext = {
+  dayNumber: number;
+  flowerWeekNumber: number | null;
+  lights: {
+    offLocal: string;
+    onLocal: string;
+  };
+  stage: GrowStage;
+  strain: string;
+};
 
 function readStoredTheme(): Theme {
   const raw = storage.get(THEME_STORAGE_KEY);
@@ -21,14 +33,22 @@ function readStoredTheme(): Theme {
 
 interface TopBarProps {
   /**
-   * Grow-context summary rendered beside the brand as
-   * "Day {dayNumber} · {strain}". Sourced from GET /api/grow/current by
-   * the root route (ui/ can't import api-client under TS-02). Omit
-   * while the query is loading or on pre-auth screens that predate the
-   * grow identity (the TopBar itself is already hidden on /login).
+   * Grow-context summary sourced from GET /api/grow/current by the root route
+   * (ui/ can't import api-client under TS-02). Omit while the query is loading
+   * or on pre-auth screens that predate the grow identity (the TopBar itself is
+   * already hidden on /login).
    */
-  growContext?: { dayNumber: number; strain: string } | null;
+  growContext?: GrowContext | null;
   onLogout: () => void;
+}
+
+function stageLabel(stage: GrowStage): string {
+  if (stage === "veg") return "Veg";
+  return stage === "flower_early" ? "Flower early" : "Flower late";
+}
+
+function shortLocalTime(value: string): string {
+  return value.slice(0, 5);
 }
 
 export function TopBar({ growContext = null, onLogout }: TopBarProps) {
@@ -62,7 +82,12 @@ export function TopBar({ growContext = null, onLogout }: TopBarProps) {
         />
         {growContext ? (
           <p className="font-mono text-fs-10 uppercase tracking-cap-wide text-ink-3">
-            Day {growContext.dayNumber} · {growContext.strain}
+            Day {growContext.dayNumber} · {stageLabel(growContext.stage)}
+            {growContext.flowerWeekNumber === null
+              ? null
+              : ` · W${growContext.flowerWeekNumber}`}{" "}
+            · {shortLocalTime(growContext.lights.onLocal)}-
+            {shortLocalTime(growContext.lights.offLocal)} · {growContext.strain}
           </p>
         ) : null}
       </div>
