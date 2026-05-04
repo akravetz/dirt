@@ -27,7 +27,7 @@ def _capture_transport(sink: list[dict[str, str]]) -> httpx.MockTransport:
 
 def test_reservoir_negative_depth_is_rejected() -> None:
     decision = evaluate_metrics(
-        "reservoir",
+        "reservoir-node",
         {"reservoir_pressure_raw": 8300.0, "reservoir_in": -35.9},
     )
 
@@ -40,7 +40,7 @@ def test_reservoir_negative_depth_is_rejected() -> None:
 def test_reservoir_plausible_depth_passes_through() -> None:
     metrics = {"reservoir_pressure_raw": 23940.0, "reservoir_in": 20.14}
 
-    decision = evaluate_metrics("reservoir", metrics)
+    decision = evaluate_metrics("reservoir-node", metrics)
 
     assert decision.metrics == metrics
     assert decision.rejected == frozenset()
@@ -74,11 +74,11 @@ async def test_bad_state_alerts_once_then_recovery_alerts(tmp_path: Path) -> Non
     bad = {"reservoir_pressure_raw": 8300.0, "reservoir_in": -35.9}
     good = {"reservoir_pressure_raw": 23940.0, "reservoir_in": 20.14}
 
-    await svc.filter_metrics("reservoir", bad)
-    await svc.filter_metrics("reservoir", bad)
-    await svc.filter_metrics("reservoir", good)
+    await svc.filter_metrics("reservoir-node", bad)
+    await svc.filter_metrics("reservoir-node", bad)
+    await svc.filter_metrics("reservoir-node", good)
 
     assert len(calls) == 2
     assert "data rejected" in calls[0]["text"]
     assert "looks valid again" in calls[1]["text"]
-    assert json.loads(state_path.read_text()) == {"reservoir": "ok"}
+    assert json.loads(state_path.read_text()) == {"reservoir-node": "ok"}

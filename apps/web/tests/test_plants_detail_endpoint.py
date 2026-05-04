@@ -19,28 +19,14 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.device import Capability, Device
-from dirt_shared.models.enums import SensorLocation, SensorSource
+from dirt_shared.models.enums import SensorSource
 from dirt_shared.models.sensor_calibration import SensorCalibration
-from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
-from dirt_shared.sensor_contract import device_id_for_legacy_location
 from dirt_web.app import create_app
 
 
-async def _sensornode_id(engine, location: SensorLocation) -> int:
+async def _moisture_capability_id(engine, device_id: str) -> int:
     async with AsyncSession(engine) as s:
-        result = await s.exec(
-            select(SensorNode.id).where(SensorNode.location == location)
-        )
-        node_id = result.first()
-        assert node_id is not None
-        return node_id
-
-
-async def _moisture_capability_id(engine, location: SensorLocation) -> int:
-    async with AsyncSession(engine) as s:
-        device_id = device_id_for_legacy_location(location)
-        assert device_id is not None
         result = await s.exec(
             select(Capability.id)
             .join(Device, Device.id == Capability.device_id)
@@ -52,9 +38,8 @@ async def _moisture_capability_id(engine, location: SensorLocation) -> int:
         return capability_id
 
 
-async def _seed_moisture(engine, *, location: SensorLocation, raw: float) -> None:
-    node_id = await _sensornode_id(engine, location)
-    capability_id = await _moisture_capability_id(engine, location)
+async def _seed_moisture(engine, *, device_id: str, raw: float) -> None:
+    capability_id = await _moisture_capability_id(engine, device_id)
     async with AsyncSession(engine) as s:
         s.add(
             SensorCalibration(
@@ -67,7 +52,6 @@ async def _seed_moisture(engine, *, location: SensorLocation, raw: float) -> Non
         s.add(
             SensorReading(
                 ts=datetime.now(UTC),
-                sensornode_id=node_id,
                 capability_id=capability_id,
                 metric="soil_moisture_raw",
                 value=raw,
@@ -112,7 +96,7 @@ async def test_plants_detail_returns_contract_shape(
     client: AsyncClient, app_engine
 ) -> None:
     # Seed moisture so the envelope has a value rather than null pct.
-    await _seed_moisture(app_engine, location=SensorLocation.PLANT_A, raw=380.0)
+    await _seed_moisture(app_engine, device_id="plant-a-node", raw=380.0)
 
     response = await client.get("/api/plants/a")
     assert response.status_code == 200

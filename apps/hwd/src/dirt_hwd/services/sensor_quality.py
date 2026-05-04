@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 STREAM = "sensor_quality"
 
-RESERVOIR_LOCATION = "reservoir"
+RESERVOIR_DEVICE_ID = "reservoir-node"
 RESERVOIR_METRICS = frozenset({"reservoir_pressure_raw", "reservoir_in"})
 
 # Firmware calibration says dry-air zero is raw ~= 18540 and the probe's
@@ -65,16 +65,16 @@ class SensorQualityService:
         )
 
     async def filter_metrics(
-        self, location: str, metrics: dict[str, float]
+        self, device_id: str, metrics: dict[str, float]
     ) -> QualityDecision:
         """Return metrics safe to persist, alerting on quality transitions."""
-        decision = evaluate_metrics(location, metrics)
-        await self._record_transition(location, metrics, decision)
+        decision = evaluate_metrics(device_id, metrics)
+        await self._record_transition(device_id, metrics, decision)
         if decision.rejected:
             log_event(
                 STREAM,
                 "rejected",
-                location=location,
+                device_id=device_id,
                 rejected=sorted(decision.rejected),
                 reasons=list(decision.reasons),
                 metrics=metrics,
@@ -83,14 +83,14 @@ class SensorQualityService:
 
     async def _record_transition(
         self,
-        location: str,
+        device_id: str,
         metrics: dict[str, float],
         decision: QualityDecision,
     ) -> None:
-        if location != RESERVOIR_LOCATION:
+        if device_id != RESERVOIR_DEVICE_ID:
             return
 
-        key = RESERVOIR_LOCATION
+        key = RESERVOIR_DEVICE_ID
         state = _load_state(self._config.state_path)
         old = state.get(key)
         new = "bad" if decision.rejected else "ok"
@@ -103,7 +103,7 @@ class SensorQualityService:
         log_event(
             STREAM,
             "state_change",
-            location=location,
+            device_id=device_id,
             old=old,
             new=new,
             rejected=sorted(decision.rejected),
@@ -113,11 +113,11 @@ class SensorQualityService:
 
         if old is None and new == "ok":
             return
-        await self._send_transition(location, metrics, decision, old=old, new=new)
+        await self._send_transition(device_id, metrics, decision, old=old, new=new)
 
     async def _send_transition(
         self,
-        location: str,
+        device_id: str,
         metrics: dict[str, float],
         decision: QualityDecision,
         *,
@@ -129,9 +129,9 @@ class SensorQualityService:
             return
 
         if new == "bad":
-            text = _bad_message(location, metrics, decision.reasons)
+            text = _bad_message(device_id, metrics, decision.reasons)
         else:
-            text = _recovered_message(location, metrics, old)
+            text = _recovered_message(device_id, metrics, old)
 
         try:
             async with self._http_factory() as http:
@@ -144,8 +144,8 @@ class SensorQualityService:
             logger.exception("telegram send failed for sensor-quality alert")
 
 
-def evaluate_metrics(location: str, metrics: dict[str, float]) -> QualityDecision:
-    if location != RESERVOIR_LOCATION:
+def evaluate_metrics(device_id: str, metrics: dict[str, float]) -> QualityDecision:
+    if device_id != RESERVOIR_DEVICE_ID:
         return QualityDecision(metrics=dict(metrics), rejected=frozenset(), reasons=())
 
     reasons = _reservoir_reasons(metrics)

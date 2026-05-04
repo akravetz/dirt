@@ -28,125 +28,52 @@ metric for that device.
 from __future__ import annotations
 
 from collections.abc import Iterable
-
-from dirt_shared.models.enums import SensorLocation
+from enum import StrEnum
 
 MetricContract = tuple[str, bool, bool]
-DeviceContract = tuple[SensorLocation, dict[str, MetricContract]]
+DeviceContract = dict[str, MetricContract]
 
-_LEGACY_LOCATION = 0
-_CAPABILITIES = 1
+
+class ContractLocation(StrEnum):
+    TENT = "tent"
+    PLANT_A = "plant-a"
+    PLANT_B = "plant-b"
+    PLANT_C = "plant-c"
+    PLANT_D = "plant-d"
+    RESERVOIR = "reservoir"
+
+
 _METRIC_NAME = 0
 _EMITTED = 1
 _PERSISTED = 2
 
 
 DEVICE_METRICS: dict[str, DeviceContract] = {
-    "fan-controller": (
-        SensorLocation.TENT,
-        {
-            "temperature_c": ("temperature_c", True, False),
-            "temperature_f": ("temperature_f", False, True),
-            "humidity_pct": ("humidity_pct", True, True),
-            "vpd_kpa": ("vpd_kpa", False, True),
-            "dew_point_f": ("dew_point_f", False, True),
-            "fan_duty_pct": ("fan_duty_pct", True, False),
-        },
-    ),
-    "plant-a-node": (
-        SensorLocation.PLANT_A,
-        {
-            "soil_moisture_raw": ("soil_moisture_raw", True, True),
-        },
-    ),
-    "plant-b-node": (
-        SensorLocation.PLANT_B,
-        {
-            "soil_moisture_raw": ("soil_moisture_raw", True, True),
-        },
-    ),
-    "plant-c-node": (
-        SensorLocation.PLANT_C,
-        {
-            "soil_moisture_raw": ("soil_moisture_raw", True, True),
-        },
-    ),
-    "plant-d-node": (
-        SensorLocation.PLANT_D,
-        {
-            "soil_moisture_raw": ("soil_moisture_raw", True, True),
-        },
-    ),
-    "reservoir-node": (
-        SensorLocation.RESERVOIR,
-        {
-            "reservoir_pressure_raw": ("reservoir_pressure_raw", True, True),
-            "reservoir_in": ("reservoir_in", True, True),
-        },
-    ),
+    "fan-controller": {
+        "temperature_c": ("temperature_c", True, False),
+        "temperature_f": ("temperature_f", False, True),
+        "humidity_pct": ("humidity_pct", True, True),
+        "vpd_kpa": ("vpd_kpa", False, True),
+        "dew_point_f": ("dew_point_f", False, True),
+        "fan_duty_pct": ("fan_duty_pct", True, False),
+    },
+    "plant-a-node": {
+        "soil_moisture_raw": ("soil_moisture_raw", True, True),
+    },
+    "plant-b-node": {
+        "soil_moisture_raw": ("soil_moisture_raw", True, True),
+    },
+    "plant-c-node": {
+        "soil_moisture_raw": ("soil_moisture_raw", True, True),
+    },
+    "plant-d-node": {
+        "soil_moisture_raw": ("soil_moisture_raw", True, True),
+    },
+    "reservoir-node": {
+        "reservoir_pressure_raw": ("reservoir_pressure_raw", True, True),
+        "reservoir_in": ("reservoir_in", True, True),
+    },
 }
-
-_LEGACY_DEVICE_ID_BY_LOCATION: dict[SensorLocation, str] = {
-    contract[_LEGACY_LOCATION]: device_id
-    for device_id, contract in DEVICE_METRICS.items()
-}
-_LEGACY_LOCATION_BY_DEVICE_ID: dict[str, SensorLocation] = {
-    device_id: contract[_LEGACY_LOCATION]
-    for device_id, contract in DEVICE_METRICS.items()
-}
-
-# Compatibility exports kept for the human-owned sensor-contract invariant
-# until Milestone 5 removes SensorLocation itself. Production code should use
-# the device/capability helpers below.
-EMITTED_METRICS: dict[SensorLocation, frozenset[str]] = {
-    contract[_LEGACY_LOCATION]: frozenset(
-        metric[_METRIC_NAME]
-        for metric in contract[_CAPABILITIES].values()
-        if metric[_EMITTED]
-    )
-    for contract in DEVICE_METRICS.values()
-}
-PERSISTED_METRICS: dict[SensorLocation, frozenset[str]] = {
-    contract[_LEGACY_LOCATION]: frozenset(
-        metric[_METRIC_NAME]
-        for metric in contract[_CAPABILITIES].values()
-        if metric[_PERSISTED]
-    )
-    for contract in DEVICE_METRICS.values()
-}
-
-
-def legacy_location_for_device_id(device_id: str | None) -> str | None:
-    if device_id is None:
-        return None
-    location = _LEGACY_LOCATION_BY_DEVICE_ID.get(device_id)
-    if location is None:
-        return None
-    return location.value
-
-
-def device_id_for_legacy_location(location: SensorLocation | str | None) -> str | None:
-    if location is None:
-        return None
-    try:
-        loc = (
-            location
-            if isinstance(location, SensorLocation)
-            else SensorLocation(location)
-        )
-    except ValueError:
-        return None
-    return _LEGACY_DEVICE_ID_BY_LOCATION.get(loc)
-
-
-def is_known_legacy_location(location_str: str | None) -> bool:
-    if location_str is None:
-        return False
-    try:
-        loc = SensorLocation(location_str)
-    except ValueError:
-        return False
-    return loc in _LEGACY_DEVICE_ID_BY_LOCATION
 
 
 def emitted_metrics_for_device_id(device_id: str) -> frozenset[str]:
@@ -154,9 +81,7 @@ def emitted_metrics_for_device_id(device_id: str) -> frozenset[str]:
     if contract is None:
         return frozenset()
     return frozenset(
-        metric[_METRIC_NAME]
-        for metric in contract[_CAPABILITIES].values()
-        if metric[_EMITTED]
+        metric[_METRIC_NAME] for metric in contract.values() if metric[_EMITTED]
     )
 
 
@@ -165,9 +90,7 @@ def persisted_metrics_for_device_id(device_id: str) -> frozenset[str]:
     if contract is None:
         return frozenset()
     return frozenset(
-        metric[_METRIC_NAME]
-        for metric in contract[_CAPABILITIES].values()
-        if metric[_PERSISTED]
+        metric[_METRIC_NAME] for metric in contract.values() if metric[_PERSISTED]
     )
 
 
@@ -177,29 +100,9 @@ def persisted_capability_ids_for_device_id(device_id: str) -> frozenset[str]:
         return frozenset()
     return frozenset(
         capability_id
-        for capability_id, metric in contract[_CAPABILITIES].items()
+        for capability_id, metric in contract.items()
         if metric[_PERSISTED]
     )
-
-
-def missing_emitted(
-    location_str: str, payload_metrics: Iterable[str]
-) -> frozenset[str]:
-    """Metrics the location is declared to emit but the payload omitted.
-
-    Accepts a raw location string so callers at the ingest boundary don't
-    have to import SensorLocation (keeps api modules off dirt_shared.models).
-    Returns an empty set for unknown locations — opaque devices are
-    permitted, not broken.
-    """
-    try:
-        loc = SensorLocation(location_str)
-    except ValueError:
-        return frozenset()
-    device_id = _LEGACY_DEVICE_ID_BY_LOCATION.get(loc)
-    if device_id is None:
-        return frozenset()
-    return emitted_metrics_for_device_id(device_id) - set(payload_metrics)
 
 
 def missing_emitted_for_device_id(
@@ -208,3 +111,31 @@ def missing_emitted_for_device_id(
     if device_id is None:
         return frozenset()
     return emitted_metrics_for_device_id(device_id) - set(payload_metrics)
+
+
+# Compatibility exports kept for the human-owned sensor-contract invariant.
+# Production code should use the device/capability helpers above.
+_INVARIANT_DEVICE_BY_LOCATION: dict[ContractLocation, str] = {
+    ContractLocation.TENT: "fan-controller",
+    ContractLocation.PLANT_A: "plant-a-node",
+    ContractLocation.PLANT_B: "plant-b-node",
+    ContractLocation.PLANT_C: "plant-c-node",
+    ContractLocation.PLANT_D: "plant-d-node",
+    ContractLocation.RESERVOIR: "reservoir-node",
+}
+EMITTED_METRICS: dict[ContractLocation, frozenset[str]] = {
+    location: frozenset(
+        metric[_METRIC_NAME]
+        for metric in DEVICE_METRICS[device_id].values()
+        if metric[_EMITTED]
+    )
+    for location, device_id in _INVARIANT_DEVICE_BY_LOCATION.items()
+}
+PERSISTED_METRICS: dict[ContractLocation, frozenset[str]] = {
+    location: frozenset(
+        metric[_METRIC_NAME]
+        for metric in DEVICE_METRICS[device_id].values()
+        if metric[_PERSISTED]
+    )
+    for location, device_id in _INVARIANT_DEVICE_BY_LOCATION.items()
+}

@@ -6,9 +6,8 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.device import Capability, Device
-from dirt_shared.models.enums import SensorLocation, SensorSource
+from dirt_shared.models.enums import SensorSource
 from dirt_shared.models.sensor_calibration import SensorCalibration
-from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.services.readings import ReadingsService
 from dirt_voice.tools.sensors import build_sensor_tools
@@ -21,13 +20,6 @@ class _FakeGrow:
             "humidity_pct": (40.0, 65.0),
             "vpd_kpa": (0.8, 1.4),
         }
-
-
-async def _node_id(session: AsyncSession, location: SensorLocation) -> int:
-    node_id = (
-        await session.exec(select(SensorNode.id).where(SensorNode.location == location))
-    ).one()
-    return node_id
 
 
 async def _capability_id(
@@ -49,8 +41,6 @@ async def test_current_status_reads_scoped_tent_and_plant_capabilities(
 ) -> None:
     now = datetime(2026, 5, 4, 20, 0, tzinfo=UTC)
     async with AsyncSession(app_engine) as session:
-        tent_node = await _node_id(session, SensorLocation.TENT)
-        plant_node = await _node_id(session, SensorLocation.PLANT_A)
         tent_caps = {
             metric: await _capability_id(
                 session, device_id="fan-controller", capability_id=metric
@@ -69,7 +59,6 @@ async def test_current_status_reads_scoped_tent_and_plant_capabilities(
             session.add(
                 SensorReading(
                     ts=now,
-                    sensornode_id=tent_node,
                     capability_id=tent_caps[metric],
                     metric=metric,
                     value=value,
@@ -87,7 +76,6 @@ async def test_current_status_reads_scoped_tent_and_plant_capabilities(
         session.add(
             SensorReading(
                 ts=now - timedelta(seconds=5),
-                sensornode_id=plant_node,
                 capability_id=plant_cap,
                 metric="soil_moisture_raw",
                 value=400,

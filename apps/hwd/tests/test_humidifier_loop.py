@@ -68,10 +68,10 @@ class FakeReadings:
     def __init__(self, vpd: float, rh: float, ts: datetime) -> None:
         self.vpd = _Reading(vpd, ts)
         self.rh = _Reading(rh, ts)
-        self.ingested: list[tuple[Any, dict, Any]] = []
+        self.ingested: list[tuple[dict, Any, dict[str, Any]]] = []
         self.latest_calls: list[tuple[str, dict[str, Any]]] = []
 
-    async def get_latest_reading(self, metric, location=None, **kwargs):
+    async def get_latest_reading(self, metric, **kwargs):
         self.latest_calls.append((metric, dict(kwargs)))
         if metric == "vpd_kpa":
             return self.vpd
@@ -79,8 +79,8 @@ class FakeReadings:
             return self.rh
         return None
 
-    async def ingest_reading(self, location, metrics, *, source, **kwargs):
-        self.ingested.append((location, dict(metrics), source, dict(kwargs)))
+    async def ingest_reading(self, metrics, *, source, **kwargs):
+        self.ingested.append((dict(metrics), source, dict(kwargs)))
 
 
 class FakeGrow:
@@ -263,7 +263,7 @@ async def test_loop_boot_tick_powers_on_and_sets_level_with_interleave():
 
     # Actuator breadcrumb recorded with the dispatched level.
     assert len(readings.ingested) == 1
-    _, metrics, source, ingest_kwargs = readings.ingested[0]
+    metrics, source, ingest_kwargs = readings.ingested[0]
     assert metrics["humidifier_on"] == 1.0
     assert metrics["humidifier_mist_level"] == 3.0
     assert source == "govee"

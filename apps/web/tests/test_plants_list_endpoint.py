@@ -3,8 +3,8 @@
 Thin FastAPI wrapper around ``PlantsService.list_plants`` joined with
 ``GrowStateService.get_grow_current_payload`` for the top-level ``day``
 number. Tests drive the full ASGI stack with an isolated Postgres DB
-seeded by the template migration (4 plants A–D, one sensornode per
-plant, no readings or calibrations) and assert the JSON body
+seeded by the template migration (4 plants A–D with scoped device/capability
+rows, no readings or calibrations) and assert the JSON body
 deserializes into the generated ``PlantsResponse`` model.
 """
 
@@ -19,28 +19,14 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.device import Capability, Device
-from dirt_shared.models.enums import SensorLocation, SensorSource
+from dirt_shared.models.enums import SensorSource
 from dirt_shared.models.sensor_calibration import SensorCalibration
-from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
-from dirt_shared.sensor_contract import device_id_for_legacy_location
 from dirt_web.app import create_app
 
 
-async def _sensornode_id(engine, location: SensorLocation) -> int:
+async def _moisture_capability_id(engine, device_id: str) -> int:
     async with AsyncSession(engine) as s:
-        result = await s.exec(
-            select(SensorNode.id).where(SensorNode.location == location)
-        )
-        node_id = result.first()
-        assert node_id is not None
-        return node_id
-
-
-async def _moisture_capability_id(engine, location: SensorLocation) -> int:
-    async with AsyncSession(engine) as s:
-        device_id = device_id_for_legacy_location(location)
-        assert device_id is not None
         result = await s.exec(
             select(Capability.id)
             .join(Device, Device.id == Capability.device_id)
@@ -55,7 +41,7 @@ async def _moisture_capability_id(engine, location: SensorLocation) -> int:
 async def _seed_moisture(
     engine,
     *,
-    location: SensorLocation,
+    device_id: str,
     raw: float,
     raw_low: float = 0.0,
     raw_high: float = 1000.0,
@@ -66,8 +52,7 @@ async def _seed_moisture(
     ``100 * (1000 - raw) / 1000``, giving us a predictable pct in tests
     without hardcoding the compute function's implementation.
     """
-    node_id = await _sensornode_id(engine, location)
-    capability_id = await _moisture_capability_id(engine, location)
+    capability_id = await _moisture_capability_id(engine, device_id)
     async with AsyncSession(engine) as s:
         s.add(
             SensorCalibration(
@@ -80,7 +65,6 @@ async def _seed_moisture(
         s.add(
             SensorReading(
                 ts=datetime.now(UTC),
-                sensornode_id=node_id,
                 capability_id=capability_id,
                 metric="soil_moisture_raw",
                 value=raw,
@@ -118,7 +102,7 @@ async def test_plants_list_requires_auth():
 
 async def test_plants_list_returns_contract_shape(client: AsyncClient, app_engine):
     # Seed plant-a with a calibrated reading (raw=380 + [0,1000] → 62%).
-    await _seed_moisture(app_engine, location=SensorLocation.PLANT_A, raw=380.0)
+    await _seed_moisture(app_engine, device_id="plant-a-node", raw=380.0)
 
     response = await client.get("/api/plants")
     assert response.status_code == 200

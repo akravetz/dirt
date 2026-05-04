@@ -1,14 +1,4 @@
-"""Append-only sensor reading fact table.
-
-One row per (ts, sensornode_id, metric, value, source). The hot table —
-grows by ~20 rows per 20s cycle. Append-only, never updated; no
-``updated_at``.
-
-Indexes: BRIN on ``ts`` (append-only monotonic timestamps are the
-textbook BRIN use case); composite B-trees on ``(metric, ts DESC)``,
-``(sensornode_id, ts DESC)``, and ``(capability_id, ts DESC)`` for the
-"latest value per legacy node" and canonical scoped capability query paths.
-"""
+"""Append-only capability-owned sensor reading fact table."""
 
 from __future__ import annotations
 
@@ -49,12 +39,6 @@ class SensorReading(SQLModel, table=True):
             postgresql_ops={"ts": "DESC"},
         ),
         Index(
-            "ix_sensorreading_node_ts",
-            "sensornode_id",
-            "ts",
-            postgresql_ops={"ts": "DESC"},
-        ),
-        Index(
             "ix_sensorreading_capability_ts",
             "capability_id",
             "ts",
@@ -74,19 +58,11 @@ class SensorReading(SQLModel, table=True):
             server_default=text("now()"),
         ),
     )
-    sensornode_id: int = Field(
-        sa_column=Column(
-            BigInteger,
-            ForeignKey("sensornode.id", ondelete="RESTRICT"),
-            nullable=False,
-        )
-    )
-    capability_id: int | None = Field(
-        default=None,
+    capability_id: int = Field(
         sa_column=Column(
             BigInteger,
             ForeignKey("capability.id", ondelete="RESTRICT"),
-            nullable=True,
+            nullable=False,
         ),
     )
     metric: str = Field(sa_column=Column(Text, nullable=False))

@@ -14,11 +14,9 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.device import Capability, Device
-from dirt_shared.models.enums import SensorLocation, SensorSource
+from dirt_shared.models.enums import SensorSource
 from dirt_shared.models.sensor_calibration import SensorCalibration
-from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
-from dirt_shared.sensor_contract import device_id_for_legacy_location
 from dirt_shared.services.daily_sensors import (
     SOIL_METRIC,
     SensorReader,
@@ -28,27 +26,20 @@ from dirt_shared.services.daily_sensors import (
 # Apr 19 2026: MDT is UTC-6.
 TEST_NOW = datetime(2026, 4, 19, 20, 30, 0, tzinfo=UTC)  # 14:30 MDT
 TEST_DATE = date(2026, 4, 19)
-PLANT_LOCATIONS = (
-    SensorLocation.PLANT_A,
-    SensorLocation.PLANT_B,
-    SensorLocation.PLANT_C,
-    SensorLocation.PLANT_D,
+PLANT_DEVICES = (
+    "plant-a-node",
+    "plant-b-node",
+    "plant-c-node",
+    "plant-d-node",
 )
-TENT_LOCATION = SensorLocation.TENT
+TENT_DEVICE = "fan-controller"
 
 
 def _clock():
     return TEST_NOW
 
 
-async def _node_ids(engine) -> dict[SensorLocation, int]:
-    """Resolve every seeded sensornode (location → id)."""
-    async with AsyncSession(engine) as s:
-        result = await s.exec(select(SensorNode))
-        return {n.location: n.id for n in result.all()}
-
-
-async def _capability_ids(engine) -> dict[tuple[SensorLocation, str], int]:
+async def _capability_ids(engine) -> dict[tuple[str, str], int]:
     async with AsyncSession(engine) as s:
         result = await s.exec(
             select(Device.device_id, Capability.metric_name, Capability.id).join(
@@ -61,39 +52,34 @@ async def _capability_ids(engine) -> dict[tuple[SensorLocation, str], int]:
             if metric is not None
         }
         return {
-            (location, metric): cap_id
-            for location in SensorLocation
-            for device_id in (device_id_for_legacy_location(location),)
-            if device_id is not None
+            (device_id, metric): cap_id
             for (row_device_id, metric), cap_id in by_device_metric.items()
-            if row_device_id == device_id
+            for device_id in (row_device_id,)
         }
 
 
 async def _seed_readings(
     engine,
-    rows: list[tuple[SensorLocation, str, float, datetime, SensorSource]],
-    cals: list[tuple[SensorLocation, str, float, float]] = (),
+    rows: list[tuple[str, str, float, datetime, SensorSource]],
+    cals: list[tuple[str, str, float, float]] = (),
 ) -> None:
-    """rows: (location, metric, value, ts, source). cals: (location, metric, raw_low, raw_high)."""
-    node_ids = await _node_ids(engine)
+    """rows: (device_id, metric, value, ts, source)."""
     cap_ids = await _capability_ids(engine)
     async with AsyncSession(engine) as s:
-        for loc, metric, value, ts, source in rows:
+        for device_id, metric, value, ts, source in rows:
             s.add(
                 SensorReading(
-                    sensornode_id=node_ids[loc],
-                    capability_id=cap_ids.get((loc, metric)),
+                    capability_id=cap_ids[(device_id, metric)],
                     metric=metric,
                     value=value,
                     ts=ts,
                     source=source,
                 )
             )
-        for loc, metric, raw_low, raw_high in cals:
+        for device_id, metric, raw_low, raw_high in cals:
             s.add(
                 SensorCalibration(
-                    capability_id=cap_ids[(loc, metric)],
+                    capability_id=cap_ids[(device_id, metric)],
                     metric=metric,
                     raw_low=raw_low,
                     raw_high=raw_high,
@@ -106,24 +92,23 @@ def _all_tent_metrics_fresh() -> list[tuple]:
     """Build a clean set of fresh tent readings (one per METRIC)."""
     fresh_ts = TEST_NOW - timedelta(seconds=10)
     return [
-        (TENT_LOCATION, "temperature_f", 80.0, fresh_ts, SensorSource.ARDUINO),
-        (TENT_LOCATION, "humidity_pct", 50.0, fresh_ts, SensorSource.ARDUINO),
-        (TENT_LOCATION, "pressure_hpa", 843.0, fresh_ts, SensorSource.ARDUINO),
-        (TENT_LOCATION, "vpd_kpa", 1.5, fresh_ts, SensorSource.ARDUINO),
-        (TENT_LOCATION, "dew_point_f", 58.0, fresh_ts, SensorSource.ARDUINO),
+        (TENT_DEVICE, "temperature_f", 80.0, fresh_ts, SensorSource.ARDUINO),
+        (TENT_DEVICE, "humidity_pct", 50.0, fresh_ts, SensorSource.ARDUINO),
+        (TENT_DEVICE, "vpd_kpa", 1.5, fresh_ts, SensorSource.ARDUINO),
+        (TENT_DEVICE, "dew_point_f", 58.0, fresh_ts, SensorSource.ARDUINO),
     ]
 
 
 def _all_plants_fresh(value: float = 2500.0) -> list[tuple]:
     fresh_ts = TEST_NOW - timedelta(seconds=10)
     return [
-        (loc, SOIL_METRIC, value, fresh_ts, SensorSource.ESP32)
-        for loc in PLANT_LOCATIONS
+        (device_id, SOIL_METRIC, value, fresh_ts, SensorSource.ESP32)
+        for device_id in PLANT_DEVICES
     ]
 
 
 def _plant_calibrations() -> list[tuple]:
-    return [(loc, SOIL_METRIC, 1370.0, 3880.0) for loc in PLANT_LOCATIONS]
+    return [(device_id, SOIL_METRIC, 1370.0, 3880.0) for device_id in PLANT_DEVICES]
 
 
 def test_mdt_window_to_utc_handles_offset():
@@ -149,7 +134,7 @@ async def test_validate_passes_on_clean_data(pg_engine):
 
 async def test_validate_flags_zero_tent_value(pg_engine):
     rows = _all_tent_metrics_fresh()
-    rows[1] = (TENT_LOCATION, "humidity_pct", 0.0, rows[1][3], SensorSource.ARDUINO)
+    rows[1] = (TENT_DEVICE, "humidity_pct", 0.0, rows[1][3], SensorSource.ARDUINO)
     await _seed_readings(pg_engine, rows + _all_plants_fresh())
     r = SensorReader(pg_engine, clock=_clock, max_age_s=300)
     failures = await r.validate()
@@ -159,7 +144,7 @@ async def test_validate_flags_zero_tent_value(pg_engine):
 async def test_validate_flags_pinned_plant_high(pg_engine):
     plants = _all_plants_fresh()
     plants[1] = (
-        SensorLocation.PLANT_B,
+        "plant-b-node",
         SOIL_METRIC,
         4095.0,
         plants[1][3],
@@ -176,7 +161,7 @@ async def test_validate_flags_pinned_plant_high(pg_engine):
 async def test_validate_flags_pinned_plant_low(pg_engine):
     plants = _all_plants_fresh()
     plants[2] = (
-        SensorLocation.PLANT_C,
+        "plant-c-node",
         SOIL_METRIC,
         5.0,
         plants[2][3],
@@ -195,11 +180,11 @@ async def test_validate_flags_stale(pg_engine):
     stale_ts = TEST_NOW - timedelta(minutes=10)
     fresh_ts = TEST_NOW - timedelta(seconds=10)
     rows = [
-        (TENT_LOCATION, "temperature_f", 80.0, stale_ts, SensorSource.ARDUINO),
+        (TENT_DEVICE, "temperature_f", 80.0, stale_ts, SensorSource.ARDUINO),
     ]
     # other tent metrics fresh
-    for m in ("humidity_pct", "pressure_hpa", "vpd_kpa", "dew_point_f"):
-        rows.append((TENT_LOCATION, m, 50.0, fresh_ts, SensorSource.ARDUINO))
+    for m in ("humidity_pct", "vpd_kpa", "dew_point_f"):
+        rows.append((TENT_DEVICE, m, 50.0, fresh_ts, SensorSource.ARDUINO))
     await _seed_readings(pg_engine, rows + _all_plants_fresh())
     r = SensorReader(pg_engine, clock=_clock, max_age_s=300)
     failures = await r.validate()
@@ -210,7 +195,7 @@ async def test_validate_flags_missing(pg_engine):
     # only humidity_pct seeded; other tent metrics missing entirely
     rows = [
         (
-            TENT_LOCATION,
+            TENT_DEVICE,
             "humidity_pct",
             50.0,
             TEST_NOW - timedelta(seconds=5),
@@ -232,11 +217,11 @@ async def test_snapshot_aggregates_three_windows(pg_engine):
     # overnight: 02:00 MDT = 08:00 UTC. Two readings, avg should be 75.
     overnight_ts = datetime(2026, 4, 19, 8, 0, tzinfo=UTC)
     rows.append(
-        (TENT_LOCATION, "temperature_f", 70.0, overnight_ts, SensorSource.ARDUINO)
+        (TENT_DEVICE, "temperature_f", 70.0, overnight_ts, SensorSource.ARDUINO)
     )
     rows.append(
         (
-            TENT_LOCATION,
+            TENT_DEVICE,
             "temperature_f",
             80.0,
             overnight_ts + timedelta(hours=1),
@@ -245,16 +230,14 @@ async def test_snapshot_aggregates_three_windows(pg_engine):
     )
     # morning: 10:00 MDT = 16:00 UTC. one reading at 90.
     morning_ts = datetime(2026, 4, 19, 16, 0, tzinfo=UTC)
-    rows.append(
-        (TENT_LOCATION, "temperature_f", 90.0, morning_ts, SensorSource.ARDUINO)
-    )
+    rows.append((TENT_DEVICE, "temperature_f", 90.0, morning_ts, SensorSource.ARDUINO))
     # NOW reading at 14:30 MDT = 20:30 UTC; latest = 85
     now_ts = datetime(2026, 4, 19, 20, 25, tzinfo=UTC)
-    rows.append((TENT_LOCATION, "temperature_f", 85.0, now_ts, SensorSource.ARDUINO))
+    rows.append((TENT_DEVICE, "temperature_f", 85.0, now_ts, SensorSource.ARDUINO))
     # also add other tent metrics + plants so windows have *something*
     fresh_ts = TEST_NOW - timedelta(seconds=10)
-    for m in ("humidity_pct", "pressure_hpa", "vpd_kpa", "dew_point_f"):
-        rows.append((TENT_LOCATION, m, 50.0, fresh_ts, SensorSource.ARDUINO))
+    for m in ("humidity_pct", "vpd_kpa", "dew_point_f"):
+        rows.append((TENT_DEVICE, m, 50.0, fresh_ts, SensorSource.ARDUINO))
     rows.extend(_all_plants_fresh(value=2500.0))
     await _seed_readings(pg_engine, rows, _plant_calibrations())
 
@@ -276,10 +259,8 @@ async def test_snapshot_per_plant_pct_uses_calibration(pg_engine):
     rows = _all_tent_metrics_fresh()
     fresh_ts = TEST_NOW - timedelta(seconds=10)
     # plant-a raw=2500 cal 1370/3880 -> pct = 1380/2510 = 54.98%
-    rows.append(
-        (SensorLocation.PLANT_A, SOIL_METRIC, 2500.0, fresh_ts, SensorSource.ESP32)
-    )
-    for loc in (SensorLocation.PLANT_B, SensorLocation.PLANT_C, SensorLocation.PLANT_D):
+    rows.append(("plant-a-node", SOIL_METRIC, 2500.0, fresh_ts, SensorSource.ESP32))
+    for loc in ("plant-b-node", "plant-c-node", "plant-d-node"):
         rows.append((loc, SOIL_METRIC, 2000.0, fresh_ts, SensorSource.ESP32))
     await _seed_readings(pg_engine, rows, _plant_calibrations())
 

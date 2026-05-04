@@ -1,4 +1,4 @@
-"""Audit guards for the legacy SensorLocation/sensornode retirement plan."""
+"""Audit guards for completed legacy sensornode retirement."""
 
 from __future__ import annotations
 
@@ -6,10 +6,8 @@ import ast
 from dataclasses import dataclass
 from pathlib import Path
 
-from dirt_shared.models.enums import SensorLocation
 from dirt_shared.sensor_contract import (
     DEVICE_METRICS,
-    device_id_for_legacy_location,
     emitted_metrics_for_device_id,
     persisted_capability_ids_for_device_id,
     persisted_metrics_for_device_id,
@@ -37,18 +35,6 @@ CENTRALIZED_WRITERS: dict[str, frozenset[tuple[str, str]]] = {
             ),
         }
     ),
-    "SensorNode": frozenset(
-        {
-            (
-                "apps/shared/src/dirt_shared/services/readings.py",
-                "ReadingsService.ingest_reading",
-            ),
-            (
-                "apps/shared/src/dirt_shared/services/readings.py",
-                "ReadingsService.touch_node",
-            ),
-        }
-    ),
 }
 SCOPED_WRITERS = frozenset({"SensorReading", "SensorCalibration"})
 
@@ -57,21 +43,9 @@ LEGACY_REFERENCE_TOKENS = (
     "SensorNode",
     "sensornode_id",
     "legacy_location",
-    "missing_emitted",
 )
 
-EXPECTED_LEGACY_REFERENCE_FILES = frozenset(
-    {
-        "apps/hwd/src/dirt_hwd/api/ingest.py",
-        "apps/hwd/src/dirt_hwd/services/humidifier.py",
-        "apps/shared/src/dirt_shared/models/__init__.py",
-        "apps/shared/src/dirt_shared/models/enums.py",
-        "apps/shared/src/dirt_shared/models/sensor_node.py",
-        "apps/shared/src/dirt_shared/models/sensor_reading.py",
-        "apps/shared/src/dirt_shared/sensor_contract.py",
-        "apps/shared/src/dirt_shared/services/readings.py",
-    }
-)
+EXPECTED_LEGACY_REFERENCE_FILES = frozenset({})
 
 
 @dataclass(frozen=True)
@@ -168,7 +142,7 @@ def test_legacy_reference_inventory_is_explicit() -> None:
 
 
 def test_legacy_table_writers_stay_centralized() -> None:
-    """New live writers must not bypass the compatibility choke points."""
+    """New live writers must not bypass the scoped service choke points."""
     unexpected = [
         call
         for call in _constructor_calls()
@@ -194,25 +168,16 @@ def test_current_reading_and_calibration_writers_carry_capability_scope() -> Non
     )
 
 
-def test_legacy_sensor_contract_helpers_are_derived_from_device_contracts() -> None:
-    expected_locations = {contract[0] for contract in DEVICE_METRICS.values()}
-    expected_devices_by_location = {
-        contract[0]: device_id for device_id, contract in DEVICE_METRICS.items()
-    }
-
-    assert expected_locations == set(SensorLocation)
-    assert {
-        location: device_id_for_legacy_location(location) for location in SensorLocation
-    } == expected_devices_by_location
+def test_sensor_contract_helpers_are_derived_from_device_contracts() -> None:
     for device_id, contract in DEVICE_METRICS.items():
         assert emitted_metrics_for_device_id(device_id) == {
-            metric[0] for metric in contract[1].values() if metric[1]
+            metric[0] for metric in contract.values() if metric[1]
         }
         assert persisted_metrics_for_device_id(device_id) == {
-            metric[0] for metric in contract[1].values() if metric[2]
+            metric[0] for metric in contract.values() if metric[2]
         }
         assert persisted_capability_ids_for_device_id(device_id) == {
-            capability_id for capability_id, metric in contract[1].items() if metric[2]
+            capability_id for capability_id, metric in contract.items() if metric[2]
         }
 
 
@@ -220,7 +185,7 @@ def test_device_contract_metrics_are_keyed_by_capability_identity() -> None:
     offenders = {
         device_id: sorted(
             capability_id
-            for capability_id, metric in contract[1].items()
+            for capability_id, metric in contract.items()
             if capability_id != metric[0]
         )
         for device_id, contract in DEVICE_METRICS.items()

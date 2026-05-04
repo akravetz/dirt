@@ -22,28 +22,14 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.device import Capability, Device
-from dirt_shared.models.enums import SensorLocation, SensorSource
+from dirt_shared.models.enums import SensorSource
 from dirt_shared.models.sensor_calibration import SensorCalibration
-from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
-from dirt_shared.sensor_contract import device_id_for_legacy_location
 from dirt_web.app import create_app
 
 
-async def _sensornode_id(engine, location: SensorLocation) -> int:
+async def _moisture_capability_id(engine, device_id: str) -> int:
     async with AsyncSession(engine) as s:
-        result = await s.exec(
-            select(SensorNode.id).where(SensorNode.location == location)
-        )
-        node_id = result.first()
-        assert node_id is not None
-        return node_id
-
-
-async def _moisture_capability_id(engine, location: SensorLocation) -> int:
-    async with AsyncSession(engine) as s:
-        device_id = device_id_for_legacy_location(location)
-        assert device_id is not None
         result = await s.exec(
             select(Capability.id)
             .join(Device, Device.id == Capability.device_id)
@@ -58,7 +44,7 @@ async def _moisture_capability_id(engine, location: SensorLocation) -> int:
 async def _seed_moisture_series(
     engine,
     *,
-    location: SensorLocation,
+    device_id: str,
     raws: list[tuple[datetime, float]],
     raw_low: float = 0.0,
     raw_high: float = 1000.0,
@@ -68,8 +54,7 @@ async def _seed_moisture_series(
     With raw_low=0 and raw_high=1000 the calibration maps raw→pct by
     ``100 * (1000 - raw) / 1000``, so ``raw=500`` → 50% and ``raw=100`` → 90%.
     """
-    node_id = await _sensornode_id(engine, location)
-    capability_id = await _moisture_capability_id(engine, location)
+    capability_id = await _moisture_capability_id(engine, device_id)
     async with AsyncSession(engine) as s:
         s.add(
             SensorCalibration(
@@ -83,7 +68,6 @@ async def _seed_moisture_series(
             s.add(
                 SensorReading(
                     ts=ts,
-                    sensornode_id=node_id,
                     capability_id=capability_id,
                     metric="soil_moisture_raw",
                     value=raw,
@@ -162,7 +146,7 @@ async def test_plants_moisture_series_with_irrigation_events(
         (now - timedelta(hours=5), 100.0),  # 90% (event 3)
         (now - timedelta(minutes=30), 600.0),  # 40% (drying)
     ]
-    await _seed_moisture_series(app_engine, location=SensorLocation.PLANT_A, raws=raws)
+    await _seed_moisture_series(app_engine, device_id="plant-a-node", raws=raws)
 
     response = await client.get("/api/plants/a/moisture?range=24h")
     assert response.status_code == 200
@@ -193,7 +177,7 @@ async def test_plants_moisture_1h_range_preserves_24h_event_count(
         (now - timedelta(minutes=45), 500.0),  # within 1h, no jump
         (now - timedelta(minutes=30), 480.0),
     ]
-    await _seed_moisture_series(app_engine, location=SensorLocation.PLANT_B, raws=raws)
+    await _seed_moisture_series(app_engine, device_id="plant-b-node", raws=raws)
 
     response = await client.get("/api/plants/b/moisture?range=1h")
     assert response.status_code == 200
@@ -215,7 +199,7 @@ async def test_plants_moisture_7d_range_bucketed_hourly(
     """
     now = datetime.now(UTC)
     raws = [(now - timedelta(minutes=90 - i * 5), 400.0) for i in range(20)]
-    await _seed_moisture_series(app_engine, location=SensorLocation.PLANT_A, raws=raws)
+    await _seed_moisture_series(app_engine, device_id="plant-a-node", raws=raws)
 
     response = await client.get("/api/plants/a/moisture?range=7d")
     assert response.status_code == 200

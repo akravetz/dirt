@@ -4,11 +4,11 @@ The wire contract with ESP32 plant nodes is the
 ``dirt_hwd.api.ingest.IngestPayload`` Pydantic model. Two properties
 pin its contract so an agent can't narrow it by accident:
 
-1. Any payload inside the declared bounds (location 1..64 chars,
+1. Any payload inside the declared bounds (device_id 1..64 chars,
    metrics is a dict[str, float], optional fields nullable) parses
    cleanly — no ValidationError.
 
-2. Any payload breaking the bounds (empty location, location > 64
+2. Any payload breaking the bounds (empty device_id, device_id > 64
    chars) is rejected. This is the negative side of the first property
    and catches the common regression where someone "relaxes" the
    model to get a test to pass.
@@ -28,7 +28,7 @@ from dirt_hwd.api.ingest import IngestPayload
 
 # Text in the 1..64-char range. Exclude control chars so hypothesis
 # doesn't waste effort on bytes that no ESP32 would ever send.
-_LOCATION = st.text(
+_DEVICE_ID = st.text(
     alphabet=st.characters(blacklist_categories=("Cs", "Cc")),
     min_size=1,
     max_size=64,
@@ -45,7 +45,7 @@ _METRICS = st.dictionaries(_METRIC_NAME, _METRIC_VALUE, max_size=8)
 
 
 @given(
-    location=_LOCATION,
+    device_id=_DEVICE_ID,
     metrics=_METRICS,
     source=st.sampled_from(["esp32", "manual", "firmware-test"]),
     ip=st.none() | st.from_regex(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$"),
@@ -53,7 +53,7 @@ _METRICS = st.dictionaries(_METRIC_NAME, _METRIC_VALUE, max_size=8)
     uptime_ms=st.none() | st.integers(min_value=0, max_value=2**32 - 1),
 )
 def test_valid_payload_parses(
-    location: str,
+    device_id: str,
     metrics: dict[str, float],
     source: str,
     ip: str | None,
@@ -62,34 +62,34 @@ def test_valid_payload_parses(
 ) -> None:
     """Any payload inside the declared bounds parses to an IngestPayload."""
     payload = IngestPayload(
-        location=location,
+        device_id=device_id,
         metrics=metrics,
         source=source,
         ip=ip,
         firmware_version=firmware_version,
         uptime_ms=uptime_ms,
     )
-    assert payload.location == location
+    assert payload.device_id == device_id
     assert payload.metrics == metrics
     assert payload.source == source
 
 
-@given(location=st.text(min_size=65, max_size=200))
-def test_oversize_location_is_rejected(location: str) -> None:
-    """A location over 64 chars always fails validation."""
+@given(device_id=st.text(min_size=65, max_size=200))
+def test_oversize_device_id_is_rejected(device_id: str) -> None:
+    """A device_id over 64 chars always fails validation."""
     try:
-        IngestPayload(location=location, metrics={})
+        IngestPayload(device_id=device_id, metrics={})
     except ValidationError:
         return
     raise AssertionError(
-        "IngestPayload accepted a location > 64 chars — contract broken"
+        "IngestPayload accepted a device_id > 64 chars — contract broken"
     )
 
 
-def test_empty_location_is_rejected() -> None:
-    """Zero-length location always fails validation."""
+def test_empty_device_id_is_rejected() -> None:
+    """Zero-length device_id always fails validation."""
     try:
-        IngestPayload(location="", metrics={})
+        IngestPayload(device_id="", metrics={})
     except ValidationError:
         return
-    raise AssertionError("IngestPayload accepted an empty location — contract broken")
+    raise AssertionError("IngestPayload accepted an empty device_id — contract broken")

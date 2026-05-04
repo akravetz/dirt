@@ -8,22 +8,14 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.device import Capability, Device
-from dirt_shared.models.enums import SensorLocation, SensorSource
+from dirt_shared.models.enums import SensorSource
 from dirt_shared.models.sensor_calibration import SensorCalibration
-from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.services.daily_sensors import SensorReader
 from dirt_shared.services.plant_detail import PlantDetailService
 from dirt_shared.services.plants import PlantsService
 from dirt_shared.services.readings import ReadingsService
 from dirt_shared.services.scope import resolve_scope
-
-
-async def _sensor_node_id(session: AsyncSession, location: SensorLocation) -> int:
-    node_id = (
-        await session.exec(select(SensorNode.id).where(SensorNode.location == location))
-    ).one()
-    return node_id
 
 
 async def _capability_pk(
@@ -87,7 +79,6 @@ async def test_main_plant_moisture_ignores_other_tent_calibration(
 ) -> None:
     now = datetime(2026, 5, 4, 12, 0, tzinfo=UTC)
     async with AsyncSession(app_engine) as session:
-        node_id = await _sensor_node_id(session, SensorLocation.PLANT_A)
         main_cap = await _capability_pk(
             session,
             device_id="plant-a-node",
@@ -113,7 +104,6 @@ async def test_main_plant_moisture_ignores_other_tent_calibration(
         session.add(
             SensorReading(
                 ts=now,
-                sensornode_id=node_id,
                 capability_id=main_cap,
                 metric="soil_moisture_raw",
                 value=400,
@@ -123,7 +113,6 @@ async def test_main_plant_moisture_ignores_other_tent_calibration(
         session.add(
             SensorReading(
                 ts=now + timedelta(seconds=1),
-                sensornode_id=node_id,
                 capability_id=breeding_cap,
                 metric="soil_moisture_raw",
                 value=400,
@@ -143,7 +132,6 @@ async def test_daily_sensor_snapshot_uses_main_capability_calibration(
 ) -> None:
     now = datetime(2026, 5, 4, 20, 0, tzinfo=UTC)
     async with AsyncSession(app_engine) as session:
-        node_id = await _sensor_node_id(session, SensorLocation.PLANT_A)
         main_cap = await _capability_pk(
             session,
             device_id="plant-a-node",
@@ -169,7 +157,6 @@ async def test_daily_sensor_snapshot_uses_main_capability_calibration(
         session.add(
             SensorReading(
                 ts=now,
-                sensornode_id=node_id,
                 capability_id=main_cap,
                 metric="soil_moisture_raw",
                 value=400,
@@ -179,7 +166,6 @@ async def test_daily_sensor_snapshot_uses_main_capability_calibration(
         session.add(
             SensorReading(
                 ts=now + timedelta(seconds=1),
-                sensornode_id=node_id,
                 capability_id=breeding_cap,
                 metric="soil_moisture_raw",
                 value=400,
@@ -210,15 +196,9 @@ async def test_metric_freshness_keys_duplicate_capability_ids_by_device(
                 device_id=device_id,
                 capability_id="soil_moisture_raw",
             )
-            node_location = (
-                SensorLocation.PLANT_A
-                if device_id == "plant-a-node"
-                else SensorLocation.PLANT_B
-            )
             session.add(
                 SensorReading(
                     ts=now,
-                    sensornode_id=await _sensor_node_id(session, node_location),
                     capability_id=cap_pk,
                     metric="soil_moisture_raw",
                     value=400,

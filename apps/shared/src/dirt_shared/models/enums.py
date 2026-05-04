@@ -42,15 +42,6 @@ class PlantSticker(StrEnum):
     BLUE = "blue"
 
 
-class SensorLocation(StrEnum):
-    TENT = "tent"
-    PLANT_A = "plant-a"
-    PLANT_B = "plant-b"
-    PLANT_C = "plant-c"
-    PLANT_D = "plant-d"
-    RESERVOIR = "reservoir"
-
-
 class SensorSource(StrEnum):
     ARDUINO = "arduino"
     ESP32 = "esp32"
@@ -71,9 +62,6 @@ PLANT_STATUS_ENUM = SAEnum(
 )
 PLANT_STICKER_ENUM = SAEnum(
     PlantSticker, name="plant_sticker", values_callable=_lowercase_values
-)
-SENSOR_LOCATION_ENUM = SAEnum(
-    SensorLocation, name="sensor_location", values_callable=_lowercase_values
 )
 SENSOR_SOURCE_ENUM = SAEnum(
     SensorSource, name="sensor_source", values_callable=_lowercase_values

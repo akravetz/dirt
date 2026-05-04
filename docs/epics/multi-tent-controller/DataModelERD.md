@@ -2,11 +2,11 @@
 
 This document describes the Phase 1 multi-tent local controller database model implemented by `docs/epics/multi-tent-controller/ExecPlan.md`.
 
-The canonical scoped path is:
+The canonical scoped telemetry path is:
 
 `site -> tent -> zone/device -> capability -> sensorreading`
 
-Legacy `sensornode` identity remains during compatibility retirement for firmware ingest, plant moisture node mapping, and historical calibration/readings joins. New scoped reads should prefer `capability -> device -> tent`.
+Firmware ingest, plant moisture, calibration, and current reads all use scoped device/capability identity. The final legacy cleanup migration removes `sensornode`, `sensor_location`, and `sensorreading.sensornode_id` after converting the approved historical rows.
 
 ## Relationship Diagram
 
@@ -24,10 +24,7 @@ erDiagram
     SITE ||--o{ PLANT : scopes
     TENT ||--o{ PLANT : contains
     GROWRUN ||--o{ PLANT : includes
-    SENSORNODE ||--o{ PLANT : legacy_moisture_node
-    SENSORNODE ||--o{ SENSORREADING : legacy_source
     CAPABILITY ||--o{ SENSORREADING : canonical_metric
-    SENSORNODE ||--o{ SENSORCALIBRATION : legacy_calibration
     CAPABILITY ||--o{ SENSORCALIBRATION : canonical_calibration
     SITE ||--o{ SNAPSHOT : scopes
     TENT ||--o{ SNAPSHOT : scopes
@@ -116,10 +113,7 @@ erDiagram
         TEXT purpose
         DATE germination_date
         DATE flower_start_date
-        TIME lights_on_local
-        TIME lights_off_local
         TEXT strain
-        TEXT location
         TEXT timezone
         SMALLINT plant_count
         BOOLEAN is_current
@@ -134,7 +128,7 @@ erDiagram
         BIGINT site_id FK
         BIGINT tent_id FK
         BIGINT growrun_id FK
-        BIGINT sensornode_id FK
+        BIGINT moisture_capability_id FK
         TEXT plant_id
         TEXT code
         TEXT name
@@ -148,19 +142,9 @@ erDiagram
         TIMESTAMPTZ updated_at
     }
 
-    SENSORNODE {
-        BIGINT id PK
-        ENUM location UK
-        INET ip
-        TEXT firmware_version
-        BIGINT uptime_ms
-        TIMESTAMPTZ last_seen
-    }
-
     SENSORREADING {
         BIGINT id PK
         TIMESTAMPTZ ts
-        BIGINT sensornode_id FK
         BIGINT capability_id FK
         TEXT metric
         DOUBLE value
@@ -169,7 +153,6 @@ erDiagram
 
     SENSORCALIBRATION {
         BIGINT id PK
-        BIGINT sensornode_id FK
         BIGINT capability_id FK
         TEXT metric
         DOUBLE raw_low
@@ -329,10 +312,7 @@ One grow cycle or breeding run in one tent.
 | `purpose` | `text` |  | Example: production flower, breeding. |
 | `germination_date` | `date` nullable |  | Germination date. |
 | `flower_start_date` | `date` nullable |  | Flower flip date. |
-| `lights_on_local` | `time` nullable |  | User-facing photoperiod start. |
-| `lights_off_local` | `time` nullable |  | User-facing photoperiod end. |
 | `strain` | `text` nullable |  | Strain label. |
-| `location` | `text` |  | Human grow location label. |
 | `timezone` | `text` |  | Local timezone for schedule/grow-stage math. |
 | `plant_count` | `smallint` |  | Number of plants in the run. |
 | `is_current` | `boolean` | Partial unique per tent | Current run flag scoped to one tent. |
@@ -351,7 +331,7 @@ Plant within a grow run.
 | `site_id` | `bigint` | FK -> `site.id` | Parent site. |
 | `tent_id` | `bigint` | FK -> `tent.id` | Parent tent. |
 | `growrun_id` | `bigint` | FK -> `growrun.id` | Parent grow run. |
-| `sensornode_id` | `bigint` | FK -> `sensornode.id` | Legacy moisture-node mapping. |
+| `moisture_capability_id` | `bigint` nullable | FK -> `capability.id` | Canonical soil-moisture stream for current reads. |
 | `plant_id` | `text` | Unique with `growrun_id` | Stable plant identifier within a grow run. |
 | `code` | `text` |  | Current main-tent values are `a` through `d`. |
 | `name` | `text` |  | Display name. |
@@ -364,43 +344,28 @@ Plant within a grow run.
 | `created_at` | `timestamptz` |  | Creation timestamp. |
 | `updated_at` | `timestamptz` |  | Update timestamp. |
 
-### `sensornode`
-
-Legacy firmware heartbeat and source identity table.
-
-| Field | Type | Key / FK | Notes |
-| --- | --- | --- | --- |
-| `id` | `bigint` | PK | Surrogate identity. |
-| `location` | `sensor_location` | Unique | Fixed legacy enum: current firmware location identity. |
-| `ip` | `inet` nullable |  | Last reported IP address. |
-| `firmware_version` | `text` nullable |  | Last reported firmware version. |
-| `uptime_ms` | `bigint` nullable |  | Last reported uptime. |
-| `last_seen` | `timestamptz` nullable |  | Last heartbeat/read timestamp. |
-
 ### `sensorreading`
 
-Append-only telemetry facts. Canonical scope comes from `capability_id -> capability.device_id -> device.tent_id`.
+Append-only telemetry facts. Scope comes from `capability_id -> capability.device_id -> device.tent_id`.
 
 | Field | Type | Key / FK | Notes |
 | --- | --- | --- | --- |
 | `id` | `bigint` | PK | Surrogate identity. |
 | `ts` | `timestamptz` | Indexed | Reading timestamp. |
-| `sensornode_id` | `bigint` | FK -> `sensornode.id` | Legacy firmware source. |
-| `capability_id` | `bigint` nullable | FK -> `capability.id` | Canonical scoped metric owner. Nullable for transition/history. |
+| `capability_id` | `bigint` | FK -> `capability.id` | Canonical scoped metric owner. |
 | `metric` | `text` | Indexed with `ts` | Metric name as emitted/stored. |
 | `value` | `double precision` |  | Reading value. |
 | `source` | `sensor_source` |  | Source enum. |
 
 ### `sensorcalibration`
 
-Two-point raw sensor calibration. Canonical ownership is `capability_id`; legacy lookups can still use `sensornode_id` plus `metric`.
+Two-point raw sensor calibration. Ownership is `capability_id`.
 
 | Field | Type | Key / FK | Notes |
 | --- | --- | --- | --- |
 | `id` | `bigint` | PK | Surrogate identity. |
-| `sensornode_id` | `bigint` nullable | FK -> `sensornode.id` | Legacy calibration owner. |
-| `capability_id` | `bigint` nullable | FK -> `capability.id` | Canonical scoped calibration owner. |
-| `metric` | `text` | Unique with `sensornode_id` or `capability_id` | Metric being calibrated. |
+| `capability_id` | `bigint` | FK -> `capability.id` | Canonical scoped calibration owner. |
+| `metric` | `text` | Unique with `capability_id` | Metric being calibrated. |
 | `raw_low` | `double precision` |  | Lower raw calibration value. |
 | `raw_high` | `double precision` |  | Upper raw calibration value; checked to be `>= raw_low`. |
 | `updated_at` | `timestamptz` |  | Update timestamp. |
@@ -469,9 +434,9 @@ Local command-intent and lifecycle ledger. This records locally accepted command
 | `result` | `jsonb` nullable |  | Success result payload. |
 | `error` | `jsonb` nullable |  | Failure payload. |
 
-## Notes For Future Cleanup
+## Notes
 
-- `sensornode` and `sensorreading.sensornode_id` are compatibility surfaces for current firmware and historical data. The canonical scoped telemetry owner is `sensorreading.capability_id`.
+- `sensornode`, `sensor_location`, and `sensorreading.sensornode_id` are retired by the scoped firmware legacy cleanup migration. Historical `reservoir_depth_cm` rows are normalized into `reservoir_in`; known trash `pressure_hpa` and one-off plant-a `humidity_pct` null-capability rows are discarded after the normal pre-apply `pg_dump`.
 - `plant.sensornode_id` was retired in the legacy-compatibility cleanup; plant moisture is owned by `plant.moisture_capability_id`.
 - `sensorcalibration.sensornode_id` was retired in the legacy-compatibility cleanup; calibration rows are capability-owned.
 - `snapshot` scope columns are nullable because older image rows and some transition paths may predate scoped metadata.

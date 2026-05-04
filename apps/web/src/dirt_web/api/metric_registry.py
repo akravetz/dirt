@@ -43,7 +43,7 @@ class MetricSpec:
     y_max: float | None
     has_target_band: bool
     db_metric: str
-    db_location: str = "tent"
+    db_device_id: str = "fan-controller"
     transform: Callable[[float], float] | None = None
     dashboard_position: int | None = None
 
@@ -135,6 +135,7 @@ def _registry() -> dict[SensorMetric, MetricSpec]:
             # Loop writes the raw H7142 Manual-mode level; we serve a
             # normalized percent. See `humidifier.py:_record_actuator`.
             db_metric="humidifier_mist_level",
+            db_device_id="govee-h7142-main",
             transform=_mist_level_to_pct,
             dashboard_position=4,
         ),
@@ -147,7 +148,7 @@ def _registry() -> dict[SensorMetric, MetricSpec]:
             y_max=40.0,
             has_target_band=False,
             db_metric="reservoir_in",
-            db_location="reservoir",
+            db_device_id="reservoir-node",
             dashboard_position=5,
         ),
     }

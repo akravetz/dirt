@@ -119,9 +119,9 @@ async def sensors_current(
     def latest(spec: MetricSpec):
         return readings.get_latest_reading(
             spec.db_metric,
-            spec.db_location,
             site_id=site_id,
             tent_id=tent_id,
+            device_id=spec.db_device_id if tent_id == DEFAULT_TENT_ID else None,
         )
 
     stage, temp, hum, vpd, fan, humidifier, reservoir, stale = await asyncio.gather(
@@ -189,6 +189,7 @@ async def sensors_history(
         range.value,
         site_id=site_id,
         tent_id=tent_id,
+        device_id=spec.db_device_id if tent_id == DEFAULT_TENT_ID else None,
     )
     points = [
         HistoryPoint(ts=ts, value=round(transform_value(metric, value), 2))

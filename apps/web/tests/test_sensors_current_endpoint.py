@@ -3,7 +3,7 @@
 The endpoint composes ``ReadingsService.get_latest_reading``,
 ``grow_state.STAGE_TARGETS``, and ``grow_state.band_status``. The
 reservoir is now real: ``reservoir_in`` is read from the ``reservoir``
-sensornode (firmware does the cm → in conversion at publish time, so
+capability (firmware does the cm → in conversion at publish time, so
 the persisted unit matches the contract). Tests drive the full ASGI
 stack with an isolated Postgres DB and assert the JSON body
 deserializes into the generated Pydantic ``SensorsCurrent`` model.
@@ -21,28 +21,11 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.device import Capability, Device
-from dirt_shared.models.enums import SensorLocation, SensorSource
-from dirt_shared.models.sensor_node import SensorNode
+from dirt_shared.models.enums import SensorSource
 from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.services.readings import ReadingsService
 from dirt_shared.services.scope import resolve_scope
 from dirt_web.app import create_app
-
-
-async def _node_id(engine, location: SensorLocation) -> int:
-    """Find-or-create the SensorNode for ``location`` and return its id."""
-    async with AsyncSession(engine) as s:
-        result = await s.exec(
-            select(SensorNode.id).where(SensorNode.location == location)
-        )
-        node_id = result.first()
-        if node_id is None:
-            node = SensorNode(location=location)
-            s.add(node)
-            await s.commit()
-            await s.refresh(node)
-            node_id = node.id
-        return node_id
 
 
 async def _capability_id(
@@ -80,8 +63,6 @@ async def _seed_readings(
     here — if the default changes, this test still exercises the true
     boundary.
     """
-    tent_id = await _node_id(engine, SensorLocation.TENT)
-    reservoir_id = await _node_id(engine, SensorLocation.RESERVOIR)
     tent_caps = {
         metric: await _capability_id(
             engine, device_id="fan-controller", metric_name=metric
@@ -104,13 +85,11 @@ async def _seed_readings(
         metric: str,
         value: float,
         ts: datetime,
-        node_id: int = tent_id,
         capability_id: int | None = None,
     ) -> None:
         rows.append(
             SensorReading(
                 ts=ts,
-                sensornode_id=node_id,
                 capability_id=capability_id or tent_caps[metric],
                 metric=metric,
                 value=value,
@@ -118,9 +97,7 @@ async def _seed_readings(
             )
         )
 
-    # One fresh reading per metric. Tent metrics ride on the tent node;
-    # reservoir_in rides on the reservoir node (different sensornode_id —
-    # must be present for the API's get_latest_reading lookup to find it).
+    # One fresh reading per metric.
     for metric, value in {
         "temperature_f": temperature_f,
         "humidity_pct": humidity_pct,
@@ -129,7 +106,7 @@ async def _seed_readings(
         "fan_duty_pct": 30.0,
     }.items():
         add(metric, value, now)
-    add("reservoir_in", reservoir_in, now, reservoir_id, reservoir_cap)
+    add("reservoir_in", reservoir_in, now, reservoir_cap)
 
     if stale:
         threshold = (
@@ -148,7 +125,6 @@ async def _seed_readings(
 
 
 async def _seed_breeding_temperature(engine, value: float) -> None:
-    node_id = await _node_id(engine, SensorLocation.TENT)
     async with AsyncSession(engine) as s:
         breeding = await resolve_scope(s, tent_id="breeding")
         assert breeding is not None
@@ -178,7 +154,6 @@ async def _seed_breeding_temperature(engine, value: float) -> None:
         s.add(
             SensorReading(
                 ts=datetime.now(UTC),
-                sensornode_id=node_id,
                 capability_id=capability.id,
                 metric="temperature_f",
                 value=value,

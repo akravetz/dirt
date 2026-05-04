@@ -21,7 +21,7 @@ This is local-controller work. The homebox remains the hardware authority. Do no
 - [x] (2026-05-04) Milestone 2: soak and live compatibility telemetry gate. A 10-minute live `dirt-hwd` journal check after scoped firmware rollout found zero `accepted legacy location-only sensor ingest` messages; all six current hardware devices reported expected firmware versions with fresh `device.last_seen`; recent live readings remained capability-linked with `0` null `capability_id` rows out of `644`.
 - [x] (2026-05-04) Milestone 3: tighten HWD ingest to reject legacy-only current payloads. `apps/hwd/src/dirt_hwd/api/ingest.py` now rejects known current `location`-only posts with a clear 422 requiring `device_id`; the legacy-only warning helper was removed; scoped fault/heartbeat posts update canonical `device` state through `touch_device()` without also updating `sensornode`; agent-owned ingest/readings/audit tests were updated and focused validation passed.
 - [x] (2026-05-04) Milestone 4: replace remaining service inventories that are keyed by `SensorLocation`. Daily report sensor validation/snapshot now discovers default-main tent requirements from `fan-controller` persisted capability contracts plus live capability rows, and plant moisture requirements from current `plant.moisture_capability_id` rows. Metric freshness state/logging now keys by `device_id:capability_id` and emits scoped fields without `location`. Voice sensor tools read default-main tent metrics with `device_id='fan-controller'` and plant moisture through current scoped plant capabilities. Production service code no longer imports legacy `SensorLocation` maps; `EMITTED_METRICS` and `PERSISTED_METRICS` remain only as derived compatibility exports for the human-owned invariant suite.
-- [ ] Milestone 5: remove legacy `sensornode` storage and maps after current and historical paths no longer need them.
+- [x] (2026-05-04) Milestone 5 implementation prepared without live apply. SQLModel source now removes `SensorLocation`, `SensorNode`, `sensornode`, and `sensorreading.sensornode_id`; HWD ingest requires `device_id`; `ReadingsService` writes capability-owned readings only; current web/voice/daily-report tests seed/query capabilities directly. Atlas migration `20260504144109_scoped_firmware_legacy_removal.sql` converts historical `reservoir_depth_cm` to canonical `reservoir_in` with `value / 2.54`, deletes known trash null-capability tent `pressure_hpa` and plant-a `humidity_pct`, guards against any remaining null-capability rows, then drops the legacy column/table/type. Live Atlas apply remains pending explicit user confirmation and a normal pre-apply `pg_dump`.
 
 
 ## Surprises & Discoveries
@@ -77,6 +77,18 @@ This is local-controller work. The homebox remains the hardware authority. Do no
 - Observation: Some web endpoint tests still imported the removed legacy location-to-device map.
   Evidence: Main-agent commit-hook review found `apps/web/tests/test_plants_{detail,list,moisture}_endpoint.py` importing `LEGACY_LOCATION_DEVICE_IDS`. Those agent-owned tests now use `device_id_for_legacy_location()` and the targeted web test trio passed.
 
+- Observation: The human-owned sensor-contract invariant still requires `EMITTED_METRICS` and `PERSISTED_METRICS` keys with a `.value` attribute.
+  Evidence: `apps/tests/invariants/test_sensor_contract.py` imports only those maps and renders `k.value` in assertion messages. Milestone 5 removed the DB-backed `SensorLocation` enum, but kept invariant-only derived maps keyed by a private `ContractLocation` enum in `dirt_shared.sensor_contract`.
+
+- Observation: The generated Atlas schema diff only covered structural drops, so the historical cleanup policy had to be hand-authored into the migration before the drops.
+  Evidence: `atlas migrate diff scoped_firmware_legacy_removal --env local` generated `ALTER TABLE sensorreading DROP COLUMN sensornode_id`, `DROP TABLE sensornode`, and `DROP TYPE sensor_location`; `20260504144109_scoped_firmware_legacy_removal.sql` now has an explicit `DO $$` block for reservoir conversion, known-trash deletion, and the null-capability guard.
+
+- Observation: Missing/wrong bearer tokens must still return 401 before ingest identity validation.
+  Evidence: HWD auth tests post legacy-shaped bodies without `device_id`. The final model no longer exposes `location`, but Pydantic ignores that extra field, so the endpoint reaches the auth check first and authenticated location-only posts still return 422 for missing `device_id`.
+
+- Observation: The multi-tent ERD and sensor-quality observability row still described legacy identity after the source cleanup.
+  Evidence: Main-agent review found `DataModelERD.md` still listing `SENSORNODE`, `plant.sensornode_id`, `sensorreading.sensornode_id`, and `sensorcalibration.sensornode_id`, and `docs/observability.md` still documented `sensor_quality` events with `location`. Both docs now describe scoped device/capability ownership.
+
 
 ## Decision Log
 
@@ -124,6 +136,8 @@ Milestone 2 is complete. The scoped-only firmware soaked for the configured 10-m
 Milestone 3 is complete. Known current legacy-only HWD ingest posts now return HTTP 422 with `device_id is required for current sensor ingest`; the old `accepted legacy location-only sensor ingest` warning path has been removed because those payloads are no longer accepted. Current scoped posts still derive a temporary compatibility location for sensor-quality checks and `sensornode_id` writes while the legacy table remains, but `device_id` is the canonical heartbeat identity and `touch_device()` no longer writes `SensorNode`.
 
 Milestone 4 is complete. Daily report, metric freshness, and voice sensor summaries no longer use service inventories keyed by `SensorLocation`. The remaining `SensorLocation` references are compatibility/model surfaces for the still-live `sensornode` and `sensorreading.sensornode_id` schema, the HWD ingest compatibility bridge, the humidifier's legacy internal recording path, centralized readings compatibility helpers, and human-owned invariant compatibility. `sensor_contract.py` stopped exporting `LEGACY_LOCATION_DEVICE_IDS`, `emitted_metrics()`, and `persisted_metrics()`; `EMITTED_METRICS` and `PERSISTED_METRICS` remain as derived compatibility exports solely because the human-owned invariant suite imports them until Milestone 5 removes `SensorLocation`.
+
+Milestone 5 implementation is complete in source, schema migration, tests, and docs, but it has not been applied to the live database. Current app code now assumes the Milestone 5 migration has been applied: HWD ingest requires `device_id`, readings are inserted with `capability_id` only, and current tests no longer seed `sensornode_id`. `EMITTED_METRICS` and `PERSISTED_METRICS` remain only as invariant compatibility maps keyed by a private `ContractLocation`, not by the removed SQLModel `SensorLocation`. Before running the live apply, take the normal `pg_dump` backup, then apply `20260504144109_scoped_firmware_legacy_removal.sql`.
 
 
 ## Context and Orientation
@@ -465,12 +479,12 @@ End-state database interfaces:
 
 - `sensorreading.capability_id` is the current telemetry owner.
 - `device.last_seen`, `device.ip`, `device.firmware_version`, and `device.uptime_ms` are the current heartbeat owner.
-- `sensornode`, `sensor_location`, and `sensorreading.sensornode_id` are absent, archived, or explicitly documented as historical-only with no current writes.
+- `sensornode`, `sensor_location`, and `sensorreading.sensornode_id` are absent after the pending Milestone 5 Atlas migration is applied.
 
 End-state service interfaces:
 
 - `ReadingsService.ingest_reading()` accepts scoped identity and writes capability-owned readings.
-- HWD ingest rejects current payloads missing `device_id`.
+- HWD ingest rejects payloads missing `device_id`.
 - Daily sensor, metric freshness, and voice sensor summaries use scoped device/capability inventories.
 - `sensor_contract.py` is canonical-device/capability oriented and no longer exports legacy location maps unless a documented historical path still imports them.
 
@@ -499,6 +513,84 @@ Milestone 4 validation:
     uv run pytest apps/shared/tests apps/hwd/tests apps/voice/tests apps/web/tests -q
     421 passed
 
+Milestone 5 focused validation:
+
+    atlas migrate diff scoped_firmware_legacy_removal --env local
+    created migrations/20260504144109_scoped_firmware_legacy_removal.sql
+
+    atlas migrate hash --env local
+    updated migrations/atlas.sum
+
+    uv run ruff check apps/shared/src/dirt_shared apps/hwd/src/dirt_hwd apps/shared/tests/test_legacy_retirement_audit.py apps/shared/tests/test_pg_fixture.py apps/shared/tests/test_readings_scope.py apps/shared/tests/test_daily_sensors.py apps/shared/tests/test_milestone4_scope.py apps/hwd/tests/test_ingest_api.py apps/hwd/tests/test_ingest_derivation.py apps/voice/tests/test_sensor_tools.py apps/web/tests/test_plants_list_endpoint.py apps/web/tests/test_plants_detail_endpoint.py apps/web/tests/test_plants_moisture_endpoint.py apps/web/tests/test_sensors_current_endpoint.py apps/web/tests/test_sensors_history_endpoint.py
+    All checks passed.
+
+    uv run pytest apps/shared/tests/test_pg_fixture.py apps/shared/tests/test_readings_scope.py apps/shared/tests/test_daily_sensors.py apps/shared/tests/test_milestone4_scope.py apps/hwd/tests/test_ingest_derivation.py apps/hwd/tests/test_ingest_api.py apps/voice/tests/test_sensor_tools.py apps/web/tests/test_plants_list_endpoint.py apps/web/tests/test_plants_detail_endpoint.py apps/web/tests/test_plants_moisture_endpoint.py apps/web/tests/test_sensors_current_endpoint.py apps/web/tests/test_sensors_history_endpoint.py apps/shared/tests/test_legacy_retirement_audit.py -q
+    89 passed
+
+    uv run pytest apps/hwd/tests/test_ingest_properties.py apps/hwd/tests/test_humidifier_loop.py -q
+    10 passed
+
+    uv run pytest apps/tests/invariants/ -q
+    115 passed, 1 skipped
+
+    uv run pytest apps/shared/tests apps/hwd/tests apps/voice/tests apps/web/tests -q
+    420 passed
+
+    atlas migrate status --env local
+    Migration Status: PENDING
+      -- Current Version: 20260504062816
+      -- Next Version:    20260504144109
+      -- Pending Files:   1
+
+    atlas migrate diff verify_scoped_firmware_legacy_removal_sync --env local
+    The migration directory is synced with the desired state, no changes to be made
+
+    atlas migrate lint --env local --latest 1
+    blocked: installed Atlas reports migrate lint is available only to Atlas Pro users and suggests atlas login. No live apply was run.
+
+Milestone 5 main-agent review validation:
+
+    SELECT sn.location::text AS location, sr.metric, count(*)
+    FROM sensorreading sr
+    JOIN sensornode sn ON sn.id = sr.sensornode_id
+    WHERE sr.capability_id IS NULL
+    GROUP BY 1,2
+    ORDER BY 1,2;
+
+    plant-a   | humidity_pct       |     1
+    reservoir | reservoir_depth_cm |    63
+    tent      | pressure_hpa       | 46592
+
+    uv run pytest apps/hwd/tests/test_ingest_api.py apps/hwd/tests/test_ingest_properties.py apps/hwd/tests/test_humidifier_loop.py apps/hwd/tests/test_sensor_quality.py apps/shared/tests/test_readings_scope.py apps/shared/tests/test_pg_fixture.py apps/shared/tests/test_legacy_retirement_audit.py apps/web/tests/test_sensors_current_endpoint.py apps/web/tests/test_sensors_history_endpoint.py apps/web/tests/test_plants_list_endpoint.py -q
+    68 passed
+
+    uv run ruff check
+    All checks passed.
+
+    git diff --check
+    passed
+
+    atlas migrate status --env local
+    Migration Status: PENDING
+      -- Current Version: 20260504062816
+      -- Next Version:    20260504144109
+      -- Pending Files:   1
+
+    atlas migrate diff verify_scoped_firmware_legacy_removal_sync --env local
+    The migration directory is synced with the desired state, no changes to be made
+
+    atlas migrate hash --env local
+    passed
+
+    uv run pytest apps/tests/invariants -q
+    115 passed, 1 skipped
+
+    uv run pytest apps/shared/tests apps/hwd/tests apps/voice/tests apps/web/tests -q
+    420 passed
+
+    atlas migrate lint --env local --latest 1
+    blocked: installed Atlas reports migrate lint is available only to Atlas Pro users and suggests atlas login. `atlas migrate hash --dry-run --env local` was also unavailable in this Atlas build. No live apply was run.
+
 
 ## Revision Notes
 
@@ -511,3 +603,4 @@ Milestone 4 validation:
 - 2026-05-04: Milestone 2 soak gate completed with zero legacy-only ingest warnings over the 10-minute live window and current readings still capability-linked.
 - 2026-05-04: Milestone 3 HWD ingest tightening completed. Known current location-only payloads now fail with clear 422, the legacy-only warning helper was removed, `touch_device()` is canonical device-only, and the remaining location-only compatibility path is explicitly legacy/test-only until final `sensornode` removal.
 - 2026-05-04: Milestone 4 service inventory cleanup completed. Daily report, metric freshness, and voice sensor summaries use scoped device/capability inventories; remaining legacy maps are compatibility-only until Milestone 5.
+- 2026-05-04: Milestone 5 source/schema/test/doc implementation completed without live Atlas apply. The cleanup migration performs the approved historical conversion/deletion policy and drops the legacy table/column/type, but live apply remains pending explicit confirmation plus pre-apply `pg_dump`.

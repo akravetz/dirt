@@ -1,16 +1,4 @@
-"""Sensor reading ingest + query service.
-
-Post-pg-cutover (ADR-006), all timestamp handling is native — no more
-``char(58)`` workaround, no more lexical-compare coercion. The bucketed
-history queries use ``date_trunc`` and compose cleanly with parametrized
-``timestamptz`` bind values.
-
-Legacy location → sensornode_id remains only as a compatibility/history
-choke point while the old table is still present. Current ingest identifies
-hardware by ``device_id`` and canonical reads join ``sensorreading.capability_id``
-through device/tent scope so a second tent can emit the same metric names
-without contaminating the main dashboard.
-"""
+"""Sensor reading ingest + query service."""
 
 from __future__ import annotations
 
@@ -24,16 +12,14 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.device import Capability, Device
-from dirt_shared.models.enums import SensorLocation, SensorSource
+from dirt_shared.models.enums import SensorSource
 from dirt_shared.models.sensor_calibration import SensorCalibration
-from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.models.site import Site
 from dirt_shared.models.tent import Tent
 from dirt_shared.models.zone import Zone
 from dirt_shared.sensor_contract import (
     DEVICE_METRICS,
-    device_id_for_legacy_location,
     persisted_capability_ids_for_device_id,
     persisted_metrics_for_device_id,
 )
@@ -276,25 +262,13 @@ async def _touch_device_heartbeat(  # noqa: PLR0913
     session.add(device)
 
 
-def _legacy_device_id(location: SensorLocation | str | None) -> str | None:
-    return device_id_for_legacy_location(location)
-
-
-def _resolved_device_id(
-    location: SensorLocation | str | None, device_id: str | None
-) -> str | None:
-    return device_id or _legacy_device_id(location)
-
-
 def _warn_on_unresolved_capabilities(
     *,
-    location: SensorLocation | str | None,
     device_id: str | None,
     capability_ids: dict[str, int],
     metric_names: Iterable[str],
 ) -> None:
-    resolved_device_id = _resolved_device_id(location, device_id)
-    if resolved_device_id is None:
+    if device_id is None:
         return
     unresolved = sorted(set(metric_names) - set(capability_ids))
     if not unresolved:
@@ -303,10 +277,7 @@ def _warn_on_unresolved_capabilities(
         "sensor ingest for known device could not resolve capabilities",
         extra={
             "unscoped_sensorreading": True,
-            "device_id": resolved_device_id,
-            "location": location.value
-            if isinstance(location, SensorLocation)
-            else location,
+            "device_id": device_id,
             "metrics": unresolved,
         },
     )
@@ -378,15 +349,13 @@ async def _resolve_capability_ids(  # noqa: PLR0913
     session: AsyncSession,
     *,
     metric_names: Iterable[str],
-    location: SensorLocation | str | None,
     site_id: str,
     tent_id: str | None,
     zone_id: str | None,
     device_id: str | None,
     capability_id: str | None,
 ) -> dict[str, int]:
-    resolved_device_id = _resolved_device_id(location, device_id)
-    if resolved_device_id is None:
+    if device_id is None:
         return {}
 
     stmt = (
@@ -394,7 +363,7 @@ async def _resolve_capability_ids(  # noqa: PLR0913
         .join(Device, Device.id == Capability.device_id)
         .join(Site, Site.id == Device.site_id)
         .where(Site.site_id == site_id)
-        .where(Device.device_id == resolved_device_id)
+        .where(Device.device_id == device_id)
         .where(Capability.metric_name.in_(set(metric_names)))
     )
     if tent_id is not None:
@@ -412,7 +381,6 @@ async def resolve_metric_capability_id(  # noqa: PLR0913
     session: AsyncSession,
     *,
     metric: str,
-    location: SensorLocation | str | None = None,
     site_id: str = DEFAULT_SITE_ID,
     tent_id: str | None = DEFAULT_TENT_ID,
     zone_id: str | None = None,
@@ -423,7 +391,6 @@ async def resolve_metric_capability_id(  # noqa: PLR0913
     matches = await _resolve_capability_ids(
         session,
         metric_names=(metric,),
-        location=location,
         site_id=site_id,
         tent_id=tent_id,
         zone_id=zone_id,
@@ -516,7 +483,6 @@ class ReadingsService:
     async def get_latest_reading(  # noqa: PLR0913
         self,
         metric: str,
-        location: SensorLocation | str = SensorLocation.TENT,
         *,
         site_id: str = DEFAULT_SITE_ID,
         tent_id: str | None = DEFAULT_TENT_ID,
@@ -526,21 +492,17 @@ class ReadingsService:
     ) -> SensorReading | None:
         """Return the most recent scoped reading for ``metric``.
 
-        ``location`` remains as legacy firmware/API shorthand. The canonical
-        read path resolves it to a device/capability under ``site_id`` and
-        ``tent_id``.
+        If ``device_id`` is omitted, the scoped query returns the latest
+        matching metric for the requested site/tent.
         """
         async with AsyncSession(self._engine) as session:
-            resolved_device_id = device_id
-            if resolved_device_id is None and tent_id == DEFAULT_TENT_ID:
-                resolved_device_id = _legacy_device_id(location)
             result = await session.exec(
                 _scoped_readings_select(
                     metric,
                     site_id=site_id,
                     tent_id=tent_id,
                     zone_id=zone_id,
-                    device_id=resolved_device_id,
+                    device_id=device_id,
                     capability_id=capability_id,
                 )
                 .order_by(SensorReading.ts.desc())
@@ -631,11 +593,7 @@ class ReadingsService:
                     "temperature_f",
                     site_id=site_id,
                     tent_id=tent_id,
-                    device_id=(
-                        _legacy_device_id(SensorLocation.TENT)
-                        if tent_id == DEFAULT_TENT_ID
-                        else None
-                    ),
+                    device_id="fan-controller" if tent_id == DEFAULT_TENT_ID else None,
                 )
                 .order_by(SensorReading.ts.desc())
                 .limit(threshold)
@@ -645,10 +603,11 @@ class ReadingsService:
             return False
         return len({r.value for r in rows}) == 1
 
-    async def ingest_reading(  # noqa: PLR0913 — location+metrics are the reading; ip/firmware/uptime are optional node-metadata upserts bundled into the same transaction by design.
+    async def ingest_reading(  # noqa: PLR0913
         self,
-        location: SensorLocation | str,
         metrics: dict[str, float],
+        *,
+        device_id: str,
         source: SensorSource | str = SensorSource.ESP32,
         ip: str | None = None,
         firmware_version: str | None = None,
@@ -656,44 +615,19 @@ class ReadingsService:
         site_id: str = DEFAULT_SITE_ID,
         tent_id: str | None = DEFAULT_TENT_ID,
         zone_id: str | None = None,
-        device_id: str | None = None,
         capability_id: str | None = None,
-    ) -> None:
-        """Record a batch of sensor readings and upsert node metadata."""
+    ) -> int:
+        """Record a batch of capability-owned sensor readings."""
         now = self._clock()
+        inserted = 0
         async with AsyncSession(self._engine) as session:
-            # Step 1 — find-or-upsert the sensornode and flush to get its id.
-            node = (
-                await session.exec(
-                    select(SensorNode).where(SensorNode.location == location)
-                )
-            ).first()
-            if node is None:
-                # Shouldn't happen post-seed — but if someone widens the enum
-                # and forgets to seed, create rather than fail.
-                node = SensorNode(location=location)
-            # Only overwrite identity fields when the caller provided them.
-            # Internal callers (e.g. the humidifier loop recording its own
-            # on/off state) pass None for ip/firmware/uptime; don't null out
-            # the metadata the ESP32 ingest path populates for other nodes.
-            if ip is not None:
-                node.ip = ip
-            if firmware_version is not None:
-                node.firmware_version = firmware_version
-            if uptime_ms is not None:
-                node.uptime_ms = uptime_ms
-            node.last_seen = now
-            session.add(node)
-            await session.flush()  # populate node.id for the FK on SensorReading
-            assert node.id is not None  # noqa: S101 (type narrow: post-flush)
-
             await _touch_device_heartbeat(
                 session,
                 now=now,
                 site_id=site_id,
                 tent_id=tent_id,
                 zone_id=zone_id,
-                device_id=_resolved_device_id(location, device_id),
+                device_id=device_id,
                 ip=ip,
                 firmware_version=firmware_version,
                 uptime_ms=uptime_ms,
@@ -702,7 +636,6 @@ class ReadingsService:
             capability_ids = await _resolve_capability_ids(
                 session,
                 metric_names=metrics.keys(),
-                location=location,
                 site_id=site_id,
                 tent_id=tent_id,
                 zone_id=zone_id,
@@ -710,19 +643,20 @@ class ReadingsService:
                 capability_id=capability_id if len(metrics) == 1 else None,
             )
             _warn_on_unresolved_capabilities(
-                location=location,
                 device_id=device_id,
                 capability_ids=capability_ids,
                 metric_names=metrics.keys(),
             )
 
-            # Step 2 + 3 — readings and (optional) calibration updates.
             for metric_name, value in metrics.items():
+                resolved_capability_id = capability_ids.get(metric_name)
+                if resolved_capability_id is None:
+                    continue
+                inserted += 1
                 session.add(
                     SensorReading(
                         ts=now,
-                        sensornode_id=node.id,
-                        capability_id=capability_ids.get(metric_name),
+                        capability_id=resolved_capability_id,
                         metric=metric_name,
                         value=value,
                         source=source,
@@ -736,49 +670,11 @@ class ReadingsService:
                         session,
                         metric_name,
                         value,
-                        capability_id=capability_ids.get(metric_name),
+                        capability_id=resolved_capability_id,
                     )
 
             await session.commit()
-
-    async def touch_node(
-        self,
-        location: SensorLocation | str,
-        *,
-        ip: str | None = None,
-        firmware_version: str | None = None,
-        uptime_ms: int | None = None,
-    ) -> None:
-        """Legacy sensornode heartbeat wrapper used during ingest transition."""
-        now = self._clock()
-        async with AsyncSession(self._engine) as session:
-            node = (
-                await session.exec(
-                    select(SensorNode).where(SensorNode.location == location)
-                )
-            ).first()
-            if node is None:
-                node = SensorNode(location=location)
-            if ip is not None:
-                node.ip = ip
-            if firmware_version is not None:
-                node.firmware_version = firmware_version
-            if uptime_ms is not None:
-                node.uptime_ms = uptime_ms
-            node.last_seen = now
-            session.add(node)
-            await _touch_device_heartbeat(
-                session,
-                now=now,
-                site_id=DEFAULT_SITE_ID,
-                tent_id=DEFAULT_TENT_ID,
-                zone_id=None,
-                device_id=_legacy_device_id(location),
-                ip=ip,
-                firmware_version=firmware_version,
-                uptime_ms=uptime_ms,
-            )
-            await session.commit()
+        return inserted
 
     async def touch_device(  # noqa: PLR0913
         self,

@@ -1,4 +1,4 @@
-h1:dKpKwpv/YItMWx223GswnzdaKNfaYgsFjvYnIauKwfc=
+h1:2g4zgsCyU7i5Vs/BYqiRAFgrmD9wbeVGo1hlnLO5YIE=
 20260420003127_init.sql h1:GzLCe8kSX0b0TzsHZJNidBWSoeYe83HgnHXdkhGi1Ko=
 20260423180901_add_growstate_timezone.sql h1:hwtimWMWdMD8iw7GuYOMazB5dHSq40fKOSbUFDFPg0s=
 20260428003304_add_govee_sensor_source.sql h1:l7vbhthRMWFQVcLwvX+yhzrzLD0Tcp33QrLpmU4F7jQ=
@@ -10,3 +10,4 @@ h1:dKpKwpv/YItMWx223GswnzdaKNfaYgsFjvYnIauKwfc=
 20260504054904_plant_moisture_capability.sql h1:De63bSaoDqGOZdIs/q0g9TPfgcQgyWqEkTpCkpzeTv0=
 20260504061320_historical_unscoped_sensorreadings.sql h1:BzEU0cPWiuPx0oyEmOtgoNo5uV8z2wgMjsgBKx3CsJY=
 20260504062816_legacy_optional_artifacts.sql h1:5Jg1Ic7PNFrv5eCejECKRyexUEXgszIuPQmWACcvBAI=
+20260504144109_scoped_firmware_legacy_removal.sql h1:Nc9AczYLjCh1PDy0p+XUtlKoY0ZfRK+15oKcNT38MNg=

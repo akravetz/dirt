@@ -40,7 +40,7 @@ from dirt_hwd.services.humidifier_pi import (
     compute as pi_compute,
 )
 from dirt_shared.config import HumidifierConfig
-from dirt_shared.models.enums import SensorLocation, SensorSource
+from dirt_shared.models.enums import SensorSource
 from dirt_shared.observability import log_event
 from dirt_shared.services.govee import (
     GoveeClient,
@@ -261,7 +261,6 @@ class HumidifierLoopService:
     async def _record_actuator(self, target_level: int | None) -> None:
         """Record the commanded actuator state as a sensor reading."""
         await self._readings.ingest_reading(
-            SensorLocation.TENT,
             {
                 "humidifier_on": 0.0 if target_level is None else 1.0,
                 "humidifier_mist_level": 0.0
