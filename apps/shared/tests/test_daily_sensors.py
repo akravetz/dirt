@@ -13,10 +13,12 @@ import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from dirt_shared.models.device import Capability, Device
 from dirt_shared.models.enums import SensorLocation, SensorSource
 from dirt_shared.models.sensor_calibration import SensorCalibration
 from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
+from dirt_shared.sensor_contract import LEGACY_LOCATION_DEVICE_IDS
 from dirt_shared.services.daily_sensors import (
     PLANT_LOCATIONS,
     SOIL_METRIC,
@@ -41,6 +43,26 @@ async def _node_ids(engine) -> dict[SensorLocation, int]:
         return {n.location: n.id for n in result.all()}
 
 
+async def _capability_ids(engine) -> dict[tuple[SensorLocation, str], int]:
+    async with AsyncSession(engine) as s:
+        result = await s.exec(
+            select(Device.device_id, Capability.metric_name, Capability.id).join(
+                Capability, Capability.device_id == Device.id
+            )
+        )
+        by_device_metric = {
+            (device_id, metric): cap_id
+            for device_id, metric, cap_id in result.all()
+            if metric is not None
+        }
+        return {
+            (location, metric): cap_id
+            for location, device_id in LEGACY_LOCATION_DEVICE_IDS.items()
+            for (row_device_id, metric), cap_id in by_device_metric.items()
+            if row_device_id == device_id
+        }
+
+
 async def _seed_readings(
     engine,
     rows: list[tuple[SensorLocation, str, float, datetime, SensorSource]],
@@ -48,11 +70,13 @@ async def _seed_readings(
 ) -> None:
     """rows: (location, metric, value, ts, source). cals: (location, metric, raw_low, raw_high)."""
     node_ids = await _node_ids(engine)
+    cap_ids = await _capability_ids(engine)
     async with AsyncSession(engine) as s:
         for loc, metric, value, ts, source in rows:
             s.add(
                 SensorReading(
                     sensornode_id=node_ids[loc],
+                    capability_id=cap_ids.get((loc, metric)),
                     metric=metric,
                     value=value,
                     ts=ts,
@@ -63,6 +87,7 @@ async def _seed_readings(
             s.add(
                 SensorCalibration(
                     sensornode_id=node_ids[loc],
+                    capability_id=cap_ids.get((loc, metric)),
                     metric=metric,
                     raw_low=raw_low,
                     raw_high=raw_high,

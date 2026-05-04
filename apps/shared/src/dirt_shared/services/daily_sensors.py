@@ -25,14 +25,13 @@ from statistics import mean
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import or_
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.enums import SensorLocation
+from dirt_shared.models.plant import Plant
 from dirt_shared.models.sensor_calibration import SensorCalibration
-from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.sensor_contract import persisted_metrics
 from dirt_shared.services.readings import (
@@ -40,6 +39,7 @@ from dirt_shared.services.readings import (
     get_sensor_calibration,
     resolve_metric_capability_id,
 )
+from dirt_shared.services.scope import current_grow_run
 
 logger = logging.getLogger(__name__)
 
@@ -157,23 +157,32 @@ class SensorReader:
         self._max_age_s = max_age_s
         self._min_raw = sensor_min_raw
         self._max_raw = sensor_max_raw
-        # Lazy (location → sensornode.id) cache. Initial migration seeds one
-        # row per enum value, so after a single lookup we never hit DB for
-        # the translation again.
-        self._node_ids: dict[SensorLocation, int] = {}
+        self._plant_capability_ids: dict[SensorLocation, int | None] = {}
 
-    async def _node_id(
-        self, session: AsyncSession, location: SensorLocation
+    async def _plant_capability_id(
+        self,
+        session: AsyncSession,
+        location: SensorLocation,
     ) -> int | None:
-        if location in self._node_ids:
-            return self._node_ids[location]
-        result = await session.exec(
-            select(SensorNode.id).where(SensorNode.location == location)
-        )
-        node_id = result.first()
-        if node_id is not None:
-            self._node_ids[location] = node_id
-        return node_id
+        if location in self._plant_capability_ids:
+            return self._plant_capability_ids[location]
+
+        grow = await current_grow_run(session)
+        if grow is None:
+            self._plant_capability_ids[location] = None
+            return None
+
+        plant_code = location.value.removeprefix("plant-")
+        plant = (
+            await session.exec(
+                select(Plant)
+                .where(Plant.growrun_id == grow.id)
+                .where(Plant.code == plant_code)
+            )
+        ).first()
+        capability_id = None if plant is None else plant.moisture_capability_id
+        self._plant_capability_ids[location] = capability_id
+        return capability_id
 
     async def _capability_id(
         self,
@@ -181,6 +190,13 @@ class SensorReader:
         location: SensorLocation,
         metric: str,
     ) -> int | None:
+        if metric == SOIL_METRIC and location in PLANT_LOCATIONS:
+            capability_id = await self._plant_capability_id(session, location)
+            if capability_id is not None:
+                return capability_id
+
+            # Compatibility fallback for pre-backfill rows. Current daily
+            # plant reads are owned by Plant.moisture_capability_id.
         return await resolve_metric_capability_id(
             session,
             location=location,
@@ -191,23 +207,16 @@ class SensorReader:
         self, location: SensorLocation, metric: str
     ) -> LatestReading | None:
         async with AsyncSession(self._engine) as session:
-            node_id = await self._node_id(session, location)
-            if node_id is None:
-                return None
             capability_id = await self._capability_id(session, location, metric)
-            stmt = (
+            if capability_id is None:
+                return None
+            result = await session.exec(
                 select(SensorReading)
-                .where(SensorReading.sensornode_id == node_id)
+                .where(SensorReading.capability_id == capability_id)
                 .where(SensorReading.metric == metric)
+                .order_by(SensorReading.ts.desc())
+                .limit(1)
             )
-            if capability_id is not None:
-                stmt = stmt.where(
-                    or_(
-                        SensorReading.capability_id == capability_id,
-                        SensorReading.capability_id.is_(None),
-                    )
-                )
-            result = await session.exec(stmt.order_by(SensorReading.ts.desc()).limit(1))
             row = result.first()
         if row is None:
             return None
@@ -282,25 +291,16 @@ class SensorReader:
         end: datetime,
     ) -> WindowAvg:
         async with AsyncSession(self._engine) as session:
-            node_id = await self._node_id(session, location)
-            if node_id is None:
-                return WindowAvg(avg=None, n=0)
             capability_id = await self._capability_id(session, location, metric)
-            stmt = (
+            if capability_id is None:
+                return WindowAvg(avg=None, n=0)
+            result = await session.exec(
                 select(SensorReading.value)
-                .where(SensorReading.sensornode_id == node_id)
+                .where(SensorReading.capability_id == capability_id)
                 .where(SensorReading.metric == metric)
                 .where(SensorReading.ts >= start)
                 .where(SensorReading.ts < end)
             )
-            if capability_id is not None:
-                stmt = stmt.where(
-                    or_(
-                        SensorReading.capability_id == capability_id,
-                        SensorReading.capability_id.is_(None),
-                    )
-                )
-            result = await session.exec(stmt)
             values = list(result.all())
         if not values:
             return WindowAvg(avg=None, n=0)
@@ -310,13 +310,12 @@ class SensorReader:
         self, location: SensorLocation, metric: str
     ) -> SensorCalibration | None:
         async with AsyncSession(self._engine) as session:
-            node_id = await self._node_id(session, location)
-            if node_id is None:
-                return None
             capability_id = await self._capability_id(session, location, metric)
+            if capability_id is None:
+                return None
             return await get_sensor_calibration(
                 session,
-                sensornode_id=node_id,
+                sensornode_id=None,
                 metric=metric,
                 capability_id=capability_id,
             )
@@ -332,25 +331,16 @@ class SensorReader:
         if cal is None:
             return WindowAvg(avg=None, n=0)
         async with AsyncSession(self._engine) as session:
-            node_id = await self._node_id(session, location)
-            if node_id is None:
-                return WindowAvg(avg=None, n=0)
             capability_id = await self._capability_id(session, location, SOIL_METRIC)
-            stmt = (
+            if capability_id is None:
+                return WindowAvg(avg=None, n=0)
+            result = await session.exec(
                 select(SensorReading.value)
-                .where(SensorReading.sensornode_id == node_id)
+                .where(SensorReading.capability_id == capability_id)
                 .where(SensorReading.metric == SOIL_METRIC)
                 .where(SensorReading.ts >= start)
                 .where(SensorReading.ts < end)
             )
-            if capability_id is not None:
-                stmt = stmt.where(
-                    or_(
-                        SensorReading.capability_id == capability_id,
-                        SensorReading.capability_id.is_(None),
-                    )
-                )
-            result = await session.exec(stmt)
             raws = list(result.all())
         pcts = [
             p

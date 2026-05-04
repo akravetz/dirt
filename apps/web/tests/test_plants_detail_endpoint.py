@@ -18,10 +18,12 @@ from httpx import ASGITransport, AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from dirt_shared.models.device import Capability, Device
 from dirt_shared.models.enums import SensorLocation, SensorSource
 from dirt_shared.models.sensor_calibration import SensorCalibration
 from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
+from dirt_shared.sensor_contract import LEGACY_LOCATION_DEVICE_IDS
 from dirt_web.app import create_app
 
 
@@ -35,12 +37,27 @@ async def _sensornode_id(engine, location: SensorLocation) -> int:
         return node_id
 
 
+async def _moisture_capability_id(engine, location: SensorLocation) -> int:
+    async with AsyncSession(engine) as s:
+        result = await s.exec(
+            select(Capability.id)
+            .join(Device, Device.id == Capability.device_id)
+            .where(Device.device_id == LEGACY_LOCATION_DEVICE_IDS[location])
+            .where(Capability.capability_id == "soil_moisture_raw")
+        )
+        capability_id = result.first()
+        assert capability_id is not None
+        return capability_id
+
+
 async def _seed_moisture(engine, *, location: SensorLocation, raw: float) -> None:
     node_id = await _sensornode_id(engine, location)
+    capability_id = await _moisture_capability_id(engine, location)
     async with AsyncSession(engine) as s:
         s.add(
             SensorCalibration(
                 sensornode_id=node_id,
+                capability_id=capability_id,
                 metric="soil_moisture_raw",
                 raw_low=0.0,
                 raw_high=1000.0,
@@ -50,6 +67,7 @@ async def _seed_moisture(engine, *, location: SensorLocation, raw: float) -> Non
             SensorReading(
                 ts=datetime.now(UTC),
                 sensornode_id=node_id,
+                capability_id=capability_id,
                 metric="soil_moisture_raw",
                 value=raw,
                 source=SensorSource.ESP32,

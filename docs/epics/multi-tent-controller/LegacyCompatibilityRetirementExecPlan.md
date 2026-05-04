@@ -21,7 +21,7 @@ This plan is still local-controller work. The homebox remains the hardware autho
 - [x] (2026-05-04 05:09Z) Implemented Milestone 2: firmware now posts scoped identity fields alongside legacy `location`; HWD ingest accepts known scoped `device_id` payloads without `location`, warns on known legacy-only posts, and `sensor_contract.py` now derives legacy maps from canonical device/capability declarations.
 - [x] (2026-05-04 05:31Z) Implemented Milestone 3: canonical heartbeat columns live on `device`; ingest updates scoped device heartbeat when `device_id` is present while legacy compatibility still updates `sensornode`; system status, device watchdog input, and metric freshness gates now read canonical device heartbeat.
 - [x] (2026-05-04 05:39Z) Fixed Milestone 3 main-review blocker: legacy-only known-location ingest and rejected legacy payloads now derive the canonical device id from the legacy location mapping and refresh `device.last_seen`/metadata as well as `sensornode`.
-- [ ] Implement Milestone 4: move plant moisture and daily sensor paths off `sensornode_id`.
+- [x] (2026-05-04 05:51Z) Implemented Milestone 4: plant rows now have canonical `moisture_capability_id`; plant moisture summaries/history and daily-report plant sensor paths prefer capability ownership instead of `Plant.sensornode_id`; focused plant/daily report tests, invariants, and Atlas sync/status checks pass. No live migration apply was run.
 - [ ] Implement Milestone 5: make scoped API/frontend access first-class while keeping default-main URLs compatible.
 - [ ] Implement Milestone 6: backfill or quarantine historical unscoped data and tighten schema/app constraints.
 - [ ] Implement Milestone 7: remove dead legacy code, docs, tests, and optional schema artifacts that no live path uses.
@@ -85,6 +85,12 @@ This plan is still local-controller work. The homebox remains the hardware autho
 - Observation: The first Milestone 3 implementation still let unflashed legacy-only boards age offline after migration backfill.
   Evidence: Main-agent review found `ReadingsService.ingest_reading(... device_id=None ...)` called `_touch_device_heartbeat()` with `device_id=None`, and rejected legacy payloads called only `touch_node()`. Because `SystemStatusService` now reads `device.last_seen`, current unflashed firmware posting only `location` would update `sensornode.last_seen` but not canonical heartbeat.
 
+- Observation: A Milestone 4 regression test file already existed in the worktree and encoded the right cross-tent risk.
+  Evidence: `apps/shared/tests/test_milestone4_scope.py` created a breeding `soil_moisture_raw` capability and proved main plant moisture/daily snapshots must choose the main capability when the same legacy node id appears in test data.
+
+- Observation: Plant and daily report test fixtures had to become capability-scoped to match current-path reads.
+  Evidence: `apps/shared/tests/test_daily_sensors.py` and web plant endpoint tests now seed `SensorReading.capability_id` and `SensorCalibration.capability_id`; legacy `sensornode_id` remains present only for compatibility rows.
+
 
 ## Decision Log
 
@@ -144,6 +150,14 @@ This plan is still local-controller work. The homebox remains the hardware autho
   Rationale: Metric freshness deliberately suppresses per-metric alerts when a whole device is stale. After Milestone 3, whole-device freshness is owned by `device`, so keeping the gate on `sensornode` would preserve the retired ownership path.
   Date/Author: 2026-05-04 / Codex
 
+- Decision: Add nullable `plant.moisture_capability_id` and keep `plant.sensornode_id` during the transition.
+  Rationale: Current plants can be backfilled to canonical capability ownership immediately, while keeping the legacy FK avoids mixing Milestone 4 with the later schema cleanup/removal milestone. Current read paths prefer the capability FK and use the legacy node only as a pre-backfill fallback.
+  Date/Author: 2026-05-04 / Codex
+
+- Decision: Daily report plant moisture resolves through the current main grow's `Plant.moisture_capability_id`.
+  Rationale: Daily reports are still default-main in this milestone, and plant rows are the explicit owner of each plant's moisture stream. This prevents a second tent with the same metric name from contaminating main plant moisture values.
+  Date/Author: 2026-05-04 / Codex
+
 
 ## Outcomes & Retrospective
 
@@ -154,6 +168,8 @@ No schema changes, firmware changes, hosted/cloud control, or behavior changes w
 Milestone 2 is complete. ESP32 firmware payloads now include `site_id`, `tent_id`, `zone_id`, and `device_id` while retaining legacy `location`. HWD ingest accepts scoped payloads without `location` for known devices, derives the compatibility `SensorLocation` from canonical `device_id`, logs a structured warning with `legacy_location=true` for known legacy-only boards, and keeps resolving capabilities by `device_id` plus metric name. The sensor contract's editable source is now keyed by canonical `device_id` and capability/metric identity, with legacy maps derived for compatibility. No schema changes or hosted/cloud control were added.
 
 Milestone 3 is complete. The `device` table now owns latest heartbeat fields, with an Atlas migration that backfills ESP32-compatible devices from `sensornode` using `device.metadata->>'legacy_location'` and then backfills any still-null scoped devices, such as the Govee humidifier, from their latest capability reading. `ReadingsService.ingest_reading()` updates canonical device heartbeat whenever scoped `device_id` is present, or derives the heartbeat `device_id` from known legacy `location` when scoped identity is absent, and still updates `sensornode` for compatibility. `ReadingsService.touch_node()` remains a legacy wrapper and also refreshes canonical device heartbeat for known legacy locations. `touch_device()` handles rejected scoped payloads while also touching the compatibility node. `SystemStatusService` reads device heartbeat directly for ESP32 nodes and the Govee humidifier, and `DeviceWatchdogService` continues to persist stable `device_id` state keys through unchanged status objects. `docs/observability.md` now documents that metric freshness is gated by `device.last_seen`.
+
+Milestone 4 is complete. `Plant` rows now carry nullable `moisture_capability_id`, backfilled for the current A-D main plants from legacy `sensornode.location` to the canonical plant-node `soil_moisture_raw` capability. `PlantsService` uses that capability for latest moisture and history queries, and `SensorReader` uses the current grow's plant capability for daily-report plant moisture. Default-main `/api/plants`, plant detail, plant moisture history, daily sensor snapshots, and daily report tests still pass. `Plant.sensornode_id` remains for legacy compatibility and later Milestone 7 removal; no hosted/cloud control was added.
 
 
 ## Context and Orientation
@@ -643,10 +659,59 @@ Final Milestone 3 validation after the ExecPlan update:
     git diff --check
     passed with no output
 
-    atlas migrate status --env local
-    Migration Status: PENDING; Current Version 20260504022916; Next Version 20260504052839; Pending Files 1. This is expected because the live migration was intentionally not applied.
+Milestone 4 migration artifact:
 
-Post-main-review Milestone 3 blocker fix validation:
+    migrations/20260504054904_plant_moisture_capability.sql
+
+The migration adds nullable `plant.moisture_capability_id`, backfills current
+main A-D plants by joining `plant.sensornode_id -> sensornode.location` to the
+canonical `plant-<letter>-node` `soil_moisture_raw` capability, and indexes the
+new FK. No live `atlas migrate apply` was run for this milestone.
+
+Milestone 4 simplify pass used the local fallback because no subagent spawn
+tool was available. Reuse/quality/efficiency review found one worthwhile
+cleanup: `apps/shared/tests/test_daily_sensors.py` now derives test capability
+ids from seeded canonical capabilities instead of carrying a hardcoded metric
+name list. Repeated web endpoint seed helpers were left local because they
+match the existing per-file test style and a shared test helper would add
+scope churn.
+
+Milestone 4 validation evidence from 2026-05-04:
+
+    atlas migrate diff plant_moisture_capability --env local
+    generated migrations/20260504054904_plant_moisture_capability.sql
+
+    atlas migrate hash --env local
+    completed after hand-editing the migration backfill
+
+    atlas migrate diff verify_plant_moisture_capability_sync --env local
+    The migration directory is synced with the desired state, no changes to be made
+
+    atlas migrate status --env local
+    Migration Status: PENDING; Current Version 20260504022916; Next Version 20260504052839; Pending Files 2. This is expected because the live Milestone 3 and Milestone 4 migrations were intentionally not applied.
+
+    uv run pytest apps/shared/tests/test_milestone4_scope.py apps/shared/tests/test_daily_sensors.py apps/shared/tests/test_daily_report.py -q
+    41 passed in 7.20s
+
+    uv run pytest apps/web/tests/test_plants_list_endpoint.py apps/web/tests/test_plants_detail_endpoint.py apps/web/tests/test_plants_moisture_endpoint.py -q
+    14 passed in 3.99s
+
+    uv run pytest apps/shared/tests/test_legacy_retirement_audit.py apps/shared/tests/test_readings_scope.py -q
+    9 passed in 2.28s
+
+    uv run pytest apps/tests/invariants/ -q
+    115 passed, 1 skipped in 4.00s
+
+    uv run ruff format --check apps/shared/src/dirt_shared/models/plant.py apps/shared/src/dirt_shared/services/plants.py apps/shared/src/dirt_shared/services/daily_sensors.py apps/shared/tests/test_daily_sensors.py apps/shared/tests/test_milestone4_scope.py apps/web/tests/test_plants_list_endpoint.py apps/web/tests/test_plants_detail_endpoint.py apps/web/tests/test_plants_moisture_endpoint.py
+    8 files already formatted
+
+    uv run ruff check apps/shared/src/dirt_shared/models/plant.py apps/shared/src/dirt_shared/services/plants.py apps/shared/src/dirt_shared/services/daily_sensors.py apps/shared/tests/test_daily_sensors.py apps/shared/tests/test_milestone4_scope.py apps/web/tests/test_plants_list_endpoint.py apps/web/tests/test_plants_detail_endpoint.py apps/web/tests/test_plants_moisture_endpoint.py
+    All checks passed.
+
+    git diff --check
+    passed with no output
+
+Earlier post-main-review Milestone 3 blocker fix validation:
 
     uv run pytest apps/hwd/tests/test_ingest_api.py -q
     20 passed in 5.08s
@@ -695,3 +760,4 @@ New or changed interfaces expected by the end of this plan:
 - 2026-05-04: Completed Milestone 2 and recorded scoped firmware ingest, canonical device/capability sensor-contract ownership, compatibility-location derivation, and focused validation evidence.
 - 2026-05-04: Added post-review Milestone 2 ingest test coverage for unknown scoped device IDs without legacy `location` and refreshed the stale test comment.
 - 2026-05-04: Reworked Milestone 2 sensor-contract and ingest API helpers to satisfy pre-commit import-boundary and no-module-level-singleton invariants.
+- 2026-05-04: Completed Milestone 4 and recorded plant moisture capability ownership, daily sensor capability reads, migration/backfill artifact, simplify cleanup, and validation evidence.

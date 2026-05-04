@@ -5,10 +5,9 @@ and the DB-side fields of ``GET /api/plants/{code}`` (drawer header +
 live moisture). The narrative parts of the drawer come from
 ``PlantDetailService``, which parses the plant's wiki markdown.
 
-Moisture is computed by joining the latest ``soil_moisture_raw`` reading
-with the per-plant ``sensorcalibration`` row and running the value
-through :func:`compute_calibrated_pct`. Plants without a calibration
-return ``moisture_pct=None``.
+Moisture is computed from the plant's canonical
+``moisture_capability_id`` and the matching ``sensorcalibration`` row.
+Plants without a calibration return ``moisture_pct=None``.
 """
 
 from __future__ import annotations
@@ -17,14 +16,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import or_
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.enums import PlantStatus, PlantSticker
 from dirt_shared.models.plant import Plant
-from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.services.grow_state import BandStatus, band_status, tent_tz
 from dirt_shared.services.plant_detail import PlantDetailService
@@ -149,34 +146,32 @@ async def _plant_moisture_capability_id(
     site_id: str,
     tent_id: str,
 ) -> int | None:
-    node = (
-        await session.exec(
-            select(SensorNode).where(SensorNode.id == plant.sensornode_id)
-        )
-    ).first()
+    if plant.moisture_capability_id is not None:
+        return plant.moisture_capability_id
+
+    # Compatibility fallback for pre-backfill rows. Current rows should have
+    # moisture_capability_id and never need the legacy sensornode FK to read.
     return await resolve_metric_capability_id(
         session,
         metric="soil_moisture_raw",
-        location=None if node is None else node.location,
+        location=f"plant-{plant.code}",
         site_id=site_id,
         tent_id=tent_id,
     )
 
 
 def _plant_readings_stmt(plant: Plant, capability_id: int | None):
-    stmt = (
+    if capability_id is not None:
+        return (
+            select(SensorReading)
+            .where(SensorReading.capability_id == capability_id)
+            .where(SensorReading.metric == "soil_moisture_raw")
+        )
+    return (
         select(SensorReading)
         .where(SensorReading.sensornode_id == plant.sensornode_id)
         .where(SensorReading.metric == "soil_moisture_raw")
     )
-    if capability_id is not None:
-        stmt = stmt.where(
-            or_(
-                SensorReading.capability_id == capability_id,
-                SensorReading.capability_id.is_(None),
-            )
-        )
-    return stmt
 
 
 async def _latest_moisture_pct(
@@ -201,7 +196,7 @@ async def _latest_moisture_pct(
         return None, None
     cal = await get_sensor_calibration(
         session,
-        sensornode_id=plant.sensornode_id,
+        sensornode_id=None if capability_id is not None else plant.sensornode_id,
         metric="soil_moisture_raw",
         capability_id=row.capability_id or capability_id,
     )
@@ -339,7 +334,7 @@ class PlantsService:
             )
             cal = await get_sensor_calibration(
                 session,
-                sensornode_id=p.sensornode_id,
+                sensornode_id=None if capability_id is not None else p.sensornode_id,
                 metric="soil_moisture_raw",
                 capability_id=capability_id,
             )
