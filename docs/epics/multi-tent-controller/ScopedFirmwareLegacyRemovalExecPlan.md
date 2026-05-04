@@ -19,7 +19,7 @@ This is local-controller work. The homebox remains the hardware authority. Do no
 - [x] (2026-05-04) Created this ExecPlan as a reviewable scope document after `LegacyCompatibilityRetirementExecPlan.md` was implemented, migrations were applied live, services restarted, and smoke checks passed.
 - [x] (2026-05-04) Milestone 1: firmware scoped-only POST support and board rollout. `firmware/common/ingest_client/ingest_client.{h,cpp}` now builds scoped-only POST bodies without `location`; fan, plant, and reservoir sketches call the scoped-only API; retained legacy-location comments/constants were removed; firmware versions were bumped; build validation passed for fan, reservoir, and plant A-D environments; OTA upload succeeded for fan, plant A-D, and reservoir; live DB confirmed the expected firmware versions fan `0.2.1`, plant `0.1.2`, and reservoir `0.1.1` with fresh `device.last_seen`.
 - [x] (2026-05-04) Milestone 2: soak and live compatibility telemetry gate. A 10-minute live `dirt-hwd` journal check after scoped firmware rollout found zero `accepted legacy location-only sensor ingest` messages; all six current hardware devices reported expected firmware versions with fresh `device.last_seen`; recent live readings remained capability-linked with `0` null `capability_id` rows out of `644`.
-- [ ] Milestone 3: tighten HWD ingest to reject legacy-only current payloads.
+- [x] (2026-05-04) Milestone 3: tighten HWD ingest to reject legacy-only current payloads. `apps/hwd/src/dirt_hwd/api/ingest.py` now rejects known current `location`-only posts with a clear 422 requiring `device_id`; the legacy-only warning helper was removed; scoped fault/heartbeat posts update canonical `device` state through `touch_device()` without also updating `sensornode`; agent-owned ingest/readings/audit tests were updated and focused validation passed.
 - [ ] Milestone 4: replace remaining service inventories that are keyed by `SensorLocation`.
 - [ ] Milestone 5: remove legacy `sensornode` storage and maps after current and historical paths no longer need them.
 
@@ -59,6 +59,12 @@ This is local-controller work. The homebox remains the hardware authority. Do no
 - Observation: The scoped-only firmware passed the configured 10-minute live soak.
   Evidence: At `2026-05-04 07:54:07 MDT`, `journalctl --user -u dirt-hwd --since '10 minutes ago' --no-pager | rg 'accepted legacy location-only sensor ingest' || true` returned no matches. The same validation pass showed fresh expected firmware versions for `fan-controller`, `plant-a-node`, `plant-b-node`, `plant-c-node`, `plant-d-node`, and `reservoir-node`; a recent readings query returned `0` null `capability_id` rows out of `644`.
 
+- Observation: HWD test fixtures are not safe to run as parallel pytest processes.
+  Evidence: A first validation attempt used two concurrent `uv run pytest ...` commands against database-backed suites. One process dropped the shared test template database while the other was still cloning from it, producing `InvalidCatalogNameError: template database ... does not exist`. Rerunning the same suites sequentially passed.
+
+- Observation: Current fault/heartbeat-only scoped ingest no longer updates `sensornode`.
+  Evidence: `ReadingsService.touch_device()` now updates only canonical `device` heartbeat fields. Rejected reservoir payload tests were updated to assert canonical device freshness and no readings, not legacy node metadata updates.
+
 
 ## Decision Log
 
@@ -90,6 +96,10 @@ This is local-controller work. The homebox remains the hardware authority. Do no
   Rationale: The ESP32 ingest cadence is roughly 30 seconds, so 10 minutes covers many fan, plant, and reservoir posts without unnecessarily delaying the next server-side tightening step. Longer monitoring can continue after the gate, but it should not block the milestone.
   Date/Author: 2026-05-04 / Codex
 
+- Decision: Reject only known current legacy locations at the HWD API boundary during Milestone 3.
+  Rationale: Current boards are covered by `sensor_contract.DEVICE_METRICS` and must send `device_id` after the soak gate. Unknown `location`-only payloads remain as an explicit legacy/test-only path until the final `sensornode` removal milestone, so this step does not accidentally turn a compatibility cleanup into a broader schema/data decision.
+  Date/Author: 2026-05-04 / Codex
+
 
 ## Outcomes & Retrospective
 
@@ -98,6 +108,8 @@ Milestone 1 is complete. Scoped firmware POST bodies no longer serialize `locati
 The physical rollout completed after explicit OTA confirmation. Standard OTA succeeded for fan, plant A, and plant C. Reservoir, plant D, and plant B required direct-IP OTA retries after transfer failures, but all six hardware targets later checked in with the expected firmware versions and fresh heartbeats. The next milestone is the 10-minute scoped-only soak and live compatibility telemetry gate.
 
 Milestone 2 is complete. The scoped-only firmware soaked for the configured 10-minute window with no legacy-only ingest warnings in `dirt-hwd`, fresh expected firmware versions for every current ESP32 device, and recent live readings fully linked to capabilities. The next milestone can tighten current HWD ingest so known current payloads must include `device_id`.
+
+Milestone 3 is complete. Known current legacy-only HWD ingest posts now return HTTP 422 with `device_id is required for current sensor ingest`; the old `accepted legacy location-only sensor ingest` warning path has been removed because those payloads are no longer accepted. Current scoped posts still derive a temporary compatibility location for sensor-quality checks and `sensornode_id` writes while the legacy table remains, but `device_id` is the canonical heartbeat identity and `touch_device()` no longer writes `SensorNode`.
 
 
 ## Context and Orientation
@@ -448,6 +460,14 @@ End-state service interfaces:
 - Daily sensor, metric freshness, and voice sensor summaries use scoped device/capability inventories.
 - `sensor_contract.py` is canonical-device/capability oriented and no longer exports legacy location maps unless a documented historical path still imports them.
 
+Milestone 3 validation:
+
+    uv run pytest apps/hwd/tests/test_ingest_api.py apps/hwd/tests/test_ingest_derivation.py apps/hwd/tests/test_ingest_properties.py apps/shared/tests/test_readings_scope.py apps/shared/tests/test_legacy_retirement_audit.py -q
+    42 passed
+
+    first attempt only:
+    concurrent database-backed pytest commands failed with asyncpg InvalidCatalogNameError because the shared test template database was dropped by the other pytest process; rerunning sequentially passed.
+
 
 ## Revision Notes
 
@@ -458,3 +478,4 @@ End-state service interfaces:
 - 2026-05-04: Milestone 1 source/build work completed for scoped-only firmware POST support.
 - 2026-05-04: Milestone 1 OTA rollout completed for fan, plant A-D, and reservoir after direct-IP retries for reservoir, plant D, and plant B. Plant B and plant D transfer reliability remains a hardware/network risk, but both report the scoped-only firmware version.
 - 2026-05-04: Milestone 2 soak gate completed with zero legacy-only ingest warnings over the 10-minute live window and current readings still capability-linked.
+- 2026-05-04: Milestone 3 HWD ingest tightening completed. Known current location-only payloads now fail with clear 422, the legacy-only warning helper was removed, `touch_device()` is canonical device-only, and the remaining location-only compatibility path is explicitly legacy/test-only until final `sensornode` removal.

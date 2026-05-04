@@ -48,10 +48,6 @@ CENTRALIZED_WRITERS: dict[str, frozenset[tuple[str, str]]] = {
                 "apps/shared/src/dirt_shared/services/readings.py",
                 "ReadingsService.touch_node",
             ),
-            (
-                "apps/shared/src/dirt_shared/services/readings.py",
-                "ReadingsService.touch_device",
-            ),
         }
     ),
 }

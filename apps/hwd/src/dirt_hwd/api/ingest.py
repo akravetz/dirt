@@ -95,7 +95,28 @@ def _warn_on_emitted_drift(
         )
 
 
+def _reject_known_legacy_only_payload(payload: IngestPayload) -> None:
+    if payload.device_id is not None or payload.location is None:
+        return
+    if not is_known_legacy_location(payload.location):
+        return
+    raise HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        detail=(
+            "device_id is required for current sensor ingest; "
+            "legacy location-only payloads are no longer accepted for "
+            f"{payload.location}"
+        ),
+    )
+
+
 def _compat_location(payload: IngestPayload) -> str:
+    """Return the temporary legacy location used by SensorNode/quality paths.
+
+    Current ESP32 payloads are scoped by device_id. Unknown location-only
+    payloads remain as an explicit legacy/test-only path until sensornode
+    storage is removed in a later milestone.
+    """
     if payload.location is not None:
         return payload.location
     legacy_location = legacy_location_for_device_id(payload.device_id)
@@ -108,22 +129,6 @@ def _compat_location(payload: IngestPayload) -> str:
             ),
         )
     return legacy_location
-
-
-def _warn_on_legacy_only_payload(payload: IngestPayload) -> None:
-    if payload.device_id is not None or payload.location is None:
-        return
-    if not is_known_legacy_location(payload.location):
-        return
-    logger.warning(
-        "accepted legacy location-only sensor ingest",
-        extra={
-            "legacy_location": True,
-            "location": payload.location,
-            "site_id": payload.site_id,
-            "tent_id": payload.tent_id,
-        },
-    )
 
 
 def _check_token(authorization: str | None, expected_token: str) -> None:
@@ -144,12 +149,12 @@ async def ingest_sensors(  # noqa: PLR0913 — FastAPI boundary bundles request,
     settings: Settings = Depends(get_settings),
 ) -> dict[str, object]:
     _check_token(authorization, settings.sensor_ingest_token)
+    _reject_known_legacy_only_payload(payload)
 
     # If caller didn't self-report IP, use the connection's remote address.
     ip = payload.ip or (request.client.host if request.client else None)
     compat_location = _compat_location(payload)
 
-    _warn_on_legacy_only_payload(payload)
     _warn_on_emitted_drift(payload.location, payload.device_id, payload.metrics)
 
     metrics = _augment_temp_rh_metrics(payload.metrics)
@@ -172,7 +177,6 @@ async def ingest_sensors(  # noqa: PLR0913 — FastAPI boundary bundles request,
                 ip=ip,
                 firmware_version=payload.firmware_version,
                 uptime_ms=payload.uptime_ms,
-                legacy_location=compat_location,
             )
         return {
             "ok": True,

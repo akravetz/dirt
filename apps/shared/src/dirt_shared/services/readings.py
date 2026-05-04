@@ -5,10 +5,11 @@ Post-pg-cutover (ADR-006), all timestamp handling is native — no more
 history queries use ``date_trunc`` and compose cleanly with parametrized
 ``timestamptz`` bind values.
 
-Legacy location → sensornode_id remains for firmware compatibility, but
-canonical reads join ``sensorreading.capability_id`` through device/tent scope
-so a second tent can emit the same metric names without contaminating the main
-dashboard.
+Legacy location → sensornode_id remains only as a compatibility/history
+choke point while the old table is still present. Current ingest identifies
+hardware by ``device_id`` and canonical reads join ``sensorreading.capability_id``
+through device/tent scope so a second tent can emit the same metric names
+without contaminating the main dashboard.
 """
 
 from __future__ import annotations
@@ -855,27 +856,10 @@ class ReadingsService:
         ip: str | None = None,
         firmware_version: str | None = None,
         uptime_ms: int | None = None,
-        legacy_location: SensorLocation | str | None = None,
     ) -> None:
-        """Update canonical device heartbeat and optional legacy compatibility."""
+        """Update canonical device heartbeat."""
         now = self._clock()
         async with AsyncSession(self._engine) as session:
-            if legacy_location is not None:
-                node = (
-                    await session.exec(
-                        select(SensorNode).where(SensorNode.location == legacy_location)
-                    )
-                ).first()
-                if node is None:
-                    node = SensorNode(location=legacy_location)
-                if ip is not None:
-                    node.ip = ip
-                if firmware_version is not None:
-                    node.firmware_version = firmware_version
-                if uptime_ms is not None:
-                    node.uptime_ms = uptime_ms
-                node.last_seen = now
-                session.add(node)
             await _touch_device_heartbeat(
                 session,
                 now=now,
