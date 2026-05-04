@@ -17,7 +17,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import INET, JSONB
 from sqlmodel import Field, SQLModel
 
 
@@ -74,6 +74,17 @@ class Device(SQLModel, table=True):
         sa_column=Column(
             "metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb")
         ),
+    )
+    last_seen: datetime | None = Field(
+        default=None,
+        sa_column=Column(TIMESTAMP(timezone=True), nullable=True),
+    )
+    ip: str | None = Field(default=None, sa_column=Column(INET, nullable=True))
+    firmware_version: str | None = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
+    uptime_ms: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
     )
     created_at: datetime = Field(
         default_factory=_utcnow,

@@ -10,7 +10,7 @@ known state → emit one ``state_change`` event per transition + fire
 Telegram. State persists in ``<data_dir>/logs/metric_freshness/state.json``
 so systemd restarts don't replay alerts.
 
-Gated on ``sensornode.last_seen``: if the whole node is stale,
+Gated on canonical ``device.last_seen``: if the whole device is stale,
 ``DeviceWatchdog`` handles it; we skip emission so a dead node doesn't
 produce one alert per expected metric.
 """

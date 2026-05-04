@@ -156,12 +156,24 @@ async def ingest_sensors(  # noqa: PLR0913 — FastAPI boundary bundles request,
     quality = await sensor_quality.filter_metrics(compat_location, metrics)
 
     if not quality.metrics:
-        await readings.touch_node(
-            location=compat_location,
-            ip=ip,
-            firmware_version=payload.firmware_version,
-            uptime_ms=payload.uptime_ms,
-        )
+        if payload.device_id is None:
+            await readings.touch_node(
+                location=compat_location,
+                ip=ip,
+                firmware_version=payload.firmware_version,
+                uptime_ms=payload.uptime_ms,
+            )
+        else:
+            await readings.touch_device(
+                device_id=payload.device_id,
+                site_id=payload.site_id,
+                tent_id=payload.tent_id,
+                zone_id=payload.zone_id,
+                ip=ip,
+                firmware_version=payload.firmware_version,
+                uptime_ms=payload.uptime_ms,
+                legacy_location=compat_location,
+            )
         return {
             "ok": True,
             "location": compat_location,

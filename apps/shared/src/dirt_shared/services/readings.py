@@ -238,6 +238,45 @@ async def _get_sensornode_id(
     return result.first()
 
 
+async def _touch_device_heartbeat(  # noqa: PLR0913
+    session: AsyncSession,
+    *,
+    now: datetime,
+    site_id: str,
+    tent_id: str | None,
+    zone_id: str | None,
+    device_id: str | None,
+    ip: str | None,
+    firmware_version: str | None,
+    uptime_ms: int | None,
+) -> None:
+    if device_id is None:
+        return
+    stmt = (
+        select(Device)
+        .join(Site, Site.id == Device.site_id)
+        .where(Site.site_id == site_id)
+        .where(Device.device_id == device_id)
+    )
+    if tent_id is not None:
+        stmt = stmt.join(Tent, Tent.id == Device.tent_id).where(Tent.tent_id == tent_id)
+    if zone_id is not None:
+        stmt = stmt.join(Zone, Zone.id == Device.zone_id).where(Zone.zone_id == zone_id)
+
+    device = (await session.exec(stmt)).first()
+    if device is None:
+        return
+    if ip is not None:
+        device.ip = ip
+    if firmware_version is not None:
+        device.firmware_version = firmware_version
+    if uptime_ms is not None:
+        device.uptime_ms = uptime_ms
+    device.last_seen = now
+    device.updated_at = now
+    session.add(device)
+
+
 def _legacy_device_id(location: SensorLocation | str | None) -> str | None:
     if location is None:
         return None
@@ -250,6 +289,21 @@ def _legacy_device_id(location: SensorLocation | str | None) -> str | None:
     except ValueError:
         return None
     return LEGACY_LOCATION_DEVICE_IDS.get(loc)
+
+
+async def _devices_by_public_id(
+    session: AsyncSession,
+    *,
+    site_id: str,
+) -> dict[str, Device]:
+    devices = (
+        await session.exec(
+            select(Device)
+            .join(Site, Site.id == Device.site_id)
+            .where(Site.site_id == site_id)
+        )
+    ).all()
+    return {device.device_id: device for device in devices}
 
 
 def _history_params(  # noqa: PLR0913
@@ -496,27 +550,27 @@ class ReadingsService:
 
         Returns ``{(location, metric): ("fresh"|"stale", last_ts_or_None)}``.
 
-        Skips locations whose sensornode last_seen is older than
-        ``stale_cutoff`` — whole-node outages are DeviceWatchdog's job, and
-        a dead node would otherwise fan out into N alerts.
+        Skips locations whose canonical device heartbeat is older than
+        ``stale_cutoff`` — whole-device outages are DeviceWatchdog's job, and
+        a dead device would otherwise fan out into N alerts.
         """
         from dirt_shared.sensor_contract import PERSISTED_METRICS
 
         out: dict[tuple[SensorLocation, str], tuple[str, datetime | None]] = {}
         async with AsyncSession(self._engine) as session:
-            nodes = (await session.exec(select(SensorNode))).all()
-            by_loc: dict[SensorLocation, SensorNode] = {n.location: n for n in nodes}
-
+            devices_by_id = await _devices_by_public_id(session, site_id=site_id)
             for location, metrics in PERSISTED_METRICS.items():
                 if not metrics:
                     continue
-                node = by_loc.get(location)
-                if node is None or node.id is None or node.last_seen is None:
+                device_id = _legacy_device_id(location)
+                if device_id is None:
                     continue
-                if _as_utc(node.last_seen) < stale_cutoff:
+                device = devices_by_id.get(device_id)
+                if device is None or device.last_seen is None:
+                    continue
+                if _as_utc(device.last_seen) < stale_cutoff:
                     continue
 
-                device_id = _legacy_device_id(location)
                 for metric in sorted(metrics):
                     row = (
                         await session.exec(
@@ -550,18 +604,15 @@ class ReadingsService:
 
         out: dict[str, tuple[str, datetime | None, dict[str, str | None]]] = {}
         async with AsyncSession(self._engine) as session:
-            nodes = (await session.exec(select(SensorNode))).all()
-            by_loc: dict[SensorLocation, SensorNode] = {n.location: n for n in nodes}
-
+            devices_by_id = await _devices_by_public_id(session, site_id=site_id)
             for location, metrics in PERSISTED_METRICS.items():
-                node = by_loc.get(location)
-                if node is None or node.last_seen is None:
-                    continue
-                if _as_utc(node.last_seen) < stale_cutoff:
-                    continue
-
                 device_public_id = _legacy_device_id(location)
                 if device_public_id is None:
+                    continue
+                device = devices_by_id.get(device_public_id)
+                if device is None or device.last_seen is None:
+                    continue
+                if _as_utc(device.last_seen) < stale_cutoff:
                     continue
 
                 for metric in sorted(metrics):
@@ -678,6 +729,18 @@ class ReadingsService:
             await session.flush()  # populate node.id for the FK on SensorReading
             assert node.id is not None  # noqa: S101 (type narrow: post-flush)
 
+            await _touch_device_heartbeat(
+                session,
+                now=now,
+                site_id=site_id,
+                tent_id=tent_id,
+                zone_id=zone_id,
+                device_id=device_id or _legacy_device_id(location),
+                ip=ip,
+                firmware_version=firmware_version,
+                uptime_ms=uptime_ms,
+            )
+
             capability_ids = await _resolve_capability_ids(
                 session,
                 metric_names=metrics.keys(),
@@ -723,7 +786,7 @@ class ReadingsService:
         firmware_version: str | None = None,
         uptime_ms: int | None = None,
     ) -> None:
-        """Update node heartbeat metadata without writing sensor readings."""
+        """Legacy sensornode heartbeat wrapper used during ingest transition."""
         now = self._clock()
         async with AsyncSession(self._engine) as session:
             node = (
@@ -741,6 +804,61 @@ class ReadingsService:
                 node.uptime_ms = uptime_ms
             node.last_seen = now
             session.add(node)
+            await _touch_device_heartbeat(
+                session,
+                now=now,
+                site_id=DEFAULT_SITE_ID,
+                tent_id=DEFAULT_TENT_ID,
+                zone_id=None,
+                device_id=_legacy_device_id(location),
+                ip=ip,
+                firmware_version=firmware_version,
+                uptime_ms=uptime_ms,
+            )
+            await session.commit()
+
+    async def touch_device(  # noqa: PLR0913
+        self,
+        *,
+        device_id: str,
+        site_id: str = DEFAULT_SITE_ID,
+        tent_id: str | None = DEFAULT_TENT_ID,
+        zone_id: str | None = None,
+        ip: str | None = None,
+        firmware_version: str | None = None,
+        uptime_ms: int | None = None,
+        legacy_location: SensorLocation | str | None = None,
+    ) -> None:
+        """Update canonical device heartbeat and optional legacy compatibility."""
+        now = self._clock()
+        async with AsyncSession(self._engine) as session:
+            if legacy_location is not None:
+                node = (
+                    await session.exec(
+                        select(SensorNode).where(SensorNode.location == legacy_location)
+                    )
+                ).first()
+                if node is None:
+                    node = SensorNode(location=legacy_location)
+                if ip is not None:
+                    node.ip = ip
+                if firmware_version is not None:
+                    node.firmware_version = firmware_version
+                if uptime_ms is not None:
+                    node.uptime_ms = uptime_ms
+                node.last_seen = now
+                session.add(node)
+            await _touch_device_heartbeat(
+                session,
+                now=now,
+                site_id=site_id,
+                tent_id=tent_id,
+                zone_id=zone_id,
+                device_id=device_id,
+                ip=ip,
+                firmware_version=firmware_version,
+                uptime_ms=uptime_ms,
+            )
             await session.commit()
 
     async def get_sensor_history(self, range_key: str) -> dict[str, dict[str, list]]:

@@ -95,11 +95,18 @@ async def test_ingest_writes_readings_and_node(client: AsyncClient, app_engine):
                 select(SensorNode).where(SensorNode.location == SensorLocation.PLANT_A)
             )
         ).first()
+        device = (
+            await s.exec(select(Device).where(Device.device_id == "plant-a-node"))
+        ).one()
         assert node is not None
         assert str(node.ip) == "192.168.1.103"
         assert node.firmware_version == "0.1.0"
         assert node.uptime_ms == 60000
         assert node.last_seen is not None
+        assert str(device.ip) == "192.168.1.103"
+        assert device.firmware_version == "0.1.0"
+        assert device.uptime_ms == 60000
+        assert device.last_seen is not None
 
 
 async def test_scoped_device_id_writes_capability_without_legacy_location_mapping(
@@ -140,6 +147,7 @@ async def test_scoped_device_id_writes_capability_without_legacy_location_mappin
     reading, device, capability = row
     assert reading.capability_id is not None
     assert device.device_id == "plant-a-node"
+    assert device.last_seen is not None
     assert capability.capability_id == "soil_moisture_raw"
 
 
@@ -176,6 +184,7 @@ async def test_scoped_device_id_ingest_does_not_require_location(
     reading, device, capability = row
     assert reading.capability_id is not None
     assert device.device_id == "plant-a-node"
+    assert device.last_seen is not None
     assert capability.capability_id == "soil_moisture_raw"
 
 
@@ -451,9 +460,80 @@ async def test_reservoir_fault_payload_is_rejected_but_node_touched(
                 )
             )
         ).one()
+        device = (
+            await session.exec(
+                select(Device).where(Device.device_id == "reservoir-node")
+            )
+        ).one()
 
     assert rows == []
     assert str(node.ip) == "192.168.1.23"
     assert node.firmware_version == "0.1.0"
     assert node.uptime_ms == 12345
+    assert node.last_seen is not None
+    assert str(device.ip) == "192.168.1.23"
+    assert device.firmware_version == "0.1.0"
+    assert device.uptime_ms == 12345
+    assert device.last_seen is not None
+
+
+async def test_scoped_fault_payload_is_rejected_but_device_heartbeat_updates(
+    app_engine, tmp_path: Path
+):
+    app = create_app(engine=app_engine, background_services=[])
+    app.state.sensor_quality = SensorQualityService(
+        SensorQualityConfig(
+            state_path=tmp_path / "sensor_quality_state.json",
+            telegram_bot_token="",
+            telegram_chat_id="",
+        )
+    )
+    transport = ASGITransport(app=app)
+    async with AsyncClient(
+        transport=transport, base_url="http://test", follow_redirects=False
+    ) as ac:
+        response = await ac.post(
+            "/api/ingest/sensors",
+            json={
+                "site_id": "homebox",
+                "tent_id": "main",
+                "zone_id": "reservoir",
+                "device_id": "reservoir-node",
+                "metrics": {
+                    "reservoir_pressure_raw": 8300.0,
+                    "reservoir_in": -35.9,
+                },
+                "firmware_version": "0.1.0",
+                "ip": "192.168.1.23",
+                "uptime_ms": 12345,
+            },
+            headers=_auth_header(),
+        )
+
+    assert response.status_code == 202
+    assert response.json() == {
+        "ok": True,
+        "location": "reservoir",
+        "count": 0,
+        "rejected": ["reservoir_in", "reservoir_pressure_raw"],
+    }
+
+    async with AsyncSession(app_engine) as session:
+        device = (
+            await session.exec(
+                select(Device).where(Device.device_id == "reservoir-node")
+            )
+        ).one()
+        node = (
+            await session.exec(
+                select(SensorNode).where(
+                    SensorNode.location == SensorLocation.RESERVOIR
+                )
+            )
+        ).one()
+
+    assert str(device.ip) == "192.168.1.23"
+    assert device.firmware_version == "0.1.0"
+    assert device.uptime_ms == 12345
+    assert device.last_seen is not None
     assert node.last_seen is not None

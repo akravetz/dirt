@@ -81,3 +81,102 @@ async def test_default_history_excludes_same_metric_from_breeding_tent(app_engin
     assert main_latest.value == 72.0
     assert breeding_latest is not None
     assert breeding_latest.value == 80.0
+
+
+async def test_scoped_ingest_updates_device_heartbeat(app_engine):
+    readings = ReadingsService(
+        app_engine, clock=lambda: datetime(2026, 5, 4, tzinfo=UTC)
+    )
+
+    await readings.ingest_reading(
+        SensorLocation.PLANT_A,
+        {"soil_moisture_raw": 1600.0},
+        source=SensorSource.ESP32,
+        ip="192.168.1.101",
+        firmware_version="0.2.0",
+        uptime_ms=1234,
+        site_id="homebox",
+        tent_id="main",
+        zone_id="plant-a",
+        device_id="plant-a-node",
+    )
+
+    async with AsyncSession(app_engine) as session:
+        device = (
+            await session.exec(select(Device).where(Device.device_id == "plant-a-node"))
+        ).one()
+        node = (
+            await session.exec(
+                select(SensorNode).where(SensorNode.location == SensorLocation.PLANT_A)
+            )
+        ).one()
+
+    assert device.last_seen == datetime(2026, 5, 4, tzinfo=UTC)
+    assert str(device.ip) == "192.168.1.101"
+    assert device.firmware_version == "0.2.0"
+    assert device.uptime_ms == 1234
+    assert node.last_seen == datetime(2026, 5, 4, tzinfo=UTC)
+
+
+async def test_legacy_ingest_updates_derived_device_heartbeat(app_engine):
+    readings = ReadingsService(
+        app_engine, clock=lambda: datetime(2026, 5, 4, 0, 1, tzinfo=UTC)
+    )
+
+    await readings.ingest_reading(
+        SensorLocation.PLANT_A,
+        {"soil_moisture_raw": 1600.0},
+        source=SensorSource.ESP32,
+        ip="192.168.1.102",
+        firmware_version="0.1.5",
+        uptime_ms=4321,
+    )
+
+    async with AsyncSession(app_engine) as session:
+        device = (
+            await session.exec(select(Device).where(Device.device_id == "plant-a-node"))
+        ).one()
+        node = (
+            await session.exec(
+                select(SensorNode).where(SensorNode.location == SensorLocation.PLANT_A)
+            )
+        ).one()
+
+    assert device.last_seen == datetime(2026, 5, 4, 0, 1, tzinfo=UTC)
+    assert str(device.ip) == "192.168.1.102"
+    assert device.firmware_version == "0.1.5"
+    assert device.uptime_ms == 4321
+    assert node.last_seen == datetime(2026, 5, 4, 0, 1, tzinfo=UTC)
+
+
+async def test_touch_node_updates_derived_device_heartbeat(app_engine):
+    readings = ReadingsService(
+        app_engine, clock=lambda: datetime(2026, 5, 4, 0, 2, tzinfo=UTC)
+    )
+
+    await readings.touch_node(
+        SensorLocation.RESERVOIR,
+        ip="192.168.1.23",
+        firmware_version="0.1.0",
+        uptime_ms=12345,
+    )
+
+    async with AsyncSession(app_engine) as session:
+        device = (
+            await session.exec(
+                select(Device).where(Device.device_id == "reservoir-node")
+            )
+        ).one()
+        node = (
+            await session.exec(
+                select(SensorNode).where(
+                    SensorNode.location == SensorLocation.RESERVOIR
+                )
+            )
+        ).one()
+
+    assert device.last_seen == datetime(2026, 5, 4, 0, 2, tzinfo=UTC)
+    assert str(device.ip) == "192.168.1.23"
+    assert device.firmware_version == "0.1.0"
+    assert device.uptime_ms == 12345
+    assert node.last_seen == datetime(2026, 5, 4, 0, 2, tzinfo=UTC)

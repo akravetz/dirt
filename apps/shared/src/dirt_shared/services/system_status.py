@@ -15,10 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from dirt_shared.models.device import Capability, Device
-from dirt_shared.models.enums import SensorLocation
-from dirt_shared.models.sensor_node import SensorNode
-from dirt_shared.models.sensor_reading import SensorReading
+from dirt_shared.models.device import Device
 from dirt_shared.models.site import Site
 from dirt_shared.models.tent import Tent
 from dirt_shared.models.zone import Zone
@@ -72,14 +69,13 @@ _DEVICE_KIND_MAP: dict[str, DeviceKind] = {
 
 @dataclass(frozen=True)
 class _ScopedDevice:
-    pk: int
     device_id: str
     name: str
     kind: DeviceKind
     site_id: str
     tent_id: str | None
     zone_id: str | None
-    metadata: dict
+    last_seen: datetime | None
 
 
 # ============================================================
@@ -198,17 +194,14 @@ class SystemStatusService:
 
         async with AsyncSession(self._engine) as session:
             devices = await self._status_devices(session)
-            nodes = (await session.exec(select(SensorNode))).all()
-            nodes_by_location = {node.location: node for node in nodes}
 
             out: list[DeviceStatus] = []
             for device in devices:
-                if device.kind in {"env_sensor", "moisture_node"}:
-                    out.append(
-                        self._sensor_device_status(now, device, nodes_by_location)
-                    )
-                elif device.device_id == "govee-h7142-main":
-                    out.append(await self._actuator_status(session, now, device))
+                if (
+                    device.kind in {"env_sensor", "moisture_node"}
+                    or device.device_id == "govee-h7142-main"
+                ):
+                    out.append(self._device_heartbeat_status(now, device))
                 elif device.kind == "camera":
                     out.append(self._camera_status(now, device))
                 elif device.kind == "voice":
@@ -229,69 +222,31 @@ class SystemStatusService:
         by_id = {}
         for device, site_id, tent_id, zone_id in rows:
             kind = _DEVICE_KIND_MAP.get(device.kind)
-            if device.id is None or kind is None:
+            if kind is None:
                 continue
             by_id[device.device_id] = _ScopedDevice(
-                pk=device.id,
                 device_id=device.device_id,
                 name=device.name,
                 kind=kind,
                 site_id=site_id,
                 tent_id=tent_id,
                 zone_id=zone_id,
-                metadata=device.metadata_json,
+                last_seen=device.last_seen,
             )
         return [
             by_id[device_id] for device_id in _STATUS_DEVICE_ORDER if device_id in by_id
         ]
 
-    def _sensor_device_status(
+    def _device_heartbeat_status(
         self,
         now: datetime,
         device: _ScopedDevice,
-        nodes_by_location: dict[SensorLocation, SensorNode],
     ) -> DeviceStatus:
-        location_value = device.metadata.get("legacy_location")
-        node = None
-        if location_value is not None:
-            with contextlib.suppress(ValueError):
-                node = nodes_by_location.get(SensorLocation(location_value))
-        last_seen = node.last_seen if node is not None else None
         return DeviceStatus(
             name=device.name,
             kind=device.kind,
-            status=_status_from_age(now, last_seen, device.kind),
-            last_seen=last_seen,
-            device_id=device.device_id,
-            site_id=device.site_id,
-            tent_id=device.tent_id,
-            zone_id=device.zone_id,
-        )
-
-    async def _actuator_status(
-        self,
-        session: AsyncSession,
-        now: datetime,
-        device: _ScopedDevice,
-    ) -> DeviceStatus:
-        last_seen: datetime | None = None
-        last = (
-            await session.exec(
-                select(SensorReading)
-                .join(Capability, Capability.id == SensorReading.capability_id)
-                .where(Capability.device_id == device.pk)
-                .where(Capability.metric_name == "humidifier_on")
-                .order_by(SensorReading.ts.desc())
-                .limit(1)
-            )
-        ).first()
-        if last is not None:
-            last_seen = last.ts
-        return DeviceStatus(
-            name=device.name,
-            kind=device.kind,
-            status=_status_from_age(now, last_seen, device.kind),
-            last_seen=last_seen,
+            status=_status_from_age(now, device.last_seen, device.kind),
+            last_seen=device.last_seen,
             device_id=device.device_id,
             site_id=device.site_id,
             tent_id=device.tent_id,

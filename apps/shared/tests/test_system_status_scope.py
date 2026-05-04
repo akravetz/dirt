@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from dirt_shared.models.device import Capability, Device
-from dirt_shared.models.enums import SensorLocation, SensorSource
-from dirt_shared.models.sensor_node import SensorNode
-from dirt_shared.models.sensor_reading import SensorReading
+from dirt_shared.models.device import Device
 from dirt_shared.services.system_status import SystemStatusService
 
 T0 = datetime(2026, 5, 4, 12, 0, tzinfo=UTC)
@@ -22,39 +19,13 @@ async def test_system_status_uses_device_table_projection(
             await session.exec(select(Device).where(Device.device_id == "plant-a-node"))
         ).one()
         plant_a.name = "Renamed Plant A Node"
-
-        node = (
+        plant_a.last_seen = T0
+        humidifier = (
             await session.exec(
-                select(SensorNode).where(SensorNode.location == SensorLocation.PLANT_A)
+                select(Device).where(Device.device_id == "govee-h7142-main")
             )
         ).one()
-        node.last_seen = T0
-
-        humidifier_cap = (
-            await session.exec(
-                select(Capability)
-                .join(Device, Device.id == Capability.device_id)
-                .where(Device.device_id == "govee-h7142-main")
-                .where(Capability.capability_id == "humidifier_on")
-            )
-        ).one()
-        assert humidifier_cap.id is not None
-        tent_node = (
-            await session.exec(
-                select(SensorNode).where(SensorNode.location == SensorLocation.TENT)
-            )
-        ).one()
-        assert tent_node.id is not None
-        session.add(
-            SensorReading(
-                ts=T0 - timedelta(seconds=30),
-                sensornode_id=tent_node.id,
-                capability_id=humidifier_cap.id,
-                metric="humidifier_on",
-                value=1.0,
-                source=SensorSource.GOVEE,
-            )
-        )
+        humidifier.last_seen = T0
         await session.commit()
 
     service = SystemStatusService(

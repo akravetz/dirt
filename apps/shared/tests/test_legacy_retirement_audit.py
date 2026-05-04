@@ -48,6 +48,10 @@ CENTRALIZED_WRITERS: dict[str, frozenset[tuple[str, str]]] = {
                 "apps/shared/src/dirt_shared/services/readings.py",
                 "ReadingsService.touch_node",
             ),
+            (
+                "apps/shared/src/dirt_shared/services/readings.py",
+                "ReadingsService.touch_device",
+            ),
         }
     ),
 }
@@ -81,7 +85,6 @@ EXPECTED_LEGACY_REFERENCE_FILES = frozenset(
         "apps/shared/src/dirt_shared/services/daily_sensors.py",
         "apps/shared/src/dirt_shared/services/plants.py",
         "apps/shared/src/dirt_shared/services/readings.py",
-        "apps/shared/src/dirt_shared/services/system_status.py",
     }
 )
 

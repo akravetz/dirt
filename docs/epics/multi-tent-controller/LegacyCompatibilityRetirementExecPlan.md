@@ -19,7 +19,8 @@ This plan is still local-controller work. The homebox remains the hardware autho
 - [x] (2026-05-04 03:35Z) Created this ExecPlan after Phase 1 migrations were applied and operational smoke checks passed.
 - [x] (2026-05-04 04:53Z) Implemented Milestone 1: audit and guard current legacy paths before changing behavior. Added executable audit coverage for production legacy references and current compatibility writers; added focused ingest/history guards before behavior changes; ran simplify fallback and focused validation.
 - [x] (2026-05-04 05:09Z) Implemented Milestone 2: firmware now posts scoped identity fields alongside legacy `location`; HWD ingest accepts known scoped `device_id` payloads without `location`, warns on known legacy-only posts, and `sensor_contract.py` now derives legacy maps from canonical device/capability declarations.
-- [ ] Implement Milestone 3: move device heartbeat/freshness ownership from `sensornode` to `device`.
+- [x] (2026-05-04 05:31Z) Implemented Milestone 3: canonical heartbeat columns live on `device`; ingest updates scoped device heartbeat when `device_id` is present while legacy compatibility still updates `sensornode`; system status, device watchdog input, and metric freshness gates now read canonical device heartbeat.
+- [x] (2026-05-04 05:39Z) Fixed Milestone 3 main-review blocker: legacy-only known-location ingest and rejected legacy payloads now derive the canonical device id from the legacy location mapping and refresh `device.last_seen`/metadata as well as `sensornode`.
 - [ ] Implement Milestone 4: move plant moisture and daily sensor paths off `sensornode_id`.
 - [ ] Implement Milestone 5: make scoped API/frontend access first-class while keeping default-main URLs compatible.
 - [ ] Implement Milestone 6: backfill or quarantine historical unscoped data and tighten schema/app constraints.
@@ -78,6 +79,12 @@ This plan is still local-controller work. The homebox remains the hardware autho
 - Observation: Firmware is organized as three separate PlatformIO projects, not a single root `firmware/platformio.ini`.
   Evidence: `find firmware -maxdepth 3 \( -path '*/test/*' -o -name 'platformio.ini' \) -print` found only `firmware/fan_controller/platformio.ini`, `firmware/plant_node/platformio.ini`, and `firmware/reservoir_node/platformio.ini`; no firmware test directories were present.
 
+- Observation: The installed Atlas CLI differs from the local Atlas reference pack for validation/lint commands.
+  Evidence: `atlas migrate hash --dry-run --env local` failed with `unknown flag: --dry-run`; `atlas migrate lint --env local --latest 1` failed because this Atlas version gates migrate lint behind Atlas Pro/login. `atlas migrate diff verify_scoped_device_heartbeat_sync --env local` succeeded with `The migration directory is synced with the desired state, no changes to be made`.
+
+- Observation: The first Milestone 3 implementation still let unflashed legacy-only boards age offline after migration backfill.
+  Evidence: Main-agent review found `ReadingsService.ingest_reading(... device_id=None ...)` called `_touch_device_heartbeat()` with `device_id=None`, and rejected legacy payloads called only `touch_node()`. Because `SystemStatusService` now reads `device.last_seen`, current unflashed firmware posting only `location` would update `sensornode.last_seen` but not canonical heartbeat.
+
 
 ## Decision Log
 
@@ -121,6 +128,22 @@ This plan is still local-controller work. The homebox remains the hardware autho
   Rationale: Existing watchdog, daily-sensor, voice, and invariant code still imports the legacy maps. Making `DEVICE_METRICS` the only editable declaration delivers scoped-first ownership without mixing Milestone 2 with broader legacy deletion.
   Date/Author: 2026-05-04 / Codex
 
+- Decision: Store canonical device heartbeat as nullable columns on `device`: `last_seen`, `ip`, `firmware_version`, and `uptime_ms`.
+  Rationale: Current consumers need latest freshness only, not heartbeat history. Nullable columns are the smallest schema change and let existing seeded non-reporting devices remain valid until they actually heartbeat.
+  Date/Author: 2026-05-04 / Codex
+
+- Decision: Keep `ReadingsService.touch_node()` as a legacy wrapper and add `ReadingsService.touch_device()` for rejected scoped payloads.
+  Rationale: Rejected-payload behavior must still update compatibility `sensornode` during the transition, while scoped boards need their canonical `device` heartbeat updated even when every metric is rejected by sensor-quality filtering.
+  Date/Author: 2026-05-04 / Codex
+
+- Decision: Legacy-only known-location ingest derives canonical heartbeat ownership through `LEGACY_LOCATION_DEVICE_IDS`.
+  Rationale: Firmware rollout is staged. Until every board is flashed with `device_id`, known `location` posts must keep both compatibility `sensornode` and canonical `device` heartbeat fresh so system status and watchdog behavior do not regress.
+  Date/Author: 2026-05-04 / Codex
+
+- Decision: Gate metric freshness snapshots on canonical `device.last_seen` instead of `sensornode.last_seen`.
+  Rationale: Metric freshness deliberately suppresses per-metric alerts when a whole device is stale. After Milestone 3, whole-device freshness is owned by `device`, so keeping the gate on `sensornode` would preserve the retired ownership path.
+  Date/Author: 2026-05-04 / Codex
+
 
 ## Outcomes & Retrospective
 
@@ -129,6 +152,8 @@ Milestone 1 is complete. The repo now has executable guardrails that show where 
 No schema changes, firmware changes, hosted/cloud control, or behavior changes were made in Milestone 1.
 
 Milestone 2 is complete. ESP32 firmware payloads now include `site_id`, `tent_id`, `zone_id`, and `device_id` while retaining legacy `location`. HWD ingest accepts scoped payloads without `location` for known devices, derives the compatibility `SensorLocation` from canonical `device_id`, logs a structured warning with `legacy_location=true` for known legacy-only boards, and keeps resolving capabilities by `device_id` plus metric name. The sensor contract's editable source is now keyed by canonical `device_id` and capability/metric identity, with legacy maps derived for compatibility. No schema changes or hosted/cloud control were added.
+
+Milestone 3 is complete. The `device` table now owns latest heartbeat fields, with an Atlas migration that backfills ESP32-compatible devices from `sensornode` using `device.metadata->>'legacy_location'` and then backfills any still-null scoped devices, such as the Govee humidifier, from their latest capability reading. `ReadingsService.ingest_reading()` updates canonical device heartbeat whenever scoped `device_id` is present, or derives the heartbeat `device_id` from known legacy `location` when scoped identity is absent, and still updates `sensornode` for compatibility. `ReadingsService.touch_node()` remains a legacy wrapper and also refreshes canonical device heartbeat for known legacy locations. `touch_device()` handles rejected scoped payloads while also touching the compatibility node. `SystemStatusService` reads device heartbeat directly for ESP32 nodes and the Govee humidifier, and `DeviceWatchdogService` continues to persist stable `device_id` state keys through unchanged status objects. `docs/observability.md` now documents that metric freshness is gated by `device.last_seen`.
 
 
 ## Context and Orientation
@@ -543,6 +568,106 @@ Pre-commit invariant cleanup removed the HWD API import of `dirt_shared.models.e
 
     pio run -e reservoir
     reservoir SUCCESS in 1.33s
+
+Milestone 3 migration artifact:
+
+    migrations/20260504052839_scoped_device_heartbeat.sql
+
+The migration adds nullable heartbeat columns to `device`, backfills current
+ESP32 heartbeat data from `sensornode` via `device.metadata->>'legacy_location'`,
+and backfills non-legacy scoped devices from their latest capability reading
+where no explicit heartbeat exists. No live `atlas migrate apply` was run for
+this milestone.
+
+Milestone 3 simplify pass used the local fallback because no subagent spawn
+tool was available. Reuse/quality/efficiency review found two worthwhile
+cleanup items: remove the now-unused `_ScopedDevice.pk` field after actuator
+status stopped querying readings, and batch freshness device heartbeat lookups
+instead of re-querying one device per legacy location.
+
+Milestone 3 validation evidence from 2026-05-04:
+
+    atlas migrate diff scoped_device_heartbeat --env local
+    generated migrations/20260504052839_scoped_device_heartbeat.sql
+
+    atlas migrate hash --env local
+    completed after hand-editing the migration backfill
+
+    atlas migrate diff verify_scoped_device_heartbeat_sync --env local
+    The migration directory is synced with the desired state, no changes to be made
+
+    atlas migrate hash --env local
+    rerun after adding the latest-capability-reading backfill for non-legacy scoped devices
+
+    atlas migrate diff verify_scoped_device_heartbeat_sync --env local
+    rerun after the additional backfill; still synced with desired state
+
+    uv run pytest apps/shared/tests/test_readings_scope.py -q
+    rerun after the additional migration backfill; 2 passed in 1.63s
+
+    atlas migrate hash --dry-run --env local
+    failed: installed Atlas reports `unknown flag: --dry-run`
+
+    atlas migrate lint --env local --latest 1
+    failed: installed Atlas gates migrate lint behind Atlas Pro/login
+
+    uv run pytest apps/shared/tests/test_readings_scope.py apps/shared/tests/test_system_status_scope.py apps/shared/tests/test_legacy_retirement_audit.py apps/hwd/tests/test_ingest_api.py apps/hwd/tests/test_device_watchdog.py -q
+    39 passed in 7.12s
+
+    uv run ruff check apps/shared/src/dirt_shared/models/device.py apps/shared/src/dirt_shared/services/readings.py apps/shared/src/dirt_shared/services/system_status.py apps/hwd/src/dirt_hwd/api/ingest.py apps/hwd/src/dirt_hwd/services/metric_freshness.py apps/hwd/tests/test_ingest_api.py apps/shared/tests/test_readings_scope.py apps/shared/tests/test_system_status_scope.py apps/shared/tests/test_legacy_retirement_audit.py
+    All checks passed.
+
+    uv run ruff format apps/shared/src/dirt_shared/models/device.py apps/shared/src/dirt_shared/services/readings.py apps/shared/src/dirt_shared/services/system_status.py apps/hwd/src/dirt_hwd/api/ingest.py apps/hwd/src/dirt_hwd/services/metric_freshness.py apps/hwd/tests/test_ingest_api.py apps/shared/tests/test_readings_scope.py apps/shared/tests/test_system_status_scope.py apps/shared/tests/test_legacy_retirement_audit.py
+    completed; one file reformatted before lint/test, no further format changes after simplify
+
+Final Milestone 3 validation after the ExecPlan update:
+
+    uv run pytest apps/shared/tests/test_readings_scope.py apps/shared/tests/test_system_status_scope.py apps/shared/tests/test_legacy_retirement_audit.py -q
+    8 passed in 2.06s
+
+    uv run pytest apps/hwd/tests/test_ingest_api.py apps/hwd/tests/test_device_watchdog.py -q
+    31 passed in 6.15s
+
+    uv run pytest apps/web/tests/test_system_devices_endpoint.py -q
+    2 passed in 0.61s
+
+    uv run pytest apps/tests/invariants/ -q
+    115 passed, 1 skipped in 3.98s
+
+    uv run ruff check apps/shared/src/dirt_shared/models/device.py apps/shared/src/dirt_shared/services/readings.py apps/shared/src/dirt_shared/services/system_status.py apps/hwd/src/dirt_hwd/api/ingest.py apps/hwd/src/dirt_hwd/services/metric_freshness.py apps/hwd/tests/test_ingest_api.py apps/shared/tests/test_readings_scope.py apps/shared/tests/test_system_status_scope.py apps/shared/tests/test_legacy_retirement_audit.py
+    All checks passed.
+
+    uv run ruff format --check apps/shared/src/dirt_shared/models/device.py apps/shared/src/dirt_shared/services/readings.py apps/shared/src/dirt_shared/services/system_status.py apps/hwd/src/dirt_hwd/api/ingest.py apps/hwd/src/dirt_hwd/services/metric_freshness.py apps/hwd/tests/test_ingest_api.py apps/shared/tests/test_readings_scope.py apps/shared/tests/test_system_status_scope.py apps/shared/tests/test_legacy_retirement_audit.py
+    9 files already formatted
+
+    git diff --check
+    passed with no output
+
+    atlas migrate status --env local
+    Migration Status: PENDING; Current Version 20260504022916; Next Version 20260504052839; Pending Files 1. This is expected because the live migration was intentionally not applied.
+
+Post-main-review Milestone 3 blocker fix validation:
+
+    uv run pytest apps/hwd/tests/test_ingest_api.py -q
+    20 passed in 5.08s
+
+    uv run pytest apps/shared/tests/test_readings_scope.py -q
+    4 passed in 2.04s
+
+    uv run pytest apps/shared/tests/test_system_status_scope.py -q
+    1 passed in 1.28s
+
+    uv run pytest apps/tests/invariants/ -q
+    115 passed, 1 skipped in 3.97s
+
+    uv run ruff check apps/shared/src/dirt_shared/models/device.py apps/shared/src/dirt_shared/services/readings.py apps/shared/src/dirt_shared/services/system_status.py apps/hwd/src/dirt_hwd/api/ingest.py apps/hwd/src/dirt_hwd/services/metric_freshness.py apps/hwd/tests/test_ingest_api.py apps/shared/tests/test_readings_scope.py apps/shared/tests/test_system_status_scope.py apps/shared/tests/test_legacy_retirement_audit.py
+    All checks passed.
+
+    uv run ruff format --check apps/shared/src/dirt_shared/models/device.py apps/shared/src/dirt_shared/services/readings.py apps/shared/src/dirt_shared/services/system_status.py apps/hwd/src/dirt_hwd/api/ingest.py apps/hwd/src/dirt_hwd/services/metric_freshness.py apps/hwd/tests/test_ingest_api.py apps/shared/tests/test_readings_scope.py apps/shared/tests/test_system_status_scope.py apps/shared/tests/test_legacy_retirement_audit.py
+    9 files already formatted
+
+    git diff --check
+    passed with no output
 
 
 ## Interfaces and Dependencies
