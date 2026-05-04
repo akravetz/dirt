@@ -49,6 +49,10 @@ This is local-controller work. The homebox remains the hardware authority. Do no
   Rationale: Some old rows intentionally remain quarantined without a safe canonical capability, such as old `pressure_hpa`, `reservoir_depth_cm`, and a one-off plant `humidity_pct`. Dropping `sensornode_id` without an explicit history decision would make old data harder to explain.
   Date/Author: 2026-05-04 / Codex
 
+- Decision: Normalize historical reservoir depth rows to the canonical inches stream instead of preserving a separate centimetre display metric.
+  Rationale: The product should continue to show one reservoir-depth chart without frontend unit-conversion business logic. Old `reservoir_depth_cm` rows are the same physical quantity as current `reservoir_in`, so the migration should convert `value = value / 2.54`, set `metric = 'reservoir_in'`, and attach the canonical `reservoir-node` `reservoir_in` capability. Preserve the conversion in migration comments, validation counts, and this plan rather than storing a second UI-facing metric.
+  Date/Author: 2026-05-04 / Codex
+
 - Decision: Use capability/device inventories rather than adding a new replacement enum for `SensorLocation`.
   Rationale: The canonical model already has `device` and `capability`; a new enum would preserve the same drift risk under a different name.
   Date/Author: 2026-05-04 / Codex
@@ -120,7 +124,11 @@ Update tests around daily reports, metric freshness, voice sensor tools, and leg
 
 Milestone 5: Final schema and code deletion.
 
-Before dropping columns/tables, decide how to preserve or deliberately drop historical lineage. Options include keeping old readings as capability-linked where safe plus documenting quarantined historical rows, or introducing a small archive note/table before deleting `sensornode_id`. Use Atlas only for schema changes. Candidate removals:
+Before dropping columns/tables, migrate historical lineage into capability ownership. The default policy is to normalize historical rows to canonical capabilities when the old stream represents the same physical quantity. The known reservoir case should be migrated from `reservoir_depth_cm` to the canonical `reservoir_in` capability by dividing values by `2.54` and changing `metric` to `reservoir_in`. Do not round converted values in storage.
+
+For historical streams that do not have a safe canonical equivalent, create explicit archive-only capabilities instead of dropping data or forcing a false mapping. Known examples are old tent `pressure_hpa` and the one-off plant `humidity_pct` row. Name archive capabilities so normal dashboards can ignore them unless a future historical explorer deliberately opts in.
+
+The migration must prove that every `sensorreading` row has non-null `capability_id` before dropping `sensornode_id`. Use Atlas only for schema changes. Candidate removals:
 
 - `sensorreading.sensornode_id`
 - `sensornode`
@@ -206,6 +214,8 @@ The work is accepted only when all of these are true:
 - `apps/shared/tests/test_legacy_retirement_audit.py` shows the remaining legacy inventory shrinking milestone by milestone.
 - If `sensornode`, `sensor_location`, or `sensorreading.sensornode_id` remain at any stopping point, this plan documents exactly why.
 - If they are removed, Atlas status reports no pending files after apply and `docs/database.md` no longer documents them as live tables/columns.
+- Historical `reservoir_depth_cm` rows are converted to `reservoir_in` in storage and linked to the canonical reservoir capability; frontend/API history does not need a special centimetre conversion path.
+- Historical rows without a safe canonical equivalent are linked to explicit archive-only capabilities rather than left dependent on `sensornode_id`.
 - `apps/tests/invariants/` remains unchanged.
 
 Useful live checks:
@@ -224,6 +234,19 @@ Useful live checks:
     ORDER BY device_id;"
 
     journalctl --user -u dirt-hwd --since '10 minutes ago' --no-pager | rg "accepted legacy location-only sensor ingest" || true
+
+Historical migration checks:
+
+    set -a; source .env; set +a
+    PGPASSWORD=$DIRT_PG_PASSWORD psql -h 127.0.0.1 -U dirt -d dirt -c "
+    SELECT count(*) AS remaining_cm_rows
+    FROM sensorreading
+    WHERE metric = 'reservoir_depth_cm';"
+
+    PGPASSWORD=$DIRT_PG_PASSWORD psql -h 127.0.0.1 -U dirt -d dirt -c "
+    SELECT count(*) FILTER (WHERE capability_id IS NULL) AS null_capability_rows,
+           count(*) AS total_rows
+    FROM sensorreading;"
 
 
 ## Idempotence and Recovery
@@ -259,6 +282,16 @@ Post-rollout service status showed legacy-only firmware still active:
     accepted legacy location-only sensor ingest
     POST /api/ingest/sensors HTTP/1.1" 202 Accepted
 
+Historical data policy:
+
+    reservoir_depth_cm is a legacy unit spelling of the current reservoir depth stream.
+    During final schema cleanup, convert those rows to reservoir_in with value / 2.54
+    and link them to the canonical reservoir-node reservoir_in capability.
+
+    Metrics without safe equivalence, such as old pressure_hpa, should receive
+    explicit archive-only capabilities so the original data remains queryable
+    without appearing as a current dashboard metric.
+
 Relevant previous plan:
 
     docs/epics/multi-tent-controller/LegacyCompatibilityRetirementExecPlan.md
@@ -291,3 +324,4 @@ End-state service interfaces:
 
 - 2026-05-04: Initial scope plan created for GitHub review after live application of the previous compatibility-retirement migrations.
 - 2026-05-04: Set the scoped-only firmware soak gate to 10 minutes after review.
+- 2026-05-04: Chose canonical normalization for historical reservoir depth: convert `reservoir_depth_cm` rows to `reservoir_in` in storage during final schema cleanup.
