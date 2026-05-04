@@ -13,6 +13,7 @@ dashboard.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Iterable
 from datetime import UTC, datetime, timedelta
 
@@ -31,6 +32,8 @@ from dirt_shared.models.tent import Tent
 from dirt_shared.models.zone import Zone
 from dirt_shared.sensor_contract import LEGACY_LOCATION_DEVICE_IDS, persisted_metrics
 from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID
+
+logger = logging.getLogger(__name__)
 
 # Metrics that get auto-calibrated at ingest (extrema-tracking).
 AUTO_CALIBRATED_METRICS = {"soil_moisture_raw"}
@@ -281,6 +284,38 @@ def _legacy_device_id(location: SensorLocation | str | None) -> str | None:
     return LEGACY_LOCATION_DEVICE_IDS.get(loc)
 
 
+def _resolved_device_id(
+    location: SensorLocation | str | None, device_id: str | None
+) -> str | None:
+    return device_id or _legacy_device_id(location)
+
+
+def _warn_on_unresolved_capabilities(
+    *,
+    location: SensorLocation | str | None,
+    device_id: str | None,
+    capability_ids: dict[str, int],
+    metric_names: Iterable[str],
+) -> None:
+    resolved_device_id = _resolved_device_id(location, device_id)
+    if resolved_device_id is None:
+        return
+    unresolved = sorted(set(metric_names) - set(capability_ids))
+    if not unresolved:
+        return
+    logger.warning(
+        "sensor ingest for known device could not resolve capabilities",
+        extra={
+            "unscoped_sensorreading": True,
+            "device_id": resolved_device_id,
+            "location": location.value
+            if isinstance(location, SensorLocation)
+            else location,
+            "metrics": unresolved,
+        },
+    )
+
+
 async def _devices_by_public_id(
     session: AsyncSession,
     *,
@@ -354,7 +389,7 @@ async def _resolve_capability_ids(  # noqa: PLR0913
     device_id: str | None,
     capability_id: str | None,
 ) -> dict[str, int]:
-    resolved_device_id = device_id or _legacy_device_id(location)
+    resolved_device_id = _resolved_device_id(location, device_id)
     if resolved_device_id is None:
         return {}
 
@@ -735,7 +770,7 @@ class ReadingsService:
                 site_id=site_id,
                 tent_id=tent_id,
                 zone_id=zone_id,
-                device_id=device_id or _legacy_device_id(location),
+                device_id=_resolved_device_id(location, device_id),
                 ip=ip,
                 firmware_version=firmware_version,
                 uptime_ms=uptime_ms,
@@ -750,6 +785,12 @@ class ReadingsService:
                 zone_id=zone_id,
                 device_id=device_id,
                 capability_id=capability_id if len(metrics) == 1 else None,
+            )
+            _warn_on_unresolved_capabilities(
+                location=location,
+                device_id=device_id,
+                capability_ids=capability_ids,
+                metric_names=metrics.keys(),
             )
 
             # Step 2 + 3 — readings and (optional) calibration updates.

@@ -23,7 +23,7 @@ This plan is still local-controller work. The homebox remains the hardware autho
 - [x] (2026-05-04 05:39Z) Fixed Milestone 3 main-review blocker: legacy-only known-location ingest and rejected legacy payloads now derive the canonical device id from the legacy location mapping and refresh `device.last_seen`/metadata as well as `sensornode`.
 - [x] (2026-05-04 05:51Z) Implemented Milestone 4: plant rows now have canonical `moisture_capability_id`; plant moisture summaries/history and daily-report plant sensor paths prefer capability ownership instead of `Plant.sensornode_id`; focused plant/daily report tests, invariants, and Atlas sync/status checks pass. No live migration apply was run.
 - [x] (2026-05-04 06:01Z) Implemented Milestone 5: default-main sensor, plant, and latest-snapshot URLs now accept optional `site_id`/`tent_id` query params; generated TypeScript contract types expose those query params; focused scoped endpoint tests pass.
-- [ ] Implement Milestone 6: backfill or quarantine historical unscoped data and tighten schema/app constraints.
+- [x] (2026-05-04 06:15Z) Implemented Milestone 6: classified live historical `sensorreading.capability_id IS NULL` rows, added an Atlas data migration that backfills unambiguous plant and humidifier history, documented quarantined obsolete/ambiguous historical classes, and added a current-path warning guard for known-device readings that cannot resolve a capability.
 - [ ] Implement Milestone 7: remove dead legacy code, docs, tests, and optional schema artifacts that no live path uses.
 - [x] (2026-05-04) Recorded `growrun.location` as a cleanup-removal candidate and classified cleanup candidates as Milestone 7 work with explicit validation, not vague final-exit notes.
 - [x] (2026-05-04) Recorded duplicated photoperiod storage as a cleanup-removal candidate: `schedule` should be canonical, and `growrun.lights_on_local` / `growrun.lights_off_local` should be removed after service/API reads compose lights times from schedule.
@@ -96,6 +96,12 @@ This plan is still local-controller work. The homebox remains the hardware autho
 
 - Observation: Main-agent review found the first Milestone 5 snapshot fix still leaked snapshots for unresolved explicit scope ids.
   Evidence: `SnapshotsService.latest(site_id=..., tent_id=...)` only filtered when `resolve_scope()` returned a scope. Unknown `site_id` or `tent_id` left the base `select(Snapshot)` unfiltered, so `/api/feed/snapshot/latest?tent_id=unknown` could return an existing unscoped/default snapshot. The service now returns `None` when scope resolution fails, and `apps/web/tests/test_feed_snapshot_endpoint.py::test_latest_snapshot_unknown_scope_404_without_unscoped_leak` covers the API behavior.
+
+- Observation: Live historical null-capability readings fell into nine groups before Milestone 6 changes.
+  Evidence: The plan query returned `soil_moisture_raw` for plant A-D (1 row each, latest `2026-05-03 21:19:30.617298-06`), `humidifier_mist_level`/`humidifier_on` on `tent` (16,862 / 40,943 rows, latest `2026-05-03 21:19:17.715327-06`), `reservoir_depth_cm` on `reservoir` (63 rows, latest `2026-04-26 22:10:17.038326-06`), `pressure_hpa` on `tent` (46,592 rows, latest `2026-04-23 00:22:00.718879-06`), and one `humidity_pct` row on `plant-a` from `2026-04-19 22:16:54.650713-06`.
+
+- Observation: The new historical data migration is valid against the full Atlas migration chain, but the live DB remains unapplied by design.
+  Evidence: The first focused pytest run failed while building the template DB because Postgres does not allow referencing the target table alias from a `JOIN ... ON` clause in an `UPDATE ... FROM`; after moving the metric match into `WHERE`, `uv run pytest apps/hwd/tests/test_ingest_api.py apps/shared/tests/test_readings_scope.py -q` passed and `atlas migrate diff verify_historical_unscoped_sensorreadings_sync --env local` reported no changes.
 
 
 ## Decision Log
@@ -176,6 +182,14 @@ This plan is still local-controller work. The homebox remains the hardware autho
   Rationale: Unknown explicit scope ids are not a compatibility path. Returning `None` lets the API produce 404 and prevents invalid scope parameters from bypassing scoped filtering.
   Date/Author: 2026-05-04 / Codex
 
+- Decision: Backfill only historical `sensorreading` rows whose metric has an unambiguous canonical capability: legacy ESP32 metric/device matches and Govee humidifier state metrics.
+  Rationale: Plant `soil_moisture_raw` rows and Govee `humidifier_on` / `humidifier_mist_level` rows have real canonical owners. `pressure_hpa`, `reservoir_depth_cm`, and the one-off plant `humidity_pct` row do not have current canonical capabilities with matching meaning, so leaving them nullable avoids false lineage.
+  Date/Author: 2026-05-04 / Codex
+
+- Decision: Do not make `sensorreading.capability_id` `NOT NULL` in Milestone 6.
+  Rationale: Known historical quarantine classes intentionally remain null. The current path is tightened with a structured warning for known-device unresolved metrics while preserving rolling firmware compatibility and old main-tent behavior.
+  Date/Author: 2026-05-04 / Codex
+
 
 ## Outcomes & Retrospective
 
@@ -192,6 +206,8 @@ Milestone 4 is complete. `Plant` rows now carry nullable `moisture_capability_id
 Milestone 5 is complete. The existing default-main routes `/api/sensors/current`, `/api/sensors/history`, `/api/plants`, and `/api/feed/snapshot/latest` still work without query parameters, and each now accepts optional `site_id` and `tent_id` query parameters. Sensors current/history thread the scope into canonical capability reads; plants list threads scope into `PlantsService` and grow-day composition; latest snapshot returns scoped media for explicit non-main requests and no longer falls back to unscoped archives outside `homebox/main`. The OpenAPI contract and generated TypeScript schema were regenerated. No hosted/cloud control, remote execution, public multi-site UI, or visible frontend selector was added.
 
 Post-review Milestone 5 cleanup fixed an invalid-scope snapshot leak: `SnapshotsService.latest()` now returns `None` when `resolve_scope()` cannot resolve the requested site/tent, so the API returns 404 instead of falling through to an unfiltered latest snapshot query.
+
+Milestone 6 is complete. Historical null-capability sensor readings were classified from the live DB with the plan query. `migrations/20260504061320_historical_unscoped_sensorreadings.sql` backfills any missed canonical ESP32 metric rows through the legacy location map and backfills old Govee `humidifier_on` / `humidifier_mist_level` rows to `govee-h7142-main`. The migration explicitly quarantines old `pressure_hpa`, old `reservoir_depth_cm`, and the one-off plant `humidity_pct` row as historical-unscoped data with no current canonical capability. `ReadingsService.ingest_reading()` now emits a structured warning when a known device/location cannot resolve one or more metric capabilities, so current-path misses are visible instead of silent. `sensorreading.capability_id` remains nullable because quarantine classes intentionally remain null. No live migration apply was run and no hosted/cloud control was added.
 
 
 ## Context and Orientation
@@ -832,6 +848,76 @@ Earlier post-main-review Milestone 3 blocker fix validation:
 
     uv run ruff format --check apps/shared/src/dirt_shared/models/device.py apps/shared/src/dirt_shared/services/readings.py apps/shared/src/dirt_shared/services/system_status.py apps/hwd/src/dirt_hwd/api/ingest.py apps/hwd/src/dirt_hwd/services/metric_freshness.py apps/hwd/tests/test_ingest_api.py apps/shared/tests/test_readings_scope.py apps/shared/tests/test_system_status_scope.py apps/shared/tests/test_legacy_retirement_audit.py
     9 files already formatted
+
+    git diff --check
+    passed with no output
+
+Milestone 6 migration artifact:
+
+    migrations/20260504061320_historical_unscoped_sensorreadings.sql
+
+The migration is a data-only Atlas migration. It is idempotent for already
+linked rows because every update filters `sr."capability_id" IS NULL`.
+It backfills:
+
+    plant-a/b/c/d soil_moisture_raw -> plant-<letter>-node soil_moisture_raw
+    humidifier_on -> govee-h7142-main humidifier_on
+    humidifier_mist_level -> govee-h7142-main humidifier_mist_level
+
+It documents these as intentionally quarantined historical-unscoped classes:
+
+    tent pressure_hpa
+    reservoir reservoir_depth_cm
+    plant-a humidity_pct
+
+Milestone 6 validation evidence from 2026-05-04 before simplify:
+
+    SELECT sr.metric, sn.location, count(*), max(sr.ts) AS latest
+    FROM sensorreading sr
+    JOIN sensornode sn ON sn.id = sr.sensornode_id
+    WHERE sr.capability_id IS NULL
+    GROUP BY sr.metric, sn.location
+    ORDER BY latest DESC;
+
+    9 groups returned: plant A-D soil_moisture_raw one-offs; tent humidifier_mist_level and humidifier_on; reservoir reservoir_depth_cm; tent pressure_hpa; plant-a humidity_pct.
+
+    atlas migrate hash --env local
+    completed after hand-editing the data migration
+
+    uv run pytest apps/hwd/tests/test_ingest_api.py apps/shared/tests/test_readings_scope.py -q
+    first run failed while template-applying the new migration because the UPDATE referenced target alias sr inside JOIN ON; after moving that predicate into WHERE, rerun passed: 25 passed in 9.22s
+
+    atlas migrate diff verify_historical_unscoped_sensorreadings_sync --env local
+    The migration directory is synced with the desired state, no changes to be made
+
+    atlas migrate status --env local
+    Migration Status: PENDING; Current Version 20260504022916; Next Version 20260504052839; Pending Files 3. This is expected because Milestone 3, 4, and 6 migrations were intentionally not applied live.
+
+Milestone 6 simplify pass used the local fallback because no subagent spawn
+tool was available. Reuse/quality/efficiency review found two small cleanup
+items and both were applied: reuse `_resolved_device_id()` at the heartbeat
+call site, and log legacy location values as raw strings rather than enum
+reprs in unresolved-capability warnings.
+
+Milestone 6 final validation evidence from 2026-05-04 after simplify:
+
+    uv run pytest apps/hwd/tests/test_ingest_api.py apps/hwd/tests/test_ingest_derivation.py apps/shared/tests/test_readings_scope.py apps/shared/tests/test_legacy_retirement_audit.py -q
+    39 passed in 8.72s
+
+    uv run pytest apps/tests/invariants/ -q
+    115 passed, 1 skipped in 3.99s
+
+    uv run ruff check apps/shared/src/dirt_shared/services/readings.py apps/hwd/tests/test_ingest_api.py
+    All checks passed.
+
+    uv run ruff format --check apps/shared/src/dirt_shared/services/readings.py apps/hwd/tests/test_ingest_api.py
+    2 files already formatted
+
+    atlas migrate hash --env local
+    completed with no output
+
+    atlas migrate diff verify_historical_unscoped_sensorreadings_sync --env local
+    The migration directory is synced with the desired state, no changes to be made
 
     git diff --check
     passed with no output

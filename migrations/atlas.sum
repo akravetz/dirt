@@ -1,4 +1,4 @@
-h1:MvBP+s3FICN9vCA6WXpNOjQN/N+N+onfS3xXWZRLlAU=
+h1:b1HooMI/LlAFDGpZ5C6MQFG8hvZItSBel+Pw8LYwJek=
 20260420003127_init.sql h1:GzLCe8kSX0b0TzsHZJNidBWSoeYe83HgnHXdkhGi1Ko=
 20260423180901_add_growstate_timezone.sql h1:hwtimWMWdMD8iw7GuYOMazB5dHSq40fKOSbUFDFPg0s=
 20260428003304_add_govee_sensor_source.sql h1:l7vbhthRMWFQVcLwvX+yhzrzLD0Tcp33QrLpmU4F7jQ=
@@ -8,3 +8,4 @@ h1:MvBP+s3FICN9vCA6WXpNOjQN/N+N+onfS3xXWZRLlAU=
 20260504022916_scoped_milestone4.sql h1:blelomoLzaEq6nJLc3/r0q6luJ0rX9EZLOfT9ZPhJog=
 20260504052839_scoped_device_heartbeat.sql h1:X9DnvpPw2q5znmbWUPbjcn2Sb+SLX5UNF71lMWmUp7k=
 20260504054904_plant_moisture_capability.sql h1:De63bSaoDqGOZdIs/q0g9TPfgcQgyWqEkTpCkpzeTv0=
+20260504061320_historical_unscoped_sensorreadings.sql h1:BzEU0cPWiuPx0oyEmOtgoNo5uV8z2wgMjsgBKx3CsJY=

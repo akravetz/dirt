@@ -89,6 +89,7 @@ async def test_ingest_writes_readings_and_node(client: AsyncClient, app_engine):
         assert metrics == {"soil_moisture_pct": 42.0, "soil_moisture_raw": 1600.0}
         for r in readings:
             assert r.source == "esp32"
+            assert r.capability_id is not None
 
         node = (
             await s.exec(
@@ -235,6 +236,28 @@ async def test_legacy_only_known_board_logs_structured_warning(
     ]
     assert len(legacy_records) == 1
     assert legacy_records[0].location == "plant-a"
+
+
+async def test_known_device_unresolved_metric_logs_warning(
+    client: AsyncClient, caplog: pytest.LogCaptureFixture
+):
+    caplog.set_level(logging.WARNING, logger="dirt_shared.services.readings")
+
+    r = await client.post(
+        "/api/ingest/sensors",
+        json={"location": "tent", "metrics": {"pressure_hpa": 843.0}},
+        headers=_auth_header(),
+    )
+
+    assert r.status_code == 202
+    warning_records = [
+        record
+        for record in caplog.records
+        if getattr(record, "unscoped_sensorreading", False) is True
+    ]
+    assert len(warning_records) == 1
+    assert warning_records[0].device_id == "fan-controller"
+    assert warning_records[0].metrics == ["pressure_hpa"]
 
 
 async def test_ingest_upserts_node_on_second_post(client: AsyncClient, app_engine):
