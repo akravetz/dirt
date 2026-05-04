@@ -23,7 +23,7 @@ def _cfg(**overrides) -> FanTrimConfig:
     base = dict(
         base_url="http://fan-controller.local",
         min_pct=15,
-        max_pct=60,
+        max_pct=70,
         step_pct=5,
         step_interval_s=300,
         poll_interval=60,
@@ -140,7 +140,7 @@ def test_enforces_configured_min_and_max():
     high = decide_fan_trim(_cfg(), FanTrimState(), _input(current_pct=90))
 
     assert low.target_pct == 15
-    assert high.target_pct == 60
+    assert high.target_pct == 70
     assert low.reason == "enforce_bounds"
     assert high.reason == "enforce_bounds"
 

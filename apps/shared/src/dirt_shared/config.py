@@ -137,7 +137,7 @@ class Settings(BaseSettings):
     # beside the humidifier PI. The fan controller ESP32 exposes POST /fan.
     fan_controller_base_url: str = "http://fan-controller.local"
     fan_trim_min_pct: int = 15
-    fan_trim_max_pct: int = 60
+    fan_trim_max_pct: int = 70
     fan_trim_step_pct: int = 5
     fan_trim_step_interval_s: int = 300
     fan_trim_poll_interval: int = 60
