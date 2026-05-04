@@ -15,6 +15,15 @@ IngestClient::IngestClient(const char* server_url,
       _auth_header(String("Bearer ") + token) {}
 
 int IngestClient::post(const char* location, const char* metrics_json) {
+    return post(location, nullptr, nullptr, nullptr, nullptr, metrics_json);
+}
+
+int IngestClient::post(const char* location,
+                       const char* site_id,
+                       const char* tent_id,
+                       const char* zone_id,
+                       const char* device_id,
+                       const char* metrics_json) {
     if (WiFi.status() != WL_CONNECTED) {
         Serial.println("[ingest] skipped — wifi not connected");
         return -1;
@@ -28,12 +37,34 @@ int IngestClient::post(const char* location, const char* metrics_json) {
 
     // Hand-build JSON — the shape is stable enough that pulling in
     // ArduinoJson for a handful of fields isn't worth the flash cost.
-    // Typical payload ~200–210 bytes; reserve 256 to avoid realloc.
+    // Typical payload ~300 bytes with scoped identity; reserve 384 to avoid
+    // realloc while keeping RAM use predictable.
     String body;
-    body.reserve(256);
+    body.reserve(384);
     body += "{\"location\":\"";
     body += location;
-    body += "\",\"source\":\"esp32\",\"firmware_version\":\"";
+    body += "\"";
+    if (site_id != nullptr) {
+        body += ",\"site_id\":\"";
+        body += site_id;
+        body += "\"";
+    }
+    if (tent_id != nullptr) {
+        body += ",\"tent_id\":\"";
+        body += tent_id;
+        body += "\"";
+    }
+    if (zone_id != nullptr) {
+        body += ",\"zone_id\":\"";
+        body += zone_id;
+        body += "\"";
+    }
+    if (device_id != nullptr) {
+        body += ",\"device_id\":\"";
+        body += device_id;
+        body += "\"";
+    }
+    body += ",\"source\":\"esp32\",\"firmware_version\":\"";
     body += _firmware_version;
     body += "\",\"ip\":\"";
     body += WiFi.localIP().toString();

@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 import pytest
@@ -107,9 +108,10 @@ async def test_scoped_device_id_writes_capability_without_legacy_location_mappin
     r = await client.post(
         "/api/ingest/sensors",
         json={
-            # The endpoint still requires a legacy location in Milestone 1.
-            # This deliberately points at the tent so the assertion below
-            # proves ``device_id`` owns capability resolution.
+            # This deliberately points at the tent so the assertions below
+            # prove ``device_id`` owns capability resolution while the
+            # compatibility sensornode_id still follows the provided legacy
+            # location.
             "location": "tent",
             "site_id": "homebox",
             "tent_id": "main",
@@ -139,6 +141,91 @@ async def test_scoped_device_id_writes_capability_without_legacy_location_mappin
     assert reading.capability_id is not None
     assert device.device_id == "plant-a-node"
     assert capability.capability_id == "soil_moisture_raw"
+
+
+async def test_scoped_device_id_ingest_does_not_require_location(
+    client: AsyncClient, app_engine
+):
+    r = await client.post(
+        "/api/ingest/sensors",
+        json={
+            "site_id": "homebox",
+            "tent_id": "main",
+            "zone_id": "plant-a",
+            "device_id": "plant-a-node",
+            "metrics": {"soil_moisture_raw": 1600},
+        },
+        headers=_auth_header(),
+    )
+
+    assert r.status_code == 202
+    assert r.json() == {"ok": True, "location": "plant-a", "count": 1}
+
+    plant_a_node_id = await _node_id(app_engine, SensorLocation.PLANT_A)
+    async with AsyncSession(app_engine) as s:
+        row = (
+            await s.exec(
+                select(SensorReading, Device, Capability)
+                .join(Capability, Capability.id == SensorReading.capability_id)
+                .join(Device, Device.id == Capability.device_id)
+                .where(SensorReading.metric == "soil_moisture_raw")
+                .where(SensorReading.sensornode_id == plant_a_node_id)
+            )
+        ).one()
+
+    reading, device, capability = row
+    assert reading.capability_id is not None
+    assert device.device_id == "plant-a-node"
+    assert capability.capability_id == "soil_moisture_raw"
+
+
+async def test_unknown_device_id_without_location_is_rejected(client: AsyncClient):
+    r = await client.post(
+        "/api/ingest/sensors",
+        json={
+            "site_id": "homebox",
+            "tent_id": "main",
+            "zone_id": "plant-a",
+            "device_id": "unknown-node",
+            "metrics": {"soil_moisture_raw": 1600},
+        },
+        headers=_auth_header(),
+    )
+
+    assert r.status_code == 422
+    assert "legacy compatibility mapping" in r.text
+
+
+async def test_ingest_requires_location_or_device_id(client: AsyncClient):
+    r = await client.post(
+        "/api/ingest/sensors",
+        json={"metrics": {"soil_moisture_raw": 1600}},
+        headers=_auth_header(),
+    )
+
+    assert r.status_code == 422
+    assert "location is required unless device_id is present" in r.text
+
+
+async def test_legacy_only_known_board_logs_structured_warning(
+    client: AsyncClient, caplog: pytest.LogCaptureFixture
+):
+    caplog.set_level(logging.WARNING, logger="dirt_hwd.api.ingest")
+
+    r = await client.post(
+        "/api/ingest/sensors",
+        json={"location": "plant-a", "metrics": {"soil_moisture_raw": 1600}},
+        headers=_auth_header(),
+    )
+
+    assert r.status_code == 202
+    legacy_records = [
+        record
+        for record in caplog.records
+        if getattr(record, "legacy_location", False) is True
+    ]
+    assert len(legacy_records) == 1
+    assert legacy_records[0].location == "plant-a"
 
 
 async def test_ingest_upserts_node_on_second_post(client: AsyncClient, app_engine):

@@ -11,12 +11,17 @@ import logging
 import math
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from dirt_hwd.deps import get_readings, get_sensor_quality, get_settings
 from dirt_hwd.services.sensor_quality import SensorQualityService
 from dirt_shared.config import Settings
-from dirt_shared.sensor_contract import missing_emitted
+from dirt_shared.sensor_contract import (
+    is_known_legacy_location,
+    legacy_location_for_device_id,
+    missing_emitted,
+    missing_emitted_for_device_id,
+)
 from dirt_shared.services.readings import ReadingsService
 
 logger = logging.getLogger(__name__)
@@ -25,7 +30,7 @@ router = APIRouter(tags=["ingest"])
 
 
 class IngestPayload(BaseModel):
-    location: str = Field(min_length=1, max_length=64)
+    location: str | None = Field(default=None, min_length=1, max_length=64)
     metrics: dict[str, float]
     source: str = "esp32"
     site_id: str = "homebox"
@@ -36,6 +41,12 @@ class IngestPayload(BaseModel):
     ip: str | None = None
     firmware_version: str | None = None
     uptime_ms: int | None = None
+
+    @model_validator(mode="after")
+    def require_legacy_or_scoped_identity(self) -> IngestPayload:
+        if self.location is None and self.device_id is None:
+            raise ValueError("location is required unless device_id is present")
+        return self
 
 
 def _augment_temp_rh_metrics(metrics: dict[str, float]) -> dict[str, float]:
@@ -60,21 +71,59 @@ def _augment_temp_rh_metrics(metrics: dict[str, float]) -> dict[str, float]:
     }
 
 
-def _warn_on_emitted_drift(location: str, payload_metrics: dict[str, float]) -> None:
-    """Log a warning when a known location's payload is missing a metric the
+def _warn_on_emitted_drift(
+    location: str | None, device_id: str | None, payload_metrics: dict[str, float]
+) -> None:
+    """Log a warning when a known device's payload is missing a metric the
     sensor contract says it emits — e.g. firmware was flashed but the
     contract in dirt_shared.sensor_contract wasn't updated. Permissive by
     design; never rejects ingest (would block legitimate rolling flashes).
     """
-    missing = missing_emitted(location, payload_metrics.keys())
+    missing = (
+        missing_emitted_for_device_id(device_id, payload_metrics.keys())
+        if device_id is not None
+        else missing_emitted(location or "", payload_metrics.keys())
+    )
     if missing:
+        identity = device_id or location or "unknown"
         logger.warning(
             "ingest %s missing expected metrics %s (got %s) — "
-            "update sensor_contract.EMITTED_METRICS if this is intentional",
-            location,
+            "update sensor_contract.DEVICE_METRICS if this is intentional",
+            identity,
             sorted(missing),
             sorted(payload_metrics.keys()),
         )
+
+
+def _compat_location(payload: IngestPayload) -> str:
+    if payload.location is not None:
+        return payload.location
+    legacy_location = legacy_location_for_device_id(payload.device_id)
+    if legacy_location is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                "location is required until this device has a legacy "
+                "compatibility mapping"
+            ),
+        )
+    return legacy_location
+
+
+def _warn_on_legacy_only_payload(payload: IngestPayload) -> None:
+    if payload.device_id is not None or payload.location is None:
+        return
+    if not is_known_legacy_location(payload.location):
+        return
+    logger.warning(
+        "accepted legacy location-only sensor ingest",
+        extra={
+            "legacy_location": True,
+            "location": payload.location,
+            "site_id": payload.site_id,
+            "tent_id": payload.tent_id,
+        },
+    )
 
 
 def _check_token(authorization: str | None, expected_token: str) -> None:
@@ -98,28 +147,30 @@ async def ingest_sensors(  # noqa: PLR0913 — FastAPI boundary bundles request,
 
     # If caller didn't self-report IP, use the connection's remote address.
     ip = payload.ip or (request.client.host if request.client else None)
+    compat_location = _compat_location(payload)
 
-    _warn_on_emitted_drift(payload.location, payload.metrics)
+    _warn_on_legacy_only_payload(payload)
+    _warn_on_emitted_drift(payload.location, payload.device_id, payload.metrics)
 
     metrics = _augment_temp_rh_metrics(payload.metrics)
-    quality = await sensor_quality.filter_metrics(payload.location, metrics)
+    quality = await sensor_quality.filter_metrics(compat_location, metrics)
 
     if not quality.metrics:
         await readings.touch_node(
-            location=payload.location,
+            location=compat_location,
             ip=ip,
             firmware_version=payload.firmware_version,
             uptime_ms=payload.uptime_ms,
         )
         return {
             "ok": True,
-            "location": payload.location,
+            "location": compat_location,
             "count": 0,
             "rejected": sorted(quality.rejected),
         }
 
     await readings.ingest_reading(
-        location=payload.location,
+        location=compat_location,
         metrics=quality.metrics,
         source=payload.source,
         ip=ip,
@@ -133,7 +184,7 @@ async def ingest_sensors(  # noqa: PLR0913 — FastAPI boundary bundles request,
     )
     response: dict[str, object] = {
         "ok": True,
-        "location": payload.location,
+        "location": compat_location,
         "count": len(quality.metrics),
     }
     if quality.rejected:

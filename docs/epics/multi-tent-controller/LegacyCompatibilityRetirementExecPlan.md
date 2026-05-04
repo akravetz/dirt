@@ -18,7 +18,7 @@ This plan is still local-controller work. The homebox remains the hardware autho
 
 - [x] (2026-05-04 03:35Z) Created this ExecPlan after Phase 1 migrations were applied and operational smoke checks passed.
 - [x] (2026-05-04 04:53Z) Implemented Milestone 1: audit and guard current legacy paths before changing behavior. Added executable audit coverage for production legacy references and current compatibility writers; added focused ingest/history guards before behavior changes; ran simplify fallback and focused validation.
-- [ ] Implement Milestone 2: make firmware and ingest scoped-first while preserving explicit legacy ingest compatibility.
+- [x] (2026-05-04 05:09Z) Implemented Milestone 2: firmware now posts scoped identity fields alongside legacy `location`; HWD ingest accepts known scoped `device_id` payloads without `location`, warns on known legacy-only posts, and `sensor_contract.py` now derives legacy maps from canonical device/capability declarations.
 - [ ] Implement Milestone 3: move device heartbeat/freshness ownership from `sensornode` to `device`.
 - [ ] Implement Milestone 4: move plant moisture and daily sensor paths off `sensornode_id`.
 - [ ] Implement Milestone 5: make scoped API/frontend access first-class while keeping default-main URLs compatible.
@@ -72,6 +72,12 @@ This plan is still local-controller work. The homebox remains the hardware autho
 - Observation: A concurrent edit rewrote the new audit test file during the Milestone 1 simplify/format pass.
   Evidence: `apps/shared/tests/test_legacy_retirement_audit.py` changed from the initial five-test AST audit shape to a cleaner centralized-writer helper while still untracked; the final version keeps that helper and restores the required legacy reference inventory plus sensor-contract derivation checks.
 
+- Observation: The fan controller's emitted wire contract includes `fan_duty_pct`, even though it is not part of the legacy consumer-facing persisted metric set.
+  Evidence: After `DEVICE_METRICS` became capability keyed, `apps/hwd/tests/test_ingest_derivation.py` initially failed until `_PLAUSIBLE` and the complete fan payload included `fan_duty_pct`.
+
+- Observation: Firmware is organized as three separate PlatformIO projects, not a single root `firmware/platformio.ini`.
+  Evidence: `find firmware -maxdepth 3 \( -path '*/test/*' -o -name 'platformio.ini' \) -print` found only `firmware/fan_controller/platformio.ini`, `firmware/plant_node/platformio.ini`, and `firmware/reservoir_node/platformio.ini`; no firmware test directories were present.
+
 
 ## Decision Log
 
@@ -107,12 +113,22 @@ This plan is still local-controller work. The homebox remains the hardware autho
   Rationale: Milestone 2 is where ingest behavior changes. Milestone 1 should make current compatibility behavior visible without changing live board payload requirements.
   Date/Author: 2026-05-04 / Codex
 
+- Decision: In Milestone 2, accept `location`-less scoped ingest only when `device_id` can be mapped to a known legacy `SensorLocation`.
+  Rationale: `sensorreading.sensornode_id` remains required until later milestones retire `sensornode`; deriving the compatibility location from canonical `device_id` preserves current main-tent behavior while letting flashed boards stop depending on the wire `location` field.
+  Date/Author: 2026-05-04 / Codex
+
+- Decision: Keep `EMITTED_METRICS`, `PERSISTED_METRICS`, and `LEGACY_LOCATION_DEVICE_IDS` exported as derived compatibility maps.
+  Rationale: Existing watchdog, daily-sensor, voice, and invariant code still imports the legacy maps. Making `DEVICE_METRICS` the only editable declaration delivers scoped-first ownership without mixing Milestone 2 with broader legacy deletion.
+  Date/Author: 2026-05-04 / Codex
+
 
 ## Outcomes & Retrospective
 
 Milestone 1 is complete. The repo now has executable guardrails that show where legacy `SensorLocation`, `SensorNode`, `sensornode_id`, legacy metric maps, and `legacy_location` are still present; it also proves current writes stay centralized and carry `capability_id` through the compatibility path. Focused HWD ingest and web history tests preserve current main-tent behavior while making scoped capability writes and breeding-data exclusion observable.
 
 No schema changes, firmware changes, hosted/cloud control, or behavior changes were made in Milestone 1.
+
+Milestone 2 is complete. ESP32 firmware payloads now include `site_id`, `tent_id`, `zone_id`, and `device_id` while retaining legacy `location`. HWD ingest accepts scoped payloads without `location` for known devices, derives the compatibility `SensorLocation` from canonical `device_id`, logs a structured warning with `legacy_location=true` for known legacy-only boards, and keeps resolving capabilities by `device_id` plus metric name. The sensor contract's editable source is now keyed by canonical `device_id` and capability/metric identity, with legacy maps derived for compatibility. No schema changes or hosted/cloud control were added.
 
 
 ## Context and Orientation
@@ -452,6 +468,82 @@ Milestone 1 validation evidence from 2026-05-04:
 
 The simplify pass used the local fallback because no subagent spawn tool was available. It kept the scope unchanged and applied two cleanup fixes: clearer static-inventory failure diagnostics and a stronger web history assertion that returned default-main values stay inside the seeded main range.
 
+Milestone 2 validation evidence from 2026-05-04 before simplify:
+
+    uv run pytest apps/hwd/tests/test_ingest_api.py -q
+    18 passed in 4.70s
+
+    uv run pytest apps/hwd/tests/test_ingest_derivation.py -q
+    9 passed in 0.39s
+
+    uv run pytest apps/shared/tests/test_legacy_retirement_audit.py -q
+    5 passed in 0.45s
+
+    uv run pytest apps/tests/invariants/test_sensor_contract.py -q
+    2 passed in 0.20s
+
+    uv run pytest apps/shared/tests/test_readings_scope.py -q
+    1 passed in 1.47s
+
+    pio run -e fan
+    fan SUCCESS in 5.16s
+
+    pio run -e plant-a
+    plant-a SUCCESS in 4.18s; existing ADC_ATTEN_DB_11 deprecation warning remains unrelated to this milestone.
+
+    pio run -e reservoir
+    reservoir SUCCESS in 4.32s
+
+    uv run ruff check apps/hwd/src/dirt_hwd/api/ingest.py apps/shared/src/dirt_shared/sensor_contract.py apps/hwd/tests/test_ingest_api.py apps/hwd/tests/test_ingest_derivation.py apps/shared/tests/test_legacy_retirement_audit.py
+    All checks passed.
+
+    uv run ruff format --check apps/hwd/src/dirt_hwd/api/ingest.py apps/shared/src/dirt_shared/sensor_contract.py apps/hwd/tests/test_ingest_api.py apps/hwd/tests/test_ingest_derivation.py apps/shared/tests/test_legacy_retirement_audit.py
+    5 files already formatted
+
+Milestone 2 simplify pass used the local fallback because no subagent spawn tool was available. The reuse/quality/efficiency review found one worthwhile cleanup around duplicated emitted/persisted metric derivation. A later invariant pass required keeping the canonical declaration as literal tuples instead of dataclass constructor calls, so the final helpers are pure functions over the tuple declaration. No firmware or behavior changes were made during the simplify pass.
+
+Milestone 2 validation evidence from 2026-05-04 after simplify:
+
+    uv run pytest apps/tests/invariants/ -q
+    115 passed, 1 skipped in 3.97s
+
+    uv run pytest apps/hwd/tests/test_ingest_api.py -q
+    19 passed in 4.75s
+
+    uv run pytest apps/hwd/tests/test_ingest_derivation.py -q
+    9 passed in 0.34s
+
+    uv run pytest apps/shared/tests/test_legacy_retirement_audit.py -q
+    5 passed in 0.38s
+
+    uv run pytest apps/tests/invariants/test_sensor_contract.py -q
+    2 passed in 0.19s
+
+    uv run pytest apps/shared/tests/test_readings_scope.py -q
+    1 passed in 1.44s
+
+    uv run ruff check apps/hwd/src/dirt_hwd/api/ingest.py apps/shared/src/dirt_shared/sensor_contract.py apps/hwd/tests/test_ingest_api.py apps/hwd/tests/test_ingest_derivation.py apps/shared/tests/test_legacy_retirement_audit.py
+    All checks passed.
+
+    uv run ruff format --check apps/hwd/src/dirt_hwd/api/ingest.py apps/shared/src/dirt_shared/sensor_contract.py apps/hwd/tests/test_ingest_api.py apps/hwd/tests/test_ingest_derivation.py apps/shared/tests/test_legacy_retirement_audit.py
+    5 files already formatted
+
+Post-review Milestone 2 cleanup added `apps/hwd/tests/test_ingest_api.py::test_unknown_device_id_without_location_is_rejected` to lock the narrowed compatibility behavior: scoped ingest without `location` is accepted only for device IDs that can still derive a legacy compatibility location. The stale comment in the mismatched-location capability-resolution test was updated to describe the Milestone 2 behavior.
+
+Pre-commit invariant cleanup removed the HWD API import of `dirt_shared.models.enums` by returning and using legacy location strings at the API boundary. It also replaced module-level `DeviceContract(...)` and `MetricContract(...)` dataclass constructor calls in `dirt_shared.sensor_contract` with a literal tuple-based `DEVICE_METRICS` declaration.
+
+    pio run -e fan
+    fan SUCCESS in 1.78s
+
+    pio run -e plant-a
+    plant-a SUCCESS in 1.18s
+
+    pio run -e plant-b -e plant-c -e plant-d
+    plant-b, plant-c, and plant-d SUCCESS in 5.90s; existing ADC_ATTEN_DB_11 deprecation warnings remain unrelated to this milestone.
+
+    pio run -e reservoir
+    reservoir SUCCESS in 1.33s
+
 
 ## Interfaces and Dependencies
 
@@ -475,3 +567,6 @@ New or changed interfaces expected by the end of this plan:
 - 2026-05-04: Initial ExecPlan created after Phase 1 multi-tent model was committed, pushed, migrated, and smoke-tested on the local controller.
 - 2026-05-04: Added `growrun.location` to the Milestone 7 cleanup-removal inventory and clarified that future stale-field removals should be tracked as explicit cleanup work with validation, not only as final exit criteria.
 - 2026-05-04: Added duplicated photoperiod storage to the Milestone 7 cleanup-removal inventory. The target is schedule-canonical storage using local wall-clock times plus timezone, with grow-current API values composed from schedule during compatibility.
+- 2026-05-04: Completed Milestone 2 and recorded scoped firmware ingest, canonical device/capability sensor-contract ownership, compatibility-location derivation, and focused validation evidence.
+- 2026-05-04: Added post-review Milestone 2 ingest test coverage for unknown scoped device IDs without legacy `location` and refreshed the stale test comment.
+- 2026-05-04: Reworked Milestone 2 sensor-contract and ingest API helpers to satisfy pre-commit import-boundary and no-module-level-singleton invariants.

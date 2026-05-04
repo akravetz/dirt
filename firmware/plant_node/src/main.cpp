@@ -15,7 +15,9 @@
 // mDNS hostname: plant-{PLANT_ID}.local
 // OTA port:      3232 (ArduinoOTA default)
 //
-// Send-only; no response parsing. The server computes the calibrated pct
+// Send-only; no response parsing. Posts as homebox/main/plant-{PLANT_ID}/
+// plant-{PLANT_ID}-node, with legacy location=plant-{PLANT_ID} retained
+// during the compatibility window. The server computes the calibrated pct
 // from raw via SensorCalibration (auto-tracked extrema per node+metric).
 
 #include <Arduino.h>
@@ -46,6 +48,10 @@ constexpr uint32_t HTTP_TIMEOUT_MS  = 5000;
 constexpr uint16_t ADC_SAMPLES      = 16;      // average N reads
 
 const char* const LOCATION = "plant-" PLANT_ID;  // e.g. "plant-a"
+const char* const SITE_ID = "homebox";
+const char* const TENT_ID = "main";
+const char* const ZONE_ID = "plant-" PLANT_ID;
+const char* const DEVICE_ID = "plant-" PLANT_ID "-node";
 const char* const HOSTNAME = "plant-" PLANT_ID;  // mDNS: plant-a.local
 
 // --- State ----------------------------------------------------------------
@@ -91,7 +97,7 @@ void loop() {
         char metrics[48];
         snprintf(metrics, sizeof(metrics),
                  "{\"soil_moisture_raw\":%d}", raw);
-        int code = ingest.post(LOCATION, metrics);
+        int code = ingest.post(LOCATION, SITE_ID, TENT_ID, ZONE_ID, DEVICE_ID, metrics);
         if (code > 0) Serial.printf("[post] raw=%d http=%d\n", raw, code);
     }
 

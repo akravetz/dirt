@@ -12,6 +12,8 @@ from dirt_shared.sensor_contract import (
     EMITTED_METRICS,
     LEGACY_LOCATION_DEVICE_IDS,
     PERSISTED_METRICS,
+    emitted_metrics_for_device_id,
+    persisted_metrics_for_device_id,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -210,13 +212,32 @@ def test_legacy_sensor_contract_maps_are_derived_from_device_contracts() -> None
         contract[0]: device_id for device_id, contract in DEVICE_METRICS.items()
     }
     expected_emitted_metrics = {
-        contract[0]: contract[1] for contract in DEVICE_METRICS.values()
+        contract[0]: emitted_metrics_for_device_id(device_id)
+        for device_id, contract in DEVICE_METRICS.items()
     }
     expected_persisted_metrics = {
-        contract[0]: contract[2] for contract in DEVICE_METRICS.values()
+        contract[0]: persisted_metrics_for_device_id(device_id)
+        for device_id, contract in DEVICE_METRICS.items()
     }
 
     assert expected_locations == set(SensorLocation)
     assert expected_legacy_devices == LEGACY_LOCATION_DEVICE_IDS
     assert expected_emitted_metrics == EMITTED_METRICS
     assert expected_persisted_metrics == PERSISTED_METRICS
+
+
+def test_device_contract_metrics_are_keyed_by_capability_identity() -> None:
+    offenders = {
+        device_id: sorted(
+            capability_id
+            for capability_id, metric in contract[1].items()
+            if capability_id != metric[0]
+        )
+        for device_id, contract in DEVICE_METRICS.items()
+    }
+    offenders = {device_id: keys for device_id, keys in offenders.items() if keys}
+
+    assert not offenders, (
+        "Canonical DEVICE_METRICS must be keyed by capability_id and carry the "
+        f"matching metric identity for current sensor capabilities: {offenders}"
+    )
