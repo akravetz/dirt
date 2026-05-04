@@ -16,15 +16,17 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.enums import SensorLocation
+from dirt_shared.models.plant import Plant
 from dirt_shared.models.sensor_calibration import SensorCalibration
-from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.sensor_contract import persisted_metrics
 from dirt_shared.services.grow_state import GrowStateService, in_band
 from dirt_shared.services.readings import (
     ReadingsService,
     compute_calibrated_pct,
+    resolve_metric_capability_id,
 )
+from dirt_shared.services.scope import current_grow_run
 from dirt_voice.tools import ToolSpec
 
 PLANT_LOCATIONS = (
@@ -60,11 +62,23 @@ async def _latest_soil_moisture_pct(
     out: dict[str, float] = {}
     ages: list[float] = []
     async with AsyncSession(engine) as session:
+        grow = await current_grow_run(session)
+        if grow is None:
+            return out, ages
         for loc in PLANT_LOCATIONS:
+            plant_code = loc.value.removeprefix("plant-")
+            plant = (
+                await session.exec(
+                    select(Plant)
+                    .where(Plant.growrun_id == grow.id)
+                    .where(Plant.code == plant_code)
+                )
+            ).first()
+            if plant is None or plant.moisture_capability_id is None:
+                continue
             reading_res = await session.exec(
                 select(SensorReading)
-                .join(SensorNode, SensorReading.sensornode_id == SensorNode.id)
-                .where(SensorNode.location == loc)
+                .where(SensorReading.capability_id == plant.moisture_capability_id)
                 .where(SensorReading.metric == "soil_moisture_raw")
                 .order_by(SensorReading.ts.desc())
                 .limit(1)
@@ -74,8 +88,7 @@ async def _latest_soil_moisture_pct(
                 continue
             cal_res = await session.exec(
                 select(SensorCalibration)
-                .join(SensorNode, SensorCalibration.sensornode_id == SensorNode.id)
-                .where(SensorNode.location == loc)
+                .where(SensorCalibration.capability_id == plant.moisture_capability_id)
                 .where(SensorCalibration.metric == "soil_moisture_raw")
             )
             cal = cal_res.first()
@@ -150,11 +163,16 @@ def build_sensor_tools(
 
         cutoff = clock() - timedelta(hours=hours_back)
         async with AsyncSession(engine) as session:
-            # Tent-scoped trend — join to the 'tent' sensornode.
+            capability_id = await resolve_metric_capability_id(
+                session,
+                location=SensorLocation.TENT,
+                metric=sensor,
+            )
+            if capability_id is None:
+                return {"error": f"no capability for {sensor}"}
             result = await session.exec(
                 select(SensorReading)
-                .join(SensorNode, SensorReading.sensornode_id == SensorNode.id)
-                .where(SensorNode.location == SensorLocation.TENT)
+                .where(SensorReading.capability_id == capability_id)
                 .where(SensorReading.metric == sensor)
                 .where(SensorReading.ts >= cutoff)
                 .order_by(SensorReading.ts)

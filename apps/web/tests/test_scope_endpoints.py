@@ -15,6 +15,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.grow_run import GrowRun
+from dirt_shared.models.schedule import Schedule
 from dirt_shared.services.scope import resolve_scope
 from dirt_web.app import create_app
 
@@ -38,22 +39,30 @@ async def _insert_breeding_grow(app_engine) -> None:
     async with AsyncSession(app_engine) as session:
         scope = await resolve_scope(session, site_id="homebox", tent_id="breeding")
         assert scope is not None
+        grow = GrowRun(
+            site_id=scope.site_pk,
+            tent_id=scope.tent_pk,
+            grow_run_id="breeding-2026-05-01",
+            name="Breeding trial",
+            purpose="breeding",
+            germination_date=date(2026, 5, 1),
+            flower_start_date=None,
+            strain="Breeding stock",
+            timezone="America/Denver",
+            plant_count=0,
+            is_current=True,
+        )
+        session.add(grow)
         session.add(
-            GrowRun(
+            Schedule(
                 site_id=scope.site_pk,
                 tent_id=scope.tent_pk,
-                grow_run_id="breeding-2026-05-01",
-                name="Breeding trial",
-                purpose="breeding",
-                germination_date=date(2026, 5, 1),
-                flower_start_date=None,
-                lights_on_local=time(6, 0),
-                lights_off_local=time(18, 0),
-                strain="Breeding stock",
-                location="Denver, MT · breeding tent",
+                schedule_id="breeding-lights-photoperiod",
+                kind="lights",
+                starts_local=time(6, 0),
+                ends_local=time(18, 0),
                 timezone="America/Denver",
-                plant_count=0,
-                is_current=True,
+                enabled=True,
             )
         )
         await session.commit()
@@ -106,7 +115,6 @@ async def test_tent_grow_current_is_scoped_and_preserves_main_default(
     assert breeding_response.status_code == 200
     breeding = GrowCurrent.model_validate(breeding_response.json())
     assert breeding.strain == "Breeding stock"
-    assert breeding.location == "Denver, MT · breeding tent"
     assert breeding.plant_count == 0
     assert breeding.lights.on_local == "06:00:00"
     assert breeding.lights.off_local == "18:00:00"

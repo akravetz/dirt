@@ -95,7 +95,6 @@ async def test_main_plant_moisture_ignores_other_tent_calibration(
         breeding_cap = await _insert_breeding_soil_capability(session)
         session.add(
             SensorCalibration(
-                sensornode_id=node_id,
                 capability_id=main_cap,
                 metric="soil_moisture_raw",
                 raw_low=0,
@@ -104,7 +103,6 @@ async def test_main_plant_moisture_ignores_other_tent_calibration(
         )
         session.add(
             SensorCalibration(
-                sensornode_id=None,
                 capability_id=breeding_cap,
                 metric="soil_moisture_raw",
                 raw_low=0,
@@ -153,7 +151,6 @@ async def test_daily_sensor_snapshot_uses_main_capability_calibration(
         breeding_cap = await _insert_breeding_soil_capability(session)
         session.add(
             SensorCalibration(
-                sensornode_id=node_id,
                 capability_id=main_cap,
                 metric="soil_moisture_raw",
                 raw_low=0,
@@ -162,7 +159,6 @@ async def test_daily_sensor_snapshot_uses_main_capability_calibration(
         )
         session.add(
             SensorCalibration(
-                sensornode_id=None,
                 capability_id=breeding_cap,
                 metric="soil_moisture_raw",
                 raw_low=0,

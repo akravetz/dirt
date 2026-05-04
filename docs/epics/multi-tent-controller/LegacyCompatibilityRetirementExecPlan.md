@@ -24,7 +24,7 @@ This plan is still local-controller work. The homebox remains the hardware autho
 - [x] (2026-05-04 05:51Z) Implemented Milestone 4: plant rows now have canonical `moisture_capability_id`; plant moisture summaries/history and daily-report plant sensor paths prefer capability ownership instead of `Plant.sensornode_id`; focused plant/daily report tests, invariants, and Atlas sync/status checks pass. No live migration apply was run.
 - [x] (2026-05-04 06:01Z) Implemented Milestone 5: default-main sensor, plant, and latest-snapshot URLs now accept optional `site_id`/`tent_id` query params; generated TypeScript contract types expose those query params; focused scoped endpoint tests pass.
 - [x] (2026-05-04 06:15Z) Implemented Milestone 6: classified live historical `sensorreading.capability_id IS NULL` rows, added an Atlas data migration that backfills unambiguous plant and humidifier history, documented quarantined obsolete/ambiguous historical classes, and added a current-path warning guard for known-device readings that cannot resolve a capability.
-- [ ] Implement Milestone 7: remove dead legacy code, docs, tests, and optional schema artifacts that no live path uses.
+- [x] (2026-05-04 06:31Z) Implemented Milestone 7: removed dead plant/calibration legacy ownership and duplicate grow-run location/photoperiod fields; kept `sensornode`/`SensorLocation` compatibility where live ingest and historical `sensorreading.sensornode_id` still require it; generated the Atlas cleanup migration and regenerated contracts. No live migration apply was run.
 - [x] (2026-05-04) Recorded `growrun.location` as a cleanup-removal candidate and classified cleanup candidates as Milestone 7 work with explicit validation, not vague final-exit notes.
 - [x] (2026-05-04) Recorded duplicated photoperiod storage as a cleanup-removal candidate: `schedule` should be canonical, and `growrun.lights_on_local` / `growrun.lights_off_local` should be removed after service/API reads compose lights times from schedule.
 
@@ -102,6 +102,15 @@ This plan is still local-controller work. The homebox remains the hardware autho
 
 - Observation: The new historical data migration is valid against the full Atlas migration chain, but the live DB remains unapplied by design.
   Evidence: The first focused pytest run failed while building the template DB because Postgres does not allow referencing the target table alias from a `JOIN ... ON` clause in an `UPDATE ... FROM`; after moving the metric match into `WHERE`, `uv run pytest apps/hwd/tests/test_ingest_api.py apps/shared/tests/test_readings_scope.py -q` passed and `atlas migrate diff verify_historical_unscoped_sensorreadings_sync --env local` reported no changes.
+
+- Observation: The live DB has not applied the pending Milestone 3/4/6 migrations, so live read-only checks can only prove pre-apply state for some cleanup candidates.
+  Evidence: `atlas migrate status --env local` reported current version `20260504022916` with three pending files before Milestone 7. A live query for `plant.moisture_capability_id` failed because that pending column does not exist on the live DB yet.
+
+- Observation: `sensornode` and `SensorLocation` remain live compatibility dependencies after Milestone 7.
+  Evidence: `sensorreading.sensornode_id` is still non-null for legacy firmware ingest and historical lineage; `ReadingsService.ingest_reading()`, `touch_node()`, `touch_device()`, HWD ingest, humidifier compatibility writes, metric freshness compatibility maps, daily sensors, and voice sensor tools still reference `SensorLocation` or legacy derived maps.
+
+- Observation: The scoped schedule row is authoritative enough to remove grow-run photoperiod columns.
+  Evidence: Live read-only query returned one enabled `main` lights schedule (`main-lights-photoperiod`) and no breeding lights schedule. Milestone 7 tests compose grow-current responses and lights-state decisions from `Schedule.starts_local` / `Schedule.ends_local`.
 
 
 ## Decision Log
@@ -190,6 +199,18 @@ This plan is still local-controller work. The homebox remains the hardware autho
   Rationale: Known historical quarantine classes intentionally remain null. The current path is tightened with a structured warning for known-device unresolved metrics while preserving rolling firmware compatibility and old main-tent behavior.
   Date/Author: 2026-05-04 / Codex
 
+- Decision: Keep `sensornode`, `sensor_location`, `sensorreading.sensornode_id`, and the derived legacy sensor-contract maps in Milestone 7.
+  Rationale: Current legacy firmware payloads are still accepted, `sensorreading.sensornode_id` remains non-null, and freshness/ingest compatibility still needs a stable bridge from old `location` strings to canonical devices. Dropping these now would break the compatibility window.
+  Date/Author: 2026-05-04 / Codex
+
+- Decision: Remove `Plant.sensornode_id` and `SensorCalibration.sensornode_id`, and make calibration capability ownership non-null.
+  Rationale: Current plant moisture and daily-report reads already resolve through `Plant.moisture_capability_id`, while calibration auto-widening resolves known legacy firmware posts to a canonical capability before writing. The migration blocks if any plant or calibration row still lacks the required capability backfill.
+  Date/Author: 2026-05-04 / Codex
+
+- Decision: Remove `GrowRun.location`, `GrowRun.lights_on_local`, and `GrowRun.lights_off_local`; keep grow-current API lights fields as composed response values from `schedule`.
+  Rationale: Grow placement is represented by `site_id`/`tent_id`, and the recurring lights photoperiod is operational schedule data. The compatibility response can keep exposing lights state without storing duplicate values on `growrun`.
+  Date/Author: 2026-05-04 / Codex
+
 
 ## Outcomes & Retrospective
 
@@ -209,6 +230,8 @@ Post-review Milestone 5 cleanup fixed an invalid-scope snapshot leak: `Snapshots
 
 Milestone 6 is complete. Historical null-capability sensor readings were classified from the live DB with the plan query. `migrations/20260504061320_historical_unscoped_sensorreadings.sql` backfills any missed canonical ESP32 metric rows through the legacy location map and backfills old Govee `humidifier_on` / `humidifier_mist_level` rows to `govee-h7142-main`. The migration explicitly quarantines old `pressure_hpa`, old `reservoir_depth_cm`, and the one-off plant `humidity_pct` row as historical-unscoped data with no current canonical capability. `ReadingsService.ingest_reading()` now emits a structured warning when a known device/location cannot resolve one or more metric capabilities, so current-path misses are visible instead of silent. `sensorreading.capability_id` remains nullable because quarantine classes intentionally remain null. No live migration apply was run and no hosted/cloud control was added.
 
+Milestone 7 is complete. `Plant.sensornode_id`, `SensorCalibration.sensornode_id`, the legacy calibration unique constraint, `GrowRun.location`, and duplicated `GrowRun.lights_on_local` / `GrowRun.lights_off_local` are removed from the SQLModel source of truth. `GrowStateService.current_light_schedule()`, `lights_state()`, grow-current response assembly, and flower-flip writes now compose from the scoped `schedule` row; the cleanup migration copies any current grow-run photoperiod values into schedule and refuses to drop columns if plant/calibration backfills are incomplete. The OpenAPI `GrowCurrent.location` field was removed and generated Python/TypeScript clients plus web-ui fixtures were regenerated. `sensornode`, `sensor_location`, and derived legacy sensor-contract maps remain documented compatibility dependencies because firmware ingest and `sensorreading.sensornode_id` still require them. No live migration apply was run and no hosted/cloud control was added.
+
 
 ## Context and Orientation
 
@@ -227,22 +250,22 @@ The major remaining legacy surfaces are:
 - `apps/shared/src/dirt_shared/models/enums.py`: `SensorLocation` and the Postgres enum `sensor_location`.
 - `apps/shared/src/dirt_shared/models/sensor_node.py`: legacy heartbeat rows keyed by `SensorLocation`.
 - `apps/shared/src/dirt_shared/models/sensor_reading.py`: still has non-null `sensornode_id` plus nullable `capability_id`.
-- `apps/shared/src/dirt_shared/models/sensor_calibration.py`: still has nullable `sensornode_id`, `metric`, and capability ownership.
-- `apps/shared/src/dirt_shared/models/plant.py`: still has `sensornode_id` for plant moisture.
+- `apps/shared/src/dirt_shared/models/sensor_calibration.py`: now has non-null capability ownership and no legacy `sensornode_id`.
+- `apps/shared/src/dirt_shared/models/plant.py`: now uses `moisture_capability_id` for plant moisture and no longer has `sensornode_id`.
 - `apps/shared/src/dirt_shared/sensor_contract.py`: still exports legacy `EMITTED_METRICS`, `PERSISTED_METRICS`, and `LEGACY_LOCATION_DEVICE_IDS` keyed by `SensorLocation`.
 - `apps/shared/src/dirt_shared/services/readings.py`: still resolves legacy location to device and writes `sensornode` rows.
-- `apps/shared/src/dirt_shared/services/daily_sensors.py`: still uses `SensorLocation` constants and node-scoped reads.
-- `apps/shared/src/dirt_shared/services/plants.py`: still reads plant moisture through `Plant.sensornode_id`.
+- `apps/shared/src/dirt_shared/services/daily_sensors.py`: still uses `SensorLocation` constants for the default-main daily-report compatibility inventory, but reads plant moisture through capabilities.
+- `apps/shared/src/dirt_shared/services/plants.py`: reads plant moisture through `Plant.moisture_capability_id`.
 - `apps/shared/src/dirt_shared/services/system_status.py`: still uses `Device.metadata["legacy_location"]` to bridge device rows to `sensornode.last_seen`.
 - `apps/hwd/src/dirt_hwd/api/ingest.py`: still accepts required `location`, with optional scoped fields.
-- `apps/voice/src/dirt_voice/tools/sensors.py`: still reads tent and plant sensor summaries through `SensorLocation`, `SensorNode`, `sensornode_id`, and legacy persisted metric maps.
+- `apps/voice/src/dirt_voice/tools/sensors.py`: still uses `SensorLocation` and legacy persisted metric maps for default-main metric inventory, but reads plant moisture and tent trends through capability ownership.
 - `firmware/*/src/main.cpp`: still sends legacy `location` payloads.
 - `apps/web/src/dirt_web/api/sensors.py` and `metric_registry.py`: still assemble default-main dashboards through legacy metric/location registry concepts.
 
 Additional cleanup-removal candidates that are not strictly `sensornode` compatibility:
 
-- `growrun.location`: remove after API/frontend consumers stop requiring `GrowCurrent.location`. Any UI display should use `tent.name`, `site.location`, or an intentionally named grow-run note field instead of a duplicate scope label.
-- `growrun.lights_on_local` and `growrun.lights_off_local`: remove after `GrowStateService`, lights loop code, flower-flip/update paths, API response mapping, tests, and frontend fixtures use the scoped `schedule` row as the only persisted photoperiod source. Keep local wall-clock `time` plus IANA `timezone` on `schedule`; do not convert recurring daily photoperiods to stored UTC.
+- `growrun.location`: removed in Milestone 7; grow placement is represented by `site_id`/`tent_id` and display labels should use `site` or `tent`.
+- `growrun.lights_on_local` and `growrun.lights_off_local`: removed in Milestone 7. `schedule.starts_local`, `schedule.ends_local`, and `schedule.timezone` are the persisted photoperiod source. Keep these as local wall-clock times; do not convert recurring daily photoperiods to stored UTC.
 
 Operational state after rollout:
 
@@ -922,6 +945,142 @@ Milestone 6 final validation evidence from 2026-05-04 after simplify:
     git diff --check
     passed with no output
 
+Milestone 7 migration and contract artifacts:
+
+    migrations/20260504062816_legacy_optional_artifacts.sql
+    contracts/webapp-v1.yaml
+    contracts/python/src/dirt_contracts/webapp_v1/models.py
+    web-ui/src/api-client/generated/schema.ts
+    web-ui/src/mocks/fixtures/grow.current.json
+
+The migration preserves current grow-run photoperiod values in the canonical
+`schedule` row before dropping duplicated grow-run columns. It refuses to
+continue if a current grow lacks exactly one enabled lights schedule, if any
+plant with a legacy `sensornode_id` lacks `moisture_capability_id`, or if any
+calibration lacks `capability_id`. It then drops:
+
+    growrun.location
+    growrun.lights_on_local
+    growrun.lights_off_local
+    plant.sensornode_id
+    sensorcalibration.sensornode_id
+
+Milestone 7 retained compatibility artifacts:
+
+    sensornode
+    sensor_location
+    sensorreading.sensornode_id
+    LEGACY_LOCATION_DEVICE_IDS / EMITTED_METRICS / PERSISTED_METRICS
+
+These remain because legacy firmware ingest still writes a non-null
+`sensorreading.sensornode_id`, old `location` payloads are still accepted, and
+several compatibility inventories still use `SensorLocation` as the bridge
+from old payloads to canonical devices.
+
+Milestone 7 live read-only checks from 2026-05-04:
+
+    SELECT t.tent_id, count(*) FILTER (WHERE sch.kind='lights' AND sch.enabled) AS enabled_lights,
+           array_agg(sch.schedule_id ORDER BY sch.id) FILTER (WHERE sch.kind='lights') AS schedules
+    FROM tent t LEFT JOIN schedule sch ON sch.tent_id=t.id
+    GROUP BY t.tent_id ORDER BY t.tent_id;
+
+    breeding enabled_lights=0 schedules=NULL
+    main     enabled_lights=1 schedules={main-lights-photoperiod}
+
+    SELECT count(*) FILTER (WHERE capability_id IS NULL) AS calibration_without_capability,
+           count(*) AS calibrations
+    FROM sensorcalibration;
+
+    calibration_without_capability=0, calibrations=4
+
+    SELECT count(*) FILTER (WHERE moisture_capability_id IS NULL) ...
+    failed on the live DB because Milestone 4 is still pending live apply and
+    `plant.moisture_capability_id` does not exist there yet. The generated
+    migration replay and focused tests validate this against the full pending
+    migration chain instead.
+
+Milestone 7 validation evidence from 2026-05-04 before simplify:
+
+    atlas migrate diff legacy_optional_artifacts --env local
+    generated migrations/20260504062816_legacy_optional_artifacts.sql
+
+    atlas migrate hash --env local
+    completed after hand-editing the migration preflight/data-preservation SQL
+
+    atlas migrate diff verify_legacy_optional_artifacts_sync --env local
+    The migration directory is synced with the desired state, no changes to be made
+
+    atlas migrate status --env local
+    Migration Status: PENDING; Current Version 20260504022916; Next Version 20260504052839; Pending Files 4. This is expected because Milestone 3, 4, 6, and 7 migrations were intentionally not applied live.
+
+    scripts/gen-contract
+    regenerated Pydantic models and TypeScript schema from contracts/webapp-v1.yaml
+
+    pnpm --dir web-ui exec biome check --write src/api-client/generated/schema.ts
+    Checked 1 file in 34ms. Fixed 1 file.
+
+    uv run ruff format contracts/python/src/dirt_contracts/webapp_v1/models.py
+    1 file reformatted
+
+    uv run pytest apps/shared/tests/test_grow_state.py apps/web/tests/test_grow_endpoint.py apps/web/tests/test_scope_endpoints.py -q
+    34 passed in 8.25s
+
+    uv run pytest apps/shared/tests/test_daily_sensors.py apps/shared/tests/test_daily_report.py apps/shared/tests/test_milestone4_scope.py apps/web/tests/test_plants_list_endpoint.py apps/web/tests/test_plants_detail_endpoint.py apps/web/tests/test_plants_moisture_endpoint.py -q
+    56 passed in 10.14s
+
+    uv run pytest apps/hwd/tests/test_ingest_api.py apps/hwd/tests/test_ingest_derivation.py apps/shared/tests/test_readings_scope.py apps/shared/tests/test_legacy_retirement_audit.py -q
+    39 passed in 6.25s
+
+    uv run pytest apps/web/tests/test_sensors_current_endpoint.py apps/web/tests/test_sensors_history_endpoint.py apps/web/tests/test_scope_endpoints.py apps/web/tests/test_system_devices_endpoint.py apps/hwd/tests/test_lights_loop.py apps/hwd/tests/test_humidifier_loop.py apps/hwd/tests/test_fan_controller.py apps/hwd/tests/test_device_watchdog.py -q
+    49 passed in 9.61s
+
+    uv run pytest apps/tests/invariants/test_api_contract.py -q
+    6 passed, 1 skipped in 0.91s
+
+    pnpm --dir web-ui lint
+    Checked 88 files in 36ms. No fixes applied; eslint passed.
+
+    pnpm --dir web-ui typecheck
+    tsc --noEmit passed.
+
+    pnpm --dir web-ui test
+    1 passed in 769ms.
+
+Milestone 7 simplify pass used the local fallback because no subagent spawn
+tool was available. Reuse/quality/efficiency review found one worthwhile
+cleanup: after removing `Plant.sensornode_id`, `PlantsService` now returns no
+moisture rows for a plant lacking `moisture_capability_id` instead of issuing a
+metric-only `capability_id IS NULL` query.
+
+Milestone 7 final validation evidence from 2026-05-04 after simplify:
+
+    uv run pytest apps/shared/tests/test_grow_state.py apps/web/tests/test_grow_endpoint.py apps/web/tests/test_scope_endpoints.py apps/shared/tests/test_daily_sensors.py apps/shared/tests/test_daily_report.py apps/shared/tests/test_milestone4_scope.py apps/web/tests/test_plants_list_endpoint.py apps/web/tests/test_plants_detail_endpoint.py apps/web/tests/test_plants_moisture_endpoint.py -q
+    90 passed in 16.91s
+
+    uv run pytest apps/hwd/tests/test_ingest_api.py apps/hwd/tests/test_ingest_derivation.py apps/shared/tests/test_readings_scope.py apps/shared/tests/test_legacy_retirement_audit.py apps/web/tests/test_sensors_current_endpoint.py apps/web/tests/test_sensors_history_endpoint.py apps/web/tests/test_system_devices_endpoint.py apps/hwd/tests/test_lights_loop.py apps/hwd/tests/test_humidifier_loop.py apps/hwd/tests/test_fan_controller.py apps/hwd/tests/test_device_watchdog.py -q
+    84 passed in 13.75s
+
+    atlas migrate hash --env local
+    completed with no output
+
+    atlas migrate diff verify_legacy_optional_artifacts_sync --env local
+    The migration directory is synced with the desired state, no changes to be made
+
+    atlas migrate status --env local
+    Migration Status: PENDING; Current Version 20260504022916; Next Version 20260504052839; Pending Files 4. Expected because no live apply was run.
+
+    uv run pytest apps/tests/invariants/ -q
+    115 passed, 1 skipped in 4.01s
+
+    uv run ruff check <changed Python files>
+    All checks passed.
+
+    uv run ruff format --check <changed Python files>
+    22 files already formatted.
+
+    git diff --check
+    passed with no output
+
 
 ## Interfaces and Dependencies
 
@@ -951,3 +1110,4 @@ New or changed interfaces expected by the end of this plan:
 - 2026-05-04: Added post-review Milestone 2 ingest test coverage for unknown scoped device IDs without legacy `location` and refreshed the stale test comment.
 - 2026-05-04: Reworked Milestone 2 sensor-contract and ingest API helpers to satisfy pre-commit import-boundary and no-module-level-singleton invariants.
 - 2026-05-04: Completed Milestone 4 and recorded plant moisture capability ownership, daily sensor capability reads, migration/backfill artifact, simplify cleanup, and validation evidence.
+- 2026-05-04: Completed Milestone 7 and recorded the removed optional schema artifacts, retained compatibility dependencies, schedule-canonical photoperiod decision, and generated migration/contract artifacts.

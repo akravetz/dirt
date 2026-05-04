@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime
 
 from sqlalchemy import (
     TIMESTAMP,
@@ -16,7 +16,6 @@ from sqlalchemy import (
     Index,
     SmallInteger,
     Text,
-    Time,
     UniqueConstraint,
     text,
 )
@@ -69,21 +68,7 @@ class GrowRun(SQLModel, table=True):
     flower_start_date: date | None = Field(
         default=None, sa_column=Column(Date, nullable=True)
     )
-    lights_on_local: time | None = Field(
-        default=None, sa_column=Column(Time, nullable=True)
-    )
-    lights_off_local: time | None = Field(
-        default=None, sa_column=Column(Time, nullable=True)
-    )
     strain: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
-    location: str = Field(
-        default="Denver, MT · closet tent",
-        sa_column=Column(
-            Text,
-            nullable=False,
-            server_default=text("'Denver, MT · closet tent'"),
-        ),
-    )
     timezone: str = Field(
         default="America/Denver",
         sa_column=Column(

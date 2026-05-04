@@ -91,9 +91,6 @@ async def _set_lights(engine, on: time, off: time) -> None:
     async with AsyncSession(engine) as session:
         row = await current_grow_run(session)
         assert row is not None, "migration should have seeded a current growrun"
-        row.lights_on_local = on
-        row.lights_off_local = off
-        session.add(row)
         schedule = (
             await session.exec(
                 select(Schedule)
@@ -103,10 +100,10 @@ async def _set_lights(engine, on: time, off: time) -> None:
                 .limit(1)
             )
         ).first()
-        if schedule is not None:
-            schedule.starts_local = on
-            schedule.ends_local = off
-            session.add(schedule)
+        assert schedule is not None
+        schedule.starts_local = on
+        schedule.ends_local = off
+        session.add(schedule)
         await session.commit()
 
 
@@ -340,8 +337,9 @@ async def test_flip_to_flower_rejects_non_12_12_schedule(pg_engine):
 
     state = await GrowStateService(pg_engine).get_state()
     assert state.flower_start_date is None
-    assert state.lights_on_local == time(5, 0)
-    assert state.lights_off_local == time(23, 0)
+    schedule = await GrowStateService(pg_engine).current_light_schedule()
+    assert schedule.starts_local == time(5, 0)
+    assert schedule.ends_local == time(23, 0)
 
 
 # ------- get_grow_current_payload -------

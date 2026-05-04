@@ -472,7 +472,7 @@ Local command-intent and lifecycle ledger. This records locally accepted command
 ## Notes For Future Cleanup
 
 - `sensornode` and `sensorreading.sensornode_id` are compatibility surfaces for current firmware and historical data. The canonical scoped telemetry owner is `sensorreading.capability_id`.
-- `plant.sensornode_id` remains a legacy moisture-node link. Future plant identity should be driven by `plant -> growrun -> tent` and plant-specific capabilities.
-- `sensorcalibration.sensornode_id` is nullable so calibration can be capability-only for scoped devices that do not have a distinct legacy `SensorLocation` enum value.
+- `plant.sensornode_id` was retired in the legacy-compatibility cleanup; plant moisture is owned by `plant.moisture_capability_id`.
+- `sensorcalibration.sensornode_id` was retired in the legacy-compatibility cleanup; calibration rows are capability-owned.
 - `snapshot` scope columns are nullable because older image rows and some transition paths may predate scoped metadata.
 - `zone.tent_id` and `device.tent_id` are nullable to support site-level zones/devices. For example, site-level voice hardware should not be forced into `homebox/main`.

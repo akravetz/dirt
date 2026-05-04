@@ -525,7 +525,6 @@ export interface components {
       flower_week_number: number | null;
       stage: components["schemas"]["Stage"];
       strain: string;
-      location: string;
       plant_count: number;
       lights: components["schemas"]["LightsState"];
     };
@@ -956,7 +955,6 @@ export interface operations {
            *       "flower_week_number": null,
            *       "stage": "veg",
            *       "strain": "Sirius Black × BS01",
-           *       "location": "Denver, MT · closet tent",
            *       "plant_count": 4,
            *       "lights": {
            *         "on": true,

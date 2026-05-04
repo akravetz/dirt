@@ -121,7 +121,6 @@ paths:
                 flower_week_number: null
                 stage: veg
                 strain: Sirius Black × BS01
-                location: Denver, MT · closet tent
                 plant_count: 4
                 lights:
                   on: true
@@ -800,7 +799,6 @@ components:
         - flower_week_number
         - stage
         - strain
-        - location
         - plant_count
         - lights
       properties:
@@ -820,7 +818,6 @@ components:
           description: 1-indexed since flower_start_date; null while in veg.
         stage: { $ref: '#/components/schemas/Stage' }
         strain: { type: string }
-        location: { type: string }
         plant_count: { type: integer, minimum: 0 }
         lights: { $ref: '#/components/schemas/LightsState' }
 

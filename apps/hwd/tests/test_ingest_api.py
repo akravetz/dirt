@@ -14,6 +14,7 @@ from dirt_shared.models.enums import SensorLocation
 from dirt_shared.models.sensor_calibration import SensorCalibration
 from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
+from dirt_shared.sensor_contract import LEGACY_LOCATION_DEVICE_IDS
 from dirt_shared.services.readings import compute_calibrated_pct
 
 
@@ -297,16 +298,21 @@ async def _get_cal(
     engine, location: SensorLocation, metric: str
 ) -> SensorCalibration | None:
     async with AsyncSession(engine) as s:
-        result = await s.exec(
-            select(SensorNode.id).where(SensorNode.location == location)
-        )
-        node_id = result.first()
-        if node_id is None:
+        device_id = LEGACY_LOCATION_DEVICE_IDS[location]
+        capability_id = (
+            await s.exec(
+                select(Capability.id)
+                .join(Device, Device.id == Capability.device_id)
+                .where(Device.device_id == device_id)
+                .where(Capability.metric_name == metric)
+            )
+        ).first()
+        if capability_id is None:
             return None
         return (
             await s.exec(
                 select(SensorCalibration)
-                .where(SensorCalibration.sensornode_id == node_id)
+                .where(SensorCalibration.capability_id == capability_id)
                 .where(SensorCalibration.metric == metric)
             )
         ).first()

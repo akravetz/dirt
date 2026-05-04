@@ -69,7 +69,6 @@ async def _seed_moisture(
     async with AsyncSession(engine) as s:
         s.add(
             SensorCalibration(
-                sensornode_id=node_id,
                 capability_id=capability_id,
                 metric="soil_moisture_raw",
                 raw_low=raw_low,

@@ -6,10 +6,7 @@ raw_high the driest. Calibrated percentage:
 clamped to [0, 100]. Degenerate ranges (raw_high <= raw_low) return
 None — protected here by CHECK constraint.
 
-``sensornode_id``/``metric`` remain during the legacy firmware transition,
-but ``sensornode_id`` is nullable so a future non-legacy device can own a
-calibration by capability alone. ``capability_id`` is the canonical scoped
-owner for new and backfilled rows.
+``capability_id`` is the canonical scoped owner for new and backfilled rows.
 """
 
 from __future__ import annotations
@@ -43,11 +40,6 @@ class SensorCalibration(SQLModel, table=True):
         # compute_calibrated_pct() treats equal-range as degenerate and returns None.
         CheckConstraint("raw_high >= raw_low", name="ck_sensorcalibration_range"),
         UniqueConstraint(
-            "sensornode_id",
-            "metric",
-            name="uq_sensorcalibration_node_metric",
-        ),
-        UniqueConstraint(
             "capability_id",
             "metric",
             name="uq_sensorcalibration_capability_metric",
@@ -59,20 +51,11 @@ class SensorCalibration(SQLModel, table=True):
         default=None,
         sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
     )
-    sensornode_id: int | None = Field(
-        default=None,
-        sa_column=Column(
-            BigInteger,
-            ForeignKey("sensornode.id", ondelete="CASCADE"),
-            nullable=True,
-        ),
-    )
-    capability_id: int | None = Field(
-        default=None,
+    capability_id: int = Field(
         sa_column=Column(
             BigInteger,
             ForeignKey("capability.id", ondelete="RESTRICT"),
-            nullable=True,
+            nullable=False,
         ),
     )
     metric: str = Field(sa_column=Column(Text, nullable=False))

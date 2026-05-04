@@ -440,50 +440,38 @@ async def resolve_metric_capability_id(  # noqa: PLR0913
 async def get_sensor_calibration(
     session: AsyncSession,
     *,
-    sensornode_id: int | None,
     metric: str,
     capability_id: int | None = None,
 ) -> SensorCalibration | None:
-    """Return calibration by scoped capability first, then legacy node/metric."""
-    if capability_id is not None:
-        result = await session.exec(
-            select(SensorCalibration)
-            .where(SensorCalibration.capability_id == capability_id)
-            .where(SensorCalibration.metric == metric)
-        )
-        cal = result.first()
-        if cal is not None:
-            return cal
-
-    if sensornode_id is not None:
-        result = await session.exec(
-            select(SensorCalibration)
-            .where(SensorCalibration.sensornode_id == sensornode_id)
-            .where(SensorCalibration.metric == metric)
-        )
-        return result.first()
-    return None
+    """Return calibration by canonical scoped capability."""
+    if capability_id is None:
+        return None
+    result = await session.exec(
+        select(SensorCalibration)
+        .where(SensorCalibration.capability_id == capability_id)
+        .where(SensorCalibration.metric == metric)
+    )
+    return result.first()
 
 
 async def _update_calibration(
     session: AsyncSession,
-    sensornode_id: int,
     metric: str,
     value: float,
     *,
     capability_id: int | None = None,
 ) -> None:
     """Widen the scoped calibration range if ``value`` is a new extremum."""
+    if capability_id is None:
+        return
     cal = await get_sensor_calibration(
         session,
-        sensornode_id=sensornode_id,
         metric=metric,
         capability_id=capability_id,
     )
     if cal is None:
         session.add(
             SensorCalibration(
-                sensornode_id=sensornode_id,
                 capability_id=capability_id,
                 metric=metric,
                 raw_low=value,
@@ -811,7 +799,6 @@ class ReadingsService:
                 ):
                     await _update_calibration(
                         session,
-                        node.id,
                         metric_name,
                         value,
                         capability_id=capability_ids.get(metric_name),

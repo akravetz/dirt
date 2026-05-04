@@ -86,8 +86,7 @@ async def _seed_readings(
         for loc, metric, raw_low, raw_high in cals:
             s.add(
                 SensorCalibration(
-                    sensornode_id=node_ids[loc],
-                    capability_id=cap_ids.get((loc, metric)),
+                    capability_id=cap_ids[(loc, metric)],
                     metric=metric,
                     raw_low=raw_low,
                     raw_high=raw_high,

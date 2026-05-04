@@ -66,17 +66,17 @@ This is not the hosted website phase. The local `dirt-hwd` service remains the o
 - Observation: Async raw SQL with optional scoped filters needs explicit parameter casts for PostgreSQL/asyncpg.
   Evidence: Raw bucket queries using `:tent_id IS NULL` produced ambiguous-parameter errors until the optional filters used `CAST(:tent_id AS text)` style predicates.
 
-- Observation: `sensorcalibration` is still keyed by legacy `sensornode_id`/`metric`, and the plan had listed that as pending without assigning it to a milestone.
-  Evidence: `apps/shared/src/dirt_shared/services/readings.py`, `apps/shared/src/dirt_shared/services/plants.py`, and `apps/shared/src/dirt_shared/services/daily_sensors.py` all query `SensorCalibration.sensornode_id` plus `metric`. This is now assigned to Milestone 4 so calibration ownership moves with plants and daily sensor scope.
+- Observation: `sensorcalibration` was originally keyed by legacy `sensornode_id`/`metric`, and the plan had listed that as pending without assigning it to a milestone.
+  Evidence: Milestone 4 moved calibration reads to `capability_id`; the later legacy cleanup retired `SensorCalibration.sensornode_id` entirely.
 
-- Observation: Capability-only calibration rows require `sensorcalibration.sensornode_id` to be nullable.
-  Evidence: A breeding-tent moisture capability cannot have a distinct legacy `sensornode` because `SensorLocation` is a fixed enum. Milestone 4 therefore makes `sensornode_id` nullable while preserving the legacy `(sensornode_id, metric)` compatibility lookup.
+- Observation: Capability-only calibration rows required a transition period before the legacy FK could be removed.
+  Evidence: A breeding-tent moisture capability cannot have a distinct legacy `sensornode` because `SensorLocation` is a fixed enum. Milestone 4 made `sensornode_id` nullable while preserving the legacy lookup; the later legacy cleanup removed it after capability ownership replaced the compatibility path.
 
 - Observation: PostgreSQL `UPDATE ... FROM` cannot reference the target alias inside a joined table's `ON` predicate.
   Evidence: The first test migration replay failed with `pq: invalid reference to FROM-clause entry for table "sc"` until the calibration backfill moved `c.metric_name = sc.metric` into the `WHERE` clause.
 
-- Observation: Once a scoped `schedule` row exists, tests and write paths that only update `growrun.lights_*` can leave lights reads stale.
-  Evidence: `GrowStateService.lights_state()` now reads the scoped schedule projection. The test helper and `flip_to_flower()` update the lights schedule row along with the grow-run photoperiod columns.
+- Observation: Once a scoped `schedule` row exists, tests and write paths that only update grow-run photoperiod columns can leave lights reads stale.
+  Evidence: `GrowStateService.lights_state()` now reads the scoped schedule projection. The later legacy cleanup removed the grow-run photoperiod columns and makes `flip_to_flower()` write the schedule row directly.
 
 - Observation: Daily-report photos reuse deterministic file paths for a target date, so DB recording must be idempotent for forced reruns.
   Evidence: `DailyReportSnapshotRecorder.record_daily_report_photo()` selects by `snapshot.file_path` and updates the existing row instead of blindly inserting, preserving the unique `snapshot.file_path` constraint.

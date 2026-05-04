@@ -77,13 +77,10 @@ EXPECTED_LEGACY_REFERENCE_FILES = frozenset(
         "apps/voice/src/dirt_voice/tools/sensors.py",
         "apps/shared/src/dirt_shared/models/__init__.py",
         "apps/shared/src/dirt_shared/models/enums.py",
-        "apps/shared/src/dirt_shared/models/plant.py",
-        "apps/shared/src/dirt_shared/models/sensor_calibration.py",
         "apps/shared/src/dirt_shared/models/sensor_node.py",
         "apps/shared/src/dirt_shared/models/sensor_reading.py",
         "apps/shared/src/dirt_shared/sensor_contract.py",
         "apps/shared/src/dirt_shared/services/daily_sensors.py",
-        "apps/shared/src/dirt_shared/services/plants.py",
         "apps/shared/src/dirt_shared/services/readings.py",
     }
 )

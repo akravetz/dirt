@@ -315,7 +315,6 @@ class SensorReader:
                 return None
             return await get_sensor_calibration(
                 session,
-                sensornode_id=None,
                 metric=metric,
                 capability_id=capability_id,
             )

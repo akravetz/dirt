@@ -28,7 +28,6 @@ from dirt_shared.services.plant_detail import PlantDetailService
 from dirt_shared.services.readings import (
     compute_calibrated_pct,
     get_sensor_calibration,
-    resolve_metric_capability_id,
 )
 from dirt_shared.services.scope import (
     DEFAULT_SITE_ID,
@@ -139,37 +138,10 @@ def count_irrigation_events(points: list[MoisturePoint], jump_pct: float = 5.0) 
     return n
 
 
-async def _plant_moisture_capability_id(
-    session: AsyncSession,
-    plant: Plant,
-    *,
-    site_id: str,
-    tent_id: str,
-) -> int | None:
-    if plant.moisture_capability_id is not None:
-        return plant.moisture_capability_id
-
-    # Compatibility fallback for pre-backfill rows. Current rows should have
-    # moisture_capability_id and never need the legacy sensornode FK to read.
-    return await resolve_metric_capability_id(
-        session,
-        metric="soil_moisture_raw",
-        location=f"plant-{plant.code}",
-        site_id=site_id,
-        tent_id=tent_id,
-    )
-
-
-def _plant_readings_stmt(plant: Plant, capability_id: int | None):
-    if capability_id is not None:
-        return (
-            select(SensorReading)
-            .where(SensorReading.capability_id == capability_id)
-            .where(SensorReading.metric == "soil_moisture_raw")
-        )
+def _plant_readings_stmt(capability_id: int):
     return (
         select(SensorReading)
-        .where(SensorReading.sensornode_id == plant.sensornode_id)
+        .where(SensorReading.capability_id == capability_id)
         .where(SensorReading.metric == "soil_moisture_raw")
     )
 
@@ -181,13 +153,13 @@ async def _latest_moisture_pct(
     site_id: str,
     tent_id: str,
 ) -> tuple[float | None, datetime | None]:
-    """Most recent calibrated soil moisture % for a plant's node."""
-    capability_id = await _plant_moisture_capability_id(
-        session, plant, site_id=site_id, tent_id=tent_id
-    )
+    """Most recent calibrated soil moisture % for a plant's capability."""
+    capability_id = plant.moisture_capability_id
+    if capability_id is None:
+        return None, None
     row = (
         await session.exec(
-            _plant_readings_stmt(plant, capability_id)
+            _plant_readings_stmt(capability_id)
             .order_by(SensorReading.ts.desc())
             .limit(1)
         )
@@ -196,7 +168,6 @@ async def _latest_moisture_pct(
         return None, None
     cal = await get_sensor_calibration(
         session,
-        sensornode_id=None if capability_id is not None else plant.sensornode_id,
         metric="soil_moisture_raw",
         capability_id=row.capability_id or capability_id,
     )
@@ -329,12 +300,11 @@ class PlantsService:
             ).first()
             if p is None:
                 return []
-            capability_id = await _plant_moisture_capability_id(
-                session, p, site_id=site_id, tent_id=tent_id
-            )
+            capability_id = p.moisture_capability_id
+            if capability_id is None:
+                return []
             cal = await get_sensor_calibration(
                 session,
-                sensornode_id=None if capability_id is not None else p.sensornode_id,
                 metric="soil_moisture_raw",
                 capability_id=capability_id,
             )
@@ -343,7 +313,7 @@ class PlantsService:
 
             rows = (
                 await session.exec(
-                    _plant_readings_stmt(p, capability_id)
+                    _plant_readings_stmt(capability_id)
                     .where(SensorReading.ts >= cutoff)
                     .order_by(SensorReading.ts)
                 )

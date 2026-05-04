@@ -132,7 +132,6 @@ class GrowCurrentPayload:
     flower_week_number: int | None  # 1-indexed since flower_start_date; None in veg
     stage: Stage
     strain: str
-    location: str
     plant_count: int
     lights: LightsState
     lights_on_local: time
@@ -268,14 +267,6 @@ class GrowStateService:
         return "flower_late"
 
     @staticmethod
-    def _derive_lights(state: GrowRun, now_local: datetime) -> LightsState:
-        return GrowStateService._derive_lights_from_times(
-            _lights_on_local(state),
-            _lights_off_local(state),
-            now_local,
-        )
-
-    @staticmethod
     def _derive_lights_from_times(
         on_time: time,
         off_time: time,
@@ -398,7 +389,7 @@ class GrowStateService:
         site_id: str = DEFAULT_SITE_ID,
         tent_id: str = DEFAULT_TENT_ID,
     ) -> LightSchedule:
-        """Return the scoped lights schedule, projected from schedule/growrun."""
+        """Return the scoped lights schedule, projected from ``schedule``."""
         state = await self.get_state(site_id=site_id, tent_id=tent_id)
         async with AsyncSession(self._engine) as session:
             scope = await resolve_scope(session, site_id=site_id, tent_id=tent_id)
@@ -431,11 +422,11 @@ class GrowStateService:
         return LightSchedule(
             site_id=site_id,
             tent_id=tent_id,
-            starts_local=_lights_on_local(state),
-            ends_local=_lights_off_local(state),
+            starts_local=time(5, 0),
+            ends_local=time(23, 0),
             timezone=state.timezone,
             enabled=True,
-            source="growrun",
+            source="default",
         )
 
     async def get_grow_current_payload(
@@ -446,11 +437,16 @@ class GrowStateService:
     ) -> GrowCurrentPayload:
         """One-shot assembler for ``GET /api/grow/current``."""
         state = await self.get_state(site_id=site_id, tent_id=tent_id)
-        now_local = self._clock().astimezone(tent_tz(state))
+        schedule = await self.current_light_schedule(site_id=site_id, tent_id=tent_id)
+        now_local = self._clock().astimezone(ZoneInfo(schedule.timezone))
         today = now_local.date()
 
         stage = self._derive_stage(state, today)
-        lights = self._derive_lights(state, now_local)
+        lights = self._derive_lights_from_times(
+            schedule.starts_local,
+            schedule.ends_local,
+            now_local,
+        )
 
         germination_date = _germination_date(state)
         grow_week_number = (today - germination_date).days // 7 + 1
@@ -470,11 +466,10 @@ class GrowStateService:
             flower_week_number=flower_week_number,
             stage=stage,
             strain=state.strain or "Sirius Black × BS01",
-            location=state.location,
             plant_count=state.plant_count,
             lights=lights,
-            lights_on_local=_lights_on_local(state),
-            lights_off_local=_lights_off_local(state),
+            lights_on_local=schedule.starts_local,
+            lights_off_local=schedule.ends_local,
         )
 
     async def flip_to_flower(
@@ -508,7 +503,6 @@ class GrowStateService:
                     purpose="flower",
                     germination_date=GROW_START,
                     strain="Sirius Black × BS01",
-                    location="Denver, MT · closet tent",
                     plant_count=4,
                     is_current=True,
                 )
@@ -523,8 +517,6 @@ class GrowStateService:
                 raise ValueError("flower_start_date is already set")
 
             state.flower_start_date = flower_start_date
-            state.lights_on_local = lights_on_local
-            state.lights_off_local = lights_off_local
             session.add(state)
             schedule = (
                 await session.exec(
@@ -535,12 +527,18 @@ class GrowStateService:
                     .limit(1)
                 )
             ).first()
-            if schedule is not None:
-                schedule.starts_local = lights_on_local
-                schedule.ends_local = lights_off_local
-                schedule.timezone = state.timezone
-                schedule.enabled = True
-                session.add(schedule)
+            if schedule is None:
+                schedule = Schedule(
+                    site_id=scope.site_pk,
+                    tent_id=scope.tent_pk,
+                    schedule_id=f"{scope.tent_id}-lights-photoperiod",
+                    kind="lights",
+                )
+            schedule.starts_local = lights_on_local
+            schedule.ends_local = lights_off_local
+            schedule.timezone = state.timezone
+            schedule.enabled = True
+            session.add(schedule)
             await session.commit()
 
         return await self.get_grow_current_payload()
@@ -559,7 +557,6 @@ def _fallback_grow_run(
         purpose="flower",
         germination_date=GROW_START,
         strain="Sirius Black × BS01",
-        location="Denver, MT · closet tent" if site_id == DEFAULT_SITE_ID else site_id,
         plant_count=4,
         is_current=True,
     )
@@ -567,11 +564,3 @@ def _fallback_grow_run(
 
 def _germination_date(state: GrowRun) -> date:
     return state.germination_date or GROW_START
-
-
-def _lights_on_local(state: GrowRun) -> time:
-    return state.lights_on_local or time(5, 0)
-
-
-def _lights_off_local(state: GrowRun) -> time:
-    return state.lights_off_local or time(23, 0)

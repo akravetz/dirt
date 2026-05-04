@@ -76,9 +76,9 @@ class Settings(BaseSettings):
     kasa_username: str = ""
     kasa_password: str = ""
     # Kasa plug driving the grow lights. Swapped in 2026-04-23 for the
-    # unreliable analog push-pin 24-hour timer. Schedule lives on the current
-    # scoped growrun's lights_on_local / lights_off_local (per-grow-timezone
-    # wall clock); this host is just the plug endpoint.
+    # unreliable analog push-pin 24-hour timer. Schedule lives in the scoped
+    # schedule row (per-tent-timezone wall clock); this host is just the plug
+    # endpoint.
     kasa_lights_host: str = "192.168.1.181"
     lights_poll_interval: int = 30
     # Govee Public API v2 — drives the H7142 humidifier. Cloud-only; see

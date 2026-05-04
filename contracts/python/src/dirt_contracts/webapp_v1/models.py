@@ -174,7 +174,6 @@ class GrowCurrent(BaseModel):
     """
     stage: Stage
     strain: str
-    location: str
     plant_count: conint(ge=0)
     lights: LightsState
 

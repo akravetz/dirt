@@ -12,8 +12,10 @@ from zoneinfo import ZoneInfo
 import pytest
 from dirt_contracts.webapp_v1.models import GrowCurrent, GrowFlowerFlipRequest, Stage
 from httpx import ASGITransport, AsyncClient
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from dirt_shared.models.schedule import Schedule
 from dirt_shared.services.scope import current_grow_run
 from dirt_web.app import create_app
 
@@ -24,7 +26,6 @@ async def _update_current_grow(
     germination_date: date = date(2026, 3, 15),
     flower_start_date: date | None = None,
     strain: str = "Sirius Black × BS01",
-    location: str = "Denver, MT · closet tent",
     plant_count: int = 4,
     lights_on_local: time = time(5, 0, 0),
     lights_off_local: time = time(23, 0, 0),
@@ -40,11 +41,21 @@ async def _update_current_grow(
         row.germination_date = germination_date
         row.flower_start_date = flower_start_date
         row.strain = strain
-        row.location = location
         row.plant_count = plant_count
-        row.lights_on_local = lights_on_local
-        row.lights_off_local = lights_off_local
         s.add(row)
+        schedule = (
+            await s.exec(
+                select(Schedule)
+                .where(Schedule.site_id == row.site_id)
+                .where(Schedule.tent_id == row.tent_id)
+                .where(Schedule.kind == "lights")
+                .limit(1)
+            )
+        ).first()
+        assert schedule is not None
+        schedule.starts_local = lights_on_local
+        schedule.ends_local = lights_off_local
+        s.add(schedule)
         await s.commit()
 
 
@@ -87,7 +98,6 @@ async def test_grow_current_returns_contract_shape(client: AsyncClient, app_engi
     assert model.stage == Stage.veg
     assert model.flower_week_number is None
     assert model.strain == "Sirius Black × BS01"
-    assert model.location == "Denver, MT · closet tent"
     assert model.plant_count == 4
     assert model.day_number >= 1
     assert model.grow_week_number >= 1

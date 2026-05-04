@@ -24,7 +24,6 @@ def _grow_current_response(payload: GrowCurrentPayload) -> GrowCurrent:
         flower_week_number=payload.flower_week_number,
         stage=payload.stage,
         strain=payload.strain,
-        location=payload.location,
         plant_count=payload.plant_count,
         lights=LightsState(
             on=payload.lights.on,

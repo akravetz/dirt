@@ -4,7 +4,6 @@ FKs:
 - ``growrun_id`` — which scoped grow run this plant belongs to.
 - ``site_id`` / ``tent_id`` — denormalized scope for fast default-tent reads.
 - ``moisture_capability_id`` — canonical soil-moisture stream for current reads.
-- ``sensornode_id`` — legacy compatibility link to the ESP32 moisture node.
 
 Uniqueness: ``(growrun_id, plant_id)`` — the stable 'a'/'b'/'c'/'d' label
 is unique per scoped grow run, not globally. Future grows can reuse A-D with
@@ -86,14 +85,6 @@ class Plant(SQLModel, table=True):
             BigInteger,
             ForeignKey("growrun.id", ondelete="RESTRICT"),
             nullable=False,
-        )
-    )
-    sensornode_id: int = Field(
-        sa_column=Column(
-            BigInteger,
-            ForeignKey("sensornode.id", ondelete="RESTRICT"),
-            nullable=False,
-            unique=True,
         )
     )
     moisture_capability_id: int | None = Field(
