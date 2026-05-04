@@ -15,6 +15,7 @@ from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.services.daily_sensors import SensorReader
 from dirt_shared.services.plant_detail import PlantDetailService
 from dirt_shared.services.plants import PlantsService
+from dirt_shared.services.readings import ReadingsService
 from dirt_shared.services.scope import resolve_scope
 
 
@@ -191,3 +192,47 @@ async def test_daily_sensor_snapshot_uses_main_capability_calibration(
     snap = await reader.snapshot(date(2026, 5, 4))
 
     assert snap.plants["a"]["now_pct"] == 60.0
+
+
+async def test_metric_freshness_keys_duplicate_capability_ids_by_device(
+    app_engine,
+) -> None:
+    now = datetime(2026, 5, 4, 20, 0, tzinfo=UTC)
+    async with AsyncSession(app_engine) as session:
+        for device_id in ("plant-a-node", "plant-b-node"):
+            device = (
+                await session.exec(select(Device).where(Device.device_id == device_id))
+            ).one()
+            device.last_seen = now
+            session.add(device)
+            cap_pk = await _capability_pk(
+                session,
+                device_id=device_id,
+                capability_id="soil_moisture_raw",
+            )
+            node_location = (
+                SensorLocation.PLANT_A
+                if device_id == "plant-a-node"
+                else SensorLocation.PLANT_B
+            )
+            session.add(
+                SensorReading(
+                    ts=now,
+                    sensornode_id=await _sensor_node_id(session, node_location),
+                    capability_id=cap_pk,
+                    metric="soil_moisture_raw",
+                    value=400,
+                    source=SensorSource.MOCK,
+                )
+            )
+        await session.commit()
+
+    readings = ReadingsService(app_engine, clock=lambda: now)
+    snapshot = await readings.get_capability_freshness_snapshot(
+        now - timedelta(minutes=5)
+    )
+
+    assert snapshot["plant-a-node:soil_moisture_raw"][0] == "fresh"
+    assert snapshot["plant-a-node:soil_moisture_raw"][2]["device_id"] == "plant-a-node"
+    assert snapshot["plant-b-node:soil_moisture_raw"][0] == "fresh"
+    assert snapshot["plant-b-node:soil_moisture_raw"][2]["device_id"] == "plant-b-node"

@@ -15,7 +15,6 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.device import Device
-from dirt_shared.models.enums import SensorLocation
 from dirt_shared.models.snapshot import Snapshot
 from dirt_shared.models.tent import Tent
 from dirt_shared.models.zone import Zone
@@ -358,7 +357,7 @@ async def test_validation_failure_sends_alert_and_skips_synthesis(
     sensor_reader = _FakeSensorReader(
         failures=[
             ValidationFailure(
-                location=SensorLocation.TENT,
+                subject="fan-controller",
                 metric="humidity_pct",
                 value=0.0,
                 age_s=10.0,

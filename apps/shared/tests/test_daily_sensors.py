@@ -18,11 +18,9 @@ from dirt_shared.models.enums import SensorLocation, SensorSource
 from dirt_shared.models.sensor_calibration import SensorCalibration
 from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
-from dirt_shared.sensor_contract import LEGACY_LOCATION_DEVICE_IDS
+from dirt_shared.sensor_contract import device_id_for_legacy_location
 from dirt_shared.services.daily_sensors import (
-    PLANT_LOCATIONS,
     SOIL_METRIC,
-    TENT_LOCATION,
     SensorReader,
     mdt_window_to_utc,
 )
@@ -30,6 +28,13 @@ from dirt_shared.services.daily_sensors import (
 # Apr 19 2026: MDT is UTC-6.
 TEST_NOW = datetime(2026, 4, 19, 20, 30, 0, tzinfo=UTC)  # 14:30 MDT
 TEST_DATE = date(2026, 4, 19)
+PLANT_LOCATIONS = (
+    SensorLocation.PLANT_A,
+    SensorLocation.PLANT_B,
+    SensorLocation.PLANT_C,
+    SensorLocation.PLANT_D,
+)
+TENT_LOCATION = SensorLocation.TENT
 
 
 def _clock():
@@ -57,7 +62,9 @@ async def _capability_ids(engine) -> dict[tuple[SensorLocation, str], int]:
         }
         return {
             (location, metric): cap_id
-            for location, device_id in LEGACY_LOCATION_DEVICE_IDS.items()
+            for location in SensorLocation
+            for device_id in (device_id_for_legacy_location(location),)
+            if device_id is not None
             for (row_device_id, metric), cap_id in by_device_metric.items()
             if row_device_id == device_id
         }
@@ -162,8 +169,7 @@ async def test_validate_flags_pinned_plant_high(pg_engine):
     r = SensorReader(pg_engine, clock=_clock, max_age_s=300, sensor_max_raw=4000.0)
     failures = await r.validate()
     assert any(
-        f.reason == "raw_pinned_high" and f.location == SensorLocation.PLANT_B
-        for f in failures
+        f.reason == "raw_pinned_high" and f.subject == "plant-b" for f in failures
     )
 
 
@@ -180,8 +186,7 @@ async def test_validate_flags_pinned_plant_low(pg_engine):
     r = SensorReader(pg_engine, clock=_clock, max_age_s=300, sensor_min_raw=30.0)
     failures = await r.validate()
     assert any(
-        f.reason == "raw_pinned_low" and f.location == SensorLocation.PLANT_C
-        for f in failures
+        f.reason == "raw_pinned_low" and f.subject == "plant-c" for f in failures
     )
 
 

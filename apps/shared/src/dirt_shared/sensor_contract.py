@@ -7,10 +7,6 @@ derivation changes can be reasoned about independently:
   ``device_id`` and then public ``capability_id``. Each capability declares
   its persisted ``metric_name`` and whether the ESP32 emits it on the wire.
 
-- ``EMITTED_METRICS`` / ``PERSISTED_METRICS`` — legacy ``SensorLocation``
-  maps derived from ``DEVICE_METRICS`` for firmware compatibility and older
-  consumers. Do not add new metrics directly to these maps.
-
 Emitted metrics are what the device physically puts in the ``metrics`` dict
 at ``POST /api/ingest/sensors``. The ingest path logs a warning when a known
 device's payload is missing a key declared here. Persisted metrics are what
@@ -90,11 +86,18 @@ DEVICE_METRICS: dict[str, DeviceContract] = {
     ),
 }
 
-LEGACY_LOCATION_DEVICE_IDS: dict[SensorLocation, str] = {
+_LEGACY_DEVICE_ID_BY_LOCATION: dict[SensorLocation, str] = {
     contract[_LEGACY_LOCATION]: device_id
     for device_id, contract in DEVICE_METRICS.items()
 }
+_LEGACY_LOCATION_BY_DEVICE_ID: dict[str, SensorLocation] = {
+    device_id: contract[_LEGACY_LOCATION]
+    for device_id, contract in DEVICE_METRICS.items()
+}
 
+# Compatibility exports kept for the human-owned sensor-contract invariant
+# until Milestone 5 removes SensorLocation itself. Production code should use
+# the device/capability helpers below.
 EMITTED_METRICS: dict[SensorLocation, frozenset[str]] = {
     contract[_LEGACY_LOCATION]: frozenset(
         metric[_METRIC_NAME]
@@ -103,7 +106,6 @@ EMITTED_METRICS: dict[SensorLocation, frozenset[str]] = {
     )
     for contract in DEVICE_METRICS.values()
 }
-
 PERSISTED_METRICS: dict[SensorLocation, frozenset[str]] = {
     contract[_LEGACY_LOCATION]: frozenset(
         metric[_METRIC_NAME]
@@ -117,10 +119,24 @@ PERSISTED_METRICS: dict[SensorLocation, frozenset[str]] = {
 def legacy_location_for_device_id(device_id: str | None) -> str | None:
     if device_id is None:
         return None
-    contract = DEVICE_METRICS.get(device_id)
-    if contract is None:
+    location = _LEGACY_LOCATION_BY_DEVICE_ID.get(device_id)
+    if location is None:
         return None
-    return contract[_LEGACY_LOCATION].value
+    return location.value
+
+
+def device_id_for_legacy_location(location: SensorLocation | str | None) -> str | None:
+    if location is None:
+        return None
+    try:
+        loc = (
+            location
+            if isinstance(location, SensorLocation)
+            else SensorLocation(location)
+        )
+    except ValueError:
+        return None
+    return _LEGACY_DEVICE_ID_BY_LOCATION.get(loc)
 
 
 def is_known_legacy_location(location_str: str | None) -> bool:
@@ -130,7 +146,7 @@ def is_known_legacy_location(location_str: str | None) -> bool:
         loc = SensorLocation(location_str)
     except ValueError:
         return False
-    return loc in LEGACY_LOCATION_DEVICE_IDS
+    return loc in _LEGACY_DEVICE_ID_BY_LOCATION
 
 
 def emitted_metrics_for_device_id(device_id: str) -> frozenset[str]:
@@ -155,12 +171,15 @@ def persisted_metrics_for_device_id(device_id: str) -> frozenset[str]:
     )
 
 
-def emitted_metrics(location: SensorLocation) -> frozenset[str]:
-    return EMITTED_METRICS.get(location, frozenset())
-
-
-def persisted_metrics(location: SensorLocation) -> frozenset[str]:
-    return PERSISTED_METRICS.get(location, frozenset())
+def persisted_capability_ids_for_device_id(device_id: str) -> frozenset[str]:
+    contract = DEVICE_METRICS.get(device_id)
+    if contract is None:
+        return frozenset()
+    return frozenset(
+        capability_id
+        for capability_id, metric in contract[_CAPABILITIES].items()
+        if metric[_PERSISTED]
+    )
 
 
 def missing_emitted(
@@ -177,7 +196,10 @@ def missing_emitted(
         loc = SensorLocation(location_str)
     except ValueError:
         return frozenset()
-    return emitted_metrics(loc) - set(payload_metrics)
+    device_id = _LEGACY_DEVICE_ID_BY_LOCATION.get(loc)
+    if device_id is None:
+        return frozenset()
+    return emitted_metrics_for_device_id(device_id) - set(payload_metrics)
 
 
 def missing_emitted_for_device_id(

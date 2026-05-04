@@ -1,4 +1,4 @@
-"""Per-(location, metric) freshness alerter.
+"""Per-device/capability freshness alerter.
 
 ``DeviceWatchdog`` fires when a whole node stops heartbeating. This service
 fires on the subtler case: a specific metric stops flowing while the node
@@ -58,7 +58,6 @@ class _Freshness:
     tent_id: str | None
     device_id: str | None
     capability_id: str | None
-    location: str | None
     metric: str | None
 
 
@@ -72,7 +71,6 @@ class _Transition:
     tent_id: str | None
     device_id: str | None
     capability_id: str | None
-    location: str | None
     metric: str | None
 
 
@@ -138,7 +136,7 @@ class MetricFreshnessService:
         logger.info("metric freshness watchdog stopped")
 
     async def _snapshot(self) -> dict[str, _Freshness]:
-        """Classify every scoped capability in PERSISTED_METRICS as fresh/stale."""
+        """Classify every scoped capability required by the device contract."""
         stale_cutoff = self._clock() - timedelta(seconds=self._config.stale_after_s)
         raw = await self._readings.get_capability_freshness_snapshot(stale_cutoff)
         return {
@@ -149,7 +147,6 @@ class MetricFreshnessService:
                 tent_id=scope.get("tent_id"),
                 device_id=scope.get("device_id"),
                 capability_id=scope.get("capability_id"),
-                location=scope.get("location"),
                 metric=scope.get("metric"),
             )
             for key, (status, last_seen, scope) in raw.items()
@@ -159,13 +156,13 @@ class MetricFreshnessService:
         if t.new == "stale":
             age = _format_age(self._clock(), t.last_seen)
             text = (
-                f"⚠ <b>{t.device_id or t.location or t.key}</b> metric "
+                f"⚠ <b>{t.device_id or t.key}</b> metric "
                 f"<b>{t.metric or t.capability_id or t.key}</b> stopped flowing "
                 f"(last seen {age})"
             )
         else:
             text = (
-                f"✓ <b>{t.device_id or t.location or t.key}</b> metric "
+                f"✓ <b>{t.device_id or t.key}</b> metric "
                 f"<b>{t.metric or t.capability_id or t.key}</b> flowing again"
             )
 
@@ -176,7 +173,6 @@ class MetricFreshnessService:
             tent_id=t.tent_id,
             device_id=t.device_id,
             capability_id=t.capability_id,
-            location=t.location,
             metric=t.metric,
             old=t.old,
             new=t.new,
@@ -224,7 +220,6 @@ def _diff(
                 tent_id=freshness.tent_id,
                 device_id=freshness.device_id,
                 capability_id=freshness.capability_id,
-                location=freshness.location,
                 metric=freshness.metric,
             )
         )

@@ -20,7 +20,7 @@ This is local-controller work. The homebox remains the hardware authority. Do no
 - [x] (2026-05-04) Milestone 1: firmware scoped-only POST support and board rollout. `firmware/common/ingest_client/ingest_client.{h,cpp}` now builds scoped-only POST bodies without `location`; fan, plant, and reservoir sketches call the scoped-only API; retained legacy-location comments/constants were removed; firmware versions were bumped; build validation passed for fan, reservoir, and plant A-D environments; OTA upload succeeded for fan, plant A-D, and reservoir; live DB confirmed the expected firmware versions fan `0.2.1`, plant `0.1.2`, and reservoir `0.1.1` with fresh `device.last_seen`.
 - [x] (2026-05-04) Milestone 2: soak and live compatibility telemetry gate. A 10-minute live `dirt-hwd` journal check after scoped firmware rollout found zero `accepted legacy location-only sensor ingest` messages; all six current hardware devices reported expected firmware versions with fresh `device.last_seen`; recent live readings remained capability-linked with `0` null `capability_id` rows out of `644`.
 - [x] (2026-05-04) Milestone 3: tighten HWD ingest to reject legacy-only current payloads. `apps/hwd/src/dirt_hwd/api/ingest.py` now rejects known current `location`-only posts with a clear 422 requiring `device_id`; the legacy-only warning helper was removed; scoped fault/heartbeat posts update canonical `device` state through `touch_device()` without also updating `sensornode`; agent-owned ingest/readings/audit tests were updated and focused validation passed.
-- [ ] Milestone 4: replace remaining service inventories that are keyed by `SensorLocation`.
+- [x] (2026-05-04) Milestone 4: replace remaining service inventories that are keyed by `SensorLocation`. Daily report sensor validation/snapshot now discovers default-main tent requirements from `fan-controller` persisted capability contracts plus live capability rows, and plant moisture requirements from current `plant.moisture_capability_id` rows. Metric freshness state/logging now keys by `device_id:capability_id` and emits scoped fields without `location`. Voice sensor tools read default-main tent metrics with `device_id='fan-controller'` and plant moisture through current scoped plant capabilities. Production service code no longer imports legacy `SensorLocation` maps; `EMITTED_METRICS` and `PERSISTED_METRICS` remain only as derived compatibility exports for the human-owned invariant suite.
 - [ ] Milestone 5: remove legacy `sensornode` storage and maps after current and historical paths no longer need them.
 
 
@@ -64,6 +64,18 @@ This is local-controller work. The homebox remains the hardware authority. Do no
 
 - Observation: Current fault/heartbeat-only scoped ingest no longer updates `sensornode`.
   Evidence: `ReadingsService.touch_device()` now updates only canonical `device` heartbeat fields. Rejected reservoir payload tests were updated to assert canonical device freshness and no readings, not legacy node metadata updates.
+
+- Observation: The metric freshness state key needed both device and capability identity.
+  Evidence: Every plant node has a public `capability_id='soil_moisture_raw'`. Keying by capability alone would collapse plant A-D into one alert state, so `ReadingsService.get_capability_freshness_snapshot()` now returns keys like `plant-a-node:soil_moisture_raw`.
+
+- Observation: Daily report and voice plant moisture were already close to scoped reads.
+  Evidence: Both paths resolved current grow `Plant.moisture_capability_id` before reading plant moisture. Milestone 4 removed the remaining `SensorLocation` loop from those paths and made current `Plant` rows the inventory.
+
+- Observation: Human-owned invariants still import the legacy sensor-contract maps.
+  Evidence: `uv run pytest apps/tests/invariants/ -q` initially failed during collection because `apps/tests/invariants/test_sensor_contract.py` imports `EMITTED_METRICS` and `PERSISTED_METRICS`. The maps remain as compatibility exports derived from `DEVICE_METRICS`, but production service code no longer imports them.
+
+- Observation: Some web endpoint tests still imported the removed legacy location-to-device map.
+  Evidence: Main-agent commit-hook review found `apps/web/tests/test_plants_{detail,list,moisture}_endpoint.py` importing `LEGACY_LOCATION_DEVICE_IDS`. Those agent-owned tests now use `device_id_for_legacy_location()` and the targeted web test trio passed.
 
 
 ## Decision Log
@@ -110,6 +122,8 @@ The physical rollout completed after explicit OTA confirmation. Standard OTA suc
 Milestone 2 is complete. The scoped-only firmware soaked for the configured 10-minute window with no legacy-only ingest warnings in `dirt-hwd`, fresh expected firmware versions for every current ESP32 device, and recent live readings fully linked to capabilities. The next milestone can tighten current HWD ingest so known current payloads must include `device_id`.
 
 Milestone 3 is complete. Known current legacy-only HWD ingest posts now return HTTP 422 with `device_id is required for current sensor ingest`; the old `accepted legacy location-only sensor ingest` warning path has been removed because those payloads are no longer accepted. Current scoped posts still derive a temporary compatibility location for sensor-quality checks and `sensornode_id` writes while the legacy table remains, but `device_id` is the canonical heartbeat identity and `touch_device()` no longer writes `SensorNode`.
+
+Milestone 4 is complete. Daily report, metric freshness, and voice sensor summaries no longer use service inventories keyed by `SensorLocation`. The remaining `SensorLocation` references are compatibility/model surfaces for the still-live `sensornode` and `sensorreading.sensornode_id` schema, the HWD ingest compatibility bridge, the humidifier's legacy internal recording path, centralized readings compatibility helpers, and human-owned invariant compatibility. `sensor_contract.py` stopped exporting `LEGACY_LOCATION_DEVICE_IDS`, `emitted_metrics()`, and `persisted_metrics()`; `EMITTED_METRICS` and `PERSISTED_METRICS` remain as derived compatibility exports solely because the human-owned invariant suite imports them until Milestone 5 removes `SensorLocation`.
 
 
 ## Context and Orientation
@@ -468,6 +482,23 @@ Milestone 3 validation:
     first attempt only:
     concurrent database-backed pytest commands failed with asyncpg InvalidCatalogNameError because the shared test template database was dropped by the other pytest process; rerunning sequentially passed.
 
+Milestone 4 validation:
+
+    uv run pytest apps/shared/tests/test_daily_sensors.py apps/shared/tests/test_daily_report.py apps/shared/tests/test_milestone4_scope.py apps/hwd/tests/test_metric_freshness.py apps/voice/tests/test_sensor_tools.py apps/shared/tests/test_legacy_retirement_audit.py -q
+    49 passed
+
+    uv run pytest apps/web/tests/test_plants_detail_endpoint.py apps/web/tests/test_plants_list_endpoint.py apps/web/tests/test_plants_moisture_endpoint.py -q
+    15 passed
+
+    uv run pytest apps/tests/invariants -q
+    115 passed, 1 skipped
+
+    uv run pytest apps/shared/tests apps/hwd/tests apps/voice/tests -q
+    311 passed
+
+    uv run pytest apps/shared/tests apps/hwd/tests apps/voice/tests apps/web/tests -q
+    421 passed
+
 
 ## Revision Notes
 
@@ -479,3 +510,4 @@ Milestone 3 validation:
 - 2026-05-04: Milestone 1 OTA rollout completed for fan, plant A-D, and reservoir after direct-IP retries for reservoir, plant D, and plant B. Plant B and plant D transfer reliability remains a hardware/network risk, but both report the scoped-only firmware version.
 - 2026-05-04: Milestone 2 soak gate completed with zero legacy-only ingest warnings over the 10-minute live window and current readings still capability-linked.
 - 2026-05-04: Milestone 3 HWD ingest tightening completed. Known current location-only payloads now fail with clear 422, the legacy-only warning helper was removed, `touch_device()` is canonical device-only, and the remaining location-only compatibility path is explicitly legacy/test-only until final `sensornode` removal.
+- 2026-05-04: Milestone 4 service inventory cleanup completed. Daily report, metric freshness, and voice sensor summaries use scoped device/capability inventories; remaining legacy maps are compatibility-only until Milestone 5.

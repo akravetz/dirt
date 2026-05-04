@@ -9,10 +9,9 @@ from pathlib import Path
 from dirt_shared.models.enums import SensorLocation
 from dirt_shared.sensor_contract import (
     DEVICE_METRICS,
-    EMITTED_METRICS,
-    LEGACY_LOCATION_DEVICE_IDS,
-    PERSISTED_METRICS,
+    device_id_for_legacy_location,
     emitted_metrics_for_device_id,
+    persisted_capability_ids_for_device_id,
     persisted_metrics_for_device_id,
 )
 
@@ -58,25 +57,18 @@ LEGACY_REFERENCE_TOKENS = (
     "SensorNode",
     "sensornode_id",
     "legacy_location",
-    "LEGACY_LOCATION_DEVICE_IDS",
-    "EMITTED_METRICS",
-    "PERSISTED_METRICS",
     "missing_emitted",
-    "persisted_metrics(",
 )
 
 EXPECTED_LEGACY_REFERENCE_FILES = frozenset(
     {
         "apps/hwd/src/dirt_hwd/api/ingest.py",
         "apps/hwd/src/dirt_hwd/services/humidifier.py",
-        "apps/hwd/src/dirt_hwd/services/metric_freshness.py",
-        "apps/voice/src/dirt_voice/tools/sensors.py",
         "apps/shared/src/dirt_shared/models/__init__.py",
         "apps/shared/src/dirt_shared/models/enums.py",
         "apps/shared/src/dirt_shared/models/sensor_node.py",
         "apps/shared/src/dirt_shared/models/sensor_reading.py",
         "apps/shared/src/dirt_shared/sensor_contract.py",
-        "apps/shared/src/dirt_shared/services/daily_sensors.py",
         "apps/shared/src/dirt_shared/services/readings.py",
     }
 )
@@ -202,24 +194,26 @@ def test_current_reading_and_calibration_writers_carry_capability_scope() -> Non
     )
 
 
-def test_legacy_sensor_contract_maps_are_derived_from_device_contracts() -> None:
+def test_legacy_sensor_contract_helpers_are_derived_from_device_contracts() -> None:
     expected_locations = {contract[0] for contract in DEVICE_METRICS.values()}
-    expected_legacy_devices = {
+    expected_devices_by_location = {
         contract[0]: device_id for device_id, contract in DEVICE_METRICS.items()
-    }
-    expected_emitted_metrics = {
-        contract[0]: emitted_metrics_for_device_id(device_id)
-        for device_id, contract in DEVICE_METRICS.items()
-    }
-    expected_persisted_metrics = {
-        contract[0]: persisted_metrics_for_device_id(device_id)
-        for device_id, contract in DEVICE_METRICS.items()
     }
 
     assert expected_locations == set(SensorLocation)
-    assert expected_legacy_devices == LEGACY_LOCATION_DEVICE_IDS
-    assert expected_emitted_metrics == EMITTED_METRICS
-    assert expected_persisted_metrics == PERSISTED_METRICS
+    assert {
+        location: device_id_for_legacy_location(location) for location in SensorLocation
+    } == expected_devices_by_location
+    for device_id, contract in DEVICE_METRICS.items():
+        assert emitted_metrics_for_device_id(device_id) == {
+            metric[0] for metric in contract[1].values() if metric[1]
+        }
+        assert persisted_metrics_for_device_id(device_id) == {
+            metric[0] for metric in contract[1].values() if metric[2]
+        }
+        assert persisted_capability_ids_for_device_id(device_id) == {
+            capability_id for capability_id, metric in contract[1].items() if metric[2]
+        }
 
 
 def test_device_contract_metrics_are_keyed_by_capability_identity() -> None:

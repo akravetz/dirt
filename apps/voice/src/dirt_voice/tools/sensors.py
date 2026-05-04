@@ -15,11 +15,11 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from dirt_shared.models.enums import SensorLocation
+from dirt_shared.models.device import Capability, Device
 from dirt_shared.models.plant import Plant
 from dirt_shared.models.sensor_calibration import SensorCalibration
 from dirt_shared.models.sensor_reading import SensorReading
-from dirt_shared.sensor_contract import persisted_metrics
+from dirt_shared.sensor_contract import persisted_metrics_for_device_id
 from dirt_shared.services.grow_state import GrowStateService, in_band
 from dirt_shared.services.readings import (
     ReadingsService,
@@ -29,12 +29,7 @@ from dirt_shared.services.readings import (
 from dirt_shared.services.scope import current_grow_run
 from dirt_voice.tools import ToolSpec
 
-PLANT_LOCATIONS = (
-    SensorLocation.PLANT_A,
-    SensorLocation.PLANT_B,
-    SensorLocation.PLANT_C,
-    SensorLocation.PLANT_D,
-)
+DEFAULT_TENT_SENSOR_DEVICE_ID = "fan-controller"
 
 # `dew_point_f` is informational (rarely actionable indoors); out-of-range
 # is suppressed for it so we don't distract Claudia with non-signal. Temp /
@@ -65,20 +60,18 @@ async def _latest_soil_moisture_pct(
         grow = await current_grow_run(session)
         if grow is None:
             return out, ages
-        for loc in PLANT_LOCATIONS:
-            plant_code = loc.value.removeprefix("plant-")
-            plant = (
-                await session.exec(
-                    select(Plant)
-                    .where(Plant.growrun_id == grow.id)
-                    .where(Plant.code == plant_code)
-                )
-            ).first()
-            if plant is None or plant.moisture_capability_id is None:
-                continue
+        plant_rows = (
+            await session.exec(
+                select(Plant.code, Plant.moisture_capability_id)
+                .where(Plant.growrun_id == grow.id)
+                .where(Plant.moisture_capability_id.is_not(None))
+                .order_by(Plant.code)
+            )
+        ).all()
+        for plant_code, moisture_capability_id in plant_rows:
             reading_res = await session.exec(
                 select(SensorReading)
-                .where(SensorReading.capability_id == plant.moisture_capability_id)
+                .where(SensorReading.capability_id == moisture_capability_id)
                 .where(SensorReading.metric == "soil_moisture_raw")
                 .order_by(SensorReading.ts.desc())
                 .limit(1)
@@ -88,7 +81,7 @@ async def _latest_soil_moisture_pct(
                 continue
             cal_res = await session.exec(
                 select(SensorCalibration)
-                .where(SensorCalibration.capability_id == plant.moisture_capability_id)
+                .where(SensorCalibration.capability_id == moisture_capability_id)
                 .where(SensorCalibration.metric == "soil_moisture_raw")
             )
             cal = cal_res.first()
@@ -97,7 +90,7 @@ async def _latest_soil_moisture_pct(
             pct = compute_calibrated_pct(row.value, cal.raw_low, cal.raw_high)
             if pct is None:
                 continue
-            out[loc.value.removeprefix("plant-")] = round(pct, 1)
+            out[plant_code] = round(pct, 1)
             ages.append((now - row.ts).total_seconds())
     return out, ages
 
@@ -114,7 +107,9 @@ def build_sensor_tools(
     ``clock`` is the same one wired through ``build_core_services`` —
     keeping age computations and trend cutoffs aligned with the services
     the tools consume."""
-    tent_metrics: frozenset[str] = persisted_metrics(SensorLocation.TENT)
+    tent_metrics: frozenset[str] = persisted_metrics_for_device_id(
+        DEFAULT_TENT_SENSOR_DEVICE_ID
+    )
 
     async def _get_current_status() -> dict:
         readings_out: dict[str, float] = {}
@@ -124,7 +119,9 @@ def build_sensor_tools(
         targets = await grow.current_targets()
 
         for metric in sorted(tent_metrics):
-            r = await readings.get_latest_reading(metric)
+            r = await readings.get_latest_reading(
+                metric, device_id=DEFAULT_TENT_SENSOR_DEVICE_ID
+            )
             if r is None:
                 continue
             readings_out[metric] = round(r.value, 2)
@@ -165,14 +162,17 @@ def build_sensor_tools(
         async with AsyncSession(engine) as session:
             capability_id = await resolve_metric_capability_id(
                 session,
-                location=SensorLocation.TENT,
                 metric=sensor,
+                device_id=DEFAULT_TENT_SENSOR_DEVICE_ID,
             )
             if capability_id is None:
                 return {"error": f"no capability for {sensor}"}
             result = await session.exec(
                 select(SensorReading)
+                .join(Capability, Capability.id == SensorReading.capability_id)
+                .join(Device, Device.id == Capability.device_id)
                 .where(SensorReading.capability_id == capability_id)
+                .where(Device.device_id == DEFAULT_TENT_SENSOR_DEVICE_ID)
                 .where(SensorReading.metric == sensor)
                 .where(SensorReading.ts >= cutoff)
                 .order_by(SensorReading.ts)

@@ -448,7 +448,7 @@ class DailyReport:
             val = "?" if f.value is None else f"{f.value:.2f}"
             age = "?" if f.age_s is None else f"{f.age_s:.0f}s"
             lines.append(
-                f"{f.location}/{f.metric}: value={val} age={age} reason={f.reason}"
+                f"{f.subject}/{f.metric}: value={val} age={age} reason={f.reason}"
             )
         return "; ".join(lines)
 

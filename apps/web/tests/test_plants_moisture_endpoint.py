@@ -26,7 +26,7 @@ from dirt_shared.models.enums import SensorLocation, SensorSource
 from dirt_shared.models.sensor_calibration import SensorCalibration
 from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
-from dirt_shared.sensor_contract import LEGACY_LOCATION_DEVICE_IDS
+from dirt_shared.sensor_contract import device_id_for_legacy_location
 from dirt_web.app import create_app
 
 
@@ -42,10 +42,12 @@ async def _sensornode_id(engine, location: SensorLocation) -> int:
 
 async def _moisture_capability_id(engine, location: SensorLocation) -> int:
     async with AsyncSession(engine) as s:
+        device_id = device_id_for_legacy_location(location)
+        assert device_id is not None
         result = await s.exec(
             select(Capability.id)
             .join(Device, Device.id == Capability.device_id)
-            .where(Device.device_id == LEGACY_LOCATION_DEVICE_IDS[location])
+            .where(Device.device_id == device_id)
             .where(Capability.capability_id == "soil_moisture_raw")
         )
         capability_id = result.first()

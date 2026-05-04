@@ -31,7 +31,12 @@ from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.models.site import Site
 from dirt_shared.models.tent import Tent
 from dirt_shared.models.zone import Zone
-from dirt_shared.sensor_contract import LEGACY_LOCATION_DEVICE_IDS, persisted_metrics
+from dirt_shared.sensor_contract import (
+    DEVICE_METRICS,
+    device_id_for_legacy_location,
+    persisted_capability_ids_for_device_id,
+    persisted_metrics_for_device_id,
+)
 from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID
 
 logger = logging.getLogger(__name__)
@@ -272,17 +277,7 @@ async def _touch_device_heartbeat(  # noqa: PLR0913
 
 
 def _legacy_device_id(location: SensorLocation | str | None) -> str | None:
-    if location is None:
-        return None
-    try:
-        loc = (
-            location
-            if isinstance(location, SensorLocation)
-            else SensorLocation(location)
-        )
-    except ValueError:
-        return None
-    return LEGACY_LOCATION_DEVICE_IDS.get(loc)
+    return device_id_for_legacy_location(location)
 
 
 def _resolved_device_id(
@@ -553,59 +548,6 @@ class ReadingsService:
             )
             return result.first()
 
-    async def get_metric_freshness_snapshot(
-        self,
-        stale_cutoff: datetime,
-        *,
-        site_id: str = DEFAULT_SITE_ID,
-        tent_id: str | None = None,
-    ) -> dict[tuple[SensorLocation, str], tuple[str, datetime | None]]:
-        """For every metric in ``PERSISTED_METRICS``, classify as fresh/stale.
-
-        Returns ``{(location, metric): ("fresh"|"stale", last_ts_or_None)}``.
-
-        Skips locations whose canonical device heartbeat is older than
-        ``stale_cutoff`` — whole-device outages are DeviceWatchdog's job, and
-        a dead device would otherwise fan out into N alerts.
-        """
-        from dirt_shared.sensor_contract import PERSISTED_METRICS
-
-        out: dict[tuple[SensorLocation, str], tuple[str, datetime | None]] = {}
-        async with AsyncSession(self._engine) as session:
-            devices_by_id = await _devices_by_public_id(session, site_id=site_id)
-            for location, metrics in PERSISTED_METRICS.items():
-                if not metrics:
-                    continue
-                device_id = _legacy_device_id(location)
-                if device_id is None:
-                    continue
-                device = devices_by_id.get(device_id)
-                if device is None or device.last_seen is None:
-                    continue
-                if _as_utc(device.last_seen) < stale_cutoff:
-                    continue
-
-                for metric in sorted(metrics):
-                    row = (
-                        await session.exec(
-                            _scoped_readings_select(
-                                metric,
-                                site_id=site_id,
-                                tent_id=tent_id,
-                                device_id=device_id,
-                            )
-                            .order_by(SensorReading.ts.desc())
-                            .limit(1)
-                        )
-                    ).first()
-                    if row is None:
-                        out[(location, metric)] = ("stale", None)
-                        continue
-                    ts = _as_utc(row.ts)
-                    status = "fresh" if ts >= stale_cutoff else "stale"
-                    out[(location, metric)] = (status, ts)
-        return out
-
     async def get_capability_freshness_snapshot(
         self,
         stale_cutoff: datetime,
@@ -613,50 +555,43 @@ class ReadingsService:
         site_id: str = DEFAULT_SITE_ID,
         tent_id: str | None = DEFAULT_TENT_ID,
     ) -> dict[str, tuple[str, datetime | None, dict[str, str | None]]]:
-        """Classify freshness keyed by stable capability id for alert state."""
-        from dirt_shared.sensor_contract import PERSISTED_METRICS
-
+        """Classify freshness keyed by device/capability identity."""
         out: dict[str, tuple[str, datetime | None, dict[str, str | None]]] = {}
         async with AsyncSession(self._engine) as session:
             devices_by_id = await _devices_by_public_id(session, site_id=site_id)
-            for location, metrics in PERSISTED_METRICS.items():
-                device_public_id = _legacy_device_id(location)
-                if device_public_id is None:
-                    continue
+            for device_public_id in sorted(DEVICE_METRICS):
                 device = devices_by_id.get(device_public_id)
                 if device is None or device.last_seen is None:
                     continue
                 if _as_utc(device.last_seen) < stale_cutoff:
                     continue
 
-                for metric in sorted(metrics):
-                    capability_pk = await resolve_metric_capability_id(
-                        session,
-                        metric=metric,
-                        location=location,
-                        site_id=site_id,
-                        tent_id=tent_id,
-                        device_id=device_public_id,
-                    )
-                    if capability_pk is None:
-                        continue
+                for capability_public_id in sorted(
+                    persisted_capability_ids_for_device_id(device_public_id)
+                ):
                     cap_row = (
                         await session.exec(
-                            select(Capability.capability_id, Device.device_id)
+                            select(Capability.metric_name)
                             .join(Device, Device.id == Capability.device_id)
-                            .where(Capability.id == capability_pk)
+                            .join(Site, Site.id == Device.site_id)
+                            .where(Site.site_id == site_id)
+                            .where(Device.device_id == device_public_id)
+                            .where(Capability.capability_id == capability_public_id)
+                            .where(Capability.enabled.is_(True))
                         )
                     ).first()
                     if cap_row is None:
                         continue
-                    capability_public_id, resolved_device_id = cap_row
+                    metric = cap_row
+                    if metric is None:
+                        continue
                     row = (
                         await session.exec(
                             _scoped_readings_select(
                                 metric,
                                 site_id=site_id,
                                 tent_id=tent_id,
-                                device_id=resolved_device_id,
+                                device_id=device_public_id,
                                 capability_id=capability_public_id,
                             )
                             .order_by(SensorReading.ts.desc())
@@ -669,15 +604,14 @@ class ReadingsService:
                         if last_seen is None or last_seen < stale_cutoff
                         else "fresh"
                     )
-                    out[capability_public_id] = (
+                    out[f"{device_public_id}:{capability_public_id}"] = (
                         status,
                         last_seen,
                         {
                             "site_id": site_id,
                             "tent_id": tent_id,
-                            "device_id": resolved_device_id,
+                            "device_id": device_public_id,
                             "capability_id": capability_public_id,
-                            "location": location.value,
                             "metric": metric,
                         },
                     )
@@ -881,7 +815,7 @@ class ReadingsService:
         async with AsyncSession(self._engine) as session:
             return {
                 metric: await _get_metric_series(session, metric, range_key, cutoff)
-                for metric in sorted(persisted_metrics(SensorLocation.TENT))
+                for metric in sorted(persisted_metrics_for_device_id("fan-controller"))
             }
 
     async def get_metric_history(  # noqa: PLR0913

@@ -2,7 +2,7 @@
 
 Three responsibilities:
 
-1. **Snapshot the latest reading per (location, metric)** so the orchestrator
+1. **Snapshot the latest reading per capability** so the orchestrator
    can run the validation checks (zero, pinned, stale).
 2. **Aggregate windowed averages** for the prompt that goes to the synthesis
    sub-agent — overnight (00-06 MDT), morning (07-14 MDT), and the now
@@ -29,34 +29,30 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from dirt_shared.models.enums import SensorLocation
+from dirt_shared.models.device import Capability, Device
 from dirt_shared.models.plant import Plant
 from dirt_shared.models.sensor_calibration import SensorCalibration
 from dirt_shared.models.sensor_reading import SensorReading
-from dirt_shared.sensor_contract import persisted_metrics
+from dirt_shared.models.site import Site
+from dirt_shared.models.tent import Tent
+from dirt_shared.sensor_contract import persisted_capability_ids_for_device_id
 from dirt_shared.services.readings import (
     compute_calibrated_pct,
     get_sensor_calibration,
-    resolve_metric_capability_id,
 )
 from dirt_shared.services.scope import current_grow_run
 
 logger = logging.getLogger(__name__)
 
-PLANT_LOCATIONS: tuple[SensorLocation, ...] = (
-    SensorLocation.PLANT_A,
-    SensorLocation.PLANT_B,
-    SensorLocation.PLANT_C,
-    SensorLocation.PLANT_D,
-)
-TENT_LOCATION = SensorLocation.TENT
+DEFAULT_TENT_SENSOR_DEVICE_ID = "fan-controller"
 SOIL_METRIC = "soil_moisture_raw"
 MDT = ZoneInfo("America/Denver")
 
 
 @dataclass(frozen=True)
 class LatestReading:
-    location: SensorLocation
+    device_id: str
+    capability_id: str
     metric: str
     value: float
     timestamp: datetime  # always UTC-aware
@@ -64,10 +60,19 @@ class LatestReading:
 
 
 @dataclass(frozen=True)
+class SensorRequirement:
+    device_id: str
+    capability_id: str
+    metric: str
+    subject: str
+    pk: int
+
+
+@dataclass(frozen=True)
 class ValidationFailure:
     """Why a sensor reading failed the daily-report bail-out check."""
 
-    location: SensorLocation
+    subject: str
     metric: str
     value: float | None
     age_s: float | None
@@ -157,63 +162,102 @@ class SensorReader:
         self._max_age_s = max_age_s
         self._min_raw = sensor_min_raw
         self._max_raw = sensor_max_raw
-        self._plant_capability_ids: dict[SensorLocation, int | None] = {}
+        self._plant_requirements: list[SensorRequirement] | None = None
+        self._tent_requirements: list[SensorRequirement] | None = None
 
-    async def _plant_capability_id(
+    async def _tent_metric_requirements(
         self,
         session: AsyncSession,
-        location: SensorLocation,
-    ) -> int | None:
-        if location in self._plant_capability_ids:
-            return self._plant_capability_ids[location]
+    ) -> list[SensorRequirement]:
+        if self._tent_requirements is not None:
+            return self._tent_requirements
+        capability_ids = persisted_capability_ids_for_device_id(
+            DEFAULT_TENT_SENSOR_DEVICE_ID
+        )
+        if not capability_ids:
+            self._tent_requirements = []
+            return []
+        rows = (
+            await session.exec(
+                select(
+                    Capability.id,
+                    Capability.capability_id,
+                    Capability.metric_name,
+                )
+                .join(Device, Device.id == Capability.device_id)
+                .join(Site, Site.id == Device.site_id)
+                .join(Tent, Tent.id == Device.tent_id)
+                .where(Site.site_id == "homebox")
+                .where(Tent.tent_id == "main")
+                .where(Device.device_id == DEFAULT_TENT_SENSOR_DEVICE_ID)
+                .where(Device.enabled.is_(True))
+                .where(Capability.enabled.is_(True))
+                .where(Capability.capability_id.in_(capability_ids))
+                .order_by(Capability.capability_id)
+            )
+        ).all()
+        self._tent_requirements = [
+            SensorRequirement(
+                device_id=DEFAULT_TENT_SENSOR_DEVICE_ID,
+                capability_id=capability_id,
+                metric=metric_name,
+                subject=DEFAULT_TENT_SENSOR_DEVICE_ID,
+                pk=pk,
+            )
+            for pk, capability_id, metric_name in rows
+            if metric_name is not None
+        ]
+        return self._tent_requirements
 
+    async def _plant_metric_requirements(
+        self,
+        session: AsyncSession,
+    ) -> list[SensorRequirement]:
+        if self._plant_requirements is not None:
+            return self._plant_requirements
         grow = await current_grow_run(session)
         if grow is None:
-            self._plant_capability_ids[location] = None
-            return None
-
-        plant_code = location.value.removeprefix("plant-")
-        plant = (
+            self._plant_requirements = []
+            return []
+        rows = (
             await session.exec(
-                select(Plant)
+                select(
+                    Plant.code,
+                    Device.device_id,
+                    Capability.capability_id,
+                    Capability.metric_name,
+                    Capability.id,
+                )
+                .join(Capability, Capability.id == Plant.moisture_capability_id)
+                .join(Device, Device.id == Capability.device_id)
                 .where(Plant.growrun_id == grow.id)
-                .where(Plant.code == plant_code)
+                .where(Plant.moisture_capability_id.is_not(None))
+                .where(Capability.enabled.is_(True))
+                .where(Device.enabled.is_(True))
+                .order_by(Plant.code)
             )
-        ).first()
-        capability_id = None if plant is None else plant.moisture_capability_id
-        self._plant_capability_ids[location] = capability_id
-        return capability_id
+        ).all()
+        self._plant_requirements = [
+            SensorRequirement(
+                device_id=device_id,
+                capability_id=capability_id,
+                metric=metric_name,
+                subject=f"plant-{code}",
+                pk=pk,
+            )
+            for code, device_id, capability_id, metric_name, pk in rows
+            if metric_name == SOIL_METRIC
+        ]
+        return self._plant_requirements
 
-    async def _capability_id(
-        self,
-        session: AsyncSession,
-        location: SensorLocation,
-        metric: str,
-    ) -> int | None:
-        if metric == SOIL_METRIC and location in PLANT_LOCATIONS:
-            capability_id = await self._plant_capability_id(session, location)
-            if capability_id is not None:
-                return capability_id
-
-            # Compatibility fallback for pre-backfill rows. Current daily
-            # plant reads are owned by Plant.moisture_capability_id.
-        return await resolve_metric_capability_id(
-            session,
-            location=location,
-            metric=metric,
-        )
-
-    async def latest(
-        self, location: SensorLocation, metric: str
+    async def _latest_for_requirement(
+        self, requirement: SensorRequirement
     ) -> LatestReading | None:
         async with AsyncSession(self._engine) as session:
-            capability_id = await self._capability_id(session, location, metric)
-            if capability_id is None:
-                return None
             result = await session.exec(
                 select(SensorReading)
-                .where(SensorReading.capability_id == capability_id)
-                .where(SensorReading.metric == metric)
+                .where(SensorReading.capability_id == requirement.pk)
+                .where(SensorReading.metric == requirement.metric)
                 .order_by(SensorReading.ts.desc())
                 .limit(1)
             )
@@ -222,8 +266,9 @@ class SensorReader:
             return None
         age = (self._clock() - row.ts).total_seconds()
         return LatestReading(
-            location=location,
-            metric=metric,
+            device_id=requirement.device_id,
+            capability_id=requirement.capability_id,
+            metric=requirement.metric,
             value=row.value,
             timestamp=row.ts,
             age_s=age,
@@ -242,62 +287,92 @@ class SensorReader:
         """
         failures: list[ValidationFailure] = []
 
-        for metric in sorted(persisted_metrics(TENT_LOCATION)):
-            r = await self.latest(TENT_LOCATION, metric)
+        async with AsyncSession(self._engine) as session:
+            tent_requirements = await self._tent_metric_requirements(session)
+            plant_requirements = await self._plant_metric_requirements(session)
+
+        for requirement in tent_requirements:
+            r = await self._latest_for_requirement(requirement)
             if r is None:
                 failures.append(
-                    ValidationFailure(TENT_LOCATION, metric, None, None, "missing")
+                    ValidationFailure(
+                        requirement.subject, requirement.metric, None, None, "missing"
+                    )
                 )
                 continue
             if r.value == 0.0:
                 failures.append(
-                    ValidationFailure(TENT_LOCATION, metric, r.value, r.age_s, "zero")
+                    ValidationFailure(
+                        requirement.subject,
+                        requirement.metric,
+                        r.value,
+                        r.age_s,
+                        "zero",
+                    )
                 )
             if r.age_s > self._max_age_s:
                 failures.append(
-                    ValidationFailure(TENT_LOCATION, metric, r.value, r.age_s, "stale")
+                    ValidationFailure(
+                        requirement.subject,
+                        requirement.metric,
+                        r.value,
+                        r.age_s,
+                        "stale",
+                    )
                 )
 
-        for loc in PLANT_LOCATIONS:
-            r = await self.latest(loc, SOIL_METRIC)
+        for requirement in plant_requirements:
+            r = await self._latest_for_requirement(requirement)
             if r is None:
                 failures.append(
-                    ValidationFailure(loc, SOIL_METRIC, None, None, "missing")
+                    ValidationFailure(
+                        requirement.subject, requirement.metric, None, None, "missing"
+                    )
                 )
                 continue
             if r.value < self._min_raw:
                 failures.append(
                     ValidationFailure(
-                        loc, SOIL_METRIC, r.value, r.age_s, "raw_pinned_low"
+                        requirement.subject,
+                        requirement.metric,
+                        r.value,
+                        r.age_s,
+                        "raw_pinned_low",
                     )
                 )
             if r.value > self._max_raw:
                 failures.append(
                     ValidationFailure(
-                        loc, SOIL_METRIC, r.value, r.age_s, "raw_pinned_high"
+                        requirement.subject,
+                        requirement.metric,
+                        r.value,
+                        r.age_s,
+                        "raw_pinned_high",
                     )
                 )
             if r.age_s > self._max_age_s:
                 failures.append(
-                    ValidationFailure(loc, SOIL_METRIC, r.value, r.age_s, "stale")
+                    ValidationFailure(
+                        requirement.subject,
+                        requirement.metric,
+                        r.value,
+                        r.age_s,
+                        "stale",
+                    )
                 )
         return failures
 
     async def _avg_in_window(
         self,
-        location: SensorLocation,
-        metric: str,
+        requirement: SensorRequirement,
         start: datetime,
         end: datetime,
     ) -> WindowAvg:
         async with AsyncSession(self._engine) as session:
-            capability_id = await self._capability_id(session, location, metric)
-            if capability_id is None:
-                return WindowAvg(avg=None, n=0)
             result = await session.exec(
                 select(SensorReading.value)
-                .where(SensorReading.capability_id == capability_id)
-                .where(SensorReading.metric == metric)
+                .where(SensorReading.capability_id == requirement.pk)
+                .where(SensorReading.metric == requirement.metric)
                 .where(SensorReading.ts >= start)
                 .where(SensorReading.ts < end)
             )
@@ -307,21 +382,18 @@ class SensorReader:
         return WindowAvg(avg=mean(values), n=len(values))
 
     async def _calibration(
-        self, location: SensorLocation, metric: str
+        self, requirement: SensorRequirement
     ) -> SensorCalibration | None:
         async with AsyncSession(self._engine) as session:
-            capability_id = await self._capability_id(session, location, metric)
-            if capability_id is None:
-                return None
             return await get_sensor_calibration(
                 session,
-                metric=metric,
-                capability_id=capability_id,
+                metric=requirement.metric,
+                capability_id=requirement.pk,
             )
 
     async def _avg_pct_in_window(
         self,
-        location: SensorLocation,
+        requirement: SensorRequirement,
         start: datetime,
         end: datetime,
         cal: SensorCalibration | None,
@@ -330,13 +402,10 @@ class SensorReader:
         if cal is None:
             return WindowAvg(avg=None, n=0)
         async with AsyncSession(self._engine) as session:
-            capability_id = await self._capability_id(session, location, SOIL_METRIC)
-            if capability_id is None:
-                return WindowAvg(avg=None, n=0)
             result = await session.exec(
                 select(SensorReading.value)
-                .where(SensorReading.capability_id == capability_id)
-                .where(SensorReading.metric == SOIL_METRIC)
+                .where(SensorReading.capability_id == requirement.pk)
+                .where(SensorReading.metric == requirement.metric)
                 .where(SensorReading.ts >= start)
                 .where(SensorReading.ts < end)
             )
@@ -363,28 +432,34 @@ class SensorReader:
         overnight = mdt_window_to_utc(target_date, 0, 6)
         morning = mdt_window_to_utc(target_date, 7, 14)
 
+        async with AsyncSession(self._engine) as session:
+            tent_requirements = await self._tent_metric_requirements(session)
+            plant_requirements = await self._plant_metric_requirements(session)
+
         tent: dict[str, dict[str, WindowAvg | float | None]] = {}
-        for metric in sorted(persisted_metrics(TENT_LOCATION)):
-            now_r = await self.latest(TENT_LOCATION, metric)
-            tent[metric] = {
-                "overnight": await self._avg_in_window(
-                    TENT_LOCATION, metric, *overnight
-                ),
-                "morning": await self._avg_in_window(TENT_LOCATION, metric, *morning),
+        for requirement in tent_requirements:
+            now_r = await self._latest_for_requirement(requirement)
+            tent[requirement.metric] = {
+                "overnight": await self._avg_in_window(requirement, *overnight),
+                "morning": await self._avg_in_window(requirement, *morning),
                 "now": (None if now_r is None else now_r.value),
             }
 
         plants: dict[str, dict[str, WindowAvg | float | None]] = {}
-        for loc in PLANT_LOCATIONS:
-            cal = await self._calibration(loc, SOIL_METRIC)
-            now_r = await self.latest(loc, SOIL_METRIC)
+        for requirement in plant_requirements:
+            cal = await self._calibration(requirement)
+            now_r = await self._latest_for_requirement(requirement)
             now_pct: float | None = None
             if now_r is not None and cal is not None:
                 now_pct = compute_calibrated_pct(now_r.value, cal.raw_low, cal.raw_high)
-            letter = loc.value.removeprefix("plant-")
+            letter = requirement.subject.removeprefix("plant-")
             plants[letter] = {
-                "overnight_pct": await self._avg_pct_in_window(loc, *overnight, cal),
-                "morning_pct": await self._avg_pct_in_window(loc, *morning, cal),
+                "overnight_pct": await self._avg_pct_in_window(
+                    requirement, *overnight, cal
+                ),
+                "morning_pct": await self._avg_pct_in_window(
+                    requirement, *morning, cal
+                ),
                 "now_pct": now_pct,
             }
 
