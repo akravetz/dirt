@@ -16,9 +16,8 @@
 // OTA port:      3232 (ArduinoOTA default)
 //
 // Send-only; no response parsing. Posts as homebox/main/plant-{PLANT_ID}/
-// plant-{PLANT_ID}-node, with legacy location=plant-{PLANT_ID} retained
-// during the compatibility window. The server computes the calibrated pct
-// from raw via SensorCalibration (auto-tracked extrema per node+metric).
+// plant-{PLANT_ID}-node. The server computes the calibrated pct from raw via
+// SensorCalibration (auto-tracked extrema per node+metric).
 
 #include <Arduino.h>
 #include <driver/adc.h>
@@ -47,7 +46,6 @@ constexpr uint32_t POST_INTERVAL_MS = 30000;   // 30s between POSTs
 constexpr uint32_t HTTP_TIMEOUT_MS  = 5000;
 constexpr uint16_t ADC_SAMPLES      = 16;      // average N reads
 
-const char* const LOCATION = "plant-" PLANT_ID;  // e.g. "plant-a"
 const char* const SITE_ID = "homebox";
 const char* const TENT_ID = "main";
 const char* const ZONE_ID = "plant-" PLANT_ID;
@@ -76,7 +74,7 @@ int readMoistureRaw() {
 void setup() {
     Serial.begin(115200);
     delay(2000);  // give USB-CDC host a moment
-    Serial.printf("\n# plant-node %s fw=%s\n", LOCATION, FIRMWARE_VERSION);
+    Serial.printf("\n# plant-node %s fw=%s\n", ZONE_ID, FIRMWARE_VERSION);
 
     // Configure ADC via ESP-IDF driver (see note on MOISTURE_ADC_CH).
     adc1_config_width(ADC_WIDTH_BIT_12);
@@ -97,7 +95,7 @@ void loop() {
         char metrics[48];
         snprintf(metrics, sizeof(metrics),
                  "{\"soil_moisture_raw\":%d}", raw);
-        int code = ingest.post(LOCATION, SITE_ID, TENT_ID, ZONE_ID, DEVICE_ID, metrics);
+        int code = ingest.post(SITE_ID, TENT_ID, ZONE_ID, DEVICE_ID, metrics);
         if (code > 0) Serial.printf("[post] raw=%d http=%d\n", raw, code);
     }
 

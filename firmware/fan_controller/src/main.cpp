@@ -4,8 +4,7 @@
 //
 // Network roles:
 //   - Posts {temperature_c, humidity_pct, fan_duty_pct} to the dirt ingest
-//     endpoint as homebox/main/canopy/fan-controller, with legacy
-//     location=tent retained during the compatibility window.
+//     endpoint as homebox/main/canopy/fan-controller.
 //   - Exposes a LAN HTTP control surface on :80 — POST /fan {"duty_pct":N}
 //     sets the fan; GET /fan returns {"set_duty_pct":N,"reported_duty_pct":N}.
 //     `reported_duty_pct` is MOCKED (echoes the last-set value) until the
@@ -59,7 +58,6 @@ constexpr uint8_t  BOOT_SPEED_PCT   = 15;
 constexpr uint32_t EQUILIBRATE_MS   = 59000;
 constexpr uint32_t SENSOR_RETRY_MS  = 5000;
 
-constexpr const char* LOCATION = "tent";
 constexpr const char* SITE_ID = "homebox";
 constexpr const char* TENT_ID = "main";
 constexpr const char* ZONE_ID = "canopy";
@@ -212,7 +210,7 @@ void complete_cycle() {
     snprintf(metrics, sizeof(metrics),
              "{\"temperature_c\":%.2f,\"humidity_pct\":%.2f,\"fan_duty_pct\":%u}",
              temp.temperature, humidity.relative_humidity, g_set_duty_pct);
-    int code = ingest.post(LOCATION, SITE_ID, TENT_ID, ZONE_ID, DEVICE_ID, metrics);
+    int code = ingest.post(SITE_ID, TENT_ID, ZONE_ID, DEVICE_ID, metrics);
     if (code > 0) Serial.printf("[ingest] http=%d\n", code);
 
     // Chain straight into the next pulse per Sensirion AN §3.

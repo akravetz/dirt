@@ -17,7 +17,7 @@ This is local-controller work. The homebox remains the hardware authority. Do no
 ## Progress
 
 - [x] (2026-05-04) Created this ExecPlan as a reviewable scope document after `LegacyCompatibilityRetirementExecPlan.md` was implemented, migrations were applied live, services restarted, and smoke checks passed.
-- [ ] Milestone 1: firmware scoped-only POST support and board rollout.
+- [x] (2026-05-04) Milestone 1: firmware scoped-only POST support and board rollout. `firmware/common/ingest_client/ingest_client.{h,cpp}` now builds scoped-only POST bodies without `location`; fan, plant, and reservoir sketches call the scoped-only API; retained legacy-location comments/constants were removed; firmware versions were bumped; build validation passed for fan, reservoir, and plant A-D environments; OTA upload succeeded for fan, plant A-D, and reservoir; live DB confirmed the expected firmware versions fan `0.2.1`, plant `0.1.2`, and reservoir `0.1.1` with fresh `device.last_seen`.
 - [ ] Milestone 2: soak and live compatibility telemetry gate.
 - [ ] Milestone 3: tighten HWD ingest to reject legacy-only current payloads.
 - [ ] Milestone 4: replace remaining service inventories that are keyed by `SensorLocation`.
@@ -37,6 +37,24 @@ This is local-controller work. The homebox remains the hardware authority. Do no
 
 - Observation: The remaining production legacy reference inventory is explicit and guarded.
   Evidence: `apps/shared/tests/test_legacy_retirement_audit.py` lists current files containing `SensorLocation`, `SensorNode`, `sensornode_id`, `legacy_location`, and legacy sensor-contract maps.
+
+- Observation: The normal firmware POST helper no longer has a retained legacy-location overload.
+  Evidence: `firmware/common/ingest_client/ingest_client.h` exposes `post(site_id, tent_id, zone_id, device_id, metrics_json)`, and `rg -n '"location"|location=|legacy|LOCATION|post\([^\n]*LOCATION' firmware/common firmware/fan_controller firmware/plant_node firmware/reservoir_node` returned no matches after Milestone 1 edits.
+
+- Observation: `plant_node` has one default PlatformIO environment even though rollout has four plant boards.
+  Evidence: `pio run` in `firmware/plant_node` built only `plant-a`; a separate `pio run -e plant-b -e plant-c -e plant-d` was run to validate the other board identities.
+
+- Observation: No firmware test directories were found for this milestone.
+  Evidence: `find firmware -maxdepth 3 \( -path '*/test/*' -o -path '*/tests/*' -o -name 'test_*' \) -print` produced no output.
+
+- Observation: Plant firmware still emits an existing PlatformIO deprecation warning for `ADC_ATTEN_DB_11`.
+  Evidence: Plant A-D builds succeeded, but each printed `warning: 'ADC_ATTEN_DB_11' is deprecated`; this predates the scoped-ingest change and behaves the same as `ADC_ATTEN_DB_12` per the SDK note.
+
+- Observation: Two cheap ESP32-C plant boards were unreliable over OTA even after authenticating.
+  Evidence: `pio run -e fan-ota -t upload`, `pio run -e plant-a-ota -t upload`, `pio run -e plant-c-ota -t upload`, and a direct-IP reservoir `espota.py` retry succeeded. `plant-b-ota` and `plant-d-ota` repeatedly failed during transfer after authentication, including one plant B attempt that reached 98% before failing. Later direct-IP OTA retries eventually succeeded for both boards, and a live `device` query showed `plant-b-node` and `plant-d-node` reporting firmware `0.1.2`.
+
+- Observation: Reservoir OTA config was pointed at an unset password env var even though this repo uses one shared node OTA password.
+  Evidence: The first `reservoir-ota` attempt passed an empty auth value from `RESERVOIR_OTA_PASSWORD` and failed authentication; `firmware/fan_controller/platformio.ini` already documents that `PLANT_OTA_PASSWORD` is shared across every dirt node. `firmware/reservoir_node/platformio.ini` now uses `PLANT_OTA_PASSWORD`; after that correction, a later direct-IP reservoir OTA retry completed and live heartbeat reported firmware `0.1.1`.
 
 
 ## Decision Log
@@ -72,7 +90,9 @@ This is local-controller work. The homebox remains the hardware authority. Do no
 
 ## Outcomes & Retrospective
 
-Not started. Fill this section after each milestone with the actual result, operational notes, and any remaining risk.
+Milestone 1 is complete. Scoped firmware POST bodies no longer serialize `location`, all current fan/plant/reservoir sketches use the scoped-only helper, stale retained-legacy-location comments/constants were removed, and firmware versions were bumped to fan `0.2.1`, plant `0.1.2`, and reservoir `0.1.1`.
+
+The physical rollout completed after explicit OTA confirmation. Standard OTA succeeded for fan, plant A, and plant C. Reservoir, plant D, and plant B required direct-IP OTA retries after transfer failures, but all six hardware targets later checked in with the expected firmware versions and fresh heartbeats. The next milestone is the 10-minute scoped-only soak and live compatibility telemetry gate.
 
 
 ## Context and Orientation
@@ -83,10 +103,10 @@ The remaining compatibility surfaces are different: they are mostly firmware wir
 
 Important files:
 
-- `firmware/common/ingest_client/ingest_client.{h,cpp}` builds ESP32 JSON POST bodies. It currently always includes `location`.
-- `firmware/fan_controller/src/main.cpp` posts as `homebox/main/canopy/fan-controller` but still retains `LOCATION = "tent"`.
-- `firmware/plant_node/src/main.cpp` posts as `homebox/main/plant-<id>/plant-<id>-node` but still retains `LOCATION = "plant-<id>"`.
-- `firmware/reservoir_node/src/main.cpp` posts as `homebox/main/reservoir/reservoir-node` but still retains `LOCATION = "reservoir"`.
+- `firmware/common/ingest_client/ingest_client.{h,cpp}` builds ESP32 JSON POST bodies. As of Milestone 1, the normal helper serializes scoped identity only and no longer includes `location`.
+- `firmware/fan_controller/src/main.cpp` posts as `homebox/main/canopy/fan-controller` through the scoped-only helper.
+- `firmware/plant_node/src/main.cpp` posts as `homebox/main/plant-<id>/plant-<id>-node` through the scoped-only helper.
+- `firmware/reservoir_node/src/main.cpp` posts as `homebox/main/reservoir/reservoir-node` through the scoped-only helper.
 - `apps/hwd/src/dirt_hwd/api/ingest.py` accepts either legacy `location` or scoped `device_id`, logs legacy-only posts, and derives compatibility location when needed.
 - `apps/shared/src/dirt_shared/services/readings.py` still writes `SensorNode` and non-null `SensorReading.sensornode_id` through centralized compatibility choke points.
 - `apps/shared/src/dirt_shared/sensor_contract.py` declares canonical `DEVICE_METRICS` but still exports derived legacy maps for compatibility.
@@ -309,6 +329,77 @@ Relevant previous plan:
 
     docs/epics/multi-tent-controller/LegacyCompatibilityRetirementExecPlan.md
 
+Milestone 1 build validation before hardware upload:
+
+    cd firmware/fan_controller && pio run
+    fan SUCCESS
+
+    cd firmware/plant_node && pio run
+    plant-a SUCCESS
+
+    cd firmware/plant_node && pio run -e plant-b -e plant-c -e plant-d
+    plant-b SUCCESS
+    plant-c SUCCESS
+    plant-d SUCCESS
+
+    cd firmware/reservoir_node && pio run
+    reservoir SUCCESS
+
+Milestone 1 OTA rollout:
+
+    cd firmware/fan_controller && pio run -e fan-ota -t upload
+    fan-ota SUCCESS
+
+    cd firmware/plant_node && pio run -e plant-a-ota -t upload
+    plant-a-ota SUCCESS
+
+    cd firmware/plant_node && pio run -e plant-c-ota -t upload
+    plant-c-ota SUCCESS
+
+    cd firmware/plant_node && pio run -e plant-b-ota -t upload
+    plant-b-ota FAILED during OTA transfer after authentication
+
+    cd firmware/plant_node && pio run -e plant-d-ota -t upload
+    plant-d-ota FAILED during OTA transfer after authentication
+
+    cd firmware/reservoir_node && pio run -e reservoir-ota -t upload
+    reservoir-ota FAILED during OTA transfer after authentication
+
+    cd firmware/reservoir_node
+    python3 ~/.platformio/packages/framework-arduinoespressif32/tools/espota.py \
+      -i 192.168.1.23 -p 3232 -a "$PLANT_OTA_PASSWORD" \
+      -f .pio/build/reservoir-ota/firmware.bin -r -t 60
+    reservoir direct-IP OTA SUCCESS
+
+    cd firmware/plant_node
+    python3 ~/.platformio/packages/framework-arduinoespressif32/tools/espota.py \
+      -i 192.168.1.74 -p 3232 -a "$PLANT_OTA_PASSWORD" \
+      -f .pio/build/plant-d-ota/firmware.bin -r -t 60
+    plant D direct-IP OTA SUCCESS after retries
+
+    cd firmware/plant_node
+    python3 ~/.platformio/packages/framework-arduinoespressif32/tools/espota.py \
+      -i 192.168.1.243 -p 3232 -a "$PLANT_OTA_PASSWORD" \
+      -f .pio/build/plant-b-ota/firmware.bin -r -t 60
+    plant B direct-IP OTA SUCCESS after retries
+
+Live verification after rollout:
+
+    fan-controller | 0.2.1
+    plant-a-node   | 0.1.2
+    plant-b-node   | 0.1.2
+    plant-c-node   | 0.1.2
+    plant-d-node   | 0.1.2
+    reservoir-node | 0.1.1
+
+Recent readings remained capability-linked:
+
+    null_capability_recent | recent_readings
+    -----------------------+----------------
+                         0 |            644
+
+Hardware upload completed. Milestone 2 should start from the completed rollout and use the configured 10-minute soak window.
+
 
 ## Interfaces and Dependencies
 
@@ -339,3 +430,5 @@ End-state service interfaces:
 - 2026-05-04: Set the scoped-only firmware soak gate to 10 minutes after review.
 - 2026-05-04: Chose canonical normalization for historical reservoir depth: convert `reservoir_depth_cm` rows to `reservoir_in` in storage during final schema cleanup.
 - 2026-05-04: Classified old `pressure_hpa` and one-off `plant-a` `humidity_pct` rows as discardable trash values retained only by the standard pre-migration `pg_dump`.
+- 2026-05-04: Milestone 1 source/build work completed for scoped-only firmware POST support.
+- 2026-05-04: Milestone 1 OTA rollout completed for fan, plant A-D, and reservoir after direct-IP retries for reservoir, plant D, and plant B. Plant B and plant D transfer reliability remains a hardware/network risk, but both report the scoped-only firmware version.
