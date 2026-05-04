@@ -57,6 +57,10 @@ This is local-controller work. The homebox remains the hardware authority. Do no
   Rationale: Both paths produce user-visible summaries. Removing legacy telemetry storage while leaving those services keyed by `SensorLocation` would preserve hidden default-main assumptions.
   Date/Author: 2026-05-04 / Codex
 
+- Decision: Use a 10-minute soak window after scoped-only firmware rollout.
+  Rationale: The ESP32 ingest cadence is roughly 30 seconds, so 10 minutes covers many fan, plant, and reservoir posts without unnecessarily delaying the next server-side tightening step. Longer monitoring can continue after the gate, but it should not block the milestone.
+  Date/Author: 2026-05-04 / Codex
+
 
 ## Outcomes & Retrospective
 
@@ -97,7 +101,7 @@ Change `firmware/common/ingest_client/ingest_client.h` and `.cpp` so callers can
 
 Milestone 2: Soak and live compatibility telemetry gate.
 
-Add or use existing structured log checks to prove no legacy-only ingest occurred over a chosen soak window. The soak should include normal fan, plant, and reservoir post cycles, and preferably at least one lights/humidifier control cycle. Add a small operational script under `debug/` if needed, not under app code. The acceptance gate is a live query/log check showing fresh device heartbeats and zero recent legacy-only warnings.
+Add or use existing structured log checks to prove no legacy-only ingest occurred over a 10-minute soak window after the scoped-only firmware rollout. Ten minutes is intentionally brief because the ESP32 ingest cadence is about 30 seconds; it should include many fan, plant, and reservoir post cycles. Add a small operational script under `debug/` if needed, not under app code. The acceptance gate is a live query/log check showing fresh device heartbeats and zero recent legacy-only warnings.
 
 Milestone 3: Tighten HWD ingest.
 
@@ -219,14 +223,14 @@ Useful live checks:
     WHERE device_id IN ('fan-controller','plant-a-node','plant-b-node','plant-c-node','plant-d-node','reservoir-node')
     ORDER BY device_id;"
 
-    journalctl --user -u dirt-hwd --since '24 hours ago' --no-pager | rg "accepted legacy location-only sensor ingest" || true
+    journalctl --user -u dirt-hwd --since '10 minutes ago' --no-pager | rg "accepted legacy location-only sensor ingest" || true
 
 
 ## Idempotence and Recovery
 
 Firmware builds are safe to repeat. Firmware upload/OTA is visible to hardware and should be done board by board with a known target. If a board fails after scoped-only firmware, either reflash the last known-good firmware or temporarily re-enable the transitional firmware overload while server compatibility remains available.
 
-The soak milestone is observational and safe to repeat. Record the exact time window used for log checks.
+The soak milestone is observational and safe to repeat. The planned gate is 10 minutes; record the exact wall-clock start and end used for log checks.
 
 Ingest tightening should happen only after the soak gate passes. If it causes telemetry loss, revert the ingest-tightening commit or redeploy compatibility firmware while preserving the database backup.
 
@@ -286,3 +290,4 @@ End-state service interfaces:
 ## Revision Notes
 
 - 2026-05-04: Initial scope plan created for GitHub review after live application of the previous compatibility-retirement migrations.
+- 2026-05-04: Set the scoped-only firmware soak gate to 10 minutes after review.
