@@ -8,6 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from dirt_hwd.app import create_app
 from dirt_hwd.services.sensor_quality import SensorQualityConfig, SensorQualityService
 from dirt_shared.config import Settings
+from dirt_shared.models.device import Capability, Device
 from dirt_shared.models.enums import SensorLocation
 from dirt_shared.models.sensor_calibration import SensorCalibration
 from dirt_shared.models.sensor_node import SensorNode
@@ -31,12 +32,16 @@ def _auth_header() -> dict[str, str]:
     return {"Authorization": f"Bearer {settings.sensor_ingest_token}"}
 
 
-async def _plant_a_node_id(engine) -> int:
+async def _node_id(engine, location: SensorLocation) -> int:
     async with AsyncSession(engine) as s:
         result = await s.exec(
-            select(SensorNode.id).where(SensorNode.location == SensorLocation.PLANT_A)
+            select(SensorNode.id).where(SensorNode.location == location)
         )
         return result.first()
+
+
+async def _plant_a_node_id(engine) -> int:
+    return await _node_id(engine, SensorLocation.PLANT_A)
 
 
 async def test_ingest_without_token_is_401(client: AsyncClient):
@@ -94,6 +99,46 @@ async def test_ingest_writes_readings_and_node(client: AsyncClient, app_engine):
         assert node.firmware_version == "0.1.0"
         assert node.uptime_ms == 60000
         assert node.last_seen is not None
+
+
+async def test_scoped_device_id_writes_capability_without_legacy_location_mapping(
+    client: AsyncClient, app_engine
+):
+    r = await client.post(
+        "/api/ingest/sensors",
+        json={
+            # The endpoint still requires a legacy location in Milestone 1.
+            # This deliberately points at the tent so the assertion below
+            # proves ``device_id`` owns capability resolution.
+            "location": "tent",
+            "site_id": "homebox",
+            "tent_id": "main",
+            "zone_id": "plant-a",
+            "device_id": "plant-a-node",
+            "metrics": {"soil_moisture_raw": 1600},
+        },
+        headers=_auth_header(),
+    )
+
+    assert r.status_code == 202
+    assert r.json() == {"ok": True, "location": "tent", "count": 1}
+
+    tent_node_id = await _node_id(app_engine, SensorLocation.TENT)
+    async with AsyncSession(app_engine) as s:
+        row = (
+            await s.exec(
+                select(SensorReading, Device, Capability)
+                .join(Capability, Capability.id == SensorReading.capability_id)
+                .join(Device, Device.id == Capability.device_id)
+                .where(SensorReading.metric == "soil_moisture_raw")
+                .where(SensorReading.sensornode_id == tent_node_id)
+            )
+        ).one()
+
+    reading, device, capability = row
+    assert reading.capability_id is not None
+    assert device.device_id == "plant-a-node"
+    assert capability.capability_id == "soil_moisture_raw"
 
 
 async def test_ingest_upserts_node_on_second_post(client: AsyncClient, app_engine):

@@ -28,7 +28,10 @@ from dirt_shared.models.device import Capability, Device
 from dirt_shared.models.enums import SensorLocation, SensorSource
 from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
+from dirt_shared.services.scope import resolve_scope
 from dirt_web.app import create_app
+
+MAIN_TEMPERATURE_SEED_RANGE = (72.0, 76.5)
 
 
 async def _node_id(s: AsyncSession, location: SensorLocation) -> int:
@@ -111,6 +114,47 @@ async def _seed_tent_series(engine, hours: int = 48) -> None:
         await s.commit()
 
 
+async def _seed_breeding_temperature(engine, value: float) -> None:
+    async with AsyncSession(engine) as s:
+        breeding = await resolve_scope(s, tent_id="breeding")
+        assert breeding is not None
+        node_id = await _node_id(s, SensorLocation.TENT)
+        device = Device(
+            site_id=breeding.site_pk,
+            tent_id=breeding.tent_pk,
+            device_id="breeding-history-node",
+            name="Breeding history node",
+            kind="env_sensor",
+            controller="test",
+        )
+        s.add(device)
+        await s.flush()
+        assert device.id is not None
+        capability = Capability(
+            device_id=device.id,
+            capability_id="temperature_f",
+            name="Temperature F",
+            kind="measurement",
+            metric_name="temperature_f",
+            unit="degF",
+            source="test",
+        )
+        s.add(capability)
+        await s.flush()
+        assert capability.id is not None
+        s.add(
+            SensorReading(
+                ts=datetime.now(UTC),
+                sensornode_id=node_id,
+                capability_id=capability.id,
+                metric="temperature_f",
+                value=value,
+                source=SensorSource.MOCK,
+            )
+        )
+        await s.commit()
+
+
 @pytest.fixture
 async def client(app_engine):
     await _seed_tent_series(app_engine)
@@ -176,6 +220,23 @@ async def test_sensors_history_humidity_metric(client: AsyncClient) -> None:
     assert model.metric.value == "humidity_pct"
     assert model.unit == "%"
     assert len(model.points) > 0
+
+
+async def test_sensors_history_defaults_to_main_tent(client: AsyncClient, app_engine):
+    await _seed_breeding_temperature(app_engine, value=100.0)
+
+    response = await client.get(
+        "/api/sensors/history",
+        params={"range": "1h", "metric": "temperature_f"},
+    )
+
+    assert response.status_code == 200
+    model = SensorsHistoryResponse.model_validate(response.json())
+    values = [point.value for point in model.points]
+    assert values
+    assert 100.0 not in values
+    low, high = MAIN_TEMPERATURE_SEED_RANGE
+    assert all(low <= value <= high for value in values)
 
 
 async def test_sensors_history_fan_bridges_to_fan_duty_pct(

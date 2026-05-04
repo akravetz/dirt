@@ -17,7 +17,7 @@ This plan is still local-controller work. The homebox remains the hardware autho
 ## Progress
 
 - [x] (2026-05-04 03:35Z) Created this ExecPlan after Phase 1 migrations were applied and operational smoke checks passed.
-- [ ] Implement Milestone 1: audit and guard current legacy paths before changing behavior.
+- [x] (2026-05-04 04:53Z) Implemented Milestone 1: audit and guard current legacy paths before changing behavior. Added executable audit coverage for production legacy references and current compatibility writers; added focused ingest/history guards before behavior changes; ran simplify fallback and focused validation.
 - [ ] Implement Milestone 2: make firmware and ingest scoped-first while preserving explicit legacy ingest compatibility.
 - [ ] Implement Milestone 3: move device heartbeat/freshness ownership from `sensornode` to `device`.
 - [ ] Implement Milestone 4: move plant moisture and daily sensor paths off `sensornode_id`.
@@ -57,6 +57,21 @@ This plan is still local-controller work. The homebox remains the hardware autho
 - Observation: Photoperiod is stored in both `growrun` and `schedule`.
   Evidence: `apps/shared/src/dirt_shared/models/grow_run.py` has `lights_on_local` and `lights_off_local`, while `apps/shared/src/dirt_shared/models/schedule.py` has scoped `starts_local`, `ends_local`, `timezone`, `device_id`, and `capability_id`. Phase 1 already materialized the main photoperiod as `schedule_id='main-lights-photoperiod'`, so keeping the grow-run copy creates two sources of truth.
 
+- Observation: Milestone 1 static audit now scans every `apps/*/src` Python source root and found the active production legacy surface includes HWD ingest/humidifier/metric-freshness compatibility, shared legacy models, `sensor_contract.py`, shared readings/daily-sensors/plants/system-status services, and the voice sensor tool.
+  Evidence: `apps/shared/tests/test_legacy_retirement_audit.py::test_legacy_reference_inventory_is_explicit` enumerates the exact files and fails if another production file starts using `SensorLocation`, `SensorNode`, `sensornode_id`, legacy metric maps, or `legacy_location` without updating the audit.
+
+- Observation: Main-agent review caught that the first Milestone 1 audit was incomplete because it only scanned shared/HWD/web source roots and missed voice.
+  Evidence: `apps/voice/src/dirt_voice/tools/sensors.py` imports `SensorLocation` and `SensorNode`, joins `SensorReading.sensornode_id` and `SensorCalibration.sensornode_id` through `SensorNode`, and calls `persisted_metrics(SensorLocation.TENT)`. The audit now includes this file in the explicit expected inventory.
+
+- Observation: DB-backed app tests in this worktree share a session-scoped template database name and should not be launched as concurrent pytest processes; cross-app combined pytest commands can also expose template lifecycle races after one app's fixture teardown.
+  Evidence: Running the touched shared/HWD/web tests in one command produced `template database "dirt_test_template_7ff9482e8f" does not exist` after 24 passing tests. Running DB-backed commands concurrently reproduced the same template race. Rerunning the touched suites serially passed.
+
+- Observation: The ingest endpoint still requires `location`, but scoped `device_id` already wins for capability resolution.
+  Evidence: `apps/hwd/tests/test_ingest_api.py::test_scoped_device_id_writes_capability_without_legacy_location_mapping` posts `location='tent'` with `device_id='plant-a-node'` and verifies the new reading is capability-linked to `plant-a-node` while the compatibility `sensornode_id` remains the tent node.
+
+- Observation: A concurrent edit rewrote the new audit test file during the Milestone 1 simplify/format pass.
+  Evidence: `apps/shared/tests/test_legacy_retirement_audit.py` changed from the initial five-test AST audit shape to a cleaner centralized-writer helper while still untracked; the final version keeps that helper and restores the required legacy reference inventory plus sensor-contract derivation checks.
+
 
 ## Decision Log
 
@@ -88,10 +103,16 @@ This plan is still local-controller work. The homebox remains the hardware autho
   Rationale: A photoperiod is recurring operational schedule data attached to a tent/device/capability. `growrun` should describe the grow cycle itself. API responses may continue to include lights times for compatibility, but those values should be composed from the scoped `schedule` row.
   Date/Author: 2026-05-04 / Codex
 
+- Decision: Keep Milestone 1 strictly audit/test-only and preserve the currently required ingest `location` field.
+  Rationale: Milestone 2 is where ingest behavior changes. Milestone 1 should make current compatibility behavior visible without changing live board payload requirements.
+  Date/Author: 2026-05-04 / Codex
+
 
 ## Outcomes & Retrospective
 
-No implementation milestones have been completed yet. This plan starts after Phase 1 was committed, pushed, migrated, and smoke-tested on the live local database.
+Milestone 1 is complete. The repo now has executable guardrails that show where legacy `SensorLocation`, `SensorNode`, `sensornode_id`, legacy metric maps, and `legacy_location` are still present; it also proves current writes stay centralized and carry `capability_id` through the compatibility path. Focused HWD ingest and web history tests preserve current main-tent behavior while making scoped capability writes and breeding-data exclusion observable.
+
+No schema changes, firmware changes, hosted/cloud control, or behavior changes were made in Milestone 1.
 
 
 ## Context and Orientation
@@ -119,6 +140,7 @@ The major remaining legacy surfaces are:
 - `apps/shared/src/dirt_shared/services/plants.py`: still reads plant moisture through `Plant.sensornode_id`.
 - `apps/shared/src/dirt_shared/services/system_status.py`: still uses `Device.metadata["legacy_location"]` to bridge device rows to `sensornode.last_seen`.
 - `apps/hwd/src/dirt_hwd/api/ingest.py`: still accepts required `location`, with optional scoped fields.
+- `apps/voice/src/dirt_voice/tools/sensors.py`: still reads tent and plant sensor summaries through `SensorLocation`, `SensorNode`, `sensornode_id`, and legacy persisted metric maps.
 - `firmware/*/src/main.cpp`: still sends legacy `location` payloads.
 - `apps/web/src/dirt_web/api/sensors.py` and `metric_registry.py`: still assemble default-main dashboards through legacy metric/location registry concepts.
 
@@ -386,6 +408,49 @@ Historical unlinked reading classes seen immediately after rollout:
     one-off plant moisture rows
 
 These should be classified before any `NOT NULL` or FK tightening on historical telemetry.
+
+Milestone 1 audit artifacts added:
+
+    apps/shared/tests/test_legacy_retirement_audit.py
+    apps/hwd/tests/test_ingest_api.py::test_scoped_device_id_writes_capability_without_legacy_location_mapping
+    apps/web/tests/test_sensors_history_endpoint.py::test_sensors_history_defaults_to_main_tent
+
+These tests are guards only. They intentionally preserve the current required
+legacy `location` field and the compatibility `sensornode_id` write while
+making both visible before Milestone 2 changes ingest behavior.
+
+Main-agent review rework expanded the static audit from the original
+shared/HWD/web-only scan to every `apps/*/src` Python source root and added
+`apps/voice/src/dirt_voice/tools/sensors.py` to the explicit legacy read
+inventory. The centralized writer guard still allows only the compatibility
+writers in `dirt_shared.services.readings`; voice adds no writer allowance
+because it does not construct `SensorReading`, `SensorCalibration`, or
+`SensorNode`.
+
+Milestone 1 validation evidence from 2026-05-04:
+
+    uv run pytest apps/shared/tests/test_legacy_retirement_audit.py -q
+    4 passed in 0.39s
+
+    uv run pytest apps/hwd/tests/test_ingest_api.py -q
+    15 passed in 4.17s
+
+    uv run pytest apps/hwd/tests/test_ingest_derivation.py -q
+    9 passed in 0.34s
+
+    uv run pytest apps/web/tests/test_sensors_history_endpoint.py -q
+    12 passed in 5.00s
+
+    uv run pytest apps/shared/tests/test_readings_scope.py -q
+    1 passed in 1.45s
+
+    uv run ruff check apps/shared/tests/test_legacy_retirement_audit.py apps/hwd/tests/test_ingest_api.py apps/web/tests/test_sensors_history_endpoint.py
+    All checks passed.
+
+    uv run ruff format --check apps/shared/tests/test_legacy_retirement_audit.py apps/hwd/tests/test_ingest_api.py apps/web/tests/test_sensors_history_endpoint.py
+    3 files already formatted
+
+The simplify pass used the local fallback because no subagent spawn tool was available. It kept the scope unchanged and applied two cleanup fixes: clearer static-inventory failure diagnostics and a stronger web history assertion that returned default-main values stay inside the seeded main range.
 
 
 ## Interfaces and Dependencies
