@@ -18,7 +18,7 @@ This is local-controller work. The homebox remains the hardware authority. Do no
 
 - [x] (2026-05-04) Created this ExecPlan as a reviewable scope document after `LegacyCompatibilityRetirementExecPlan.md` was implemented, migrations were applied live, services restarted, and smoke checks passed.
 - [x] (2026-05-04) Milestone 1: firmware scoped-only POST support and board rollout. `firmware/common/ingest_client/ingest_client.{h,cpp}` now builds scoped-only POST bodies without `location`; fan, plant, and reservoir sketches call the scoped-only API; retained legacy-location comments/constants were removed; firmware versions were bumped; build validation passed for fan, reservoir, and plant A-D environments; OTA upload succeeded for fan, plant A-D, and reservoir; live DB confirmed the expected firmware versions fan `0.2.1`, plant `0.1.2`, and reservoir `0.1.1` with fresh `device.last_seen`.
-- [ ] Milestone 2: soak and live compatibility telemetry gate.
+- [x] (2026-05-04) Milestone 2: soak and live compatibility telemetry gate. A 10-minute live `dirt-hwd` journal check after scoped firmware rollout found zero `accepted legacy location-only sensor ingest` messages; all six current hardware devices reported expected firmware versions with fresh `device.last_seen`; recent live readings remained capability-linked with `0` null `capability_id` rows out of `644`.
 - [ ] Milestone 3: tighten HWD ingest to reject legacy-only current payloads.
 - [ ] Milestone 4: replace remaining service inventories that are keyed by `SensorLocation`.
 - [ ] Milestone 5: remove legacy `sensornode` storage and maps after current and historical paths no longer need them.
@@ -55,6 +55,9 @@ This is local-controller work. The homebox remains the hardware authority. Do no
 
 - Observation: Reservoir OTA config was pointed at an unset password env var even though this repo uses one shared node OTA password.
   Evidence: The first `reservoir-ota` attempt passed an empty auth value from `RESERVOIR_OTA_PASSWORD` and failed authentication; `firmware/fan_controller/platformio.ini` already documents that `PLANT_OTA_PASSWORD` is shared across every dirt node. `firmware/reservoir_node/platformio.ini` now uses `PLANT_OTA_PASSWORD`; after that correction, a later direct-IP reservoir OTA retry completed and live heartbeat reported firmware `0.1.1`.
+
+- Observation: The scoped-only firmware passed the configured 10-minute live soak.
+  Evidence: At `2026-05-04 07:54:07 MDT`, `journalctl --user -u dirt-hwd --since '10 minutes ago' --no-pager | rg 'accepted legacy location-only sensor ingest' || true` returned no matches. The same validation pass showed fresh expected firmware versions for `fan-controller`, `plant-a-node`, `plant-b-node`, `plant-c-node`, `plant-d-node`, and `reservoir-node`; a recent readings query returned `0` null `capability_id` rows out of `644`.
 
 
 ## Decision Log
@@ -93,6 +96,8 @@ This is local-controller work. The homebox remains the hardware authority. Do no
 Milestone 1 is complete. Scoped firmware POST bodies no longer serialize `location`, all current fan/plant/reservoir sketches use the scoped-only helper, stale retained-legacy-location comments/constants were removed, and firmware versions were bumped to fan `0.2.1`, plant `0.1.2`, and reservoir `0.1.1`.
 
 The physical rollout completed after explicit OTA confirmation. Standard OTA succeeded for fan, plant A, and plant C. Reservoir, plant D, and plant B required direct-IP OTA retries after transfer failures, but all six hardware targets later checked in with the expected firmware versions and fresh heartbeats. The next milestone is the 10-minute scoped-only soak and live compatibility telemetry gate.
+
+Milestone 2 is complete. The scoped-only firmware soaked for the configured 10-minute window with no legacy-only ingest warnings in `dirt-hwd`, fresh expected firmware versions for every current ESP32 device, and recent live readings fully linked to capabilities. The next milestone can tighten current HWD ingest so known current payloads must include `device_id`.
 
 
 ## Context and Orientation
@@ -400,6 +405,26 @@ Recent readings remained capability-linked:
 
 Hardware upload completed. Milestone 2 should start from the completed rollout and use the configured 10-minute soak window.
 
+Milestone 2 soak validation:
+
+    date '+%Y-%m-%d %H:%M:%S %Z'
+    2026-05-04 07:54:07 MDT
+
+    journalctl --user -u dirt-hwd --since '10 minutes ago' --no-pager \
+      | rg 'accepted legacy location-only sensor ingest' || true
+    no matches
+
+    fan-controller | 0.2.1 | age 00:00:59.164495
+    plant-a-node   | 0.1.2 | age 00:00:10.015673
+    plant-b-node   | 0.1.2 | age 00:00:09.368190
+    plant-c-node   | 0.1.2 | age 00:00:06.061040
+    plant-d-node   | 0.1.2 | age 00:00:18.343696
+    reservoir-node | 0.1.1 | age 00:00:23.252279
+
+    null_capability_recent | recent_readings | oldest_recent                  | newest_recent
+    ------------------------+-----------------+--------------------------------+-------------------------------
+                         0 |             644 | 2026-05-04 07:24:14.569552-06 | 2026-05-04 07:54:01.928402-06
+
 
 ## Interfaces and Dependencies
 
@@ -432,3 +457,4 @@ End-state service interfaces:
 - 2026-05-04: Classified old `pressure_hpa` and one-off `plant-a` `humidity_pct` rows as discardable trash values retained only by the standard pre-migration `pg_dump`.
 - 2026-05-04: Milestone 1 source/build work completed for scoped-only firmware POST support.
 - 2026-05-04: Milestone 1 OTA rollout completed for fan, plant A-D, and reservoir after direct-IP retries for reservoir, plant D, and plant B. Plant B and plant D transfer reliability remains a hardware/network risk, but both report the scoped-only firmware version.
+- 2026-05-04: Milestone 2 soak gate completed with zero legacy-only ingest warnings over the 10-minute live window and current readings still capability-linked.
