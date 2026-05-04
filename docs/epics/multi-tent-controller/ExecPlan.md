@@ -19,7 +19,7 @@ This is not the hosted website phase. The local `dirt-hwd` service remains the o
 - [x] (2026-05-03 23:45Z) Read required operating documents: `AGENTS.md`, `.agents/PLANS.md`, `docs/commands.md`, `docs/database.md`, `docs/grow-state.md`, and `docs/observability.md`.
 - [x] (2026-05-03 23:45Z) Investigated current models, migrations, services, API routes, generated contracts, frontend routes/components, hardware loops, daily report paths, PTZ/camera code, firmware ingest identity, and read-only live schema shape.
 - [x] (2026-05-03 23:45Z) Created this de novo ExecPlan at `docs/epics/multi-tent-controller/ExecPlan.md` without opening or relying on prior planning files.
-- [ ] Implement Milestone 1: add canonical scoped identity models and Atlas migration.
+- [x] (2026-05-04 00:09Z) Implemented Milestone 1: added canonical scoped identity SQLModel classes, generated/reviewed the Atlas migration, seeded `homebox/main/breeding` identity rows plus current main-tent zones/devices/capabilities, and validated schema replay.
 - [ ] Implement Milestone 2: migrate current singleton data into the default site and main tent while preserving old behavior.
 - [ ] Implement Milestone 3: move telemetry ingest and read paths to scoped device/capability ownership.
 - [ ] Implement Milestone 4: move grow state, plants, schedules, snapshots/photos, and alerts onto scoped owners.
@@ -53,6 +53,9 @@ This is not the hosted website phase. The local `dirt-hwd` service remains the o
 - Observation: Device status and alert state keys are human display names or legacy location strings, not stable device identifiers.
   Evidence: `apps/shared/src/dirt_shared/services/system_status.py` hardcodes the eight-row device list; `apps/hwd/src/dirt_hwd/services/device_watchdog.py` persists `state.json` keyed by `DeviceStatus.name`; `metric_freshness.py` persists keys like `<location>:<metric>`.
 
+- Observation: The installed Atlas CLI reports that `atlas migrate lint` is now Atlas Pro-only, despite the local reference pack describing it as available in the community CLI.
+  Evidence: `atlas migrate lint --env local --latest 1` exited 1 with `Starting with v0.38, 'atlas migrate lint' is available only to Atlas Pro users.` Validation used `atlas migrate diff verify_multi_tent_sync --env local` plus pytest migration replay instead.
+
 
 ## Decision Log
 
@@ -79,7 +82,7 @@ This is not the hosted website phase. The local `dirt-hwd` service remains the o
 
 ## Outcomes & Retrospective
 
-Not started. When implementation completes, record whether the current main tent still passes all existing behavior tests, whether the breeding tent can be represented with scoped rows and API/service reads, and whether any compatibility compromises remain.
+Milestone 1 completed on 2026-05-04. The repository now has canonical scoped identity tables for site, tent, zone, device, capability, grow run, schedule, and command intent. The migration seeds `site.site_id='homebox'`, `tent.tent_id='main'`, `tent.tent_id='breeding'`, main-tent zones, and current local hardware/capability mappings without changing existing singleton service behavior. Milestone 2 remains responsible for moving current grow/plant semantics onto the new scoped grow-run model.
 
 
 ## Context and Orientation
@@ -422,6 +425,34 @@ Key current singleton files found during investigation:
 
 Existing git status at plan creation included unrelated changes and deleted old planning files. This plan intentionally did not open or rely on those old planning files.
 
+Milestone 1 changed these files:
+
+    apps/shared/src/dirt_shared/models/__init__.py
+    apps/shared/src/dirt_shared/models/site.py
+    apps/shared/src/dirt_shared/models/tent.py
+    apps/shared/src/dirt_shared/models/zone.py
+    apps/shared/src/dirt_shared/models/device.py
+    apps/shared/src/dirt_shared/models/grow_run.py
+    apps/shared/src/dirt_shared/models/schedule.py
+    apps/shared/src/dirt_shared/models/command.py
+    apps/shared/tests/test_scoped_identity_models.py
+    migrations/20260504000618_multi_tent_controller.sql
+    migrations/atlas.sum
+
+Milestone 1 validation evidence:
+
+    uv run pytest apps/shared/tests/test_pg_fixture.py apps/shared/tests/test_grow_state.py apps/web/tests/test_grow_endpoint.py apps/web/tests/test_sensors_current_endpoint.py apps/web/tests/test_sensors_history_endpoint.py apps/web/tests/test_plants_list_endpoint.py apps/web/tests/test_system_devices_endpoint.py apps/shared/tests/test_scoped_identity_models.py -q
+    52 passed in 10.78s
+
+    uv run pytest apps/tests/invariants/test_schema_managed_by_atlas.py -q
+    4 passed in 0.07s
+
+    atlas migrate diff verify_multi_tent_sync --env local
+    The migration directory is synced with the desired state, no changes to be made
+
+    uv run ruff check apps/shared/src/dirt_shared/models apps/shared/tests/test_scoped_identity_models.py
+    All checks passed!
+
 
 ## Interfaces and Dependencies
 
@@ -474,3 +505,4 @@ Out of scope until hosted website phase:
 ## Revision Notes
 
 - 2026-05-03: Initial de novo ExecPlan created from repository investigation and the user's multi-tent local-controller context.
+- 2026-05-04: Milestone 1 completed. Added scoped identity models and the `20260504000618_multi_tent_controller.sql` Atlas migration with seed data. Recorded that local Atlas lint is blocked by the installed CLI's Pro-only gate and substituted schema-sync plus pytest replay validation.
