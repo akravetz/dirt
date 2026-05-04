@@ -1104,7 +1104,10 @@ export interface operations {
   };
   sensorsCurrent: {
     parameters: {
-      query?: never;
+      query?: {
+        site_id?: string;
+        tent_id?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -1128,6 +1131,8 @@ export interface operations {
       query: {
         range: components["schemas"]["Range"];
         metric: components["schemas"]["SensorMetric"];
+        site_id?: string;
+        tent_id?: string;
       };
       header?: never;
       path?: never;
@@ -1171,7 +1176,10 @@ export interface operations {
   };
   plantsList: {
     parameters: {
-      query?: never;
+      query?: {
+        site_id?: string;
+        tent_id?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -1286,7 +1294,10 @@ export interface operations {
   };
   feedSnapshotLatest: {
     parameters: {
-      query?: never;
+      query?: {
+        site_id?: string;
+        tent_id?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;

@@ -42,6 +42,7 @@ from dirt_shared.services.plants import (
     count_irrigation_events,
 )
 from dirt_shared.services.readings import RANGE_DELTAS
+from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID
 from dirt_web.deps import get_grow, get_plants
 
 router = APIRouter(tags=["plants"])
@@ -69,12 +70,14 @@ def _plant_from_summary(s: PlantSummary) -> Plant:
 
 @router.get("/api/plants", response_model=PlantsResponse)
 async def plants_list(
+    site_id: str = Query(DEFAULT_SITE_ID),
+    tent_id: str = Query(DEFAULT_TENT_ID),
     plants: PlantsService = Depends(get_plants),
     grow: GrowStateService = Depends(get_grow),
 ) -> PlantsResponse:
     """Dashboard plants strip: A–D with latest calibrated moisture."""
-    summaries = await plants.list_plants()
-    payload = await grow.get_grow_current_payload()
+    summaries = await plants.list_plants(site_id=site_id, tent_id=tent_id)
+    payload = await grow.get_grow_current_payload(site_id=site_id, tent_id=tent_id)
     return PlantsResponse(
         day=payload.day_number,
         plants=[_plant_from_summary(s) for s in summaries],

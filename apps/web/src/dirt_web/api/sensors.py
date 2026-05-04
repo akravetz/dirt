@@ -43,7 +43,9 @@ from dirt_shared.services.grow_state import (
     band_status,
 )
 from dirt_shared.services.readings import ReadingsService
+from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID
 from dirt_web.api.metric_registry import (
+    MetricSpec,
     dashboard_metrics,
     metric_spec,
     transform_value,
@@ -98,6 +100,8 @@ def _envelope(
 
 @router.get("/api/sensors/current", response_model=SensorsCurrent)
 async def sensors_current(
+    site_id: str = Query(DEFAULT_SITE_ID),
+    tent_id: str = Query(DEFAULT_TENT_ID),
     readings: ReadingsService = Depends(get_readings),
     grow: GrowStateService = Depends(get_grow),
 ) -> SensorsCurrent:
@@ -112,19 +116,23 @@ async def sensors_current(
     humidifier_spec = metric_spec(SensorMetric.humidifier_intensity_pct)
     reservoir_spec = metric_spec(SensorMetric.reservoir_in)
 
+    def latest(spec: MetricSpec):
+        return readings.get_latest_reading(
+            spec.db_metric,
+            spec.db_location,
+            site_id=site_id,
+            tent_id=tent_id,
+        )
+
     stage, temp, hum, vpd, fan, humidifier, reservoir, stale = await asyncio.gather(
-        grow.current_stage(),
-        readings.get_latest_reading(temp_spec.db_metric, temp_spec.db_location),
-        readings.get_latest_reading(hum_spec.db_metric, hum_spec.db_location),
-        readings.get_latest_reading(vpd_spec.db_metric, vpd_spec.db_location),
-        readings.get_latest_reading(fan_spec.db_metric, fan_spec.db_location),
-        readings.get_latest_reading(
-            humidifier_spec.db_metric, humidifier_spec.db_location
-        ),
-        readings.get_latest_reading(
-            reservoir_spec.db_metric, reservoir_spec.db_location
-        ),
-        readings.is_sensor_stale(),
+        grow.current_stage(site_id=site_id, tent_id=tent_id),
+        latest(temp_spec),
+        latest(hum_spec),
+        latest(vpd_spec),
+        latest(fan_spec),
+        latest(humidifier_spec),
+        latest(reservoir_spec),
+        readings.is_sensor_stale(site_id=site_id, tent_id=tent_id),
     )
     targets = STAGE_TARGETS[stage]
 
@@ -160,6 +168,8 @@ async def sensors_current(
 async def sensors_history(
     range: Range = Query(...),
     metric: SensorMetric = Query(...),
+    site_id: str = Query(DEFAULT_SITE_ID),
+    tent_id: str = Query(DEFAULT_TENT_ID),
     readings: ReadingsService = Depends(get_readings),
 ) -> SensorsHistoryResponse:
     """Return bucketed ``(ts, value)`` points for one metric over ``range``.
@@ -174,7 +184,12 @@ async def sensors_history(
     response covers the same intent.
     """
     spec = metric_spec(metric)
-    raw = await readings.get_metric_history(spec.db_metric, range.value)
+    raw = await readings.get_metric_history(
+        spec.db_metric,
+        range.value,
+        site_id=site_id,
+        tent_id=tent_id,
+    )
     points = [
         HistoryPoint(ts=ts, value=round(transform_value(metric, value), 2))
         for ts, value in raw

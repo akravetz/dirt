@@ -228,16 +228,6 @@ async def _get_metric_series(  # noqa: PLR0913
     }
 
 
-async def _get_sensornode_id(
-    session: AsyncSession, location: SensorLocation | str
-) -> int | None:
-    """Look up a sensornode surrogate id by its location enum value."""
-    result = await session.exec(
-        select(SensorNode.id).where(SensorNode.location == location)
-    )
-    return result.first()
-
-
 async def _touch_device_heartbeat(  # noqa: PLR0913
     session: AsyncSession,
     *,
@@ -669,16 +659,26 @@ class ReadingsService:
                     )
         return out
 
-    async def is_sensor_stale(self, threshold: int = 10) -> bool:
+    async def is_sensor_stale(
+        self,
+        threshold: int = 10,
+        *,
+        site_id: str = DEFAULT_SITE_ID,
+        tent_id: str | None = DEFAULT_TENT_ID,
+    ) -> bool:
         """Return True if the last ``threshold`` tent temperature readings are identical."""  # noqa: E501
         async with AsyncSession(self._engine) as session:
-            node_id = await _get_sensornode_id(session, SensorLocation.TENT)
-            if node_id is None:
-                return False
             result = await session.exec(
-                select(SensorReading)
-                .where(SensorReading.sensornode_id == node_id)
-                .where(SensorReading.metric == "temperature_f")
+                _scoped_readings_select(
+                    "temperature_f",
+                    site_id=site_id,
+                    tent_id=tent_id,
+                    device_id=(
+                        _legacy_device_id(SensorLocation.TENT)
+                        if tent_id == DEFAULT_TENT_ID
+                        else None
+                    ),
+                )
                 .order_by(SensorReading.ts.desc())
                 .limit(threshold)
             )

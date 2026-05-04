@@ -28,15 +28,21 @@ class SnapshotsService:
     ) -> Snapshot | None:
         async with AsyncSession(self._engine) as session:
             scope = await resolve_scope(session, site_id=site_id, tent_id=tent_id)
+            if scope is None:
+                return None
             stmt = select(Snapshot)
-            if scope is not None:
+            scoped_match = (Snapshot.site_id == scope.site_pk) & (
+                Snapshot.tent_id == scope.tent_pk
+            )
+            if site_id == DEFAULT_SITE_ID and tent_id == DEFAULT_TENT_ID:
                 stmt = stmt.where(
                     or_(
-                        (Snapshot.site_id == scope.site_pk)
-                        & (Snapshot.tent_id == scope.tent_pk),
+                        scoped_match,
                         (Snapshot.site_id.is_(None)) & (Snapshot.tent_id.is_(None)),
                     )
                 )
+            else:
+                stmt = stmt.where(scoped_match)
             result = await session.exec(stmt.order_by(Snapshot.ts.desc()).limit(1))
             return result.first()
 

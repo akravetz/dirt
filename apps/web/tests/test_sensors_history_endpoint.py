@@ -239,6 +239,23 @@ async def test_sensors_history_defaults_to_main_tent(client: AsyncClient, app_en
     assert all(low <= value <= high for value in values)
 
 
+async def test_sensors_history_accepts_tent_scope(client: AsyncClient, app_engine):
+    await _seed_breeding_temperature(app_engine, value=100.0)
+
+    response = await client.get(
+        "/api/sensors/history",
+        params={
+            "range": "1h",
+            "metric": "temperature_f",
+            "tent_id": "breeding",
+        },
+    )
+
+    assert response.status_code == 200
+    model = SensorsHistoryResponse.model_validate(response.json())
+    assert [point.value for point in model.points] == [100.0]
+
+
 async def test_sensors_history_fan_bridges_to_fan_duty_pct(
     client: AsyncClient,
 ) -> None:

@@ -25,6 +25,7 @@ from dirt_shared.models.enums import SensorLocation, SensorSource
 from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.services.readings import ReadingsService
+from dirt_shared.services.scope import resolve_scope
 from dirt_web.app import create_app
 
 
@@ -146,6 +147,47 @@ async def _seed_readings(
         await s.commit()
 
 
+async def _seed_breeding_temperature(engine, value: float) -> None:
+    node_id = await _node_id(engine, SensorLocation.TENT)
+    async with AsyncSession(engine) as s:
+        breeding = await resolve_scope(s, tent_id="breeding")
+        assert breeding is not None
+        device = Device(
+            site_id=breeding.site_pk,
+            tent_id=breeding.tent_pk,
+            device_id="breeding-current-node",
+            name="Breeding current node",
+            kind="env_sensor",
+            controller="test",
+        )
+        s.add(device)
+        await s.flush()
+        assert device.id is not None
+        capability = Capability(
+            device_id=device.id,
+            capability_id="temperature_f",
+            name="Temperature F",
+            kind="measurement",
+            metric_name="temperature_f",
+            unit="degF",
+            source="test",
+        )
+        s.add(capability)
+        await s.flush()
+        assert capability.id is not None
+        s.add(
+            SensorReading(
+                ts=datetime.now(UTC),
+                sensornode_id=node_id,
+                capability_id=capability.id,
+                metric="temperature_f",
+                value=value,
+                source=SensorSource.MOCK,
+            )
+        )
+        await s.commit()
+
+
 @pytest.fixture
 async def client(app_engine):
     app = create_app(engine=app_engine, run_mcp=False)
@@ -205,6 +247,24 @@ async def test_sensors_current_returns_contract_shape(client: AsyncClient, app_e
 
     # Fresh seed → not stale.
     assert model.stale is False
+
+
+async def test_sensors_current_accepts_tent_scope(client: AsyncClient, app_engine):
+    await _seed_readings(app_engine, temperature_f=72.0)
+    await _seed_breeding_temperature(app_engine, value=88.0)
+
+    default_response = await client.get("/api/sensors/current")
+    scoped_response = await client.get(
+        "/api/sensors/current", params={"tent_id": "breeding"}
+    )
+
+    assert default_response.status_code == 200
+    assert scoped_response.status_code == 200
+    default_model = SensorsCurrent.model_validate(default_response.json())
+    scoped_model = SensorsCurrent.model_validate(scoped_response.json())
+    assert default_model.metrics.temperature_f.value == pytest.approx(72.0)
+    assert scoped_model.metrics.temperature_f.value == pytest.approx(88.0)
+    assert scoped_model.stale is False
 
 
 async def test_sensors_current_stale_flag(client: AsyncClient, app_engine):

@@ -253,6 +253,15 @@ paths:
       tags: [sensors]
       operationId: sensorsCurrent
       summary: Current values for the five dashboard gauges
+      parameters:
+        - name: site_id
+          in: query
+          required: false
+          schema: { type: string, default: homebox }
+        - name: tent_id
+          in: query
+          required: false
+          schema: { type: string, default: main }
       responses:
         '200':
           description: Current sensor envelope with target bands and statuses.
@@ -276,6 +285,14 @@ paths:
           in: query
           required: true
           schema: { $ref: '#/components/schemas/SensorMetric' }
+        - name: site_id
+          in: query
+          required: false
+          schema: { type: string, default: homebox }
+        - name: tent_id
+          in: query
+          required: false
+          schema: { type: string, default: main }
       responses:
         '200':
           description: Bucketed time-series points for the requested metric.
@@ -313,6 +330,15 @@ paths:
       tags: [plants]
       operationId: plantsList
       summary: Dashboard plants strip (A-D cards)
+      parameters:
+        - name: site_id
+          in: query
+          required: false
+          schema: { type: string, default: homebox }
+        - name: tent_id
+          in: query
+          required: false
+          schema: { type: string, default: main }
       responses:
         '200':
           description: List of plants with current moisture.
@@ -413,6 +439,15 @@ paths:
       tags: [feed]
       operationId: feedSnapshotLatest
       summary: Most recent archived snapshot from disk
+      parameters:
+        - name: site_id
+          in: query
+          required: false
+          schema: { type: string, default: homebox }
+        - name: tent_id
+          in: query
+          required: false
+          schema: { type: string, default: main }
       responses:
         '200':
           description: JPEG image.

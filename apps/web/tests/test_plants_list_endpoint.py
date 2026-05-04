@@ -149,3 +149,11 @@ async def test_plants_list_cold_cluster(client: AsyncClient):
     model = PlantsResponse.model_validate(response.json())
     assert all(p.moisture_pct is None for p in model.plants)
     assert all(p.moisture_ts is None for p in model.plants)
+
+
+async def test_plants_list_accepts_tent_scope(client: AsyncClient):
+    response = await client.get("/api/plants", params={"tent_id": "breeding"})
+    assert response.status_code == 200
+    model = PlantsResponse.model_validate(response.json())
+    assert model.day >= 1
+    assert model.plants == []

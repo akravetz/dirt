@@ -22,7 +22,7 @@ This plan is still local-controller work. The homebox remains the hardware autho
 - [x] (2026-05-04 05:31Z) Implemented Milestone 3: canonical heartbeat columns live on `device`; ingest updates scoped device heartbeat when `device_id` is present while legacy compatibility still updates `sensornode`; system status, device watchdog input, and metric freshness gates now read canonical device heartbeat.
 - [x] (2026-05-04 05:39Z) Fixed Milestone 3 main-review blocker: legacy-only known-location ingest and rejected legacy payloads now derive the canonical device id from the legacy location mapping and refresh `device.last_seen`/metadata as well as `sensornode`.
 - [x] (2026-05-04 05:51Z) Implemented Milestone 4: plant rows now have canonical `moisture_capability_id`; plant moisture summaries/history and daily-report plant sensor paths prefer capability ownership instead of `Plant.sensornode_id`; focused plant/daily report tests, invariants, and Atlas sync/status checks pass. No live migration apply was run.
-- [ ] Implement Milestone 5: make scoped API/frontend access first-class while keeping default-main URLs compatible.
+- [x] (2026-05-04 06:01Z) Implemented Milestone 5: default-main sensor, plant, and latest-snapshot URLs now accept optional `site_id`/`tent_id` query params; generated TypeScript contract types expose those query params; focused scoped endpoint tests pass.
 - [ ] Implement Milestone 6: backfill or quarantine historical unscoped data and tighten schema/app constraints.
 - [ ] Implement Milestone 7: remove dead legacy code, docs, tests, and optional schema artifacts that no live path uses.
 - [x] (2026-05-04) Recorded `growrun.location` as a cleanup-removal candidate and classified cleanup candidates as Milestone 7 work with explicit validation, not vague final-exit notes.
@@ -91,6 +91,12 @@ This plan is still local-controller work. The homebox remains the hardware autho
 - Observation: Plant and daily report test fixtures had to become capability-scoped to match current-path reads.
   Evidence: `apps/shared/tests/test_daily_sensors.py` and web plant endpoint tests now seed `SensorReading.capability_id` and `SensorCalibration.capability_id`; legacy `sensornode_id` remains present only for compatibility rows.
 
+- Observation: `SnapshotsService.latest()` treated historical unscoped snapshots as fallback for every resolved tent, which would make an explicit breeding-tent latest-snapshot request return a main-era unscoped archive row.
+  Evidence: Milestone 5 added `apps/web/tests/test_feed_snapshot_endpoint.py::test_latest_snapshot_scoped_404_when_only_unscoped_exists` and `test_latest_snapshot_accepts_tent_scope_without_unscoped_leak`; the service now keeps the unscoped fallback only for the default `homebox/main` request.
+
+- Observation: Main-agent review found the first Milestone 5 snapshot fix still leaked snapshots for unresolved explicit scope ids.
+  Evidence: `SnapshotsService.latest(site_id=..., tent_id=...)` only filtered when `resolve_scope()` returned a scope. Unknown `site_id` or `tent_id` left the base `select(Snapshot)` unfiltered, so `/api/feed/snapshot/latest?tent_id=unknown` could return an existing unscoped/default snapshot. The service now returns `None` when scope resolution fails, and `apps/web/tests/test_feed_snapshot_endpoint.py::test_latest_snapshot_unknown_scope_404_without_unscoped_leak` covers the API behavior.
+
 
 ## Decision Log
 
@@ -158,6 +164,18 @@ This plan is still local-controller work. The homebox remains the hardware autho
   Rationale: Daily reports are still default-main in this milestone, and plant rows are the explicit owner of each plant's moisture stream. This prevents a second tent with the same metric name from contaminating main plant moisture values.
   Date/Author: 2026-05-04 / Codex
 
+- Decision: Add optional `site_id` and `tent_id` query parameters to `/api/sensors/current`, `/api/sensors/history`, `/api/plants`, and `/api/feed/snapshot/latest`, but do not add a visible frontend tent selector in Milestone 5.
+  Rationale: These four routes are the default-main dashboard compatibility URLs called out by the milestone. Query params are the smallest coherent contract shape that proves scoped access without changing existing URLs or creating a larger multi-site UI. The current React dashboard remains default-main, so no React Query key changes are needed in this milestone.
+  Date/Author: 2026-05-04 / Codex
+
+- Decision: Keep historical unscoped snapshot fallback only for `homebox/main`.
+  Rationale: Old archive rows may not carry scope and should still appear on the existing default-main latest-snapshot URL, but an explicit non-main request must not leak default-main or historical unscoped media.
+  Date/Author: 2026-05-04 / Codex
+
+- Decision: Treat unresolved snapshot scope as no match rather than a request for all snapshots.
+  Rationale: Unknown explicit scope ids are not a compatibility path. Returning `None` lets the API produce 404 and prevents invalid scope parameters from bypassing scoped filtering.
+  Date/Author: 2026-05-04 / Codex
+
 
 ## Outcomes & Retrospective
 
@@ -170,6 +188,10 @@ Milestone 2 is complete. ESP32 firmware payloads now include `site_id`, `tent_id
 Milestone 3 is complete. The `device` table now owns latest heartbeat fields, with an Atlas migration that backfills ESP32-compatible devices from `sensornode` using `device.metadata->>'legacy_location'` and then backfills any still-null scoped devices, such as the Govee humidifier, from their latest capability reading. `ReadingsService.ingest_reading()` updates canonical device heartbeat whenever scoped `device_id` is present, or derives the heartbeat `device_id` from known legacy `location` when scoped identity is absent, and still updates `sensornode` for compatibility. `ReadingsService.touch_node()` remains a legacy wrapper and also refreshes canonical device heartbeat for known legacy locations. `touch_device()` handles rejected scoped payloads while also touching the compatibility node. `SystemStatusService` reads device heartbeat directly for ESP32 nodes and the Govee humidifier, and `DeviceWatchdogService` continues to persist stable `device_id` state keys through unchanged status objects. `docs/observability.md` now documents that metric freshness is gated by `device.last_seen`.
 
 Milestone 4 is complete. `Plant` rows now carry nullable `moisture_capability_id`, backfilled for the current A-D main plants from legacy `sensornode.location` to the canonical plant-node `soil_moisture_raw` capability. `PlantsService` uses that capability for latest moisture and history queries, and `SensorReader` uses the current grow's plant capability for daily-report plant moisture. Default-main `/api/plants`, plant detail, plant moisture history, daily sensor snapshots, and daily report tests still pass. `Plant.sensornode_id` remains for legacy compatibility and later Milestone 7 removal; no hosted/cloud control was added.
+
+Milestone 5 is complete. The existing default-main routes `/api/sensors/current`, `/api/sensors/history`, `/api/plants`, and `/api/feed/snapshot/latest` still work without query parameters, and each now accepts optional `site_id` and `tent_id` query parameters. Sensors current/history thread the scope into canonical capability reads; plants list threads scope into `PlantsService` and grow-day composition; latest snapshot returns scoped media for explicit non-main requests and no longer falls back to unscoped archives outside `homebox/main`. The OpenAPI contract and generated TypeScript schema were regenerated. No hosted/cloud control, remote execution, public multi-site UI, or visible frontend selector was added.
+
+Post-review Milestone 5 cleanup fixed an invalid-scope snapshot leak: `SnapshotsService.latest()` now returns `None` when `resolve_scope()` cannot resolve the requested site/tent, so the API returns 404 instead of falling through to an unfiltered latest snapshot query.
 
 
 ## Context and Orientation
@@ -711,6 +733,86 @@ Milestone 4 validation evidence from 2026-05-04:
     git diff --check
     passed with no output
 
+Milestone 5 contract artifacts:
+
+    contracts/webapp-v1.yaml
+    web-ui/src/api-client/generated/schema.ts
+
+The contract adds optional `site_id` and `tent_id` query parameters to:
+
+    GET /api/sensors/current
+    GET /api/sensors/history
+    GET /api/plants
+    GET /api/feed/snapshot/latest
+
+`scripts/gen-contract` was run. The generated Pydantic models did not retain a
+diff after `uv run ruff format contracts/python/src/dirt_contracts/webapp_v1/models.py`
+because the API response schemas did not change; the generated TypeScript
+operation types changed to expose the optional query parameters.
+
+Milestone 5 focused validation evidence from 2026-05-04 before simplify:
+
+    uv run pytest apps/web/tests/test_sensors_current_endpoint.py apps/web/tests/test_sensors_history_endpoint.py apps/web/tests/test_plants_list_endpoint.py apps/web/tests/test_feed_snapshot_endpoint.py -q
+    27 passed in 8.67s
+
+Milestone 5 simplify pass used the local fallback because no subagent spawn
+tool was available. Reuse/quality/efficiency review found two worthwhile
+cleanup items: a small `latest()` helper in `apps/web/src/dirt_web/api/sensors.py`
+to avoid repeating the scope args for every dashboard metric, and a cleaner
+current-endpoint test seeder that avoids opening a nested DB session while
+seeding breeding-tent data. A final diff scan also removed the now-unused
+private sensornode lookup helper from `apps/shared/src/dirt_shared/services/readings.py`.
+No behavior changes were made during simplify.
+
+Milestone 5 final validation evidence from 2026-05-04:
+
+    scripts/gen-contract
+    generated Pydantic models and TypeScript schema from contracts/webapp-v1.yaml
+
+    pnpm --dir web-ui exec biome check --write src/api-client/generated/schema.ts
+    Checked 1 file in 34ms. Fixed 1 file.
+
+    uv run ruff format contracts/python/src/dirt_contracts/webapp_v1/models.py
+    1 file reformatted; no generated Pydantic diff remained afterward.
+
+    uv run pytest apps/web/tests/test_sensors_current_endpoint.py apps/web/tests/test_sensors_history_endpoint.py apps/web/tests/test_plants_list_endpoint.py apps/web/tests/test_feed_snapshot_endpoint.py -q
+    27 passed in 8.64s
+
+    uv run pytest apps/tests/invariants/test_api_contract.py -q
+    6 passed, 1 skipped in 0.92s
+
+    pnpm --dir web-ui lint
+    Checked 88 files in 36ms. No fixes applied; eslint passed.
+
+    pnpm --dir web-ui typecheck
+    tsc --noEmit passed.
+
+    pnpm --dir web-ui test
+    1 passed in 761ms.
+
+    uv run ruff check apps/shared/src/dirt_shared/services/readings.py apps/shared/src/dirt_shared/services/snapshots.py apps/web/src/dirt_web/api/feed.py apps/web/src/dirt_web/api/plants.py apps/web/src/dirt_web/api/sensors.py apps/web/tests/test_feed_snapshot_endpoint.py apps/web/tests/test_plants_list_endpoint.py apps/web/tests/test_sensors_current_endpoint.py apps/web/tests/test_sensors_history_endpoint.py
+    All checks passed.
+
+    uv run ruff format --check apps/shared/src/dirt_shared/services/readings.py apps/shared/src/dirt_shared/services/snapshots.py apps/web/src/dirt_web/api/feed.py apps/web/src/dirt_web/api/plants.py apps/web/src/dirt_web/api/sensors.py apps/web/tests/test_feed_snapshot_endpoint.py apps/web/tests/test_plants_list_endpoint.py apps/web/tests/test_sensors_current_endpoint.py apps/web/tests/test_sensors_history_endpoint.py contracts/python/src/dirt_contracts/webapp_v1/models.py
+    10 files already formatted.
+
+    git diff --check
+    passed with no output.
+
+Post-review Milestone 5 snapshot-scoping blocker fix validation:
+
+    uv run pytest apps/web/tests/test_feed_snapshot_endpoint.py -q
+    7 passed in 2.51s
+
+    uv run ruff check apps/shared/src/dirt_shared/services/snapshots.py apps/web/tests/test_feed_snapshot_endpoint.py
+    All checks passed.
+
+    uv run ruff format --check apps/shared/src/dirt_shared/services/snapshots.py apps/web/tests/test_feed_snapshot_endpoint.py
+    2 files already formatted.
+
+    git diff --check
+    passed with no output.
+
 Earlier post-main-review Milestone 3 blocker fix validation:
 
     uv run pytest apps/hwd/tests/test_ingest_api.py -q
@@ -758,6 +860,8 @@ New or changed interfaces expected by the end of this plan:
 - 2026-05-04: Added `growrun.location` to the Milestone 7 cleanup-removal inventory and clarified that future stale-field removals should be tracked as explicit cleanup work with validation, not only as final exit criteria.
 - 2026-05-04: Added duplicated photoperiod storage to the Milestone 7 cleanup-removal inventory. The target is schedule-canonical storage using local wall-clock times plus timezone, with grow-current API values composed from schedule during compatibility.
 - 2026-05-04: Completed Milestone 2 and recorded scoped firmware ingest, canonical device/capability sensor-contract ownership, compatibility-location derivation, and focused validation evidence.
+- 2026-05-04: Completed Milestone 5 and recorded the scoped query-param API decision, snapshot fallback rule, contract regeneration, and focused endpoint validation.
+- 2026-05-04: Fixed main-review Milestone 5 snapshot scoping blocker: unresolved explicit snapshot scope now returns 404 instead of falling through to unfiltered latest-snapshot selection.
 - 2026-05-04: Added post-review Milestone 2 ingest test coverage for unknown scoped device IDs without legacy `location` and refreshed the stale test comment.
 - 2026-05-04: Reworked Milestone 2 sensor-contract and ingest API helpers to satisfy pre-commit import-boundary and no-module-level-singleton invariants.
 - 2026-05-04: Completed Milestone 4 and recorded plant moisture capability ownership, daily sensor capability reads, migration/backfill artifact, simplify cleanup, and validation evidence.
