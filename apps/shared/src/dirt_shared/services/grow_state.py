@@ -1,8 +1,8 @@
 """Grow identity (germination / flower dates) and stage-derived environmental targets.
 
-Single source of truth for "what stage is the grow in right now" and "what
-temp/RH/VPD should we target at this stage". Consumed by the voice status
-tool (sensors.py) and the VPD-targeting humidifier loop.
+Single source of truth for "what stage is the scoped grow run in right now"
+and "what temp/RH/VPD should we target at this stage". Consumed by the voice
+status tool (sensors.py) and the VPD-targeting humidifier loop.
 
 Stage bands are hardcoded domain knowledge rather than DB rows: they change
 rarely and via code review, not a UI toggle.
@@ -17,11 +17,16 @@ from typing import Literal
 from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncEngine
-from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.config import GROW_START
-from dirt_shared.models.grow_state import GrowState
+from dirt_shared.models.grow_run import GrowRun
+from dirt_shared.services.scope import (
+    DEFAULT_SITE_ID,
+    DEFAULT_TENT_ID,
+    current_grow_run,
+    resolve_scope,
+)
 
 Stage = Literal["veg", "flower_early", "flower_late"]
 
@@ -29,12 +34,12 @@ Stage = Literal["veg", "flower_early", "flower_late"]
 _LATE_FLOWER_DAY = 21
 
 
-def tent_tz(state: GrowState) -> ZoneInfo:
+def tent_tz(state: GrowRun) -> ZoneInfo:
     """Resolve the grow's wall-clock timezone from the row's ``timezone`` column.
 
-    Every grow carries its own timezone (``growstate.timezone``, IANA name)
+    Every grow carries its own timezone (``growrun.timezone``, IANA name)
     so a future grow in a different location doesn't require a code change.
-    Callers that already have a ``GrowState`` in hand should pass it; callers
+    Callers that already have a ``GrowRun`` in hand should pass it; callers
     that don't should load one via ``GrowStateService.get_state()`` first.
     """
     return ZoneInfo(state.timezone)
@@ -205,22 +210,43 @@ class GrowStateService:
         self._engine = engine
         self._clock = clock
 
-    async def today(self) -> date:
+    async def today(
+        self,
+        *,
+        site_id: str = DEFAULT_SITE_ID,
+        tent_id: str = DEFAULT_TENT_ID,
+    ) -> date:
         """The grow's current date in the grow's wall-clock timezone."""
-        state = await self.get_state()
+        state = await self.get_state(site_id=site_id, tent_id=tent_id)
         return self._clock().astimezone(tent_tz(state)).date()
 
-    async def get_state(self) -> GrowState:
-        """Return the current grow (``is_current = true``)."""
+    async def get_state(
+        self,
+        *,
+        site_id: str = DEFAULT_SITE_ID,
+        tent_id: str = DEFAULT_TENT_ID,
+    ) -> GrowRun:
+        """Return the current scoped grow run.
+
+        The method name remains for API compatibility, but the source of truth
+        is now ``growrun`` scoped by public ``site_id``/``tent_id``.
+        """
         async with AsyncSession(self._engine) as session:
-            result = await session.exec(
-                select(GrowState).where(GrowState.is_current.is_(True)).limit(1)
-            )
-            state = result.first()
-            return state or GrowState(germination_date=GROW_START, is_current=True)
+            state = await current_grow_run(session, site_id=site_id, tent_id=tent_id)
+            return state or _fallback_grow_run(site_id=site_id, tent_id=tent_id)
+
+    async def current_grow_run(
+        self,
+        *,
+        site_id: str = DEFAULT_SITE_ID,
+        tent_id: str = DEFAULT_TENT_ID,
+    ) -> GrowRun | None:
+        """Return the current grow run for an explicit site/tent scope."""
+        async with AsyncSession(self._engine) as session:
+            return await current_grow_run(session, site_id=site_id, tent_id=tent_id)
 
     @staticmethod
-    def _derive_stage(state: GrowState, today: date) -> Stage:
+    def _derive_stage(state: GrowRun, today: date) -> Stage:
         if state.flower_start_date is None or today < state.flower_start_date:
             return "veg"
         days_in_flower = (today - state.flower_start_date).days
@@ -229,10 +255,10 @@ class GrowStateService:
         return "flower_late"
 
     @staticmethod
-    def _derive_lights(state: GrowState, now_local: datetime) -> LightsState:
+    def _derive_lights(state: GrowRun, now_local: datetime) -> LightsState:
         tz = now_local.tzinfo
-        on_time = state.lights_on_local
-        off_time = state.lights_off_local
+        on_time = _lights_on_local(state)
+        off_time = _lights_off_local(state)
 
         now_t = now_local.time()
         if on_time < off_time:
@@ -287,7 +313,7 @@ class GrowStateService:
         """1-indexed week since germination. Day 1-7 = week 1."""
         state = await self.get_state()
         today = self._clock().astimezone(tent_tz(state)).date()
-        return (today - state.germination_date).days // 7 + 1
+        return (today - _germination_date(state)).days // 7 + 1
 
     async def current_targets(self) -> dict[str, tuple[float, float]]:
         """Temp / RH / VPD band for the current stage."""
@@ -319,8 +345,9 @@ class GrowStateService:
         stage = self._derive_stage(state, today)
         lights = self._derive_lights(state, now_local)
 
-        grow_week_number = (today - state.germination_date).days // 7 + 1
-        day_number = (today - state.germination_date).days + 1
+        germination_date = _germination_date(state)
+        grow_week_number = (today - germination_date).days // 7 + 1
+        day_number = (today - germination_date).days + 1
         if state.flower_start_date is not None and today >= state.flower_start_date:
             flower_week_number: int | None = (
                 today - state.flower_start_date
@@ -329,18 +356,18 @@ class GrowStateService:
             flower_week_number = None
 
         return GrowCurrentPayload(
-            germination_date=state.germination_date,
+            germination_date=germination_date,
             flower_start_date=state.flower_start_date,
             day_number=day_number,
             grow_week_number=grow_week_number,
             flower_week_number=flower_week_number,
             stage=stage,
-            strain=state.strain,
+            strain=state.strain or "Sirius Black × BS01",
             location=state.location,
             plant_count=state.plant_count,
             lights=lights,
-            lights_on_local=state.lights_on_local,
-            lights_off_local=state.lights_off_local,
+            lights_on_local=_lights_on_local(state),
+            lights_off_local=_lights_off_local(state),
         )
 
     async def flip_to_flower(
@@ -358,14 +385,28 @@ class GrowStateService:
             raise ValueError("flower light schedule must be exactly 12 hours on")
 
         async with AsyncSession(self._engine) as session:
-            result = await session.exec(
-                select(GrowState).where(GrowState.is_current.is_(True)).limit(1)
+            scope = await resolve_scope(
+                session, site_id=DEFAULT_SITE_ID, tent_id=DEFAULT_TENT_ID
             )
-            state = result.first()
-            if state is None:
-                state = GrowState(germination_date=GROW_START, is_current=True)
+            if scope is None:
+                raise ValueError("default site/tent scope is missing")
 
-            if flower_start_date < state.germination_date:
+            state = await current_grow_run(session)
+            if state is None:
+                state = GrowRun(
+                    site_id=scope.site_pk,
+                    tent_id=scope.tent_pk,
+                    grow_run_id=f"{scope.tent_id}-{GROW_START.isoformat()}",
+                    name="Main grow 2026-03-15",
+                    purpose="flower",
+                    germination_date=GROW_START,
+                    strain="Sirius Black × BS01",
+                    location="Denver, MT · closet tent",
+                    plant_count=4,
+                    is_current=True,
+                )
+
+            if flower_start_date < _germination_date(state):
                 raise ValueError("flower_start_date cannot be before germination_date")
 
             if (
@@ -381,3 +422,34 @@ class GrowStateService:
             await session.commit()
 
         return await self.get_grow_current_payload()
+
+
+def _fallback_grow_run(
+    *,
+    site_id: str = DEFAULT_SITE_ID,
+    tent_id: str = DEFAULT_TENT_ID,
+) -> GrowRun:
+    return GrowRun(
+        site_id=0,
+        tent_id=0,
+        grow_run_id=f"{tent_id}-{GROW_START.isoformat()}",
+        name=f"{tent_id} fallback grow",
+        purpose="flower",
+        germination_date=GROW_START,
+        strain="Sirius Black × BS01",
+        location="Denver, MT · closet tent" if site_id == DEFAULT_SITE_ID else site_id,
+        plant_count=4,
+        is_current=True,
+    )
+
+
+def _germination_date(state: GrowRun) -> date:
+    return state.germination_date or GROW_START
+
+
+def _lights_on_local(state: GrowRun) -> time:
+    return state.lights_on_local or time(5, 0)
+
+
+def _lights_off_local(state: GrowRun) -> time:
+    return state.lights_off_local or time(23, 0)

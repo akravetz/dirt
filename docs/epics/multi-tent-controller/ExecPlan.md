@@ -20,7 +20,7 @@ This is not the hosted website phase. The local `dirt-hwd` service remains the o
 - [x] (2026-05-03 23:45Z) Investigated current models, migrations, services, API routes, generated contracts, frontend routes/components, hardware loops, daily report paths, PTZ/camera code, firmware ingest identity, and read-only live schema shape.
 - [x] (2026-05-03 23:45Z) Created this de novo ExecPlan at `docs/epics/multi-tent-controller/ExecPlan.md` without opening or relying on prior planning files.
 - [x] (2026-05-04 00:09Z) Implemented Milestone 1: added canonical scoped identity SQLModel classes, generated/reviewed the Atlas migration, seeded `homebox/main/breeding` identity rows plus current main-tent zones/devices/capabilities, and validated schema replay.
-- [ ] Implement Milestone 2: migrate current singleton data into the default site and main tent while preserving old behavior.
+- [x] (2026-05-04 01:31Z) Implemented Milestone 2: moved current grow semantics from `growstate` to scoped `growrun`, migrated `plant` from `growstate_id` to `growrun_id` plus `site_id`/`tent_id`/`plant_id`, added default scope helpers, preserved unscoped main-tent API behavior, and validated migration replay.
 - [ ] Implement Milestone 3: move telemetry ingest and read paths to scoped device/capability ownership.
 - [ ] Implement Milestone 4: move grow state, plants, schedules, snapshots/photos, and alerts onto scoped owners.
 - [ ] Implement Milestone 5: make hardware-control loops explicitly scoped to the main tent and add a local command-intent ledger for future safe remote control.
@@ -56,6 +56,9 @@ This is not the hosted website phase. The local `dirt-hwd` service remains the o
 - Observation: The installed Atlas CLI reports that `atlas migrate lint` is now Atlas Pro-only, despite the local reference pack describing it as available in the community CLI.
   Evidence: `atlas migrate lint --env local --latest 1` exited 1 with `Starting with v0.38, 'atlas migrate lint' is available only to Atlas Pro users.` Validation used `atlas migrate diff verify_multi_tent_sync --env local` plus pytest migration replay instead.
 
+- Observation: Atlas generated the Milestone 2 diff as an unsafe single `ALTER TABLE plant DROP COLUMN growstate_id, ADD COLUMN ... NOT NULL` statement.
+  Evidence: Generated `20260504012912_scoped_growrun_plants.sql` would have added non-null `site_id`, `tent_id`, `growrun_id`, and `plant_id` to a table with existing rows before backfill. The migration was hand-authored as a forward Atlas migration: add nullable columns, backfill from `growstate`/`growrun`, set `NOT NULL`, add constraints/indexes, then drop `growstate`.
+
 
 ## Decision Log
 
@@ -79,10 +82,16 @@ This is not the hosted website phase. The local `dirt-hwd` service remains the o
   Rationale: Dirt already has actuator APIs and loops: PTZ movement, fan `/fan`, Govee humidifier control, and Kasa lights. A command ledger with idempotency and lifecycle states prevents future remote control from being bolted on without replay/audit semantics.
   Date/Author: 2026-05-03 / Codex
 
+- Decision: Drop the legacy `growstate` table in Milestone 2 after backfilling `growrun`.
+  Rationale: Keeping both tables would preserve two possible sources of truth for stage, photoperiod, strain, location, and plant count. The cleaner Phase 1 target is `growrun` with per-tent current semantics; compatibility remains in the `GrowStateService` class name and unscoped API defaults, not in a duplicate table.
+  Date/Author: 2026-05-04 / Codex
+
 
 ## Outcomes & Retrospective
 
-Milestone 1 completed on 2026-05-04. The repository now has canonical scoped identity tables for site, tent, zone, device, capability, grow run, schedule, and command intent. The migration seeds `site.site_id='homebox'`, `tent.tent_id='main'`, `tent.tent_id='breeding'`, main-tent zones, and current local hardware/capability mappings without changing existing singleton service behavior. Milestone 2 remains responsible for moving current grow/plant semantics onto the new scoped grow-run model.
+Milestone 1 completed on 2026-05-04. The repository now has canonical scoped identity tables for site, tent, zone, device, capability, grow run, schedule, and command intent. The migration seeds `site.site_id='homebox'`, `tent.tent_id='main'`, `tent.tent_id='breeding'`, main-tent zones, and current local hardware/capability mappings without changing existing singleton service behavior.
+
+Milestone 2 completed on 2026-05-04. The current main grow is now represented as `growrun.grow_run_id='main-2026-03-15'` under `homebox/main`, and current plants A-D are linked by `plant.growrun_id` with stable `plant_id` values. Existing unscoped grow and plant endpoints still resolve to the default main tent. A test also proves a current breeding grow run can be inserted without changing the default main grow payload.
 
 
 ## Context and Orientation
@@ -93,8 +102,8 @@ The current database shape is centered on these tables:
 
 - `sensornode`: one row per `SensorLocation` enum value. It currently acts like a device table but only knows `location`, IP/firmware/uptime, and `last_seen`.
 - `sensorreading`: append-only fact table keyed by `sensornode_id`, `metric`, `value`, and `source`.
-- `growstate`: current grow identity, photoperiod, timezone, plant count, and current singleton flag.
-- `plant`: one row per A-D plant, linked to `growstate` and a moisture `sensornode`.
+- `growrun`: scoped grow identity, photoperiod, timezone, strain/location text, plant count, and per-tent current flag.
+- `plant`: one row per A-D plant in the current main grow, linked to `growrun`, explicit `site`/`tent` scope, a stable `plant_id`, and a moisture `sensornode`.
 - `sensorcalibration`: per-sensornode calibration rows.
 - `snapshot`: periodic camera image metadata with no site/tent/camera/preset fields.
 
@@ -453,21 +462,58 @@ Milestone 1 validation evidence:
     uv run ruff check apps/shared/src/dirt_shared/models apps/shared/tests/test_scoped_identity_models.py
     All checks passed!
 
+Milestone 2 changed these files:
+
+    apps/shared/src/dirt_shared/models/__init__.py
+    apps/shared/src/dirt_shared/models/grow_run.py
+    apps/shared/src/dirt_shared/models/grow_state.py (deleted)
+    apps/shared/src/dirt_shared/models/plant.py
+    apps/shared/src/dirt_shared/services/scope.py
+    apps/shared/src/dirt_shared/services/grow_state.py
+    apps/shared/src/dirt_shared/services/plants.py
+    apps/shared/tests/test_grow_state.py
+    apps/shared/tests/test_scoped_identity_models.py
+    apps/web/tests/test_grow_endpoint.py
+    apps/shared/src/dirt_shared/config.py
+    apps/hwd/src/dirt_hwd/services/lights.py
+    docs/database.md
+    docs/grow-state.md
+    docs/observability.md
+    migrations/20260504012912_scoped_growrun_plants.sql
+    migrations/atlas.sum
+
+Milestone 2 validation evidence:
+
+    uv run pytest apps/shared/tests/test_pg_fixture.py apps/shared/tests/test_scoped_identity_models.py apps/shared/tests/test_grow_state.py apps/web/tests/test_grow_endpoint.py apps/web/tests/test_plants_list_endpoint.py apps/web/tests/test_plants_detail_endpoint.py apps/web/tests/test_plants_moisture_endpoint.py -q
+    49 passed in 9.82s
+
+    uv run pytest apps/tests/invariants/test_schema_managed_by_atlas.py -q
+    4 passed in 0.07s
+
+    atlas migrate diff verify_scoped_growrun_sync --env local
+    The migration directory is synced with the desired state, no changes to be made
+
+    uv run ruff check apps/shared/src/dirt_shared/models apps/shared/src/dirt_shared/services apps/shared/tests/test_grow_state.py apps/web/tests/test_grow_endpoint.py
+    All checks passed!
+
+    git diff --check
+    passed
+
 
 ## Interfaces and Dependencies
 
 New or changed database interfaces:
 
 - Tables: `site`, `tent`, `zone`, `device`, `capability`, `growrun`, `schedule`, `command`, and scoped photo/alert storage if implemented as tables.
-- Existing table changes: `sensorreading` gains canonical capability linkage; `sensorcalibration` links through capability or device; `plant` links to grow run/tent; `snapshot` gains site/tent/device/growrun/preset scope.
+- Existing table changes: `growstate` has been retired in favor of `growrun`; `plant` now links to `growrun`, `site`, and `tent` with stable `plant_id`; `sensorreading` still needs canonical capability linkage; `sensorcalibration` still needs capability/device linkage; `snapshot` still needs site/tent/device/growrun/preset scope.
 - Indexes: unique external IDs, per-tent current grow partial unique index, sensor history indexes that support `(capability_id, ts DESC)` and scoped dashboard queries.
 
 New or changed service interfaces:
 
-- `ScopeService` or equivalent resolver for default `homebox/main` and explicit scope validation.
+- `apps/shared/src/dirt_shared/services/scope.py` resolves default `homebox/main` and explicit site/tent scopes.
 - `ReadingsService` scoped read/write methods.
-- `GrowRunService` or scoped `GrowStateService` methods.
-- `PlantsService` scoped plant methods.
+- `GrowStateService` remains as a compatibility facade over scoped `growrun` rows and exposes `current_grow_run(site_id="homebox", tent_id="main")`.
+- `PlantsService` methods accept `site_id`/`tent_id` and default to main.
 - `SystemStatusService` dynamic device list from scoped device rows.
 - `CommandService` with idempotent enqueue and lifecycle transitions.
 - `Photo`/`Snapshot` service methods that write scope metadata.
@@ -506,3 +552,4 @@ Out of scope until hosted website phase:
 
 - 2026-05-03: Initial de novo ExecPlan created from repository investigation and the user's multi-tent local-controller context.
 - 2026-05-04: Milestone 1 completed. Added scoped identity models and the `20260504000618_multi_tent_controller.sql` Atlas migration with seed data. Recorded that local Atlas lint is blocked by the installed CLI's Pro-only gate and substituted schema-sync plus pytest replay validation.
+- 2026-05-04: Milestone 2 completed. Retired `growstate`, backfilled current main grow into `growrun`, moved `plant` to scoped grow-run ownership, added scope helpers, and preserved default-main API behavior.

@@ -15,8 +15,10 @@ Most-queried tables. **Always confirm with `\d <table>` before guessing**; this 
 
 - **`sensornode`** — one row per `SensorLocation` enum (`tent`, `plant-a/b/c/d`, `reservoir`). Columns: `id, location, ip, firmware_version, uptime_ms, last_seen`. No `name` / `kind` columns — those are display strings constructed in app code (e.g. `device_status` log events).
 - **`sensorreading`** — append-only fact table, ~20 rows / 20s. Columns: `id, ts, sensornode_id, metric, value, source`. Location lives on `sensornode` — join via `sensornode_id`. Common `metric` values: `temperature_c`, `temperature_f`, `humidity_pct`, `vpd_kpa`, `dew_point_f`, `fan_duty_pct`, `humidifier_on`, `humidifier_mist_level`, plus per-plant `soil_moisture_pct` etc.
-- **`growstate`** — single-row table holding `germination_date`, `flower_start_date`, `lights_on_local`, `lights_off_local`, `timezone`. Source of truth for grow stage (see `apps/shared/src/dirt_shared/services/grow_state.py`).
-- **`plant`** — one row per A–D, FK to `sensornode`. **`snapshot`** — daily-photo metadata.
+- **`site` / `tent` / `zone` / `device` / `capability`** — scoped local identity model. The current physical box is `site.site_id='homebox'`; the default grow tent is `tent.tent_id='main'`; `tent.tent_id='breeding'` exists but has no hardware loops unless explicitly wired.
+- **`growrun`** — scoped grow cycle table holding `germination_date`, `flower_start_date`, `lights_on_local`, `lights_off_local`, `timezone`, `strain`, `location`, `plant_count`, and per-tent `is_current`. Source of truth for grow stage (see `apps/shared/src/dirt_shared/services/grow_state.py`).
+- **`plant`** — one row per plant in a `growrun`, with `plant_id` / `code` (`a`-`d` for the current main grow), scope FKs, and a moisture `sensornode` FK.
+- **`snapshot`** — daily-photo metadata.
 
 ## Common query patterns
 

@@ -22,13 +22,17 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.enums import PlantStatus, PlantSticker
-from dirt_shared.models.grow_state import GrowState
 from dirt_shared.models.plant import Plant
 from dirt_shared.models.sensor_calibration import SensorCalibration
 from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.services.grow_state import BandStatus, band_status, tent_tz
 from dirt_shared.services.plant_detail import PlantDetailService
 from dirt_shared.services.readings import compute_calibrated_pct
+from dirt_shared.services.scope import (
+    DEFAULT_SITE_ID,
+    DEFAULT_TENT_ID,
+    current_grow_run,
+)
 
 
 @dataclass(frozen=True)
@@ -184,21 +188,22 @@ class PlantsService:
         """
         return self._clock()
 
-    async def list_plants(self) -> list[PlantSummary]:
-        """Return one PlantSummary per plant in the current grow."""
+    async def list_plants(
+        self,
+        *,
+        site_id: str = DEFAULT_SITE_ID,
+        tent_id: str = DEFAULT_TENT_ID,
+    ) -> list[PlantSummary]:
+        """Return one PlantSummary per plant in the current scoped grow run."""
         async with AsyncSession(self._engine) as session:
-            gs = (
-                await session.exec(
-                    select(GrowState).where(GrowState.is_current.is_(True))
-                )
-            ).first()
-            if gs is None:
+            grow = await current_grow_run(session, site_id=site_id, tent_id=tent_id)
+            if grow is None:
                 return []
 
             plants = (
                 await session.exec(
                     select(Plant)
-                    .where(Plant.growstate_id == gs.id)
+                    .where(Plant.growrun_id == grow.id)
                     .order_by(Plant.code)
                 )
             ).all()
@@ -222,20 +227,22 @@ class PlantsService:
                 )
             return summaries
 
-    async def get_plant_by_code(self, code: str) -> PlantSummary | None:
-        """Return the current-grow plant whose natural-key code matches."""
+    async def get_plant_by_code(
+        self,
+        code: str,
+        *,
+        site_id: str = DEFAULT_SITE_ID,
+        tent_id: str = DEFAULT_TENT_ID,
+    ) -> PlantSummary | None:
+        """Return the current scoped grow-run plant whose natural-key code matches."""
         async with AsyncSession(self._engine) as session:
-            gs = (
-                await session.exec(
-                    select(GrowState).where(GrowState.is_current.is_(True))
-                )
-            ).first()
-            if gs is None:
+            grow = await current_grow_run(session, site_id=site_id, tent_id=tent_id)
+            if grow is None:
                 return None
             p = (
                 await session.exec(
                     select(Plant)
-                    .where(Plant.growstate_id == gs.id)
+                    .where(Plant.growrun_id == grow.id)
                     .where(Plant.code == code)
                 )
             ).first()
@@ -256,21 +263,22 @@ class PlantsService:
             )
 
     async def get_plant_moisture_history(
-        self, code: str, cutoff: datetime
+        self,
+        code: str,
+        cutoff: datetime,
+        *,
+        site_id: str = DEFAULT_SITE_ID,
+        tent_id: str = DEFAULT_TENT_ID,
     ) -> list[MoisturePoint]:
         """Calibrated soil-moisture % for one plant since ``cutoff``."""
         async with AsyncSession(self._engine) as session:
-            gs = (
-                await session.exec(
-                    select(GrowState).where(GrowState.is_current.is_(True))
-                )
-            ).first()
-            if gs is None:
+            grow = await current_grow_run(session, site_id=site_id, tent_id=tent_id)
+            if grow is None:
                 return []
             p = (
                 await session.exec(
                     select(Plant)
-                    .where(Plant.growstate_id == gs.id)
+                    .where(Plant.growrun_id == grow.id)
                     .where(Plant.code == code)
                 )
             ).first()
@@ -307,23 +315,25 @@ class PlantsService:
                     points.append(MoisturePoint(ts=r.ts, value=pct))
             return points
 
-    async def get_plant_detail_payload(self, code: str) -> PlantDetailPayload | None:
+    async def get_plant_detail_payload(
+        self,
+        code: str,
+        *,
+        site_id: str = DEFAULT_SITE_ID,
+        tent_id: str = DEFAULT_TENT_ID,
+    ) -> PlantDetailPayload | None:
         """Combine ``PlantSummary`` + live moisture + ``PlantDetail`` wiki parse."""
-        summary = await self.get_plant_by_code(code)
+        summary = await self.get_plant_by_code(code, site_id=site_id, tent_id=tent_id)
         if summary is None:
             return None
 
         async with AsyncSession(self._engine) as session:
-            gs = (
-                await session.exec(
-                    select(GrowState).where(GrowState.is_current.is_(True))
-                )
-            ).first()
-        if gs is None:
+            grow = await current_grow_run(session, site_id=site_id, tent_id=tent_id)
+        if grow is None or grow.germination_date is None:
             day = 0
         else:
-            today_d = self._clock().astimezone(tent_tz(gs)).date()
-            day = (today_d - gs.germination_date).days + 1
+            today_d = self._clock().astimezone(tent_tz(grow)).date()
+            day = (today_d - grow.germination_date).days + 1
 
         moisture = PlantMoistureStatus(
             current_pct=summary.moisture_pct,

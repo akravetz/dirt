@@ -1,5 +1,6 @@
-h1:YyX7kltX1mY7Ust9ZAQhybGCR46IFm+He3mBtUliu+U=
+h1:J5JK/S0ZEskUiydS0gsZzYbk6tg1XxujjQlYJqEoOds=
 20260420003127_init.sql h1:GzLCe8kSX0b0TzsHZJNidBWSoeYe83HgnHXdkhGi1Ko=
 20260423180901_add_growstate_timezone.sql h1:hwtimWMWdMD8iw7GuYOMazB5dHSq40fKOSbUFDFPg0s=
 20260428003304_add_govee_sensor_source.sql h1:l7vbhthRMWFQVcLwvX+yhzrzLD0Tcp33QrLpmU4F7jQ=
 20260504000618_multi_tent_controller.sql h1:W6om73kZMz+TC7kATSl40ote5M0pHmzvcLzW/nLlegc=
+20260504012912_scoped_growrun_plants.sql h1:FmNulPMZMS9ornIwx67Yi/3XH8r7q3aajol3GU4mou4=

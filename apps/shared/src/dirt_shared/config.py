@@ -19,7 +19,7 @@ load_dotenv()
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 
 # Germination date per wiki/overview.md. Day 1 = 2026-03-15. Seeded into
-# growstate on the initial Atlas migration; runtime reads go through
+# growrun via Atlas migrations; runtime reads go through
 # dirt_shared.services.grow_state so a future UI can edit the date in one place.
 GROW_START = date(2026, 3, 15)
 
@@ -76,8 +76,8 @@ class Settings(BaseSettings):
     kasa_username: str = ""
     kasa_password: str = ""
     # Kasa plug driving the grow lights. Swapped in 2026-04-23 for the
-    # unreliable analog push-pin 24-hour timer. Schedule lives on
-    # growstate.lights_on_local / lights_off_local (per-grow-timezone
+    # unreliable analog push-pin 24-hour timer. Schedule lives on the current
+    # scoped growrun's lights_on_local / lights_off_local (per-grow-timezone
     # wall clock); this host is just the plug endpoint.
     kasa_lights_host: str = "192.168.1.181"
     lights_poll_interval: int = 30

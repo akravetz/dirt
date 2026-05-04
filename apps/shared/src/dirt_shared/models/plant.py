@@ -1,13 +1,14 @@
-"""One row per plant, scoped to a specific grow.
+"""One row per plant, scoped to a specific grow run.
 
 FKs:
-- ``growstate_id`` — which grow this plant belongs to.
+- ``growrun_id`` — which scoped grow run this plant belongs to.
+- ``site_id`` / ``tent_id`` — denormalized scope for fast default-tent reads.
 - ``sensornode_id`` — UNIQUE, enforcing the 1:1 between a plant and its
   ESP32 moisture node.
 
-Uniqueness: ``(growstate_id, code)`` — the stable 'a'/'b'/'c'/'d' label
-is unique per grow, not globally. Grow #2 can reuse A–D with different
-surrogate ids.
+Uniqueness: ``(growrun_id, plant_id)`` — the stable 'a'/'b'/'c'/'d' label
+is unique per scoped grow run, not globally. Future grows can reuse A-D with
+different surrogate ids.
 """
 
 from __future__ import annotations
@@ -54,19 +55,35 @@ class Plant(SQLModel, table=True):
             "moisture_target_high <= 100",
             name="ck_plant_moisture_high_bounds",
         ),
-        UniqueConstraint("growstate_id", "code", name="uq_plant_grow_code"),
+        UniqueConstraint("growrun_id", "plant_id", name="uq_plant_growrun_plant_id"),
         Index("ix_plant_status", "status"),
-        Index("ix_plant_growstate_id", "growstate_id"),
+        Index("ix_plant_site_id", "site_id"),
+        Index("ix_plant_tent_id", "tent_id"),
+        Index("ix_plant_growrun_id", "growrun_id"),
     )
 
     id: int | None = Field(
         default=None,
         sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
     )
-    growstate_id: int = Field(
+    site_id: int = Field(
         sa_column=Column(
             BigInteger,
-            ForeignKey("growstate.id", ondelete="RESTRICT"),
+            ForeignKey("site.id", ondelete="RESTRICT"),
+            nullable=False,
+        )
+    )
+    tent_id: int = Field(
+        sa_column=Column(
+            BigInteger,
+            ForeignKey("tent.id", ondelete="RESTRICT"),
+            nullable=False,
+        )
+    )
+    growrun_id: int = Field(
+        sa_column=Column(
+            BigInteger,
+            ForeignKey("growrun.id", ondelete="RESTRICT"),
             nullable=False,
         )
     )
@@ -78,6 +95,7 @@ class Plant(SQLModel, table=True):
             unique=True,
         )
     )
+    plant_id: str = Field(sa_column=Column(Text, nullable=False))
     code: str = Field(sa_column=Column(Text, nullable=False))
     name: str = Field(sa_column=Column(Text, nullable=False))
     sticker_color: PlantSticker = Field(

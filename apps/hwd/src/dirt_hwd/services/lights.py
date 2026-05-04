@@ -1,8 +1,8 @@
 """Lights control via Kasa smart plug.
 
 Binary schedule drive: the plug is forced to match the grow's configured
-wall-clock window (``growstate.lights_on_local`` / ``growstate.lights_off_local``,
-interpreted in ``growstate.timezone``). Every tick we reconcile plug state
+wall-clock window (the current scoped ``growrun`` lights fields, interpreted
+in ``growrun.timezone``). Every tick we reconcile plug state
 to the schedule's boolean — no hysteresis, no sensor feedback, no margin.
 On a cold start the first tick reconciles whatever the plug was left in
 (e.g. a pre-existing analog timer position) to the schedule.

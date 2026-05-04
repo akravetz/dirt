@@ -76,6 +76,14 @@ class GrowRun(SQLModel, table=True):
         default=None, sa_column=Column(Time, nullable=True)
     )
     strain: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    location: str = Field(
+        default="Denver, MT · closet tent",
+        sa_column=Column(
+            Text,
+            nullable=False,
+            server_default=text("'Denver, MT · closet tent'"),
+        ),
+    )
     timezone: str = Field(
         default="America/Denver",
         sa_column=Column(

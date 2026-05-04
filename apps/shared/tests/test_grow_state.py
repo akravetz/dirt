@@ -1,9 +1,8 @@
-"""Tests for the GrowState current-row + stage-derived target lookup.
+"""Tests for scoped GrowRun current-row + stage-derived target lookup.
 
-Post-pg-cutover (ADR-006): growstate is no longer a pinned-id=1 singleton.
-Instead, a partial unique index on ``is_current = true`` enforces
-at-most-one-current-grow. The Atlas init migration seeds one row with
-``is_current=true`` and the germination date from config.GROW_START.
+The default no-argument service path resolves to ``homebox/main``. The
+database permits one current ``growrun`` per tent via a partial unique index,
+so a breeding-tent current grow can exist without changing the main dashboard.
 
 Each test uses the shared ``pg_engine`` fixture, which yields an engine
 pointing at a fresh per-test Postgres clone (the template already has
@@ -25,9 +24,12 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.config import GROW_START
-from dirt_shared.models.grow_state import GrowState
+from dirt_shared.models.grow_run import GrowRun
+from dirt_shared.models.site import Site
+from dirt_shared.models.tent import Tent
 from dirt_shared.services import grow_state as gs
 from dirt_shared.services.grow_state import GrowStateService
+from dirt_shared.services.scope import current_grow_run, resolve_scope
 
 # Tests seed the default `America/Denver` timezone row; use the same IANA
 # zone locally when assembling a MDT wall-clock UTC instant.
@@ -60,15 +62,20 @@ def _svc(
 async def _set_state(engine, *, germination: date, flower: date | None = None) -> None:
     """Overwrite the seeded is_current row with the given dates."""
     async with AsyncSession(engine) as session:
-        result = await session.exec(
-            select(GrowState).where(GrowState.is_current.is_(True))
-        )
-        row = result.first()
+        row = await current_grow_run(session)
         if row is None:
+            scope = await resolve_scope(session)
+            assert scope is not None
             session.add(
-                GrowState(
+                GrowRun(
+                    site_id=scope.site_pk,
+                    tent_id=scope.tent_pk,
+                    grow_run_id=f"main-{germination.isoformat()}",
+                    name="Main test grow",
+                    purpose="flower",
                     germination_date=germination,
                     flower_start_date=flower,
+                    strain="Sirius Black × BS01",
                     is_current=True,
                 )
             )
@@ -81,11 +88,8 @@ async def _set_state(engine, *, germination: date, flower: date | None = None) -
 
 async def _set_lights(engine, on: time, off: time) -> None:
     async with AsyncSession(engine) as session:
-        result = await session.exec(
-            select(GrowState).where(GrowState.is_current.is_(True))
-        )
-        row = result.first()
-        assert row is not None, "migration should have seeded an is_current row"
+        row = await current_grow_run(session)
+        assert row is not None, "migration should have seeded a current growrun"
         row.lights_on_local = on
         row.lights_off_local = off
         session.add(row)
@@ -93,17 +97,25 @@ async def _set_lights(engine, on: time, off: time) -> None:
 
 
 async def _clear_state(engine) -> None:
-    """Flip is_current off on the seeded row — exercises the transient-default
-    path. Can't DELETE the row because plant.growstate_id references it."""
+    """Flip main current off on the seeded row to exercise fallback behavior."""
     async with AsyncSession(engine) as session:
-        result = await session.exec(
-            select(GrowState).where(GrowState.is_current.is_(True))
-        )
-        row = result.first()
+        row = await current_grow_run(session)
         if row is not None:
             row.is_current = False
             session.add(row)
             await session.commit()
+
+
+async def _site_tent_ids(engine, tent_id: str) -> tuple[int, int]:
+    async with AsyncSession(engine) as session:
+        result = await session.exec(
+            select(Site.id, Tent.id)
+            .join(Tent, Tent.site_id == Site.id)
+            .where(Site.site_id == "homebox")
+            .where(Tent.tent_id == tent_id)
+        )
+        row = result.one()
+        return row
 
 
 # ------- current_stage -------
@@ -191,6 +203,42 @@ async def test_get_state_returns_default_when_row_missing(pg_engine):
     state = await GrowStateService(pg_engine).get_state()
     assert state.germination_date == GROW_START
     assert state.flower_start_date is None
+
+
+async def test_current_grow_is_scoped_per_tent(pg_engine):
+    main_site_id, main_tent_id = await _site_tent_ids(pg_engine, "main")
+    breeding_site_id, breeding_tent_id = await _site_tent_ids(pg_engine, "breeding")
+
+    async with AsyncSession(pg_engine) as session:
+        main = await current_grow_run(session, tent_id="main")
+        assert main is not None
+        main.flower_start_date = date(2026, 5, 3)
+        session.add(main)
+        session.add(
+            GrowRun(
+                site_id=breeding_site_id,
+                tent_id=breeding_tent_id,
+                grow_run_id="breeding-2026-05-04",
+                name="Breeding test run",
+                purpose="breeding",
+                germination_date=date(2026, 5, 4),
+                strain="Breeding stock",
+                plant_count=0,
+                is_current=True,
+            )
+        )
+        await session.commit()
+
+    svc = _svc(pg_engine, today=date(2026, 5, 4))
+    default_payload = await svc.get_grow_current_payload()
+    breeding = await svc.current_grow_run(tent_id="breeding")
+
+    assert main_site_id == breeding_site_id
+    assert main_tent_id != breeding_tent_id
+    assert default_payload.flower_start_date == date(2026, 5, 3)
+    assert default_payload.stage == "flower_early"
+    assert breeding is not None
+    assert breeding.grow_run_id == "breeding-2026-05-04"
 
 
 # ------- lights_state (feedforward inputs for the humidifier loop) -------

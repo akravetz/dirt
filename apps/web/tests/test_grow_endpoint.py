@@ -12,10 +12,9 @@ from zoneinfo import ZoneInfo
 import pytest
 from dirt_contracts.webapp_v1.models import GrowCurrent, GrowFlowerFlipRequest, Stage
 from httpx import ASGITransport, AsyncClient
-from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from dirt_shared.models.grow_state import GrowState
+from dirt_shared.services.scope import current_grow_run
 from dirt_web.app import create_app
 
 
@@ -30,16 +29,14 @@ async def _update_current_grow(
     lights_on_local: time = time(5, 0, 0),
     lights_off_local: time = time(23, 0, 0),
 ) -> None:
-    """Mutate the template-seeded current GrowState row.
+    """Mutate the template-seeded default main GrowRun row.
 
-    Migration 20260420003127_init.sql seeds exactly one row with
-    ``is_current=true``; the partial-unique index forbids a second.
+    The multi-tent migrations seed exactly one current grow run for
+    ``homebox/main``. Other tents may have their own current row.
     """
     async with AsyncSession(engine) as s:
-        result = await s.exec(
-            select(GrowState).where(GrowState.is_current.is_(True)).limit(1)
-        )
-        row = result.one()
+        row = await current_grow_run(s)
+        assert row is not None
         row.germination_date = germination_date
         row.flower_start_date = flower_start_date
         row.strain = strain

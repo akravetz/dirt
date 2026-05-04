@@ -22,7 +22,6 @@ from dirt_shared.models.enums import (
     SensorSource,
 )
 from dirt_shared.models.grow_run import GrowRun
-from dirt_shared.models.grow_state import GrowState
 from dirt_shared.models.plant import Plant
 from dirt_shared.models.schedule import Schedule
 from dirt_shared.models.sensor_calibration import SensorCalibration
@@ -44,7 +43,6 @@ __all__ = [
     "Device",
     "GrowRun",
     "GrowStage",
-    "GrowState",
     "Plant",
     "PlantStatus",
     "PlantSticker",
