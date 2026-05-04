@@ -4,7 +4,7 @@ type: hardware
 sources: []
 related: [wiki/concepts/autopot.md, wiki/decisions/2026-04-18-reservoir-level-pressure-transducer.md, wiki/decisions/2026-04-11-reservoir-stand.md, wiki/hardware/esp32-plant-nodes.md]
 created: 2026-04-18
-updated: 2026-04-27
+updated: 2026-05-04
 ---
 
 # Reservoir Level (Autopot 25-gal FlexiTank Pro)
@@ -21,9 +21,9 @@ Method: **submerged hydrostatic pressure transducer** at the bottom of the tank.
 | 4–20mA → 0–5V converter | ✅ Bench-tested | DFRobot SEN0262 (shipped in the KIT0139 box). **Note**: this rev's actual output mapping is **not** a clean 4 mA → 0 V; measured ~0.58 V at the 4 mA loop floor and ~0.81 V at 64.5 cm head, which back-extrapolates to roughly 0 mA → 0.12 V, 20 mA → 2.4 V. Doesn't match either the "0–3 V" or "0–5 V" datasheet variants — has a built-in offset. Doesn't matter for our depth math (we calibrate the line we measure), but worth flagging so the next person doesn't predict 0 V at 4 mA like the original BOM did. Discrete precision-shunt alternative still deferred to v2. |
 | ADS1115 16-bit I²C ADC | ✅ Bench-tested 2026-04-26 | Adafruit breakout, ADDR→GND → I²C address 0x48. Powered from ESP32-C3 5 V rail (no level shifters needed — the breakout handles 3.3V I²C from the C3). Reads cleanly at GAIN_FOUR (±1.024 V FS, 31.25 µV/count) — see "Bench bring-up" below. |
 | 12V DC supply for transmitter | ✅ In service 2026-04-26 | Security-01 12V/1A UL-listed regulated brick, 5.5×2.1 mm barrel center-positive. Dedicated to the loop + node — not shared with the LED rail. [Amazon B01DB91P46](https://www.amazon.com/100-240V-Supply-Adapter-Barrel-Camera/dp/B01DB91P46) |
-| ESP32-C3 SuperMini node | ⏳ On bench, USB-powered | Same board family as the plant nodes; new dedicated node, working name `dirt-reservoir.local` (location label `reservoir`, IP TBD). Bench bring-up complete with the test sketch in `firmware/reservoir_node/` env `reservoir-bench`. Not yet on WiFi. |
-| Firmware | ⏳ Bench validated, production WIP | `firmware/reservoir_node/` PIO project exists. Bench bring-up complete on the test sketch (USB-only, no WiFi, raw counts to serial). The production env (WiFi + ingest POST every 30 s, OTA, both `reservoir_pressure_raw` and pre-converted `reservoir_depth_cm`) is in progress, mirroring the SHT45/tent pattern (firmware does the conversion in-flight, server stores values as-is). |
-| Server-side ingest | ✅ Existing path works | `POST /api/ingest/sensors` already accepts arbitrary `(location, metric, value)` triples — no schema change needed; lands as `location="reservoir"`, `metric="reservoir_in"` and `metric="reservoir_pressure_raw"`. |
+| ESP32-C3 SuperMini node | ✅ Live | Same board family as the plant nodes; dedicated scoped device `reservoir-node` on the main tent reservoir zone. |
+| Firmware | ✅ Live, OTA capable | `firmware/reservoir_node/` posts scoped identity every 30 s and publishes `reservoir_pressure_raw` plus canonical `reservoir_in`. Current live firmware is `0.1.1`. |
+| Server-side ingest | ✅ Scoped path works | `POST /api/ingest/sensors` requires `device_id='reservoir-node'`; rows land through the canonical `reservoir-node/reservoir_in` and `reservoir-node/reservoir_pressure_raw` capabilities. Historical `reservoir_depth_cm` rows were converted to `reservoir_in` during the 2026-05-04 cleanup migration. |
 
 ## Bill of Materials
 
@@ -81,10 +81,10 @@ The 25-gal FlexiTank Pro turns out to be **substantially taller than the 13" est
 [ADS1115 16-bit I²C ADC]
         │  I²C (SDA/SCL)
         ▼
-[ESP32-C3 SuperMini]  (new dedicated `reservoir` node)
+[ESP32-C3 SuperMini]  (dedicated `reservoir-node` scoped device)
         │  WiFi
         ▼
-[POST /api/ingest/sensors] → sensorreading rows
+[POST /api/ingest/sensors] → capability-owned sensorreading rows
 ```
 
 ### Why ADS1115 instead of the ESP32-C3's native ADC
@@ -150,14 +150,14 @@ From the manufacturer's spec sheet, plus our own:
 
 ## Calibration
 
-Two-point linear, run once per deployment, persisted in the `sensorcalibration` table with `metric="reservoir_depth_cm"`:
+Two-point linear, run once per deployment. Current persisted readings use canonical `metric="reservoir_in"` attached to the `reservoir-node` `reservoir_in` capability:
 
 1. **Zero (dry-air)**: probe held in air at tank height. Record ADS1115 counts → that's the 0 cm anchor (should correspond to ~4 mA on the loop).
 2. **Span**: fill to a tape-measured depth near the top of the usable range (e.g. ~40 cm in the FlexiTank), wait ~30 min for the reading to settle, record counts.
 3. Compute slope from those two points; depth(counts) is linear between them.
 4. **Verify** at a third independent depth (e.g. ~20 cm). Reject the calibration and re-do if the verification point misses by more than **10 mm**.
 
-Auto-extrema calibration like the soil sensors do is wrong here — the probe is absolute, not relative — so the loop in `src/dirt/services/readings.py:_update_calibration` must NOT include `reservoir_depth_cm` in `AUTO_CALIBRATED_METRICS`.
+Auto-extrema calibration like the soil sensors do is wrong here — the probe is absolute, not relative — so the auto-widening path in `dirt_shared.services.readings._update_calibration` must not treat `reservoir_in` like plant `soil_moisture_raw`.
 
 ### Density correction
 
@@ -171,7 +171,7 @@ The FlexiTank's base is approximately a 21" × 21" prism, so depth → liters is
 2. Add water in 5 L increments from a measuring jug, recording depth after each addition.
 3. Store the (depth_cm → liters) lookup table in config; piecewise-linear interpolate at runtime.
 
-Publish both `reservoir_depth_cm` (raw, calibrated) and `reservoir_volume_l` (derived) so depth is recoverable if the volume table ever needs to be redone.
+Publish canonical `reservoir_in` (raw, calibrated depth in inches) and optionally `reservoir_volume_l` (derived) so depth is recoverable if the volume table ever needs to be redone.
 
 ## Fault detection
 

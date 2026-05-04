@@ -4,13 +4,18 @@ type: decision
 sources: []
 related: [wiki/hardware/reservoir-level.md, wiki/concepts/autopot.md, wiki/hardware/esp32-plant-nodes.md, wiki/decisions/2026-04-14-esp32-c3-gpio3-adc.md]
 created: 2026-04-18
-updated: 2026-04-18
+updated: 2026-05-04
 ---
 
 # Decision: Reservoir Level via Submerged Pressure Transducer + ADS1115
 
 **Date:** 2026-04-18
 **Status:** Accepted (parts on roadmap; implementation pending — see [hardware page](../hardware/reservoir-level.md))
+
+**Revision 2026-05-04:** implementation is live under scoped identity
+`device_id='reservoir-node'`. Current persisted depth metric is canonical
+`reservoir_in`; historical `reservoir_depth_cm` rows were converted to
+`reservoir_in` during the scoped firmware legacy cleanup.
 
 ## Context
 
@@ -22,7 +27,7 @@ The ESP32-C3 plant-node infrastructure (per-plant nodes, ingest endpoint, OTA fl
 
 Use a **submerged hydrostatic pressure transducer** at the bottom of the tank, read through a **16-bit ADS1115 I²C ADC** wired to a new dedicated **ESP32-C3 SuperMini reservoir node**. Specific part: **DFRobot KIT0139** (4–20 mA, 12–36 V, 0–5 m H₂O, IP68, 316L stainless probe).
 
-The 4–20 mA loop is converted to a 0–5 V signal (either the SEN0262 module that ships with KIT0139, or a discrete precision shunt — choice deferred to assembly time) and sampled by the ADS1115. The ESP32-C3 reads the ADS1115 over I²C, converts counts to depth via a two-point linear calibration, and POSTs `reservoir_depth_cm` (and likely a raw `reservoir_pressure_raw`) every 30 s through the existing `/api/ingest/sensors` endpoint.
+The 4–20 mA loop is converted to a 0–5 V signal (either the SEN0262 module that ships with KIT0139, or a discrete precision shunt — choice deferred to assembly time) and sampled by the ADS1115. The ESP32-C3 reads the ADS1115 over I²C, converts counts to depth via a two-point linear calibration, and POSTs canonical `reservoir_in` plus raw `reservoir_pressure_raw` every 30 s through the scoped `/api/ingest/sensors` endpoint as `device_id='reservoir-node'`.
 
 ## Alternatives Considered
 
@@ -50,16 +55,16 @@ The 25-gal FlexiTank is ~0.5 m deep when full, so a 0–5 m probe only ever exer
 
 ## What This Establishes for the Future
 
-- A new top-level **`reservoir`** location label in `sensorreading` (alongside `tent`, `plant-a`, `plant-b`, `plant-c`, `plant-d`).
+- A dedicated scoped **`reservoir-node`** device with `reservoir_in` and `reservoir_pressure_raw` capabilities.
 - A new pattern of **dedicated single-purpose ESP32-C3 nodes** beyond the per-plant template — the firmware skeleton (`firmware/plant_node/`) is reusable but the location-specific logic (sensors, calibration) gets its own folder.
-- The first **absolute** sensor reading in the system. All prior sensors were either inherently calibrated (BME280 temp/RH/pressure on the Arduino Nano — see [2026-04-20 sensor swap](2026-04-20-bme280-sensor-swap.md)) or auto-calibrated relatively (capacitive soil probes). This one needs a one-time **two-point manual calibration** persisted in `sensorcalibration` and **must be excluded** from the auto-extrema widening logic in `src/dirt/services/readings.py:_update_calibration` (i.e. `reservoir_depth_cm` does NOT belong in `AUTO_CALIBRATED_METRICS`).
+- The first **absolute** sensor reading in the system. All prior sensors were either inherently calibrated (BME280 temp/RH/pressure on the Arduino Nano — see [2026-04-20 sensor swap](2026-04-20-bme280-sensor-swap.md)) or auto-calibrated relatively (capacitive soil probes). This one needs a one-time **two-point manual calibration** and must stay out of the soil-moisture auto-extrema widening path.
 
 ## Acceptance Criteria
 
-- `reservoir_depth_cm` shows up in `sensorreading` rows tagged `location="reservoir"` at ~30 s cadence, sourced from the new node.
+- `reservoir_in` shows up in `sensorreading` rows attached to the `reservoir-node/reservoir_in` capability at ~30 s cadence.
 - A two-point empty-tank / known-fill calibration is recorded and the resulting line produces depth values that match a tape-measure check to within ±25 mm.
 - The depth time-series is monotonically decreasing between refills (no EC- or temperature-driven drift artifacts) and shows a clear step on each top-off.
-- The web UI's sensor-history graphs render `reservoir_depth_cm` alongside the existing tent metrics without code changes — proving the ingest path didn't need bespoke handling.
+- The web UI's sensor-history graphs render `reservoir_in` alongside the existing tent metrics without code changes — proving the ingest path didn't need bespoke handling.
 
 ## Open Items (from the hardware page)
 

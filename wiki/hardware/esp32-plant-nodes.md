@@ -4,7 +4,7 @@ type: hardware
 sources: []
 related: [wiki/decisions/2026-04-12-distributed-sensor-architecture.md, wiki/decisions/2026-04-14-esp32-c3-gpio3-adc.md, wiki/decisions/2026-04-14-server-side-auto-calibration.md, wiki/concepts/capacitive-soil-moisture.md]
 created: 2026-04-14
-updated: 2026-04-16
+updated: 2026-05-04
 ---
 
 # ESP32-C3 Per-Plant Nodes
@@ -49,7 +49,7 @@ Pin silkscreens on this clone match the chip's GPIO numbering (verified empirica
 - **Location:** `firmware/plant_node/`
 - **Build tool:** PlatformIO with two envs per plant: `plant-{id}` for USB flash, `plant-{id}-ota` for subsequent wireless pushes
 - **Plant ID baked in at build time** via `-D PLANT_ID=\"a\"` build flag
-- **Firmware version** tracked via `-D FIRMWARE_VERSION=\"x.y.z\"` build flag; sent with every POST and upserted into `sensornode.firmware_version`
+- **Firmware version** tracked via `-D FIRMWARE_VERSION=\"x.y.z\"` build flag; sent with every POST and stored on the scoped `device.firmware_version` row
 - **ADC driver:** ESP-IDF native `adc1_get_raw()` (Arduino `analogRead()` has documented WiFi-interaction issues on ESP32-C3)
 - **Behavior per cycle (every 30s):** average 16 ADC samples on GPIO3, POST raw value as `soil_moisture_raw` metric, include node metadata (ip, firmware_version, uptime_ms) for upsert
 
@@ -72,7 +72,10 @@ Takes ~20s over WiFi. No need to open the tent.
 - **Payload:**
   ```json
   {
-    "location": "plant-a",
+    "site_id": "homebox",
+    "tent_id": "main",
+    "zone_id": "plant-a",
+    "device_id": "plant-a-node",
     "metrics": {"soil_moisture_raw": 1234},
     "source": "esp32",
     "firmware_version": "0.1.0",
@@ -80,7 +83,7 @@ Takes ~20s over WiFi. No need to open the tent.
     "uptime_ms": 30000
   }
   ```
-- Server inserts one `sensorreading` row per metric, upserts `sensornode`, and auto-widens `sensorcalibration` extrema (see [server-side auto-calibration decision](../decisions/2026-04-14-server-side-auto-calibration.md)).
+- Server resolves the plant node's `soil_moisture_raw` capability, inserts one capability-owned `sensorreading` row per metric, updates the scoped `device` heartbeat, and auto-widens the capability-owned `sensorcalibration` extrema (see [server-side auto-calibration decision](../decisions/2026-04-14-server-side-auto-calibration.md)).
 
 ## Pre-flight Sensor Health Check
 

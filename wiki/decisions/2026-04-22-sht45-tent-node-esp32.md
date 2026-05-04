@@ -43,6 +43,11 @@ Firmware restructure: three peer PlatformIO projects (`firmware/plant_node/`, `f
 
 ### What *doesn't* change
 
+> **Revision 2026-05-04:** this section was true for the transition. The
+> deployed fan/tent node now posts scoped identity as
+> `device_id='fan-controller'`; current DB queries use `device` /
+> `capability` / `sensorreading.capability_id`, not `SensorLocation.TENT`.
+
 - **Ingest schema.** `sensorreading` columns and metric names are identical; the only diff is `source` = `esp32` instead of `arduino` for new tent rows.
 - **Humidifier control loop.** Setpoint (`STAGE_TARGETS` upper edge), 0.1 kPa deadband, lights-off feedforward, failsafe (stale-sensor forced OFF). The loop reads VPD from the DB and is sensor-agnostic.
 - **Location label.** Still `tent` — same `SensorLocation` enum value. No schema migration.

@@ -1,5 +1,13 @@
 # API Proposal — webapp-v1
 
+> **Schema note (2026-05-04):** This proposal predates the scoped
+> device/capability cleanup. Do not copy SQL examples that use
+> `sensorreading.location`, `sensornode`, `sensor_location`, or
+> `sensornode_id`. Current telemetry is owned by
+> `sensorreading.capability_id -> capability -> device`; current heartbeat is
+> owned by `device.last_seen`. See [`../database.md`](../database.md) and
+> [`../epics/multi-tent-controller/DataModelERD.md`](../epics/multi-tent-controller/DataModelERD.md).
+
 Scope: JSON API that the Vite/React SPA in `web-ui/` consumes to reproduce the `debug/webapp.zip` mockup against real backend data. This doc is a first-pass sketch. Open questions are marked **?**.
 
 Not in scope here: OpenAPI YAML (will be generated from this after sign-off), FastAPI route files (`apps/web/src/dirt_web/api/*.py` rewrites), TS client generation.
@@ -143,16 +151,16 @@ Drives the five dashboard gauges + humidifier tile header. The mockup's `SENSORS
     },
     "humidity_pct": { "value": 65, "unit": "%", "target": [45, 55], "status": "warn", "ts": "..." },
     "vpd_kpa":      { "value": 0.94, "unit": "kPa", "target": [0.8, 1.2], "status": "ok", "ts": "..." },
-    "fan_pct":      { "value": 48, "unit": "%", "target": null, "status": "ok", "ts": "..." },
+    "fan_duty_pct": { "value": 48, "unit": "%", "target": null, "status": "ok", "ts": "..." },
     "reservoir_in": { "value": 6.2, "unit": "in", "target": null, "status": "ok", "ts": "..." }
   }
 }
 ```
 
 Notes:
-- Target bands come from `STAGE_TARGETS` in `grow_state.py` for `temperature_f / humidity_pct / vpd_kpa`. `fan_pct` and `reservoir_in` have no bands today.
+- Target bands come from `STAGE_TARGETS` in `grow_state.py` for `temperature_f / humidity_pct / vpd_kpa`. `fan_duty_pct` and `reservoir_in` have no bands today.
 - `status` is server-computed: `ok` if in band, `warn` if within ±50% of band width outside, `crit` if further. Makes the client a pure renderer — no threshold drift between the two.
-- `fan_pct` and `reservoir_in` are **not in the DB today** — see data_model proposal. Initial plan: mock with stable values (48 %, 6.2 in) behind a server-side `MockSensorProvider` that the OpenAPI contract treats as real.
+- `fan_duty_pct` and `reservoir_in` are current database metrics owned by scoped device capabilities. Earlier mock-only `fan_pct` / reservoir notes in the data-model proposal are historical.
 
 ### GET /api/sensors/history?range=1h|24h|7d&metric=...
 
@@ -172,7 +180,7 @@ Drives the five sparklines (single-metric each) *and* the dashboard page's share
 }
 ```
 
-Allowed `metric` values: `temperature_f | humidity_pct | vpd_kpa | dew_point_f | pressure_hpa | fan_pct | reservoir_in`.
+Allowed current `metric` values: `temperature_f | humidity_pct | vpd_kpa | dew_point_f | fan_duty_pct | reservoir_in`.
 
 Bucketing matches today's `_BUCKET_SQL`: raw for 1h, 5-min avg for 24h, hourly for 7d.
 
@@ -298,7 +306,7 @@ Drives the plant-detail-drawer moisture chart.
 }
 ```
 
-Derived from `sensorreading WHERE location='plant-a' AND metric='soil_moisture_raw'` + calibration. Irrigation event count is a simple "how many times did moisture jump up by >N%" heuristic — can be mocked in V1.
+Derived from the current plant's `plant.moisture_capability_id`, joining `sensorreading.capability_id` and `sensorcalibration.capability_id`. Irrigation event count is a simple "how many times did moisture jump up by >N%" heuristic — can be mocked in V1.
 
 ---
 
@@ -324,8 +332,8 @@ Drives the dashboard system table (8 rows in the mockup).
 ```
 
 Sources:
-- Env sensor (Arduino) → check the most recent `sensorreading WHERE metric='temperature_f' AND source='arduino'`.
-- ESP32 plant nodes → existing `sensornode` table. `status=ok` if `last_seen < 2 min ago`, `warn` if `< 5 min`, `offline` otherwise.
+- Env sensor / fan controller → check the canonical `device` row and latest readings for `device_id='fan-controller'`.
+- ESP32 plant nodes → `device` rows `plant-a-node` through `plant-d-node`. `status=ok` if `device.last_seen < 2 min ago`, `warn` if `< 5 min`, `offline` otherwise.
 - Camera → query `dirt-camera` daemon socket `get_state` and check `camera_connected`.
 - Jabra → **not tracked today**. Mock `listening` if `dirt-voice.service` is active. See data_model proposal.
 - Humidifier → check that the Kasa device is reachable; status comes from the most recent `humidifier` log stream event (have `reason` → if `failsafe_stale_sensor`, show warn).

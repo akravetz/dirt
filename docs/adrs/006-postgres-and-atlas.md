@@ -4,6 +4,11 @@
 
 Accepted — 2026-04-19. Cutover planned for same day.
 
+Superseded in part — 2026-05-04. Postgres + Atlas remain the accepted
+database/migration architecture, but later scoped telemetry migrations retired
+the initial `sensornode`, `sensor_location`, and `sensornode_id` compatibility
+schema. Use [`../database.md`](../database.md) for the current table shape.
+
 ## Context
 
 From project inception we used SQLite (via `aiosqlite` + SQLModel) with schema maintained by `SQLModel.metadata.create_all` plus a hand-rolled idempotent-ALTER tuple (`_COLUMN_MIGRATIONS` in `apps/shared/src/dirt_shared/db.py`) for post-deploy column additions.
@@ -65,3 +70,12 @@ This prevents a future agent from silently re-introducing the old pattern.
 - **Tests gain a pg dependency.** Session-scoped pg template DB + per-test `CREATE DATABASE ... TEMPLATE` in `conftest.py`. Tests no longer work offline without a running pg instance; that's an accepted cost.
 - **Cutover is a single maintenance window** (~2–5 min of hwd/web downtime). Runbook + rollback procedure in `docs/proposals/pg-cutover-plan.md`.
 - **Existing data migrates 1:1.** `scripts/sqlite_to_postgres.py` streams `sensorreading` via `COPY FROM STDIN`, UPSERTs `sensornode`/`growstate` against the seeded rows, bulk-inserts `sensorcalibration`/`snapshot`. Pre-cutover sqlite file is renamed to `var/dirt.db.pre-pg-cutover` and retained for 2 weeks as rollback artifact.
+
+### Later schema evolution
+
+- 2026-05-04 scoped device/capability cleanup migrated current telemetry to
+  `sensorreading.capability_id -> capability -> device`, moved heartbeat
+  ownership to `device.last_seen`, and removed `sensornode`,
+  `sensor_location`, and `sensorreading.sensornode_id`. The historical
+  consequences above describe the initial Postgres cutover, not the current
+  telemetry query contract.

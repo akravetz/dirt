@@ -1,5 +1,13 @@
 # Data Model Proposal — webapp-v1 (Postgres cutover + Atlas migrations)
 
+> **Superseded schema note (2026-05-04):** This proposal is historical. It
+> records the initial Postgres cutover shape, not the current telemetry
+> schema. Later multi-tent/scoped-firmware migrations removed `sensornode`,
+> `sensor_location`, `plant.sensornode_id`,
+> `sensorcalibration.sensornode_id`, and `sensorreading.sensornode_id`.
+> Current query authors should use [`../database.md`](../database.md) and
+> [`../epics/multi-tent-controller/DataModelERD.md`](../epics/multi-tent-controller/DataModelERD.md).
+
 Scope: what SQL and FS-backed data does the new SPA need, what types and constraints should they have in a real DB, and how do we get there from the current SQLite store?
 
 **Framing change from the prior draft.** The prior version extended the SQLite schema in place using the hand-rolled `_COLUMN_MIGRATIONS` tuple in `db.py`. This version starts from the premise that we're moving to **Postgres 16+** with **Atlas-managed migrations** before freezing the contract, and designs the schema against Postgres-native types (`timestamptz`, `boolean`, `text`, `jsonb`, explicit enum types, CHECK constraints) instead of SQLite's dynamic typing. See [ADR-006](../adrs/006-postgres-and-atlas.md) for the decision rationale.
@@ -379,19 +387,19 @@ Caveat: the external schema loader needs our Python env loaded to run. For produ
 
 ### 4c. Inline fan percent
 
-**Needed by:** gauge #4 (`fan_pct`), sparkline #4.
+**Needed by:** gauge #4 (`fan_duty_pct`), sparkline #4.
 
-**Today:** AC Infinity inline fan not wired to the backend.
+**Historical state:** AC Infinity inline fan was not wired to the backend when this proposal was written.
 
-**Flag:** **Mock with server-side stub** (`dirt_shared.services.mock_sensors`). The mock returns a plausible 45–52% range drifting slowly, keyed off minute-of-day. It does NOT write to `sensorreading`. When real hardware lands, it writes `sensorreading(metric='fan_pct', location='tent', source='esp32')` and the mock is deleted. API shape is unchanged.
+**Current implementation:** the fan-controller publishes `fan_duty_pct` through scoped ingest as `device_id='fan-controller'`. Rows are owned by the canonical fan-controller capability, not by a legacy location.
 
 ### 4d. Reservoir level (inches)
 
 **Needed by:** gauge #5 (`reservoir_in`), sparkline #5.
 
-**Today:** Manually observed; no sensor.
+**Historical state:** manually observed; no sensor.
 
-**Flag:** **Mock with server-side stub** (`dirt_shared.services.mock_sensors`). Keyed off hours-since-midnight with a morning reset. Does not write to `sensorreading`. Retires when an ultrasonic ESP32 lands and writes `sensorreading(location='reservoir', metric='level_in')` — which is why `sensor_location` enum already has `'reservoir'`.
+**Current implementation:** the reservoir node publishes canonical `reservoir_in` and `reservoir_pressure_raw` through scoped ingest as `device_id='reservoir-node'`. Historical `reservoir_depth_cm` rows were converted to `reservoir_in` by the 2026-05-04 cleanup migration.
 
 ### 4e. Humidifier cycles/24h + state transitions
 
@@ -471,8 +479,8 @@ If that parse proves flaky, the fallback is a `plant_detail` table (`id, body js
 
 | Field | Mock strategy | Retire when |
 |---|---|---|
-| `fan_pct` | Slow sine 45–52% keyed off minute-of-day; not persisted. | AC Infinity integration lands; writes `sensorreading metric='fan_pct'`. |
-| `reservoir_in` | 4–9 in sawtooth keyed off time-of-day; not persisted. | Ultrasonic reservoir ESP32 deployed; writes `sensorreading location='reservoir' metric='level_in'`. |
+| `fan_duty_pct` | Historical mock: slow sine 45–52% keyed off minute-of-day; not persisted. | Retired; fan-controller now writes scoped capability readings. |
+| `reservoir_in` | Historical mock: 4–9 in sawtooth keyed off time-of-day; not persisted. | Retired; reservoir-node now writes scoped capability readings. |
 | Plant vitals beyond soil moisture (pH, distance, nodes) | Parsed from `wiki/plants/plant-{id}.md`. Real observations, just not live-sensor-backed. | Per-plant pH probe + light-distance sensor wiring. |
 | Plant timeline entries | Parsed from wiki. | N/A — timeline is always agent-authored narrative. |
 
@@ -485,7 +493,7 @@ If that parse proves flaky, the fallback is a `plant_detail` table (`id, body js
 | `dirt_shared.services.humidifier_state` | Reads `sensorreading humidifier_on` via `LAG()` window — current, cycles_24h, history transitions. |
 | `dirt_shared.services.system_status` | Collates device heartbeats into one payload. |
 | `dirt_shared.services.wiki` | Tree walk + file read with frontmatter split + backlinks grep + search. |
-| `dirt_shared.services.mock_sensors` | `fan_pct` + `reservoir_in` deterministic generators. Clearly labeled, retire cleanly. |
+| `dirt_shared.services.mock_sensors` | Historical `fan_pct` + `reservoir_in` deterministic generators. Retired by live scoped firmware. |
 
 ### Unchanged by this proposal
 

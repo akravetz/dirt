@@ -1,5 +1,11 @@
 # Webapp rewrite — agent handoff
 
+> **Current schema note (2026-05-04):** this handoff predates the scoped
+> device/capability cleanup. The Phase 1 Postgres cutover notes below mention
+> `sensornode` and `sensor_location`; those were later retired. Use
+> `docs/database.md` and `docs/epics/multi-tent-controller/DataModelERD.md`
+> before writing SQL or endpoint queries.
+
 **Status (2026-04-20, end of session 3)**:
 - ✅ **Phase 0** — uv workspace + hardware-daemon split. Harness installed. `web-ui/` skeleton exists.
 - ✅ **Phase 1 design** — API + data-model proposals written and agreed (`docs/proposals/{API.md, data_model.md}`). Postgres cutover executed (ADR-006). New service modules that back the future endpoints are implemented and tested. Test suite green on Postgres (143 tests).

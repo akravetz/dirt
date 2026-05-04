@@ -1,5 +1,11 @@
 # Fan Controller + Tent Sensor Combined Node — Handoff
 
+> **Current schema note (2026-05-04):** this handoff is historical. The
+> deployed fan firmware now posts scoped identity as
+> `device_id='fan-controller'` without `location`, and current DB queries use
+> `device` / `capability` / `sensorreading.capability_id`, not
+> `SensorLocation.TENT` or `sensornode`.
+
 **Date:** 2026-04-22 (end-of-day)
 **Author of this handoff:** Claude (context-full)
 **Scope:** everything done this session to bring up the dual-role ESP32-C3 node (AC Infinity Cloudline LITE 6" fan driver + Adafruit SHT45 tent environmental sensor), plus the plan for completing the cutover from the Arduino Nano + BME280 tent hub.
@@ -109,7 +115,7 @@ Firmware shipped as `0.2.0`. Build verified (`pio run -e fan` → flash 76.0 %, 
 - `firmware/fan_controller/platformio.ini` — `lib_extra_dirs = ../common`, Adafruit SHT4x deps, `FIRMWARE_VERSION="0.2.0"`, new `[env:fan-ota]` using `PLANT_OTA_PASSWORD`.
 - `firmware/fan_controller/include/secrets.h.example` — committed template; `secrets.h` gitignored, seeded from the tent_node fleet credentials.
 - `.gitignore` — `firmware/fan_controller/include/secrets.h` added.
-- `firmware/fan_controller/src/main.cpp` — full rewrite. WiFi/OTA/IngestClient via shared libs; non-blocking heater-cycle state machine (1 s @ 200 mW pulse → 59 s equilibrate → read + post → chain next pulse; Sensirion AN §3); ingest metrics `{temperature_c, humidity_pct, fan_duty_pct}` at `location=tent`.
+- `firmware/fan_controller/src/main.cpp` — full rewrite. WiFi/OTA/IngestClient via shared libs; non-blocking heater-cycle state machine (1 s @ 200 mW pulse → 59 s equilibrate → read + post → chain next pulse; Sensirion AN §3); current firmware posts scoped identity `device_id='fan-controller'` with metrics `{temperature_c, humidity_pct, fan_duty_pct}`.
 - `WebServer` on :80 with `POST /fan {"duty_pct":0..100}` and `GET /fan → {"set_duty_pct":N,"reported_duty_pct":N}`. `reported_duty_pct` is MOCKED (echoes set value) until tach lands.
 
 **Design decisions that were open in this section:**
@@ -250,11 +256,11 @@ journalctl --user -u dirt-hwd --since "5 minutes ago" | grep ingest
 # 4 plant nodes + (eventually) 1 combined tent/fan board show up
 ```
 
-### Check sensor nodes in DB
+### Check current ESP32 devices in DB
 ```bash
 set -a; source .env; set +a
 PGPASSWORD=$DIRT_PG_PASSWORD psql -h 127.0.0.1 -U dirt -d dirt -c \
-  "SELECT id, location, ip, firmware_version, last_seen FROM sensornode ORDER BY last_seen DESC NULLS LAST;"
+  "SELECT device_id, ip, firmware_version, last_seen FROM device WHERE controller = 'esp32' ORDER BY last_seen DESC NULLS LAST;"
 ```
 
 ### Commit current uncommitted work (when ready)
