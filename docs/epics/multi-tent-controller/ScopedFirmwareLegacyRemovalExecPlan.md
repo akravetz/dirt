@@ -49,6 +49,10 @@ This is local-controller work. The homebox remains the hardware authority. Do no
   Rationale: Some old rows intentionally remain quarantined without a safe canonical capability, such as old `pressure_hpa`, `reservoir_depth_cm`, and a one-off plant `humidity_pct`. Dropping `sensornode_id` without an explicit history decision would make old data harder to explain.
   Date/Author: 2026-05-04 / Codex
 
+- Decision: Do not migrate old `pressure_hpa` or the stray `plant-a` `humidity_pct` row into the current app schema.
+  Rationale: These values were never used by the product and are considered trash historical readings. The normal pre-migration `pg_dump` is enough retention; no targeted extract or archive-only capability is needed. The cleanup migration may delete exactly these known rows after the backup, then fail if any unexpected null-capability rows remain.
+  Date/Author: 2026-05-04 / Codex
+
 - Decision: Normalize historical reservoir depth rows to the canonical inches stream instead of preserving a separate centimetre display metric.
   Rationale: The product should continue to show one reservoir-depth chart without frontend unit-conversion business logic. Old `reservoir_depth_cm` rows are the same physical quantity as current `reservoir_in`, so the migration should convert `value = value / 2.54`, set `metric = 'reservoir_in'`, and attach the canonical `reservoir-node` `reservoir_in` capability. Preserve the conversion in migration comments, validation counts, and this plan rather than storing a second UI-facing metric.
   Date/Author: 2026-05-04 / Codex
@@ -124,11 +128,11 @@ Update tests around daily reports, metric freshness, voice sensor tools, and leg
 
 Milestone 5: Final schema and code deletion.
 
-Before dropping columns/tables, migrate historical lineage into capability ownership. The default policy is to normalize historical rows to canonical capabilities when the old stream represents the same physical quantity. The known reservoir case should be migrated from `reservoir_depth_cm` to the canonical `reservoir_in` capability by dividing values by `2.54` and changing `metric` to `reservoir_in`. Do not round converted values in storage.
+Before dropping columns/tables, migrate useful historical lineage into capability ownership and delete known trash rows after the standard pre-migration backup. The default policy is to normalize historical rows to canonical capabilities when the old stream represents the same physical quantity. The known reservoir case should be migrated from `reservoir_depth_cm` to the canonical `reservoir_in` capability by dividing values by `2.54` and changing `metric` to `reservoir_in`. Do not round converted values in storage.
 
-For historical streams that do not have a safe canonical equivalent, create explicit archive-only capabilities instead of dropping data or forcing a false mapping. Known examples are old tent `pressure_hpa` and the one-off plant `humidity_pct` row. Name archive capabilities so normal dashboards can ignore them unless a future historical explorer deliberately opts in.
+Do not create archive-only capabilities for old tent `pressure_hpa` or the one-off `plant-a` `humidity_pct` row. Those rows are not product history worth preserving in the app schema. The migration may delete exactly those rows, with comments naming the decision, after the normal `pg_dump` backup has been taken.
 
-The migration must prove that every `sensorreading` row has non-null `capability_id` before dropping `sensornode_id`. Use Atlas only for schema changes. Candidate removals:
+The migration must prove that every remaining `sensorreading` row has non-null `capability_id` before dropping `sensornode_id`. Use Atlas only for schema changes. Candidate removals:
 
 - `sensorreading.sensornode_id`
 - `sensornode`
@@ -215,7 +219,8 @@ The work is accepted only when all of these are true:
 - If `sensornode`, `sensor_location`, or `sensorreading.sensornode_id` remain at any stopping point, this plan documents exactly why.
 - If they are removed, Atlas status reports no pending files after apply and `docs/database.md` no longer documents them as live tables/columns.
 - Historical `reservoir_depth_cm` rows are converted to `reservoir_in` in storage and linked to the canonical reservoir capability; frontend/API history does not need a special centimetre conversion path.
-- Historical rows without a safe canonical equivalent are linked to explicit archive-only capabilities rather than left dependent on `sensornode_id`.
+- Old `pressure_hpa` and the one-off `plant-a` `humidity_pct` rows are deleted by the cleanup migration after the standard backup; no targeted extract or archive-only capability is created for them.
+- The migration has a guard that fails if any null-capability `sensorreading` rows remain after reservoir conversion and known-trash deletion.
 - `apps/tests/invariants/` remains unchanged.
 
 Useful live checks:
@@ -247,6 +252,14 @@ Historical migration checks:
     SELECT count(*) FILTER (WHERE capability_id IS NULL) AS null_capability_rows,
            count(*) AS total_rows
     FROM sensorreading;"
+
+    PGPASSWORD=$DIRT_PG_PASSWORD psql -h 127.0.0.1 -U dirt -d dirt -c "
+    SELECT sr.metric, sn.location, count(*) AS rows
+    FROM sensorreading sr
+    JOIN sensornode sn ON sn.id = sr.sensornode_id
+    WHERE sr.capability_id IS NULL
+    GROUP BY sr.metric, sn.location
+    ORDER BY sr.metric, sn.location;"
 
 
 ## Idempotence and Recovery
@@ -288,9 +301,9 @@ Historical data policy:
     During final schema cleanup, convert those rows to reservoir_in with value / 2.54
     and link them to the canonical reservoir-node reservoir_in capability.
 
-    Metrics without safe equivalence, such as old pressure_hpa, should receive
-    explicit archive-only capabilities so the original data remains queryable
-    without appearing as a current dashboard metric.
+    pressure_hpa and the one-off plant-a humidity_pct row are trash historical
+    values. They were never used by the product and should not get archive-only
+    capabilities. The standard pre-migration pg_dump is enough retention.
 
 Relevant previous plan:
 
@@ -325,3 +338,4 @@ End-state service interfaces:
 - 2026-05-04: Initial scope plan created for GitHub review after live application of the previous compatibility-retirement migrations.
 - 2026-05-04: Set the scoped-only firmware soak gate to 10 minutes after review.
 - 2026-05-04: Chose canonical normalization for historical reservoir depth: convert `reservoir_depth_cm` rows to `reservoir_in` in storage during final schema cleanup.
+- 2026-05-04: Classified old `pressure_hpa` and one-off `plant-a` `humidity_pct` rows as discardable trash values retained only by the standard pre-migration `pg_dump`.
