@@ -65,6 +65,6 @@ LIMIT 1;
 ## Backups + rollback
 
 - **Backups**: manual for now (`pg_dump dirt > var/db-backups/dirt-$(date +%F).sql`). Automation deferred per `docs/proposals/pg-cutover-plan.md` §6 non-scope.
-- **Legacy sensor cleanup**: migration `20260504144109_scoped_firmware_legacy_removal.sql` removes `sensornode`, `sensor_location`, and `sensorreading.sensornode_id` after converting historical `reservoir_depth_cm` rows to canonical `reservoir_in` (`value / 2.54`) and deleting known trash `pressure_hpa` / one-off plant-a `humidity_pct` null-capability rows. As of this edit, live apply still requires explicit confirmation and a normal pre-apply `pg_dump`.
+- **Legacy sensor cleanup**: migration `20260504144109_scoped_firmware_legacy_removal.sql` removed `sensornode`, `sensor_location`, and `sensorreading.sensornode_id` after converting historical `reservoir_depth_cm` rows to canonical `reservoir_in` (`value / 2.54`) and deleting known trash `pressure_hpa` / one-off plant-a `humidity_pct` null-capability rows. It was applied live on 2026-05-04 after `pg_dump` backup `var/db-backups/dirt-20260504-092029-pre-scoped-firmware-legacy-removal.sql`.
 - **Rollback artifact**: pre-cutover sqlite preserved at `var/dirt.db.pre-pg-cutover` through ~2026-05-03; restore procedure in [ADR-006](adrs/006-postgres-and-atlas.md).
 - **Why Postgres + Atlas**: [ADR-006](adrs/006-postgres-and-atlas.md).
