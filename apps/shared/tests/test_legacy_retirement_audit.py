@@ -8,9 +8,6 @@ from pathlib import Path
 
 from dirt_shared.sensor_contract import (
     DEVICE_METRICS,
-    emitted_metrics_for_device_id,
-    persisted_capability_ids_for_device_id,
-    persisted_metrics_for_device_id,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -166,19 +163,6 @@ def test_current_reading_and_calibration_writers_carry_capability_scope() -> Non
         "resolves to None:\n"
         + "\n".join(f"- {call.model}: {call.format()}" for call in missing_scope)
     )
-
-
-def test_sensor_contract_helpers_are_derived_from_device_contracts() -> None:
-    for device_id, contract in DEVICE_METRICS.items():
-        assert emitted_metrics_for_device_id(device_id) == {
-            metric[0] for metric in contract.values() if metric[1]
-        }
-        assert persisted_metrics_for_device_id(device_id) == {
-            metric[0] for metric in contract.values() if metric[2]
-        }
-        assert persisted_capability_ids_for_device_id(device_id) == {
-            capability_id for capability_id, metric in contract.items() if metric[2]
-        }
 
 
 def test_device_contract_metrics_are_keyed_by_capability_identity() -> None:

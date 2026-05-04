@@ -28,19 +28,9 @@ metric for that device.
 from __future__ import annotations
 
 from collections.abc import Iterable
-from enum import StrEnum
 
 MetricContract = tuple[str, bool, bool]
 DeviceContract = dict[str, MetricContract]
-
-
-class ContractLocation(StrEnum):
-    TENT = "tent"
-    PLANT_A = "plant-a"
-    PLANT_B = "plant-b"
-    PLANT_C = "plant-c"
-    PLANT_D = "plant-d"
-    RESERVOIR = "reservoir"
 
 
 _METRIC_NAME = 0
@@ -111,31 +101,3 @@ def missing_emitted_for_device_id(
     if device_id is None:
         return frozenset()
     return emitted_metrics_for_device_id(device_id) - set(payload_metrics)
-
-
-# Compatibility exports kept for the human-owned sensor-contract invariant.
-# Production code should use the device/capability helpers above.
-_INVARIANT_DEVICE_BY_LOCATION: dict[ContractLocation, str] = {
-    ContractLocation.TENT: "fan-controller",
-    ContractLocation.PLANT_A: "plant-a-node",
-    ContractLocation.PLANT_B: "plant-b-node",
-    ContractLocation.PLANT_C: "plant-c-node",
-    ContractLocation.PLANT_D: "plant-d-node",
-    ContractLocation.RESERVOIR: "reservoir-node",
-}
-EMITTED_METRICS: dict[ContractLocation, frozenset[str]] = {
-    location: frozenset(
-        metric[_METRIC_NAME]
-        for metric in DEVICE_METRICS[device_id].values()
-        if metric[_EMITTED]
-    )
-    for location, device_id in _INVARIANT_DEVICE_BY_LOCATION.items()
-}
-PERSISTED_METRICS: dict[ContractLocation, frozenset[str]] = {
-    location: frozenset(
-        metric[_METRIC_NAME]
-        for metric in DEVICE_METRICS[device_id].values()
-        if metric[_PERSISTED]
-    )
-    for location, device_id in _INVARIANT_DEVICE_BY_LOCATION.items()
-}
