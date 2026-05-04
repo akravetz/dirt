@@ -28,6 +28,8 @@ tags:
     description: Cookie-session login / logout / whoami
   - name: grow
     description: Current grow identity (day, week, stage)
+  - name: scope
+    description: Sites, tents, and scoped read-only catalog views
   - name: sensors
     description: Live + historical sensor readings
   - name: plants
@@ -154,6 +156,93 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+
+  # ============================================================
+  # 2.5 Scoped local controller catalog
+  # ============================================================
+
+  /api/sites:
+    get:
+      tags: [scope]
+      operationId: sitesList
+      summary: Physical controller sites known to this local Dirt box
+      responses:
+        '200':
+          description: Site catalog.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SitesResponse' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/tents:
+    get:
+      tags: [scope]
+      operationId: tentsList
+      summary: Logical grow tents for a site
+      parameters:
+        - name: site_id
+          in: query
+          required: false
+          schema: { type: string, default: homebox }
+      responses:
+        '200':
+          description: Tents for the requested site.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TentsResponse' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/tents/{tent_id}/grow/current:
+    get:
+      tags: [scope]
+      operationId: tentGrowCurrent
+      summary: Current grow identity for one tent
+      parameters:
+        - name: tent_id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: site_id
+          in: query
+          required: false
+          schema: { type: string, default: homebox }
+      responses:
+        '200':
+          description: Current grow identity for this tent.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GrowCurrent' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/tents/{tent_id}/devices:
+    get:
+      tags: [scope]
+      operationId: tentDevices
+      summary: Canonical devices assigned to one tent
+      parameters:
+        - name: tent_id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: site_id
+          in: query
+          required: false
+          schema: { type: string, default: homebox }
+      responses:
+        '200':
+          description: Devices assigned to this tent.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TentDevicesResponse' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   # ============================================================
   # 3. Sensors
@@ -699,6 +788,93 @@ components:
         location: { type: string }
         plant_count: { type: integer, minimum: 0 }
         lights: { $ref: '#/components/schemas/LightsState' }
+
+    # ---- Scope catalog ----
+
+    Site:
+      type: object
+      additionalProperties: false
+      required: [site_id, name, location, timezone, is_default]
+      properties:
+        site_id:
+          type: string
+          description: Stable local identifier for the physical controller site.
+        name: { type: string }
+        location:
+          oneOf: [{ type: string }, { type: 'null' }]
+        timezone:
+          type: string
+          description: IANA timezone used for site-local scheduling.
+        is_default: { type: boolean }
+
+    SitesResponse:
+      type: object
+      additionalProperties: false
+      required: [sites]
+      properties:
+        sites:
+          type: array
+          items: { $ref: '#/components/schemas/Site' }
+
+    Tent:
+      type: object
+      additionalProperties: false
+      required: [site_id, tent_id, name, role, is_default, active]
+      properties:
+        site_id: { type: string }
+        tent_id:
+          type: string
+          description: Stable logical tent identifier, e.g. main or breeding.
+        name: { type: string }
+        role: { type: string }
+        is_default: { type: boolean }
+        active: { type: boolean }
+
+    TentsResponse:
+      type: object
+      additionalProperties: false
+      required: [tents]
+      properties:
+        tents:
+          type: array
+          items: { $ref: '#/components/schemas/Tent' }
+
+    ScopedDevice:
+      type: object
+      additionalProperties: false
+      required:
+        - site_id
+        - tent_id
+        - zone_id
+        - device_id
+        - name
+        - kind
+        - controller
+        - enabled
+      properties:
+        site_id: { type: string }
+        tent_id:
+          oneOf: [{ type: string }, { type: 'null' }]
+        zone_id:
+          oneOf: [{ type: string }, { type: 'null' }]
+        device_id:
+          type: string
+          description: Stable canonical device identifier.
+        name: { type: string }
+        kind: { type: string }
+        controller: { type: string }
+        enabled: { type: boolean }
+
+    TentDevicesResponse:
+      type: object
+      additionalProperties: false
+      required: [site_id, tent_id, devices]
+      properties:
+        site_id: { type: string }
+        tent_id: { type: string }
+        devices:
+          type: array
+          items: { $ref: '#/components/schemas/ScopedDevice' }
 
     # ---- Sensors ----
 

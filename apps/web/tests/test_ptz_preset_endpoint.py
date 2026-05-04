@@ -7,7 +7,10 @@ import json
 import pytest
 from dirt_contracts.webapp_v1.models import PTZApplied
 from httpx import ASGITransport, AsyncClient
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
+from dirt_shared.models.command import Command
 from dirt_shared.services.ptz import PTZService
 from dirt_web.app import create_app
 from dirt_web.deps import get_ptz
@@ -114,3 +117,36 @@ async def test_preset_requires_auth(tmp_path):
     ) as ac:
         response = await ac.post("/api/ptz/preset/plant_a")
         assert response.status_code == 401
+
+
+async def test_preset_records_scoped_command(app_engine, tmp_path):
+    rpc = _RecordingRpc()
+    app = create_app(engine=app_engine, run_mcp=False)
+    app.state.ptz = PTZService(
+        rpc=rpc,
+        config_path=_write_config(tmp_path),
+        commands=app.state.commands,
+    )
+    transport = ASGITransport(app=app)
+    async with AsyncClient(
+        transport=transport, base_url="http://test", follow_redirects=False
+    ) as ac:
+        login = await ac.post(
+            "/api/auth/login",
+            json={"username": "admin", "password": "changeme"},
+        )
+        ac.cookies = login.cookies
+        response = await ac.post("/api/ptz/preset/plant_a")
+        assert response.status_code == 200
+
+    async with AsyncSession(app_engine) as session:
+        command = (await session.exec(select(Command))).one()
+
+    assert command.command_type == "ptz.preset"
+    assert command.source == "local_api"
+    assert command.status == "succeeded"
+    assert command.payload["preset_id"] == "plant_a"
+    assert command.device_id is not None
+    assert command.capability_id is not None
+    assert command.zone_id is not None
+    assert command.result["preset"] == "plant_a"

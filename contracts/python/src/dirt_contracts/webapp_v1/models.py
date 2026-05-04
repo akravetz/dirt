@@ -179,6 +179,78 @@ class GrowCurrent(BaseModel):
     lights: LightsState
 
 
+class Site(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    site_id: str
+    """
+    Stable local identifier for the physical controller site.
+    """
+    name: str
+    location: str | None
+    timezone: str
+    """
+    IANA timezone used for site-local scheduling.
+    """
+    is_default: bool
+
+
+class SitesResponse(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    sites: list[Site]
+
+
+class Tent(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    site_id: str
+    tent_id: str
+    """
+    Stable logical tent identifier, e.g. main or breeding.
+    """
+    name: str
+    role: str
+    is_default: bool
+    active: bool
+
+
+class TentsResponse(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    tents: list[Tent]
+
+
+class ScopedDevice(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    site_id: str
+    tent_id: str | None
+    zone_id: str | None
+    device_id: str
+    """
+    Stable canonical device identifier.
+    """
+    name: str
+    kind: str
+    controller: str
+    enabled: bool
+
+
+class TentDevicesResponse(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    site_id: str
+    tent_id: str
+    devices: list[ScopedDevice]
+
+
 class TargetBand(RootModel[list[float]]):
     """
     [lo, hi] target band; null if no band defined for this metric/stage.

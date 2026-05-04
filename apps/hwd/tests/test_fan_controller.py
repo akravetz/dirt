@@ -1,14 +1,20 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime, timedelta
+from typing import Any
+
+import httpx
+import pytest
 
 from dirt_hwd.services.fan_controller import (
     FanTrimInput,
+    FanTrimLoopService,
     FanTrimState,
     decide_fan_trim,
 )
 from dirt_shared.config import FanTrimConfig
-from dirt_shared.services.grow_state import LightsState
+from dirt_shared.services.grow_state import GrowContext, LightsState
 
 T0 = datetime(2026, 5, 3, 20, 0, tzinfo=UTC)
 
@@ -137,3 +143,92 @@ def test_enforces_configured_min_and_max():
     assert high.target_pct == 60
     assert low.reason == "enforce_bounds"
     assert high.reason == "enforce_bounds"
+
+
+class _Reading:
+    def __init__(self, value: float, ts: datetime) -> None:
+        self.value = value
+        self.ts = ts
+
+
+class _FakeReadings:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+
+    async def get_latest_reading(self, metric: str, **kwargs):
+        self.calls.append((metric, dict(kwargs)))
+        if metric == "vpd_kpa":
+            return _Reading(1.1, T0)
+        if metric == "humidity_pct":
+            return _Reading(55.0, T0)
+        return None
+
+
+class _FakeGrow:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, str]] = []
+
+    async def current_context(self, **kwargs) -> GrowContext:
+        self.calls.append(dict(kwargs))
+        return GrowContext(
+            stage="flower_early",
+            lights=LightsState(
+                on=True,
+                minutes_until_off=180.0,
+                minutes_until_on=540.0,
+            ),
+            targets={
+                "vpd_kpa": (1.0, 1.3),
+                "humidity_pct": (40.0, 60.0),
+            },
+        )
+
+
+async def test_fan_loop_reads_main_canopy_scope() -> None:
+    readings = _FakeReadings()
+    grow = _FakeGrow()
+    stop_event = asyncio.Event()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET" and request.url.path == "/fan":
+            stop_event.set()
+            return httpx.Response(
+                200,
+                json={"set_duty_pct": 35, "reported_duty_pct": 35},
+            )
+        pytest.fail(f"unexpected fan request: {request.method} {request.url.path}")
+
+    transport = httpx.MockTransport(handler)
+    service = FanTrimLoopService(
+        _cfg(poll_interval=30),
+        readings=readings,
+        grow=grow,
+        clock=lambda: T0,
+        http_factory=lambda: httpx.AsyncClient(transport=transport),
+    )
+
+    await asyncio.wait_for(service.run(stop_event), timeout=2.0)
+
+    assert grow.calls == [{"site_id": "homebox", "tent_id": "main"}]
+    assert readings.calls == [
+        (
+            "vpd_kpa",
+            {
+                "site_id": "homebox",
+                "tent_id": "main",
+                "zone_id": "canopy",
+                "device_id": "fan-controller",
+                "capability_id": "vpd_kpa",
+            },
+        ),
+        (
+            "humidity_pct",
+            {
+                "site_id": "homebox",
+                "tent_id": "main",
+                "zone_id": "canopy",
+                "device_id": "fan-controller",
+                "capability_id": "humidity_pct",
+            },
+        ),
+    ]

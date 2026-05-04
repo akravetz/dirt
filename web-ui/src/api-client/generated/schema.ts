@@ -89,6 +89,74 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/sites": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Physical controller sites known to this local Dirt box */
+    get: operations["sitesList"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tents": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Logical grow tents for a site */
+    get: operations["tentsList"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tents/{tent_id}/grow/current": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Current grow identity for one tent */
+    get: operations["tentGrowCurrent"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tents/{tent_id}/devices": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Canonical devices assigned to one tent */
+    get: operations["tentDevices"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/sensors/current": {
     parameters: {
       query?: never;
@@ -460,6 +528,46 @@ export interface components {
       location: string;
       plant_count: number;
       lights: components["schemas"]["LightsState"];
+    };
+    Site: {
+      /** @description Stable local identifier for the physical controller site. */
+      site_id: string;
+      name: string;
+      location: string | null;
+      /** @description IANA timezone used for site-local scheduling. */
+      timezone: string;
+      is_default: boolean;
+    };
+    SitesResponse: {
+      sites: components["schemas"]["Site"][];
+    };
+    Tent: {
+      site_id: string;
+      /** @description Stable logical tent identifier, e.g. main or breeding. */
+      tent_id: string;
+      name: string;
+      role: string;
+      is_default: boolean;
+      active: boolean;
+    };
+    TentsResponse: {
+      tents: components["schemas"]["Tent"][];
+    };
+    ScopedDevice: {
+      site_id: string;
+      tent_id: string | null;
+      zone_id: string | null;
+      /** @description Stable canonical device identifier. */
+      device_id: string;
+      name: string;
+      kind: string;
+      controller: string;
+      enabled: boolean;
+    };
+    TentDevicesResponse: {
+      site_id: string;
+      tent_id: string;
+      devices: components["schemas"]["ScopedDevice"][];
     };
     /** @description [lo, hi] target band; null if no band defined for this metric/stage. */
     TargetBand: number[];
@@ -896,6 +1004,102 @@ export interface operations {
       };
       400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
+    };
+  };
+  sitesList: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Site catalog. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SitesResponse"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+    };
+  };
+  tentsList: {
+    parameters: {
+      query?: {
+        site_id?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Tents for the requested site. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TentsResponse"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+    };
+  };
+  tentGrowCurrent: {
+    parameters: {
+      query?: {
+        site_id?: string;
+      };
+      header?: never;
+      path: {
+        tent_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Current grow identity for this tent. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["GrowCurrent"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      404: components["responses"]["NotFound"];
+    };
+  };
+  tentDevices: {
+    parameters: {
+      query?: {
+        site_id?: string;
+      };
+      header?: never;
+      path: {
+        tent_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Devices assigned to this tent. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TentDevicesResponse"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      404: components["responses"]["NotFound"];
     };
   };
   sensorsCurrent: {

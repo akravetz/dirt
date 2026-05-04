@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 
 from kasa import Credentials, Device, Discover
@@ -23,10 +23,13 @@ from kasa import Credentials, Device, Discover
 from dirt_shared.config import LightsConfig
 from dirt_shared.observability import log_event
 from dirt_shared.services.grow_state import GrowStateService
+from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID
 
 logger = logging.getLogger(__name__)
 
 STREAM = "lights"
+
+DiscoverSingle = Callable[..., Awaitable[Device | None]]
 
 
 async def _safe_disconnect(plug: Device | None) -> None:
@@ -46,16 +49,34 @@ class LightsLoopService:
     Run via ``await loop_svc.run(stop_event)`` from the lifespan.
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 - composition root params plus explicit hardware scope.
         self,
         config: LightsConfig,
         *,
         grow: GrowStateService,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        site_id: str = DEFAULT_SITE_ID,
+        tent_id: str = DEFAULT_TENT_ID,
+        device_id: str = "kasa-lights-main",
+        discover_single: DiscoverSingle | None = None,
     ) -> None:
         self._config = config
         self._grow = grow
         self._clock = clock
+        self._site_id = site_id
+        self._tent_id = tent_id
+        self._zone_id = "lights"
+        self._device_id = device_id
+        self._discover_single = discover_single or Discover.discover_single
+
+    def _scope_fields(self) -> dict[str, str]:
+        return {
+            "site_id": self._site_id,
+            "tent_id": self._tent_id,
+            "zone_id": self._zone_id,
+            "device_id": self._device_id,
+            "capability_id": "lights_power",
+        }
 
     async def run(self, stop_event: asyncio.Event) -> None:
         cfg = self._config
@@ -80,7 +101,7 @@ class LightsLoopService:
         while not stop_event.is_set():
             try:
                 if plug is None:
-                    plug = await Discover.discover_single(host, credentials=creds)
+                    plug = await self._discover_single(host, credentials=creds)
                     if plug is None:
                         raise RuntimeError(
                             f"kasa discover_single({host}) returned None",
@@ -89,7 +110,10 @@ class LightsLoopService:
                 await plug.update()
                 is_on = bool(plug.is_on)
 
-                lights = await self._grow.lights_state()
+                lights = await self._grow.lights_state(
+                    site_id=self._site_id,
+                    tent_id=self._tent_id,
+                )
                 target = lights.on
 
                 if target != is_on:
@@ -100,6 +124,7 @@ class LightsLoopService:
                     log_event(
                         STREAM,
                         "state_change",
+                        **self._scope_fields(),
                         new_state="on" if target else "off",
                         reason="scheduled_on" if target else "scheduled_off",
                         minutes_until_off=round(lights.minutes_until_off, 1),
@@ -121,6 +146,7 @@ class LightsLoopService:
                 log_event(
                     STREAM,
                     "error",
+                    **self._scope_fields(),
                     error_type=type(exc).__name__,
                     error=repr(exc),
                 )

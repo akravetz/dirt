@@ -69,8 +69,10 @@ class FakeReadings:
         self.vpd = _Reading(vpd, ts)
         self.rh = _Reading(rh, ts)
         self.ingested: list[tuple[Any, dict, Any]] = []
+        self.latest_calls: list[tuple[str, dict[str, Any]]] = []
 
-    async def get_latest_reading(self, metric, location=None):
+    async def get_latest_reading(self, metric, location=None, **kwargs):
+        self.latest_calls.append((metric, dict(kwargs)))
         if metric == "vpd_kpa":
             return self.vpd
         if metric == "humidity_pct":
@@ -78,14 +80,16 @@ class FakeReadings:
         return None
 
     async def ingest_reading(self, location, metrics, *, source, **kwargs):
-        self.ingested.append((location, dict(metrics), source))
+        self.ingested.append((location, dict(metrics), source, dict(kwargs)))
 
 
 class FakeGrow:
     def __init__(self, ctx: GrowContext) -> None:
         self.ctx = ctx
+        self.context_calls: list[dict[str, Any]] = []
 
-    async def current_context(self) -> GrowContext:
+    async def current_context(self, **kwargs) -> GrowContext:
+        self.context_calls.append(dict(kwargs))
         return self.ctx
 
 
@@ -259,10 +263,39 @@ async def test_loop_boot_tick_powers_on_and_sets_level_with_interleave():
 
     # Actuator breadcrumb recorded with the dispatched level.
     assert len(readings.ingested) == 1
-    _, metrics, source = readings.ingested[0]
+    _, metrics, source, ingest_kwargs = readings.ingested[0]
     assert metrics["humidifier_on"] == 1.0
     assert metrics["humidifier_mist_level"] == 3.0
     assert source == "govee"
+    assert ingest_kwargs == {
+        "site_id": "homebox",
+        "tent_id": "main",
+        "zone_id": "canopy",
+        "device_id": "govee-h7142-main",
+    }
+    assert grow.context_calls == [{"site_id": "homebox", "tent_id": "main"}]
+    assert readings.latest_calls == [
+        (
+            "vpd_kpa",
+            {
+                "site_id": "homebox",
+                "tent_id": "main",
+                "zone_id": "canopy",
+                "device_id": "fan-controller",
+                "capability_id": "vpd_kpa",
+            },
+        ),
+        (
+            "humidity_pct",
+            {
+                "site_id": "homebox",
+                "tent_id": "main",
+                "zone_id": "canopy",
+                "device_id": "fan-controller",
+                "capability_id": "humidity_pct",
+            },
+        ),
+    ]
 
 
 async def test_loop_steady_state_at_target_no_api_calls():

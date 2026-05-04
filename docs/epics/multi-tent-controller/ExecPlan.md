@@ -24,8 +24,8 @@ This is not the hosted website phase. The local `dirt-hwd` service remains the o
 - [x] (2026-05-04 01:44Z) Implemented Milestone 3: moved telemetry ingest and read paths to scoped device/capability ownership, with default main-tent compatibility preserved.
 - [x] (2026-05-04 02:34Z) Implemented a coherent Milestone 4 checkpoint: scoped grow/schedule service methods, empty breeding plant reads, capability-owned sensor calibrations, scoped periodic snapshots, and stable alert state keys for device/metric watchdogs.
 - [x] (2026-05-04 02:40Z) Completed the Milestone 4 daily-report photo follow-up: daily captures now write scoped `snapshot.kind='daily_report'` rows for `overview` and `plant_a` through `plant_d`, and `scripts/daily_report` wires the production recorder.
-- [ ] Implement Milestone 5: make hardware-control loops explicitly scoped to the main tent and add a local command-intent ledger for future safe remote control.
-- [ ] Implement Milestone 6: add scoped API/service tests and minimal UI/contract compatibility updates.
+- [x] (2026-05-04 03:01Z) Implemented Milestone 5: hardware-control loops now explicitly target `homebox/main`, PTZ user commands record local command lifecycle rows, and system status is backed by canonical `device` rows while preserving the current dashboard device set.
+- [x] (2026-05-04 03:09Z) Implemented Milestone 6: added minimal scoped site/tent/device read APIs, regenerated contract clients, preserved unscoped default-main API behavior, and validated frontend compatibility without adding visible hosted/cloud UI.
 
 
 ## Surprises & Discoveries
@@ -84,6 +84,30 @@ This is not the hosted website phase. The local `dirt-hwd` service remains the o
 - Observation: Daily-report DB metadata can be added without changing existing orchestrator tests by making the recorder an optional dependency.
   Evidence: `DailyReport.__init__()` now accepts `snapshot_recorder=None`; existing filesystem/Telegram tests still construct the orchestrator without DB access, while production `scripts/daily_report` passes `DailyReportSnapshotRecorder(engine)`.
 
+- Observation: Milestone 5 did not require a schema migration because the `command` table already existed from Milestone 1.
+  Evidence: `apps/shared/src/dirt_shared/models/command.py` already matched the required command lifecycle columns, and `atlas migrate diff verify_scoped_milestone5_sync --env local` reported the migration directory synced.
+
+- Observation: Running two pytest commands in parallel from the same worktree can break the shared Postgres template fixture.
+  Evidence: A parallel validation run failed with `atlas migrate apply failed for template ... driver: bad connection`; rerunning the same failing pytest command serially passed with `16 passed`.
+
+- Observation: New tests for system status and lights initially used `monkeypatch.setattr()` against `dirt_*` modules, which violates repository invariants.
+  Evidence: `uv run pytest apps/tests/invariants/ -q` failed in `test_no_patching_production_code`; the production services were refactored to accept injected `camera_rpc`, `service_active_check`, and `discover_single` seams, then invariants passed.
+
+- Observation: The canonical `device` table contains hardware not historically displayed in `/api/system/devices`, including `reservoir-node` and `kasa-lights-main`.
+  Evidence: Milestone 5 keeps the current eight-row dashboard status projection while sourcing row identity/name/scope from `device`, so `reservoir-node` and `kasa-lights-main` remain modeled but not newly surfaced by the existing endpoint.
+
+- Observation: Milestone 6 did not require schema changes; the missing piece was API/contract exposure for identity rows already created by earlier milestones.
+  Evidence: `atlas migrate diff verify_scoped_milestone6_sync --env local` reported the migration directory synced.
+
+- Observation: Scoped current-grow responses can violate the existing `GrowCurrent` contract if test or future seed data creates a current grow with a germination date after the service clock's local date.
+  Evidence: The first Milestone 6 test fixture used `germination_date=2026-05-04` while the test clock could still resolve to 2026-05-03 local, producing `day_number=0`; the fixture was changed to `2026-05-01`.
+
+- Observation: `scripts/gen-contract` regenerates `web-ui/src/api-client/generated/schema.ts` but does not apply the frontend formatter.
+  Evidence: `pnpm --dir web-ui lint` failed on Biome formatting for the generated schema until `pnpm --dir web-ui exec biome check --write src/api-client/generated/schema.ts` was run.
+
+- Observation: The new scoped tent device endpoint intentionally exposes all canonical devices assigned to `homebox/main`, including `reservoir-node` and `kasa-lights-main`, while the existing dashboard endpoint remains the historic eight-row projection.
+  Evidence: `apps/web/tests/test_scope_endpoints.py` asserts `/api/tents/main/devices` includes those canonical devices and excludes site-level `jabra-claudia`; existing `/api/system/devices` tests still pass unchanged.
+
 
 ## Decision Log
 
@@ -115,6 +139,14 @@ This is not the hosted website phase. The local `dirt-hwd` service remains the o
   Rationale: Periodic snapshots carried scope and were backfilled in the first checkpoint. Adding daily-report DB rows required widening `DailyReport` construction to accept a database writer in addition to its existing injected camera/sensor/synthesis/telegram collaborators, so it was implemented as a focused follow-up with daily-report tests rather than mixed into the larger calibration/schedule/alert change.
   Date/Author: 2026-05-04 / Codex
 
+- Decision: Keep `/api/system/devices` on the current eight visible rows for Milestone 5 while backing those rows from canonical `device` records.
+  Rationale: `reservoir-node` and `kasa-lights-main` are now modeled devices, but surfacing extra dashboard rows is a UI/API behavior change better handled with Milestone 6 compatibility work. Milestone 5 proves the stable identity path without changing the visible system table shape.
+  Date/Author: 2026-05-04 / Codex
+
+- Decision: Add new scoped read endpoints instead of adding scope query parameters to the existing dashboard endpoints.
+  Rationale: Phase 1 requires current unscoped dashboard workflows to stay default-main compatible. New read-only endpoints prove the multi-tent model without changing existing React Query keys, dashboard payloads, or user-visible UI.
+  Date/Author: 2026-05-04 / Codex
+
 
 ## Outcomes & Retrospective
 
@@ -128,6 +160,10 @@ Milestone 4 checkpoint completed on 2026-05-04. Grow stage/target/light-schedule
 
 Milestone 4 daily-report follow-up completed on 2026-05-04. The daily-report capture phase now optionally records each saved photo as a scoped `snapshot` row with `kind='daily_report'`, `view_id` equal to the existing preset (`overview`, `plant_a`, `plant_b`, `plant_c`, `plant_d`), default `homebox/main` scope, `device_id='obsbot-main'`, the current main `growrun`, and zone mapping `overview -> canopy`, `plant_a -> plant-a`, `plant_b -> plant-b`, `plant_c -> plant-c`, and `plant_d -> plant-d`. The production `scripts/daily_report` entrypoint wires the recorder. Broader humidifier/fan/lights control-loop `log_event()` scoping remains Milestone 5 because that milestone owns hardware-control loops.
 
+Milestone 5 completed on 2026-05-04. `HumidifierLoopService`, `FanTrimLoopService`, and `LightsLoopService` now carry explicit default `homebox/main` scope, use scoped grow/sensor reads, and emit scoped control-loop log fields. `SystemStatusService` now projects the existing dashboard rows from canonical `device` records and scoped freshness/probe sources. `CommandService` provides idempotent local command enqueue/start/succeed/fail lifecycle, rejects non-local command sources, and PTZ preset/look/zoom calls record scoped local command rows against `obsbot-main`/`ptz_move` while preserving the existing PTZ endpoint responses.
+
+Milestone 6 completed on 2026-05-04. The local web API now exposes read-only scoped catalog endpoints: `GET /api/sites`, `GET /api/tents`, `GET /api/tents/{tent_id}/grow/current`, and `GET /api/tents/{tent_id}/devices`. Existing unscoped endpoints remain default-main views, including `/api/grow/current` and `/api/system/devices`. The OpenAPI contract and generated Python/TypeScript clients include the new schemas. The frontend remains visually unchanged and default-main compatible; generated TypeScript typecheck, lint, and tests pass.
+
 
 ## Context and Orientation
 
@@ -140,7 +176,7 @@ The current database shape is centered on these tables:
 - `growrun`: scoped grow identity, photoperiod, timezone, strain/location text, plant count, and per-tent current flag.
 - `plant`: one row per A-D plant in the current main grow, linked to `growrun`, explicit `site`/`tent` scope, a stable `plant_id`, and a moisture `sensornode`.
 - `sensorcalibration`: capability-owned calibration rows with nullable legacy `sensornode_id` for firmware compatibility.
-- `snapshot`: periodic camera image metadata with nullable site/tent/zone/device/growrun/view/kind scope fields. Daily-report photo DB rows are still pending.
+- `snapshot`: periodic and daily-report camera image metadata with nullable site/tent/zone/device/growrun/view/kind scope fields.
 
 The current service ownership is:
 
@@ -651,6 +687,90 @@ Milestone 4 daily-report follow-up validation evidence:
     git diff --check
     passed
 
+Milestone 5 changed these files:
+
+    apps/hwd/src/dirt_hwd/services/fan_controller.py
+    apps/hwd/src/dirt_hwd/services/humidifier.py
+    apps/hwd/src/dirt_hwd/services/lights.py
+    apps/hwd/tests/test_fan_controller.py
+    apps/hwd/tests/test_humidifier_loop.py
+    apps/hwd/tests/test_lights_loop.py
+    apps/shared/src/dirt_shared/app_wiring.py
+    apps/shared/src/dirt_shared/services/commands.py
+    apps/shared/src/dirt_shared/services/ptz.py
+    apps/shared/src/dirt_shared/services/system_status.py
+    apps/shared/tests/test_commands.py
+    apps/shared/tests/test_system_status_scope.py
+    apps/web/src/dirt_web/app.py
+    apps/web/src/dirt_web/deps.py
+    apps/web/tests/test_ptz_preset_endpoint.py
+    docs/epics/multi-tent-controller/ExecPlan.md
+
+Milestone 5 validation evidence:
+
+    uv run pytest apps/shared/tests/test_commands.py apps/shared/tests/test_system_status_scope.py apps/hwd/tests/test_humidifier_loop.py apps/hwd/tests/test_fan_controller.py apps/hwd/tests/test_lights_loop.py apps/web/tests/test_ptz_preset_endpoint.py -q
+    23 passed in 3.79s
+
+    uv run pytest apps/web/tests/test_system_devices_endpoint.py apps/hwd/tests/test_device_watchdog.py apps/shared/tests/test_milestone4_scope.py -q
+    16 passed in 3.84s
+
+    uv run pytest apps/web/tests/test_ptz_state_endpoint.py apps/web/tests/test_ptz_preset_endpoint.py apps/web/tests/test_ptz_look_endpoint.py apps/web/tests/test_ptz_zoom_endpoint.py -q
+    21 passed in 2.22s
+
+    uv run pytest apps/shared/tests/test_commands.py apps/shared/tests/test_system_status_scope.py apps/hwd/tests/test_humidifier_loop.py apps/hwd/tests/test_fan_controller.py apps/hwd/tests/test_lights_loop.py apps/hwd/tests/test_device_watchdog.py apps/web/tests/test_ptz_state_endpoint.py apps/web/tests/test_ptz_preset_endpoint.py apps/web/tests/test_ptz_look_endpoint.py apps/web/tests/test_ptz_zoom_endpoint.py apps/web/tests/test_system_devices_endpoint.py -q
+    53 passed in 4.61s
+
+    uv run pytest apps/tests/invariants/ -q
+    107 passed, 1 skipped in 3.91s
+
+    uv run ruff check apps/shared/src/dirt_shared/services/commands.py apps/shared/src/dirt_shared/app_wiring.py apps/web/src/dirt_web/app.py apps/web/src/dirt_web/deps.py apps/hwd/src/dirt_hwd/services/humidifier.py apps/hwd/src/dirt_hwd/services/fan_controller.py apps/hwd/src/dirt_hwd/services/lights.py apps/shared/src/dirt_shared/services/system_status.py apps/shared/src/dirt_shared/services/ptz.py apps/shared/tests/test_commands.py apps/shared/tests/test_system_status_scope.py apps/hwd/tests/test_humidifier_loop.py apps/hwd/tests/test_fan_controller.py apps/hwd/tests/test_lights_loop.py apps/web/tests/test_ptz_preset_endpoint.py
+    All checks passed!
+
+    atlas migrate diff verify_scoped_milestone5_sync --env local
+    The migration directory is synced with the desired state, no changes to be made
+
+Milestone 6 changed these files:
+
+    apps/shared/src/dirt_shared/app_wiring.py
+    apps/shared/src/dirt_shared/services/scope_catalog.py
+    apps/web/src/dirt_web/api/scope.py
+    apps/web/src/dirt_web/app.py
+    apps/web/src/dirt_web/deps.py
+    apps/web/tests/test_scope_endpoints.py
+    contracts/webapp-v1.yaml
+    contracts/python/src/dirt_contracts/webapp_v1/models.py
+    web-ui/src/api-client/generated/schema.ts
+    docs/epics/multi-tent-controller/ExecPlan.md
+
+Milestone 6 validation evidence:
+
+    scripts/gen-contract
+    generated Pydantic models and TypeScript schema
+
+    uv run pytest apps/web/tests/test_scope_endpoints.py apps/web/tests/test_grow_endpoint.py apps/web/tests/test_system_devices_endpoint.py apps/tests/invariants/test_api_contract.py -q
+    17 passed, 1 skipped in 2.87s
+
+    uv run pytest apps/tests/invariants/ -q
+    115 passed, 1 skipped in 4.09s
+
+    uv run pytest apps/web/tests -q
+    103 passed in 11.26s
+
+    uv run ruff check apps/shared/src/dirt_shared/services/scope_catalog.py apps/shared/src/dirt_shared/app_wiring.py apps/web/src/dirt_web/api/scope.py apps/web/src/dirt_web/app.py apps/web/src/dirt_web/deps.py apps/web/tests/test_scope_endpoints.py
+    All checks passed!
+
+    atlas migrate diff verify_scoped_milestone6_sync --env local
+    The migration directory is synced with the desired state, no changes to be made
+
+    pnpm --dir web-ui lint
+    passed
+
+    pnpm --dir web-ui typecheck
+    passed
+
+    pnpm --dir web-ui test
+    1 passed
+
 
 ## Interfaces and Dependencies
 
@@ -663,20 +783,25 @@ New or changed database interfaces:
 New or changed service interfaces:
 
 - `apps/shared/src/dirt_shared/services/scope.py` resolves default `homebox/main` and explicit site/tent scopes.
+- `apps/shared/src/dirt_shared/services/scope_catalog.py` lists read-only site, tent, and tent-device catalog rows for API use.
 - `ReadingsService` scoped read/write methods.
 - `GrowStateService` remains as a compatibility facade over scoped `growrun` rows, exposes `current_grow_run(site_id="homebox", tent_id="main")`, and reads `current_light_schedule()` from the scoped `schedule` row with a growrun fallback.
 - `PlantsService` methods accept `site_id`/`tent_id` and default to main.
 - `PlantsService` and `DailySensorService` resolve calibration by scoped capability before falling back to legacy sensornode/metric rows.
 - `SystemStatusService` rows carry stable `device_id` and default site/tent/zone metadata for watchdog state.
-- `CommandService` with idempotent enqueue and lifecycle transitions.
+- `CommandService` with idempotent enqueue and lifecycle transitions rejects non-local sources in Phase 1; PTZ endpoints record `source=local_api` command rows for `obsbot-main`/`ptz_move`.
 - `CaptureService` and `SnapshotsService` write/read default-main periodic snapshot scope metadata.
 - `DailyReportSnapshotRecorder` writes default-main `snapshot.kind='daily_report'` rows for daily-report photo presets, and `scripts/daily_report` wires it in production.
+- `HumidifierLoopService`, `FanTrimLoopService`, and `LightsLoopService` accept explicit site/tent/device scope constructor arguments and default to `homebox/main`.
 
 New or changed API interfaces:
 
 - Current unscoped endpoints remain default-main compatible.
-- Add minimal scoped read endpoints such as `GET /api/sites`, `GET /api/tents`, `GET /api/tents/{tent_id}/grow/current`, and `GET /api/tents/{tent_id}/devices`, or document an equivalent scoped query-parameter design in this plan before implementation.
-- If API shape changes, update `contracts/webapp-v1.yaml` and regenerate Pydantic and TypeScript clients with `scripts/gen-contract`.
+- `GET /api/sites` returns the physical controller site catalog, currently `homebox`.
+- `GET /api/tents?site_id=homebox` returns logical tents for the local site, currently `main` and `breeding`.
+- `GET /api/tents/{tent_id}/grow/current?site_id=homebox` returns the scoped current grow or 404 when that tent has no current grow.
+- `GET /api/tents/{tent_id}/devices?site_id=homebox` returns canonical devices assigned to that tent.
+- `contracts/webapp-v1.yaml`, `contracts/python/src/dirt_contracts/webapp_v1/models.py`, and `web-ui/src/api-client/generated/schema.ts` include the new scope endpoint schemas and operations.
 
 Firmware/interface compatibility:
 
@@ -711,3 +836,5 @@ Out of scope until hosted website phase:
 - 2026-05-04: Assigned `sensorcalibration` capability/device ownership to Milestone 4 after Milestone 3 showed it was still pending but not explicitly scheduled.
 - 2026-05-04: Milestone 4 checkpoint completed for scoped grow/schedule service reads, empty breeding plant reads, capability-owned sensor calibrations, scoped periodic snapshots, and watchdog stable IDs. Daily-report photo DB rows were split into a focused follow-up.
 - 2026-05-04: Milestone 4 daily-report follow-up completed. Added optional `DailyReportSnapshotRecorder`, wired `scripts/daily_report`, and proved daily-report captures create scoped `snapshot.kind='daily_report'` rows while preserving filesystem and Telegram flow.
+- 2026-05-04: Milestone 5 completed. Scoped local hardware-control loops to default main tent, added `CommandService`, recorded PTZ command lifecycle rows, and moved system status identity to canonical `device` rows without changing the current visible dashboard device set.
+- 2026-05-04: Milestone 6 completed. Added read-only scoped site/tent/grow/device APIs, regenerated contract clients, kept the frontend dashboard default-main only, and recorded that generated TypeScript requires Biome formatting after `scripts/gen-contract`.

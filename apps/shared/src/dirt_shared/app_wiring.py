@@ -19,10 +19,12 @@ from datetime import UTC, datetime
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from dirt_shared.config import Settings
+from dirt_shared.services.commands import CommandService
 from dirt_shared.services.grow_state import GrowStateService
 from dirt_shared.services.plant_detail import PlantDetailService
 from dirt_shared.services.plants import PlantsService
 from dirt_shared.services.readings import ReadingsService
+from dirt_shared.services.scope_catalog import ScopeCatalogService
 from dirt_shared.services.snapshots import SnapshotsService
 from dirt_shared.services.system_status import SystemStatusService
 
@@ -40,6 +42,8 @@ class CoreServices:
     plant_detail: PlantDetailService
     plants: PlantsService
     system_status: SystemStatusService
+    commands: CommandService
+    scope_catalog: ScopeCatalogService
 
 
 def build_core_services(
@@ -69,6 +73,8 @@ def build_core_services(
     plant_detail = PlantDetailService()
     plants = PlantsService(engine, plant_detail=plant_detail, clock=clock)
     system_status = SystemStatusService(engine, clock=clock)
+    commands = CommandService(engine, clock=clock)
+    scope_catalog = ScopeCatalogService(engine)
 
     return CoreServices(
         engine=engine,
@@ -80,4 +86,6 @@ def build_core_services(
         plant_detail=plant_detail,
         plants=plants,
         system_status=system_status,
+        commands=commands,
+        scope_catalog=scope_catalog,
     )

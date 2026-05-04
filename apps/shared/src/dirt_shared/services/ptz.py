@@ -30,8 +30,11 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
+from uuid import uuid4
 
 from dirt_shared.services.capture import _daemon_rpc as _default_rpc
+from dirt_shared.services.commands import CommandService
+from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID
 
 # Camera motor limits — mirror the daemon's clamp. Empirically the
 # OBSBOT Tiny 2 Lite yaw ranges ±150°, pitch ranges approximately
@@ -61,6 +64,14 @@ DEFAULT_STICKER_COLORS: dict[str, StickerColor] = {
     "plant_b": "orange",
     "plant_c": "pink",
     "plant_d": "blue",
+}
+
+DEFAULT_PRESET_ZONES = {
+    "overview": "canopy",
+    "plant_a": "plant-a",
+    "plant_b": "plant-b",
+    "plant_c": "plant-c",
+    "plant_d": "plant-d",
 }
 
 
@@ -104,18 +115,26 @@ def clamp(value: float, lo: float, hi: float) -> float:
 class PTZService:
     """Facade over the daemon RPC + camera.json preset list."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 - PTZ composition accepts RPC/config/ledger scope.
         self,
         *,
         rpc: Rpc | None = None,
         config_path: Path | None = None,
         sticker_colors: dict[str, StickerColor] | None = None,
+        commands: CommandService | None = None,
+        site_id: str = DEFAULT_SITE_ID,
+        tent_id: str = DEFAULT_TENT_ID,
+        device_id: str = "obsbot-main",
     ) -> None:
         self._rpc = rpc or _default_rpc
         self._config_path = config_path or _default_config_path()
         self._sticker_colors = (
             DEFAULT_STICKER_COLORS if sticker_colors is None else sticker_colors
         )
+        self._commands = commands
+        self._site_id = site_id
+        self._tent_id = tent_id
+        self._device_id = device_id
 
     # ---- config ----
 
@@ -193,25 +212,48 @@ class PTZService:
         if preset is None:
             raise UnknownPresetError(preset_id)
 
-        move_resp, zoom_resp = await asyncio.gather(
-            self._rpc(f"move_motor {preset.pitch:.2f} {preset.yaw:.2f}"),
-            self._rpc(f"set_zoom {preset.zoom:.2f}"),
+        command = await self._enqueue_command(
+            command_type="ptz.preset",
+            payload={
+                "preset_id": preset.id,
+                "yaw": preset.yaw,
+                "pitch": preset.pitch,
+                "zoom": preset.zoom,
+            },
+            zone_id=_preset_zone_id(preset.id),
         )
+        try:
+            if command is not None:
+                await self._commands.start(command.command_id)
+            move_resp, zoom_resp = await asyncio.gather(
+                self._rpc(f"move_motor {preset.pitch:.2f} {preset.yaw:.2f}"),
+                self._rpc(f"set_zoom {preset.zoom:.2f}"),
+            )
 
-        ok = (
-            move_resp.get("_status") in ("ok", "limit_reached")
-            and zoom_resp.get("_status") == "ok"
-        )
-        yaw = float(move_resp.get("motor_yaw", preset.yaw))
-        pitch = float(move_resp.get("motor_pitch", preset.pitch))
-        zoom = float(zoom_resp.get("zoom", preset.zoom))
-        return {
-            "ok": ok,
-            "yaw": yaw,
-            "pitch": pitch,
-            "zoom": zoom,
-            "preset": preset.id if ok else None,
-        }
+            ok = (
+                move_resp.get("_status") in ("ok", "limit_reached")
+                and zoom_resp.get("_status") == "ok"
+            )
+            yaw = float(move_resp.get("motor_yaw", preset.yaw))
+            pitch = float(move_resp.get("motor_pitch", preset.pitch))
+            zoom = float(zoom_resp.get("zoom", preset.zoom))
+            result = {
+                "ok": ok,
+                "yaw": yaw,
+                "pitch": pitch,
+                "zoom": zoom,
+                "preset": preset.id if ok else None,
+            }
+            if command is not None:
+                await self._commands.succeed(command.command_id, result)
+            return result
+        except Exception as exc:
+            if command is not None:
+                await self._commands.fail(
+                    command.command_id,
+                    {"error_type": type(exc).__name__, "error": repr(exc)},
+                )
+            raise
 
     async def look_at_normalized(self, x: float, y: float) -> dict:
         """Click-to-look. ``x``/``y`` are normalized frame coords in [-0.5, 0.5].
@@ -220,39 +262,78 @@ class PTZService:
         ``x * LOOK_YAW_RANGE_DEG`` / ``y * LOOK_PITCH_RANGE_DEG`` deltas,
         clamps to motor limits, and issues the move.
         """
-        state_resp = await self._rpc("get_state")
-        if state_resp.get("_status") != "ok":
-            return {
-                "ok": False,
-                "yaw": 0.0,
-                "pitch": 0.0,
-                "zoom": 1.0,
+        command = await self._enqueue_command(
+            command_type="ptz.look",
+            payload={"x": x, "y": y},
+        )
+        try:
+            if command is not None:
+                await self._commands.start(command.command_id)
+            state_resp = await self._rpc("get_state")
+            if state_resp.get("_status") != "ok":
+                result = {
+                    "ok": False,
+                    "yaw": 0.0,
+                    "pitch": 0.0,
+                    "zoom": 1.0,
+                    "preset": None,
+                }
+                if command is not None:
+                    await self._commands.succeed(command.command_id, result)
+                return result
+
+            cur_yaw = float(state_resp.get("motor_yaw", 0.0))
+            cur_pitch = float(state_resp.get("motor_pitch", 0.0))
+            cur_zoom = float(state_resp.get("zoom", 1.0))
+
+            new_yaw = clamp(cur_yaw + x * LOOK_YAW_RANGE_DEG, YAW_MIN, YAW_MAX)
+            new_pitch = clamp(
+                cur_pitch + y * LOOK_PITCH_RANGE_DEG, PITCH_MIN, PITCH_MAX
+            )
+
+            move_resp = await self._rpc(f"move_motor {new_pitch:.2f} {new_yaw:.2f}")
+            ok = move_resp.get("_status") in ("ok", "limit_reached")
+            result = {
+                "ok": ok,
+                "yaw": float(move_resp.get("motor_yaw", new_yaw)),
+                "pitch": float(move_resp.get("motor_pitch", new_pitch)),
+                "zoom": cur_zoom,
                 "preset": None,
             }
-
-        cur_yaw = float(state_resp.get("motor_yaw", 0.0))
-        cur_pitch = float(state_resp.get("motor_pitch", 0.0))
-        cur_zoom = float(state_resp.get("zoom", 1.0))
-
-        new_yaw = clamp(cur_yaw + x * LOOK_YAW_RANGE_DEG, YAW_MIN, YAW_MAX)
-        new_pitch = clamp(cur_pitch + y * LOOK_PITCH_RANGE_DEG, PITCH_MIN, PITCH_MAX)
-
-        move_resp = await self._rpc(f"move_motor {new_pitch:.2f} {new_yaw:.2f}")
-        ok = move_resp.get("_status") in ("ok", "limit_reached")
-        return {
-            "ok": ok,
-            "yaw": float(move_resp.get("motor_yaw", new_yaw)),
-            "pitch": float(move_resp.get("motor_pitch", new_pitch)),
-            "zoom": cur_zoom,
-            "preset": None,
-        }
+            if command is not None:
+                await self._commands.succeed(command.command_id, result)
+            return result
+        except Exception as exc:
+            if command is not None:
+                await self._commands.fail(
+                    command.command_id,
+                    {"error_type": type(exc).__name__, "error": repr(exc)},
+                )
+            raise
 
     async def zoom_to(self, value: float) -> dict:
         """Absolute zoom."""
         target = clamp(value, ZOOM_MIN, ZOOM_MAX)
-        resp = await self._rpc(f"set_zoom {target:.2f}")
-        ok = resp.get("_status") == "ok"
-        return {"ok": ok, "zoom": float(resp.get("zoom", target))}
+        command = await self._enqueue_command(
+            command_type="ptz.zoom",
+            payload={"zoom": target},
+        )
+        try:
+            if command is not None:
+                await self._commands.start(command.command_id)
+            resp = await self._rpc(f"set_zoom {target:.2f}")
+            ok = resp.get("_status") == "ok"
+            result = {"ok": ok, "zoom": float(resp.get("zoom", target))}
+            if command is not None:
+                await self._commands.succeed(command.command_id, result)
+            return result
+        except Exception as exc:
+            if command is not None:
+                await self._commands.fail(
+                    command.command_id,
+                    {"error_type": type(exc).__name__, "error": repr(exc)},
+                )
+            raise
 
     async def zoom_by(self, delta: float) -> dict:
         """Relative zoom — read current zoom, apply delta, clamp."""
@@ -275,6 +356,28 @@ class PTZService:
             "sticker_color": p.sticker_color,
         }
 
+    async def _enqueue_command(
+        self,
+        *,
+        command_type: str,
+        payload: dict,
+        zone_id: str | None = "canopy",
+    ):
+        if self._commands is None:
+            return None
+        return await self._commands.enqueue(
+            command_type=command_type,
+            payload=payload,
+            idempotency_key=f"{command_type}:{uuid4().hex}",
+            requested_by="web-api",
+            source="local_api",
+            site_id=self._site_id,
+            tent_id=self._tent_id,
+            zone_id=zone_id,
+            device_id=self._device_id,
+            capability_id="ptz_move",
+        )
+
 
 class UnknownPresetError(Exception):
     """Raised by ``apply_preset`` when the id isn't in ``camera.json``."""
@@ -290,6 +393,10 @@ def _parse_bool(value: object) -> bool:
     if isinstance(value, str):
         return value.lower() in ("true", "1", "yes")
     return False
+
+
+def _preset_zone_id(preset_id: str) -> str:
+    return DEFAULT_PRESET_ZONES.get(preset_id, "canopy")
 
 
 def _match_preset(

@@ -20,10 +20,12 @@ from fastapi import Request
 
 from dirt_shared.config import Settings
 from dirt_shared.services.capture import FrameCapturer, capture_frame
+from dirt_shared.services.commands import CommandService
 from dirt_shared.services.grow_state import GrowStateService
 from dirt_shared.services.plants import PlantsService
 from dirt_shared.services.ptz import PTZService
 from dirt_shared.services.readings import ReadingsService
+from dirt_shared.services.scope_catalog import ScopeCatalogService
 from dirt_shared.services.snapshots import SnapshotsService
 from dirt_shared.services.system_status import SystemStatusService
 
@@ -50,6 +52,14 @@ def get_plants(request: Request) -> PlantsService:
 
 def get_system_status(request: Request) -> SystemStatusService:
     return request.app.state.system_status
+
+
+def get_commands(request: Request) -> CommandService:
+    return request.app.state.commands
+
+
+def get_scope_catalog(request: Request) -> ScopeCatalogService:
+    return request.app.state.scope_catalog
 
 
 def get_ptz(request: Request) -> PTZService:

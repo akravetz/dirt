@@ -1,19 +1,4 @@
-"""Collate heterogenous device heartbeats into the ``/api/system/devices`` list.
-
-Eight rows in the mockup (``dashboard.jsx:SystemTable``):
-
-- ESP32-C3 · fan+tent         — tent sensornode's ``last_seen``
-                                 (fan driver + SHT45 on one board)
-- ESP32-C3 · plant_{a,b,c,d}  — per-plant sensornode's ``last_seen``
-- OBSBOT Tiny 2 Lite          — dirt-camera daemon's ``get_state`` RPC
-- Jabra Speak 410 (Claudia)   — tail of ``var/sessions/voice/*.jsonl``
-- Humidifier (Govee H7142)    — latest ``humidifier_on`` reading timestamp
-
-All heterogenous — DB rows, a unix socket, a JSONL file — so we normalise
-them into a single ``DeviceStatus`` dataclass with a small status taxonomy.
-
-This is read-only; no DB writes.
-"""
+"""Collate scoped device heartbeats into the ``/api/system/devices`` list."""
 
 from __future__ import annotations
 
@@ -30,9 +15,13 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from dirt_shared.models.device import Capability, Device
 from dirt_shared.models.enums import SensorLocation
 from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
+from dirt_shared.models.site import Site
+from dirt_shared.models.tent import Tent
+from dirt_shared.models.zone import Zone
 from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID
 
 DeviceKind = Literal["env_sensor", "moisture_node", "camera", "voice", "actuator"]
@@ -60,6 +49,37 @@ _THRESHOLDS = {
     "camera": (timedelta(minutes=1), timedelta(minutes=5)),
     "voice": (timedelta(minutes=30), timedelta(hours=24)),
 }
+
+_STATUS_DEVICE_ORDER = (
+    "fan-controller",
+    "plant-a-node",
+    "plant-b-node",
+    "plant-c-node",
+    "plant-d-node",
+    "govee-h7142-main",
+    "obsbot-main",
+    "jabra-claudia",
+)
+
+_DEVICE_KIND_MAP: dict[str, DeviceKind] = {
+    "env_sensor": "env_sensor",
+    "moisture_node": "moisture_node",
+    "actuator": "actuator",
+    "camera": "camera",
+    "voice": "voice",
+}
+
+
+@dataclass(frozen=True)
+class _ScopedDevice:
+    pk: int
+    device_id: str
+    name: str
+    kind: DeviceKind
+    site_id: str
+    tent_id: str | None
+    zone_id: str | None
+    metadata: dict
 
 
 # ============================================================
@@ -160,153 +180,187 @@ class SystemStatusService:
         engine: AsyncEngine,
         *,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        camera_rpc: Callable[[str, str], dict[str, str]] = _camera_rpc,
+        service_active_check: Callable[[str], bool] = _is_user_service_active,
     ) -> None:
         self._engine = engine
         self._clock = clock
+        self._camera_rpc = camera_rpc
+        self._service_active_check = service_active_check
 
     def now(self) -> datetime:
         """Injected-clock read. Endpoints stamp response envelopes via this."""
         return self._clock()
 
     async def get_device_statuses(self) -> list[DeviceStatus]:
-        """Return the full device list in the mockup's render order."""
+        """Return the dashboard device list in stable render order."""
         now = self._clock()
-        out: list[DeviceStatus] = []
 
         async with AsyncSession(self._engine) as session:
-            out.append(await self._tent_sensor_status(session, now))
-            for loc in (
-                SensorLocation.PLANT_A,
-                SensorLocation.PLANT_B,
-                SensorLocation.PLANT_C,
-                SensorLocation.PLANT_D,
-            ):
-                out.append(await self._plant_node_status(session, loc, now))
-            out.append(await self._humidifier_status(session, now))
+            devices = await self._status_devices(session)
+            nodes = (await session.exec(select(SensorNode))).all()
+            nodes_by_location = {node.location: node for node in nodes}
 
-        out.append(self._camera_status(now))
-        out.append(self._voice_status(now))
+            out: list[DeviceStatus] = []
+            for device in devices:
+                if device.kind in {"env_sensor", "moisture_node"}:
+                    out.append(
+                        self._sensor_device_status(now, device, nodes_by_location)
+                    )
+                elif device.device_id == "govee-h7142-main":
+                    out.append(await self._actuator_status(session, now, device))
+                elif device.kind == "camera":
+                    out.append(self._camera_status(now, device))
+                elif device.kind == "voice":
+                    out.append(self._voice_status(now, device))
         return out
 
-    async def _tent_sensor_status(
-        self, session: AsyncSession, now: datetime
-    ) -> DeviceStatus:
-        node = (
+    async def _status_devices(self, session: AsyncSession) -> list[_ScopedDevice]:
+        rows = (
             await session.exec(
-                select(SensorNode).where(SensorNode.location == SensorLocation.TENT)
+                select(Device, Site.site_id, Tent.tent_id, Zone.zone_id)
+                .join(Site, Site.id == Device.site_id)
+                .outerjoin(Tent, Tent.id == Device.tent_id)
+                .outerjoin(Zone, Zone.id == Device.zone_id)
+                .where(Site.site_id == DEFAULT_SITE_ID)
+                .where(Device.device_id.in_(_STATUS_DEVICE_ORDER))
             )
-        ).first()
+        ).all()
+        by_id = {}
+        for device, site_id, tent_id, zone_id in rows:
+            kind = _DEVICE_KIND_MAP.get(device.kind)
+            if device.id is None or kind is None:
+                continue
+            by_id[device.device_id] = _ScopedDevice(
+                pk=device.id,
+                device_id=device.device_id,
+                name=device.name,
+                kind=kind,
+                site_id=site_id,
+                tent_id=tent_id,
+                zone_id=zone_id,
+                metadata=device.metadata_json,
+            )
+        return [
+            by_id[device_id] for device_id in _STATUS_DEVICE_ORDER if device_id in by_id
+        ]
+
+    def _sensor_device_status(
+        self,
+        now: datetime,
+        device: _ScopedDevice,
+        nodes_by_location: dict[SensorLocation, SensorNode],
+    ) -> DeviceStatus:
+        location_value = device.metadata.get("legacy_location")
+        node = None
+        if location_value is not None:
+            with contextlib.suppress(ValueError):
+                node = nodes_by_location.get(SensorLocation(location_value))
         last_seen = node.last_seen if node is not None else None
         return DeviceStatus(
-            name="ESP32-C3 · fan+tent",
-            kind="env_sensor",
-            status=_status_from_age(now, last_seen, "env_sensor"),
+            name=device.name,
+            kind=device.kind,
+            status=_status_from_age(now, last_seen, device.kind),
             last_seen=last_seen,
-            device_id="fan-controller",
-            zone_id="canopy",
+            device_id=device.device_id,
+            site_id=device.site_id,
+            tent_id=device.tent_id,
+            zone_id=device.zone_id,
         )
 
-    async def _plant_node_status(
-        self, session: AsyncSession, loc: SensorLocation, now: datetime
+    async def _actuator_status(
+        self,
+        session: AsyncSession,
+        now: datetime,
+        device: _ScopedDevice,
     ) -> DeviceStatus:
-        node = (
-            await session.exec(select(SensorNode).where(SensorNode.location == loc))
-        ).first()
-        last_seen = node.last_seen if node is not None else None
-        letter = loc.value.removeprefix("plant-")
-        return DeviceStatus(
-            name=f"ESP32-C3 · plant_{letter}",
-            kind="moisture_node",
-            status=_status_from_age(now, last_seen, "moisture_node"),
-            last_seen=last_seen,
-            device_id=f"plant-{letter}-node",
-            zone_id=f"plant-{letter}",
-        )
-
-    async def _humidifier_status(
-        self, session: AsyncSession, now: datetime
-    ) -> DeviceStatus:
-        tent = (
-            await session.exec(
-                select(SensorNode.id).where(SensorNode.location == SensorLocation.TENT)
-            )
-        ).first()
         last_seen: datetime | None = None
-        if tent is not None:
-            last = (
-                await session.exec(
-                    select(SensorReading)
-                    .where(SensorReading.sensornode_id == tent)
-                    .where(SensorReading.metric == "humidifier_on")
-                    .order_by(SensorReading.ts.desc())
-                    .limit(1)
-                )
-            ).first()
-            if last is not None:
-                last_seen = last.ts
-        status = _status_from_age(now, last_seen, "actuator")
+        last = (
+            await session.exec(
+                select(SensorReading)
+                .join(Capability, Capability.id == SensorReading.capability_id)
+                .where(Capability.device_id == device.pk)
+                .where(Capability.metric_name == "humidifier_on")
+                .order_by(SensorReading.ts.desc())
+                .limit(1)
+            )
+        ).first()
+        if last is not None:
+            last_seen = last.ts
         return DeviceStatus(
-            name="Humidifier (Govee H7142)",
-            kind="actuator",
-            status=status,
+            name=device.name,
+            kind=device.kind,
+            status=_status_from_age(now, last_seen, device.kind),
             last_seen=last_seen,
-            device_id="govee-h7142-main",
-            zone_id="canopy",
+            device_id=device.device_id,
+            site_id=device.site_id,
+            tent_id=device.tent_id,
+            zone_id=device.zone_id,
         )
 
-    def _camera_status(self, now: datetime) -> DeviceStatus:
+    def _camera_status(self, now: datetime, device: _ScopedDevice) -> DeviceStatus:
         """Probe the dirt-camera daemon's unix socket via ``get_state``."""
         sock_path = _camera_socket_path()
         try:
-            resp = _camera_rpc(sock_path, "get_state")
+            resp = self._camera_rpc(sock_path, "get_state")
         except (FileNotFoundError, ConnectionRefusedError, TimeoutError, OSError):
             return DeviceStatus(
-                name="OBSBOT Tiny 2 Lite",
-                kind="camera",
+                name=device.name,
+                kind=device.kind,
                 status="offline",
                 last_seen=None,
                 note="daemon unreachable",
-                device_id="obsbot-main",
-                zone_id="canopy",
+                device_id=device.device_id,
+                site_id=device.site_id,
+                tent_id=device.tent_id,
+                zone_id=device.zone_id,
             )
         if resp.get("_status") != "ok":
             return DeviceStatus(
-                name="OBSBOT Tiny 2 Lite",
-                kind="camera",
+                name=device.name,
+                kind=device.kind,
                 status="offline",
                 last_seen=None,
                 note=resp.get("msg") or str(resp.get("_status")),
-                device_id="obsbot-main",
-                zone_id="canopy",
+                device_id=device.device_id,
+                site_id=device.site_id,
+                tent_id=device.tent_id,
+                zone_id=device.zone_id,
             )
         connected = resp.get("camera_connected", False)
         return DeviceStatus(
-            name="OBSBOT Tiny 2 Lite",
-            kind="camera",
+            name=device.name,
+            kind=device.kind,
             status="ok" if connected else "warn",
             last_seen=now,
             note=None if connected else "camera reported disconnected",
-            device_id="obsbot-main",
-            zone_id="canopy",
+            device_id=device.device_id,
+            site_id=device.site_id,
+            tent_id=device.tent_id,
+            zone_id=device.zone_id,
         )
 
-    def _voice_status(self, now: datetime) -> DeviceStatus:
+    def _voice_status(self, now: datetime, device: _ScopedDevice) -> DeviceStatus:
         """Jabra / Claudia — infer from ``systemctl --user is-active dirt-voice``."""
-        active = _is_user_service_active("dirt-voice")
+        active = self._service_active_check("dirt-voice")
         if active:
             return DeviceStatus(
-                name="Jabra Speak 410 (Claudia)",
-                kind="voice",
+                name=device.name,
+                kind=device.kind,
                 status="listening",
                 last_seen=now,
-                device_id="jabra-claudia",
-                tent_id=None,
+                device_id=device.device_id,
+                site_id=device.site_id,
+                tent_id=device.tent_id,
+                zone_id=device.zone_id,
             )
         return DeviceStatus(
-            name="Jabra Speak 410 (Claudia)",
-            kind="voice",
+            name=device.name,
+            kind=device.kind,
             status="offline",
             last_seen=None,
-            device_id="jabra-claudia",
-            tent_id=None,
+            device_id=device.device_id,
+            site_id=device.site_id,
+            tent_id=device.tent_id,
+            zone_id=device.zone_id,
         )

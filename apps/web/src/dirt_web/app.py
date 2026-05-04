@@ -20,6 +20,7 @@ from dirt_web.api.feed import router as feed_router
 from dirt_web.api.grow import router as grow_router
 from dirt_web.api.plants import router as plants_router
 from dirt_web.api.ptz import router as ptz_router
+from dirt_web.api.scope import router as scope_router
 from dirt_web.api.sensors import router as sensors_router
 from dirt_web.api.system import router as system_router
 from dirt_web.api.wiki import router as wiki_router
@@ -93,7 +94,9 @@ def create_app(
     app.state.plant_detail = core.plant_detail
     app.state.plants = core.plants
     app.state.system_status = core.system_status
-    app.state.ptz = PTZService()
+    app.state.commands = core.commands
+    app.state.scope_catalog = core.scope_catalog
+    app.state.ptz = PTZService(commands=core.commands)
     app.state.sessions = sessions
 
     # Middleware order: Starlette runs middleware in reverse-registration
@@ -108,6 +111,7 @@ def create_app(
     app.include_router(feed_router)
     app.include_router(sensors_router)
     app.include_router(grow_router)
+    app.include_router(scope_router)
     app.include_router(plants_router)
     app.include_router(ptz_router)
     app.include_router(system_router)

@@ -49,6 +49,7 @@ from dirt_shared.services.govee import (
 )
 from dirt_shared.services.grow_state import GrowStateService
 from dirt_shared.services.readings import ReadingsService
+from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID
 from dirt_shared.services.telegram import TelegramClient, TelegramError
 
 logger = logging.getLogger(__name__)
@@ -236,11 +237,20 @@ class HumidifierLoopService:
         http_client_factory: Callable[[], httpx.AsyncClient] | None = None,
         govee_client_factory: Callable[[str, httpx.AsyncClient], GoveeClient]
         | None = None,
+        site_id: str = DEFAULT_SITE_ID,
+        tent_id: str = DEFAULT_TENT_ID,
+        canopy_device_id: str = "fan-controller",
+        humidifier_device_id: str = "govee-h7142-main",
     ) -> None:
         self._config = config
         self._readings = readings
         self._grow = grow
         self._clock = clock
+        self._site_id = site_id
+        self._tent_id = tent_id
+        self._zone_id = "canopy"
+        self._canopy_device_id = canopy_device_id
+        self._humidifier_device_id = humidifier_device_id
         self._http_factory = http_client_factory or (
             lambda: httpx.AsyncClient(timeout=15.0)
         )
@@ -259,7 +269,22 @@ class HumidifierLoopService:
                 else float(target_level),
             },
             source=SensorSource.GOVEE,
+            site_id=self._site_id,
+            tent_id=self._tent_id,
+            zone_id=self._zone_id,
+            device_id=self._humidifier_device_id,
         )
+
+    def _scope_fields(self, *, capability_id: str | None = None) -> dict[str, str]:
+        fields = {
+            "site_id": self._site_id,
+            "tent_id": self._tent_id,
+            "zone_id": self._zone_id,
+            "device_id": self._humidifier_device_id,
+        }
+        if capability_id is not None:
+            fields["capability_id"] = capability_id
+        return fields
 
     async def _resolve_mac(self, govee: GoveeClient) -> str | None:
         """Either return the configured MAC, or discover by SKU."""
@@ -339,15 +364,32 @@ class HumidifierLoopService:
                 try:
                     now = self._clock()
 
-                    ctx = await self._grow.current_context()
+                    ctx = await self._grow.current_context(
+                        site_id=self._site_id,
+                        tent_id=self._tent_id,
+                    )
                     stage = ctx.stage
                     lights = ctx.lights
                     vpd_lo, vpd_hi = ctx.targets["vpd_kpa"]
                     rh_band = ctx.targets["humidity_pct"]
 
                     vpd_reading, rh_reading = await asyncio.gather(
-                        self._readings.get_latest_reading("vpd_kpa"),
-                        self._readings.get_latest_reading("humidity_pct"),
+                        self._readings.get_latest_reading(
+                            "vpd_kpa",
+                            site_id=self._site_id,
+                            tent_id=self._tent_id,
+                            zone_id=self._zone_id,
+                            device_id=self._canopy_device_id,
+                            capability_id="vpd_kpa",
+                        ),
+                        self._readings.get_latest_reading(
+                            "humidity_pct",
+                            site_id=self._site_id,
+                            tent_id=self._tent_id,
+                            zone_id=self._zone_id,
+                            device_id=self._canopy_device_id,
+                            capability_id="humidity_pct",
+                        ),
                     )
                     vpd = vpd_reading.value if vpd_reading else None
                     rh = rh_reading.value if rh_reading else None
@@ -384,6 +426,7 @@ class HumidifierLoopService:
                         log_event(
                             STREAM,
                             "device_online" if snap.online else "device_offline",
+                            **self._scope_fields(),
                             online=snap.online,
                             power=snap.power_on,
                             mode_value=snap.mode_value,
@@ -402,6 +445,7 @@ class HumidifierLoopService:
                         log_event(
                             STREAM,
                             "lack_water_cleared",
+                            **self._scope_fields(capability_id="mist_level"),
                             stage=stage,
                             commanded_level=disp_out.target_level,
                         )
@@ -415,6 +459,7 @@ class HumidifierLoopService:
                         log_event(
                             STREAM,
                             "skip_offline",
+                            **self._scope_fields(capability_id="mist_level"),
                             target_level=disp_out.target_level,
                             u_pct=round(pi_out.u, 2),
                             stage=stage,
@@ -509,12 +554,18 @@ class HumidifierLoopService:
                 except GoveeRateLimitError as exc:
                     # Quiet log — next tick retries naturally.
                     logger.info("govee rate limit (code=%s): %s", exc.code, exc.message)
-                    log_event(STREAM, "rate_limited", error=exc.message)
+                    log_event(
+                        STREAM,
+                        "rate_limited",
+                        **self._scope_fields(),
+                        error=exc.message,
+                    )
                 except Exception as exc:
                     logger.exception("humidifier loop error")
                     log_event(
                         STREAM,
                         "error",
+                        **self._scope_fields(),
                         error_type=type(exc).__name__,
                         error=repr(exc),
                     )
@@ -569,6 +620,7 @@ class HumidifierLoopService:
             log_event(
                 STREAM,
                 "state_change",
+                **self._scope_fields(capability_id="power"),
                 power=1 if target_level is not None else 0,
                 level=target_level,
                 u_pct=round(pi_out.u, 2),
@@ -588,6 +640,7 @@ class HumidifierLoopService:
             log_event(
                 STREAM,
                 "level_change",
+                **self._scope_fields(capability_id="mist_level"),
                 from_level=prev_level,
                 to_level=target_level,
                 u_pct=round(pi_out.u, 2),
@@ -617,6 +670,7 @@ class HumidifierLoopService:
         log_event(
             SHADOW_STREAM,
             "tick",
+            **self._scope_fields(capability_id="mist_level"),
             u_pct=round(pi_out.u, 2),
             plug_on_shadow=pi_out.plug_on,
             target_level=disp_out.target_level,
@@ -660,6 +714,7 @@ class HumidifierLoopService:
         log_event(
             STREAM,
             "lack_water",
+            **self._scope_fields(capability_id="mist_level"),
             stage=stage,
             commanded_level=commanded_level,
             vpd=vpd,
@@ -697,6 +752,7 @@ class HumidifierLoopService:
         log_event(
             STREAM,
             "suspected_ineffective",
+            **self._scope_fields(capability_id="mist_level"),
             pinned_minutes=round(pinned_min, 1),
             vpd_at_start=round(start_vpd, 3),
             vpd_now=round(vpd, 3),

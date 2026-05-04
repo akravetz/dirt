@@ -24,6 +24,7 @@ from dirt_shared.observability import log_event
 from dirt_shared.services.fan_node import FanNodeClient, FanNodeError
 from dirt_shared.services.grow_state import GrowStateService, LightsState
 from dirt_shared.services.readings import ReadingsService
+from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID
 
 logger = logging.getLogger(__name__)
 
@@ -188,7 +189,7 @@ class _HttpFactory(Protocol):
 class FanTrimLoopService:
     """Background loop that turns fan-trim decisions into ESP32 API calls."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 - composition root params plus explicit hardware scope.
         self,
         config: FanTrimConfig,
         *,
@@ -196,12 +197,30 @@ class FanTrimLoopService:
         grow: GrowStateService,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         http_factory: _HttpFactory = httpx.AsyncClient,
+        site_id: str = DEFAULT_SITE_ID,
+        tent_id: str = DEFAULT_TENT_ID,
+        device_id: str = "fan-controller",
     ) -> None:
         self._config = config
         self._readings = readings
         self._grow = grow
         self._clock = clock
         self._http_factory = http_factory
+        self._site_id = site_id
+        self._tent_id = tent_id
+        self._zone_id = "canopy"
+        self._device_id = device_id
+
+    def _scope_fields(self, *, capability_id: str | None = None) -> dict[str, str]:
+        fields = {
+            "site_id": self._site_id,
+            "tent_id": self._tent_id,
+            "zone_id": self._zone_id,
+            "device_id": self._device_id,
+        }
+        if capability_id is not None:
+            fields["capability_id"] = capability_id
+        return fields
 
     async def run(self, stop_event: asyncio.Event) -> None:
         cfg = self._config
@@ -224,11 +243,28 @@ class FanTrimLoopService:
             while not stop_event.is_set():
                 try:
                     now = self._clock()
-                    ctx = await self._grow.current_context()
+                    ctx = await self._grow.current_context(
+                        site_id=self._site_id,
+                        tent_id=self._tent_id,
+                    )
 
                     vpd_reading, rh_reading = await asyncio.gather(
-                        self._readings.get_latest_reading("vpd_kpa"),
-                        self._readings.get_latest_reading("humidity_pct"),
+                        self._readings.get_latest_reading(
+                            "vpd_kpa",
+                            site_id=self._site_id,
+                            tent_id=self._tent_id,
+                            zone_id=self._zone_id,
+                            device_id=self._device_id,
+                            capability_id="vpd_kpa",
+                        ),
+                        self._readings.get_latest_reading(
+                            "humidity_pct",
+                            site_id=self._site_id,
+                            tent_id=self._tent_id,
+                            zone_id=self._zone_id,
+                            device_id=self._device_id,
+                            capability_id="humidity_pct",
+                        ),
                     )
                     fan_state = await fan.get_state()
                     current = int(fan_state["set_duty_pct"])
@@ -264,6 +300,7 @@ class FanTrimLoopService:
                         log_event(
                             STREAM,
                             "state_change",
+                            **self._scope_fields(capability_id="fan_duty_pct"),
                             old_pct=current,
                             new_pct=ack,
                             target_pct=decision.target_pct,
@@ -283,6 +320,7 @@ class FanTrimLoopService:
                     log_event(
                         STREAM,
                         "tick",
+                        **self._scope_fields(capability_id="fan_duty_pct"),
                         current_pct=current,
                         target_pct=decision.target_pct,
                         reason=decision.reason,
@@ -302,13 +340,18 @@ class FanTrimLoopService:
                 except FanNodeError as exc:
                     logger.warning("fan trim node error: %s", exc)
                     log_event(
-                        STREAM, "error", error_type=type(exc).__name__, error=str(exc)
+                        STREAM,
+                        "error",
+                        **self._scope_fields(),
+                        error_type=type(exc).__name__,
+                        error=str(exc),
                     )
                 except Exception as exc:
                     logger.exception("fan trim loop error")
                     log_event(
                         STREAM,
                         "error",
+                        **self._scope_fields(),
                         error_type=type(exc).__name__,
                         error=repr(exc),
                     )
