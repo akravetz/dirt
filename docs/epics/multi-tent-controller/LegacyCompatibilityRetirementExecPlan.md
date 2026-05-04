@@ -24,6 +24,8 @@ This plan is still local-controller work. The homebox remains the hardware autho
 - [ ] Implement Milestone 5: make scoped API/frontend access first-class while keeping default-main URLs compatible.
 - [ ] Implement Milestone 6: backfill or quarantine historical unscoped data and tighten schema/app constraints.
 - [ ] Implement Milestone 7: remove dead legacy code, docs, tests, and optional schema artifacts that no live path uses.
+- [x] (2026-05-04) Recorded `growrun.location` as a cleanup-removal candidate and classified cleanup candidates as Milestone 7 work with explicit validation, not vague final-exit notes.
+- [x] (2026-05-04) Recorded duplicated photoperiod storage as a cleanup-removal candidate: `schedule` should be canonical, and `growrun.lights_on_local` / `growrun.lights_off_local` should be removed after service/API reads compose lights times from schedule.
 
 
 ## Surprises & Discoveries
@@ -49,6 +51,12 @@ This plan is still local-controller work. The homebox remains the hardware autho
 - Observation: The rollout surfaced unrelated archive verification failures for old camera days.
   Evidence: `dirt-hwd` logged `ArchiveVerificationError` frame-count mismatches for `2026-04-21` and `2026-04-22`; the service stayed active and JPEGs were not deleted. This is not part of this plan unless later cleanup touches archive/snapshot history.
 
+- Observation: `growrun.location` is a free-form carryover from the old singleton grow state and duplicates relational scope.
+  Evidence: `apps/shared/src/dirt_shared/models/grow_run.py` has `GrowRun.site_id`, `GrowRun.tent_id`, and a separate `location` text column. The canonical grow location is now `growrun.site_id -> site.id` and `growrun.tent_id -> tent.id`; `contracts/webapp-v1.yaml` still exposes `GrowCurrent.location` for the default-main dashboard response.
+
+- Observation: Photoperiod is stored in both `growrun` and `schedule`.
+  Evidence: `apps/shared/src/dirt_shared/models/grow_run.py` has `lights_on_local` and `lights_off_local`, while `apps/shared/src/dirt_shared/models/schedule.py` has scoped `starts_local`, `ends_local`, `timezone`, `device_id`, and `capability_id`. Phase 1 already materialized the main photoperiod as `schedule_id='main-lights-photoperiod'`, so keeping the grow-run copy creates two sources of truth.
+
 
 ## Decision Log
 
@@ -66,6 +74,18 @@ This plan is still local-controller work. The homebox remains the hardware autho
 
 - Decision: Move device heartbeat columns onto canonical device ownership instead of creating a new fleet/cloud heartbeat service.
   Rationale: This box remains the hardware authority and already models local devices. A local `device` heartbeat or local `deviceheartbeat` table is enough; cloud/fleet identity is out of scope.
+  Date/Author: 2026-05-04 / Codex
+
+- Decision: Track stale model fields as Milestone 7 cleanup-removal items once they are identified.
+  Rationale: Cleanup removals are real schema/API work and need their own Atlas migrations, contract updates, tests, and live rollout validation. They should not be left as vague final-exit criteria, but they also should not block earlier migration milestones unless a field actively prevents canonical scoped behavior.
+  Date/Author: 2026-05-04 / Codex
+
+- Decision: Remove `growrun.location` unless a future implementation finds a distinct non-scope meaning for it and records that meaning in this plan.
+  Rationale: Site and tent FKs are the source of truth for where a grow run lives. Keeping a second free-form location string creates drift risk and invites code to route or display stale location text instead of using scoped identity.
+  Date/Author: 2026-05-04 / Codex
+
+- Decision: Make `schedule` the canonical owner of recurring lights photoperiod and remove the duplicate `growrun.lights_on_local` / `growrun.lights_off_local` columns.
+  Rationale: A photoperiod is recurring operational schedule data attached to a tent/device/capability. `growrun` should describe the grow cycle itself. API responses may continue to include lights times for compatibility, but those values should be composed from the scoped `schedule` row.
   Date/Author: 2026-05-04 / Codex
 
 
@@ -101,6 +121,11 @@ The major remaining legacy surfaces are:
 - `apps/hwd/src/dirt_hwd/api/ingest.py`: still accepts required `location`, with optional scoped fields.
 - `firmware/*/src/main.cpp`: still sends legacy `location` payloads.
 - `apps/web/src/dirt_web/api/sensors.py` and `metric_registry.py`: still assemble default-main dashboards through legacy metric/location registry concepts.
+
+Additional cleanup-removal candidates that are not strictly `sensornode` compatibility:
+
+- `growrun.location`: remove after API/frontend consumers stop requiring `GrowCurrent.location`. Any UI display should use `tent.name`, `site.location`, or an intentionally named grow-run note field instead of a duplicate scope label.
+- `growrun.lights_on_local` and `growrun.lights_off_local`: remove after `GrowStateService`, lights loop code, flower-flip/update paths, API response mapping, tests, and frontend fixtures use the scoped `schedule` row as the only persisted photoperiod source. Keep local wall-clock `time` plus IANA `timezone` on `schedule`; do not convert recurring daily photoperiods to stored UTC.
 
 Operational state after rollout:
 
@@ -207,6 +232,8 @@ After firmware and services use canonical identity:
 - remove `Plant.sensornode_id` if plant moisture capability ownership fully replaces it;
 - remove `SensorCalibration.sensornode_id` and legacy unique constraints if no compatibility path needs them;
 - consider dropping `sensornode` and the `sensor_location` enum only after all FKs and live uses are gone;
+- remove `GrowRun.location` and the corresponding API/contract/frontend fixture field unless it has been deliberately redefined as something other than scope. Use an Atlas migration to drop the column, update `apps/shared/src/dirt_shared/models/grow_run.py`, remove response mapping from `apps/web/src/dirt_web/api/grow.py`, update `contracts/webapp-v1.yaml`, regenerate clients, and replace display needs with `tent.name` or `site.location`;
+- remove `GrowRun.lights_on_local` and `GrowRun.lights_off_local` after confirming the scoped `schedule` row is authoritative. Before dropping columns, update `GrowStateService.current_light_schedule()`, `lights_state()`, flower-flip/write paths, `LightsLoopService`, `/api/grow/current` response mapping, tests, OpenAPI schemas, generated clients, and frontend fixtures so compatibility responses are composed from `schedule.starts_local`, `schedule.ends_local`, and `schedule.timezone`;
 - update `docs/database.md`, `docs/observability.md`, and this plan.
 
 This milestone is intentionally last. It should be mostly deletion plus schema cleanup, not mixed with behavior migration.
@@ -285,6 +312,9 @@ The work is complete when these behaviors are observable:
 - Scoped API calls can fetch sensors/plants/snapshots for `main` and return empty or scoped data for `breeding` without leaking main data.
 - The frontend either remains default-main only with generated types passing, or has a minimal tent selector that defaults to `main` and includes `tent_id` in query keys.
 - If `sensornode` or `SensorLocation` remain, this plan documents why and the remaining live dependency. If no live dependency remains, schema and code no longer expose them.
+- `growrun.location` is removed from the SQLModel, Atlas schema, migration state, OpenAPI contract, generated clients, and frontend fixtures unless a distinct non-scope meaning is documented in this plan before Milestone 7.
+- `growrun.lights_on_local` and `growrun.lights_off_local` are removed from the SQLModel, Atlas schema, migration state, and generated contracts after tests prove grow-current responses and lights-loop decisions read the scoped `schedule` row.
+- A validation query or test proves each active tent that should have lights control has exactly one enabled photoperiod schedule, and no service writes photoperiod times to `growrun`.
 - `apps/tests/invariants/` is unchanged.
 - `atlas migrate diff verify_... --env local` reports no schema drift after any migration.
 
@@ -367,6 +397,8 @@ New or changed interfaces expected by the end of this plan:
 - Canonical device heartbeat exists on `device` or a local `deviceheartbeat` table and is used by `SystemStatusService`, `DeviceWatchdogService`, and metric freshness logic.
 - `Plant` rows own or reference moisture capability identity directly; plant services do not need `Plant.sensornode_id` for current reads.
 - `DailySensorService` reads through capability/device/tent scope.
+- `GrowRun` no longer carries a duplicate `location` string; grow placement is represented by `site_id` and `tent_id`, and human display labels come from `site`/`tent` fields unless deliberately redesigned.
+- `Schedule` is the canonical persisted photoperiod interface. Grow-current APIs may expose lights times for compatibility, but they are derived from `schedule`, not duplicated on `growrun`.
 - Existing default-main API routes remain compatible unless a contract revision deliberately changes them.
 - If scoped query params are added to existing API routes, `contracts/webapp-v1.yaml`, generated Python models, and `web-ui/src/api-client/generated/schema.ts` are regenerated and formatted.
 - Atlas remains the only schema migration mechanism.
@@ -376,3 +408,5 @@ New or changed interfaces expected by the end of this plan:
 ## Revision Notes
 
 - 2026-05-04: Initial ExecPlan created after Phase 1 multi-tent model was committed, pushed, migrated, and smoke-tested on the local controller.
+- 2026-05-04: Added `growrun.location` to the Milestone 7 cleanup-removal inventory and clarified that future stale-field removals should be tracked as explicit cleanup work with validation, not only as final exit criteria.
+- 2026-05-04: Added duplicated photoperiod storage to the Milestone 7 cleanup-removal inventory. The target is schedule-canonical storage using local wall-clock times plus timezone, with grow-current API values composed from schedule during compatibility.
