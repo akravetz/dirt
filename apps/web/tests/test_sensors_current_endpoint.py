@@ -20,6 +20,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from dirt_shared.models.device import Capability, Device
 from dirt_shared.models.enums import SensorLocation, SensorSource
 from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
@@ -43,6 +44,23 @@ async def _node_id(engine, location: SensorLocation) -> int:
         return node_id
 
 
+async def _capability_id(
+    engine,
+    *,
+    device_id: str,
+    metric_name: str,
+) -> int:
+    async with AsyncSession(engine) as s:
+        result = await s.exec(
+            select(Capability.id)
+            .join(Device, Device.id == Capability.device_id)
+            .where(Device.device_id == device_id)
+            .where(Capability.metric_name == metric_name)
+        )
+        cap_id = result.one()
+        return cap_id
+
+
 async def _seed_readings(
     engine,
     *,
@@ -63,14 +81,36 @@ async def _seed_readings(
     """
     tent_id = await _node_id(engine, SensorLocation.TENT)
     reservoir_id = await _node_id(engine, SensorLocation.RESERVOIR)
+    tent_caps = {
+        metric: await _capability_id(
+            engine, device_id="fan-controller", metric_name=metric
+        )
+        for metric in (
+            "temperature_f",
+            "humidity_pct",
+            "vpd_kpa",
+            "dew_point_f",
+            "fan_duty_pct",
+        )
+    }
+    reservoir_cap = await _capability_id(
+        engine, device_id="reservoir-node", metric_name="reservoir_in"
+    )
     now = datetime.now(UTC)
     rows: list[SensorReading] = []
 
-    def add(metric: str, value: float, ts: datetime, node_id: int = tent_id) -> None:
+    def add(
+        metric: str,
+        value: float,
+        ts: datetime,
+        node_id: int = tent_id,
+        capability_id: int | None = None,
+    ) -> None:
         rows.append(
             SensorReading(
                 ts=ts,
                 sensornode_id=node_id,
+                capability_id=capability_id or tent_caps[metric],
                 metric=metric,
                 value=value,
                 source=SensorSource.ARDUINO,
@@ -88,7 +128,7 @@ async def _seed_readings(
         "fan_duty_pct": 30.0,
     }.items():
         add(metric, value, now)
-    add("reservoir_in", reservoir_in, now, node_id=reservoir_id)
+    add("reservoir_in", reservoir_in, now, reservoir_id, reservoir_cap)
 
     if stale:
         threshold = (

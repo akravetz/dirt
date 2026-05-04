@@ -25,6 +25,7 @@ from statistics import mean
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from sqlalchemy import or_
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -34,7 +35,11 @@ from dirt_shared.models.sensor_calibration import SensorCalibration
 from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.sensor_contract import persisted_metrics
-from dirt_shared.services.readings import compute_calibrated_pct
+from dirt_shared.services.readings import (
+    compute_calibrated_pct,
+    get_sensor_calibration,
+    resolve_metric_capability_id,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -170,6 +175,18 @@ class SensorReader:
             self._node_ids[location] = node_id
         return node_id
 
+    async def _capability_id(
+        self,
+        session: AsyncSession,
+        location: SensorLocation,
+        metric: str,
+    ) -> int | None:
+        return await resolve_metric_capability_id(
+            session,
+            location=location,
+            metric=metric,
+        )
+
     async def latest(
         self, location: SensorLocation, metric: str
     ) -> LatestReading | None:
@@ -177,13 +194,20 @@ class SensorReader:
             node_id = await self._node_id(session, location)
             if node_id is None:
                 return None
-            result = await session.exec(
+            capability_id = await self._capability_id(session, location, metric)
+            stmt = (
                 select(SensorReading)
                 .where(SensorReading.sensornode_id == node_id)
                 .where(SensorReading.metric == metric)
-                .order_by(SensorReading.ts.desc())
-                .limit(1)
             )
+            if capability_id is not None:
+                stmt = stmt.where(
+                    or_(
+                        SensorReading.capability_id == capability_id,
+                        SensorReading.capability_id.is_(None),
+                    )
+                )
+            result = await session.exec(stmt.order_by(SensorReading.ts.desc()).limit(1))
             row = result.first()
         if row is None:
             return None
@@ -261,13 +285,22 @@ class SensorReader:
             node_id = await self._node_id(session, location)
             if node_id is None:
                 return WindowAvg(avg=None, n=0)
-            result = await session.exec(
+            capability_id = await self._capability_id(session, location, metric)
+            stmt = (
                 select(SensorReading.value)
                 .where(SensorReading.sensornode_id == node_id)
                 .where(SensorReading.metric == metric)
                 .where(SensorReading.ts >= start)
                 .where(SensorReading.ts < end)
             )
+            if capability_id is not None:
+                stmt = stmt.where(
+                    or_(
+                        SensorReading.capability_id == capability_id,
+                        SensorReading.capability_id.is_(None),
+                    )
+                )
+            result = await session.exec(stmt)
             values = list(result.all())
         if not values:
             return WindowAvg(avg=None, n=0)
@@ -280,12 +313,13 @@ class SensorReader:
             node_id = await self._node_id(session, location)
             if node_id is None:
                 return None
-            result = await session.exec(
-                select(SensorCalibration)
-                .where(SensorCalibration.sensornode_id == node_id)
-                .where(SensorCalibration.metric == metric)
+            capability_id = await self._capability_id(session, location, metric)
+            return await get_sensor_calibration(
+                session,
+                sensornode_id=node_id,
+                metric=metric,
+                capability_id=capability_id,
             )
-            return result.first()
 
     async def _avg_pct_in_window(
         self,
@@ -301,13 +335,22 @@ class SensorReader:
             node_id = await self._node_id(session, location)
             if node_id is None:
                 return WindowAvg(avg=None, n=0)
-            result = await session.exec(
+            capability_id = await self._capability_id(session, location, SOIL_METRIC)
+            stmt = (
                 select(SensorReading.value)
                 .where(SensorReading.sensornode_id == node_id)
                 .where(SensorReading.metric == SOIL_METRIC)
                 .where(SensorReading.ts >= start)
                 .where(SensorReading.ts < end)
             )
+            if capability_id is not None:
+                stmt = stmt.where(
+                    or_(
+                        SensorReading.capability_id == capability_id,
+                        SensorReading.capability_id.is_(None),
+                    )
+                )
+            result = await session.exec(stmt)
             raws = list(result.all())
         pcts = [
             p

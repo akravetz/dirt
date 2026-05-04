@@ -89,7 +89,9 @@ class DeviceWatchdogService:
                     for t in _diff(last_known, devices):
                         await self._announce(telegram, t)
 
-                    new_state = {d.name: d.status for d in devices if d.last_seen}
+                    new_state = {
+                        _device_key(d): d.status for d in devices if d.last_seen
+                    }
                     if new_state != last_known:
                         _save_state(cfg.state_path, new_state)
                         last_known = new_state
@@ -120,6 +122,10 @@ class DeviceWatchdogService:
             "state_change",
             name=t.name,
             kind=t.kind,
+            device_id=t.device_id,
+            site_id=t.site_id,
+            tent_id=t.tent_id,
+            zone_id=t.zone_id,
             old=t.old,
             new=t.new,
             last_seen=t.last_seen.isoformat() if t.last_seen else None,
@@ -141,9 +147,17 @@ class DeviceWatchdogService:
 class _Transition:
     name: str
     kind: DeviceKind
+    device_id: str | None
+    site_id: str
+    tent_id: str | None
+    zone_id: str | None
     old: DeviceStatus_t
     new: DeviceStatus_t
     last_seen: datetime | None
+
+
+def _device_key(device: DeviceStatus) -> str:
+    return device.device_id or device.name
 
 
 def _diff(
@@ -161,7 +175,7 @@ def _diff(
     for d in devices:
         if d.last_seen is None:
             continue
-        old = last_known.get(d.name)
+        old = last_known.get(_device_key(d)) or last_known.get(d.name)
         if old is None:
             continue
         if (old == "offline") != (d.status == "offline"):
@@ -169,6 +183,10 @@ def _diff(
                 _Transition(
                     name=d.name,
                     kind=d.kind,
+                    device_id=d.device_id,
+                    site_id=d.site_id,
+                    tent_id=d.tent_id,
+                    zone_id=d.zone_id,
                     old=old,
                     new=d.status,
                     last_seen=d.last_seen,

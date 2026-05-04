@@ -5,9 +5,9 @@ grows by ~20 rows per 20s cycle. Append-only, never updated; no
 ``updated_at``.
 
 Indexes: BRIN on ``ts`` (append-only monotonic timestamps are the
-textbook BRIN use case); composite B-trees on ``(metric, ts DESC)`` and
-``(sensornode_id, ts DESC)`` for the "latest value per metric/node"
-query pattern.
+textbook BRIN use case); composite B-trees on ``(metric, ts DESC)``,
+``(sensornode_id, ts DESC)``, and ``(capability_id, ts DESC)`` for the
+"latest value per legacy node" and canonical scoped capability query paths.
 """
 
 from __future__ import annotations
@@ -54,6 +54,12 @@ class SensorReading(SQLModel, table=True):
             "ts",
             postgresql_ops={"ts": "DESC"},
         ),
+        Index(
+            "ix_sensorreading_capability_ts",
+            "capability_id",
+            "ts",
+            postgresql_ops={"ts": "DESC"},
+        ),
     )
 
     id: int | None = Field(
@@ -74,6 +80,14 @@ class SensorReading(SQLModel, table=True):
             ForeignKey("sensornode.id", ondelete="RESTRICT"),
             nullable=False,
         )
+    )
+    capability_id: int | None = Field(
+        default=None,
+        sa_column=Column(
+            BigInteger,
+            ForeignKey("capability.id", ondelete="RESTRICT"),
+            nullable=True,
+        ),
     )
     metric: str = Field(sa_column=Column(Text, nullable=False))
     value: float = Field(sa_column=Column(Double, nullable=False))

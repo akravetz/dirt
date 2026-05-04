@@ -11,10 +11,18 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from dirt_shared.models.device import Device
 from dirt_shared.models.enums import SensorLocation
+from dirt_shared.models.snapshot import Snapshot
+from dirt_shared.models.tent import Tent
+from dirt_shared.models.zone import Zone
 from dirt_shared.services.daily_report import (
     MAX_TELEGRAM_BODY_CHARS,
     DailyReport,
+    DailyReportSnapshotRecorder,
     Phase,
     _load_telegram_body,
     _safe_truncate_html,
@@ -208,6 +216,7 @@ def _build_orchestrator(
     sensor_reader=None,
     synthesis=None,
     telegram=None,
+    snapshot_recorder=None,
 ) -> tuple[DailyReport, _FakeCamera, _FakeSensorReader, _FakeSynthesis, _FakeTelegram]:
     photos_dir = tmp_path / "raw" / "photos"
     marker_dir = tmp_path / "logs" / "daily_report"
@@ -228,6 +237,7 @@ def _build_orchestrator(
         wiki_root=wiki_root,
         clock=_clock,
         stamp_jpeg=lambda data, _now: data,
+        snapshot_recorder=snapshot_recorder,
     )
     return orch, cam, reader, synth, tg
 
@@ -268,6 +278,49 @@ async def test_run_full_pipeline_happy_path(tmp_path):
     assert "Plant A looking good" in tg.messages[0]["text"]
     # Marker file written
     assert (tmp_path / "logs" / "daily_report" / "2026-04-19.completed").exists()
+
+
+async def test_run_records_scoped_daily_report_snapshot_rows(tmp_path, app_engine):
+    recorder = DailyReportSnapshotRecorder(app_engine)
+    orch, cam, _reader, _synth, tg = _build_orchestrator(
+        tmp_path=tmp_path,
+        snapshot_recorder=recorder,
+    )
+
+    result = await orch.run(TARGET_DATE)
+
+    assert result.success
+    assert cam.calls == ["overview", "plant_a", "plant_b", "plant_c", "plant_d"]
+    assert len(tg.media_groups) == 1
+    assert len(tg.messages) == 1
+
+    async with AsyncSession(app_engine) as session:
+        rows = (
+            await session.exec(
+                select(Snapshot, Tent, Device, Zone)
+                .join(Tent, Tent.id == Snapshot.tent_id)
+                .join(Device, Device.id == Snapshot.device_id)
+                .join(Zone, Zone.id == Snapshot.zone_id)
+                .where(Snapshot.kind == "daily_report")
+                .order_by(Snapshot.view_id)
+            )
+        ).all()
+
+    by_view = {
+        snapshot.view_id: (snapshot, tent, device, zone)
+        for snapshot, tent, device, zone in rows
+    }
+
+    assert set(by_view) == {"overview", "plant_a", "plant_b", "plant_c", "plant_d"}
+    assert {item[1].tent_id for item in by_view.values()} == {"main"}
+    assert {item[2].device_id for item in by_view.values()} == {"obsbot-main"}
+    assert by_view["overview"][3].zone_id == "canopy"
+    assert by_view["plant_a"][3].zone_id == "plant-a"
+    assert by_view["plant_b"][3].zone_id == "plant-b"
+    assert by_view["plant_c"][3].zone_id == "plant-c"
+    assert by_view["plant_d"][3].zone_id == "plant-d"
+    assert all(item[0].growrun_id is not None for item in by_view.values())
+    assert all(Path(item[0].file_path).exists() for item in by_view.values())
 
 
 # --- failure modes ---

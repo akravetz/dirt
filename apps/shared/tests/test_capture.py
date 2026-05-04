@@ -33,3 +33,9 @@ async def test_capture_snapshot_saves_file_and_db_record(app_engine, tmp_path):
         rows = result.all()
         assert len(rows) == 1
         assert rows[0].id == snapshot.id
+        assert rows[0].site_id is not None
+        assert rows[0].tent_id is not None
+        assert rows[0].device_id is not None
+        assert rows[0].growrun_id is not None
+        assert rows[0].view_id == "periodic"
+        assert rows[0].kind == "periodic"

@@ -51,12 +51,29 @@ class MetricFreshnessConfig:
 
 
 @dataclass(frozen=True)
+class _Freshness:
+    status: str
+    last_seen: datetime | None
+    site_id: str | None
+    tent_id: str | None
+    device_id: str | None
+    capability_id: str | None
+    location: str | None
+    metric: str | None
+
+
+@dataclass(frozen=True)
 class _Transition:
-    location: str
-    metric: str
+    key: str
     old: str
     new: str
     last_seen: datetime | None
+    site_id: str | None
+    tent_id: str | None
+    device_id: str | None
+    capability_id: str | None
+    location: str | None
+    metric: str | None
 
 
 class MetricFreshnessService:
@@ -101,7 +118,7 @@ class MetricFreshnessService:
                     for t in _diff(last_known, current):
                         await self._announce(telegram, t)
 
-                    new_state = {k: s for k, (s, _) in current.items()}
+                    new_state = {k: v.status for k, v in current.items()}
                     if new_state != last_known:
                         _save_state(cfg.state_path, new_state)
                         last_known = new_state
@@ -120,37 +137,57 @@ class MetricFreshnessService:
 
         logger.info("metric freshness watchdog stopped")
 
-    async def _snapshot(self) -> dict[str, tuple[str, datetime | None]]:
-        """Classify every (location, metric) in PERSISTED_METRICS as fresh/stale."""
+    async def _snapshot(self) -> dict[str, _Freshness]:
+        """Classify every scoped capability in PERSISTED_METRICS as fresh/stale."""
         stale_cutoff = self._clock() - timedelta(seconds=self._config.stale_after_s)
-        raw = await self._readings.get_metric_freshness_snapshot(stale_cutoff)
-        return {f"{loc.value}:{metric}": v for (loc, metric), v in raw.items()}
+        raw = await self._readings.get_capability_freshness_snapshot(stale_cutoff)
+        return {
+            key: _Freshness(
+                status=status,
+                last_seen=last_seen,
+                site_id=scope.get("site_id"),
+                tent_id=scope.get("tent_id"),
+                device_id=scope.get("device_id"),
+                capability_id=scope.get("capability_id"),
+                location=scope.get("location"),
+                metric=scope.get("metric"),
+            )
+            for key, (status, last_seen, scope) in raw.items()
+        }
 
     async def _announce(self, telegram: TelegramClient, t: _Transition) -> None:
         if t.new == "stale":
             age = _format_age(self._clock(), t.last_seen)
             text = (
-                f"⚠ <b>{t.location}</b> metric <b>{t.metric}</b> stopped flowing "
+                f"⚠ <b>{t.device_id or t.location or t.key}</b> metric "
+                f"<b>{t.metric or t.capability_id or t.key}</b> stopped flowing "
                 f"(last seen {age})"
             )
         else:
-            text = f"✓ <b>{t.location}</b> metric <b>{t.metric}</b> flowing again"
+            text = (
+                f"✓ <b>{t.device_id or t.location or t.key}</b> metric "
+                f"<b>{t.metric or t.capability_id or t.key}</b> flowing again"
+            )
 
         log_event(
             STREAM,
             "state_change",
+            site_id=t.site_id,
+            tent_id=t.tent_id,
+            device_id=t.device_id,
+            capability_id=t.capability_id,
             location=t.location,
             metric=t.metric,
             old=t.old,
             new=t.new,
             last_seen=t.last_seen.isoformat() if t.last_seen else None,
         )
-        logger.info("metric %s/%s: %s → %s", t.location, t.metric, t.old, t.new)
+        logger.info("metric %s: %s → %s", t.key, t.old, t.new)
 
         try:
             await telegram.send_message(self._config.telegram_chat_id, text)
         except TelegramError:
-            logger.exception("telegram send failed for %s/%s", t.location, t.metric)
+            logger.exception("telegram send failed for %s", t.key)
 
 
 # ============================================================
@@ -164,26 +201,31 @@ def _as_utc(ts: datetime) -> datetime:
 
 def _diff(
     last_known: dict[str, str],
-    current: dict[str, tuple[str, datetime | None]],
+    current: dict[str, _Freshness],
 ) -> list[_Transition]:
     """Yield transitions. Skips first-seen keys (seeding an empty state file
     after a restart should not replay alerts for metrics that were already
     stale or already fresh)."""
     out: list[_Transition] = []
-    for key_id, (new, last_seen) in current.items():
+    for key_id, freshness in current.items():
+        new = freshness.status
         old = last_known.get(key_id)
         if old is None:
             continue
         if old == new:
             continue
-        location, _, metric = key_id.partition(":")
         out.append(
             _Transition(
-                location=location,
-                metric=metric,
+                key=key_id,
                 old=old,
                 new=new,
-                last_seen=last_seen,
+                last_seen=freshness.last_seen,
+                site_id=freshness.site_id,
+                tent_id=freshness.tent_id,
+                device_id=freshness.device_id,
+                capability_id=freshness.capability_id,
+                location=freshness.location,
+                metric=freshness.metric,
             )
         )
     return out

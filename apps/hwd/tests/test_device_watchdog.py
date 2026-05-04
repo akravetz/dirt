@@ -38,8 +38,15 @@ def _device(
     status: DeviceStatus_t,
     last_seen: datetime | None = datetime(2026, 4, 22, 12, 0, tzinfo=UTC),
     kind: DeviceKind = "moisture_node",
+    device_id: str | None = None,
 ) -> DeviceStatus:
-    return DeviceStatus(name=name, kind=kind, status=status, last_seen=last_seen)
+    return DeviceStatus(
+        name=name,
+        kind=kind,
+        status=status,
+        last_seen=last_seen,
+        device_id=device_id,
+    )
 
 
 def _capture_transport(
@@ -96,6 +103,21 @@ async def test_cold_start_seeds_silently(tmp_path: Path) -> None:
     assert calls == []
     state = json.loads((tmp_path / "state.json").read_text())
     assert state == {"plant_a": "offline", "plant_b": "ok"}
+
+
+@pytest.mark.asyncio
+async def test_state_keys_use_stable_device_id(tmp_path: Path) -> None:
+    calls: list[dict[str, str]] = []
+    status = _FakeStatus(
+        [_device("ESP32-C3 · plant_a", "ok", device_id="plant-a-node")]
+    )
+    svc = _make_service(status, tmp_path / "state.json", _capture_transport(calls))
+
+    await _run_one_tick(svc)
+
+    assert calls == []
+    state = json.loads((tmp_path / "state.json").read_text())
+    assert state == {"plant-a-node": "ok"}
 
 
 @pytest.mark.asyncio

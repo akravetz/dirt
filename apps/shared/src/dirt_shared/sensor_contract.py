@@ -31,29 +31,59 @@ from collections.abc import Iterable
 
 from dirt_shared.models.enums import SensorLocation
 
+DeviceMetricContract = tuple[SensorLocation, frozenset[str], frozenset[str]]
+
+
+DEVICE_METRICS: dict[str, DeviceMetricContract] = {
+    "fan-controller": (
+        SensorLocation.TENT,
+        frozenset({"temperature_c", "humidity_pct"}),
+        frozenset(
+            {
+                "temperature_f",
+                "humidity_pct",
+                "vpd_kpa",
+                "dew_point_f",
+            }
+        ),
+    ),
+    "plant-a-node": (
+        SensorLocation.PLANT_A,
+        frozenset({"soil_moisture_raw"}),
+        frozenset({"soil_moisture_raw"}),
+    ),
+    "plant-b-node": (
+        SensorLocation.PLANT_B,
+        frozenset({"soil_moisture_raw"}),
+        frozenset({"soil_moisture_raw"}),
+    ),
+    "plant-c-node": (
+        SensorLocation.PLANT_C,
+        frozenset({"soil_moisture_raw"}),
+        frozenset({"soil_moisture_raw"}),
+    ),
+    "plant-d-node": (
+        SensorLocation.PLANT_D,
+        frozenset({"soil_moisture_raw"}),
+        frozenset({"soil_moisture_raw"}),
+    ),
+    "reservoir-node": (
+        SensorLocation.RESERVOIR,
+        frozenset({"reservoir_pressure_raw", "reservoir_in"}),
+        frozenset({"reservoir_pressure_raw", "reservoir_in"}),
+    ),
+}
+
+LEGACY_LOCATION_DEVICE_IDS: dict[SensorLocation, str] = {
+    contract[0]: device_id for device_id, contract in DEVICE_METRICS.items()
+}
+
 EMITTED_METRICS: dict[SensorLocation, frozenset[str]] = {
-    SensorLocation.TENT: frozenset({"temperature_c", "humidity_pct"}),
-    SensorLocation.PLANT_A: frozenset({"soil_moisture_raw"}),
-    SensorLocation.PLANT_B: frozenset({"soil_moisture_raw"}),
-    SensorLocation.PLANT_C: frozenset({"soil_moisture_raw"}),
-    SensorLocation.PLANT_D: frozenset({"soil_moisture_raw"}),
-    SensorLocation.RESERVOIR: frozenset({"reservoir_pressure_raw", "reservoir_in"}),
+    contract[0]: contract[1] for contract in DEVICE_METRICS.values()
 }
 
 PERSISTED_METRICS: dict[SensorLocation, frozenset[str]] = {
-    SensorLocation.TENT: frozenset(
-        {
-            "temperature_f",
-            "humidity_pct",
-            "vpd_kpa",
-            "dew_point_f",
-        }
-    ),
-    SensorLocation.PLANT_A: frozenset({"soil_moisture_raw"}),
-    SensorLocation.PLANT_B: frozenset({"soil_moisture_raw"}),
-    SensorLocation.PLANT_C: frozenset({"soil_moisture_raw"}),
-    SensorLocation.PLANT_D: frozenset({"soil_moisture_raw"}),
-    SensorLocation.RESERVOIR: frozenset({"reservoir_pressure_raw", "reservoir_in"}),
+    contract[0]: contract[2] for contract in DEVICE_METRICS.values()
 }
 
 

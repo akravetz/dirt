@@ -17,17 +17,22 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
+from sqlalchemy import or_
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.enums import PlantStatus, PlantSticker
 from dirt_shared.models.plant import Plant
-from dirt_shared.models.sensor_calibration import SensorCalibration
+from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.services.grow_state import BandStatus, band_status, tent_tz
 from dirt_shared.services.plant_detail import PlantDetailService
-from dirt_shared.services.readings import compute_calibrated_pct
+from dirt_shared.services.readings import (
+    compute_calibrated_pct,
+    get_sensor_calibration,
+    resolve_metric_capability_id,
+)
 from dirt_shared.services.scope import (
     DEFAULT_SITE_ID,
     DEFAULT_TENT_ID,
@@ -137,28 +142,69 @@ def count_irrigation_events(points: list[MoisturePoint], jump_pct: float = 5.0) 
     return n
 
 
+async def _plant_moisture_capability_id(
+    session: AsyncSession,
+    plant: Plant,
+    *,
+    site_id: str,
+    tent_id: str,
+) -> int | None:
+    node = (
+        await session.exec(
+            select(SensorNode).where(SensorNode.id == plant.sensornode_id)
+        )
+    ).first()
+    return await resolve_metric_capability_id(
+        session,
+        metric="soil_moisture_raw",
+        location=None if node is None else node.location,
+        site_id=site_id,
+        tent_id=tent_id,
+    )
+
+
+def _plant_readings_stmt(plant: Plant, capability_id: int | None):
+    stmt = (
+        select(SensorReading)
+        .where(SensorReading.sensornode_id == plant.sensornode_id)
+        .where(SensorReading.metric == "soil_moisture_raw")
+    )
+    if capability_id is not None:
+        stmt = stmt.where(
+            or_(
+                SensorReading.capability_id == capability_id,
+                SensorReading.capability_id.is_(None),
+            )
+        )
+    return stmt
+
+
 async def _latest_moisture_pct(
-    session: AsyncSession, sensornode_id: int
+    session: AsyncSession,
+    plant: Plant,
+    *,
+    site_id: str,
+    tent_id: str,
 ) -> tuple[float | None, datetime | None]:
     """Most recent calibrated soil moisture % for a plant's node."""
+    capability_id = await _plant_moisture_capability_id(
+        session, plant, site_id=site_id, tent_id=tent_id
+    )
     row = (
         await session.exec(
-            select(SensorReading)
-            .where(SensorReading.sensornode_id == sensornode_id)
-            .where(SensorReading.metric == "soil_moisture_raw")
+            _plant_readings_stmt(plant, capability_id)
             .order_by(SensorReading.ts.desc())
             .limit(1)
         )
     ).first()
     if row is None:
         return None, None
-    cal = (
-        await session.exec(
-            select(SensorCalibration)
-            .where(SensorCalibration.sensornode_id == sensornode_id)
-            .where(SensorCalibration.metric == "soil_moisture_raw")
-        )
-    ).first()
+    cal = await get_sensor_calibration(
+        session,
+        sensornode_id=plant.sensornode_id,
+        metric="soil_moisture_raw",
+        capability_id=row.capability_id or capability_id,
+    )
     if cal is None:
         return None, row.ts
     pct = compute_calibrated_pct(row.value, cal.raw_low, cal.raw_high)
@@ -210,7 +256,9 @@ class PlantsService:
 
             summaries: list[PlantSummary] = []
             for p in plants:
-                pct, ts = await _latest_moisture_pct(session, p.sensornode_id)
+                pct, ts = await _latest_moisture_pct(
+                    session, p, site_id=site_id, tent_id=tent_id
+                )
                 summaries.append(
                     PlantSummary(
                         code=p.code,
@@ -248,7 +296,9 @@ class PlantsService:
             ).first()
             if p is None:
                 return None
-            pct, ts = await _latest_moisture_pct(session, p.sensornode_id)
+            pct, ts = await _latest_moisture_pct(
+                session, p, site_id=site_id, tent_id=tent_id
+            )
             return PlantSummary(
                 code=p.code,
                 name=p.name,
@@ -284,21 +334,21 @@ class PlantsService:
             ).first()
             if p is None:
                 return []
-            cal = (
-                await session.exec(
-                    select(SensorCalibration)
-                    .where(SensorCalibration.sensornode_id == p.sensornode_id)
-                    .where(SensorCalibration.metric == "soil_moisture_raw")
-                )
-            ).first()
+            capability_id = await _plant_moisture_capability_id(
+                session, p, site_id=site_id, tent_id=tent_id
+            )
+            cal = await get_sensor_calibration(
+                session,
+                sensornode_id=p.sensornode_id,
+                metric="soil_moisture_raw",
+                capability_id=capability_id,
+            )
             if cal is None:
                 return []
 
             rows = (
                 await session.exec(
-                    select(SensorReading)
-                    .where(SensorReading.sensornode_id == p.sensornode_id)
-                    .where(SensorReading.metric == "soil_moisture_raw")
+                    _plant_readings_stmt(p, capability_id)
                     .where(SensorReading.ts >= cutoff)
                     .order_by(SensorReading.ts)
                 )

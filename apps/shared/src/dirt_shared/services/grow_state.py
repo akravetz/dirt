@@ -17,10 +17,12 @@ from typing import Literal
 from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.config import GROW_START
 from dirt_shared.models.grow_run import GrowRun
+from dirt_shared.models.schedule import Schedule
 from dirt_shared.services.scope import (
     DEFAULT_SITE_ID,
     DEFAULT_TENT_ID,
@@ -135,6 +137,17 @@ class GrowCurrentPayload:
     lights: LightsState
     lights_on_local: time
     lights_off_local: time
+
+
+@dataclass(frozen=True)
+class LightSchedule:
+    site_id: str
+    tent_id: str
+    starts_local: time
+    ends_local: time
+    timezone: str
+    enabled: bool
+    source: str
 
 
 # ============================================================
@@ -256,10 +269,19 @@ class GrowStateService:
 
     @staticmethod
     def _derive_lights(state: GrowRun, now_local: datetime) -> LightsState:
-        tz = now_local.tzinfo
-        on_time = _lights_on_local(state)
-        off_time = _lights_off_local(state)
+        return GrowStateService._derive_lights_from_times(
+            _lights_on_local(state),
+            _lights_off_local(state),
+            now_local,
+        )
 
+    @staticmethod
+    def _derive_lights_from_times(
+        on_time: time,
+        off_time: time,
+        now_local: datetime,
+    ) -> LightsState:
+        tz = now_local.tzinfo
         now_t = now_local.time()
         if on_time < off_time:
             on = on_time <= now_t < off_time
@@ -303,42 +325,127 @@ class GrowStateService:
         )
         return (off_seconds - on_seconds) % (24 * 60 * 60)
 
-    async def current_stage(self) -> Stage:
+    async def current_stage(
+        self,
+        *,
+        site_id: str = DEFAULT_SITE_ID,
+        tent_id: str = DEFAULT_TENT_ID,
+    ) -> Stage:
         """Veg vs early vs late flower, derived from flower_start_date."""
-        state = await self.get_state()
+        state = await self.get_state(site_id=site_id, tent_id=tent_id)
         today = self._clock().astimezone(tent_tz(state)).date()
         return self._derive_stage(state, today)
 
-    async def grow_week(self) -> int:
+    async def grow_week(
+        self,
+        *,
+        site_id: str = DEFAULT_SITE_ID,
+        tent_id: str = DEFAULT_TENT_ID,
+    ) -> int:
         """1-indexed week since germination. Day 1-7 = week 1."""
-        state = await self.get_state()
+        state = await self.get_state(site_id=site_id, tent_id=tent_id)
         today = self._clock().astimezone(tent_tz(state)).date()
         return (today - _germination_date(state)).days // 7 + 1
 
-    async def current_targets(self) -> dict[str, tuple[float, float]]:
+    async def current_targets(
+        self,
+        *,
+        site_id: str = DEFAULT_SITE_ID,
+        tent_id: str = DEFAULT_TENT_ID,
+    ) -> dict[str, tuple[float, float]]:
         """Temp / RH / VPD band for the current stage."""
-        return STAGE_TARGETS[await self.current_stage()]
+        return STAGE_TARGETS[await self.current_stage(site_id=site_id, tent_id=tent_id)]
 
-    async def lights_state(self) -> LightsState:
+    async def lights_state(
+        self,
+        *,
+        site_id: str = DEFAULT_SITE_ID,
+        tent_id: str = DEFAULT_TENT_ID,
+    ) -> LightsState:
         """Are lights on right now, and how long until the next on/off transition?"""
-        state = await self.get_state()
-        now_local = self._clock().astimezone(tent_tz(state))
-        return self._derive_lights(state, now_local)
+        schedule = await self.current_light_schedule(site_id=site_id, tent_id=tent_id)
+        now_local = self._clock().astimezone(ZoneInfo(schedule.timezone))
+        return self._derive_lights_from_times(
+            schedule.starts_local,
+            schedule.ends_local,
+            now_local,
+        )
 
-    async def current_context(self) -> GrowContext:
+    async def current_context(
+        self,
+        *,
+        site_id: str = DEFAULT_SITE_ID,
+        tent_id: str = DEFAULT_TENT_ID,
+    ) -> GrowContext:
         """Stage + lights + target bands from one ``get_state()`` fetch.
 
         Hot-path helper for control loops — avoids three DB round-trips per tick.
         """
-        state = await self.get_state()
-        now_local = self._clock().astimezone(tent_tz(state))
+        state = await self.get_state(site_id=site_id, tent_id=tent_id)
+        schedule = await self.current_light_schedule(site_id=site_id, tent_id=tent_id)
+        now_local = self._clock().astimezone(ZoneInfo(schedule.timezone))
         stage = self._derive_stage(state, now_local.date())
-        lights = self._derive_lights(state, now_local)
+        lights = self._derive_lights_from_times(
+            schedule.starts_local,
+            schedule.ends_local,
+            now_local,
+        )
         return GrowContext(stage=stage, lights=lights, targets=STAGE_TARGETS[stage])
 
-    async def get_grow_current_payload(self) -> GrowCurrentPayload:
+    async def current_light_schedule(
+        self,
+        *,
+        site_id: str = DEFAULT_SITE_ID,
+        tent_id: str = DEFAULT_TENT_ID,
+    ) -> LightSchedule:
+        """Return the scoped lights schedule, projected from schedule/growrun."""
+        state = await self.get_state(site_id=site_id, tent_id=tent_id)
+        async with AsyncSession(self._engine) as session:
+            scope = await resolve_scope(session, site_id=site_id, tent_id=tent_id)
+            if scope is not None:
+                schedule = (
+                    await session.exec(
+                        select(Schedule)
+                        .where(Schedule.site_id == scope.site_pk)
+                        .where(Schedule.tent_id == scope.tent_pk)
+                        .where(Schedule.kind == "lights")
+                        .where(Schedule.enabled.is_(True))
+                        .order_by(Schedule.id.desc())
+                        .limit(1)
+                    )
+                ).first()
+                if (
+                    schedule is not None
+                    and schedule.starts_local is not None
+                    and schedule.ends_local is not None
+                ):
+                    return LightSchedule(
+                        site_id=site_id,
+                        tent_id=tent_id,
+                        starts_local=schedule.starts_local,
+                        ends_local=schedule.ends_local,
+                        timezone=schedule.timezone,
+                        enabled=schedule.enabled,
+                        source="schedule",
+                    )
+        return LightSchedule(
+            site_id=site_id,
+            tent_id=tent_id,
+            starts_local=_lights_on_local(state),
+            ends_local=_lights_off_local(state),
+            timezone=state.timezone,
+            enabled=True,
+            source="growrun",
+        )
+
+    async def get_grow_current_payload(
+        self,
+        *,
+        site_id: str = DEFAULT_SITE_ID,
+        tent_id: str = DEFAULT_TENT_ID,
+    ) -> GrowCurrentPayload:
         """One-shot assembler for ``GET /api/grow/current``."""
-        state = await self.get_state()
+        state = await self.get_state(site_id=site_id, tent_id=tent_id)
         now_local = self._clock().astimezone(tent_tz(state))
         today = now_local.date()
 
@@ -419,6 +526,21 @@ class GrowStateService:
             state.lights_on_local = lights_on_local
             state.lights_off_local = lights_off_local
             session.add(state)
+            schedule = (
+                await session.exec(
+                    select(Schedule)
+                    .where(Schedule.site_id == scope.site_pk)
+                    .where(Schedule.tent_id == scope.tent_pk)
+                    .where(Schedule.kind == "lights")
+                    .limit(1)
+                )
+            ).first()
+            if schedule is not None:
+                schedule.starts_local = lights_on_local
+                schedule.ends_local = lights_off_local
+                schedule.timezone = state.timezone
+                schedule.enabled = True
+                session.add(schedule)
             await session.commit()
 
         return await self.get_grow_current_payload()

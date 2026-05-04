@@ -22,6 +22,14 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Protocol
 
+from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from dirt_shared.models.device import Device
+from dirt_shared.models.grow_run import GrowRun
+from dirt_shared.models.snapshot import Snapshot
+from dirt_shared.models.zone import Zone
 from dirt_shared.observability import log_event
 from dirt_shared.services.daily_sensors import (
     DailySensorSnapshot,
@@ -30,6 +38,7 @@ from dirt_shared.services.daily_sensors import (
 )
 from dirt_shared.services.daily_synthesis import SynthesisResult, SynthesisRunner
 from dirt_shared.services.photos import CameraClient, stamp_exif_datetime
+from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID, resolve_scope
 from dirt_shared.services.telegram import (
     TELEGRAM_HTML_WHITELIST,
     TELEGRAM_MAX_MESSAGE_CHARS,
@@ -51,6 +60,14 @@ PRESET_TO_FILENAME: list[tuple[str, str]] = [
     ("plant_c", "plant-c.jpg"),
     ("plant_d", "plant-d.jpg"),
 ]
+
+PRESET_TO_ZONE_ID: dict[str, str] = {
+    "overview": "canopy",
+    "plant_a": "plant-a",
+    "plant_b": "plant-b",
+    "plant_c": "plant-c",
+    "plant_d": "plant-d",
+}
 
 
 class Phase(StrEnum):
@@ -81,6 +98,106 @@ class _Clock(Protocol):
     def __call__(self) -> datetime: ...
 
 
+class SnapshotRecorder(Protocol):
+    async def record_daily_report_photo(
+        self,
+        *,
+        file_path: Path,
+        preset: str,
+        captured_at: datetime,
+    ) -> None: ...
+
+
+class DailyReportSnapshotRecorder:
+    """Persist daily-report photo metadata as scoped ``snapshot`` rows."""
+
+    def __init__(
+        self,
+        engine: AsyncEngine,
+        *,
+        site_id: str = DEFAULT_SITE_ID,
+        tent_id: str = DEFAULT_TENT_ID,
+        camera_device_id: str = "obsbot-main",
+    ) -> None:
+        self._engine = engine
+        self._site_id = site_id
+        self._tent_id = tent_id
+        self._camera_device_id = camera_device_id
+
+    async def record_daily_report_photo(
+        self,
+        *,
+        file_path: Path,
+        preset: str,
+        captured_at: datetime,
+    ) -> None:
+        zone_public_id = PRESET_TO_ZONE_ID.get(preset)
+        async with AsyncSession(self._engine) as session:
+            scope = await resolve_scope(
+                session, site_id=self._site_id, tent_id=self._tent_id
+            )
+            if scope is None:
+                raise RuntimeError(
+                    f"missing daily-report snapshot scope "
+                    f"{self._site_id}/{self._tent_id}"
+                )
+
+            device = (
+                await session.exec(
+                    select(Device)
+                    .where(Device.site_id == scope.site_pk)
+                    .where(Device.device_id == self._camera_device_id)
+                    .limit(1)
+                )
+            ).first()
+            if device is None or device.id is None:
+                raise RuntimeError(
+                    f"missing daily-report camera device {self._camera_device_id}"
+                )
+
+            zone_id: int | None = None
+            if zone_public_id is not None:
+                zone_id = (
+                    await session.exec(
+                        select(Zone.id)
+                        .where(Zone.site_id == scope.site_pk)
+                        .where(Zone.tent_id == scope.tent_pk)
+                        .where(Zone.zone_id == zone_public_id)
+                        .limit(1)
+                    )
+                ).first()
+
+            growrun_id = (
+                await session.exec(
+                    select(GrowRun.id)
+                    .where(GrowRun.site_id == scope.site_pk)
+                    .where(GrowRun.tent_id == scope.tent_pk)
+                    .where(GrowRun.is_current.is_(True))
+                    .limit(1)
+                )
+            ).first()
+
+            path_str = str(file_path)
+            snapshot = (
+                await session.exec(
+                    select(Snapshot).where(Snapshot.file_path == path_str).limit(1)
+                )
+            ).first()
+            if snapshot is None:
+                snapshot = Snapshot(file_path=path_str)
+
+            snapshot.ts = captured_at
+            snapshot.site_id = scope.site_pk
+            snapshot.tent_id = scope.tent_pk
+            snapshot.zone_id = zone_id
+            snapshot.device_id = device.id
+            snapshot.growrun_id = growrun_id
+            snapshot.view_id = preset
+            snapshot.kind = "daily_report"
+            session.add(snapshot)
+            await session.commit()
+
+
 class DailyReport:
     def __init__(  # noqa: PLR0913 — orchestrator collaborators wired from the composition root; a deps dataclass would just move the same count behind an extra indirection.
         self,
@@ -95,6 +212,7 @@ class DailyReport:
         wiki_root: Path,
         clock: _Clock = lambda: datetime.now(UTC),
         stamp_jpeg: Callable[[bytes, datetime], bytes] = stamp_exif_datetime,
+        snapshot_recorder: SnapshotRecorder | None = None,
     ) -> None:
         if not telegram_chat_id:
             raise ValueError("telegram_chat_id is required")
@@ -108,6 +226,7 @@ class DailyReport:
         self._wiki_root = wiki_root
         self._clock = clock
         self._stamp_jpeg = stamp_jpeg
+        self._snapshot_recorder = snapshot_recorder
 
     # --- public entrypoints ---
 
@@ -171,7 +290,8 @@ class DailyReport:
                     f"capture failed at preset {preset!r}: {e}",
                 ) from e
             try:
-                stamped = self._stamp_jpeg(jpeg, self._clock())
+                captured_at = self._clock()
+                stamped = self._stamp_jpeg(jpeg, captured_at)
             except Exception as e:
                 raise _Bail(
                     Phase.CAPTURE,
@@ -179,6 +299,18 @@ class DailyReport:
                 ) from e
             path = out_dir / filename
             path.write_bytes(stamped)
+            if self._snapshot_recorder is not None:
+                try:
+                    await self._snapshot_recorder.record_daily_report_photo(
+                        file_path=path,
+                        preset=preset,
+                        captured_at=captured_at,
+                    )
+                except Exception as e:
+                    raise _Bail(
+                        Phase.CAPTURE,
+                        f"snapshot record failed for preset {preset!r}: {e}",
+                    ) from e
             photos.append(path)
             logger.info("captured %s -> %s", preset, path)
 

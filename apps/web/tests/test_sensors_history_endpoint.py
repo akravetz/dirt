@@ -24,6 +24,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from dirt_shared.models.device import Capability, Device
 from dirt_shared.models.enums import SensorLocation, SensorSource
 from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
@@ -43,29 +44,64 @@ async def _node_id(s: AsyncSession, location: SensorLocation) -> int:
     return node_id
 
 
+async def _capability_id(
+    s: AsyncSession,
+    *,
+    device_id: str,
+    metric_name: str,
+) -> int:
+    result = await s.exec(
+        select(Capability.id)
+        .join(Device, Device.id == Capability.device_id)
+        .where(Device.device_id == device_id)
+        .where(Capability.metric_name == metric_name)
+    )
+    return result.one()
+
+
 async def _seed_tent_series(engine, hours: int = 48) -> None:
     """Insert a dense series for the four DB-backed sparkline metrics."""
     async with AsyncSession(engine) as s:
         tent_id = await _node_id(s, SensorLocation.TENT)
         reservoir_id = await _node_id(s, SensorLocation.RESERVOIR)
+        caps = {
+            metric: await _capability_id(
+                s, device_id="fan-controller", metric_name=metric
+            )
+            for metric in ("temperature_f", "humidity_pct", "fan_duty_pct")
+        }
+        reservoir_cap = await _capability_id(
+            s, device_id="reservoir-node", metric_name="reservoir_in"
+        )
 
         now = datetime.now(UTC)
         readings: list[SensorReading] = []
         # Every 5 minutes, so 1h → ~12 raw, 24h → ~288 pre-bucket rows.
         for i in range(hours * 12):
             ts = now - timedelta(minutes=5 * i)
-            for node_id, metric, value in (
-                (tent_id, "temperature_f", 72.0 + (i % 10) * 0.5),
-                (tent_id, "humidity_pct", 50.0 + (i % 10) * 0.3),
-                (tent_id, "fan_duty_pct", 30.0 + (i % 5)),
+            for node_id, cap_id, metric, value in (
+                (
+                    tent_id,
+                    caps["temperature_f"],
+                    "temperature_f",
+                    72.0 + (i % 10) * 0.5,
+                ),
+                (
+                    tent_id,
+                    caps["humidity_pct"],
+                    "humidity_pct",
+                    50.0 + (i % 10) * 0.3,
+                ),
+                (tent_id, caps["fan_duty_pct"], "fan_duty_pct", 30.0 + (i % 5)),
                 # Reservoir sweeps 20.0 → 29.0 in so bucket averages have
                 # variance without crossing zero.
-                (reservoir_id, "reservoir_in", 20.0 + (i % 10)),
+                (reservoir_id, reservoir_cap, "reservoir_in", 20.0 + (i % 10)),
             ):
                 readings.append(
                     SensorReading(
                         ts=ts,
                         sensornode_id=node_id,
+                        capability_id=cap_id,
                         metric=metric,
                         value=value,
                         source=SensorSource.ARDUINO,

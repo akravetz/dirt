@@ -33,6 +33,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from dirt_shared.models.enums import SensorLocation
 from dirt_shared.models.sensor_node import SensorNode
 from dirt_shared.models.sensor_reading import SensorReading
+from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID
 
 DeviceKind = Literal["env_sensor", "moisture_node", "camera", "voice", "actuator"]
 DeviceStatus_t = Literal["ok", "warn", "offline", "listening"]
@@ -45,6 +46,10 @@ class DeviceStatus:
     status: DeviceStatus_t
     last_seen: datetime | None
     note: str | None = None
+    device_id: str | None = None
+    site_id: str = DEFAULT_SITE_ID
+    tent_id: str | None = DEFAULT_TENT_ID
+    zone_id: str | None = None
 
 
 # How old a heartbeat can be before we flip ok → warn → offline.
@@ -197,6 +202,8 @@ class SystemStatusService:
             kind="env_sensor",
             status=_status_from_age(now, last_seen, "env_sensor"),
             last_seen=last_seen,
+            device_id="fan-controller",
+            zone_id="canopy",
         )
 
     async def _plant_node_status(
@@ -212,6 +219,8 @@ class SystemStatusService:
             kind="moisture_node",
             status=_status_from_age(now, last_seen, "moisture_node"),
             last_seen=last_seen,
+            device_id=f"plant-{letter}-node",
+            zone_id=f"plant-{letter}",
         )
 
     async def _humidifier_status(
@@ -241,6 +250,8 @@ class SystemStatusService:
             kind="actuator",
             status=status,
             last_seen=last_seen,
+            device_id="govee-h7142-main",
+            zone_id="canopy",
         )
 
     def _camera_status(self, now: datetime) -> DeviceStatus:
@@ -255,6 +266,8 @@ class SystemStatusService:
                 status="offline",
                 last_seen=None,
                 note="daemon unreachable",
+                device_id="obsbot-main",
+                zone_id="canopy",
             )
         if resp.get("_status") != "ok":
             return DeviceStatus(
@@ -263,6 +276,8 @@ class SystemStatusService:
                 status="offline",
                 last_seen=None,
                 note=resp.get("msg") or str(resp.get("_status")),
+                device_id="obsbot-main",
+                zone_id="canopy",
             )
         connected = resp.get("camera_connected", False)
         return DeviceStatus(
@@ -271,6 +286,8 @@ class SystemStatusService:
             status="ok" if connected else "warn",
             last_seen=now,
             note=None if connected else "camera reported disconnected",
+            device_id="obsbot-main",
+            zone_id="canopy",
         )
 
     def _voice_status(self, now: datetime) -> DeviceStatus:
@@ -282,10 +299,14 @@ class SystemStatusService:
                 kind="voice",
                 status="listening",
                 last_seen=now,
+                device_id="jabra-claudia",
+                tent_id=None,
             )
         return DeviceStatus(
             name="Jabra Speak 410 (Claudia)",
             kind="voice",
             status="offline",
             last_seen=None,
+            device_id="jabra-claudia",
+            tent_id=None,
         )

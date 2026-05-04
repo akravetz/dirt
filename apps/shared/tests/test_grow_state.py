@@ -25,6 +25,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.config import GROW_START
 from dirt_shared.models.grow_run import GrowRun
+from dirt_shared.models.schedule import Schedule
 from dirt_shared.models.site import Site
 from dirt_shared.models.tent import Tent
 from dirt_shared.services import grow_state as gs
@@ -93,6 +94,19 @@ async def _set_lights(engine, on: time, off: time) -> None:
         row.lights_on_local = on
         row.lights_off_local = off
         session.add(row)
+        schedule = (
+            await session.exec(
+                select(Schedule)
+                .where(Schedule.site_id == row.site_id)
+                .where(Schedule.tent_id == row.tent_id)
+                .where(Schedule.kind == "lights")
+                .limit(1)
+            )
+        ).first()
+        if schedule is not None:
+            schedule.starts_local = on
+            schedule.ends_local = off
+            session.add(schedule)
         await session.commit()
 
 
@@ -283,6 +297,18 @@ async def test_flower_schedule_overridable_via_db(pg_engine):
     # 10:00 MDT — lights should still be OFF (before the 11:00 flower on-time).
     state = await _svc(pg_engine, now_utc=_utc(2026, 4, 19, 10, 0)).lights_state()
     assert state.on is False
+
+
+async def test_current_light_schedule_is_scoped_projection(pg_engine):
+    await _set_lights(pg_engine, time(9, 0), time(21, 0))
+
+    schedule = await GrowStateService(pg_engine).current_light_schedule()
+
+    assert schedule.site_id == "homebox"
+    assert schedule.tent_id == "main"
+    assert schedule.starts_local == time(9, 0)
+    assert schedule.ends_local == time(21, 0)
+    assert schedule.source == "schedule"
 
 
 async def test_flip_to_flower_sets_date_and_12_12_schedule(pg_engine):

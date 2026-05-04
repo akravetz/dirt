@@ -16,10 +16,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.config import CaptureConfig
+from dirt_shared.models.device import Device
+from dirt_shared.models.grow_run import GrowRun
 from dirt_shared.models.snapshot import Snapshot
+from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID, resolve_scope
 
 # Type alias for the camera-daemon boundary — exposed as a constructor
 # parameter on ``CaptureService`` so tests can inject a fake without
@@ -139,6 +143,29 @@ class CaptureService:
 
         snapshot = Snapshot(ts=now, file_path=str(file_path))
         async with AsyncSession(self._engine) as session:
+            scope = await resolve_scope(
+                session, site_id=DEFAULT_SITE_ID, tent_id=DEFAULT_TENT_ID
+            )
+            if scope is not None:
+                snapshot.site_id = scope.site_pk
+                snapshot.tent_id = scope.tent_pk
+                snapshot.device_id = (
+                    await session.exec(
+                        select(Device.id)
+                        .where(Device.site_id == scope.site_pk)
+                        .where(Device.device_id == "obsbot-main")
+                        .limit(1)
+                    )
+                ).first()
+                snapshot.growrun_id = (
+                    await session.exec(
+                        select(GrowRun.id)
+                        .where(GrowRun.site_id == scope.site_pk)
+                        .where(GrowRun.tent_id == scope.tent_pk)
+                        .where(GrowRun.is_current.is_(True))
+                        .limit(1)
+                    )
+                ).first()
             session.add(snapshot)
             await session.commit()
             await session.refresh(snapshot)

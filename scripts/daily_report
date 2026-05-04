@@ -26,7 +26,7 @@ import httpx
 from dirt_shared.app_wiring import build_core_services
 from dirt_shared.config import Settings
 from dirt_shared.services.capture import _daemon_rpc
-from dirt_shared.services.daily_report import DailyReport
+from dirt_shared.services.daily_report import DailyReport, DailyReportSnapshotRecorder
 from dirt_shared.services.daily_sensors import MDT, SensorReader
 from dirt_shared.services.daily_synthesis import (
     ClaudeSynthesisRunner,
@@ -134,6 +134,7 @@ async def _amain() -> int:
             photos_dir=PHOTOS_DIR,
             marker_dir=MARKER_DIR,
             wiki_root=WIKI_ROOT,
+            snapshot_recorder=DailyReportSnapshotRecorder(engine),
         )
         result = await orch.run(target_date, force=args.force)
 

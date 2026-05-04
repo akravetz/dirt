@@ -28,6 +28,11 @@ class IngestPayload(BaseModel):
     location: str = Field(min_length=1, max_length=64)
     metrics: dict[str, float]
     source: str = "esp32"
+    site_id: str = "homebox"
+    tent_id: str | None = "main"
+    zone_id: str | None = None
+    device_id: str | None = None
+    capability_id: str | None = None
     ip: str | None = None
     firmware_version: str | None = None
     uptime_ms: int | None = None
@@ -120,6 +125,11 @@ async def ingest_sensors(  # noqa: PLR0913 — FastAPI boundary bundles request,
         ip=ip,
         firmware_version=payload.firmware_version,
         uptime_ms=payload.uptime_ms,
+        site_id=payload.site_id,
+        tent_id=payload.tent_id,
+        zone_id=payload.zone_id,
+        device_id=payload.device_id,
+        capability_id=payload.capability_id,
     )
     response: dict[str, object] = {
         "ok": True,

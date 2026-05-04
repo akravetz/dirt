@@ -21,8 +21,9 @@ This is not the hosted website phase. The local `dirt-hwd` service remains the o
 - [x] (2026-05-03 23:45Z) Created this de novo ExecPlan at `docs/epics/multi-tent-controller/ExecPlan.md` without opening or relying on prior planning files.
 - [x] (2026-05-04 00:09Z) Implemented Milestone 1: added canonical scoped identity SQLModel classes, generated/reviewed the Atlas migration, seeded `homebox/main/breeding` identity rows plus current main-tent zones/devices/capabilities, and validated schema replay.
 - [x] (2026-05-04 01:31Z) Implemented Milestone 2: moved current grow semantics from `growstate` to scoped `growrun`, migrated `plant` from `growstate_id` to `growrun_id` plus `site_id`/`tent_id`/`plant_id`, added default scope helpers, preserved unscoped main-tent API behavior, and validated migration replay.
-- [ ] Implement Milestone 3: move telemetry ingest and read paths to scoped device/capability ownership.
-- [ ] Implement Milestone 4: move grow state, plants, schedules, snapshots/photos, and alerts onto scoped owners.
+- [x] (2026-05-04 01:44Z) Implemented Milestone 3: moved telemetry ingest and read paths to scoped device/capability ownership, with default main-tent compatibility preserved.
+- [x] (2026-05-04 02:34Z) Implemented a coherent Milestone 4 checkpoint: scoped grow/schedule service methods, empty breeding plant reads, capability-owned sensor calibrations, scoped periodic snapshots, and stable alert state keys for device/metric watchdogs.
+- [x] (2026-05-04 02:40Z) Completed the Milestone 4 daily-report photo follow-up: daily captures now write scoped `snapshot.kind='daily_report'` rows for `overview` and `plant_a` through `plant_d`, and `scripts/daily_report` wires the production recorder.
 - [ ] Implement Milestone 5: make hardware-control loops explicitly scoped to the main tent and add a local command-intent ledger for future safe remote control.
 - [ ] Implement Milestone 6: add scoped API/service tests and minimal UI/contract compatibility updates.
 
@@ -59,6 +60,30 @@ This is not the hosted website phase. The local `dirt-hwd` service remains the o
 - Observation: Atlas generated the Milestone 2 diff as an unsafe single `ALTER TABLE plant DROP COLUMN growstate_id, ADD COLUMN ... NOT NULL` statement.
   Evidence: Generated `20260504012912_scoped_growrun_plants.sql` would have added non-null `site_id`, `tent_id`, `growrun_id`, and `plant_id` to a table with existing rows before backfill. The migration was hand-authored as a forward Atlas migration: add nullable columns, backfill from `growstate`/`growrun`, set `NOT NULL`, add constraints/indexes, then drop `growstate`.
 
+- Observation: Atlas generated the Milestone 3 structural change, but the operational migration still needed hand-authored seed and backfill SQL.
+  Evidence: `20260504013944_scoped_sensorreading_capabilities.sql` adds `sensorreading.capability_id`, seeds transitional `soil_moisture_pct` capabilities for plant nodes, backfills existing readings from legacy `sensornode.location` plus `metric`, and creates the capability history index.
+
+- Observation: Async raw SQL with optional scoped filters needs explicit parameter casts for PostgreSQL/asyncpg.
+  Evidence: Raw bucket queries using `:tent_id IS NULL` produced ambiguous-parameter errors until the optional filters used `CAST(:tent_id AS text)` style predicates.
+
+- Observation: `sensorcalibration` is still keyed by legacy `sensornode_id`/`metric`, and the plan had listed that as pending without assigning it to a milestone.
+  Evidence: `apps/shared/src/dirt_shared/services/readings.py`, `apps/shared/src/dirt_shared/services/plants.py`, and `apps/shared/src/dirt_shared/services/daily_sensors.py` all query `SensorCalibration.sensornode_id` plus `metric`. This is now assigned to Milestone 4 so calibration ownership moves with plants and daily sensor scope.
+
+- Observation: Capability-only calibration rows require `sensorcalibration.sensornode_id` to be nullable.
+  Evidence: A breeding-tent moisture capability cannot have a distinct legacy `sensornode` because `SensorLocation` is a fixed enum. Milestone 4 therefore makes `sensornode_id` nullable while preserving the legacy `(sensornode_id, metric)` compatibility lookup.
+
+- Observation: PostgreSQL `UPDATE ... FROM` cannot reference the target alias inside a joined table's `ON` predicate.
+  Evidence: The first test migration replay failed with `pq: invalid reference to FROM-clause entry for table "sc"` until the calibration backfill moved `c.metric_name = sc.metric` into the `WHERE` clause.
+
+- Observation: Once a scoped `schedule` row exists, tests and write paths that only update `growrun.lights_*` can leave lights reads stale.
+  Evidence: `GrowStateService.lights_state()` now reads the scoped schedule projection. The test helper and `flip_to_flower()` update the lights schedule row along with the grow-run photoperiod columns.
+
+- Observation: Daily-report photos reuse deterministic file paths for a target date, so DB recording must be idempotent for forced reruns.
+  Evidence: `DailyReportSnapshotRecorder.record_daily_report_photo()` selects by `snapshot.file_path` and updates the existing row instead of blindly inserting, preserving the unique `snapshot.file_path` constraint.
+
+- Observation: Daily-report DB metadata can be added without changing existing orchestrator tests by making the recorder an optional dependency.
+  Evidence: `DailyReport.__init__()` now accepts `snapshot_recorder=None`; existing filesystem/Telegram tests still construct the orchestrator without DB access, while production `scripts/daily_report` passes `DailyReportSnapshotRecorder(engine)`.
+
 
 ## Decision Log
 
@@ -86,12 +111,22 @@ This is not the hosted website phase. The local `dirt-hwd` service remains the o
   Rationale: Keeping both tables would preserve two possible sources of truth for stage, photoperiod, strain, location, and plant count. The cleaner Phase 1 target is `growrun` with per-tent current semantics; compatibility remains in the `GrowStateService` class name and unscoped API defaults, not in a duplicate table.
   Date/Author: 2026-05-04 / Codex
 
+- Decision: Complete daily-report photo DB rows as a focused Milestone 4 follow-up after the first checkpoint.
+  Rationale: Periodic snapshots carried scope and were backfilled in the first checkpoint. Adding daily-report DB rows required widening `DailyReport` construction to accept a database writer in addition to its existing injected camera/sensor/synthesis/telegram collaborators, so it was implemented as a focused follow-up with daily-report tests rather than mixed into the larger calibration/schedule/alert change.
+  Date/Author: 2026-05-04 / Codex
+
 
 ## Outcomes & Retrospective
 
 Milestone 1 completed on 2026-05-04. The repository now has canonical scoped identity tables for site, tent, zone, device, capability, grow run, schedule, and command intent. The migration seeds `site.site_id='homebox'`, `tent.tent_id='main'`, `tent.tent_id='breeding'`, main-tent zones, and current local hardware/capability mappings without changing existing singleton service behavior.
 
 Milestone 2 completed on 2026-05-04. The current main grow is now represented as `growrun.grow_run_id='main-2026-03-15'` under `homebox/main`, and current plants A-D are linked by `plant.growrun_id` with stable `plant_id` values. Existing unscoped grow and plant endpoints still resolve to the default main tent. A test also proves a current breeding grow run can be inserted without changing the default main grow payload.
+
+Milestone 3 completed on 2026-05-04. Sensor readings now carry a nullable `capability_id` FK while retaining `sensornode_id` for legacy firmware and calibration compatibility. Readings ingest accepts optional scoped identity fields, legacy `location` payloads still resolve to default-main devices, and history/latest/freshness reads use capability/device/tent joins so a breeding-tent `temperature_f` reading does not leak into default main dashboard history.
+
+Milestone 4 checkpoint completed on 2026-05-04. Grow stage/target/light-schedule methods accept default-main or explicit scope, and the main photoperiod is materialized in `schedule`. Plant reads remain default-main compatible and an empty breeding tent returns no plants. Sensor calibrations now have nullable canonical `capability_id` ownership and can represent a capability-only breeding calibration without contaminating main plant moisture or daily sensor summaries. Periodic snapshots now write/backfill default-main camera/grow scope. `device_watchdog` state keys by stable `device_id`, and `metric_freshness` keys by stable `capability_id`. Residual humidifier/fan/lights control-loop event scoping is folded into Milestone 5 with the rest of hardware-control-loop scoping.
+
+Milestone 4 daily-report follow-up completed on 2026-05-04. The daily-report capture phase now optionally records each saved photo as a scoped `snapshot` row with `kind='daily_report'`, `view_id` equal to the existing preset (`overview`, `plant_a`, `plant_b`, `plant_c`, `plant_d`), default `homebox/main` scope, `device_id='obsbot-main'`, the current main `growrun`, and zone mapping `overview -> canopy`, `plant_a -> plant-a`, `plant_b -> plant-b`, `plant_c -> plant-c`, and `plant_d -> plant-d`. The production `scripts/daily_report` entrypoint wires the recorder. Broader humidifier/fan/lights control-loop `log_event()` scoping remains Milestone 5 because that milestone owns hardware-control loops.
 
 
 ## Context and Orientation
@@ -104,8 +139,8 @@ The current database shape is centered on these tables:
 - `sensorreading`: append-only fact table keyed by `sensornode_id`, `metric`, `value`, and `source`.
 - `growrun`: scoped grow identity, photoperiod, timezone, strain/location text, plant count, and per-tent current flag.
 - `plant`: one row per A-D plant in the current main grow, linked to `growrun`, explicit `site`/`tent` scope, a stable `plant_id`, and a moisture `sensornode`.
-- `sensorcalibration`: per-sensornode calibration rows.
-- `snapshot`: periodic camera image metadata with no site/tent/camera/preset fields.
+- `sensorcalibration`: capability-owned calibration rows with nullable legacy `sensornode_id` for firmware compatibility.
+- `snapshot`: periodic camera image metadata with nullable site/tent/zone/device/growrun/view/kind scope fields. Daily-report photo DB rows are still pending.
 
 The current service ownership is:
 
@@ -192,13 +227,15 @@ Update `apps/hwd/src/dirt_hwd/api/ingest.py` to accept optional `site_id`, `tent
 
 Update `sensor_contract.py` so the canonical declaration is keyed by device/capability or by scoped device identity, not by the fixed `SensorLocation` enum. Keep a small legacy mapping for firmware until the firmware payload is upgraded. Update agent-owned tests; do not modify `apps/tests/invariants/`.
 
-Milestone 4: Scope grow state, plants, schedules, snapshots/photos, and alerts.
+Milestone 4: Scope grow state, plants, schedules, sensor calibrations, snapshots/photos, and alerts.
 
 Grow state: update `GrowStateService` or the new grow-run service so current stage, week, day, and target bands are derived per tent. The default no-argument methods should resolve to `homebox/main`. Add tests showing `homebox/main` can be in `flower_early` while `homebox/breeding` has no current grow or a separate breeding run.
 
 Schedules: move the lights schedule out of global singleton semantics. At minimum, the main tent photoperiod schedule must be scoped to `homebox/main` and read by `LightsLoopService`. If `growrun` keeps photoperiod columns, add a `schedule` projection or service method that still returns a schedule scoped by tent.
 
 Plants: update `PlantsService` to list plants for a specific `site_id`, `tent_id`, and current `grow_run_id`. Existing `/api/plants` remains default main. Add tests showing an empty breeding run returns an empty plant list without disturbing main A-D.
+
+Sensor calibrations: move calibration ownership from `sensornode_id`/`metric` to canonical capability/device scope while preserving existing plant moisture behavior. Add nullable `capability_id` during the transition, backfill from the legacy sensornode and metric mapping, keep legacy lookup compatibility until all callers are migrated, and add tests for `ReadingsService`, `PlantsService`, and `DailySensorService` so calibrated main plant moisture remains unchanged and scoped reads cannot pick up another tent's calibration.
 
 Snapshots/photos: add scope fields to `snapshot`, including at least `site_id`, `tent_id`, nullable `zone_id`, nullable `device_id`, nullable `growrun_id`, and `preset_id` or `view_id`. Backfill old periodic snapshots to `homebox/main` and a camera device; use a neutral preset such as `periodic` when no PTZ preset is known. Add DB-backed records for daily report photos, or extend `snapshot` with `kind=daily_report` so `overview`, `plant_a`, `plant_b`, `plant_c`, and `plant_d` daily photos can be scoped to main tent zones.
 
@@ -323,6 +360,7 @@ Existing main-tent compatibility:
 - `GET /api/sensors/current` returns current main-tent values and does not include breeding-tent readings.
 - `GET /api/sensors/history?range=24h&metric=temperature_f` returns only default main-tent history.
 - `GET /api/plants` returns current main A-D plants.
+- Main plant moisture calibration and daily sensor summaries remain unchanged for existing plants, but calibration records are owned by canonical capability/device scope internally.
 - `GET /api/system/devices` still shows the current real devices, but rows are backed by stable `device_id` internally.
 - HWD control-loop tests show humidifier, fan trim, and lights still target only the main tent unless configured otherwise.
 
@@ -332,6 +370,7 @@ Second-tent representation:
 - A test can insert a breeding-tent device and `temperature_f` reading, then prove default main sensor history excludes it while a scoped breeding query includes it.
 - A test can create a breeding `growrun` without changing the current main grow.
 - A test can list devices for `tent_id=breeding` separately from `tent_id=main`.
+- A test can create a calibration for one tent's capability without affecting another tent's same metric.
 - A test can create a local command-intent row for a target capability with an idempotency key and re-enqueue the same key without creating a duplicate.
 
 Schema and contract:
@@ -499,24 +538,139 @@ Milestone 2 validation evidence:
     git diff --check
     passed
 
+Milestone 3 changed these files:
+
+    apps/hwd/src/dirt_hwd/api/ingest.py
+    apps/shared/src/dirt_shared/models/sensor_reading.py
+    apps/shared/src/dirt_shared/sensor_contract.py
+    apps/shared/src/dirt_shared/services/readings.py
+    apps/shared/tests/test_readings_scope.py
+    apps/web/tests/test_sensors_current_endpoint.py
+    apps/web/tests/test_sensors_history_endpoint.py
+    docs/database.md
+    migrations/20260504013944_scoped_sensorreading_capabilities.sql
+    migrations/atlas.sum
+
+Milestone 3 validation evidence:
+
+    uv run pytest apps/hwd/tests/test_ingest_api.py apps/hwd/tests/test_ingest_derivation.py apps/shared/tests/test_pg_fixture.py -q
+    27 passed in 4.49s
+
+    uv run pytest apps/web/tests/test_sensors_current_endpoint.py apps/web/tests/test_sensors_history_endpoint.py -q
+    14 passed in 5.49s
+
+    uv run pytest apps/shared/tests/test_readings_scope.py -q
+    1 passed in 1.35s
+
+    uv run pytest apps/shared/tests/test_pg_fixture.py apps/shared/tests/test_readings_scope.py apps/hwd/tests/test_ingest_api.py apps/hwd/tests/test_ingest_derivation.py apps/web/tests/test_sensors_current_endpoint.py apps/web/tests/test_sensors_history_endpoint.py -q
+    42 passed in 9.09s
+
+    uv run pytest apps/tests/invariants/test_sensor_contract.py apps/tests/invariants/test_schema_managed_by_atlas.py -q
+    6 passed in 0.18s
+
+    uv run ruff check apps/shared/src/dirt_shared/models/sensor_reading.py apps/shared/src/dirt_shared/services/readings.py apps/shared/src/dirt_shared/sensor_contract.py apps/hwd/src/dirt_hwd/api/ingest.py apps/shared/tests/test_readings_scope.py apps/web/tests/test_sensors_current_endpoint.py apps/web/tests/test_sensors_history_endpoint.py
+    All checks passed!
+
+    atlas migrate diff verify_scoped_sensorreading_sync --env local
+    The migration directory is synced with the desired state, no changes to be made
+
+Milestone 4 checkpoint changed these files:
+
+    apps/hwd/src/dirt_hwd/services/device_watchdog.py
+    apps/hwd/src/dirt_hwd/services/metric_freshness.py
+    apps/hwd/tests/test_device_watchdog.py
+    apps/shared/src/dirt_shared/models/sensor_calibration.py
+    apps/shared/src/dirt_shared/models/snapshot.py
+    apps/shared/src/dirt_shared/services/capture.py
+    apps/shared/src/dirt_shared/services/daily_sensors.py
+    apps/shared/src/dirt_shared/services/grow_state.py
+    apps/shared/src/dirt_shared/services/plants.py
+    apps/shared/src/dirt_shared/services/readings.py
+    apps/shared/src/dirt_shared/services/snapshots.py
+    apps/shared/src/dirt_shared/services/system_status.py
+    apps/shared/tests/test_capture.py
+    apps/shared/tests/test_grow_state.py
+    apps/shared/tests/test_milestone4_scope.py
+    docs/database.md
+    migrations/20260504022916_scoped_milestone4.sql
+    migrations/atlas.sum
+
+Milestone 4 checkpoint validation evidence:
+
+    uv run pytest apps/shared/tests/test_grow_state.py apps/shared/tests/test_milestone4_scope.py apps/shared/tests/test_capture.py apps/shared/tests/test_daily_sensors.py apps/hwd/tests/test_device_watchdog.py -q
+    50 passed in 12.36s
+
+    uv run pytest apps/web/tests/test_plants_list_endpoint.py apps/web/tests/test_plants_detail_endpoint.py apps/web/tests/test_plants_moisture_endpoint.py apps/web/tests/test_feed_snapshot_endpoint.py apps/web/tests/test_system_devices_endpoint.py apps/web/tests/test_sensors_current_endpoint.py apps/web/tests/test_sensors_history_endpoint.py apps/tests/invariants/test_schema_managed_by_atlas.py -q
+    38 passed in 8.34s
+
+    uv run pytest apps/shared/tests/test_pg_fixture.py apps/shared/tests/test_readings_scope.py apps/shared/tests/test_milestone4_scope.py apps/hwd/tests/test_ingest_api.py apps/hwd/tests/test_ingest_derivation.py apps/hwd/tests/test_device_watchdog.py apps/web/tests/test_sensors_current_endpoint.py apps/web/tests/test_sensors_history_endpoint.py -q
+    56 passed in 11.52s
+
+    uv run pytest apps/tests/invariants/test_sensor_contract.py apps/tests/invariants/test_schema_managed_by_atlas.py -q
+    6 passed in 0.18s
+
+    uv run ruff check apps/shared/src/dirt_shared/models/sensor_calibration.py apps/shared/src/dirt_shared/models/snapshot.py apps/shared/src/dirt_shared/services/readings.py apps/shared/src/dirt_shared/services/plants.py apps/shared/src/dirt_shared/services/daily_sensors.py apps/shared/src/dirt_shared/services/grow_state.py apps/shared/src/dirt_shared/services/capture.py apps/shared/src/dirt_shared/services/snapshots.py apps/shared/src/dirt_shared/services/system_status.py apps/hwd/src/dirt_hwd/services/device_watchdog.py apps/hwd/src/dirt_hwd/services/metric_freshness.py apps/shared/tests/test_milestone4_scope.py apps/shared/tests/test_capture.py apps/shared/tests/test_grow_state.py apps/hwd/tests/test_device_watchdog.py
+    All checks passed!
+
+    atlas migrate diff verify_scoped_milestone4_sync --env local
+    The migration directory is synced with the desired state, no changes to be made
+
+    git diff --check
+    passed
+
+The first Milestone 4 validation attempt failed during Atlas replay before tests ran:
+
+    pq: invalid reference to FROM-clause entry for table "sc"
+
+The calibration backfill was corrected by moving the target-table predicate from a `JOIN ... ON` clause into the `WHERE` clause, then `atlas migrate hash --env local` was rerun.
+
+Milestone 4 daily-report follow-up changed these files:
+
+    apps/shared/src/dirt_shared/services/daily_report.py
+    apps/shared/tests/test_daily_report.py
+    scripts/daily_report
+    docs/epics/multi-tent-controller/ExecPlan.md
+
+Milestone 4 daily-report follow-up validation evidence:
+
+    uv run pytest apps/shared/tests/test_daily_report.py -q
+    28 passed in 1.71s
+
+    uv run pytest apps/shared/tests/test_daily_report.py apps/shared/tests/test_grow_state.py apps/shared/tests/test_milestone4_scope.py apps/shared/tests/test_capture.py apps/shared/tests/test_daily_sensors.py apps/hwd/tests/test_device_watchdog.py -q
+    78 passed in 12.86s
+
+    uv run pytest apps/web/tests/test_plants_list_endpoint.py apps/web/tests/test_plants_detail_endpoint.py apps/web/tests/test_plants_moisture_endpoint.py apps/web/tests/test_feed_snapshot_endpoint.py apps/web/tests/test_system_devices_endpoint.py apps/web/tests/test_sensors_current_endpoint.py apps/web/tests/test_sensors_history_endpoint.py apps/tests/invariants/test_sensor_contract.py apps/tests/invariants/test_schema_managed_by_atlas.py -q
+    40 passed in 8.39s
+
+    uv run ruff check apps/shared/src/dirt_shared/services/daily_report.py apps/shared/tests/test_daily_report.py scripts/daily_report apps/hwd/src/dirt_hwd/services/device_watchdog.py apps/hwd/src/dirt_hwd/services/metric_freshness.py
+    All checks passed!
+
+    atlas migrate diff verify_scoped_milestone4_daily_report_sync --env local
+    The migration directory is synced with the desired state, no changes to be made
+
+    git diff --check
+    passed
+
 
 ## Interfaces and Dependencies
 
 New or changed database interfaces:
 
 - Tables: `site`, `tent`, `zone`, `device`, `capability`, `growrun`, `schedule`, `command`, and scoped photo/alert storage if implemented as tables.
-- Existing table changes: `growstate` has been retired in favor of `growrun`; `plant` now links to `growrun`, `site`, and `tent` with stable `plant_id`; `sensorreading` still needs canonical capability linkage; `sensorcalibration` still needs capability/device linkage; `snapshot` still needs site/tent/device/growrun/preset scope.
+- Existing table changes: `growstate` has been retired in favor of `growrun`; `plant` now links to `growrun`, `site`, and `tent` with stable `plant_id`; `sensorreading` now has nullable canonical `capability_id` linkage; `sensorcalibration` has nullable canonical `capability_id` ownership and nullable legacy `sensornode_id`; `snapshot` has nullable site/tent/zone/device/growrun plus `view_id`/`kind` scope for periodic snapshots.
 - Indexes: unique external IDs, per-tent current grow partial unique index, sensor history indexes that support `(capability_id, ts DESC)` and scoped dashboard queries.
 
 New or changed service interfaces:
 
 - `apps/shared/src/dirt_shared/services/scope.py` resolves default `homebox/main` and explicit site/tent scopes.
 - `ReadingsService` scoped read/write methods.
-- `GrowStateService` remains as a compatibility facade over scoped `growrun` rows and exposes `current_grow_run(site_id="homebox", tent_id="main")`.
+- `GrowStateService` remains as a compatibility facade over scoped `growrun` rows, exposes `current_grow_run(site_id="homebox", tent_id="main")`, and reads `current_light_schedule()` from the scoped `schedule` row with a growrun fallback.
 - `PlantsService` methods accept `site_id`/`tent_id` and default to main.
-- `SystemStatusService` dynamic device list from scoped device rows.
+- `PlantsService` and `DailySensorService` resolve calibration by scoped capability before falling back to legacy sensornode/metric rows.
+- `SystemStatusService` rows carry stable `device_id` and default site/tent/zone metadata for watchdog state.
 - `CommandService` with idempotent enqueue and lifecycle transitions.
-- `Photo`/`Snapshot` service methods that write scope metadata.
+- `CaptureService` and `SnapshotsService` write/read default-main periodic snapshot scope metadata.
+- `DailyReportSnapshotRecorder` writes default-main `snapshot.kind='daily_report'` rows for daily-report photo presets, and `scripts/daily_report` wires it in production.
 
 New or changed API interfaces:
 
@@ -553,3 +707,7 @@ Out of scope until hosted website phase:
 - 2026-05-03: Initial de novo ExecPlan created from repository investigation and the user's multi-tent local-controller context.
 - 2026-05-04: Milestone 1 completed. Added scoped identity models and the `20260504000618_multi_tent_controller.sql` Atlas migration with seed data. Recorded that local Atlas lint is blocked by the installed CLI's Pro-only gate and substituted schema-sync plus pytest replay validation.
 - 2026-05-04: Milestone 2 completed. Retired `growstate`, backfilled current main grow into `growrun`, moved `plant` to scoped grow-run ownership, added scope helpers, and preserved default-main API behavior.
+- 2026-05-04: Milestone 3 completed. Added `sensorreading.capability_id`, migrated telemetry ingest/read paths to scoped capability/device ownership, retained legacy firmware `location` compatibility, and proved duplicate metric names in another tent do not leak into default main history.
+- 2026-05-04: Assigned `sensorcalibration` capability/device ownership to Milestone 4 after Milestone 3 showed it was still pending but not explicitly scheduled.
+- 2026-05-04: Milestone 4 checkpoint completed for scoped grow/schedule service reads, empty breeding plant reads, capability-owned sensor calibrations, scoped periodic snapshots, and watchdog stable IDs. Daily-report photo DB rows were split into a focused follow-up.
+- 2026-05-04: Milestone 4 daily-report follow-up completed. Added optional `DailyReportSnapshotRecorder`, wired `scripts/daily_report`, and proved daily-report captures create scoped `snapshot.kind='daily_report'` rows while preserving filesystem and Telegram flow.
