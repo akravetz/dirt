@@ -22,6 +22,7 @@ from dirt_control.models import (
     CloudSite,
     CloudTent,
     CloudZone,
+    GatewayCredential,
 )
 from dirt_control.retention import prune_expired_assets
 from dirt_control.security import (
@@ -190,6 +191,10 @@ async def heartbeat(
 ) -> dict[str, Any]:
     require_gateway_scope(principal, body.site_id)
     now = clock()
+    credential = await session.get(GatewayCredential, principal.credential_id)
+    if credential is not None:
+        credential.last_used_at = now
+        credential.updated_at = now
     site = await session.get(CloudSite, body.site_id)
     if site is None:
         site = CloudSite(

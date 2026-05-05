@@ -192,6 +192,26 @@ async def test_gateway_auth_rejects_missing_invalid_and_overscoped_credentials(
     ).status_code == 403
 
 
+async def test_gateway_heartbeat_updates_credential_last_used(
+    client: AsyncClient,
+    gateway_headers: dict[str, str],
+    cloud_engine: AsyncEngine,
+) -> None:
+    response = await client.post(
+        "/api/gateway/v1/heartbeat",
+        json={"site_id": "homebox", "gateway_id": "gateway-main"},
+        headers=gateway_headers,
+    )
+    assert response.status_code == 200
+
+    sessionmaker = create_sessionmaker(cloud_engine)
+    async with sessionmaker() as session:
+        credential = await session.get(GatewayCredential, "gateway-main")
+
+    assert credential is not None
+    assert credential.last_used_at == FIXED_NOW
+
+
 async def test_catalog_upsert_is_idempotent(
     client: AsyncClient,
     gateway_headers: dict[str, str],

@@ -106,9 +106,6 @@ async def authenticate_gateway(
     if credential is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "invalid gateway token")
 
-    credential.last_used_at = now
-    credential.updated_at = now
-    await session.commit()
     return GatewayPrincipal(
         credential_id=credential.credential_id,
         gateway_id=credential.gateway_id,
