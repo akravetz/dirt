@@ -10,7 +10,7 @@ Use only the supported script:
 
     scripts/deploy-control-plane
 
-The script loads ignored `.env` first and `.env.prod` second, derives the cloud admin hash from `AUTH_PASSWORD` only when `DIRT_CLOUD_ADMIN_PASSWORD_HASH` is blank, syncs the required Railway service variables without printing values, applies `atlas migrate apply --env cloud`, upserts the V1 gateway credential row from `DIRT_CLOUD_GATEWAY_ID`, `DIRT_CLOUD_GATEWAY_TOKEN_SHA256`, and `DIRT_CLOUD_SITE_ID`, deploys `apps/control-plane/` to `control-plane-api`, deploys `web-ui/` to `web-ui`, then waits for smoke checks at `DIRT_CLOUD_API_BASE_URL/api/health` and `DIRT_CLOUD_UI_BASE_URL/`. It requires `RAILWAY_PROJECT_ID`, `RAILWAY_ENVIRONMENT`, `RAILWAY_CONTROL_PLANE_API_SERVICE_ID`, `RAILWAY_WEB_UI_SERVICE_ID`, `RAILWAY_POSTGRES_SERVICE_ID`, `DIRT_CLOUD_API_BASE_URL`, and `DIRT_CLOUD_UI_BASE_URL` in the environment, `.env`, or `.env.prod`. If `DIRT_CLOUD_DATABASE_URL` is unset locally, the script reads `DATABASE_PUBLIC_URL` from the Railway Postgres service without printing it; the deployed app still uses Railway's internal `DATABASE_URL`.
+The script loads ignored `.env` first and `.env.prod` second, syncs the required Railway service variables without printing values, applies `atlas migrate apply --env cloud`, upserts the V1 gateway credential row from `DIRT_CLOUD_GATEWAY_ID`, `DIRT_CLOUD_GATEWAY_TOKEN_SHA256`, and `DIRT_CLOUD_SITE_ID`, deploys `apps/control-plane/` to `control-plane-api`, deploys `web-ui/` to `web-ui`, then waits for smoke checks at `DIRT_CLOUD_API_BASE_URL/api/health` and `DIRT_CLOUD_UI_BASE_URL/`. It requires `RAILWAY_PROJECT_ID`, `RAILWAY_ENVIRONMENT`, `RAILWAY_CONTROL_PLANE_API_SERVICE_ID`, `RAILWAY_WEB_UI_SERVICE_ID`, `RAILWAY_POSTGRES_SERVICE_ID`, `DIRT_CLOUD_API_BASE_URL`, and `DIRT_CLOUD_UI_BASE_URL` in the environment, `.env`, or `.env.prod`. Hosted browser auth also requires `DIRT_CLOUD_ADMIN_USERNAME` and `DIRT_CLOUD_ADMIN_PASSWORD_HASH`; it does not read local `AUTH_USERNAME` / `AUTH_PASSWORD`. If `DIRT_CLOUD_DATABASE_URL` is unset locally, the script reads `DATABASE_PUBLIC_URL` from the Railway Postgres service without printing it; the deployed app still uses Railway's internal `DATABASE_URL`.
 
 Do not run app-start DDL. Cloud schema changes live in `cloud/migrations/` and are applied explicitly by Atlas before app deployment.
 
@@ -80,7 +80,7 @@ Local `dirt-hwd`, `dirt-web`, camera, lights, humidifier, and fan loops continue
 
 ## Secret Rotation
 
-Browser admin password: generate a new hash with the same SHA-256 helper used by `dirt_control.security.sha256_password_hash`, set `DIRT_CLOUD_ADMIN_PASSWORD_HASH` on `control-plane-api`, and restart/redeploy the service.
+Browser admin password: generate a new hash with the same SHA-256 helper used by `dirt_control.security.sha256_password_hash`, set `DIRT_CLOUD_ADMIN_PASSWORD_HASH` on `control-plane-api`, and restart/redeploy the service. Do not set a plaintext hosted password variable; the hosted API accepts only the hash.
 
 Gateway token:
 

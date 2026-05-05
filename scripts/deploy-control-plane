@@ -117,26 +117,6 @@ sync_required_railway_variable_from_env() {
     sync_railway_variable_from_env "$service_id" "$name"
 }
 
-derive_cloud_auth_defaults() {
-    if [ -z "${DIRT_CLOUD_ADMIN_USERNAME:-}" ] && [ -n "${AUTH_USERNAME:-}" ]; then
-        DIRT_CLOUD_ADMIN_USERNAME="$AUTH_USERNAME"
-        export DIRT_CLOUD_ADMIN_USERNAME
-    fi
-
-    if [ -z "${DIRT_CLOUD_ADMIN_PASSWORD_HASH:-}" ] && [ -n "${AUTH_PASSWORD:-}" ]; then
-        DIRT_CLOUD_ADMIN_PASSWORD_HASH="$(
-            uv run python - <<'PY'
-import hashlib
-import os
-
-password = os.environ["AUTH_PASSWORD"].encode("utf-8")
-print(f"sha256:{hashlib.sha256(password).hexdigest()}")
-PY
-        )"
-        export DIRT_CLOUD_ADMIN_PASSWORD_HASH
-    fi
-}
-
 require_cmd atlas
 require_cmd railway
 require_cmd curl
@@ -163,8 +143,6 @@ fi
 require_env DIRT_CLOUD_DATABASE_URL
 
 cd "$ROOT_DIR"
-
-derive_cloud_auth_defaults
 
 echo "Syncing Railway service variables..."
 sync_required_railway_variable_from_env \
