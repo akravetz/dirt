@@ -152,6 +152,9 @@ The first observable result should be deliberately small: a hosted dashboard can
 - Observation: Production cloud auth had no initial `gateway_credential` row, so the running local gateway could not authenticate.
   Evidence: After starting `dirt-gateway`, structured logs showed heartbeat/catalog/metric deliveries and command claims all failing with `CloudDeliveryError`, while the cloud health endpoint still had `gateway_last_seen_at=null`. The local token hash matched `DIRT_CLOUD_GATEWAY_TOKEN_SHA256`, so the missing piece was seed data. `scripts/deploy-control-plane` now upserts the V1 gateway credential row after cloud Atlas migrations and before service deploy.
 
+- Observation: The initial asset signing path produced app-signed placeholder URLs, not private bucket presigned PUT/GET URLs, when S3 credentials were configured.
+  Evidence: After gateway auth was fixed, heartbeat/catalog/metric events delivered and cloud health turned `live`, but asset upload rows failed with `Attempted to send an sync request with an AsyncClient instance.` because the gateway tried to PUT bytes to the app-signed asset URL instead of Railway's S3-compatible bucket. Cloud asset sign-upload and browser signed-url routes now use S3 presigned URLs when bucket credentials are configured, with the previous app-signed URL only as the no-bucket test fallback.
+
 
 ## Decision Log
 

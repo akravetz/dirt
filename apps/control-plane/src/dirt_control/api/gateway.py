@@ -420,19 +420,27 @@ async def sign_upload(
 ) -> dict[str, Any]:
     require_gateway_scope(principal, body.site_id)
     expires_at = expires_from(clock(), settings.upload_url_ttl_s)
-    signer = UrlSigner(settings.session_secret)
-    upload_url = signer.build_signed_url(
-        base_url=settings.public_asset_base_url,
-        subject=body.object_key,
-        expires_at=expires_at,
-        params={"method": "PUT", "content_type": body.content_type},
-    )
+    object_store = _object_store(settings)
+    if object_store is None:
+        signer = UrlSigner(settings.session_secret)
+        upload_url = signer.build_signed_url(
+            base_url=settings.public_asset_base_url,
+            subject=body.object_key,
+            expires_at=expires_at,
+            params={"method": "PUT", "content_type": body.content_type},
+        )
+    else:
+        upload_url = object_store.presign_put(
+            object_key=body.object_key,
+            content_type=body.content_type,
+            expires_in_s=settings.upload_url_ttl_s,
+        )
     return {
         "asset_id": body.asset_id,
         "object_key": body.object_key,
         "upload_url": upload_url,
         "method": "PUT",
-        "headers": {"content-type": body.content_type},
+        "headers": {"Content-Type": body.content_type},
         "expires_at": expires_at,
         "byte_size": body.byte_size,
     }

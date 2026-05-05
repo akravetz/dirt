@@ -31,6 +31,7 @@ from dirt_control.security import (
     verify_password,
 )
 from dirt_control.settings import CloudSettings
+from dirt_control.storage import S3ObjectStore
 
 router = APIRouter(prefix="/api")
 COMMAND_EXPIRY_SECONDS = 60
@@ -352,9 +353,17 @@ async def latest_assets(
         )
     ).scalars()
     signer = UrlSigner(settings.session_secret)
+    object_store = _object_store(settings)
     now = clock()
     return [
-        _asset_response(row, settings=settings, signer=signer, now=now) for row in rows
+        _asset_response(
+            row,
+            settings=settings,
+            signer=signer,
+            object_store=object_store,
+            now=now,
+        )
+        for row in rows
     ]
 
 
@@ -370,7 +379,13 @@ async def asset_signed_url(
     if asset is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "asset not found")
     signer = UrlSigner(settings.session_secret)
-    return _asset_response(asset, settings=settings, signer=signer, now=clock())
+    return _asset_response(
+        asset,
+        settings=settings,
+        signer=signer,
+        object_store=_object_store(settings),
+        now=clock(),
+    )
 
 
 @router.get("/sync/status")
@@ -556,14 +571,21 @@ def _asset_response(
     *,
     settings: CloudSettings,
     signer: UrlSigner,
+    object_store: S3ObjectStore | None,
     now: datetime,
 ) -> dict[str, Any]:
     expires_at = expires_from(now, settings.asset_url_ttl_s)
-    signed_url = signer.build_signed_url(
-        base_url=settings.public_asset_base_url,
-        subject=asset.object_key,
-        expires_at=expires_at,
-    )
+    if object_store is None:
+        signed_url = signer.build_signed_url(
+            base_url=settings.public_asset_base_url,
+            subject=asset.object_key,
+            expires_at=expires_at,
+        )
+    else:
+        signed_url = object_store.presign_get(
+            object_key=asset.object_key,
+            expires_in_s=settings.asset_url_ttl_s,
+        )
     return {
         "asset_id": asset.asset_id,
         "kind": asset.kind,
@@ -575,6 +597,17 @@ def _asset_response(
         "signed_url": signed_url,
         "signed_url_expires_at": expires_at,
     }
+
+
+def _object_store(settings: CloudSettings) -> S3ObjectStore | None:
+    if not (
+        settings.s3_endpoint
+        and settings.s3_region
+        and settings.s3_access_key_id
+        and settings.s3_secret_access_key
+    ):
+        return None
+    return S3ObjectStore(settings=settings)
 
 
 def _command_response(command: CloudCommand) -> dict[str, Any]:

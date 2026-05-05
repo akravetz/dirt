@@ -21,6 +21,7 @@ from dirt_control.models import (
     GatewayCredential,
 )
 from dirt_control.settings import CloudSettings
+from dirt_control.storage import S3ObjectStore
 
 FIXED_NOW = datetime(2026, 5, 5, 3, 45, tzinfo=UTC)
 
@@ -53,6 +54,74 @@ def test_cloud_settings_accept_comma_separated_allowed_origins(
     assert settings.allowed_origins == [
         "https://sirius-forge.com",
         "https://preview.sirius-forge.com",
+    ]
+
+
+def test_s3_object_store_generates_private_presigned_urls(monkeypatch) -> None:
+    calls: list[dict[str, object]] = []
+
+    class FakeS3Client:
+        def generate_presigned_url(self, operation, *, Params, ExpiresIn, HttpMethod):
+            calls.append(
+                {
+                    "operation": operation,
+                    "params": Params,
+                    "expires_in": ExpiresIn,
+                    "method": HttpMethod,
+                }
+            )
+            return f"https://bucket.test/{operation}"
+
+    monkeypatch.setattr(
+        "dirt_control.storage.boto3.client",
+        lambda *args, **kwargs: FakeS3Client(),
+    )
+    settings = CloudSettings(
+        DATABASE_URL="postgresql+asyncpg://user:pass@db.example/dirt",
+        DIRT_CLOUD_ADMIN_USERNAME="admin",
+        DIRT_CLOUD_ADMIN_PASSWORD_HASH="hash",
+        DIRT_CLOUD_SESSION_SECRET="test-session-secret-at-least-16",
+        DIRT_CLOUD_BUCKET_NAME="dirt-assets",
+        DIRT_CLOUD_S3_ENDPOINT="https://s3.example",
+        DIRT_CLOUD_S3_REGION="iad",
+        DIRT_CLOUD_S3_ACCESS_KEY_ID="access-key",
+        DIRT_CLOUD_S3_SECRET_ACCESS_KEY="secret-key",
+    )
+
+    store = S3ObjectStore(settings=settings)
+
+    assert (
+        store.presign_put(
+            object_key="homebox/main/snapshot.jpg",
+            content_type="image/jpeg",
+            expires_in_s=900,
+        )
+        == "https://bucket.test/put_object"
+    )
+    assert (
+        store.presign_get(object_key="homebox/main/snapshot.jpg", expires_in_s=300)
+        == "https://bucket.test/get_object"
+    )
+    assert calls == [
+        {
+            "operation": "put_object",
+            "params": {
+                "Bucket": "dirt-assets",
+                "Key": "homebox/main/snapshot.jpg",
+                "ContentType": "image/jpeg",
+            },
+            "expires_in": 900,
+            "method": "PUT",
+        },
+        {
+            "operation": "get_object",
+            "params": {
+                "Bucket": "dirt-assets",
+                "Key": "homebox/main/snapshot.jpg",
+            },
+            "expires_in": 300,
+            "method": "GET",
+        },
     ]
 
 
