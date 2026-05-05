@@ -71,6 +71,28 @@ require_env() {
     fi
 }
 
+wait_for_http() {
+    local label="$1"
+    local url="$2"
+    local attempts="${DIRT_CONTROL_PLANE_SMOKE_ATTEMPTS:-60}"
+    local delay="${DIRT_CONTROL_PLANE_SMOKE_DELAY_S:-5}"
+
+    echo "Checking $label..."
+    for attempt in $(seq 1 "$attempts"); do
+        if curl -fsS "$url" >/dev/null; then
+            echo "$label is reachable."
+            return 0
+        fi
+        if [ "$attempt" -eq "$attempts" ]; then
+            break
+        fi
+        sleep "$delay"
+    done
+
+    echo "ERROR: $label did not become reachable at $url" >&2
+    return 1
+}
+
 require_cmd atlas
 require_cmd railway
 require_cmd curl
@@ -109,8 +131,7 @@ railway up "$ROOT_DIR/apps/control-plane" \
     --service "$RAILWAY_CONTROL_PLANE_API_SERVICE_ID"
 
 if [ "$SKIP_SMOKE" -eq 0 ]; then
-    echo "Checking cloud API health..."
-    curl -fsS "$DIRT_CLOUD_API_BASE_URL/api/health" >/dev/null
+    wait_for_http "cloud API health" "$DIRT_CLOUD_API_BASE_URL/api/health"
 fi
 
 echo "Deploying web UI to Railway service web-ui..."
@@ -121,8 +142,7 @@ railway up "$ROOT_DIR/web-ui" \
     --service "$RAILWAY_WEB_UI_SERVICE_ID"
 
 if [ "$SKIP_SMOKE" -eq 0 ]; then
-    echo "Checking hosted UI..."
-    curl -fsS "$DIRT_CLOUD_UI_BASE_URL/" >/dev/null
+    wait_for_http "hosted UI" "$DIRT_CLOUD_UI_BASE_URL/"
 fi
 
 echo "Control-plane deploy finished."

@@ -4,7 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "uvicorn dirt_control.app:create_app --factory --host 0.0.0.0 --port $PORT",
+    "startCommand": "PYTHONPATH=/app/src uvicorn dirt_control.app:create_app --factory --host 0.0.0.0 --port $PORT",
     "healthcheckPath": "/api/health",
     "restartPolicyType": "ON_FAILURE"
   }
