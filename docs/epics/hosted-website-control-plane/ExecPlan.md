@@ -149,6 +149,9 @@ The first observable result should be deliberately small: a hosted dashboard can
 - Observation: Even with direct `vite preview --host 0.0.0.0 --port $PORT`, Railway never marked the web-ui replica healthy.
   Evidence: Deployment `7bb3ba45-3e8d-49e1-9976-485e9e44e0b6` showed Vite listening on local and network addresses, but Railway's `/` healthcheck exhausted its 5-minute retry window with service unavailable. The hosted UI now serves the built SPA through Caddy with a checked-in `web-ui/Caddyfile`.
 
+- Observation: Production cloud auth had no initial `gateway_credential` row, so the running local gateway could not authenticate.
+  Evidence: After starting `dirt-gateway`, structured logs showed heartbeat/catalog/metric deliveries and command claims all failing with `CloudDeliveryError`, while the cloud health endpoint still had `gateway_last_seen_at=null`. The local token hash matched `DIRT_CLOUD_GATEWAY_TOKEN_SHA256`, so the missing piece was seed data. `scripts/deploy-control-plane` now upserts the V1 gateway credential row after cloud Atlas migrations and before service deploy.
+
 
 ## Decision Log
 

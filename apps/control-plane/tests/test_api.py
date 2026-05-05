@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 import dirt_control
+from dirt_control.bootstrap import GatewayCredentialSeed, ensure_gateway_credential
 from dirt_control.db import create_sessionmaker
 from dirt_control.models import (
     CloudAsset,
@@ -53,6 +54,43 @@ def test_cloud_settings_accept_comma_separated_allowed_origins(
         "https://sirius-forge.com",
         "https://preview.sirius-forge.com",
     ]
+
+
+async def test_gateway_credential_bootstrap_upserts(
+    cloud_engine: AsyncEngine,
+) -> None:
+    await ensure_gateway_credential(
+        database_url=str(cloud_engine.url),
+        seed=GatewayCredentialSeed(
+            credential_id="homebox-gateway",
+            gateway_id="homebox-gateway",
+            token_sha256="a" * 64,
+            allowed_site_id="homebox",
+        ),
+        now=FIXED_NOW,
+        engine=cloud_engine,
+    )
+    await ensure_gateway_credential(
+        database_url=str(cloud_engine.url),
+        seed=GatewayCredentialSeed(
+            credential_id="homebox-gateway",
+            gateway_id="homebox-gateway",
+            token_sha256="b" * 64,
+            allowed_site_id="homebox",
+        ),
+        now=FIXED_NOW,
+        engine=cloud_engine,
+    )
+
+    sessionmaker = create_sessionmaker(cloud_engine)
+    async with sessionmaker() as session:
+        credential = await session.get(GatewayCredential, "homebox-gateway")
+
+    assert credential is not None
+    assert credential.token_sha256 == "b" * 64
+    assert credential.gateway_id == "homebox-gateway"
+    assert credential.allowed_site_id == "homebox"
+    assert credential.is_active is True
 
 
 async def test_browser_state_requires_auth(client: AsyncClient) -> None:

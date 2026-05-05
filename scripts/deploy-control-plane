@@ -199,6 +199,9 @@ sync_required_railway_variable_from_env \
 echo "Applying cloud Atlas migrations..."
 atlas migrate apply --env cloud
 
+echo "Ensuring cloud gateway credential..."
+uv run --package dirt-control-plane python -m dirt_control.bootstrap_gateway
+
 echo "Deploying control-plane API to Railway service control-plane-api..."
 railway up "$ROOT_DIR/apps/control-plane" \
     --path-as-root \
