@@ -848,3 +848,9 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - User purchased a 6-inch duct and plans to add it 2026-05-06 as a low passive intake.
 - Filed the working hypothesis: lowering canopy/tent temperature with cooler intake air should reduce the VPD/RH conflict that is keeping the humidifier off under the early-flower RH ceiling. Duct should be installed with a bend/light trap because the grow is on 12/12.
 - Updated: `daily/2026-05-05.md`, `overview.md`, `environment/temperature.md`, `environment/humidity.md`.
+
+## [2026-05-05] docs update | Hosted web control plane recorded
+- Documented the new web-based topology: local `dirt-hwd` remains the hardware authority, local `dirt-web` remains the LAN UI/API/MCP surface, Railway runs `control-plane-api` + `web-ui`, and `dirt-gateway` provides outbound-only sync plus PTZ-only command execution.
+- Added a decision page for the hosted control-plane boundary and linked it from the wiki index and system status.
+- Updated the root README to include the new `apps/control-plane/`, `apps/gateway/`, `cloud/`, hosted Railway services, private signed assets, and the local-vs-hosted runtime surfaces.
+- Updated: `README.md`, `wiki/decisions/2026-05-05-hosted-control-plane.md`, `wiki/index.md`, `wiki/overview.md`.

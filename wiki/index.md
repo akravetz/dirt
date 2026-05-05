@@ -12,6 +12,7 @@ updated: 2026-05-05
 - [Oregon Breeding Group (OBG)](concepts/oregon-breeding-group.md) — Wayne / Serious Black / BS01 breeding-stock pack; next-grow phenotypic selection + breeding plan
 - [Cannabis Genomics](concepts/cannabis-genomics.md) — bioinformatics pipeline: reference assemblies, variant calling, SnpEff, kinship/PCA, MAS workflow
 - [Wake-Word Experiment Log](wake-word-experiments.md) — append-only log of every "hey Claudia" model trained: what changed, why, training config, validation results
+- [Hosted Control Plane](decisions/2026-05-05-hosted-control-plane.md) — Railway web UI/API plus outbound local gateway; remote inspection and PTZ-only command intent without moving hardware authority to cloud
 
 ## Plants
 - [Plant A](plants/plant-a.md) — 🔴 Primary keeper; Flower Day 1; moisture stable 60.50%; daily stretch tucking
@@ -111,6 +112,7 @@ updated: 2026-05-05
 - [Pheno-Split Flip Strategy (2026-04-26)](decisions/2026-04-26-pheno-flip-strategy.md) — Tuck sativa-leaning plants, hold for ~60% net coverage with all four at the net plane; flip target window 2026-05-10 → 2026-05-17. Includes gear-list rationale for the 2×2×4 male tent + closet-shelf cloning station.
 - [Breeding Program Launch (2026-04-26)](decisions/2026-04-26-breeding-program-launch.md) — Two-track SBxBS01 F2 selection program; pollen banking + 10-pack pheno hunt → F2 cross. Scope, alternatives, trait priorities.
 - [Purple Stabilization Strategy (2026-05-02)](decisions/2026-05-02-purple-stabilization-strategy.md) — Narrowed goal to dark-purple, sativa-leaning line ending in validated feminized seed production; prefer progeny-tested F-generation selection, with BX to A/D as backup anchor route.
+- [Hosted Control Plane (2026-05-05)](decisions/2026-05-05-hosted-control-plane.md) — Railway-hosted web UI/API backed by private assets and an outbound-only local gateway; V1 remote commands are PTZ-only and expire after 60 seconds.
 - [Medium, Nutrients & Training (2026-03-16)](decisions/2026-03-16-medium-and-training.md) — Coco/perlite, Canna A+B, single top → LST → SCROG
 - [Anthocyanin Priority Shift (2026-04-01)](decisions/2026-04-01-anthocyanin-priority.md) — Plants A & D elevated to primary keeper candidates
 - [Reservoir Stand (2026-04-11)](decisions/2026-04-11-reservoir-stand.md) — Oak step stool 6" height for FlexiTank Pro gravity feed; alternatives considered

@@ -2,7 +2,7 @@
 title: Grow Overview
 type: overview
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
-related: [wiki/index.md, wiki/plants/plant-a.md, wiki/plants/plant-b.md, wiki/plants/plant-c.md, wiki/plants/plant-d.md]
+related: [wiki/index.md, wiki/plants/plant-a.md, wiki/plants/plant-b.md, wiki/plants/plant-c.md, wiki/plants/plant-d.md, wiki/decisions/2026-05-05-hosted-control-plane.md]
 created: 2026-04-06
 updated: 2026-05-05
 ---
@@ -135,6 +135,9 @@ _Resolved 2026-05-05: "Shift Track A regular seedlings to 1-gal containers" — 
 | **Reservoir level** (XKC-Y25-T12V) | Planned | Not yet deployed |
 | **Humidifier** | **GoveeLife H7142** (6 L cool-mist, 9 Manual-mode levels via Govee Public API v2) — deployed 2026-04-27 evening; first full day 2026-04-28. H7140 (3 L backup) arrived 2026-04-28. See [decisions/2026-04-27-h7142-deployed.md](decisions/2026-04-27-h7142-deployed.md) and [hardware/humidifier-control.md](hardware/humidifier-control.md). |
 | **PTZ camera** (OBSBOT Tiny 2 Lite) | Online (2026-04-15) | USB self-disconnect incident 2026-04-22 08:58 MDT (resolved ~09:23). See [hardware/ptz-camera.md](hardware/ptz-camera.md). |
+| **Local web/API** (`dirt-web`) | Online | Local LAN SPA/API/MCP service on :8001; remains the local browser surface and MCP mount. |
+| **Hosted control plane** (`control-plane-api` + `web-ui`) | Online (2026-05-05) | Railway-hosted web UI/API for remote inspection of synced state, freshness, recent private photos, and PTZ-only command intent. Cloud does not talk directly to hardware. See [hosted control-plane decision](decisions/2026-05-05-hosted-control-plane.md). |
+| **Local cloud gateway** (`dirt-gateway`) | Online (2026-05-05) | Outbound-only sync process. Reads local state/assets, uploads the cloud projection, polls PTZ-only command intent, validates locally, and reports results; local automation continues if stopped. |
 | **Thermal imaging** (PureThermal Mini Pro + FLIR Lepton 3.5) | Planned | Fixed canopy sensor for leaf-air delta, leaf-temperature-aware VPD, and hotspot maps. See [hardware/thermal-imaging.md](hardware/thermal-imaging.md). |
 | **Jabra Speak 410** (voice I/O) | Connected 2026-04-15 | Voice pipeline `dirt-voice.service` deployed 2026-04-18; v5 wake-word passive-harvest mode active. |
 | **AC Infinity Cloudline LITE 6" fan control** | Online (fw 0.2.0, 2026-04-22) | WiFi + HTTP control surface live; VPD-coupled closed-loop deferred. |
