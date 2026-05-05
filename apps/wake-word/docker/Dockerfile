@@ -72,6 +72,12 @@ COPY docker/trainer-constraints.txt /tmp/trainer-constraints.txt
 RUN uv pip install --system --torch-backend cu124 \
         -c /tmp/trainer-constraints.txt \
         -r /tmp/trainer-requirements.txt
+# Some transitive dependencies require CPU `onnxruntime`. The CPU and GPU
+# wheels install the same import package, so if both are present the CPU
+# files can shadow CUDAExecutionProvider. Resolve the full dependency set
+# with uv, then leave the GPU wheel as the import owner.
+RUN uv pip uninstall --system onnxruntime \
+ && uv pip install --system --no-deps --force-reinstall onnxruntime-gpu==1.22.0
 # onnx — needed by torch.onnx.export (openwakeword.export_model) to write
 # the trained .onnx artifact. Not the same as onnxruntime (inference).
 # onnxruntime-gpu — feature extraction uses openwakeword AudioFeatures with

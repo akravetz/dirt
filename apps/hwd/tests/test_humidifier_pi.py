@@ -22,6 +22,7 @@ from dirt_hwd.services.humidifier_pi import (
     PIState,
     Reason,
     compute,
+    track_delivered_output,
 )
 
 T0 = datetime(2026, 4, 25, 18, 0, tzinfo=UTC)
@@ -554,3 +555,35 @@ def test_failsafe_output_still_carries_full_contract():
     assert out.i_term == 0.0
     assert out.u == 0.0
     assert out.plug_on is False
+
+
+def test_external_reset_tracks_allocator_clipped_output():
+    cfg = default_config(kc=10.0, ki=0.0, integrator_clamp=100.0)
+    out = step(PIState(integral=20.0), default_input(vpd=2.0), cfg)
+    assert out.reason is Reason.PI_ACTIVE
+    assert out.p_term > 0
+
+    tracked = track_delivered_output(
+        cfg,
+        out,
+        delivered_u=0.0,
+        delivered_plug_on=False,
+    )
+
+    assert tracked.integral == pytest.approx(-out.p_term)
+    assert tracked.plug_on_for_threshold is False
+
+
+def test_external_reset_ignores_non_active_pi_outputs():
+    cfg = default_config()
+    state = PIState(integral=12.0)
+    out = step(state, default_input(vpd=None), cfg)
+
+    tracked = track_delivered_output(
+        cfg,
+        out,
+        delivered_u=0.0,
+        delivered_plug_on=False,
+    )
+
+    assert tracked == out.new_state

@@ -4,7 +4,7 @@ type: breeding
 sources: []
 related: [wiki/breeding/README.md, wiki/breeding/stabilization-strategy.md, wiki/breeding/family-selection.md, wiki/breeding/feminized-production.md, wiki/breeding/cloning.md, wiki/breeding/pollen-handling.md, wiki/breeding/cross-procedure.md, wiki/decisions/2026-04-26-breeding-program-launch.md, wiki/decisions/2026-05-02-purple-stabilization-strategy.md]
 created: 2026-04-26
-updated: 2026-05-02
+updated: 2026-05-05
 ---
 
 # Breeding Program Timeline
@@ -37,11 +37,12 @@ Feminized production validation                                                 
 
 Locked gear plan as of 2026-04-26 (decision: [clone + male tent gear](../decisions/2026-04-26-pheno-flip-strategy.md) — and shopping detail in [cloning.md](cloning.md) and [isolation.md](isolation.md)):
 
-- [ ] **Cloning station** on a closet shelf in another room (NOT inside any tent): humidity dome (≥7" tall), Rapid Rooter 50-pack, Clonex gel, heat mat, 30–50W LED bar on 18/6 timer, 16oz solo cups + small bag of Happy Frog soil for post-rooting stasis pots, spray bottle, plant tags. Humidity dome is active as of 2026-05-02; clones and regular seedlings are under the dome. Confirm shelf placement, lighting, heat mat, and post-rooting stasis supplies.
+- [ ] **Cloning station** on a closet shelf in another room (NOT inside any tent): humidity dome (≥7" tall), Rapid Rooter 50-pack, Clonex gel, heat mat, 30–50W LED bar on 18/6 timer, 16oz solo cups + small bag of Happy Frog soil for post-rooting stasis pots, spray bottle, plant tags. Humidity dome is active as of 2026-05-02; A/B/C/D cuttings remain the clone-preservation workflow, while the regular seedlings moved to 1-gal containers on 2026-05-05. Confirm shelf placement, lighting, heat mat, and post-rooting stasis supplies.
 - [ ] **Portable freezer** for pollen storage. Digital thermostat, -18 °C / 0 °F target. Located in the male isolation room.
 - [ ] **Male isolation: 2×2×4 grow tent** (already on hand) placed in a separate room. Outfit with: 100W LED quantum board (Spider Farmer SF1000 or generic Amazon), 4" inline fan + carbon filter combo (mandatory — pollen containment relies on negative pressure inside the tent), 6" oscillating clip fan, 1-gal fabric pots (5-pack), digital hygrometer, jeweler's loupe 40× for early sex confirmation, paper lunch bags, 1.5 mL Eppendorf tubes (50-pack) for pollen aliquots, silica desiccant packs. ~$245 one-time. Medium = existing coco/perlite. Nutrients = existing veg formula (half-strength).
 - [x] **Take clones** from all 4 current SBxBS01 plants (A, B, C, D). Done 2026-05-02; cuttings are under the humidity dome. Original target was **2026-04-28 (gear arrives) or 2026-04-29** after moving up from the 2026-05-03 → 2026-05-10 window because mid-veg tissue roots more readily than near-flip tissue. Asymmetric strategy remains the intended source plan: **lower laterals on A and D** (sativa-leaning, already at SCROG net — these branches are lollipop candidates anyway), **middle laterals on B and C** (indica-leaning, still need lower growth to reach the net). Label by mother. See [cloning.md](cloning.md) and [2026-05-02](../daily/2026-05-02.md).
-- [x] **Germinate all 10 SBxBS01 regulars** from the original-order pack. Germinated approximately 2026-04-28; regular seedlings are under the humidity dome as of 2026-05-02. ~50/50 sex split → expect ~5 males from 10, P(<2 males) ≈ 1%. Larger candidate pool means real male selection (per [male-evaluation.md](male-evaluation.md)) instead of "take whatever survives." Reserves are illusory — the existing 4 SBxBS01 F1 plants in the main tent (A/B/C/D) are already the genetic library; holding 4 unstarted seeds doesn't unlock anything beyond what banked pollen + clones already provide.
+- [x] **Germinate all 10 SBxBS01 regulars** from the original-order pack. Germinated approximately 2026-04-28; seedlings were under the humidity dome as of 2026-05-02 and were shifted into 1-gal containers on 2026-05-05. ~50/50 sex split → expect ~5 males from 10, P(<2 males) ≈ 1%. Larger candidate pool means real male selection (per [male-evaluation.md](male-evaluation.md)) instead of "take whatever survives." Reserves are illusory — the existing 4 SBxBS01 F1 plants in the main tent (A/B/C/D) are already the genetic library; holding 4 unstarted seeds doesn't unlock anything beyond what banked pollen + clones already provide. See [2026-05-05](../daily/2026-05-05.md).
+- [x] **Shift Track A regular seedlings to 1-gal containers.** Done 2026-05-05. Continue the [isolation-tent culture](isolation-tent-culture.md) default: coco/perlite, hand-watered, runoff removed, labels secure.
 - [ ] Confirm/finalize second-pack selection (which BS line). Order arrives ~2 weeks after order.
 
 ### Phase 1 — current grow flips, regulars sex (~2026-05-10 → 2026-05-22)
@@ -117,7 +118,7 @@ Locked gear plan as of 2026-04-26 (decision: [clone + male tent gear](../decisio
 
 These are the items where slippage cascades:
 
-1. **Cloning station up before the flip** — active as of 2026-05-02, with A/B/C/D cuttings under the humidity dome. Next gate is rooting and maintaining clear clone identity.
+1. **Cloning station up before the flip** — active as of 2026-05-02, with A/B/C/D cuttings under the humidity dome. Track A regulars moved out to 1-gal containers on 2026-05-05, so the clone-station gate is now rooting and maintaining clear clone identity.
 2. **Pollen banked before the keeper female finishes flower** — without pollen, there's no cross. Phase 2 must complete by end of June at the latest.
 3. **Female clone stasis capacity** — every serious selection round needs small backup clones from promising females before flip. The shelf can be tiny, but losing a keeper before progeny testing resets the line.
 4. **Separate pollen lots** — males are short-lived, but their pollen must be separately labeled so F3/F4 families can be progeny-tested.

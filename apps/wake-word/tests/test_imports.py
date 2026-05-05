@@ -28,6 +28,7 @@ def test_all_modules_importable() -> None:
         feature_device,
         main,
         paths,
+        real_audio_score,
         seed,
         select,
         timing,

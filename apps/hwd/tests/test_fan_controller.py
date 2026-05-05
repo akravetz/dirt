@@ -26,6 +26,9 @@ def _cfg(**overrides) -> FanTrimConfig:
         max_pct=70,
         step_pct=5,
         step_interval_s=300,
+        high_vpd_step_pct=10,
+        high_vpd_step_interval_s=180,
+        high_vpd_margin_kpa=0.05,
         poll_interval=60,
         sensor_stale_s=300,
         drydown_minutes=60,
@@ -33,7 +36,7 @@ def _cfg(**overrides) -> FanTrimConfig:
         drydown_rh_buffer_pct=2.0,
         recover_rh_buffer_pct=2.0,
         recover_vpd_margin_kpa=0.05,
-        recover_hold_s=900,
+        recover_hold_s=300,
     )
     base.update(overrides)
     return FanTrimConfig(**base)
@@ -114,14 +117,47 @@ def test_recovery_hold_then_steps_down_toward_min():
     decision = decide_fan_trim(
         _cfg(),
         FanTrimState(
-            last_change_ts=T0 - timedelta(minutes=20),
-            recover_since=T0 - timedelta(minutes=16),
+            last_change_ts=T0 - timedelta(minutes=6),
+            recover_since=T0 - timedelta(minutes=6),
         ),
         _input(current_pct=45, vpd=1.1, rh=55.0),
     )
 
     assert decision.target_pct == 40
     assert decision.reason == "trim_down_recovered"
+
+
+def test_high_vpd_steps_down_faster_than_normal_recovery():
+    decision = decide_fan_trim(
+        _cfg(),
+        FanTrimState(last_change_ts=T0 - timedelta(minutes=4)),
+        _input(current_pct=70, vpd=1.38, rh=55.0),
+    )
+
+    assert decision.target_pct == 60
+    assert decision.reason == "trim_down_high_vpd"
+
+
+def test_high_vpd_step_down_is_rate_limited_separately():
+    decision = decide_fan_trim(
+        _cfg(),
+        FanTrimState(last_change_ts=T0 - timedelta(minutes=2)),
+        _input(current_pct=70, vpd=1.38, rh=55.0),
+    )
+
+    assert decision.target_pct == 70
+    assert decision.reason == "hold_rate_limited"
+
+
+def test_high_vpd_does_not_override_high_rh_step_up():
+    decision = decide_fan_trim(
+        _cfg(),
+        FanTrimState(last_change_ts=T0 - timedelta(minutes=6)),
+        _input(current_pct=60, vpd=1.38, rh=61.0),
+    )
+
+    assert decision.target_pct == 65
+    assert decision.reason == "humid_trim_up_high_rh"
 
 
 def test_stale_sensor_holds_fan():

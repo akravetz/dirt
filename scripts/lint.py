@@ -260,6 +260,7 @@ def check_photo_coverage() -> list[str]:
 KNOWN_MISSING_PHOTOS = {
     "2026-04-12",  # topping day for B/C/D; no photo taken
     "2026-05-02",  # manual breeding propagation check-in; no photo taken
+    "2026-05-05",  # manual Track A seedling up-pot check-in; no photo taken
 }
 
 

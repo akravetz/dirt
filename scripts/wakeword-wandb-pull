@@ -5,6 +5,9 @@
                       console logs + metadata files to var/wake-word/wandb-pulls/<id>/
   group GROUP       — every run in a WANDB_RUN_GROUP (id/state/name/runtime only)
   latest [--n N]    — N most recent runs (default 5; same row shape as group)
+  system RUN        — pull W&B system telemetry via run.history(stream="system");
+                      writes JSON/CSV + phase-aligned summaries under
+                      var/wake-word/wandb-pulls/<id>/
 
 RUN may be `run_id` or `entity/project/run_id`.
 """
@@ -12,8 +15,10 @@ RUN may be `run_id` or `entity/project/run_id`.
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import os
+import re
 import sys
 import warnings
 from pathlib import Path
@@ -32,6 +37,10 @@ SAVED_FILES = (
     "wandb-metadata.json",
     "wandb-summary.json",
 )
+PHASE_LINE_RE = re.compile(
+    r"^=== phase (?P<phase>.+?) (?P<event>START|END)"
+    r"(?: elapsed=(?P<elapsed>[0-9.]+)s .*)?$"
+)
 
 
 def _api():
@@ -42,6 +51,17 @@ def _api():
     if not os.environ.get("WANDB_API_KEY"):
         sys.exit("error: WANDB_API_KEY not set in environment (.env)")
     return wandb.Api()
+
+
+def _resolve_run(api, *, entity: str, project: str, run_arg: str):
+    parts = run_arg.split("/")
+    if len(parts) == 1:
+        path = f"{entity}/{project}/{parts[0]}"
+    elif len(parts) == 3:
+        path = run_arg
+    else:
+        sys.exit(f"error: {run_arg!r} — expected run_id or entity/project/run_id")
+    return api.run(path)
 
 
 def _run_row(run) -> dict:
@@ -57,12 +77,7 @@ def _run_row(run) -> dict:
     }
 
 
-def _run_full(run, *, dest: Path) -> dict:
-    d = _run_row(run)
-    d["job_type"] = run.job_type
-    d["config"] = dict(run.config)
-    d["summary"] = {k: v for k, v in run.summary.items() if not k.startswith("_")}
-
+def _download_saved_files(run, *, dest: Path) -> tuple[list[str], list[str]]:
     dest.mkdir(parents=True, exist_ok=True)
     saved: list[str] = []
     pull_warnings: list[str] = []
@@ -78,6 +93,16 @@ def _run_full(run, *, dest: Path) -> dict:
             saved.append(str(dest / file.name))
     except Exception as exc:
         pull_warnings.append(f"logs/*: {exc!r}")
+    return saved, pull_warnings
+
+
+def _run_full(run, *, dest: Path) -> dict:
+    d = _run_row(run)
+    d["job_type"] = run.job_type
+    d["config"] = dict(run.config)
+    d["summary"] = {k: v for k, v in run.summary.items() if not k.startswith("_")}
+
+    saved, pull_warnings = _download_saved_files(run, dest=dest)
     d["local_files"] = saved
     d["pull_warnings"] = pull_warnings
 
@@ -98,6 +123,129 @@ def _run_full(run, *, dest: Path) -> dict:
     return d
 
 
+def _numeric_summary(rows: list[dict]) -> dict[str, dict[str, float | int]]:
+    values_by_key: dict[str, list[float]] = {}
+    for row in rows:
+        for key, value in row.items():
+            if key == "_wandb" or isinstance(value, bool):
+                continue
+            if isinstance(value, int | float):
+                values_by_key.setdefault(key, []).append(float(value))
+
+    summary: dict[str, dict[str, float | int]] = {}
+    for key, values in sorted(values_by_key.items()):
+        summary[key] = {
+            "count": len(values),
+            "min": min(values),
+            "max": max(values),
+            "mean": sum(values) / len(values),
+        }
+    return summary
+
+
+def _write_csv(path: Path, rows: list[dict]) -> None:
+    preferred = ["_runtime", "_timestamp"]
+    keys = set().union(*(row.keys() for row in rows)) if rows else set()
+    fieldnames = preferred + sorted(keys - set(preferred))
+    with path.open("w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _parse_phase_intervals(output_log: Path) -> list[dict[str, float | str]]:
+    if not output_log.exists():
+        return []
+
+    clock_s = 0.0
+    open_phases: dict[str, float] = {}
+    intervals: list[dict[str, float | str]] = []
+    for line in output_log.read_text(errors="replace").splitlines():
+        match = PHASE_LINE_RE.match(line)
+        if not match:
+            continue
+
+        phase = match.group("phase")
+        event = match.group("event")
+        if event == "START":
+            open_phases[phase] = clock_s
+            continue
+
+        elapsed = float(match.group("elapsed") or 0.0)
+        start_s = open_phases.pop(phase, max(0.0, clock_s - elapsed))
+        end_s = start_s + elapsed
+        intervals.append(
+            {
+                "phase": phase,
+                "start_runtime_s": start_s,
+                "end_runtime_s": end_s,
+                "elapsed_s": elapsed,
+            }
+        )
+        clock_s = max(clock_s, end_s)
+    return intervals
+
+
+def _phase_system_summary(rows: list[dict], phases: list[dict]) -> list[dict]:
+    out: list[dict] = []
+    for phase in phases:
+        start_s = float(phase["start_runtime_s"])
+        end_s = float(phase["end_runtime_s"])
+        phase_rows = [
+            row
+            for row in rows
+            if isinstance(row.get("_runtime"), int | float)
+            and start_s <= float(row["_runtime"]) <= end_s
+        ]
+        phase_out = dict(phase)
+        phase_out["system_row_count"] = len(phase_rows)
+        phase_out["metrics"] = _numeric_summary(phase_rows)
+        out.append(phase_out)
+    return out
+
+
+def _system_history(run, *, dest: Path, samples: int) -> dict:
+    saved, pull_warnings = _download_saved_files(run, dest=dest)
+    rows = run.history(samples=samples, pandas=False, stream="system")
+    if not isinstance(rows, list):
+        rows = rows.to_dict("records")
+
+    history_path = dest / "system-history.json"
+    history_path.write_text(json.dumps(rows, indent=2, default=str) + "\n")
+    _write_csv(dest / "system-history.csv", rows)
+
+    phases = _parse_phase_intervals(dest / "output.log")
+    phase_summary = _phase_system_summary(rows, phases)
+    summary = {
+        "run": _run_row(run),
+        "samples_requested": samples,
+        "system_rows": len(rows),
+        "runtime_range_s": [
+            min((row["_runtime"] for row in rows if "_runtime" in row), default=None),
+            max((row["_runtime"] for row in rows if "_runtime" in row), default=None),
+        ],
+        "latest_system_metrics": dict(run.system_metrics),
+        "metric_summary": _numeric_summary(rows),
+        "phases": phase_summary,
+        "local_files": [
+            *saved,
+            str(history_path),
+            str(dest / "system-history.csv"),
+            str(dest / "system-summary.json"),
+        ],
+        "pull_warnings": pull_warnings,
+        "notes": [
+            "Rows come from wandb Public API run.history(stream='system').",
+            "Phase intervals are approximate _runtime seconds parsed from "
+            "output.log phase timers.",
+        ],
+    }
+    (dest / "system-summary.json").write_text(
+        json.dumps(summary, indent=2, default=str) + "\n"
+    )
+    return summary
+
+
 def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--entity")
@@ -106,20 +254,16 @@ def main() -> int:
     sub.add_parser("show").add_argument("run")
     sub.add_parser("group").add_argument("group")
     sub.add_parser("latest").add_argument("--n", type=int, default=5)
+    system = sub.add_parser("system")
+    system.add_argument("run")
+    system.add_argument("--samples", type=int, default=10_000)
     args = p.parse_args()
 
     api = _api()
     entity = args.entity or api.default_entity
 
     if args.cmd == "show":
-        parts = args.run.split("/")
-        if len(parts) == 1:
-            path = f"{entity}/{args.project}/{parts[0]}"
-        elif len(parts) == 3:
-            path = args.run
-        else:
-            sys.exit(f"error: {args.run!r} — expected run_id or entity/project/run_id")
-        run = api.run(path)
+        run = _resolve_run(api, entity=entity, project=args.project, run_arg=args.run)
         d = _run_full(run, dest=PULLS_ROOT / run.id)
 
     elif args.cmd == "group":
@@ -131,7 +275,7 @@ def main() -> int:
             sys.exit(f"no runs in group {args.group!r} under {entity}/{args.project}")
         d = [_run_row(r) for r in runs]
 
-    else:  # latest
+    elif args.cmd == "latest":
         runs = list(
             api.runs(
                 f"{entity}/{args.project}",
@@ -140,6 +284,10 @@ def main() -> int:
             )
         )[: args.n]
         d = [_run_row(r) for r in runs]
+
+    else:  # system
+        run = _resolve_run(api, entity=entity, project=args.project, run_arg=args.run)
+        d = _system_history(run, dest=PULLS_ROOT / run.id, samples=args.samples)
 
     json.dump(d, sys.stdout, indent=2, default=str)
     sys.stdout.write("\n")

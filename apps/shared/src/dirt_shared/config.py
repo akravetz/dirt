@@ -140,6 +140,9 @@ class Settings(BaseSettings):
     fan_trim_max_pct: int = 70
     fan_trim_step_pct: int = 5
     fan_trim_step_interval_s: int = 300
+    fan_trim_high_vpd_step_pct: int = 10
+    fan_trim_high_vpd_step_interval_s: int = 180
+    fan_trim_high_vpd_margin_kpa: float = 0.05
     fan_trim_poll_interval: int = 60
     fan_trim_sensor_stale_s: int = 300
     fan_trim_drydown_minutes: int = 60
@@ -147,7 +150,7 @@ class Settings(BaseSettings):
     fan_trim_drydown_rh_buffer_pct: float = 2.0
     fan_trim_recover_rh_buffer_pct: float = 2.0
     fan_trim_recover_vpd_margin_kpa: float = 0.05
-    fan_trim_recover_hold_s: int = 900
+    fan_trim_recover_hold_s: int = 300
     # Telegram bot. Outbound-only for V1.
     telegram_bot_token: str = ""
     telegram_allowed_user_id: str = ""
@@ -239,6 +242,9 @@ class Settings(BaseSettings):
             max_pct=self.fan_trim_max_pct,
             step_pct=self.fan_trim_step_pct,
             step_interval_s=self.fan_trim_step_interval_s,
+            high_vpd_step_pct=self.fan_trim_high_vpd_step_pct,
+            high_vpd_step_interval_s=self.fan_trim_high_vpd_step_interval_s,
+            high_vpd_margin_kpa=self.fan_trim_high_vpd_margin_kpa,
             poll_interval=self.fan_trim_poll_interval,
             sensor_stale_s=self.fan_trim_sensor_stale_s,
             drydown_minutes=self.fan_trim_drydown_minutes,
@@ -309,6 +315,9 @@ class FanTrimConfig:
     max_pct: int
     step_pct: int
     step_interval_s: int
+    high_vpd_step_pct: int
+    high_vpd_step_interval_s: int
+    high_vpd_margin_kpa: float
     poll_interval: int
     sensor_stale_s: int
     drydown_minutes: int

@@ -52,6 +52,7 @@ Wake-word retraining pipeline for the `dirt-voice` channel ("hey Claudia"). Read
 | `scripts/smoke-trainer-image` | End-to-end docker-run against `var/wake-word/smoke-fixtures/`. Asserts SUCCESS sentinel + .onnx. |
 | `scripts/gen-smoke-fixtures` | Write the tiny smoke corpus to `var/wake-word/smoke-fixtures/`. |
 | `scripts/validate-wake-model.py` | Score a model against the real-audio validation set. Recall/precision per threshold. |
+| `scripts/wakeword-wandb-pull` | Agent-side W&B reader. Use `system <run_id>` to pull W&B GPU/CPU/disk/network telemetry via `run.history(stream="system")` and align it to trainer phases before adding duplicate samplers. |
 | `scripts/runpod-seed-volume` | **Legacy** — one-time bootstrap fill from Kaggle. Kept for disaster-recovery from the local `_volume-mirror/`; no longer the routine path. |
 
 ## Retraining — summary chain
@@ -67,6 +68,7 @@ Full command sequence with explanation: [`RETRAINING.md`](RETRAINING.md). Read t
 - **The container ALWAYS exits 0** (entrypoint catches BaseException, writes FAILURE sentinel, returns). RunPod auto-restarts on non-zero exit, which silently burns $/hr on crash loops. Communicate failure via the sentinel under `out/<run_id>/`, never via exit status.
 - **Don't reach for SSH/SCP for moving files between local and the volume.** Direct-TCP SSH on RunPod is documented-flaky and the proxy SSH doesn't support SCP. Use the S3-compatible API (`s3api-<dc>.runpod.io/`) — `wakeword-volume-bump`, `wakeword-volume-snapshot`, and `runpod-train`'s artifact pull all use it.
 - **`target_recall` and `target_accuracy`** are dead keys in upstream's `train.py` — never read. Don't waste time tuning them.
+- **For runtime investigations, pull W&B system telemetry first.** `scripts/wakeword-wandb-pull system <run_id>` downloads the W&B system-metrics stream (`run.history(stream="system")`) to `var/wake-word/wandb-pulls/<run_id>/` and phase-aligns it with `output.log`. Use that before adding duplicate `nvidia-smi` / CPU / disk samplers.
 
 ## Validation set
 

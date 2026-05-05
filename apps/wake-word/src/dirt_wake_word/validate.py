@@ -8,13 +8,15 @@ gets pulled back alongside the model.
 from __future__ import annotations
 
 import sys
-import wave
+import time
 from pathlib import Path
 
-import numpy as np
-from openwakeword.model import Model
-
 from .config import TARGET_WORD
+from .real_audio_score import (
+    precision_recall_f1,
+    prepare_streaming_windows,
+    score_prepared_windows,
+)
 
 
 def validate_against_real_set(
@@ -28,23 +30,30 @@ def validate_against_real_set(
         print("validate: no ONNX produced; skipping", file=sys.stderr)
         return
 
-    chunk = 1280  # 80 ms at 16 kHz
-    model = Model(wakeword_models=[str(onnx_path)], inference_framework="onnx")
-    name = next(iter(model.models.keys()))
-
-    def peak(wav_path: Path) -> float:
-        with wave.open(str(wav_path), "rb") as w:
-            wav = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16)
-        model.reset()
-        p = 0.0
-        for start in range(0, len(wav) - chunk + 1, chunk):
-            s = float(model.predict(wav[start : start + chunk])[name])
-            if s > p:
-                p = s
-        return p
-
-    good = [peak(p) for p in sorted(expected_inputs["validation_good"].glob("*.wav"))]
-    bad = [peak(p) for p in sorted(expected_inputs["validation_bad"].glob("*.wav"))]
+    t0 = time.perf_counter()
+    good_windows = prepare_streaming_windows(
+        sorted(expected_inputs["validation_good"].glob("*.wav"))
+    )
+    bad_windows = prepare_streaming_windows(
+        sorted(expected_inputs["validation_bad"].glob("*.wav"))
+    )
+    good, good_score_telemetry = score_prepared_windows(onnx_path, good_windows)
+    bad, bad_score_telemetry = score_prepared_windows(onnx_path, bad_windows)
+    print(
+        "=== validation_score_telemetry: "
+        f"good_windows={good_windows.telemetry['windows']} "
+        f"good_preprocessor_s={good_windows.telemetry['preprocessor_s']:.3f} "
+        f"good_score_s={good_score_telemetry['inference_s']:.3f} "
+        f"bad_windows={bad_windows.telemetry['windows']} "
+        f"bad_preprocessor_s={bad_windows.telemetry['preprocessor_s']:.3f} "
+        f"bad_score_s={bad_score_telemetry['inference_s']:.3f} "
+        f"provider={good_score_telemetry['provider']} "
+        f"batchable={good_score_telemetry['batchable']} "
+        f"original_batch_dim={good_score_telemetry['original_batch_dim']} "
+        f"batch_size={good_score_telemetry['batch_size']} "
+        f"total_s={time.perf_counter() - t0:.3f} ===",
+        flush=True,
+    )
 
     lines = [
         "VALIDATION REPORT (real audio)",
@@ -57,15 +66,7 @@ def validate_against_real_set(
         "-" * 50,
     ]
     for t in (0.30, 0.40, 0.50, 0.60, 0.70):
-        tp = sum(1 for s in good if s >= t)
-        fp = sum(1 for s in bad if s >= t)
-        recall = tp / len(good) if good else 0.0
-        precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-        f1 = (
-            2 * precision * recall / (precision + recall)
-            if (precision + recall) > 0
-            else 0.0
-        )
+        _, fp, recall, precision, f1 = precision_recall_f1(good, bad, threshold=t)
         lines.append(
             f"  {t:>5.2f} | {recall:>7.1%} | {fp:>2}/{len(bad):<3}  | {precision:>9.1%} | {f1:>.3f}"
         )

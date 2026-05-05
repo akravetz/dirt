@@ -4,7 +4,7 @@ type: breeding
 sources: []
 related: [wiki/concepts/oregon-breeding-group.md, wiki/concepts/anthocyanin.md, wiki/concepts/cannabis-genomics.md, wiki/breeding/veg-tent-layout.md, wiki/breeding/bill-of-materials.md, wiki/breeding/feminized-production.md, wiki/breeding/family-selection.md, wiki/decisions/2026-04-26-breeding-program-launch.md, wiki/decisions/2026-05-02-purple-stabilization-strategy.md]
 created: 2026-04-26
-updated: 2026-05-02
+updated: 2026-05-05
 ---
 
 # Breeding Program
@@ -25,7 +25,7 @@ What we are explicitly **not** doing: commercial-scale production or broad BS-li
 
 The program runs as two physically separated tracks because pollen contamination of the main flower tent would destroy the smokable harvest:
 
-- **Track A — pollen production.** Pop all 10 SBxBS01 *regulars* now. Sex at ~3–4 weeks. Cull females, isolate surviving males in the separate room (closed door). Flip 12/12 immediately, evaluate (see [male-evaluation.md](male-evaluation.md)), collect pollen, freeze. Total time germ → frozen pollen: ~7–8 weeks. Track A is the *speed track*. Current status: regulars were germinated around 2026-04-28 and are seedlings under a humidity dome as of 2026-05-02.
+- **Track A — pollen production.** Pop all 10 SBxBS01 *regulars* now. Sex at ~3–4 weeks. Cull females, isolate surviving males in the separate room (closed door). Flip 12/12 immediately, evaluate (see [male-evaluation.md](male-evaluation.md)), collect pollen, freeze. Total time germ → frozen pollen: ~7–8 weeks. Track A is the *speed track*. Current status: regulars were germinated around 2026-04-28 and shifted into 1-gal containers on 2026-05-05 for active grow-out.
 - **Track B — phenotype hunt / stabilization selection.** Pop the next candidate population after the current grow harvests. Veg small, clone promising females before flip, flower out, score against the target, and preserve only plants/families that pass the purple+sativa gates. Track B is the *selection track*.
 
 Once a keeper is identified, revive her clone, flower her in isolation, and pollinate one or two branches with banked pollen from Track A. The resulting F2 seed becomes the first progeny-tested stabilization population. Feminized seed production comes later, after a family proves it can pass the target forward at high percentage.

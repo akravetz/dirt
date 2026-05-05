@@ -38,9 +38,9 @@ def _link(src: Path, dst: Path) -> None:
 def restore_tts_cache_if_mounted(out_dir: Path) -> bool:
     """Return True if the cache was used; False if Piper still needs to run."""
     cache_mode = os.environ.get(TTS_CACHE_MODE_ENV, "restore").strip().lower()
-    if cache_mode not in {"restore", "ignore"}:
+    if cache_mode not in {"restore", "ignore", "force"}:
         sys.exit(
-            f"FATAL: {TTS_CACHE_MODE_ENV} must be one of restore, ignore; "
+            f"FATAL: {TTS_CACHE_MODE_ENV} must be one of restore, ignore, force; "
             f"got {cache_mode!r}"
         )
     if cache_mode == "ignore":
@@ -66,11 +66,20 @@ def restore_tts_cache_if_mounted(out_dir: Path) -> bool:
     }
     actual = json.loads(cache_key_path.read_text())
     if actual != expected:
-        sys.exit(
-            f"FATAL: TTS cache key mismatch.\n  cache: {actual}\n  run:   {expected}\n"
-            "Clear /workspace/input/dirt-wakeword-tts-cache/ on the volume "
-            "(SSH to a pod and `rm -rf`, or re-seed) so the next run rebuilds it."
-        )
+        if cache_mode == "force":
+            print(
+                "WARNING: TTS cache key mismatch but "
+                f"{TTS_CACHE_MODE_ENV}=force; restoring cache anyway.\n"
+                f"  cache: {actual}\n  run:   {expected}",
+                flush=True,
+            )
+        else:
+            sys.exit(
+                f"FATAL: TTS cache key mismatch.\n"
+                f"  cache: {actual}\n  run:   {expected}\n"
+                "Clear /workspace/input/dirt-wakeword-tts-cache/ on the volume "
+                "(SSH to a pod and `rm -rf`, or re-seed) so the next run rebuilds it."
+            )
 
     # If cache-key matches but subset dirs are missing/empty, the cache is
     # corrupt-partial. Hard-fail rather than silently falling through to

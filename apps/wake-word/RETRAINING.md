@@ -43,6 +43,8 @@ uv run python apps/wake-word/validation/live-test.py \
 #    W&B run, pod id, wall, what changed, training data, training config,
 #    validation results table, per-phase wall, operational notes). If you
 #    deploy, also flip the previous deployed entry's `**Status:**` to `superseded`.
+#    If runtime is anomalous, pull W&B system telemetry first:
+#    `scripts/wakeword-wandb-pull system <run_id>`.
 #    Skipping this step means the next agent has to dig through git/W&B/S3 to
 #    reconstruct what was run and why — don't make them.
 

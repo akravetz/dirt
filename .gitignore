@@ -1,5 +1,7 @@
 # Environment
 .env
+.env.prod
+.railway-bucket-credentials.tmp
 .venv/
 .venv.pre-phase0/
 __pycache__/

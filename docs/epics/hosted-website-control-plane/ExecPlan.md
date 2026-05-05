@@ -21,6 +21,8 @@ The first observable result should be deliberately small: a hosted dashboard can
 - [x] (2026-05-04T17:40:46Z) Reviewed the completed multi-tent local controller plan and ERD at `docs/epics/multi-tent-controller/ExecPlan.md` and `docs/epics/multi-tent-controller/DataModelERD.md`.
 - [x] (2026-05-04T17:40:46Z) Inspected current local API, auth, command, configuration, contract, and frontend structure under `apps/shared/`, `apps/web/`, `contracts/`, and `web-ui/`.
 - [x] (2026-05-04T17:40:46Z) Created this Markdown ExecPlan as the canonical implementation plan for the hosted control-plane epic.
+- [x] (2026-05-05T02:15:31Z) Completed Railway prework: installed Railway CLI 4.45.0, created Railway project `dirt-control-plane`, added `control-plane-api`, `web-ui`, `Postgres`, and `dirt-assets`, generated custom-domain requirements for `sirius-forge.com` and `api.sirius-forge.com`, wrote local secrets to ignored `.env.prod`, and added placeholders to `.env.example`.
+- [x] (2026-05-05T02:50:25Z) Deployed temporary placeholder containers to `control-plane-api` and `web-ui` to complete Railway public-networking setup; both custom domains now serve valid certificates and 200 responses.
 - [ ] Milestone 1: decide and document hosted platform, auth, database, object storage, and deployment boundaries.
 - [ ] Milestone 2: implement the cloud control-plane schema and thin hosted API locally, with tests.
 - [ ] Milestone 3: implement local outbound gateway sync for read-only catalog, latest state, freshness, rollups, and assets.
@@ -49,6 +51,9 @@ The first observable result should be deliberately small: a hosted dashboard can
 - Observation: Vercel Cron is not the right mechanism for frequent local sync on Hobby plans. The local gateway should poll outbound from this box instead.
   Evidence: Vercel Cron docs currently list Hobby cron minimum interval as once per day and Pro/Enterprise as once per minute: https://vercel.com/docs/cron-jobs/usage-and-pricing.
 
+- Observation: Railway custom-domain TLS did not fully work for an offline empty service. DNS and Railway verification could report valid while HTTPS still served the fallback `*.up.railway.app` certificate for `api.sirius-forge.com`. Deploying a tiny service that listens on `0.0.0.0:$PORT` fixed certificate presentation and routing.
+  Evidence: Before placeholder deployment, `openssl s_client -servername api.sirius-forge.com` showed `CN=*.up.railway.app`; after deployment, it showed `CN=api.sirius-forge.com` and `curl https://api.sirius-forge.com/healthz` returned HTTP 200.
+
 
 ## Decision Log
 
@@ -76,10 +81,50 @@ The first observable result should be deliberately small: a hosted dashboard can
   Rationale: Dirt has one site and low data volume. HTTP polling from the gateway plus event-shaped records is simpler to debug and works through ordinary outbound connectivity. Realtime transports can be added later if measured latency requires them.
   Date/Author: 2026-05-04 / Codex
 
+- Decision: Use Railway as the single hosted provider for V1.
+  Rationale: Railway can host a long-running FastAPI service, the React/Vite frontend, managed Postgres, S3-compatible object storage buckets, service environment variables, generated/custom domains, logs, and CLI-managed infrastructure in one project. This fits the preferred long-running backend shape better than forcing the cloud API into Vercel Functions.
+  Date/Author: 2026-05-05 / Codex
+
+- Decision: Use `sirius-forge.com` for the hosted UI and `api.sirius-forge.com` for the cloud API.
+  Rationale: The user owns `sirius-forge.com` in Cloudflare and asked for the UI on the apex domain with the API on the `api` subdomain.
+  Date/Author: 2026-05-05 / Codex
+
+- Decision: Use single-user FastAPI session auth for the hosted browser UI in V1.
+  Rationale: Railway does not provide native app-auth for this use case, and adding Cloudflare Access would make auth depend on another provider. A hardened single-user session model keeps the public API self-contained while matching Dirt's current single-operator reality.
+  Date/Author: 2026-05-05 / Codex
+
+- Decision: Keep `api.sirius-forge.com` DNS-only in Cloudflare and allow the apex UI domain to remain proxied.
+  Rationale: DNS-only keeps Railway domain status clean and avoids Cloudflare challenge, cache, WAF, or request-limit surprises for local gateway machine-to-machine traffic. The UI benefits more from Cloudflare proxying and is less sensitive to API-client semantics.
+  Date/Author: 2026-05-05 / Codex
+
+- Decision: Store cloud assets privately and require signed URL access.
+  Rationale: Grow photos and future video clips are private operational data. Public buckets or unauthenticated asset URLs are not acceptable for V1.
+  Date/Author: 2026-05-05 / Codex
+
+- Decision: Retain synced cloud assets for 30 days in V1.
+  Rationale: The hosted UI needs recent visual history without creating unbounded storage growth. Thirty days matches the longest metric rollup window and is simple to explain operationally.
+  Date/Author: 2026-05-05 / Codex
+
+- Decision: Use explicit Atlas CLI migrations for the cloud database, not app-start DDL.
+  Rationale: This matches Dirt's current schema-management architecture. Production schema changes should be generated, reviewed, and applied intentionally before deploying app code that depends on them.
+  Date/Author: 2026-05-05 / Codex
+
+- Decision: Implement the local gateway as a separate Python service with local Postgres durability tables.
+  Rationale: The gateway needs durable retry/outbox semantics, sync cursors, and restart safety, but cloud sync must not share a process lifecycle with hardware automation. Local Postgres gives transactional, inspectable durability without coupling to `dirt-hwd`.
+  Date/Author: 2026-05-05 / Codex
+
+- Decision: Sync latest metrics plus 30 days of rollups, not raw sensor rows, to cloud in V1.
+  Rationale: The hosted UI needs current state and trend visibility, not a full operational DB mirror. Rollups keep cloud storage/query cost low while supporting useful ranges: recent high resolution, 24-hour, 7-day, and 30-day trends.
+  Date/Author: 2026-05-05 / Codex
+
+- Decision: Design gateway and cloud API tests around dependency injection, not monkey patching production modules.
+  Rationale: Monkey patching production modules hides poor seams and violates existing repository invariant expectations. Gateway code should accept injected clients, clocks, sleepers/backoff policies, and service bundles so tests use fakes and test databases cleanly.
+  Date/Author: 2026-05-05 / Codex
+
 
 ## Outcomes & Retrospective
 
-No implementation milestones have been completed yet. At completion, this section must name the deployed frontend URL, hosted API URL, database/storage providers, gateway systemd unit status, validation commands run, and any intentionally deferred controls.
+Railway infrastructure prework is complete, and both app services are running temporary placeholder deployments so public networking and TLS can stay warm until real code replaces them. The Railway project is `dirt-control-plane` (`4720b3f9-7e3b-461e-b44d-fbb9e349ed11`) in the `production` environment (`12ffb3c2-807b-4246-a7d0-f00466be68fe`). Services are `control-plane-api` (`15035b13-0995-4f81-b548-954b3e6aed29`), `web-ui` (`c0297625-b063-4897-ac59-98e76f5f2413`), `Postgres` (`fc7e0827-e834-48a1-901f-faf5b0595602`), and bucket `dirt-assets` (`40462f7f-4691-4b45-9b34-e961e28612b4`, region `iad`). Custom domains are verified and serving valid certificates.
 
 
 ## Context and Orientation
@@ -120,23 +165,27 @@ Terms used in this plan:
 
 Milestone 1: Platform, Auth, And Deployment Decisions.
 
-Create a short decision record in this ExecPlan before coding. Decide:
+Use the Railway prework as the baseline unless a later decision explicitly changes it. Confirm or revise:
 
-- whether the cloud API V1 runs as Vercel Python/FastAPI Functions, a separately hosted long-lived FastAPI service, or a user-approved hybrid;
-- which managed Postgres provider stores cloud state;
-- which object storage provider stores snapshots and future video clips;
-- which browser auth provider protects the hosted website;
-- which non-browser credential model authenticates the local gateway;
-- which environments exist, at minimum local dev, preview, and production;
-- which public domain names and CORS origins are allowed.
+- cloud API V1 runs as long-running FastAPI on Railway service `control-plane-api`;
+- hosted UI runs on Railway service `web-ui`;
+- cloud state lives in Railway `Postgres`;
+- snapshots and future video clips live in Railway S3-compatible bucket `dirt-assets`;
+- browser auth uses single-user FastAPI session auth with secure httponly cookies, `DIRT_CLOUD_ADMIN_USERNAME`, a password hash, and `DIRT_CLOUD_SESSION_SECRET`;
+- non-browser local gateway auth uses `DIRT_CLOUD_GATEWAY_TOKEN` locally and `DIRT_CLOUD_GATEWAY_TOKEN_SHA256` in the cloud API service environment;
+- production domains are `https://sirius-forge.com` and `https://api.sirius-forge.com`;
+- preview/staging environments are deferred until the production-shaped skeleton deploys cleanly;
+- Cloudflare DNS posture is apex UI proxied, API DNS-only.
 
-Recommended default unless new information changes it: Vercel hosts the `web-ui` production build, and the first prototype uses Vercel Python/FastAPI only for the thin cloud API if package size and cold-start behavior are acceptable. The local gateway performs frequent sync, so Vercel Cron is not required. If the Vercel Python beta runtime or bundle shape creates friction, switch the cloud API to a small long-lived FastAPI deployment without changing the schema or browser contract.
+The Railway CLI is installed locally as `railway 4.45.0`. Source `.env` for `RAILWAY_API_TOKEN`, not `RAILWAY_TOKEN`, when running account-level infrastructure commands. Source ignored `.env.prod` for generated production resource IDs and secrets. Do not print either token or generated secrets in terminal output.
 
 Milestone 2: Cloud Control-Plane Schema And API.
 
-Add a new Python workspace package, tentatively `apps/control-plane/` with import package `dirt_control`. Do not reuse `dirt_web.app.create_app()` for the public API. The new package owns public auth dependencies, gateway auth dependencies, cloud settings, cloud SQLModel metadata, and the cloud FastAPI app.
+Add a new Python workspace package at `apps/control-plane/` with import package `dirt_control`. Do not reuse `dirt_web.app.create_app()` for the public API. The new package owns public auth dependencies, gateway auth dependencies, cloud settings, cloud SQLModel metadata, and the cloud FastAPI app.
 
-Add a separate cloud migration path. Do not mix cloud tables into the local `migrations/` directory unless the implementer explicitly records why that is safer. A clean shape is:
+Add a separate cloud migration path. Do not mix cloud tables into the local `migrations/` directory. Cloud migrations must use a dedicated Atlas env and migration directory, and must be applied explicitly through the CLI before deploying app code that depends on the new schema. The cloud API startup path may check connectivity and expected schema version, but it must not run DDL.
+
+A clean shape is:
 
 - `apps/control-plane/src/dirt_control/models/` for cloud SQLModel classes;
 - `apps/control-plane/src/dirt_control/db.py` for cloud engine/session setup;
@@ -156,6 +205,8 @@ Cloud tables should be small and purpose-built, not a raw copy of local Postgres
 - `cloud_command`: durable command intent with `command_id`, `idempotency_key`, target scope, `command_type`, JSON payload, `requested_by`, status, `queued_at`, `expires_at`, claim fields, result/error fields, and lifecycle timestamps.
 - `cloud_audit_event`: append-only auth, sync, command, rejection, and admin events.
 - `gateway_credential`: hashed or otherwise non-plaintext gateway credential metadata, last used time, allowed site scope, and rotation state.
+
+Cloud asset bytes must live in the private Railway `dirt-assets` bucket. Browser access to assets must go through short-lived signed URLs created by the cloud API. V1 must include a 30-day asset retention/lifecycle path and validation that unauthenticated users cannot fetch asset bytes or signed URLs.
 
 Expose browser-facing API routes for read-only state first:
 
@@ -181,7 +232,7 @@ Expose gateway-facing routes under a clear prefix such as `/api/gateway/v1/*`:
 
 Milestone 3: Local Gateway Read-Only Sync.
 
-Add a local gateway service as a separate app, tentatively `apps/gateway/` with import package `dirt_gateway`. It should use existing `dirt_shared` services to read local state and should not import hardware-loop modules from `dirt_hwd`.
+Add a local gateway service as a separate app at `apps/gateway/` with import package `dirt_gateway`. It should use existing `dirt_shared` services to read local state and should not import hardware-loop modules from `dirt_hwd`.
 
 The gateway should have explicit configuration in `apps/shared/src/dirt_shared/config.py` or a new gateway settings module:
 
@@ -199,15 +250,19 @@ Add local durability for sync results. Prefer local Postgres tables over ad hoc 
 - `cloud_sync_cursor`: latest synced catalog generation, latest metric timestamp per capability or rollup bucket, latest asset ID, and latest command claim cursor.
 - `cloud_outbox`: event type, idempotency key, payload JSON, status, attempt count, next retry time, last error, and timestamps.
 
+These tables solve the gateway's core reliability problem: cloud writes are side effects over an unreliable network. A gateway restart or Railway outage must not lose command results, asset metadata, rollup uploads, or catalog changes. The gateway writes durable local outbox rows before delivery, retries with backoff, and marks rows delivered only after the cloud API acknowledges the idempotency key.
+
 Read-only sync responsibilities:
 
 - upsert catalog rows for `homebox`, `main`, `breeding`, zones, devices, and capabilities;
 - push latest current metrics and expected stale windows;
-- push rollup buckets for dashboard ranges rather than raw high-volume telemetry;
+- push rollup buckets for dashboard ranges rather than raw high-volume telemetry; V1 windows are latest/current every sync tick, high-resolution recent buckets, 5-minute buckets for 24 hours, hourly buckets for 7 days, and 4-hour buckets for 30 days;
 - push gateway heartbeat and backlog depth;
 - upload latest snapshot assets directly to object storage, then report `cloud_asset` metadata;
 - retry idempotently when the internet or cloud API is unavailable;
 - expose structured logs through `log_event()` for a new `cloud_gateway` stream and use the test isolation pattern from `docs/observability.md`.
+
+Gateway cadence defaults are heartbeat every 30 seconds, latest metrics every 30 seconds, command poll every 5 seconds, rollup sync every 1-5 minutes, and initial backfill for the last 30 days. The gateway must be testable without monkey patching: inject the cloud client, clock, sleeper/backoff policy, and local service bundle by constructor.
 
 Milestone 4: Hosted Read-Only Frontend.
 
@@ -220,9 +275,9 @@ Make `web-ui` support both same-origin local mode and hosted API mode. Before ed
 
 Expected frontend changes:
 
-- add a supported API base URL environment variable, likely `VITE_DIRT_API_BASE_URL`;
+- use `VITE_DIRT_API_BASE_URL` as the supported hosted API base URL environment variable;
 - keep same-origin local development working for `dirt-web`;
-- add hosted session/bootstrap handling after the auth decision from Milestone 1;
+- add hosted session/bootstrap handling for cloud FastAPI single-user session auth;
 - add site/tent selector state even if only `homebox/main` has live data at first;
 - render gateway last-seen, per-metric source time, stale/offline state, and cloud sync backlog;
 - ensure read-only hosted mode hides or disables all actuator controls until command Milestone 5 is complete;
@@ -235,7 +290,7 @@ Add browser-facing cloud command routes:
 
 - `POST /api/commands` with an idempotency key and target scope;
 - `GET /api/commands/{command_id}`;
-- optionally `GET /api/commands?status=...` for recent command history.
+- `GET /api/commands?status=...` for recent command history.
 
 Define the first allowed cloud command types:
 
@@ -253,6 +308,8 @@ The local gateway command loop must:
 - report `running`, `succeeded`, `failed`, `rejected`, or `expired` back to cloud;
 - never call humidifier, fan, or lights control paths in this milestone.
 
+PTZ commands expire after 60 seconds in V1. If the gateway does not claim a command before expiration, the cloud API or gateway must mark it `expired` and the local box must not execute it later.
+
 The hosted live page should show command lifecycle states clearly. If the gateway is offline or stale, PTZ buttons should be disabled and the UI should not imply live control.
 
 Milestone 6: Operations, Rollout, And Recovery.
@@ -260,8 +317,10 @@ Milestone 6: Operations, Rollout, And Recovery.
 Add operator docs and service units:
 
 - `systemd/dirt-gateway.service` or equivalent if the gateway is a long-running process;
-- install wiring in `scripts/install-systemd` if appropriate;
-- deployment instructions for Vercel project setup, cloud API settings, cloud DB migrations, object storage, and gateway secrets;
+- install wiring in `scripts/install-systemd`;
+- a deploy script, expected at `scripts/deploy-control-plane`, that applies cloud migrations through Atlas and deploys `apps/control-plane/` plus `web-ui/` to the existing Railway services, replacing the placeholder deployments;
+- update `AGENTS.md` and `docs/commands.md` so future agents know the supported Railway deploy command and required docs to read before running it;
+- deployment instructions for Railway project setup, cloud API settings, cloud DB migrations, object storage, and gateway secrets;
 - secret rotation steps for gateway credentials and browser auth;
 - rollback instructions for disabling cloud commands while leaving read-only sync active;
 - smoke-test scripts or documented commands for local gateway dry run, cloud API health, and hosted frontend smoke testing.
@@ -343,6 +402,7 @@ Milestone 3 is accepted when the gateway can run locally in dry-run mode and the
 - offline cloud API failures are retried without losing command results or asset metadata;
 - local hardware loops continue if the gateway process is stopped;
 - `cloud_gateway` logs are isolated in tests and useful in production.
+- the gateway can survive a simulated cloud outage: local outbox rows remain pending, later delivery succeeds without duplicate cloud records, and no hardware service restarts are required.
 
 Milestone 4 is accepted when a hosted or preview deployment shows:
 
@@ -351,6 +411,7 @@ Milestone 4 is accepted when a hosted or preview deployment shows:
 - breeding tent appears as an empty or inactive scoped tent without breaking main-tent views;
 - stale/offline state is visible when the gateway is stopped;
 - actuator controls are hidden or disabled in read-only mode;
+- assets are private: unauthenticated users cannot fetch signed URLs or asset bytes, and signed URLs expire;
 - `pnpm --dir web-ui typecheck`, `lint`, `test`, and `build` pass.
 
 Milestone 5 is accepted when:
@@ -367,6 +428,8 @@ Milestone 6 is accepted when:
 - deployment and rollback docs are complete enough for a future agent to repeat;
 - gateway systemd service can start, stop, restart, and report status;
 - cloud API health, gateway heartbeat, sync backlog, asset failures, and command failures are observable;
+- 30-day cloud asset retention/lifecycle behavior is implemented and documented;
+- `scripts/deploy-control-plane` is documented in `AGENTS.md` and `docs/commands.md`;
 - `uv run pytest -q` and frontend validation pass, or any skipped command is recorded with a reason.
 
 
@@ -376,7 +439,7 @@ Catalog, latest metric, rollup, asset metadata, heartbeat, command result, and a
 
 The local gateway must be safe to restart at any point. On startup it reads `cloud_sync_cursor` and `cloud_outbox`, resumes retries, and never re-executes a terminal cloud command. If the cloud API is offline, the gateway logs the failure, backs off, and keeps local hardware automation untouched.
 
-Cloud command expiration is mandatory. A stale command must be marked `expired` or `rejected`, not executed late after network recovery.
+Cloud command expiration is mandatory. A stale command must be marked `expired` or `rejected`, not executed late after network recovery. PTZ command expiration is 60 seconds in V1.
 
 If hosted command behavior is suspect, the first rollback is configuration-only: disable command creation or command claiming while leaving read-only sync enabled. The second rollback is to stop `dirt-gateway.service`; local `dirt-hwd` and `dirt-web` continue to run.
 
@@ -400,6 +463,36 @@ Current local implementation facts:
 - `apps/web/src/dirt_web/app.py` mounts MCP and local SPA fallback and should not be repurposed wholesale as a public cloud app.
 - `web-ui/src/api-client/client.ts` already centralizes API client construction, which is the right place to support hosted base URLs.
 
+Railway prework completed on 2026-05-05:
+
+- CLI: `railway 4.45.0`.
+- Project: `dirt-control-plane` (`4720b3f9-7e3b-461e-b44d-fbb9e349ed11`).
+- Environment: `production` (`12ffb3c2-807b-4246-a7d0-f00466be68fe`).
+- API service: `control-plane-api` (`15035b13-0995-4f81-b548-954b3e6aed29`), currently running a temporary placeholder deployment (`bafed902-bb4a-4598-bf53-63e84f9566b4`) until real cloud API code replaces it.
+- UI service: `web-ui` (`c0297625-b063-4897-ac59-98e76f5f2413`), currently running a temporary placeholder deployment (`f872e500-166f-489c-a360-4ae2a6224cff`) until real `web-ui` deployment replaces it.
+- Database service: `Postgres` (`fc7e0827-e834-48a1-901f-faf5b0595602`), online.
+- Asset bucket: `dirt-assets` (`40462f7f-4691-4b45-9b34-e961e28612b4`), region `iad`.
+- Ignored local secret file: `.env.prod`.
+- Railway service variables were set for `control-plane-api`: `DATABASE_URL` references `${{Postgres.DATABASE_URL}}`; cloud URL/origin/site/gateway/bucket/S3/session variables were populated from `.env.prod`.
+- Railway service variable was set for `web-ui`: `VITE_DIRT_API_BASE_URL=https://api.sirius-forge.com`.
+
+Cloudflare DNS records required by Railway:
+
+- UI apex route: create a `CNAME` for `sirius-forge.com` / `@` pointing to `hvyt0js8.up.railway.app`.
+- UI ownership verification: create a `TXT` record named `_railway-verify` with value `railway-verify=a3fe925c1d1dfc6a0a875811ab7985c3caf6e563bd654a11b4fb05a62e324cba`.
+- API route: create a `CNAME` for `api.sirius-forge.com` / `api` pointing to `lvp8v3hg.up.railway.app`.
+- API ownership verification: create a `TXT` record named `_railway-verify.api` with value `railway-verify=97c22807ceeaec44f0e0d9470a72b043284fb42c04c9b176daa0eb5e490ff860`.
+
+In Cloudflare, set these records to DNS-only while Railway validates and provisions certificates. If the apex cannot be represented as a literal CNAME in the Cloudflare UI, use Cloudflare's CNAME-flattened `@` record equivalent.
+
+Post-placeholder deployment checks on 2026-05-05:
+
+- `curl https://api.sirius-forge.com/healthz` returned HTTP 200 with `{"service": "control-plane-api", "status": "placeholder", "ok": true}`.
+- `openssl s_client -servername api.sirius-forge.com -connect api.sirius-forge.com:443` showed `CN=api.sirius-forge.com`.
+- `curl https://sirius-forge.com/healthz` returned HTTP 200 with the Sirius Forge placeholder HTML.
+- `openssl s_client -servername sirius-forge.com -connect sirius-forge.com:443` showed `CN=sirius-forge.com` with SANs for `sirius-forge.com` and `*.sirius-forge.com`.
+- After Cloudflare proxy was disabled for `api.sirius-forge.com`, Railway reported `DNS_RECORD_STATUS_PROPAGATED` for the API domain with current value `lvp8v3hg.up.railway.app`.
+
 
 ## Interfaces and Dependencies
 
@@ -420,25 +513,32 @@ New or changed repository interfaces expected by this plan:
 - `apps/gateway/tests/`
 - local sync durability models, either in `apps/shared/src/dirt_shared/models/` or a clearly scoped gateway model module
 - `systemd/dirt-gateway.service`
+- `scripts/deploy-control-plane`
 - `contracts/cloud-control-plane-v1.yaml` or an explicitly documented extension of `contracts/webapp-v1.yaml`
 - generated Python/TypeScript clients for any new browser-facing API contract
 - `web-ui` support for `VITE_DIRT_API_BASE_URL` or the final chosen equivalent
 
-External dependencies to decide in Milestone 1:
+External dependencies selected by prework:
 
-- hosted frontend: Vercel unless explicitly changed;
-- cloud API runtime: Vercel Python/FastAPI Functions or a long-lived FastAPI host;
-- managed Postgres provider;
-- object storage provider;
-- browser auth provider or deployment protection strategy;
-- gateway credential storage and rotation mechanism.
+- hosted frontend: Railway service `web-ui`;
+- cloud API runtime: Railway service `control-plane-api` running long-lived FastAPI;
+- managed Postgres provider: Railway `Postgres`;
+- object storage provider: Railway `dirt-assets` bucket;
+- browser auth provider: cloud FastAPI single-user session auth;
+- gateway credential storage and rotation mechanism: generated token in ignored local `.env.prod`, SHA-256 digest in Railway `control-plane-api` variables for V1.
 
-Runtime environment variables likely needed:
+Runtime environment variables:
 
 - `DIRT_CLOUD_API_BASE_URL`
 - `DIRT_CLOUD_DATABASE_URL`
-- `DIRT_CLOUD_OBJECT_STORAGE_*` provider-specific settings
-- `DIRT_CLOUD_AUTH_*` provider-specific browser auth settings
+- `DIRT_CLOUD_ADMIN_USERNAME`
+- `DIRT_CLOUD_ADMIN_PASSWORD_HASH`
+- `DIRT_CLOUD_ALLOWED_ORIGINS`
+- `DIRT_CLOUD_BUCKET_NAME`
+- `DIRT_CLOUD_S3_ENDPOINT`
+- `DIRT_CLOUD_S3_REGION`
+- `DIRT_CLOUD_S3_ACCESS_KEY_ID`
+- `DIRT_CLOUD_S3_SECRET_ACCESS_KEY`
 - `DIRT_CLOUD_GATEWAY_TOKEN`
 - `DIRT_CLOUD_GATEWAY_ID`
 - `DIRT_CLOUD_SITE_ID`

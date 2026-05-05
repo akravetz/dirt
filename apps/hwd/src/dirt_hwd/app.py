@@ -95,6 +95,7 @@ def _default_background_services(
             readings=core.readings,
             grow=core.grow,
             clock=core.clock,
+            fan_trim_config=settings.fan_trim(),
         ),
         LightsLoopService(
             settings.lights(),

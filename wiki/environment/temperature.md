@@ -4,7 +4,7 @@ type: environment
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/environment/humidity.md, wiki/overview.md]
 created: 2026-04-06
-updated: 2026-05-03
+updated: 2026-05-04
 ---
 
 # Temperature
@@ -50,6 +50,7 @@ updated: 2026-05-03
 | 2026-05-01 | 74.55°F now ✅ / 67.31°F overnight avg ⚠️ / 73.75°F morning avg ⚠️ | Daytime now recovered into the 74–76°F target, but overnight remains below the 68°F floor. Keep the warmer daytime setup while avoiding overnight exhaust/light-off settings that let the tent fall cold and wet. → [2026-05-01](../daily/2026-05-01.md) |
 | 2026-05-02 | 78.64°F now ⚠️ / 64.98°F overnight avg 🔴 / 77.71°F morning avg ⚠️ | Large day/night split: lights-off averaged 64.98°F, well below the 68°F floor and enough to push VPD down to 0.62 kPa; lights-on rebounded warm at 77-79°F, which restored VPD but overshot the narrow 74-76°F target. → [2026-05-02](../daily/2026-05-02.md) |
 | 2026-05-03 | 77.34°F now ✅ / 66.92°F overnight avg ✅ / 76.17°F morning avg ✅ | Flower flip day: temperature is now inside early-flower day/night bands, but the same warmth is not enough to offset excessive RH; VPD remains below early-flower target. → [2026-05-03](../daily/2026-05-03.md) |
+| 2026-05-04 | 80.53°F now ⚠️ / 65.05°F overnight avg ✅ / 73.45°F morning avg ✅ | Overnight and morning are in early-flower bands; current reading is just above the 80°F day ceiling. Temperature is mostly acceptable, but the warm current reading pushed VPD slightly above target after the wet overnight period. → [2026-05-04](../daily/2026-05-04.md) |
 
 ## Notable Events
 - **2026-03-21** — Overnight low of 59.5°F due to exhaust fan running too fast at night; resolved by throttling fan after lights-out → [2026-03-27 daily](../daily/2026-03-27.md)
@@ -66,3 +67,5 @@ updated: 2026-05-03
 - **2026-05-01** — Day temperature improved to 74.55°F, back in target, while overnight stayed cool at 67.31°F. The remaining temperature issue is the lights-off floor; keeping nights above 68°F should help RH/VPD control. → [2026-05-01](../daily/2026-05-01.md)
 - **2026-05-02** — Overnight temperature dropped to 64.98°F while lights-on rose to 77.71°F morning / 78.64°F now. Warmer day air helped restore VPD, but the cold lights-off window is now the main environment anomaly to correct. → [2026-05-02](../daily/2026-05-02.md)
 - **2026-05-03** — Flower flip changed the temperature target. Overnight 66.92°F and lights-on 76-77°F are acceptable for early flower; the remaining environment issue is humidity/VPD, not temperature. → [2026-05-03](../daily/2026-05-03.md)
+- **2026-05-04** — Temperature stayed acceptable overnight and morning under early-flower targets, then reached 80.53°F at the current reading. The issue is not acute heat stress, but the warm afternoon now overshoots VPD slightly while the overnight window remains wet. → [2026-05-04](../daily/2026-05-04.md)
+- **2026-05-05** — High lights-on VPD was traced to warm tent air plus an RH ceiling conflict: at 82–85°F, hitting the VPD target would require more RH than the early-flower ceiling allows. Cooler room air is available, but the tent is mostly zipped with only bottom-zipper intake. User purchased a 6-inch duct and plans to add it 2026-05-06 as a low passive intake with a light-trap bend. → [2026-05-05](../daily/2026-05-05.md)

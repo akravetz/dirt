@@ -20,7 +20,7 @@ from dirt_hwd.services.humidifier import (
     HumidifierLoopService,
     _plan_dispatch,
 )
-from dirt_shared.config import HumidifierConfig
+from dirt_shared.config import FanTrimConfig, HumidifierConfig
 from dirt_shared.services.grow_state import GrowContext, LightsState
 
 T0 = datetime(2026, 4, 27, 12, 0, 0, tzinfo=UTC)
@@ -53,6 +53,29 @@ def _config(**overrides) -> HumidifierConfig:
     return HumidifierConfig(**base)
 
 
+def _fan_trim_config(**overrides) -> FanTrimConfig:
+    base = dict(
+        base_url="http://fan-controller.local",
+        min_pct=15,
+        max_pct=70,
+        step_pct=5,
+        step_interval_s=300,
+        high_vpd_step_pct=10,
+        high_vpd_step_interval_s=180,
+        high_vpd_margin_kpa=0.05,
+        poll_interval=60,
+        sensor_stale_s=300,
+        drydown_minutes=60,
+        drydown_pct=45,
+        drydown_rh_buffer_pct=2.0,
+        recover_rh_buffer_pct=2.0,
+        recover_vpd_margin_kpa=0.05,
+        recover_hold_s=300,
+    )
+    base.update(overrides)
+    return FanTrimConfig(**base)
+
+
 # ============================================================
 # Fake services
 # ============================================================
@@ -65,9 +88,12 @@ class _Reading:
 
 
 class FakeReadings:
-    def __init__(self, vpd: float, rh: float, ts: datetime) -> None:
+    def __init__(
+        self, vpd: float, rh: float, ts: datetime, fan_pct: float | None = None
+    ) -> None:
         self.vpd = _Reading(vpd, ts)
         self.rh = _Reading(rh, ts)
+        self.fan = None if fan_pct is None else _Reading(fan_pct, ts)
         self.ingested: list[tuple[dict, Any, dict[str, Any]]] = []
         self.latest_calls: list[tuple[str, dict[str, Any]]] = []
 
@@ -77,6 +103,8 @@ class FakeReadings:
             return self.vpd
         if metric == "humidity_pct":
             return self.rh
+        if metric == "fan_duty_pct":
+            return self.fan
         return None
 
     async def ingest_reading(self, metrics, *, source, **kwargs):
@@ -182,6 +210,7 @@ def _build_loop(
     handler,
     *,
     clock=lambda: T0,
+    fan_trim_config: FanTrimConfig | None = None,
 ) -> HumidifierLoopService:
     transport = httpx.MockTransport(handler)
     return HumidifierLoopService(
@@ -190,6 +219,7 @@ def _build_loop(
         grow=grow,
         clock=clock,
         http_client_factory=lambda: httpx.AsyncClient(transport=transport, timeout=5.0),
+        fan_trim_config=fan_trim_config,
     )
 
 
@@ -374,6 +404,64 @@ async def test_loop_off_path_lights_off_outside_window_powers_off():
         "instance": "powerSwitch",
         "value": 0,
     }
+
+
+async def test_loop_allocator_turns_off_humidifier_when_fan_relief_first():
+    """When the fan is saturated, the allocator withholds PI mist demand and
+    tracks delivered humidifier output as OFF."""
+    cfg = _config()
+    readings = FakeReadings(vpd=1.7, rh=52.0, ts=T0, fan_pct=70.0)
+    grow = FakeGrow(_veg_lights_on())
+    stop_event = asyncio.Event()
+
+    fake = GoveeFake(
+        state_response={
+            "capabilities": [
+                {"instance": "online", "state": {"value": True}},
+                {
+                    "instance": "powerSwitch",
+                    "state": {"value": 1},
+                },  # ON — allocator should turn it off
+                {
+                    "instance": "workMode",
+                    "state": {"value": {"workMode": 1, "modeValue": 5}},
+                },
+            ]
+        },
+        stop_after_state=True,
+        stop_event=stop_event,
+    )
+    loop = _build_loop(
+        cfg,
+        readings,
+        grow,
+        fake.handler,
+        fan_trim_config=_fan_trim_config(),
+    )
+
+    await asyncio.wait_for(loop.run(stop_event), timeout=2.0)
+
+    paths = [r["path"] for r in fake.requests]
+    assert paths == ["/router/api/v1/device/state", "/router/api/v1/device/control"]
+    cap = fake.requests[1]["body"]["payload"]["capability"]
+    assert cap == {
+        "type": "devices.capabilities.on_off",
+        "instance": "powerSwitch",
+        "value": 0,
+    }
+    metrics, _source, _ingest_kwargs = readings.ingested[0]
+    assert metrics["humidifier_on"] == 0.0
+    assert metrics["humidifier_mist_level"] == 0.0
+    assert readings.latest_calls[-1] == (
+        "fan_duty_pct",
+        {
+            "site_id": "homebox",
+            "tent_id": "main",
+            "zone_id": "canopy",
+            "device_id": "fan-controller",
+            "capability_id": "fan_duty_pct",
+        },
+    )
 
 
 async def test_loop_offline_device_skips_control():

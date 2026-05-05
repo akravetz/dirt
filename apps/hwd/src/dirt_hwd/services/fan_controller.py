@@ -67,10 +67,18 @@ def _sensor_unavailable(
     return value is None or age_s is None or age_s > cfg.sensor_stale_s
 
 
-def _can_step(state: FanTrimState, now: datetime, cfg: FanTrimConfig) -> bool:
+def _can_step_after(
+    state: FanTrimState,
+    now: datetime,
+    interval_s: int,
+) -> bool:
     if state.last_change_ts is None:
         return True
-    return (now - state.last_change_ts).total_seconds() >= cfg.step_interval_s
+    return (now - state.last_change_ts).total_seconds() >= interval_s
+
+
+def _can_step(state: FanTrimState, now: datetime, cfg: FanTrimConfig) -> bool:
+    return _can_step_after(state, now, cfg.step_interval_s)
 
 
 def _changed(state: FanTrimState, now: datetime) -> FanTrimState:
@@ -89,7 +97,8 @@ def decide_fan_trim(
       2. Hold on missing/stale VPD or RH.
       3. Feedforward dry-down before lights-off: jump to the drydown floor.
       4. If RH is over ceiling or VPD is below floor, step fan up.
-      5. If recovered for long enough, step down toward the minimum.
+      5. If VPD is high and RH is not high, back off exhaust quickly.
+      6. If recovered for long enough, step down toward the minimum.
     """
     current = inp.current_pct
     clamped = _clamp_pct(current, cfg)
@@ -113,7 +122,7 @@ def decide_fan_trim(
     assert inp.vpd is not None  # noqa: S101 - narrowed by stale guard
     assert inp.rh is not None  # noqa: S101 - narrowed by stale guard
 
-    vpd_lo, _vpd_hi = inp.vpd_band
+    vpd_lo, vpd_hi = inp.vpd_band
     _rh_lo, rh_hi = inp.rh_band
 
     drydown_threshold = rh_hi - cfg.drydown_rh_buffer_pct
@@ -142,6 +151,20 @@ def decide_fan_trim(
         return FanTrimDecision(
             target_pct=_clamp_pct(current + cfg.step_pct, cfg),
             reason=reason,
+            new_state=_changed(state, inp.now),
+        )
+
+    vpd_too_high = inp.vpd > vpd_hi + cfg.high_vpd_margin_kpa
+    if vpd_too_high and inp.rh < rh_hi and current > cfg.min_pct:
+        if not _can_step_after(state, inp.now, cfg.high_vpd_step_interval_s):
+            return FanTrimDecision(
+                target_pct=current,
+                reason="hold_rate_limited",
+                new_state=replace(state, recover_since=None),
+            )
+        return FanTrimDecision(
+            target_pct=_clamp_pct(current - cfg.high_vpd_step_pct, cfg),
+            reason="trim_down_high_vpd",
             new_state=_changed(state, inp.now),
         )
 

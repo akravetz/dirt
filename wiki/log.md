@@ -829,3 +829,22 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - **Plant B moisture remains critical:** 95.51% now after 94.93% May 2 and 93.90% May 1; no obvious wilt, but keep/close the float valve and dry back before reopening.
 - **Root zones:** A stable at 60.74%; C remains saturated at 90.16%; D is high but easing at 86.66%.
 - Updated: `daily/2026-05-03.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-05-04] daily | Day 51 / Flower Day 1 — lights-on VPD recovered; B still saturated
+- Photos captured across 5 presets (overview, A, B, C, D). Canopy is full and crowded at/above the SCROG; A/D remain sativa-leaning tuck candidates, while B/C remain dense and compact.
+- **Environment improved but not solved:** RH dropped to 61-64% and morning VPD reached 1.12 kPa, but overnight VPD remains low at 0.76 kPa and the current reading slightly overshoots at 1.33 kPa.
+- **Plant B moisture remains critical:** 96.13% now after 95.51% May 3 and 94.93% May 2; dryback verification is urgent because the reading is still rising.
+- **Root zones:** A stable at 60.50%; C remains saturated at 90.20%; D is high but easing at 86.54%.
+- Updated: `daily/2026-05-04.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-05-05] manual update | Track A regular seedlings shifted to 1-gal containers
+- User-confirmed breeding update: the SBxBS01 regular seedlings for Track A were moved from propagation into 1-gal containers today.
+- Updated Track A status from humidity-dome seedling management to active grow-out for sexing and pollen production.
+- No photo or sensor snapshot was provided with this manual update.
+- Updated: `daily/2026-05-05.md`, `breeding/README.md`, `breeding/timeline.md`, `breeding/bill-of-materials.md`, `overview.md`, `index.md`.
+
+## [2026-05-05] manual update | 6-inch passive intake planned
+- User confirmed cooler room air is available outside the tent, but the tent is mostly zipped up with only limited intake through the bottom zipper.
+- User purchased a 6-inch duct and plans to add it 2026-05-06 as a low passive intake.
+- Filed the working hypothesis: lowering canopy/tent temperature with cooler intake air should reduce the VPD/RH conflict that is keeping the humidifier off under the early-flower RH ceiling. Duct should be installed with a bend/light trap because the grow is on 12/12.
+- Updated: `daily/2026-05-05.md`, `overview.md`, `environment/temperature.md`, `environment/humidity.md`.

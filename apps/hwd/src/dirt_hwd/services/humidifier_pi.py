@@ -209,3 +209,33 @@ def compute(cfg: PIConfig, state: PIState, inp: PIInput) -> PIOutput:
         i_term=i_term,
         reason=Reason.PI_ACTIVE,
     )
+
+
+def track_delivered_output(
+    cfg: PIConfig,
+    out: PIOutput,
+    *,
+    delivered_u: float,
+    delivered_plug_on: bool,
+) -> PIState:
+    """External-reset tracking for allocator-clipped humidifier output.
+
+    When a higher-level allocator withholds mist, the PI integrator must not
+    continue accumulating demand behind that block. For active PI ticks, set
+    the integrator to the value that would have produced the delivered output
+    for the current proportional term, subject to the normal clamp.
+    """
+    if out.reason is not Reason.PI_ACTIVE:
+        return out.new_state
+
+    delivered = max(0.0, min(100.0, delivered_u))
+    integral = delivered - out.p_term
+    if integral > cfg.integrator_clamp:
+        integral = cfg.integrator_clamp
+    elif integral < -cfg.integrator_clamp:
+        integral = -cfg.integrator_clamp
+    return replace(
+        out.new_state,
+        integral=integral,
+        plug_on_for_threshold=delivered_plug_on,
+    )

@@ -24,6 +24,12 @@ from datetime import UTC, datetime
 
 import httpx
 
+from dirt_hwd.services.environment_allocator import (
+    HumidifierAllocationConfig,
+    HumidifierAllocationInput,
+    HumidifierAllocationOutput,
+    allocate_humidifier_output,
+)
 from dirt_hwd.services.humidifier_dispatch import (
     DispatchConfig,
     DispatchOutput,
@@ -35,11 +41,12 @@ from dirt_hwd.services.humidifier_pi import (
     PIInput,
     PIOutput,
     PIState,
+    track_delivered_output,
 )
 from dirt_hwd.services.humidifier_pi import (
     compute as pi_compute,
 )
-from dirt_shared.config import HumidifierConfig
+from dirt_shared.config import FanTrimConfig, HumidifierConfig
 from dirt_shared.models.enums import SensorSource
 from dirt_shared.observability import log_event
 from dirt_shared.services.govee import (
@@ -241,6 +248,7 @@ class HumidifierLoopService:
         tent_id: str = DEFAULT_TENT_ID,
         canopy_device_id: str = "fan-controller",
         humidifier_device_id: str = "govee-h7142-main",
+        fan_trim_config: FanTrimConfig | None = None,
     ) -> None:
         self._config = config
         self._readings = readings
@@ -251,6 +259,17 @@ class HumidifierLoopService:
         self._zone_id = "canopy"
         self._canopy_device_id = canopy_device_id
         self._humidifier_device_id = humidifier_device_id
+        self._allocator_config = (
+            HumidifierAllocationConfig(
+                fan_floor_pct=fan_trim_config.min_pct,
+                fan_max_pct=fan_trim_config.max_pct,
+                fan_high_vpd_margin_kpa=fan_trim_config.high_vpd_margin_kpa,
+                fan_sensor_stale_s=fan_trim_config.sensor_stale_s,
+                rh_reenable_buffer_pct=fan_trim_config.recover_rh_buffer_pct,
+            )
+            if fan_trim_config is not None
+            else None
+        )
         self._http_factory = http_client_factory or (
             lambda: httpx.AsyncClient(timeout=15.0)
         )
@@ -372,7 +391,7 @@ class HumidifierLoopService:
                     vpd_lo, vpd_hi = ctx.targets["vpd_kpa"]
                     rh_band = ctx.targets["humidity_pct"]
 
-                    vpd_reading, rh_reading = await asyncio.gather(
+                    reading_tasks = [
                         self._readings.get_latest_reading(
                             "vpd_kpa",
                             site_id=self._site_id,
@@ -389,12 +408,33 @@ class HumidifierLoopService:
                             device_id=self._canopy_device_id,
                             capability_id="humidity_pct",
                         ),
-                    )
+                    ]
+                    if self._allocator_config is not None:
+                        reading_tasks.append(
+                            self._readings.get_latest_reading(
+                                "fan_duty_pct",
+                                site_id=self._site_id,
+                                tent_id=self._tent_id,
+                                zone_id=self._zone_id,
+                                device_id=self._canopy_device_id,
+                                capability_id="fan_duty_pct",
+                            )
+                        )
+                    readings = await asyncio.gather(*reading_tasks)
+                    vpd_reading = readings[0]
+                    rh_reading = readings[1]
+                    fan_reading = readings[2] if len(readings) > 2 else None
                     vpd = vpd_reading.value if vpd_reading else None
                     rh = rh_reading.value if rh_reading else None
                     vpd_age = (
                         (now - vpd_reading.ts).total_seconds()
                         if vpd_reading is not None
+                        else None
+                    )
+                    fan_pct = fan_reading.value if fan_reading else None
+                    fan_age = (
+                        (now - fan_reading.ts).total_seconds()
+                        if fan_reading is not None
                         else None
                     )
 
@@ -411,10 +451,35 @@ class HumidifierLoopService:
                         minutes_until_on=lights.minutes_until_on,
                     )
                     pi_out = pi_compute(pi_cfg, pi_state, pi_inp)
-                    pi_state = pi_out.new_state
+
+                    # ---- Cross-actuator allocation -------------------------
+                    alloc_out = self._allocate_humidifier_output(
+                        pi_out,
+                        now=now,
+                        vpd=vpd,
+                        rh=rh,
+                        fan_pct=fan_pct,
+                        fan_age=fan_age,
+                        vpd_band=(vpd_lo, vpd_hi),
+                        rh_band=rh_band,
+                    )
+                    if alloc_out.reason == "fan_relief_first":
+                        pi_state = track_delivered_output(
+                            pi_cfg,
+                            pi_out,
+                            delivered_u=alloc_out.u_pct,
+                            delivered_plug_on=alloc_out.plug_on,
+                        )
+                    else:
+                        pi_state = pi_out.new_state
 
                     # ---- Dispatch quantizer ---------------------------------
-                    disp_out = quantize(disp_cfg, disp_state, pi_out.u, pi_out.plug_on)
+                    disp_out = quantize(
+                        disp_cfg,
+                        disp_state,
+                        alloc_out.u_pct,
+                        alloc_out.plug_on,
+                    )
 
                     # ---- Read live device state -----------------------------
                     snap = await govee.get_state(cfg.govee_sku, mac)
@@ -460,13 +525,20 @@ class HumidifierLoopService:
                             "skip_offline",
                             **self._scope_fields(capability_id="mist_level"),
                             target_level=disp_out.target_level,
-                            u_pct=round(pi_out.u, 2),
+                            u_pct=round(alloc_out.u_pct, 2),
                             stage=stage,
                             reason=pi_out.reason.value,
+                            allocation_reason=alloc_out.reason,
+                            requested_u_pct=round(pi_out.u, 2),
+                            fan_pct=fan_pct,
+                            fan_age_s=round(fan_age, 2)
+                            if fan_age is not None
+                            else None,
                         )
                         await self._log_shadow(
                             pi_out,
                             pi_state,
+                            alloc_out,
                             disp_out,
                             vpd,
                             vpd_age,
@@ -497,11 +569,14 @@ class HumidifierLoopService:
                             target_level=disp_out.target_level,
                             prev_level=prev_level,
                             pi_out=pi_out,
+                            alloc_out=alloc_out,
                             disp_out=disp_out,
                             stage=stage,
                             vpd=vpd,
                             vpd_age=vpd_age,
                             rh=rh,
+                            fan_pct=fan_pct,
+                            fan_age=fan_age,
                             vpd_band=(vpd_lo, vpd_hi),
                             rh_band=rh_band,
                             lights_on=lights.on,
@@ -518,6 +593,7 @@ class HumidifierLoopService:
                         await self._log_shadow(
                             pi_out,
                             pi_state,
+                            alloc_out,
                             disp_out,
                             vpd,
                             vpd_age,
@@ -578,6 +654,41 @@ class HumidifierLoopService:
     # Dispatch + observability helpers
     # ------------------------------------------------------------------
 
+    def _allocate_humidifier_output(  # noqa: PLR0913
+        self,
+        pi_out: PIOutput,
+        *,
+        now: datetime,
+        vpd: float | None,
+        rh: float | None,
+        fan_pct: float | None,
+        fan_age: float | None,
+        vpd_band: tuple[float, float],
+        rh_band: tuple[float, float],
+    ) -> HumidifierAllocationOutput:
+        if self._allocator_config is None:
+            return HumidifierAllocationOutput(
+                u_pct=pi_out.u,
+                plug_on=pi_out.plug_on,
+                reason="allocator_disabled",
+                fan_pct=fan_pct,
+                fan_age_s=fan_age,
+            )
+        return allocate_humidifier_output(
+            self._allocator_config,
+            HumidifierAllocationInput(
+                now=now,
+                requested_u_pct=pi_out.u,
+                requested_plug_on=pi_out.plug_on,
+                vpd=vpd,
+                rh=rh,
+                fan_pct=fan_pct,
+                fan_age_s=fan_age,
+                vpd_band=vpd_band,
+                rh_band=rh_band,
+            ),
+        )
+
     async def _dispatch(self, govee: GoveeClient, mac: str, diff: DispatchDiff) -> None:
         """Issue the API calls implied by ``diff``. Errors propagate."""
         sku = self._config.govee_sku
@@ -597,11 +708,14 @@ class HumidifierLoopService:
         target_level: int | None,
         prev_level: int | None,
         pi_out: PIOutput,
+        alloc_out: HumidifierAllocationOutput,
         disp_out: DispatchOutput,
         stage: str,
         vpd: float | None,
         vpd_age: float | None,
         rh: float | None,
+        fan_pct: float | None,
+        fan_age: float | None,
         vpd_band: tuple[float, float],
         rh_band: tuple[float, float],
         lights_on: bool,
@@ -622,11 +736,15 @@ class HumidifierLoopService:
                 **self._scope_fields(capability_id="power"),
                 power=1 if target_level is not None else 0,
                 level=target_level,
-                u_pct=round(pi_out.u, 2),
+                u_pct=round(alloc_out.u_pct, 2),
+                requested_u_pct=round(pi_out.u, 2),
                 reason=pi_out.reason.value,
+                allocation_reason=alloc_out.reason,
                 vpd=vpd,
                 vpd_age_s=round(vpd_age, 2) if vpd_age is not None else None,
                 rh=rh,
+                fan_pct=fan_pct,
+                fan_age_s=round(fan_age, 2) if fan_age is not None else None,
                 stage=stage,
                 upper_band_kpa=vpd_band[1],
                 lower_band_kpa=vpd_band[0],
@@ -642,7 +760,9 @@ class HumidifierLoopService:
                 **self._scope_fields(capability_id="mist_level"),
                 from_level=prev_level,
                 to_level=target_level,
-                u_pct=round(pi_out.u, 2),
+                u_pct=round(alloc_out.u_pct, 2),
+                requested_u_pct=round(pi_out.u, 2),
+                allocation_reason=alloc_out.reason,
                 vpd=vpd,
                 stage=stage,
                 upper_band_kpa=vpd_band[1],
@@ -655,6 +775,7 @@ class HumidifierLoopService:
         self,
         pi_out: PIOutput,
         pi_state: PIState,
+        alloc_out: HumidifierAllocationOutput,
         disp_out: DispatchOutput,
         vpd: float | None,
         vpd_age: float | None,
@@ -670,8 +791,11 @@ class HumidifierLoopService:
             SHADOW_STREAM,
             "tick",
             **self._scope_fields(capability_id="mist_level"),
-            u_pct=round(pi_out.u, 2),
-            plug_on_shadow=pi_out.plug_on,
+            u_pct=round(alloc_out.u_pct, 2),
+            requested_u_pct=round(pi_out.u, 2),
+            plug_on_shadow=alloc_out.plug_on,
+            requested_plug_on=pi_out.plug_on,
+            allocation_reason=alloc_out.reason,
             target_level=disp_out.target_level,
             setpoint_kpa=round(pi_out.setpoint_vpd, 3),
             error_kpa=round(pi_out.error, 4),
@@ -682,6 +806,10 @@ class HumidifierLoopService:
             vpd=vpd,
             vpd_age_s=round(vpd_age, 2) if vpd_age is not None else None,
             rh=rh,
+            fan_pct=alloc_out.fan_pct,
+            fan_age_s=round(alloc_out.fan_age_s, 2)
+            if alloc_out.fan_age_s is not None
+            else None,
             stage=stage,
             upper_band_kpa=vpd_hi,
             lower_band_kpa=vpd_lo,

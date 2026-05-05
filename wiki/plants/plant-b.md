@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-05-03
+updated: 2026-05-04
 ---
 
 # Plant B
@@ -19,7 +19,7 @@ updated: 2026-05-03
 
 ## Current State
 
-Day 50 / Flower Day 0: B remains photo-stable with no obvious wilt, but root-zone moisture is still critical at 95.51%. Keep dryback/float-valve action active before reopening. See [2026-05-03](../daily/2026-05-03.md).
+Day 51 / Flower Day 1: B remains photo-stable with no obvious wilt, but root-zone moisture rose again to 96.13%. Escalate dryback verification and keep the float valve/tray interrupted until a measurable dryback occurs or the sensor is proven wrong. See [2026-05-04](../daily/2026-05-04.md).
 
 ## Timeline
 
@@ -51,3 +51,4 @@ Day 50 / Flower Day 0: B remains photo-stable with no obvious wilt, but root-zon
 - 2026-05-01 — [Day 48: dense canopy still photo-stable, but moisture remains very high at 93.90%; dryback action still required](../daily/2026-05-01.md)
 - 2026-05-02 — [Day 49: clone taken; dense canopy still not wilting, but moisture 94.93% keeps dryback critical](../daily/2026-05-02.md)
 - 2026-05-03 — [Day 50 / Flower Day 0: dense canopy still not wilting, but moisture 95.51% keeps dryback critical](../daily/2026-05-03.md)
+- 2026-05-04 — [Day 51 / Flower Day 1: dense canopy still not wilting, but moisture 96.13% means dryback verification is urgent](../daily/2026-05-04.md)

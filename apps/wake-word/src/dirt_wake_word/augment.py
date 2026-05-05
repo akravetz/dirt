@@ -24,10 +24,13 @@ Gain=1.0 only, every other prob 0. Reasoning:
 
 from __future__ import annotations
 
+import gc
 import hashlib
 import json
 import os
+import resource
 import shutil
+import time
 import wave
 from datetime import UTC, datetime
 from itertools import chain
@@ -83,6 +86,7 @@ REAL_AUDIO = {**dict.fromkeys(DEFAULTS, 0.0), "Gain": 1.0}
 # v4: feature extraction can run through ONNX Runtime CUDAExecutionProvider,
 # so cache entries must not reuse CPU-generated feature arrays.
 _CACHE_SCHEMA_VERSION = 4
+_CACHE_SALT_ENV = "DIRT_WAKEWORD_FEATURE_CACHE_SALT"
 _CACHE_ROOT = INPUT_ROOT / "dirt-wakeword-features-cache"
 
 
@@ -90,6 +94,15 @@ _CACHE_ROOT = INPUT_ROOT / "dirt-wakeword-features-cache"
 def _features_filename(subset: str) -> str:
     pos_neg, train_test = subset.split("_")
     return f"{pos_neg}_features_{train_test}.npy"
+
+
+def _log_runtime_boundary(label: str) -> None:
+    rss_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+    print(
+        f"=== feature runtime boundary ({label}): "
+        f"rss_max_mb={rss_mb:.1f} gc_counts={gc.get_count()} ===",
+        flush=True,
+    )
 
 
 def _compute_total_length(positive_test_dir: Path, *, n_sample: int = 50) -> int:
@@ -130,7 +143,7 @@ def _cache_inputs(*, total_length: int, config: dict) -> dict | None:
     bg = (datasets.get("dirt-wakeword-bg") or {}).get("content_hash")
     if not mine or not bg:
         return None
-    return {
+    inputs = {
         "schema_version": _CACHE_SCHEMA_VERSION,
         "mine_hash": mine,
         "bg_hash": bg,
@@ -149,6 +162,10 @@ def _cache_inputs(*, total_length: int, config: dict) -> dict | None:
         "batch_size": config.get("augmentation_batch_size"),
         "total_length": total_length,
     }
+    cache_salt = os.environ.get(_CACHE_SALT_ENV, "").strip()
+    if cache_salt:
+        inputs["diagnostic_cache_salt"] = cache_salt
+    return inputs
 
 
 def _cache_key(inputs: dict) -> str:
@@ -166,6 +183,7 @@ def _link_or_copy(src: Path, dst: Path) -> None:
 
 
 def _restore_cache(key: str, feature_save_dir: Path) -> bool:
+    t0 = time.perf_counter()
     cache_dir = _CACHE_ROOT / key
     if not (cache_dir / "cache-metadata.json").exists():
         return False
@@ -176,11 +194,17 @@ def _restore_cache(key: str, feature_save_dir: Path) -> bool:
     feature_save_dir.mkdir(parents=True, exist_ok=True)
     for fn in expected:
         _link_or_copy(cache_dir / fn, feature_save_dir / fn)
-    print(f"  augment cache HIT key={key}; hardlinked {len(expected)} feature files")
+    elapsed = time.perf_counter() - t0
+    print(
+        f"  augment cache HIT key={key}; hardlinked {len(expected)} feature files "
+        f"elapsed={elapsed:.3f}s",
+        flush=True,
+    )
     return True
 
 
 def _persist_cache(key: str, feature_save_dir: Path, inputs: dict) -> None:
+    t0 = time.perf_counter()
     cache_dir = _CACHE_ROOT / key
     cache_dir.mkdir(parents=True, exist_ok=True)
     persisted = 0
@@ -198,10 +222,14 @@ def _persist_cache(key: str, feature_save_dir: Path, inputs: dict) -> None:
         )
         + "\n"
     )
-    print(f"  augment cache PERSIST key={key} ({persisted} files)")
+    elapsed = time.perf_counter() - t0
+    print(
+        f"  augment cache PERSIST key={key} ({persisted} files) elapsed={elapsed:.3f}s",
+        flush=True,
+    )
 
 
-def _compute_features_from_generator_checked(
+def _compute_features_from_generator_checked(  # noqa: PLR0915
     generator,
     *,
     features: AudioFeatures,
@@ -213,6 +241,13 @@ def _compute_features_from_generator_checked(
     ncpu: int,
 ) -> None:
     """openwakeword feature compute with provider visibility and fail-fast GPU."""
+    phase_t0 = time.perf_counter()
+    totals = {
+        "generator_s": 0.0,
+        "embed_s": 0.0,
+        "mmap_write_s": 0.0,
+        "flush_s": 0.0,
+    }
     providers = onnxruntime_providers()
     print(
         "    feature extractor: "
@@ -232,7 +267,10 @@ def _compute_features_from_generator_checked(
     fp = open_memmap(output_file, mode="w+", dtype=np.float32, shape=output_shape)
 
     row_counter = 0
-    audio_data = next(generator)
+    generator_iter = iter(generator)
+    t0 = time.perf_counter()
+    audio_data = next(generator_iter)
+    totals["generator_s"] += time.perf_counter() - t0
     batch_size = audio_data.shape[0]
     if batch_size > n_total:
         raise ValueError(
@@ -240,24 +278,58 @@ def _compute_features_from_generator_checked(
             "increase n_total to be >= batch size."
         )
 
+    t0 = time.perf_counter()
     embedded = features.embed_clips(audio_data, batch_size=batch_size)
+    totals["embed_s"] += time.perf_counter() - t0
+    t0 = time.perf_counter()
     fp[row_counter : row_counter + embedded.shape[0], :, :] = embedded
+    totals["mmap_write_s"] += time.perf_counter() - t0
     row_counter += embedded.shape[0]
+    t0 = time.perf_counter()
     fp.flush()
+    totals["flush_s"] += time.perf_counter() - t0
 
-    for audio_data in tqdm(
-        generator, total=n_total // batch_size, desc="Computing features"
-    ):
+    progress = tqdm(total=n_total // batch_size, desc="Computing features")
+    while True:
         if row_counter >= n_total:
             break
+        t0 = time.perf_counter()
+        try:
+            audio_data = next(generator_iter)
+        except StopIteration:
+            break
+        totals["generator_s"] += time.perf_counter() - t0
+        progress.update(1)
+        t0 = time.perf_counter()
         embedded = features.embed_clips(audio_data, batch_size=batch_size, ncpu=ncpu)
+        totals["embed_s"] += time.perf_counter() - t0
         if row_counter + embedded.shape[0] > n_total:
             embedded = embedded[0 : n_total - row_counter]
+        t0 = time.perf_counter()
         fp[row_counter : row_counter + embedded.shape[0], :, :] = embedded
+        totals["mmap_write_s"] += time.perf_counter() - t0
         row_counter += embedded.shape[0]
+        t0 = time.perf_counter()
         fp.flush()
+        totals["flush_s"] += time.perf_counter() - t0
+    progress.close()
 
+    t0 = time.perf_counter()
     trim_mmap(output_file)
+    trim_s = time.perf_counter() - t0
+    elapsed_s = time.perf_counter() - phase_t0
+    output_bytes = Path(output_file).stat().st_size
+    print(
+        "    feature_compute_telemetry: "
+        f"rows={row_counter} output_shape={output_shape} "
+        f"batch_size={batch_size} output_bytes={output_bytes} "
+        f"generator_s={totals['generator_s']:.3f} "
+        f"embed_s={totals['embed_s']:.3f} "
+        f"mmap_write_s={totals['mmap_write_s']:.3f} "
+        f"flush_s={totals['flush_s']:.3f} "
+        f"trim_mmap_s={trim_s:.3f} total_s={elapsed_s:.3f}",
+        flush=True,
+    )
 
 
 def _new_audio_features(*, device: str, ncpu: int) -> tuple[AudioFeatures, str]:
@@ -287,6 +359,7 @@ def _compute_subset_features(
     device: str,
     ncpu: int,
 ) -> None:
+    subset_t0 = time.perf_counter()
     subset_dir = out_dir / TARGET_WORD / subset_name
     all_files = sorted(str(f) for f in subset_dir.glob("*.wav"))
     synth = [f for f in all_files if not is_real_audio(Path(f).name)]
@@ -338,6 +411,14 @@ def _compute_subset_features(
         output_file=str(out_path),
         device=device,
         ncpu=ncpu,
+    )
+    elapsed = time.perf_counter() - subset_t0
+    output_bytes = out_path.stat().st_size if out_path.exists() else 0
+    print(
+        f"  {subset_name} telemetry: input_wavs={len(all_files)} "
+        f"synth_input={len(synth_input)} real_input={len(real_input)} "
+        f"output_bytes={output_bytes} total_s={elapsed:.3f}",
+        flush=True,
     )
 
 
@@ -398,8 +479,10 @@ def augment_and_compute_features(*, work_dir: Path, out_dir: Path) -> None:
 
     features = None
     try:
+        _log_runtime_boundary("before_audio_features")
         log_gpu_memory("before_audio_features")
         features, provider = _new_audio_features(device=device, ncpu=ncpu)
+        _log_runtime_boundary("after_audio_features_init")
         log_gpu_memory("after_audio_features_init")
         print("=== per-subset augmentation + feature compute (v8) ===", flush=True)
         for subset_name in SUBSETS:
@@ -419,6 +502,7 @@ def augment_and_compute_features(*, work_dir: Path, out_dir: Path) -> None:
             log_gpu_memory(f"after_{subset_name}")
     finally:
         release_audio_features(features, device=device)
+        _log_runtime_boundary("after_audio_features_release")
         log_gpu_memory("after_audio_features_release")
 
     if cache_key and cache_inputs is not None:

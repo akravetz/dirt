@@ -1628,3 +1628,256 @@ Measure the real full-data feature-cache miss path on GPU after v27 spent 86m37s
 - Feature generation is still the dominant cache-miss cost. The remaining time is likely augmentation, memmap writes and flushes, `trim_mmap`, network-volume I/O, and per-subset/session overhead, not only ONNX inference.
 - Repeated ONNX Runtime cuDNN destroy errors appeared once PyTorch training started after GPU feature extraction. Before using this in normal training, isolate GPU feature extraction from the training process or explicitly release ORT sessions and verify fit speed/noise.
 - Next high-value optimization is likely local scratch for feature `.npy` writes/cache persist, less frequent memmap flushing, per-subset timers, and ORT session cleanup or subprocess isolation.
+
+### v30 diagnostic — 2026-05-04
+
+**Status:** trained for warm-cache timing only (**not deployed**)
+**Model artifact:** `var/wake-word/models/2026-05-03-224938-a5ai72c982syqj/hey_claudia.onnx`
+**Trainer commit:** `3c7a3bd` (one-off dirty diagnostic image)
+**Image ref:** `ghcr.io/akravetz/dirt-wake-word-trainer:uv-ort-fullwarm-force-20260504-2244`
+**Image digest:** `sha256:2ecfb5c666e974140962890ee3d386deb99716e32a194b58aa2a90ab1520d909`
+**W&B run:** [`wgbwiazf`](https://wandb.ai/adkravetz/dirt-wake-word/runs/wgbwiazf) (group `exp16-ortgpu-fullwarm`)
+**Pod:** `a5ai72c982syqj`, RTX 4090 (deleted by entrypoint; orchestrator DELETE saw 404)
+**Wall:** trainer total 9m38.2s; pod runtime about 11m25s.
+
+#### What changed
+- Production defaults restored: 30 000 synth train, 3000 synth test, 20 000 steps, full inner-loop validation, full real-audio checkpoint selection.
+- `DIRT_WAKEWORD_FEATURE_DEVICE=gpu` forced, but feature arrays hit the v29 GPU cache.
+- Added GPU memory diagnostics around ORT feature extraction and PyTorch fit.
+- Used `DIRT_WAKEWORD_TTS_CACHE_MODE=force` once because the previous small diagnostic had overwritten the shared TTS cache key with `201/50`; the full run restored 69 970 cached WAVs and rewrote the full-run cache key according to container logs.
+
+#### Why
+Measure the actual warm-cache full-run runtime after GPU ORT/provider cleanup work, without the feature-cache miss dominating the timing.
+
+#### Run timeline
+- `prepare_seed_clips`: 7.3s.
+- `restore_tts_cache`: 1m15.4s, restored 69 970 WAVs.
+- `generate_clips`: 10.5s.
+- `augment+features`: 0.2s, cache HIT, key `38fcb98ff35d78fd`.
+- `prepare_train_inputs`: 1m05.1s.
+- `fit_model`: 4m03.4s, 20 000 steps at 82.19 steps/sec.
+- `select_checkpoint`: 2m41.6s across 11 candidates.
+- `validate_against_real_set`: 14.5s.
+- `TOTAL`: 9m38.2s.
+
+#### Results — container 43/116 validation
+
+| Threshold | Recall | Precision | F1 | False positives |
+|---:|---:|---:|---:|---:|
+| 0.30 | 72.1 % | 66.0 % | 0.689 | 16/116 |
+| 0.40 | 69.8 % | 75.0 % | 0.723 | 10/116 |
+| 0.50 | 65.1 % | 82.4 % | 0.727 | 6/116 |
+| 0.60 | 55.8 % | 88.9 % | 0.686 | 3/116 |
+| 0.70 | 46.5 % | 90.9 % | 0.615 | 2/116 |
+
+#### Deploy decision
+Do **not** deploy v30. This was a timing/diagnostic rerun, not a planned model-selection experiment. `var/wake-word/models/current` remains v27, and the voice service remains inactive.
+
+#### What we learned
+- Warm-cache full training is back under 10 minutes in-container. The old v27 2h29m pod wall was dominated by a cold CPU feature-cache miss.
+- PyTorch fit is healthy after the ORT cleanup/provider work: full 20 000-step fit ran at 82.19 steps/sec, matching the prior warm-cache v28 diagnostic.
+- No cuDNN teardown errors appeared in the W&B output log.
+- Feature cache and TTS cache are now the main runtime levers. Feature cache hit is effectively free; TTS restore still costs about 1m15s.
+- Container logs say the full TTS cache key was rewritten, but the RunPod S3 API still returned missing for `dirt-wakeword-tts-cache/cache-key.json` after the pod deleted. Verify TTS-cache visibility before the next production run; `DIRT_WAKEWORD_TTS_CACHE_MODE=force` remains a recovery option if the cache files are present but the key is stale.
+
+### v31 diagnostic — 2026-05-04
+
+**Status:** trained for full cold-cache timing only (**not deployed**)
+**Model artifact:** `var/wake-word/models/2026-05-04-055255-qgb2sm1q424an4/hey_claudia.onnx`
+**Trainer commit:** `dd3544e9c33a0458bbee07839d8f79076e67035f` (dirty diagnostic image)
+**Image ref:** `ghcr.io/akravetz/dirt-wake-word-trainer:uv-ort-fullcold-20260504-0548`
+**Image digest:** `sha256:74716cc52e5100f749630866ca8d93a6e3c34a953d798a5a5ee2d128fa210a4a`
+**W&B run:** [`hfmhxd18`](https://wandb.ai/adkravetz/dirt-wake-word/runs/hfmhxd18) (group `exp17-ortgpu-fullcold`)
+**Pod:** `qgb2sm1q424an4`, RTX 4090 (deleted by orchestrator)
+**Wall:** trainer total 104m52.9s; manifest start-to-finish 109m46.3s; launcher completed after artifact pull at about 115 minutes.
+
+#### What changed
+- Full production defaults were used again: 30 000 synth train, 3000 synth test, 20 000 steps, full inner-loop validation, and full real-audio checkpoint selection.
+- `DIRT_WAKEWORD_FEATURE_DEVICE=gpu` forced GPU feature extraction.
+- A one-run `DIRT_WAKEWORD_FEATURE_CACHE_SALT=fullcold-20260504-0548` override intentionally invalidated the feature cache. The salt was passed only in this RunPod command and was not added to `.env`, image defaults, or production config.
+- `DIRT_WAKEWORD_TTS_CACHE_MODE=force` was kept as a recovery guard for the previously stale/missing TTS cache key.
+
+#### Why
+Measure full end-to-end cold-cache runtime after the GPU ORT, dependency, provider cleanup, and memory diagnostic changes.
+
+#### Run timeline
+- `prepare_seed_clips`: 16.9s.
+- `restore_tts_cache`: 3m10.4s, restored 69 970 WAVs.
+- `generate_clips`: 30.9s.
+- `augment+features`: 42m48.4s, cache MISS, salted key `c23acf0742f6f380`, actual provider `CUDAExecutionProvider`.
+- `prepare_train_inputs`: 52.2s.
+- `fit_model`: 26m47.3s, 20 000 steps at 12.45 steps/sec.
+- `select_checkpoint`: 28m15.6s across 13 candidates, about 130s/candidate.
+- `export_model`: 0.2s.
+- `validate_against_real_set`: 2m10.5s.
+- `TOTAL`: 104m52.9s.
+
+#### Results — container 43/116 validation
+
+| Threshold | Recall | Precision | F1 | False positives |
+|---:|---:|---:|---:|---:|
+| 0.30 | 76.7 % | 58.9 % | 0.667 | 23/116 |
+| 0.40 | 76.7 % | 64.7 % | 0.702 | 18/116 |
+| 0.50 | 74.4 % | 80.0 % | 0.771 | 8/116 |
+| 0.60 | 74.4 % | 82.1 % | 0.780 | 7/116 |
+| 0.70 | 62.8 % | 84.4 % | 0.720 | 5/116 |
+
+#### Deploy decision
+Do **not** deploy v31. This was a cold-cache runtime diagnostic. `var/wake-word/models/current` remains v27, and the voice service remains inactive.
+
+#### What we learned
+- GPU cold feature generation improved slightly relative to v29: 42m48s vs 47m14s, about 9 % faster. It is still the largest cold-cache phase.
+- PyTorch fit became slow again after cold GPU feature extraction: 12.45 steps/sec vs 82.19 steps/sec on the warm-cache v30 run. Checkpoint selection showed the same slowdown pattern, taking 28m15s instead of 2m41s.
+- No cuDNN teardown errors appeared in the W&B output log, so the cleanup/provider changes removed the visible error noise but did not fully restore PyTorch performance after a full cold ORT feature pass.
+- The remaining likely fix is stronger isolation between GPU ORT feature generation and PyTorch training, or deeper allocator/provider cleanup. The subprocess isolation option now looks less like a cosmetic workaround and more like the cleanest way to prove whether ORT state is contaminating the PyTorch phase.
+- The feature-cache salt did its job for this run only. It is not persistent production configuration.
+
+### v32 diagnostic — 2026-05-04
+
+**Status:** telemetry validation runs only (**not deployed**)
+**Model artifacts:**
+- `var/wake-word/models/2026-05-04-105149-34165rzui5mcg2/hey_claudia.onnx`
+- `var/wake-word/models/2026-05-04-111231-v9zcr5rv2od0jf/hey_claudia.onnx`
+**Trainer commit:** `7e32dd704b0fde4e123081545712995b5bd6c831` (dirty diagnostic images)
+**Image refs:**
+- `ghcr.io/akravetz/dirt-wake-word-trainer:telemetry-instrumented-20260504`
+- `ghcr.io/akravetz/dirt-wake-word-trainer:telemetry-instrumented2-20260504`
+**Final image digest:** `sha256:123bcae42f3fdc421729bee6b9be971e883ac5ee72fc4257e36c4ed69fb1923a`
+**W&B runs:**
+- [`r6ngz1xd`](https://wandb.ai/adkravetz/dirt-wake-word/runs/r6ngz1xd) (group `exp18-telemetry-small`)
+- [`itk28bmt`](https://wandb.ai/adkravetz/dirt-wake-word/runs/itk28bmt) (group `exp18-telemetry-small-v2`)
+**Pods:** `34165rzui5mcg2`, `v9zcr5rv2od0jf`, both RTX 4090, both deleted/self-deleted.
+
+#### What changed
+- Added feature-generation telemetry:
+  - generator/augmentation time
+  - ORT embedding time
+  - memmap write/flush time
+  - `trim_mmap` time
+  - rows, output shape, output bytes, per-subset total
+- Replaced the black-box upstream `train_model()` call with a behavior-equivalent local instrumented training loop:
+  - sampled `train_step_telemetry`
+  - batch fetch, H2D copy, forward, high-loss filtering, loss, backward, optimizer, metric timing
+  - `inner_validation_telemetry` for false-positive and synthetic validation
+- Added checkpoint-selection telemetry:
+  - export, ONNX session init, WAV load, `model.reset()`, prediction, metrics, provider, windows
+- Added ORT/PyTorch boundary snapshots:
+  - process RSS / GC counts
+  - selected torch CUDA allocator counters
+- Extended `scripts/wakeword-wandb-pull system <run_id>` so future agents can pull W&B system telemetry via `run.history(stream="system")` and phase-align it with `output.log`.
+- Docker dependency guard was tightened: CPU `onnxruntime` is removed after uv resolution and `onnxruntime-gpu==1.22.0` is force-reinstalled, because the CPU wheel can shadow `CUDAExecutionProvider`.
+
+#### Why
+Make the next runtime investigation answerable from logs/API artifacts instead of W&B UI inspection or generic host telemetry. The target questions are: feature generation split, PyTorch fit bottleneck, checkpoint-selection bottleneck, and whether host telemetry agrees with code-path timing.
+
+#### Smoke test
+- `scripts/runpod-build-image telemetry-instrumented-20260504 --no-push` failed initially because CPU `onnxruntime` shadowed CUDA providers; the build-time provider check caught it.
+- After the Dockerfile fix, `scripts/runpod-build-image telemetry-instrumented-20260504 --no-push` passed local smoke.
+- After the progress-safe train telemetry and reset timing patch, `scripts/runpod-build-image telemetry-instrumented2-20260504 --no-push` passed local smoke.
+
+#### Run A — `r6ngz1xd`, 500 steps
+- Config: `N=201`, `N_val=50`, `steps=500`, `VAL_STEPS_COUNT=4`, `FP_VAL_MAX_WINDOWS=4096`, GPU feature extraction, TTS cache ignored, salted feature cache.
+- `generate_clips`: 1m20.5s.
+- `augment+features`: 3m22.5s.
+  - positive_train: total 131.2s; generator 94.5s, embed 26.2s, memmap write 7.3s, flush 1.1s, trim 1.6s.
+  - negative_train: total 53.4s; generator 29.0s, embed 16.9s, memmap write 4.3s, flush 0.6s, trim 2.5s.
+- `fit_model`: 1m00.6s. Train-step telemetry was missing from W&B output because progress-bar rendering swallowed the print lines; fixed in Run B with `tqdm.write()`.
+- `select_checkpoint`: 6m32.0s across 3 candidates, about 130s/candidate.
+  - Candidate 0 measured: export 0.2s, init 0.5s, WAV load 1.6s, inference 51.2s, total 130.4s. This exposed missing per-clip `reset()` timing, added in Run B.
+- `validate_against_real_set`: 2m10.0s.
+- `TOTAL`: 14m44.4s.
+
+#### Run B — `itk28bmt`, 250 steps
+- Config: `N=201`, `N_val=50`, `steps=250`, `VAL_STEPS_COUNT=2`, `FP_VAL_MAX_WINDOWS=4096`, GPU feature extraction, TTS cache ignored, salted feature cache.
+- `generate_clips`: 12.5s.
+- `augment+features`: 50.4s.
+  - positive_train: total 32.8s; generator 21.3s, embed 3.8s, memmap write 6.1s, flush 0.7s, trim 0.9s.
+  - negative_train: total 15.1s; generator 9.2s, embed 3.1s, memmap write 1.8s, flush 0.4s, trim 0.7s.
+- `fit_model`: 7.0s. Train-step telemetry appeared correctly in W&B:
+  - step 0 total 2.64s; batch fetch 1.91s, forward 0.41s, backward 0.14s.
+  - steady sampled steps were about 0.0047-0.0055s each, with sub-millisecond forward/backward/optimizer.
+- `select_checkpoint`: 15.6s for 1 candidate.
+  - provider `CPUExecutionProvider`.
+  - export 0.05s, ONNX init 0.08s.
+  - good clips: reset 2.36s, inference 1.32s, 824 windows.
+  - bad clips: reset 6.23s, inference 4.28s, 2717 windows.
+- `validate_against_real_set`: 14.5s.
+- `TOTAL`: 1m46.6s.
+
+#### W&B system telemetry
+Pulled with:
+
+```bash
+scripts/wakeword-wandb-pull system r6ngz1xd --samples 10000
+scripts/wakeword-wandb-pull system itk28bmt --samples 10000
+```
+
+- Run A had 118 system rows over 30.4s-900.4s. Run B had 14 rows over 15.4s-105.4s.
+- Checkpoint selection in both runs showed 0 % GPU utilization; the path is CPU/ORT inference.
+- Run A selection also showed low CPU percentage, so the 130s/candidate path likely reflects per-process/ORT/runtime behavior or host throttling rather than GPU saturation.
+- Run B selection was normal at 15.6s and attributed most time to `model.reset()` plus prediction.
+
+#### Deploy decision
+Do **not** deploy either v32 model. These were tiny diagnostic runs and both had 0 % real-audio recall. `var/wake-word/models/current` remains v27, and the voice service remains inactive.
+
+#### What we learned
+- The telemetry hooks are now sufficient to diagnose the next full run without adding a duplicate `nvidia-smi` sampler.
+- Feature-generation time is dominated by generator/augmentation, with ORT embedding second and memmap writes third on these small runs.
+- Checkpoint selection uses ONNX Runtime CPU provider by construction. On a healthy run, the 43/116 validation set can score in about 15s/candidate; on the slow run it was 130s/candidate with the same model count. That keeps host/runtime variability in play.
+- `model.reset()` is a material part of checkpoint/validation scoring and must be tracked; Run B showed reset time exceeded prediction time.
+- The Dockerfile now guards against CPU `onnxruntime` shadowing the GPU provider, which is important for future uv-managed images.
+
+### v33 diagnostic — 2026-05-04
+
+**Status:** validation-path runtime diagnostic only (**not deployed**)
+**Model artifact:** `var/wake-word/models/2026-05-04-114053-171it6nj22yoby/hey_claudia.onnx`
+**Trainer commit:** `7e32dd704b0fde4e123081545712995b5bd6c831` (dirty diagnostic image)
+**Image ref:** `ghcr.io/akravetz/dirt-wake-word-trainer:batched-validation-20260504`
+**Image digest:** `sha256:b61a875fc4ab1ed269d0c5aff7d98e1a76ca0460e2c068c302ec332630b01dc2`
+**W&B run:** [`3on01kp1`](https://wandb.ai/adkravetz/dirt-wake-word/runs/3on01kp1) (group `exp19-batched-validation-small`)
+**Pod:** `171it6nj22yoby`, RTX 4090, self-deleted before orchestrator cleanup.
+
+#### What changed
+- Replaced per-clip `openwakeword.Model.reset()` checkpoint and final validation scoring with a shared real-audio scorer in `dirt_wake_word.real_audio_score`.
+- The scorer precomputes streaming feature windows once for each real-audio split, preserving openwakeword's streaming preprocessor and first-five-prediction warmup behavior.
+- Temporary checkpoint ONNX models and final validation ONNX models are made dynamic-batch in memory before scoring. The exported/deployed ONNX artifact is not rewritten.
+- Removed the old streaming scoring path instead of keeping it as a fallback.
+
+#### Why
+Checkpoint selection and final real-audio validation had become meaningful runtime costs. In the prior small telemetry run, selection took 15.6s for one candidate and final validation took 14.5s; most of that came from repeated reset/preprocessor work over the same clips.
+
+#### Smoke test
+- `uv run ruff check apps/wake-word/src/dirt_wake_word/real_audio_score.py apps/wake-word/src/dirt_wake_word/select.py apps/wake-word/src/dirt_wake_word/validate.py apps/wake-word/tests/test_imports.py` passed.
+- `uv run python -m py_compile apps/wake-word/src/dirt_wake_word/real_audio_score.py apps/wake-word/src/dirt_wake_word/select.py apps/wake-word/src/dirt_wake_word/validate.py apps/wake-word/tests/test_imports.py` passed.
+- `scripts/runpod-build-image batched-validation-20260504 --no-push` passed local Docker smoke. The first attempt exposed that openwakeword exports classifier ONNX with fixed batch dimension `1`; the scorer now applies an in-memory dynamic batch dimension before creating the ORT session.
+
+#### Run config
+- `N=201`, `N_val=50`, `steps=250`, `VAL_STEPS_COUNT=2`, `FP_VAL_MAX_WINDOWS=4096`.
+- `DIRT_WAKEWORD_FEATURE_DEVICE=gpu`.
+- `DIRT_WAKEWORD_TTS_CACHE_MODE=ignore`.
+- One-run `DIRT_WAKEWORD_FEATURE_CACHE_SALT=batched-validation-small-20260504`; it was not added to `.env`, image defaults, or production config.
+
+#### Runtime
+- `prepare_seed_clips`: 5.1s.
+- `generate_clips`: 11.3s.
+- `augment+features`: 37.4s.
+  - positive_train: total 22.8s; generator 18.1s, embed 2.9s, mmap write 0.9s, flush 0.7s, trim 0.1s.
+  - negative_train: total 11.8s; generator 7.7s, embed 2.5s, mmap write 0.9s, flush 0.4s, trim 0.3s.
+- `fit_model`: 7.8s, 32.42 steps/sec.
+- `select_checkpoint`: 6.1s for one candidate.
+  - Shared checkpoint feature prep: 5.9s for 609 good windows and 2137 bad windows.
+  - Candidate scoring after feature prep: 0.236s total; `batchable=1`, `original_batch_dim=1`, `batch_size=1024`, good batches=1, bad batches=3.
+- `validate_against_real_set`: 5.6s.
+- `TOTAL`: 73.7s.
+
+#### Results — container 43/116 validation
+
+This was a tiny diagnostic fit and the model was degenerate: 0 % recall at every threshold from 0.30 to 0.70.
+
+#### Deploy decision
+Do **not** deploy v33. This was a validation runtime diagnostic. `var/wake-word/models/current` remains v27, and the voice service remains inactive.
+
+#### What we learned
+- The clean combined change is viable: one precompute pass removes repeated reset/preprocessor work and keeps checkpoint selection/final validation on one shared scorer.
+- Compared with v32 Run B, the same-size diagnostic improved selection from 15.6s to 6.1s and final validation from 14.5s to 5.6s.
+- The remaining selection cost is now almost entirely shared feature preparation. Per-candidate scoring is effectively gone for this validation-set size, so a full run with many saved candidates should benefit more than the one-candidate tiny diagnostic.

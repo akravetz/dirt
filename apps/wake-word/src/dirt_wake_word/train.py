@@ -12,7 +12,10 @@ Reasons we don't shell out to upstream's --train_model:
 
 from __future__ import annotations
 
+import copy
+import gc
 import os
+import resource
 import sys
 import time
 from pathlib import Path
@@ -22,6 +25,7 @@ import torch
 import yaml
 from openwakeword.data import mmap_batch_generator
 from openwakeword.train import Model
+from tqdm import tqdm
 
 from .augment import augment_and_compute_features
 from .feature_device import log_gpu_memory
@@ -39,6 +43,8 @@ torch.multiprocessing.set_sharing_strategy("file_system")
 
 FP_VAL_MAX_WINDOWS_ENV = "DIRT_WAKEWORD_FP_VAL_MAX_WINDOWS"
 VAL_STEPS_COUNT_ENV = "DIRT_WAKEWORD_VAL_STEPS_COUNT"
+TRAIN_TELEMETRY_EVERY_ENV = "DIRT_WAKEWORD_TRAIN_TELEMETRY_EVERY"
+TORCH_MEMORY_SUMMARY_ENV = "DIRT_WAKEWORD_TORCH_MEMORY_SUMMARY"
 
 
 def _env_int(name: str, *, default: int, minimum: int = 0) -> int:
@@ -109,6 +115,311 @@ def _log_model_runtime(label: str, oww: Model) -> None:
         f"params={total_params:,} training={model.training} ===",
         flush=True,
     )
+
+
+def _log_runtime_boundary(label: str) -> None:
+    rss_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+    print(
+        f"=== runtime boundary ({label}): "
+        f"rss_max_mb={rss_mb:.1f} gc_counts={gc.get_count()} ===",
+        flush=True,
+    )
+    if torch.cuda.is_available():
+        stats = torch.cuda.memory_stats()
+        print(
+            f"=== torch cuda stats ({label}): "
+            f"allocated={torch.cuda.memory_allocated() / 1024**3:.2f}GiB "
+            f"reserved={torch.cuda.memory_reserved() / 1024**3:.2f}GiB "
+            f"active.all.current={stats.get('active.all.current', 0)} "
+            f"reserved_bytes.all.peak={stats.get('reserved_bytes.all.peak', 0)} "
+            f"num_alloc_retries={stats.get('num_alloc_retries', 0)} "
+            f"num_ooms={stats.get('num_ooms', 0)} ===",
+            flush=True,
+        )
+        if os.environ.get(TORCH_MEMORY_SUMMARY_ENV):
+            print(
+                f"=== torch cuda memory summary ({label}) START ===\n"
+                f"{torch.cuda.memory_summary()}\n"
+                f"=== torch cuda memory summary ({label}) END ===",
+                flush=True,
+            )
+
+
+def _cuda_sync() -> None:
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+
+
+def _elapsed_since(t0: float, *, sync: bool) -> tuple[float, float]:
+    if sync:
+        _cuda_sync()
+    now = time.perf_counter()
+    return now - t0, now
+
+
+def _telemetry_line(prefix: str, values: dict[str, object]) -> None:
+    parts = []
+    for key, value in values.items():
+        if isinstance(value, float):
+            parts.append(f"{key}={value:.6f}")
+        else:
+            parts.append(f"{key}={value}")
+    tqdm.write(f"=== {prefix}: {' '.join(parts)} ===")
+
+
+def _train_model_instrumented(  # noqa: PLR0915
+    oww: Model,
+    *,
+    X,
+    max_steps: int,
+    warmup_steps: int,
+    hold_steps: int,
+    X_val=None,
+    false_positive_val_data=None,
+    positive_test_clips=None,
+    negative_weight_schedule=None,
+    val_steps=None,
+    lr: float = 0.0001,
+    val_set_hrs: float = 1,
+) -> None:
+    """Instrumented copy of upstream openwakeword.train.Model.train_model().
+
+    Keep behavior aligned with upstream; add timing around data fetch, device
+    transfer, model compute, optimizer work, and inner validation.
+    """
+    negative_weight_schedule = negative_weight_schedule or [1]
+    val_steps = set(val_steps or [250])
+    telemetry_every = _env_int(TRAIN_TELEMETRY_EVERY_ENV, default=500, minimum=0)
+
+    oww.to(oww.device)
+    oww.model.to(oww.device)
+
+    accumulation_steps = 1
+    accumulated_samples = 0
+    accumulated_predictions = torch.Tensor([]).to(oww.device)
+    accumulated_labels = torch.Tensor([]).to(oww.device)
+    data_iter = iter(X)
+
+    for step_ndx in tqdm(range(max_steps), total=max_steps, desc="Training"):
+        sample_step = telemetry_every > 0 and (
+            step_ndx % telemetry_every == 0 or step_ndx == max_steps - 1
+        )
+        sync_timers = sample_step and torch.cuda.is_available()
+        step_t0 = time.perf_counter()
+        t = step_t0
+        timers: dict[str, float] = {}
+
+        data = next(data_iter)
+        timers["batch_fetch_s"], t = _elapsed_since(t, sync=sync_timers)
+
+        x, y = data[0].to(oww.device), data[1].to(oww.device)
+        y_ = y[..., None].to(torch.float32)
+        timers["h2d_copy_s"], t = _elapsed_since(t, sync=sync_timers)
+
+        for g in oww.optimizer.param_groups:
+            g["lr"] = oww.lr_warmup_cosine_decay(
+                step_ndx,
+                warmup_steps=warmup_steps,
+                hold=hold_steps,
+                total_steps=max_steps,
+                target_lr=lr,
+            )
+        timers["lr_update_s"], t = _elapsed_since(t, sync=sync_timers)
+
+        oww.optimizer.zero_grad()
+        timers["zero_grad_s"], t = _elapsed_since(t, sync=sync_timers)
+
+        predictions = oww.model(x)
+        timers["forward_s"], t = _elapsed_since(t, sync=sync_timers)
+
+        neg_high_loss = predictions[(y == 0) & (predictions.squeeze() >= 0.001)]
+        pos_high_loss = predictions[(y == 1) & (predictions.squeeze() < 0.999)]
+        y = torch.cat(
+            (
+                y[(y == 0) & (predictions.squeeze() >= 0.001)],
+                y[(y == 1) & (predictions.squeeze() < 0.999)],
+            )
+        )
+        y_ = y[..., None].to(torch.float32)
+        predictions = torch.cat((neg_high_loss, pos_high_loss))
+        timers["high_loss_filter_s"], t = _elapsed_since(t, sync=sync_timers)
+
+        selected_samples = int(predictions.shape[0])
+        loss_value = None
+        if predictions.shape[0] != 0:
+            if len(negative_weight_schedule) == 1:
+                w = torch.ones(y.shape[0]) * negative_weight_schedule[0]
+                pos_ndcs = y == 1
+                w[pos_ndcs] = 1
+                w = w[..., None]
+            else:
+                if oww.n_classes == 1:
+                    w = torch.ones(y.shape[0]) * negative_weight_schedule[step_ndx]
+                    pos_ndcs = y == 1
+                    w[pos_ndcs] = 1
+                    w = w[..., None]
+            timers["weight_build_s"], t = _elapsed_since(t, sync=sync_timers)
+
+            loss = oww.loss(
+                predictions,
+                y_ if oww.n_classes == 1 else y,
+                w.to(oww.device),
+            )
+            loss = loss / accumulation_steps
+            loss_value = float(loss.detach().cpu().numpy())
+            accumulated_samples += predictions.shape[0]
+            timers["loss_s"], t = _elapsed_since(t, sync=sync_timers)
+
+            if predictions.shape[0] >= 128:
+                accumulated_predictions = predictions
+                accumulated_labels = y_
+            if accumulated_samples < 128:
+                accumulation_steps += 1
+                accumulated_predictions = torch.cat(
+                    (accumulated_predictions, predictions)
+                )
+                accumulated_labels = torch.cat((accumulated_labels, y_))
+                timers["accumulate_s"], t = _elapsed_since(t, sync=sync_timers)
+            else:
+                loss.backward()
+                timers["backward_s"], t = _elapsed_since(t, sync=sync_timers)
+                oww.optimizer.step()
+                timers["optimizer_s"], t = _elapsed_since(t, sync=sync_timers)
+                accumulation_steps = 1
+                accumulated_samples = 0
+
+                oww.history["loss"].append(loss.detach().cpu().numpy())
+
+                fp = oww.fp(
+                    accumulated_predictions,
+                    accumulated_labels if oww.n_classes == 1 else y,
+                )
+                oww.n_fp += fp
+                oww.history["recall"].append(
+                    oww.recall(accumulated_predictions, accumulated_labels)
+                    .detach()
+                    .cpu()
+                    .numpy()
+                )
+
+                accumulated_predictions = torch.Tensor([]).to(oww.device)
+                accumulated_labels = torch.Tensor([]).to(oww.device)
+                timers["metrics_s"], t = _elapsed_since(t, sync=sync_timers)
+        else:
+            timers["weight_build_s"] = 0.0
+            timers["loss_s"] = 0.0
+
+        should_validate = step_ndx in val_steps and step_ndx > 1
+        if should_validate:
+            val_t0 = time.perf_counter()
+            fp_val_s = 0.0
+            fp_val_batches = 0
+            pos_clip_val_s = 0.0
+            synth_val_s = 0.0
+            if false_positive_val_data is not None:
+                fp_t0 = time.perf_counter()
+                val_fp = 0
+                for _fp_val_batches, data in enumerate(
+                    false_positive_val_data, start=1
+                ):
+                    fp_val_batches = _fp_val_batches
+                    with torch.no_grad():
+                        x_val, y_val = data[0].to(oww.device), data[1].to(oww.device)
+                        val_predictions = oww.model(x_val)
+                        val_fp += oww.fp(val_predictions, y_val[..., None])
+                fp_val_s = time.perf_counter() - fp_t0
+                val_fp_per_hr = (val_fp / val_set_hrs).detach().cpu().numpy()
+                oww.history["val_fp_per_hr"].append(val_fp_per_hr)
+
+            if positive_test_clips is not None:
+                pos_t0 = time.perf_counter()
+                tp = 0
+                fn = 0
+                for data in positive_test_clips:
+                    with torch.no_grad():
+                        x_val = data[0].to(oww.device)
+                        batch = []
+                        for i in range(0, x_val.shape[1] - 16, 1):
+                            batch.append(x_val[:, i : i + 16, :])
+                        batch = torch.vstack(batch)
+                        preds = oww.model(batch)
+                        if any(preds >= 0.5):
+                            tp += 1
+                        else:
+                            fn += 1
+                pos_clip_val_s = time.perf_counter() - pos_t0
+                oww.history["positive_test_clips_recall"].append(tp / (tp + fn))
+
+            synth_val_batches = 0
+            if X_val is not None:
+                synth_t0 = time.perf_counter()
+                for _synth_val_batches, data in enumerate(X_val, start=1):
+                    synth_val_batches = _synth_val_batches
+                    with torch.no_grad():
+                        x_val, y_val = data[0].to(oww.device), data[1].to(oww.device)
+                        val_predictions = oww.model(x_val)
+                        val_recall = (
+                            oww.recall(val_predictions, y_val[..., None])
+                            .detach()
+                            .cpu()
+                            .numpy()
+                        )
+                        val_acc = oww.accuracy(
+                            val_predictions, y_val[..., None].to(torch.int64)
+                        )
+                        val_fp = oww.fp(val_predictions, y_val[..., None])
+                synth_val_s = time.perf_counter() - synth_t0
+                oww.history["val_accuracy"].append(val_acc.detach().cpu().numpy())
+                oww.history["val_recall"].append(val_recall)
+                oww.history["val_n_fp"].append(val_fp.detach().cpu().numpy())
+
+            if (
+                X_val is not None
+                and oww.history["val_n_fp"][-1]
+                <= np.percentile(oww.history["val_n_fp"], 50)
+                and oww.history["val_recall"][-1]
+                >= np.percentile(oww.history["val_recall"], 5)
+            ):
+                oww.best_models.append(copy.deepcopy(oww.model))
+                oww.best_model_scores.append(
+                    {
+                        "training_step_ndx": step_ndx,
+                        "val_n_fp": oww.history["val_n_fp"][-1],
+                        "val_recall": oww.history["val_recall"][-1],
+                        "val_accuracy": oww.history["val_accuracy"][-1],
+                        "val_fp_per_hr": oww.history.get("val_fp_per_hr", [0])[-1],
+                    }
+                )
+                oww.best_val_recall = oww.history["val_recall"][-1]
+                oww.best_val_accuracy = oww.history["val_accuracy"][-1]
+
+            _telemetry_line(
+                "inner_validation_telemetry",
+                {
+                    "step": step_ndx,
+                    "fp_val_s": fp_val_s,
+                    "fp_val_batches": fp_val_batches,
+                    "positive_clip_val_s": pos_clip_val_s,
+                    "synthetic_val_s": synth_val_s,
+                    "synthetic_val_batches": synth_val_batches,
+                    "total_s": time.perf_counter() - val_t0,
+                    "best_models": len(oww.best_models),
+                },
+            )
+
+        if sample_step:
+            step_total_s = time.perf_counter() - step_t0
+            _telemetry_line(
+                "train_step_telemetry",
+                {
+                    "step": step_ndx,
+                    "loss": loss_value if loss_value is not None else "none",
+                    "selected_samples": selected_samples,
+                    "accumulation_steps": accumulation_steps,
+                    "step_total_s": step_total_s,
+                    **timers,
+                },
+            )
 
 
 def _shape(path: Path) -> tuple[int, ...]:
@@ -235,6 +546,7 @@ def _custom_train_model(*, work_dir: Path, out_dir: Path, target_word: str) -> N
     """The soft-fork meat: replace upstream's --train_model __main__ block."""
     with phase("prepare_train_inputs"):
         _log_torch_runtime()
+        _log_runtime_boundary("prepare_train_inputs_start")
         log_gpu_memory("prepare_train_inputs_start")
         config = yaml.safe_load((work_dir / "my_model.yaml").read_text())
         feature_save_dir = out_dir / target_word
@@ -275,6 +587,11 @@ def _custom_train_model(*, work_dir: Path, out_dir: Path, target_word: str) -> N
         weights = np.linspace(1, max_negative_weight, int(steps)).tolist()
         val_steps = _build_val_steps(steps)
         print(f"  steps={steps}", flush=True)
+        print(
+            f"  {TRAIN_TELEMETRY_EVERY_ENV}="
+            f"{os.environ.get(TRAIN_TELEMETRY_EVERY_ENV, '500')}",
+            flush=True,
+        )
         print(f"  warmup_steps={steps // 5}", flush=True)
         print(f"  hold_steps={steps // 3}", flush=True)
         print(
@@ -284,8 +601,10 @@ def _custom_train_model(*, work_dir: Path, out_dir: Path, target_word: str) -> N
             flush=True,
         )
         log_gpu_memory("prepare_train_inputs_end")
+        _log_runtime_boundary("prepare_train_inputs_end")
 
     with phase("fit_model"):
+        _log_runtime_boundary("before_fit_model")
         log_gpu_memory("before_fit_model")
         print(
             f"=== custom training: {steps} steps, "
@@ -293,13 +612,14 @@ def _custom_train_model(*, work_dir: Path, out_dir: Path, target_word: str) -> N
             flush=True,
         )
         t0 = time.monotonic()
-        oww.train_model(
+        _train_model_instrumented(
+            oww,
             X=X_train,
             X_val=X_val,
             false_positive_val_data=X_val_fp,
             max_steps=steps,
             negative_weight_schedule=weights,
-            val_steps=val_steps,
+            val_steps=val_steps.tolist(),
             warmup_steps=steps // 5,
             hold_steps=steps // 3,
             lr=1e-4,
@@ -311,6 +631,7 @@ def _custom_train_model(*, work_dir: Path, out_dir: Path, target_word: str) -> N
         )
         _log_model_runtime("after_fit", oww)
         log_gpu_memory("after_fit_model")
+        _log_runtime_boundary("after_fit_model")
         print(f"=== best_models_saved={len(oww.best_models)} ===", flush=True)
 
     # v8: pick best checkpoint by REAL-AUDIO F1
