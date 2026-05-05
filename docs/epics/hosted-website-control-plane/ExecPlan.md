@@ -134,6 +134,9 @@ The first observable result should be deliberately small: a hosted dashboard can
 - Observation: `pydantic-settings` JSON-decodes list-typed environment fields before running ordinary field validators.
   Evidence: Production deploy attempt 5 reached `dirt_control.app:create_app`, then crashed while parsing `DIRT_CLOUD_ALLOWED_ORIGINS=https://sirius-forge.com` because the list field expected JSON. `CloudSettings.allowed_origins` now uses `NoDecode` so comma-separated Railway env values reach the existing validator.
 
+- Observation: The local ignored production env file had the hosted browser admin credentials, but the Railway `control-plane-api` service did not.
+  Evidence: Key-only checks showed `DIRT_CLOUD_ADMIN_USERNAME` and `DIRT_CLOUD_ADMIN_PASSWORD_HASH` present in `.env.prod` but absent from the Railway API service. Production deploy attempt 6 reached settings validation and failed on those two missing fields. `scripts/deploy-control-plane` now syncs required API and web-ui service variables from the ignored env files through `railway variable set --stdin --skip-deploys` before deployment.
+
 
 ## Decision Log
 
