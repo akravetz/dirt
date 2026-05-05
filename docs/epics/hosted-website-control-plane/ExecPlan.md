@@ -140,6 +140,9 @@ The first observable result should be deliberately small: a hosted dashboard can
 - Observation: The ignored env files carried a cloud admin password-hash key, but the value was blank.
   Evidence: Length-only checks showed `DIRT_CLOUD_ADMIN_PASSWORD_HASH` length `0` in `.env` and `.env.prod`, while the local `AUTH_PASSWORD` was present. `scripts/deploy-control-plane` now derives the cloud `sha256:` password hash from `AUTH_PASSWORD` only when the explicit cloud hash is blank, without printing the plaintext or hash.
 
+- Observation: Railway Nixpacks defaulted the hosted web-ui build to Node 18, which is below Vite 8's runtime requirement.
+  Evidence: The first real web-ui deployment failed during `pnpm build` with Vite's warning that Node 20.19+ or 22.12+ is required, followed by `ReferenceError: CustomEvent is not defined` on Node 18.20.5. `web-ui/package.json` and `web-ui/.node-version` now pin the service to Node 22.12+.
+
 
 ## Decision Log
 
