@@ -23,7 +23,7 @@ The first observable result should be deliberately small: a hosted dashboard can
 - [x] (2026-05-04T17:40:46Z) Created this Markdown ExecPlan as the canonical implementation plan for the hosted control-plane epic.
 - [x] (2026-05-05T02:15:31Z) Completed Railway prework: installed Railway CLI 4.45.0, created Railway project `dirt-control-plane`, added `control-plane-api`, `web-ui`, `Postgres`, and `dirt-assets`, generated custom-domain requirements for `sirius-forge.com` and `api.sirius-forge.com`, wrote local secrets to ignored `.env.prod`, and added placeholders to `.env.example`.
 - [x] (2026-05-05T02:50:25Z) Deployed temporary placeholder containers to `control-plane-api` and `web-ui` to complete Railway public-networking setup; both custom domains now serve valid certificates and 200 responses.
-- [ ] Milestone 1: decide and document hosted platform, auth, database, object storage, and deployment boundaries.
+- [x] (2026-05-05T18:20:00Z) Milestone 1: decided and documented hosted platform, auth, database, object storage, DNS, deployment boundaries, and current-provider evidence.
 - [ ] Milestone 2: implement the cloud control-plane schema and thin hosted API locally, with tests.
 - [ ] Milestone 3: implement local outbound gateway sync for read-only catalog, latest state, freshness, rollups, and assets.
 - [ ] Milestone 4: deploy the read-only hosted dashboard and prove stale/offline behavior.
@@ -54,6 +54,12 @@ The first observable result should be deliberately small: a hosted dashboard can
 - Observation: Railway custom-domain TLS did not fully work for an offline empty service. DNS and Railway verification could report valid while HTTPS still served the fallback `*.up.railway.app` certificate for `api.sirius-forge.com`. Deploying a tiny service that listens on `0.0.0.0:$PORT` fixed certificate presentation and routing.
   Evidence: Before placeholder deployment, `openssl s_client -servername api.sirius-forge.com` showed `CN=*.up.railway.app`; after deployment, it showed `CN=api.sirius-forge.com` and `curl https://api.sirius-forge.com/healthz` returned HTTP 200.
 
+- Observation: Railway Buckets are a good fit for private grow media, but they are not a public-static-asset feature. Public buckets are not currently supported, and the documented access patterns are presigned URLs or backend proxying.
+  Evidence: Railway Storage Buckets docs, last checked 2026-05-05: https://docs.railway.com/guides/storage-buckets.
+
+- Observation: Railway bucket traffic has a cost distinction that affects the asset path. Bucket egress is documented as free, while uploads from Railway services to buckets count as service egress because buckets are on the public network.
+  Evidence: Railway Storage Buckets Billing docs, last checked 2026-05-05: https://docs.railway.com/storage-buckets/billing.
+
 
 ## Decision Log
 
@@ -82,31 +88,31 @@ The first observable result should be deliberately small: a hosted dashboard can
   Date/Author: 2026-05-04 / Codex
 
 - Decision: Use Railway as the single hosted provider for V1.
-  Rationale: Railway can host a long-running FastAPI service, the React/Vite frontend, managed Postgres, S3-compatible object storage buckets, service environment variables, generated/custom domains, logs, and CLI-managed infrastructure in one project. This fits the preferred long-running backend shape better than forcing the cloud API into Vercel Functions.
+  Rationale: Railway can host a long-running FastAPI service, the React/Vite frontend, managed Postgres, S3-compatible object storage buckets, service environment variables, generated/custom domains, logs, and CLI-managed infrastructure in one project. This fits the preferred long-running backend shape better than forcing the cloud API into Vercel Functions. Current docs checked for this decision: FastAPI deploy guide https://docs.railway.com/guides/fastapi, static hosting guide https://docs.railway.com/guides/static-hosting, Postgres docs https://docs.railway.com/databases/postgresql/, storage buckets guide https://docs.railway.com/guides/storage-buckets, custom domain CLI docs https://docs.railway.com/cli/domain, and public networking docs https://docs.railway.com/deploy/exposing-your-app.
   Date/Author: 2026-05-05 / Codex
 
 - Decision: Use `sirius-forge.com` for the hosted UI and `api.sirius-forge.com` for the cloud API.
-  Rationale: The user owns `sirius-forge.com` in Cloudflare and asked for the UI on the apex domain with the API on the `api` subdomain.
+  Rationale: The user owns `sirius-forge.com` in Cloudflare and asked for the UI on the apex domain with the API on the `api` subdomain. Railway custom-domain docs say the required CNAME and TXT records route traffic and verify ownership, and Cloudflare docs confirm CNAME flattening supports a CNAME-equivalent apex record.
   Date/Author: 2026-05-05 / Codex
 
 - Decision: Use single-user FastAPI session auth for the hosted browser UI in V1.
-  Rationale: Railway does not provide native app-auth for this use case, and adding Cloudflare Access would make auth depend on another provider. A hardened single-user session model keeps the public API self-contained while matching Dirt's current single-operator reality.
+  Rationale: Railway does not provide native app-auth for this use case, and adding Cloudflare Access would make auth depend on another provider. A hardened single-user session model keeps the public API self-contained while matching Dirt's current single-operator reality. Starlette's session middleware supports signed cookie sessions with HttpOnly, SameSite, expiry, and Secure-cookie options, while FastAPI documents response cookie handling and password-hash based authentication patterns.
   Date/Author: 2026-05-05 / Codex
 
 - Decision: Keep `api.sirius-forge.com` DNS-only in Cloudflare and allow the apex UI domain to remain proxied.
-  Rationale: DNS-only keeps Railway domain status clean and avoids Cloudflare challenge, cache, WAF, or request-limit surprises for local gateway machine-to-machine traffic. The UI benefits more from Cloudflare proxying and is less sensitive to API-client semantics.
+  Rationale: DNS-only keeps Railway domain status clean and avoids Cloudflare challenge, cache, WAF, or request-limit surprises for local gateway machine-to-machine traffic. The UI benefits more from Cloudflare proxying and is less sensitive to API-client semantics. Cloudflare documents that proxied CNAME answers resolve to Cloudflare anycast IPs, while DNS-only CNAME records return the underlying target or flattened target.
   Date/Author: 2026-05-05 / Codex
 
 - Decision: Store cloud assets privately and require signed URL access.
-  Rationale: Grow photos and future video clips are private operational data. Public buckets or unauthenticated asset URLs are not acceptable for V1.
+  Rationale: Grow photos and future video clips are private operational data. Public buckets or unauthenticated asset URLs are not acceptable for V1, and Railway Buckets are private S3-compatible buckets whose documented public-access pattern is presigned URLs or backend proxying.
   Date/Author: 2026-05-05 / Codex
 
 - Decision: Retain synced cloud assets for 30 days in V1.
-  Rationale: The hosted UI needs recent visual history without creating unbounded storage growth. Thirty days matches the longest metric rollup window and is simple to explain operationally.
+  Rationale: The hosted UI needs recent visual history without creating unbounded storage growth. Thirty days matches the longest metric rollup window and is simple to explain operationally. Railway bucket billing is storage-size based and has no documented minimum storage retention, so V1 can enforce retention in the application or a scheduled maintenance task.
   Date/Author: 2026-05-05 / Codex
 
 - Decision: Use explicit Atlas CLI migrations for the cloud database, not app-start DDL.
-  Rationale: This matches Dirt's current schema-management architecture. Production schema changes should be generated, reviewed, and applied intentionally before deploying app code that depends on them.
+  Rationale: This matches Dirt's current schema-management architecture. Production schema changes should be generated, reviewed, and applied intentionally before deploying app code that depends on them. Atlas versioned migration docs describe `atlas migrate diff` for generating migration files and `atlas migrate apply` for applying pending migrations during deploy.
   Date/Author: 2026-05-05 / Codex
 
 - Decision: Implement the local gateway as a separate Python service with local Postgres durability tables.
@@ -123,6 +129,8 @@ The first observable result should be deliberately small: a hosted dashboard can
 
 
 ## Outcomes & Retrospective
+
+Milestone 1 is complete. The hosted V1 architecture is Railway-only for production: `control-plane-api` is the long-running FastAPI cloud API, `web-ui` is the hosted React/Vite frontend, Railway `Postgres` stores cloud state, and the Railway `dirt-assets` bucket stores private photos and future clips behind signed URLs. Browser auth is single-user FastAPI session auth; gateway auth is a generated bearer token stored locally with only its SHA-256 digest configured in the cloud API service. Production domains are `https://sirius-forge.com` for the UI and `https://api.sirius-forge.com` for the API, with preview/staging deferred until the production-shaped skeleton deploys cleanly.
 
 Railway infrastructure prework is complete, and both app services are running temporary placeholder deployments so public networking and TLS can stay warm until real code replaces them. The Railway project is `dirt-control-plane` (`4720b3f9-7e3b-461e-b44d-fbb9e349ed11`) in the `production` environment (`12ffb3c2-807b-4246-a7d0-f00466be68fe`). Services are `control-plane-api` (`15035b13-0995-4f81-b548-954b3e6aed29`), `web-ui` (`c0297625-b063-4897-ac59-98e76f5f2413`), `Postgres` (`fc7e0827-e834-48a1-901f-faf5b0595602`), and bucket `dirt-assets` (`40462f7f-4691-4b45-9b34-e961e28612b4`, region `iad`). Custom domains are verified and serving valid certificates.
 
@@ -165,7 +173,7 @@ Terms used in this plan:
 
 Milestone 1: Platform, Auth, And Deployment Decisions.
 
-Use the Railway prework as the baseline unless a later decision explicitly changes it. Confirm or revise:
+Completed on 2026-05-05. Use these decisions as the baseline unless a later decision explicitly changes them:
 
 - cloud API V1 runs as long-running FastAPI on Railway service `control-plane-api`;
 - hosted UI runs on Railway service `web-ui`;
@@ -175,7 +183,9 @@ Use the Railway prework as the baseline unless a later decision explicitly chang
 - non-browser local gateway auth uses `DIRT_CLOUD_GATEWAY_TOKEN` locally and `DIRT_CLOUD_GATEWAY_TOKEN_SHA256` in the cloud API service environment;
 - production domains are `https://sirius-forge.com` and `https://api.sirius-forge.com`;
 - preview/staging environments are deferred until the production-shaped skeleton deploys cleanly;
-- Cloudflare DNS posture is apex UI proxied, API DNS-only.
+- Cloudflare DNS posture is apex UI proxied, API DNS-only;
+- deploy the real services by replacing the temporary placeholder deployments in the existing Railway project, not by creating new provider resources;
+- do not run cloud database DDL at app startup; use a dedicated Atlas cloud migration path in Milestone 2.
 
 The Railway CLI is installed locally as `railway 4.45.0`. Source `.env` for `RAILWAY_API_TOKEN`, not `RAILWAY_TOKEN`, when running account-level infrastructure commands. Source ignored `.env.prod` for generated production resource IDs and secrets. Do not print either token or generated secrets in terminal output.
 
@@ -282,7 +292,7 @@ Expected frontend changes:
 - render gateway last-seen, per-metric source time, stale/offline state, and cloud sync backlog;
 - ensure read-only hosted mode hides or disables all actuator controls until command Milestone 5 is complete;
 - add MSW fixtures for live, stale, offline, empty breeding tent, and asset-unavailable states;
-- configure Vercel build for `web-ui` without embedding local hardware credentials or gateway tokens.
+- configure the Railway `web-ui` service build without embedding local hardware credentials or gateway tokens.
 
 Milestone 5: PTZ-Only Cloud Command Loop.
 
@@ -450,12 +460,27 @@ Do not force-push, hard reset, delete unknown runtime data, or rotate production
 
 The initial JSON sketch remains at `docs/epics/hosted-website-control-plane/plan.json`. Treat it as historical inspiration. This Markdown ExecPlan is the canonical implementation plan unless the user says otherwise.
 
-Provider facts checked on 2026-05-04:
+Provider facts checked on 2026-05-04 during initial platform comparison:
 
 - Vercel Python runtime docs say Python runtime is beta, supports FastAPI, and currently lists Python 3.13 support: https://vercel.com/docs/functions/runtimes/python.
 - Vercel Functions limits docs currently list Python bundle size and request/response constraints relevant to keeping media out of functions: https://vercel.com/docs/functions/limitations.
 - Vercel Blob server-upload docs currently call out the 4.5 MB Vercel Function body limit and recommend larger direct/client upload flows: https://vercel.com/docs/vercel-blob/server-upload.
 - Vercel Cron docs currently make frequent sync unsuitable on Hobby cron; the local gateway should poll outbound instead: https://vercel.com/docs/cron-jobs/usage-and-pricing.
+
+Provider facts checked on 2026-05-05 for the final Milestone 1 Railway decision:
+
+- Railway's FastAPI guide documents deploying a FastAPI app as a Railway service and making it publicly accessible through service networking: https://docs.railway.com/guides/fastapi.
+- Railway public networking docs say applications should listen on `0.0.0.0:$PORT`, which matches the placeholder TLS/routing discovery: https://docs.railway.com/deploy/exposing-your-app.
+- Railway static hosting and React/Vite guides support hosting the built `web-ui` service on Railway rather than Vercel: https://docs.railway.com/guides/static-hosting and https://docs.railway.com/guides/react.
+- Railway monorepo and build-configuration docs support separate service root directories/watch paths for `apps/control-plane/` and `web-ui/`: https://docs.railway.com/tutorials/deploying-a-monorepo and https://docs.railway.com/builds/build-configuration.
+- Railway Postgres docs document the `DATABASE_URL` service variable and connections from services in the same project: https://docs.railway.com/databases/postgresql/.
+- Railway variable-reference docs support wiring `control-plane-api` variables such as `DATABASE_URL=${{Postgres.DATABASE_URL}}` without copying secret values into the repo: https://docs.railway.com/reference/variables and https://docs.railway.com/guides/variables.
+- Railway Buckets are private, S3-compatible object storage; public buckets are not currently supported, and the documented access patterns include presigned URLs or backend proxying: https://docs.railway.com/guides/storage-buckets.
+- Railway bucket billing docs say there is no minimum storage retention and bucket egress is free, but uploads from Railway services to buckets count as service egress because buckets are on the public network: https://docs.railway.com/storage-buckets/billing.
+- Railway custom-domain CLI docs say custom domains require both CNAME and TXT verification records and can take up to 72 hours to propagate: https://docs.railway.com/cli/domain.
+- Cloudflare CNAME-flattening docs confirm a CNAME-equivalent apex record can answer as flattened IPs, and distinguish proxied Cloudflare-IP answers from DNS-only underlying-target answers: https://developers.cloudflare.com/dns/cname-flattening/cname-flattening-diagram/.
+- Starlette SessionMiddleware supports signed cookie sessions with HttpOnly, SameSite, expiry, and `https_only` Secure-cookie options; FastAPI documents setting response cookies and password-hash based authentication patterns: https://www.starlette.io/middleware/, https://fastapi.tiangolo.com/advanced/response-cookies/, and https://fastapi.tiangolo.com/tutorial/security/oauth2-jwt/.
+- Atlas versioned migration docs describe `atlas migrate diff` to generate reviewed migration files and `atlas migrate apply` to apply pending migrations during deploy, which is why cloud DDL is deferred out of app startup: https://atlasgo.io/versioned/diff and https://atlasgo.io/versioned/apply.
 
 Current local implementation facts:
 
@@ -492,6 +517,12 @@ Post-placeholder deployment checks on 2026-05-05:
 - `curl https://sirius-forge.com/healthz` returned HTTP 200 with the Sirius Forge placeholder HTML.
 - `openssl s_client -servername sirius-forge.com -connect sirius-forge.com:443` showed `CN=sirius-forge.com` with SANs for `sirius-forge.com` and `*.sirius-forge.com`.
 - After Cloudflare proxy was disabled for `api.sirius-forge.com`, Railway reported `DNS_RECORD_STATUS_PROPAGATED` for the API domain with current value `lvp8v3hg.up.railway.app`.
+
+Milestone 1 validation on 2026-05-05:
+
+- `uv run python - <<'PY' ... PY` checked that all required ExecPlan sections exist in order, Milestone 1 is marked complete, current Railway provider links are present, stale Vercel-build wording is absent, and local Markdown links resolve. Result: `OK: 12 required sections, 0 local links checked`.
+- `uv run python -c "from pathlib import Path; t=Path('docs/epics/hosted-website-control-plane/ExecPlan.md').read_text(); required=('Purpose / Big Picture','Progress','Surprises & Discoveries','Decision Log','Outcomes & Retrospective','Context and Orientation','Plan of Work','Concrete Steps','Validation and Acceptance','Idempotence and Recovery','Artifacts and Notes','Interfaces and Dependencies'); assert all(f'## {s}' in t for s in required); assert 'Provider facts checked on 2026-05-05' in t; assert 'https://docs.railway.com/guides/fastapi' in t; assert ('configure '+'Vercel build') not in t; print('OK docs consistency')"` passed with `OK docs consistency`.
+- `git diff --check -- docs/epics/hosted-website-control-plane/ExecPlan.md` passed with no whitespace errors.
 
 
 ## Interfaces and Dependencies
@@ -551,3 +582,4 @@ Runtime environment variables:
 ## Revision Notes
 
 - 2026-05-04 / Codex: Created the initial Markdown ExecPlan from the old JSON sketch, current multi-tent implementation, current local API shape, and current Vercel platform docs.
+- 2026-05-05 / Codex Worker M1: Completed Milestone 1 by recording the final Railway platform, database, storage, auth, DNS, deployment, and no-app-start-DDL decisions with current provider links and validation evidence.
