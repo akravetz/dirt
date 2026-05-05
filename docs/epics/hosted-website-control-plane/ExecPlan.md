@@ -143,6 +143,9 @@ The first observable result should be deliberately small: a hosted dashboard can
 - Observation: Railway Nixpacks defaulted the hosted web-ui build to Node 18, which is below Vite 8's runtime requirement.
   Evidence: The first real web-ui deployment failed during `pnpm build` with Vite's warning that Node 20.19+ or 22.12+ is required, followed by `ReferenceError: CustomEvent is not defined` on Node 18.20.5. `web-ui/package.json` and `web-ui/.node-version` now pin the service to Node 22.12+.
 
+- Observation: `pnpm preview -- --host 0.0.0.0 --port $PORT` did not expose the Vite preview server on Railway.
+  Evidence: The Node-22 web-ui deployment built successfully, then failed healthcheck while runtime logs showed Vite listening only on `http://localhost:4173/` and advising `use --host to expose`. `web-ui/railway.json` now starts with `pnpm exec vite preview --host 0.0.0.0 --port $PORT`.
+
 
 ## Decision Log
 
