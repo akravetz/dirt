@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import argparse
 import asyncio
+from dataclasses import replace
 from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -58,7 +60,48 @@ async def run_gateway(settings: Settings | None = None) -> None:
         await engine.dispose()
 
 
+async def run_gateway_once(
+    settings: Settings | None = None,
+    *,
+    dry_run: bool | None = None,
+) -> None:
+    settings = settings or Settings()
+    config = settings.cloud_gateway()
+    if dry_run is not None:
+        config = replace(config, dry_run=dry_run)
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    client = HttpCloudGatewayClient(
+        base_url=config.api_base_url,
+        gateway_token=config.gateway_token,
+    )
+
+    def clock() -> datetime:
+        return datetime.now(UTC)
+
+    try:
+        await ping(engine)
+        service = GatewaySyncService(
+            config=config,
+            outbox=OutboxRepository(engine),
+            local_services=GatewayLocalServiceBundle(engine, clock=clock),
+            cloud_client=client,
+            clock=clock,
+            sleeper=AsyncioSleeper(),
+        )
+        await service.run_once()
+    finally:
+        await client.aclose()
+        await engine.dispose()
+
+
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Run the Dirt cloud gateway")
+    parser.add_argument("--once", action="store_true", help="run one sync cycle")
+    parser.add_argument("--dry-run", action="store_true", help="force dry-run mode")
+    args = parser.parse_args()
+    if args.once:
+        asyncio.run(run_gateway_once(dry_run=True if args.dry_run else None))
+        return
     asyncio.run(run_gateway())
 
 

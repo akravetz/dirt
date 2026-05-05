@@ -10,16 +10,20 @@ from pydantic import BaseModel, Field
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dirt_control.audit import add_audit_event
 from dirt_control.deps import get_clock, get_session, get_settings
 from dirt_control.models import (
     CloudAsset,
+    CloudAuditEvent,
     CloudCommand,
     CloudDevice,
     CloudLatestMetric,
     CloudMetricRollup,
     CloudSite,
     CloudTent,
+    GatewayCredential,
 )
+from dirt_control.retention import prune_expired_assets
 from dirt_control.security import (
     UrlSigner,
     expires_from,
@@ -48,18 +52,96 @@ class CommandCreateRequest(BaseModel):
     payload: dict[str, Any] = Field(default_factory=dict)
 
 
+class GatewayCredentialRotateRequest(BaseModel):
+    token_sha256: str = Field(min_length=64, max_length=64)
+
+
+@router.get("/health")
+async def health(
+    settings: CloudSettings = Depends(get_settings),
+    session: AsyncSession = Depends(get_session),
+    clock: Callable[[], datetime] = Depends(get_clock),
+) -> dict[str, Any]:
+    now = clock()
+    site = await session.get(CloudSite, settings.default_site_id)
+    command_backlog_depth = await _command_backlog_depth(
+        session, site_id=settings.default_site_id
+    )
+    command_failures_24h = (
+        await session.scalar(
+            select(func.count())
+            .select_from(CloudCommand)
+            .where(
+                CloudCommand.site_id == settings.default_site_id,
+                CloudCommand.status.in_(["failed", "rejected", "expired"]),
+                CloudCommand.updated_at >= now - timedelta(days=1),
+            )
+        )
+    ) or 0
+    asset_failures_24h = (
+        await session.scalar(
+            select(func.count())
+            .select_from(CloudAuditEvent)
+            .where(
+                CloudAuditEvent.site_id == settings.default_site_id,
+                CloudAuditEvent.event_type == "asset_upload_failed",
+                CloudAuditEvent.created_at >= now - timedelta(days=1),
+            )
+        )
+    ) or 0
+    gateway_heartbeat_age_s = None
+    if site is not None and site.gateway_last_seen_at is not None:
+        gateway_heartbeat_age_s = int((now - site.gateway_last_seen_at).total_seconds())
+    sync_status = _sync_status_label(
+        site.gateway_last_seen_at if site else None, now=now
+    )
+    return {
+        "service": "control-plane-api",
+        "ok": True,
+        "site_id": settings.default_site_id,
+        "status": sync_status,
+        "gateway_last_seen_at": site.gateway_last_seen_at if site else None,
+        "gateway_heartbeat_age_s": gateway_heartbeat_age_s,
+        "gateway_backlog_depth": site.gateway_backlog_depth if site else 0,
+        "command_backlog_depth": command_backlog_depth,
+        "command_failures_24h": command_failures_24h,
+        "asset_failures_24h": asset_failures_24h,
+        "asset_retention_days": settings.asset_retention_days,
+        "commands_enabled": settings.command_creation_enabled
+        and settings.gateway_command_claim_enabled,
+    }
+
+
 @router.post("/auth/login")
-async def login(
+async def login(  # noqa: PLR0913
     body: LoginRequest,
     response: Response,
     request: Request,
     settings: CloudSettings = Depends(get_settings),
+    session: AsyncSession = Depends(get_session),
+    clock: Callable[[], datetime] = Depends(get_clock),
 ) -> dict[str, str]:
     if body.username != settings.admin_username or not verify_password(
         body.password, settings.admin_password_hash
     ):
+        add_audit_event(
+            session,
+            now=clock(),
+            event_type="auth_login_failed",
+            actor_type="browser",
+            actor_id=body.username,
+        )
+        await session.commit()
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid credentials")
     request.app.state.sessions.create_cookie(response, body.username)
+    add_audit_event(
+        session,
+        now=clock(),
+        event_type="auth_login_succeeded",
+        actor_type="browser",
+        actor_id=body.username,
+    )
+    await session.commit()
     return {"username": body.username}
 
 
@@ -299,20 +381,14 @@ async def sync_status(
     clock: Callable[[], datetime] = Depends(get_clock),
 ) -> dict[str, Any]:
     site = await session.get(CloudSite, settings.default_site_id)
-    command_backlog_depth = (
-        await session.scalar(
-            select(func.count())
-            .select_from(CloudCommand)
-            .where(
-                CloudCommand.site_id == settings.default_site_id,
-                CloudCommand.status.in_(["queued", "claimed", "running"]),
-            )
-        )
-    ) or 0
+    command_backlog_depth = await _command_backlog_depth(
+        session, site_id=settings.default_site_id
+    )
     if site is None:
         return {
             "site_id": settings.default_site_id,
             "gateway_last_seen_at": None,
+            "gateway_backlog_depth": 0,
             "last_catalog_sync_at": None,
             "command_backlog_depth": command_backlog_depth,
             "status": "offline",
@@ -321,6 +397,7 @@ async def sync_status(
     return {
         "site_id": site.site_id,
         "gateway_last_seen_at": site.gateway_last_seen_at,
+        "gateway_backlog_depth": site.gateway_backlog_depth,
         "last_catalog_sync_at": site.last_catalog_sync_at,
         "command_backlog_depth": command_backlog_depth,
         "status": status_label,
@@ -335,6 +412,8 @@ async def create_command(
     session: AsyncSession = Depends(get_session),
     clock: Callable[[], datetime] = Depends(get_clock),
 ) -> dict[str, Any]:
+    if not settings.command_creation_enabled:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "commands disabled")
     existing = (
         await session.execute(
             select(CloudCommand).where(
@@ -367,9 +446,82 @@ async def create_command(
         updated_at=now,
     )
     session.add(command)
+    add_audit_event(
+        session,
+        now=now,
+        event_type="command_created",
+        actor_type="browser",
+        actor_id=user,
+        site_id=site_id,
+        subject_type="cloud_command",
+        subject_id=command.command_id,
+        metadata={
+            "command_type": command.command_type,
+            "tent_id": command.tent_id,
+            "device_id": command.device_id,
+            "capability_id": command.capability_id,
+        },
+    )
     await session.commit()
     await session.refresh(command)
     return _command_response(command)
+
+
+@router.post("/admin/gateway-credentials/{credential_id}/rotate")
+async def rotate_gateway_credential(
+    credential_id: str,
+    body: GatewayCredentialRotateRequest,
+    user: str = Depends(require_browser_user),
+    session: AsyncSession = Depends(get_session),
+    clock: Callable[[], datetime] = Depends(get_clock),
+) -> dict[str, Any]:
+    credential = await session.get(GatewayCredential, credential_id)
+    if credential is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "gateway credential not found")
+    now = clock()
+    credential.token_sha256 = body.token_sha256
+    credential.rotated_at = now
+    credential.updated_at = now
+    add_audit_event(
+        session,
+        now=now,
+        event_type="gateway_credential_rotated",
+        actor_type="browser",
+        actor_id=user,
+        site_id=credential.allowed_site_id,
+        subject_type="gateway_credential",
+        subject_id=credential.credential_id,
+        metadata={"gateway_id": credential.gateway_id},
+    )
+    await session.commit()
+    return {
+        "credential_id": credential.credential_id,
+        "gateway_id": credential.gateway_id,
+        "allowed_site_id": credential.allowed_site_id,
+        "rotated_at": credential.rotated_at,
+    }
+
+
+@router.post("/admin/assets/prune-expired")
+async def prune_assets(
+    user: str = Depends(require_browser_user),
+    settings: CloudSettings = Depends(get_settings),
+    session: AsyncSession = Depends(get_session),
+    clock: Callable[[], datetime] = Depends(get_clock),
+) -> dict[str, Any]:
+    result = await prune_expired_assets(
+        session,
+        settings=settings,
+        now=clock(),
+        actor_type="browser",
+        actor_id=user,
+        site_id=settings.default_site_id,
+    )
+    return {
+        "cutoff": result.cutoff,
+        "matched": result.matched,
+        "objects_deleted": result.objects_deleted,
+    }
 
 
 @router.get("/commands/{command_id}")
@@ -456,3 +608,16 @@ def _sync_status_label(last_seen_at: datetime | None, *, now: datetime) -> str:
     if age_s > 90:
         return "stale"
     return "live"
+
+
+async def _command_backlog_depth(session: AsyncSession, *, site_id: str) -> int:
+    return (
+        await session.scalar(
+            select(func.count())
+            .select_from(CloudCommand)
+            .where(
+                CloudCommand.site_id == site_id,
+                CloudCommand.status.in_(["queued", "claimed", "running"]),
+            )
+        )
+    ) or 0

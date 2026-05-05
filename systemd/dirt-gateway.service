@@ -1,0 +1,26 @@
+[Unit]
+Description=Dirt cloud gateway — outbound hosted control-plane sync
+Documentation=file://%h/code/dirt/AGENTS.md
+After=default.target network-online.target postgresql.service
+Wants=network-online.target
+# The gateway is not hardware authority; if it fails, local hwd/web continue.
+StartLimitBurst=5
+StartLimitIntervalSec=300
+OnFailure=dirt-service-alert@%n.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/code/dirt
+EnvironmentFile=%h/code/dirt/.env
+EnvironmentFile=-%h/code/dirt/.env.prod
+ExecStart=%h/.local/bin/uv run --package dirt-gateway python -m dirt_gateway.main
+Restart=on-failure
+RestartSec=5s
+KillSignal=SIGTERM
+TimeoutStopSec=10s
+SuccessExitStatus=143
+
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

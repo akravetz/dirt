@@ -28,7 +28,8 @@ The first observable result should be deliberately small: a hosted dashboard can
 - [x] (2026-05-05T12:00:00Z) Milestone 3: implemented the local outbound gateway package, local Atlas-managed outbox/cursor durability tables, read-only DI sync orchestration, asset sign-upload/complete flow, dry-run mode, `cloud_gateway` observability, and focused acceptance tests.
 - [x] (2026-05-05T04:19:48Z) Milestone 4: implemented the read-only hosted dashboard code path, hosted API base URL support, session bootstrap, site/tent selector, sync freshness/status rendering, private signed-asset display, read-only hosted live page, MSW cloud scenarios, and Railway web-ui build config. Deployment is blocked until the Milestone 6 deploy flow exists or the operator explicitly approves direct Railway deployment.
 - [x] (2026-05-05T04:39:14Z) Milestone 5: implemented the PTZ-only cloud command loop, local command ledger integration, cloud result reporting, restart/idempotency guardrails, hosted `/live` command lifecycle UI, and focused backend/frontend tests.
-- [ ] Milestone 6: harden operations, recovery, and rollout documentation.
+- [x] (2026-05-05T05:35:00Z) Milestone 6 implementation is locally complete: gateway systemd unit/install wiring, supported Railway deploy script, cloud health/audit/monitoring, command rollback toggles, daily asset retention, operator docs, and focused tests are in place.
+- [ ] Production Railway deployment via `scripts/deploy-control-plane`. Blocked until an operator explicitly approves the credentialed shared-state mutation; the script would apply production cloud migrations and replace the placeholder Railway deployments.
 
 
 ## Surprises & Discoveries
@@ -104,6 +105,15 @@ The first observable result should be deliberately small: a hosted dashboard can
 
 - Observation: Browser command creation also needed a site-scope guard, not only PTZ type/device/capability guards.
   Evidence: Main-agent Milestone 5 verification found that a browser could queue a command for a non-default `site_id` that the homebox gateway would never claim. `POST /api/commands` now rejects non-default sites before creating cloud command rows, and `uv run pytest apps/control-plane/tests -q` passed with `10 passed`.
+
+- Observation: Atlas CLI lint is no longer available in the installed community CLI even though the local reference pack still describes it as community-available.
+  Evidence: `atlas migrate lint --env cloud --latest 1` exited with `Abort: Starting with v0.38, 'atlas migrate lint' is available only to Atlas Pro users.` Migration apply coverage still runs through the cloud API pytest fixture.
+
+- Observation: The first generated Milestone 6 cloud migration added `cloud_site.gateway_backlog_depth` as `NOT NULL` without a server default, which would fail against the existing Railway database rows.
+  Evidence: The unsafe generated SQL was deleted before apply and regenerated after changing the SQLModel field to `Column(Integer, nullable=False, server_default="0")`; the committed migration now uses `ALTER TABLE "cloud_site" ADD COLUMN "gateway_backlog_depth" integer NOT NULL DEFAULT 0;`.
+
+- Observation: The deploy and gateway service environment loading needed to honor the repo's split secret convention.
+  Evidence: Main-agent Milestone 6 verification updated `scripts/deploy-control-plane` to load `.env` before `.env.prod`, so `RAILWAY_API_TOKEN` can come from `.env` while production cloud secrets come from `.env.prod`. `systemd/dirt-gateway.service` now also loads optional `.env.prod` after `.env`, so local gateway secrets are available when stored in the ignored production env file.
 
 
 ## Decision Log
@@ -184,6 +194,14 @@ The first observable result should be deliberately small: a hosted dashboard can
   Rationale: The local ledger should prove every accepted hardware action and prevent terminal cloud commands from being re-executed after restart. Rejected or expired cloud intent did not become a local hardware action, so it is reported to cloud without creating a misleading local command row.
   Date/Author: 2026-05-05 / Codex Worker M5
 
+- Decision: Make hosted command rollback configuration-only with separate browser creation and gateway claim toggles.
+  Rationale: Operators need to stop new hosted commands quickly without stopping read-only sync, heartbeat, asset retention, or local hardware automation. `DIRT_CLOUD_COMMAND_CREATION_ENABLED=false` blocks browser command creation; `DIRT_CLOUD_GATEWAY_COMMAND_CLAIM_ENABLED=false` makes gateway claim return no commands.
+  Date/Author: 2026-05-05 / Codex Worker M6
+
+- Decision: Run cloud asset retention from the existing outbound gateway path as a daily idempotent maintenance event.
+  Rationale: Railway V1 does not add a separate scheduler in this milestone. The gateway already has durable outbox/retry semantics and gateway auth, so a daily `asset_retention` event can prune cloud metadata and private bucket objects while leaving local hardware loops untouched.
+  Date/Author: 2026-05-05 / Codex Worker M6
+
 
 ## Outcomes & Retrospective
 
@@ -198,6 +216,8 @@ Milestone 3 is complete locally. The new workspace member `apps/gateway/` define
 Milestone 4 is code-complete locally. The React app now uses `VITE_DIRT_API_BASE_URL` to switch from same-origin local `dirt-web` mode to hosted cloud API mode. Hosted mode validates the cloud FastAPI session with `/api/auth/me`, renders the `homebox` site selector and `main` / `breeding` tent selector, shows gateway last-seen, cloud status, command backlog, per-metric source times, metric stale state, device last-seen values, and latest private assets using signed URLs returned by authenticated API routes. The hosted live page is deliberately read-only until Milestone 5, so local PTZ controls remain available only in same-origin local mode. MSW v2 fixtures cover `live`, `stale`, `offline`, `empty`, and `asset-unavailable` cloud scenarios via `?cloud_fixture=...`. Railway web-ui config is checked in at `web-ui/railway.json` and only builds the Vite app with `VITE_DIRT_API_BASE_URL`; it does not embed local hardware credentials or gateway tokens. The actual Railway deployment was not run because the supported Milestone 6 deploy script does not exist yet and direct provider deployment is an unsafe visible action without operator approval.
 
 Milestone 5 is code-complete locally. Browser command creation remains PTZ-only and 60-second-expiring in the cloud API, while gateway claim now expires stale queued/claimed commands and can re-return non-terminal commands already claimed by the same gateway. The local gateway has a dedicated `GatewayCommandService` that claims cloud commands, validates scope/type/payload, records accepted PTZ commands in the local `command` ledger through `CommandService(source='cloud_gateway')`, executes them through the injected `PTZService` abstraction, reports `running` directly, and persists terminal command results through the existing local outbox before reporting them to cloud. If a restart sees an already-terminal local ledger row, the gateway reports that terminal result again and does not move the camera again; if it sees a non-terminal old ledger row, it fails the local row and reports failure rather than replaying a potentially non-idempotent PTZ delta. The hosted `/live` route now shows PTZ preset/look/zoom command controls only in hosted mode when cloud sync reports a live gateway, and it renders recent command lifecycle states from `/api/commands`. Local same-origin PTZ controls still use `/api/ptz/*` unchanged. No fan, lights, or humidifier remote control was added.
+
+Milestone 6 is locally complete but not deployed to production by this worker. The repository now includes `systemd/dirt-gateway.service`, `scripts/install-systemd` wiring, `scripts/deploy-control-plane`, `apps/control-plane/railway.json`, `docs/hosted-control-plane.md`, and command docs for supported Railway deployment and rollback. The cloud API exposes `/api/health` with gateway heartbeat age, local gateway backlog, command backlog/failure counts, asset failure counts, retention window, and command enablement. Cloud audit rows cover auth login success/failure, command creation, command claim, command result, asset upload completion/failure, asset retention, and gateway credential rotation. Cloud assets have a 30-day retention path: the gateway enqueues one daily `asset_retention` event, and the cloud API prunes expired `cloud_asset` rows plus S3 objects when bucket credentials are configured. Actual Railway deployment was not run because it would apply production migrations and replace public services; that is a visible shared-state mutation requiring explicit operator approval in this environment.
 
 
 ## Context and Orientation
@@ -697,6 +717,36 @@ Milestone 4 validation on 2026-05-05:
 - `uv run pytest apps/control-plane/tests -q` passed with `8 passed`.
 - Simplify pass ran using the fallback review path because no subagent spawn tool is available in this runtime; it applied one cleanup so the hosted dashboard trusts the API `status` field when present and computes freshness only as fallback.
 
+Milestone 6 implementation artifacts on 2026-05-05:
+
+- Gateway unit and install wiring: `systemd/dirt-gateway.service` and `scripts/install-systemd`.
+- Supported deploy flow: `scripts/deploy-control-plane` and `apps/control-plane/railway.json`.
+- Cloud operational schema migration: `cloud/migrations/20260505045254_cloud_operational_hardening.sql` adds `cloud_site.gateway_backlog_depth integer NOT NULL DEFAULT 0`.
+- Cloud monitoring and audit surfaces: `apps/control-plane/src/dirt_control/api/browser.py`, `api/gateway.py`, `audit.py`, `retention.py`, and `storage.py`.
+- Gateway retention/failure reporting: `apps/gateway/src/dirt_gateway/sync.py`, `cloud.py`, and `protocols.py`.
+- Operator docs: `docs/hosted-control-plane.md`, `docs/commands.md`, `AGENTS.md`, `.env.example`, and `docs/observability.md`.
+
+Milestone 6 validation on 2026-05-05:
+
+- `uv lock` passed with `Resolved 238 packages in 680ms`.
+- `atlas migrate diff cloud_operational_hardening --env cloud` generated the cloud migration after the model was corrected to include a safe default.
+- `uv run pytest apps/control-plane/tests -q` passed with `14 passed`.
+- `uv run pytest apps/gateway/tests -q` passed with `11 passed`.
+- `uv run ruff check apps/control-plane apps/gateway cloud/atlas/load-sqlmodel.py` passed.
+- `uv run ruff format apps/control-plane apps/gateway cloud/atlas/load-sqlmodel.py --check` passed with `27 files already formatted`.
+- `bash -n scripts/deploy-control-plane scripts/install-systemd` passed.
+- `systemd-analyze --user verify systemd/dirt-gateway.service` passed with no output.
+- `uv run --package dirt-gateway python -m dirt_gateway.main --help` showed `--once` and `--dry-run`.
+- `uv run --package dirt-control-plane python cloud/atlas/load-sqlmodel.py | sed -n '1,30p'` emitted cloud DDL with `gateway_backlog_depth INTEGER DEFAULT '0' NOT NULL`.
+- `atlas migrate lint --env cloud --latest 1` was skipped as a validation blocker because the installed Atlas CLI reports migrate lint is Atlas Pro-only starting v0.38.
+- Simplify pass fallback ran locally because no subagent spawn tool is available. Applied cleanup: delete retained cloud assets by primary `asset_id` instead of object key, and avoid writing one audit row per disabled command-claim poll.
+- Post-simplify focused validation passed: `uv run pytest apps/control-plane/tests -q` with `14 passed`, `uv run pytest apps/gateway/tests -q` with `11 passed`, `uv run ruff check apps/control-plane apps/gateway cloud/atlas/load-sqlmodel.py`, and `uv run ruff format apps/control-plane apps/gateway cloud/atlas/load-sqlmodel.py --check`.
+- Main-agent verification corrected the deploy/systemd environment loading so `.env` is loaded before `.env.prod`, then reran focused validation: `uv run pytest apps/control-plane/tests apps/gateway/tests apps/shared/tests -q` passed with `163 passed`; `uv run pytest apps/tests/invariants/ -q` passed with `116 passed, 1 skipped`; `uv run ruff check apps/control-plane apps/gateway cloud/atlas/load-sqlmodel.py` passed; `uv run ruff format apps/control-plane apps/gateway cloud/atlas/load-sqlmodel.py --check` passed with `27 files already formatted`; `bash -n scripts/deploy-control-plane scripts/install-systemd` passed; `systemd-analyze --user verify systemd/dirt-gateway.service` passed; `pnpm --dir web-ui typecheck`, `lint`, `test`, and `build` passed.
+- Full backend validation `uv run pytest -q` ran and failed only in pre-existing wake-word surfaces: 596 passed, 2 skipped, 4 failed (`apps/wake-word/tests/test_imports.py` cannot import `scipy.special.sph_harm`; `test_paths.py` TPU-layout fallback; `test_seed.py` duplicate suffix behavior). No wake-word files were touched in this milestone.
+- Frontend validation passed: `pnpm --dir web-ui typecheck`, `pnpm --dir web-ui lint`, `pnpm --dir web-ui test` with `7 passed`, and `pnpm --dir web-ui build`.
+- `scripts/agent-fix` passed and applied no additional changes.
+- Production `scripts/deploy-control-plane` was not run because it would apply cloud migrations and replace public Railway services.
+
 
 ## Interfaces and Dependencies
 
@@ -706,8 +756,12 @@ New or changed repository interfaces expected by this plan:
 - `apps/control-plane/src/dirt_control/app.py`
 - `apps/control-plane/src/dirt_control/settings.py`
 - `apps/control-plane/src/dirt_control/models/`
+- `apps/control-plane/src/dirt_control/audit.py`
+- `apps/control-plane/src/dirt_control/retention.py`
+- `apps/control-plane/src/dirt_control/storage.py`
 - `apps/control-plane/src/dirt_control/api/browser.py`
 - `apps/control-plane/src/dirt_control/api/gateway.py`
+- `apps/control-plane/railway.json`
 - `apps/control-plane/tests/`
 - cloud Atlas migration environment `cloud` in `atlas.hcl` and migration directory `cloud/migrations/`
 - `apps/gateway/pyproject.toml`
@@ -718,6 +772,7 @@ New or changed repository interfaces expected by this plan:
 - local sync durability models, either in `apps/shared/src/dirt_shared/models/` or a clearly scoped gateway model module
 - `systemd/dirt-gateway.service`
 - `scripts/deploy-control-plane`
+- `docs/hosted-control-plane.md`
 - `contracts/cloud-control-plane-v1.yaml` or an explicitly documented extension of `contracts/webapp-v1.yaml`
 - generated Python/TypeScript clients for any new browser-facing API contract
 - `web-ui` support for `VITE_DIRT_API_BASE_URL` or the final chosen equivalent
@@ -738,6 +793,9 @@ Runtime environment variables:
 - `DIRT_CLOUD_ADMIN_USERNAME`
 - `DIRT_CLOUD_ADMIN_PASSWORD_HASH`
 - `DIRT_CLOUD_ALLOWED_ORIGINS`
+- `DIRT_CLOUD_ASSET_RETENTION_DAYS`
+- `DIRT_CLOUD_COMMAND_CREATION_ENABLED`
+- `DIRT_CLOUD_GATEWAY_COMMAND_CLAIM_ENABLED`
 - `DIRT_CLOUD_BUCKET_NAME`
 - `DIRT_CLOUD_S3_ENDPOINT`
 - `DIRT_CLOUD_S3_REGION`
@@ -748,6 +806,7 @@ Runtime environment variables:
 - `DIRT_CLOUD_SITE_ID`
 - `DIRT_CLOUD_SYNC_INTERVAL_S`
 - `DIRT_CLOUD_COMMAND_POLL_INTERVAL_S`
+- `DIRT_CLOUD_ASSET_SYNC_ENABLED`
 - `DIRT_CLOUD_DRY_RUN`
 - `VITE_DIRT_API_BASE_URL`
 
@@ -765,3 +824,4 @@ Runtime environment variables:
 - 2026-05-05 / Codex: During main-agent verification, added `apps/gateway` to the pre-commit per-app pytest hook and recorded that DB-backed pytest sessions sharing the worktree template database must run sequentially.
 - 2026-05-05 / Codex: Removed a bare `from conftest import FIXED_NOW` import from the control-plane API tests after the expanded multi-app pytest hook exposed cross-app `conftest.py` import collision.
 - 2026-05-05 / Codex Worker M4: Completed Milestone 4 locally by adding hosted API mode, cloud session bootstrap, site/tent-scoped read-only dashboard surfaces, stale/offline/sync backlog rendering, authenticated signed-asset display, hosted read-only live behavior, MSW v2 cloud scenarios, a Railway web-ui config, and a narrow cloud `/api/sync/status` response fix. Deployment was left blocked on the missing Milestone 6 deploy script and lack of explicit approval for direct Railway deployment.
+- 2026-05-05 / Codex Worker M6: Completed local Milestone 6 operations hardening with the gateway systemd unit, install wiring, supported Railway deploy script, cloud health/audit/retention/failure surfaces, command rollback toggles, operator docs, and focused validation. Production deployment remains blocked pending explicit approval for the shared-state Railway migration/deploy action.

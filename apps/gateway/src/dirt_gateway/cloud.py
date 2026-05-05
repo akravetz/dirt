@@ -91,6 +91,26 @@ class HttpCloudGatewayClient:
             "POST", "/api/gateway/v1/assets/complete", payload, idempotency_key
         )
 
+    async def report_asset_failure(
+        self, payload: dict[str, Any], *, idempotency_key: str
+    ) -> dict[str, Any]:
+        return await self._request(
+            "POST",
+            "/api/gateway/v1/assets/upload-failure",
+            payload,
+            idempotency_key,
+        )
+
+    async def prune_expired_assets(
+        self, payload: dict[str, Any], *, idempotency_key: str
+    ) -> dict[str, Any]:
+        return await self._request(
+            "POST",
+            "/api/gateway/v1/assets/prune-expired",
+            payload,
+            idempotency_key,
+        )
+
     async def claim_commands(
         self, *, site_id: str, limit: int, idempotency_key: str
     ) -> dict[str, Any]:

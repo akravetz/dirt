@@ -4,13 +4,21 @@ import ast
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 import dirt_control
 from dirt_control.db import create_sessionmaker
-from dirt_control.models import CloudAsset, CloudCommand, CloudLatestMetric, CloudTent
+from dirt_control.models import (
+    CloudAsset,
+    CloudAuditEvent,
+    CloudCommand,
+    CloudLatestMetric,
+    CloudSite,
+    CloudTent,
+    GatewayCredential,
+)
 
 FIXED_NOW = datetime(2026, 5, 5, 3, 45, tzinfo=UTC)
 
@@ -300,6 +308,7 @@ async def test_sync_status_exposes_gateway_age_and_command_backlog(
     assert response.json() == {
         "site_id": "homebox",
         "gateway_last_seen_at": None,
+        "gateway_backlog_depth": 0,
         "last_catalog_sync_at": None,
         "command_backlog_depth": 0,
         "status": "offline",
@@ -322,6 +331,221 @@ async def test_sync_status_exposes_gateway_age_and_command_backlog(
     assert response.status_code == 200
     assert response.json()["command_backlog_depth"] == 1
     assert response.json()["status"] == "offline"
+
+
+async def test_health_exposes_gateway_backlog_and_failure_counts(
+    client: AsyncClient,
+    gateway_headers: dict[str, str],
+    cloud_engine: AsyncEngine,
+) -> None:
+    heartbeat = await client.post(
+        "/api/gateway/v1/heartbeat",
+        headers=gateway_headers,
+        json={"site_id": "homebox", "gateway_id": "gateway-main", "backlog_depth": 3},
+    )
+    assert heartbeat.status_code == 200
+    failure = await client.post(
+        "/api/gateway/v1/assets/upload-failure",
+        headers=gateway_headers,
+        json={
+            "site_id": "homebox",
+            "tent_id": "main",
+            "asset_id": "asset-1",
+            "object_key": "homebox/main/asset-1.jpg",
+            "stage": "upload_or_complete",
+            "error": "storage rejected upload",
+        },
+    )
+    assert failure.status_code == 200
+
+    sessionmaker = create_sessionmaker(cloud_engine)
+    async with sessionmaker() as session:
+        command = CloudCommand(
+            command_id="failed-command",
+            idempotency_key="failed-key",
+            site_id="homebox",
+            tent_id="main",
+            device_id="obsbot-main",
+            capability_id="ptz_move",
+            command_type="ptz_zoom",
+            payload={"delta": 0.1},
+            requested_by="admin",
+            status="failed",
+            queued_at=FIXED_NOW,
+            expires_at=FIXED_NOW + timedelta(seconds=60),
+            finished_at=FIXED_NOW,
+            error="ptz failed",
+            created_at=FIXED_NOW,
+            updated_at=FIXED_NOW,
+        )
+        session.add(command)
+        await session.commit()
+
+    health = await client.get("/api/health")
+
+    assert health.status_code == 200
+    assert health.json()["gateway_backlog_depth"] == 3
+    assert health.json()["gateway_heartbeat_age_s"] == 0
+    assert health.json()["asset_failures_24h"] == 1
+    assert health.json()["command_failures_24h"] == 1
+    assert health.json()["asset_retention_days"] == 30
+
+
+async def test_audit_rows_cover_auth_command_claim_result_and_rotation(
+    authed_client: AsyncClient,
+    gateway_headers: dict[str, str],
+    cloud_engine: AsyncEngine,
+) -> None:
+    created = await authed_client.post(
+        "/api/commands",
+        json={
+            "idempotency_key": "audit-click",
+            "tent_id": "main",
+            "device_id": "obsbot-main",
+            "capability_id": "ptz_move",
+            "command_type": "ptz_preset",
+            "payload": {"preset": "overview"},
+        },
+    )
+    assert created.status_code == 201
+    command_id = created.json()["command_id"]
+    claim = await authed_client.post(
+        "/api/gateway/v1/commands/claim",
+        headers=gateway_headers,
+        json={"site_id": "homebox", "limit": 1},
+    )
+    assert claim.status_code == 200
+    result = await authed_client.post(
+        f"/api/gateway/v1/commands/{command_id}/result",
+        headers=gateway_headers,
+        json={"site_id": "homebox", "status": "failed", "error": "ptz rejected"},
+    )
+    assert result.status_code == 200
+    rotated = await authed_client.post(
+        "/api/admin/gateway-credentials/gateway-main/rotate",
+        json={"token_sha256": "b" * 64},
+    )
+    assert rotated.status_code == 200
+
+    sessionmaker = create_sessionmaker(cloud_engine)
+    async with sessionmaker() as session:
+        events = (
+            (
+                await session.execute(
+                    select(CloudAuditEvent.event_type).order_by(
+                        CloudAuditEvent.created_at
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        credential = await session.get(GatewayCredential, "gateway-main")
+    assert "auth_login_succeeded" in events
+    assert "command_created" in events
+    assert "command_claimed" in events
+    assert "command_result_reported" in events
+    assert "gateway_credential_rotated" in events
+    assert credential is not None
+    assert credential.token_sha256 == "b" * 64
+
+
+async def test_command_creation_can_be_disabled_by_config(
+    cloud_engine: AsyncEngine,
+    settings,
+) -> None:
+    from dirt_control.app import create_app
+
+    disabled = settings.model_copy(update={"command_creation_enabled": False})
+    app = create_app(settings=disabled, engine=cloud_engine, clock=lambda: FIXED_NOW)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        follow_redirects=False,
+    ) as client:
+        login = await client.post(
+            "/api/auth/login", json={"username": "admin", "password": "test-password"}
+        )
+        assert login.status_code == 200
+        client.cookies = login.cookies
+        response = await client.post(
+            "/api/commands",
+            json={
+                "idempotency_key": "disabled-click",
+                "tent_id": "main",
+                "device_id": "obsbot-main",
+                "capability_id": "ptz_move",
+                "command_type": "ptz_preset",
+                "payload": {"preset": "overview"},
+            },
+        )
+    await transport.aclose()
+    assert response.status_code == 503
+
+
+async def test_asset_retention_prunes_assets_older_than_30_days(
+    authed_client: AsyncClient,
+    cloud_engine: AsyncEngine,
+) -> None:
+    sessionmaker = create_sessionmaker(cloud_engine)
+    async with sessionmaker() as session:
+        session.add(
+            CloudSite(
+                site_id="homebox",
+                name="Homebox",
+                timezone="UTC",
+                created_at=FIXED_NOW,
+                updated_at=FIXED_NOW,
+            )
+        )
+        session.add(
+            CloudAsset(
+                asset_id="old-asset",
+                site_id="homebox",
+                tent_id="main",
+                object_key="homebox/main/old.jpg",
+                content_type="image/jpeg",
+                byte_size=10,
+                captured_at=FIXED_NOW - timedelta(days=31),
+                uploaded_at=FIXED_NOW - timedelta(days=31),
+            )
+        )
+        session.add(
+            CloudAsset(
+                asset_id="fresh-asset",
+                site_id="homebox",
+                tent_id="main",
+                object_key="homebox/main/fresh.jpg",
+                content_type="image/jpeg",
+                byte_size=10,
+                captured_at=FIXED_NOW - timedelta(days=29),
+                uploaded_at=FIXED_NOW - timedelta(days=29),
+            )
+        )
+        await session.commit()
+
+    response = await authed_client.post("/api/admin/assets/prune-expired")
+
+    assert response.status_code == 200
+    assert response.json()["matched"] == 1
+    async with sessionmaker() as session:
+        remaining = (
+            (
+                await session.execute(
+                    select(CloudAsset.asset_id).order_by(CloudAsset.asset_id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        audit_count = await session.scalar(
+            select(func.count())
+            .select_from(CloudAuditEvent)
+            .where(CloudAuditEvent.event_type == "asset_retention_pruned")
+        )
+    assert remaining == ["fresh-asset"]
+    assert audit_count == 1
 
 
 async def test_gateway_claim_expires_stale_commands_and_reclaims_own_claim(

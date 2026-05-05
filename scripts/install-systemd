@@ -20,6 +20,7 @@ UNITS=(
     dirt-hwd.service
     dirt-web.service
     dirt-camera.service
+    dirt-gateway.service
     dirt-voice.service
     dirt-daily-report.service
     dirt-daily-report.timer
@@ -42,8 +43,9 @@ done
 systemctl --user daemon-reload
 echo
 echo "daemon-reload done. Next (explicit) steps:"
-echo "  systemctl --user enable dirt-hwd dirt-web dirt-camera dirt-voice dirt-daily-report.timer dirt-logrotate.timer"
+echo "  systemctl --user enable dirt-hwd dirt-web dirt-camera dirt-gateway dirt-voice dirt-daily-report.timer dirt-logrotate.timer"
 echo "  systemctl --user start  dirt-hwd dirt-web"
+echo "  systemctl --user start  dirt-gateway"
 echo
 echo "If replacing the old system-level dirt.service, additionally:"
 echo "  sudo systemctl stop dirt"

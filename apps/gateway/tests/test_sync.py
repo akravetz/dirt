@@ -43,6 +43,7 @@ class NoopSleeper:
 class RecordingCloudClient:
     def __init__(self) -> None:
         self.fail = False
+        self.upload_fail = False
         self.calls: list[tuple[str, str]] = []
         self.successful_calls: list[tuple[str, str]] = []
         self.catalogs: dict[str, dict[str, Any]] = {}
@@ -52,6 +53,8 @@ class RecordingCloudClient:
         self.call_counts: defaultdict[str, int] = defaultdict(int)
         self.claimed_commands: list[dict[str, Any]] = []
         self.command_results: list[tuple[str, dict[str, Any], str]] = []
+        self.asset_failures: list[dict[str, Any]] = []
+        self.retention_requests: list[dict[str, Any]] = []
 
     async def send_heartbeat(
         self, payload: dict[str, Any], *, idempotency_key: str
@@ -110,6 +113,8 @@ class RecordingCloudClient:
     ) -> None:
         del upload_url, headers, content_type
         assert file_path.exists()
+        if self.upload_fail:
+            raise CloudDeliveryError("asset byte upload failed")
         self.call_counts["asset_upload_bytes"] += 1
 
     async def complete_asset(
@@ -118,6 +123,20 @@ class RecordingCloudClient:
         self._record("asset_complete", idempotency_key)
         self.assets[payload["asset_id"]] = payload
         return {"ok": True}
+
+    async def report_asset_failure(
+        self, payload: dict[str, Any], *, idempotency_key: str
+    ) -> dict[str, Any]:
+        self._record("asset_failure", idempotency_key)
+        self.asset_failures.append(payload)
+        return {"ok": True}
+
+    async def prune_expired_assets(
+        self, payload: dict[str, Any], *, idempotency_key: str
+    ) -> dict[str, Any]:
+        self._record("asset_retention", idempotency_key)
+        self.retention_requests.append(payload)
+        return {"ok": True, "matched": 0, "objects_deleted": 0}
 
     async def claim_commands(
         self, *, site_id: str, limit: int, idempotency_key: str
@@ -422,9 +441,58 @@ async def test_asset_sync_uses_sign_upload_complete_flow(
     assert cloud.call_counts["asset_sign"] == 1
     assert cloud.call_counts["asset_upload_bytes"] == 1
     assert cloud.call_counts["asset_complete"] == 1
+    assert cloud.call_counts["asset_retention"] == 1
     assert (
         cloud.assets["asset-1"]["object_key"] == "homebox/main/snapshots/snapshot.jpg"
     )
+
+
+async def test_asset_sync_reports_upload_failures_and_retries(
+    app_engine: AsyncEngine,
+    tmp_path: Path,
+):
+    asset_file = tmp_path / "snapshot.jpg"
+    asset_file.write_bytes(b"jpeg-bytes")
+    asset = AssetProjection(
+        sign_request={
+            "site_id": "homebox",
+            "tent_id": "main",
+            "content_type": "image/jpeg",
+            "byte_size": len(b"jpeg-bytes"),
+            "object_key": "homebox/main/snapshots/snapshot.jpg",
+            "asset_id": "asset-1",
+            "sha256": "asset-1",
+            "kind": "periodic",
+        },
+        complete_request={
+            "site_id": "homebox",
+            "tent_id": "main",
+            "content_type": "image/jpeg",
+            "byte_size": len(b"jpeg-bytes"),
+            "object_key": "homebox/main/snapshots/snapshot.jpg",
+            "asset_id": "asset-1",
+            "sha256": "asset-1",
+            "kind": "periodic",
+            "captured_at": FIXED_NOW.isoformat(),
+        },
+        file_path=asset_file,
+    )
+    cloud = RecordingCloudClient()
+    cloud.upload_fail = True
+    service = _service(
+        app_engine,
+        cloud,
+        local_services=StaticLocalServices(asset=asset),
+        config=_config(asset_sync_enabled=True),
+    )
+
+    failed = await service.run_once()
+
+    assert failed.failed == 1
+    assert cloud.call_counts["asset_failure"] == 1
+    assert cloud.asset_failures[0]["stage"] == "upload_or_complete"
+    assert cloud.asset_failures[0]["asset_id"] == "asset-1"
+    assert await OutboxRepository(app_engine).pending_count() == 1
 
 
 async def test_cloud_gateway_logs_are_isolated_and_useful(

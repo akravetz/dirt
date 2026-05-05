@@ -9,6 +9,7 @@ Index for the progressive-disclosure docs tree. The root `AGENTS.md` points here
 | [commands.md](commands.md) | running anything (dev, test, lint, firmware, web-ui, web-api auth, PTZ, voice, daily report). The exhaustive command surface. |
 | [database.md](database.md) | writing SQL, editing `apps/shared/src/dirt_shared/models/`, or running `atlas migrate`. Schema cheat sheet, query patterns, Atlas workflow, backup/rollback. |
 | [observability.md](observability.md) | calling `log_event()`, debugging across logs, writing tests that touch `var/logs/` or `var/sessions/`, or adding a new log stream. Full stream registry + retention + correlation. |
+| [hosted-control-plane.md](hosted-control-plane.md) | deploying or rolling back the Railway hosted control plane, operating `dirt-gateway`, checking cloud health, rotating hosted secrets, or pruning cloud assets. |
 
 ## Grow context
 

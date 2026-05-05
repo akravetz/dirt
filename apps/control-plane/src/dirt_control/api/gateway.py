@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import SQLModel
 
+from dirt_control.audit import add_audit_event
 from dirt_control.deps import get_clock, get_session, get_settings
 from dirt_control.models import (
     CloudAsset,
@@ -22,6 +23,7 @@ from dirt_control.models import (
     CloudTent,
     CloudZone,
 )
+from dirt_control.retention import prune_expired_assets
 from dirt_control.security import (
     GatewayPrincipal,
     UrlSigner,
@@ -30,6 +32,7 @@ from dirt_control.security import (
     require_gateway_scope,
 )
 from dirt_control.settings import CloudSettings
+from dirt_control.storage import S3ObjectStore
 
 router = APIRouter(prefix="/api/gateway/v1")
 ModelT = TypeVar("ModelT", bound=SQLModel)
@@ -145,6 +148,19 @@ class AssetCompleteRequest(AssetSignUploadRequest):
     device_id: str | None = None
 
 
+class AssetFailureRequest(BaseModel):
+    site_id: str
+    tent_id: str | None = None
+    asset_id: str | None = None
+    object_key: str | None = None
+    stage: str = Field(max_length=80)
+    error: str = Field(max_length=500)
+
+
+class AssetRetentionRequest(BaseModel):
+    site_id: str
+
+
 class CommandClaimRequest(BaseModel):
     site_id: str
     limit: int = Field(default=1, ge=1, le=10)
@@ -181,12 +197,14 @@ async def heartbeat(
             name=body.site_id,
             timezone="America/Denver",
             gateway_last_seen_at=now,
+            gateway_backlog_depth=body.backlog_depth,
             created_at=now,
             updated_at=now,
         )
         session.add(site)
     else:
         site.gateway_last_seen_at = now
+        site.gateway_backlog_depth = body.backlog_depth
         site.updated_at = now
     await session.commit()
     return {
@@ -450,19 +468,92 @@ async def complete_asset(
         },
         now=now,
     )
+    add_audit_event(
+        session,
+        now=now,
+        event_type="asset_upload_completed",
+        actor_type="gateway",
+        actor_id=principal.gateway_id,
+        site_id=body.site_id,
+        subject_type="cloud_asset",
+        subject_id=asset_id,
+        metadata={
+            "tent_id": body.tent_id,
+            "object_key": body.object_key,
+            "content_type": body.content_type,
+            "byte_size": body.byte_size,
+        },
+    )
     await session.commit()
     return {"asset_id": asset_id, "object_key": body.object_key, "uploaded_at": now}
 
 
-@router.post("/commands/claim")
-async def claim_commands(
-    body: CommandClaimRequest,
+@router.post("/assets/upload-failure")
+async def asset_upload_failure(
+    body: AssetFailureRequest,
     principal: GatewayPrincipal = Depends(require_gateway),
     session: AsyncSession = Depends(get_session),
     clock: Callable[[], datetime] = Depends(get_clock),
 ) -> dict[str, Any]:
     require_gateway_scope(principal, body.site_id)
     now = clock()
+    add_audit_event(
+        session,
+        now=now,
+        event_type="asset_upload_failed",
+        actor_type="gateway",
+        actor_id=principal.gateway_id,
+        site_id=body.site_id,
+        subject_type="cloud_asset",
+        subject_id=body.asset_id,
+        metadata={
+            "tent_id": body.tent_id,
+            "object_key": body.object_key,
+            "stage": body.stage,
+            "error": body.error,
+        },
+    )
+    await session.commit()
+    return {"ok": True, "received_at": now}
+
+
+@router.post("/assets/prune-expired")
+async def prune_assets(
+    body: AssetRetentionRequest,
+    principal: GatewayPrincipal = Depends(require_gateway),
+    settings: CloudSettings = Depends(get_settings),
+    session: AsyncSession = Depends(get_session),
+    clock: Callable[[], datetime] = Depends(get_clock),
+) -> dict[str, Any]:
+    require_gateway_scope(principal, body.site_id)
+    result = await prune_expired_assets(
+        session,
+        settings=settings,
+        now=clock(),
+        actor_type="gateway",
+        actor_id=principal.gateway_id,
+        site_id=body.site_id,
+        object_store=_object_store(settings),
+    )
+    return {
+        "cutoff": result.cutoff,
+        "matched": result.matched,
+        "objects_deleted": result.objects_deleted,
+    }
+
+
+@router.post("/commands/claim")
+async def claim_commands(
+    body: CommandClaimRequest,
+    principal: GatewayPrincipal = Depends(require_gateway),
+    settings: CloudSettings = Depends(get_settings),
+    session: AsyncSession = Depends(get_session),
+    clock: Callable[[], datetime] = Depends(get_clock),
+) -> dict[str, Any]:
+    require_gateway_scope(principal, body.site_id)
+    now = clock()
+    if not settings.gateway_command_claim_enabled:
+        return {"commands": []}
     expired_rows = (
         await session.execute(
             select(CloudCommand).where(
@@ -514,6 +605,17 @@ async def claim_commands(
         command.claimed_by = principal.gateway_id
         command.claimed_at = now
         command.updated_at = now
+        add_audit_event(
+            session,
+            now=now,
+            event_type="command_claimed",
+            actor_type="gateway",
+            actor_id=principal.gateway_id,
+            site_id=body.site_id,
+            subject_type="cloud_command",
+            subject_id=command.command_id,
+            metadata={"command_type": command.command_type},
+        )
         commands.append(_command_payload(command))
     await session.commit()
     return {"commands": commands}
@@ -551,6 +653,17 @@ async def command_result(
         command.started_at = now
     if body.status in {"succeeded", "failed", "rejected", "expired"}:
         command.finished_at = now
+    add_audit_event(
+        session,
+        now=now,
+        event_type="command_result_reported",
+        actor_type="gateway",
+        actor_id=principal.gateway_id,
+        site_id=body.site_id,
+        subject_type="cloud_command",
+        subject_id=command.command_id,
+        metadata={"status": body.status, "error": body.error},
+    )
     await session.commit()
     await session.refresh(command)
     return _command_payload(command)
@@ -626,3 +739,14 @@ def _command_payload(command: CloudCommand) -> dict[str, Any]:
         "result": command.result,
         "error": command.error,
     }
+
+
+def _object_store(settings: CloudSettings) -> S3ObjectStore | None:
+    if not (
+        settings.s3_endpoint
+        and settings.s3_region
+        and settings.s3_access_key_id
+        and settings.s3_secret_access_key
+    ):
+        return None
+    return S3ObjectStore(settings=settings)

@@ -50,6 +50,14 @@ class CloudGatewayClient(Protocol):
         self, payload: dict[str, Any], *, idempotency_key: str
     ) -> dict[str, Any]: ...
 
+    async def report_asset_failure(
+        self, payload: dict[str, Any], *, idempotency_key: str
+    ) -> dict[str, Any]: ...
+
+    async def prune_expired_assets(
+        self, payload: dict[str, Any], *, idempotency_key: str
+    ) -> dict[str, Any]: ...
+
     async def claim_commands(
         self, *, site_id: str, limit: int, idempotency_key: str
     ) -> dict[str, Any]: ...

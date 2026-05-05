@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, Column, DateTime, Float, Index, UniqueConstraint
+from sqlalchemy import JSON, Column, DateTime, Float, Index, Integer, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -16,6 +16,10 @@ class CloudSite(SQLModel, table=True):
     is_active: bool = True
     gateway_last_seen_at: datetime | None = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    gateway_backlog_depth: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False, server_default="0"),
     )
     last_catalog_sync_at: datetime | None = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)

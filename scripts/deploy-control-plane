@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# Deploy the hosted Dirt control plane through the supported Railway flow.
+#
+# The script intentionally applies cloud Atlas migrations before uploading app
+# code. It never prints .env.prod values; keep xtrace disabled when running it.
+
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+ENV_FILE="${DIRT_CONTROL_PLANE_ENV_FILE:-$ROOT_DIR/.env.prod}"
+BASE_ENV_FILE="${DIRT_CONTROL_PLANE_BASE_ENV_FILE:-$ROOT_DIR/.env}"
+
+usage() {
+    cat <<'EOF'
+Usage: scripts/deploy-control-plane [--skip-smoke]
+
+Loads .env first and .env.prod second by default, applies cloud Atlas
+migrations, deploys apps/control-plane to Railway service control-plane-api,
+deploys web-ui to Railway service web-ui, then runs public smoke checks.
+
+Set DIRT_CONTROL_PLANE_ENV_FILE=/path/to/env to use a different ignored env file.
+Set DIRT_CONTROL_PLANE_BASE_ENV_FILE=/path/to/env to override the base .env.
+EOF
+}
+
+SKIP_SMOKE=0
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --skip-smoke)
+            SKIP_SMOKE=1
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "ERROR: unknown argument: $1" >&2
+            usage >&2
+            exit 2
+            ;;
+    esac
+done
+
+if [ -f "$BASE_ENV_FILE" ]; then
+    set -a
+    # shellcheck disable=SC1090
+    source "$BASE_ENV_FILE"
+    set +a
+fi
+
+if [ -f "$ENV_FILE" ]; then
+    set -a
+    # shellcheck disable=SC1090
+    source "$ENV_FILE"
+    set +a
+fi
+
+require_cmd() {
+    if ! command -v "$1" >/dev/null 2>&1; then
+        echo "ERROR: required command not found: $1" >&2
+        exit 1
+    fi
+}
+
+require_env() {
+    local name="$1"
+    if [ -z "${!name:-}" ]; then
+        echo "ERROR: required environment variable is unset: $name" >&2
+        exit 1
+    fi
+}
+
+require_cmd atlas
+require_cmd railway
+require_cmd curl
+
+require_env DIRT_CLOUD_DATABASE_URL
+require_env RAILWAY_PROJECT_ID
+require_env RAILWAY_ENVIRONMENT
+require_env RAILWAY_CONTROL_PLANE_API_SERVICE_ID
+require_env RAILWAY_WEB_UI_SERVICE_ID
+require_env DIRT_CLOUD_API_BASE_URL
+require_env DIRT_CLOUD_UI_BASE_URL
+
+cd "$ROOT_DIR"
+
+echo "Applying cloud Atlas migrations..."
+atlas migrate apply --env cloud
+
+echo "Deploying control-plane API to Railway service control-plane-api..."
+railway up "$ROOT_DIR/apps/control-plane" \
+    --path-as-root \
+    --project "$RAILWAY_PROJECT_ID" \
+    --environment "$RAILWAY_ENVIRONMENT" \
+    --service "$RAILWAY_CONTROL_PLANE_API_SERVICE_ID"
+
+if [ "$SKIP_SMOKE" -eq 0 ]; then
+    echo "Checking cloud API health..."
+    curl -fsS "$DIRT_CLOUD_API_BASE_URL/api/health" >/dev/null
+fi
+
+echo "Deploying web UI to Railway service web-ui..."
+railway up "$ROOT_DIR/web-ui" \
+    --path-as-root \
+    --project "$RAILWAY_PROJECT_ID" \
+    --environment "$RAILWAY_ENVIRONMENT" \
+    --service "$RAILWAY_WEB_UI_SERVICE_ID"
+
+if [ "$SKIP_SMOKE" -eq 0 ]; then
+    echo "Checking hosted UI..."
+    curl -fsS "$DIRT_CLOUD_UI_BASE_URL/" >/dev/null
+fi
+
+echo "Control-plane deploy finished."

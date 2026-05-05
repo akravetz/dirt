@@ -118,6 +118,10 @@ class GatewaySyncService:
             "rollups": await self._local.collect_rollups(self._config.site_id),
         }
         if self._config.asset_sync_enabled:
+            projections["asset_retention"] = {
+                "site_id": self._config.site_id,
+                "as_of_date": self._clock().date().isoformat(),
+            }
             asset = await self._local.latest_snapshot_asset(self._config.site_id)
             if asset is not None:
                 projections["asset_upload"] = {
@@ -209,6 +213,11 @@ class GatewaySyncService:
         if row.event_type == "asset_upload":
             await self._deliver_asset(payload, idempotency_key=row.idempotency_key)
             return
+        if row.event_type == "asset_retention":
+            await self._cloud.prune_expired_assets(
+                payload, idempotency_key=row.idempotency_key
+            )
+            return
         if row.event_type == "command_result":
             await self._cloud.report_command_result(
                 command_id=str(payload["command_id"]),
@@ -230,16 +239,55 @@ class GatewaySyncService:
             sign_request,
             idempotency_key=f"{idempotency_key}:sign",
         )
-        await self._cloud.upload_asset(
-            file_path=Path(payload["file_path"]),
-            upload_url=signed["upload_url"],
-            headers=dict(signed.get("headers") or {}),
-            content_type=sign_request["content_type"],
-        )
-        await self._cloud.complete_asset(
-            complete_request,
-            idempotency_key=f"{idempotency_key}:complete",
-        )
+        try:
+            await self._cloud.upload_asset(
+                file_path=Path(payload["file_path"]),
+                upload_url=signed["upload_url"],
+                headers=dict(signed.get("headers") or {}),
+                content_type=sign_request["content_type"],
+            )
+            await self._cloud.complete_asset(
+                complete_request,
+                idempotency_key=f"{idempotency_key}:complete",
+            )
+        except Exception as exc:
+            await self._report_asset_failure(
+                sign_request=sign_request,
+                complete_request=complete_request,
+                exc=exc,
+                idempotency_key=idempotency_key,
+            )
+            raise
+
+    async def _report_asset_failure(
+        self,
+        *,
+        sign_request: dict[str, Any],
+        complete_request: dict[str, Any],
+        exc: Exception,
+        idempotency_key: str,
+    ) -> None:
+        try:
+            await self._cloud.report_asset_failure(
+                {
+                    "site_id": sign_request["site_id"],
+                    "tent_id": sign_request.get("tent_id"),
+                    "asset_id": sign_request.get("asset_id"),
+                    "object_key": sign_request.get("object_key"),
+                    "stage": "upload_or_complete",
+                    "error": str(exc)[:500],
+                },
+                idempotency_key=f"{idempotency_key}:failure",
+            )
+        except Exception:
+            log_event(
+                "cloud_gateway",
+                "asset_failure_report_failed",
+                site_id=self._config.site_id,
+                gateway_id=self._config.gateway_id,
+                asset_id=complete_request.get("asset_id"),
+                idempotency_key=idempotency_key,
+            )
 
     async def _mark_delivery_failed(self, row: CloudOutbox, exc: Exception) -> None:
         delay = self._backoff.next_delay_s(row.attempt_count + 1)

@@ -1,6 +1,6 @@
 # AGENTS.md
 
-**Dirt** — home grow monitoring + agent-maintained wiki. Python ≥3.13 (uv workspace, 5 services under `apps/`), Vite/React frontend (`web-ui/`), PostgreSQL 17, ESP32 firmware (`firmware/`).
+**Dirt** — home grow monitoring + agent-maintained wiki. Python ≥3.13 (uv workspace services under `apps/`), Vite/React frontend (`web-ui/`), PostgreSQL 17, ESP32 firmware (`firmware/`).
 
 > **IMPORTANT — read this first.** Before writing any code or running any
 > command, scan the documentation map below and load the deep-dive doc(s)
@@ -9,7 +9,7 @@
 
 ## Repository layout
 
-- `apps/{hwd,web,shared,mcp,voice,wake-word}/` — Python services (uv workspace; each has its own `pyproject.toml` + tests). `dirt-hwd` runs on :8000 (production keep-alive — no routine rewrites), `dirt-web` on :8001 (UI + MCP).
+- `apps/{hwd,web,shared,mcp,voice,wake-word,control-plane,gateway}/` — Python services (uv workspace; each has its own `pyproject.toml` + tests). `dirt-hwd` runs on :8000 (production keep-alive — no routine rewrites), `dirt-web` on :8001 (UI + MCP), `dirt-gateway` syncs outbound to the hosted control plane.
 - `apps/tests/invariants/` — **HUMAN-OWNED** architectural rules. Never modify; fix code to satisfy the test instead.
 - `apps/wake-word/` — wake-word retraining infra; data artifacts gitignored under `var/wake-word/`. Read [`apps/wake-word/AGENTS.md`](apps/wake-word/AGENTS.md) before touching.
 - `firmware/{fan_controller,reservoir_node,…}/` — ESP32 firmware (PlatformIO).
@@ -29,9 +29,10 @@ Read the linked doc *before* doing the activity in the trigger column.
 
 | Doc | Read before |
 |---|---|
-| [`docs/commands.md`](docs/commands.md) | running anything (dev/test/lint/firmware/web-ui/PTZ/voice/daily-report/web-api auth) |
+| [`docs/commands.md`](docs/commands.md) | running anything (dev/test/lint/firmware/web-ui/PTZ/voice/daily-report/web-api auth/hosted deploys) |
 | [`docs/database.md`](docs/database.md) | writing SQL, editing `apps/shared/src/dirt_shared/models/`, running `atlas migrate` |
 | [`docs/observability.md`](docs/observability.md) | calling `log_event()`, debugging across `var/logs/`, adding a new log stream, writing tests that touch shared filesystem |
+| [`docs/hosted-control-plane.md`](docs/hosted-control-plane.md) | deploying or rolling back Railway hosted control plane, operating `dirt-gateway`, checking cloud health, rotating hosted secrets, pruning cloud assets |
 | [`docs/grow-state.md`](docs/grow-state.md) | writing code that branches on stage (veg / flower_early / flower_late) or needs current germination/flower-flip date |
 
 ### Framework anchors (override training-data drift)
@@ -65,6 +66,7 @@ Read the linked doc *before* doing the activity in the trigger column.
 - **ExecPlans**: When writing complex features or significant refactors, use an ExecPlan (as described in `.agents/PLANS.md`) from design to implementation.
 - **Source-level cleanup bias**: When a change reveals stale naming, unit mismatch, duplicated truth, legacy branches, or test-harness friction, prefer fixing the source contract over adding adapters or compatibility glue. First trace producer → storage/API → consumer → tests; identify the canonical owner; search live legacy usage/data with `rg`/`find`; delete dead paths instead of preserving them. If agent-owned tests encode the old contract, update them. Never edit human-owned invariants; treat failures as architecture feedback. Examples: split mixed wake-word data buckets instead of documenting around misleading names; normalize sensor units at the producing service/shared model boundary instead of converting in every consumer.
 - **Scratch dir**: write throwaway scripts to `debug/`. Don't clutter `apps/` or `scripts/`.
+- **Hosted deploys**: use only `scripts/deploy-control-plane` for Railway deployments. It applies the dedicated cloud Atlas migrations before deploying `control-plane-api` and `web-ui`; do not run app-start DDL or ad hoc `railway up` for these services.
 - **Commits**: run `scripts/agent-fix` before `git add` + `git commit`. Pre-commit hooks are write-mode; if a hook modifies files, re-add and re-commit. Never `--no-verify`. Don't auto-amend.
 - **Tests**: `apps/tests/invariants/` is HUMAN-OWNED — fix your code to pass invariants, never modify them. Per-app tests under `apps/<app>/tests/` are agent-owned. Tests that write to disk must use `tmp_path` and the autouse `isolate_observability_logs` fixture (see [`docs/observability.md`](docs/observability.md)).
 - **Risky actions**: confirm before destructive ops (force push, hard reset, rm of unfamiliar files), shared-state mutations, or anything visible to others (chat sends, PR comments). Auto mode does not override this.

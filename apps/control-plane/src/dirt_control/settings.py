@@ -22,7 +22,24 @@ class CloudSettings(BaseSettings):
     default_site_id: str = Field(default="homebox", alias="DIRT_CLOUD_SITE_ID")
     upload_url_ttl_s: int = Field(default=900, alias="DIRT_CLOUD_UPLOAD_URL_TTL_S")
     asset_url_ttl_s: int = Field(default=300, alias="DIRT_CLOUD_ASSET_URL_TTL_S")
+    asset_retention_days: int = Field(
+        default=30, alias="DIRT_CLOUD_ASSET_RETENTION_DAYS"
+    )
+    command_creation_enabled: bool = Field(
+        default=True, alias="DIRT_CLOUD_COMMAND_CREATION_ENABLED"
+    )
+    gateway_command_claim_enabled: bool = Field(
+        default=True, alias="DIRT_CLOUD_GATEWAY_COMMAND_CLAIM_ENABLED"
+    )
     bucket_name: str = Field(default="dirt-assets", alias="DIRT_CLOUD_BUCKET_NAME")
+    s3_endpoint: str | None = Field(default=None, alias="DIRT_CLOUD_S3_ENDPOINT")
+    s3_region: str | None = Field(default=None, alias="DIRT_CLOUD_S3_REGION")
+    s3_access_key_id: str | None = Field(
+        default=None, alias="DIRT_CLOUD_S3_ACCESS_KEY_ID"
+    )
+    s3_secret_access_key: str | None = Field(
+        default=None, alias="DIRT_CLOUD_S3_SECRET_ACCESS_KEY"
+    )
     public_asset_base_url: str = Field(
         default="https://storage.invalid", alias="DIRT_CLOUD_ASSET_PUBLIC_BASE_URL"
     )

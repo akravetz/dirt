@@ -14,11 +14,12 @@ The pre-commit hooks run in **write-mode** (not check-mode). If a hook still mod
 
 ## Monitoring app (Python services)
 
-The backend runs as two systemd-managed processes: `dirt-hwd` (hardware + ingest, :8000) and `dirt-web` (UI + MCP, :8001). There is no single `main.py`.
+The local backend runs as systemd-managed processes. `dirt-hwd` is hardware + ingest (:8000), `dirt-web` is UI + MCP (:8001), and `dirt-gateway` is the outbound-only hosted control-plane sync. There is no single `main.py`.
 
-- **Service control**: `systemctl --user {start,stop,restart,status} dirt-hwd dirt-web`
-- **Tail logs**: `journalctl --user -u dirt-hwd -f` (or `dirt-web`)
+- **Service control**: `systemctl --user {start,stop,restart,status} dirt-hwd dirt-web dirt-gateway`
+- **Tail logs**: `journalctl --user -u dirt-hwd -f` (or `dirt-web`, `dirt-gateway`)
 - **Dev foreground run**: `systemctl --user stop dirt-hwd && uv run --package dirt-hwd python -m dirt_hwd.main` (same pattern for `dirt-web`)
+- **Gateway dry run**: `uv run --package dirt-gateway python -m dirt_gateway.main --once --dry-run` after stopping `dirt-gateway` if it is already running
 - **Install systemd units from repo**: `scripts/install-systemd`
 - **Test all**: `uv run pytest -q` (runs invariants + all per-app suites per `testpaths`)
 - **Invariants only**: `uv run pytest apps/tests/invariants/ -q`
@@ -27,6 +28,23 @@ The backend runs as two systemd-managed processes: `dirt-hwd` (hardware + ingest
 - **Lint**: `uv run ruff check`
 - **Format**: `uv run ruff format`
 - **Add dependency**: `uv add --package dirt-<app> <package>` (targets a specific workspace member; dev deps stay at root via `uv add --dev`)
+
+## Hosted control plane (Railway)
+
+Read `docs/database.md` and `docs/references/atlas/INDEX.md` before changing cloud schema or running cloud migrations. The supported production deploy flow is:
+
+```bash
+scripts/deploy-control-plane
+```
+
+That script loads ignored `.env` first and `.env.prod` second by default, runs `atlas migrate apply --env cloud`, deploys `apps/control-plane/` to Railway service `control-plane-api`, deploys `web-ui/` to Railway service `web-ui`, then smoke-checks `DIRT_CLOUD_API_BASE_URL/api/health` and `DIRT_CLOUD_UI_BASE_URL/`. Do not print `.env` / `.env.prod`, do not run app-start DDL, and do not bypass this script with ad hoc `railway up`.
+
+- **Cloud API health**: `curl -fsS "$DIRT_CLOUD_API_BASE_URL/api/health" | jq .`
+- **Hosted sync status**: login through the hosted UI, then use `/api/sync/status` from the browser session if you need the browser-shaped response.
+- **Gateway service**: `systemctl --user {start,stop,restart,status} dirt-gateway`
+- **Gateway logs**: `journalctl --user -u dirt-gateway -f` and `var/logs/cloud_gateway/YYYY-MM-DD.jsonl`
+- **Disable hosted command creation**: set Railway `DIRT_CLOUD_COMMAND_CREATION_ENABLED=false` on `control-plane-api` and redeploy/restart through Railway. Read-only sync remains active.
+- **Disable gateway command claiming**: set Railway `DIRT_CLOUD_GATEWAY_COMMAND_CLAIM_ENABLED=false` on `control-plane-api`; the gateway will continue read-only sync and asset retention but receive no commands to execute.
 
 ## Firmware
 
