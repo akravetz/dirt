@@ -91,6 +91,30 @@ class HttpCloudGatewayClient:
             "POST", "/api/gateway/v1/assets/complete", payload, idempotency_key
         )
 
+    async def claim_commands(
+        self, *, site_id: str, limit: int, idempotency_key: str
+    ) -> dict[str, Any]:
+        return await self._request(
+            "POST",
+            "/api/gateway/v1/commands/claim",
+            {"site_id": site_id, "limit": limit},
+            idempotency_key,
+        )
+
+    async def report_command_result(
+        self,
+        *,
+        command_id: str,
+        payload: dict[str, Any],
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        return await self._request(
+            "POST",
+            f"/api/gateway/v1/commands/{command_id}/result",
+            payload,
+            idempotency_key,
+        )
+
     async def _request(
         self,
         method: str,

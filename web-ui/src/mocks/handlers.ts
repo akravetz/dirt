@@ -155,6 +155,41 @@ function cloudMetricUnit(metric: string): string {
   return values[metric] ?? "";
 }
 
+interface CloudCommandFixture {
+  command_id: string;
+  idempotency_key: string;
+  site_id: string;
+  tent_id: string;
+  device_id: "obsbot-main";
+  capability_id: "ptz_move";
+  command_type: "ptz_preset" | "ptz_look" | "ptz_zoom";
+  payload: Record<string, unknown>;
+  status:
+    | "queued"
+    | "claimed"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "rejected"
+    | "expired";
+  queued_at: string;
+  expires_at: string;
+  claimed_by: string | null;
+  claimed_at: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  result: Record<string, unknown> | null;
+  error: string | null;
+}
+
+let cloudCommands: CloudCommandFixture[] = [];
+
+function isCloudCommandType(
+  value: unknown,
+): value is CloudCommandFixture["command_type"] {
+  return value === "ptz_preset" || value === "ptz_look" || value === "ptz_zoom";
+}
+
 export const handlers: RequestHandler[] = [
   http.post("*/api/auth/login", async ({ request }) => {
     const body = (await request.json()) as Partial<LoginRequestBody>;
@@ -355,6 +390,69 @@ export const handlers: RequestHandler[] = [
       status:
         scenario === "offline" ? "offline" : scenario === "stale" ? "stale" : "live",
     });
+  }),
+
+  http.post("*/api/commands", async ({ request }) => {
+    const body = (await request.json()) as Partial<{
+      idempotency_key: string;
+      tent_id: string;
+      device_id: string;
+      capability_id: string;
+      command_type: CloudCommandFixture["command_type"];
+      payload: Record<string, unknown>;
+    }>;
+    if (
+      typeof body.idempotency_key !== "string" ||
+      typeof body.tent_id !== "string" ||
+      body.device_id !== "obsbot-main" ||
+      body.capability_id !== "ptz_move" ||
+      !isCloudCommandType(body.command_type)
+    ) {
+      return HttpResponse.json({ detail: "invalid_command" }, { status: 422 });
+    }
+    const existing = cloudCommands.find(
+      (command) => command.idempotency_key === body.idempotency_key,
+    );
+    if (existing) return HttpResponse.json(existing, { status: 201 });
+
+    const now = new Date();
+    const command: CloudCommandFixture = {
+      command_id: `mock-command-${cloudCommands.length + 1}`,
+      idempotency_key: body.idempotency_key,
+      site_id: "homebox",
+      tent_id: body.tent_id,
+      device_id: "obsbot-main",
+      capability_id: "ptz_move",
+      command_type: body.command_type,
+      payload: body.payload ?? {},
+      status: "queued",
+      queued_at: now.toISOString(),
+      expires_at: new Date(now.getTime() + 60_000).toISOString(),
+      claimed_by: null,
+      claimed_at: null,
+      started_at: null,
+      finished_at: null,
+      result: null,
+      error: null,
+    };
+    cloudCommands = [command, ...cloudCommands].slice(0, 20);
+    return HttpResponse.json(command, { status: 201 });
+  }),
+
+  http.get("*/api/commands", ({ request }) => {
+    const status = new URL(request.url).searchParams.get("status");
+    const rows =
+      status === null
+        ? cloudCommands
+        : cloudCommands.filter((command) => command.status === status);
+    return HttpResponse.json(rows);
+  }),
+
+  http.get("*/api/commands/:commandId", ({ params }) => {
+    const commandId = String(params.commandId);
+    const command = cloudCommands.find((item) => item.command_id === commandId);
+    if (!command) return HttpResponse.json({ detail: "not_found" }, { status: 404 });
+    return HttpResponse.json(command);
   }),
 
   http.get("*/api/__signed-assets/:assetName", () => {

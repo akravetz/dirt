@@ -83,14 +83,67 @@ export interface CloudSyncStatus {
   status: "live" | "stale" | "offline";
 }
 
+export type CloudCommandType = "ptz_preset" | "ptz_look" | "ptz_zoom";
+export type CloudCommandStatus =
+  | "queued"
+  | "claimed"
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "rejected"
+  | "expired";
+
+export interface CloudCommand {
+  command_id: string;
+  idempotency_key: string;
+  site_id: string;
+  tent_id: string;
+  device_id: "obsbot-main";
+  capability_id: "ptz_move";
+  command_type: CloudCommandType;
+  payload: Record<string, unknown>;
+  status: CloudCommandStatus;
+  queued_at: string;
+  expires_at: string;
+  claimed_by: string | null;
+  claimed_at: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  result: Record<string, unknown> | null;
+  error: string | null;
+}
+
+export interface CloudCommandCreate {
+  idempotency_key: string;
+  tent_id: string;
+  device_id: "obsbot-main";
+  capability_id: "ptz_move";
+  command_type: CloudCommandType;
+  payload: Record<string, unknown>;
+}
+
 export async function cloudGet<T>(path: string): Promise<T> {
   const response = await fetch(apiUrl(path), { credentials: "include" });
+  return await readCloudResponse<T>(response, `GET ${path}`);
+}
+
+export async function cloudPost<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(apiUrl(path), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return await readCloudResponse<T>(response, `POST ${path}`);
+}
+
+async function readCloudResponse<T>(response: Response, label: string): Promise<T> {
   if (response.status === 401) {
     window.location.assign("/login");
     throw new Error("unauthorized");
   }
   if (!response.ok) {
-    throw new Error(`GET ${path} failed with ${response.status}`);
+    throw new Error(`${label} failed with ${response.status}`);
   }
   const body: unknown = await response.json();
   return body as T;

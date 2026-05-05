@@ -9,11 +9,13 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 
 from dirt_gateway.cloud import HttpCloudGatewayClient
+from dirt_gateway.commands import GatewayCommandService
 from dirt_gateway.local import GatewayLocalServiceBundle
 from dirt_gateway.outbox import OutboxRepository
-from dirt_gateway.sync import GatewaySyncService
+from dirt_gateway.sync import AsyncioSleeper, GatewaySyncService
 from dirt_shared.config import Settings
 from dirt_shared.db import ping
+from dirt_shared.services.commands import CommandService
 
 
 async def run_gateway(settings: Settings | None = None) -> None:
@@ -30,14 +32,27 @@ async def run_gateway(settings: Settings | None = None) -> None:
 
     try:
         await ping(engine)
+        outbox = OutboxRepository(engine)
+        sleeper = AsyncioSleeper()
         service = GatewaySyncService(
             config=config,
-            outbox=OutboxRepository(engine),
+            outbox=outbox,
             local_services=GatewayLocalServiceBundle(engine, clock=clock),
             cloud_client=client,
             clock=clock,
+            sleeper=sleeper,
         )
-        await service.run_forever()
+        commands = GatewayCommandService(
+            config=config,
+            cloud_client=client,
+            command_ledger=CommandService(engine, clock=clock),
+            outbox=outbox,
+            clock=clock,
+        )
+        await asyncio.gather(
+            service.run_forever(),
+            commands.run_forever(sleeper),
+        )
     finally:
         await client.aclose()
         await engine.dispose()

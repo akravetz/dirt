@@ -17,13 +17,15 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 import dirt_gateway
 from dirt_gateway.cloud import CloudDeliveryError
+from dirt_gateway.commands import GatewayCommandService
 from dirt_gateway.local import GatewayLocalServiceBundle
 from dirt_gateway.outbox import OutboxRepository
 from dirt_gateway.protocols import AssetProjection
 from dirt_gateway.sync import GatewaySyncService
 from dirt_shared.config import CloudGatewayConfig
-from dirt_shared.models import Capability, Device, SensorReading, Site, Tent
+from dirt_shared.models import Capability, Command, Device, SensorReading, Site, Tent
 from dirt_shared.models.enums import SensorSource
+from dirt_shared.services.commands import CommandService
 
 FIXED_NOW = datetime(2026, 5, 5, 12, 0, tzinfo=UTC)
 
@@ -48,6 +50,8 @@ class RecordingCloudClient:
         self.rollup_rows: dict[tuple[str, str, str, str, str, str], dict[str, Any]] = {}
         self.assets: dict[str, dict[str, Any]] = {}
         self.call_counts: defaultdict[str, int] = defaultdict(int)
+        self.claimed_commands: list[dict[str, Any]] = []
+        self.command_results: list[tuple[str, dict[str, Any], str]] = []
 
     async def send_heartbeat(
         self, payload: dict[str, Any], *, idempotency_key: str
@@ -115,6 +119,24 @@ class RecordingCloudClient:
         self.assets[payload["asset_id"]] = payload
         return {"ok": True}
 
+    async def claim_commands(
+        self, *, site_id: str, limit: int, idempotency_key: str
+    ) -> dict[str, Any]:
+        del site_id
+        self._record("command_claim", idempotency_key)
+        return {"commands": self.claimed_commands[:limit]}
+
+    async def report_command_result(
+        self,
+        *,
+        command_id: str,
+        payload: dict[str, Any],
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        self._record("command_result", idempotency_key)
+        self.command_results.append((command_id, payload, idempotency_key))
+        return {"command_id": command_id, **payload}
+
     def _record(self, event_type: str, idempotency_key: str) -> None:
         self.call_counts[event_type] += 1
         self.calls.append((event_type, idempotency_key))
@@ -147,6 +169,37 @@ class StaticLocalServices:
         return self.asset
 
 
+class RecordingPTZ:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, Any]] = []
+        self.presets = {"overview", "plant_a"}
+
+    def get_preset(self, preset_id: str):
+        return {"id": preset_id} if preset_id in self.presets else None
+
+    async def apply_preset(self, preset_id: str) -> dict[str, Any]:
+        self.calls.append(("preset", preset_id))
+        return {
+            "ok": True,
+            "preset": preset_id,
+            "yaw": 0.0,
+            "pitch": -10.0,
+            "zoom": 1.0,
+        }
+
+    async def look_at_normalized(self, x: float, y: float) -> dict[str, Any]:
+        self.calls.append(("look", (x, y)))
+        return {"ok": True, "preset": None, "yaw": x * 10, "pitch": y * 10, "zoom": 1.0}
+
+    async def zoom_to(self, value: float) -> dict[str, Any]:
+        self.calls.append(("zoom_to", value))
+        return {"ok": True, "zoom": value}
+
+    async def zoom_by(self, delta: float) -> dict[str, Any]:
+        self.calls.append(("zoom_by", delta))
+        return {"ok": True, "zoom": 1.0 + delta}
+
+
 def _config(*, dry_run: bool = False, asset_sync_enabled: bool = False):
     return CloudGatewayConfig(
         api_base_url="https://api.test",
@@ -176,6 +229,48 @@ def _service(
         sleeper=NoopSleeper(),
         backoff=ImmediateBackoff(),
     )
+
+
+def _command_service(
+    engine: AsyncEngine,
+    cloud: RecordingCloudClient,
+    ptz: RecordingPTZ,
+) -> GatewayCommandService:
+    return GatewayCommandService(
+        config=_config(),
+        cloud_client=cloud,
+        command_ledger=CommandService(engine, clock=lambda: FIXED_NOW),
+        outbox=OutboxRepository(engine),
+        ptz=ptz,
+        clock=lambda: FIXED_NOW,
+        backoff=ImmediateBackoff(),
+    )
+
+
+def _cloud_command(
+    command_id: str,
+    *,
+    command_type: str = "ptz_preset",
+    payload: dict[str, Any] | None = None,
+    expires_at: datetime | None = None,
+) -> dict[str, Any]:
+    return {
+        "command_id": command_id,
+        "site_id": "homebox",
+        "tent_id": "main",
+        "device_id": "obsbot-main",
+        "capability_id": "ptz_move",
+        "command_type": command_type,
+        "payload": payload or {"preset_id": "overview"},
+        "status": "claimed",
+        "queued_at": (FIXED_NOW - timedelta(seconds=5)).isoformat(),
+        "expires_at": (expires_at or FIXED_NOW + timedelta(seconds=55)).isoformat(),
+        "claimed_by": "gateway-main",
+        "claimed_at": FIXED_NOW.isoformat(),
+        "requested_by": "admin",
+        "result": None,
+        "error": None,
+    }
 
 
 async def _seed_temperature_readings(engine: AsyncEngine) -> None:
@@ -353,6 +448,96 @@ async def test_cloud_gateway_logs_are_isolated_and_useful(
     assert {"cycle_started", "enqueued", "delivered", "cycle_finished"} <= names
     assert all(event["stream"] == "cloud_gateway" for event in events)
     assert {event["site_id"] for event in events} == {"homebox"}
+
+
+async def test_command_loop_executes_ptz_and_records_local_ledger(
+    app_engine: AsyncEngine,
+):
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command("cloud-1", payload={"preset_id": "overview"})
+    ]
+    ptz = RecordingPTZ()
+
+    result = await _command_service(app_engine, cloud, ptz).run_once()
+
+    assert result.executed == 1
+    assert ptz.calls == [("preset", "overview")]
+    assert [
+        (command_id, payload["status"])
+        for command_id, payload, _key in cloud.command_results
+    ] == [("cloud-1", "running"), ("cloud-1", "succeeded")]
+    async with AsyncSession(app_engine) as session:
+        command = (
+            await session.exec(
+                select(Command).where(
+                    Command.idempotency_key == "cloud-command:cloud-1"
+                )
+            )
+        ).one()
+    assert command.source == "cloud_gateway"
+    assert command.status == "succeeded"
+    assert command.command_type == "ptz.preset"
+    assert command.result["preset"] == "overview"
+
+
+async def test_command_loop_rejects_expired_and_invalid_without_ptz(
+    app_engine: AsyncEngine,
+):
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command(
+            "cloud-expired",
+            expires_at=FIXED_NOW - timedelta(seconds=1),
+        ),
+        _cloud_command(
+            "cloud-unsafe",
+            command_type="fan_set_duty",
+            payload={"duty_pct": 80},
+        ),
+        _cloud_command(
+            "cloud-bad-payload",
+            command_type="ptz_look",
+            payload={"x": 0.8, "y": 0.0},
+        ),
+    ]
+    ptz = RecordingPTZ()
+
+    result = await _command_service(app_engine, cloud, ptz).run_once()
+
+    assert result.executed == 0
+    assert ptz.calls == []
+    statuses = [
+        payload["status"] for _command_id, payload, _key in cloud.command_results
+    ]
+    assert statuses == ["expired", "rejected", "rejected"]
+    async with AsyncSession(app_engine) as session:
+        local_commands = (await session.exec(select(Command))).all()
+    assert local_commands == []
+
+
+async def test_command_loop_does_not_reexecute_terminal_local_command(
+    app_engine: AsyncEngine,
+):
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command("cloud-repeat", command_type="ptz_zoom", payload={"delta": 0.1})
+    ]
+    ptz = RecordingPTZ()
+    service = _command_service(app_engine, cloud, ptz)
+
+    first = await service.run_once()
+    second = await service.run_once()
+
+    assert first.executed == 1
+    assert second.executed == 0
+    assert ptz.calls == [("zoom_by", 0.1)]
+    terminal_reports = [
+        payload["status"]
+        for _command_id, payload, _key in cloud.command_results
+        if payload["status"] == "succeeded"
+    ]
+    assert terminal_reports == ["succeeded", "succeeded"]
 
 
 def test_gateway_package_does_not_import_hardware_loop_modules():

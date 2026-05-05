@@ -463,6 +463,40 @@ async def claim_commands(
 ) -> dict[str, Any]:
     require_gateway_scope(principal, body.site_id)
     now = clock()
+    expired_rows = (
+        await session.execute(
+            select(CloudCommand).where(
+                CloudCommand.site_id == body.site_id,
+                CloudCommand.status.in_(["queued", "claimed"]),
+                CloudCommand.expires_at <= now,
+            )
+        )
+    ).scalars()
+    for command in expired_rows:
+        command.status = "expired"
+        command.finished_at = now
+        command.error = "command expired before local execution"
+        command.updated_at = now
+
+    previously_claimed = (
+        await session.execute(
+            select(CloudCommand)
+            .where(
+                CloudCommand.site_id == body.site_id,
+                CloudCommand.status == "claimed",
+                CloudCommand.claimed_by == principal.gateway_id,
+                CloudCommand.expires_at > now,
+            )
+            .order_by(CloudCommand.claimed_at, CloudCommand.queued_at)
+            .limit(body.limit)
+        )
+    ).scalars()
+    commands = [_command_payload(command) for command in previously_claimed]
+    remaining = body.limit - len(commands)
+    if remaining <= 0:
+        await session.commit()
+        return {"commands": commands}
+
     rows = (
         await session.execute(
             select(CloudCommand)
@@ -472,10 +506,9 @@ async def claim_commands(
                 CloudCommand.expires_at > now,
             )
             .order_by(CloudCommand.queued_at)
-            .limit(body.limit)
+            .limit(remaining)
         )
     ).scalars()
-    commands = []
     for command in rows:
         command.status = "claimed"
         command.claimed_by = principal.gateway_id
@@ -498,12 +531,24 @@ async def command_result(
     command = await session.get(CloudCommand, command_id)
     if command is None or command.site_id != body.site_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "command not found")
+    if body.status not in {
+        "running",
+        "succeeded",
+        "failed",
+        "rejected",
+        "expired",
+    }:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "unsupported command status")
+    if command.status in {"succeeded", "failed", "rejected", "expired"}:
+        return _command_payload(command)
 
     now = clock()
     command.status = body.status
     command.result = body.result
     command.error = body.error
     command.updated_at = now
+    if body.status == "running" and command.started_at is None:
+        command.started_at = now
     if body.status in {"succeeded", "failed", "rejected", "expired"}:
         command.finished_at = now
     await session.commit()
@@ -575,6 +620,9 @@ def _command_payload(command: CloudCommand) -> dict[str, Any]:
         "expires_at": command.expires_at,
         "claimed_by": command.claimed_by,
         "claimed_at": command.claimed_at,
+        "requested_by": command.requested_by,
+        "started_at": command.started_at,
+        "finished_at": command.finished_at,
         "result": command.result,
         "error": command.error,
     }

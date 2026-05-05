@@ -158,6 +158,11 @@ async def test_duplicate_command_idempotency_returns_same_intent_without_hardwar
     assert [command["command_id"] for command in listed.json()] == [
         first.json()["command_id"]
     ]
+    listed_queued = await authed_client.get("/api/commands?status=queued")
+    assert listed_queued.status_code == 200
+    assert [command["command_id"] for command in listed_queued.json()] == [
+        first.json()["command_id"]
+    ]
     fetched = await authed_client.get(f"/api/commands/{first.json()['command_id']}")
     assert fetched.status_code == 200
     assert fetched.json()["command_id"] == first.json()["command_id"]
@@ -214,6 +219,7 @@ async def test_command_creation_rejects_non_ptz_remote_control(
         {"command_type": "humidifier_set"},
         {"device_id": "fan-main"},
         {"capability_id": "fan_duty"},
+        {"site_id": "other-site"},
     ]
     for patch in unsafe_cases:
         body = valid_body | patch
@@ -316,3 +322,99 @@ async def test_sync_status_exposes_gateway_age_and_command_backlog(
     assert response.status_code == 200
     assert response.json()["command_backlog_depth"] == 1
     assert response.json()["status"] == "offline"
+
+
+async def test_gateway_claim_expires_stale_commands_and_reclaims_own_claim(
+    authed_client: AsyncClient,
+    gateway_headers: dict[str, str],
+    cloud_engine: AsyncEngine,
+) -> None:
+    stale = await authed_client.post(
+        "/api/commands",
+        json={
+            "idempotency_key": "stale-click",
+            "tent_id": "main",
+            "device_id": "obsbot-main",
+            "capability_id": "ptz_move",
+            "command_type": "ptz_preset",
+            "payload": {"preset_id": "overview"},
+        },
+    )
+    fresh = await authed_client.post(
+        "/api/commands",
+        json={
+            "idempotency_key": "fresh-click",
+            "tent_id": "main",
+            "device_id": "obsbot-main",
+            "capability_id": "ptz_move",
+            "command_type": "ptz_zoom",
+            "payload": {"zoom": 1.2},
+        },
+    )
+    assert stale.status_code == 201
+    assert fresh.status_code == 201
+    sessionmaker = create_sessionmaker(cloud_engine)
+    async with sessionmaker() as session:
+        stale_row = await session.get(CloudCommand, stale.json()["command_id"])
+        assert stale_row is not None
+        stale_row.expires_at = FIXED_NOW - timedelta(seconds=1)
+        await session.commit()
+
+    second_claim = await authed_client.post(
+        "/api/gateway/v1/commands/claim",
+        headers=gateway_headers,
+        json={"site_id": "homebox", "limit": 5},
+    )
+    assert second_claim.status_code == 200
+    assert [cmd["command_id"] for cmd in second_claim.json()["commands"]] == [
+        fresh.json()["command_id"]
+    ]
+    expired = await authed_client.get(f"/api/commands/{stale.json()['command_id']}")
+    assert expired.json()["status"] == "expired"
+
+    reclaim = await authed_client.post(
+        "/api/gateway/v1/commands/claim",
+        headers=gateway_headers,
+        json={"site_id": "homebox", "limit": 5},
+    )
+    assert reclaim.status_code == 200
+    assert [cmd["command_id"] for cmd in reclaim.json()["commands"]] == [
+        fresh.json()["command_id"]
+    ]
+
+
+async def test_gateway_result_does_not_regress_terminal_command(
+    authed_client: AsyncClient,
+    gateway_headers: dict[str, str],
+) -> None:
+    created = await authed_client.post(
+        "/api/commands",
+        json={
+            "idempotency_key": "terminal-click",
+            "tent_id": "main",
+            "device_id": "obsbot-main",
+            "capability_id": "ptz_move",
+            "command_type": "ptz_zoom",
+            "payload": {"zoom": 1.4},
+        },
+    )
+    command_id = created.json()["command_id"]
+
+    succeeded = await authed_client.post(
+        f"/api/gateway/v1/commands/{command_id}/result",
+        headers=gateway_headers,
+        json={
+            "site_id": "homebox",
+            "status": "succeeded",
+            "result": {"ok": True},
+        },
+    )
+    late_running = await authed_client.post(
+        f"/api/gateway/v1/commands/{command_id}/result",
+        headers=gateway_headers,
+        json={"site_id": "homebox", "status": "running"},
+    )
+
+    assert succeeded.status_code == 200
+    assert late_running.status_code == 200
+    assert late_running.json()["status"] == "succeeded"

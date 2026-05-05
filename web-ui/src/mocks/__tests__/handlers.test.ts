@@ -86,11 +86,42 @@ describe("hosted cloud fixtures", () => {
     const body = (await response.json()) as { detail: string };
     expect(body.detail).toBe("asset_unavailable");
   });
+
+  it("creates and lists hosted PTZ commands", async () => {
+    const created = await postJson<CloudCommand>(
+      "https://api.test/api/commands?cloud_fixture=live",
+      {
+        idempotency_key: "test-command-key",
+        tent_id: "main",
+        device_id: "obsbot-main",
+        capability_id: "ptz_move",
+        command_type: "ptz_preset",
+        payload: { preset_id: "overview" },
+      },
+    );
+    expect(created.status).toBe("queued");
+    expect(created.expires_at).not.toBe(created.queued_at);
+
+    const listed = await getJson<CloudCommand[]>(
+      "https://api.test/api/commands?cloud_fixture=live",
+    );
+    expect(listed[0]?.command_id).toBe(created.command_id);
+  });
 });
 
 async function getJson<T>(url: string): Promise<T> {
   const response = await fetch(url);
   expect(response.status).toBe(200);
+  return (await response.json()) as T;
+}
+
+async function postJson<T>(url: string, body: unknown): Promise<T> {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  expect(response.status).toBe(201);
   return (await response.json()) as T;
 }
 
@@ -115,4 +146,11 @@ interface CloudTent {
 
 interface CloudDevice {
   device_id: string;
+}
+
+interface CloudCommand {
+  command_id: string;
+  status: string;
+  queued_at: string;
+  expires_at: string;
 }

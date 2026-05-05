@@ -18,7 +18,7 @@ from dirt_shared.models.site import Site
 from dirt_shared.models.zone import Zone
 from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID, resolve_scope
 
-LOCAL_COMMAND_SOURCES = frozenset({"local_api", "local_loop", "test"})
+LOCAL_COMMAND_SOURCES = frozenset({"local_api", "local_loop", "cloud_gateway", "test"})
 TERMINAL_STATUSES = frozenset({"succeeded", "failed", "cancelled"})
 
 
@@ -34,8 +34,8 @@ class CommandService:
     """DB-backed, idempotent command-intent ledger.
 
     This service records local command intent and lifecycle only. It does not
-    execute commands and it intentionally rejects remote/cloud source names in
-    this local-controller phase.
+    execute commands. Cloud-origin rows are allowed only for the local outbound
+    gateway after it has claimed and locally validated a command intent.
     """
 
     def __init__(

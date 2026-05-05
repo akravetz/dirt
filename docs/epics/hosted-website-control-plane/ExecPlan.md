@@ -27,7 +27,7 @@ The first observable result should be deliberately small: a hosted dashboard can
 - [x] (2026-05-05T03:36:59Z) Milestone 2: implemented the cloud control-plane schema, dedicated cloud Atlas migration path, thin hosted FastAPI API, and focused acceptance tests.
 - [x] (2026-05-05T12:00:00Z) Milestone 3: implemented the local outbound gateway package, local Atlas-managed outbox/cursor durability tables, read-only DI sync orchestration, asset sign-upload/complete flow, dry-run mode, `cloud_gateway` observability, and focused acceptance tests.
 - [x] (2026-05-05T04:19:48Z) Milestone 4: implemented the read-only hosted dashboard code path, hosted API base URL support, session bootstrap, site/tent selector, sync freshness/status rendering, private signed-asset display, read-only hosted live page, MSW cloud scenarios, and Railway web-ui build config. Deployment is blocked until the Milestone 6 deploy flow exists or the operator explicitly approves direct Railway deployment.
-- [ ] Milestone 5: add the PTZ-only cloud command loop.
+- [x] (2026-05-05T04:39:14Z) Milestone 5: implemented the PTZ-only cloud command loop, local command ledger integration, cloud result reporting, restart/idempotency guardrails, hosted `/live` command lifecycle UI, and focused backend/frontend tests.
 - [ ] Milestone 6: harden operations, recovery, and rollout documentation.
 
 
@@ -95,6 +95,15 @@ The first observable result should be deliberately small: a hosted dashboard can
 
 - Observation: There is no checked-in `scripts/deploy-control-plane` yet.
   Evidence: `rg --files scripts | rg deploy-control-plane` returned no deploy script during Milestone 4 work, so this worker did not replace the Railway placeholder deployments.
+
+- Observation: Cloud command claim needed to return already-claimed commands for the same gateway, not only newly queued commands.
+  Evidence: `apps/control-plane/src/dirt_control/api/gateway.py::claim_commands()` now marks expired queued/claimed rows terminal and returns non-expired commands already claimed by the authenticated gateway before claiming fresh queued rows. This lets a gateway restart or lost claim response recover without leaving a command stuck in `claimed`.
+
+- Observation: The local PTZ look contract is stricter than the current local `CameraFeed` comment implies.
+  Evidence: `contracts/webapp-v1.yaml` and `apps/web/tests/test_ptz_look_endpoint.py` constrain `x`/`y` to `[-0.5, 0.5]`; hosted command buttons submit `±0.25` deltas and the gateway rejects out-of-range cloud payloads before touching PTZ.
+
+- Observation: Browser command creation also needed a site-scope guard, not only PTZ type/device/capability guards.
+  Evidence: Main-agent Milestone 5 verification found that a browser could queue a command for a non-default `site_id` that the homebox gateway would never claim. `POST /api/commands` now rejects non-default sites before creating cloud command rows, and `uv run pytest apps/control-plane/tests -q` passed with `10 passed`.
 
 
 ## Decision Log
@@ -171,6 +180,10 @@ The first observable result should be deliberately small: a hosted dashboard can
   Rationale: Content-derived keys prevent duplicate cloud writes when a retry or restart replays the same projection. Heartbeats are intentionally time-sampled status updates.
   Date/Author: 2026-05-05 / Codex Worker M3
 
+- Decision: Record accepted cloud PTZ commands in the existing local `command` ledger with `source='cloud_gateway'` before executing PTZ, and keep rejected/expired cloud commands out of the local ledger.
+  Rationale: The local ledger should prove every accepted hardware action and prevent terminal cloud commands from being re-executed after restart. Rejected or expired cloud intent did not become a local hardware action, so it is reported to cloud without creating a misleading local command row.
+  Date/Author: 2026-05-05 / Codex Worker M5
+
 
 ## Outcomes & Retrospective
 
@@ -183,6 +196,8 @@ Milestone 2 is complete locally. The new workspace member `apps/control-plane/` 
 Milestone 3 is complete locally. The new workspace member `apps/gateway/` defines import package `dirt_gateway`, a `python -m dirt_gateway.main` entry point, a SQL-backed outbox repository, an injected sync orchestrator, an HTTP cloud client, and a local projection bundle that reads catalog, latest metrics, 5-minute / 1-hour / 4-hour rollups, and latest snapshot metadata without importing `dirt_hwd`. Local durability tables `cloud_sync_cursor` and `cloud_outbox` are SQLModel classes in `dirt_shared.models` and are managed by local Atlas migration `migrations/20260505035619_cloud_gateway_durability.sql`; gateway startup only pings the database and performs no DDL. Tests prove catalog sync for `homebox/main` and `homebox/breeding`, idempotent latest/rollup delivery, retry after cloud outage, dry-run behavior, private asset sign-upload/complete sequencing, isolated `cloud_gateway` logs, and the no-hardware-import boundary.
 
 Milestone 4 is code-complete locally. The React app now uses `VITE_DIRT_API_BASE_URL` to switch from same-origin local `dirt-web` mode to hosted cloud API mode. Hosted mode validates the cloud FastAPI session with `/api/auth/me`, renders the `homebox` site selector and `main` / `breeding` tent selector, shows gateway last-seen, cloud status, command backlog, per-metric source times, metric stale state, device last-seen values, and latest private assets using signed URLs returned by authenticated API routes. The hosted live page is deliberately read-only until Milestone 5, so local PTZ controls remain available only in same-origin local mode. MSW v2 fixtures cover `live`, `stale`, `offline`, `empty`, and `asset-unavailable` cloud scenarios via `?cloud_fixture=...`. Railway web-ui config is checked in at `web-ui/railway.json` and only builds the Vite app with `VITE_DIRT_API_BASE_URL`; it does not embed local hardware credentials or gateway tokens. The actual Railway deployment was not run because the supported Milestone 6 deploy script does not exist yet and direct provider deployment is an unsafe visible action without operator approval.
+
+Milestone 5 is code-complete locally. Browser command creation remains PTZ-only and 60-second-expiring in the cloud API, while gateway claim now expires stale queued/claimed commands and can re-return non-terminal commands already claimed by the same gateway. The local gateway has a dedicated `GatewayCommandService` that claims cloud commands, validates scope/type/payload, records accepted PTZ commands in the local `command` ledger through `CommandService(source='cloud_gateway')`, executes them through the injected `PTZService` abstraction, reports `running` directly, and persists terminal command results through the existing local outbox before reporting them to cloud. If a restart sees an already-terminal local ledger row, the gateway reports that terminal result again and does not move the camera again; if it sees a non-terminal old ledger row, it fails the local row and reports failure rather than replaying a potentially non-idempotent PTZ delta. The hosted `/live` route now shows PTZ preset/look/zoom command controls only in hosted mode when cloud sync reports a live gateway, and it renders recent command lifecycle states from `/api/commands`. Local same-origin PTZ controls still use `/api/ptz/*` unchanged. No fan, lights, or humidifier remote control was added.
 
 
 ## Context and Orientation
@@ -618,6 +633,29 @@ Milestone 3 validation on 2026-05-05:
 - `uv run pytest apps/tests/invariants/ -q` passed with `116 passed, 1 skipped`.
 - `uv run ruff check` passed.
 - `uv run ruff format apps/gateway apps/shared/src/dirt_shared/models/cloud_gateway.py apps/shared/src/dirt_shared/models/__init__.py apps/shared/src/dirt_shared/config.py apps/shared/src/dirt_shared/observability.py --check` passed with `13 files already formatted`.
+
+Milestone 5 implementation artifacts on 2026-05-05:
+
+- Gateway command executor: `apps/gateway/src/dirt_gateway/commands.py`.
+- Gateway HTTP client/protocol extensions: `apps/gateway/src/dirt_gateway/cloud.py` and `apps/gateway/src/dirt_gateway/protocols.py`.
+- Gateway process wiring: `apps/gateway/src/dirt_gateway/main.py` now runs read-only sync and command polling loops together.
+- Command result outbox dispatch: `apps/gateway/src/dirt_gateway/sync.py` handles `command_result` rows.
+- Local command ledger source: `apps/shared/src/dirt_shared/services/commands.py` accepts `cloud_gateway` after local validation.
+- Cloud claim/result hardening and command history filtering: `apps/control-plane/src/dirt_control/api/gateway.py` and `apps/control-plane/src/dirt_control/api/browser.py`.
+- Hosted command UI and fixtures: `web-ui/src/routes/live.tsx`, `web-ui/src/api-client/cloud.ts`, `web-ui/src/mocks/handlers.ts`, and `web-ui/src/mocks/__tests__/handlers.test.ts`.
+- Tests: `apps/gateway/tests/test_sync.py` and `apps/control-plane/tests/test_api.py`.
+
+Milestone 5 validation on 2026-05-05:
+
+- `uv run pytest apps/control-plane/tests apps/gateway/tests apps/shared/tests -q` passed with `158 passed`.
+- `uv run pytest apps/tests/invariants/ -q` passed with `116 passed, 1 skipped`.
+- `uv run ruff check` passed.
+- `pnpm --dir web-ui typecheck` passed.
+- `pnpm --dir web-ui lint` passed.
+- `pnpm --dir web-ui test` passed with `1 passed (7 tests)`.
+- `pnpm --dir web-ui build` passed and produced `web-ui/dist/`.
+- Simplify pass fallback was run after implementation. Applied cleanup: removed a private helper import from the command executor, typed the command-loop sleeper, renamed the hosted live component, and stabilized the hosted direction-pad layout. Post-cleanup focused validation passed: `uv run pytest apps/gateway/tests/test_sync.py -q`, `pnpm --dir web-ui typecheck`, `pnpm --dir web-ui lint`, and `pnpm --dir web-ui test`.
+- Main-agent verification added the browser command site-scope guard; `uv run pytest apps/control-plane/tests -q` passed with `10 passed`.
 - `uv lock --check` passed with `Resolved 238 packages`.
 
 Replacement Worker M3b validation on 2026-05-05:

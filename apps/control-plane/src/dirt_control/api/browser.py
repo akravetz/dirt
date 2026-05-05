@@ -347,10 +347,13 @@ async def create_command(
         return _command_response(existing)
 
     now = clock()
+    site_id = body.site_id or settings.default_site_id
+    if site_id != settings.default_site_id:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "unsupported site")
     command = CloudCommand(
         command_id=str(uuid.uuid4()),
         idempotency_key=body.idempotency_key,
-        site_id=body.site_id or settings.default_site_id,
+        site_id=site_id,
         tent_id=body.tent_id,
         device_id=body.device_id,
         capability_id=body.capability_id,
@@ -383,15 +386,15 @@ async def get_command(
 
 @router.get("/commands")
 async def list_commands(
+    status: str | None = None,
     user: str = Depends(require_browser_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[dict[str, Any]]:
+    stmt = select(CloudCommand).where(CloudCommand.requested_by == user)
+    if status is not None:
+        stmt = stmt.where(CloudCommand.status == status)
     rows = (
-        await session.execute(
-            select(CloudCommand)
-            .where(CloudCommand.requested_by == user)
-            .order_by(desc(CloudCommand.queued_at))
-        )
+        await session.execute(stmt.order_by(desc(CloudCommand.queued_at)).limit(50))
     ).scalars()
     return [_command_response(command) for command in rows]
 
@@ -437,6 +440,8 @@ def _command_response(command: CloudCommand) -> dict[str, Any]:
         "expires_at": command.expires_at,
         "claimed_by": command.claimed_by,
         "claimed_at": command.claimed_at,
+        "started_at": command.started_at,
+        "finished_at": command.finished_at,
         "result": command.result,
         "error": command.error,
     }

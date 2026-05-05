@@ -50,6 +50,18 @@ class CloudGatewayClient(Protocol):
         self, payload: dict[str, Any], *, idempotency_key: str
     ) -> dict[str, Any]: ...
 
+    async def claim_commands(
+        self, *, site_id: str, limit: int, idempotency_key: str
+    ) -> dict[str, Any]: ...
+
+    async def report_command_result(
+        self,
+        *,
+        command_id: str,
+        payload: dict[str, Any],
+        idempotency_key: str,
+    ) -> dict[str, Any]: ...
+
 
 class LocalGatewayServices(Protocol):
     async def collect_catalog(self, site_id: str) -> dict[str, Any]: ...

@@ -209,6 +209,13 @@ class GatewaySyncService:
         if row.event_type == "asset_upload":
             await self._deliver_asset(payload, idempotency_key=row.idempotency_key)
             return
+        if row.event_type == "command_result":
+            await self._cloud.report_command_result(
+                command_id=str(payload["command_id"]),
+                payload=dict(payload["result"]),
+                idempotency_key=row.idempotency_key,
+            )
+            return
         raise CloudDeliveryError(f"unknown outbox event type: {row.event_type}")
 
     async def _deliver_asset(
