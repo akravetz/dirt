@@ -284,3 +284,35 @@ async def test_asset_flow_is_direct_upload_handshake_and_signed_url_requires_aut
     authed = await client.get("/api/assets/asset-1/signed-url")
     assert authed.status_code == 200
     assert authed.json()["signed_url"].startswith("https://assets.test/")
+
+
+async def test_sync_status_exposes_gateway_age_and_command_backlog(
+    authed_client: AsyncClient,
+) -> None:
+    response = await authed_client.get("/api/sync/status")
+    assert response.status_code == 200
+    assert response.json() == {
+        "site_id": "homebox",
+        "gateway_last_seen_at": None,
+        "last_catalog_sync_at": None,
+        "command_backlog_depth": 0,
+        "status": "offline",
+    }
+
+    command = await authed_client.post(
+        "/api/commands",
+        json={
+            "idempotency_key": "backlog-click",
+            "tent_id": "main",
+            "device_id": "obsbot-main",
+            "capability_id": "ptz_move",
+            "command_type": "ptz_preset",
+            "payload": {"preset": "overview"},
+        },
+    )
+    assert command.status_code == 201
+
+    response = await authed_client.get("/api/sync/status")
+    assert response.status_code == 200
+    assert response.json()["command_backlog_depth"] == 1
+    assert response.json()["status"] == "offline"

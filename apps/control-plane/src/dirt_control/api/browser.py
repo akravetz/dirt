@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirt_control.deps import get_clock, get_session, get_settings
@@ -296,18 +296,34 @@ async def sync_status(
     _: str = Depends(require_browser_user),
     settings: CloudSettings = Depends(get_settings),
     session: AsyncSession = Depends(get_session),
+    clock: Callable[[], datetime] = Depends(get_clock),
 ) -> dict[str, Any]:
     site = await session.get(CloudSite, settings.default_site_id)
+    command_backlog_depth = (
+        await session.scalar(
+            select(func.count())
+            .select_from(CloudCommand)
+            .where(
+                CloudCommand.site_id == settings.default_site_id,
+                CloudCommand.status.in_(["queued", "claimed", "running"]),
+            )
+        )
+    ) or 0
     if site is None:
         return {
             "site_id": settings.default_site_id,
             "gateway_last_seen_at": None,
             "last_catalog_sync_at": None,
+            "command_backlog_depth": command_backlog_depth,
+            "status": "offline",
         }
+    status_label = _sync_status_label(site.gateway_last_seen_at, now=clock())
     return {
         "site_id": site.site_id,
         "gateway_last_seen_at": site.gateway_last_seen_at,
         "last_catalog_sync_at": site.last_catalog_sync_at,
+        "command_backlog_depth": command_backlog_depth,
+        "status": status_label,
     }
 
 
@@ -424,3 +440,14 @@ def _command_response(command: CloudCommand) -> dict[str, Any]:
         "result": command.result,
         "error": command.error,
     }
+
+
+def _sync_status_label(last_seen_at: datetime | None, *, now: datetime) -> str:
+    if last_seen_at is None:
+        return "offline"
+    age_s = (now - last_seen_at).total_seconds()
+    if age_s > 300:
+        return "offline"
+    if age_s > 90:
+        return "stale"
+    return "live"

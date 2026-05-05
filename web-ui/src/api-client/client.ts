@@ -30,10 +30,17 @@ const defaultOnUnauthorized = (): void => {
   }
 };
 
+const configuredApiBaseUrl = import.meta.env.VITE_DIRT_API_BASE_URL?.trim() ?? "";
+
+export const dirtApiBaseUrl =
+  configuredApiBaseUrl.length > 0 ? configuredApiBaseUrl.replace(/\/+$/, "") : "/";
+
+export const isHostedApiMode = configuredApiBaseUrl.length > 0;
+
 export const createDirtApiClient = (
   options: DirtApiClientOptions = {},
 ): DirtApiClient => {
-  const { baseUrl = "/", onUnauthorized = defaultOnUnauthorized } = options;
+  const { baseUrl = dirtApiBaseUrl, onUnauthorized = defaultOnUnauthorized } = options;
 
   const client = createClient<paths>({
     baseUrl,

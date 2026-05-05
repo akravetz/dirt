@@ -26,7 +26,7 @@ The first observable result should be deliberately small: a hosted dashboard can
 - [x] (2026-05-05T18:20:00Z) Milestone 1: decided and documented hosted platform, auth, database, object storage, DNS, deployment boundaries, and current-provider evidence.
 - [x] (2026-05-05T03:36:59Z) Milestone 2: implemented the cloud control-plane schema, dedicated cloud Atlas migration path, thin hosted FastAPI API, and focused acceptance tests.
 - [x] (2026-05-05T12:00:00Z) Milestone 3: implemented the local outbound gateway package, local Atlas-managed outbox/cursor durability tables, read-only DI sync orchestration, asset sign-upload/complete flow, dry-run mode, `cloud_gateway` observability, and focused acceptance tests.
-- [ ] Milestone 4: deploy the read-only hosted dashboard and prove stale/offline behavior.
+- [x] (2026-05-05T04:19:48Z) Milestone 4: implemented the read-only hosted dashboard code path, hosted API base URL support, session bootstrap, site/tent selector, sync freshness/status rendering, private signed-asset display, read-only hosted live page, MSW cloud scenarios, and Railway web-ui build config. Deployment is blocked until the Milestone 6 deploy flow exists or the operator explicitly approves direct Railway deployment.
 - [ ] Milestone 5: add the PTZ-only cloud command loop.
 - [ ] Milestone 6: harden operations, recovery, and rollout documentation.
 
@@ -89,6 +89,12 @@ The first observable result should be deliberately small: a hosted dashboard can
 
 - Observation: Bare `from conftest import ...` imports are unsafe when pre-commit collects multiple app test roots in one pytest invocation.
   Evidence: After adding `apps/gateway` to the per-app pre-commit hook, collection failed because `apps/control-plane/tests/test_api.py` imported `FIXED_NOW` from the gateway test `conftest.py`. The control-plane test now defines its own constant, and `uv run pytest apps/control-plane/tests apps/gateway/tests -q` passed with `14 passed`.
+
+- Observation: The cloud heartbeat accepted `backlog_depth`, but the browser `/api/sync/status` response did not expose any backlog/status field for the hosted dashboard.
+  Evidence: Milestone 4 added a narrow `apps/control-plane/src/dirt_control/api/browser.py` route fix that reports `command_backlog_depth` from non-terminal cloud commands plus a derived `live` / `stale` / `offline` status without changing the cloud schema.
+
+- Observation: There is no checked-in `scripts/deploy-control-plane` yet.
+  Evidence: `rg --files scripts | rg deploy-control-plane` returned no deploy script during Milestone 4 work, so this worker did not replace the Railway placeholder deployments.
 
 
 ## Decision Log
@@ -175,6 +181,8 @@ Railway infrastructure prework is complete, and both app services are running te
 Milestone 2 is complete locally. The new workspace member `apps/control-plane/` defines import package `dirt_control`, cloud settings, async DB/session setup, SQLModel tables, FastAPI composition, browser session auth, gateway bearer-token auth, browser read routes, browser command-intent routes, gateway sync routes, and tests. Startup performs a database ping only; cloud schema changes are managed by the dedicated Atlas env `cloud` and migration directory `cloud/migrations/`. Command creation records queued intent in `cloud_command` and does not import or call local hardware modules. Asset upload is a direct signed-upload handshake plus metadata completion path; browser signed-url retrieval is session-authenticated.
 
 Milestone 3 is complete locally. The new workspace member `apps/gateway/` defines import package `dirt_gateway`, a `python -m dirt_gateway.main` entry point, a SQL-backed outbox repository, an injected sync orchestrator, an HTTP cloud client, and a local projection bundle that reads catalog, latest metrics, 5-minute / 1-hour / 4-hour rollups, and latest snapshot metadata without importing `dirt_hwd`. Local durability tables `cloud_sync_cursor` and `cloud_outbox` are SQLModel classes in `dirt_shared.models` and are managed by local Atlas migration `migrations/20260505035619_cloud_gateway_durability.sql`; gateway startup only pings the database and performs no DDL. Tests prove catalog sync for `homebox/main` and `homebox/breeding`, idempotent latest/rollup delivery, retry after cloud outage, dry-run behavior, private asset sign-upload/complete sequencing, isolated `cloud_gateway` logs, and the no-hardware-import boundary.
+
+Milestone 4 is code-complete locally. The React app now uses `VITE_DIRT_API_BASE_URL` to switch from same-origin local `dirt-web` mode to hosted cloud API mode. Hosted mode validates the cloud FastAPI session with `/api/auth/me`, renders the `homebox` site selector and `main` / `breeding` tent selector, shows gateway last-seen, cloud status, command backlog, per-metric source times, metric stale state, device last-seen values, and latest private assets using signed URLs returned by authenticated API routes. The hosted live page is deliberately read-only until Milestone 5, so local PTZ controls remain available only in same-origin local mode. MSW v2 fixtures cover `live`, `stale`, `offline`, `empty`, and `asset-unavailable` cloud scenarios via `?cloud_fixture=...`. Railway web-ui config is checked in at `web-ui/railway.json` and only builds the Vite app with `VITE_DIRT_API_BASE_URL`; it does not embed local hardware credentials or gateway tokens. The actual Railway deployment was not run because the supported Milestone 6 deploy script does not exist yet and direct provider deployment is an unsafe visible action without operator approval.
 
 
 ## Context and Orientation
@@ -632,6 +640,25 @@ Main-agent Milestone 3 verification on 2026-05-05:
 - `uv lock --check` passed with `Resolved 238 packages`.
 - `git diff --check -- . ':(exclude)apps/wake-word/**'` passed.
 
+Milestone 4 implementation artifacts on 2026-05-05:
+
+- Hosted API runtime switch: `web-ui/src/api-client/client.ts` and `web-ui/src/api-client/cloud.ts`.
+- Hosted dashboard branch: `web-ui/src/routes/index.tsx`.
+- Hosted session bootstrap: `web-ui/src/routes/__root.tsx`.
+- Hosted read-only live page: `web-ui/src/routes/live.tsx`.
+- MSW cloud scenarios and tests: `web-ui/src/mocks/handlers.ts` and `web-ui/src/mocks/__tests__/handlers.test.ts`; select with `?cloud_fixture=live`, `stale`, `offline`, `empty`, or `asset-unavailable`.
+- Railway web-ui service config: `web-ui/railway.json`.
+- Narrow sync status route fix and test: `apps/control-plane/src/dirt_control/api/browser.py` and `apps/control-plane/tests/test_api.py`.
+
+Milestone 4 validation on 2026-05-05:
+
+- `pnpm --dir web-ui typecheck` passed.
+- `pnpm --dir web-ui lint` passed.
+- `pnpm --dir web-ui test` passed with `6 passed`, including focused MSW coverage for live, stale, offline, empty breeding tent, and asset-unavailable hosted states.
+- `pnpm --dir web-ui build` passed and wrote `web-ui/dist/`.
+- `uv run pytest apps/control-plane/tests -q` passed with `8 passed`.
+- Simplify pass ran using the fallback review path because no subagent spawn tool is available in this runtime; it applied one cleanup so the hosted dashboard trusts the API `status` field when present and computes freshness only as fallback.
+
 
 ## Interfaces and Dependencies
 
@@ -699,3 +726,4 @@ Runtime environment variables:
 - 2026-05-05 / Codex replacement Worker M3b: Re-verified the inherited Milestone 3 implementation against the requested acceptance tests, ran the simplify fallback review locally, made no source changes beyond recording validation, and left Milestone 4+ untouched.
 - 2026-05-05 / Codex: During main-agent verification, added `apps/gateway` to the pre-commit per-app pytest hook and recorded that DB-backed pytest sessions sharing the worktree template database must run sequentially.
 - 2026-05-05 / Codex: Removed a bare `from conftest import FIXED_NOW` import from the control-plane API tests after the expanded multi-app pytest hook exposed cross-app `conftest.py` import collision.
+- 2026-05-05 / Codex Worker M4: Completed Milestone 4 locally by adding hosted API mode, cloud session bootstrap, site/tent-scoped read-only dashboard surfaces, stale/offline/sync backlog rendering, authenticated signed-asset display, hosted read-only live behavior, MSW v2 cloud scenarios, a Railway web-ui config, and a narrow cloud `/api/sync/status` response fix. Deployment was left blocked on the missing Milestone 6 deploy script and lack of explicit approval for direct Railway deployment.

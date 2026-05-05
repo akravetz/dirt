@@ -20,8 +20,20 @@
 // alternative if a future change needs SSR-style prefetch.
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import type { ChangeEvent, ReactNode } from "react";
 import { useState } from "react";
-import { type components, createDirtApiClient } from "@/api-client";
+import { type components, createDirtApiClient, isHostedApiMode } from "@/api-client";
+import {
+  type CloudAsset,
+  type CloudDevice,
+  type CloudMetric,
+  type CloudMetricHistory,
+  type CloudSite,
+  type CloudSyncStatus,
+  type CloudTent,
+  type CloudTentState,
+  cloudGet,
+} from "@/api-client/cloud";
 import { Gauge } from "@/ui/Gauge";
 import { HoverTimestamp } from "@/ui/HoverTimestamp";
 import { PlantDetail } from "@/ui/PlantDetail";
@@ -41,6 +53,7 @@ type SensorsCurrent = components["schemas"]["SensorsCurrent"];
 type MetricEnvelope = components["schemas"]["MetricEnvelope"];
 type MetricMeta = components["schemas"]["SensorMetricMetadata"];
 type SparklineAccent = "temp" | "humidity" | "vpd" | "moisture" | "neutral";
+type MetricStatus = MetricEnvelope["status"];
 
 // Whitelist the accent strings the FE knows how to render. Anything else
 // from the registry falls back to "neutral" so a future BE addition
@@ -79,6 +92,63 @@ function formatInteger(value: number): string {
   return `${Math.round(value)}`;
 }
 
+const CLOUD_METRIC_META: readonly MetricMeta[] = [
+  {
+    metric: "temperature_f",
+    display_name: "Temperature",
+    unit: "°F",
+    accent: "temp",
+    y_min: 60,
+    y_max: 90,
+    has_target_band: false,
+  },
+  {
+    metric: "humidity_pct",
+    display_name: "Humidity",
+    unit: "%",
+    accent: "humidity",
+    y_min: 20,
+    y_max: 90,
+    has_target_band: false,
+  },
+  {
+    metric: "vpd_kpa",
+    display_name: "VPD",
+    unit: "kPa",
+    accent: "vpd",
+    y_min: 0,
+    y_max: 2,
+    has_target_band: false,
+  },
+  {
+    metric: "fan_pct",
+    display_name: "Fan",
+    unit: "%",
+    accent: "neutral",
+    y_min: 0,
+    y_max: 100,
+    has_target_band: false,
+  },
+  {
+    metric: "humidifier_intensity_pct",
+    display_name: "Humidifier",
+    unit: "%",
+    accent: "humidity",
+    y_min: 0,
+    y_max: 100,
+    has_target_band: false,
+  },
+  {
+    metric: "reservoir_in",
+    display_name: "Reservoir",
+    unit: "in",
+    accent: "neutral",
+    y_min: 0,
+    y_max: 20,
+    has_target_band: false,
+  },
+];
+
 function freshnessLabel(data: SensorsCurrent): {
   label: string;
   dotClass: string;
@@ -89,7 +159,286 @@ function freshnessLabel(data: SensorsCurrent): {
   return { label: "live", dotClass: "text-status-ok" };
 }
 
+function HostedDashboardPage() {
+  const [range, setRange] = useState<SparklineRange>("24h");
+  const [selectedSiteId, setSelectedSiteId] = useState("homebox");
+  const [selectedTentId, setSelectedTentId] = useState("main");
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+
+  const sitesQuery = useQuery({
+    queryKey: ["cloud.sites"],
+    queryFn: async () => cloudGet<CloudSite[]>("/api/sites"),
+  });
+
+  const tentsQuery = useQuery({
+    queryKey: ["cloud.tents", selectedSiteId],
+    queryFn: async () =>
+      cloudGet<CloudTent[]>(`/api/tents?site_id=${encodeURIComponent(selectedSiteId)}`),
+    enabled: selectedSiteId.length > 0,
+  });
+
+  const stateQuery = useQuery({
+    queryKey: ["cloud.tent.state", selectedTentId],
+    queryFn: async () =>
+      cloudGet<CloudTentState>(
+        `/api/tents/${encodeURIComponent(selectedTentId)}/state`,
+      ),
+    enabled: selectedTentId.length > 0,
+  });
+
+  const metricsQuery = useQuery({
+    queryKey: ["cloud.metrics.current", selectedTentId],
+    queryFn: async () =>
+      cloudGet<CloudMetric[]>(
+        `/api/tents/${encodeURIComponent(selectedTentId)}/metrics/current`,
+      ),
+    enabled: selectedTentId.length > 0,
+  });
+
+  const historyResults = useQueries({
+    queries: CLOUD_METRIC_META.map((m) => ({
+      queryKey: ["cloud.metrics.history", selectedTentId, range, m.metric] as const,
+      queryFn: async () =>
+        cloudGet<CloudMetricHistory>(
+          `/api/tents/${encodeURIComponent(selectedTentId)}/metrics/history?` +
+            `range=${encodeURIComponent(range)}&metric=${encodeURIComponent(m.metric)}`,
+        ),
+      enabled: selectedTentId.length > 0,
+    })),
+  });
+
+  const devicesQuery = useQuery({
+    queryKey: ["cloud.devices", selectedTentId],
+    queryFn: async () =>
+      cloudGet<CloudDevice[]>(
+        `/api/tents/${encodeURIComponent(selectedTentId)}/devices`,
+      ),
+    enabled: selectedTentId.length > 0,
+  });
+
+  const assetsQuery = useQuery({
+    queryKey: ["cloud.assets.latest", selectedTentId],
+    queryFn: async () =>
+      cloudGet<CloudAsset[]>(
+        `/api/tents/${encodeURIComponent(selectedTentId)}/assets/latest`,
+      ),
+    enabled: selectedTentId.length > 0,
+    retry: false,
+  });
+
+  const syncQuery = useQuery({
+    queryKey: ["cloud.sync.status"],
+    queryFn: async () => cloudGet<CloudSyncStatus>("/api/sync/status"),
+    refetchInterval: 30_000,
+  });
+
+  const sites = sitesQuery.data ?? [];
+  const tents = tentsQuery.data ?? [];
+  const selectedTent = tents.find((tent) => tent.tent_id === selectedTentId);
+  const metrics = metricsQuery.data ?? [];
+  const metricsByName = new Map(metrics.map((metric) => [metric.metric, metric]));
+  const syncStatus = syncQuery.data ?? null;
+  const gatewayStatus =
+    syncStatus?.status ?? cloudGatewayStatus(syncStatus?.gateway_last_seen_at ?? null);
+  const newestAsset = assetsQuery.data?.[0] ?? null;
+
+  const onSiteChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    const nextSite = event.currentTarget.value;
+    setSelectedSiteId(nextSite);
+    setSelectedTentId("main");
+  };
+
+  const onTentChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    setSelectedTentId(event.currentTarget.value);
+  };
+
+  if (sitesQuery.isLoading || tentsQuery.isLoading) {
+    return (
+      <main className="flex-1 overflow-auto p-6">
+        <p className="font-mono text-xs uppercase tracking-caps text-ink-3">
+          Loading hosted dashboard…
+        </p>
+      </main>
+    );
+  }
+
+  if (sitesQuery.error || tentsQuery.error) {
+    return (
+      <main className="flex-1 overflow-auto p-6">
+        <p className="font-mono text-xs uppercase tracking-caps text-accent-magenta">
+          Failed to load hosted scope
+        </p>
+      </main>
+    );
+  }
+
+  return (
+    <main className="flex-1 overflow-auto">
+      <div className="mx-auto flex max-w-350 flex-col gap-6 px-8 pb-16 pt-7">
+        <section className="grid gap-4 border-b border-rule-strong pb-4 lg:grid-cols-[1fr_auto]">
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex flex-col gap-1 font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+              Site
+              <select
+                value={selectedSiteId}
+                onChange={onSiteChange}
+                className="border border-rule-strong bg-paper px-3 py-2 font-sans text-fs-12 normal-case tracking-normal text-ink"
+              >
+                {sites.map((site) => (
+                  <option key={site.site_id} value={site.site_id}>
+                    {site.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+              Tent
+              <select
+                value={selectedTentId}
+                onChange={onTentChange}
+                className="border border-rule-strong bg-paper px-3 py-2 font-sans text-fs-12 normal-case tracking-normal text-ink"
+              >
+                {tents.map((tent) => (
+                  <option key={tent.tent_id} value={tent.tent_id}>
+                    {tent.name}
+                    {tent.is_active ? "" : " (inactive)"}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <span className="border border-rule px-2.5 py-1.5 font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+              Read only
+            </span>
+          </div>
+          <div className="flex flex-wrap items-end justify-start gap-3 lg:justify-end">
+            <StatusPill
+              label={gatewayStatus}
+              value={`Gateway ${formatAge(syncStatus?.gateway_last_seen_at ?? null)}`}
+            />
+            <StatusPill
+              label="backlog"
+              value={`${syncStatus?.command_backlog_depth ?? 0} queued`}
+            />
+            <RangeSwitch value={range} onChange={setRange} />
+          </div>
+        </section>
+
+        <section className="grid grid-cols-1 gap-3 border border-rule-strong bg-paper-2 p-4 sm:grid-cols-3">
+          <CloudFact label="Tent" value={selectedTent?.name ?? selectedTentId} />
+          <CloudFact
+            label="Catalog"
+            value={formatTimestamp(stateQuery.data?.last_catalog_sync_at ?? null)}
+          />
+          <CloudFact
+            label="Gateway seen"
+            value={formatTimestamp(syncStatus?.gateway_last_seen_at ?? null)}
+          />
+        </section>
+
+        {metricsQuery.isLoading ? (
+          <p className="font-mono text-xs uppercase tracking-caps text-ink-3">
+            Loading current metrics…
+          </p>
+        ) : metrics.length === 0 ? (
+          <section className="border border-rule-strong bg-paper-2 p-5">
+            <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+              No synced metrics for this tent yet.
+            </p>
+          </section>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 gap-px border border-rule-strong bg-rule sm:grid-cols-2 lg:grid-cols-6">
+              <section aria-label="Environment gauges" className="contents">
+                {CLOUD_METRIC_META.map((m) => {
+                  const metric = metricsByName.get(m.metric);
+                  if (!metric) return null;
+                  const formatProp = isIntegerMetric(m)
+                    ? { format: formatInteger }
+                    : {};
+                  return (
+                    <Gauge
+                      key={m.metric}
+                      name={m.display_name}
+                      value={metric.value}
+                      unit={metric.unit ?? m.unit}
+                      band={null}
+                      status={metricStatus(metric)}
+                      accent={asAccent(m.accent)}
+                      {...formatProp}
+                    />
+                  );
+                })}
+              </section>
+            </div>
+            <section aria-label="Metric source times" className="bg-paper-2 p-4">
+              <h2 className="mb-2 font-sans text-fs-10 font-semibold uppercase tracking-cap-med text-ink-3">
+                Metric Source Times
+              </h2>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {metrics.map((metric) => (
+                  <CloudFact
+                    key={`${metric.capability_id}:${metric.metric}`}
+                    label={displayMetricName(metric.metric)}
+                    value={`${formatTimestamp(metric.source_updated_at)} · ${metricFreshnessLabel(metric)}`}
+                  />
+                ))}
+              </div>
+            </section>
+          </>
+        )}
+
+        <section aria-label="Environment history" className="flex flex-col">
+          <header className="flex items-baseline justify-between border-b border-rule px-0.5 py-2">
+            <h2 className="font-sans text-fs-11 font-semibold uppercase tracking-cap-wide text-ink-2">
+              History
+            </h2>
+            <HoverTimestamp
+              hoverIndex={hoverIndex}
+              points={toSparklinePoints(historyResults.find((r) => r.data)?.data)}
+            />
+          </header>
+          <div className="grid grid-cols-1 border border-rule-strong bg-paper-2 sm:grid-cols-2 lg:grid-cols-3">
+            {CLOUD_METRIC_META.map((m, idx) => {
+              const result = historyResults[idx];
+              const points = toSparklinePoints(result?.data);
+              const unit = result?.data?.points[0]?.unit ?? m.unit;
+              const yProps = {
+                ...(m.y_min !== null && m.y_min !== undefined ? { yMin: m.y_min } : {}),
+                ...(m.y_max !== null && m.y_max !== undefined ? { yMax: m.y_max } : {}),
+              };
+              return (
+                <Sparkline
+                  key={m.metric}
+                  name={m.display_name}
+                  points={points}
+                  unit={unit ?? ""}
+                  accent={asAccent(m.accent)}
+                  hoverIndex={hoverIndex}
+                  onHoverIndex={setHoverIndex}
+                  {...yProps}
+                />
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+          <CloudAssetsPanel
+            asset={newestAsset}
+            unavailable={Boolean(assetsQuery.error)}
+          />
+          <CloudDevicesPanel devices={devicesQuery.data ?? []} />
+        </section>
+      </div>
+    </main>
+  );
+}
+
 function DashboardPage() {
+  return isHostedApiMode ? <HostedDashboardPage /> : <LocalDashboardPage />;
+}
+
+function LocalDashboardPage() {
   // Per-metric display metadata — name, unit, accent, y-axis bounds —
   // driven by the BE registry at /api/sensors/metadata. Read once at
   // boot. `staleTime: Infinity` because the registry only changes via
@@ -326,5 +675,172 @@ function DashboardPage() {
         />
       ) : null}
     </main>
+  );
+}
+
+function StatusPill({ label, value }: { label: string; value: string }): ReactNode {
+  return (
+    <span className="inline-flex items-center gap-2 border border-rule bg-paper-2 px-2.5 py-1.5 font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+      <span className="text-ink">{label}</span>
+      <span>{value}</span>
+    </span>
+  );
+}
+
+function CloudFact({ label, value }: { label: string; value: string }): ReactNode {
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <span className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+        {label}
+      </span>
+      <span className="truncate font-sans text-fs-13 text-ink">{value}</span>
+    </div>
+  );
+}
+
+function CloudAssetsPanel({
+  asset,
+  unavailable,
+}: {
+  asset: CloudAsset | null;
+  unavailable: boolean;
+}): ReactNode {
+  return (
+    <section
+      aria-label="Latest private asset"
+      className="flex flex-col gap-3 bg-paper-2 p-4"
+    >
+      <h2 className="font-sans text-fs-10 font-semibold uppercase tracking-cap-med text-ink-3">
+        Latest Asset
+      </h2>
+      {unavailable ? (
+        <p className="font-mono text-fs-10 uppercase tracking-caps text-accent-magenta">
+          Signed asset URL unavailable
+        </p>
+      ) : asset ? (
+        <>
+          <img
+            src={asset.signed_url}
+            alt=""
+            className="aspect-video w-full border border-rule-strong object-cover"
+          />
+          <CloudFact
+            label="Captured"
+            value={`${formatTimestamp(asset.captured_at)} · expires ${formatTimestamp(asset.signed_url_expires_at)}`}
+          />
+        </>
+      ) : (
+        <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+          No synced assets for this tent.
+        </p>
+      )}
+    </section>
+  );
+}
+
+function CloudDevicesPanel({
+  devices,
+}: {
+  devices: readonly CloudDevice[];
+}): ReactNode {
+  return (
+    <section aria-label="Cloud devices" className="flex flex-col bg-paper-2 p-4">
+      <h2 className="mb-2 font-sans text-fs-10 font-semibold uppercase tracking-cap-med text-ink-3">
+        Devices
+      </h2>
+      {devices.length === 0 ? (
+        <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+          No devices synced for this tent.
+        </p>
+      ) : (
+        <table className="w-full border-collapse font-sans text-fs-12">
+          <thead>
+            <tr>
+              <th className="border-b border-rule-strong px-3.5 py-1.5 text-left font-sans text-fs-10 font-semibold uppercase tracking-caps text-ink-2">
+                Device
+              </th>
+              <th className="border-b border-rule-strong px-3.5 py-1.5 text-right font-sans text-fs-10 font-semibold uppercase tracking-caps text-ink-2">
+                Last seen
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {devices.map((device) => (
+              <tr
+                key={device.device_id}
+                className="border-b border-rule last:border-b-0"
+              >
+                <td className="px-3.5 py-2.5 text-ink">
+                  {device.name}
+                  <span className="ml-2 font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+                    {device.is_active ? device.kind : "inactive"}
+                  </span>
+                </td>
+                <td className="px-3.5 py-2.5 text-right font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+                  {formatAge(device.last_seen_at)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}
+
+function metricStatus(metric: CloudMetric): MetricStatus {
+  return metricFreshnessLabel(metric) === "live" ? "ok" : "warn";
+}
+
+function metricFreshnessLabel(metric: CloudMetric): "live" | "stale" {
+  const sourceMs = Date.parse(metric.source_updated_at);
+  if (!Number.isFinite(sourceMs)) return "stale";
+  return Date.now() - sourceMs > metric.stale_after_s * 1000 ? "stale" : "live";
+}
+
+function cloudGatewayStatus(lastSeenAt: string | null): CloudSyncStatus["status"] {
+  if (lastSeenAt === null) return "offline";
+  const ageMs = Date.now() - Date.parse(lastSeenAt);
+  if (!Number.isFinite(ageMs)) return "offline";
+  if (ageMs > 5 * 60_000) return "offline";
+  if (ageMs > 90_000) return "stale";
+  return "live";
+}
+
+function displayMetricName(metric: string): string {
+  return (
+    CLOUD_METRIC_META.find((item) => item.metric === metric)?.display_name ?? metric
+  );
+}
+
+function formatTimestamp(value: string | null): string {
+  if (value === null) return "never";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "unknown";
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(date);
+}
+
+function formatAge(value: string | null): string {
+  if (value === null) return "never";
+  const then = Date.parse(value);
+  if (!Number.isFinite(then)) return "unknown";
+  const seconds = Math.max(0, Math.round((Date.now() - then) / 1000));
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  return `${Math.round(minutes / 60)}h ago`;
+}
+
+function toSparklinePoints(
+  history: CloudMetricHistory | undefined,
+): components["schemas"]["HistoryPoint"][] {
+  return (
+    history?.points.map((point) => ({
+      ts: point.bucket_start_at,
+      value: point.avg ?? point.max ?? point.min ?? 0,
+    })) ?? []
   );
 }

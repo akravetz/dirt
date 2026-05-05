@@ -16,7 +16,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
-import { type components, createDirtApiClient } from "@/api-client";
+import { type components, createDirtApiClient, isHostedApiMode } from "@/api-client";
 import { CameraFeed } from "@/ui/CameraFeed";
 import { PresetList, type PresetRow } from "@/ui/PresetList";
 import type { StickerColor } from "@/ui/plant-types";
@@ -33,6 +33,10 @@ const api = createDirtApiClient();
 const PTZ_STATE_KEY = ["ptz.state"] as const;
 
 function LivePage() {
+  return isHostedApiMode ? <HostedReadOnlyLivePage /> : <LocalLivePage />;
+}
+
+function LocalLivePage() {
   const queryClient = useQueryClient();
 
   const stateQuery = useQuery({
@@ -133,6 +137,25 @@ function LivePage() {
             )}
           </aside>
         </div>
+      </div>
+    </main>
+  );
+}
+
+function HostedReadOnlyLivePage() {
+  return (
+    <main className="flex-1 overflow-auto">
+      <div className="mx-auto flex max-w-400 flex-col gap-6 px-8 pb-16 pt-7">
+        <header>
+          <h1 className="font-sans text-fs-24 font-semibold tracking-tight text-ink">
+            Tent Camera
+          </h1>
+        </header>
+        <section className="border border-rule-strong bg-paper-2 p-5">
+          <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+            Hosted dashboard is read only until PTZ command sync lands in Milestone 5.
+          </p>
+        </section>
       </div>
     </main>
   );

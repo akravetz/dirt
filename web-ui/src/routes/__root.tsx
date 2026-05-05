@@ -6,7 +6,7 @@ import {
   useNavigate,
   useRouterState,
 } from "@tanstack/react-router";
-import { createDirtApiClient } from "@/api-client";
+import { createDirtApiClient, isHostedApiMode } from "@/api-client";
 import { TopBar } from "@/ui/TopBar";
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
@@ -28,6 +28,17 @@ function RootComponent() {
   // Cached query: one fetch shared by every non-login route. Disabled
   // on /login to avoid firing while unauthenticated (the call would
   // 401 → router redirect loop).
+  const authQuery = useQuery({
+    queryKey: ["auth.me"],
+    queryFn: async () => {
+      const { data, error } = await api.GET("/api/auth/me");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !isLogin && isHostedApiMode,
+    staleTime: 60_000,
+  });
+
   const { data } = useQuery({
     queryKey: ["grow.current"],
     queryFn: async () => {
@@ -35,7 +46,7 @@ function RootComponent() {
       if (error) throw error;
       return data;
     },
-    enabled: !isLogin,
+    enabled: !isLogin && !isHostedApiMode,
   });
 
   const growContext = data
@@ -61,6 +72,18 @@ function RootComponent() {
       }
     })();
   };
+
+  if (!isLogin && isHostedApiMode && authQuery.isLoading) {
+    return (
+      <div className="flex h-screen flex-col overflow-hidden bg-paper font-sans text-ink">
+        <main className="flex-1 p-6">
+          <p className="font-mono text-xs uppercase tracking-caps text-ink-3">
+            Checking session…
+          </p>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-paper font-sans text-ink">

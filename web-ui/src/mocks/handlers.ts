@@ -102,8 +102,61 @@ interface ErrorDetail {
 
 let isAuthed = false;
 
+type CloudScenario = "live" | "stale" | "offline" | "empty" | "asset-unavailable";
+
+const CLOUD_SCENARIOS: ReadonlySet<CloudScenario> = new Set([
+  "live",
+  "stale",
+  "offline",
+  "empty",
+  "asset-unavailable",
+]);
+
+function cloudScenario(request: Request): CloudScenario {
+  const raw = new URL(request.url).searchParams.get("cloud_fixture") ?? "live";
+  return CLOUD_SCENARIOS.has(raw as CloudScenario) ? (raw as CloudScenario) : "live";
+}
+
+function agoIso(seconds: number): string {
+  return new Date(Date.now() - seconds * 1000).toISOString();
+}
+
+function gatewaySeenAt(scenario: CloudScenario): string {
+  return scenario === "stale" ? agoIso(180) : agoIso(30);
+}
+
+function metricSourceAt(scenario: CloudScenario): string {
+  if (scenario === "offline") return agoIso(1800);
+  if (scenario === "stale") return agoIso(600);
+  return agoIso(45);
+}
+
+function cloudMetricBase(metric: string): number {
+  const values: Record<string, number> = {
+    temperature_f: 76,
+    humidity_pct: 54,
+    vpd_kpa: 1.08,
+    fan_pct: 35,
+    humidifier_intensity_pct: 0,
+    reservoir_in: 10,
+  };
+  return values[metric] ?? 1;
+}
+
+function cloudMetricUnit(metric: string): string {
+  const values: Record<string, string> = {
+    temperature_f: "°F",
+    humidity_pct: "%",
+    vpd_kpa: "kPa",
+    fan_pct: "%",
+    humidifier_intensity_pct: "%",
+    reservoir_in: "in",
+  };
+  return values[metric] ?? "";
+}
+
 export const handlers: RequestHandler[] = [
-  http.post("/api/auth/login", async ({ request }) => {
+  http.post("*/api/auth/login", async ({ request }) => {
     const body = (await request.json()) as Partial<LoginRequestBody>;
     if (body?.username === "admin" && body?.password === "changeme") {
       isAuthed = true;
@@ -115,7 +168,7 @@ export const handlers: RequestHandler[] = [
     return HttpResponse.json(err, { status: 401 });
   }),
 
-  http.post("/api/auth/logout", () => {
+  http.post("*/api/auth/logout", () => {
     isAuthed = false;
     return new HttpResponse(null, {
       status: 204,
@@ -125,10 +178,193 @@ export const handlers: RequestHandler[] = [
     });
   }),
 
-  http.get("/api/auth/me", () => {
+  http.get("*/api/auth/me", () => {
     if (isAuthed) return HttpResponse.json(authMe);
     const err: ErrorDetail = { detail: "unauthorized" };
     return HttpResponse.json(err, { status: 401 });
+  }),
+
+  // -------------------------------------------------------------------------
+  // hosted.control_plane.read_only — cloud API fixtures.
+  //
+  // Select scenarios from the browser with:
+  //   ?cloud_fixture=live | stale | offline | empty | asset-unavailable
+  //
+  // The handlers use wildcard origins so dev can run with
+  // VITE_DIRT_API_BASE_URL pointing at a hosted API origin while MSW still
+  // intercepts locally. Shapes mirror apps/control-plane browser routes.
+  // -------------------------------------------------------------------------
+
+  http.get("*/api/sites", ({ request }) => {
+    const scenario = cloudScenario(request);
+    return HttpResponse.json([
+      {
+        site_id: "homebox",
+        name: "Homebox",
+        timezone: "America/Denver",
+        is_active: true,
+        gateway_last_seen_at: scenario === "offline" ? null : agoIso(30),
+        last_catalog_sync_at: agoIso(80),
+      },
+    ]);
+  }),
+
+  http.get("*/api/tents", () =>
+    HttpResponse.json([
+      {
+        site_id: "homebox",
+        tent_id: "main",
+        name: "Main",
+        is_active: true,
+        synced_at: agoIso(80),
+      },
+      {
+        site_id: "homebox",
+        tent_id: "breeding",
+        name: "Breeding",
+        is_active: false,
+        synced_at: agoIso(80),
+      },
+    ]),
+  ),
+
+  http.get("*/api/tents/:tentId/state", ({ request, params }) => {
+    const scenario = cloudScenario(request);
+    const tentId = String(params.tentId);
+    return HttpResponse.json({
+      site_id: "homebox",
+      tent_id: tentId,
+      name: tentId === "breeding" ? "Breeding" : "Main",
+      is_active: tentId !== "breeding",
+      gateway_last_seen_at: scenario === "offline" ? null : gatewaySeenAt(scenario),
+      last_catalog_sync_at: agoIso(80),
+    });
+  }),
+
+  http.get("*/api/tents/:tentId/metrics/current", ({ request, params }) => {
+    const scenario = cloudScenario(request);
+    const tentId = String(params.tentId);
+    if (tentId === "breeding" || scenario === "empty") {
+      return HttpResponse.json([]);
+    }
+    const source_updated_at = metricSourceAt(scenario);
+    return HttpResponse.json(
+      [
+        ["temperature_f", 76.2, "°F", "env-main-temp"],
+        ["humidity_pct", 54.1, "%", "env-main-rh"],
+        ["vpd_kpa", 1.08, "kPa", "env-main-vpd"],
+        ["fan_pct", 35, "%", "fan-main-duty"],
+        ["humidifier_intensity_pct", 0, "%", "humidifier-main-duty"],
+        ["reservoir_in", 10.5, "in", "reservoir-main-level"],
+      ].map(([metric, value, unit, capability_id]) => ({
+        metric,
+        value,
+        unit,
+        capability_id,
+        device_id: String(capability_id).split("-")[0],
+        source_updated_at,
+        received_at: agoIso(20),
+        stale_after_s: 120,
+      })),
+    );
+  }),
+
+  http.get("*/api/tents/:tentId/metrics/history", ({ request, params }) => {
+    const url = new URL(request.url);
+    const scenario = cloudScenario(request);
+    const tentId = String(params.tentId);
+    const metric = url.searchParams.get("metric") ?? "temperature_f";
+    const range = url.searchParams.get("range") ?? "24h";
+    if (tentId === "breeding" || scenario === "empty") {
+      return HttpResponse.json({ metric, range, points: [] });
+    }
+    return HttpResponse.json({
+      metric,
+      range,
+      points: Array.from({ length: range === "1h" ? 12 : 24 }, (_, index) => {
+        const value = cloudMetricBase(metric) + Math.sin(index / 2) * 2;
+        return {
+          bucket: "5m",
+          bucket_start_at: agoIso((24 - index) * 300),
+          bucket_end_at: agoIso((23 - index) * 300),
+          min: value - 0.3,
+          avg: value,
+          max: value + 0.3,
+          sample_count: 3,
+          unit: cloudMetricUnit(metric),
+        };
+      }),
+    });
+  }),
+
+  http.get("*/api/tents/:tentId/devices", ({ request, params }) => {
+    const scenario = cloudScenario(request);
+    const tentId = String(params.tentId);
+    if (tentId === "breeding" || scenario === "empty") return HttpResponse.json([]);
+    return HttpResponse.json([
+      {
+        device_id: "env-main",
+        name: "Main tent BME280",
+        kind: "env_sensor",
+        controller: "arduino",
+        is_active: true,
+        last_seen_at: metricSourceAt(scenario),
+      },
+      {
+        device_id: "obsbot-main",
+        name: "OBSBOT camera",
+        kind: "camera",
+        controller: "local",
+        is_active: true,
+        last_seen_at: metricSourceAt(scenario),
+      },
+    ]);
+  }),
+
+  http.get("*/api/tents/:tentId/assets/latest", ({ request, params }) => {
+    const scenario = cloudScenario(request);
+    const tentId = String(params.tentId);
+    if (scenario === "asset-unavailable") {
+      return HttpResponse.json({ detail: "asset_unavailable" }, { status: 503 });
+    }
+    if (tentId === "breeding" || scenario === "empty") return HttpResponse.json([]);
+    return HttpResponse.json([
+      {
+        asset_id: "snapshot-main-latest",
+        kind: "snapshot",
+        content_type: "image/jpeg",
+        byte_size: 125,
+        sha256: "b".repeat(64),
+        captured_at: metricSourceAt(scenario),
+        uploaded_at: agoIso(20),
+        signed_url: "/api/__signed-assets/snapshot-main-latest.jpg?sig=mock",
+        signed_url_expires_at: agoIso(-300),
+      },
+    ]);
+  }),
+
+  http.get("*/api/sync/status", ({ request }) => {
+    const scenario = cloudScenario(request);
+    const gateway_last_seen_at =
+      scenario === "offline" ? null : gatewaySeenAt(scenario);
+    return HttpResponse.json({
+      site_id: "homebox",
+      gateway_last_seen_at,
+      last_catalog_sync_at: agoIso(80),
+      command_backlog_depth: scenario === "offline" ? 4 : scenario === "stale" ? 2 : 0,
+      status:
+        scenario === "offline" ? "offline" : scenario === "stale" ? "stale" : "live",
+    });
+  }),
+
+  http.get("*/api/__signed-assets/:assetName", () => {
+    const bytes = new Uint8Array([
+      0xff, 0xd8, 0xff, 0xdb, 0x00, 0x43, 0x00, 0x08, 0x06, 0x06, 0x07, 0x06, 0x05,
+      0x08, 0xff, 0xd9,
+    ]);
+    return new HttpResponse(bytes, {
+      headers: { "Content-Type": "image/jpeg", "Cache-Control": "no-store" },
+    });
   }),
 
   // -------------------------------------------------------------------------
