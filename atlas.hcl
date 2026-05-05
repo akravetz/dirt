@@ -22,14 +22,31 @@ data "external_schema" "sqlmodel" {
   ]
 }
 
+data "external_schema" "cloud_sqlmodel" {
+  program = [
+    "uv", "run", "--package", "dirt-control-plane",
+    "python", "cloud/atlas/load-sqlmodel.py",
+  ]
+}
+
 variable "pg_password" {
   type    = string
   default = getenv("DIRT_PG_PASSWORD")
 }
 
+variable "cloud_database_url" {
+  type    = string
+  default = getenv("DIRT_CLOUD_DATABASE_URL")
+}
+
 variable "migration_dir" {
   type    = string
   default = "file://migrations"
+}
+
+variable "cloud_migration_dir" {
+  type    = string
+  default = "file://cloud/migrations"
 }
 
 // Local — the single live `dirt` database on 127.0.0.1:5432.
@@ -57,5 +74,24 @@ env "ci" {
 
   migration {
     dir = var.migration_dir
+  }
+}
+
+// Cloud control-plane schema — separate Railway Postgres database and
+// migration directory. Do not point this at the local app migrations.
+env "cloud" {
+  src = data.external_schema.cloud_sqlmodel.url
+  dev = "docker://postgres/17/dev?search_path=public"
+  url = var.cloud_database_url
+
+  migration {
+    dir = var.cloud_migration_dir
+  }
+
+  diff {
+    concurrent_index {
+      create = true
+      drop   = true
+    }
   }
 }

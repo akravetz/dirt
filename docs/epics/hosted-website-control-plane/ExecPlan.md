@@ -24,7 +24,7 @@ The first observable result should be deliberately small: a hosted dashboard can
 - [x] (2026-05-05T02:15:31Z) Completed Railway prework: installed Railway CLI 4.45.0, created Railway project `dirt-control-plane`, added `control-plane-api`, `web-ui`, `Postgres`, and `dirt-assets`, generated custom-domain requirements for `sirius-forge.com` and `api.sirius-forge.com`, wrote local secrets to ignored `.env.prod`, and added placeholders to `.env.example`.
 - [x] (2026-05-05T02:50:25Z) Deployed temporary placeholder containers to `control-plane-api` and `web-ui` to complete Railway public-networking setup; both custom domains now serve valid certificates and 200 responses.
 - [x] (2026-05-05T18:20:00Z) Milestone 1: decided and documented hosted platform, auth, database, object storage, DNS, deployment boundaries, and current-provider evidence.
-- [ ] Milestone 2: implement the cloud control-plane schema and thin hosted API locally, with tests.
+- [x] (2026-05-05T03:36:59Z) Milestone 2: implemented the cloud control-plane schema, dedicated cloud Atlas migration path, thin hosted FastAPI API, and focused acceptance tests.
 - [ ] Milestone 3: implement local outbound gateway sync for read-only catalog, latest state, freshness, rollups, and assets.
 - [ ] Milestone 4: deploy the read-only hosted dashboard and prove stale/offline behavior.
 - [ ] Milestone 5: add the PTZ-only cloud command loop.
@@ -59,6 +59,21 @@ The first observable result should be deliberately small: a hosted dashboard can
 
 - Observation: Railway bucket traffic has a cost distinction that affects the asset path. Bucket egress is documented as free, while uploads from Railway services to buckets count as service egress because buckets are on the public network.
   Evidence: Railway Storage Buckets Billing docs, last checked 2026-05-05: https://docs.railway.com/storage-buckets/billing.
+
+- Observation: Atlas cloud migration generation is feasible in this worktree with the dedicated `cloud` env.
+  Evidence: `atlas migrate diff cloud_control_plane_initial --env cloud` generated `cloud/migrations/20260505033411_cloud_control_plane_initial.sql` and `cloud/migrations/atlas.sum`.
+
+- Observation: The cloud API tests use explicit Atlas migration apply against a temporary Postgres database and do not create tables from app startup or test app construction.
+  Evidence: `apps/control-plane/tests/conftest.py` runs `atlas migrate apply --dir file://cloud/migrations --url ...`; `apps/control-plane/src/dirt_control/app.py` startup only calls `ping(engine)`.
+
+- Observation: Replacement Worker M2b found one thin acceptance gap in the initial Milestone 2 API surface: command creation and single-command fetch existed, but `GET /api/commands` was missing.
+  Evidence: `apps/control-plane/src/dirt_control/api/browser.py` now exposes `list_commands()`, and `apps/control-plane/tests/test_api.py` verifies duplicate command creation, list, and fetch all return the same command intent without local hardware imports.
+
+- Observation: Verification found a second Milestone 2 command-boundary gap: browser command creation accepted arbitrary `command_type` values and user-selected expiration up to 300 seconds, which did not match the V1 PTZ-only and 60-second expiry constraint.
+  Evidence: `apps/control-plane/src/dirt_control/api/browser.py` now restricts `CommandCreateRequest` to `ptz_preset`, `ptz_look`, or `ptz_zoom` targeting `device_id='obsbot-main'` and `capability_id='ptz_move'`, and always stores `expires_at = queued_at + 60 seconds`; `apps/control-plane/tests/test_api.py` rejects fan/lights/humidifier and wrong-target commands and asserts exact 60-second expiry.
+
+- Observation: A test that checked `sys.modules` for hardware imports was brittle under the full pre-commit per-app suite because other app tests import `dirt_hwd` before control-plane tests run.
+  Evidence: The Milestone 2 commit hook initially failed on `assert "dirt_hwd" not in sys.modules`; `apps/control-plane/tests/test_api.py` now scans `dirt_control` source imports with `ast` instead, proving the cloud API package does not import hardware modules without depending on global test order.
 
 
 ## Decision Log
@@ -133,6 +148,8 @@ The first observable result should be deliberately small: a hosted dashboard can
 Milestone 1 is complete. The hosted V1 architecture is Railway-only for production: `control-plane-api` is the long-running FastAPI cloud API, `web-ui` is the hosted React/Vite frontend, Railway `Postgres` stores cloud state, and the Railway `dirt-assets` bucket stores private photos and future clips behind signed URLs. Browser auth is single-user FastAPI session auth; gateway auth is a generated bearer token stored locally with only its SHA-256 digest configured in the cloud API service. Production domains are `https://sirius-forge.com` for the UI and `https://api.sirius-forge.com` for the API, with preview/staging deferred until the production-shaped skeleton deploys cleanly.
 
 Railway infrastructure prework is complete, and both app services are running temporary placeholder deployments so public networking and TLS can stay warm until real code replaces them. The Railway project is `dirt-control-plane` (`4720b3f9-7e3b-461e-b44d-fbb9e349ed11`) in the `production` environment (`12ffb3c2-807b-4246-a7d0-f00466be68fe`). Services are `control-plane-api` (`15035b13-0995-4f81-b548-954b3e6aed29`), `web-ui` (`c0297625-b063-4897-ac59-98e76f5f2413`), `Postgres` (`fc7e0827-e834-48a1-901f-faf5b0595602`), and bucket `dirt-assets` (`40462f7f-4691-4b45-9b34-e961e28612b4`, region `iad`). Custom domains are verified and serving valid certificates.
+
+Milestone 2 is complete locally. The new workspace member `apps/control-plane/` defines import package `dirt_control`, cloud settings, async DB/session setup, SQLModel tables, FastAPI composition, browser session auth, gateway bearer-token auth, browser read routes, browser command-intent routes, gateway sync routes, and tests. Startup performs a database ping only; cloud schema changes are managed by the dedicated Atlas env `cloud` and migration directory `cloud/migrations/`. Command creation records queued intent in `cloud_command` and does not import or call local hardware modules. Asset upload is a direct signed-upload handshake plus metadata completion path; browser signed-url retrieval is session-authenticated.
 
 
 ## Context and Orientation
@@ -375,6 +392,8 @@ When editing frontend TypeScript, routes, styles, or mocks:
 Expected validation commands for backend work:
 
     uv run pytest apps/control-plane/tests -q
+    uv run ruff check apps/control-plane cloud/atlas/load-sqlmodel.py
+    uv run ruff format apps/control-plane cloud/atlas/load-sqlmodel.py --check
     uv run pytest apps/gateway/tests apps/shared/tests apps/web/tests -q
     uv run pytest apps/tests/invariants/ -q
     uv run ruff check
@@ -524,6 +543,30 @@ Milestone 1 validation on 2026-05-05:
 - `uv run python -c "from pathlib import Path; t=Path('docs/epics/hosted-website-control-plane/ExecPlan.md').read_text(); required=('Purpose / Big Picture','Progress','Surprises & Discoveries','Decision Log','Outcomes & Retrospective','Context and Orientation','Plan of Work','Concrete Steps','Validation and Acceptance','Idempotence and Recovery','Artifacts and Notes','Interfaces and Dependencies'); assert all(f'## {s}' in t for s in required); assert 'Provider facts checked on 2026-05-05' in t; assert 'https://docs.railway.com/guides/fastapi' in t; assert ('configure '+'Vercel build') not in t; print('OK docs consistency')"` passed with `OK docs consistency`.
 - `git diff --check -- docs/epics/hosted-website-control-plane/ExecPlan.md` passed with no whitespace errors.
 
+Milestone 2 implementation artifacts on 2026-05-05:
+
+- New package: `apps/control-plane/` with import package `dirt_control`.
+- Cloud models: `apps/control-plane/src/dirt_control/models/cloud.py` defines `cloud_site`, `cloud_tent`, `cloud_zone`, `cloud_device`, `cloud_capability`, `cloud_latest_metric`, `cloud_metric_rollup`, `cloud_asset`, `cloud_command`, `cloud_audit_event`, and `gateway_credential`.
+- Cloud API composition and routes: `apps/control-plane/src/dirt_control/app.py`, `api/browser.py`, `api/gateway.py`, `security.py`, `db.py`, and `settings.py`.
+- Cloud Atlas path: `cloud/atlas/load-sqlmodel.py`, `cloud/migrations/20260505033411_cloud_control_plane_initial.sql`, and `cloud/migrations/atlas.sum`.
+- Atlas config: root `atlas.hcl` has `data.external_schema.cloud_sqlmodel`, `var.cloud_migration_dir`, and env `cloud`.
+
+Milestone 2 validation on 2026-05-05:
+
+- `uv run --package dirt-control-plane python cloud/atlas/load-sqlmodel.py` emitted Postgres DDL for the cloud SQLModel metadata.
+- `atlas migrate diff cloud_control_plane_initial --env cloud` succeeded and generated the initial cloud migration.
+- `uv run pytest apps/control-plane/tests -q` passed with `6 passed`.
+- `uv run ruff check apps/control-plane cloud/atlas/load-sqlmodel.py` passed.
+- `uv run ruff format apps/control-plane cloud/atlas/load-sqlmodel.py --check` passed with `14 files already formatted`.
+
+Replacement Worker M2b validation on 2026-05-05:
+
+- `uv run pytest apps/control-plane/tests -q` passed with `7 passed` after the PTZ-only command correction.
+- `uv run ruff check apps/control-plane cloud/atlas/load-sqlmodel.py` passed.
+- `uv run ruff format apps/control-plane cloud/atlas/load-sqlmodel.py --check` passed with `14 files already formatted`.
+- `uv run --package dirt-control-plane python cloud/atlas/load-sqlmodel.py | sed -n '1,20p'` emitted cloud Postgres DDL beginning with `CREATE TABLE cloud_site`.
+- Main-agent verification reran `uv run pytest apps/control-plane/tests -q`, `uv run pytest apps/tests/invariants/ -q`, `uv run ruff check apps/control-plane cloud/atlas/load-sqlmodel.py`, `uv run ruff format apps/control-plane cloud/atlas/load-sqlmodel.py --check`, and `scripts/agent-fix`; all passed after replacing the brittle hardware-import assertion with a source import scan.
+
 
 ## Interfaces and Dependencies
 
@@ -536,7 +579,7 @@ New or changed repository interfaces expected by this plan:
 - `apps/control-plane/src/dirt_control/api/browser.py`
 - `apps/control-plane/src/dirt_control/api/gateway.py`
 - `apps/control-plane/tests/`
-- a cloud Atlas migration environment and migration directory
+- cloud Atlas migration environment `cloud` in `atlas.hcl` and migration directory `cloud/migrations/`
 - `apps/gateway/pyproject.toml`
 - `apps/gateway/src/dirt_gateway/main.py`
 - `apps/gateway/src/dirt_gateway/sync.py`
@@ -583,3 +626,7 @@ Runtime environment variables:
 
 - 2026-05-04 / Codex: Created the initial Markdown ExecPlan from the old JSON sketch, current multi-tent implementation, current local API shape, and current Vercel platform docs.
 - 2026-05-05 / Codex Worker M1: Completed Milestone 1 by recording the final Railway platform, database, storage, auth, DNS, deployment, and no-app-start-DDL decisions with current provider links and validation evidence.
+- 2026-05-05 / Codex Worker M2: Completed Milestone 2 locally by adding the `dirt-control-plane` workspace package, dedicated cloud Atlas env/migrations, thin browser/gateway API, signed asset URL abstraction, command-intent-only creation, and acceptance tests.
+- 2026-05-05 / Codex replacement Worker M2b: Kept Milestone 2 scope thin, added missing browser command list route, extended the command acceptance test to cover create/list/fetch idempotency, reran focused tests and ruff validation, and performed the requested simplify fallback pass.
+- 2026-05-05 / Codex replacement Worker M2b correction: Restricted browser command creation to V1 PTZ commands only (`ptz_preset`, `ptz_look`, `ptz_zoom`) for `obsbot-main/ptz_move`, removed user-selectable command expiry, enforced exactly 60 seconds, and added focused rejection/expiry tests.
+- 2026-05-05 / Codex: During main-agent verification, replaced a brittle `sys.modules`-based no-hardware-call test with an `ast` import scan of `dirt_control`, because full-suite app tests import `dirt_hwd` independently before control-plane tests execute.
