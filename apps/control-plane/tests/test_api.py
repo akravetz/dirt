@@ -35,6 +35,26 @@ def test_cloud_settings_accept_railway_database_url_alias() -> None:
     assert settings.database_url == "postgresql+asyncpg://user:pass@db.example/dirt"
 
 
+def test_cloud_settings_accept_comma_separated_allowed_origins(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://user:pass@db.example/dirt")
+    monkeypatch.setenv("DIRT_CLOUD_ADMIN_USERNAME", "admin")
+    monkeypatch.setenv("DIRT_CLOUD_ADMIN_PASSWORD_HASH", "hash")
+    monkeypatch.setenv("DIRT_CLOUD_SESSION_SECRET", "test-session-secret-at-least-16")
+    monkeypatch.setenv(
+        "DIRT_CLOUD_ALLOWED_ORIGINS",
+        "https://sirius-forge.com, https://preview.sirius-forge.com",
+    )
+
+    settings = CloudSettings()
+
+    assert settings.allowed_origins == [
+        "https://sirius-forge.com",
+        "https://preview.sirius-forge.com",
+    ]
+
+
 async def test_browser_state_requires_auth(client: AsyncClient) -> None:
     response = await client.get("/api/sites")
     assert response.status_code == 401

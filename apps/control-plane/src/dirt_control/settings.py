@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from typing import Annotated
+
 from pydantic import AliasChoices, Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class CloudSettings(BaseSettings):
@@ -18,7 +20,7 @@ class CloudSettings(BaseSettings):
     session_cookie_secure: bool = Field(
         default=True, alias="DIRT_CLOUD_SESSION_COOKIE_SECURE"
     )
-    allowed_origins: list[str] = Field(
+    allowed_origins: Annotated[list[str], NoDecode] = Field(
         default_factory=list, alias="DIRT_CLOUD_ALLOWED_ORIGINS"
     )
     default_site_id: str = Field(default="homebox", alias="DIRT_CLOUD_SITE_ID")

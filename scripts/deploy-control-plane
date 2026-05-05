@@ -74,12 +74,12 @@ require_env() {
 wait_for_http() {
     local label="$1"
     local url="$2"
-    local attempts="${DIRT_CONTROL_PLANE_SMOKE_ATTEMPTS:-60}"
+    local attempts="${DIRT_CONTROL_PLANE_SMOKE_ATTEMPTS:-180}"
     local delay="${DIRT_CONTROL_PLANE_SMOKE_DELAY_S:-5}"
 
     echo "Checking $label..."
     for attempt in $(seq 1 "$attempts"); do
-        if curl -fsS "$url" >/dev/null; then
+        if curl -fsS "$url" >/dev/null 2>&1; then
             echo "$label is reachable."
             return 0
         fi

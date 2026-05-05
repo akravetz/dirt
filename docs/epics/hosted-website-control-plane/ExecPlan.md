@@ -131,6 +131,9 @@ The first observable result should be deliberately small: a hosted dashboard can
 - Observation: `railway up` can return before Railway's configured service healthcheck has passed.
   Evidence: Production deploy attempt 4 uploaded deployment `8cb9aeb6-2582-4d8a-9c2c-88cc586580eb`; `scripts/deploy-control-plane` immediately curled the still-placeholder API and failed with HTTP 404 while Railway still showed the deployment as `INITIALIZING`, then `BUILDING`, then `DEPLOYING`. The deploy script now retries public smoke checks before failing.
 
+- Observation: `pydantic-settings` JSON-decodes list-typed environment fields before running ordinary field validators.
+  Evidence: Production deploy attempt 5 reached `dirt_control.app:create_app`, then crashed while parsing `DIRT_CLOUD_ALLOWED_ORIGINS=https://sirius-forge.com` because the list field expected JSON. `CloudSettings.allowed_origins` now uses `NoDecode` so comma-separated Railway env values reach the existing validator.
+
 
 ## Decision Log
 
