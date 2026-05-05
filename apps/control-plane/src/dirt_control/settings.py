@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,7 +9,9 @@ class CloudSettings(BaseSettings):
 
     model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
 
-    database_url: str = Field(alias="DIRT_CLOUD_DATABASE_URL")
+    database_url: str = Field(
+        validation_alias=AliasChoices("DIRT_CLOUD_DATABASE_URL", "DATABASE_URL")
+    )
     admin_username: str = Field(alias="DIRT_CLOUD_ADMIN_USERNAME")
     admin_password_hash: str = Field(alias="DIRT_CLOUD_ADMIN_PASSWORD_HASH")
     session_secret: str = Field(alias="DIRT_CLOUD_SESSION_SECRET", min_length=16)

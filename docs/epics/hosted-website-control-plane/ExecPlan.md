@@ -115,6 +115,9 @@ The first observable result should be deliberately small: a hosted dashboard can
 - Observation: The deploy and gateway service environment loading needed to honor the repo's split secret convention.
   Evidence: Main-agent Milestone 6 verification updated `scripts/deploy-control-plane` to load `.env` before `.env.prod`, so `RAILWAY_API_TOKEN` can come from `.env` while production cloud secrets come from `.env.prod`. `systemd/dirt-gateway.service` now also loads optional `.env.prod` after `.env`, so local gateway secrets are available when stored in the ignored production env file.
 
+- Observation: Railway already exposed the cloud database URL as the standard `DATABASE_URL` service variable, not `DIRT_CLOUD_DATABASE_URL`.
+  Evidence: The first production deploy attempt stopped before any migration or deploy because `DIRT_CLOUD_DATABASE_URL` was unset locally. A key-only Railway variable check showed `DATABASE_URL` on `control-plane-api`; `CloudSettings` now accepts either `DIRT_CLOUD_DATABASE_URL` or `DATABASE_URL`, and `scripts/deploy-control-plane` reads the deployed `DATABASE_URL` without printing it when the dedicated local variable is absent.
+
 
 ## Decision Log
 
@@ -742,6 +745,7 @@ Milestone 6 validation on 2026-05-05:
 - Simplify pass fallback ran locally because no subagent spawn tool is available. Applied cleanup: delete retained cloud assets by primary `asset_id` instead of object key, and avoid writing one audit row per disabled command-claim poll.
 - Post-simplify focused validation passed: `uv run pytest apps/control-plane/tests -q` with `14 passed`, `uv run pytest apps/gateway/tests -q` with `11 passed`, `uv run ruff check apps/control-plane apps/gateway cloud/atlas/load-sqlmodel.py`, and `uv run ruff format apps/control-plane apps/gateway cloud/atlas/load-sqlmodel.py --check`.
 - Main-agent verification corrected the deploy/systemd environment loading so `.env` is loaded before `.env.prod`, then reran focused validation: `uv run pytest apps/control-plane/tests apps/gateway/tests apps/shared/tests -q` passed with `163 passed`; `uv run pytest apps/tests/invariants/ -q` passed with `116 passed, 1 skipped`; `uv run ruff check apps/control-plane apps/gateway cloud/atlas/load-sqlmodel.py` passed; `uv run ruff format apps/control-plane apps/gateway cloud/atlas/load-sqlmodel.py --check` passed with `27 files already formatted`; `bash -n scripts/deploy-control-plane scripts/install-systemd` passed; `systemd-analyze --user verify systemd/dirt-gateway.service` passed; `pnpm --dir web-ui typecheck`, `lint`, `test`, and `build` passed.
+- Main-agent deployment attempt 1 stopped before shared-state mutation because no local `DIRT_CLOUD_DATABASE_URL` was set. Verification then added Railway `DATABASE_URL` compatibility and a script fallback that reads the service variable without printing it.
 - Full backend validation `uv run pytest -q` ran and failed only in pre-existing wake-word surfaces: 596 passed, 2 skipped, 4 failed (`apps/wake-word/tests/test_imports.py` cannot import `scipy.special.sph_harm`; `test_paths.py` TPU-layout fallback; `test_seed.py` duplicate suffix behavior). No wake-word files were touched in this milestone.
 - Frontend validation passed: `pnpm --dir web-ui typecheck`, `pnpm --dir web-ui lint`, `pnpm --dir web-ui test` with `7 passed`, and `pnpm --dir web-ui build`.
 - `scripts/agent-fix` passed and applied no additional changes.

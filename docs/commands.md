@@ -37,7 +37,7 @@ Read `docs/database.md` and `docs/references/atlas/INDEX.md` before changing clo
 scripts/deploy-control-plane
 ```
 
-That script loads ignored `.env` first and `.env.prod` second by default, runs `atlas migrate apply --env cloud`, deploys `apps/control-plane/` to Railway service `control-plane-api`, deploys `web-ui/` to Railway service `web-ui`, then smoke-checks `DIRT_CLOUD_API_BASE_URL/api/health` and `DIRT_CLOUD_UI_BASE_URL/`. Do not print `.env` / `.env.prod`, do not run app-start DDL, and do not bypass this script with ad hoc `railway up`.
+That script loads ignored `.env` first and `.env.prod` second by default, runs `atlas migrate apply --env cloud`, deploys `apps/control-plane/` to Railway service `control-plane-api`, deploys `web-ui/` to Railway service `web-ui`, then smoke-checks `DIRT_CLOUD_API_BASE_URL/api/health` and `DIRT_CLOUD_UI_BASE_URL/`. If `DIRT_CLOUD_DATABASE_URL` is unset locally, it reads the deployed `DATABASE_URL` variable from Railway without printing it. Do not print `.env` / `.env.prod`, do not run app-start DDL, and do not bypass this script with ad hoc `railway up`.
 
 - **Cloud API health**: `curl -fsS "$DIRT_CLOUD_API_BASE_URL/api/health" | jq .`
 - **Hosted sync status**: login through the hosted UI, then use `/api/sync/status` from the browser session if you need the browser-shaped response.

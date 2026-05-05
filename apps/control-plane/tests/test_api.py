@@ -19,8 +19,20 @@ from dirt_control.models import (
     CloudTent,
     GatewayCredential,
 )
+from dirt_control.settings import CloudSettings
 
 FIXED_NOW = datetime(2026, 5, 5, 3, 45, tzinfo=UTC)
+
+
+def test_cloud_settings_accept_railway_database_url_alias() -> None:
+    settings = CloudSettings(
+        DATABASE_URL="postgresql+asyncpg://user:pass@db.example/dirt",
+        DIRT_CLOUD_ADMIN_USERNAME="admin",
+        DIRT_CLOUD_ADMIN_PASSWORD_HASH="hash",
+        DIRT_CLOUD_SESSION_SECRET="test-session-secret-at-least-16",
+    )
+
+    assert settings.database_url == "postgresql+asyncpg://user:pass@db.example/dirt"
 
 
 async def test_browser_state_requires_auth(client: AsyncClient) -> None:

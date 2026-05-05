@@ -74,14 +74,26 @@ require_env() {
 require_cmd atlas
 require_cmd railway
 require_cmd curl
+require_cmd uv
 
-require_env DIRT_CLOUD_DATABASE_URL
 require_env RAILWAY_PROJECT_ID
 require_env RAILWAY_ENVIRONMENT
 require_env RAILWAY_CONTROL_PLANE_API_SERVICE_ID
 require_env RAILWAY_WEB_UI_SERVICE_ID
 require_env DIRT_CLOUD_API_BASE_URL
 require_env DIRT_CLOUD_UI_BASE_URL
+
+if [ -z "${DIRT_CLOUD_DATABASE_URL:-}" ]; then
+    DIRT_CLOUD_DATABASE_URL="$(
+        railway variable list \
+            --service "$RAILWAY_CONTROL_PLANE_API_SERVICE_ID" \
+            --environment "$RAILWAY_ENVIRONMENT" \
+            --json \
+            | uv run python -c 'import json, sys; data = json.load(sys.stdin); print(data.get("DIRT_CLOUD_DATABASE_URL") or data.get("DATABASE_URL") or "")'
+    )"
+    export DIRT_CLOUD_DATABASE_URL
+fi
+require_env DIRT_CLOUD_DATABASE_URL
 
 cd "$ROOT_DIR"
 

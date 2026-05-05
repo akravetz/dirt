@@ -10,7 +10,7 @@ Use only the supported script:
 
     scripts/deploy-control-plane
 
-The script loads ignored `.env` first and `.env.prod` second, applies `atlas migrate apply --env cloud`, deploys `apps/control-plane/` to `control-plane-api`, deploys `web-ui/` to `web-ui`, then smoke-checks `DIRT_CLOUD_API_BASE_URL/api/health` and `DIRT_CLOUD_UI_BASE_URL/`. It requires `DIRT_CLOUD_DATABASE_URL`, `RAILWAY_PROJECT_ID`, `RAILWAY_ENVIRONMENT`, `RAILWAY_CONTROL_PLANE_API_SERVICE_ID`, `RAILWAY_WEB_UI_SERVICE_ID`, `DIRT_CLOUD_API_BASE_URL`, and `DIRT_CLOUD_UI_BASE_URL` in the environment, `.env`, or `.env.prod`.
+The script loads ignored `.env` first and `.env.prod` second, applies `atlas migrate apply --env cloud`, deploys `apps/control-plane/` to `control-plane-api`, deploys `web-ui/` to `web-ui`, then smoke-checks `DIRT_CLOUD_API_BASE_URL/api/health` and `DIRT_CLOUD_UI_BASE_URL/`. It requires `RAILWAY_PROJECT_ID`, `RAILWAY_ENVIRONMENT`, `RAILWAY_CONTROL_PLANE_API_SERVICE_ID`, `RAILWAY_WEB_UI_SERVICE_ID`, `DIRT_CLOUD_API_BASE_URL`, and `DIRT_CLOUD_UI_BASE_URL` in the environment, `.env`, or `.env.prod`. If `DIRT_CLOUD_DATABASE_URL` is unset locally, the script reads the deployed `DATABASE_URL` variable from the `control-plane-api` Railway service without printing it.
 
 Do not run app-start DDL. Cloud schema changes live in `cloud/migrations/` and are applied explicitly by Atlas before app deployment.
 
