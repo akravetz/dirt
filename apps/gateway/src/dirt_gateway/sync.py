@@ -46,6 +46,17 @@ class AsyncioSleeper:
 
 
 class GatewaySyncService:
+    HIGH_PRIORITY_EVENT_TYPES = frozenset(
+        {
+            "heartbeat",
+            "latest_metrics",
+            "catalog",
+            "asset_upload",
+            "asset_retention",
+            "command_result",
+        }
+    )
+
     def __init__(  # noqa: PLR0913
         self,
         *,
@@ -161,7 +172,22 @@ class GatewaySyncService:
     async def _deliver_due(self) -> tuple[int, int]:
         delivered = 0
         failed = 0
-        rows = await self._outbox.due(now=self._clock())
+        rows = [
+            *(
+                await self._outbox.due_for_event_types(
+                    event_types=set(self.HIGH_PRIORITY_EVENT_TYPES),
+                    now=self._clock(),
+                    limit=20,
+                )
+            ),
+            *(
+                await self._outbox.due_for_event_types(
+                    event_types={"rollups"},
+                    now=self._clock(),
+                    limit=1,
+                )
+            ),
+        ]
         for row in rows:
             try:
                 await self._dispatch(row)

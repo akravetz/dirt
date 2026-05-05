@@ -43,6 +43,7 @@ class NoopSleeper:
 class RecordingCloudClient:
     def __init__(self) -> None:
         self.fail = False
+        self.fail_event_types: set[str] = set()
         self.upload_fail = False
         self.calls: list[tuple[str, str]] = []
         self.successful_calls: list[tuple[str, str]] = []
@@ -159,7 +160,7 @@ class RecordingCloudClient:
     def _record(self, event_type: str, idempotency_key: str) -> None:
         self.call_counts[event_type] += 1
         self.calls.append((event_type, idempotency_key))
-        if self.fail:
+        if self.fail or event_type in self.fail_event_types:
             raise CloudDeliveryError(f"offline for {event_type}")
         self.successful_calls.append((event_type, idempotency_key))
 
@@ -380,6 +381,29 @@ async def test_offline_cloud_failures_remain_pending_then_retry_without_duplicat
         key for _, key in cloud.successful_calls if not key.endswith(":sign")
     ]
     assert len(delivered_keys) == len(set(delivered_keys))
+
+
+async def test_heartbeat_delivery_is_not_blocked_by_rollup_backlog(
+    app_engine: AsyncEngine,
+):
+    outbox = OutboxRepository(app_engine)
+    for index in range(3):
+        await outbox.enqueue(
+            event_type="rollups",
+            idempotency_key=f"homebox:rollups:stale-{index}",
+            payload={"site_id": "homebox", "rollups": [{"index": index}]},
+            now=FIXED_NOW - timedelta(minutes=5),
+        )
+    cloud = RecordingCloudClient()
+    cloud.fail_event_types.add("rollups")
+    service = _service(app_engine, cloud, local_services=StaticLocalServices())
+
+    result = await service.run_once()
+
+    assert result.failed == 1
+    assert cloud.call_counts["heartbeat"] == 1
+    assert cloud.call_counts["latest_metrics"] == 1
+    assert cloud.call_counts["rollups"] == 1
 
 
 async def test_dry_run_mode_does_not_call_cloud_client(app_engine: AsyncEngine):

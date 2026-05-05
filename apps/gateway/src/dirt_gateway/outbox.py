@@ -76,6 +76,26 @@ class OutboxRepository:
             ).all()
             return list(rows)
 
+    async def due_for_event_types(
+        self,
+        *,
+        event_types: set[str],
+        now: datetime,
+        limit: int = 50,
+    ) -> list[CloudOutbox]:
+        async with AsyncSession(self._engine) as session:
+            rows = (
+                await session.exec(
+                    select(CloudOutbox)
+                    .where(CloudOutbox.status == "pending")
+                    .where(CloudOutbox.event_type.in_(event_types))
+                    .where(CloudOutbox.next_retry_at <= now)
+                    .order_by(CloudOutbox.created_at, CloudOutbox.id)
+                    .limit(limit)
+                )
+            ).all()
+            return list(rows)
+
     async def pending_count(self) -> int:
         async with AsyncSession(self._engine) as session:
             count = (
