@@ -137,6 +137,9 @@ The first observable result should be deliberately small: a hosted dashboard can
 - Observation: The local ignored production env file had the hosted browser admin credentials, but the Railway `control-plane-api` service did not.
   Evidence: Key-only checks showed `DIRT_CLOUD_ADMIN_USERNAME` and `DIRT_CLOUD_ADMIN_PASSWORD_HASH` present in `.env.prod` but absent from the Railway API service. Production deploy attempt 6 reached settings validation and failed on those two missing fields. `scripts/deploy-control-plane` now syncs required API and web-ui service variables from the ignored env files through `railway variable set --stdin --skip-deploys` before deployment.
 
+- Observation: The ignored env files carried a cloud admin password-hash key, but the value was blank.
+  Evidence: Length-only checks showed `DIRT_CLOUD_ADMIN_PASSWORD_HASH` length `0` in `.env` and `.env.prod`, while the local `AUTH_PASSWORD` was present. `scripts/deploy-control-plane` now derives the cloud `sha256:` password hash from `AUTH_PASSWORD` only when the explicit cloud hash is blank, without printing the plaintext or hash.
+
 
 ## Decision Log
 
