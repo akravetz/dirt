@@ -75,11 +75,12 @@ class HttpCloudGatewayClient:
         del content_type
         try:
             with file_path.open("rb") as f:
-                response = await self._client.put(
-                    upload_url,
-                    content=f,
-                    headers=headers,
-                )
+                content = f.read()
+            response = await self._client.put(
+                upload_url,
+                content=content,
+                headers=headers,
+            )
             response.raise_for_status()
         except (OSError, httpx.HTTPError) as exc:
             raise CloudDeliveryError(str(exc)) from exc

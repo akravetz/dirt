@@ -155,6 +155,9 @@ The first observable result should be deliberately small: a hosted dashboard can
 - Observation: The initial asset signing path produced app-signed placeholder URLs, not private bucket presigned PUT/GET URLs, when S3 credentials were configured.
   Evidence: After gateway auth was fixed, heartbeat/catalog/metric events delivered and cloud health turned `live`, but asset upload rows failed with `Attempted to send an sync request with an AsyncClient instance.` because the gateway tried to PUT bytes to the app-signed asset URL instead of Railway's S3-compatible bucket. Cloud asset sign-upload and browser signed-url routes now use S3 presigned URLs when bucket credentials are configured, with the previous app-signed URL only as the no-bucket test fallback.
 
+- Observation: The local gateway asset uploader passed a synchronous file object to `httpx.AsyncClient`.
+  Evidence: Once production sign-upload returned a Railway bucket presigned PUT URL, pending asset rows still failed with `Attempted to send an sync request with an AsyncClient instance.` The gateway HTTP client now reads the snapshot file into bytes before the async PUT, and a focused MockTransport test covers that path.
+
 
 ## Decision Log
 
