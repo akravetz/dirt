@@ -146,6 +146,9 @@ The first observable result should be deliberately small: a hosted dashboard can
 - Observation: `pnpm preview -- --host 0.0.0.0 --port $PORT` did not expose the Vite preview server on Railway.
   Evidence: The Node-22 web-ui deployment built successfully, then failed healthcheck while runtime logs showed Vite listening only on `http://localhost:4173/` and advising `use --host to expose`. `web-ui/railway.json` now starts with `pnpm exec vite preview --host 0.0.0.0 --port $PORT`.
 
+- Observation: Even with direct `vite preview --host 0.0.0.0 --port $PORT`, Railway never marked the web-ui replica healthy.
+  Evidence: Deployment `7bb3ba45-3e8d-49e1-9976-485e9e44e0b6` showed Vite listening on local and network addresses, but Railway's `/` healthcheck exhausted its 5-minute retry window with service unavailable. The hosted UI now serves the built SPA through Caddy with a checked-in `web-ui/Caddyfile`.
+
 
 ## Decision Log
 
