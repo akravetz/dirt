@@ -4,20 +4,32 @@ from __future__ import annotations
 
 import sys
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 from .real_audio_score import (
+    OnnxWindowScorer,
     precision_recall_f1,
-    prepare_streaming_windows,
-    score_prepared_windows,
+    prepare_validation_windows,
 )
+
+
+@dataclass(frozen=True)
+class CandidateScore:
+    index: int
+    recall: float
+    precision: float
+    f1: float
+    step: int
+
+    def sort_key(self) -> tuple[float, float, int]:
+        return (self.f1, self.recall, self.step)
 
 
 def select_best_by_real_f1(
     oww,
     *,
     work_dir: Path,
-    target_word: str,
     validation_good: Path,
     validation_bad: Path,
     threshold: float = 0.5,
@@ -55,22 +67,24 @@ def select_best_by_real_f1(
     )
 
     prep_t0 = time.perf_counter()
-    good_windows = prepare_streaming_windows(good_paths)
-    bad_windows = prepare_streaming_windows(bad_paths)
+    validation_windows = prepare_validation_windows(
+        validation_good=validation_good,
+        validation_bad=validation_bad,
+    )
     print(
         "=== checkpoint_feature_telemetry: "
-        f"good_windows={good_windows.telemetry['windows']} "
-        f"good_preprocessor_s={good_windows.telemetry['preprocessor_s']:.3f} "
-        f"good_total_s={good_windows.telemetry['total_s']:.3f} "
-        f"bad_windows={bad_windows.telemetry['windows']} "
-        f"bad_preprocessor_s={bad_windows.telemetry['preprocessor_s']:.3f} "
-        f"bad_total_s={bad_windows.telemetry['total_s']:.3f} "
-        f"provider={good_windows.telemetry['provider']} "
+        f"good_windows={validation_windows.telemetry['good_windows']} "
+        f"good_preprocessor_s={validation_windows.telemetry['good_preprocessor_s']:.3f} "
+        f"good_total_s={validation_windows.telemetry['good_total_s']:.3f} "
+        f"bad_windows={validation_windows.telemetry['bad_windows']} "
+        f"bad_preprocessor_s={validation_windows.telemetry['bad_preprocessor_s']:.3f} "
+        f"bad_total_s={validation_windows.telemetry['bad_total_s']:.3f} "
+        f"provider={validation_windows.telemetry['provider']} "
         f"total_s={time.perf_counter() - prep_t0:.3f} ===",
         flush=True,
     )
 
-    rows: list[tuple[int, float, float, float, int]] = []
+    rows: list[CandidateScore] = []
     for i, model in enumerate(oww.best_models):
         t0 = time.monotonic()
         slug = f"cand_{i:03d}"
@@ -79,8 +93,9 @@ def select_best_by_real_f1(
         export_s = time.perf_counter() - export_t0
         onnx_path = tmp_dir / f"{slug}.onnx"
 
-        good_scores, good_telemetry = score_prepared_windows(onnx_path, good_windows)
-        bad_scores, bad_telemetry = score_prepared_windows(onnx_path, bad_windows)
+        scorer = OnnxWindowScorer(onnx_path)
+        good_scores, good_telemetry = scorer.score(validation_windows.good)
+        bad_scores, bad_telemetry = scorer.score(validation_windows.bad)
         metrics_t0 = time.perf_counter()
         _, fp, recall, precision, f1 = precision_recall_f1(
             good_scores, bad_scores, threshold=threshold
@@ -88,7 +103,15 @@ def select_best_by_real_f1(
         metrics_s = time.perf_counter() - metrics_t0
 
         step = oww.best_model_scores[i].get("training_step_ndx", -1)
-        rows.append((i, recall, precision, f1, int(step)))
+        rows.append(
+            CandidateScore(
+                index=i,
+                recall=recall,
+                precision=precision,
+                f1=f1,
+                step=int(step),
+            )
+        )
         elapsed = time.monotonic() - t0
         print(
             f"  cand {i:>3} step={step:>5} | recall={recall:.3f} "
@@ -105,7 +128,6 @@ def select_best_by_real_f1(
             f"good_inference_s={good_telemetry['inference_s']:.3f} "
             f"good_batches={good_telemetry['batches']} "
             f"good_windows={good_telemetry['windows']} "
-            f"bad_session_init_s={bad_telemetry['session_init_s']:.3f} "
             f"bad_inference_s={bad_telemetry['inference_s']:.3f} "
             f"bad_batches={bad_telemetry['batches']} "
             f"bad_windows={bad_telemetry['windows']} "
@@ -114,10 +136,11 @@ def select_best_by_real_f1(
         )
         onnx_path.unlink(missing_ok=True)
 
-    rows.sort(key=lambda r: (r[3], r[1], r[4]), reverse=True)
-    best_i, best_r, best_p, best_f1, best_step = rows[0]
+    rows.sort(key=CandidateScore.sort_key, reverse=True)
+    best = rows[0]
     print(
-        f"\nBest checkpoint by real-audio F1: cand {best_i} step={best_step} "
-        f"(recall={best_r:.3f}, precision={best_p:.3f}, F1={best_f1:.3f})"
+        f"\nBest checkpoint by real-audio F1: cand {best.index} step={best.step} "
+        f"(recall={best.recall:.3f}, precision={best.precision:.3f}, "
+        f"F1={best.f1:.3f})"
     )
-    return oww.best_models[best_i]
+    return oww.best_models[best.index]

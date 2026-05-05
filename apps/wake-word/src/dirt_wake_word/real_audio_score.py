@@ -12,12 +12,27 @@ import numpy as np
 import onnxruntime as ort
 from openwakeword.utils import AudioFeatures
 
+from .feature_device import (
+    execution_providers_for_device,
+    new_audio_features,
+    release_audio_features,
+)
+
+_MELSPECTROGRAM_BUFFER_SHAPE = (76, 32)
+
 
 @dataclass(frozen=True)
 class PreparedWindows:
     paths: list[Path]
     windows: np.ndarray
     clip_indices: np.ndarray
+    telemetry: dict[str, float | int | str]
+
+
+@dataclass(frozen=True)
+class ValidationWindows:
+    good: PreparedWindows
+    bad: PreparedWindows
     telemetry: dict[str, float | int | str]
 
 
@@ -30,7 +45,8 @@ def _reset_features(
     features: AudioFeatures, *, initial_feature_buffer: np.ndarray
 ) -> None:
     features.raw_data_buffer.clear()
-    features.melspectrogram_buffer = np.ones((76, 32))
+    # openwakeword.AudioFeatures.reset() uses this startup mel buffer shape.
+    features.melspectrogram_buffer = np.ones(_MELSPECTROGRAM_BUFFER_SHAPE)
     features.accumulated_samples = 0
     features.raw_data_remainder = np.empty(0)
     features.feature_buffer = initial_feature_buffer.copy()
@@ -52,8 +68,7 @@ def prepare_streaming_windows(
     """
     t0 = time.perf_counter()
     ncpu = ncpu or max(1, min(os.cpu_count() or 1, 8))
-    features = AudioFeatures(inference_framework="onnx", ncpu=ncpu, device="cpu")
-    provider = getattr(features, "onnx_execution_provider", "unknown")
+    features, provider = new_audio_features(device="cpu", ncpu=ncpu)
     initial_feature_buffer = features.feature_buffer.copy()
 
     wav_load_s = 0.0
@@ -62,26 +77,29 @@ def prepare_streaming_windows(
     windows: list[np.ndarray] = []
     clip_indices: list[int] = []
 
-    for clip_idx, path in enumerate(paths):
-        load_t0 = time.perf_counter()
-        wav = _load_wav(path)
-        wav_load_s += time.perf_counter() - load_t0
-        _reset_features(features, initial_feature_buffer=initial_feature_buffer)
-        prediction_count = 0
-        for start in range(0, len(wav) - chunk + 1, chunk):
-            prep_t0 = time.perf_counter()
-            n_prepared = features(wav[start : start + chunk])
-            preprocessor_s += time.perf_counter() - prep_t0
-            if n_prepared < chunk:
-                continue
-            # openwakeword.Model.predict returns zero for the first five
-            # predictions after reset while its prediction buffer warms up.
-            if prediction_count >= 5:
-                feat_t0 = time.perf_counter()
-                windows.append(features.get_features(model_frames)[0])
-                get_features_s += time.perf_counter() - feat_t0
-                clip_indices.append(clip_idx)
-            prediction_count += max(1, int(n_prepared // chunk))
+    try:
+        for clip_idx, path in enumerate(paths):
+            load_t0 = time.perf_counter()
+            wav = _load_wav(path)
+            wav_load_s += time.perf_counter() - load_t0
+            _reset_features(features, initial_feature_buffer=initial_feature_buffer)
+            prediction_count = 0
+            for start in range(0, len(wav) - chunk + 1, chunk):
+                prep_t0 = time.perf_counter()
+                n_prepared = features(wav[start : start + chunk])
+                preprocessor_s += time.perf_counter() - prep_t0
+                if n_prepared < chunk:
+                    continue
+                # openwakeword.Model.predict returns zero for the first five
+                # predictions after reset while its prediction buffer warms up.
+                if prediction_count >= 5:
+                    feat_t0 = time.perf_counter()
+                    windows.append(features.get_features(model_frames)[0])
+                    get_features_s += time.perf_counter() - feat_t0
+                    clip_indices.append(clip_idx)
+                prediction_count += max(1, int(n_prepared // chunk))
+    finally:
+        release_audio_features(features, device="cpu")
 
     if windows:
         window_array = np.asarray(windows, dtype=np.float32)
@@ -102,6 +120,83 @@ def prepare_streaming_windows(
     return PreparedWindows(paths, window_array, clip_index_array, telemetry)
 
 
+def prepare_validation_windows(
+    *,
+    validation_good: Path,
+    validation_bad: Path,
+) -> ValidationWindows:
+    t0 = time.perf_counter()
+    good = prepare_streaming_windows(sorted(validation_good.glob("*.wav")))
+    bad = prepare_streaming_windows(sorted(validation_bad.glob("*.wav")))
+    return ValidationWindows(
+        good=good,
+        bad=bad,
+        telemetry={
+            "good_windows": int(good.windows.shape[0]),
+            "bad_windows": int(bad.windows.shape[0]),
+            "good_preprocessor_s": good.telemetry["preprocessor_s"],
+            "bad_preprocessor_s": bad.telemetry["preprocessor_s"],
+            "good_total_s": good.telemetry["total_s"],
+            "bad_total_s": bad.telemetry["total_s"],
+            "provider": good.telemetry["provider"],
+            "total_s": time.perf_counter() - t0,
+        },
+    )
+
+
+class OnnxWindowScorer:
+    def __init__(self, onnx_path: Path, *, batch_size: int = 1024) -> None:
+        self.onnx_path = onnx_path
+        self.batch_size = batch_size
+        init_t0 = time.perf_counter()
+        model_bytes, batchable, original_batch_dim = _model_with_dynamic_batch(
+            onnx_path
+        )
+        self.session = ort.InferenceSession(
+            model_bytes, providers=execution_providers_for_device("cpu")
+        )
+        self.session_init_s = time.perf_counter() - init_t0
+        self.provider = ",".join(self.session.get_providers())
+        self.input_name = self.session.get_inputs()[0].name
+        self.batchable = batchable
+        self.original_batch_dim = original_batch_dim
+
+    def score(
+        self, prepared: PreparedWindows
+    ) -> tuple[list[float], dict[str, float | int | str]]:
+        t0 = time.perf_counter()
+        peaks = np.zeros(len(prepared.paths), dtype=np.float32)
+        inference_s = 0.0
+        batches = 0
+        for start in range(0, prepared.windows.shape[0], self.batch_size):
+            batch = prepared.windows[start : start + self.batch_size]
+            infer_t0 = time.perf_counter()
+            raw = self.session.run(None, {self.input_name: batch})[0]
+            inference_s += time.perf_counter() - infer_t0
+            batches += 1
+            scores = np.asarray(raw, dtype=np.float32).reshape(-1)
+            if scores.shape[0] != batch.shape[0]:
+                raise ValueError(
+                    f"{self.onnx_path} returned {scores.shape[0]} scores for "
+                    f"{batch.shape[0]} windows"
+                )
+            clip_indices = prepared.clip_indices[start : start + self.batch_size]
+            np.maximum.at(peaks, clip_indices, scores)
+
+        telemetry = {
+            "provider": self.provider,
+            "batchable": int(self.batchable),
+            "original_batch_dim": str(self.original_batch_dim),
+            "batch_size": self.batch_size,
+            "session_init_s": self.session_init_s,
+            "inference_s": inference_s,
+            "batches": batches,
+            "windows": int(prepared.windows.shape[0]),
+            "total_s": time.perf_counter() - t0,
+        }
+        return peaks.tolist(), telemetry
+
+
 def score_prepared_windows(
     onnx_path: Path,
     prepared: PreparedWindows,
@@ -109,44 +204,7 @@ def score_prepared_windows(
     batch_size: int = 1024,
 ) -> tuple[list[float], dict[str, float | int | str]]:
     """Score precomputed windows with a classifier ONNX model in batches."""
-    t0 = time.perf_counter()
-    init_t0 = time.perf_counter()
-    model_bytes, batchable, original_batch_dim = _model_with_dynamic_batch(onnx_path)
-    session = ort.InferenceSession(model_bytes, providers=["CPUExecutionProvider"])
-    init_s = time.perf_counter() - init_t0
-    provider = ",".join(session.get_providers())
-    input_name = session.get_inputs()[0].name
-
-    peaks = np.zeros(len(prepared.paths), dtype=np.float32)
-    inference_s = 0.0
-    batches = 0
-    for start in range(0, prepared.windows.shape[0], batch_size):
-        batch = prepared.windows[start : start + batch_size]
-        infer_t0 = time.perf_counter()
-        raw = session.run(None, {input_name: batch})[0]
-        inference_s += time.perf_counter() - infer_t0
-        batches += 1
-        scores = np.asarray(raw, dtype=np.float32).reshape(-1)
-        for clip_idx, score in zip(
-            prepared.clip_indices[start : start + batch_size],
-            scores,
-            strict=False,
-        ):
-            if score > peaks[int(clip_idx)]:
-                peaks[int(clip_idx)] = score
-
-    telemetry = {
-        "provider": provider,
-        "batchable": int(batchable),
-        "original_batch_dim": str(original_batch_dim),
-        "batch_size": batch_size,
-        "session_init_s": init_s,
-        "inference_s": inference_s,
-        "batches": batches,
-        "windows": int(prepared.windows.shape[0]),
-        "total_s": time.perf_counter() - t0,
-    }
-    return peaks.tolist(), telemetry
+    return OnnxWindowScorer(onnx_path, batch_size=batch_size).score(prepared)
 
 
 def _model_with_dynamic_batch(onnx_path: Path) -> tuple[bytes, bool, str]:

@@ -640,7 +640,6 @@ def _custom_train_model(*, work_dir: Path, out_dir: Path, target_word: str) -> N
         best_model = select_best_by_real_f1(
             oww,
             work_dir=work_dir,
-            target_word=target_word,
             validation_good=expected["validation_good"],
             validation_bad=expected["validation_bad"],
         )

@@ -8,35 +8,24 @@ fails immediately, in <2 seconds on `pytest --collect-only`.
 
 from __future__ import annotations
 
+import importlib
+import pkgutil
+
 
 def test_library_imports() -> None:
     """Importing the public package must succeed cleanly."""
-    import dirt_wake_word
-
-    assert hasattr(dirt_wake_word, "main")
+    assert importlib.import_module("dirt_wake_word.main") is not None
 
 
 def test_all_modules_importable() -> None:
     """Every module in the library imports without error.
 
-    Adding a new module to the library? Add it here too.
+    Adding a new module to the library should not require editing this list.
     """
-    from dirt_wake_word import (  # noqa: F401
-        augment,
-        config,
-        export,
-        feature_device,
-        main,
-        paths,
-        real_audio_score,
-        seed,
-        select,
-        timing,
-        train,
-        tts_cache,
-        validate,
-        verify,
-    )
+    import dirt_wake_word
+
+    for module in pkgutil.iter_modules(dirt_wake_word.__path__):
+        importlib.import_module(f"dirt_wake_word.{module.name}")
 
 
 def test_verify_imports_function_exists() -> None:

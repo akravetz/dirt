@@ -55,12 +55,11 @@ from .config import (
 )
 from .feature_device import (
     FEATURE_DEVICE_ENV,
-    configure_audio_features,
     execution_providers_for_device,
     log_cuda_runtime_compat,
     log_gpu_memory,
+    new_audio_features,
     onnxruntime_providers,
-    preload_onnxruntime_cuda,
     release_audio_features,
     resolve_feature_device,
 )
@@ -332,19 +331,6 @@ def _compute_features_from_generator_checked(  # noqa: PLR0915
     )
 
 
-def _new_audio_features(*, device: str, ncpu: int) -> tuple[AudioFeatures, str]:
-    if device == "gpu":
-        preload_onnxruntime_cuda()
-    try:
-        features = AudioFeatures(device=device, ncpu=ncpu)
-    except TypeError as exc:
-        if "device" not in str(exc):
-            raise
-        features = AudioFeatures(ncpu=ncpu)
-    provider = configure_audio_features(features, device=device)
-    return features, provider
-
-
 def _compute_subset_features(
     *,
     subset_name: str,
@@ -481,7 +467,7 @@ def augment_and_compute_features(*, work_dir: Path, out_dir: Path) -> None:
     try:
         _log_runtime_boundary("before_audio_features")
         log_gpu_memory("before_audio_features")
-        features, provider = _new_audio_features(device=device, ncpu=ncpu)
+        features, provider = new_audio_features(device=device, ncpu=ncpu)
         _log_runtime_boundary("after_audio_features_init")
         log_gpu_memory("after_audio_features_init")
         print("=== per-subset augmentation + feature compute (v8) ===", flush=True)

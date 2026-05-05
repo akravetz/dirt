@@ -14,7 +14,7 @@ from pathlib import Path
 from .config import TARGET_WORD
 from .real_audio_score import (
     precision_recall_f1,
-    prepare_streaming_windows,
+    prepare_validation_windows,
     score_prepared_windows,
 )
 
@@ -31,21 +31,21 @@ def validate_against_real_set(
         return
 
     t0 = time.perf_counter()
-    good_windows = prepare_streaming_windows(
-        sorted(expected_inputs["validation_good"].glob("*.wav"))
+    validation_windows = prepare_validation_windows(
+        validation_good=expected_inputs["validation_good"],
+        validation_bad=expected_inputs["validation_bad"],
     )
-    bad_windows = prepare_streaming_windows(
-        sorted(expected_inputs["validation_bad"].glob("*.wav"))
+    good, good_score_telemetry = score_prepared_windows(
+        onnx_path, validation_windows.good
     )
-    good, good_score_telemetry = score_prepared_windows(onnx_path, good_windows)
-    bad, bad_score_telemetry = score_prepared_windows(onnx_path, bad_windows)
+    bad, bad_score_telemetry = score_prepared_windows(onnx_path, validation_windows.bad)
     print(
         "=== validation_score_telemetry: "
-        f"good_windows={good_windows.telemetry['windows']} "
-        f"good_preprocessor_s={good_windows.telemetry['preprocessor_s']:.3f} "
+        f"good_windows={validation_windows.telemetry['good_windows']} "
+        f"good_preprocessor_s={validation_windows.telemetry['good_preprocessor_s']:.3f} "
         f"good_score_s={good_score_telemetry['inference_s']:.3f} "
-        f"bad_windows={bad_windows.telemetry['windows']} "
-        f"bad_preprocessor_s={bad_windows.telemetry['preprocessor_s']:.3f} "
+        f"bad_windows={validation_windows.telemetry['bad_windows']} "
+        f"bad_preprocessor_s={validation_windows.telemetry['bad_preprocessor_s']:.3f} "
         f"bad_score_s={bad_score_telemetry['inference_s']:.3f} "
         f"provider={good_score_telemetry['provider']} "
         f"batchable={good_score_telemetry['batchable']} "

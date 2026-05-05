@@ -216,6 +216,22 @@ def configure_audio_features(features: Any, *, device: str) -> str:
     return provider
 
 
+def new_audio_features(*, device: str, ncpu: int) -> tuple[Any, str]:
+    """Create AudioFeatures with the repo's provider configuration applied."""
+    from openwakeword.utils import AudioFeatures
+
+    if device == "gpu":
+        preload_onnxruntime_cuda()
+    try:
+        features = AudioFeatures(device=device, ncpu=ncpu)
+    except TypeError as exc:
+        if "device" not in str(exc):
+            raise
+        features = AudioFeatures(ncpu=ncpu)
+    provider = configure_audio_features(features, device=device)
+    return features, provider
+
+
 def release_audio_features(features: Any | None, *, device: str) -> None:
     """Drop ORT sessions and give PyTorch a clean CUDA cache boundary."""
     if features is not None:
