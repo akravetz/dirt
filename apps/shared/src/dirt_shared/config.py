@@ -172,6 +172,29 @@ class Settings(BaseSettings):
     daily_report_codex_sandbox: str = Field(
         default="workspace-write", validation_alias="DIRT_DAILY_REPORT_CODEX_SANDBOX"
     )
+    # Hosted control-plane local gateway. The gateway is a separate process
+    # that syncs selected local state outbound; local hardware loops do not
+    # depend on these values.
+    cloud_api_base_url: str = Field(
+        default="http://127.0.0.1:8002", validation_alias="DIRT_CLOUD_API_BASE_URL"
+    )
+    cloud_site_id: str = Field(default="homebox", validation_alias="DIRT_CLOUD_SITE_ID")
+    cloud_gateway_id: str = Field(
+        default="gateway-main", validation_alias="DIRT_CLOUD_GATEWAY_ID"
+    )
+    cloud_gateway_token: str = Field(
+        default="", validation_alias="DIRT_CLOUD_GATEWAY_TOKEN"
+    )
+    cloud_sync_interval_s: float = Field(
+        default=30.0, validation_alias="DIRT_CLOUD_SYNC_INTERVAL_S"
+    )
+    cloud_command_poll_interval_s: float = Field(
+        default=5.0, validation_alias="DIRT_CLOUD_COMMAND_POLL_INTERVAL_S"
+    )
+    cloud_asset_sync_enabled: bool = Field(
+        default=True, validation_alias="DIRT_CLOUD_ASSET_SYNC_ENABLED"
+    )
+    cloud_dry_run: bool = Field(default=False, validation_alias="DIRT_CLOUD_DRY_RUN")
 
     @model_validator(mode="after")
     def _derive_data_paths(self) -> Settings:
@@ -264,6 +287,18 @@ class Settings(BaseSettings):
             mcp_bearer_token=self.mcp_bearer_token,
         )
 
+    def cloud_gateway(self) -> CloudGatewayConfig:
+        return CloudGatewayConfig(
+            api_base_url=self.cloud_api_base_url,
+            site_id=self.cloud_site_id,
+            gateway_id=self.cloud_gateway_id,
+            gateway_token=self.cloud_gateway_token,
+            sync_interval_s=self.cloud_sync_interval_s,
+            command_poll_interval_s=self.cloud_command_poll_interval_s,
+            asset_sync_enabled=self.cloud_asset_sync_enabled,
+            dry_run=self.cloud_dry_run,
+        )
+
 
 @dataclass(frozen=True)
 class CaptureConfig:
@@ -335,3 +370,15 @@ class AuthConfig:
     secret_key: str
     sensor_ingest_token: str
     mcp_bearer_token: str
+
+
+@dataclass(frozen=True)
+class CloudGatewayConfig:
+    api_base_url: str
+    site_id: str
+    gateway_id: str
+    gateway_token: str
+    sync_interval_s: float
+    command_poll_interval_s: float
+    asset_sync_enabled: bool
+    dry_run: bool

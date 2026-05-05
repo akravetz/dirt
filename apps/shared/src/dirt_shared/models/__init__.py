@@ -7,6 +7,7 @@ before it's inspected.
 
 from __future__ import annotations
 
+from dirt_shared.models.cloud_gateway import CloudOutbox, CloudSyncCursor
 from dirt_shared.models.command import Command
 from dirt_shared.models.device import Capability, Device
 from dirt_shared.models.enums import (
@@ -35,6 +36,8 @@ __all__ = [
     "PLANT_STICKER_ENUM",
     "SENSOR_SOURCE_ENUM",
     "Capability",
+    "CloudOutbox",
+    "CloudSyncCursor",
     "Command",
     "Device",
     "GrowRun",

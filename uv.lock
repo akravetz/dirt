@@ -12,6 +12,7 @@ resolution-markers = [
 members = [
     "dirt-contracts",
     "dirt-control-plane",
+    "dirt-gateway",
     "dirt-hwd",
     "dirt-mcp",
     "dirt-shared",
@@ -1017,6 +1018,23 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.13.1" },
     { name = "sqlmodel", specifier = ">=0.0.22" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34" },
+]
+
+[[package]]
+name = "dirt-gateway"
+version = "0.1.0"
+source = { editable = "apps/gateway" }
+dependencies = [
+    { name = "dirt-shared" },
+    { name = "httpx" },
+    { name = "sqlmodel" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "dirt-shared", editable = "apps/shared" },
+    { name = "httpx", specifier = ">=0.28" },
+    { name = "sqlmodel", specifier = ">=0.0.22" },
 ]
 
 [[package]]

@@ -25,7 +25,7 @@ The first observable result should be deliberately small: a hosted dashboard can
 - [x] (2026-05-05T02:50:25Z) Deployed temporary placeholder containers to `control-plane-api` and `web-ui` to complete Railway public-networking setup; both custom domains now serve valid certificates and 200 responses.
 - [x] (2026-05-05T18:20:00Z) Milestone 1: decided and documented hosted platform, auth, database, object storage, DNS, deployment boundaries, and current-provider evidence.
 - [x] (2026-05-05T03:36:59Z) Milestone 2: implemented the cloud control-plane schema, dedicated cloud Atlas migration path, thin hosted FastAPI API, and focused acceptance tests.
-- [ ] Milestone 3: implement local outbound gateway sync for read-only catalog, latest state, freshness, rollups, and assets.
+- [x] (2026-05-05T12:00:00Z) Milestone 3: implemented the local outbound gateway package, local Atlas-managed outbox/cursor durability tables, read-only DI sync orchestration, asset sign-upload/complete flow, dry-run mode, `cloud_gateway` observability, and focused acceptance tests.
 - [ ] Milestone 4: deploy the read-only hosted dashboard and prove stale/offline behavior.
 - [ ] Milestone 5: add the PTZ-only cloud command loop.
 - [ ] Milestone 6: harden operations, recovery, and rollout documentation.
@@ -74,6 +74,21 @@ The first observable result should be deliberately small: a hosted dashboard can
 
 - Observation: A test that checked `sys.modules` for hardware imports was brittle under the full pre-commit per-app suite because other app tests import `dirt_hwd` before control-plane tests run.
   Evidence: The Milestone 2 commit hook initially failed on `assert "dirt_hwd" not in sys.modules`; `apps/control-plane/tests/test_api.py` now scans `dirt_control` source imports with `ast` instead, proving the cloud API package does not import hardware modules without depending on global test order.
+
+- Observation: The local zone model exposes `zone_type`, not `kind`, while the cloud gateway catalog API expects `kind`.
+  Evidence: `apps/gateway/src/dirt_gateway/local.py` maps local `Zone.zone_type` into the cloud catalog `kind` field, and `apps/gateway/tests/test_sync.py` covers the real local catalog projection from the migrated test database.
+
+- Observation: The local Atlas test fixture automatically picked up the new gateway durability migration because the tables live in `dirt_shared.models`.
+  Evidence: `uv run pytest apps/gateway/tests apps/shared/tests -q` applied `migrations/20260505035619_cloud_gateway_durability.sql` into the shared test template and passed with `145 passed`.
+
+- Observation: Replacement Worker M3b inherited an uncommitted Milestone 3 implementation and found it already aligned with the requested acceptance-test shape.
+  Evidence: Re-running `uv run pytest apps/gateway/tests apps/shared/tests -q`, `uv run pytest apps/tests/invariants/ -q`, ruff checks, ruff format check, and `uv lock --check` passed without additional source edits.
+
+- Observation: DB-backed pytest commands that use the shared `app_engine` fixture should not be launched concurrently in the same worktree.
+  Evidence: Main-agent verification initially ran `uv run pytest apps/gateway/tests -q` and `uv run pytest apps/gateway/tests apps/shared/tests -q` in parallel; both sessions use the same worktree-derived template database name, so one session dropped the template while the other still needed it. Rerunning `uv run pytest apps/gateway/tests apps/shared/tests -q` sequentially passed with `145 passed`.
+
+- Observation: Bare `from conftest import ...` imports are unsafe when pre-commit collects multiple app test roots in one pytest invocation.
+  Evidence: After adding `apps/gateway` to the per-app pre-commit hook, collection failed because `apps/control-plane/tests/test_api.py` imported `FIXED_NOW` from the gateway test `conftest.py`. The control-plane test now defines its own constant, and `uv run pytest apps/control-plane/tests apps/gateway/tests -q` passed with `14 passed`.
 
 
 ## Decision Log
@@ -142,6 +157,14 @@ The first observable result should be deliberately small: a hosted dashboard can
   Rationale: Monkey patching production modules hides poor seams and violates existing repository invariant expectations. Gateway code should accept injected clients, clocks, sleepers/backoff policies, and service bundles so tests use fakes and test databases cleanly.
   Date/Author: 2026-05-05 / Codex
 
+- Decision: Keep Milestone 3 dry-run mode side-effect free: it collects projections and logs counts but does not enqueue outbox rows or call the cloud client.
+  Rationale: Dry-run is an operator validation path. Leaving durable pending rows behind during dry runs would make a later normal start deliver stale test projections.
+  Date/Author: 2026-05-05 / Codex Worker M3
+
+- Decision: Use stable idempotency keys derived from projection content hashes for catalog, latest metrics, rollups, and asset metadata, while heartbeat keys include the gateway/site/timestamp.
+  Rationale: Content-derived keys prevent duplicate cloud writes when a retry or restart replays the same projection. Heartbeats are intentionally time-sampled status updates.
+  Date/Author: 2026-05-05 / Codex Worker M3
+
 
 ## Outcomes & Retrospective
 
@@ -150,6 +173,8 @@ Milestone 1 is complete. The hosted V1 architecture is Railway-only for producti
 Railway infrastructure prework is complete, and both app services are running temporary placeholder deployments so public networking and TLS can stay warm until real code replaces them. The Railway project is `dirt-control-plane` (`4720b3f9-7e3b-461e-b44d-fbb9e349ed11`) in the `production` environment (`12ffb3c2-807b-4246-a7d0-f00466be68fe`). Services are `control-plane-api` (`15035b13-0995-4f81-b548-954b3e6aed29`), `web-ui` (`c0297625-b063-4897-ac59-98e76f5f2413`), `Postgres` (`fc7e0827-e834-48a1-901f-faf5b0595602`), and bucket `dirt-assets` (`40462f7f-4691-4b45-9b34-e961e28612b4`, region `iad`). Custom domains are verified and serving valid certificates.
 
 Milestone 2 is complete locally. The new workspace member `apps/control-plane/` defines import package `dirt_control`, cloud settings, async DB/session setup, SQLModel tables, FastAPI composition, browser session auth, gateway bearer-token auth, browser read routes, browser command-intent routes, gateway sync routes, and tests. Startup performs a database ping only; cloud schema changes are managed by the dedicated Atlas env `cloud` and migration directory `cloud/migrations/`. Command creation records queued intent in `cloud_command` and does not import or call local hardware modules. Asset upload is a direct signed-upload handshake plus metadata completion path; browser signed-url retrieval is session-authenticated.
+
+Milestone 3 is complete locally. The new workspace member `apps/gateway/` defines import package `dirt_gateway`, a `python -m dirt_gateway.main` entry point, a SQL-backed outbox repository, an injected sync orchestrator, an HTTP cloud client, and a local projection bundle that reads catalog, latest metrics, 5-minute / 1-hour / 4-hour rollups, and latest snapshot metadata without importing `dirt_hwd`. Local durability tables `cloud_sync_cursor` and `cloud_outbox` are SQLModel classes in `dirt_shared.models` and are managed by local Atlas migration `migrations/20260505035619_cloud_gateway_durability.sql`; gateway startup only pings the database and performs no DDL. Tests prove catalog sync for `homebox/main` and `homebox/breeding`, idempotent latest/rollup delivery, retry after cloud outage, dry-run behavior, private asset sign-upload/complete sequencing, isolated `cloud_gateway` logs, and the no-hardware-import boundary.
 
 
 ## Context and Orientation
@@ -567,6 +592,46 @@ Replacement Worker M2b validation on 2026-05-05:
 - `uv run --package dirt-control-plane python cloud/atlas/load-sqlmodel.py | sed -n '1,20p'` emitted cloud Postgres DDL beginning with `CREATE TABLE cloud_site`.
 - Main-agent verification reran `uv run pytest apps/control-plane/tests -q`, `uv run pytest apps/tests/invariants/ -q`, `uv run ruff check apps/control-plane cloud/atlas/load-sqlmodel.py`, `uv run ruff format apps/control-plane cloud/atlas/load-sqlmodel.py --check`, and `scripts/agent-fix`; all passed after replacing the brittle hardware-import assertion with a source import scan.
 
+Milestone 3 implementation artifacts on 2026-05-05:
+
+- New package: `apps/gateway/` with import package `dirt_gateway`.
+- Gateway entry point: `apps/gateway/src/dirt_gateway/main.py`.
+- Sync orchestration and DI protocols: `apps/gateway/src/dirt_gateway/sync.py`, `protocols.py`, `cloud.py`, `local.py`, and `outbox.py`.
+- Local durability models: `apps/shared/src/dirt_shared/models/cloud_gateway.py` exports `CloudSyncCursor` and `CloudOutbox`.
+- Local Atlas migration: `migrations/20260505035619_cloud_gateway_durability.sql` plus updated `migrations/atlas.sum`.
+- Gateway config fields and config slice: `apps/shared/src/dirt_shared/config.py`.
+- Structured log stream: `cloud_gateway` registered in `apps/shared/src/dirt_shared/observability.py` and documented in `docs/observability.md`.
+- Tests: `apps/gateway/tests/test_sync.py`.
+
+Milestone 3 validation on 2026-05-05:
+
+- `uv run pytest apps/gateway/tests -q` passed with `7 passed`.
+- `uv run pytest apps/gateway/tests apps/shared/tests -q` passed with `145 passed`.
+- `uv run pytest apps/tests/invariants/ -q` passed with `116 passed, 1 skipped`.
+- `uv run ruff check` passed.
+- `uv run ruff format apps/gateway apps/shared/src/dirt_shared/models/cloud_gateway.py apps/shared/src/dirt_shared/models/__init__.py apps/shared/src/dirt_shared/config.py apps/shared/src/dirt_shared/observability.py --check` passed with `13 files already formatted`.
+- `uv lock --check` passed with `Resolved 238 packages`.
+
+Replacement Worker M3b validation on 2026-05-05:
+
+- `uv run pytest apps/gateway/tests -q` passed with `7 passed`.
+- `uv run pytest apps/gateway/tests apps/shared/tests -q` passed with `145 passed`.
+- `uv run pytest apps/tests/invariants/ -q` passed with `116 passed, 1 skipped`.
+- `uv run ruff check apps/gateway apps/shared/src/dirt_shared/models/cloud_gateway.py apps/shared/src/dirt_shared/models/__init__.py apps/shared/src/dirt_shared/config.py apps/shared/src/dirt_shared/observability.py` passed.
+- `uv run ruff format apps/gateway apps/shared/src/dirt_shared/models/cloud_gateway.py apps/shared/src/dirt_shared/models/__init__.py apps/shared/src/dirt_shared/config.py apps/shared/src/dirt_shared/observability.py --check` passed with `13 files already formatted`.
+- `uv run ruff check` passed.
+- `uv lock --check` passed with `Resolved 238 packages`.
+
+Main-agent Milestone 3 verification on 2026-05-05:
+
+- `uv run pytest apps/gateway/tests apps/shared/tests -q` passed with `145 passed` when run sequentially.
+- `uv run pytest apps/control-plane/tests apps/gateway/tests -q` passed with `14 passed` after removing the cross-app bare `conftest` import.
+- `uv run pytest apps/tests/invariants/ -q` passed with `116 passed, 1 skipped`.
+- `uv run ruff check apps/gateway apps/shared/src/dirt_shared/models/cloud_gateway.py apps/shared/src/dirt_shared/models/__init__.py apps/shared/src/dirt_shared/config.py apps/shared/src/dirt_shared/observability.py` passed.
+- `uv run ruff format apps/gateway apps/shared/src/dirt_shared/models/cloud_gateway.py apps/shared/src/dirt_shared/models/__init__.py apps/shared/src/dirt_shared/config.py apps/shared/src/dirt_shared/observability.py --check` passed with `13 files already formatted`.
+- `uv lock --check` passed with `Resolved 238 packages`.
+- `git diff --check -- . ':(exclude)apps/wake-word/**'` passed.
+
 
 ## Interfaces and Dependencies
 
@@ -630,3 +695,7 @@ Runtime environment variables:
 - 2026-05-05 / Codex replacement Worker M2b: Kept Milestone 2 scope thin, added missing browser command list route, extended the command acceptance test to cover create/list/fetch idempotency, reran focused tests and ruff validation, and performed the requested simplify fallback pass.
 - 2026-05-05 / Codex replacement Worker M2b correction: Restricted browser command creation to V1 PTZ commands only (`ptz_preset`, `ptz_look`, `ptz_zoom`) for `obsbot-main/ptz_move`, removed user-selectable command expiry, enforced exactly 60 seconds, and added focused rejection/expiry tests.
 - 2026-05-05 / Codex: During main-agent verification, replaced a brittle `sys.modules`-based no-hardware-call test with an `ast` import scan of `dirt_control`, because full-suite app tests import `dirt_hwd` independently before control-plane tests execute.
+- 2026-05-05 / Codex Worker M3: Completed Milestone 3 by adding the `dirt-gateway` workspace package, local Atlas-managed cloud gateway durability tables, read-only DI sync/outbox orchestration, local projection collectors, private asset sign-upload/complete delivery, `cloud_gateway` observability, and focused acceptance tests. A simplify pass then reduced small outbox/sync rough edges before final validation.
+- 2026-05-05 / Codex replacement Worker M3b: Re-verified the inherited Milestone 3 implementation against the requested acceptance tests, ran the simplify fallback review locally, made no source changes beyond recording validation, and left Milestone 4+ untouched.
+- 2026-05-05 / Codex: During main-agent verification, added `apps/gateway` to the pre-commit per-app pytest hook and recorded that DB-backed pytest sessions sharing the worktree template database must run sequentially.
+- 2026-05-05 / Codex: Removed a bare `from conftest import FIXED_NOW` import from the control-plane API tests after the expanded multi-app pytest hook exposed cross-app `conftest.py` import collision.

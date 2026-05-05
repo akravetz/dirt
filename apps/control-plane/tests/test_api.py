@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import ast
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from conftest import FIXED_NOW
 from httpx import AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -12,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 import dirt_control
 from dirt_control.db import create_sessionmaker
 from dirt_control.models import CloudAsset, CloudCommand, CloudLatestMetric, CloudTent
+
+FIXED_NOW = datetime(2026, 5, 5, 3, 45, tzinfo=UTC)
 
 
 async def test_browser_state_requires_auth(client: AsyncClient) -> None:

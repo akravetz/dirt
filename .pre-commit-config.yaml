@@ -42,9 +42,9 @@ repos:
       # skips unless an apps/ package or root pyproject.toml changes.
       - id: pytest-apps
         name: pytest apps (per-app suites)
-        entry: uv run pytest apps/hwd apps/web apps/shared apps/mcp apps/voice apps/control-plane -q
+        entry: uv run pytest apps/hwd apps/web apps/shared apps/mcp apps/voice apps/control-plane apps/gateway -q
         language: system
-        files: '^(apps/(hwd|web|shared|mcp|voice|control-plane)/|pyproject\.toml)'
+        files: '^(apps/(hwd|web|shared|mcp|voice|control-plane|gateway)/|pyproject\.toml)'
         pass_filenames: false
 
       # web-ui: Biome (format + fast lint). Write-mode so cosmetic drift
