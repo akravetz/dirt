@@ -7,6 +7,21 @@
     dirt_admin_user: akcom
     dirt_admin_authorized_keys_file: "{{ lookup('env', 'HOME') + '/.ssh/authorized_keys' }}"
     dirt_admin_authorized_key: "{{ lookup('file', dirt_admin_authorized_keys_file).splitlines() | first }}"
+    dirt_repo_url: git@github.com:akravetz/dirt.git
+    dirt_repo_version: main
+    dirt_repo_dest: "/home/{{ dirt_admin_user }}/code/dirt"
+    dirt_github_ssh_private_key_dest: "/home/{{ dirt_admin_user }}/.ssh/{{ dirt_github_ssh_private_key_name | default('github_dirt_ed25519') }}"
+    dirt_user_systemd_units:
+      - dirt-camera.service
+      - dirt-daily-report.service
+      - dirt-daily-report.timer
+      - dirt-gateway.service
+      - dirt-hwd.service
+      - dirt-logrotate.service
+      - dirt-logrotate.timer
+      - dirt-service-alert@.service
+      - dirt-voice.service
+      - dirt-web.service
     dirt_edge_packages:
       - avahi-daemon
       - build-essential
@@ -14,6 +29,7 @@
       - cmake
       - curl
       - ffmpeg
+      - gh
       - git
       - jq
       - libpython3.13-dev
@@ -33,6 +49,12 @@
       - xz-utils
 
   tasks:
+    - name: Load local secrets when present
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/secrets.yml"
+      no_log: true
+      when: lookup('ansible.builtin.fileglob', playbook_dir + '/secrets.yml', wantlist=True) | length > 0
+
     - name: Keep admin .ssh directory present
       ansible.builtin.file:
         path: "/home/{{ dirt_admin_user }}/.ssh"
@@ -50,6 +72,51 @@
         group: "{{ dirt_admin_user }}"
         mode: "0600"
 
+    - name: Copy GitHub SSH private key when configured
+      ansible.builtin.copy:
+        src: "{{ dirt_github_ssh_private_key_src }}"
+        dest: "{{ dirt_github_ssh_private_key_dest }}"
+        owner: "{{ dirt_admin_user }}"
+        group: "{{ dirt_admin_user }}"
+        mode: "0600"
+      no_log: true
+      when: dirt_github_ssh_private_key_src is defined
+
+    - name: Configure SSH key selection for GitHub when configured
+      ansible.builtin.blockinfile:
+        path: "/home/{{ dirt_admin_user }}/.ssh/config"
+        create: true
+        owner: "{{ dirt_admin_user }}"
+        group: "{{ dirt_admin_user }}"
+        mode: "0600"
+        marker: "# {mark} DIRT GITHUB SSH"
+        block: |
+          Host github.com
+              HostName github.com
+              User git
+              IdentityFile {{ dirt_github_ssh_private_key_dest }}
+              IdentitiesOnly yes
+      when: dirt_github_ssh_private_key_src is defined
+
+    - name: Trust GitHub SSH host key
+      ansible.builtin.shell:
+        cmd: ssh-keyscan github.com 2>/dev/null | awk '!/^#/'
+        executable: /bin/bash
+      changed_when: false
+      register: dirt_github_host_keys
+      when: dirt_github_ssh_private_key_src is defined
+
+    - name: Keep GitHub SSH host key known
+      ansible.builtin.lineinfile:
+        path: "/home/{{ dirt_admin_user }}/.ssh/known_hosts"
+        line: "{{ item }}"
+        create: true
+        owner: "{{ dirt_admin_user }}"
+        group: "{{ dirt_admin_user }}"
+        mode: "0600"
+      loop: "{{ dirt_github_host_keys.stdout_lines }}"
+      when: dirt_github_ssh_private_key_src is defined
+
     - name: Keep passwordless sudo for admin user
       ansible.builtin.copy:
         dest: "/etc/sudoers.d/90-{{ dirt_admin_user }}-nopasswd"
@@ -66,6 +133,30 @@
         cache_valid_time: 3600
         name: "{{ dirt_edge_packages }}"
         state: present
+
+    - name: Configure boot-time Wi-Fi when secrets are present
+      ansible.builtin.copy:
+        dest: /etc/network/interfaces
+        owner: root
+        group: root
+        mode: "0600"
+        content: |
+          # This file describes the network interfaces available on this system.
+          # Managed by ops/ansible/site.yml.
+
+          source /etc/network/interfaces.d/*
+
+          auto lo
+          iface lo inet loopback
+
+          allow-hotplug {{ dirt_wifi_interface | default('wlp3s0') }}
+          iface {{ dirt_wifi_interface | default('wlp3s0') }} inet dhcp
+              wpa-ssid {{ dirt_wifi_ssid }}
+              wpa-psk {{ dirt_wifi_psk }}
+      no_log: true
+      when:
+        - dirt_wifi_ssid is defined
+        - dirt_wifi_psk is defined
 
     - name: Enforce Dirt SSH lockdown
       ansible.builtin.copy:
@@ -104,6 +195,96 @@
       become: false
       changed_when: false
 
+    - name: Keep code directory present
+      ansible.builtin.file:
+        path: "/home/{{ dirt_admin_user }}/code"
+        state: directory
+        owner: "{{ dirt_admin_user }}"
+        group: "{{ dirt_admin_user }}"
+        mode: "0755"
+
+    - name: Keep gh config directory present when gh auth is configured
+      ansible.builtin.file:
+        path: "/home/{{ dirt_admin_user }}/.config/gh"
+        state: directory
+        owner: "{{ dirt_admin_user }}"
+        group: "{{ dirt_admin_user }}"
+        mode: "0700"
+      when: dirt_gh_hosts_src is defined
+
+    - name: Copy gh hosts auth when configured
+      ansible.builtin.copy:
+        src: "{{ dirt_gh_hosts_src }}"
+        dest: "/home/{{ dirt_admin_user }}/.config/gh/hosts.yml"
+        owner: "{{ dirt_admin_user }}"
+        group: "{{ dirt_admin_user }}"
+        mode: "0600"
+      no_log: true
+      when: dirt_gh_hosts_src is defined
+
+    - name: Copy gh config when configured
+      ansible.builtin.copy:
+        src: "{{ dirt_gh_config_src }}"
+        dest: "/home/{{ dirt_admin_user }}/.config/gh/config.yml"
+        owner: "{{ dirt_admin_user }}"
+        group: "{{ dirt_admin_user }}"
+        mode: "0600"
+      no_log: true
+      when: dirt_gh_config_src is defined
+
+    - name: Clone or update Dirt repo
+      ansible.builtin.git:
+        repo: "{{ dirt_repo_url }}"
+        dest: "{{ dirt_repo_dest }}"
+        version: "{{ dirt_repo_version }}"
+        update: true
+        accept_newhostkey: true
+        key_file: "{{ dirt_github_ssh_private_key_dest if dirt_github_ssh_private_key_src is defined else omit }}"
+      become: false
+      register: dirt_repo_checkout
+
+    - name: Check camera daemon binary
+      ansible.builtin.stat:
+        path: "{{ dirt_repo_dest }}/services/camera-daemon/dirt-camera-daemon"
+      become: false
+      register: dirt_camera_daemon
+
+    - name: Build OBSBOT camera daemon
+      ansible.builtin.command:
+        cmd: ./build.sh
+        chdir: "{{ dirt_repo_dest }}/services/camera-daemon"
+      become: false
+      when: dirt_repo_checkout.changed or not dirt_camera_daemon.stat.exists
+
+    - name: Enable user systemd at boot for admin user
+      ansible.builtin.command:
+        cmd: "loginctl enable-linger {{ dirt_admin_user }}"
+        creates: "/var/lib/systemd/linger/{{ dirt_admin_user }}"
+
+    - name: Read admin user uid
+      ansible.builtin.command:
+        cmd: "id -u {{ dirt_admin_user }}"
+      changed_when: false
+      register: dirt_admin_uid
+
+    - name: Keep user systemd directory present
+      ansible.builtin.file:
+        path: "/home/{{ dirt_admin_user }}/.config/systemd/user"
+        state: directory
+        owner: "{{ dirt_admin_user }}"
+        group: "{{ dirt_admin_user }}"
+        mode: "0755"
+
+    - name: Install Dirt user systemd units
+      ansible.builtin.file:
+        src: "{{ dirt_repo_dest }}/systemd/{{ item }}"
+        dest: "/home/{{ dirt_admin_user }}/.config/systemd/user/{{ item }}"
+        state: link
+        owner: "{{ dirt_admin_user }}"
+        group: "{{ dirt_admin_user }}"
+      loop: "{{ dirt_user_systemd_units }}"
+      notify: reload user systemd
+
   handlers:
     - name: validate sshd
       ansible.builtin.command:
@@ -114,3 +295,10 @@
       ansible.builtin.service:
         name: ssh
         state: reloaded
+
+    - name: reload user systemd
+      ansible.builtin.command:
+        cmd: systemctl --user daemon-reload
+      become: false
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ dirt_admin_uid.stdout }}"

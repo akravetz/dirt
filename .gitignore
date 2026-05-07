@@ -2,6 +2,7 @@
 .env
 .env.prod
 .railway-bucket-credentials.tmp
+ops/ansible/secrets.yml
 .venv/
 .venv.pre-phase0/
 __pycache__/
