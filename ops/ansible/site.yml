@@ -10,6 +10,7 @@
     dirt_repo_url: git@github.com:akravetz/dirt.git
     dirt_repo_version: main
     dirt_repo_dest: "/home/{{ dirt_admin_user }}/code/dirt"
+    dirt_codex_version: "0.128.0"
     dirt_github_ssh_private_key_dest: "/home/{{ dirt_admin_user }}/.ssh/{{ dirt_github_ssh_private_key_name | default('github_dirt_ed25519') }}"
     dirt_user_systemd_units:
       - dirt-camera.service
@@ -34,6 +35,8 @@
       - jq
       - libpython3.13-dev
       - logrotate
+      - nodejs
+      - npm
       - openssh-server
       - pkg-config
       - python3
@@ -231,6 +234,54 @@
         mode: "0600"
       no_log: true
       when: dirt_gh_config_src is defined
+
+    - name: Check Codex CLI version
+      ansible.builtin.command:
+        cmd: codex --version
+      changed_when: false
+      failed_when: false
+      register: dirt_codex_version_check
+
+    - name: Install Codex CLI
+      ansible.builtin.command:
+        cmd: "npm install -g @openai/codex@{{ dirt_codex_version }}"
+      when: dirt_codex_version_check.rc != 0 or dirt_codex_version not in dirt_codex_version_check.stdout
+
+    - name: Keep Codex config directory present when auth is configured
+      ansible.builtin.file:
+        path: "/home/{{ dirt_admin_user }}/.codex"
+        state: directory
+        owner: "{{ dirt_admin_user }}"
+        group: "{{ dirt_admin_user }}"
+        mode: "0700"
+      when: dirt_codex_auth_src is defined or dirt_codex_config_src is defined
+
+    - name: Copy Codex auth when configured
+      ansible.builtin.copy:
+        src: "{{ dirt_codex_auth_src }}"
+        dest: "/home/{{ dirt_admin_user }}/.codex/auth.json"
+        owner: "{{ dirt_admin_user }}"
+        group: "{{ dirt_admin_user }}"
+        mode: "0600"
+      no_log: true
+      when: dirt_codex_auth_src is defined
+
+    - name: Copy Codex config when configured
+      ansible.builtin.copy:
+        src: "{{ dirt_codex_config_src }}"
+        dest: "/home/{{ dirt_admin_user }}/.codex/config.toml"
+        owner: "{{ dirt_admin_user }}"
+        group: "{{ dirt_admin_user }}"
+        mode: "0600"
+      no_log: true
+      when: dirt_codex_config_src is defined
+
+    - name: Verify Codex login when auth is configured
+      ansible.builtin.command:
+        cmd: codex login status
+      become: false
+      changed_when: false
+      when: dirt_codex_auth_src is defined
 
     - name: Clone or update Dirt repo
       ansible.builtin.git:

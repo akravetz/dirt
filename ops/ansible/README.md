@@ -35,3 +35,7 @@ The same file can also point Ansible at local GitHub credential files. For a
 private repo clone, prefer SSH and set `dirt_github_ssh_private_key_src`.
 `gh` auth copying is supported, but optional; it gives the edge host the same
 GitHub token stored in your local `~/.config/gh/hosts.yml`.
+
+Codex CLI auth copying is also optional. When `dirt_codex_auth_src` is set, the
+playbook copies only `auth.json` and `config.toml`; logs, history, sessions,
+and local state databases are intentionally not copied.
