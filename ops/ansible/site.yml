@@ -1,0 +1,116 @@
+- name: Configure Dirt edge controller hosts
+  hosts: all
+  become: true
+  gather_facts: true
+
+  vars:
+    dirt_admin_user: akcom
+    dirt_admin_authorized_keys_file: "{{ lookup('env', 'HOME') + '/.ssh/authorized_keys' }}"
+    dirt_admin_authorized_key: "{{ lookup('file', dirt_admin_authorized_keys_file).splitlines() | first }}"
+    dirt_edge_packages:
+      - avahi-daemon
+      - build-essential
+      - ca-certificates
+      - cmake
+      - curl
+      - ffmpeg
+      - git
+      - jq
+      - libpython3.13-dev
+      - logrotate
+      - openssh-server
+      - pkg-config
+      - python3
+      - python3.13
+      - python3.13-dev
+      - ripgrep
+      - sudo
+      - tmux
+      - unzip
+      - usbutils
+      - v4l-utils
+      - wget
+      - xz-utils
+
+  tasks:
+    - name: Keep admin .ssh directory present
+      ansible.builtin.file:
+        path: "/home/{{ dirt_admin_user }}/.ssh"
+        state: directory
+        owner: "{{ dirt_admin_user }}"
+        group: "{{ dirt_admin_user }}"
+        mode: "0700"
+
+    - name: Keep admin SSH key authorized
+      ansible.builtin.lineinfile:
+        path: "/home/{{ dirt_admin_user }}/.ssh/authorized_keys"
+        line: "{{ dirt_admin_authorized_key }}"
+        create: true
+        owner: "{{ dirt_admin_user }}"
+        group: "{{ dirt_admin_user }}"
+        mode: "0600"
+
+    - name: Keep passwordless sudo for admin user
+      ansible.builtin.copy:
+        dest: "/etc/sudoers.d/90-{{ dirt_admin_user }}-nopasswd"
+        owner: root
+        group: root
+        mode: "0440"
+        validate: "visudo -cf %s"
+        content: |
+          {{ dirt_admin_user }} ALL=(ALL) NOPASSWD:ALL
+
+    - name: Install edge controller packages
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+        name: "{{ dirt_edge_packages }}"
+        state: present
+
+    - name: Enforce Dirt SSH lockdown
+      ansible.builtin.copy:
+        dest: /etc/ssh/sshd_config.d/99-dirt-lockdown.conf
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          PubkeyAuthentication yes
+          PasswordAuthentication no
+          KbdInteractiveAuthentication no
+          ChallengeResponseAuthentication no
+          PermitEmptyPasswords no
+          PermitRootLogin no
+      notify:
+        - validate sshd
+        - reload sshd
+
+    - name: Check for uv
+      ansible.builtin.stat:
+        path: "/home/{{ dirt_admin_user }}/.local/bin/uv"
+      become: false
+      register: dirt_uv
+
+    - name: Install uv for admin user
+      ansible.builtin.shell:
+        cmd: curl -LsSf https://astral.sh/uv/install.sh | sh
+        executable: /bin/bash
+        creates: "/home/{{ dirt_admin_user }}/.local/bin/uv"
+      become: false
+      when: not dirt_uv.stat.exists
+
+    - name: Verify uv path expected by Dirt systemd units
+      ansible.builtin.command:
+        cmd: "/home/{{ dirt_admin_user }}/.local/bin/uv --version"
+      become: false
+      changed_when: false
+
+  handlers:
+    - name: validate sshd
+      ansible.builtin.command:
+        cmd: /usr/sbin/sshd -t
+      changed_when: false
+
+    - name: reload sshd
+      ansible.builtin.service:
+        name: ssh
+        state: reloaded

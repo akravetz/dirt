@@ -1,0 +1,7 @@
+all:
+  hosts:
+    dirt2:
+      ansible_host: 192.168.1.123
+      ansible_user: akcom
+      ansible_ssh_private_key_file: /home/akcom/.ssh/id_ed25519
+      ansible_python_interpreter: /usr/bin/python3
