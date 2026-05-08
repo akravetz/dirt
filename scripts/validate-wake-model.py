@@ -1,8 +1,8 @@
 """Local validation harness for openwakeword .onnx models.
 
 Runs a wake-word model against a labeled WAV set and reports recall, false-
-positive rate, and per-file peak scores. Independent of Kaggle and the live
-service — this is the metric we should be optimizing for, since synthetic
+positive rate, and per-file peak scores. Independent of the live service —
+this is the metric we should be optimizing for, since synthetic
 test recall (Piper-generated clips) was misleading vs real-audio behavior.
 
 Validation set layout (default: var/wake-word/validation/):

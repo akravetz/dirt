@@ -33,6 +33,12 @@ Index for the progressive-disclosure docs tree. The root `AGENTS.md` points here
 | [rules/](rules/) | Codebase rules and conventions. Read before making changes in affected areas. |
 | [proposals/](proposals/) | Design proposals not yet promoted to ADRs (or that informed multiple ADRs). |
 
+## Rules
+
+| Doc | Read before |
+|---|---|
+| [rules/boundary-contracts.md](rules/boundary-contracts.md) | changing FastAPI request/response bodies, gateway/control-plane sync payloads, cloud outbox JSON, command claim/result payloads, generated API contracts, or any other process/network/persistence boundary. |
+
 ## Wiki (the grow knowledge base)
 
 The `wiki/` directory at the repo root is a separate progressive-disclosure tree maintained by the daily-report agent. For any wiki work — ingestion, daily updates, page conventions, linting, query filing, plant labeling — start at [`../wiki/AGENTS.md`](../wiki/AGENTS.md).

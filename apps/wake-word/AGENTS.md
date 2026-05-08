@@ -47,13 +47,12 @@ Wake-word retraining pipeline for the `dirt-voice` channel ("hey Claudia"). Read
 | `scripts/runpod-build-image` | `docker buildx` the trainer + smoke-test it locally + push to GHCR. Bakes the current git SHA in via `--build-arg DIRT_GIT_SHA`. |
 | `scripts/runpod-train` | Submit one training job: POST pod → poll API for `desiredStatus=EXITED` → S3-download `out/<pod_id>/` → DELETE. |
 | `scripts/stage-wakeword-mine` | Assemble local split source dirs (`synth-clones/`, `realmic-positives/`, `synth-neighbors/`, `realmic-negatives/`, `rirs/`) into `var/wake-word/_stage-mine/` before a volume bump. |
-| `scripts/wakeword-volume-bump` | Push a local subdir into the Network Volume via the S3 API, recompute its content hash, atomically update the on-volume `MANIFEST.json`. Replaces the legacy `kaggle datasets version` flow. |
-| `scripts/wakeword-volume-snapshot` | S3-mirror the volume to `var/wake-word/_volume-mirror/` for DR. Volume loss = data loss now that Kaggle is retired. |
+| `scripts/wakeword-volume-bump` | Push a local subdir into the Network Volume via the S3 API, recompute its content hash, atomically update the on-volume `MANIFEST.json`. |
+| `scripts/wakeword-volume-snapshot` | S3-mirror the volume to `var/wake-word/_volume-mirror/` for DR. Not required for routine training. |
 | `scripts/smoke-trainer-image` | End-to-end docker-run against `var/wake-word/smoke-fixtures/`. Asserts SUCCESS sentinel + .onnx. |
 | `scripts/gen-smoke-fixtures` | Write the tiny smoke corpus to `var/wake-word/smoke-fixtures/`. |
 | `scripts/validate-wake-model.py` | Score a model against the real-audio validation set. Recall/precision per threshold. |
 | `scripts/wakeword-wandb-pull` | Agent-side W&B reader. Use `system <run_id>` to pull W&B GPU/CPU/disk/network telemetry via `run.history(stream="system")` and align it to trainer phases before adding duplicate samplers. |
-| `scripts/runpod-seed-volume` | **Legacy** — one-time bootstrap fill from Kaggle. Kept for disaster-recovery from the local `_volume-mirror/`; no longer the routine path. |
 
 ## Retraining — summary chain
 
@@ -63,7 +62,7 @@ Full command sequence with explanation: [`RETRAINING.md`](RETRAINING.md). Read t
 
 ## Critical gotchas
 
-- **Don't commit anything under `var/`** — gitignored on purpose. WAVs, ONNX, NPYs, parquets, smoke fixtures all stay local. The RunPod Network Volume is now the **only** durable copy of training data (Kaggle is retired). Run `scripts/wakeword-volume-snapshot` periodically so `var/wake-word/_volume-mirror/` is a known-good local backup; volume loss = data loss otherwise.
+- **Don't commit anything under `var/`** — gitignored on purpose. WAVs, ONNX, NPYs, parquets, smoke fixtures all stay local. The RunPod Network Volume is the durable training-data copy. Run `scripts/wakeword-volume-snapshot` when you want a local disaster-recovery mirror; it is not required for routine training.
 - **`auto_train` in upstream openwakeword is broken** (`self.best_val_fp` initialized to 1000 and never updated; escalation always fires twice). We soft-fork around it in `dirt_wake_word.train.custom_train` — call `openwakeword.train.Model.train_model()` directly with sane settings + post-train F1 selection against `var/wake-word/validation/`. See the v5 collapse rationale in `wiki/wake-word-experiments.md`.
 - **The container ALWAYS exits 0** (entrypoint catches BaseException, writes FAILURE sentinel, returns). RunPod auto-restarts on non-zero exit, which silently burns $/hr on crash loops. Communicate failure via the sentinel under `out/<run_id>/`, never via exit status.
 - **Don't reach for SSH/SCP for moving files between local and the volume.** Direct-TCP SSH on RunPod is documented-flaky and the proxy SSH doesn't support SCP. Use the S3-compatible API (`s3api-<dc>.runpod.io/`) — `wakeword-volume-bump`, `wakeword-volume-snapshot`, and `runpod-train`'s artifact pull all use it.
@@ -78,7 +77,7 @@ When you grow the validation set: place real utterances in `good/`, hand-curated
 
 ## Where to look for further context
 
-- **Migration off Kaggle:** `wiki/decisions/2026-04-25-runpod-migration.md`
+- **RunPod migration history:** `wiki/decisions/2026-04-25-runpod-migration.md`
 - **What's currently deployed and why:** `wiki/decisions/2026-04-23-wake-word-v5-passive-harvest.md`
 - **The runtime side:** `apps/voice/src/dirt_voice/channels/voice.py` reads `var/wake-word/models/current/hey_claudia.onnx`. `wiki/hardware/voice-channel.md` is the production operating manual.
 - **Wake-word concept primer:** `wiki/concepts/wake-word-detection.md`

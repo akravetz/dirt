@@ -325,6 +325,20 @@ async def _seed_temperature_readings(engine: AsyncEngine) -> None:
 
 
 async def test_catalog_syncs_homebox_main_and_breeding(app_engine: AsyncEngine):
+    async with AsyncSession(app_engine) as session:
+        breeding_env = (
+            await session.exec(
+                select(Device)
+                .join(Site, Site.id == Device.site_id)
+                .join(Tent, Tent.id == Device.tent_id)
+                .where(Site.site_id == "homebox")
+                .where(Tent.tent_id == "breeding")
+                .where(Device.device_id == "breeding-env-node")
+            )
+        ).one()
+        breeding_env.last_seen = FIXED_NOW
+        await session.commit()
+
     cloud = RecordingCloudClient()
     local = GatewayLocalServiceBundle(app_engine, clock=lambda: FIXED_NOW)
 
@@ -335,6 +349,24 @@ async def test_catalog_syncs_homebox_main_and_breeding(app_engine: AsyncEngine):
     catalog = next(iter(cloud.catalogs.values()))
     assert catalog["site"]["site_id"] == "homebox"
     assert {tent["tent_id"] for tent in catalog["tents"]} == {"main", "breeding"}
+    breeding_devices = [
+        device
+        for device in catalog["devices"]
+        if device["tent_id"] == "breeding"
+        and device["device_id"] == "breeding-env-node"
+    ]
+    assert breeding_devices == [
+        {
+            "tent_id": "breeding",
+            "zone_id": "canopy",
+            "device_id": "breeding-env-node",
+            "name": "ESP32-C3 · breeding env",
+            "kind": "env_sensor",
+            "controller": "esp32",
+            "is_active": True,
+            "last_seen_at": FIXED_NOW.isoformat(),
+        }
+    ]
 
 
 async def test_latest_metrics_and_rollups_are_not_duplicated(

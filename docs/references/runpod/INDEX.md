@@ -10,7 +10,7 @@ updated: 2026-04-25
 
 RunPod is a GPU-cloud-on-demand platform. This pack covers the **REST API v1** at `https://rest.runpod.io/v1/`, the `runpodctl` CLI, and the `runpod` Python package — only the surface needed to **launch a single one-shot training job in a custom Docker image, poll it to completion, and pull artifacts back to a local machine**.
 
-This pack is for the Dirt wake-word retraining workflow migrating off Kaggle Notebooks. The pipeline shape we are reproducing: push a job → poll status every ~20 s → on completion pull `.onnx` / `.tflite` / `validation-report.txt` back to `var/wake-word/models/<datestamp>/`. ~30–90 min wall, sub-$2/run target.
+This pack is for the Dirt wake-word retraining workflow. The pipeline shape: push a job → poll status every ~20 s → on completion pull `.onnx` / `.tflite` / `validation-report.txt` back to `var/wake-word/models/<datestamp>/`. ~30–90 min wall, sub-$2/run target.
 
 ## When to consult this pack
 

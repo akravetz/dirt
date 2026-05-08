@@ -73,7 +73,7 @@ Detailed male-tent protocol lives in [isolation.md](isolation.md), [isolation-te
 | 4 inch inline fan + carbon filter | Needed | 1 | Negative pressure / containment |
 | 6 inch oscillating clip fan | Needed | 1 | Off during pollen collection |
 | Digital hygrometer/thermometer | Needed | 1 | Isolation tent monitoring |
-| 1 gal fabric pots | Active/verify | 5+ | Track A regular seedlings moved into 1-gal containers on 2026-05-05; default for males in coco/perlite, chosen over 0.5 gal to reduce dryback/watering risk |
+| 1 gal fabric pots | Active/verify | 7+ | Track A has 7 sprouted regular seedlings potted into coco/perlite on 2026-05-05; default for males in coco/perlite, chosen over 0.5 gal to reduce dryback/watering risk |
 | 2 gal fabric pot | Needed/verify | 1-2 | Seed mother / keeper clone in isolation tent |
 | Coco/perlite medium | Active/verify | TBD | Active Track A regular seedlings, isolation-tent males, and seed mother; hand-watered or drip-assisted |
 | Saucers or shallow boot tray | Needed | 1+ | Catch runoff under isolation pots; remove standing runoff |
@@ -103,7 +103,7 @@ Detailed cloning protocol lives in [cloning.md](cloning.md).
 
 | Item | Status | Qty | Notes |
 |---|---:|---:|---|
-| Humidity dome + tray | Active | 1 | Clones under dome as of 2026-05-05; regular seedlings moved to 1-gal containers |
+| Humidity dome + tray | Active | 1 | A/B/C/D clones under dome as of 2026-05-05; 1 visible root so far; regular seedlings moved to coco/perlite containers |
 | Heat mat | Verify | 1 | Target 75-78 F at root zone |
 | 30-50W LED bar | Verify | 1 | 18/6 clone/stasis light |
 | Clonex gel | Verify | 1 | Rooting hormone |

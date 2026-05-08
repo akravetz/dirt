@@ -19,7 +19,7 @@ than mutating the past.
 
 **Status:** trained | deployed | superseded
 **Model artifact:** `var/wake-word/models/YYYY-MM-DD-vN/hey_claudia.onnx`
-**Kernel commit:** `<git sha>`
+**Trainer commit:** `<git sha>`
 
 ### What changed
 - Bullet list of differences vs the previous trained model — code, data, config.
@@ -74,8 +74,8 @@ After every new model is trained:
 3. If you deploy the new model: change the previous entry's `**Status:**` to
    `superseded` (one-word edit, fine to do).
 4. Update `var/wake-word/models/current` symlink to the deployed version.
-5. The kernel's `validate_against_real_set()` produces a similar report at
-   `/kaggle/working/validation-report.txt` — use it as a starting point.
+5. The trainer's `validate_against_real_set()` produces a similar report in
+   the downloaded RunPod artifacts — use it as a starting point.
 
 The validation set itself can grow over time. When you change it, document the
 delta in the *next* model's entry's "Validation set" section. Don't retroactively
@@ -83,6 +83,10 @@ re-run old models against new validation sets unless you mark the new numbers
 clearly as a back-fill.
 
 ## Entries
+
+> Historical note: entries v5-v15 document the retired notebook-platform
+> attempts that preceded the RunPod trainer. Those operational scripts and
+> code paths have been removed; v16+ is the active training lineage.
 
 ### v1 — 2026-04-15
 
@@ -154,8 +158,8 @@ floors out at 43 %. **v3 is meaningfully worse than the 89 % claim.**
 **Kernel commit:** `5b18586`
 
 #### What changed (vs v3)
-- Migrated training from Colab to **Kaggle Script Kernels on GPU** for
-  reproducibility. See `apps/wake-word/kaggle/`.
+- Migrated training from Colab to a managed notebook runtime for
+  reproducibility. This path is retired; its repo scripts were removed.
 - Reinstated synthetic phonetic-neighbor negatives via ElevenLabs (440 WAVs
   across 9 phrases) — file at `apps/wake-word/data-gen/elevenlabs-neighbors-batch.py`.
   Later trimmed to 360 WAVs / 7 phrases (dropped `okay claudia`, `play claudia`
@@ -196,7 +200,7 @@ precision 86 %, F1 0.57, 2 FPs.** Strictly Pareto-better than v3 at every
 useful threshold (v3 has 2× the FP rate at the same recall).
 
 #### Notes
-- First Kaggle run; ~5 distinct kernel failures during pipeline bring-up.
+- First managed-notebook run; ~5 distinct runtime failures during pipeline bring-up.
   Issues catalogued in [`wiki/decisions/2026-04-23-wake-word-v5-passive-harvest.md`](decisions/2026-04-23-wake-word-v5-passive-harvest.md).
 - Real-audio recall ≈ synthetic recall × 1.5 in this run (38 % synthetic →
   56 % real on the 9-positive subset; 36 % real on the expanded 28-positive
@@ -209,7 +213,7 @@ useful threshold (v3 has 2× the FP rate at the same recall).
 
 ### v6 — 2026-04-25
 
-**Status:** in flight at time of writing (Kaggle kernel `b8gscd5ng` running)
+**Status:** historical, superseded by the RunPod trainer
 **Model artifact:** `var/wake-word/models/2026-04-25-v6/hey_claudia.onnx` (when pulled)
 **Kernel commit:** `5b18586`
 
@@ -221,11 +225,10 @@ useful threshold (v3 has 2× the FP rate at the same recall).
   Best checkpoint chosen by max `val_recall` subject to `val_fp/hr ≤ 2.0`.
 - Skipped upstream's broken ONNX→tflite step (`from onnx_tf.backend import prepare`).
   Our `export()` does the conversion via `onnx2tf` cleanly.
-- Added a 4th Kaggle dataset `dirt-wakeword-validation` (mounts at
-  `/kaggle/input/dirt-wakeword-validation/{good,bad}/`).
+- Added a 4th validation dataset to the retired notebook runtime.
 - Added `validate_against_real_set()` step at the end of the kernel — runs
   the trained ONNX over the real-audio validation set and writes
-  `/kaggle/working/validation-report.txt`. *This is the canonical metric* —
+  `validation-report.txt`. *This is the canonical metric* —
   synthetic Piper-test recall has been empirically misleading.
 
 #### Why
@@ -262,7 +265,7 @@ locally against the *current* validation set (28/76, post-real-mic).
 **Kernel commit:** *pending push after v6 finishes*
 
 #### What changed (vs v6)
-- **Real-mic data.** Both training and validation Kaggle datasets bumped to
+- **Real-mic data.** Both training and validation datasets bumped to
   include the 2026-04-25 real-mic capture batches:
   - `dirt-wakeword-mine` v4 → 2018 voice clones (was 2000), 378 neighbors (was 360).
   - `dirt-wakeword-validation` v2 → 28 good (was 9), 76 bad (was 58).
@@ -286,7 +289,7 @@ locally against the *current* validation set (28/76, post-real-mic).
 - `var/wake-word/validation/bad/`: 76 negatives (1.3× v6's set; includes 18 real-mic)
 
 #### Results
-*Pending.* Run after v6 finishes; bump both Kaggle datasets first.
+*Pending.* Run after v6 finishes; bump both datasets first.
 
 ### v8 — planned
 
@@ -380,7 +383,7 @@ Three independent fixes, each cheap to apply, expected to compound.
   512/50/200 batch composition).
 - Pipeline restructured: kernel is now a thin shim that installs deps + clones
   repo at a pinned SHA + hands off to the `dirt_wake_word.main` library.
-- SHA-injection in `scripts/kaggle-train` so each push pins to
+- SHA-injection in the retired notebook push script so each push pinned to
   `git rev-parse HEAD`. Kernel was reproducibly tied to commit `a811829`.
 
 #### Why it failed
@@ -392,13 +395,13 @@ from openwakeword.data import mmap_batch_generator   # line 22
 ```
 
 A previous commit (`20f88eb`) had dropped `pip install -e ./openwakeword
---no-deps` from the shim, on the wrong assumption that Kaggle's base
+--no-deps` from the shim, on the wrong assumption that the notebook base
 image ships openwakeword 0.6.0. **It does not.** The module is niche
 enough that it's not in the GPU base image. The eager top-level import
 crashed at module load:
 
 ```
-File "/kaggle/working/dirt/apps/wake-word/src/dirt_wake_word/train.py", line 22
+File ".../dirt/apps/wake-word/src/dirt_wake_word/train.py", line 22
     from openwakeword.data import mmap_batch_generator
 ModuleNotFoundError: No module named 'openwakeword'
 ```
@@ -418,7 +421,7 @@ Pre-flight catches this class only if the [wake-word] extras are
 installed locally — when they aren't, the check explicitly returns
 "deps not installed locally — skipping deeper check" and we lose the
 guarantee. Either install the [wake-word] extras locally, or accept
-that this exact bug class will surface on Kaggle. v9 was the bill for
+that this exact bug class will surface in the remote runtime. v9 was the bill for
 that trade-off.
 
 ### v10 — 2026-04-25 (failed in 4 min)
@@ -431,7 +434,7 @@ that trade-off.
 - Added `openwakeword==0.6.0` to the shim's pip install batch (the v9 fix).
 
 #### Why it failed
-Two stacked PyPI compatibility issues against Kaggle's python 3.12:
+Two stacked PyPI compatibility issues against the notebook runtime's python 3.12:
 
 ```
 ERROR: Ignored the following versions that require a different python version:
@@ -441,12 +444,12 @@ ERROR: Could not find a version that satisfies the requirement
 ```
 
 1. openwakeword 0.6.0 — the last PyPI release with the auto_train shape
-   our soft-fork builds on — declares `Requires-Python <3.9`. Kaggle is
+   our soft-fork builds on — declares `Requires-Python <3.9`. The runtime is
    3.12, so pip silently skips it.
 2. Newer GitHub-only versions DO support 3.12 but transitively pull
    `tflite-runtime`, which is not published for cp312 + Linux on PyPI.
 
-So no version constraint works against PyPI on Kaggle's runtime.
+So no version constraint works against PyPI on that runtime.
 
 #### Fix (v11)
 Install openwakeword from the cloned GitHub source with `--no-deps`.
@@ -496,10 +499,10 @@ returned non-zero exit status 128.
 ```
 
 #### Fix (v12)
-Add a pre-push guard to `scripts/kaggle-train`:
+Add a pre-push guard to the retired notebook push script:
 `git fetch origin main && git merge-base --is-ancestor HEAD origin/main`.
 Aborts with a clear "push first" message when HEAD isn't on origin/main,
-saving the 5-min Kaggle no-op. Commit: `e83c5f1`.
+saving the 5-min remote-runtime no-op. Commit: `e83c5f1`.
 
 ### v12 — 2026-04-25 (failed at 22 min in train phase)
 
@@ -602,14 +605,14 @@ onnxruntime.capi.onnxruntime_pybind11_state.NoSuchFile:
 `__file__` of the *installed* openwakeword package. Our shim:
 1. `pip install --no-deps ./openwakeword` — pip *copies* the source
    into `/usr/local/lib/python3.12/dist-packages/openwakeword/`.
-2. `wget melspectrogram.onnx → /kaggle/working/openwakeword/openwakeword/resources/models/`
+2. `wget melspectrogram.onnx` into the cloned openwakeword resources directory.
 
 Step 2 lands in the *cloned* path, not the installed path. The runtime
 looks at the installed path → file not found.
 
 #### Fix (v14)
 Switch to editable install: `pip install --no-deps -e ./openwakeword`.
-With `-e`, the runtime `__file__` points back at /kaggle/working/openwakeword/,
+With `-e`, the runtime `__file__` points back at the cloned openwakeword tree,
 which is exactly where our wget lands the resource files. Commit: `adadf02`.
 
 ### v14 — 2026-04-25 (failed at 4 min on import)
@@ -652,7 +655,7 @@ ModuleNotFoundError: No module named 'openwakeword'
 ```
 
 `pip install -e` evidently lands a `.pth` somewhere the runtime python
-doesn't pick up on Kaggle's locked-down env (likely a user-local
+doesn't pick up in the locked-down runtime (likely a user-local
 site-packages dir). Verified by the v13 history: same shim minus `-e`
 worked end-to-end through 22 minutes of generate_clips.
 
@@ -694,7 +697,7 @@ Seventh attempt at the v8 architectural baseline:
 
 If v15 doesn't reach training, this is becoming a tour rather than a
 fix sequence — at that point we should consider running upstream's
-unmodified Colab notebook on Kaggle to establish a baseline before
+unmodified upstream notebook to establish a baseline before
 soft-forking again.
 
 #### Training config
@@ -707,8 +710,8 @@ Identical to v8 staged.
 v15 reached training proper — install ✓, generate_clips ✓, augment+features ✓
 (the v13 resource-path fix held). Then ERROR at 1 h 51 m wall, deep
 inside `_custom_train_model`, post-train selection, or export. Detailed
-log was not pulled — the strategic decision to migrate off Kaggle made
-debugging the dead Kaggle path low value.
+log was not pulled — the strategic decision to migrate to RunPod made
+debugging the dead notebook path low value.
 
 | ver | wall    | failed at                                                  |
 |-----|---------|------------------------------------------------------------|
@@ -721,14 +724,14 @@ debugging the dead Kaggle path low value.
 | v15 | **1h51m** | deep in train phase — root cause not investigated          |
 
 Each iteration cleared the previous failure mode and surfaced a new one.
-The cumulative pattern — every fix was a Kaggle-environment quirk
+The cumulative pattern — every fix was a notebook-environment quirk
 (base-image contents, py3.12 PyPI wheels, editable-install path
 quirks, locked-down package layout) — is what triggered the platform
 migration. See **`wiki/decisions/2026-04-25-runpod-migration.md`**.
 
-### Migration: Kaggle → RunPod (2026-04-25)
+### Migration to RunPod (2026-04-25)
 
-After v15, abandoned Kaggle Notebooks in favor of a self-controlled
+After v15, abandoned managed notebooks in favor of a self-controlled
 Docker image on RunPod. Rationale + setup details in
 [`wiki/decisions/2026-04-25-runpod-migration.md`](decisions/2026-04-25-runpod-migration.md).
 
@@ -747,7 +750,7 @@ runtime environment. v16+ entries below correspond to RunPod runs.
 **Wall:** ~47 min total (per-phase below)
 
 #### What changed (vs v6/m1f811ys)
-- **Real-mic training data**, finally landed. 18 `realmic-pos_*.wav` (×10 dup = 180) + 18 `realmic-neg_*.wav` (×10 dup = 180) included in the seed pool. v8's plan, finally executed end-to-end. (Prior runs reverted to synthetic-only because the data hadn't survived the Kaggle→RunPod migration.)
+- **Real-mic training data**, finally landed. 18 `realmic-pos_*.wav` (×10 dup = 180) + 18 `realmic-neg_*.wav` (×10 dup = 180) included in the seed pool. v8's plan, finally executed end-to-end. (Prior runs reverted to synthetic-only because the data hadn't survived the runtime migration.)
 - **WORKING dir per-run-isolated** for real (Dockerfile previously baked `DIRT_WAKEWORD_WORKING=/workspace/working` at the bare path, beating the entrypoint's per-run `setdefault` — every run inherited the prior run's Piper output. Fix: drop the bake. `259fff7`).
 - **TTS cache reciprocal-bug fix landed but did not affect this run** — the cache-key.json was deleted from the volume just before the run, so this run did Piper from scratch (~19 min). Persist will populate the cache cleanly for future runs (`1d10a93`).
 - All four datasets now in `/workspace/input/MANIFEST.json` with content_hashes; trainer reads and stamps in `run-manifest.json`.
@@ -1881,3 +1884,154 @@ Do **not** deploy v33. This was a validation runtime diagnostic. `var/wake-word/
 - The clean combined change is viable: one precompute pass removes repeated reset/preprocessor work and keeps checkpoint selection/final validation on one shared scorer.
 - Compared with v32 Run B, the same-size diagnostic improved selection from 15.6s to 6.1s and final validation from 14.5s to 5.6s.
 - The remaining selection cost is now almost entirely shared feature preparation. Per-candidate scoring is effectively gone for this validation-set size, so a full run with many saved candidates should benefit more than the one-candidate tiny diagnostic.
+
+### v34 diagnostic — 2026-05-04
+
+**Status:** full cold-cache runtime diagnostic only (**not deployed**)
+**Model artifact:** `var/wake-word/models/2026-05-04-213549-opt11w1o3e0g1l/hey_claudia.onnx`
+**Trainer commit:** `3a1c2503be2a39904ef7e1206f7dc019c5c7ab9b`
+**Image ref:** `ghcr.io/akravetz/dirt-wake-word-trainer:batched-validation-clean-20260504`
+**Image digest:** `sha256:607136e85c4783af2b361e1fc2e3a60d9c79cb17892a4bc29a9fd4138e16d585`
+**W&B run:** [`wwli4rcc`](https://wandb.ai/adkravetz/dirt-wake-word/runs/wwli4rcc) (group `exp20-batched-fullcold-clean`)
+**Pod:** `opt11w1o3e0g1l`, RTX 4090, self-deleted before orchestrator cleanup.
+**Wall:** trainer total 15m58.6s; manifest start-to-finish 17m36.2s.
+
+#### What changed
+- Applied the simplify/cleanup pass before the full run:
+  - centralized `AudioFeatures` construction in `feature_device.new_audio_features()`
+  - removed the duplicated good/bad ONNX session path in checkpoint scoring
+  - reused prepared real-audio validation windows for checkpoint selection and final validation
+  - kept the batched real-audio scorer as the only validation path, with no streaming fallback
+  - replaced the stale manual wake-word import test with dynamic package-module import coverage
+- Built and pushed a clean image from the committed code. The local Docker smoke test passed before the image was pushed.
+- Ran full production defaults: 30 000 synth train, 3000 synth test, 20 000 steps, full inner-loop validation, and full real-audio checkpoint selection.
+- `DIRT_WAKEWORD_FEATURE_DEVICE=gpu` forced GPU feature extraction.
+- A one-run `DIRT_WAKEWORD_FEATURE_CACHE_SALT=fullcold-batched-clean-20260504` override intentionally invalidated the feature cache. The salt was passed only to this RunPod command and was not added to `.env`, image defaults, or production config.
+- `DIRT_WAKEWORD_TTS_CACHE_MODE=force` was kept as a TTS-cache recovery guard.
+
+#### Why
+Measure true full end-to-end cold-cache runtime after cleaning up the batched validation implementation and removing the duplicated checkpoint-selection work.
+
+#### Run timeline
+- `prepare_seed_clips`: 5.5s.
+- `restore_tts_cache`: 1m9.9s, restored 69 970 WAVs.
+- `generate_clips`: 4.4s.
+- `augment+features`: 9m56.9s, cache MISS, salted key `4f92a5a5f1748955`, actual feature provider `CUDAExecutionProvider`.
+  - positive train: 31 450 rows, total 265.9s; generator 193.0s, embed 24.6s, mmap write 31.5s, flush 12.3s, trim 4.2s.
+  - negative train: 32 300 rows, total 281.9s; generator 202.3s, embed 27.6s, mmap write 33.9s, flush 13.5s, trim 4.4s.
+  - positive test: 3120 rows, total 23.9s; generator 17.7s, embed 2.7s.
+  - negative test: 3100 rows, total 22.9s; generator 17.0s, embed 2.5s.
+- `prepare_train_inputs`: 18.4s.
+- `fit_model`: 4m6.3s, 20 000 steps at 81.20 steps/sec.
+- `select_checkpoint`: 11.1s across 12 candidates.
+  - Shared real-audio feature prep: 5.893s for 609 good windows and 2137 bad windows.
+  - Per-candidate scoring: 0.13s-0.50s each on `CPUExecutionProvider`.
+  - Best checkpoint: candidate 2, step 16 315, recall 0.767, precision 0.532, F1 0.629.
+- `export_model`: 0.0s.
+- `validate_against_real_set`: 5.7s.
+- `TOTAL`: 15m58.6s.
+
+#### Results - container 43/116 validation
+
+| Threshold | Recall | Precision | F1 | False positives |
+|---:|---:|---:|---:|---:|
+| 0.30 | 76.7 % | 47.8 % | 0.589 | 36/116 |
+| 0.40 | 74.4 % | 48.5 % | 0.587 | 34/116 |
+| 0.50 | 69.8 % | 50.8 % | 0.588 | 29/116 |
+| 0.60 | 67.4 % | 53.7 % | 0.598 | 25/116 |
+| 0.70 | 60.5 % | 54.2 % | 0.571 | 22/116 |
+
+#### W&B system telemetry
+
+Pulled with:
+
+```bash
+scripts/wakeword-wandb-pull system wwli4rcc --samples 10000
+```
+
+- 140 system rows were captured over runtime 15.3s-1050.3s.
+- During `augment+features`, GPU utilization averaged 6.1 % and peaked at 10 %. GPU memory allocation averaged 7.3 % and peaked at 8.5 %.
+- During `fit_model`, GPU utilization averaged 6.3 % and peaked at 11 %. GPU memory allocation peaked at 17.0 % / 4.39 GB.
+- Selection ran on CPU by design and finished too quickly for many system samples; the code-path telemetry is the more useful source for that phase.
+
+#### Deploy decision
+Do **not** deploy v34. Runtime is good, but model quality regressed on false positives. `var/wake-word/models/current` remains v27, and the voice service remains inactive.
+
+#### What we learned
+- The surprising good news: the v31 ORT/PyTorch slowdown did **not** reproduce. After a full cold GPU feature pass, the 20 000-step fit ran at 81.20 steps/sec, matching the healthy warm-cache v30 run and far above v31's 12.45 steps/sec.
+- The validation cleanup had a much larger full-run impact than the small diagnostic suggested. Checkpoint selection fell from v31's 28m15.6s to 11.1s, and final validation fell from 2m10.5s to 5.7s.
+- Cold feature generation is now much faster than the prior full cold run: 9m56.9s vs v31's 42m48.4s. The largest remaining cost inside feature generation is not ORT embedding; it is audio generation/augmentation, followed by mmap write/flush.
+- GPU feature extraction is underutilizing the RTX 4090. The feature phase used CUDA, but W&B showed only about 6 % average GPU utilization, while the feature telemetry showed the embed slice was only about 57s of the roughly 597s phase. More GPU tuning alone is unlikely to be the biggest lever unless we also reduce generator/augmentation and disk-write overhead.
+- The TTS cache restored correctly and saved regeneration time, but `restore_tts_cache` still costs about 70s. This is now a noticeable fixed cost in a 16-minute full run.
+- The model result is unexpectedly worse than v31 and current v27 on precision/false positives. At threshold 0.60, v34 produced 25/116 false positives versus v31's 7/116, with lower F1 despite acceptable recall. The runtime path is ready; the next model-quality work should focus on training-data mix, real-mic negative inclusion, threshold policy, or candidate-selection objective rather than more runtime plumbing.
+
+### v35 diagnostic — 2026-05-05
+
+**Status:** full cold-cache repeat for RunPod-variance check (**not deployed**)
+**Model artifact:** `var/wake-word/models/2026-05-05-055711-uqwrijuvd8eh66/hey_claudia.onnx`
+**Trainer commit:** `3a1c2503be2a39904ef7e1206f7dc019c5c7ab9b`
+**Image ref:** `ghcr.io/akravetz/dirt-wake-word-trainer:batched-validation-clean-20260504`
+**Image digest:** `sha256:607136e85c4783af2b361e1fc2e3a60d9c79cb17892a4bc29a9fd4138e16d585`
+**W&B run:** [`kg02fj2i`](https://wandb.ai/adkravetz/dirt-wake-word/runs/kg02fj2i) (group `exp21-batched-fullcold-repeat`)
+**Pod:** `uqwrijuvd8eh66`, RTX 4090, deleted by orchestrator.
+**Wall:** trainer total 18m50.2s; manifest start-to-finish 20m26.5s.
+
+#### What changed
+- Repeated v34's clean full cold-cache run on the same committed trainer image and same production defaults.
+- Used a new one-run feature-cache salt, `DIRT_WAKEWORD_FEATURE_CACHE_SALT=fullcold-batched-clean-repeat-20260505`, to force a fresh feature-cache miss without changing persistent config.
+- Kept `DIRT_WAKEWORD_FEATURE_DEVICE=gpu` and `DIRT_WAKEWORD_TTS_CACHE_MODE=force`.
+
+#### Why
+Check whether v34's fast full cold-cache result was reproducible or just a lucky RunPod pod. This run was intentionally a runtime variance sample, not a model-selection experiment.
+
+#### Run timeline
+- `prepare_seed_clips`: 6.0s.
+- `restore_tts_cache`: 1m7.1s, restored 69 970 WAVs.
+- `generate_clips`: 4.2s.
+- `augment+features`: 10m47.8s, cache MISS, salted key `ee8bc09fe78c033f`, actual feature provider `CUDAExecutionProvider`.
+  - positive train: 31 450 rows, total 300.3s; generator 211.0s, embed 36.6s, mmap write 35.6s, flush 13.2s, trim 3.5s.
+  - negative train: 32 300 rows, total 290.4s; generator 199.1s, embed 38.3s, mmap write 33.1s, flush 14.2s, trim 5.4s.
+  - positive test: 3120 rows, total 26.7s; generator 19.8s, embed 3.5s.
+  - negative test: 3100 rows, total 27.5s; generator 19.4s, embed 3.5s.
+- `prepare_train_inputs`: 2m31.4s.
+- `fit_model`: 3m55.9s, 20 000 steps at 84.82 steps/sec.
+- `select_checkpoint`: 11.5s across 12 candidates.
+  - Shared real-audio feature prep: 6.032s for 609 good windows and 2137 bad windows.
+  - Best checkpoint: candidate 2, step 16 315, recall 0.419, precision 0.720, F1 0.529.
+- `export_model`: 0.0s.
+- `validate_against_real_set`: 6.0s.
+- `TOTAL`: 18m50.2s.
+
+#### Results - container 43/116 validation
+
+| Threshold | Recall | Precision | F1 | False positives |
+|---:|---:|---:|---:|---:|
+| 0.30 | 46.5 % | 52.6 % | 0.494 | 18/116 |
+| 0.40 | 46.5 % | 62.5 % | 0.533 | 12/116 |
+| 0.50 | 44.2 % | 73.1 % | 0.551 | 7/116 |
+| 0.60 | 37.2 % | 80.0 % | 0.508 | 4/116 |
+| 0.70 | 32.6 % | 77.8 % | 0.459 | 4/116 |
+
+#### W&B system telemetry
+
+Pulled with:
+
+```bash
+scripts/wakeword-wandb-pull system kg02fj2i --samples 10000
+```
+
+- 162 system rows were captured over runtime 15.3s-1215.3s.
+- During `augment+features`, GPU utilization averaged 6.7 % and peaked at 13 %.
+- During `fit_model`, GPU utilization averaged 3.7 % and peaked at 12 %, while train-loop throughput stayed healthy at 84.82 steps/sec.
+- `prepare_train_inputs` had no GPU work and low CPU utilization in W&B, but took 151.4s. That makes it the unexpected runtime delta versus v34 and points toward host/disk/memory-map variability rather than model compute.
+
+#### Deploy decision
+Do **not** deploy v35. This was a runtime repeat and the model has poor recall. `var/wake-word/models/current` remains v27, and the voice service remains inactive.
+
+#### What we learned
+- v34's fast path is mostly reproducible. A second full cold-cache run finished in 18m50s, not anywhere near v31's 104m53s.
+- The v31 42m48s feature phase and 12.45 steps/sec fit now look like a transient bad runtime/host episode rather than the normal behavior of the cleaned trainer.
+- The validation cleanup is stable: checkpoint selection stayed around 11s for 12 candidates, and final validation stayed around 6s.
+- RunPod/host variability is still visible, but in a different phase. `prepare_train_inputs` jumped from v34's 18.4s to v35's 151.4s without a corresponding code/config change. That is the strongest new evidence for host, volume, or local disk/cache variability.
+- Feature generation varied modestly between the two clean cold runs: v34 9m56.9s vs v35 10m47.8s. The same bottleneck shape held: generator/augmentation dominates, ORT embedding is secondary, and GPU is underutilized.
+- Model quality varied substantially between two identical-config runs. v35 traded far fewer false positives for much worse recall, while v34 had better recall but too many false positives. Runtime is no longer the main blocker; the next useful work is model-quality control and selection objective design.

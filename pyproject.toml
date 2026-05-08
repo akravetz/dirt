@@ -20,7 +20,6 @@ dev-dependencies = [
     "pre-commit>=4.5.1",
     "datamodel-code-generator>=0.56.1",
     "dirt-contracts",
-    "kaggle>=2.1.0",
     "wandb>=0.26,<0.27",
     "boto3>=1.36",
 ]
@@ -65,8 +64,8 @@ line-length = 88
 # its own style conventions (pragma allowed). Both would drown the
 # signal-to-noise in ASYNC/T20/TID/RUF/S audits (PY-04/06/08) with
 # pre-existing cosmetic drift agents aren't supposed to police.
-# scripts/, kaggle kernel shim, and operator scripts in apps/wake-word/ have
-# their own style conventions (print, subprocess, long lines, sed, etc.).
+# scripts/ and operator scripts in apps/wake-word/ have their own style
+# conventions (print, subprocess, long lines, sed, etc.).
 # The library at apps/wake-word/src/dirt_wake_word/ is normally linted.
 extend-exclude = [
     "docs", ".claude", "scripts", "firmware", "debug",
@@ -159,8 +158,8 @@ ignore = ["ASYNC240", "RUF001", "RUF002", "RUF003"]
 # so non-voice deployments can boot without dashing through every
 # secret.
 "apps/shared/src/dirt_shared/config.py" = ["S105", "S106"]
-# Wake-word library is operator-facing kernel-runtime code: print() calls
-# are how operators see progress during a 90-min Kaggle run (no logging
+# Wake-word library is operator-facing trainer-runtime code: print() calls
+# are how operators see progress during a long GPU run (no logging
 # infrastructure attached); the timing.sh helper genuinely needs
 # shell=True for piped commands; long log f-strings occasionally exceed
 # 88 cols; multi-keyword-arg signatures + list-concat are deliberate.

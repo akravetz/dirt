@@ -20,10 +20,7 @@ build & push image (offline, before this script runs)
 ## Reference implementation
 
 ```python
-"""Submit one training job to RunPod and pull artifacts back.
-
-Shape mirrors the Kaggle pipeline (push, poll, pull) so the migration is structural.
-"""
+"""Submit one training job to RunPod and pull artifacts back."""
 
 from __future__ import annotations
 

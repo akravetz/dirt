@@ -1,7 +1,7 @@
 ---
 title: Index
 type: index
-updated: 2026-05-05
+updated: 2026-05-07
 ---
 
 # Grow Wiki Index
@@ -15,10 +15,10 @@ updated: 2026-05-05
 - [Hosted Control Plane](decisions/2026-05-05-hosted-control-plane.md) — Railway web UI/API plus outbound local gateway; remote inspection and PTZ-only command intent without moving hardware authority to cloud
 
 ## Plants
-- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; Flower Day 1; moisture stable 60.50%; daily stretch tucking
-- [Plant B](plants/plant-b.md) — 🟡 Secondary; Flower Day 1; moisture 96.13% — dryback verification urgent
-- [Plant C](plants/plant-c.md) — 🟡 Secondary; Flower Day 1; moisture 90.20% — lower-leaf/root-zone watch
-- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; Flower Day 1; moisture high but easing 86.54%; tuck candidate
+- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; Flower Day 4; moisture stable 60.37%; daily stretch tucking
+- [Plant B](plants/plant-b.md) — 🟡 Secondary; Flower Day 4; moisture 96.62% — dryback verification urgent
+- [Plant C](plants/plant-c.md) — 🟡 Secondary; Flower Day 4; moisture 90.04% — lower-leaf/root-zone watch
+- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; Flower Day 4; moisture high but easing 86.30%; tuck candidate
 
 ## Daily Logs
 - [2026-03-27](daily/2026-03-27.md) — Day 13: Pre-transplant; 2–3 leaf sets
@@ -49,7 +49,9 @@ updated: 2026-05-05
 - [2026-05-02](daily/2026-05-02.md) — Day 49: Plant B moisture 94.93% 🔴; overnight VPD 0.62 kPa with 64.98°F/70.95% RH 🔴; clones taken from A/B/C/D; regular seedlings under dome
 - [2026-05-03](daily/2026-05-03.md) — Day 50 / Flower Day 0: 12/12 started; RH 70-74% and VPD 0.61-0.91 kPa too wet for early flower; Plant B moisture 95.51% 🔴
 - [2026-05-04](daily/2026-05-04.md) — Day 51 / Flower Day 1: lights-on VPD improved (morning 1.12 kPa ✅), overnight still wet (0.76 kPa 🔴); Plant B moisture 96.13% 🔴
-- [2026-05-05](daily/2026-05-05.md) — Day 52 / Flower Day 2: manual breeding update; Track A SBxBS01 regular seedlings shifted to 1-gal containers
+- [2026-05-05](daily/2026-05-05.md) — Day 52 / Flower Day 2: overnight VPD regressed to 0.56 kPa 🔴; lights-on VPD in range; Plant B moisture 96.46% 🔴; Track A has 7 sprouted regulars potted into coco/perlite, 5 vigorous; A/B/C/D clones perking with 1 visible root
+- [2026-05-06](daily/2026-05-06.md) — Day 53 / Flower Day 3: VPD below target all windows (0.51/0.90/0.95 kPa) 🔴; Plant B moisture 96.83% 🔴; canopy dense and stretching through SCROG
+- [2026-05-07](daily/2026-05-07.md) — Day 54 / Flower Day 4: lights-on VPD recovered (1.01/1.07 kPa ✅), overnight still wet at 0.61 kPa 🔴; Plant B moisture 96.62% 🔴; canopy dense and stretching
 
 ## Environment
 - [Temperature](environment/temperature.md) — Trend log; targets by phase; notable events
@@ -109,7 +111,7 @@ updated: 2026-05-05
 - [Breeding Program Bill of Materials](breeding/bill-of-materials.md) — running purchase/reuse list for the candidate tent, male tent, cloning shelf, and pollen handling
 
 ## Decisions
-- [Pheno-Split Flip Strategy (2026-04-26)](decisions/2026-04-26-pheno-flip-strategy.md) — Tuck sativa-leaning plants, hold for ~60% net coverage with all four at the net plane; flip target window 2026-05-10 → 2026-05-17. Includes gear-list rationale for the 2×2×4 male tent + closet-shelf cloning station.
+- [Pheno-Split Flip Strategy (2026-04-26)](decisions/2026-04-26-pheno-flip-strategy.md) — Original tuck-and-flip strategy for the mixed canopy; actual 12/12 flip occurred 2026-05-03. Includes gear-list rationale for the 2×2×4 male tent + closet-shelf cloning station.
 - [Breeding Program Launch (2026-04-26)](decisions/2026-04-26-breeding-program-launch.md) — Two-track SBxBS01 F2 selection program; pollen banking + 10-pack pheno hunt → F2 cross. Scope, alternatives, trait priorities.
 - [Purple Stabilization Strategy (2026-05-02)](decisions/2026-05-02-purple-stabilization-strategy.md) — Narrowed goal to dark-purple, sativa-leaning line ending in validated feminized seed production; prefer progeny-tested F-generation selection, with BX to A/D as backup anchor route.
 - [Hosted Control Plane (2026-05-05)](decisions/2026-05-05-hosted-control-plane.md) — Railway-hosted web UI/API backed by private assets and an outbound-only local gateway; V1 remote commands are PTZ-only and expire after 60 seconds.
@@ -127,7 +129,7 @@ updated: 2026-05-05
 - [Wake-Word v4 Plan (2026-04-18)](decisions/2026-04-18-wake-word-v4-plan.md) — Precision-focused retraining: harvested hard negatives from deployment + mined meeting audio + synthesized phonetic neighbors + additional RIRs; near-miss audio capture live as of 2026-04-18. **Superseded by v5 2026-04-23.**
 - [Wake-Word v5 Plan (2026-04-23)](decisions/2026-04-23-wake-word-v5-passive-harvest.md) — Passive-harvest mode (`DIRT_VOICE_HARVEST_ONLY=1`): operator runs dirt-voice for ~2 days without saying the wake word, every above-floor capture is a guaranteed negative — eliminates v4's manual triage. Floor lowered to 0.15; ElevenLabs positives + `max_negative_weight=800` carry forward from v4.
 - [Speaker Verifier (2026-04-24)](decisions/2026-04-24-speaker-verifier.md) — ECAPA-TDNN via speechbrain as a second-stage filter after the wake model fires; rejects any voice that isn't the enrolled user's. Orthogonal to v5 retraining; addresses meeting FPs at root. Ship before v5 to re-enable dirt-voice safely without waiting on the harvest cycle.
-- [Wake-Word Training Pipeline — Kaggle → RunPod (2026-04-25; updated 2026-04-26)](decisions/2026-04-25-runpod-migration.md) — After v9–v15 each failed on a different Kaggle-environment quirk (base-image contents, py3.12 PyPI wheels, editable-install path, locked-down package layout), abandoned Kaggle Notebooks for a self-controlled Docker image on RunPod Pods. Image bakes everything; the Network Volume `jj3zksmx29` is now the **sole** durable copy of training data (Kaggle fully retired 2026-04-26). The v8 architectural design carries over unchanged.
+- [Wake-Word Training Pipeline — RunPod migration (2026-04-25; updated 2026-05-07)](decisions/2026-04-25-runpod-migration.md) — After v9–v15 each failed on a different managed-notebook environment quirk (base-image contents, Python package wheels, editable-install path, locked-down package layout), moved to a self-controlled Docker image on RunPod Pods. Image bakes everything; the Network Volume `jj3zksmx29` is the durable training-data copy. The v8 architectural design carries over unchanged.
 - [ESP32-C3 GPIO3 + IDF ADC (2026-04-14)](decisions/2026-04-14-esp32-c3-gpio3-adc.md) — GPIO3 over GPIO4 (JTAG conflict); `adc1_get_raw()` over Arduino `analogRead()` (WiFi instability)
 - [Server-Side Auto-Calibration (2026-04-14)](decisions/2026-04-14-server-side-auto-calibration.md) — Calibration lives in DB, auto-widens extrema per (location, metric); firmware sends raw only
 - [Lights-Off-Aware Humidifier Control (2026-04-19; tightened 2026-04-27)](decisions/2026-04-19-lights-off-aware-humidifier.md) — Schedule-driven feedforward added to the humidifier loop: pre-lights-off prep window forces OFF for the last 5 min of lights-on (originally 30 min; tightened after Govee H7142 data showed RH clears in ~5 min and the longer margin was sitting VPD ~0.4 kPa above the veg upper band for ~25 min/day); lights-off subtracts 0.3 kPa from the stage band. Lights schedule stored on `growstate` (user-editable); rejected derivative control in favor of feedforward on a known-periodic disturbance.

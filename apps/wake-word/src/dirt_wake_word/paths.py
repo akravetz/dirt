@@ -1,8 +1,8 @@
 """Trainer path discovery — input datasets and working scratch.
 
 The trainer runs inside a Docker container on RunPod with a Network Volume
-mounted at /workspace. Datasets are seeded under /workspace/input/ by
-`scripts/runpod-seed-volume`; trainer scratch goes to /workspace/working/.
+mounted at /workspace. Datasets live under /workspace/input/; trainer
+scratch goes to /workspace/working/.
 Roots are env-overridable so the smoke test can point them at tmp_path
 fixtures (`scripts/smoke-trainer-image`).
 """
@@ -86,5 +86,5 @@ def verify_inputs(expected: dict[str, Path]) -> None:
         print(f"  MISSING: {name} -> {expected[name]}", file=sys.stderr)
     raise SystemExit(
         "One or more expected dataset mounts are missing. "
-        "Re-run scripts/runpod-seed-volume to populate the volume."
+        "Use scripts/wakeword-volume-bump to publish the missing dataset."
     )

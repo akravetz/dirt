@@ -47,6 +47,13 @@ DEVICE_METRICS: dict[str, DeviceContract] = {
         "dew_point_f": ("dew_point_f", False, True),
         "fan_duty_pct": ("fan_duty_pct", True, False),
     },
+    "breeding-env-node": {
+        "temperature_c": ("temperature_c", True, False),
+        "temperature_f": ("temperature_f", False, True),
+        "humidity_pct": ("humidity_pct", True, True),
+        "vpd_kpa": ("vpd_kpa", False, True),
+        "dew_point_f": ("dew_point_f", False, True),
+    },
     "plant-a-node": {
         "soil_moisture_raw": ("soil_moisture_raw", True, True),
     },

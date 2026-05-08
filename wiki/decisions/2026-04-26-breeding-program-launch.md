@@ -4,7 +4,7 @@ type: decision
 sources: []
 related: [wiki/breeding/README.md, wiki/breeding/stabilization-strategy.md, wiki/concepts/oregon-breeding-group.md, wiki/concepts/anthocyanin.md, wiki/decisions/2026-05-02-purple-stabilization-strategy.md]
 created: 2026-04-26
-updated: 2026-05-02
+updated: 2026-05-05
 ---
 
 # Breeding Program Launch — Two-Track SBxBS01 F2 Selection
@@ -12,6 +12,8 @@ updated: 2026-05-02
 Today we launch a deliberate breeding program built on the Oregon Breeding Group seed packs (Sirius Black × BS01). This decision page records the program's structure, rationale, and scope so the protocol pages in [`breeding/`](../breeding/README.md) have a stable foundation.
 
 > **2026-05-02 update:** the program goal was narrowed from broad F2 creation toward stabilizing a dark-purple, sativa-leaning SBxBS01 expression. See [Purple Stabilization Strategy](2026-05-02-purple-stabilization-strategy.md). This launch decision remains the origin record for the two-track pollen + phenotype-hunt structure.
+>
+> **2026-05-05 status note:** all 10 regular seeds were started, but the working Track A denominator is now 7 sprouted seedlings, with 5 currently healthy/vigorous after potting into coco/perlite. See [daily 2026-05-05](../daily/2026-05-05.md).
 
 ## What we're doing
 
@@ -84,7 +86,7 @@ The following are deliberately *not* part of this program:
 These are gating items. Slippage on any cascades through the rest of the program:
 
 1. **Cloning station up + clones taken from current 4 plants this week** — without rooted clones before the imminent flip, A/B/C/D are unrecoverable as breeding candidates after harvest.
-2. **Regulars germinated this week** — pollen bank needs ~7–8 weeks from germ to frozen aliquots; the keeper female's cross window opens late November. Actual start: all 10 regulars germinated around 2026-04-28 and were seedlings under the humidity dome by 2026-05-02.
+2. **Regulars started this week** — pollen bank needs ~7–8 weeks from germ to frozen aliquots; the keeper female's cross window opens later in the current-grow timeline. Actual start: all 10 regulars were started around 2026-04-28; by 2026-05-05, 7 had sprouted, all 7 were potted into coco/perlite, and 5 looked healthy/vigorous.
 3. **Isolation room established before regulars sex** — males cannot be in the main tent at any time, and they'll show sex around 2026-05-22 if popped now.
 
 See [`breeding/timeline.md`](../breeding/timeline.md) for the full dated calendar.

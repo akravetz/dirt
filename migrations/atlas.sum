@@ -1,4 +1,4 @@
-h1:1LIeXGmEzZPICFzEQT0gLee9bjHlX+c6420TG6gfxqE=
+h1:N6OSR5AE6wta3LzSDnocwmz4AOEW2nZ5rUXOXjzO2s0=
 20260420003127_init.sql h1:GzLCe8kSX0b0TzsHZJNidBWSoeYe83HgnHXdkhGi1Ko=
 20260423180901_add_growstate_timezone.sql h1:hwtimWMWdMD8iw7GuYOMazB5dHSq40fKOSbUFDFPg0s=
 20260428003304_add_govee_sensor_source.sql h1:l7vbhthRMWFQVcLwvX+yhzrzLD0Tcp33QrLpmU4F7jQ=
@@ -12,3 +12,4 @@ h1:1LIeXGmEzZPICFzEQT0gLee9bjHlX+c6420TG6gfxqE=
 20260504062816_legacy_optional_artifacts.sql h1:5Jg1Ic7PNFrv5eCejECKRyexUEXgszIuPQmWACcvBAI=
 20260504144109_scoped_firmware_legacy_removal.sql h1:Nc9AczYLjCh1PDy0p+XUtlKoY0ZfRK+15oKcNT38MNg=
 20260505035619_cloud_gateway_durability.sql h1:S6wrajJRWaguNv/6zmQVQb7SCzbdttAN5zwhp2xycIs=
+20260507220940_breeding_env_node.sql h1:50Pouh0/dUWu8LQb8/npG+T3HvKByDu8A/ys5XjdTcE=

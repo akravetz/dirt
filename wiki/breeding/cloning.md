@@ -4,7 +4,7 @@ type: breeding
 sources: []
 related: [wiki/breeding/README.md, wiki/breeding/timeline.md, wiki/breeding/pheno-hunt-protocol.md]
 created: 2026-04-26
-updated: 2026-05-02
+updated: 2026-05-05
 ---
 
 # Cloning
@@ -158,3 +158,8 @@ This is where the program lives or dies — a misidentified clone makes the cros
 ## Past experience reference
 
 The user has cloned once before (low recent practice). Plan ~70% take rate on the first attempt; expect to refine the technique on the next round. Failed cuttings are cheap; failed *programs* (because you didn't have a backup clone) are expensive.
+
+## Current rooting log
+
+- **2026-05-02** — A/B/C/D clone cuttings taken and placed under the humidity dome before the 12/12 flip.
+- **2026-05-05** — Cuttings are perking under the dome; 1 clone is showing visible roots. Keep the dome on and continue conservative humidity management until each rooted cutting has enough visible root mass for stasis transplant. See [daily 2026-05-05](../daily/2026-05-05.md).

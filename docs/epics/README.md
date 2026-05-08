@@ -60,6 +60,7 @@ This creates a GitHub issue with our standard template and the correct epic labe
 | [live-audio](live-audio/README.md) | planning | medium |
 | [telegram-bot](telegram-bot/README.md) | planning | high |
 | [codex-migration](codex-migration/README.md) | planning | high |
+| [typed-boundary-contracts](typed-boundary-contracts/README.md) | planning | high |
 
 ## Rules for Agents
 

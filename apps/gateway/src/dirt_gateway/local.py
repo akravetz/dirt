@@ -95,6 +95,7 @@ class GatewayLocalServiceBundle:
                     "kind": device.kind,
                     "controller": device.controller,
                     "is_active": device.enabled,
+                    "last_seen_at": device.last_seen,
                 }
                 for device in devices
                 if device.tent_id is not None

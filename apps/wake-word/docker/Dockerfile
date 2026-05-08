@@ -2,8 +2,7 @@
 # resource files, piper sample generator, and the dirt_wake_word library are
 # all baked at build time so the runtime entrypoint is just `python -m
 # dirt_wake_word.main`. Training data is NOT in the image — it lives on a
-# RunPod Network Volume mounted at /workspace/input/, seeded once by
-# scripts/runpod-seed-volume.
+# RunPod Network Volume mounted at /workspace/input/.
 #
 # RunPod requires linux/amd64 (see docs/references/runpod/docker-image.md).
 # The runpod/pytorch base ships PyTorch + CUDA + sshd already wired so SCP
@@ -114,7 +113,6 @@ PY
 # openwakeword's bundled embedding + melspectrogram ONNX/tflite resources.
 # Written to BOTH the cloned source location and the installed site-packages
 # location — AudioFeatures() resolves via __file__ of the installed package.
-# (Kaggle v13 burned 22 min discovering this.)
 # ----------------------------------------------------------------------------
 RUN ow_pkg=$(python -c "import openwakeword, pathlib; print(pathlib.Path(openwakeword.__file__).parent)") \
  && mkdir -p "$ow_pkg/resources/models" /opt/openwakeword/openwakeword/resources/models \

@@ -1,6 +1,6 @@
 #!/usr/bin/env -S uv run --project /home/akcom/code/dirt python -u
 """Mirror the wake-word RunPod Network Volume to a local backup via
-`aws s3 sync`. Volume loss = data loss now that Kaggle is retired.
+`aws s3 sync`. Use this when you want a local disaster-recovery copy.
 
 Usage:
   scripts/wakeword-volume-snapshot                          # full mirror

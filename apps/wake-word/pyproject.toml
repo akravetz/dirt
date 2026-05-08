@@ -5,7 +5,7 @@ description = "Wake-word retraining pipeline for the dirt-voice channel ('hey Cl
 requires-python = ">=3.13"
 dependencies = []  # nothing required by default
 
-# Heavy ML deps that the Kaggle kernel installs at runtime via pip. Locally,
+# Heavy ML deps that the trainer image installs at build time. Locally,
 # `uv sync --extra wake-word` installs them so pytest can run the library
 # tests. Without the extra, tests use `pytest.importorskip("openwakeword")`
 # and report as skipped — pre-commit on a fresh checkout still passes.

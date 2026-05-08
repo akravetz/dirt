@@ -1,10 +1,10 @@
-// AC Infinity Cloudline LITE 6" fan driver + tent environmental sensor.
-// Drives D+ and B5 via two 2N7000 MOSFETs (GPIO 6/7) and reads an Adafruit
-// SHT45 (0x44) over I²C on GPIO 4/5.
+// ESP32-C3 environmental node.
+// Reads an Adafruit SHT45 (0x44) over I²C on GPIO 4/5. The main-tent build
+// also drives an AC Infinity Cloudline fan via two 2N7000 MOSFETs on GPIO 6/7.
 //
 // Network roles:
-//   - Posts {temperature_c, humidity_pct, fan_duty_pct} to the dirt ingest
-//     endpoint as homebox/main/canopy/fan-controller.
+//   - Posts {temperature_c, humidity_pct} plus fan_duty_pct when fan control
+//     is enabled to the dirt ingest endpoint.
 //   - Exposes a LAN HTTP control surface on :80 — POST /fan {"duty_pct":N}
 //     sets the fan; GET /fan returns {"set_duty_pct":N,"reported_duty_pct":N}.
 //     `reported_duty_pct` is MOCKED (echoes the last-set value) until the
@@ -58,11 +58,31 @@ constexpr uint8_t  BOOT_SPEED_PCT   = 15;
 constexpr uint32_t EQUILIBRATE_MS   = 59000;
 constexpr uint32_t SENSOR_RETRY_MS  = 5000;
 
-constexpr const char* SITE_ID = "homebox";
-constexpr const char* TENT_ID = "main";
-constexpr const char* ZONE_ID = "canopy";
-constexpr const char* DEVICE_ID = "fan-controller";
-constexpr const char* HOSTNAME = "fan-controller";
+#ifndef FAN_CONTROL_ENABLED
+#define FAN_CONTROL_ENABLED 1
+#endif
+#ifndef NODE_SITE_ID
+#define NODE_SITE_ID "homebox"
+#endif
+#ifndef NODE_TENT_ID
+#define NODE_TENT_ID "main"
+#endif
+#ifndef NODE_ZONE_ID
+#define NODE_ZONE_ID "canopy"
+#endif
+#ifndef NODE_DEVICE_ID
+#define NODE_DEVICE_ID "fan-controller"
+#endif
+#ifndef NODE_HOSTNAME
+#define NODE_HOSTNAME "fan-controller"
+#endif
+
+constexpr bool FAN_ENABLED = FAN_CONTROL_ENABLED != 0;
+constexpr const char* SITE_ID = NODE_SITE_ID;
+constexpr const char* TENT_ID = NODE_TENT_ID;
+constexpr const char* ZONE_ID = NODE_ZONE_ID;
+constexpr const char* DEVICE_ID = NODE_DEVICE_ID;
+constexpr const char* HOSTNAME = NODE_HOSTNAME;
 
 // NVS-backed duty persistence — survives soft + power-cycle resets.
 // Diff-check before writing keeps flash wear bounded if a future host-
@@ -75,11 +95,13 @@ constexpr const char* NVS_KEY_DUTY  = "duty_pct";
 Adafruit_SHT4x sht;
 bool sht_ready = false;
 
-WebServer http_server(80);
 IngestClient ingest(SERVER_URL, SENSOR_INGEST_TOKEN, FIRMWARE_VERSION);
+#if FAN_CONTROL_ENABLED
+WebServer http_server(80);
 Preferences prefs;
 
 uint8_t  g_set_duty_pct      = BOOT_SPEED_PCT;
+#endif
 uint32_t g_equilibrate_start = 0;
 uint32_t g_last_sht_retry    = 0;
 
@@ -140,6 +162,8 @@ float compute_vpd_kpa(float temp_c, float rh_pct) {
 
 // --- HTTP control endpoints ----------------------------------------------
 
+#if FAN_CONTROL_ENABLED
+
 // Brittle by design — LAN-only, single caller, minimal flash cost. Body must
 // contain `"duty_pct": N` where N is 0..100.
 bool parse_duty_body(const String& body, int* out) {
@@ -188,6 +212,8 @@ void handle_not_found() {
     http_server.send(404, "application/json", "{\"error\":\"not found\"}");
 }
 
+#endif
+
 // --- Sensor cycle ---------------------------------------------------------
 
 // Read the sensor (normal precision, no heater), post to ingest, kick off
@@ -202,6 +228,7 @@ void complete_cycle() {
     }
     float temp_f = temp.temperature * 9.0f / 5.0f + 32.0f;
     float vpd = compute_vpd_kpa(temp.temperature, humidity.relative_humidity);
+#if FAN_CONTROL_ENABLED
     Serial.printf("[cycle] %.2f°C (%.1f°F) RH %.1f%% VPD %.2f kPa | fan=%u%%\n",
                   temp.temperature, temp_f,
                   humidity.relative_humidity, vpd, g_set_duty_pct);
@@ -210,6 +237,15 @@ void complete_cycle() {
     snprintf(metrics, sizeof(metrics),
              "{\"temperature_c\":%.2f,\"humidity_pct\":%.2f,\"fan_duty_pct\":%u}",
              temp.temperature, humidity.relative_humidity, g_set_duty_pct);
+#else
+    Serial.printf("[cycle] %.2f°C (%.1f°F) RH %.1f%% VPD %.2f kPa\n",
+                  temp.temperature, temp_f, humidity.relative_humidity, vpd);
+
+    char metrics[80];
+    snprintf(metrics, sizeof(metrics),
+             "{\"temperature_c\":%.2f,\"humidity_pct\":%.2f}",
+             temp.temperature, humidity.relative_humidity);
+#endif
     int code = ingest.post(SITE_ID, TENT_ID, ZONE_ID, DEVICE_ID, metrics);
     if (code > 0) Serial.printf("[ingest] http=%d\n", code);
 
@@ -248,19 +284,26 @@ void setup() {
 
     Serial.println();
     Serial.println("# ========================================================");
-    Serial.printf ("# fan+tent dual-role node fw=%s\n", FIRMWARE_VERSION);
+    Serial.printf ("# env node fw=%s device=%s tent=%s host=%s fan=%s\n",
+                   FIRMWARE_VERSION, DEVICE_ID, TENT_ID, HOSTNAME,
+                   FAN_ENABLED ? "enabled" : "disabled");
     Serial.println("# ========================================================");
+#if FAN_CONTROL_ENABLED
     Serial.printf ("# D+ gate:  GPIO %u  (Q1 → fan D+ pad)\n", GPIO_D_PLUS);
     Serial.printf ("# B5 gate:  GPIO %u  (Q2 → fan B5 pad)\n", GPIO_B5);
+#endif
     Serial.printf ("# SHT45:    GPIO %u SDA, GPIO %u SCL (Adafruit 5665, 0x44)\n",
                    GPIO_I2C_SDA, GPIO_I2C_SCL);
+#if FAN_CONTROL_ENABLED
     Serial.printf ("# PWM:      %u Hz, %u-bit (ledc 0..%u)\n",
                    PWM_FREQ_HZ, PWM_RESOLUTION, PWM_MAX);
+#endif
     Serial.printf ("# Heater:   200mW/1s pulse every %lus (Sensirion AN §3)\n",
                    (unsigned long)((EQUILIBRATE_MS + 1000) / 1000));
     Serial.println("# ========================================================");
     Serial.println();
 
+#if FAN_CONTROL_ENABLED
     // LEDC PWM for D+ and B5
     ledcSetup(LEDC_CH_D_PLUS, PWM_FREQ_HZ, PWM_RESOLUTION);
     ledcAttachPin(GPIO_D_PLUS, LEDC_CH_D_PLUS);
@@ -271,6 +314,7 @@ void setup() {
     ledcWrite(LEDC_CH_B5, b5_value);
     Serial.printf("[boot] B5 keep-alive: MCU duty=%.1f%%  wire=%.1f%%\n",
                   B5_MCU_DUTY_PCT, 100.0f - B5_MCU_DUTY_PCT);
+#endif
 
     // I²C for SHT45
     Wire.begin(GPIO_I2C_SDA, GPIO_I2C_SCL);
@@ -282,6 +326,7 @@ void setup() {
         Serial.println("[boot] SHT45 begin failed — will retry in main loop");
     }
 
+#if FAN_CONTROL_ENABLED
     // Hold D+ at wire=100% (MCU 0%) for a couple seconds so you can hear
     // the failsafe-max blast before settling to the hold speed.
     ledcWrite(LEDC_CH_D_PLUS, 0);
@@ -296,15 +341,18 @@ void setup() {
     g_set_duty_pct = saved;
     apply_fan_speed(g_set_duty_pct);
     Serial.printf("[boot] fan -> %u%% (restored from NVS)\n", g_set_duty_pct);
+#endif
 
-    // WiFi + OTA + HTTP control surface
+    // WiFi + OTA
     wifi_client::connect(WIFI_SSID, WIFI_PASSWORD, HOSTNAME);
     ota::begin(HOSTNAME, OTA_PASSWORD);
+#if FAN_CONTROL_ENABLED
     http_server.on("/fan", HTTP_GET, handle_get_fan);
     http_server.on("/fan", HTTP_POST, handle_post_fan);
     http_server.onNotFound(handle_not_found);
     http_server.begin();
     Serial.println("[boot] http control surface up on :80 (GET/POST /fan)");
+#endif
 
     // Kick off the sensor cycle immediately if the sensor is already up.
     if (sht_ready) {
@@ -316,7 +364,9 @@ void setup() {
 void loop() {
     ota::loop();
     wifi_client::maintain();
+#if FAN_CONTROL_ENABLED
     http_server.handleClient();
+#endif
     pump_sensor_cycle();
     delay(10);  // yield to WiFi/OTA stack
 }

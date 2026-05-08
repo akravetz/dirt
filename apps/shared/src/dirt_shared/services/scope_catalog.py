@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlmodel import select
@@ -44,6 +45,7 @@ class ScopedDeviceSummary:
     kind: str
     controller: str
     enabled: bool
+    last_seen: datetime | None
 
 
 class ScopeCatalogService:
@@ -127,6 +129,7 @@ class ScopeCatalogService:
                 kind=device.kind,
                 controller=device.controller,
                 enabled=device.enabled,
+                last_seen=device.last_seen,
             )
             for device, resolved_site_id, resolved_tent_id, zone_id in rows
         ]

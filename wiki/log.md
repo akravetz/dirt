@@ -854,3 +854,30 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - Added a decision page for the hosted control-plane boundary and linked it from the wiki index and system status.
 - Updated the root README to include the new `apps/control-plane/`, `apps/gateway/`, `cloud/`, hosted Railway services, private signed assets, and the local-vs-hosted runtime surfaces.
 - Updated: `README.md`, `wiki/decisions/2026-05-05-hosted-control-plane.md`, `wiki/index.md`, `wiki/overview.md`.
+
+## [2026-05-05] daily | Day 52 / Flower Day 2 - overnight VPD regression; B still saturated
+- Photos captured across 5 presets (overview, A, B, C, D). Canopy is dense and stretching through the SCROG; A/D remain sativa-leaning tuck candidates, while B/C remain compact and crowded.
+- **Environment flag:** overnight regressed to 72.75% RH and 0.56 kPa VPD, too wet for early flower. Lights-on VPD is usable at 1.00 kPa morning and 1.13 kPa now.
+- **Plant B moisture remains critical:** 96.46% now after 96.13% May 4, 95.51% May 3, and 94.93% May 2; dryback verification remains urgent.
+- **Root zones:** A stable at 60.65%; C remains saturated at 90.37%; D remains high at 86.97%.
+- **Breeding/intake:** Track A regular seedlings were potted into coco/perlite; 6-inch low passive intake planned for 2026-05-06 with a light-trap bend.
+- Updated: `daily/2026-05-05.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-05-05] manual update | Track A sprout count and clone rooting status
+- User-confirmed breeding update: 10 SBxBS01 regulars were started, 7 total sprouted, and all 7 sprouted seedlings were potted into coco/perlite; 5 currently look healthy and vigorous.
+- A/B/C/D mother-plant clones are perking under the humidity dome, but only 1 clone is showing visible roots so far. Dome stays on until more rooted cuttings are ready for stasis transplant.
+- Updated: `daily/2026-05-05.md`, `breeding/README.md`, `breeding/timeline.md`, `breeding/cloning.md`, `breeding/bill-of-materials.md`, `breeding/isolation.md`, `decisions/2026-04-26-breeding-program-launch.md`, `overview.md`, `index.md`.
+
+## [2026-05-06] daily | Day 53 / Flower Day 3 - VPD below target all windows; B still saturated
+- Photos captured across 5 presets (overview, A, B, C, D). Canopy is full, crowded, and stretching through the SCROG; A/D remain daily tuck candidates while B/C are dense and compact.
+- **Environment flag:** VPD missed the early-flower target all day (0.51 overnight, 0.90 morning, 0.95 now) with RH still high and overnight temperature down to 62.44°F.
+- **Plant B moisture remains critical:** 96.83% now after 96.46% May 5, 96.13% May 4, and 95.51% May 3; dryback verification remains urgent.
+- **Root zones:** A stable at 60.44%; C remains saturated at 90.53%; D remains high but flat at 86.93%.
+- Updated: `daily/2026-05-06.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-05-07] daily | Day 54 / Flower Day 4 - lights-on VPD recovered; overnight still wet
+- Photos captured across 5 presets (overview, A, B, C, D). Canopy remains full and stretching through the SCROG; A/D are daily tuck candidates while B/C remain compact and crowded.
+- **Environment trend:** RH improved in every window and lights-on VPD reached target (1.01 kPa morning, 1.07 kPa now), but overnight remains too wet at 0.61 kPa with 63.35°F / 69.16% RH.
+- **Plant B moisture remains critical:** 96.62% now, only slightly down from 96.83% May 6; dryback verification remains urgent before reopening normal feed.
+- **Root zones:** A stable at 60.37%; C remains saturated but easing at 90.04%; D remains high but easing at 86.30%.
+- Updated: `daily/2026-05-07.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.

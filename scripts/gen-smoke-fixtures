@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --project /home/akcom/code/dirt python -u
 """Generate the smoke-test fixture tree at var/wake-word/smoke-fixtures/.
 
-Mirrors apps/wake-word/tests/conftest.py:fake_kaggle but writes to disk so
+Mirrors apps/wake-word/tests/conftest.py:fake_volume but writes to disk so
 docker can mount it as /workspace/input/. Idempotent — re-running rewrites
 the same WAVs/NPYs in place.
 

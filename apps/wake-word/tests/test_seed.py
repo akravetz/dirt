@@ -44,8 +44,8 @@ def test_seed_dir_writes_n_dup_copies(tmp_path: Path) -> None:
     assert all(p.name.startswith("prefix_") for p in out_files)
 
 
-def test_seed_dir_n_dup_one_no_suffix(tmp_path: Path) -> None:
-    """When n_dup=1 there should be no `_dupN` suffix on filenames."""
+def test_seed_dir_n_dup_one_uses_stable_suffix(tmp_path: Path) -> None:
+    """Even n_dup=1 uses `_dup0` so filenames stay stable across reruns."""
     from dirt_wake_word.seed import seed_dir
 
     src = tmp_path / "src.wav"
@@ -56,7 +56,7 @@ def test_seed_dir_n_dup_one_no_suffix(tmp_path: Path) -> None:
     seed_dir([src], dst, prefix="x_", n_dup=1)
     files = list(dst.glob("*.wav"))
     assert len(files) == 1
-    assert files[0].name == "x_src.wav"  # no _dup0
+    assert files[0].name == "x_src_dup0.wav"
 
 
 def test_prepare_seed_clips_splits_by_prefix(fake_volume, monkeypatch) -> None:
@@ -70,7 +70,7 @@ def test_prepare_seed_clips_splits_by_prefix(fake_volume, monkeypatch) -> None:
 
     counts = prepare_seed_clips(out_dir=out, expected_inputs=inputs)
 
-    # Fake Kaggle has: 5 synth clones × 1 + 2 realmic_pos × 10 = 25
+    # Fake RunPod volume has: 5 synth clones × 1 + 2 realmic_pos × 10 = 25
     assert counts["clones"] == 5
     assert counts["realmic_pos"] == 20
 

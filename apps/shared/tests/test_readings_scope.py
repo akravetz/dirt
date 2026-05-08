@@ -11,7 +11,6 @@ from dirt_shared.models.device import Capability, Device
 from dirt_shared.models.enums import SensorSource
 from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.services.readings import ReadingsService
-from dirt_shared.services.scope import resolve_scope
 
 
 async def test_default_history_excludes_same_metric_from_breeding_tent(app_engine):
@@ -23,31 +22,14 @@ async def test_default_history_excludes_same_metric_from_breeding_tent(app_engin
     )
 
     async with AsyncSession(app_engine) as session:
-        breeding = await resolve_scope(session, tent_id="breeding")
-        assert breeding is not None
-        device = Device(
-            site_id=breeding.site_pk,
-            tent_id=breeding.tent_pk,
-            device_id="breeding-env-node",
-            name="Breeding env node",
-            kind="env_sensor",
-            controller="test",
-        )
-        session.add(device)
-        await session.flush()
-        assert device.id is not None
-        capability = Capability(
-            device_id=device.id,
-            capability_id="temperature_f",
-            name="Temperature F",
-            kind="measurement",
-            metric_name="temperature_f",
-            unit="degF",
-            source="test",
-        )
-        session.add(capability)
-        await session.flush()
-        assert capability.id is not None
+        capability = (
+            await session.exec(
+                select(Capability)
+                .join(Device, Device.id == Capability.device_id)
+                .where(Device.device_id == "breeding-env-node")
+                .where(Capability.capability_id == "temperature_f")
+            )
+        ).one()
         session.add(
             SensorReading(
                 ts=datetime.now(UTC),

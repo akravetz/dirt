@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/coco-coir.md, wiki/concepts/lst.md, wiki/environment/nutrients.md]
 created: 2026-04-06
-updated: 2026-05-04
+updated: 2026-05-07
 ---
 
 # Plant C
@@ -19,7 +19,7 @@ updated: 2026-05-04
 
 ## Current State
 
-Day 51 / Flower Day 1: C remains compact with active upper growth, but moisture is still saturated around 90.20% and lower/interior yellowing persists. Continue root-zone and airflow checks before treating it as a feed-strength problem. See [2026-05-04](../daily/2026-05-04.md).
+Day 54 / Flower Day 4: C remains compact with active upper growth, but moisture is still saturated around 90.04% and lower/interior yellowing persists. Continue root-zone and airflow checks before treating it as a feed-strength problem. See [2026-05-07](../daily/2026-05-07.md).
 
 ## Timeline
 
@@ -52,3 +52,6 @@ Day 51 / Flower Day 1: C remains compact with active upper growth, but moisture 
 - 2026-05-02 — [Day 49: clone taken; compact top growth stable, lower leaves yellowing/mottled with moisture still ~90%](../daily/2026-05-02.md)
 - 2026-05-03 — [Day 50 / Flower Day 0: compact upper growth active, lower leaves yellowing/mottled, moisture still ~90%](../daily/2026-05-03.md)
 - 2026-05-04 — [Day 51 / Flower Day 1: compact upper growth active, lower/interior yellowing persists, moisture still ~90%](../daily/2026-05-04.md)
+- 2026-05-05 — [Day 52 / Flower Day 2: compact upper growth active, lower/interior yellowing persists, moisture still ~90%](../daily/2026-05-05.md)
+- 2026-05-06 — [Day 53 / Flower Day 3: compact upper growth active, lower/interior yellowing persists, moisture still ~91%](../daily/2026-05-06.md)
+- 2026-05-07 — [Day 54 / Flower Day 4: compact upper growth active, lower/interior yellowing persists, moisture still ~90%](../daily/2026-05-07.md)

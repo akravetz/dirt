@@ -110,7 +110,7 @@ def build_config(
         "positive": 200,
     }
 
-    # Kaggle-mounted paths
+    # RunPod volume-mounted paths
     config["background_paths"] = [
         str(expected_inputs["audioset_16k"]),
         str(expected_inputs["fma"]),

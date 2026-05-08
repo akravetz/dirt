@@ -59,11 +59,12 @@ Read the linked doc *before* doing the activity in the trigger column.
 - [`docs/adrs/`](docs/adrs/) — settled decisions; read before proposing alternatives
 - [`docs/epics/`](docs/epics/) — in-flight epic context
 - [`docs/progress/`](docs/progress/) — feature progress between PRs
-- [`docs/rules/`](docs/rules/) — codebase rules and conventions
+- [`docs/rules/`](docs/rules/) — codebase rules and conventions. Read [`docs/rules/boundary-contracts.md`](docs/rules/boundary-contracts.md) before changing FastAPI request/response models, gateway/control-plane payloads, outbox JSON, command payloads/results, generated API contracts, or any other process/network/persistence boundary.
 
 ## How agents work here
 
 - **ExecPlans**: When writing complex features or significant refactors, use an ExecPlan (as described in `.agents/PLANS.md`) from design to implementation.
+- **Boundary contracts**: Pydantic DTOs are the schema mechanism for process, network, persistence, outbox, command, and generated-client boundaries. Do not hand-roll raw `dict[str, Any]` payloads for owned protocols; read [`docs/rules/boundary-contracts.md`](docs/rules/boundary-contracts.md) first.
 - **Source-level cleanup bias**: When a change reveals stale naming, unit mismatch, duplicated truth, legacy branches, or test-harness friction, prefer fixing the source contract over adding adapters or compatibility glue. First trace producer → storage/API → consumer → tests; identify the canonical owner; search live legacy usage/data with `rg`/`find`; delete dead paths instead of preserving them. If agent-owned tests encode the old contract, update them. Never edit human-owned invariants; treat failures as architecture feedback. Examples: split mixed wake-word data buckets instead of documenting around misleading names; normalize sensor units at the producing service/shared model boundary instead of converting in every consumer.
 - **Scratch dir**: write throwaway scripts to `debug/`. Don't clutter `apps/` or `scripts/`.
 - **Hosted deploys**: use only `scripts/deploy-control-plane` for Railway deployments. It applies the dedicated cloud Atlas migrations before deploying `control-plane-api` and `web-ui`; do not run app-start DDL or ad hoc `railway up` for these services.

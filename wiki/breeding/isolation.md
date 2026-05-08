@@ -4,7 +4,7 @@ type: breeding
 sources: []
 related: [wiki/breeding/README.md, wiki/breeding/isolation-tent-culture.md, wiki/breeding/male-evaluation.md, wiki/breeding/pollen-handling.md, wiki/breeding/cross-procedure.md]
 created: 2026-04-26
-updated: 2026-05-02
+updated: 2026-05-05
 ---
 
 # Isolation
@@ -148,5 +148,5 @@ Symptoms: random calyx swelling on multiple plants outside the keeper, white pis
 
 - The separate room with closed door (confirmed 2026-04-26) is the gating prerequisite — without this, the breeding program doesn't run. The 2×2×4 grow tent inside that room is the second containment layer; both must be in place before males flower.
 - Portable freezer arrives this week; placement is on a stable shelf in the isolation room, **outside the tent**, away from the door.
-- The current main tent is in vegetative stage as of 2026-04-26; pollen risk is **zero** until flower flip (target window 2026-05-10 → 2026-05-17, gated on net coverage — see [`decisions/2026-04-26-pheno-flip-strategy.md`](../decisions/2026-04-26-pheno-flip-strategy.md)). Track A males are scheduled to enter Phase B around the same time as the main tent flips, so the main-tent contamination risk window opens then.
+- The current main tent flipped to 12/12 on 2026-05-03. Pollen risk is still zero until Track A males flower, but once males enter the isolation tent, treat the main tent as vulnerable because stigmas will be present. Track A now has 7 sprouted regular seedlings, with 5 healthy/vigorous as of 2026-05-05; sex watch remains around 2026-05-19 → 2026-05-26.
 - The cloning station (humidity dome + stasis-mode clones) lives **on a closet shelf in another room — not inside the isolation tent or the isolation room.** High-humidity domes and low-humidity flowering males are environmentally incompatible, and putting young clones near a flowering male invites contamination.

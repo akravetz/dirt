@@ -13,9 +13,10 @@ def test_find_dataset_uses_input_root_first(fake_volume) -> None:
     assert found == input_root / "dirt-wakeword-mine"
 
 
-def test_find_dataset_falls_back_to_tpu_layout(tmp_path, monkeypatch) -> None:
-    """When the standard layout is missing but datasets/<owner>/<slug>/
-    exists, use the TPU-runtime layout."""
+def test_find_dataset_uses_input_root_without_legacy_fallback(
+    tmp_path, monkeypatch
+) -> None:
+    """The RunPod trainer uses the plain /input/<slug>/ layout only."""
     monkeypatch.setenv("DIRT_WAKEWORD_INPUT", str(tmp_path))
     monkeypatch.setenv("DIRT_WAKEWORD_WORKING", str(tmp_path / "work"))
 
@@ -26,13 +27,10 @@ def test_find_dataset_falls_back_to_tpu_layout(tmp_path, monkeypatch) -> None:
 
     importlib.reload(dirt_wake_word.paths)
 
-    tpu_layout = tmp_path / "datasets" / "akravetz" / "some-slug"
-    tpu_layout.mkdir(parents=True)
-
     from dirt_wake_word.paths import find_dataset
 
     found = find_dataset("some-slug")
-    assert found == tpu_layout
+    assert found == tmp_path / "some-slug"
 
 
 def test_expected_inputs_keys(fake_volume) -> None:

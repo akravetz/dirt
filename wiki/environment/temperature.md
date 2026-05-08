@@ -4,7 +4,7 @@ type: environment
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/environment/humidity.md, wiki/overview.md]
 created: 2026-04-06
-updated: 2026-05-04
+updated: 2026-05-07
 ---
 
 # Temperature
@@ -51,6 +51,9 @@ updated: 2026-05-04
 | 2026-05-02 | 78.64°F now ⚠️ / 64.98°F overnight avg 🔴 / 77.71°F morning avg ⚠️ | Large day/night split: lights-off averaged 64.98°F, well below the 68°F floor and enough to push VPD down to 0.62 kPa; lights-on rebounded warm at 77-79°F, which restored VPD but overshot the narrow 74-76°F target. → [2026-05-02](../daily/2026-05-02.md) |
 | 2026-05-03 | 77.34°F now ✅ / 66.92°F overnight avg ✅ / 76.17°F morning avg ✅ | Flower flip day: temperature is now inside early-flower day/night bands, but the same warmth is not enough to offset excessive RH; VPD remains below early-flower target. → [2026-05-03](../daily/2026-05-03.md) |
 | 2026-05-04 | 80.53°F now ⚠️ / 65.05°F overnight avg ✅ / 73.45°F morning avg ✅ | Overnight and morning are in early-flower bands; current reading is just above the 80°F day ceiling. Temperature is mostly acceptable, but the warm current reading pushed VPD slightly above target after the wet overnight period. → [2026-05-04](../daily/2026-05-04.md) |
+| 2026-05-05 | 75.92°F now ✅ / 64.03°F overnight avg ⚠️ / 72.32°F morning avg ✅ | Lights-on temperature moved cleanly inside the early-flower day band, but the 00-06 window dipped just below the 65°F night floor. The cool overnight air amplified the humidity problem and drove VPD down to 0.56 kPa. → [2026-05-05](../daily/2026-05-05.md) |
+| 2026-05-06 | 72.37°F now ✅ / 62.44°F overnight avg 🔴 / 69.89°F morning avg ⚠️ | Overnight fell further below the early-flower night floor, and the mixed morning window stayed under the day band. The current reading is barely inside range, so cold lights-off air is now a direct contributor to the low-VPD flower transition. → [2026-05-06](../daily/2026-05-06.md) |
+| 2026-05-07 | 73.17°F now ✅ / 63.35°F overnight avg ⚠️ / 70.64°F morning avg ⚠️ | Slight recovery from May 6, but the 00-06 window remains below the 65°F early-flower floor and the morning window is still below the day band. Lights-on is usable; lights-off remains the temperature-side constraint on VPD. → [2026-05-07](../daily/2026-05-07.md) |
 
 ## Notable Events
 - **2026-03-21** — Overnight low of 59.5°F due to exhaust fan running too fast at night; resolved by throttling fan after lights-out → [2026-03-27 daily](../daily/2026-03-27.md)
@@ -68,4 +71,6 @@ updated: 2026-05-04
 - **2026-05-02** — Overnight temperature dropped to 64.98°F while lights-on rose to 77.71°F morning / 78.64°F now. Warmer day air helped restore VPD, but the cold lights-off window is now the main environment anomaly to correct. → [2026-05-02](../daily/2026-05-02.md)
 - **2026-05-03** — Flower flip changed the temperature target. Overnight 66.92°F and lights-on 76-77°F are acceptable for early flower; the remaining environment issue is humidity/VPD, not temperature. → [2026-05-03](../daily/2026-05-03.md)
 - **2026-05-04** — Temperature stayed acceptable overnight and morning under early-flower targets, then reached 80.53°F at the current reading. The issue is not acute heat stress, but the warm afternoon now overshoots VPD slightly while the overnight window remains wet. → [2026-05-04](../daily/2026-05-04.md)
-- **2026-05-05** — High lights-on VPD was traced to warm tent air plus an RH ceiling conflict: at 82–85°F, hitting the VPD target would require more RH than the early-flower ceiling allows. Cooler room air is available, but the tent is mostly zipped with only bottom-zipper intake. User purchased a 6-inch duct and plans to add it 2026-05-06 as a low passive intake with a light-trap bend. → [2026-05-05](../daily/2026-05-05.md)
+- **2026-05-05** — Current lights-on temperature improved to 75.92°F, removing yesterday's warm-now overshoot. Overnight temperature slipped to 64.03°F, just below the early-flower night floor, which helped push the 00-06 VPD down to 0.56 kPa. A 6-inch low passive intake is still planned for 2026-05-06, but the overnight window also needs enough clearing/air exchange to avoid cold, wet air sitting through lights-off. → [2026-05-05](../daily/2026-05-05.md)
+- **2026-05-06** — Overnight temperature dropped to 62.44°F, the coldest early-flower overnight so far and below the 65°F floor. The current lights-on reading recovered only to 72.37°F, so temperature is no longer just acceptable background context; it is helping keep VPD below target. → [2026-05-06](../daily/2026-05-06.md)
+- **2026-05-07** — Temperature improved modestly from May 6 but not enough overnight: 63.35°F still misses the 65°F early-flower floor. Current lights-on temperature is back in range at 73.17°F, matching the VPD recovery during the day. → [2026-05-07](../daily/2026-05-07.md)

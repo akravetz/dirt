@@ -146,7 +146,27 @@ async def test_tent_devices_are_scoped(client: AsyncClient):
     breeding = TentDevicesResponse.model_validate(breeding_response.json())
     assert breeding.site_id == "homebox"
     assert breeding.tent_id == "breeding"
-    assert breeding.devices == []
+    assert [
+        (
+            device.zone_id,
+            device.device_id,
+            device.name,
+            device.kind,
+            device.controller,
+            device.enabled,
+        )
+        for device in breeding.devices
+    ] == [
+        (
+            "canopy",
+            "breeding-env-node",
+            "ESP32-C3 · breeding env",
+            "env_sensor",
+            "esp32",
+            True,
+        )
+    ]
+    assert "fan-controller" not in {device.device_id for device in breeding.devices}
 
     missing_response = await client.get("/api/tents/missing/devices")
     assert missing_response.status_code == 404
