@@ -17,6 +17,7 @@ async def test_fixture_yields_engine_with_seeded_rows(app_engine):
     async with AsyncSession(app_engine) as session:
         result = await session.exec(select(Device.device_id))
         devices = set(result.all())
+    # topology-contract-ok: fixture smoke test intentionally checks seed rows.
     assert {
         "fan-controller",
         "plant-a-node",

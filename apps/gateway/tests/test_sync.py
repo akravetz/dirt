@@ -26,6 +26,7 @@ from dirt_shared.config import CloudGatewayConfig
 from dirt_shared.models import Capability, Command, Device, SensorReading, Site, Tent
 from dirt_shared.models.enums import SensorSource
 from dirt_shared.services.commands import CommandService
+from dirt_shared.testing import create_test_device
 
 FIXED_NOW = datetime(2026, 5, 5, 12, 0, tzinfo=UTC)
 
@@ -326,16 +327,15 @@ async def _seed_temperature_readings(engine: AsyncEngine) -> None:
 
 async def test_catalog_syncs_homebox_main_and_breeding(app_engine: AsyncEngine):
     async with AsyncSession(app_engine) as session:
-        breeding_env = (
-            await session.exec(
-                select(Device)
-                .join(Site, Site.id == Device.site_id)
-                .join(Tent, Tent.id == Device.tent_id)
-                .where(Site.site_id == "homebox")
-                .where(Tent.tent_id == "breeding")
-                .where(Device.device_id == "breeding-env-node")
-            )
-        ).one()
+        breeding_env = await create_test_device(
+            session,
+            tent_id="breeding",
+            zone_id="canopy",
+            device_id="test-breeding-catalog-node",
+            name="Test breeding catalog node",
+            kind="env_sensor",
+            controller="test",
+        )
         breeding_env.last_seen = FIXED_NOW
         await session.commit()
 
@@ -353,16 +353,16 @@ async def test_catalog_syncs_homebox_main_and_breeding(app_engine: AsyncEngine):
         device
         for device in catalog["devices"]
         if device["tent_id"] == "breeding"
-        and device["device_id"] == "breeding-env-node"
+        and device["device_id"] == "test-breeding-catalog-node"
     ]
     assert breeding_devices == [
         {
             "tent_id": "breeding",
             "zone_id": "canopy",
-            "device_id": "breeding-env-node",
-            "name": "ESP32-C3 · breeding env",
+            "device_id": "test-breeding-catalog-node",
+            "name": "Test breeding catalog node",
             "kind": "env_sensor",
-            "controller": "esp32",
+            "controller": "test",
             "is_active": True,
             "last_seen_at": FIXED_NOW.isoformat(),
         }

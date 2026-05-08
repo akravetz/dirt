@@ -7,10 +7,11 @@ from datetime import UTC, datetime
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from dirt_shared.models.device import Capability, Device
+from dirt_shared.models.device import Device
 from dirt_shared.models.enums import SensorSource
 from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.services.readings import ReadingsService
+from dirt_shared.testing import create_test_capability, create_test_device
 
 
 async def test_default_history_excludes_same_metric_from_breeding_tent(app_engine):
@@ -22,14 +23,20 @@ async def test_default_history_excludes_same_metric_from_breeding_tent(app_engin
     )
 
     async with AsyncSession(app_engine) as session:
-        capability = (
-            await session.exec(
-                select(Capability)
-                .join(Device, Device.id == Capability.device_id)
-                .where(Device.device_id == "breeding-env-node")
-                .where(Capability.capability_id == "temperature_f")
-            )
-        ).one()
+        device = await create_test_device(
+            session,
+            tent_id="breeding",
+            zone_id="canopy",
+            device_id="test-breeding-reading-node",
+            name="Test breeding reading node",
+        )
+        capability = await create_test_capability(
+            session,
+            device=device,
+            capability_id="temperature_f",
+            name="Temperature F",
+            unit="degF",
+        )
         session.add(
             SensorReading(
                 ts=datetime.now(UTC),

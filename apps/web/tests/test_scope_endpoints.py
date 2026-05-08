@@ -17,6 +17,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from dirt_shared.models.grow_run import GrowRun
 from dirt_shared.models.schedule import Schedule
 from dirt_shared.services.scope import resolve_scope
+from dirt_shared.testing import create_test_device
 from dirt_web.app import create_app
 
 
@@ -84,16 +85,19 @@ async def test_sites_and_tents_list_default_local_scope(client: AsyncClient):
     assert sites_response.status_code == 200
     sites = SitesResponse.model_validate(sites_response.json()).sites
 
-    assert [site.site_id for site in sites] == ["homebox"]
-    assert sites[0].is_default is True
+    by_site_id = {site.site_id: site for site in sites}
+    assert "homebox" in by_site_id
+    assert by_site_id["homebox"].is_default is True
 
     tents_response = await client.get("/api/tents")
     assert tents_response.status_code == 200
     tents = TentsResponse.model_validate(tents_response.json()).tents
 
-    assert [tent.tent_id for tent in tents] == ["main", "breeding"]
-    assert [tent.role for tent in tents] == ["flower", "breeding"]
-    assert tents[0].is_default is True
+    by_tent_id = {tent.tent_id: tent for tent in tents}
+    assert {"main", "breeding"} <= set(by_tent_id)
+    assert by_tent_id["main"].role == "flower"
+    assert by_tent_id["breeding"].role == "breeding"
+    assert by_tent_id["main"].is_default is True
 
 
 async def test_tent_grow_current_is_scoped_and_preserves_main_default(
@@ -120,7 +124,24 @@ async def test_tent_grow_current_is_scoped_and_preserves_main_default(
     assert breeding.lights.off_local == "18:00:00"
 
 
-async def test_tent_devices_are_scoped(client: AsyncClient):
+async def test_tent_devices_are_scoped(client: AsyncClient, app_engine):
+    async with AsyncSession(app_engine) as session:
+        await create_test_device(
+            session,
+            tent_id="main",
+            zone_id="canopy",
+            device_id="test-main-scope-device",
+            name="Test main scope device",
+        )
+        await create_test_device(
+            session,
+            tent_id="breeding",
+            zone_id="canopy",
+            device_id="test-breeding-scope-device",
+            name="Test breeding scope device",
+        )
+        await session.commit()
+
     main_response = await client.get("/api/tents/main/devices")
     assert main_response.status_code == 200
     main = TentDevicesResponse.model_validate(main_response.json())
@@ -128,45 +149,19 @@ async def test_tent_devices_are_scoped(client: AsyncClient):
 
     assert main.site_id == "homebox"
     assert main.tent_id == "main"
-    assert {
-        "fan-controller",
-        "plant-a-node",
-        "plant-b-node",
-        "plant-c-node",
-        "plant-d-node",
-        "govee-h7142-main",
-        "obsbot-main",
-        "reservoir-node",
-        "kasa-lights-main",
-    } <= main_device_ids
-    assert "jabra-claudia" not in main_device_ids
+    assert "test-main-scope-device" in main_device_ids
+    assert "test-breeding-scope-device" not in main_device_ids
+    assert {device.tent_id for device in main.devices} == {"main"}
 
     breeding_response = await client.get("/api/tents/breeding/devices")
     assert breeding_response.status_code == 200
     breeding = TentDevicesResponse.model_validate(breeding_response.json())
     assert breeding.site_id == "homebox"
     assert breeding.tent_id == "breeding"
-    assert [
-        (
-            device.zone_id,
-            device.device_id,
-            device.name,
-            device.kind,
-            device.controller,
-            device.enabled,
-        )
-        for device in breeding.devices
-    ] == [
-        (
-            "canopy",
-            "breeding-env-node",
-            "ESP32-C3 · breeding env",
-            "env_sensor",
-            "esp32",
-            True,
-        )
-    ]
-    assert "fan-controller" not in {device.device_id for device in breeding.devices}
+    breeding_device_ids = {device.device_id for device in breeding.devices}
+    assert "test-breeding-scope-device" in breeding_device_ids
+    assert "test-main-scope-device" not in breeding_device_ids
+    assert {device.tent_id for device in breeding.devices} == {"breeding"}
 
     missing_response = await client.get("/api/tents/missing/devices")
     assert missing_response.status_code == 404

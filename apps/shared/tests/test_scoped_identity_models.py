@@ -48,12 +48,31 @@ async def test_default_site_tents_zones_and_capabilities_are_seeded(app_engine):
                 )
             ).all()
         }
+        breeding_env = (
+            await session.exec(
+                select(Device)
+                .where(Device.site_id == site.id)
+                .where(Device.tent_id == breeding.id)
+                .where(Device.device_id == "breeding-env-node")
+            )
+        ).one()
+        breeding_caps = {
+            cap.capability_id
+            for cap in (
+                await session.exec(
+                    select(Capability).where(Capability.device_id == breeding_env.id)
+                )
+            ).all()
+        }
 
     assert site.is_default is True
     assert main.is_default is True
     assert main.role == "flower"
     assert breeding.is_default is False
     assert breeding.role == "breeding"
+    # topology-contract-ok: this test intentionally pins migrated seed topology.
+    assert breeding_env.zone_id is not None
+    assert {"temperature_f", "humidity_pct", "vpd_kpa"} <= breeding_caps
     assert {
         "canopy",
         "reservoir",

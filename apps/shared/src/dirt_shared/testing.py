@@ -35,7 +35,13 @@ import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
+from dirt_shared.models.device import Capability, Device
+from dirt_shared.models.site import Site
+from dirt_shared.models.tent import Tent
+from dirt_shared.models.zone import Zone
 from dirt_shared.observability import LOGS_DIR_ENV
 
 # ============================================================
@@ -251,3 +257,97 @@ async def pg_engine(app_engine):
     module retains a module-level ``engine`` binding to patch.
     """
     yield app_engine
+
+
+# ============================================================
+# Scoped test data builders
+# ============================================================
+
+
+async def create_test_device(  # noqa: PLR0913
+    session: AsyncSession,
+    *,
+    device_id: str,
+    tent_id: str | None,
+    site_id: str = "homebox",
+    zone_id: str | None = None,
+    name: str | None = None,
+    kind: str = "env_sensor",
+    controller: str = "test",
+    enabled: bool = True,
+) -> Device:
+    """Create a test-owned device in a scoped site/tent/zone.
+
+    Use this in behavior tests instead of asserting against production-ish
+    migration seed inventory. Seed topology tests should still query the
+    canonical migrated rows directly.
+    """
+    site_pk = (await session.exec(select(Site.id).where(Site.site_id == site_id))).one()
+    tent_pk = None
+    if tent_id is not None:
+        tent_pk = (
+            await session.exec(
+                select(Tent.id)
+                .where(Tent.site_id == site_pk)
+                .where(Tent.tent_id == tent_id)
+            )
+        ).one()
+
+    zone_pk = None
+    if zone_id is not None:
+        zone_pk = (
+            await session.exec(
+                select(Zone.id)
+                .where(Zone.site_id == site_pk)
+                .where(Zone.tent_id == tent_pk)
+                .where(Zone.zone_id == zone_id)
+            )
+        ).one()
+
+    device = Device(
+        site_id=site_pk,
+        tent_id=tent_pk,
+        zone_id=zone_pk,
+        device_id=device_id,
+        name=name or device_id,
+        kind=kind,
+        controller=controller,
+        enabled=enabled,
+    )
+    session.add(device)
+    await session.flush()
+    if device.id is None:
+        raise RuntimeError("test device insert did not assign a primary key")
+    return device
+
+
+async def create_test_capability(  # noqa: PLR0913
+    session: AsyncSession,
+    *,
+    device: Device,
+    capability_id: str,
+    name: str | None = None,
+    kind: str = "measurement",
+    metric_name: str | None = None,
+    unit: str | None = None,
+    source: str = "test",
+    enabled: bool = True,
+) -> Capability:
+    """Create a test-owned capability for a device."""
+    if device.id is None:
+        raise ValueError("device must be flushed before adding a capability")
+    capability = Capability(
+        device_id=device.id,
+        capability_id=capability_id,
+        name=name or capability_id,
+        kind=kind,
+        metric_name=metric_name or capability_id,
+        unit=unit,
+        source=source,
+        enabled=enabled,
+    )
+    session.add(capability)
+    await session.flush()
+    if capability.id is None:
+        raise RuntimeError("test capability insert did not assign a primary key")
+    return capability
