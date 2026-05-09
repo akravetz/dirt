@@ -12,7 +12,22 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from dirt_gateway.protocols import AssetProjection
+from dirt_gateway.protocols import AssetUploadProjection
+from dirt_shared.cloud_contract import (
+    AssetCompleteRequest,
+    AssetSignUploadRequest,
+    CatalogCapability,
+    CatalogDevice,
+    CatalogRequest,
+    CatalogSchedule,
+    CatalogSite,
+    CatalogTent,
+    CatalogZone,
+    LatestMetricItem,
+    LatestMetricsRequest,
+    RollupItem,
+    RollupsRequest,
+)
 from dirt_shared.models import (
     Capability,
     Device,
@@ -47,22 +62,18 @@ class GatewayLocalServiceBundle:
         self._light_schedules = LightScheduleService(engine, clock=clock)
         self._snapshots = SnapshotsService(engine)
 
-    async def collect_catalog(self, site_id: str) -> dict[str, Any]:
+    async def collect_catalog(self, site_id: str) -> CatalogRequest:
         sites = [
             site for site in await self._catalog.list_sites() if site.site_id == site_id
         ]
         if not sites:
-            return {
-                "site": {
-                    "site_id": site_id,
-                    "name": site_id,
-                    "timezone": "America/Denver",
-                },
-                "tents": [],
-                "zones": [],
-                "devices": [],
-                "capabilities": [],
-            }
+            return CatalogRequest(
+                site=CatalogSite(
+                    site_id=site_id,
+                    name=site_id,
+                    timezone="America/Denver",
+                )
+            )
         site = sites[0]
         tents = await self._catalog.list_tents(site_id=site_id)
         devices = []
@@ -72,58 +83,58 @@ class GatewayLocalServiceBundle:
             )
             devices.extend(tent_devices or [])
 
-        return {
-            "site": {
-                "site_id": site.site_id,
-                "name": site.name,
-                "timezone": site.timezone,
-            },
-            "tents": [
-                {
-                    "tent_id": tent.tent_id,
-                    "name": tent.name,
-                    "is_active": tent.active,
-                }
+        return CatalogRequest(
+            site=CatalogSite(
+                site_id=site.site_id,
+                name=site.name,
+                timezone=site.timezone,
+            ),
+            tents=[
+                CatalogTent(
+                    tent_id=tent.tent_id,
+                    name=tent.name,
+                    is_active=tent.active,
+                )
                 for tent in tents
             ],
-            "zones": await self._collect_zones(site_id),
-            "devices": [
-                {
-                    "tent_id": device.tent_id,
-                    "zone_id": device.zone_id,
-                    "device_id": device.device_id,
-                    "name": device.name,
-                    "kind": device.kind,
-                    "controller": device.controller,
-                    "is_active": device.enabled,
-                    "last_seen_at": device.last_seen,
-                }
+            zones=await self._collect_zones(site_id),
+            devices=[
+                CatalogDevice(
+                    tent_id=device.tent_id,
+                    zone_id=device.zone_id,
+                    device_id=device.device_id,
+                    name=device.name,
+                    kind=device.kind,
+                    controller=device.controller,
+                    is_active=device.enabled,
+                    last_seen_at=device.last_seen,
+                )
                 for device in devices
                 if device.tent_id is not None
             ],
-            "capabilities": await self._collect_capabilities(site_id),
-            "schedules": [
-                {
-                    "site_id": schedule.site_id,
-                    "tent_id": schedule.tent_id,
-                    "zone_id": schedule.zone_id,
-                    "device_id": schedule.device_id,
-                    "capability_id": schedule.capability_id,
-                    "schedule_id": schedule.schedule_id,
-                    "kind": schedule.kind,
-                    "starts_local": schedule.starts_local.isoformat(),
-                    "ends_local": schedule.ends_local.isoformat(),
-                    "timezone": schedule.timezone,
-                    "is_enabled": schedule.enabled,
-                }
+            capabilities=await self._collect_capabilities(site_id),
+            schedules=[
+                CatalogSchedule(
+                    site_id=schedule.site_id,
+                    tent_id=schedule.tent_id,
+                    zone_id=schedule.zone_id,
+                    device_id=schedule.device_id,
+                    capability_id=schedule.capability_id,
+                    schedule_id=schedule.schedule_id,
+                    kind=schedule.kind,
+                    starts_local=schedule.starts_local,
+                    ends_local=schedule.ends_local,
+                    timezone=schedule.timezone,
+                    is_enabled=schedule.enabled,
+                )
                 for schedule in await self._light_schedules.list_light_schedules(
                     site_id=site_id
                 )
             ],
-        }
+        )
 
-    async def collect_latest_metrics(self, site_id: str) -> dict[str, Any]:
-        metrics: list[dict[str, Any]] = []
+    async def collect_latest_metrics(self, site_id: str) -> LatestMetricsRequest:
+        metrics: list[LatestMetricItem] = []
         async with AsyncSession(self._engine) as session:
             result = await session.exec(
                 text(_LATEST_METRICS_SQL),
@@ -131,26 +142,26 @@ class GatewayLocalServiceBundle:
             )
             for row in result.mappings().all():
                 metrics.append(
-                    {
-                        "site_id": site_id,
-                        "tent_id": row["tent_id"],
-                        "zone_id": row["zone_id"],
-                        "device_id": row["device_id"],
-                        "capability_id": row["capability_id"],
-                        "metric": row["metric"],
-                        "value": float(row["value"]),
-                        "unit": row["unit"],
-                        "source_updated_at": _as_utc(row["source_updated_at"]),
-                        "stale_after_s": self._stale_after_s,
-                    }
+                    LatestMetricItem(
+                        site_id=site_id,
+                        tent_id=row["tent_id"],
+                        zone_id=row["zone_id"],
+                        device_id=row["device_id"],
+                        capability_id=row["capability_id"],
+                        metric=row["metric"],
+                        value=float(row["value"]),
+                        unit=row["unit"],
+                        source_updated_at=_as_utc(row["source_updated_at"]),
+                        stale_after_s=self._stale_after_s,
+                    )
                 )
-        return {"site_id": site_id, "metrics": metrics}
+        return LatestMetricsRequest(site_id=site_id, metrics=metrics)
 
     async def collect_rollups(
         self, site_id: str, *, bucket_names: set[str] | None = None
-    ) -> dict[str, Any]:
+    ) -> RollupsRequest:
         now = self._clock()
-        rollups: list[dict[str, Any]] = []
+        rollups: list[RollupItem] = []
         async with AsyncSession(self._engine) as session:
             for bucket, window, bucket_s in ROLLUP_SPECS:
                 if bucket_names is not None and bucket not in bucket_names:
@@ -166,24 +177,24 @@ class GatewayLocalServiceBundle:
                 for row in result.mappings().all():
                     bucket_start = _as_utc(row["bucket_start_at"])
                     rollups.append(
-                        {
-                            "site_id": site_id,
-                            "tent_id": row["tent_id"],
-                            "capability_id": row["capability_id"],
-                            "metric": row["metric"],
-                            "bucket": bucket,
-                            "bucket_start_at": bucket_start,
-                            "bucket_end_at": bucket_start + timedelta(seconds=bucket_s),
-                            "min_value": _maybe_float(row["min_value"]),
-                            "avg_value": _maybe_float(row["avg_value"]),
-                            "max_value": _maybe_float(row["max_value"]),
-                            "sample_count": int(row["sample_count"]),
-                            "unit": row["unit"],
-                        }
+                        RollupItem(
+                            site_id=site_id,
+                            tent_id=row["tent_id"],
+                            capability_id=row["capability_id"],
+                            metric=row["metric"],
+                            bucket=bucket,
+                            bucket_start_at=bucket_start,
+                            bucket_end_at=bucket_start + timedelta(seconds=bucket_s),
+                            min_value=_maybe_float(row["min_value"]),
+                            avg_value=_maybe_float(row["avg_value"]),
+                            max_value=_maybe_float(row["max_value"]),
+                            sample_count=int(row["sample_count"]),
+                            unit=row["unit"],
+                        )
                     )
-        return {"site_id": site_id, "rollups": rollups}
+        return RollupsRequest(site_id=site_id, rollups=rollups)
 
-    async def latest_snapshot_asset(self, site_id: str) -> AssetProjection | None:
+    async def latest_snapshot_asset(self, site_id: str) -> AssetUploadProjection | None:
         tents = await self._catalog.list_tents(site_id=site_id)
         for tent in sorted(tents, key=lambda item: (not item.is_default, item.tent_id)):
             snapshot = await self._snapshots.latest(
@@ -197,30 +208,30 @@ class GatewayLocalServiceBundle:
                 continue
             digest = _file_sha256(path)
             object_key = f"{site_id}/{tent.tent_id}/snapshots/{path.name}"
-            sign_request = {
-                "site_id": site_id,
-                "tent_id": tent.tent_id,
-                "content_type": "image/jpeg",
-                "byte_size": path.stat().st_size,
-                "object_key": object_key,
-                "asset_id": digest,
-                "sha256": digest,
-                "kind": snapshot.kind,
-            }
-            complete_request = {
-                **sign_request,
-                "captured_at": _as_utc(snapshot.ts),
-                "zone_id": await self._public_zone_id(snapshot),
-                "device_id": await self._public_device_id(snapshot),
-            }
-            return AssetProjection(
+            sign_request = AssetSignUploadRequest(
+                site_id=site_id,
+                tent_id=tent.tent_id,
+                content_type="image/jpeg",
+                byte_size=path.stat().st_size,
+                object_key=object_key,
+                asset_id=digest,
+                sha256=digest,
+                kind=snapshot.kind,
+            )
+            complete_request = AssetCompleteRequest(
+                **sign_request.model_dump(),
+                captured_at=_as_utc(snapshot.ts),
+                zone_id=await self._public_zone_id(snapshot),
+                device_id=await self._public_device_id(snapshot),
+            )
+            return AssetUploadProjection(
                 sign_request=sign_request,
                 complete_request=complete_request,
                 file_path=path,
             )
         return None
 
-    async def _collect_zones(self, site_id: str) -> list[dict[str, Any]]:
+    async def _collect_zones(self, site_id: str) -> list[CatalogZone]:
         async with AsyncSession(self._engine) as session:
             rows = (
                 await session.exec(
@@ -232,17 +243,17 @@ class GatewayLocalServiceBundle:
                 )
             ).all()
         return [
-            {
-                "tent_id": tent_id,
-                "zone_id": zone.zone_id,
-                "name": zone.name,
-                "kind": zone.zone_type,
-                "is_active": zone.active,
-            }
+            CatalogZone(
+                tent_id=tent_id,
+                zone_id=zone.zone_id,
+                name=zone.name,
+                kind=zone.zone_type,
+                is_active=zone.active,
+            )
             for zone, tent_id in rows
         ]
 
-    async def _collect_capabilities(self, site_id: str) -> list[dict[str, Any]]:
+    async def _collect_capabilities(self, site_id: str) -> list[CatalogCapability]:
         async with AsyncSession(self._engine) as session:
             rows = (
                 await session.exec(
@@ -255,15 +266,15 @@ class GatewayLocalServiceBundle:
                 )
             ).all()
         return [
-            {
-                "tent_id": tent_id,
-                "device_id": device_id,
-                "capability_id": capability.capability_id,
-                "metric_name": capability.metric_name,
-                "kind": capability.kind,
-                "unit": capability.unit,
-                "is_enabled": capability.enabled,
-            }
+            CatalogCapability(
+                tent_id=tent_id,
+                device_id=device_id,
+                capability_id=capability.capability_id,
+                metric_name=capability.metric_name,
+                kind=capability.kind,
+                unit=capability.unit,
+                is_enabled=capability.enabled,
+            )
             for capability, device_id, tent_id in rows
             if tent_id is not None
         ]

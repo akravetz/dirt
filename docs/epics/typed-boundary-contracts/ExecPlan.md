@@ -18,8 +18,8 @@ The observable result is not merely cleaner code. A developer can run focused te
 - [x] (2026-05-08T04:40Z) Added `docs/rules/boundary-contracts.md` and linked it from the progressive-disclosure indexes.
 - [x] (2026-05-09T04:39Z) Resolved pre-implementation policy questions: drain old outbox rows before cutover, keep deployment compatibility temporary, scope command DTOs to PTZ payloads, keep hosted browser DTOs local unless shared by wire contract, report consistency gaps through logs/audits, and start with narrow guardrail tests.
 - [x] (2026-05-09T04:49Z) Milestone 1: Add shared Pydantic gateway contract models without changing runtime behavior.
-- [ ] Milestone 2: Drain existing outbox rows, then convert read-only gateway projections and outbox enqueue paths to typed DTOs with no legacy replay adapter.
-- [ ] Milestone 3: Convert asset upload and retention payloads to typed DTOs and remove unused legacy raw-payload code.
+- [x] (2026-05-09T05:53Z) Milestone 2: Drained/verified read-only outbox state, then converted read-only gateway projections and outbox enqueue paths to typed DTOs with no legacy replay adapter.
+- [x] (2026-05-09T06:06Z) Milestone 3: Converted asset upload and retention payloads to typed DTOs, validated asset outbox replay before cloud calls, and removed the legacy raw asset request path.
 - [ ] Milestone 4: Convert cloud command claim/result payloads to typed DTOs with discriminated PTZ payloads.
 - [ ] Milestone 5: Add local Pydantic response models to hosted browser API routes and align generated frontend types.
 - [ ] Milestone 6: Add narrow guardrail tests and log/audit data-consistency checks that prevent untyped boundary payloads from returning.
@@ -38,6 +38,12 @@ The observable result is not merely cleaner code. A developer can run focused te
 
 - Observation: Progressive-disclosure documentation should reveal this rule in layers, not bury it in an epic.
   Evidence: IBM's progressive-disclosure guidance emphasizes ordered disclosure and avoiding repeated information; Diataxis separates task-oriented how-to material from reference/explanation. In this repo that maps to `AGENTS.md` triggers, `docs/README.md` and `docs/rules/README.md` indexes, then a focused rule file.
+
+- Observation: Pydantic JSON serialization emits UTC datetimes with a `Z` suffix, so the catalog regression test now compares against `model_dump(mode="json")` instead of the old hand-written `datetime.isoformat()` output.
+  Evidence: The breeding device `last_seen_at` value serialized as `2026-05-05T12:00:00Z` after the Milestone 2 DTO cutover.
+
+- Observation: Re-uploading a snapshot to the same cloud `object_key` with a new content digest exposed a hosted control-plane asset identity bug.
+  Evidence: The live pending `asset_upload` row uses `object_key=homebox/main/snapshots/plant-a.jpg` with a new digest `asset_id`, while a delivered row already used the same object key. The control-plane `cloud_asset` table has a unique constraint on `(site_id, tent_id, object_key)`, but `/assets/complete` previously upserted only by `asset_id`, causing a duplicate-object-key failure.
 
 
 ## Decision Log
@@ -100,6 +106,47 @@ Validation passed:
     uv run ruff format apps/shared/src/dirt_shared/cloud_contract.py apps/shared/tests/test_cloud_contract.py --check
 
 The simplify pass trimmed standalone PTZ payload union classes that belong to Milestone 4 rather than this additive Milestone 1 contract module.
+
+Milestone 2 preflight found no pending read-only outbox rows, so no live outbox mutation was needed before tightening replay validation:
+
+    catalog        delivered   1747
+    heartbeat      delivered   2844
+    latest_metrics delivered   2844
+    rollups        delivered    725
+    rollups        superseded  2090
+
+Milestone 2 converted local read-only projections to shared DTOs: `GatewayLocalServiceBundle.collect_catalog()` now returns `CatalogRequest`, `collect_latest_metrics()` returns `LatestMetricsRequest`, and `collect_rollups()` returns `RollupsRequest`. `GatewaySyncService` keeps those projection models until enqueue, stores `model_dump(mode="json")` at the outbox boundary, hashes the serialized payload for idempotency, and validates stored read-only JSON back into the known DTO before dispatch. Asset upload, asset retention, and command result remain on the raw path for later milestones.
+
+`apps/gateway/tests/test_sync.py` now asserts catalog projection model instances before enqueue and includes a replay regression proving that a stored catalog payload missing required `last_seen_at` fails validation before dispatch. The existing rollup behavior was preserved: pending rollups are superseded by newer projections, and 5m/1h/4h buckets keep their independent intervals.
+
+Validation passed:
+
+    uv run pytest apps/gateway/tests/test_sync.py -q
+    uv run pytest apps/gateway/tests -q
+    uv run ruff check apps/gateway/src apps/gateway/tests apps/shared/src/dirt_shared/cloud_contract.py
+    uv run ruff format apps/gateway/src apps/gateway/tests apps/shared/src/dirt_shared/cloud_contract.py --check
+
+The simplify fallback pass reviewed reuse, quality, and efficiency over the Milestone 2 diff. It applied one small cleanup: the HTTP client now serializes any Pydantic request via `BaseModel.model_dump(mode="json")` instead of repeating a read-only union check.
+
+Milestone 3 converted gateway asset payloads to shared DTOs. `AssetUploadProjection` now carries `AssetSignUploadRequest`, `AssetCompleteRequest`, and local-only `file_path: Path`; enqueueing serializes through `AssetUploadOutboxPayload` with JSON-safe nested request DTOs and a string file path. Stored `asset_upload` rows are validated back into `AssetUploadOutboxPayload` before `sign_upload`, byte upload, `complete_asset`, or failure reporting. Stored `asset_retention` rows are validated into `AssetRetentionRequest` before pruning.
+
+`CloudGatewayClient` and `HttpCloudGatewayClient` now use the shared asset request DTOs and validate asset responses with `SignUploadResponse`, `AssetCompleteResponse`, `AssetFailureResponse`, and `PruneAssetsResponse`. Command payloads remain raw for Milestone 4.
+
+The hosted control-plane asset endpoints now reuse the shared asset request/response DTOs. A focused local fix changed `/assets/complete` to resolve an existing `CloudAsset` by `(site_id, tent_id, object_key)` when no row exists for the new `asset_id`, then update that row. This should allow the known live pending asset row to drain after the hosted control-plane is deployed, but no live outbox rows were mutated and no hosted deployment was performed in this milestone.
+
+`apps/gateway/tests/test_sync.py` now proves asset upload requests are typed through enqueue and dispatch, and that malformed stored `asset_upload` JSON fails validation before any asset cloud calls. `apps/control-plane/tests/test_api.py` covers completing the same object key with a new asset id without violating the unique object-key constraint.
+
+Validation passed:
+
+    uv run pytest apps/gateway/tests/test_sync.py -q
+    uv run pytest apps/gateway/tests -q
+    uv run pytest apps/control-plane/tests/test_api.py::test_asset_complete_replaces_existing_asset_for_same_object_key -q
+    uv run ruff check apps/gateway/src apps/gateway/tests apps/shared/src/dirt_shared/cloud_contract.py
+    uv run ruff format apps/gateway/src apps/gateway/tests apps/shared/src/dirt_shared/cloud_contract.py --check
+    uv run ruff check apps/control-plane/src/dirt_control/api/gateway.py apps/control-plane/tests/test_api.py
+    uv run ruff format apps/control-plane/src/dirt_control/api/gateway.py apps/control-plane/tests/test_api.py --check
+
+The simplify fallback pass reviewed reuse, quality, and efficiency over the Milestone 3 diff. It found no follow-up edits worth making; the duplicate-object-key control-plane fix stayed intentionally narrow and local to asset completion.
 
 
 ## Context and Orientation

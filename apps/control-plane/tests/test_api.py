@@ -479,6 +479,61 @@ async def test_asset_flow_is_direct_upload_handshake_and_signed_url_requires_aut
     assert authed.json()["signed_url"].startswith("https://assets.test/")
 
 
+async def test_asset_complete_replaces_existing_asset_for_same_object_key(
+    client: AsyncClient,
+    gateway_headers: dict[str, str],
+    cloud_engine: AsyncEngine,
+) -> None:
+    first = await client.post(
+        "/api/gateway/v1/assets/complete",
+        headers=gateway_headers,
+        json={
+            "site_id": "homebox",
+            "tent_id": "main",
+            "asset_id": "asset-old",
+            "object_key": "homebox/main/snapshots/plant-a.jpg",
+            "content_type": "image/jpeg",
+            "byte_size": 10,
+            "sha256": "a" * 64,
+            "captured_at": "2026-05-05T03:40:00Z",
+        },
+    )
+    second = await client.post(
+        "/api/gateway/v1/assets/complete",
+        headers=gateway_headers,
+        json={
+            "site_id": "homebox",
+            "tent_id": "main",
+            "asset_id": "asset-new",
+            "object_key": "homebox/main/snapshots/plant-a.jpg",
+            "content_type": "image/jpeg",
+            "byte_size": 20,
+            "sha256": "b" * 64,
+            "captured_at": "2026-05-05T03:45:00Z",
+        },
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json()["asset_id"] == "asset-new"
+    sessionmaker = create_sessionmaker(cloud_engine)
+    async with sessionmaker() as session:
+        assets = (
+            (
+                await session.execute(
+                    select(CloudAsset).where(
+                        CloudAsset.object_key == "homebox/main/snapshots/plant-a.jpg"
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert len(assets) == 1
+    assert assets[0].asset_id == "asset-new"
+    assert assets[0].byte_size == 20
+
+
 async def test_sync_status_exposes_gateway_age_and_command_backlog(
     authed_client: AsyncClient,
 ) -> None:

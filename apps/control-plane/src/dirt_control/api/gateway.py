@@ -35,6 +35,16 @@ from dirt_control.security import (
 )
 from dirt_control.settings import CloudSettings
 from dirt_control.storage import S3ObjectStore
+from dirt_shared.cloud_contract import (
+    AssetCompleteRequest,
+    AssetCompleteResponse,
+    AssetFailureRequest,
+    AssetFailureResponse,
+    AssetRetentionRequest,
+    AssetSignUploadRequest,
+    PruneAssetsResponse,
+    SignUploadResponse,
+)
 
 router = APIRouter(prefix="/api/gateway/v1")
 ModelT = TypeVar("ModelT", bound=SQLModel)
@@ -146,36 +156,6 @@ class RollupItem(BaseModel):
 class RollupsRequest(BaseModel):
     site_id: str
     rollups: list[RollupItem]
-
-
-class AssetSignUploadRequest(BaseModel):
-    site_id: str
-    tent_id: str
-    content_type: str
-    byte_size: int = Field(gt=0)
-    object_key: str
-    asset_id: str | None = None
-    sha256: str | None = None
-    kind: str = "snapshot"
-
-
-class AssetCompleteRequest(AssetSignUploadRequest):
-    captured_at: datetime
-    zone_id: str | None = None
-    device_id: str | None = None
-
-
-class AssetFailureRequest(BaseModel):
-    site_id: str
-    tent_id: str | None = None
-    asset_id: str | None = None
-    object_key: str | None = None
-    stage: str = Field(max_length=80)
-    error: str = Field(max_length=500)
-
-
-class AssetRetentionRequest(BaseModel):
-    site_id: str
 
 
 class CommandClaimRequest(BaseModel):
@@ -459,7 +439,7 @@ async def metrics_rollups(
     return {"upserted": len(body.rollups)}
 
 
-@router.post("/assets/sign-upload")
+@router.post("/assets/sign-upload", response_model=SignUploadResponse)
 async def sign_upload(
     body: AssetSignUploadRequest,
     principal: GatewayPrincipal = Depends(require_gateway),
@@ -494,7 +474,7 @@ async def sign_upload(
     }
 
 
-@router.post("/assets/complete")
+@router.post("/assets/complete", response_model=AssetCompleteResponse)
 async def complete_asset(
     body: AssetCompleteRequest,
     principal: GatewayPrincipal = Depends(require_gateway),
@@ -504,10 +484,8 @@ async def complete_asset(
     require_gateway_scope(principal, body.site_id)
     now = clock()
     asset_id = body.asset_id or body.sha256 or body.object_key
-    await _upsert(
+    await _upsert_cloud_asset(
         session,
-        CloudAsset,
-        asset_id,
         {
             "asset_id": asset_id,
             "site_id": body.site_id,
@@ -544,7 +522,7 @@ async def complete_asset(
     return {"asset_id": asset_id, "object_key": body.object_key, "uploaded_at": now}
 
 
-@router.post("/assets/upload-failure")
+@router.post("/assets/upload-failure", response_model=AssetFailureResponse)
 async def asset_upload_failure(
     body: AssetFailureRequest,
     principal: GatewayPrincipal = Depends(require_gateway),
@@ -573,7 +551,7 @@ async def asset_upload_failure(
     return {"ok": True, "received_at": now}
 
 
-@router.post("/assets/prune-expired")
+@router.post("/assets/prune-expired", response_model=PruneAssetsResponse)
 async def prune_assets(
     body: AssetRetentionRequest,
     principal: GatewayPrincipal = Depends(require_gateway),
@@ -736,6 +714,38 @@ async def _upsert(
     row = await session.get(model, primary_key)
     if row is None:
         row = model(**values)
+        session.add(row)
+        return row
+
+    for key, value in values.items():
+        if key == "created_at":
+            continue
+        setattr(row, key, value)
+    if hasattr(row, "updated_at"):
+        row.updated_at = now
+    return row
+
+
+async def _upsert_cloud_asset(
+    session: AsyncSession,
+    values: dict[str, Any],
+    *,
+    now: datetime,
+) -> CloudAsset:
+    asset_id = values["asset_id"]
+    row = await session.get(CloudAsset, asset_id)
+    if row is None:
+        row = (
+            await session.execute(
+                select(CloudAsset).where(
+                    CloudAsset.site_id == values["site_id"],
+                    CloudAsset.tent_id == values["tent_id"],
+                    CloudAsset.object_key == values["object_key"],
+                )
+            )
+        ).scalar_one_or_none()
+    if row is None:
+        row = CloudAsset(**values)
         session.add(row)
         return row
 

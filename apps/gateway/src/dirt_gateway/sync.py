@@ -5,21 +5,42 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import Any
+
+from pydantic import BaseModel
 
 from dirt_gateway.cloud import CloudDeliveryError
 from dirt_gateway.outbox import OutboxRepository, stable_json_hash
 from dirt_gateway.protocols import (
+    AssetUploadOutboxPayload,
+    AssetUploadProjection,
     BackoffPolicy,
     CloudGatewayClient,
     LocalGatewayServices,
     Sleeper,
     build_heartbeat_payload,
 )
+from dirt_shared.cloud_contract import (
+    AssetCompleteRequest,
+    AssetFailureRequest,
+    AssetRetentionRequest,
+    AssetSignUploadRequest,
+    CatalogRequest,
+    HeartbeatRequest,
+    LatestMetricsRequest,
+    RollupsRequest,
+)
 from dirt_shared.config import CloudGatewayConfig
 from dirt_shared.models import CloudOutbox
 from dirt_shared.observability import log_event
+
+ReadOnlyProjectionPayload = (
+    HeartbeatRequest | CatalogRequest | LatestMetricsRequest | RollupsRequest
+)
+TypedProjectionPayload = (
+    ReadOnlyProjectionPayload | AssetRetentionRequest | AssetUploadProjection
+)
+ProjectionPayload = TypedProjectionPayload | dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -33,7 +54,7 @@ class SyncResult:
 
 @dataclass(frozen=True)
 class _Projection:
-    payload: dict[str, Any]
+    payload: ProjectionPayload
     rollup_bucket_names: frozenset[str] = frozenset()
 
 
@@ -111,7 +132,7 @@ class GatewaySyncService:
                 site_id=self._config.site_id,
                 gateway_id=self._config.gateway_id,
                 projection_counts={
-                    key: _count_projection(projection.payload)
+                    key: _count_projection(_projection_payload_json(projection.payload))
                     for key, projection in projections.items()
                 },
             )
@@ -159,20 +180,14 @@ class GatewaySyncService:
             )
         if self._config.asset_sync_enabled:
             projections["asset_retention"] = _Projection(
-                {
-                    "site_id": self._config.site_id,
-                    "as_of_date": self._clock().date().isoformat(),
-                }
+                AssetRetentionRequest(
+                    site_id=self._config.site_id,
+                    as_of_date=self._clock().date(),
+                )
             )
             asset = await self._local.latest_snapshot_asset(self._config.site_id)
             if asset is not None:
-                projections["asset_upload"] = _Projection(
-                    {
-                        "sign_request": asset.sign_request,
-                        "complete_request": asset.complete_request,
-                        "file_path": asset.file_path,
-                    }
-                )
+                projections["asset_upload"] = _Projection(asset)
         return projections
 
     async def _due_rollup_buckets(self, now: datetime) -> frozenset[str]:
@@ -192,7 +207,7 @@ class GatewaySyncService:
     ) -> int:
         created = 0
         for event_type, projection in projections.items():
-            payload = projection.payload
+            payload = _projection_payload_json(projection.payload)
             key = self._idempotency_key(event_type, payload, now=now)
             result = await self._outbox.enqueue(
                 event_type=event_type,
@@ -289,27 +304,38 @@ class GatewaySyncService:
         payload = row.payload
         if row.event_type == "heartbeat":
             await self._cloud.send_heartbeat(
-                payload,
+                _validate_read_only_payload(row.event_type, payload),
                 idempotency_key=row.idempotency_key,
             )
             return
         if row.event_type == "catalog":
-            await self._cloud.put_catalog(payload, idempotency_key=row.idempotency_key)
+            await self._cloud.put_catalog(
+                _validate_read_only_payload(row.event_type, payload),
+                idempotency_key=row.idempotency_key,
+            )
             return
         if row.event_type == "latest_metrics":
             await self._cloud.put_latest_metrics(
-                payload, idempotency_key=row.idempotency_key
+                _validate_read_only_payload(row.event_type, payload),
+                idempotency_key=row.idempotency_key,
             )
             return
         if row.event_type == "rollups":
-            await self._cloud.post_rollups(payload, idempotency_key=row.idempotency_key)
+            await self._cloud.post_rollups(
+                _validate_read_only_payload(row.event_type, payload),
+                idempotency_key=row.idempotency_key,
+            )
             return
         if row.event_type == "asset_upload":
-            await self._deliver_asset(payload, idempotency_key=row.idempotency_key)
+            await self._deliver_asset(
+                AssetUploadOutboxPayload.model_validate(payload),
+                idempotency_key=row.idempotency_key,
+            )
             return
         if row.event_type == "asset_retention":
             await self._cloud.prune_expired_assets(
-                payload, idempotency_key=row.idempotency_key
+                AssetRetentionRequest.model_validate(payload),
+                idempotency_key=row.idempotency_key,
             )
             return
         if row.event_type == "command_result":
@@ -323,31 +349,29 @@ class GatewaySyncService:
 
     async def _deliver_asset(
         self,
-        payload: dict[str, Any],
+        payload: AssetUploadOutboxPayload,
         *,
         idempotency_key: str,
     ) -> None:
-        sign_request = payload["sign_request"]
-        complete_request = payload["complete_request"]
         signed = await self._cloud.sign_upload(
-            sign_request,
+            payload.sign_request,
             idempotency_key=f"{idempotency_key}:sign",
         )
         try:
             await self._cloud.upload_asset(
-                file_path=Path(payload["file_path"]),
-                upload_url=signed["upload_url"],
-                headers=dict(signed.get("headers") or {}),
-                content_type=sign_request["content_type"],
+                file_path=payload.file_path,
+                upload_url=signed.upload_url,
+                headers=signed.headers,
+                content_type=payload.sign_request.content_type,
             )
             await self._cloud.complete_asset(
-                complete_request,
+                payload.complete_request,
                 idempotency_key=f"{idempotency_key}:complete",
             )
         except Exception as exc:
             await self._report_asset_failure(
-                sign_request=sign_request,
-                complete_request=complete_request,
+                sign_request=payload.sign_request,
+                complete_request=payload.complete_request,
                 exc=exc,
                 idempotency_key=idempotency_key,
             )
@@ -356,21 +380,21 @@ class GatewaySyncService:
     async def _report_asset_failure(
         self,
         *,
-        sign_request: dict[str, Any],
-        complete_request: dict[str, Any],
+        sign_request: AssetSignUploadRequest,
+        complete_request: AssetCompleteRequest,
         exc: Exception,
         idempotency_key: str,
     ) -> None:
         try:
             await self._cloud.report_asset_failure(
-                {
-                    "site_id": sign_request["site_id"],
-                    "tent_id": sign_request.get("tent_id"),
-                    "asset_id": sign_request.get("asset_id"),
-                    "object_key": sign_request.get("object_key"),
-                    "stage": "upload_or_complete",
-                    "error": str(exc)[:500],
-                },
+                AssetFailureRequest(
+                    site_id=sign_request.site_id,
+                    tent_id=sign_request.tent_id,
+                    asset_id=sign_request.asset_id,
+                    object_key=sign_request.object_key,
+                    stage="upload_or_complete",
+                    error=str(exc)[:500],
+                ),
                 idempotency_key=f"{idempotency_key}:failure",
             )
         except Exception:
@@ -379,7 +403,7 @@ class GatewaySyncService:
                 "asset_failure_report_failed",
                 site_id=self._config.site_id,
                 gateway_id=self._config.gateway_id,
-                asset_id=complete_request.get("asset_id"),
+                asset_id=complete_request.asset_id,
                 idempotency_key=idempotency_key,
             )
 
@@ -452,6 +476,22 @@ def _count_projection(value: dict[str, Any]) -> int:
     return 1
 
 
+def _projection_payload_json(payload: ProjectionPayload) -> dict[str, Any]:
+    if isinstance(payload, AssetUploadProjection):
+        return payload.to_outbox_payload().model_dump(mode="json")
+    if isinstance(payload, BaseModel):
+        return payload.model_dump(mode="json")
+    return dict(payload)
+
+
+def _validate_read_only_payload(
+    event_type: str,
+    payload: dict[str, Any],
+) -> ReadOnlyProjectionPayload:
+    model = _READ_ONLY_EVENT_MODELS[event_type]
+    return model.model_validate(payload)
+
+
 def _row_id(row: CloudOutbox) -> int:
     if row.id is None:
         raise CloudDeliveryError("outbox row is missing a primary key")
@@ -471,3 +511,11 @@ def _cursor_datetime(cursor: dict[str, Any] | None, key: str) -> datetime | None
     if isinstance(value, str):
         return datetime.fromisoformat(value)
     return None
+
+
+_READ_ONLY_EVENT_MODELS: dict[str, type[ReadOnlyProjectionPayload]] = {
+    "heartbeat": HeartbeatRequest,
+    "catalog": CatalogRequest,
+    "latest_metrics": LatestMetricsRequest,
+    "rollups": RollupsRequest,
+}

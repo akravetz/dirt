@@ -6,36 +6,64 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
+from dirt_shared.cloud_contract import (
+    AssetCompleteRequest,
+    AssetCompleteResponse,
+    AssetFailureRequest,
+    AssetFailureResponse,
+    AssetRetentionRequest,
+    AssetSignUploadRequest,
+    CatalogRequest,
+    CloudContractModel,
+    HeartbeatRequest,
+    LatestMetricsRequest,
+    PruneAssetsResponse,
+    RollupsRequest,
+    SignUploadResponse,
+)
 from dirt_shared.config import CloudGatewayConfig
 
 
 @dataclass(frozen=True)
-class AssetProjection:
-    sign_request: dict[str, Any]
-    complete_request: dict[str, Any]
+class AssetUploadProjection:
+    sign_request: AssetSignUploadRequest
+    complete_request: AssetCompleteRequest
+    file_path: Path
+
+    def to_outbox_payload(self) -> AssetUploadOutboxPayload:
+        return AssetUploadOutboxPayload(
+            sign_request=self.sign_request,
+            complete_request=self.complete_request,
+            file_path=self.file_path,
+        )
+
+
+class AssetUploadOutboxPayload(CloudContractModel):
+    sign_request: AssetSignUploadRequest
+    complete_request: AssetCompleteRequest
     file_path: Path
 
 
 class CloudGatewayClient(Protocol):
     async def send_heartbeat(
-        self, payload: dict[str, Any], *, idempotency_key: str
+        self, payload: HeartbeatRequest, *, idempotency_key: str
     ) -> dict[str, Any]: ...
 
     async def put_catalog(
-        self, payload: dict[str, Any], *, idempotency_key: str
+        self, payload: CatalogRequest, *, idempotency_key: str
     ) -> dict[str, Any]: ...
 
     async def put_latest_metrics(
-        self, payload: dict[str, Any], *, idempotency_key: str
+        self, payload: LatestMetricsRequest, *, idempotency_key: str
     ) -> dict[str, Any]: ...
 
     async def post_rollups(
-        self, payload: dict[str, Any], *, idempotency_key: str
+        self, payload: RollupsRequest, *, idempotency_key: str
     ) -> dict[str, Any]: ...
 
     async def sign_upload(
-        self, payload: dict[str, Any], *, idempotency_key: str
-    ) -> dict[str, Any]: ...
+        self, payload: AssetSignUploadRequest, *, idempotency_key: str
+    ) -> SignUploadResponse: ...
 
     async def upload_asset(
         self,
@@ -47,16 +75,16 @@ class CloudGatewayClient(Protocol):
     ) -> None: ...
 
     async def complete_asset(
-        self, payload: dict[str, Any], *, idempotency_key: str
-    ) -> dict[str, Any]: ...
+        self, payload: AssetCompleteRequest, *, idempotency_key: str
+    ) -> AssetCompleteResponse: ...
 
     async def report_asset_failure(
-        self, payload: dict[str, Any], *, idempotency_key: str
-    ) -> dict[str, Any]: ...
+        self, payload: AssetFailureRequest, *, idempotency_key: str
+    ) -> AssetFailureResponse: ...
 
     async def prune_expired_assets(
-        self, payload: dict[str, Any], *, idempotency_key: str
-    ) -> dict[str, Any]: ...
+        self, payload: AssetRetentionRequest, *, idempotency_key: str
+    ) -> PruneAssetsResponse: ...
 
     async def claim_commands(
         self, *, site_id: str, limit: int, idempotency_key: str
@@ -72,15 +100,17 @@ class CloudGatewayClient(Protocol):
 
 
 class LocalGatewayServices(Protocol):
-    async def collect_catalog(self, site_id: str) -> dict[str, Any]: ...
+    async def collect_catalog(self, site_id: str) -> CatalogRequest: ...
 
-    async def collect_latest_metrics(self, site_id: str) -> dict[str, Any]: ...
+    async def collect_latest_metrics(self, site_id: str) -> LatestMetricsRequest: ...
 
     async def collect_rollups(
         self, site_id: str, *, bucket_names: set[str] | None = None
-    ) -> dict[str, Any]: ...
+    ) -> RollupsRequest: ...
 
-    async def latest_snapshot_asset(self, site_id: str) -> AssetProjection | None: ...
+    async def latest_snapshot_asset(
+        self, site_id: str
+    ) -> AssetUploadProjection | None: ...
 
 
 class Sleeper(Protocol):
@@ -95,9 +125,9 @@ def build_heartbeat_payload(
     config: CloudGatewayConfig,
     *,
     backlog_depth: int,
-) -> dict[str, Any]:
-    return {
-        "site_id": config.site_id,
-        "gateway_id": config.gateway_id,
-        "backlog_depth": backlog_depth,
-    }
+) -> HeartbeatRequest:
+    return HeartbeatRequest(
+        site_id=config.site_id,
+        gateway_id=config.gateway_id,
+        backlog_depth=backlog_depth,
+    )

@@ -6,6 +6,22 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+from pydantic import BaseModel
+
+from dirt_shared.cloud_contract import (
+    AssetCompleteRequest,
+    AssetCompleteResponse,
+    AssetFailureRequest,
+    AssetFailureResponse,
+    AssetRetentionRequest,
+    AssetSignUploadRequest,
+    CatalogRequest,
+    HeartbeatRequest,
+    LatestMetricsRequest,
+    PruneAssetsResponse,
+    RollupsRequest,
+    SignUploadResponse,
+)
 
 
 class CloudDeliveryError(RuntimeError):
@@ -30,39 +46,40 @@ class HttpCloudGatewayClient:
             await self._client.aclose()
 
     async def send_heartbeat(
-        self, payload: dict[str, Any], *, idempotency_key: str
+        self, payload: HeartbeatRequest, *, idempotency_key: str
     ) -> dict[str, Any]:
         return await self._request(
             "POST", "/api/gateway/v1/heartbeat", payload, idempotency_key
         )
 
     async def put_catalog(
-        self, payload: dict[str, Any], *, idempotency_key: str
+        self, payload: CatalogRequest, *, idempotency_key: str
     ) -> dict[str, Any]:
         return await self._request(
             "PUT", "/api/gateway/v1/catalog", payload, idempotency_key
         )
 
     async def put_latest_metrics(
-        self, payload: dict[str, Any], *, idempotency_key: str
+        self, payload: LatestMetricsRequest, *, idempotency_key: str
     ) -> dict[str, Any]:
         return await self._request(
             "PUT", "/api/gateway/v1/metrics/latest", payload, idempotency_key
         )
 
     async def post_rollups(
-        self, payload: dict[str, Any], *, idempotency_key: str
+        self, payload: RollupsRequest, *, idempotency_key: str
     ) -> dict[str, Any]:
         return await self._request(
             "POST", "/api/gateway/v1/metrics/rollups", payload, idempotency_key
         )
 
     async def sign_upload(
-        self, payload: dict[str, Any], *, idempotency_key: str
-    ) -> dict[str, Any]:
-        return await self._request(
+        self, payload: AssetSignUploadRequest, *, idempotency_key: str
+    ) -> SignUploadResponse:
+        response = await self._request(
             "POST", "/api/gateway/v1/assets/sign-upload", payload, idempotency_key
         )
+        return SignUploadResponse.model_validate(response)
 
     async def upload_asset(
         self,
@@ -86,31 +103,34 @@ class HttpCloudGatewayClient:
             raise CloudDeliveryError(str(exc)) from exc
 
     async def complete_asset(
-        self, payload: dict[str, Any], *, idempotency_key: str
-    ) -> dict[str, Any]:
-        return await self._request(
+        self, payload: AssetCompleteRequest, *, idempotency_key: str
+    ) -> AssetCompleteResponse:
+        response = await self._request(
             "POST", "/api/gateway/v1/assets/complete", payload, idempotency_key
         )
+        return AssetCompleteResponse.model_validate(response)
 
     async def report_asset_failure(
-        self, payload: dict[str, Any], *, idempotency_key: str
-    ) -> dict[str, Any]:
-        return await self._request(
+        self, payload: AssetFailureRequest, *, idempotency_key: str
+    ) -> AssetFailureResponse:
+        response = await self._request(
             "POST",
             "/api/gateway/v1/assets/upload-failure",
             payload,
             idempotency_key,
         )
+        return AssetFailureResponse.model_validate(response)
 
     async def prune_expired_assets(
-        self, payload: dict[str, Any], *, idempotency_key: str
-    ) -> dict[str, Any]:
-        return await self._request(
+        self, payload: AssetRetentionRequest, *, idempotency_key: str
+    ) -> PruneAssetsResponse:
+        response = await self._request(
             "POST",
             "/api/gateway/v1/assets/prune-expired",
             payload,
             idempotency_key,
         )
+        return PruneAssetsResponse.model_validate(response)
 
     async def claim_commands(
         self, *, site_id: str, limit: int, idempotency_key: str
@@ -140,7 +160,7 @@ class HttpCloudGatewayClient:
         self,
         method: str,
         path: str,
-        payload: dict[str, Any],
+        payload: dict[str, Any] | BaseModel,
         idempotency_key: str,
     ) -> dict[str, Any]:
         headers = {
@@ -151,7 +171,7 @@ class HttpCloudGatewayClient:
             response = await self._client.request(
                 method,
                 f"{self._base_url}{path}",
-                json=payload,
+                json=_json_payload(payload),
                 headers=headers,
             )
             response.raise_for_status()
@@ -161,3 +181,9 @@ class HttpCloudGatewayClient:
         if not isinstance(data, dict):
             raise CloudDeliveryError("cloud API returned a non-object response")
         return data
+
+
+def _json_payload(payload: dict[str, Any] | BaseModel) -> dict[str, Any]:
+    if isinstance(payload, BaseModel):
+        return payload.model_dump(mode="json")
+    return payload

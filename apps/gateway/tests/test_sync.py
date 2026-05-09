@@ -20,8 +20,24 @@ from dirt_gateway.cloud import CloudDeliveryError
 from dirt_gateway.commands import GatewayCommandService
 from dirt_gateway.local import GatewayLocalServiceBundle
 from dirt_gateway.outbox import OutboxRepository
-from dirt_gateway.protocols import AssetProjection
+from dirt_gateway.protocols import AssetUploadProjection
 from dirt_gateway.sync import GatewaySyncService
+from dirt_shared.cloud_contract import (
+    AssetCompleteRequest,
+    AssetCompleteResponse,
+    AssetFailureRequest,
+    AssetFailureResponse,
+    AssetRetentionRequest,
+    AssetSignUploadRequest,
+    CatalogRequest,
+    CatalogSite,
+    CatalogTent,
+    LatestMetricsRequest,
+    PruneAssetsResponse,
+    RollupItem,
+    RollupsRequest,
+    SignUploadResponse,
+)
 from dirt_shared.config import CloudGatewayConfig
 from dirt_shared.models import (
     Capability,
@@ -60,6 +76,8 @@ class RecordingCloudClient:
         self.latest_rows: dict[tuple[str, str, str, str], dict[str, Any]] = {}
         self.rollup_rows: dict[tuple[str, str, str, str, str, str], dict[str, Any]] = {}
         self.assets: dict[str, dict[str, Any]] = {}
+        self.asset_sign_requests: list[AssetSignUploadRequest] = []
+        self.asset_complete_requests: list[AssetCompleteRequest] = []
         self.call_counts: defaultdict[str, int] = defaultdict(int)
         self.claimed_commands: list[dict[str, Any]] = []
         self.command_results: list[tuple[str, dict[str, Any], str]] = []
@@ -67,21 +85,24 @@ class RecordingCloudClient:
         self.retention_requests: list[dict[str, Any]] = []
 
     async def send_heartbeat(
-        self, payload: dict[str, Any], *, idempotency_key: str
+        self, payload: Any, *, idempotency_key: str
     ) -> dict[str, Any]:
+        payload = _payload_dict(payload)
         self._record("heartbeat", idempotency_key)
         return {"ok": True, **payload}
 
     async def put_catalog(
-        self, payload: dict[str, Any], *, idempotency_key: str
+        self, payload: Any, *, idempotency_key: str
     ) -> dict[str, Any]:
+        payload = _payload_dict(payload)
         self._record("catalog", idempotency_key)
         self.catalogs[idempotency_key] = payload
         return {"ok": True}
 
     async def put_latest_metrics(
-        self, payload: dict[str, Any], *, idempotency_key: str
+        self, payload: Any, *, idempotency_key: str
     ) -> dict[str, Any]:
+        payload = _payload_dict(payload)
         self._record("latest_metrics", idempotency_key)
         for row in payload["metrics"]:
             key = (row["site_id"], row["tent_id"], row["capability_id"], row["metric"])
@@ -89,8 +110,9 @@ class RecordingCloudClient:
         return {"ok": True}
 
     async def post_rollups(
-        self, payload: dict[str, Any], *, idempotency_key: str
+        self, payload: Any, *, idempotency_key: str
     ) -> dict[str, Any]:
+        payload = _payload_dict(payload)
         self._record("rollups", idempotency_key)
         for row in payload["rollups"]:
             key = (
@@ -105,13 +127,19 @@ class RecordingCloudClient:
         return {"ok": True}
 
     async def sign_upload(
-        self, payload: dict[str, Any], *, idempotency_key: str
-    ) -> dict[str, Any]:
+        self, payload: AssetSignUploadRequest, *, idempotency_key: str
+    ) -> SignUploadResponse:
         self._record("asset_sign", idempotency_key)
-        return {
-            "upload_url": "https://assets.test/upload",
-            "headers": {"content-type": payload["content_type"]},
-        }
+        self.asset_sign_requests.append(payload)
+        return SignUploadResponse(
+            asset_id=payload.asset_id,
+            object_key=payload.object_key,
+            upload_url="https://assets.test/upload",
+            method="PUT",
+            headers={"content-type": payload.content_type},
+            expires_at=FIXED_NOW + timedelta(minutes=10),
+            byte_size=payload.byte_size,
+        )
 
     async def upload_asset(
         self,
@@ -128,25 +156,35 @@ class RecordingCloudClient:
         self.call_counts["asset_upload_bytes"] += 1
 
     async def complete_asset(
-        self, payload: dict[str, Any], *, idempotency_key: str
-    ) -> dict[str, Any]:
+        self, payload: AssetCompleteRequest, *, idempotency_key: str
+    ) -> AssetCompleteResponse:
         self._record("asset_complete", idempotency_key)
-        self.assets[payload["asset_id"]] = payload
-        return {"ok": True}
+        self.asset_complete_requests.append(payload)
+        asset_id = payload.asset_id or payload.sha256 or payload.object_key
+        self.assets[asset_id] = payload.model_dump(mode="json")
+        return AssetCompleteResponse(
+            asset_id=asset_id,
+            object_key=payload.object_key,
+            uploaded_at=FIXED_NOW,
+        )
 
     async def report_asset_failure(
-        self, payload: dict[str, Any], *, idempotency_key: str
-    ) -> dict[str, Any]:
+        self, payload: AssetFailureRequest, *, idempotency_key: str
+    ) -> AssetFailureResponse:
         self._record("asset_failure", idempotency_key)
-        self.asset_failures.append(payload)
-        return {"ok": True}
+        self.asset_failures.append(payload.model_dump(mode="json"))
+        return AssetFailureResponse(ok=True, received_at=FIXED_NOW)
 
     async def prune_expired_assets(
-        self, payload: dict[str, Any], *, idempotency_key: str
-    ) -> dict[str, Any]:
+        self, payload: AssetRetentionRequest, *, idempotency_key: str
+    ) -> PruneAssetsResponse:
         self._record("asset_retention", idempotency_key)
-        self.retention_requests.append(payload)
-        return {"ok": True, "matched": 0, "objects_deleted": 0}
+        self.retention_requests.append(payload.model_dump(mode="json"))
+        return PruneAssetsResponse(
+            cutoff=FIXED_NOW - timedelta(days=30),
+            matched=0,
+            objects_deleted=0,
+        )
 
     async def claim_commands(
         self, *, site_id: str, limit: int, idempotency_key: str
@@ -174,30 +212,53 @@ class RecordingCloudClient:
         self.successful_calls.append((event_type, idempotency_key))
 
 
+def _payload_dict(payload: Any) -> dict[str, Any]:
+    if hasattr(payload, "model_dump"):
+        return payload.model_dump(mode="json")
+    return payload
+
+
+def _asset_projection(asset_file: Path) -> AssetUploadProjection:
+    sign_request = AssetSignUploadRequest(
+        site_id="homebox",
+        tent_id="main",
+        content_type="image/jpeg",
+        byte_size=len(b"jpeg-bytes"),
+        object_key="homebox/main/snapshots/snapshot.jpg",
+        asset_id="asset-1",
+        sha256="asset-1",
+        kind="periodic",
+    )
+    return AssetUploadProjection(
+        sign_request=sign_request,
+        complete_request=AssetCompleteRequest(
+            **sign_request.model_dump(),
+            captured_at=FIXED_NOW,
+        ),
+        file_path=asset_file,
+    )
+
+
 class StaticLocalServices:
-    def __init__(self, *, asset: AssetProjection | None = None) -> None:
+    def __init__(self, *, asset: AssetUploadProjection | None = None) -> None:
         self.asset = asset
 
-    async def collect_catalog(self, site_id: str) -> dict[str, Any]:
-        return {
-            "site": {"site_id": site_id, "name": "Homebox", "timezone": "UTC"},
-            "tents": [{"tent_id": "main", "name": "Main", "is_active": True}],
-            "zones": [],
-            "devices": [],
-            "capabilities": [],
-            "schedules": [],
-        }
+    async def collect_catalog(self, site_id: str) -> CatalogRequest:
+        return CatalogRequest(
+            site=CatalogSite(site_id=site_id, name="Homebox", timezone="UTC"),
+            tents=[CatalogTent(tent_id="main", name="Main", is_active=True)],
+        )
 
-    async def collect_latest_metrics(self, site_id: str) -> dict[str, Any]:
-        return {"site_id": site_id, "metrics": []}
+    async def collect_latest_metrics(self, site_id: str) -> LatestMetricsRequest:
+        return LatestMetricsRequest(site_id=site_id, metrics=[])
 
     async def collect_rollups(
         self, site_id: str, *, bucket_names: set[str] | None = None
-    ) -> dict[str, Any]:
+    ) -> RollupsRequest:
         del bucket_names
-        return {"site_id": site_id, "rollups": []}
+        return RollupsRequest(site_id=site_id, rollups=[])
 
-    async def latest_snapshot_asset(self, site_id: str) -> AssetProjection | None:
+    async def latest_snapshot_asset(self, site_id: str) -> AssetUploadProjection | None:
         del site_id
         return self.asset
 
@@ -209,31 +270,29 @@ class ChangingRollupLocalServices(StaticLocalServices):
 
     async def collect_rollups(
         self, site_id: str, *, bucket_names: set[str] | None = None
-    ) -> dict[str, Any]:
+    ) -> RollupsRequest:
         self.index += 1
         buckets = sorted(bucket_names or {"5m", "1h", "4h"})
-        return {
-            "site_id": site_id,
-            "rollups": [
-                {
-                    "site_id": site_id,
-                    "tent_id": "main",
-                    "capability_id": "temperature_f",
-                    "metric": "temperature_f",
-                    "bucket": bucket,
-                    "bucket_start_at": (
-                        FIXED_NOW - timedelta(minutes=self.index * 5)
-                    ).isoformat(),
-                    "bucket_end_at": FIXED_NOW.isoformat(),
-                    "min_value": 70.0,
-                    "avg_value": 71.0,
-                    "max_value": 72.0,
-                    "sample_count": self.index,
-                    "unit": "degF",
-                }
+        return RollupsRequest(
+            site_id=site_id,
+            rollups=[
+                RollupItem(
+                    site_id=site_id,
+                    tent_id="main",
+                    capability_id="temperature_f",
+                    metric="temperature_f",
+                    bucket=bucket,
+                    bucket_start_at=FIXED_NOW - timedelta(minutes=self.index * 5),
+                    bucket_end_at=FIXED_NOW,
+                    min_value=70.0,
+                    avg_value=71.0,
+                    max_value=72.0,
+                    sample_count=self.index,
+                    unit="degF",
+                )
                 for bucket in buckets
             ],
-        }
+        )
 
 
 class RecordingRollupLocalServices(StaticLocalServices):
@@ -243,29 +302,29 @@ class RecordingRollupLocalServices(StaticLocalServices):
 
     async def collect_rollups(
         self, site_id: str, *, bucket_names: set[str] | None = None
-    ) -> dict[str, Any]:
+    ) -> RollupsRequest:
         buckets = frozenset(bucket_names or {"5m", "1h", "4h"})
         self.requests.append(buckets)
-        return {
-            "site_id": site_id,
-            "rollups": [
-                {
-                    "site_id": site_id,
-                    "tent_id": "main",
-                    "capability_id": "temperature_f",
-                    "metric": "temperature_f",
-                    "bucket": bucket,
-                    "bucket_start_at": FIXED_NOW.isoformat(),
-                    "bucket_end_at": (FIXED_NOW + timedelta(minutes=5)).isoformat(),
-                    "min_value": 70.0,
-                    "avg_value": 71.0,
-                    "max_value": 72.0,
-                    "sample_count": 1,
-                    "unit": "degF",
-                }
+        return RollupsRequest(
+            site_id=site_id,
+            rollups=[
+                RollupItem(
+                    site_id=site_id,
+                    tent_id="main",
+                    capability_id="temperature_f",
+                    metric="temperature_f",
+                    bucket=bucket,
+                    bucket_start_at=FIXED_NOW,
+                    bucket_end_at=FIXED_NOW + timedelta(minutes=5),
+                    min_value=70.0,
+                    avg_value=71.0,
+                    max_value=72.0,
+                    sample_count=1,
+                    unit="degF",
+                )
                 for bucket in sorted(buckets)
             ],
-        }
+        )
 
 
 class RecordingPTZ:
@@ -420,6 +479,17 @@ async def test_catalog_syncs_homebox_main_and_breeding(app_engine: AsyncEngine):
 
     cloud = RecordingCloudClient()
     local = GatewayLocalServiceBundle(app_engine, clock=lambda: FIXED_NOW)
+    projection = await local.collect_catalog("homebox")
+    assert isinstance(projection, CatalogRequest)
+    breeding_projection_devices = [
+        device
+        for device in projection.devices
+        if device.tent_id == "breeding"
+        and device.device_id == "test-breeding-catalog-node"
+    ]
+    assert len(breeding_projection_devices) == 1
+    assert breeding_projection_devices[0].last_seen_at == FIXED_NOW
+    expected_breeding_device = breeding_projection_devices[0].model_dump(mode="json")
 
     result = await _service(app_engine, cloud, local_services=local).run_once()
 
@@ -446,18 +516,7 @@ async def test_catalog_syncs_homebox_main_and_breeding(app_engine: AsyncEngine):
         if device["tent_id"] == "breeding"
         and device["device_id"] == "test-breeding-catalog-node"
     ]
-    assert breeding_devices == [
-        {
-            "tent_id": "breeding",
-            "zone_id": "canopy",
-            "device_id": "test-breeding-catalog-node",
-            "name": "Test breeding catalog node",
-            "kind": "env_sensor",
-            "controller": "test",
-            "is_active": True,
-            "last_seen_at": FIXED_NOW.isoformat(),
-        }
-    ]
+    assert breeding_devices == [expected_breeding_device]
 
 
 async def test_latest_metrics_and_rollups_are_not_duplicated(
@@ -526,6 +585,50 @@ async def test_heartbeat_delivery_is_not_blocked_by_rollup_backlog(
     assert cloud.call_counts["heartbeat"] == 1
     assert cloud.call_counts["latest_metrics"] == 1
     assert cloud.call_counts["rollups"] == 1
+
+
+async def test_read_only_outbox_replay_validates_stored_json_before_dispatch(
+    app_engine: AsyncEngine,
+):
+    outbox = OutboxRepository(app_engine)
+    await outbox.enqueue(
+        event_type="catalog",
+        idempotency_key="homebox:catalog:missing-last-seen",
+        payload={
+            "site": {"site_id": "homebox", "name": "Homebox", "timezone": "UTC"},
+            "tents": [],
+            "zones": [],
+            "devices": [
+                {
+                    "tent_id": "main",
+                    "device_id": "test-node",
+                    "name": "Test node",
+                }
+            ],
+            "capabilities": [],
+            "schedules": [],
+        },
+        now=FIXED_NOW - timedelta(minutes=1),
+    )
+    cloud = RecordingCloudClient()
+    service = _service(app_engine, cloud, local_services=StaticLocalServices())
+
+    result = await service.run_once()
+
+    assert result.failed == 1
+    assert cloud.call_counts["catalog"] == 1
+    assert "homebox:catalog:missing-last-seen" not in cloud.catalogs
+    async with AsyncSession(app_engine) as session:
+        row = (
+            await session.exec(
+                select(CloudOutbox).where(
+                    CloudOutbox.idempotency_key == "homebox:catalog:missing-last-seen"
+                )
+            )
+        ).one()
+    assert row.status == "pending"
+    assert row.attempt_count == 1
+    assert "last_seen_at" in str(row.last_error)
 
 
 async def test_pending_rollups_are_superseded_by_newer_projection(
@@ -616,30 +719,7 @@ async def test_asset_sync_uses_sign_upload_complete_flow(
 ):
     asset_file = tmp_path / "snapshot.jpg"
     asset_file.write_bytes(b"jpeg-bytes")
-    asset = AssetProjection(
-        sign_request={
-            "site_id": "homebox",
-            "tent_id": "main",
-            "content_type": "image/jpeg",
-            "byte_size": len(b"jpeg-bytes"),
-            "object_key": "homebox/main/snapshots/snapshot.jpg",
-            "asset_id": "asset-1",
-            "sha256": "asset-1",
-            "kind": "periodic",
-        },
-        complete_request={
-            "site_id": "homebox",
-            "tent_id": "main",
-            "content_type": "image/jpeg",
-            "byte_size": len(b"jpeg-bytes"),
-            "object_key": "homebox/main/snapshots/snapshot.jpg",
-            "asset_id": "asset-1",
-            "sha256": "asset-1",
-            "kind": "periodic",
-            "captured_at": FIXED_NOW.isoformat(),
-        },
-        file_path=asset_file,
-    )
+    asset = _asset_projection(asset_file)
     cloud = RecordingCloudClient()
     service = _service(
         app_engine,
@@ -654,9 +734,87 @@ async def test_asset_sync_uses_sign_upload_complete_flow(
     assert cloud.call_counts["asset_upload_bytes"] == 1
     assert cloud.call_counts["asset_complete"] == 1
     assert cloud.call_counts["asset_retention"] == 1
+    assert cloud.asset_sign_requests == [asset.sign_request]
+    assert cloud.asset_complete_requests == [asset.complete_request]
+    assert cloud.retention_requests == [
+        AssetRetentionRequest(
+            site_id="homebox",
+            as_of_date=FIXED_NOW.date(),
+        ).model_dump(mode="json")
+    ]
+    async with AsyncSession(app_engine) as session:
+        asset_row = (
+            await session.exec(
+                select(CloudOutbox).where(CloudOutbox.event_type == "asset_upload")
+            )
+        ).one()
+    assert asset_row.payload == {
+        "sign_request": asset.sign_request.model_dump(mode="json"),
+        "complete_request": asset.complete_request.model_dump(mode="json"),
+        "file_path": str(asset_file),
+    }
     assert (
         cloud.assets["asset-1"]["object_key"] == "homebox/main/snapshots/snapshot.jpg"
     )
+
+
+async def test_asset_upload_outbox_replay_validates_stored_json_before_cloud_calls(
+    app_engine: AsyncEngine,
+    tmp_path: Path,
+):
+    asset_file = tmp_path / "snapshot.jpg"
+    asset_file.write_bytes(b"jpeg-bytes")
+    outbox = OutboxRepository(app_engine)
+    await outbox.enqueue(
+        event_type="asset_upload",
+        idempotency_key="homebox:asset_upload:bad-sign-request",
+        payload={
+            "sign_request": {
+                "site_id": "homebox",
+                "tent_id": "main",
+                "content_type": "image/jpeg",
+                "object_key": "homebox/main/snapshots/snapshot.jpg",
+                "asset_id": "asset-1",
+                "sha256": "asset-1",
+                "kind": "periodic",
+            },
+            "complete_request": {
+                "site_id": "homebox",
+                "tent_id": "main",
+                "content_type": "image/jpeg",
+                "byte_size": len(b"jpeg-bytes"),
+                "object_key": "homebox/main/snapshots/snapshot.jpg",
+                "asset_id": "asset-1",
+                "sha256": "asset-1",
+                "kind": "periodic",
+                "captured_at": FIXED_NOW.isoformat(),
+            },
+            "file_path": str(asset_file),
+        },
+        now=FIXED_NOW - timedelta(minutes=1),
+    )
+    cloud = RecordingCloudClient()
+    service = _service(app_engine, cloud, local_services=StaticLocalServices())
+
+    result = await service.run_once()
+
+    assert result.failed == 1
+    assert cloud.call_counts["asset_sign"] == 0
+    assert cloud.call_counts["asset_upload_bytes"] == 0
+    assert cloud.call_counts["asset_complete"] == 0
+    assert cloud.call_counts["asset_failure"] == 0
+    async with AsyncSession(app_engine) as session:
+        row = (
+            await session.exec(
+                select(CloudOutbox).where(
+                    CloudOutbox.idempotency_key
+                    == "homebox:asset_upload:bad-sign-request"
+                )
+            )
+        ).one()
+    assert row.status == "pending"
+    assert row.attempt_count == 1
+    assert "byte_size" in str(row.last_error)
 
 
 async def test_asset_sync_reports_upload_failures_and_retries(
@@ -665,30 +823,7 @@ async def test_asset_sync_reports_upload_failures_and_retries(
 ):
     asset_file = tmp_path / "snapshot.jpg"
     asset_file.write_bytes(b"jpeg-bytes")
-    asset = AssetProjection(
-        sign_request={
-            "site_id": "homebox",
-            "tent_id": "main",
-            "content_type": "image/jpeg",
-            "byte_size": len(b"jpeg-bytes"),
-            "object_key": "homebox/main/snapshots/snapshot.jpg",
-            "asset_id": "asset-1",
-            "sha256": "asset-1",
-            "kind": "periodic",
-        },
-        complete_request={
-            "site_id": "homebox",
-            "tent_id": "main",
-            "content_type": "image/jpeg",
-            "byte_size": len(b"jpeg-bytes"),
-            "object_key": "homebox/main/snapshots/snapshot.jpg",
-            "asset_id": "asset-1",
-            "sha256": "asset-1",
-            "kind": "periodic",
-            "captured_at": FIXED_NOW.isoformat(),
-        },
-        file_path=asset_file,
-    )
+    asset = _asset_projection(asset_file)
     cloud = RecordingCloudClient()
     cloud.upload_fail = True
     service = _service(
