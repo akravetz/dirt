@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +29,19 @@ class SyncResult:
     failed: int
     backlog_depth: int
     dry_run: bool
+
+
+@dataclass(frozen=True)
+class _Projection:
+    payload: dict[str, Any]
+    rollup_bucket_names: frozenset[str] = frozenset()
+
+
+ROLLUP_SYNC_INTERVALS: dict[str, timedelta] = {
+    "5m": timedelta(minutes=5),
+    "1h": timedelta(hours=1),
+    "4h": timedelta(hours=4),
+}
 
 
 class ExponentialBackoff:
@@ -87,7 +100,10 @@ class GatewaySyncService:
             backlog_depth=backlog_before,
         )
 
-        projections = await self._collect_projections(backlog_depth=backlog_before)
+        projections = await self._collect_projections(
+            backlog_depth=backlog_before,
+            now=now,
+        )
         if self._config.dry_run:
             log_event(
                 "cloud_gateway",
@@ -95,7 +111,8 @@ class GatewaySyncService:
                 site_id=self._config.site_id,
                 gateway_id=self._config.gateway_id,
                 projection_counts={
-                    key: _count_projection(value) for key, value in projections.items()
+                    key: _count_projection(projection.payload)
+                    for key, projection in projections.items()
                 },
             )
             return await self._finish(enqueued=0, delivered=0, failed=0, dry_run=True)
@@ -115,41 +132,67 @@ class GatewaySyncService:
             await self._sleeper.sleep(self._config.sync_interval_s)
 
     async def _collect_projections(
-        self, *, backlog_depth: int
-    ) -> dict[str, dict[str, Any]]:
-        projections: dict[str, dict[str, Any]] = {
-            "heartbeat": build_heartbeat_payload(
-                self._config,
-                backlog_depth=backlog_depth,
+        self, *, backlog_depth: int, now: datetime
+    ) -> dict[str, _Projection]:
+        projections: dict[str, _Projection] = {
+            "heartbeat": _Projection(
+                build_heartbeat_payload(
+                    self._config,
+                    backlog_depth=backlog_depth,
+                )
             ),
-            "catalog": await self._local.collect_catalog(self._config.site_id),
-            "latest_metrics": await self._local.collect_latest_metrics(
-                self._config.site_id
+            "catalog": _Projection(
+                await self._local.collect_catalog(self._config.site_id)
             ),
-            "rollups": await self._local.collect_rollups(self._config.site_id),
+            "latest_metrics": _Projection(
+                await self._local.collect_latest_metrics(self._config.site_id)
+            ),
         }
+        rollup_buckets = await self._due_rollup_buckets(now)
+        if rollup_buckets:
+            projections["rollups"] = _Projection(
+                await self._local.collect_rollups(
+                    self._config.site_id,
+                    bucket_names=set(rollup_buckets),
+                ),
+                rollup_bucket_names=rollup_buckets,
+            )
         if self._config.asset_sync_enabled:
-            projections["asset_retention"] = {
-                "site_id": self._config.site_id,
-                "as_of_date": self._clock().date().isoformat(),
-            }
+            projections["asset_retention"] = _Projection(
+                {
+                    "site_id": self._config.site_id,
+                    "as_of_date": self._clock().date().isoformat(),
+                }
+            )
             asset = await self._local.latest_snapshot_asset(self._config.site_id)
             if asset is not None:
-                projections["asset_upload"] = {
-                    "sign_request": asset.sign_request,
-                    "complete_request": asset.complete_request,
-                    "file_path": asset.file_path,
-                }
+                projections["asset_upload"] = _Projection(
+                    {
+                        "sign_request": asset.sign_request,
+                        "complete_request": asset.complete_request,
+                        "file_path": asset.file_path,
+                    }
+                )
         return projections
+
+    async def _due_rollup_buckets(self, now: datetime) -> frozenset[str]:
+        due: set[str] = set()
+        for bucket, interval in ROLLUP_SYNC_INTERVALS.items():
+            cursor = await self._outbox.get_cursor(_rollup_cursor_key(bucket))
+            last_enqueued_at = _cursor_datetime(cursor, "last_enqueued_at")
+            if last_enqueued_at is None or now - last_enqueued_at >= interval:
+                due.add(bucket)
+        return frozenset(due)
 
     async def _enqueue_projections(
         self,
-        projections: dict[str, dict[str, Any]],
+        projections: dict[str, _Projection],
         *,
         now: datetime,
     ) -> int:
         created = 0
-        for event_type, payload in projections.items():
+        for event_type, projection in projections.items():
+            payload = projection.payload
             key = self._idempotency_key(event_type, payload, now=now)
             result = await self._outbox.enqueue(
                 event_type=event_type,
@@ -157,6 +200,31 @@ class GatewaySyncService:
                 payload=payload,
                 now=now,
             )
+            if event_type == "rollups":
+                superseded = await self._outbox.supersede_pending(
+                    event_type=event_type,
+                    keep_idempotency_key=key,
+                    now=now,
+                )
+                if superseded:
+                    log_event(
+                        "cloud_gateway",
+                        "superseded",
+                        site_id=self._config.site_id,
+                        gateway_id=self._config.gateway_id,
+                        event_type=event_type,
+                        count=superseded,
+                    )
+                for bucket in projection.rollup_bucket_names:
+                    await self._outbox.set_cursor(
+                        cursor_key=_rollup_cursor_key(bucket),
+                        cursor_value={
+                            "bucket": bucket,
+                            "last_enqueued_at": now,
+                            "idempotency_key": key,
+                        },
+                        now=now,
+                    )
             if result.created:
                 created += 1
                 log_event(
@@ -388,3 +456,18 @@ def _row_id(row: CloudOutbox) -> int:
     if row.id is None:
         raise CloudDeliveryError("outbox row is missing a primary key")
     return row.id
+
+
+def _rollup_cursor_key(bucket: str) -> str:
+    return f"rollups:last_enqueued:{bucket}"
+
+
+def _cursor_datetime(cursor: dict[str, Any] | None, key: str) -> datetime | None:
+    if cursor is None:
+        return None
+    value = cursor.get(key)
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        return datetime.fromisoformat(value)
+    return None

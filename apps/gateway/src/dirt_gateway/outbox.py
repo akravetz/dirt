@@ -137,6 +137,31 @@ class OutboxRepository:
             row.updated_at = now
             await session.commit()
 
+    async def supersede_pending(
+        self,
+        *,
+        event_type: str,
+        now: datetime,
+        keep_idempotency_key: str | None = None,
+    ) -> int:
+        async with AsyncSession(self._engine) as session:
+            statement = (
+                select(CloudOutbox)
+                .where(CloudOutbox.status == "pending")
+                .where(CloudOutbox.event_type == event_type)
+            )
+            if keep_idempotency_key is not None:
+                statement = statement.where(
+                    CloudOutbox.idempotency_key != keep_idempotency_key
+                )
+            rows = (await session.exec(statement)).all()
+            for row in rows:
+                row.status = "superseded"
+                row.last_error = "superseded by newer projection"
+                row.updated_at = now
+            await session.commit()
+            return len(rows)
+
     async def set_cursor(
         self,
         *,
@@ -157,6 +182,13 @@ class OutboxRepository:
                 row.cursor_value = _jsonable(dict(cursor_value))
                 row.updated_at = now
             await session.commit()
+
+    async def get_cursor(self, cursor_key: str) -> dict[str, Any] | None:
+        async with AsyncSession(self._engine) as session:
+            row = await session.get(CloudSyncCursor, cursor_key)
+            if row is None:
+                return None
+            return dict(row.cursor_value)
 
 
 def stable_json_hash(payload: Mapping[str, Any]) -> str:

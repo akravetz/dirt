@@ -146,11 +146,15 @@ class GatewayLocalServiceBundle:
                 )
         return {"site_id": site_id, "metrics": metrics}
 
-    async def collect_rollups(self, site_id: str) -> dict[str, Any]:
+    async def collect_rollups(
+        self, site_id: str, *, bucket_names: set[str] | None = None
+    ) -> dict[str, Any]:
         now = self._clock()
         rollups: list[dict[str, Any]] = []
         async with AsyncSession(self._engine) as session:
             for bucket, window, bucket_s in ROLLUP_SPECS:
+                if bucket_names is not None and bucket not in bucket_names:
+                    continue
                 result = await session.exec(
                     text(_ROLLUP_SQL),
                     params={

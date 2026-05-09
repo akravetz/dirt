@@ -23,7 +23,15 @@ from dirt_gateway.outbox import OutboxRepository
 from dirt_gateway.protocols import AssetProjection
 from dirt_gateway.sync import GatewaySyncService
 from dirt_shared.config import CloudGatewayConfig
-from dirt_shared.models import Capability, Command, Device, SensorReading, Site, Tent
+from dirt_shared.models import (
+    Capability,
+    CloudOutbox,
+    Command,
+    Device,
+    SensorReading,
+    Site,
+    Tent,
+)
 from dirt_shared.models.enums import SensorSource
 from dirt_shared.services.commands import CommandService
 from dirt_shared.testing import create_test_device
@@ -183,12 +191,81 @@ class StaticLocalServices:
     async def collect_latest_metrics(self, site_id: str) -> dict[str, Any]:
         return {"site_id": site_id, "metrics": []}
 
-    async def collect_rollups(self, site_id: str) -> dict[str, Any]:
+    async def collect_rollups(
+        self, site_id: str, *, bucket_names: set[str] | None = None
+    ) -> dict[str, Any]:
+        del bucket_names
         return {"site_id": site_id, "rollups": []}
 
     async def latest_snapshot_asset(self, site_id: str) -> AssetProjection | None:
         del site_id
         return self.asset
+
+
+class ChangingRollupLocalServices(StaticLocalServices):
+    def __init__(self) -> None:
+        super().__init__()
+        self.index = 0
+
+    async def collect_rollups(
+        self, site_id: str, *, bucket_names: set[str] | None = None
+    ) -> dict[str, Any]:
+        self.index += 1
+        buckets = sorted(bucket_names or {"5m", "1h", "4h"})
+        return {
+            "site_id": site_id,
+            "rollups": [
+                {
+                    "site_id": site_id,
+                    "tent_id": "main",
+                    "capability_id": "temperature_f",
+                    "metric": "temperature_f",
+                    "bucket": bucket,
+                    "bucket_start_at": (
+                        FIXED_NOW - timedelta(minutes=self.index * 5)
+                    ).isoformat(),
+                    "bucket_end_at": FIXED_NOW.isoformat(),
+                    "min_value": 70.0,
+                    "avg_value": 71.0,
+                    "max_value": 72.0,
+                    "sample_count": self.index,
+                    "unit": "degF",
+                }
+                for bucket in buckets
+            ],
+        }
+
+
+class RecordingRollupLocalServices(StaticLocalServices):
+    def __init__(self) -> None:
+        super().__init__()
+        self.requests: list[frozenset[str]] = []
+
+    async def collect_rollups(
+        self, site_id: str, *, bucket_names: set[str] | None = None
+    ) -> dict[str, Any]:
+        buckets = frozenset(bucket_names or {"5m", "1h", "4h"})
+        self.requests.append(buckets)
+        return {
+            "site_id": site_id,
+            "rollups": [
+                {
+                    "site_id": site_id,
+                    "tent_id": "main",
+                    "capability_id": "temperature_f",
+                    "metric": "temperature_f",
+                    "bucket": bucket,
+                    "bucket_start_at": FIXED_NOW.isoformat(),
+                    "bucket_end_at": (FIXED_NOW + timedelta(minutes=5)).isoformat(),
+                    "min_value": 70.0,
+                    "avg_value": 71.0,
+                    "max_value": 72.0,
+                    "sample_count": 1,
+                    "unit": "degF",
+                }
+                for bucket in sorted(buckets)
+            ],
+        }
 
 
 class RecordingPTZ:
@@ -241,13 +318,14 @@ def _service(
     *,
     local_services,
     config: CloudGatewayConfig | None = None,
+    clock=lambda: FIXED_NOW,
 ) -> GatewaySyncService:
     return GatewaySyncService(
         config=config or _config(),
         outbox=OutboxRepository(engine),
         local_services=local_services,
         cloud_client=cloud,
-        clock=lambda: FIXED_NOW,
+        clock=clock,
         sleeper=NoopSleeper(),
         backoff=ImmediateBackoff(),
     )
@@ -448,6 +526,72 @@ async def test_heartbeat_delivery_is_not_blocked_by_rollup_backlog(
     assert cloud.call_counts["heartbeat"] == 1
     assert cloud.call_counts["latest_metrics"] == 1
     assert cloud.call_counts["rollups"] == 1
+
+
+async def test_pending_rollups_are_superseded_by_newer_projection(
+    app_engine: AsyncEngine,
+):
+    now = FIXED_NOW
+
+    def clock() -> datetime:
+        return now
+
+    cloud = RecordingCloudClient()
+    cloud.fail_event_types.add("rollups")
+    service = _service(
+        app_engine,
+        cloud,
+        local_services=ChangingRollupLocalServices(),
+        clock=clock,
+    )
+
+    first = await service.run_once()
+    now = FIXED_NOW + timedelta(minutes=5)
+    second = await service.run_once()
+
+    assert first.failed == 1
+    assert second.failed == 1
+    async with AsyncSession(app_engine) as session:
+        rows = (
+            await session.exec(
+                select(CloudOutbox)
+                .where(CloudOutbox.event_type == "rollups")
+                .order_by(CloudOutbox.id)
+            )
+        ).all()
+    assert [row.status for row in rows] == ["superseded", "pending"]
+    assert rows[0].last_error == "superseded by newer projection"
+    assert rows[1].payload["rollups"][0]["sample_count"] == 2
+
+
+async def test_rollup_buckets_use_independent_sync_intervals(
+    app_engine: AsyncEngine,
+):
+    now = FIXED_NOW
+
+    def clock() -> datetime:
+        return now
+
+    cloud = RecordingCloudClient()
+    local = RecordingRollupLocalServices()
+    service = _service(app_engine, cloud, local_services=local, clock=clock)
+
+    await service.run_once()
+    now = FIXED_NOW + timedelta(minutes=4)
+    await service.run_once()
+    now = FIXED_NOW + timedelta(minutes=5)
+    await service.run_once()
+    now = FIXED_NOW + timedelta(hours=1)
+    await service.run_once()
+    now = FIXED_NOW + timedelta(hours=4)
+    await service.run_once()
+
+    assert local.requests == [
+        frozenset({"5m", "1h", "4h"}),
+        frozenset({"5m"}),
+        frozenset({"5m", "1h"}),
+        frozenset({"5m", "1h", "4h"}),
+    ]
 
 
 async def test_dry_run_mode_does_not_call_cloud_client(app_engine: AsyncEngine):

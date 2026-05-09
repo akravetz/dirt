@@ -17,7 +17,7 @@ The observable result is not merely cleaner code. A developer can run focused te
 - [x] (2026-05-08T04:40Z) Researched progressive-disclosure and schema-validation practices and created this ExecPlan.
 - [x] (2026-05-08T04:40Z) Added `docs/rules/boundary-contracts.md` and linked it from the progressive-disclosure indexes.
 - [x] (2026-05-09T04:39Z) Resolved pre-implementation policy questions: drain old outbox rows before cutover, keep deployment compatibility temporary, scope command DTOs to PTZ payloads, keep hosted browser DTOs local unless shared by wire contract, report consistency gaps through logs/audits, and start with narrow guardrail tests.
-- [ ] Milestone 1: Add shared Pydantic gateway contract models without changing runtime behavior.
+- [x] (2026-05-09T04:49Z) Milestone 1: Add shared Pydantic gateway contract models without changing runtime behavior.
 - [ ] Milestone 2: Drain existing outbox rows, then convert read-only gateway projections and outbox enqueue paths to typed DTOs with no legacy replay adapter.
 - [ ] Milestone 3: Convert asset upload and retention payloads to typed DTOs and remove unused legacy raw-payload code.
 - [ ] Milestone 4: Convert cloud command claim/result payloads to typed DTOs with discriminated PTZ payloads.
@@ -89,7 +89,17 @@ The observable result is not merely cleaner code. A developer can run focused te
 
 ## Outcomes & Retrospective
 
-Not started beyond planning and documentation. Fill this section after each milestone with what changed, which tests proved it, and any remaining gaps.
+Milestone 1 added `apps/shared/src/dirt_shared/cloud_contract.py` with additive Pydantic DTOs for gateway/control-plane requests and responses without changing runtime imports or behavior. The new shared contract covers heartbeat, catalog, latest metrics, rollups, asset sign/complete/failure/retention, command claim/result, and the focused response DTOs for sign-upload, command claim, command result, and prune responses.
+
+During main-agent review, the retention DTO was updated to include `as_of_date` because the current gateway already includes that field in `asset_retention` projections. Keeping it in the shared model avoids a future `extra="forbid"` rejection during Milestone 3.
+
+Validation passed:
+
+    uv run pytest apps/shared/tests/test_cloud_contract.py -q
+    uv run ruff check apps/shared/src/dirt_shared/cloud_contract.py apps/shared/tests/test_cloud_contract.py
+    uv run ruff format apps/shared/src/dirt_shared/cloud_contract.py apps/shared/tests/test_cloud_contract.py --check
+
+The simplify pass trimmed standalone PTZ payload union classes that belong to Milestone 4 rather than this additive Milestone 1 contract module.
 
 
 ## Context and Orientation
