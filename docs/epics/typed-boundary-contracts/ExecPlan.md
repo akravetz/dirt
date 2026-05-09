@@ -16,12 +16,13 @@ The observable result is not merely cleaner code. A developer can run focused te
 
 - [x] (2026-05-08T04:40Z) Researched progressive-disclosure and schema-validation practices and created this ExecPlan.
 - [x] (2026-05-08T04:40Z) Added `docs/rules/boundary-contracts.md` and linked it from the progressive-disclosure indexes.
+- [x] (2026-05-09T04:39Z) Resolved pre-implementation policy questions: drain old outbox rows before cutover, keep deployment compatibility temporary, scope command DTOs to PTZ payloads, keep hosted browser DTOs local unless shared by wire contract, report consistency gaps through logs/audits, and start with narrow guardrail tests.
 - [ ] Milestone 1: Add shared Pydantic gateway contract models without changing runtime behavior.
-- [ ] Milestone 2: Convert read-only gateway projections and outbox enqueue paths to typed DTOs.
-- [ ] Milestone 3: Convert asset upload and retention payloads to typed DTOs.
+- [ ] Milestone 2: Drain existing outbox rows, then convert read-only gateway projections and outbox enqueue paths to typed DTOs with no legacy replay adapter.
+- [ ] Milestone 3: Convert asset upload and retention payloads to typed DTOs and remove unused legacy raw-payload code.
 - [ ] Milestone 4: Convert cloud command claim/result payloads to typed DTOs with discriminated PTZ payloads.
-- [ ] Milestone 5: Add Pydantic response models to hosted browser API routes and align generated frontend types.
-- [ ] Milestone 6: Add guardrail tests/invariants that prevent untyped boundary payloads from returning.
+- [ ] Milestone 5: Add local Pydantic response models to hosted browser API routes and align generated frontend types.
+- [ ] Milestone 6: Add narrow guardrail tests and log/audit data-consistency checks that prevent untyped boundary payloads from returning.
 
 
 ## Surprises & Discoveries
@@ -61,6 +62,30 @@ The observable result is not merely cleaner code. A developer can run focused te
   Rationale: Extra fields often mean stale producers, typos, or partial migrations. Failing loudly is preferable for owned protocols.
   Date/Author: 2026-05-08 / Codex
 
+- Decision: Drain existing cloud outbox rows before switching an event type to typed replay, then make a clean cutover with no old-shape compatibility adapter.
+  Rationale: The outbox is durable replay state, so validators should not be forced to preserve legacy shapes indefinitely. Draining first lets implementation delete unused raw-payload code instead of carrying compatibility branches.
+  Date/Author: 2026-05-09 / User + Codex
+
+- Decision: Temporary cloud API compatibility is allowed only as a deployment bridge, and the next implementation step must remove or deprecate that bridge.
+  Rationale: Gateway and hosted control-plane deploys may not happen at the same instant, but compatibility layers should not become the new permanent contract.
+  Date/Author: 2026-05-09 / User + Codex
+
+- Decision: Command DTOs are scoped to the current PTZ command surface: `ptz_preset`, `ptz_look`, and `ptz_zoom`.
+  Rationale: These are the command types that exist today. Broader opaque command payloads can be introduced later only when a real capability needs them.
+  Date/Author: 2026-05-09 / User + Codex
+
+- Decision: Hosted browser API response DTOs should stay local to `apps/control-plane` unless a shape is also a shared gateway/control-plane wire contract.
+  Rationale: Browser responses are generated API surface for the hosted UI, not producer-side gateway contracts. Keeping them local avoids overloading `dirt_shared.cloud_contract`.
+  Date/Author: 2026-05-09 / User + Codex
+
+- Decision: Cloud data-consistency gaps such as latest metrics with missing device liveness should emit logs/audits, not change health response status.
+  Rationale: `/api/health` consumers should not be broken by adding stricter consistency semantics. Logs and audit events make the inconsistency visible without changing the health contract.
+  Date/Author: 2026-05-09 / User + Codex
+
+- Decision: Guardrail tests should start narrow, focused on the known high-risk protocol annotations and route response models.
+  Rationale: Broad `dict[str, Any]` scans would catch legitimate opaque metadata and test helpers. Narrow tests give useful pressure without creating noisy false positives.
+  Date/Author: 2026-05-09 / User + Codex
+
 
 ## Outcomes & Retrospective
 
@@ -98,15 +123,15 @@ The bug that motivated this work occurred because `local.py` omitted `last_seen_
 
 Milestone 1 adds the shared contract module without changing delivery behavior. Create `apps/shared/src/dirt_shared/cloud_contract.py` with Pydantic models for the gateway/control-plane protocol. Start with read-only sync models: heartbeat, catalog, latest metrics, rollups, asset sign/complete/failure/retention, and command result. Include response DTOs for sign-upload, command claim, command result, and prune responses. Use `ConfigDict(extra="forbid")` for owned models. Add tests in `apps/shared/tests/test_cloud_contract.py` proving that `CatalogDevice(last_seen_at=...)` accepts timestamps, `CatalogDevice(last_seen_at=None)` accepts intentional null, and missing `last_seen_at` fails.
 
-Milestone 2 converts read-only gateway projections. Update `GatewayLocalServiceBundle.collect_catalog`, `collect_latest_metrics`, and `collect_rollups` to return Pydantic models instead of dictionaries. Update `LocalGatewayServices` Protocol accordingly. In `GatewaySyncService._collect_projections`, keep a typed projection map until enqueue time, then store `model_dump(mode="json")`. Update the idempotency hash helper to hash serialized model output. Extend `apps/gateway/tests/test_sync.py` to assert model instances before enqueue where useful.
+Milestone 2 drains existing cloud outbox rows, then converts read-only gateway projections. Before changing replay validation, inspect and drain pending `CloudOutbox` rows for the affected event types; document the observed state in this ExecPlan. After the outbox is clean, update `GatewayLocalServiceBundle.collect_catalog`, `collect_latest_metrics`, and `collect_rollups` to return Pydantic models instead of dictionaries. Update `LocalGatewayServices` Protocol accordingly. In `GatewaySyncService._collect_projections`, keep a typed projection map until enqueue time, then store `model_dump(mode="json")`. Update the idempotency hash helper to hash serialized model output. Extend `apps/gateway/tests/test_sync.py` to assert model instances before enqueue where useful. Do not add a legacy replay adapter for old raw projection shapes.
 
-Milestone 3 converts assets and outbox asset dispatch. Replace `AssetProjection.sign_request` and `complete_request` raw dicts with `AssetSignUploadRequest` and `AssetCompleteRequest` DTOs. Introduce an `AssetUploadProjection` DTO or dataclass that keeps `file_path: Path` as local-only process data while serializing only JSON-safe request models into the outbox. Validate deserialized `asset_upload` outbox rows before calling `sign_upload`, `upload_asset`, and `complete_asset`.
+Milestone 3 converts assets and outbox asset dispatch after draining any pending asset outbox rows. Replace `AssetProjection.sign_request` and `complete_request` raw dicts with `AssetSignUploadRequest` and `AssetCompleteRequest` DTOs. Introduce an `AssetUploadProjection` DTO or dataclass that keeps `file_path: Path` as local-only process data while serializing only JSON-safe request models into the outbox. Validate deserialized `asset_upload` outbox rows before calling `sign_upload`, `upload_asset`, and `complete_asset`. Remove unused raw-payload helper code once the typed path is active.
 
-Milestone 4 converts cloud commands. Define `ClaimedCommand`, `CommandClaimResponse`, `CommandResultRequest`, and PTZ payload models. Use discriminated unions or explicit models for `ptz_preset`, `ptz_look`, and `ptz_zoom` payloads. Update `GatewayCommandService` so cloud claim responses are validated before command handling. Replace manual `_required_str`, `_local_payload`, and most of `_validate_claimed_command` with model validation plus business checks such as preset existence. Keep local safety guards for site/device/capability scope.
+Milestone 4 converts cloud commands. Define `ClaimedCommand`, `CommandClaimResponse`, `CommandResultRequest`, and PTZ payload models. Use discriminated unions or explicit models for only the current PTZ command types: `ptz_preset`, `ptz_look`, and `ptz_zoom`. Update `GatewayCommandService` so cloud claim responses are validated before command handling. Replace manual `_required_str`, `_local_payload`, and most of `_validate_claimed_command` with model validation plus business checks such as preset existence. Keep local safety guards for site/device/capability scope. If deployment ordering requires a temporary cloud compatibility branch, mark it explicitly and remove it in the next step.
 
-Milestone 5 types hosted browser responses. Move repeated response shapes in `apps/control-plane/src/dirt_control/api/browser.py` into Pydantic models or import them from `dirt_shared.cloud_contract` where they are wire-compatible. Add `response_model=...` to hosted routes that currently return raw dictionaries/lists: health, sites, tents, tent state, current metrics, metric history, devices, assets, sync status, commands, command details, and admin prune/rotate responses. Regenerate frontend contracts if this changes the OpenAPI surface used by `web-ui`.
+Milestone 5 types hosted browser responses. Move repeated response shapes in `apps/control-plane/src/dirt_control/api/browser.py` into local Pydantic models, or import from `dirt_shared.cloud_contract` only when the shape is also a gateway/control-plane wire contract. Add `response_model=...` to hosted routes that currently return raw dictionaries/lists: health, sites, tents, tent state, current metrics, metric history, devices, assets, sync status, commands, command details, and admin prune/rotate responses. Regenerate frontend contracts if this changes the OpenAPI surface used by `web-ui`.
 
-Milestone 6 adds guardrails. Add focused tests that scan high-risk files for new raw boundary payload types. Start as agent-owned tests under `apps/gateway/tests/` and `apps/control-plane/tests/`. If stable, promote a narrow human-owned invariant later: for example, `dirt_gateway.protocols.CloudGatewayClient` methods must accept/return Pydantic DTOs, not `dict[str, Any]`. Add data consistency health checks so the cloud API reports degraded status if an active device has latest metrics but missing `last_seen_at`.
+Milestone 6 adds guardrails. Add focused tests that scan high-risk interfaces for new raw boundary payload types. Start as agent-owned tests under `apps/gateway/tests/` and `apps/control-plane/tests/`, targeting `dirt_gateway.protocols.CloudGatewayClient`, `LocalGatewayServices`, and hosted route annotations rather than every `dict[str, Any]` in the tree. If stable, promote a narrow human-owned invariant later: for example, `dirt_gateway.protocols.CloudGatewayClient` methods must accept/return Pydantic DTOs, not `dict[str, Any]`. Add data-consistency log/audit events when an active cloud device has latest metrics but missing `last_seen_at`; do not change `/api/health` status semantics for this check.
 
 
 ## Concrete Steps
@@ -118,6 +143,8 @@ Work from the repo root:
 Before implementing any milestone, read the boundary rule:
 
     sed -n '1,220p' docs/rules/boundary-contracts.md
+
+Before Milestones 2 and 3, inspect and drain existing outbox rows for the event types being converted. Record the result under `Outcomes & Retrospective` before tightening replay validators. The intended implementation is a clean cutover, not a long-lived legacy-shape compatibility layer.
 
 Milestone 1 commands:
 
@@ -160,15 +187,15 @@ The implementation is accepted when all of these are true:
 - Gateway HTTP client validates cloud responses before command or asset logic consumes them.
 - Control-plane gateway routes and hosted browser routes declare Pydantic request and response models for JSON bodies.
 - Tests cover the previously observed bug: an actively reporting breeding-tent ESP32 syncs `last_seen_at` to the hosted device row.
-- Health or data consistency checks detect a cloud device that has current metrics but no device liveness timestamp.
+- Data-consistency logs or audit events detect a cloud device that has current metrics but no device liveness timestamp, without changing `/api/health` status semantics.
 - Documentation indexes tell future agents to read `docs/rules/boundary-contracts.md` before touching boundary code.
 
 
 ## Idempotence and Recovery
 
-Adding Pydantic DTOs is safe and additive when the old raw dictionary shape is still serialized at the HTTP boundary. Migrate one event type at a time. If a milestone causes delivery failures, revert that event type to the previous raw serialization while keeping tests that document the intended contract.
+Adding Pydantic DTOs is safe and additive while the old raw dictionary shape is still serialized at the HTTP boundary. Migrate one event type at a time. If deployment ordering requires temporary compatibility, keep it narrow, mark it explicitly, and remove or deprecate it in the next implementation step.
 
-Outbox rows created before this migration may contain older payload shapes. During migration, validators should either accept the existing shape or the rollout should drain/mark old rows explicitly. Do not delete outbox rows casually; inspect with SQL first and document any cleanup in this ExecPlan.
+Outbox rows created before this migration may contain older payload shapes. The chosen rollout policy is to drain old rows before tightening validation, then make a clean cutover. Do not delete outbox rows casually; inspect with SQL first, prefer normal gateway delivery to drain pending rows, and document the observed cleanup in this ExecPlan. Do not add long-lived validators for old outbox payload shapes.
 
 Cloud API changes must remain backward compatible with the currently deployed gateway until the local gateway is restarted on new code. For owned request DTOs, make newly required fields required at the producer first, then tighten the receiver after deployment if necessary.
 
@@ -196,7 +223,7 @@ Current inventory evidence:
 
 New or revised interfaces expected by completion:
 
-- `dirt_shared.cloud_contract` exports Pydantic DTOs for cloud gateway and hosted browser API payloads.
+- `dirt_shared.cloud_contract` exports Pydantic DTOs for cloud gateway payloads. Hosted browser API response DTOs stay local to `apps/control-plane` unless they are also gateway/control-plane wire contracts.
 - `dirt_gateway.protocols.CloudGatewayClient` accepts Pydantic request models and returns Pydantic response models.
 - `dirt_gateway.protocols.LocalGatewayServices` returns Pydantic projection models.
 - `CloudOutbox.payload` remains JSONB, but values stored there come from `model_dump(mode="json")` and are validated on replay.
