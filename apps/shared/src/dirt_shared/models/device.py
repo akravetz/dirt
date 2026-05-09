@@ -32,6 +32,16 @@ class Device(SQLModel, table=True):
         Index("ix_device_site_id", "site_id"),
         Index("ix_device_tent_id", "tent_id"),
         Index("ix_device_zone_id", "zone_id"),
+        Index(
+            "ux_device_provider_uid",
+            "controller",
+            "provider_uid_kind",
+            "provider_uid",
+            unique=True,
+            postgresql_where=text(
+                "provider_uid_kind IS NOT NULL AND provider_uid IS NOT NULL"
+            ),
+        ),
     )
 
     id: int | None = Field(
@@ -80,6 +90,12 @@ class Device(SQLModel, table=True):
         sa_column=Column(TIMESTAMP(timezone=True), nullable=True),
     )
     ip: str | None = Field(default=None, sa_column=Column(INET, nullable=True))
+    provider_uid_kind: str | None = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
+    provider_uid: str | None = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
     firmware_version: str | None = Field(
         default=None, sa_column=Column(Text, nullable=True)
     )

@@ -157,6 +157,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/tents/{tent_id}/lights/schedules": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Light schedules assigned to one tent */
+    get: operations["tentLightSchedules"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/sensors/current": {
     parameters: {
       query?: never;
@@ -567,6 +584,31 @@ export interface components {
       site_id: string;
       tent_id: string;
       devices: components["schemas"]["ScopedDevice"][];
+    };
+    LightSchedule: {
+      site_id: string;
+      tent_id: string;
+      zone_id: string | null;
+      device_id: string | null;
+      capability_id: string | null;
+      schedule_id: string;
+      kind: string;
+      enabled: boolean;
+      /** @description IANA timezone for interpreting local schedule times. */
+      timezone: string;
+      /** @description Local-time HH:MM:SS lights-on time in the schedule timezone. */
+      starts_local: string;
+      /** @description Local-time HH:MM:SS lights-off time in the schedule timezone. */
+      ends_local: string;
+      duration_hours: number;
+      is_on: boolean;
+      minutes_until_off: number;
+      minutes_until_on: number;
+    };
+    LightSchedulesResponse: {
+      site_id: string;
+      tent_id: string;
+      schedules: components["schemas"]["LightSchedule"][];
     };
     /** @description [lo, hi] target band; null if no band defined for this metric/stage. */
     TargetBand: number[];
@@ -1094,6 +1136,32 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["TentDevicesResponse"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      404: components["responses"]["NotFound"];
+    };
+  };
+  tentLightSchedules: {
+    parameters: {
+      query?: {
+        site_id?: string;
+      };
+      header?: never;
+      path: {
+        tent_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Light schedules for this tent. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LightSchedulesResponse"];
         };
       };
       401: components["responses"]["Unauthorized"];

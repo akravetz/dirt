@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from dirt_shared.config import Settings
 from dirt_shared.services.commands import CommandService
 from dirt_shared.services.grow_state import GrowStateService
+from dirt_shared.services.light_schedules import LightScheduleService
 from dirt_shared.services.plant_detail import PlantDetailService
 from dirt_shared.services.plants import PlantsService
 from dirt_shared.services.readings import ReadingsService
@@ -39,6 +40,7 @@ class CoreServices:
     snapshots: SnapshotsService
     readings: ReadingsService
     grow: GrowStateService
+    light_schedules: LightScheduleService
     plant_detail: PlantDetailService
     plants: PlantsService
     system_status: SystemStatusService
@@ -70,6 +72,7 @@ def build_core_services(
     snapshots = SnapshotsService(engine)
     readings = ReadingsService(engine, clock=clock)
     grow = GrowStateService(engine, clock=clock)
+    light_schedules = LightScheduleService(engine, clock=clock)
     plant_detail = PlantDetailService()
     plants = PlantsService(engine, plant_detail=plant_detail, clock=clock)
     system_status = SystemStatusService(engine, clock=clock)
@@ -83,6 +86,7 @@ def build_core_services(
         snapshots=snapshots,
         readings=readings,
         grow=grow,
+        light_schedules=light_schedules,
         plant_detail=plant_detail,
         plants=plants,
         system_status=system_status,

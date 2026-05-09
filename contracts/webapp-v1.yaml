@@ -243,6 +243,31 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /api/tents/{tent_id}/lights/schedules:
+    get:
+      tags: [scope]
+      operationId: tentLightSchedules
+      summary: Light schedules assigned to one tent
+      parameters:
+        - name: tent_id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: site_id
+          in: query
+          required: false
+          schema: { type: string, default: homebox }
+      responses:
+        '200':
+          description: Light schedules for this tent.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LightSchedulesResponse' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   # ============================================================
   # 3. Sensors
   # ============================================================
@@ -907,6 +932,64 @@ components:
         devices:
           type: array
           items: { $ref: '#/components/schemas/ScopedDevice' }
+
+    LightSchedule:
+      type: object
+      additionalProperties: false
+      required:
+        - site_id
+        - tent_id
+        - zone_id
+        - device_id
+        - capability_id
+        - schedule_id
+        - kind
+        - enabled
+        - timezone
+        - starts_local
+        - ends_local
+        - duration_hours
+        - is_on
+        - minutes_until_off
+        - minutes_until_on
+      properties:
+        site_id: { type: string }
+        tent_id: { type: string }
+        zone_id:
+          oneOf: [{ type: string }, { type: 'null' }]
+        device_id:
+          oneOf: [{ type: string }, { type: 'null' }]
+        capability_id:
+          oneOf: [{ type: string }, { type: 'null' }]
+        schedule_id: { type: string }
+        kind: { type: string }
+        enabled: { type: boolean }
+        timezone:
+          type: string
+          description: IANA timezone for interpreting local schedule times.
+        starts_local:
+          type: string
+          description: Local-time HH:MM:SS lights-on time in the schedule timezone.
+          pattern: '^\d{2}:\d{2}:\d{2}$'
+        ends_local:
+          type: string
+          description: Local-time HH:MM:SS lights-off time in the schedule timezone.
+          pattern: '^\d{2}:\d{2}:\d{2}$'
+        duration_hours: { type: number }
+        is_on: { type: boolean }
+        minutes_until_off: { type: number }
+        minutes_until_on: { type: number }
+
+    LightSchedulesResponse:
+      type: object
+      additionalProperties: false
+      required: [site_id, tent_id, schedules]
+      properties:
+        site_id: { type: string }
+        tent_id: { type: string }
+        schedules:
+          type: array
+          items: { $ref: '#/components/schemas/LightSchedule' }
 
     # ---- Sensors ----
 

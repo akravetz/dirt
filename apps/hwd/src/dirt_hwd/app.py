@@ -99,7 +99,7 @@ def _default_background_services(
         ),
         LightsLoopService(
             settings.lights(),
-            grow=core.grow,
+            engine=engine,
             clock=core.clock,
         ),
         FanTrimLoopService(
@@ -205,6 +205,7 @@ def create_app(
     app.state.settings = settings
     app.state.readings = core.readings
     app.state.grow = core.grow
+    app.state.light_schedules = core.light_schedules
     app.state.snapshots = core.snapshots
     app.state.plant_detail = core.plant_detail
     app.state.plants = core.plants

@@ -250,6 +250,45 @@ class TentDevicesResponse(BaseModel):
     devices: list[ScopedDevice]
 
 
+class LightSchedule(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    site_id: str
+    tent_id: str
+    zone_id: str | None
+    device_id: str | None
+    capability_id: str | None
+    schedule_id: str
+    kind: str
+    enabled: bool
+    timezone: str
+    """
+    IANA timezone for interpreting local schedule times.
+    """
+    starts_local: constr(pattern=r"^\d{2}:\d{2}:\d{2}$")
+    """
+    Local-time HH:MM:SS lights-on time in the schedule timezone.
+    """
+    ends_local: constr(pattern=r"^\d{2}:\d{2}:\d{2}$")
+    """
+    Local-time HH:MM:SS lights-off time in the schedule timezone.
+    """
+    duration_hours: float
+    is_on: bool
+    minutes_until_off: float
+    minutes_until_on: float
+
+
+class LightSchedulesResponse(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    site_id: str
+    tent_id: str
+    schedules: list[LightSchedule]
+
+
 class TargetBand(RootModel[list[float]]):
     """
     [lo, hi] target band; null if no band defined for this metric/stage.

@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time
 
-from dirt_hwd.services.lights import LightsLoopService
+from dirt_hwd.services.kasa_inventory import (
+    KasaExpectedDevice,
+    KasaObservation,
+    KasaVerifiedDevice,
+)
+from dirt_hwd.services.lights import LightScheduleTarget, LightsLoopService
 from dirt_shared.config import LightsConfig
-from dirt_shared.services.grow_state import LightsState
 
 T0 = datetime(2026, 5, 4, 18, 0, tzinfo=UTC)
 
@@ -31,38 +35,72 @@ class _FakePlug:
         return None
 
 
-class _FakeGrow:
-    def __init__(self) -> None:
-        self.calls: list[dict[str, str]] = []
+class _FakeInventory:
+    def __init__(self, plug: _FakePlug) -> None:
+        self.plug = plug
+        self.expected: list[KasaExpectedDevice] = []
 
-    async def lights_state(self, **kwargs) -> LightsState:
-        self.calls.append(dict(kwargs))
-        return LightsState(on=True, minutes_until_off=180.0, minutes_until_on=540.0)
+    async def connect_verified(
+        self,
+        expected: KasaExpectedDevice,
+    ) -> KasaVerifiedDevice | None:
+        self.expected.append(expected)
+        return KasaVerifiedDevice(
+            device=self.plug,
+            observation=KasaObservation(
+                host="192.0.2.42",
+                mac=expected.mac,
+                alias="test-light",
+                model="EP10",
+                hardware_version="1.0",
+                firmware_version="1.1.1",
+                rssi=-50,
+            ),
+        )
 
 
-async def test_lights_loop_reads_main_tent_schedule() -> None:
+async def test_lights_loop_reconciles_db_known_schedule() -> None:
     stop_event = asyncio.Event()
     plug = _FakePlug(stop_event)
-    grow = _FakeGrow()
+    inventory = _FakeInventory(plug)
 
-    async def discover_single(host, *, credentials):
-        assert host == "192.0.2.42"
-        assert credentials is not None
-        return plug
+    async def load_targets() -> list[LightScheduleTarget]:
+        return [
+            LightScheduleTarget(
+                site_id="homebox",
+                tent_id="clones",
+                zone_id="lights",
+                device_pk=42,
+                device_id="kasa-lights-clones",
+                capability_id="lights_power",
+                schedule_id="clones-lights-photoperiod",
+                host="192.0.2.42",
+                provider_uid="10:5A:95:8B:E8:B7",
+                starts_local=time(6, 0),
+                ends_local=time(0, 0),
+                timezone="America/Denver",
+            )
+        ]
 
     service = LightsLoopService(
         LightsConfig(
             kasa_username="user",
             kasa_password="pass",
-            kasa_lights_host="192.0.2.42",
+            discovery_target="255.255.255.255",
             poll_interval=30,
         ),
-        grow=grow,
         clock=lambda: T0,
-        discover_single=discover_single,
+        target_loader=load_targets,
+        inventory=inventory,
     )
 
     await asyncio.wait_for(service.run(stop_event), timeout=2.0)
 
     assert plug.turn_on_calls == 1
-    assert grow.calls == [{"site_id": "homebox", "tent_id": "main"}]
+    assert inventory.expected == [
+        KasaExpectedDevice(
+            device_id="kasa-lights-clones",
+            mac="10:5A:95:8B:E8:B7",
+            host="192.0.2.42",
+        )
+    ]

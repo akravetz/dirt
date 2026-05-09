@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -19,6 +19,7 @@ from dirt_control.models import (
     CloudDevice,
     CloudLatestMetric,
     CloudMetricRollup,
+    CloudSchedule,
     CloudSite,
     CloudTent,
     GatewayCredential,
@@ -333,6 +334,60 @@ async def devices(
     ]
 
 
+@router.get("/tents/{tent_id}/lights/schedules")
+async def light_schedules(
+    tent_id: str,
+    _: str = Depends(require_browser_user),
+    settings: CloudSettings = Depends(get_settings),
+    session: AsyncSession = Depends(get_session),
+    clock: Callable[[], datetime] = Depends(get_clock),
+) -> dict[str, Any]:
+    rows = (
+        await session.execute(
+            select(CloudSchedule)
+            .where(
+                CloudSchedule.site_id == settings.default_site_id,
+                CloudSchedule.tent_id == tent_id,
+                CloudSchedule.kind == "lights",
+            )
+            .order_by(CloudSchedule.schedule_id)
+        )
+    ).scalars()
+    schedules = []
+    for row in rows:
+        state = _light_state(
+            row.starts_local,
+            row.ends_local,
+            clock(),
+            timezone=row.timezone,
+        )
+        schedules.append(
+            {
+                "site_id": row.site_id,
+                "tent_id": row.tent_id,
+                "zone_id": row.zone_id,
+                "device_id": row.device_id,
+                "capability_id": row.capability_id,
+                "schedule_id": row.schedule_id,
+                "kind": row.kind,
+                "enabled": row.is_enabled,
+                "timezone": row.timezone,
+                "starts_local": row.starts_local.strftime("%H:%M:%S"),
+                "ends_local": row.ends_local.strftime("%H:%M:%S"),
+                "duration_hours": _duration_hours(
+                    row.starts_local,
+                    row.ends_local,
+                ),
+                **state,
+            }
+        )
+    return {
+        "site_id": settings.default_site_id,
+        "tent_id": tent_id,
+        "schedules": schedules,
+    }
+
+
 @router.get("/tents/{tent_id}/assets/latest")
 async def latest_assets(
     tent_id: str,
@@ -641,6 +696,58 @@ def _sync_status_label(last_seen_at: datetime | None, *, now: datetime) -> str:
     if age_s > 90:
         return "stale"
     return "live"
+
+
+def _light_state(
+    starts_local: time,
+    ends_local: time,
+    now: datetime,
+    *,
+    timezone: str,
+) -> dict[str, Any]:
+    from zoneinfo import ZoneInfo
+
+    now_local = now.astimezone(ZoneInfo(timezone))
+    now_t = now_local.time()
+    if starts_local < ends_local:
+        is_on = starts_local <= now_t < ends_local
+    else:
+        is_on = now_t >= starts_local or now_t < ends_local
+
+    off_dt = datetime.combine(now_local.date(), ends_local, tzinfo=now_local.tzinfo)
+    if off_dt <= now_local:
+        off_dt = datetime.combine(
+            now_local.date() + timedelta(days=1),
+            ends_local,
+            tzinfo=now_local.tzinfo,
+        )
+    on_dt = datetime.combine(now_local.date(), starts_local, tzinfo=now_local.tzinfo)
+    if on_dt <= now_local:
+        on_dt = datetime.combine(
+            now_local.date() + timedelta(days=1),
+            starts_local,
+            tzinfo=now_local.tzinfo,
+        )
+    return {
+        "is_on": is_on,
+        "minutes_until_off": (off_dt - now_local).total_seconds() / 60.0,
+        "minutes_until_on": (on_dt - now_local).total_seconds() / 60.0,
+    }
+
+
+def _duration_hours(starts_local: time, ends_local: time) -> float:
+    start_seconds = _seconds_since_midnight(starts_local)
+    end_seconds = _seconds_since_midnight(ends_local)
+    return ((end_seconds - start_seconds) % (24 * 60 * 60)) / (60 * 60)
+
+
+def _seconds_since_midnight(value: time) -> float:
+    return (
+        value.hour * 60 * 60
+        + value.minute * 60
+        + value.second
+        + value.microsecond / 1_000_000
+    )
 
 
 async def _command_backlog_depth(session: AsyncSession, *, site_id: str) -> int:

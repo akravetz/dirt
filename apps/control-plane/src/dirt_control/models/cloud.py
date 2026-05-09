@@ -1,9 +1,18 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, time
 from typing import Any
 
-from sqlalchemy import JSON, Column, DateTime, Float, Index, Integer, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Column,
+    DateTime,
+    Float,
+    Index,
+    Integer,
+    Time,
+    UniqueConstraint,
+)
 from sqlmodel import Field, SQLModel
 
 
@@ -113,6 +122,33 @@ class CloudCapability(SQLModel, table=True):
     metric_name: str | None = Field(default=None, max_length=120)
     kind: str = Field(default="metric", max_length=80)
     unit: str | None = Field(default=None, max_length=40)
+    is_enabled: bool = True
+    synced_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    created_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    updated_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+
+
+class CloudSchedule(SQLModel, table=True):
+    __tablename__ = "cloud_schedule"
+    __table_args__ = (UniqueConstraint("site_id", "tent_id", "schedule_id"),)
+
+    schedule_key: str = Field(primary_key=True, max_length=320)
+    site_id: str = Field(index=True, max_length=80)
+    tent_id: str = Field(index=True, max_length=80)
+    zone_id: str | None = Field(default=None, index=True, max_length=80)
+    device_id: str | None = Field(default=None, index=True, max_length=120)
+    capability_id: str | None = Field(default=None, index=True, max_length=160)
+    schedule_id: str = Field(index=True, max_length=160)
+    kind: str = Field(default="lights", max_length=80)
+    starts_local: time = Field(sa_column=Column(Time, nullable=False))
+    ends_local: time = Field(sa_column=Column(Time, nullable=False))
+    timezone: str = Field(default="America/Denver", max_length=80)
     is_enabled: bool = True
     synced_at: datetime = Field(
         sa_column=Column(DateTime(timezone=True), nullable=False)

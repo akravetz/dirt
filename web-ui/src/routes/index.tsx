@@ -26,6 +26,8 @@ import { type components, createDirtApiClient, isHostedApiMode } from "@/api-cli
 import {
   type CloudAsset,
   type CloudDevice,
+  type CloudLightSchedule,
+  type CloudLightSchedulesResponse,
   type CloudMetric,
   type CloudMetricHistory,
   type CloudSite,
@@ -54,6 +56,8 @@ type MetricEnvelope = components["schemas"]["MetricEnvelope"];
 type MetricMeta = components["schemas"]["SensorMetricMetadata"];
 type SparklineAccent = "temp" | "humidity" | "vpd" | "moisture" | "neutral";
 type MetricStatus = MetricEnvelope["status"];
+type LocalLightSchedule = components["schemas"]["LightSchedule"];
+type DashboardLightSchedule = LocalLightSchedule | CloudLightSchedule;
 
 // Whitelist the accent strings the FE knows how to render. Anything else
 // from the registry falls back to "neutral" so a future BE addition
@@ -216,6 +220,15 @@ function HostedDashboardPage() {
     enabled: selectedTentId.length > 0,
   });
 
+  const lightSchedulesQuery = useQuery({
+    queryKey: ["cloud.lights.schedules", selectedTentId],
+    queryFn: async () =>
+      cloudGet<CloudLightSchedulesResponse>(
+        `/api/tents/${encodeURIComponent(selectedTentId)}/lights/schedules`,
+      ),
+    enabled: selectedTentId.length > 0,
+  });
+
   const assetsQuery = useQuery({
     queryKey: ["cloud.assets.latest", selectedTentId],
     queryFn: async () =>
@@ -334,6 +347,11 @@ function HostedDashboardPage() {
             value={formatTimestamp(syncStatus?.gateway_last_seen_at ?? null)}
           />
         </section>
+
+        <LightSchedulePanel
+          schedules={lightSchedulesQuery.data?.schedules ?? []}
+          loading={lightSchedulesQuery.isLoading}
+        />
 
         {metricsQuery.isLoading ? (
           <p className="font-mono text-xs uppercase tracking-caps text-ink-3">
@@ -504,6 +522,17 @@ function LocalDashboardPage() {
   });
   const growContext = growQuery.data ? { dayNumber: growQuery.data.day_number } : null;
 
+  const lightSchedulesQuery = useQuery({
+    queryKey: ["lights.schedules", "main"],
+    queryFn: async () => {
+      const { data, error } = await api.GET("/api/tents/{tent_id}/lights/schedules", {
+        params: { path: { tent_id: "main" } },
+      });
+      if (error) throw error;
+      return data;
+    },
+  });
+
   // /api/plants — feeds the four A/B/C/D cards rendered under the
   // sparklines. Independent of the range switch; the strip is an
   // always-on snapshot (see frontend.dashboard.plants_strip).
@@ -596,6 +625,10 @@ function LocalDashboardPage() {
           </span>
           <RangeSwitch value={range} onChange={setRange} />
         </div>
+        <LightSchedulePanel
+          schedules={lightSchedulesQuery.data?.schedules ?? []}
+          loading={lightSchedulesQuery.isLoading}
+        />
         <div className="grid grid-cols-1 gap-px border border-rule-strong bg-rule sm:grid-cols-2 lg:grid-cols-6">
           <section aria-label="Environment gauges" className="contents">
             {metaList.map((m) => {
@@ -695,6 +728,61 @@ function CloudFact({ label, value }: { label: string; value: string }): ReactNod
       </span>
       <span className="truncate font-sans text-fs-13 text-ink">{value}</span>
     </div>
+  );
+}
+
+function LightSchedulePanel({
+  schedules,
+  loading,
+}: {
+  schedules: readonly DashboardLightSchedule[];
+  loading: boolean;
+}): ReactNode {
+  return (
+    <section aria-label="Light schedules" className="flex flex-col bg-paper-2 p-4">
+      <h2 className="mb-2 font-sans text-fs-10 font-semibold uppercase tracking-cap-med text-ink-3">
+        Light Schedule
+      </h2>
+      {loading ? (
+        <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+          Loading light schedule…
+        </p>
+      ) : schedules.length === 0 ? (
+        <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+          No light schedule synced for this tent.
+        </p>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {schedules.map((schedule) => (
+            <div
+              key={schedule.schedule_id}
+              className="border border-rule bg-paper px-3.5 py-3"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate font-sans text-fs-13 font-semibold text-ink">
+                    {lightScheduleLabel(schedule)}
+                  </p>
+                  <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+                    {formatScheduleTime(schedule.starts_local)}-
+                    {formatScheduleTime(schedule.ends_local)} local
+                  </p>
+                </div>
+                <span className="shrink-0 font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+                  {formatPhotoperiod(schedule.duration_hours)}
+                </span>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-2 font-mono text-fs-10 uppercase tracking-caps">
+                <span className={schedule.is_on ? "text-status-ok" : "text-ink-3"}>
+                  {schedule.is_on ? "On" : "Off"}
+                </span>
+                <span className="text-ink-3">{formatNextTransition(schedule)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -811,6 +899,44 @@ function displayMetricName(metric: string): string {
   return (
     CLOUD_METRIC_META.find((item) => item.metric === metric)?.display_name ?? metric
   );
+}
+
+function lightScheduleLabel(schedule: DashboardLightSchedule): string {
+  if (schedule.device_id === null) return schedule.schedule_id;
+  return schedule.device_id
+    .replace(/^kasa-lights-/, "")
+    .replaceAll("-", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatScheduleTime(value: string): string {
+  return value.slice(0, 5);
+}
+
+function formatPhotoperiod(durationHours: number): string {
+  const onHours = Math.round(durationHours * 10) / 10;
+  const offHours = Math.round((24 - durationHours) * 10) / 10;
+  return `${formatHourCount(onHours)}/${formatHourCount(offHours)}`;
+}
+
+function formatHourCount(value: number): string {
+  return Number.isInteger(value) ? `${value}` : `${value.toFixed(1)}`;
+}
+
+function formatNextTransition(schedule: DashboardLightSchedule): string {
+  const minutes = schedule.is_on
+    ? schedule.minutes_until_off
+    : schedule.minutes_until_on;
+  return `${schedule.is_on ? "off" : "on"} in ${formatMinutes(minutes)}`;
+}
+
+function formatMinutes(value: number): string {
+  const total = Math.max(0, Math.round(value));
+  const hours = Math.floor(total / 60);
+  const minutes = total % 60;
+  if (hours === 0) return `${minutes}m`;
+  if (minutes === 0) return `${hours}h`;
+  return `${hours}h ${minutes}m`;
 }
 
 function formatTimestamp(value: string | null): string {

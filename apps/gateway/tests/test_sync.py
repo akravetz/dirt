@@ -177,6 +177,7 @@ class StaticLocalServices:
             "zones": [],
             "devices": [],
             "capabilities": [],
+            "schedules": [],
         }
 
     async def collect_latest_metrics(self, site_id: str) -> dict[str, Any]:
@@ -348,7 +349,19 @@ async def test_catalog_syncs_homebox_main_and_breeding(app_engine: AsyncEngine):
     assert cloud.catalogs
     catalog = next(iter(cloud.catalogs.values()))
     assert catalog["site"]["site_id"] == "homebox"
-    assert {tent["tent_id"] for tent in catalog["tents"]} == {"main", "breeding"}
+    assert {tent["tent_id"] for tent in catalog["tents"]} == {
+        "main",
+        "breeding",
+        "clones",
+    }
+    assert {
+        (schedule["tent_id"], schedule["device_id"], schedule["starts_local"])
+        for schedule in catalog["schedules"]
+    } >= {
+        ("main", "kasa-lights-main", "09:00:00"),
+        ("breeding", "kasa-lights-breeding", "06:00:00"),
+        ("clones", "kasa-lights-clones", "06:00:00"),
+    }
     breeding_devices = [
         device
         for device in catalog["devices"]

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, time
 from typing import Any, TypeVar
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -19,6 +19,7 @@ from dirt_control.models import (
     CloudDevice,
     CloudLatestMetric,
     CloudMetricRollup,
+    CloudSchedule,
     CloudSite,
     CloudTent,
     CloudZone,
@@ -86,12 +87,27 @@ class CatalogCapability(BaseModel):
     is_enabled: bool = True
 
 
+class CatalogSchedule(BaseModel):
+    site_id: str
+    tent_id: str
+    zone_id: str | None = None
+    device_id: str | None = None
+    capability_id: str | None = None
+    schedule_id: str
+    kind: str = "lights"
+    starts_local: time
+    ends_local: time
+    timezone: str = "America/Denver"
+    is_enabled: bool = True
+
+
 class CatalogRequest(BaseModel):
     site: CatalogSite
     tents: list[CatalogTent] = Field(default_factory=list)
     zones: list[CatalogZone] = Field(default_factory=list)
     devices: list[CatalogDevice] = Field(default_factory=list)
     capabilities: list[CatalogCapability] = Field(default_factory=list)
+    schedules: list[CatalogSchedule] = Field(default_factory=list)
 
 
 class LatestMetricItem(BaseModel):
@@ -330,6 +346,32 @@ async def catalog(
             },
             now=now,
         )
+    for schedule in body.schedules:
+        require_gateway_scope(principal, schedule.site_id)
+        key = _schedule_key(schedule.site_id, schedule.tent_id, schedule.schedule_id)
+        await _upsert(
+            session,
+            CloudSchedule,
+            key,
+            {
+                "schedule_key": key,
+                "site_id": schedule.site_id,
+                "tent_id": schedule.tent_id,
+                "zone_id": schedule.zone_id,
+                "device_id": schedule.device_id,
+                "capability_id": schedule.capability_id,
+                "schedule_id": schedule.schedule_id,
+                "kind": schedule.kind,
+                "starts_local": schedule.starts_local,
+                "ends_local": schedule.ends_local,
+                "timezone": schedule.timezone,
+                "is_enabled": schedule.is_enabled,
+                "synced_at": now,
+                "created_at": now,
+                "updated_at": now,
+            },
+            now=now,
+        )
     await session.commit()
     return {
         "sites": 1,
@@ -337,6 +379,7 @@ async def catalog(
         "zones": len(body.zones),
         "devices": len(body.devices),
         "capabilities": len(body.capabilities),
+        "schedules": len(body.schedules),
     }
 
 
@@ -719,6 +762,10 @@ def _device_key(site_id: str, tent_id: str, device_id: str) -> str:
 
 def _capability_key(site_id: str, tent_id: str, capability_id: str) -> str:
     return f"{site_id}:{tent_id}:{capability_id}"
+
+
+def _schedule_key(site_id: str, tent_id: str, schedule_id: str) -> str:
+    return f"{site_id}:{tent_id}:{schedule_id}"
 
 
 def _metric_key(site_id: str, tent_id: str, capability_id: str, metric: str) -> str:

@@ -75,11 +75,11 @@ class Settings(BaseSettings):
     # humidifier moved off Kasa entirely; see HumidifierConfig below.
     kasa_username: str = ""
     kasa_password: str = ""
-    # Kasa plug driving the grow lights. Swapped in 2026-04-23 for the
-    # unreliable analog push-pin 24-hour timer. Schedule lives in the scoped
-    # schedule row (per-tent-timezone wall clock); this host is just the plug
-    # endpoint.
+    # Legacy single-plug host retained for old env files; current lights
+    # control resolves DB-known Kasa devices by provider_uid/MAC.
     kasa_lights_host: str = "192.168.1.181"
+    # Broadcast target for recovering Kasa devices after DHCP/IP changes.
+    kasa_discovery_target: str = "255.255.255.255"
     lights_poll_interval: int = 30
     # Govee Public API v2 — drives the H7142 humidifier. Cloud-only; see
     # docs/references/govee-api/INDEX.md and wiki/hardware/humidifier-control.md.
@@ -232,7 +232,7 @@ class Settings(BaseSettings):
         return LightsConfig(
             kasa_username=self.kasa_username,
             kasa_password=self.kasa_password,
-            kasa_lights_host=self.kasa_lights_host,
+            discovery_target=self.kasa_discovery_target,
             poll_interval=self.lights_poll_interval,
         )
 
@@ -317,7 +317,7 @@ class ArchiveConfig:
 class LightsConfig:
     kasa_username: str
     kasa_password: str
-    kasa_lights_host: str
+    discovery_target: str
     poll_interval: int
 
 

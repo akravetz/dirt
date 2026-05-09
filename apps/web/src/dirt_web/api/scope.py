@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dirt_contracts.webapp_v1.models import (
     GrowCurrent,
+    LightSchedule,
+    LightSchedulesResponse,
     ScopedDevice,
     Site,
     SitesResponse,
@@ -14,10 +16,11 @@ from dirt_contracts.webapp_v1.models import (
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from dirt_shared.services.grow_state import GrowStateService
+from dirt_shared.services.light_schedules import LightScheduleService
 from dirt_shared.services.scope import DEFAULT_SITE_ID
 from dirt_shared.services.scope_catalog import ScopeCatalogService
 from dirt_web.api.grow import _grow_current_response
-from dirt_web.deps import get_grow, get_scope_catalog
+from dirt_web.deps import get_grow, get_light_schedules, get_scope_catalog
 
 router = APIRouter(tags=["scope"])
 
@@ -103,5 +106,49 @@ async def tent_devices(
                 enabled=device.enabled,
             )
             for device in devices
+        ],
+    )
+
+
+@router.get(
+    "/api/tents/{tent_id}/lights/schedules",
+    response_model=LightSchedulesResponse,
+)
+async def tent_light_schedules(
+    tent_id: str,
+    site_id: str = Query(default=DEFAULT_SITE_ID),
+    light_schedules: LightScheduleService = Depends(get_light_schedules),
+    catalog: ScopeCatalogService = Depends(get_scope_catalog),
+) -> LightSchedulesResponse:
+    """Return enabled and disabled light schedules assigned to one tent."""
+    devices = await catalog.list_tent_devices(site_id=site_id, tent_id=tent_id)
+    if devices is None:
+        raise HTTPException(status_code=404, detail="tent not found")
+    schedules = await light_schedules.list_light_schedules(
+        site_id=site_id,
+        tent_id=tent_id,
+    )
+    return LightSchedulesResponse(
+        site_id=site_id,
+        tent_id=tent_id,
+        schedules=[
+            LightSchedule(
+                site_id=schedule.site_id,
+                tent_id=schedule.tent_id,
+                zone_id=schedule.zone_id,
+                device_id=schedule.device_id,
+                capability_id=schedule.capability_id,
+                schedule_id=schedule.schedule_id,
+                kind=schedule.kind,
+                enabled=schedule.enabled,
+                timezone=schedule.timezone,
+                starts_local=schedule.starts_local.strftime("%H:%M:%S"),
+                ends_local=schedule.ends_local.strftime("%H:%M:%S"),
+                duration_hours=schedule.duration_hours,
+                is_on=schedule.is_on,
+                minutes_until_off=schedule.minutes_until_off,
+                minutes_until_on=schedule.minutes_until_on,
+            )
+            for schedule in schedules
         ],
     )

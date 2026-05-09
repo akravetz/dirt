@@ -18,6 +18,7 @@ The safety outcome matters as much as the display outcome. Network discovery is 
 - [x] (2026-05-09T03:37:47Z) Investigated current local schedule, device, Kasa, and cloud sync models.
 - [x] (2026-05-09T03:37:47Z) Confirmed current LAN Kasa EP10 discoveries: `lights` at `192.168.1.181` with MAC `6C:4C:BC:45:37:F6`, `clone-light` at `192.168.1.220` with MAC `10:5A:95:8B:E8:B7`, and renamed `breeding-tent-light` formerly discovered at `192.168.1.180` with MAC `10:5A:95:8B:E6:76`.
 - [x] (2026-05-09T03:37:47Z) Wrote this implementation plan.
+- [x] (2026-05-09T03:50:00Z) User resolved open questions: create a real `clones` tent, use `06:00-00:00` for clone and breeding schedules, enable new schedules immediately and restart `dirt-hwd`, keep schedule UI display-only, and use `kasa-lights-main`, `kasa-lights-clones`, and `kasa-lights-breeding`.
 - [ ] Add local schema and seed migration for authoritative Kasa device identity.
 - [ ] Refactor the local lights controller to reconcile all enabled DB-known Kasa light schedules.
 - [ ] Add local schedule read/update APIs and generated contracts.
@@ -58,6 +59,18 @@ The safety outcome matters as much as the display outcome. Network discovery is 
 - Decision: Add a real `clones` tent unless implementation discovery proves clone lights are physically and operationally part of the breeding tent.
   Rationale: Independent photoperiods are easiest to reason about when each growth area has its own tent scope. If clone lights share the breeding tent environment but need a separate photoperiod, schedules can still target a specific light device under the same tent, but the UI phrase "per tent" becomes less accurate.
   Date/Author: 2026-05-09 / Codex
+
+- Decision: Create `tent_id='clones'` for the clone light area.
+  Rationale: The user accepted the recommended model. Clone lights need an independent photoperiod and should appear as a first-class tent in local and hosted selectors.
+  Date/Author: 2026-05-09 / User, recorded by Codex
+
+- Decision: Use `06:00` to `00:00` local time for both clone and breeding 18/6 schedules, enable them immediately, and restart `dirt-hwd` after implementation.
+  Rationale: The user wants the new automation active as soon as the feature lands.
+  Date/Author: 2026-05-09 / User, recorded by Codex
+
+- Decision: Keep schedule writes out of this implementation.
+  Rationale: Display-only local and hosted schedule UI satisfies the current request and avoids designing hosted schedule command mutation in the same change.
+  Date/Author: 2026-05-09 / User, recorded by Codex
 
 - Decision: Sync schedules to cloud as explicit data, not as derived grow state.
   Rationale: Hosted UI needs schedule visibility for tents that may not have a current grow and for device-specific schedules. The gateway already syncs catalog-shaped data; schedules are another catalog-like boundary and should have typed DTOs.

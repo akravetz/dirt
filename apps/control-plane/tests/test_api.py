@@ -16,6 +16,7 @@ from dirt_control.models import (
     CloudAuditEvent,
     CloudCommand,
     CloudLatestMetric,
+    CloudSchedule,
     CloudSite,
     CloudTent,
     GatewayCredential,
@@ -238,6 +239,21 @@ async def test_catalog_upsert_is_idempotent(
                 "unit": "f",
             }
         ],
+        "schedules": [
+            {
+                "site_id": "homebox",
+                "tent_id": "main",
+                "zone_id": "canopy",
+                "device_id": "env-main",
+                "capability_id": "env-main-temp",
+                "schedule_id": "main-lights-photoperiod",
+                "kind": "lights",
+                "starts_local": "09:00:00",
+                "ends_local": "21:00:00",
+                "timezone": "America/Denver",
+                "is_enabled": True,
+            }
+        ],
     }
 
     first = await client.put(
@@ -252,7 +268,11 @@ async def test_catalog_upsert_is_idempotent(
     sessionmaker = create_sessionmaker(cloud_engine)
     async with sessionmaker() as session:
         count = await session.scalar(select(func.count()).select_from(CloudTent))
+        schedule_count = await session.scalar(
+            select(func.count()).select_from(CloudSchedule)
+        )
     assert count == 1
+    assert schedule_count == 1
 
 
 async def test_latest_metric_upsert_is_idempotent(

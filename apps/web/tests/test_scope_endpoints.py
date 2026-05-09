@@ -7,11 +7,13 @@ from datetime import date, time
 import pytest
 from dirt_contracts.webapp_v1.models import (
     GrowCurrent,
+    LightSchedulesResponse,
     SitesResponse,
     TentDevicesResponse,
     TentsResponse,
 )
 from httpx import ASGITransport, AsyncClient
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.grow_run import GrowRun
@@ -54,18 +56,20 @@ async def _insert_breeding_grow(app_engine) -> None:
             is_current=True,
         )
         session.add(grow)
-        session.add(
-            Schedule(
-                site_id=scope.site_pk,
-                tent_id=scope.tent_pk,
-                schedule_id="breeding-lights-photoperiod",
-                kind="lights",
-                starts_local=time(6, 0),
-                ends_local=time(18, 0),
-                timezone="America/Denver",
-                enabled=True,
+        schedule = (
+            await session.exec(
+                select(Schedule)
+                .where(Schedule.site_id == scope.site_pk)
+                .where(Schedule.tent_id == scope.tent_pk)
+                .where(Schedule.schedule_id == "breeding-lights-photoperiod")
             )
-        )
+        ).first()
+        assert schedule is not None
+        schedule.starts_local = time(6, 0)
+        schedule.ends_local = time(18, 0)
+        schedule.timezone = "America/Denver"
+        schedule.enabled = True
+        session.add(schedule)
         await session.commit()
 
 
@@ -94,9 +98,10 @@ async def test_sites_and_tents_list_default_local_scope(client: AsyncClient):
     tents = TentsResponse.model_validate(tents_response.json()).tents
 
     by_tent_id = {tent.tent_id: tent for tent in tents}
-    assert {"main", "breeding"} <= set(by_tent_id)
+    assert {"main", "breeding", "clones"} <= set(by_tent_id)
     assert by_tent_id["main"].role == "flower"
     assert by_tent_id["breeding"].role == "breeding"
+    assert by_tent_id["clones"].role == "clone"
     assert by_tent_id["main"].is_default is True
 
 
@@ -164,4 +169,25 @@ async def test_tent_devices_are_scoped(client: AsyncClient, app_engine):
     assert {device.tent_id for device in breeding.devices} == {"breeding"}
 
     missing_response = await client.get("/api/tents/missing/devices")
+    assert missing_response.status_code == 404
+
+
+async def test_tent_light_schedules_are_scoped(client: AsyncClient):
+    main_response = await client.get("/api/tents/main/lights/schedules")
+    assert main_response.status_code == 200
+    main = LightSchedulesResponse.model_validate(main_response.json())
+    assert main.site_id == "homebox"
+    assert main.tent_id == "main"
+    assert [(s.device_id, s.starts_local, s.ends_local) for s in main.schedules] == [
+        ("kasa-lights-main", "09:00:00", "21:00:00")
+    ]
+
+    clones_response = await client.get("/api/tents/clones/lights/schedules")
+    assert clones_response.status_code == 200
+    clones = LightSchedulesResponse.model_validate(clones_response.json())
+    assert [(s.device_id, s.duration_hours) for s in clones.schedules] == [
+        ("kasa-lights-clones", 18.0)
+    ]
+
+    missing_response = await client.get("/api/tents/missing/lights/schedules")
     assert missing_response.status_code == 404

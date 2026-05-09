@@ -1036,6 +1036,7 @@ dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "python-kasa" },
+    { name = "sqlmodel" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -1046,6 +1047,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "python-kasa", git = "https://github.com/ZeliardM/python-kasa.git?rev=feature%2Fnew-klap" },
+    { name = "sqlmodel", specifier = ">=0.0.37" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34" },
 ]
 

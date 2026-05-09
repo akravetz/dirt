@@ -21,6 +21,7 @@ from dirt_shared.models import (
     Tent,
     Zone,
 )
+from dirt_shared.services.light_schedules import LightScheduleService
 from dirt_shared.services.scope_catalog import ScopeCatalogService
 from dirt_shared.services.snapshots import SnapshotsService, get_snapshot_path
 
@@ -43,6 +44,7 @@ class GatewayLocalServiceBundle:
         self._clock = clock
         self._stale_after_s = stale_after_s
         self._catalog = ScopeCatalogService(engine)
+        self._light_schedules = LightScheduleService(engine, clock=clock)
         self._snapshots = SnapshotsService(engine)
 
     async def collect_catalog(self, site_id: str) -> dict[str, Any]:
@@ -100,6 +102,24 @@ class GatewayLocalServiceBundle:
                 if device.tent_id is not None
             ],
             "capabilities": await self._collect_capabilities(site_id),
+            "schedules": [
+                {
+                    "site_id": schedule.site_id,
+                    "tent_id": schedule.tent_id,
+                    "zone_id": schedule.zone_id,
+                    "device_id": schedule.device_id,
+                    "capability_id": schedule.capability_id,
+                    "schedule_id": schedule.schedule_id,
+                    "kind": schedule.kind,
+                    "starts_local": schedule.starts_local.isoformat(),
+                    "ends_local": schedule.ends_local.isoformat(),
+                    "timezone": schedule.timezone,
+                    "is_enabled": schedule.enabled,
+                }
+                for schedule in await self._light_schedules.list_light_schedules(
+                    site_id=site_id
+                )
+            ],
         }
 
     async def collect_latest_metrics(self, site_id: str) -> dict[str, Any]:

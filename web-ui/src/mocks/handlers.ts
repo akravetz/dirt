@@ -257,7 +257,14 @@ export const handlers: RequestHandler[] = [
         site_id: "homebox",
         tent_id: "breeding",
         name: "Breeding",
-        is_active: false,
+        is_active: true,
+        synced_at: agoIso(80),
+      },
+      {
+        site_id: "homebox",
+        tent_id: "clones",
+        name: "Clones",
+        is_active: true,
         synced_at: agoIso(80),
       },
     ]),
@@ -269,8 +276,9 @@ export const handlers: RequestHandler[] = [
     return HttpResponse.json({
       site_id: "homebox",
       tent_id: tentId,
-      name: tentId === "breeding" ? "Breeding" : "Main",
-      is_active: tentId !== "breeding",
+      name:
+        tentId === "breeding" ? "Breeding" : tentId === "clones" ? "Clones" : "Main",
+      is_active: true,
       gateway_last_seen_at: scenario === "offline" ? null : gatewaySeenAt(scenario),
       last_catalog_sync_at: agoIso(80),
     });
@@ -354,6 +362,38 @@ export const handlers: RequestHandler[] = [
         last_seen_at: metricSourceAt(scenario),
       },
     ]);
+  }),
+
+  http.get("*/api/tents/:tentId/lights/schedules", ({ params }) => {
+    const tentId = String(params.tentId);
+    const isMain = tentId === "main";
+    const scheduleId = isMain
+      ? "main-lights-photoperiod"
+      : `${tentId}-lights-photoperiod`;
+    const deviceId = isMain ? "kasa-lights-main" : `kasa-lights-${tentId}`;
+    return HttpResponse.json({
+      site_id: "homebox",
+      tent_id: tentId,
+      schedules: [
+        {
+          site_id: "homebox",
+          tent_id: tentId,
+          zone_id: "lights",
+          device_id: deviceId,
+          capability_id: "lights_power",
+          schedule_id: scheduleId,
+          kind: "lights",
+          enabled: true,
+          timezone: "America/Denver",
+          starts_local: isMain ? "09:00:00" : "06:00:00",
+          ends_local: isMain ? "21:00:00" : "00:00:00",
+          duration_hours: isMain ? 12 : 18,
+          is_on: true,
+          minutes_until_off: 180,
+          minutes_until_on: 540,
+        },
+      ],
+    });
   }),
 
   http.get("*/api/tents/:tentId/assets/latest", ({ request, params }) => {

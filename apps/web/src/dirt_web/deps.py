@@ -22,6 +22,7 @@ from dirt_shared.config import Settings
 from dirt_shared.services.capture import FrameCapturer, capture_frame
 from dirt_shared.services.commands import CommandService
 from dirt_shared.services.grow_state import GrowStateService
+from dirt_shared.services.light_schedules import LightScheduleService
 from dirt_shared.services.plants import PlantsService
 from dirt_shared.services.ptz import PTZService
 from dirt_shared.services.readings import ReadingsService
@@ -44,6 +45,10 @@ def get_readings(request: Request) -> ReadingsService:
 
 def get_grow(request: Request) -> GrowStateService:
     return request.app.state.grow
+
+
+def get_light_schedules(request: Request) -> LightScheduleService:
+    return request.app.state.light_schedules
 
 
 def get_plants(request: Request) -> PlantsService:

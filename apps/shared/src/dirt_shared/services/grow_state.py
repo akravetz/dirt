@@ -149,6 +149,41 @@ class LightSchedule:
     source: str
 
 
+def derive_lights_from_times(
+    on_time: time,
+    off_time: time,
+    now_local: datetime,
+) -> LightsState:
+    """Derive current light state and next transitions from a local time window."""
+    tz = now_local.tzinfo
+    now_t = now_local.time()
+    if on_time < off_time:
+        on = on_time <= now_t < off_time
+    else:
+        # Lights-on crosses midnight.
+        on = now_t >= on_time or now_t < off_time
+
+    off_dt = datetime.combine(now_local.date(), off_time, tzinfo=tz)
+    if off_dt <= now_local:
+        off_dt = datetime.combine(
+            now_local.date() + timedelta(days=1), off_time, tzinfo=tz
+        )
+    minutes_until_off = (off_dt - now_local).total_seconds() / 60.0
+
+    on_dt = datetime.combine(now_local.date(), on_time, tzinfo=tz)
+    if on_dt <= now_local:
+        on_dt = datetime.combine(
+            now_local.date() + timedelta(days=1), on_time, tzinfo=tz
+        )
+    minutes_until_on = (on_dt - now_local).total_seconds() / 60.0
+
+    return LightsState(
+        on=on,
+        minutes_until_off=minutes_until_off,
+        minutes_until_on=minutes_until_on,
+    )
+
+
 # ============================================================
 # Pure helper used by every endpoint that returns ok|warn|crit.
 # ============================================================
@@ -272,33 +307,7 @@ class GrowStateService:
         off_time: time,
         now_local: datetime,
     ) -> LightsState:
-        tz = now_local.tzinfo
-        now_t = now_local.time()
-        if on_time < off_time:
-            on = on_time <= now_t < off_time
-        else:
-            # Lights-on crosses midnight (handled but not the current schedule).
-            on = now_t >= on_time or now_t < off_time
-
-        off_dt = datetime.combine(now_local.date(), off_time, tzinfo=tz)
-        if off_dt <= now_local:
-            off_dt = datetime.combine(
-                now_local.date() + timedelta(days=1), off_time, tzinfo=tz
-            )
-        minutes_until_off = (off_dt - now_local).total_seconds() / 60.0
-
-        on_dt = datetime.combine(now_local.date(), on_time, tzinfo=tz)
-        if on_dt <= now_local:
-            on_dt = datetime.combine(
-                now_local.date() + timedelta(days=1), on_time, tzinfo=tz
-            )
-        minutes_until_on = (on_dt - now_local).total_seconds() / 60.0
-
-        return LightsState(
-            on=on,
-            minutes_until_off=minutes_until_off,
-            minutes_until_on=minutes_until_on,
-        )
+        return derive_lights_from_times(on_time, off_time, now_local)
 
     @staticmethod
     def _lights_on_duration_seconds(on_time: time, off_time: time) -> float:

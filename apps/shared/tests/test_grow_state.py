@@ -338,8 +338,8 @@ async def test_flip_to_flower_rejects_non_12_12_schedule(pg_engine):
     state = await GrowStateService(pg_engine).get_state()
     assert state.flower_start_date is None
     schedule = await GrowStateService(pg_engine).current_light_schedule()
-    assert schedule.starts_local == time(5, 0)
-    assert schedule.ends_local == time(23, 0)
+    assert schedule.starts_local == time(9, 0)
+    assert schedule.ends_local == time(21, 0)
 
 
 # ------- get_grow_current_payload -------

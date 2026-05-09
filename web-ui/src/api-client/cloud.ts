@@ -63,6 +63,30 @@ export interface CloudDevice {
   last_seen_at: string | null;
 }
 
+export interface CloudLightSchedule {
+  site_id: string;
+  tent_id: string;
+  zone_id: string | null;
+  device_id: string | null;
+  capability_id: string | null;
+  schedule_id: string;
+  kind: string;
+  enabled: boolean;
+  timezone: string;
+  starts_local: string;
+  ends_local: string;
+  duration_hours: number;
+  is_on: boolean;
+  minutes_until_off: number;
+  minutes_until_on: number;
+}
+
+export interface CloudLightSchedulesResponse {
+  site_id: string;
+  tent_id: string;
+  schedules: CloudLightSchedule[];
+}
+
 export interface CloudAsset {
   asset_id: string;
   kind: string;

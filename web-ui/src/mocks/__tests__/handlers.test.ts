@@ -66,7 +66,7 @@ describe("hosted cloud fixtures", () => {
     const tents = await getJson<CloudTent[]>(
       "https://api.test/api/tents?site_id=homebox&cloud_fixture=empty",
     );
-    expect(tents.find((tent) => tent.tent_id === "breeding")?.is_active).toBe(false);
+    expect(tents.find((tent) => tent.tent_id === "breeding")?.is_active).toBe(true);
 
     const metrics = await getJson<CloudMetric[]>(
       "https://api.test/api/tents/breeding/metrics/current?cloud_fixture=empty",
@@ -74,8 +74,12 @@ describe("hosted cloud fixtures", () => {
     const devices = await getJson<CloudDevice[]>(
       "https://api.test/api/tents/breeding/devices?cloud_fixture=empty",
     );
+    const schedules = await getJson<CloudLightSchedulesResponse>(
+      "https://api.test/api/tents/breeding/lights/schedules?cloud_fixture=empty",
+    );
     expect(metrics).toEqual([]);
     expect(devices).toEqual([]);
+    expect(schedules.schedules[0]?.duration_hours).toBe(18);
   });
 
   it("returns asset-unavailable state for private asset failures", async () => {
@@ -146,6 +150,10 @@ interface CloudTent {
 
 interface CloudDevice {
   device_id: string;
+}
+
+interface CloudLightSchedulesResponse {
+  schedules: Array<{ duration_hours: number }>;
 }
 
 interface CloudCommand {
