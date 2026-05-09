@@ -38,13 +38,56 @@ repos:
         files: '^(apps/|web-ui/|pyproject\.toml|\.claude/settings\.json|\.claude/hooks/)'
         pass_filenames: false
 
-      # Per-app Python suites. Excludes invariants (they run above) and
-      # skips unless an apps/ package or root pyproject.toml changes.
-      - id: pytest-apps
-        name: pytest apps (per-app suites)
-        entry: uv run pytest apps/hwd apps/web apps/shared apps/mcp apps/voice apps/control-plane apps/gateway -q
+      # Per-app Python suites. Excludes invariants (they run above).
+      # App-local changes run only that app's suite. Shared-package or
+      # dependency changes fan out through the apps that import dirt-shared.
+      - id: pytest-hwd
+        name: pytest apps/hwd
+        entry: uv run pytest apps/hwd -q
         language: system
-        files: '^(apps/(hwd|web|shared|mcp|voice|control-plane|gateway)/|pyproject\.toml)'
+        files: '^(apps/(hwd|shared)/|pyproject\.toml|uv\.lock)'
+        pass_filenames: false
+
+      - id: pytest-web
+        name: pytest apps/web
+        entry: uv run pytest apps/web -q
+        language: system
+        files: '^(apps/(web|shared)/|contracts/python/|pyproject\.toml|uv\.lock)'
+        pass_filenames: false
+
+      - id: pytest-shared
+        name: pytest apps/shared
+        entry: uv run pytest apps/shared -q
+        language: system
+        files: '^(apps/shared/|pyproject\.toml|uv\.lock)'
+        pass_filenames: false
+
+      - id: pytest-mcp
+        name: pytest apps/mcp
+        entry: uv run pytest apps/mcp -q
+        language: system
+        files: '^(apps/(mcp|shared)/|pyproject\.toml|uv\.lock)'
+        pass_filenames: false
+
+      - id: pytest-voice
+        name: pytest apps/voice
+        entry: uv run pytest apps/voice -q
+        language: system
+        files: '^(apps/(voice|shared)/|pyproject\.toml|uv\.lock)'
+        pass_filenames: false
+
+      - id: pytest-control-plane
+        name: pytest apps/control-plane
+        entry: uv run pytest apps/control-plane -q
+        language: system
+        files: '^(apps/(control-plane|shared)/|cloud/migrations/|pyproject\.toml|uv\.lock)'
+        pass_filenames: false
+
+      - id: pytest-gateway
+        name: pytest apps/gateway
+        entry: uv run pytest apps/gateway -q
+        language: system
+        files: '^(apps/(gateway|shared)/|pyproject\.toml|uv\.lock)'
         pass_filenames: false
 
       # web-ui: Biome (format + fast lint). Write-mode so cosmetic drift

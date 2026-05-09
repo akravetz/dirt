@@ -136,7 +136,6 @@ async def _seed_breeding_temperature(engine, value: float) -> None:
 
 @pytest.fixture
 async def client(app_engine):
-    await _seed_tent_series(app_engine)
     app = create_app(engine=app_engine, run_mcp=False)
     transport = ASGITransport(app=app)
     async with AsyncClient(
@@ -167,9 +166,11 @@ async def test_sensors_history_requires_auth():
 
 @pytest.mark.parametrize("range_param", ["1h", "24h", "7d"])
 async def test_sensors_history_db_metric_shape(
-    client: AsyncClient, range_param: str
+    client: AsyncClient, app_engine, range_param: str
 ) -> None:
     """DB-backed metrics return contract-shape points across every range."""
+    await _seed_tent_series(app_engine)
+
     response = await client.get(
         "/api/sensors/history",
         params={"range": range_param, "metric": "temperature_f"},
@@ -188,8 +189,10 @@ async def test_sensors_history_db_metric_shape(
         assert isinstance(pt.value, float)
 
 
-async def test_sensors_history_humidity_metric(client: AsyncClient) -> None:
+async def test_sensors_history_humidity_metric(client: AsyncClient, app_engine) -> None:
     """Second DB-backed metric works + unit mapping is per-metric."""
+    await _seed_tent_series(app_engine)
+
     response = await client.get(
         "/api/sensors/history",
         params={"range": "24h", "metric": "humidity_pct"},
@@ -202,6 +205,7 @@ async def test_sensors_history_humidity_metric(client: AsyncClient) -> None:
 
 
 async def test_sensors_history_defaults_to_main_tent(client: AsyncClient, app_engine):
+    await _seed_tent_series(app_engine)
     await _seed_breeding_temperature(app_engine, value=100.0)
 
     response = await client.get(
@@ -236,9 +240,11 @@ async def test_sensors_history_accepts_tent_scope(client: AsyncClient, app_engin
 
 
 async def test_sensors_history_fan_bridges_to_fan_duty_pct(
-    client: AsyncClient,
+    client: AsyncClient, app_engine
 ) -> None:
     """Contract metric ``fan_pct`` resolves to DB column ``fan_duty_pct``."""
+    await _seed_tent_series(app_engine)
+
     response = await client.get(
         "/api/sensors/history",
         params={"range": "24h", "metric": "fan_pct"},
@@ -254,8 +260,10 @@ async def test_sensors_history_fan_bridges_to_fan_duty_pct(
         assert pt.ts.tzinfo is not None
 
 
-async def test_sensors_history_reservoir_in(client: AsyncClient) -> None:
+async def test_sensors_history_reservoir_in(client: AsyncClient, app_engine) -> None:
     """``reservoir_in`` is read straight through (firmware emits inches)."""
+    await _seed_tent_series(app_engine)
+
     response = await client.get(
         "/api/sensors/history",
         params={"range": "24h", "metric": "reservoir_in"},

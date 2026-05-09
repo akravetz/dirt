@@ -1,7 +1,7 @@
 ---
 title: Index
 type: index
-updated: 2026-05-07
+updated: 2026-05-08
 ---
 
 # Grow Wiki Index
@@ -15,10 +15,10 @@ updated: 2026-05-07
 - [Hosted Control Plane](decisions/2026-05-05-hosted-control-plane.md) — Railway web UI/API plus outbound local gateway; remote inspection and PTZ-only command intent without moving hardware authority to cloud
 
 ## Plants
-- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; Flower Day 4; moisture stable 60.37%; daily stretch tucking
-- [Plant B](plants/plant-b.md) — 🟡 Secondary; Flower Day 4; moisture 96.62% — dryback verification urgent
-- [Plant C](plants/plant-c.md) — 🟡 Secondary; Flower Day 4; moisture 90.04% — lower-leaf/root-zone watch
-- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; Flower Day 4; moisture high but easing 86.30%; tuck candidate
+- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; Flower Day 5; moisture stable 60.65%; daily stretch tucking
+- [Plant B](plants/plant-b.md) — 🟡 Secondary; Flower Day 5; moisture 96.38% — dryback verification urgent
+- [Plant C](plants/plant-c.md) — 🟡 Secondary; Flower Day 5; moisture 90.12% — lower-leaf/root-zone watch
+- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; Flower Day 5; moisture high 86.34%; tuck candidate
 
 ## Daily Logs
 - [2026-03-27](daily/2026-03-27.md) — Day 13: Pre-transplant; 2–3 leaf sets
@@ -52,6 +52,7 @@ updated: 2026-05-07
 - [2026-05-05](daily/2026-05-05.md) — Day 52 / Flower Day 2: overnight VPD regressed to 0.56 kPa 🔴; lights-on VPD in range; Plant B moisture 96.46% 🔴; Track A has 7 sprouted regulars potted into coco/perlite, 5 vigorous; A/B/C/D clones perking with 1 visible root
 - [2026-05-06](daily/2026-05-06.md) — Day 53 / Flower Day 3: VPD below target all windows (0.51/0.90/0.95 kPa) 🔴; Plant B moisture 96.83% 🔴; canopy dense and stretching through SCROG
 - [2026-05-07](daily/2026-05-07.md) — Day 54 / Flower Day 4: lights-on VPD recovered (1.01/1.07 kPa ✅), overnight still wet at 0.61 kPa 🔴; Plant B moisture 96.62% 🔴; canopy dense and stretching
+- [2026-05-08](daily/2026-05-08.md) — Day 55 / Flower Day 5: incomplete photo coverage (2/5 presets); VPD below target all windows (0.45/0.67/0.82 kPa) 🔴; Plant B moisture 96.38% 🔴
 
 ## Environment
 - [Temperature](environment/temperature.md) — Trend log; targets by phase; notable events

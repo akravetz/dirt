@@ -275,28 +275,45 @@ class DailyReport:
 
     async def _phase_capture(self, target_date: date) -> list[Path]:
         """Pan to each preset, capture, EXIF-stamp, save under
-        ``raw/photos/<DATE>/<preset>.jpg``. Bail on first failure.
+        ``raw/photos/<DATE>/<preset>.jpg``. Best-effort per preset: a
+        single camera/preset failure should leave an incomplete daily
+        report, not suppress the whole wiki update.
         """
         out_dir = self._photos_root / target_date.isoformat()
         out_dir.mkdir(parents=True, exist_ok=True)
         photos: list[Path] = []
+        failures: list[str] = []
 
         for preset, filename in PRESET_TO_FILENAME:
             try:
                 jpeg = await self._camera.capture_at(preset)
             except Exception as e:  # CameraError or anything else
-                raise _Bail(
-                    Phase.CAPTURE,
-                    f"capture failed at preset {preset!r}: {e}",
-                ) from e
+                msg = f"capture failed at preset {preset!r}: {e}"
+                failures.append(msg)
+                logger.exception(msg)
+                log_event(
+                    "daily_report",
+                    "capture_photo_failed",
+                    date=target_date.isoformat(),
+                    preset=preset,
+                    error=str(e),
+                )
+                continue
             try:
                 captured_at = self._clock()
                 stamped = self._stamp_jpeg(jpeg, captured_at)
             except Exception as e:
-                raise _Bail(
-                    Phase.CAPTURE,
-                    f"EXIF stamping failed for {preset!r}: {e}",
-                ) from e
+                msg = f"EXIF stamping failed for {preset!r}: {e}"
+                failures.append(msg)
+                logger.exception(msg)
+                log_event(
+                    "daily_report",
+                    "capture_photo_failed",
+                    date=target_date.isoformat(),
+                    preset=preset,
+                    error=str(e),
+                )
+                continue
             path = out_dir / filename
             path.write_bytes(stamped)
             if self._snapshot_recorder is not None:
@@ -307,10 +324,16 @@ class DailyReport:
                         captured_at=captured_at,
                     )
                 except Exception as e:
-                    raise _Bail(
-                        Phase.CAPTURE,
-                        f"snapshot record failed for preset {preset!r}: {e}",
-                    ) from e
+                    logger.exception(
+                        "snapshot record failed for preset %r: %s", preset, e
+                    )
+                    log_event(
+                        "daily_report",
+                        "capture_snapshot_record_failed",
+                        date=target_date.isoformat(),
+                        preset=preset,
+                        error=str(e),
+                    )
             photos.append(path)
             logger.info("captured %s -> %s", preset, path)
 
@@ -319,6 +342,8 @@ class DailyReport:
             "capture_finished",
             date=target_date.isoformat(),
             photo_count=len(photos),
+            failure_count=len(failures),
+            failures=failures,
         )
         return photos
 
@@ -371,19 +396,26 @@ class DailyReport:
         # Telegram failures are NON-fatal — wiki is the durable record.
         # Log and continue to mark the run completed.
         try:
-            caption = self._format_caption(target_date, synth)
+            caption = self._format_caption(target_date, synth, photo_count=len(photos))
             body_html = _load_telegram_body(synth.telegram_html_path)
-            await self._telegram.send_media_group(
-                self._chat_id,
-                list(photos),
-                caption=caption,
-            )
+            if photos:
+                await self._telegram.send_media_group(
+                    self._chat_id,
+                    list(photos),
+                    caption=caption,
+                )
+            else:
+                logger.warning(
+                    "no photos captured for %s — skipping telegram media group",
+                    target_date.isoformat(),
+                )
             if body_html is None:
                 log_event(
                     "daily_report",
                     "deliver_finished",
                     date=target_date.isoformat(),
                     via="telegram",
+                    photo_count=len(photos),
                     body_sent=False,
                     body_missing=True,
                 )
@@ -402,6 +434,7 @@ class DailyReport:
                 "deliver_finished",
                 date=target_date.isoformat(),
                 via="telegram",
+                photo_count=len(photos),
                 body_sent=True,
             )
         except (TelegramError, OSError, ValueError) as e:
@@ -456,11 +489,17 @@ class DailyReport:
         self,
         target_date: date,
         synth: SynthesisResult,
+        photo_count: int | None = None,
     ) -> str:
         # Keep under 1024 chars (Telegram album caption hard limit).
+        photo_line = (
+            "Plants A-D + overview"
+            if photo_count is None
+            else f"Captured {photo_count}/{len(PRESET_TO_FILENAME)} preset photos"
+        )
         return (
             f"<b>Daily Report — {html.escape(target_date.isoformat())}</b>\n"
-            "Plants A-D + overview"
+            f"{photo_line}"
         )
 
 

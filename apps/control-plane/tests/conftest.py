@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import subprocess
 import uuid
 from collections.abc import AsyncIterator
@@ -47,12 +48,35 @@ def _async_pg_url(dbname: str) -> str:
     return f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{dbname}"
 
 
-@pytest_asyncio.fixture
-async def cloud_engine() -> AsyncIterator[AsyncEngine]:
-    dbname = f"dirt_cloud_test_{uuid.uuid4().hex[:12]}"
+def _worktree_id() -> str:
+    return hashlib.sha256(str(REPO_ROOT).encode()).hexdigest()[:10]
+
+
+def _template_name() -> str:
+    return f"dirt_cloud_test_template_{_worktree_id()}"
+
+
+def _test_db_prefix() -> str:
+    return f"dirt_cloud_test_{_worktree_id()}_"
+
+
+async def _drop_stale_test_dbs(admin: asyncpg.Connection) -> None:
+    rows = await admin.fetch(
+        "SELECT datname FROM pg_database WHERE datname LIKE $1",
+        _test_db_prefix() + "%",
+    )
+    for (dbname,) in rows:
+        await admin.execute(f'DROP DATABASE IF EXISTS "{dbname}" WITH (FORCE)')
+
+
+@pytest_asyncio.fixture(scope="session")
+async def _cloud_pg_template() -> AsyncIterator[str]:
+    template = _template_name()
     admin = await asyncpg.connect(_pg_url("postgres"))
     try:
-        await admin.execute(f'CREATE DATABASE "{dbname}"')
+        await _drop_stale_test_dbs(admin)
+        await admin.execute(f'DROP DATABASE IF EXISTS "{template}" WITH (FORCE)')
+        await admin.execute(f'CREATE DATABASE "{template}"')
     finally:
         await admin.close()
 
@@ -64,16 +88,36 @@ async def cloud_engine() -> AsyncIterator[AsyncEngine]:
             "--dir",
             f"file://{CLOUD_MIGRATIONS}",
             "--url",
-            _pg_url(dbname),
+            _pg_url(template),
         ],
         capture_output=True,
         text=True,
     )
     if result.returncode != 0:
         raise RuntimeError(
-            "cloud atlas migrate apply failed for test database:\n"
+            "cloud atlas migrate apply failed for template database:\n"
             f"stdout: {result.stdout}\nstderr: {result.stderr}"
         )
+
+    yield template
+
+    admin = await asyncpg.connect(_pg_url("postgres"))
+    try:
+        await admin.execute(f'DROP DATABASE IF EXISTS "{template}" WITH (FORCE)')
+    finally:
+        await admin.close()
+
+
+@pytest_asyncio.fixture
+async def cloud_engine(_cloud_pg_template: str) -> AsyncIterator[AsyncEngine]:
+    dbname = f"{_test_db_prefix()}{uuid.uuid4().hex[:12]}"
+    admin = await asyncpg.connect(_pg_url("postgres"))
+    try:
+        await admin.execute(
+            f'CREATE DATABASE "{dbname}" TEMPLATE "{_cloud_pg_template}"'
+        )
+    finally:
+        await admin.close()
 
     engine = create_async_engine(_async_pg_url(dbname), poolclass=NullPool)
     try:

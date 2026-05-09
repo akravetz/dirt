@@ -58,10 +58,11 @@ class _FakeCamera:
         self.jpeg = jpeg or _tiny_jpeg()
         self.calls: list[str] = []
         self.raise_on: str | None = None
+        self.raise_on_many: set[str] = set()
 
     async def capture_at(self, preset: str) -> bytes:
         self.calls.append(preset)
-        if self.raise_on == preset:
+        if self.raise_on == preset or preset in self.raise_on_many:
             from dirt_shared.services.photos import CameraError
 
             raise CameraError(f"injected failure at {preset}")
@@ -325,7 +326,7 @@ async def test_run_records_scoped_daily_report_snapshot_rows(tmp_path, app_engin
 # --- failure modes ---
 
 
-async def test_capture_failure_sends_alert_and_skips_synthesis(tmp_path):
+async def test_capture_failure_continues_with_incomplete_report(tmp_path):
     cam = _FakeCamera()
     cam.raise_on = "plant_b"
     orch, _cam, _reader, synth, tg = _build_orchestrator(
@@ -335,20 +336,47 @@ async def test_capture_failure_sends_alert_and_skips_synthesis(tmp_path):
 
     result = await orch.run(TARGET_DATE)
 
-    assert not result.success
-    assert result.failed_phase == Phase.CAPTURE
-    assert "plant_b" in (result.error or "")
-    assert synth.calls == []  # skipped
-    # Failure alert sent (and only that — no media group)
-    assert len(tg.media_groups) == 0
+    assert result.success
+    assert result.failed_phase is None
+    assert cam.calls == ["overview", "plant_a", "plant_b", "plant_c", "plant_d"]
+    assert len(synth.calls) == 1
+    _date, paths, _payload = synth.calls[0]
+    assert _date == TARGET_DATE
+    assert [p.name for p in paths] == [
+        "overview.jpg",
+        "plant-a.jpg",
+        "plant-c.jpg",
+        "plant-d.jpg",
+    ]
+    assert len(tg.media_groups) == 1
+    assert len(tg.media_groups[0]["photo_paths"]) == 4
+    assert "Captured 4/5 preset photos" in tg.media_groups[0]["caption"]
     assert len(tg.messages) == 1
-    assert "Daily report failed" in tg.messages[0]["text"]
-    assert "capture" in tg.messages[0]["text"]
-    # Failed marker, not completed
+    assert "Daily report failed" not in tg.messages[0]["text"]
     failed = tmp_path / "logs" / "daily_report" / "2026-04-19.failed"
     completed = tmp_path / "logs" / "daily_report" / "2026-04-19.completed"
-    assert failed.exists()
-    assert not completed.exists()
+    assert not failed.exists()
+    assert completed.exists()
+
+
+async def test_all_capture_failures_still_generate_text_report(tmp_path):
+    cam = _FakeCamera()
+    cam.raise_on_many = {"overview", "plant_a", "plant_b", "plant_c", "plant_d"}
+    orch, _cam, _reader, synth, tg = _build_orchestrator(
+        tmp_path=tmp_path,
+        camera=cam,
+    )
+
+    result = await orch.run(TARGET_DATE)
+
+    assert result.success
+    assert len(synth.calls) == 1
+    _date, paths, _payload = synth.calls[0]
+    assert _date == TARGET_DATE
+    assert paths == []
+    assert tg.media_groups == []
+    assert len(tg.messages) == 1
+    assert (tmp_path / "logs" / "daily_report" / "2026-04-19.completed").exists()
 
 
 async def test_validation_failure_sends_alert_and_skips_synthesis(

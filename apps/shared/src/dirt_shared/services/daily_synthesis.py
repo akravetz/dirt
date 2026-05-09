@@ -112,16 +112,20 @@ class ClaudeSynthesisRunner:
         photo_paths: Sequence[Path],
         sensor_payload: dict[str, Any],
     ) -> str:
-        photo_lines = "\n".join(f"  - {p}" for p in photo_paths)
+        photo_lines = "\n".join(f"  - {p}" for p in photo_paths) or "  - none"
         sensor_json = json.dumps(sensor_payload, indent=2, default=str)
         telegram_path = self._telegram_sidecar_path(target_date).resolve()
         return (
             f"Today is {target_date.isoformat()} (MDT). Generate today's "
             "daily entry per the workflow.\n\n"
             "INPUTS\n"
-            f"Photos (5 presets, captured at 14:00 MDT today):\n{photo_lines}\n\n"
-            "Use the Read tool to view each image — describe what you see "
-            "for each plant (color, structure, canopy, any issues).\n\n"
+            f"Photos captured at 14:00 MDT today "
+            f"({len(photo_paths)} available out of 5 expected presets):\n"
+            f"{photo_lines}\n\n"
+            "Use the Read tool to view each available image. If fewer than "
+            "five photos are listed, explicitly note that the daily report "
+            "has incomplete photo coverage and do not invent observations "
+            "for missing views.\n\n"
             f"Sensor windows (overnight = 00-06 MDT, morning = 07-14 MDT, "
             f"now = at time of run; values where available, null otherwise):\n"
             f"```json\n{sensor_json}\n```\n\n"
@@ -366,7 +370,7 @@ class CodexSynthesisRunner:
         photo_paths: Sequence[Path],
         sensor_payload: dict[str, Any],
     ) -> str:
-        photo_lines = "\n".join(f"  - {p}" for p in photo_paths)
+        photo_lines = "\n".join(f"  - {p}" for p in photo_paths) or "  - none"
         sensor_json = json.dumps(sensor_payload, indent=2, default=str)
         telegram_path = self._telegram_sidecar_path(target_date).resolve()
         return (
@@ -374,9 +378,13 @@ class CodexSynthesisRunner:
             f"Today is {target_date.isoformat()} (MDT). Generate today's "
             "daily entry per the workflow.\n\n"
             "Start by reading `wiki/AGENTS.md`, then follow the daily-update "
-            "workflow it points to. The attached images are the five preset "
-            "photos; the file paths are listed for identity/order:\n"
+            "workflow it points to. Attached/listed images are the available "
+            f"daily preset photos ({len(photo_paths)} available out of 5 "
+            "expected presets); the file paths are listed for identity/order:\n"
             f"{photo_lines}\n\n"
+            "If fewer than five photos are listed, explicitly note that the "
+            "daily report has incomplete photo coverage and do not invent "
+            "observations for missing views.\n\n"
             f"Sensor windows (overnight = 00-06 MDT, morning = 07-14 MDT, "
             f"now = at time of run; values where available, null otherwise):\n"
             f"```json\n{sensor_json}\n```\n\n"

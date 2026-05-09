@@ -391,10 +391,9 @@ async def test_latest_metrics_and_rollups_are_not_duplicated(
 async def test_offline_cloud_failures_remain_pending_then_retry_without_duplicates(
     app_engine: AsyncEngine,
 ):
-    await _seed_temperature_readings(app_engine)
     cloud = RecordingCloudClient()
     cloud.fail = True
-    local = GatewayLocalServiceBundle(app_engine, clock=lambda: FIXED_NOW)
+    local = StaticLocalServices()
     service = _service(app_engine, cloud, local_services=local)
     outbox = OutboxRepository(app_engine)
 

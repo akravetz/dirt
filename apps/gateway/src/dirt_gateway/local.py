@@ -16,7 +16,6 @@ from dirt_gateway.protocols import AssetProjection
 from dirt_shared.models import (
     Capability,
     Device,
-    SensorReading,
     Site,
     Snapshot,
     Tent,
@@ -106,41 +105,22 @@ class GatewayLocalServiceBundle:
     async def collect_latest_metrics(self, site_id: str) -> dict[str, Any]:
         metrics: list[dict[str, Any]] = []
         async with AsyncSession(self._engine) as session:
-            capabilities = (
-                await session.exec(
-                    select(Capability, Device, Tent.tent_id, Zone.zone_id)
-                    .join(Device, Device.id == Capability.device_id)
-                    .join(Site, Site.id == Device.site_id)
-                    .outerjoin(Tent, Tent.id == Device.tent_id)
-                    .outerjoin(Zone, Zone.id == Device.zone_id)
-                    .where(Site.site_id == site_id)
-                    .where(Capability.enabled.is_(True))
-                    .where(Capability.metric_name.is_not(None))
-                    .order_by(Device.device_id, Capability.capability_id)
-                )
-            ).all()
-            for capability, device, tent_id, zone_id in capabilities:
-                row = (
-                    await session.exec(
-                        select(SensorReading)
-                        .where(SensorReading.capability_id == capability.id)
-                        .order_by(SensorReading.ts.desc())
-                        .limit(1)
-                    )
-                ).first()
-                if row is None or tent_id is None or capability.metric_name is None:
-                    continue
+            result = await session.exec(
+                text(_LATEST_METRICS_SQL),
+                params={"site_id": site_id},
+            )
+            for row in result.mappings().all():
                 metrics.append(
                     {
                         "site_id": site_id,
-                        "tent_id": tent_id,
-                        "zone_id": zone_id,
-                        "device_id": device.device_id,
-                        "capability_id": capability.capability_id,
-                        "metric": capability.metric_name,
-                        "value": float(row.value),
-                        "unit": capability.unit,
-                        "source_updated_at": _as_utc(row.ts),
+                        "tent_id": row["tent_id"],
+                        "zone_id": row["zone_id"],
+                        "device_id": row["device_id"],
+                        "capability_id": row["capability_id"],
+                        "metric": row["metric"],
+                        "value": float(row["value"]),
+                        "unit": row["unit"],
+                        "source_updated_at": _as_utc(row["source_updated_at"]),
                         "stale_after_s": self._stale_after_s,
                     }
                 )
@@ -277,6 +257,37 @@ class GatewayLocalServiceBundle:
         async with AsyncSession(self._engine) as session:
             device = await session.get(Device, snapshot.device_id)
             return None if device is None else device.device_id
+
+
+_LATEST_METRICS_SQL = """
+WITH latest AS (
+  SELECT DISTINCT ON (capability_id)
+    capability_id,
+    value,
+    ts
+  FROM sensorreading
+  ORDER BY capability_id, ts DESC
+)
+SELECT
+  t.tent_id,
+  z.zone_id,
+  d.device_id,
+  c.capability_id,
+  c.metric_name AS metric,
+  latest.value,
+  c.unit,
+  latest.ts AS source_updated_at
+FROM capability c
+JOIN latest ON latest.capability_id = c.id
+JOIN device d ON d.id = c.device_id
+JOIN site s ON s.id = d.site_id
+JOIN tent t ON t.id = d.tent_id
+LEFT JOIN zone z ON z.id = d.zone_id
+WHERE s.site_id = :site_id
+  AND c.enabled = true
+  AND c.metric_name IS NOT NULL
+ORDER BY d.device_id, c.capability_id
+"""
 
 
 _ROLLUP_SQL = """

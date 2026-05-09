@@ -4,7 +4,7 @@ type: environment
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/environment/temperature.md, wiki/concepts/vpd.md, wiki/overview.md, wiki/hardware/humidifier-control.md, wiki/decisions/2026-04-17-humidifier-kasa-ep10.md]
 created: 2026-04-06
-updated: 2026-05-07
+updated: 2026-05-08
 ---
 
 
@@ -57,6 +57,7 @@ VPD is the control-loop setpoint; RH is informational (temperature determines wh
 | 2026-05-05 | 63.19% now ⚠️ / 72.75% overnight avg 🔴; VPD 1.13 kPa now ✅ / 0.56 kPa overnight 🔴 | Overnight regressed sharply wetter after yesterday's partial improvement, while lights-on VPD stayed in range at the floor-to-mid band (morning 1.00 kPa, now 1.13 kPa). The priority is drying/clearing the 00-06 window without adding lights-on mist. → [2026-05-05](../daily/2026-05-05.md) |
 | 2026-05-06 | 65.18% now ⚠️ / 73.36% overnight avg 🔴; VPD 0.95 kPa now 🔴 / 0.51 kPa overnight 🔴 | Early-flower VPD missed target in all windows: overnight stayed cold/wet, morning only recovered to 0.90 kPa, and the current reading remained below the 1.0 kPa floor. Prioritize lights-off clearing and passive-intake verification before adding humidity. → [2026-05-06](../daily/2026-05-06.md) |
 | 2026-05-07 | 61.46% now ⚠️ / 69.16% overnight avg 🔴; VPD 1.07 kPa now ✅ / 0.61 kPa overnight 🔴 | RH improved in every window and lights-on VPD recovered to target (morning 1.01, now 1.07 kPa). The remaining miss is still the 00-06 window, which is too cool/wet for early flower despite improving from May 6. → [2026-05-07](../daily/2026-05-07.md) |
+| 2026-05-08 | 68.78% now 🔴 / 76.95% overnight avg 🔴; VPD 0.82 kPa now 🔴 / 0.45 kPa overnight 🔴 | Wet regression: VPD missed the early-flower target in every window, with RH high all day and the overnight window back near seedling-level VPD. Treat airflow/clearing and humidifier off-gate verification as urgent. → [2026-05-08](../daily/2026-05-08.md) |
 
 ## Notable Events
 - **2026-03-20** — Dome propped open, room humidifier added to tent after RH consistently below 50% → [2026-03-27 daily](../daily/2026-03-27.md)
@@ -83,6 +84,7 @@ VPD is the control-loop setpoint; RH is informational (temperature determines wh
 - **2026-05-05** — Overnight VPD regressed to 0.56 kPa with 72.75% RH, the wettest early-flower overnight since the flip. Lights-on VPD remained usable (1.00 morning, 1.13 now), so the next control step is targeted lights-off drying/clearing, plus the planned 6-inch low passive intake duct with a light-trap bend on 2026-05-06. → [2026-05-05](../daily/2026-05-05.md)
 - **2026-05-06** — VPD stayed below early-flower target across all windows (0.51 overnight, 0.90 morning, 0.95 now). This is worse than May 5's lights-on recovery and confirms the issue is not limited to the dark window; airflow/clearing and the low passive intake need verification against the next cycle. → [2026-05-06](../daily/2026-05-06.md)
 - **2026-05-07** — Lights-on VPD recovered to target after May 6's all-window miss: morning 1.01 kPa and now 1.07 kPa. Overnight improved but remains too wet at 0.61 kPa, so the control problem has narrowed back to lights-off clearing/temperature rather than daytime humidity addition. → [2026-05-07](../daily/2026-05-07.md)
+- **2026-05-08** — The May 7 lights-on recovery did not hold. VPD fell below target in all windows (0.45 overnight, 0.67 morning, 0.82 now), with RH 68.78-76.95%. This reopens the daytime clearing problem and makes passive intake/exhaust verification urgent before the next dark window. → [2026-05-08](../daily/2026-05-08.md)
 
 ## Deployed Control System
 

@@ -881,3 +881,10 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - **Plant B moisture remains critical:** 96.62% now, only slightly down from 96.83% May 6; dryback verification remains urgent before reopening normal feed.
 - **Root zones:** A stable at 60.37%; C remains saturated but easing at 90.04%; D remains high but easing at 86.30%.
 - Updated: `daily/2026-05-07.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-05-08] daily | Day 55 / Flower Day 5 - incomplete photos; VPD below target all windows
+- Photos captured across 2 of 5 expected presets (overview, A only). B/C/D dedicated views are missing, so today's visual record is incomplete.
+- **Environment regression:** VPD missed early-flower target in every window (0.45 kPa overnight, 0.67 morning, 0.82 now) with RH high all windows and temperature below target.
+- **Plant B moisture remains critical:** 96.38% now, only slightly down from 96.62% May 7; dryback verification remains urgent before reopening normal feed.
+- **Root zones:** A stable at 60.65%; C remains saturated at 90.12%; D remains high at 86.34%.
+- Updated: `daily/2026-05-08.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.

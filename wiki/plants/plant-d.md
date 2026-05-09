@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-05-07
+updated: 2026-05-08
 ---
 
 # Plant D
@@ -19,7 +19,7 @@ updated: 2026-05-07
 
 ## Current State
 
-Day 54 / Flower Day 4: D remains a primary purple keeper candidate with sativa-leaning shoots above the SCROG and high moisture easing to 86.30%. Keep tucking tall shoots and watching lower shaded leaves/tray behavior. See [2026-05-07](../daily/2026-05-07.md).
+Day 55 / Flower Day 5: D has no dedicated preset photo today, but remains a primary purple keeper candidate with high moisture easing only slightly to 86.34%. Keep tucking likely D/A stretch tops and watching lower shaded leaves/tray behavior. See [2026-05-08](../daily/2026-05-08.md).
 
 ## Timeline
 
@@ -55,3 +55,4 @@ Day 54 / Flower Day 4: D remains a primary purple keeper candidate with sativa-l
 - 2026-05-05 — [Day 52 / Flower Day 2: sativa-leaning primary keeper, moisture high at 86.97%, tuck through stretch](../daily/2026-05-05.md)
 - 2026-05-06 — [Day 53 / Flower Day 3: sativa-leaning primary keeper, moisture high at 86.93%, tuck through stretch](../daily/2026-05-06.md)
 - 2026-05-07 — [Day 54 / Flower Day 4: sativa-leaning primary keeper, moisture high but easing at 86.30%, tuck through stretch](../daily/2026-05-07.md)
+- 2026-05-08 — [Day 55 / Flower Day 5: dedicated photo missing; moisture high at 86.34%, tuck through stretch](../daily/2026-05-08.md)
