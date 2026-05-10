@@ -241,6 +241,7 @@ class LightsLoopService:
     ) -> None:
         try:
             await plug.update()
+            await self._record_seen(target)
             is_on = bool(plug.is_on)
             lights = derive_lights_from_times(
                 target.starts_local,
@@ -301,6 +302,19 @@ class LightsLoopService:
                 key: value for key, value in metadata.items() if value is not None
             }
             device.updated_at = self._clock()
+            session.add(device)
+            await session.commit()
+
+    async def _record_seen(self, target: LightScheduleTarget) -> None:
+        if self._engine is None:
+            return
+        now = self._clock()
+        async with AsyncSession(self._engine) as session:
+            device = await session.get(DbDevice, target.device_pk)
+            if device is None:
+                return
+            device.last_seen = now
+            device.updated_at = now
             session.add(device)
             await session.commit()
 
