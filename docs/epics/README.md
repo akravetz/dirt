@@ -62,6 +62,7 @@ This creates a GitHub issue with our standard template and the correct epic labe
 | [codex-migration](codex-migration/README.md) | planning | high |
 | [typed-boundary-contracts](typed-boundary-contracts/README.md) | planning | high |
 | [multi-kasa-lights](multi-kasa-lights/README.md) | planning | high |
+| [camera-edge](camera-edge/README.md) | planning | high |
 
 ## Rules for Agents
 

@@ -4,7 +4,7 @@ type: hardware
 sources: []
 related: [wiki/decisions/2026-04-12-ptz-camera-selection.md, wiki/overview.md, docs/epics/ptz-camera/README.md]
 created: 2026-04-15
-updated: 2026-04-22
+updated: 2026-05-10
 ---
 
 # PTZ Camera — OBSBOT Tiny 2 Lite
@@ -51,6 +51,10 @@ motor:         pitch=-50.0° yaw=-25.0°
 ```
 
 `where --json` emits structured output for programmatic callers.
+
+## Breeding Tent Camera — `dirt2`
+
+`dirt2` is the LAN box for the breeding tent camera. It is reachable with `ssh dirt2` as user `akcom` using the local SSH key; see `docs/commands.md` before operating it. The attached camera is a Tinybot camera controlled from that box for breeding-tent inspection.
 
 ## Config — `~/.config/dirt/camera.json`
 

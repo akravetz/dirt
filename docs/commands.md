@@ -29,6 +29,11 @@ The local backend runs as systemd-managed processes. `dirt-hwd` is hardware + in
 - **Format**: `uv run ruff format`
 - **Add dependency**: `uv add --package dirt-<app> <package>` (targets a specific workspace member; dev deps stay at root via `uv add --dev`)
 
+## Remote boxes
+
+- **dirt2 SSH**: `ssh dirt2` uses the local `akcom` SSH key and logs in as `akcom` on `dirt2` (`192.168.1.123` on the LAN). Do not print or copy private keys.
+- **Host key**: expected ED25519 fingerprint is `SHA256:+y8RJWANUEEFZl3muWoQu6cclm4qqU1Oxgge+uo33II`. If `known_hosts` is missing the alias, verify the fingerprint before adding it.
+
 ## Hosted control plane (Railway)
 
 Read `docs/database.md` and `docs/references/atlas/INDEX.md` before changing cloud schema or running cloud migrations. The supported production deploy flow is:
