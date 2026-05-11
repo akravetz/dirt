@@ -26,9 +26,9 @@ The working behavior is observable by running a camera-agent service on `dirt2`,
 - [x] (2026-05-11T01:34Z) Milestone 3: Extract shared cloud asset upload code and make `dirt-gateway` use it.
 - [x] (2026-05-11T01:48Z) Milestone 4: Add the camera-agent service for edge camera hosts.
 - [x] (2026-05-11T01:52Z) Milestone 5 repo-side prep: added the user-level `dirt-camera-agent.service`, linked it from `scripts/install-systemd`, and documented local status/log/manual-run commands. Live `dirt2` deploy and smoke checks remain open.
-- [ ] Milestone 5: Deploy and smoke test `dirt-camera-daemon` plus camera-agent on `dirt2`.
-- [ ] Milestone 6: Enable real breeding-tent asset uploads and verify hosted access.
-- [ ] Milestone 7: Run a source-level cleanup pass that removes dead camera/upload code, duplicate helper paths, stale docs, and unused tests after the new pattern is live.
+- [x] (2026-05-11T02:05Z) Milestone 5: Deploy and smoke test `dirt-camera-daemon` plus camera-agent on `dirt2`.
+- [x] (2026-05-11T02:05Z) Milestone 6: Enable real breeding-tent asset uploads and verify hosted access.
+- [x] (2026-05-11T02:08Z) Milestone 7: Ran targeted cleanup searches after the shared camera/upload pattern was live, removed stale references to the old capture-service daemon RPC path, and confirmed remaining matches have one clear owner.
 
 
 ## Surprises & Discoveries
@@ -74,6 +74,11 @@ The working behavior is observable by running a camera-agent service on `dirt2`,
 - Decision: Treat cleanup as part of delivery, not follow-up polish.
   Rationale: The purpose of this epic is a coherent modular camera architecture. Leaving the old main-box capture/write/upload paths beside the new shared path would make future agents choose between duplicate mechanisms and would recreate the inconsistency this plan is meant to remove.
   Date/Author: 2026-05-10 / User + Codex
+
+- Decision: Keep `GatewayLocalServiceBundle.latest_snapshot_asset()` for now as the active main-gateway snapshot projection, even though camera-agent uploads are the path for `dirt2`.
+  Rationale: This is still a deployed gateway boundary for main-box asset sync, not dead compatibility code. Its known default-tent-first behavior remains documented as a future coherence fix if main-gateway multi-tent snapshot upload becomes required.
+  Retirement trigger: Replace it with a per-tent or pending-asset projection when the main gateway must publish multiple tent snapshots directly.
+  Date/Author: 2026-05-11 / Codex
 
 
 ## Outcomes & Retrospective
@@ -179,6 +184,57 @@ Milestone 5 repo-side prep added `systemd/dirt-camera-agent.service` with
 `scripts/install-systemd` runs symlink the unit but still do not enable or start
 it. `docs/commands.md` now records read-only status/log commands and a manual
 foreground run pattern that sources env files without printing secrets.
+
+Milestone 5 live deploy completed on `dirt2`. The host fast-forwarded to
+commit `6bdbe13`, rebuilt `services/camera-daemon/dirt-camera-daemon`, linked
+the user units with `scripts/install-systemd`, and enabled `dirt-camera` plus
+`dirt-camera-agent`. `dirt-camera` loads ignored `.env.dirt-camera` with
+`DIRT_CAMERA_VIDEO_DEVICE=/dev/video0`; status showed it active and the daemon
+log showed `capture_device=/dev/video0` plus `capture: streaming 1920x1080 MJPG
+@ 5fps`. `dirt-camera-agent` status showed active. A direct shared camera-source
+capture against `/run/user/1000/dirt-camera.sock` returned an image/jpeg frame
+with nonzero bytes. The camera-agent local spool contained
+`var/camera-agent/breeding/snapshots/snapshot_20260511_020325.jpg` at 644692
+bytes, and structured `camera_agent` logs recorded `capture_started` followed by
+`upload_completed` for `homebox/breeding`, gateway `gateway-dirt2-camera`, and
+device `obsbot-breeding`.
+
+Milestone 6 real upload verification passed. A dedicated hosted gateway
+credential `gateway-dirt2-camera` was upserted with only its SHA-256 digest in
+the control plane, and the plaintext token was written only to ignored
+`dirt2:~/code/dirt/.env.dirt2-camera-agent`. The hosted browser latest-assets
+route for `/api/tents/breeding/assets/latest` returned the new asset
+`f38b454210668fd055ed866a09d9d37f1192e0d08c8ebfc0b2e524fcefd107c4` with a
+signed URL field and byte size 644692. The signed-url route
+`/api/assets/{asset_id}/signed-url` returned HTTP 200 with a signed URL field.
+The cloud database row for that asset has `site_id=homebox`,
+`tent_id=breeding`, `device_id=obsbot-breeding`, and object key
+`homebox/breeding/snapshots/snapshot_20260511_020325.jpg`.
+
+Milestone 7 cleanup found no duplicate snapshot-writing or sign/upload/complete
+implementation left beside `dirt_shared.camera` and `dirt_shared.cloud_assets`.
+The cleanup removed stale references to the old capture-service daemon RPC
+helper from the daily-report script and docs. `scripts/daily_report` now uses
+`dirt_shared.camera.daemon_rpc_for_socket(settings.capture().camera_socket_path)`,
+so daily-report photo capture follows the shared camera RPC owner and still
+honors configured camera socket paths.
+
+Milestone 7 validation passed:
+
+    uv run pytest apps/shared/tests/test_photos.py -q
+    9 passed
+
+    uv run ruff check scripts/daily_report apps/shared/src/dirt_shared/services/photos.py
+    All checks passed!
+
+    rg -n "capture_frame|_daemon_rpc|snapshot_\\{now|latest_snapshot_asset|AssetUploadProjection" apps/shared apps/hwd apps/gateway apps/camera-agent
+    Remaining matches are the shared camera RPC owner, shared `AssetUploadProjection`, and the active gateway `latest_snapshot_asset()` projection/tests.
+
+    rg -n "dirt_shared\\.services\\.capture|dirt_shared\\.camera|cloud_assets" apps/shared apps/hwd apps/gateway apps/camera-agent
+    Remaining matches are active imports of `CaptureService`, `dirt_shared.camera`, and `dirt_shared.cloud_assets`.
+
+    rg -n "dirt_shared\\.services\\.capture\\._daemon_rpc|dirt\\.services\\.capture\\._daemon_rpc|from dirt_shared\\.services\\.capture import _daemon_rpc" apps scripts docs wiki
+    no matches
 
 
 ## Context and Orientation

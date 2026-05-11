@@ -24,8 +24,8 @@ from pathlib import Path
 import httpx
 
 from dirt_shared.app_wiring import build_core_services
+from dirt_shared.camera import daemon_rpc_for_socket
 from dirt_shared.config import Settings
-from dirt_shared.services.capture import _daemon_rpc
 from dirt_shared.services.daily_report import DailyReport, DailyReportSnapshotRecorder
 from dirt_shared.services.daily_sensors import MDT, SensorReader
 from dirt_shared.services.daily_synthesis import (
@@ -96,7 +96,7 @@ async def _amain() -> int:
             http=http,
         )
         camera = CameraClient(
-            _daemon_rpc,
+            daemon_rpc_for_socket(settings.capture().camera_socket_path),
             presets,
             settle_s=settings.daily_report_photo_settle_s,
             max_capture_age_ms=settings.daily_report_max_capture_age_ms,

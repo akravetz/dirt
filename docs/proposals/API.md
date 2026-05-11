@@ -368,7 +368,7 @@ Returns the most recent archived snapshot from disk (today's `/api/snapshots/lat
 
 ## 8. PTZ — `/api/ptz/*`
 
-Thin HTTP wrapper around `scripts/camera` (reality: we call the daemon socket from Python, same as `dirt_shared.services.capture._daemon_rpc`). The mockup is locked to click-to-look, so we don't need a `nudge` endpoint — but we add `look` (normalized click) and keep `zoom` + `preset` for completeness.
+Thin HTTP wrapper around `scripts/camera` (reality: we call the daemon socket from Python, same as `dirt_shared.camera.daemon_rpc_for_socket`). The mockup is locked to click-to-look, so we don't need a `nudge` endpoint — but we add `look` (normalized click) and keep `zoom` + `preset` for completeness.
 
 ### GET /api/ptz/state
 ```jsonc

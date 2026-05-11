@@ -49,7 +49,7 @@ class CameraClient:
         Args:
             rpc: async callable that issues one daemon command line and
                 returns the parsed ``{_status: ..., key: val, ...}`` dict.
-                Real impl is ``dirt.services.capture._daemon_rpc``.
+                Real impl is ``dirt_shared.camera.daemon_rpc_for_socket``.
             presets: preset map (``{name: {pitch, yaw, zoom}}``) — usually
                 loaded from ``~/.config/dirt/camera.json``.
             settle_s: seconds to sleep after the daemon's ``move_motor``
