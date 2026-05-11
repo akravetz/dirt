@@ -86,6 +86,7 @@ That script loads ignored `.env` first and `.env.prod` second by default, syncs 
 - **Zoom**: `scripts/camera zoom +0.2` (relative) or `scripts/camera zoom-to 1.5` (absolute)
 - **Current state**: `scripts/camera where` (adds `--json` for structured output)
 - **Daemon status**: `systemctl --user status dirt-camera` / `journalctl --user -u dirt-camera -f`
+- **Host-specific capture device**: set `DIRT_CAMERA_VIDEO_DEVICE=/dev/video0` in ignored `.env.dirt-camera` when the host does not provide `/dev/webcam`.
 - **Full operational spec**: `wiki/hardware/ptz-camera.md`. Do NOT bypass the CLI by calling the daemon's socket directly or running debug/obsbot_* binaries — the CLI handles user-frame translation, preset lookup, and error reporting.
 
 ## Camera agent

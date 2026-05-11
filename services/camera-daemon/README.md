@@ -49,13 +49,15 @@ Output: `./dirt-camera-daemon` (~60 KB, statically links nothing — dynamic lin
 ## Run manually (for testing)
 
 ```bash
-./dirt-camera-daemon                               # default socket + log paths
+./dirt-camera-daemon                               # default socket + log/device paths
 ./dirt-camera-daemon --socket /tmp/test.sock \
-                     --log /tmp/test.log
+                     --log /tmp/test.log \
+                     --device /dev/video0
 ```
 
 - Default socket: `$XDG_RUNTIME_DIR/dirt-camera.sock` (fallback `/tmp/dirt-camera.sock`)
 - Default log:    `$HOME/.local/state/dirt/camera.log`
+- Default device: `/dev/webcam` (override with `DIRT_CAMERA_VIDEO_DEVICE` or `--device`)
 
 ## Install as a systemd user service
 

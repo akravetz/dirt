@@ -18,6 +18,7 @@ OnFailure=dirt-service-alert@%n.service
 Type=notify
 WatchdogSec=30s
 # %h expands to the user's home directory in user units.
+EnvironmentFile=-%h/code/dirt/.env.dirt-camera
 ExecStart=%h/code/dirt/services/camera-daemon/dirt-camera-daemon
 Restart=on-failure
 RestartSec=5s

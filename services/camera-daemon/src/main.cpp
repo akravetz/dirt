@@ -1,13 +1,15 @@
 // dirt-camera-daemon entry point.
 //
 // Usage:
-//   dirt-camera-daemon [--socket PATH] [--log PATH]
+//   dirt-camera-daemon [--socket PATH] [--log PATH] [--device PATH]
 //                      [--log-level error|warn|info|debug]
 //
 // Default socket:    $XDG_RUNTIME_DIR/dirt-camera.sock
 //                    (fallback: /tmp/dirt-camera.sock if XDG_RUNTIME_DIR unset)
 // Default log:       $HOME/.local/state/dirt/camera.log
 //                    (auto-creates parent directory)
+// Default device:    /dev/webcam (overridable via DIRT_CAMERA_VIDEO_DEVICE
+//                    env or --device flag).
 // Default log level: info (overridable via DIRT_CAMERA_LOG_LEVEL env
 //                    or --log-level flag). req/resp lines log at
 //                    DEBUG and are suppressed by default — a client
@@ -62,6 +64,10 @@ std::string default_log_path() {
 int main(int argc, char* argv[]) {
     std::string socket_path = default_socket_path();
     std::string log_path = default_log_path();
+    std::string capture_device = "/dev/webcam";
+    if (const char* env = std::getenv("DIRT_CAMERA_VIDEO_DEVICE"); env && *env) {
+        capture_device = env;
+    }
 
     dirt::LogLevel level = dirt::LogLevel::Info;
     if (const char* env = std::getenv("DIRT_CAMERA_LOG_LEVEL"); env && *env) {
@@ -81,6 +87,8 @@ int main(int argc, char* argv[]) {
             socket_path = argv[++i];
         } else if (a == "--log" && i + 1 < argc) {
             log_path = argv[++i];
+        } else if (a == "--device" && i + 1 < argc) {
+            capture_device = argv[++i];
         } else if (a == "--log-level" && i + 1 < argc) {
             bool ok = false;
             dirt::LogLevel parsed = dirt::parse_log_level(argv[++i], &ok);
@@ -92,6 +100,7 @@ int main(int argc, char* argv[]) {
             level = parsed;
         } else if (a == "--help" || a == "-h") {
             std::printf("Usage: %s [--socket PATH] [--log PATH] "
+                        "[--device PATH] "
                         "[--log-level error|warn|info|debug]\n", argv[0]);
             return 0;
         } else {
@@ -106,6 +115,7 @@ int main(int argc, char* argv[]) {
     logger.info("dirt-camera-daemon starting");
     logger.info("socket=" + socket_path);
     logger.info("log=" + log_path);
+    logger.info("capture_device=" + capture_device);
 
     dirt::SdkWrapper sdk(&logger);
     if (!sdk.start()) {
@@ -113,7 +123,8 @@ int main(int argc, char* argv[]) {
     }
 
     dirt::CaptureService capture(&logger);
-    dirt::CaptureConfig cap_cfg;  // defaults: /dev/webcam, 1920x1080, 5fps, 3000K
+    dirt::CaptureConfig cap_cfg;  // defaults: 1920x1080, 5fps, 3000K
+    cap_cfg.device = capture_device;
     if (!capture.start(cap_cfg)) {
         logger.warn("capture: start failed — `capture` command will error until restart");
     }

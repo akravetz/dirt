@@ -1,6 +1,7 @@
 # Environment
 .env
 .env.prod
+.env.dirt-camera
 .env.dirt2-camera-agent
 .railway-bucket-credentials.tmp
 ops/ansible/secrets.yml

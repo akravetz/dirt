@@ -45,6 +45,9 @@ The working behavior is observable by running a camera-agent service on `dirt2`,
 - Observation: `dirt2` should not run the full `dirt-gateway` as-is.
   Evidence: `dirt-gateway` sends site-level heartbeats, catalog, latest metrics, rollups, command claims, command results, assets, and retention. A camera-only edge node should not make the hosted control plane believe the main hardware controller is healthy or claim site commands.
 
+- Observation: `dirt2` exposes the OBSBOT capture stream at `/dev/video0`, but the daemon previously assumed `/dev/webcam`.
+  Evidence: `dirt-camera` started on `dirt2` but logged `capture: open /dev/webcam: No such file or directory`; `v4l2-ctl --device=/dev/video0 --all` showed `/dev/video0` is the OBSBOT Tiny 2 Lite MJPG capture device. The daemon now supports `DIRT_CAMERA_VIDEO_DEVICE` / `--device` and the user unit can load ignored host-local `.env.dirt-camera`.
+
 
 ## Decision Log
 
