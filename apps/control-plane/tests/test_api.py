@@ -16,6 +16,7 @@ from dirt_control.models import (
     CloudAuditEvent,
     CloudCommand,
     CloudLatestMetric,
+    CloudMetricRollup,
     CloudSchedule,
     CloudSite,
     CloudTent,
@@ -124,6 +125,31 @@ def test_s3_object_store_generates_private_presigned_urls(monkeypatch) -> None:
             "method": "GET",
         },
     ]
+
+
+def _rollup(
+    suffix: str,
+    *,
+    bucket: str,
+    start: datetime,
+    avg: float,
+) -> CloudMetricRollup:
+    return CloudMetricRollup(
+        rollup_key=f"homebox:main:env-main-temp:temperature_f:{bucket}:{suffix}",
+        site_id="homebox",
+        tent_id="main",
+        capability_id="env-main-temp",
+        metric="temperature_f",
+        bucket=bucket,
+        bucket_start_at=start,
+        bucket_end_at=start + timedelta(minutes=5),
+        min_value=avg - 0.5,
+        avg_value=avg,
+        max_value=avg + 0.5,
+        sample_count=1,
+        unit="f",
+        received_at=FIXED_NOW,
+    )
 
 
 async def test_gateway_credential_bootstrap_upserts(
@@ -315,6 +341,50 @@ async def test_latest_metric_upsert_is_idempotent(
         rows = (await session.execute(select(CloudLatestMetric))).scalars().all()
     assert len(rows) == 1
     assert rows[0].value == 76.0
+
+
+async def test_metric_history_filters_bucket_and_window_by_range(
+    authed_client: AsyncClient,
+    cloud_engine: AsyncEngine,
+) -> None:
+    sessionmaker = create_sessionmaker(cloud_engine)
+    rows = [
+        _rollup("old-5m", bucket="5m", start=FIXED_NOW - timedelta(hours=2), avg=1.0),
+        _rollup(
+            "fresh-5m", bucket="5m", start=FIXED_NOW - timedelta(minutes=30), avg=2.0
+        ),
+        _rollup("fresh-1h", bucket="1h", start=FIXED_NOW - timedelta(hours=2), avg=3.0),
+        _rollup("old-1h", bucket="1h", start=FIXED_NOW - timedelta(days=2), avg=4.0),
+        _rollup("fresh-4h", bucket="4h", start=FIXED_NOW - timedelta(days=2), avg=5.0),
+        _rollup("old-4h", bucket="4h", start=FIXED_NOW - timedelta(days=8), avg=6.0),
+    ]
+    async with sessionmaker() as session:
+        session.add_all(rows)
+        await session.commit()
+
+    one_hour = await authed_client.get(
+        "/api/tents/main/metrics/history?range=1h&metric=temperature_f"
+    )
+    one_day = await authed_client.get(
+        "/api/tents/main/metrics/history?range=24h&metric=temperature_f"
+    )
+    seven_days = await authed_client.get(
+        "/api/tents/main/metrics/history?range=7d&metric=temperature_f"
+    )
+    invalid = await authed_client.get(
+        "/api/tents/main/metrics/history?range=30d&metric=temperature_f"
+    )
+
+    assert one_hour.status_code == 200
+    assert one_day.status_code == 200
+    assert seven_days.status_code == 200
+    assert invalid.status_code == 400
+    assert [point["bucket"] for point in one_hour.json()["points"]] == ["5m"]
+    assert [point["avg"] for point in one_hour.json()["points"]] == [2.0]
+    assert [point["bucket"] for point in one_day.json()["points"]] == ["1h"]
+    assert [point["avg"] for point in one_day.json()["points"]] == [3.0]
+    assert [point["bucket"] for point in seven_days.json()["points"]] == ["4h"]
+    assert [point["avg"] for point in seven_days.json()["points"]] == [5.0]
 
 
 async def test_duplicate_command_idempotency_returns_same_intent_without_hardware(

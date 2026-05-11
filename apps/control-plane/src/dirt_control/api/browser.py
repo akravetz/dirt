@@ -37,6 +37,11 @@ from dirt_control.storage import S3ObjectStore
 router = APIRouter(prefix="/api")
 COMMAND_EXPIRY_SECONDS = 60
 PTZ_COMMAND_TYPES = Literal["ptz_preset", "ptz_look", "ptz_zoom"]
+METRIC_HISTORY_RANGES: dict[str, tuple[str, timedelta]] = {
+    "1h": ("5m", timedelta(hours=1)),
+    "24h": ("1h", timedelta(hours=24)),
+    "7d": ("4h", timedelta(days=7)),
+}
 
 
 class LoginRequest(BaseModel):
@@ -266,14 +271,20 @@ async def current_metrics(
 
 
 @router.get("/tents/{tent_id}/metrics/history")
-async def metric_history(
+async def metric_history(  # noqa: PLR0913
     tent_id: str,
     metric: str,
     range: str = "24h",
     _: str = Depends(require_browser_user),
     settings: CloudSettings = Depends(get_settings),
     session: AsyncSession = Depends(get_session),
+    clock: Callable[[], datetime] = Depends(get_clock),
 ) -> dict[str, Any]:
+    range_spec = METRIC_HISTORY_RANGES.get(range)
+    if range_spec is None:
+        raise HTTPException(status_code=400, detail="invalid range")
+    bucket, window = range_spec
+    cutoff = clock() - window
     rows = (
         await session.execute(
             select(CloudMetricRollup)
@@ -281,6 +292,8 @@ async def metric_history(
                 CloudMetricRollup.site_id == settings.default_site_id,
                 CloudMetricRollup.tent_id == tent_id,
                 CloudMetricRollup.metric == metric,
+                CloudMetricRollup.bucket == bucket,
+                CloudMetricRollup.bucket_start_at >= cutoff,
             )
             .order_by(CloudMetricRollup.bucket_start_at)
         )
