@@ -888,3 +888,17 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - **Plant B moisture remains critical:** 96.38% now, only slightly down from 96.62% May 7; dryback verification remains urgent before reopening normal feed.
 - **Root zones:** A stable at 60.65%; C remains saturated at 90.12%; D remains high at 86.34%.
 - Updated: `daily/2026-05-08.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-05-09] daily | Day 56 / Flower Day 6 - incomplete photos; humidity/VPD still critical
+- Photos captured across 1 of 5 expected presets (Plant A only). Overview, B, C, and D views are missing, so today's visual record is incomplete.
+- **Environment flag:** VPD missed early-flower target in every window again (0.45 kPa overnight, 0.61 morning, 0.63 now) while RH stayed 75.72-79.00%; temperature recovered enough that humidity/clearing is now the main constraint.
+- **Plant B moisture remains critical:** 96.25% now, only slightly down from 96.38% May 8; dryback verification remains urgent before reopening normal feed.
+- **Root zones:** A stable at 60.59%; C remains saturated at 90.04%; D remains high but easing at 85.98%.
+- Updated: `daily/2026-05-09.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-05-10] daily | Day 57 / Flower Day 7 - incomplete photos; VPD still below target
+- Photos captured across 1 of 5 expected presets (Plant A only). Overview, B, C, and D views are missing, so today's visual record is incomplete.
+- **Environment flag:** VPD missed early-flower target in every window again (0.49 kPa overnight, 0.62 morning, 0.63 now) while RH stayed high at 75.76-78.47% across window averages and 77.00% now.
+- **Plant B moisture remains critical:** 96.25% now, effectively unchanged from May 9; dryback verification remains urgent before reopening normal feed.
+- **Root zones:** A stable at 60.83%; C remains saturated at 89.96%; D remains high but easing at 85.82%.
+- Updated: `daily/2026-05-10.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.

@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-05-08
+updated: 2026-05-10
 ---
 
 # Plant A
@@ -18,7 +18,7 @@ updated: 2026-05-08
 
 ## Current State
 
-Day 55 / Flower Day 5: A remains a vigorous primary purple keeper candidate with stable root-zone moisture at 60.65% and firm stretch posture in the available preset. Keep tucking the tallest sativa-leaning shoots daily through early stretch. See [2026-05-08](../daily/2026-05-08.md).
+Day 57 / Flower Day 7: A remains a vigorous primary purple keeper candidate with stable root-zone moisture at 60.83% and dense active stretch in the only available preset. Keep daily SCROG tucking and lower-airflow cleanup focused during stretch. See [2026-05-10](../daily/2026-05-10.md).
 
 ## Timeline
 
@@ -55,3 +55,5 @@ Day 55 / Flower Day 5: A remains a vigorous primary purple keeper candidate with
 - 2026-05-06 — [Day 53 / Flower Day 3: vigorous sativa-leaning tops, stable ~60% moisture, continue daily SCROG tucking](../daily/2026-05-06.md)
 - 2026-05-07 — [Day 54 / Flower Day 4: vigorous sativa-leaning tops, stable ~60% moisture, continue daily SCROG tucking](../daily/2026-05-07.md)
 - 2026-05-08 — [Day 55 / Flower Day 5: vigorous sativa-leaning tops, stable ~61% moisture, continue daily SCROG tucking](../daily/2026-05-08.md)
+- 2026-05-09 — [Day 56 / Flower Day 6: vigorous sativa-leaning tops, stable ~61% moisture, continue daily SCROG tucking](../daily/2026-05-09.md)
+- 2026-05-10 — [Day 57 / Flower Day 7: vigorous dense stretch tops, stable ~61% moisture, continue daily SCROG tucking](../daily/2026-05-10.md)
