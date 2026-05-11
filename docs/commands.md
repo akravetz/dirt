@@ -88,6 +88,15 @@ That script loads ignored `.env` first and `.env.prod` second by default, syncs 
 - **Daemon status**: `systemctl --user status dirt-camera` / `journalctl --user -u dirt-camera -f`
 - **Full operational spec**: `wiki/hardware/ptz-camera.md`. Do NOT bypass the CLI by calling the daemon's socket directly or running debug/obsbot_* binaries — the CLI handles user-frame translation, preset lookup, and error reporting.
 
+## Camera agent
+
+`dirt-camera-agent` is the edge snapshot publisher for camera-only hosts such as `dirt2`. It reads shared repo config from `.env` if present plus required host-local camera/cloud config from ignored `.env.dirt2-camera-agent`.
+
+- **Service status (read-only)**: `systemctl --user status dirt-camera-agent --no-pager`
+- **Recent logs (read-only)**: `journalctl --user -u dirt-camera-agent -n 100 --no-pager`
+- **Follow logs (read-only)**: `journalctl --user -u dirt-camera-agent -f`
+- **Manual foreground run (dev)**: `systemctl --user stop dirt-camera-agent && set -a; source .env; [ ! -f .env.dirt2-camera-agent ] || source .env.dirt2-camera-agent; set +a; uv run --package dirt-camera-agent python -m dirt_camera_agent.main --once`
+
 ## Voice channel (Claudia)
 
 - **Service status**: `systemctl --user status dirt-voice` / `journalctl --user -u dirt-voice -f`

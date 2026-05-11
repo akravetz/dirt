@@ -12,7 +12,6 @@ from pydantic import BaseModel
 from dirt_gateway.cloud import CloudDeliveryError
 from dirt_gateway.outbox import OutboxRepository, stable_json_hash
 from dirt_gateway.protocols import (
-    AssetUploadOutboxPayload,
     AssetUploadProjection,
     BackoffPolicy,
     CloudGatewayClient,
@@ -20,11 +19,9 @@ from dirt_gateway.protocols import (
     Sleeper,
     build_heartbeat_payload,
 )
+from dirt_shared.cloud_assets import AssetUploader, AssetUploadRequest
 from dirt_shared.cloud_contract import (
-    AssetCompleteRequest,
-    AssetFailureRequest,
     AssetRetentionRequest,
-    AssetSignUploadRequest,
     CatalogRequest,
     HeartbeatRequest,
     LatestMetricsRequest,
@@ -106,6 +103,10 @@ class GatewaySyncService:
         self._outbox = outbox
         self._local = local_services
         self._cloud = cloud_client
+        self._asset_uploader = AssetUploader(
+            cloud_client,
+            on_failure_report_error=self._log_asset_failure_report_failed,
+        )
         self._clock = clock
         self._sleeper = sleeper or AsyncioSleeper()
         self._backoff = backoff or ExponentialBackoff()
@@ -328,7 +329,7 @@ class GatewaySyncService:
             return
         if row.event_type == "asset_upload":
             await self._deliver_asset(
-                AssetUploadOutboxPayload.model_validate(payload),
+                AssetUploadRequest.model_validate(payload),
                 idempotency_key=row.idempotency_key,
             )
             return
@@ -349,63 +350,27 @@ class GatewaySyncService:
 
     async def _deliver_asset(
         self,
-        payload: AssetUploadOutboxPayload,
+        payload: AssetUploadRequest,
         *,
         idempotency_key: str,
     ) -> None:
-        signed = await self._cloud.sign_upload(
-            payload.sign_request,
-            idempotency_key=f"{idempotency_key}:sign",
-        )
-        try:
-            await self._cloud.upload_asset(
-                file_path=payload.file_path,
-                upload_url=signed.upload_url,
-                headers=signed.headers,
-                content_type=payload.sign_request.content_type,
-            )
-            await self._cloud.complete_asset(
-                payload.complete_request,
-                idempotency_key=f"{idempotency_key}:complete",
-            )
-        except Exception as exc:
-            await self._report_asset_failure(
-                sign_request=payload.sign_request,
-                complete_request=payload.complete_request,
-                exc=exc,
-                idempotency_key=idempotency_key,
-            )
-            raise
+        await self._asset_uploader.upload(payload, idempotency_key=idempotency_key)
 
-    async def _report_asset_failure(
+    def _log_asset_failure_report_failed(
         self,
-        *,
-        sign_request: AssetSignUploadRequest,
-        complete_request: AssetCompleteRequest,
-        exc: Exception,
+        payload: AssetUploadRequest,
         idempotency_key: str,
+        exc: Exception,
     ) -> None:
-        try:
-            await self._cloud.report_asset_failure(
-                AssetFailureRequest(
-                    site_id=sign_request.site_id,
-                    tent_id=sign_request.tent_id,
-                    asset_id=sign_request.asset_id,
-                    object_key=sign_request.object_key,
-                    stage="upload_or_complete",
-                    error=str(exc)[:500],
-                ),
-                idempotency_key=f"{idempotency_key}:failure",
-            )
-        except Exception:
-            log_event(
-                "cloud_gateway",
-                "asset_failure_report_failed",
-                site_id=self._config.site_id,
-                gateway_id=self._config.gateway_id,
-                asset_id=complete_request.asset_id,
-                idempotency_key=idempotency_key,
-            )
+        del exc
+        log_event(
+            "cloud_gateway",
+            "asset_failure_report_failed",
+            site_id=self._config.site_id,
+            gateway_id=self._config.gateway_id,
+            asset_id=payload.complete_request.asset_id,
+            idempotency_key=idempotency_key,
+        )
 
     async def _mark_delivery_failed(self, row: CloudOutbox, exc: Exception) -> None:
         delay = self._backoff.next_delay_s(row.attempt_count + 1)

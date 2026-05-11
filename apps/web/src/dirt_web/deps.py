@@ -18,8 +18,9 @@ services they wrap.
 
 from fastapi import Request
 
+from dirt_shared.camera import CameraCaptureError, ObsbotDaemonCameraSource
 from dirt_shared.config import Settings
-from dirt_shared.services.capture import FrameCapturer, capture_frame
+from dirt_shared.services.capture import FrameCapturer
 from dirt_shared.services.commands import CommandService
 from dirt_shared.services.grow_state import GrowStateService
 from dirt_shared.services.light_schedules import LightScheduleService
@@ -71,10 +72,20 @@ def get_ptz(request: Request) -> PTZService:
     return request.app.state.ptz
 
 
-def get_frame_capturer() -> FrameCapturer:
-    """Camera-daemon ``capture_frame`` RPC.
+def get_frame_capturer(request: Request) -> FrameCapturer:
+    """Camera-daemon frame capture through the shared camera source.
 
     Tests override with ``app.dependency_overrides[get_frame_capturer]
     = lambda: fake_capturer`` to avoid touching the camera socket.
     """
-    return capture_frame
+    source = ObsbotDaemonCameraSource(
+        socket_path=get_settings(request).capture().camera_socket_path
+    )
+
+    async def capture() -> bytes | None:
+        try:
+            return (await source.capture()).jpeg_bytes
+        except CameraCaptureError:
+            return None
+
+    return capture

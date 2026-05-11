@@ -1,0 +1,1 @@
+"""Camera edge capture agent."""

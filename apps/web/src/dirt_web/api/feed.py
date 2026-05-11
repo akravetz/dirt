@@ -2,8 +2,7 @@
 
 The SPA refreshes by bumping a cache-busting query param on its
 ``<img src=".../live.jpg?t=...">``, so we always return fresh bytes
-from the camera daemon (``capture_frame()`` is a one-shot RPC, not
-an MJPEG stream).
+from the camera daemon through the shared camera source.
 
 Legacy ``/feed/live``, ``/feed/image`` (HTMX fragment) and
 ``/feed/status`` (HTMX fragment) are deleted with this rename; the SPA

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
+from dirt_shared.cloud_assets import AssetUploadProjection
 from dirt_shared.cloud_contract import (
     AssetCompleteRequest,
     AssetCompleteResponse,
@@ -14,7 +14,6 @@ from dirt_shared.cloud_contract import (
     AssetRetentionRequest,
     AssetSignUploadRequest,
     CatalogRequest,
-    CloudContractModel,
     HeartbeatRequest,
     LatestMetricsRequest,
     PruneAssetsResponse,
@@ -22,26 +21,6 @@ from dirt_shared.cloud_contract import (
     SignUploadResponse,
 )
 from dirt_shared.config import CloudGatewayConfig
-
-
-@dataclass(frozen=True)
-class AssetUploadProjection:
-    sign_request: AssetSignUploadRequest
-    complete_request: AssetCompleteRequest
-    file_path: Path
-
-    def to_outbox_payload(self) -> AssetUploadOutboxPayload:
-        return AssetUploadOutboxPayload(
-            sign_request=self.sign_request,
-            complete_request=self.complete_request,
-            file_path=self.file_path,
-        )
-
-
-class AssetUploadOutboxPayload(CloudContractModel):
-    sign_request: AssetSignUploadRequest
-    complete_request: AssetCompleteRequest
-    file_path: Path
 
 
 class CloudGatewayClient(Protocol):

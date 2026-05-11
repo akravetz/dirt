@@ -7,8 +7,7 @@ legacy HTMX/feed routes removed by ``backend.feed.live``:
 - ``GET /feed/image``
 - ``GET /feed/status``
 
-The endpoint is a thin wrapper over ``capture_frame()`` — tests
-inject a fake capturer via ``app.dependency_overrides`` to avoid
+The endpoint takes an injected frame capturer so tests can avoid
 touching the camera daemon socket.
 """
 

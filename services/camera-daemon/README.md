@@ -18,6 +18,7 @@ Persistent daemon wrapping the OBSBOT Tiny 2 Lite SDK. Speaks a line-oriented te
 Responsibility split:
 - **Daemon**: SDK session, motor-frame primitives, auto-retry for partial-move, hotplug.
 - **CLI**: config (`~/.config/dirt/camera.json`), user-frame ↔ motor-frame translation, preset lookup.
+- **camera-agent**: Dirt-level periodic snapshot capture and cloud upload; talks to the daemon through the shared camera-source interface and owns site/tent/device metadata.
 
 ## Wire protocol
 

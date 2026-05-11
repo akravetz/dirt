@@ -2,14 +2,14 @@
 
 The daemon (``services/camera-daemon``) owns all gimbal state; this
 service just issues line-protocol RPCs via
-``dirt_shared.services.capture._daemon_rpc`` and reads the user-level
+``dirt_shared.camera.daemon_rpc_for_socket`` and reads the user-level
 preset config at ``~/.config/dirt/camera.json``.
 
 All four PTZ endpoints (``GET /api/ptz/state``, ``POST /api/ptz/preset/
 {id}``, ``POST /api/ptz/look``, ``POST /api/ptz/zoom``) use this
 service. It is constructor-injected with:
 
-- ``rpc``: an async callable matching ``_daemon_rpc``'s signature
+- ``rpc``: an async callable matching the camera daemon RPC signature
   (``(line: str) -> dict[str, str]``). Tests inject a fake to avoid
   touching the daemon socket.
 - ``config_path``: path to ``camera.json``. Defaults to
@@ -32,7 +32,7 @@ from pathlib import Path
 from typing import Literal
 from uuid import uuid4
 
-from dirt_shared.services.capture import _daemon_rpc as _default_rpc
+from dirt_shared.camera import daemon_rpc_for_socket
 from dirt_shared.services.commands import CommandService
 from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID
 
@@ -126,7 +126,7 @@ class PTZService:
         tent_id: str = DEFAULT_TENT_ID,
         device_id: str = "obsbot-main",
     ) -> None:
-        self._rpc = rpc or _default_rpc
+        self._rpc = rpc or daemon_rpc_for_socket()
         self._config_path = config_path or _default_config_path()
         self._sticker_colors = (
             DEFAULT_STICKER_COLORS if sticker_colors is None else sticker_colors

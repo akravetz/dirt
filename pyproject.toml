@@ -33,6 +33,7 @@ dirt-mcp = { workspace = true }
 dirt-voice = { workspace = true }
 dirt-control-plane = { workspace = true }
 dirt-gateway = { workspace = true }
+dirt-camera-agent = { workspace = true }
 dirt-contracts = { workspace = true }
 
 [tool.pytest.ini_options]
@@ -48,6 +49,7 @@ testpaths = [
     "apps/voice/tests",
     "apps/control-plane/tests",
     "apps/gateway/tests",
+    "apps/camera-agent/tests",
     "apps/wake-word/tests",
 ]
 asyncio_mode = "auto"
@@ -57,7 +59,7 @@ markers = [
 ]
 
 [tool.ruff]
-src = ["apps/hwd/src", "apps/web/src", "apps/shared/src", "apps/mcp/src", "apps/voice/src", "apps/wake-word/src", "apps/control-plane/src", "apps/gateway/src"]
+src = ["apps/hwd/src", "apps/web/src", "apps/shared/src", "apps/mcp/src", "apps/voice/src", "apps/wake-word/src", "apps/control-plane/src", "apps/gateway/src", "apps/camera-agent/src"]
 line-length = 88
 # Agent-owned surfaces only. .claude/ is harness / skill scaffolding
 # shipped from upstream; scripts/ holds one-off maintenance tooling with

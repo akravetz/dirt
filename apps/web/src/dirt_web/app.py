@@ -12,6 +12,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 
 from dirt_mcp.app import create_mcp_app
 from dirt_shared.app_wiring import build_core_services
+from dirt_shared.camera import daemon_rpc_for_socket
 from dirt_shared.config import Settings
 from dirt_shared.db import ping
 from dirt_shared.services.ptz import PTZService
@@ -97,7 +98,10 @@ def create_app(
     app.state.system_status = core.system_status
     app.state.commands = core.commands
     app.state.scope_catalog = core.scope_catalog
-    app.state.ptz = PTZService(commands=core.commands)
+    app.state.ptz = PTZService(
+        commands=core.commands,
+        rpc=daemon_rpc_for_socket(settings.capture().camera_socket_path),
+    )
     app.state.sessions = sessions
 
     # Middleware order: Starlette runs middleware in reverse-registration

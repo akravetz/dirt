@@ -8,6 +8,12 @@ from typing import Any
 import httpx
 from pydantic import BaseModel
 
+from dirt_shared.cloud_assets import (
+    CloudAssetDeliveryError as CloudDeliveryError,
+)
+from dirt_shared.cloud_assets import (
+    HttpCloudAssetClient,
+)
 from dirt_shared.cloud_contract import (
     AssetCompleteRequest,
     AssetCompleteResponse,
@@ -24,10 +30,6 @@ from dirt_shared.cloud_contract import (
 )
 
 
-class CloudDeliveryError(RuntimeError):
-    """Cloud API write failed and should be retried from the outbox."""
-
-
 class HttpCloudGatewayClient:
     def __init__(
         self,
@@ -39,6 +41,11 @@ class HttpCloudGatewayClient:
         self._base_url = base_url.rstrip("/")
         self._gateway_token = gateway_token
         self._client = http_client or httpx.AsyncClient(timeout=20)
+        self._assets = HttpCloudAssetClient(
+            base_url=base_url,
+            gateway_token=gateway_token,
+            http_client=self._client,
+        )
         self._owns_client = http_client is None
 
     async def aclose(self) -> None:
@@ -76,10 +83,7 @@ class HttpCloudGatewayClient:
     async def sign_upload(
         self, payload: AssetSignUploadRequest, *, idempotency_key: str
     ) -> SignUploadResponse:
-        response = await self._request(
-            "POST", "/api/gateway/v1/assets/sign-upload", payload, idempotency_key
-        )
-        return SignUploadResponse.model_validate(response)
+        return await self._assets.sign_upload(payload, idempotency_key=idempotency_key)
 
     async def upload_asset(
         self,
@@ -89,37 +93,28 @@ class HttpCloudGatewayClient:
         headers: dict[str, str],
         content_type: str,
     ) -> None:
-        del content_type
-        try:
-            with file_path.open("rb") as f:
-                content = f.read()
-            response = await self._client.put(
-                upload_url,
-                content=content,
-                headers=headers,
-            )
-            response.raise_for_status()
-        except (OSError, httpx.HTTPError) as exc:
-            raise CloudDeliveryError(str(exc)) from exc
+        await self._assets.upload_asset(
+            file_path=file_path,
+            upload_url=upload_url,
+            headers=headers,
+            content_type=content_type,
+        )
 
     async def complete_asset(
         self, payload: AssetCompleteRequest, *, idempotency_key: str
     ) -> AssetCompleteResponse:
-        response = await self._request(
-            "POST", "/api/gateway/v1/assets/complete", payload, idempotency_key
+        return await self._assets.complete_asset(
+            payload,
+            idempotency_key=idempotency_key,
         )
-        return AssetCompleteResponse.model_validate(response)
 
     async def report_asset_failure(
         self, payload: AssetFailureRequest, *, idempotency_key: str
     ) -> AssetFailureResponse:
-        response = await self._request(
-            "POST",
-            "/api/gateway/v1/assets/upload-failure",
+        return await self._assets.report_asset_failure(
             payload,
-            idempotency_key,
+            idempotency_key=idempotency_key,
         )
-        return AssetFailureResponse.model_validate(response)
 
     async def prune_expired_assets(
         self, payload: AssetRetentionRequest, *, idempotency_key: str

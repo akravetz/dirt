@@ -80,6 +80,7 @@ _RETENTION: dict[str, int] = {
     "metric_freshness": 30,  # per-(location, metric) dropout transitions
     "sensor_quality": 30,  # invalid sensor payload rejection/recovery transitions
     "cloud_gateway": 30,  # outbound hosted control-plane sync lifecycle
+    "camera_agent": 30,  # edge camera capture/upload lifecycle
 }
 
 

@@ -15,9 +15,17 @@ from dirt_gateway.commands import GatewayCommandService
 from dirt_gateway.local import GatewayLocalServiceBundle
 from dirt_gateway.outbox import OutboxRepository
 from dirt_gateway.sync import AsyncioSleeper, GatewaySyncService
+from dirt_shared.camera import daemon_rpc_for_socket
 from dirt_shared.config import Settings
 from dirt_shared.db import ping
 from dirt_shared.services.commands import CommandService
+from dirt_shared.services.ptz import PTZService
+
+
+def _gateway_ptz_service(settings: Settings) -> PTZService:
+    return PTZService(
+        rpc=daemon_rpc_for_socket(settings.capture().camera_socket_path),
+    )
 
 
 async def run_gateway(settings: Settings | None = None) -> None:
@@ -49,6 +57,7 @@ async def run_gateway(settings: Settings | None = None) -> None:
             cloud_client=client,
             command_ledger=CommandService(engine, clock=clock),
             outbox=outbox,
+            ptz=_gateway_ptz_service(settings),
             clock=clock,
         )
         await asyncio.gather(

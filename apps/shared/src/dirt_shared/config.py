@@ -22,6 +22,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[4]
 # growrun via Atlas migrations; runtime reads go through
 # dirt_shared.services.grow_state so a future UI can edit the date in one place.
 GROW_START = date(2026, 3, 15)
+DEFAULT_CAMERA_SOCKET_PATH = Path("/tmp/dirt-camera.sock")  # noqa: S108
 
 
 class Settings(BaseSettings):
@@ -49,6 +50,12 @@ class Settings(BaseSettings):
     dirt_pg_database: str = Field(default="dirt", validation_alias="DIRT_PG_DATABASE")
     snapshot_dir: Path | None = None
     archive_dir: Path | None = None
+    camera_socket_path: Path | None = Field(
+        default=None, validation_alias="DIRT_CAMERA_SOCKET"
+    )
+    xdg_runtime_dir: Path | None = Field(
+        default=None, validation_alias="XDG_RUNTIME_DIR"
+    )
     capture_interval: int = 300  # 5 minutes
     archive_retention_days: int = 7
     secret_key: str = "change-me-in-production"
@@ -208,6 +215,12 @@ class Settings(BaseSettings):
             self.snapshot_dir = self.data_dir / "snapshots"
         if self.archive_dir is None:
             self.archive_dir = self.data_dir / "archives"
+        if self.camera_socket_path is None:
+            self.camera_socket_path = (
+                self.xdg_runtime_dir / "dirt-camera.sock"
+                if self.xdg_runtime_dir is not None
+                else DEFAULT_CAMERA_SOCKET_PATH
+            )
         return self
 
     # --- purpose-specific config slices ---
@@ -219,6 +232,7 @@ class Settings(BaseSettings):
         return CaptureConfig(
             snapshot_dir=Path(self.snapshot_dir),
             capture_interval=self.capture_interval,
+            camera_socket_path=Path(self.camera_socket_path),
         )
 
     def archive(self) -> ArchiveConfig:
@@ -304,6 +318,7 @@ class Settings(BaseSettings):
 class CaptureConfig:
     snapshot_dir: Path
     capture_interval: int
+    camera_socket_path: Path = DEFAULT_CAMERA_SOCKET_PATH
 
 
 @dataclass(frozen=True)

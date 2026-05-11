@@ -21,10 +21,11 @@ The working behavior is observable by running a camera-agent service on `dirt2`,
 - [x] (2026-05-10T00:00Z) Documented the breeding-tent camera role for `dirt2` in `wiki/hardware/ptz-camera.md`.
 - [x] (2026-05-10T00:00Z) Inspected `dirt2` hardware: the camera appears as OBSBOT Tiny 2 Lite USB device `3564:fef9` with `/dev/video0` and `/dev/video1`, and user `akcom` is in the `video` group.
 - [x] (2026-05-10T00:00Z) Created this ExecPlan as the canonical implementation plan.
-- [ ] Milestone 1: Extract reusable camera-source and snapshot-spool primitives without changing runtime behavior.
-- [ ] Milestone 2: Refactor main-tent capture onto the shared primitives, preserve current `dirt-hwd` behavior, and remove replaced legacy capture code.
-- [ ] Milestone 3: Extract shared cloud asset upload code and make `dirt-gateway` use it.
-- [ ] Milestone 4: Add the camera-agent service for edge camera hosts.
+- [x] (2026-05-11T01:13Z) Milestone 1: Extract reusable camera-source and snapshot-spool primitives without changing runtime behavior. Added `dirt_shared.camera` source/spool modules and focused tests; validation passed.
+- [x] (2026-05-11T01:27Z) Milestone 2: Refactored main-tent capture onto shared `CameraSource` and `SnapshotWriter`, preserved current `dirt-hwd` behavior, and removed replaced legacy capture code from `CaptureService`.
+- [x] (2026-05-11T01:34Z) Milestone 3: Extract shared cloud asset upload code and make `dirt-gateway` use it.
+- [x] (2026-05-11T01:48Z) Milestone 4: Add the camera-agent service for edge camera hosts.
+- [x] (2026-05-11T01:52Z) Milestone 5 repo-side prep: added the user-level `dirt-camera-agent.service`, linked it from `scripts/install-systemd`, and documented local status/log/manual-run commands. Live `dirt2` deploy and smoke checks remain open.
 - [ ] Milestone 5: Deploy and smoke test `dirt-camera-daemon` plus camera-agent on `dirt2`.
 - [ ] Milestone 6: Enable real breeding-tent asset uploads and verify hosted access.
 - [ ] Milestone 7: Run a source-level cleanup pass that removes dead camera/upload code, duplicate helper paths, stale docs, and unused tests after the new pattern is live.
@@ -74,7 +75,107 @@ The working behavior is observable by running a camera-agent service on `dirt2`,
 
 ## Outcomes & Retrospective
 
-No implementation milestones are complete yet. This plan records the agreed architecture and the verified `dirt2` hardware/access baseline.
+Milestone 1 added the shared camera primitives without changing `dirt-hwd`, gateway, control-plane, or systemd behavior. New modules under `apps/shared/src/dirt_shared/camera/` define `CameraSource`, `CapturedFrame`, `ObsbotDaemonCameraSource`, `SnapshotWriter`, `SnapshotSpool`, and `SnapshotArtifact`. `ObsbotDaemonCameraSource` reuses the existing daemon RPC in `dirt_shared.services.capture` for now, which keeps the milestone additive and leaves the actual `CaptureService` cutover for Milestone 2. `SnapshotWriter` writes atomically through a dot-prefixed temp file plus `os.replace`, uses stable `snapshot_YYYYMMDD_HHMMSS.jpg` names, and records SHA256/size/content metadata.
+
+Milestone 1 validation passed:
+
+    uv run pytest apps/shared/tests -q
+    150 passed
+
+    uv run ruff check apps/shared/src apps/shared/tests
+    All checks passed!
+
+    uv run ruff format apps/shared/src apps/shared/tests --check
+    69 files already formatted
+
+Milestone 2 moved the OBSBOT daemon socket/RPC implementation into `dirt_shared.camera.source`, made `CaptureService` compose `CameraSource` plus `SnapshotWriter`, and kept the existing `frame_capturer` test seam as an adapter. `Settings.capture()` now carries the resolved camera socket path so `DIRT_CAMERA_SOCKET` / `XDG_RUNTIME_DIR` behavior remains typed configuration instead of ad-hoc env reads. The web live-feed dependency, web PTZ service wiring, and gateway command PTZ wiring were adjusted to use the shared camera source/RPC factory rather than importing capture-service internals.
+
+Milestone 2 validation passed:
+
+    uv run pytest apps/shared/tests/test_capture.py apps/hwd/tests -q
+    186 passed
+
+    uv run pytest apps/tests/invariants/ -q
+    118 passed, 1 skipped
+
+    uv run pytest apps/shared/tests/test_capture.py apps/shared/tests/test_camera.py apps/web/tests/test_feed_endpoints.py apps/gateway/tests/test_main.py apps/gateway/tests/test_sync.py -q
+    29 passed
+
+    uv run ruff check apps/shared/src/dirt_shared/config.py apps/shared/src/dirt_shared/services/capture.py apps/shared/src/dirt_shared/camera apps/shared/src/dirt_shared/services/ptz.py apps/shared/tests/test_capture.py apps/shared/tests/test_camera.py apps/web/src/dirt_web/deps.py apps/web/src/dirt_web/api/feed.py apps/web/src/dirt_web/app.py apps/web/tests/test_feed_endpoints.py apps/gateway/src/dirt_gateway/main.py apps/gateway/tests/test_main.py
+    All checks passed!
+
+    uv run ruff format apps/shared/src/dirt_shared/config.py apps/shared/src/dirt_shared/services/capture.py apps/shared/src/dirt_shared/camera apps/shared/src/dirt_shared/services/ptz.py apps/shared/tests/test_capture.py apps/shared/tests/test_camera.py apps/web/src/dirt_web/deps.py apps/web/src/dirt_web/api/feed.py apps/web/src/dirt_web/app.py apps/web/tests/test_feed_endpoints.py apps/gateway/src/dirt_gateway/main.py apps/gateway/tests/test_main.py --check
+    14 files already formatted
+
+Milestone 3 extracted the shared cloud asset upload workflow into `dirt_shared.cloud_assets`. `AssetUploader` now owns the sign/upload/complete/failure sequence with typed asset upload DTOs and an injected cloud asset client. `dirt-gateway` still owns outbox enqueueing, replay, delivery backoff, authenticated HTTP, and cloud gateway orchestration; asset outbox rows continue to validate through a Pydantic DTO before cloud calls.
+
+Milestone 3 validation passed:
+
+    uv run pytest apps/shared/tests/test_cloud_assets.py -q
+    3 passed
+
+    uv run pytest apps/gateway/tests/test_cloud_client.py apps/gateway/tests/test_sync.py -q
+    17 passed
+
+    uv run pytest apps/gateway/tests -q
+    18 passed
+
+    uv run ruff check apps/shared/src/dirt_shared/cloud_assets.py apps/shared/tests/test_cloud_assets.py apps/gateway/src/dirt_gateway/protocols.py apps/gateway/src/dirt_gateway/sync.py
+    All checks passed!
+
+    uv run ruff format apps/shared/src/dirt_shared/cloud_assets.py apps/shared/tests/test_cloud_assets.py apps/gateway/src/dirt_gateway/protocols.py apps/gateway/src/dirt_gateway/sync.py --check
+    4 files already formatted
+
+Milestone 4 added `apps/camera-agent/` as a uv workspace app with
+`python -m dirt_camera_agent.main`. The service loads scoped camera-agent
+settings from environment / `.env`, supports only
+`DIRT_CAMERA_AGENT_SOURCE=obsbot-daemon`, captures through
+`ObsbotDaemonCameraSource`, writes a local `SnapshotSpool`, and uploads
+through the shared `AssetUploader` plus shared `HttpCloudAssetClient` with
+typed asset sign/complete/failure contracts. The app depends on `dirt-shared`,
+not `dirt-gateway`, and does not collect metrics, send site heartbeats, claim
+commands, mutate local Postgres, or operate environmental actuators. It
+registers a `camera_agent` observability stream and closes its owned cloud HTTP
+client on shutdown.
+
+Milestone 4 validation passed:
+
+    uv run pytest apps/camera-agent/tests -q
+    6 passed
+
+    uv run ruff check apps/camera-agent apps/shared/src
+    All checks passed!
+
+    uv run ruff format apps/camera-agent apps/shared/src --check
+    54 files already formatted
+
+Additional focused validation passed:
+
+    uv run pytest apps/shared/tests/test_observability_isolation.py -q
+    3 passed
+
+    uv run pytest apps/gateway/tests/test_cloud_client.py -q
+    1 passed
+
+    uv run pytest apps/gateway/tests/test_cloud_client.py apps/gateway/tests/test_sync.py -q
+    17 passed
+
+    uv run pytest apps/gateway/tests -q
+    18 passed
+
+    uv run --package dirt-camera-agent python -m dirt_camera_agent.main --help
+    displayed the expected --once CLI option
+
+Simplify pass: sequential fallback was used because this runtime did not expose
+subagent spawning. The pass found one resource cleanup issue; `CameraAgentService`
+now owns an `aclose()` hook and `run_agent()` closes the cloud asset HTTP client.
+
+Milestone 5 repo-side prep added `systemd/dirt-camera-agent.service` with
+`WorkingDirectory=%h/code/dirt`, optional `.env` plus required ignored
+`.env.dirt2-camera-agent` loading, and the camera-agent uv entrypoint. Future
+`scripts/install-systemd` runs symlink the unit but still do not enable or start
+it. `docs/commands.md` now records read-only status/log commands and a manual
+foreground run pattern that sources env files without printing secrets.
 
 
 ## Context and Orientation
