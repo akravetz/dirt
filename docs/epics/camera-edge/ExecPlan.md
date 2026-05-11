@@ -22,11 +22,12 @@ The working behavior is observable by running a camera-agent service on `dirt2`,
 - [x] (2026-05-10T00:00Z) Inspected `dirt2` hardware: the camera appears as OBSBOT Tiny 2 Lite USB device `3564:fef9` with `/dev/video0` and `/dev/video1`, and user `akcom` is in the `video` group.
 - [x] (2026-05-10T00:00Z) Created this ExecPlan as the canonical implementation plan.
 - [ ] Milestone 1: Extract reusable camera-source and snapshot-spool primitives without changing runtime behavior.
-- [ ] Milestone 2: Refactor main-tent capture onto the shared primitives while preserving current `dirt-hwd` behavior.
+- [ ] Milestone 2: Refactor main-tent capture onto the shared primitives, preserve current `dirt-hwd` behavior, and remove replaced legacy capture code.
 - [ ] Milestone 3: Extract shared cloud asset upload code and make `dirt-gateway` use it.
 - [ ] Milestone 4: Add the camera-agent service for edge camera hosts.
 - [ ] Milestone 5: Deploy and smoke test `dirt-camera-daemon` plus camera-agent on `dirt2`.
 - [ ] Milestone 6: Enable real breeding-tent asset uploads and verify hosted access.
+- [ ] Milestone 7: Run a source-level cleanup pass that removes dead camera/upload code, duplicate helper paths, stale docs, and unused tests after the new pattern is live.
 
 
 ## Surprises & Discoveries
@@ -65,6 +66,10 @@ The working behavior is observable by running a camera-agent service on `dirt2`,
 - Decision: Prefer a local spool on every camera host.
   Rationale: A spool gives retry/recovery room when cloud upload fails, provides local diagnostic artifacts, and keeps capture decoupled from network availability. Retention can be local and conservative because cloud assets have their own hosted retention.
   Date/Author: 2026-05-10 / Codex
+
+- Decision: Treat cleanup as part of delivery, not follow-up polish.
+  Rationale: The purpose of this epic is a coherent modular camera architecture. Leaving the old main-box capture/write/upload paths beside the new shared path would make future agents choose between duplicate mechanisms and would recreate the inconsistency this plan is meant to remove.
+  Date/Author: 2026-05-10 / User + Codex
 
 
 ## Outcomes & Retrospective
@@ -113,7 +118,7 @@ Milestone 2 refactors main-tent capture onto shared primitives. Update `apps/sha
 - default device lookup `obsbot-main`.
 - periodic loop behavior and test injection seams.
 
-Update `apps/shared/tests/test_capture.py` and any `apps/hwd` tests needed to prove behavior stays the same.
+Update `apps/shared/tests/test_capture.py` and any `apps/hwd` tests needed to prove behavior stays the same. This milestone is not complete until the old embedded frame-capture/file-write helper code has either moved into the shared modules or been deleted. Do not leave a second private `dirt_shared.services.capture` implementation that does the same daemon RPC, filename construction, or JPEG write path in parallel with `dirt_shared.camera`.
 
 Milestone 3 extracts shared cloud asset upload code. Move reusable sign/upload/complete/failure behavior out of `apps/gateway/src/dirt_gateway/sync.py` and `apps/gateway/src/dirt_gateway/cloud.py` into an importable module that both gateway and camera-agent can use, while keeping gateway orchestration in `apps/gateway`. A likely shape is:
 
@@ -153,6 +158,8 @@ Milestone 6 enables real breeding-tent uploads and hosted verification. Turn on 
 - hosted UI if it already surfaces assets for the selected tent.
 
 If main-box snapshots for multiple tents should ever flow through `dirt-gateway`, change `GatewayLocalServiceBundle.latest_snapshot_asset()` into a per-tent or pending-asset projection instead of returning the first default-tent snapshot. That fix is not required for direct `dirt2` camera-agent upload, but it is part of keeping the architecture coherent.
+
+Milestone 7 is the cleanup and consistency pass after the shared pattern is live on both this box and `dirt2`. Search for obsolete capture and upload helpers, duplicate daemon-RPC implementations, stale configuration names, and docs that still describe the old ownership split. Remove dead code rather than preserving adapters for agent-owned tests. Keep only compatibility code that protects a real deployed boundary, and record any such exception in the Decision Log with a retirement trigger. This milestone should include a small simplify pass over the final diff and targeted `rg` checks for old names.
 
 
 ## Concrete Steps
@@ -200,17 +207,27 @@ Before committing implementation work:
     scripts/agent-fix
     git status --short
 
+Milestone 7 cleanup checks should include targeted searches such as:
+
+    rg -n "capture_frame|_daemon_rpc|snapshot_\\{now|latest_snapshot_asset|AssetUploadProjection" apps/shared apps/hwd apps/gateway apps/camera-agent
+    rg -n "dirt_shared\\.services\\.capture|dirt_shared\\.camera|cloud_assets" apps/shared apps/hwd apps/gateway apps/camera-agent
+
+Interpret these searches manually. The goal is not zero matches; the goal is that each remaining match has one clear owner and no obsolete duplicate implementation remains.
+
 
 ## Validation and Acceptance
 
 Acceptance requires all of these signals:
 
 - Main-tent capture remains green: focused capture tests pass and `dirt-hwd` still records `snapshot` rows for `homebox/main`.
+- Main-tent capture on this box uses the same shared `CameraSource` and `SnapshotWriter` path that camera-agent uses; there is no duplicate private snapshot-writing implementation left in `dirt_shared.services.capture`.
 - Gateway asset tests pass after extracting shared uploader code.
+- Gateway and camera-agent asset publication use the same shared upload workflow; there is no duplicate sign/upload/complete implementation except thin service-specific orchestration.
 - Camera-agent unit tests prove retryable upload failure handling, local spool creation, idempotency key construction, and correct `AssetSignUploadRequest` / `AssetCompleteRequest` payloads for `homebox/breeding`.
 - On `dirt2`, `dirt-camera.service` is active and capture returns a JPEG path with nonzero bytes.
 - On `dirt2`, `dirt-camera-agent.service` is active and logs successful captures plus successful cloud upload completion.
 - The hosted cloud API returns at least one recent asset where `site_id=homebox`, `tent_id=breeding`, and `device_id` is the configured breeding camera device.
+- A final cleanup diff removes or updates obsolete code, tests, and docs that referred to the old one-off main-box capture/upload path.
 
 
 ## Idempotence and Recovery
@@ -277,3 +294,4 @@ External dependencies should stay minimal. The OBSBOT path should continue to re
 ## Revision Notes
 
 - 2026-05-10: Initial ExecPlan created after confirming `dirt2` SSH, OBSBOT hardware detection, and the desired reusable camera-edge architecture.
+- 2026-05-10: Expanded plan to make the main-box camera refactor and dead-code cleanup explicit acceptance requirements, not optional follow-up work.
