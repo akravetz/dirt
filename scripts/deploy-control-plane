@@ -71,6 +71,88 @@ require_env() {
     fi
 }
 
+latest_deployment_field() {
+    local service_id="$1"
+    local field="$2"
+
+    railway deployment list \
+        --service "$service_id" \
+        --environment "$RAILWAY_ENVIRONMENT" \
+        --json \
+        | uv run python -c 'import json, sys
+data = json.load(sys.stdin)
+field = sys.argv[1]
+print(data[0].get(field, "") if data else "")' "$field"
+}
+
+wait_for_latest_deployment_success() {
+    local label="$1"
+    local service_id="$2"
+    local deployment_id="$3"
+    local attempts="${DIRT_CONTROL_PLANE_DEPLOY_ATTEMPTS:-120}"
+    local delay="${DIRT_CONTROL_PLANE_DEPLOY_DELAY_S:-5}"
+    local status=""
+
+    echo "Waiting for $label deployment $deployment_id..."
+    for attempt in $(seq 1 "$attempts"); do
+        status="$(
+            railway deployment list \
+                --service "$service_id" \
+                --environment "$RAILWAY_ENVIRONMENT" \
+                --json \
+                | uv run python -c 'import json, sys
+data = json.load(sys.stdin)
+deployment_id = sys.argv[1]
+for deployment in data:
+    if deployment.get("id") == deployment_id:
+        print(deployment.get("status", ""))
+        break' "$deployment_id"
+        )"
+        case "$status" in
+            SUCCESS)
+                echo "$label deployment succeeded."
+                return 0
+                ;;
+            FAILED|CRASHED|REMOVED|SKIPPED)
+                echo "ERROR: $label deployment ended with status $status" >&2
+                return 1
+                ;;
+        esac
+        if [ "$attempt" -eq "$attempts" ]; then
+            break
+        fi
+        sleep "$delay"
+    done
+
+    echo "ERROR: $label deployment did not reach SUCCESS (last status: ${status:-unknown})" >&2
+    return 1
+}
+
+CONTROL_PLANE_DEPLOY_DIR=""
+cleanup() {
+    if [ -n "$CONTROL_PLANE_DEPLOY_DIR" ] && [ -d "$CONTROL_PLANE_DEPLOY_DIR" ]; then
+        rm -rf "$CONTROL_PLANE_DEPLOY_DIR"
+    fi
+}
+trap cleanup EXIT
+
+prepare_control_plane_deploy_context() {
+    CONTROL_PLANE_DEPLOY_DIR="$(mktemp -d)"
+    cp -R "$ROOT_DIR/apps/control-plane/." "$CONTROL_PLANE_DEPLOY_DIR/"
+    find "$CONTROL_PLANE_DEPLOY_DIR" -name __pycache__ -type d -prune -exec rm -rf {} +
+
+    # Railway deploys apps/control-plane as an isolated package, but the
+    # gateway API shares its wire DTOs with the local gateway via dirt_shared.
+    # Stage the focused contract module into the upload context so production
+    # imports match the repository source of truth without uploading the whole
+    # workspace.
+    mkdir -p "$CONTROL_PLANE_DEPLOY_DIR/src/dirt_shared"
+    cp "$ROOT_DIR/apps/shared/src/dirt_shared/cloud_contract.py" \
+        "$CONTROL_PLANE_DEPLOY_DIR/src/dirt_shared/cloud_contract.py"
+    printf '"""Deploy-time subset of dirt_shared used by dirt-control-plane."""\n' \
+        >"$CONTROL_PLANE_DEPLOY_DIR/src/dirt_shared/__init__.py"
+}
+
 wait_for_http() {
     local label="$1"
     local url="$2"
@@ -180,12 +262,19 @@ atlas migrate apply --env cloud
 echo "Ensuring cloud gateway credential..."
 uv run --package dirt-control-plane python -m dirt_control.bootstrap_gateway
 
+prepare_control_plane_deploy_context
+
 echo "Deploying control-plane API to Railway service control-plane-api..."
-railway up "$ROOT_DIR/apps/control-plane" \
+railway up "$CONTROL_PLANE_DEPLOY_DIR" \
     --path-as-root \
     --project "$RAILWAY_PROJECT_ID" \
     --environment "$RAILWAY_ENVIRONMENT" \
     --service "$RAILWAY_CONTROL_PLANE_API_SERVICE_ID"
+control_plane_deployment_id="$(latest_deployment_field "$RAILWAY_CONTROL_PLANE_API_SERVICE_ID" id)"
+wait_for_latest_deployment_success \
+    "control-plane API" \
+    "$RAILWAY_CONTROL_PLANE_API_SERVICE_ID" \
+    "$control_plane_deployment_id"
 
 if [ "$SKIP_SMOKE" -eq 0 ]; then
     wait_for_http "cloud API health" "$DIRT_CLOUD_API_BASE_URL/api/health"
@@ -197,6 +286,11 @@ railway up "$ROOT_DIR/web-ui" \
     --project "$RAILWAY_PROJECT_ID" \
     --environment "$RAILWAY_ENVIRONMENT" \
     --service "$RAILWAY_WEB_UI_SERVICE_ID"
+web_ui_deployment_id="$(latest_deployment_field "$RAILWAY_WEB_UI_SERVICE_ID" id)"
+wait_for_latest_deployment_success \
+    "web UI" \
+    "$RAILWAY_WEB_UI_SERVICE_ID" \
+    "$web_ui_deployment_id"
 
 if [ "$SKIP_SMOKE" -eq 0 ]; then
     wait_for_http "hosted UI" "$DIRT_CLOUD_UI_BASE_URL/"
