@@ -179,11 +179,26 @@ class Settings(BaseSettings):
     daily_report_codex_sandbox: str = Field(
         default="workspace-write", validation_alias="DIRT_DAILY_REPORT_CODEX_SANDBOX"
     )
+    daily_report_tent_ids: str = Field(
+        default="main,breeding", validation_alias="DIRT_DAILY_REPORT_TENT_IDS"
+    )
+    daily_report_required_tent_ids: str = Field(
+        default="main", validation_alias="DIRT_DAILY_REPORT_REQUIRED_TENT_IDS"
+    )
+    daily_report_photo_tent_ids: str = Field(
+        default="breeding", validation_alias="DIRT_DAILY_REPORT_PHOTO_TENT_IDS"
+    )
     # Hosted control-plane local gateway. The gateway is a separate process
     # that syncs selected local state outbound; local hardware loops do not
     # depend on these values.
     cloud_api_base_url: str = Field(
         default="http://127.0.0.1:8002", validation_alias="DIRT_CLOUD_API_BASE_URL"
+    )
+    cloud_admin_username: str = Field(
+        default="", validation_alias="DIRT_CLOUD_ADMIN_USERNAME"
+    )
+    cloud_session_secret: str = Field(
+        default="", validation_alias="DIRT_CLOUD_SESSION_SECRET"
     )
     cloud_site_id: str = Field(default="homebox", validation_alias="DIRT_CLOUD_SITE_ID")
     cloud_gateway_id: str = Field(

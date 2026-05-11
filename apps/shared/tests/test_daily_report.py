@@ -11,6 +11,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
+import httpx
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -22,6 +23,7 @@ from dirt_shared.services.daily_report import (
     MAX_TELEGRAM_BODY_CHARS,
     DailyReport,
     DailyReportSnapshotRecorder,
+    HostedTentAssetPhotoSource,
     Phase,
     _load_telegram_body,
     _safe_truncate_html,
@@ -67,6 +69,20 @@ class _FakeCamera:
 
             raise CameraError(f"injected failure at {preset}")
         return self.jpeg
+
+
+class _FakeExtraPhotoSource:
+    expected_photo_count = 1
+
+    def __init__(self, filename: str = "breeding-overview.jpg") -> None:
+        self.filename = filename
+        self.calls: list[date] = []
+
+    async def capture_photos(self, target_date: date, out_dir: Path) -> list[Path]:
+        self.calls.append(target_date)
+        path = out_dir / self.filename
+        path.write_bytes(_tiny_jpeg())
+        return [path]
 
 
 class _FakeSensorReader:
@@ -217,6 +233,7 @@ def _build_orchestrator(
     synthesis=None,
     telegram=None,
     snapshot_recorder=None,
+    extra_photo_sources=(),
 ) -> tuple[DailyReport, _FakeCamera, _FakeSensorReader, _FakeSynthesis, _FakeTelegram]:
     photos_dir = tmp_path / "raw" / "photos"
     marker_dir = tmp_path / "logs" / "daily_report"
@@ -238,6 +255,7 @@ def _build_orchestrator(
         clock=_clock,
         stamp_jpeg=lambda data, _now: data,
         snapshot_recorder=snapshot_recorder,
+        extra_photo_sources=extra_photo_sources,
     )
     return orch, cam, reader, synth, tg
 
@@ -323,6 +341,67 @@ async def test_run_records_scoped_daily_report_snapshot_rows(tmp_path, app_engin
     assert all(Path(item[0].file_path).exists() for item in by_view.values())
 
 
+async def test_run_includes_extra_tent_photo_source(tmp_path):
+    extra = _FakeExtraPhotoSource()
+    orch, _cam, _reader, synth, tg = _build_orchestrator(
+        tmp_path=tmp_path,
+        extra_photo_sources=[extra],
+    )
+
+    result = await orch.run(TARGET_DATE)
+
+    assert result.success
+    assert extra.calls == [TARGET_DATE]
+    _date, paths, _payload = synth.calls[0]
+    assert _date == TARGET_DATE
+    assert {path.name for path in paths} == {
+        "overview.jpg",
+        "plant-a.jpg",
+        "plant-b.jpg",
+        "plant-c.jpg",
+        "plant-d.jpg",
+        "breeding-overview.jpg",
+    }
+    assert "Captured 6/6 daily photos" in tg.media_groups[0]["caption"]
+
+
+async def test_hosted_tent_asset_photo_source_downloads_signed_asset(tmp_path):
+    requests: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(str(request.url))
+        if request.url.path == "/api/tents/breeding/assets/latest":
+            assert request.headers["cookie"].startswith("dirt_cloud_session=")
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "asset_id": "asset-1",
+                        "signed_url": "https://assets.test/breeding.jpg",
+                    }
+                ],
+            )
+        if str(request.url) == "https://assets.test/breeding.jpg":
+            return httpx.Response(200, content=_tiny_jpeg())
+        return httpx.Response(404)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        source = HostedTentAssetPhotoSource(
+            http=http,
+            base_url="https://api.test",
+            session_cookie="session-cookie",
+            tent_id="breeding",
+        )
+        paths = await source.capture_photos(TARGET_DATE, tmp_path)
+
+    assert [path.name for path in paths] == ["breeding-overview.jpg"]
+    assert paths[0].read_bytes() == _tiny_jpeg()
+    assert requests == [
+        "https://api.test/api/tents/breeding/assets/latest",
+        "https://assets.test/breeding.jpg",
+    ]
+
+
 # --- failure modes ---
 
 
@@ -350,7 +429,7 @@ async def test_capture_failure_continues_with_incomplete_report(tmp_path):
     ]
     assert len(tg.media_groups) == 1
     assert len(tg.media_groups[0]["photo_paths"]) == 4
-    assert "Captured 4/5 preset photos" in tg.media_groups[0]["caption"]
+    assert "Captured 4/5 daily photos" in tg.media_groups[0]["caption"]
     assert len(tg.messages) == 1
     assert "Daily report failed" not in tg.messages[0]["text"]
     failed = tmp_path / "logs" / "daily_report" / "2026-04-19.failed"

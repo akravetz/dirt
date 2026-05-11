@@ -26,7 +26,12 @@ import httpx
 from dirt_shared.app_wiring import build_core_services
 from dirt_shared.camera import daemon_rpc_for_socket
 from dirt_shared.config import Settings
-from dirt_shared.services.daily_report import DailyReport, DailyReportSnapshotRecorder
+from dirt_shared.services.daily_report import (
+    DailyReport,
+    DailyReportSnapshotRecorder,
+    HostedTentAssetPhotoSource,
+    build_hosted_browser_session_cookie,
+)
 from dirt_shared.services.daily_sensors import MDT, SensorReader
 from dirt_shared.services.daily_synthesis import (
     ClaudeSynthesisRunner,
@@ -46,6 +51,10 @@ WIKI_ROOT = REPO_ROOT / "wiki"
 PHOTOS_DIR = settings.data_dir / "raw" / "photos"
 MARKER_DIR = settings.data_dir / "logs" / "daily_report"
 CAMERA_CONFIG_PATH = Path.home() / ".config" / "dirt" / "camera.json"
+
+
+def _split_csv(value: str) -> tuple[str, ...]:
+    return tuple(part.strip() for part in value.split(",") if part.strip())
 
 
 def _parse_args() -> argparse.Namespace:
@@ -106,7 +115,25 @@ async def _amain() -> int:
             max_age_s=settings.daily_report_sensor_max_age_s,
             sensor_min_raw=settings.daily_report_sensor_min_raw,
             sensor_max_raw=settings.daily_report_sensor_max_raw,
+            report_tent_ids=_split_csv(settings.daily_report_tent_ids),
+            required_tent_ids=_split_csv(settings.daily_report_required_tent_ids),
         )
+        extra_photo_sources = []
+        photo_tent_ids = _split_csv(settings.daily_report_photo_tent_ids)
+        if photo_tent_ids and settings.cloud_session_secret:
+            session_cookie = build_hosted_browser_session_cookie(
+                session_secret=settings.cloud_session_secret,
+                username=settings.cloud_admin_username,
+            )
+            extra_photo_sources = [
+                HostedTentAssetPhotoSource(
+                    http=http,
+                    base_url=settings.cloud_api_base_url,
+                    session_cookie=session_cookie,
+                    tent_id=tent_id,
+                )
+                for tent_id in photo_tent_ids
+            ]
         if settings.daily_report_synthesis_backend == "claude":
             synthesis = ClaudeSynthesisRunner(
                 wiki_root=WIKI_ROOT,
@@ -135,6 +162,7 @@ async def _amain() -> int:
             marker_dir=MARKER_DIR,
             wiki_root=WIKI_ROOT,
             snapshot_recorder=DailyReportSnapshotRecorder(engine),
+            extra_photo_sources=extra_photo_sources,
         )
         result = await orch.run(target_date, force=args.force)
 

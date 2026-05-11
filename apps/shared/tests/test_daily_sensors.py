@@ -33,6 +33,7 @@ PLANT_DEVICES = (
     "plant-d-node",
 )
 TENT_DEVICE = "fan-controller"
+BREEDING_TENT_DEVICE = "breeding-env-node"
 
 
 def _clock():
@@ -255,6 +256,54 @@ async def test_snapshot_aggregates_three_windows(pg_engine):
     assert temp["now"] == 85.0
 
 
+async def test_snapshot_includes_scoped_breeding_tent(pg_engine):
+    fresh_ts = TEST_NOW - timedelta(seconds=10)
+    await _seed_readings(
+        pg_engine,
+        _all_tent_metrics_fresh()
+        + _all_plants_fresh()
+        + [
+            (
+                BREEDING_TENT_DEVICE,
+                "temperature_f",
+                79.0,
+                fresh_ts,
+                SensorSource.ESP32,
+            ),
+            (
+                BREEDING_TENT_DEVICE,
+                "humidity_pct",
+                61.0,
+                fresh_ts,
+                SensorSource.ESP32,
+            ),
+            (
+                BREEDING_TENT_DEVICE,
+                "vpd_kpa",
+                1.0,
+                fresh_ts,
+                SensorSource.ESP32,
+            ),
+            (
+                BREEDING_TENT_DEVICE,
+                "dew_point_f",
+                64.0,
+                fresh_ts,
+                SensorSource.ESP32,
+            ),
+        ],
+        _plant_calibrations(),
+    )
+
+    r = SensorReader(pg_engine, clock=_clock)
+    snap = await r.snapshot(TEST_DATE)
+    out = snap.to_prompt_dict()
+
+    assert set(out["tents"]) == {"breeding", "main"}
+    assert out["tents"]["breeding"]["temperature_f"]["now"] == 79.0
+    assert out["tents"]["main"]["temperature_f"]["now"] == 80.0
+
+
 async def test_snapshot_per_plant_pct_uses_calibration(pg_engine):
     rows = _all_tent_metrics_fresh()
     fresh_ts = TEST_NOW - timedelta(seconds=10)
@@ -268,6 +317,7 @@ async def test_snapshot_per_plant_pct_uses_calibration(pg_engine):
     snap = await r.snapshot(TEST_DATE)
     pct_a = snap.plants["a"]["now_pct"]
     assert pct_a == pytest.approx(54.98, abs=0.1)
+    assert snap.plants["a"]["now_raw"] == 2500.0
 
 
 def test_to_prompt_dict_renders_window_avg():
@@ -287,10 +337,25 @@ def test_to_prompt_dict_renders_window_avg():
         },
         plants={
             "a": {
+                "overnight_raw": WindowAvg(avg=2000.0, n=10),
+                "morning_raw": WindowAvg(avg=2100.0, n=10),
+                "now_raw": 2200.0,
+                "raw_delta_morning_to_now": 100.0,
                 "overnight_pct": WindowAvg(avg=42.5, n=10),
                 "morning_pct": WindowAvg(avg=None, n=0),
                 "now_pct": 33.1,
+                "pct_delta_morning_to_now": None,
             }
+        },
+        tents={
+            "main": {
+                "temperature_f": {
+                    "overnight": WindowAvg(avg=75.123, n=2),
+                    "morning": WindowAvg(avg=None, n=0),
+                    "now": 85.0,
+                }
+            },
+            "breeding": {},
         },
     )
     out = snap.to_prompt_dict()
@@ -301,3 +366,6 @@ def test_to_prompt_dict_renders_window_avg():
     assert out["plants"]["a"]["overnight_pct"] == {"avg": 42.5, "n": 10}
     assert out["plants"]["a"]["morning_pct"] is None
     assert out["plants"]["a"]["now_pct"] == 33.1
+    assert out["plants"]["a"]["raw_delta_morning_to_now"] == 100.0
+    assert out["soil_moisture_note"].startswith("Soil-moisture absolute")
+    assert set(out["tents"]) == {"breeding", "main"}

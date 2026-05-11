@@ -7,8 +7,10 @@ Three responsibilities:
 2. **Aggregate windowed averages** for the prompt that goes to the synthesis
    sub-agent — overnight (00-06 MDT), morning (07-14 MDT), and the now
    reading.
-3. **Per-plant calibrated moisture %** for the same three windows, computed
-   from the live calibration row + raw readings.
+3. **Per-plant soil-moisture trend context** for the same three windows,
+   including raw readings and calibrated % when available. The daily synthesis
+   treats calibrated absolute values as a rough reference only; relative
+   movement is the more useful signal until probes are calibrated in-place.
 
 All three are exposed through a :class:`SensorReader` whose constructor takes
 the SQLAlchemy engine and a clock. Tests inject a test pg engine + a frozen
@@ -18,8 +20,8 @@ clock so the time-window logic can be exercised deterministically.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
-from dataclasses import dataclass
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time
 from statistics import mean
 from typing import Any
@@ -44,7 +46,8 @@ from dirt_shared.services.scope import current_grow_run
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_TENT_SENSOR_DEVICE_ID = "fan-controller"
+DEFAULT_REPORT_TENT_IDS = ("main", "breeding")
+DEFAULT_REQUIRED_TENT_IDS = ("main",)
 SOIL_METRIC = "soil_moisture_raw"
 MDT = ZoneInfo("America/Denver")
 
@@ -94,9 +97,13 @@ class DailySensorSnapshot:
 
     date_mdt: date
     tent: dict[str, dict[str, WindowAvg | float | None]]
-    """{metric: {"overnight": WindowAvg, "morning": WindowAvg, "now": v}}"""
+    """Legacy alias for ``tents["main"]``."""
     plants: dict[str, dict[str, WindowAvg | float | None]]
-    """{letter: {"overnight_pct": WindowAvg, "morning_pct": WindowAvg, "now_pct": v}}"""
+    """{letter: moisture trend context for main-tent plants}"""
+    tents: dict[str, dict[str, dict[str, WindowAvg | float | None]]] = field(
+        default_factory=dict
+    )
+    """{tent_id: {metric: {"overnight": WindowAvg, "morning": WindowAvg, "now": v}}}"""
 
     def to_prompt_dict(self) -> dict[str, Any]:
         """Render to a JSON-serializable dict for the LLM prompt."""
@@ -119,10 +126,20 @@ class DailySensorSnapshot:
                 out[k] = row
             return out
 
+        tents = self.tents or {"main": self.tent}
         return {
             "date_mdt": self.date_mdt.isoformat(),
             "tent": render(self.tent),
+            "tents": {
+                tent_id: render(metrics) for tent_id, metrics in sorted(tents.items())
+            },
             "plants": render(self.plants),
+            "soil_moisture_note": (
+                "Soil-moisture absolute calibration is not trusted. Use raw and "
+                "calibrated values as rough context only; emphasize relative "
+                "movement between overnight, morning, and now. Flag only stale, "
+                "missing, pinned, or large directional changes."
+            ),
         }
 
 
@@ -137,7 +154,7 @@ def mdt_window_to_utc(
 
 
 class SensorReader:
-    def __init__(
+    def __init__(  # noqa: PLR0913 - scope knobs are part of this boundary.
         self,
         engine: AsyncEngine,
         *,
@@ -145,6 +162,8 @@ class SensorReader:
         max_age_s: int = 300,
         sensor_min_raw: float = 30.0,
         sensor_max_raw: float = 4000.0,
+        report_tent_ids: Sequence[str] = DEFAULT_REPORT_TENT_IDS,
+        required_tent_ids: Sequence[str] = DEFAULT_REQUIRED_TENT_IDS,
     ) -> None:
         """
         Args:
@@ -162,24 +181,23 @@ class SensorReader:
         self._max_age_s = max_age_s
         self._min_raw = sensor_min_raw
         self._max_raw = sensor_max_raw
+        self._report_tent_ids = tuple(dict.fromkeys(report_tent_ids))
+        self._required_tent_ids = tuple(dict.fromkeys(required_tent_ids))
         self._plant_requirements: list[SensorRequirement] | None = None
-        self._tent_requirements: list[SensorRequirement] | None = None
+        self._tent_requirements_by_tent: dict[str, list[SensorRequirement]] = {}
 
     async def _tent_metric_requirements(
         self,
         session: AsyncSession,
+        *,
+        tent_id: str,
     ) -> list[SensorRequirement]:
-        if self._tent_requirements is not None:
-            return self._tent_requirements
-        capability_ids = persisted_capability_ids_for_device_id(
-            DEFAULT_TENT_SENSOR_DEVICE_ID
-        )
-        if not capability_ids:
-            self._tent_requirements = []
-            return []
+        if tent_id in self._tent_requirements_by_tent:
+            return self._tent_requirements_by_tent[tent_id]
         rows = (
             await session.exec(
                 select(
+                    Device.device_id,
                     Capability.id,
                     Capability.capability_id,
                     Capability.metric_name,
@@ -188,26 +206,27 @@ class SensorReader:
                 .join(Site, Site.id == Device.site_id)
                 .join(Tent, Tent.id == Device.tent_id)
                 .where(Site.site_id == "homebox")
-                .where(Tent.tent_id == "main")
-                .where(Device.device_id == DEFAULT_TENT_SENSOR_DEVICE_ID)
+                .where(Tent.tent_id == tent_id)
+                .where(Device.kind == "env_sensor")
                 .where(Device.enabled.is_(True))
                 .where(Capability.enabled.is_(True))
-                .where(Capability.capability_id.in_(capability_ids))
-                .order_by(Capability.capability_id)
+                .order_by(Device.device_id, Capability.capability_id)
             )
         ).all()
-        self._tent_requirements = [
+        requirements = [
             SensorRequirement(
-                device_id=DEFAULT_TENT_SENSOR_DEVICE_ID,
+                device_id=device_id,
                 capability_id=capability_id,
                 metric=metric_name,
-                subject=DEFAULT_TENT_SENSOR_DEVICE_ID,
+                subject=device_id,
                 pk=pk,
             )
-            for pk, capability_id, metric_name in rows
+            for device_id, pk, capability_id, metric_name in rows
             if metric_name is not None
+            and capability_id in persisted_capability_ids_for_device_id(device_id)
         ]
-        return self._tent_requirements
+        self._tent_requirements_by_tent[tent_id] = requirements
+        return requirements
 
     async def _plant_metric_requirements(
         self,
@@ -288,7 +307,13 @@ class SensorReader:
         failures: list[ValidationFailure] = []
 
         async with AsyncSession(self._engine) as session:
-            tent_requirements = await self._tent_metric_requirements(session)
+            tent_requirements = [
+                requirement
+                for tent_id in self._required_tent_ids
+                for requirement in await self._tent_metric_requirements(
+                    session, tent_id=tent_id
+                )
+            ]
             plant_requirements = await self._plant_metric_requirements(session)
 
         for requirement in tent_requirements:
@@ -433,17 +458,23 @@ class SensorReader:
         morning = mdt_window_to_utc(target_date, 7, 14)
 
         async with AsyncSession(self._engine) as session:
-            tent_requirements = await self._tent_metric_requirements(session)
+            tent_requirements_by_tent = {
+                tent_id: await self._tent_metric_requirements(session, tent_id=tent_id)
+                for tent_id in self._report_tent_ids
+            }
             plant_requirements = await self._plant_metric_requirements(session)
 
-        tent: dict[str, dict[str, WindowAvg | float | None]] = {}
-        for requirement in tent_requirements:
-            now_r = await self._latest_for_requirement(requirement)
-            tent[requirement.metric] = {
-                "overnight": await self._avg_in_window(requirement, *overnight),
-                "morning": await self._avg_in_window(requirement, *morning),
-                "now": (None if now_r is None else now_r.value),
-            }
+        tents: dict[str, dict[str, dict[str, WindowAvg | float | None]]] = {}
+        for tent_id, tent_requirements in tent_requirements_by_tent.items():
+            tent: dict[str, dict[str, WindowAvg | float | None]] = {}
+            for requirement in tent_requirements:
+                now_r = await self._latest_for_requirement(requirement)
+                tent[requirement.metric] = {
+                    "overnight": await self._avg_in_window(requirement, *overnight),
+                    "morning": await self._avg_in_window(requirement, *morning),
+                    "now": (None if now_r is None else now_r.value),
+                }
+            tents[tent_id] = tent
 
         plants: dict[str, dict[str, WindowAvg | float | None]] = {}
         for requirement in plant_requirements:
@@ -452,8 +483,18 @@ class SensorReader:
             now_pct: float | None = None
             if now_r is not None and cal is not None:
                 now_pct = compute_calibrated_pct(now_r.value, cal.raw_low, cal.raw_high)
+            overnight_raw = await self._avg_in_window(requirement, *overnight)
+            morning_raw = await self._avg_in_window(requirement, *morning)
             letter = requirement.subject.removeprefix("plant-")
             plants[letter] = {
+                "overnight_raw": overnight_raw,
+                "morning_raw": morning_raw,
+                "now_raw": None if now_r is None else now_r.value,
+                "raw_delta_morning_to_now": (
+                    None
+                    if now_r is None or morning_raw.avg is None
+                    else now_r.value - morning_raw.avg
+                ),
                 "overnight_pct": await self._avg_pct_in_window(
                     requirement, *overnight, cal
                 ),
@@ -461,10 +502,19 @@ class SensorReader:
                     requirement, *morning, cal
                 ),
                 "now_pct": now_pct,
+                "pct_delta_morning_to_now": None,
             }
+            morning_pct = plants[letter]["morning_pct"]
+            if (
+                isinstance(morning_pct, WindowAvg)
+                and morning_pct.avg is not None
+                and now_pct is not None
+            ):
+                plants[letter]["pct_delta_morning_to_now"] = now_pct - morning_pct.avg
 
         return DailySensorSnapshot(
             date_mdt=target_date,
-            tent=tent,
+            tent=tents.get("main", {}),
             plants=plants,
+            tents=tents,
         )

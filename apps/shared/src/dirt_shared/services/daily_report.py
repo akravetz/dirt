@@ -22,6 +22,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Protocol
 
+import httpx
+from itsdangerous import URLSafeSerializer
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -106,6 +108,70 @@ class SnapshotRecorder(Protocol):
         preset: str,
         captured_at: datetime,
     ) -> None: ...
+
+
+class ExtraPhotoSource(Protocol):
+    expected_photo_count: int
+
+    async def capture_photos(self, target_date: date, out_dir: Path) -> list[Path]: ...
+
+
+class HostedTentAssetPhotoSource:
+    """Download a latest hosted tent asset into the daily-report photo set."""
+
+    expected_photo_count = 1
+
+    def __init__(
+        self,
+        *,
+        http: httpx.AsyncClient,
+        base_url: str,
+        session_cookie: str,
+        tent_id: str,
+        filename: str | None = None,
+    ) -> None:
+        self._http = http
+        self._base_url = base_url.rstrip("/")
+        self._tent_id = tent_id
+        self._filename = filename or f"{tent_id}-overview.jpg"
+        self._auth_headers = {"cookie": f"dirt_cloud_session={session_cookie}"}
+
+    async def capture_photos(self, target_date: date, out_dir: Path) -> list[Path]:
+        del target_date
+        try:
+            latest = await self._http.get(
+                f"{self._base_url}/api/tents/{self._tent_id}/assets/latest",
+                headers=self._auth_headers,
+            )
+            latest.raise_for_status()
+            asset = _latest_asset_from_payload(latest.json())
+            signed_url = _signed_url_from_asset(asset)
+            if signed_url is None:
+                signed = await self._http.get(
+                    f"{self._base_url}/api/assets/{asset['asset_id']}/signed-url",
+                    headers=self._auth_headers,
+                )
+                signed.raise_for_status()
+                signed_url = _signed_url_from_asset(signed.json())
+            if signed_url is None:
+                raise RuntimeError("hosted asset response did not include signed_url")
+            image = await self._http.get(signed_url)
+            image.raise_for_status()
+        except (KeyError, TypeError, ValueError, httpx.HTTPError) as exc:
+            raise RuntimeError(
+                f"hosted tent asset fetch failed for {self._tent_id}: {exc}"
+            ) from exc
+
+        path = out_dir / self._filename
+        path.write_bytes(image.content)
+        return [path]
+
+
+def build_hosted_browser_session_cookie(
+    *, session_secret: str, username: str = "admin"
+) -> str:
+    """Mint the same single-user browser session cookie the hosted API reads."""
+    return URLSafeSerializer(session_secret).dumps({"user": username or "admin"})
 
 
 class DailyReportSnapshotRecorder:
@@ -213,6 +279,7 @@ class DailyReport:
         clock: _Clock = lambda: datetime.now(UTC),
         stamp_jpeg: Callable[[bytes, datetime], bytes] = stamp_exif_datetime,
         snapshot_recorder: SnapshotRecorder | None = None,
+        extra_photo_sources: Sequence[ExtraPhotoSource] = (),
     ) -> None:
         if not telegram_chat_id:
             raise ValueError("telegram_chat_id is required")
@@ -227,6 +294,7 @@ class DailyReport:
         self._clock = clock
         self._stamp_jpeg = stamp_jpeg
         self._snapshot_recorder = snapshot_recorder
+        self._extra_photo_sources = tuple(extra_photo_sources)
 
     # --- public entrypoints ---
 
@@ -336,6 +404,23 @@ class DailyReport:
                     )
             photos.append(path)
             logger.info("captured %s -> %s", preset, path)
+
+        for source in self._extra_photo_sources:
+            try:
+                extra_paths = await source.capture_photos(target_date, out_dir)
+            except Exception as e:
+                msg = f"extra photo source failed: {e}"
+                failures.append(msg)
+                logger.exception(msg)
+                log_event(
+                    "daily_report",
+                    "capture_photo_failed",
+                    date=target_date.isoformat(),
+                    preset="extra",
+                    error=str(e),
+                )
+                continue
+            photos.extend(extra_paths)
 
         log_event(
             "daily_report",
@@ -495,11 +580,16 @@ class DailyReport:
         photo_line = (
             "Plants A-D + overview"
             if photo_count is None
-            else f"Captured {photo_count}/{len(PRESET_TO_FILENAME)} preset photos"
+            else f"Captured {photo_count}/{self._expected_photo_count()} daily photos"
         )
         return (
             f"<b>Daily Report — {html.escape(target_date.isoformat())}</b>\n"
             f"{photo_line}"
+        )
+
+    def _expected_photo_count(self) -> int:
+        return len(PRESET_TO_FILENAME) + sum(
+            source.expected_photo_count for source in self._extra_photo_sources
         )
 
 
@@ -524,6 +614,23 @@ def _load_telegram_body(sidecar: Path | None) -> str | None:
     text = _safe_truncate_html(text, MAX_TELEGRAM_BODY_CHARS)
     text = _strip_trailing_partial_tag(text)
     return balance_html_tags(text)
+
+
+def _latest_asset_from_payload(payload: object) -> dict[str, object]:
+    if isinstance(payload, list):
+        if not payload:
+            raise ValueError("hosted latest-assets response was empty")
+        payload = payload[0]
+    if not isinstance(payload, dict):
+        raise TypeError("hosted latest-assets response was not an object")
+    if not isinstance(payload.get("asset_id"), str):
+        raise ValueError("hosted asset response did not include asset_id")
+    return payload
+
+
+def _signed_url_from_asset(payload: dict[str, object]) -> str | None:
+    value = payload.get("signed_url") or payload.get("url")
+    return value if isinstance(value, str) and value else None
 
 
 def _safe_truncate_html(text: str, max_chars: int) -> str:

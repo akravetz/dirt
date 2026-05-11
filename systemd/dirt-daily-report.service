@@ -8,6 +8,7 @@ Wants=network-online.target
 Type=oneshot
 WorkingDirectory=%h/code/dirt
 EnvironmentFile=%h/code/dirt/.env
+EnvironmentFile=-%h/code/dirt/.env.prod
 ExecStart=%h/.local/bin/uv run --package dirt-shared python %h/code/dirt/scripts/daily_report
 StandardOutput=journal
 StandardError=journal

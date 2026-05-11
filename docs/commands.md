@@ -112,6 +112,7 @@ That script loads ignored `.env` first and `.env.prod` second by default, syncs 
 
 - **Manual run**: `scripts/daily_report` (today, skip if marker exists) or `scripts/daily_report --force` (re-run today) or `scripts/daily_report --date 2026-04-19 --force`.
 - **Service / timer status**: `systemctl --user status dirt-daily-report.timer` and `journalctl --user -u dirt-daily-report.service -n 100`.
+- **Scoped inputs**: `DIRT_DAILY_REPORT_TENT_IDS` controls sensor sections, `DIRT_DAILY_REPORT_REQUIRED_TENT_IDS` controls validation-critical tents, and `DIRT_DAILY_REPORT_PHOTO_TENT_IDS` controls hosted tent overview photos. The systemd unit loads optional `.env.prod` so hosted signed-asset reads can use `DIRT_CLOUD_SESSION_SECRET` without printing it.
 - **Marker files**: `var/logs/daily_report/<DATE>.completed` and `var/logs/daily_report/<DATE>.failed`. The `.completed` marker is what makes the next run skip — delete it (or pass `--force`) to re-run.
 - **Synthesis trace**: `var/logs/daily_report/<DATE>.synthesis.json` — full sub-agent tool trace, usage, cost. Produced even on failure.
 - **Failure → Telegram alert**: Phases 1–4 (capture, validate, snapshot, synthesize) all bail-on-fail and post a `<b>⚠ Daily report failed</b>` message to the configured chat. Phase 5 (Telegram delivery) is non-fatal — wiki is the durable record; failed deliveries log to journal only.
