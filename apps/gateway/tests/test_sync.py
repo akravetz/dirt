@@ -517,6 +517,10 @@ async def test_catalog_syncs_homebox_main_and_breeding(app_engine: AsyncEngine):
         and device["device_id"] == "test-breeding-catalog-node"
     ]
     assert breeding_devices == [expected_breeding_device]
+    assert {
+        (device["tent_id"], device["device_id"], device["kind"])
+        for device in catalog["devices"]
+    } >= {("breeding", "obsbot-breeding", "camera")}
 
 
 async def test_latest_metrics_and_rollups_are_not_duplicated(

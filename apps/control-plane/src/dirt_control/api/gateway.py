@@ -42,6 +42,8 @@ from dirt_shared.cloud_contract import (
     AssetFailureResponse,
     AssetRetentionRequest,
     AssetSignUploadRequest,
+    CapturePolicyReason,
+    CapturePolicyResponse,
     PruneAssetsResponse,
     SignUploadResponse,
 )
@@ -401,6 +403,88 @@ async def metrics_latest(
     return {"upserted": len(body.metrics)}
 
 
+@router.get(
+    "/cameras/{camera_device_id}/capture-policy",
+    response_model=CapturePolicyResponse,
+)
+async def camera_capture_policy(
+    camera_device_id: str,
+    principal: GatewayPrincipal = Depends(require_gateway),
+    session: AsyncSession = Depends(get_session),
+) -> CapturePolicyResponse:
+    site_id = principal.allowed_site_id
+    site_timezone = (
+        await session.scalar(
+            select(CloudSite.timezone).where(CloudSite.site_id == site_id).limit(1)
+        )
+        or "America/Denver"
+    )
+    camera = (
+        await session.execute(
+            select(CloudDevice)
+            .where(CloudDevice.site_id == site_id)
+            .where(CloudDevice.device_id == camera_device_id)
+            .where(CloudDevice.kind == "camera")
+            .order_by(CloudDevice.is_active.desc(), CloudDevice.synced_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if camera is None:
+        return _open_capture_policy(
+            site_id=site_id,
+            tent_id=None,
+            camera_device_id=camera_device_id,
+            timezone=site_timezone,
+            reason="camera_not_found",
+        )
+    if not camera.is_active:
+        return CapturePolicyResponse(
+            site_id=site_id,
+            tent_id=camera.tent_id,
+            camera_device_id=camera_device_id,
+            enabled=False,
+            require_lights_on=False,
+            lights_on_local=None,
+            lights_off_local=None,
+            timezone=site_timezone,
+            source_schedule_id=None,
+            reason="camera_disabled",
+        )
+
+    schedule = (
+        await session.execute(
+            select(CloudSchedule)
+            .where(CloudSchedule.site_id == camera.site_id)
+            .where(CloudSchedule.tent_id == camera.tent_id)
+            .where(CloudSchedule.kind == "lights")
+            .where(CloudSchedule.is_enabled.is_(True))
+            .order_by(CloudSchedule.synced_at.desc(), CloudSchedule.schedule_id)
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if schedule is None:
+        return _open_capture_policy(
+            site_id=site_id,
+            tent_id=camera.tent_id,
+            camera_device_id=camera_device_id,
+            timezone=site_timezone,
+            reason="lights_schedule_not_found",
+        )
+
+    return CapturePolicyResponse(
+        site_id=site_id,
+        tent_id=camera.tent_id,
+        camera_device_id=camera_device_id,
+        enabled=True,
+        require_lights_on=True,
+        lights_on_local=schedule.starts_local,
+        lights_off_local=schedule.ends_local,
+        timezone=schedule.timezone,
+        source_schedule_id=schedule.schedule_id,
+        reason=None,
+    )
+
+
 @router.post("/metrics/rollups")
 async def metrics_rollups(
     body: RollupsRequest,
@@ -724,6 +808,28 @@ async def _upsert(
     if hasattr(row, "updated_at"):
         row.updated_at = now
     return row
+
+
+def _open_capture_policy(
+    *,
+    site_id: str,
+    tent_id: str | None,
+    camera_device_id: str,
+    timezone: str,
+    reason: CapturePolicyReason,
+) -> CapturePolicyResponse:
+    return CapturePolicyResponse(
+        site_id=site_id,
+        tent_id=tent_id,
+        camera_device_id=camera_device_id,
+        enabled=True,
+        require_lights_on=False,
+        lights_on_local=None,
+        lights_off_local=None,
+        timezone=timezone,
+        source_schedule_id=None,
+        reason=reason,
+    )
 
 
 async def _upsert_cloud_asset(

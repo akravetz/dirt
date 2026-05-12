@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from dirt_camera_agent.config import CameraAgentSettings
+from dirt_camera_agent.main import build_capture_gate
 from dirt_camera_agent.service import (
     CameraAgentService,
     build_asset_idempotency_key,
@@ -25,6 +26,7 @@ from dirt_shared.cloud_contract import (
     AssetFailureRequest,
     AssetFailureResponse,
     AssetSignUploadRequest,
+    CapturePolicyResponse,
     SignUploadResponse,
 )
 
@@ -108,6 +110,22 @@ class RecordingAssetClient:
         self.call_counts[call] += 1
 
 
+class FakePolicyClient:
+    async def capture_policy(self, camera_device_id: str) -> CapturePolicyResponse:
+        return CapturePolicyResponse(
+            site_id="homebox",
+            tent_id="breeding",
+            camera_device_id=camera_device_id,
+            enabled=True,
+            require_lights_on=False,
+            lights_on_local=None,
+            lights_off_local=None,
+            timezone="America/Denver",
+            source_schedule_id=None,
+            reason="lights_schedule_not_found",
+        )
+
+
 def _settings(tmp_path: Path, **overrides: Any) -> CameraAgentSettings:
     values = {
         "site_id": "homebox",
@@ -147,6 +165,12 @@ def test_config_defaults_spool_under_data_dir_and_uses_scoped_env(
     assert settings.capture_interval_s == 42.5
     assert settings.spool_dir == tmp_path / "var/camera-agent/breeding/snapshots"
     assert settings.cloud_gateway_id == "gateway-dirt2-camera"
+
+
+def test_capture_gate_uses_hosted_policy_client(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+
+    assert build_capture_gate(settings, policy_client=FakePolicyClient()) is not None
 
 
 def test_unsupported_source_fails_clearly(tmp_path: Path) -> None:

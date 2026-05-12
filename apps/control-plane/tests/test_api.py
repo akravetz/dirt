@@ -15,6 +15,7 @@ from dirt_control.models import (
     CloudAsset,
     CloudAuditEvent,
     CloudCommand,
+    CloudDevice,
     CloudLatestMetric,
     CloudMetricRollup,
     CloudSchedule,
@@ -299,6 +300,141 @@ async def test_catalog_upsert_is_idempotent(
         )
     assert count == 1
     assert schedule_count == 1
+
+
+async def test_gateway_camera_capture_policy_matches_camera_to_lights_by_tent(
+    client: AsyncClient,
+    gateway_headers: dict[str, str],
+) -> None:
+    catalog = {
+        "site": {"site_id": "homebox", "name": "Home Box"},
+        "tents": [{"tent_id": "breeding", "name": "Breeding"}],
+        "zones": [
+            {"tent_id": "breeding", "zone_id": "canopy", "name": "Canopy"},
+            {"tent_id": "breeding", "zone_id": "lights", "name": "Lights"},
+        ],
+        "devices": [
+            {
+                "tent_id": "breeding",
+                "zone_id": "canopy",
+                "device_id": "obsbot-breeding",
+                "name": "Breeding Camera",
+                "kind": "camera",
+            }
+        ],
+        "schedules": [
+            {
+                "site_id": "homebox",
+                "tent_id": "breeding",
+                "zone_id": "lights",
+                "schedule_id": "breeding-lights-photoperiod",
+                "kind": "lights",
+                "starts_local": "06:00:00",
+                "ends_local": "18:00:00",
+                "timezone": "America/Denver",
+                "is_enabled": True,
+            }
+        ],
+    }
+    synced = await client.put(
+        "/api/gateway/v1/catalog", json=catalog, headers=gateway_headers
+    )
+
+    response = await client.get(
+        "/api/gateway/v1/cameras/obsbot-breeding/capture-policy",
+        headers=gateway_headers,
+    )
+
+    assert synced.status_code == 200
+    assert response.status_code == 200
+    assert response.json() == {
+        "site_id": "homebox",
+        "tent_id": "breeding",
+        "camera_device_id": "obsbot-breeding",
+        "enabled": True,
+        "require_lights_on": True,
+        "lights_on_local": "06:00:00",
+        "lights_off_local": "18:00:00",
+        "timezone": "America/Denver",
+        "source_schedule_id": "breeding-lights-photoperiod",
+        "reason": None,
+    }
+
+
+async def test_gateway_camera_capture_policy_fails_open_when_missing_rows(
+    client: AsyncClient,
+    gateway_headers: dict[str, str],
+    cloud_engine: AsyncEngine,
+) -> None:
+    missing_camera = await client.get(
+        "/api/gateway/v1/cameras/obsbot-missing/capture-policy",
+        headers=gateway_headers,
+    )
+    sessionmaker = create_sessionmaker(cloud_engine)
+    async with sessionmaker() as session:
+        session.add(
+            CloudSite(
+                site_id="homebox",
+                name="Home Box",
+                timezone="America/Denver",
+                created_at=FIXED_NOW,
+                updated_at=FIXED_NOW,
+            )
+        )
+        session.add(
+            CloudDevice(
+                device_key="homebox:breeding:obsbot-breeding",
+                site_id="homebox",
+                tent_id="breeding",
+                zone_id="canopy",
+                device_id="obsbot-breeding",
+                name="Breeding Camera",
+                kind="camera",
+                controller="obsbot",
+                is_active=True,
+                synced_at=FIXED_NOW,
+                created_at=FIXED_NOW,
+                updated_at=FIXED_NOW,
+            )
+        )
+        session.add(
+            CloudDevice(
+                device_key="homebox:breeding:obsbot-disabled",
+                site_id="homebox",
+                tent_id="breeding",
+                zone_id="canopy",
+                device_id="obsbot-disabled",
+                name="Disabled Breeding Camera",
+                kind="camera",
+                controller="obsbot",
+                is_active=False,
+                synced_at=FIXED_NOW,
+                created_at=FIXED_NOW,
+                updated_at=FIXED_NOW,
+            )
+        )
+        await session.commit()
+
+    missing_schedule = await client.get(
+        "/api/gateway/v1/cameras/obsbot-breeding/capture-policy",
+        headers=gateway_headers,
+    )
+    disabled = await client.get(
+        "/api/gateway/v1/cameras/obsbot-disabled/capture-policy",
+        headers=gateway_headers,
+    )
+
+    assert missing_camera.status_code == 200
+    assert missing_camera.json()["enabled"] is True
+    assert missing_camera.json()["require_lights_on"] is False
+    assert missing_camera.json()["reason"] == "camera_not_found"
+    assert missing_schedule.status_code == 200
+    assert missing_schedule.json()["enabled"] is True
+    assert missing_schedule.json()["require_lights_on"] is False
+    assert missing_schedule.json()["reason"] == "lights_schedule_not_found"
+    assert disabled.status_code == 200
+    assert disabled.json()["enabled"] is False
+    assert disabled.json()["reason"] == "camera_disabled"
 
 
 async def test_latest_metric_upsert_is_idempotent(

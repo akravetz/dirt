@@ -9,8 +9,6 @@ from pathlib import Path
 from typing import Protocol
 
 from sqlalchemy.ext.asyncio import AsyncEngine
-from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.camera import (
     CameraCaptureError,
@@ -21,10 +19,14 @@ from dirt_shared.camera import (
     SnapshotWriter,
 )
 from dirt_shared.config import CaptureConfig
-from dirt_shared.models.device import Device
-from dirt_shared.models.grow_run import GrowRun
 from dirt_shared.models.snapshot import Snapshot
-from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID, resolve_scope
+from dirt_shared.services.camera_publisher import (
+    CameraCaptureMetadata,
+    CameraCapturePublisher,
+    CaptureGate,
+    LocalSnapshotSink,
+)
+from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID
 
 # Type alias for the camera-daemon boundary — exposed as a constructor
 # parameter on ``CaptureService`` so tests can inject a fake without
@@ -66,11 +68,12 @@ class CaptureService:
         camera_source: CameraSource | None = None,
         snapshot_writer: SnapshotWritable | None = None,
         frame_capturer: FrameCapturer | None = None,
+        capture_gate: CaptureGate | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self._engine = engine
         self._config = config
-        self._camera_source = camera_source or (
+        camera_source = camera_source or (
             _FrameCapturerCameraSource(frame_capturer, clock)
             if frame_capturer is not None
             else ObsbotDaemonCameraSource(
@@ -78,49 +81,40 @@ class CaptureService:
                 clock=clock,
             )
         )
-        self._snapshot_writer = snapshot_writer or SnapshotWriter(
+        snapshot_writer = snapshot_writer or SnapshotWriter(
             Path(self._config.snapshot_dir)
+        )
+        self._publisher = CameraCapturePublisher(
+            metadata=CameraCaptureMetadata(
+                site_id=DEFAULT_SITE_ID,
+                tent_id=DEFAULT_TENT_ID,
+                camera_device_id="obsbot-main",
+                camera_view_id="periodic",
+                camera_kind="periodic",
+            ),
+            source=camera_source,
+            writer=snapshot_writer,
+            sinks=(LocalSnapshotSink(engine),),
+            capture_interval_s=self._config.capture_interval,
+            gate=capture_gate,
         )
 
     async def capture_snapshot(self) -> Snapshot | None:
         """Capture a frame, save to disk, record in DB."""
         try:
-            frame = await self._camera_source.capture()
-            artifact = await self._snapshot_writer.write(frame)
+            result = await self._publisher.run_once()
         except CameraCaptureError as exc:
             logger.error("camera capture failed: %s", exc)
             return None
+        if result is None:
+            return None
 
-        snapshot = Snapshot(ts=artifact.captured_at, file_path=str(artifact.path))
-        async with AsyncSession(self._engine) as session:
-            scope = await resolve_scope(
-                session, site_id=DEFAULT_SITE_ID, tent_id=DEFAULT_TENT_ID
+        snapshot = result.sink_results[0]
+        if not isinstance(snapshot, Snapshot):
+            raise TypeError(
+                f"unexpected local snapshot sink result: {type(snapshot)!r}"
             )
-            if scope is not None:
-                snapshot.site_id = scope.site_pk
-                snapshot.tent_id = scope.tent_pk
-                snapshot.device_id = (
-                    await session.exec(
-                        select(Device.id)
-                        .where(Device.site_id == scope.site_pk)
-                        .where(Device.device_id == "obsbot-main")
-                        .limit(1)
-                    )
-                ).first()
-                snapshot.growrun_id = (
-                    await session.exec(
-                        select(GrowRun.id)
-                        .where(GrowRun.site_id == scope.site_pk)
-                        .where(GrowRun.tent_id == scope.tent_pk)
-                        .where(GrowRun.is_current.is_(True))
-                        .limit(1)
-                    )
-                ).first()
-            session.add(snapshot)
-            await session.commit()
-            await session.refresh(snapshot)
-
-        logger.info("Captured snapshot: %s", artifact.path)
+        logger.info("Captured snapshot: %s", result.artifact.path)
         return snapshot
 
     async def run(self, stop_event: asyncio.Event) -> None:

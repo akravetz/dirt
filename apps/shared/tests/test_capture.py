@@ -8,6 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from dirt_shared.camera import CapturedFrame, SnapshotArtifact, SnapshotWriter
 from dirt_shared.config import CaptureConfig
 from dirt_shared.models.snapshot import Snapshot
+from dirt_shared.services.camera_publisher import CameraCaptureMetadata, CaptureDecision
 from dirt_shared.services.capture import CaptureService
 
 JPEG_BYTES = b"\xff\xd8\xff\xd9"
@@ -31,6 +32,12 @@ class RecordingSnapshotWriter:
     async def write(self, frame: CapturedFrame) -> SnapshotArtifact:
         self.frames.append(frame)
         return await self._delegate.write(frame)
+
+
+class DenyGate:
+    async def evaluate(self, metadata: CameraCaptureMetadata) -> CaptureDecision:
+        del metadata
+        return CaptureDecision(allowed=False, reason="lights_off")
 
 
 async def test_capture_snapshot_saves_file_and_db_record(app_engine, tmp_path):
@@ -89,3 +96,30 @@ async def test_capture_snapshot_uses_camera_source_and_snapshot_writer(
         tmp_path / "snapshots" / "snapshot_20260510_123045.jpg"
     )
     assert Path(snapshot.file_path).read_bytes() == JPEG_BYTES
+
+
+async def test_capture_snapshot_skips_before_camera_when_gate_denies(
+    app_engine, tmp_path
+):
+    captured_at = datetime(2026, 5, 10, 12, 30, 45, tzinfo=UTC)
+    source = FakeCameraSource(
+        CapturedFrame(jpeg_bytes=JPEG_BYTES, captured_at=captured_at)
+    )
+    writer = RecordingSnapshotWriter(SnapshotWriter(tmp_path / "snapshots"))
+
+    svc = CaptureService(
+        app_engine,
+        CaptureConfig(snapshot_dir=tmp_path / "unused", capture_interval=999),
+        camera_source=source,
+        snapshot_writer=writer,
+        capture_gate=DenyGate(),
+    )
+
+    snapshot = await svc.capture_snapshot()
+
+    assert snapshot is None
+    assert source.captures == 0
+    assert writer.frames == []
+    async with AsyncSession(app_engine) as session:
+        rows = (await session.exec(select(Snapshot))).all()
+    assert rows == []

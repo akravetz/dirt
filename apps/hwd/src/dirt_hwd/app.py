@@ -36,6 +36,10 @@ from dirt_hwd.supervise import supervise
 from dirt_shared.app_wiring import build_core_services
 from dirt_shared.config import Settings
 from dirt_shared.db import ping
+from dirt_shared.services.camera_publisher import (
+    CameraLightScheduleResolver,
+    DatabaseCameraLightScheduleGate,
+)
 from dirt_shared.services.capture import CaptureService
 
 logger = logging.getLogger(__name__)
@@ -88,7 +92,15 @@ def _default_background_services(
 ) -> list[BackgroundService]:
     """Build the production background services from settings."""
     return [
-        CaptureService(engine, settings.capture(), clock=core.clock),
+        CaptureService(
+            engine,
+            settings.capture(),
+            capture_gate=DatabaseCameraLightScheduleGate(
+                CameraLightScheduleResolver(engine),
+                clock=core.clock,
+            ),
+            clock=core.clock,
+        ),
         ArchiveService(settings.archive(), clock=core.clock),
         HumidifierLoopService(
             settings.humidifier(),

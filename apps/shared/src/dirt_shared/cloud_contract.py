@@ -23,6 +23,11 @@ CommandResponseStatus = Literal[
     "expired",
 ]
 CommandType = Literal["ptz_preset", "ptz_look", "ptz_zoom"]
+CapturePolicyReason = Literal[
+    "camera_not_found",
+    "camera_disabled",
+    "lights_schedule_not_found",
+]
 
 
 class HeartbeatRequest(CloudContractModel):
@@ -199,6 +204,19 @@ class AssetFailureRequest(CloudContractModel):
 class AssetFailureResponse(CloudContractModel):
     ok: bool
     received_at: datetime
+
+
+class CapturePolicyResponse(CloudContractModel):
+    site_id: str
+    tent_id: str | None
+    camera_device_id: str
+    enabled: bool
+    require_lights_on: bool
+    lights_on_local: time | None
+    lights_off_local: time | None
+    timezone: str
+    source_schedule_id: str | None
+    reason: CapturePolicyReason | None = Field(...)
 
 
 class AssetRetentionRequest(CloudContractModel):

@@ -91,12 +91,13 @@ That script loads ignored `.env` first and `.env.prod` second by default, syncs 
 
 ## Camera agent
 
-`dirt-camera-agent` is the edge snapshot publisher for camera-only hosts such as `dirt2`. It reads shared repo config from `.env` if present plus required host-local camera/cloud config from ignored `.env.dirt2-camera-agent`.
+Periodic PTZ capture uses the shared capture publisher. On mainbox it runs inside `dirt-hwd`, writes local `snapshot` rows, and skips capture while the camera's scoped DB lights schedule is off. `dirt-camera-agent` uses the same publisher for camera-only hosts such as `dirt2`; it reads shared repo config from `.env` if present plus required host-local camera/cloud identity config from ignored `.env.dirt2-camera-agent`, fetches the camera capture policy from the hosted control plane, and uploads directly to hosted assets.
 
 - **Service status (read-only)**: `systemctl --user status dirt-camera-agent --no-pager`
 - **Recent logs (read-only)**: `journalctl --user -u dirt-camera-agent -n 100 --no-pager`
 - **Follow logs (read-only)**: `journalctl --user -u dirt-camera-agent -f`
 - **Manual foreground run (dev)**: `systemctl --user stop dirt-camera-agent && set -a; source .env; [ ! -f .env.dirt2-camera-agent ] || source .env.dirt2-camera-agent; set +a; uv run --package dirt-camera-agent python -m dirt_camera_agent.main --once`
+- **Lights-off skip policy**: the agent calls `GET /api/gateway/v1/cameras/{camera_device_id}/capture-policy`; the hosted control plane derives the schedule from synced camera and lights rows with the same site/tent. Skipped cycles log `capture_skipped` and do not call the camera or upload a JPEG.
 
 ## Voice channel (Claudia)
 
