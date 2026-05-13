@@ -6,10 +6,14 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.camera import CapturedFrame, SnapshotArtifact, SnapshotWriter
-from dirt_shared.config import CaptureConfig
 from dirt_shared.models.snapshot import Snapshot
-from dirt_shared.services.camera_publisher import CameraCaptureMetadata, CaptureDecision
-from dirt_shared.services.capture import CaptureService
+from dirt_shared.services.camera_publisher import (
+    CameraCaptureMetadata,
+    CameraCapturePublisher,
+    CaptureDecision,
+    LocalSnapshotSink,
+)
+from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID
 
 JPEG_BYTES = b"\xff\xd8\xff\xd9"
 
@@ -40,20 +44,33 @@ class DenyGate:
         return CaptureDecision(allowed=False, reason="lights_off")
 
 
-async def test_capture_snapshot_saves_file_and_db_record(app_engine, tmp_path):
-    # Minimal JPEG-shaped blob (SOI + EOI). capture_snapshot persists whatever
-    # bytes the injected capturer returns; it doesn't decode them.
-    async def fake_capturer() -> bytes:
-        return JPEG_BYTES
-
-    svc = CaptureService(
-        app_engine,
-        CaptureConfig(snapshot_dir=tmp_path / "snapshots", capture_interval=999),
-        frame_capturer=fake_capturer,
+def _mainbox_metadata() -> CameraCaptureMetadata:
+    return CameraCaptureMetadata(
+        site_id=DEFAULT_SITE_ID,
+        tent_id=DEFAULT_TENT_ID,
+        camera_device_id="obsbot-main",
+        camera_view_id="periodic",
+        camera_kind="periodic",
     )
-    snapshot = await svc.capture_snapshot()
 
-    assert snapshot is not None
+
+async def test_publisher_local_sink_saves_file_and_db_record(app_engine, tmp_path):
+    captured_at = datetime(2026, 5, 10, 12, 30, 45, tzinfo=UTC)
+    source = FakeCameraSource(
+        CapturedFrame(jpeg_bytes=JPEG_BYTES, captured_at=captured_at)
+    )
+    publisher = CameraCapturePublisher(
+        metadata=_mainbox_metadata(),
+        source=source,
+        writer=SnapshotWriter(tmp_path / "snapshots"),
+        sinks=(LocalSnapshotSink(app_engine),),
+        capture_interval_s=999,
+    )
+    result = await publisher.run_once()
+
+    assert result is not None
+    snapshot = result.sink_results[0]
+    assert isinstance(snapshot, Snapshot)
     assert snapshot.file_path.endswith(".jpg")
     assert Path(snapshot.file_path).exists()
     assert Path(snapshot.file_path).read_bytes() == JPEG_BYTES
@@ -71,7 +88,7 @@ async def test_capture_snapshot_saves_file_and_db_record(app_engine, tmp_path):
         assert rows[0].kind == "periodic"
 
 
-async def test_capture_snapshot_uses_camera_source_and_snapshot_writer(
+async def test_publisher_local_sink_uses_camera_source_and_snapshot_writer(
     app_engine, tmp_path
 ):
     captured_at = datetime(2026, 5, 10, 12, 30, 45, tzinfo=UTC)
@@ -79,16 +96,19 @@ async def test_capture_snapshot_uses_camera_source_and_snapshot_writer(
     source = FakeCameraSource(frame)
     writer = RecordingSnapshotWriter(SnapshotWriter(tmp_path / "snapshots"))
 
-    svc = CaptureService(
-        app_engine,
-        CaptureConfig(snapshot_dir=tmp_path / "unused", capture_interval=999),
-        camera_source=source,
-        snapshot_writer=writer,
+    publisher = CameraCapturePublisher(
+        metadata=_mainbox_metadata(),
+        source=source,
+        writer=writer,
+        sinks=(LocalSnapshotSink(app_engine),),
+        capture_interval_s=999,
     )
 
-    snapshot = await svc.capture_snapshot()
+    result = await publisher.run_once()
 
-    assert snapshot is not None
+    assert result is not None
+    snapshot = result.sink_results[0]
+    assert isinstance(snapshot, Snapshot)
     assert source.captures == 1
     assert writer.frames == [frame]
     assert snapshot.ts == captured_at
@@ -98,7 +118,7 @@ async def test_capture_snapshot_uses_camera_source_and_snapshot_writer(
     assert Path(snapshot.file_path).read_bytes() == JPEG_BYTES
 
 
-async def test_capture_snapshot_skips_before_camera_when_gate_denies(
+async def test_publisher_local_sink_skips_before_camera_when_gate_denies(
     app_engine, tmp_path
 ):
     captured_at = datetime(2026, 5, 10, 12, 30, 45, tzinfo=UTC)
@@ -107,17 +127,18 @@ async def test_capture_snapshot_skips_before_camera_when_gate_denies(
     )
     writer = RecordingSnapshotWriter(SnapshotWriter(tmp_path / "snapshots"))
 
-    svc = CaptureService(
-        app_engine,
-        CaptureConfig(snapshot_dir=tmp_path / "unused", capture_interval=999),
-        camera_source=source,
-        snapshot_writer=writer,
-        capture_gate=DenyGate(),
+    publisher = CameraCapturePublisher(
+        metadata=_mainbox_metadata(),
+        source=source,
+        writer=writer,
+        sinks=(LocalSnapshotSink(app_engine),),
+        capture_interval_s=999,
+        gate=DenyGate(),
     )
 
-    snapshot = await svc.capture_snapshot()
+    result = await publisher.run_once()
 
-    assert snapshot is None
+    assert result is None
     assert source.captures == 0
     assert writer.frames == []
     async with AsyncSession(app_engine) as session:

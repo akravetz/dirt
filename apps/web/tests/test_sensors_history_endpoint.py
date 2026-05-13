@@ -311,9 +311,7 @@ async def test_sensors_history_missing_params(client: AsyncClient) -> None:
 
 async def test_legacy_sensors_readings_route_is_gone(client: AsyncClient) -> None:
     """The pre-rewrite /api/sensors/readings was removed in this feature's
-    commit. A live request must 404 — confirms both the handler deletion
-    and the legacy_routes bookkeeping in contract_status.json are
-    internally consistent.
+    commit. A live request must 404.
     """
     response = await client.get("/api/sensors/readings")
     assert response.status_code == 404

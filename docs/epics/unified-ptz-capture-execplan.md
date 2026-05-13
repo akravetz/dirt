@@ -24,6 +24,7 @@ The user can observe the result through tests and logs: both mainbox and `dirt2`
 - [x] (2026-05-12) Re-checked the existing data model and decided the final `dirt2` gate should derive from existing device/schedule scoping instead of static environment schedule variables or a new camera-to-schedule model.
 - [x] (2026-05-12 15:48Z) Replaced the static `dirt2` gate prototype with a catalog-derived hosted capture policy endpoint/cache.
 - [x] (2026-05-12 15:57Z) Added an idempotent Atlas data migration that seeds `obsbot-breeding` as a `kind='camera'` device scoped to `homebox/breeding`.
+- [x] (2026-05-13 03:53Z) Milestone 4: Updated operational/observability docs, moved shared capture tests off the old `CaptureService` shape, and removed the unused `frame_capturer` compatibility seam.
 
 ## Surprises & Discoveries
 
@@ -76,6 +77,10 @@ Milestone 3b validation passed: `uv run pytest apps/control-plane/tests/test_api
 Breeding camera seed complete. Migration `migrations/20260512161000_seed_breeding_camera.sql` registers `obsbot-breeding` under `homebox/breeding/canopy` with `kind='camera'`, `controller='dirt-camera'`, and camera action capabilities. `atlas migrate hash --env local` regenerated `migrations/atlas.sum`. The gateway catalog sync test now asserts the seeded breeding camera is projected into the catalog. No live database apply was run as part of implementation.
 
 Final focused validation passed: `uv run pytest apps/shared/tests/test_camera.py apps/shared/tests/test_camera_publisher.py apps/shared/tests/test_capture.py apps/camera-agent/tests/test_camera_agent.py apps/control-plane/tests/test_api.py apps/web/tests/test_feed_snapshot_endpoint.py apps/gateway/tests/test_sync.py -q` reported 63 passed, and `uv run ruff check` reported all checks passed.
+
+Milestone 4 complete. `docs/commands.md` now states that mainbox and camera-only hosts both use `CameraCapturePublisher`, with `dirt-hwd` writing local `snapshot` rows through `LocalSnapshotSink` and `dirt-camera-agent` uploading direct cloud assets through `CloudAssetSink`. `docs/observability.md` now documents `capture_skipped` for both the mainbox `camera_capture` stream and the `camera_agent` stream, including the no-camera/no-JPEG/no-sink consequence and the policy-disabled reason. `apps/shared/tests/test_capture.py` now asserts `CameraCapturePublisher` plus `LocalSnapshotSink` behavior directly instead of constructing `CaptureService`. The obsolete shared `frame_capturer` adapter was removed from `CaptureService`; `CaptureService` itself remains because `dirt-hwd` still uses it as the supervised lifecycle wrapper around the shared publisher.
+
+Milestone 4 validation passed: `uv run pytest apps/shared/tests/test_camera.py apps/shared/tests/test_camera_publisher.py apps/shared/tests/test_capture.py apps/camera-agent/tests/test_camera_agent.py apps/control-plane/tests/test_api.py apps/web/tests/test_feed_snapshot_endpoint.py apps/gateway/tests/test_sync.py apps/web/tests/test_feed_endpoints.py -q` reported 72 passed, and `uv run ruff check` reported all checks passed. Main-agent verification at 2026-05-13T03:55Z reran the ExecPlan final focused command without the extra live-feed endpoint file and reported 66 passed; `uv run ruff check` still passed. Simplify fallback pass removed the stale adapter and trimmed redundant test assertions; no broader refactor was needed.
 
 ## Context and Orientation
 

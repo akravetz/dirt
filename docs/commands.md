@@ -91,7 +91,7 @@ That script loads ignored `.env` first and `.env.prod` second by default, syncs 
 
 ## Camera agent
 
-Periodic PTZ capture uses the shared capture publisher. On mainbox it runs inside `dirt-hwd`, writes local `snapshot` rows, and skips capture while the camera's scoped DB lights schedule is off. `dirt-camera-agent` uses the same publisher for camera-only hosts such as `dirt2`; it reads shared repo config from `.env` if present plus required host-local camera/cloud identity config from ignored `.env.dirt2-camera-agent`, fetches the camera capture policy from the hosted control plane, and uploads directly to hosted assets.
+Periodic PTZ capture on both mainbox and camera-only hosts uses the shared `CameraCapturePublisher`. On mainbox, `dirt-hwd` wires the publisher to `LocalSnapshotSink`, which writes local `snapshot` rows for the feed and gateway. On camera-only hosts such as `dirt2`, `dirt-camera-agent` wires the same publisher to `CloudAssetSink`, reads shared repo config from `.env` if present plus required host-local camera/cloud identity config from ignored `.env.dirt2-camera-agent`, fetches the camera capture policy from the hosted control plane, and uploads directly to hosted assets.
 
 - **Service status (read-only)**: `systemctl --user status dirt-camera-agent --no-pager`
 - **Recent logs (read-only)**: `journalctl --user -u dirt-camera-agent -n 100 --no-pager`

@@ -1,0 +1,3421 @@
+{
+  "components": {
+    "schemas": {
+      "AssetCompleteRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Id"
+          },
+          "byte_size": {
+            "exclusiveMinimum": 0.0,
+            "title": "Byte Size",
+            "type": "integer"
+          },
+          "captured_at": {
+            "format": "date-time",
+            "title": "Captured At",
+            "type": "string"
+          },
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "device_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Id"
+          },
+          "kind": {
+            "default": "snapshot",
+            "title": "Kind",
+            "type": "string"
+          },
+          "object_key": {
+            "title": "Object Key",
+            "type": "string"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          },
+          "tent_id": {
+            "title": "Tent Id",
+            "type": "string"
+          },
+          "zone_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Id"
+          }
+        },
+        "required": [
+          "site_id",
+          "tent_id",
+          "content_type",
+          "byte_size",
+          "object_key",
+          "captured_at"
+        ],
+        "title": "AssetCompleteRequest",
+        "type": "object"
+      },
+      "AssetCompleteResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_id": {
+            "title": "Asset Id",
+            "type": "string"
+          },
+          "object_key": {
+            "title": "Object Key",
+            "type": "string"
+          },
+          "uploaded_at": {
+            "format": "date-time",
+            "title": "Uploaded At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "asset_id",
+          "object_key",
+          "uploaded_at"
+        ],
+        "title": "AssetCompleteResponse",
+        "type": "object"
+      },
+      "AssetFailureRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Id"
+          },
+          "error": {
+            "maxLength": 500,
+            "title": "Error",
+            "type": "string"
+          },
+          "object_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Key"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          },
+          "stage": {
+            "maxLength": 80,
+            "title": "Stage",
+            "type": "string"
+          },
+          "tent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tent Id"
+          }
+        },
+        "required": [
+          "site_id",
+          "stage",
+          "error"
+        ],
+        "title": "AssetFailureRequest",
+        "type": "object"
+      },
+      "AssetFailureResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ok",
+          "received_at"
+        ],
+        "title": "AssetFailureResponse",
+        "type": "object"
+      },
+      "AssetResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_id": {
+            "title": "Asset Id",
+            "type": "string"
+          },
+          "byte_size": {
+            "title": "Byte Size",
+            "type": "integer"
+          },
+          "captured_at": {
+            "format": "date-time",
+            "title": "Captured At",
+            "type": "string"
+          },
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          },
+          "signed_url": {
+            "title": "Signed Url",
+            "type": "string"
+          },
+          "signed_url_expires_at": {
+            "format": "date-time",
+            "title": "Signed Url Expires At",
+            "type": "string"
+          },
+          "uploaded_at": {
+            "format": "date-time",
+            "title": "Uploaded At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "asset_id",
+          "kind",
+          "content_type",
+          "byte_size",
+          "sha256",
+          "captured_at",
+          "uploaded_at",
+          "signed_url",
+          "signed_url_expires_at"
+        ],
+        "title": "AssetResponse",
+        "type": "object"
+      },
+      "AssetRetentionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "as_of_date": {
+            "format": "date",
+            "title": "As Of Date",
+            "type": "string"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "site_id",
+          "as_of_date"
+        ],
+        "title": "AssetRetentionRequest",
+        "type": "object"
+      },
+      "AssetSignUploadRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Id"
+          },
+          "byte_size": {
+            "exclusiveMinimum": 0.0,
+            "title": "Byte Size",
+            "type": "integer"
+          },
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "kind": {
+            "default": "snapshot",
+            "title": "Kind",
+            "type": "string"
+          },
+          "object_key": {
+            "title": "Object Key",
+            "type": "string"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          },
+          "tent_id": {
+            "title": "Tent Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "site_id",
+          "tent_id",
+          "content_type",
+          "byte_size",
+          "object_key"
+        ],
+        "title": "AssetSignUploadRequest",
+        "type": "object"
+      },
+      "CapturePolicyResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "camera_device_id": {
+            "title": "Camera Device Id",
+            "type": "string"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "lights_off_local": {
+            "anyOf": [
+              {
+                "format": "time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lights Off Local"
+          },
+          "lights_on_local": {
+            "anyOf": [
+              {
+                "format": "time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lights On Local"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "camera_not_found",
+                  "camera_disabled",
+                  "lights_schedule_not_found"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "require_lights_on": {
+            "title": "Require Lights On",
+            "type": "boolean"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          },
+          "source_schedule_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Schedule Id"
+          },
+          "tent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tent Id"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "site_id",
+          "tent_id",
+          "camera_device_id",
+          "enabled",
+          "require_lights_on",
+          "lights_on_local",
+          "lights_off_local",
+          "timezone",
+          "source_schedule_id",
+          "reason"
+        ],
+        "title": "CapturePolicyResponse",
+        "type": "object"
+      },
+      "CatalogCapability": {
+        "additionalProperties": false,
+        "properties": {
+          "capability_id": {
+            "title": "Capability Id",
+            "type": "string"
+          },
+          "device_id": {
+            "title": "Device Id",
+            "type": "string"
+          },
+          "is_enabled": {
+            "default": true,
+            "title": "Is Enabled",
+            "type": "boolean"
+          },
+          "kind": {
+            "default": "metric",
+            "title": "Kind",
+            "type": "string"
+          },
+          "metric_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metric Name"
+          },
+          "tent_id": {
+            "title": "Tent Id",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "required": [
+          "tent_id",
+          "device_id",
+          "capability_id"
+        ],
+        "title": "CatalogCapability",
+        "type": "object"
+      },
+      "CatalogDevice": {
+        "additionalProperties": false,
+        "properties": {
+          "controller": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Controller"
+          },
+          "device_id": {
+            "title": "Device Id",
+            "type": "string"
+          },
+          "is_active": {
+            "default": true,
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "kind": {
+            "default": "sensor",
+            "title": "Kind",
+            "type": "string"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "tent_id": {
+            "title": "Tent Id",
+            "type": "string"
+          },
+          "zone_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Id"
+          }
+        },
+        "required": [
+          "tent_id",
+          "device_id",
+          "name",
+          "last_seen_at"
+        ],
+        "title": "CatalogDevice",
+        "type": "object"
+      },
+      "CatalogRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "capabilities": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogCapability"
+            },
+            "title": "Capabilities",
+            "type": "array"
+          },
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogDevice"
+            },
+            "title": "Devices",
+            "type": "array"
+          },
+          "schedules": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogSchedule"
+            },
+            "title": "Schedules",
+            "type": "array"
+          },
+          "site": {
+            "$ref": "#/components/schemas/CatalogSite"
+          },
+          "tents": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogTent"
+            },
+            "title": "Tents",
+            "type": "array"
+          },
+          "zones": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogZone"
+            },
+            "title": "Zones",
+            "type": "array"
+          }
+        },
+        "required": [
+          "site"
+        ],
+        "title": "CatalogRequest",
+        "type": "object"
+      },
+      "CatalogResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "capabilities": {
+            "title": "Capabilities",
+            "type": "integer"
+          },
+          "devices": {
+            "title": "Devices",
+            "type": "integer"
+          },
+          "schedules": {
+            "title": "Schedules",
+            "type": "integer"
+          },
+          "sites": {
+            "title": "Sites",
+            "type": "integer"
+          },
+          "tents": {
+            "title": "Tents",
+            "type": "integer"
+          },
+          "zones": {
+            "title": "Zones",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "sites",
+          "tents",
+          "zones",
+          "devices",
+          "capabilities",
+          "schedules"
+        ],
+        "title": "CatalogResponse",
+        "type": "object"
+      },
+      "CatalogSchedule": {
+        "additionalProperties": false,
+        "properties": {
+          "capability_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capability Id"
+          },
+          "device_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Id"
+          },
+          "ends_local": {
+            "format": "time",
+            "title": "Ends Local",
+            "type": "string"
+          },
+          "is_enabled": {
+            "default": true,
+            "title": "Is Enabled",
+            "type": "boolean"
+          },
+          "kind": {
+            "default": "lights",
+            "title": "Kind",
+            "type": "string"
+          },
+          "schedule_id": {
+            "title": "Schedule Id",
+            "type": "string"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          },
+          "starts_local": {
+            "format": "time",
+            "title": "Starts Local",
+            "type": "string"
+          },
+          "tent_id": {
+            "title": "Tent Id",
+            "type": "string"
+          },
+          "timezone": {
+            "default": "America/Denver",
+            "title": "Timezone",
+            "type": "string"
+          },
+          "zone_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Id"
+          }
+        },
+        "required": [
+          "site_id",
+          "tent_id",
+          "schedule_id",
+          "starts_local",
+          "ends_local"
+        ],
+        "title": "CatalogSchedule",
+        "type": "object"
+      },
+      "CatalogSite": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          },
+          "timezone": {
+            "default": "America/Denver",
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "site_id",
+          "name"
+        ],
+        "title": "CatalogSite",
+        "type": "object"
+      },
+      "CatalogTent": {
+        "additionalProperties": false,
+        "properties": {
+          "is_active": {
+            "default": true,
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "tent_id": {
+            "title": "Tent Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tent_id",
+          "name"
+        ],
+        "title": "CatalogTent",
+        "type": "object"
+      },
+      "CatalogZone": {
+        "additionalProperties": false,
+        "properties": {
+          "is_active": {
+            "default": true,
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "kind": {
+            "default": "environment",
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "tent_id": {
+            "title": "Tent Id",
+            "type": "string"
+          },
+          "zone_id": {
+            "title": "Zone Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tent_id",
+          "zone_id",
+          "name"
+        ],
+        "title": "CatalogZone",
+        "type": "object"
+      },
+      "ClaimedCommand": {
+        "additionalProperties": false,
+        "properties": {
+          "capability_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capability Id"
+          },
+          "claimed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claimed At"
+          },
+          "claimed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claimed By"
+          },
+          "command_id": {
+            "title": "Command Id",
+            "type": "string"
+          },
+          "command_type": {
+            "enum": [
+              "ptz_preset",
+              "ptz_look",
+              "ptz_zoom"
+            ],
+            "title": "Command Type",
+            "type": "string"
+          },
+          "device_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Id"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "payload": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PtzPresetPayload"
+              },
+              {
+                "$ref": "#/components/schemas/PtzLookPayload"
+              },
+              {
+                "$ref": "#/components/schemas/PtzZoomAbsolutePayload"
+              },
+              {
+                "$ref": "#/components/schemas/PtzZoomRelativePayload"
+              }
+            ],
+            "title": "Payload"
+          },
+          "queued_at": {
+            "format": "date-time",
+            "title": "Queued At",
+            "type": "string"
+          },
+          "requested_by": {
+            "title": "Requested By",
+            "type": "string"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "claimed",
+              "running",
+              "succeeded",
+              "failed",
+              "rejected",
+              "expired"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "tent_id": {
+            "title": "Tent Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "command_id",
+          "site_id",
+          "tent_id",
+          "device_id",
+          "capability_id",
+          "command_type",
+          "payload",
+          "status",
+          "queued_at",
+          "expires_at",
+          "claimed_by",
+          "claimed_at",
+          "requested_by",
+          "started_at",
+          "finished_at",
+          "result",
+          "error"
+        ],
+        "title": "ClaimedCommand",
+        "type": "object"
+      },
+      "CommandClaimRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "default": 1,
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "site_id"
+        ],
+        "title": "CommandClaimRequest",
+        "type": "object"
+      },
+      "CommandClaimResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "commands": {
+            "items": {
+              "$ref": "#/components/schemas/ClaimedCommand"
+            },
+            "title": "Commands",
+            "type": "array"
+          }
+        },
+        "required": [
+          "commands"
+        ],
+        "title": "CommandClaimResponse",
+        "type": "object"
+      },
+      "CommandCreateRequest": {
+        "properties": {
+          "capability_id": {
+            "const": "ptz_move",
+            "title": "Capability Id",
+            "type": "string"
+          },
+          "command_type": {
+            "enum": [
+              "ptz_preset",
+              "ptz_look",
+              "ptz_zoom"
+            ],
+            "title": "Command Type",
+            "type": "string"
+          },
+          "device_id": {
+            "const": "obsbot-main",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "site_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site Id"
+          },
+          "tent_id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Tent Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotency_key",
+          "tent_id",
+          "device_id",
+          "capability_id",
+          "command_type"
+        ],
+        "title": "CommandCreateRequest",
+        "type": "object"
+      },
+      "CommandResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "capability_id": {
+            "title": "Capability Id",
+            "type": "string"
+          },
+          "claimed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claimed At"
+          },
+          "claimed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claimed By"
+          },
+          "command_id": {
+            "title": "Command Id",
+            "type": "string"
+          },
+          "command_type": {
+            "title": "Command Type",
+            "type": "string"
+          },
+          "device_id": {
+            "title": "Device Id",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "idempotency_key": {
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "queued_at": {
+            "format": "date-time",
+            "title": "Queued At",
+            "type": "string"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "tent_id": {
+            "title": "Tent Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "command_id",
+          "idempotency_key",
+          "site_id",
+          "tent_id",
+          "device_id",
+          "capability_id",
+          "command_type",
+          "payload",
+          "status",
+          "queued_at",
+          "expires_at",
+          "claimed_by",
+          "claimed_at",
+          "started_at",
+          "finished_at",
+          "result",
+          "error"
+        ],
+        "title": "CommandResponse",
+        "type": "object"
+      },
+      "CommandResultRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "running",
+              "succeeded",
+              "failed",
+              "rejected",
+              "expired"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "site_id",
+          "status"
+        ],
+        "title": "CommandResultRequest",
+        "type": "object"
+      },
+      "CommandResultResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "capability_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capability Id"
+          },
+          "claimed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claimed At"
+          },
+          "claimed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claimed By"
+          },
+          "command_id": {
+            "title": "Command Id",
+            "type": "string"
+          },
+          "command_type": {
+            "enum": [
+              "ptz_preset",
+              "ptz_look",
+              "ptz_zoom"
+            ],
+            "title": "Command Type",
+            "type": "string"
+          },
+          "device_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Id"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "payload": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PtzPresetPayload"
+              },
+              {
+                "$ref": "#/components/schemas/PtzLookPayload"
+              },
+              {
+                "$ref": "#/components/schemas/PtzZoomAbsolutePayload"
+              },
+              {
+                "$ref": "#/components/schemas/PtzZoomRelativePayload"
+              }
+            ],
+            "title": "Payload"
+          },
+          "queued_at": {
+            "format": "date-time",
+            "title": "Queued At",
+            "type": "string"
+          },
+          "requested_by": {
+            "title": "Requested By",
+            "type": "string"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "claimed",
+              "running",
+              "succeeded",
+              "failed",
+              "rejected",
+              "expired"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "tent_id": {
+            "title": "Tent Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "command_id",
+          "site_id",
+          "tent_id",
+          "device_id",
+          "capability_id",
+          "command_type",
+          "payload",
+          "status",
+          "queued_at",
+          "expires_at",
+          "claimed_by",
+          "claimed_at",
+          "requested_by",
+          "started_at",
+          "finished_at",
+          "result",
+          "error"
+        ],
+        "title": "CommandResultResponse",
+        "type": "object"
+      },
+      "CurrentMetricResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "capability_id": {
+            "title": "Capability Id",
+            "type": "string"
+          },
+          "device_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Id"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          },
+          "source_updated_at": {
+            "format": "date-time",
+            "title": "Source Updated At",
+            "type": "string"
+          },
+          "stale_after_s": {
+            "title": "Stale After S",
+            "type": "integer"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "metric",
+          "value",
+          "unit",
+          "capability_id",
+          "device_id",
+          "source_updated_at",
+          "received_at",
+          "stale_after_s"
+        ],
+        "title": "CurrentMetricResponse",
+        "type": "object"
+      },
+      "DeviceResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "controller": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Controller"
+          },
+          "device_id": {
+            "title": "Device Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "device_id",
+          "name",
+          "kind",
+          "controller",
+          "is_active",
+          "last_seen_at"
+        ],
+        "title": "DeviceResponse",
+        "type": "object"
+      },
+      "GatewayCredentialRotateRequest": {
+        "properties": {
+          "token_sha256": {
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Token Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token_sha256"
+        ],
+        "title": "GatewayCredentialRotateRequest",
+        "type": "object"
+      },
+      "GatewayCredentialRotateResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed_site_id": {
+            "title": "Allowed Site Id",
+            "type": "string"
+          },
+          "credential_id": {
+            "title": "Credential Id",
+            "type": "string"
+          },
+          "gateway_id": {
+            "title": "Gateway Id",
+            "type": "string"
+          },
+          "rotated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rotated At"
+          }
+        },
+        "required": [
+          "credential_id",
+          "gateway_id",
+          "allowed_site_id",
+          "rotated_at"
+        ],
+        "title": "GatewayCredentialRotateResponse",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HealthResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_failures_24h": {
+            "title": "Asset Failures 24H",
+            "type": "integer"
+          },
+          "asset_retention_days": {
+            "title": "Asset Retention Days",
+            "type": "integer"
+          },
+          "command_backlog_depth": {
+            "title": "Command Backlog Depth",
+            "type": "integer"
+          },
+          "command_failures_24h": {
+            "title": "Command Failures 24H",
+            "type": "integer"
+          },
+          "commands_enabled": {
+            "title": "Commands Enabled",
+            "type": "boolean"
+          },
+          "gateway_backlog_depth": {
+            "title": "Gateway Backlog Depth",
+            "type": "integer"
+          },
+          "gateway_heartbeat_age_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gateway Heartbeat Age S"
+          },
+          "gateway_last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gateway Last Seen At"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "service": {
+            "const": "control-plane-api",
+            "title": "Service",
+            "type": "string"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "live",
+              "stale",
+              "offline"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "service",
+          "ok",
+          "site_id",
+          "status",
+          "gateway_last_seen_at",
+          "gateway_heartbeat_age_s",
+          "gateway_backlog_depth",
+          "command_backlog_depth",
+          "command_failures_24h",
+          "asset_failures_24h",
+          "asset_retention_days",
+          "commands_enabled"
+        ],
+        "title": "HealthResponse",
+        "type": "object"
+      },
+      "HeartbeatRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "backlog_depth": {
+            "default": 0,
+            "title": "Backlog Depth",
+            "type": "integer"
+          },
+          "gateway_id": {
+            "title": "Gateway Id",
+            "type": "string"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "site_id",
+          "gateway_id"
+        ],
+        "title": "HeartbeatRequest",
+        "type": "object"
+      },
+      "HeartbeatResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "backlog_depth": {
+            "title": "Backlog Depth",
+            "type": "integer"
+          },
+          "gateway_id": {
+            "title": "Gateway Id",
+            "type": "string"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ok",
+          "site_id",
+          "gateway_id",
+          "backlog_depth",
+          "received_at"
+        ],
+        "title": "HeartbeatResponse",
+        "type": "object"
+      },
+      "LatestMetricItem": {
+        "additionalProperties": false,
+        "properties": {
+          "capability_id": {
+            "title": "Capability Id",
+            "type": "string"
+          },
+          "device_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Id"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          },
+          "source_updated_at": {
+            "format": "date-time",
+            "title": "Source Updated At",
+            "type": "string"
+          },
+          "stale_after_s": {
+            "default": 120,
+            "title": "Stale After S",
+            "type": "integer"
+          },
+          "tent_id": {
+            "title": "Tent Id",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          },
+          "zone_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Id"
+          }
+        },
+        "required": [
+          "site_id",
+          "tent_id",
+          "capability_id",
+          "metric",
+          "value",
+          "source_updated_at"
+        ],
+        "title": "LatestMetricItem",
+        "type": "object"
+      },
+      "LatestMetricsRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/LatestMetricItem"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "site_id",
+          "metrics"
+        ],
+        "title": "LatestMetricsRequest",
+        "type": "object"
+      },
+      "LightScheduleResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "capability_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capability Id"
+          },
+          "device_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Id"
+          },
+          "duration_hours": {
+            "title": "Duration Hours",
+            "type": "number"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "ends_local": {
+            "title": "Ends Local",
+            "type": "string"
+          },
+          "is_on": {
+            "title": "Is On",
+            "type": "boolean"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "minutes_until_off": {
+            "title": "Minutes Until Off",
+            "type": "number"
+          },
+          "minutes_until_on": {
+            "title": "Minutes Until On",
+            "type": "number"
+          },
+          "schedule_id": {
+            "title": "Schedule Id",
+            "type": "string"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          },
+          "starts_local": {
+            "title": "Starts Local",
+            "type": "string"
+          },
+          "tent_id": {
+            "title": "Tent Id",
+            "type": "string"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "zone_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Id"
+          }
+        },
+        "required": [
+          "site_id",
+          "tent_id",
+          "zone_id",
+          "device_id",
+          "capability_id",
+          "schedule_id",
+          "kind",
+          "enabled",
+          "timezone",
+          "starts_local",
+          "ends_local",
+          "duration_hours",
+          "is_on",
+          "minutes_until_off",
+          "minutes_until_on"
+        ],
+        "title": "LightScheduleResponse",
+        "type": "object"
+      },
+      "LightSchedulesResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "schedules": {
+            "items": {
+              "$ref": "#/components/schemas/LightScheduleResponse"
+            },
+            "title": "Schedules",
+            "type": "array"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          },
+          "tent_id": {
+            "title": "Tent Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "site_id",
+          "tent_id",
+          "schedules"
+        ],
+        "title": "LightSchedulesResponse",
+        "type": "object"
+      },
+      "LoginRequest": {
+        "properties": {
+          "password": {
+            "minLength": 1,
+            "title": "Password",
+            "type": "string"
+          },
+          "username": {
+            "minLength": 1,
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "LoginRequest",
+        "type": "object"
+      },
+      "MetricHistoryPointResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "avg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg"
+          },
+          "bucket": {
+            "title": "Bucket",
+            "type": "string"
+          },
+          "bucket_end_at": {
+            "format": "date-time",
+            "title": "Bucket End At",
+            "type": "string"
+          },
+          "bucket_start_at": {
+            "format": "date-time",
+            "title": "Bucket Start At",
+            "type": "string"
+          },
+          "max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max"
+          },
+          "min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min"
+          },
+          "sample_count": {
+            "title": "Sample Count",
+            "type": "integer"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "required": [
+          "bucket",
+          "bucket_start_at",
+          "bucket_end_at",
+          "min",
+          "avg",
+          "max",
+          "sample_count",
+          "unit"
+        ],
+        "title": "MetricHistoryPointResponse",
+        "type": "object"
+      },
+      "MetricHistoryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/MetricHistoryPointResponse"
+            },
+            "title": "Points",
+            "type": "array"
+          },
+          "range": {
+            "title": "Range",
+            "type": "string"
+          }
+        },
+        "required": [
+          "metric",
+          "range",
+          "points"
+        ],
+        "title": "MetricHistoryResponse",
+        "type": "object"
+      },
+      "PruneAssetsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "cutoff": {
+            "format": "date-time",
+            "title": "Cutoff",
+            "type": "string"
+          },
+          "matched": {
+            "title": "Matched",
+            "type": "integer"
+          },
+          "objects_deleted": {
+            "title": "Objects Deleted",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cutoff",
+          "matched",
+          "objects_deleted"
+        ],
+        "title": "PruneAssetsResponse",
+        "type": "object"
+      },
+      "PtzLookPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "x": {
+            "maximum": 0.5,
+            "minimum": -0.5,
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "maximum": 0.5,
+            "minimum": -0.5,
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y"
+        ],
+        "title": "PtzLookPayload",
+        "type": "object"
+      },
+      "PtzPresetPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "preset_id": {
+            "minLength": 1,
+            "title": "Preset Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "preset_id"
+        ],
+        "title": "PtzPresetPayload",
+        "type": "object"
+      },
+      "PtzZoomAbsolutePayload": {
+        "additionalProperties": false,
+        "properties": {
+          "zoom": {
+            "maximum": 2.0,
+            "minimum": 1.0,
+            "title": "Zoom",
+            "type": "number"
+          }
+        },
+        "required": [
+          "zoom"
+        ],
+        "title": "PtzZoomAbsolutePayload",
+        "type": "object"
+      },
+      "PtzZoomRelativePayload": {
+        "additionalProperties": false,
+        "properties": {
+          "delta": {
+            "maximum": 1.0,
+            "minimum": -1.0,
+            "title": "Delta",
+            "type": "number"
+          }
+        },
+        "required": [
+          "delta"
+        ],
+        "title": "PtzZoomRelativePayload",
+        "type": "object"
+      },
+      "RollupItem": {
+        "additionalProperties": false,
+        "properties": {
+          "avg_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Value"
+          },
+          "bucket": {
+            "title": "Bucket",
+            "type": "string"
+          },
+          "bucket_end_at": {
+            "format": "date-time",
+            "title": "Bucket End At",
+            "type": "string"
+          },
+          "bucket_start_at": {
+            "format": "date-time",
+            "title": "Bucket Start At",
+            "type": "string"
+          },
+          "capability_id": {
+            "title": "Capability Id",
+            "type": "string"
+          },
+          "max_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Value"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "min_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Value"
+          },
+          "sample_count": {
+            "default": 0,
+            "title": "Sample Count",
+            "type": "integer"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          },
+          "tent_id": {
+            "title": "Tent Id",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "required": [
+          "site_id",
+          "tent_id",
+          "capability_id",
+          "metric",
+          "bucket",
+          "bucket_start_at",
+          "bucket_end_at"
+        ],
+        "title": "RollupItem",
+        "type": "object"
+      },
+      "RollupsRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "rollups": {
+            "items": {
+              "$ref": "#/components/schemas/RollupItem"
+            },
+            "title": "Rollups",
+            "type": "array"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "site_id",
+          "rollups"
+        ],
+        "title": "RollupsRequest",
+        "type": "object"
+      },
+      "SignUploadResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Id"
+          },
+          "byte_size": {
+            "title": "Byte Size",
+            "type": "integer"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "headers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Headers",
+            "type": "object"
+          },
+          "method": {
+            "const": "PUT",
+            "title": "Method",
+            "type": "string"
+          },
+          "object_key": {
+            "title": "Object Key",
+            "type": "string"
+          },
+          "upload_url": {
+            "title": "Upload Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "asset_id",
+          "object_key",
+          "upload_url",
+          "method",
+          "headers",
+          "expires_at",
+          "byte_size"
+        ],
+        "title": "SignUploadResponse",
+        "type": "object"
+      },
+      "SiteResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "gateway_last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gateway Last Seen At"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "last_catalog_sync_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Catalog Sync At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "site_id",
+          "name",
+          "timezone",
+          "is_active",
+          "gateway_last_seen_at",
+          "last_catalog_sync_at"
+        ],
+        "title": "SiteResponse",
+        "type": "object"
+      },
+      "SyncStatusResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "command_backlog_depth": {
+            "title": "Command Backlog Depth",
+            "type": "integer"
+          },
+          "gateway_backlog_depth": {
+            "title": "Gateway Backlog Depth",
+            "type": "integer"
+          },
+          "gateway_last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gateway Last Seen At"
+          },
+          "last_catalog_sync_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Catalog Sync At"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "live",
+              "stale",
+              "offline"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "site_id",
+          "gateway_last_seen_at",
+          "gateway_backlog_depth",
+          "last_catalog_sync_at",
+          "command_backlog_depth",
+          "status"
+        ],
+        "title": "SyncStatusResponse",
+        "type": "object"
+      },
+      "TentResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          },
+          "synced_at": {
+            "format": "date-time",
+            "title": "Synced At",
+            "type": "string"
+          },
+          "tent_id": {
+            "title": "Tent Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "site_id",
+          "tent_id",
+          "name",
+          "is_active",
+          "synced_at"
+        ],
+        "title": "TentResponse",
+        "type": "object"
+      },
+      "TentStateResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "gateway_last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gateway Last Seen At"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "last_catalog_sync_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Catalog Sync At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          },
+          "tent_id": {
+            "title": "Tent Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "site_id",
+          "tent_id",
+          "name",
+          "is_active",
+          "gateway_last_seen_at",
+          "last_catalog_sync_at"
+        ],
+        "title": "TentStateResponse",
+        "type": "object"
+      },
+      "UpsertCountResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "upserted": {
+            "title": "Upserted",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "upserted"
+        ],
+        "title": "UpsertCountResponse",
+        "type": "object"
+      },
+      "UserResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "username": {
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username"
+        ],
+        "title": "UserResponse",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Browser-facing hosted control-plane API generated from FastAPI. Gateway machine routes are intentionally omitted.",
+    "title": "Dirt Hosted Browser API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/admin/assets/prune-expired": {
+      "post": {
+        "operationId": "prune_assets_api_admin_assets_prune_expired_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PruneAssetsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Prune Assets"
+      }
+    },
+    "/api/admin/gateway-credentials/{credential_id}/rotate": {
+      "post": {
+        "operationId": "rotate_gateway_credential_api_admin_gateway_credentials__credential_id__rotate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "credential_id",
+            "required": true,
+            "schema": {
+              "title": "Credential Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GatewayCredentialRotateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayCredentialRotateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rotate Gateway Credential"
+      }
+    },
+    "/api/assets/{asset_id}/signed-url": {
+      "get": {
+        "operationId": "asset_signed_url_api_assets__asset_id__signed_url_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Asset Signed Url"
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "operationId": "login_api_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Login"
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "operationId": "logout_api_auth_logout_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Logout"
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "operationId": "me_api_auth_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Me"
+      }
+    },
+    "/api/commands": {
+      "get": {
+        "operationId": "list_commands_api_commands_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CommandResponse"
+                  },
+                  "title": "Response List Commands Api Commands Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Commands"
+      },
+      "post": {
+        "operationId": "create_command_api_commands_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Command"
+      }
+    },
+    "/api/commands/{command_id}": {
+      "get": {
+        "operationId": "get_command_api_commands__command_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "command_id",
+            "required": true,
+            "schema": {
+              "title": "Command Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Command"
+      }
+    },
+    "/api/health": {
+      "get": {
+        "operationId": "health_api_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health"
+      }
+    },
+    "/api/sites": {
+      "get": {
+        "operationId": "sites_api_sites_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SiteResponse"
+                  },
+                  "title": "Response Sites Api Sites Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Sites"
+      }
+    },
+    "/api/sync/status": {
+      "get": {
+        "operationId": "sync_status_api_sync_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Sync Status"
+      }
+    },
+    "/api/tents": {
+      "get": {
+        "operationId": "tents_api_tents_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "site_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TentResponse"
+                  },
+                  "title": "Response Tents Api Tents Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Tents"
+      }
+    },
+    "/api/tents/{tent_id}/assets/latest": {
+      "get": {
+        "operationId": "latest_assets_api_tents__tent_id__assets_latest_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tent_id",
+            "required": true,
+            "schema": {
+              "title": "Tent Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AssetResponse"
+                  },
+                  "title": "Response Latest Assets Api Tents  Tent Id  Assets Latest Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Latest Assets"
+      }
+    },
+    "/api/tents/{tent_id}/devices": {
+      "get": {
+        "operationId": "devices_api_tents__tent_id__devices_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tent_id",
+            "required": true,
+            "schema": {
+              "title": "Tent Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DeviceResponse"
+                  },
+                  "title": "Response Devices Api Tents  Tent Id  Devices Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Devices"
+      }
+    },
+    "/api/tents/{tent_id}/lights/schedules": {
+      "get": {
+        "operationId": "light_schedules_api_tents__tent_id__lights_schedules_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tent_id",
+            "required": true,
+            "schema": {
+              "title": "Tent Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LightSchedulesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Light Schedules"
+      }
+    },
+    "/api/tents/{tent_id}/metrics/current": {
+      "get": {
+        "operationId": "current_metrics_api_tents__tent_id__metrics_current_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tent_id",
+            "required": true,
+            "schema": {
+              "title": "Tent Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CurrentMetricResponse"
+                  },
+                  "title": "Response Current Metrics Api Tents  Tent Id  Metrics Current Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Current Metrics"
+      }
+    },
+    "/api/tents/{tent_id}/metrics/history": {
+      "get": {
+        "operationId": "metric_history_api_tents__tent_id__metrics_history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tent_id",
+            "required": true,
+            "schema": {
+              "title": "Tent Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "metric",
+            "required": true,
+            "schema": {
+              "title": "Metric",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "range",
+            "required": false,
+            "schema": {
+              "default": "24h",
+              "title": "Range",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetricHistoryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Metric History"
+      }
+    },
+    "/api/tents/{tent_id}/state": {
+      "get": {
+        "operationId": "tent_state_api_tents__tent_id__state_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tent_id",
+            "required": true,
+            "schema": {
+              "title": "Tent Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TentStateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Tent State"
+      }
+    },
+    "/healthz": {
+      "get": {
+        "operationId": "healthz_healthz_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "title": "Response Healthz Healthz Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Healthz"
+      }
+    }
+  }
+}

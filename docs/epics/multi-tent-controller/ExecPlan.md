@@ -102,7 +102,7 @@ This is not the hosted website phase. The local `dirt-hwd` service remains the o
 - Observation: Scoped current-grow responses can violate the existing `GrowCurrent` contract if test or future seed data creates a current grow with a germination date after the service clock's local date.
   Evidence: The first Milestone 6 test fixture used `germination_date=2026-05-04` while the test clock could still resolve to 2026-05-03 local, producing `day_number=0`; the fixture was changed to `2026-05-01`.
 
-- Observation: `scripts/gen-contract` regenerates `web-ui/src/api-client/generated/schema.ts` but does not apply the frontend formatter.
+- Observation: At the time, the legacy local webapp-v1 generator regenerated `web-ui/src/api-client/generated/schema.ts` but did not apply the frontend formatter. That generator has since been removed with webapp-v1 deprecation.
   Evidence: `pnpm --dir web-ui lint` failed on Biome formatting for the generated schema until `pnpm --dir web-ui exec biome check --write src/api-client/generated/schema.ts` was run.
 
 - Observation: The new scoped tent device endpoint intentionally exposes all canonical devices assigned to `homebox/main`, including `reservoir-node` and `kasa-lights-main`, while the existing dashboard endpoint remains the historic eight-row projection.
@@ -188,7 +188,7 @@ The current service ownership is:
 - Device status and alerts: `system_status.py`, `device_watchdog.py`, `metric_freshness.py`, `sensor_quality.py`, and structured JSONL via `dirt_shared.observability.log_event()`.
 - Actuators and hardware loops: `humidifier.py`, `lights.py`, `fan_controller.py`, `fan_node.py`, and PTZ service/API.
 - API routes: `apps/web/src/dirt_web/api/{grow,sensors,plants,system,feed,ptz}.py`.
-- Contract source: `contracts/webapp-v1.yaml`, regenerated via `scripts/gen-contract`.
+- Legacy contract source: `contracts/webapp-v1.yaml`, now frozen for webapp-v1 deprecation. Hosted browser API generation uses `scripts/gen-hosted-contract`.
 - Frontend singleton assumptions: `web-ui/src/routes/index.tsx`, `web-ui/src/routes/live.tsx`, `web-ui/src/ui/plant-types.ts`, `PlantsStrip.tsx`, `PlantDetail.tsx`, `SystemTable.tsx`, and MSW fixtures under `web-ui/src/mocks/fixtures/`.
 - Firmware identity: location literals in `firmware/fan_controller/src/main.cpp`, `firmware/plant_node/src/main.cpp`, and `firmware/reservoir_node/src/main.cpp`.
 
@@ -320,7 +320,7 @@ Add scoped read endpoints only where needed to prove the model without changing 
 - `GET /api/tents/{tent_id}/grow/current`
 - `GET /api/tents/{tent_id}/devices`
 
-If optional `site_id`/`tent_id` query parameters are added to existing endpoints, update `contracts/webapp-v1.yaml`, run `scripts/gen-contract`, and update `contracts/python/src/dirt_contracts/webapp_v1/models.py` plus `web-ui/src/api-client/generated/schema.ts`. Respect `apps/tests/invariants/test_api_contract.py`: do not edit the invariant test; update the OpenAPI contract and generated clients so the app and spec agree.
+This plan's webapp-v1 contract instructions are superseded: webapp-v1 is being deprecated, and the local generator plus contract invariant have been removed. For hosted browser API changes, update `apps/control-plane` and run `scripts/gen-hosted-contract`.
 
 Frontend Phase 1 should stay minimal. The current dashboard may continue showing the default main tent only. If a visible tent selector is added, it must default to `main`, include `breeding` from the API, and use `tent_id` in React Query keys. Do not build hosted/Vercel-specific auth, account, or command UI in this phase.
 
@@ -365,10 +365,9 @@ Update services and APIs in small slices. After each slice, run the nearest test
     uv run pytest apps/web/tests/test_system_devices_endpoint.py apps/hwd/tests/test_device_watchdog.py apps/hwd/tests/test_fan_controller.py apps/hwd/tests/test_humidifier_loop.py -q
     uv run pytest apps/shared/tests/test_daily_sensors.py apps/shared/tests/test_daily_report.py apps/shared/tests/test_capture.py apps/web/tests/test_feed_snapshot_endpoint.py -q
 
-If the OpenAPI contract changes, regenerate clients:
+Local webapp-v1 OpenAPI regeneration is retired. For hosted control-plane API changes, regenerate hosted browser types:
 
-    scripts/gen-contract
-    uv run pytest apps/tests/invariants/test_api_contract.py -q
+    scripts/gen-hosted-contract
     pnpm --dir web-ui typecheck
     pnpm --dir web-ui test
 
@@ -413,7 +412,7 @@ Schema and contract:
 
 - Atlas migrations apply cleanly from an empty test database and against the current local database backup path.
 - `apps/tests/invariants/test_schema_managed_by_atlas.py` passes.
-- `apps/tests/invariants/test_api_contract.py` passes after any API additions.
+- Local webapp-v1 contract invariant is retired with webapp-v1 deprecation.
 - No human-owned invariant test under `apps/tests/invariants/` is modified.
 
 Frontend compatibility:
@@ -744,10 +743,11 @@ Milestone 6 changed these files:
 
 Milestone 6 validation evidence:
 
-    scripts/gen-contract
+    legacy local webapp-v1 generator was run at the time
     generated Pydantic models and TypeScript schema
 
-    uv run pytest apps/web/tests/test_scope_endpoints.py apps/web/tests/test_grow_endpoint.py apps/web/tests/test_system_devices_endpoint.py apps/tests/invariants/test_api_contract.py -q
+    uv run pytest apps/web/tests/test_scope_endpoints.py apps/web/tests/test_grow_endpoint.py apps/web/tests/test_system_devices_endpoint.py -q
+    legacy contract invariant also passed at the time
     17 passed, 1 skipped in 2.87s
 
     uv run pytest apps/tests/invariants/ -q
@@ -837,4 +837,4 @@ Out of scope until hosted website phase:
 - 2026-05-04: Milestone 4 checkpoint completed for scoped grow/schedule service reads, empty breeding plant reads, capability-owned sensor calibrations, scoped periodic snapshots, and watchdog stable IDs. Daily-report photo DB rows were split into a focused follow-up.
 - 2026-05-04: Milestone 4 daily-report follow-up completed. Added optional `DailyReportSnapshotRecorder`, wired `scripts/daily_report`, and proved daily-report captures create scoped `snapshot.kind='daily_report'` rows while preserving filesystem and Telegram flow.
 - 2026-05-04: Milestone 5 completed. Scoped local hardware-control loops to default main tent, added `CommandService`, recorded PTZ command lifecycle rows, and moved system status identity to canonical `device` rows without changing the current visible dashboard device set.
-- 2026-05-04: Milestone 6 completed. Added read-only scoped site/tent/grow/device APIs, regenerated contract clients, kept the frontend dashboard default-main only, and recorded that generated TypeScript requires Biome formatting after `scripts/gen-contract`.
+- 2026-05-04: Milestone 6 completed. Added read-only scoped site/tent/grow/device APIs, regenerated contract clients, kept the frontend dashboard default-main only, and recorded that generated TypeScript required Biome formatting after the legacy local generator.

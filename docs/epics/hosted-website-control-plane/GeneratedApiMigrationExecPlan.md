@@ -105,7 +105,7 @@ Milestone 3 introduces explicit mappers where the UI should not consume DTOs dir
 
 Milestone 4 updates MSW fixtures. Replace test-only hosted response interfaces in `web-ui/src/mocks/__tests__/handlers.test.ts` and hosted fixture helper types in `web-ui/src/mocks/handlers.ts` with generated `components["schemas"][...]` aliases. Keep scenario-only types such as `CloudScenario` local because they model fixture behavior, not the API. Re-run fixture tests to prove the mock responses still satisfy the generated schema types.
 
-Milestone 5 handles API gaps and removal. If the frontend needs a hosted route that is not present in `web-ui/src/api-client/generated/hosted-schema.ts`, add it first to `apps/control-plane/src/dirt_control/api/browser.py` with Pydantic request/response models, add focused `apps/control-plane/tests` coverage, run `scripts/gen-hosted-contract`, and only then consume it from React. Once all imports are gone, delete `web-ui/src/api-client/cloud.ts` and add a guardrail so it does not return.
+Milestone 5 handles API gaps and removal. If the frontend needs a hosted route that is not present in `web-ui/src/api-client/generated/hosted-schema.ts`, add it first to `apps/control-plane/src/dirt_control/api/browser.py` with Pydantic request/response models, add focused `apps/control-plane/tests` coverage, run `scripts/gen-hosted-contract`, and only then consume it from React. Once all imports are gone, delete `web-ui/src/api-client/cloud.ts` and add the smallest possible guardrail: an ESLint `no-restricted-imports` entry in `web-ui/eslint.config.ts` that rejects `@/api-client/cloud`.
 
 
 ## Concrete Steps
@@ -164,7 +164,7 @@ Milestone 5 concrete edits:
     rg -n "api-client/cloud|cloudGet|cloudPost|Cloud[A-Z]" web-ui/src
 
 - If no real imports remain, delete `web-ui/src/api-client/cloud.ts`.
-- Add or update a lightweight invariant or lint restriction that rejects new imports from `@/api-client/cloud` and rejects new exported `Cloud*` response interfaces under `web-ui/src/api-client/`.
+- Add an app-local ESLint restriction in `web-ui/eslint.config.ts` using `no-restricted-imports`. Keep it narrow: reject `@/api-client/cloud` with a message like "Use `createHostedApiClient()` and generated hosted schema types instead." Do not add a new pytest invariant for this.
 - If route gaps are found, add them in `apps/control-plane/src/dirt_control/api/browser.py`, test them in `apps/control-plane/tests`, regenerate, and then return to the frontend migration.
 
 

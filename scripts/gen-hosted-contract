@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Regenerate the hosted browser API contract from the control-plane FastAPI app.
+#
+# Source of truth: apps/control-plane/src/dirt_control/api/browser.py response
+# models exposed through dirt_control.app:create_app(). The generated artifacts
+# are committed so frontend code can use OpenAPI-derived types instead of
+# handwritten hosted/cloud response interfaces.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+echo "→ generating hosted browser OpenAPI"
+uv run --package dirt-control-plane python - <<'PY'
+from __future__ import annotations
+
+import json
+from copy import deepcopy
+from pathlib import Path
+from typing import Any
+
+from dirt_control.app import create_app
+from dirt_control.settings import CloudSettings
+
+OUTPUT = Path("contracts/hosted-browser-v1.json")
+
+
+def browser_paths(paths: dict[str, Any]) -> dict[str, Any]:
+    """Keep browser-facing hosted routes; drop machine gateway routes."""
+    return {
+        path: operations
+        for path, operations in paths.items()
+        if not path.startswith("/api/gateway/")
+    }
+
+
+settings = CloudSettings(
+    database_url="postgresql+asyncpg://contract:contract@localhost:5432/dirt_codegen",
+    admin_username="admin",
+    admin_password_hash="not-a-real-password-hash",
+    session_secret="contract-codegen-secret",
+    session_cookie_secure=False,
+)
+spec = deepcopy(create_app(settings=settings).openapi())
+spec["info"]["title"] = "Dirt Hosted Browser API"
+spec["info"]["description"] = (
+    "Browser-facing hosted control-plane API generated from FastAPI. "
+    "Gateway machine routes are intentionally omitted."
+)
+spec["paths"] = browser_paths(spec.get("paths", {}))
+
+OUTPUT.write_text(json.dumps(spec, indent=2, sort_keys=True) + "\n")
+PY
+
+echo "→ generating hosted TypeScript schema"
+pnpm --dir web-ui exec openapi-typescript \
+  ../contracts/hosted-browser-v1.json \
+  -o src/api-client/generated/hosted-schema.ts
+
+echo "→ formatting hosted TypeScript schema"
+pnpm --dir web-ui exec biome check --write src/api-client/generated/hosted-schema.ts
+
+echo "✓ hosted contract regenerated"

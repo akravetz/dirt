@@ -337,7 +337,7 @@ Milestone 5: Make scoped API/frontend access first-class without breaking defaul
 Keep the existing unscoped endpoints as default-main compatibility, but add scoped query parameters or scoped frontend state where it improves real use:
 
 - Decide whether `/api/sensors/current`, `/api/sensors/history`, `/api/plants`, and `/api/feed/snapshot/latest` should accept optional `site_id` and `tent_id`.
-- If API shape changes, update `contracts/webapp-v1.yaml`, run `scripts/gen-contract`, and format generated TypeScript with `pnpm --dir web-ui exec biome check --write src/api-client/generated/schema.ts`.
+- This plan's webapp-v1 contract instructions are superseded: webapp-v1 is being deprecated, and the local generator plus contract invariant have been removed. For hosted browser API changes, update `apps/control-plane` and run `scripts/gen-hosted-contract`.
 - If adding a visible frontend tent selector, read `docs/references/tanstack-router-v1/INDEX.md`, `docs/references/tailwind-v4/INDEX.md`, and `docs/references/modern-idiomatic-typescript/INDEX.md` first. The selector must default to `main`; React Query keys must include `tent_id`.
 
 Do not build hosted auth, cloud command submission, remote execution, or public multi-site UI here.
@@ -423,11 +423,9 @@ Run focused tests after each slice. Candidate commands:
     uv run pytest apps/web/tests/test_plants_list_endpoint.py apps/web/tests/test_plants_detail_endpoint.py apps/web/tests/test_plants_moisture_endpoint.py -q
     uv run pytest apps/web/tests/test_system_devices_endpoint.py apps/hwd/tests/test_device_watchdog.py apps/hwd/tests/test_humidifier_loop.py apps/hwd/tests/test_fan_controller.py apps/hwd/tests/test_lights_loop.py -q
 
-If contracts change:
+Local webapp-v1 contract regeneration is retired. For hosted control-plane API changes:
 
-    scripts/gen-contract
-    pnpm --dir web-ui exec biome check --write src/api-client/generated/schema.ts
-    uv run pytest apps/tests/invariants/test_api_contract.py -q
+    scripts/gen-hosted-contract
     pnpm --dir web-ui lint
     pnpm --dir web-ui typecheck
     pnpm --dir web-ui test
@@ -784,7 +782,7 @@ The contract adds optional `site_id` and `tent_id` query parameters to:
     GET /api/plants
     GET /api/feed/snapshot/latest
 
-`scripts/gen-contract` was run. The generated Pydantic models did not retain a
+The legacy local webapp-v1 generator was run at the time. The generated Pydantic models did not retain a
 diff after `uv run ruff format contracts/python/src/dirt_contracts/webapp_v1/models.py`
 because the API response schemas did not change; the generated TypeScript
 operation types changed to expose the optional query parameters.
@@ -805,7 +803,7 @@ No behavior changes were made during simplify.
 
 Milestone 5 final validation evidence from 2026-05-04:
 
-    scripts/gen-contract
+    legacy local webapp-v1 generator was run at the time
     generated Pydantic models and TypeScript schema from contracts/webapp-v1.yaml
 
     pnpm --dir web-ui exec biome check --write src/api-client/generated/schema.ts
@@ -817,7 +815,7 @@ Milestone 5 final validation evidence from 2026-05-04:
     uv run pytest apps/web/tests/test_sensors_current_endpoint.py apps/web/tests/test_sensors_history_endpoint.py apps/web/tests/test_plants_list_endpoint.py apps/web/tests/test_feed_snapshot_endpoint.py -q
     27 passed in 8.64s
 
-    uv run pytest apps/tests/invariants/test_api_contract.py -q
+    legacy contract invariant passed at the time
     6 passed, 1 skipped in 0.92s
 
     pnpm --dir web-ui lint
@@ -1013,7 +1011,7 @@ Milestone 7 validation evidence from 2026-05-04 before simplify:
     atlas migrate status --env local
     Migration Status: PENDING; Current Version 20260504022916; Next Version 20260504052839; Pending Files 4. This is expected because Milestone 3, 4, 6, and 7 migrations were intentionally not applied live.
 
-    scripts/gen-contract
+    legacy local webapp-v1 generator was run at the time
     regenerated Pydantic models and TypeScript schema from contracts/webapp-v1.yaml
 
     pnpm --dir web-ui exec biome check --write src/api-client/generated/schema.ts
@@ -1034,7 +1032,7 @@ Milestone 7 validation evidence from 2026-05-04 before simplify:
     uv run pytest apps/web/tests/test_sensors_current_endpoint.py apps/web/tests/test_sensors_history_endpoint.py apps/web/tests/test_scope_endpoints.py apps/web/tests/test_system_devices_endpoint.py apps/hwd/tests/test_lights_loop.py apps/hwd/tests/test_humidifier_loop.py apps/hwd/tests/test_fan_controller.py apps/hwd/tests/test_device_watchdog.py -q
     49 passed in 9.61s
 
-    uv run pytest apps/tests/invariants/test_api_contract.py -q
+    legacy contract invariant passed at the time
     6 passed, 1 skipped in 0.91s
 
     pnpm --dir web-ui lint

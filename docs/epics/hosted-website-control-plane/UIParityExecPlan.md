@@ -338,7 +338,7 @@ Capture hosted acceptance after deploy:
 Backend acceptance:
 
 - Cloud Atlas migration applies cleanly with `atlas migrate apply --env cloud --dry-run` before production apply.
-- The chosen hosted browser contract strategy is recorded in this ExecPlan before route/client implementation. If `contracts/webapp-v1.yaml` is the chosen path, generated TypeScript and Pydantic contract artifacts are refreshed through `scripts/gen-contract`. If control-plane OpenAPI generation or a separate hosted contract is chosen, the exact generation command and artifacts are recorded here before frontend migration.
+- Hosted browser API artifacts are regenerated with `scripts/gen-hosted-contract` before route/client implementation. The script writes `contracts/hosted-browser-v1.json` and `web-ui/src/api-client/generated/hosted-schema.ts` from the control-plane FastAPI OpenAPI schema.
 - `uv run pytest apps/control-plane/tests apps/web/tests apps/gateway/tests apps/shared/tests -q` passes.
 - Focused boundary or contract tests prove hosted frontend-visible routes satisfy typed schemas for tent catalog, current metrics, metric history, light schedules, devices, assets, sync status, wiki, main-tent plants where applicable, and PTZ command intent.
 - `uv run pytest apps/tests/invariants/ -q` passes without modifying `apps/tests/invariants/**`.

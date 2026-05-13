@@ -11,17 +11,6 @@ INPUT=$(cat)
 PATCH=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
 [ -z "$PATCH" ] && exit 0
 
-is_contract_status() {
-  case "$1" in
-    apps/tests/invariants/contract_status.json|*/apps/tests/invariants/contract_status.json)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
 is_protected_path() {
   local path="$1"
   case "$path" in
@@ -51,9 +40,6 @@ deny() {
 while IFS= read -r path; do
   path=${path%$'\r'}
   [ -z "$path" ] && continue
-  if is_contract_status "$path"; then
-    continue
-  fi
   if is_protected_path "$path"; then
     deny "$path"
     exit 0

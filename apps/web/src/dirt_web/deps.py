@@ -16,11 +16,12 @@ Don't pre-scaffold: unused providers drift out of sync with the
 services they wrap.
 """
 
+from collections.abc import Awaitable, Callable
+
 from fastapi import Request
 
 from dirt_shared.camera import CameraCaptureError, ObsbotDaemonCameraSource
 from dirt_shared.config import Settings
-from dirt_shared.services.capture import FrameCapturer
 from dirt_shared.services.commands import CommandService
 from dirt_shared.services.grow_state import GrowStateService
 from dirt_shared.services.light_schedules import LightScheduleService
@@ -30,6 +31,8 @@ from dirt_shared.services.readings import ReadingsService
 from dirt_shared.services.scope_catalog import ScopeCatalogService
 from dirt_shared.services.snapshots import SnapshotsService
 from dirt_shared.services.system_status import SystemStatusService
+
+FrameCapturer = Callable[[], Awaitable[bytes | None]]
 
 
 def get_settings(request: Request) -> Settings:

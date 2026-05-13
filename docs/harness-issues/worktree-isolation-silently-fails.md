@@ -55,7 +55,7 @@ Matches upstream issue #29110 ("worktree data loss").
 ### Mode C — stream watchdog kills mid-work
 
 - Agent stalls with `Agent stalled: no progress for 600s (stream watchdog did not recover)`.
-- Last stream fragment is a partial assistant message (ours was `"Now update contract_status.json:"`).
+- Last stream fragment is a partial assistant message from the stale contract-status update work.
 - Typically compounds with Mode A: the stalled agent's partial work is on main's working tree, uncommitted.
 
 Orthogonal to the isolation bug but frequently observed together because both kill the orchestrator's wrap-up assumptions.

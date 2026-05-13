@@ -47,7 +47,7 @@ The highest-priority deliverable is the operating manual rename: every active `C
 - Port the Bash protected-path hook to Codex `PreToolUse` for `Bash`.
 - Port the Edit/Write protected-path hook to Codex `PreToolUse` for `apply_patch`, using `tool_input.command` rather than Claude's `tool_input.file_path`.
 - Protect the same paths:
-  - `apps/tests/invariants/**`, except `apps/tests/invariants/contract_status.json`
+  - `apps/tests/invariants/**`
   - `.githooks/**`
   - `web-ui/invariants/**`
   - `web-ui/src/api-client/generated/**`
@@ -125,7 +125,7 @@ Migration work:
 6. `.agents/skills` contains the retained skills: `simplify`, `unstuck`, and `reference-builder`.
 7. `.agents/worktrees/` is gitignored and active worktree docs/scripts point there.
 8. `docs/plans/` is removed if no active workflow depends on it.
-9. Codex hooks are enabled and block protected writes to the same paths the Claude hooks protected, with the `contract_status.json` carve-out preserved.
+9. Codex hooks are enabled and block protected writes to the same paths the Claude hooks protected.
 10. Hook behavior is tested directly for Bash and `apply_patch` protected-write attempts.
 11. The `.claude/settings.json` assertion is removed from `test_webui_invariants_wired.py`; no replacement pytest checks Codex hook wiring.
 12. Existing test and lint workflows still pass after the migration.

@@ -240,8 +240,7 @@ class Settings(BaseSettings):
 
     # --- purpose-specific config slices ---
     # Each slice is what the corresponding service takes by constructor. Keeps
-    # service signatures honest about what they actually depend on, and makes
-    # test setup minimal (CaptureService(engine, CaptureConfig(snapshot_dir=tmp))).
+    # service signatures honest about what they actually depend on.
 
     def capture(self) -> CaptureConfig:
         return CaptureConfig(

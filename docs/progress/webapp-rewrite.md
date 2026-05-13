@@ -10,7 +10,7 @@
 - ✅ **Phase 0** — uv workspace + hardware-daemon split. Harness installed. `web-ui/` skeleton exists.
 - ✅ **Phase 1 design** — API + data-model proposals written and agreed (`docs/proposals/{API.md, data_model.md}`). Postgres cutover executed (ADR-006). New service modules that back the future endpoints are implemented and tested. Test suite green on Postgres (143 tests).
 - ✅ **Architectural-invariant hardening (session 3)** — full per-language invariant suites landed: PY-01..09 (layered contracts, no-asyncio-run, no-print, no-module-level-singletons, ruff TID/PLR/RUF/S audit, Hypothesis at pure-function boundaries, etc.) under `apps/tests/invariants/`; TS-01..16 (tsconfig strict, eslint-plugin-boundaries, banned training-data-drift imports, no `enum`/`namespace`/`as any`, no fetch outside api-client, no `useEffect` data-fetching, no string-literal route paths, Tailwind v4 palette guard, no inline style, knip dead-code, etc.) under `web-ui/invariants/`; XX-01/02 meta rules (uniform failure-message template + protected `web-ui/invariants/` shims). These are the guardrails the Phase 2 generators will run under.
-- ✅ **Phase 1 contract freeze (session 3)** — `contracts/webapp-v1.yaml` (OpenAPI 3.1) authored from `docs/proposals/API.md`. `dirt-contracts` workspace member ships the generated Pydantic models at `contracts/python/src/dirt_contracts/webapp_v1/models.py`. Generated TypeScript schema at `web-ui/src/api-client/generated/schema.ts` + a typed `openapi-fetch` wrapper at `web-ui/src/api-client/{client,index}.ts`. Regenerator: `scripts/gen-contract`. Invariant `apps/tests/invariants/test_api_contract.py` enforces spec ⊆ app, app ⊆ spec, and pydantic-model importability with an `EXPECTED_MISSING` table that shrinks as Phase 2 endpoints land + a `LEGACY_ROUTES` allowlist that shrinks as the old HTML/HTMX endpoints are deleted. Plan JSON at `docs/plans/webapp-rewrite.json` lists 29 features (19 BE + 10 FE) with acceptance criteria. Frozen tag: `contract-frozen-2026-04-20`. 226 tests green.
+- ✅ **Phase 1 contract freeze (session 3)** — `contracts/webapp-v1.yaml` (OpenAPI 3.1) authored from `docs/proposals/API.md`. `dirt-contracts` workspace member ships the generated Pydantic models at `contracts/python/src/dirt_contracts/webapp_v1/models.py`. Generated TypeScript schema at `web-ui/src/api-client/generated/schema.ts` + a typed `openapi-fetch` wrapper at `web-ui/src/api-client/{client,index}.ts`. The local generator and contract invariant were later removed with webapp-v1 deprecation; hosted browser types now come from `scripts/gen-hosted-contract`. Plan JSON at `docs/plans/webapp-rewrite.json` lists 29 features (19 BE + 10 FE) with acceptance criteria. Frozen tag: `contract-frozen-2026-04-20`. 226 tests green.
 - 🟢 **Phase 2** — ready to start. Spawn one BE-lane + one FE-lane Agent (worktree, background) per the plan JSON's `depends_on` ordering; reserve a foreground evaluator pass after each merge.
 
 You (the agent reading this) are picking up where session 2 stopped. Read this doc end-to-end before you do anything.
@@ -54,7 +54,7 @@ Phase 0 reshaped the repo from a `dirt` monolith into a `uv` workspace with five
 
 Your two jobs:
 
-1. **Phase 1 freeze** — translate `docs/proposals/API.md` into `contracts/webapp-v1.yaml`, write `test_api_contract.py`, author `docs/plans/webapp-rewrite.json`, get user sign-off, tag + record the frozen SHA.
+1. **Phase 1 freeze** — translate `docs/proposals/API.md` into `contracts/webapp-v1.yaml`, write the legacy contract invariant, author `docs/plans/webapp-rewrite.json`, get user sign-off, tag + record the frozen SHA. That invariant has since been removed with webapp-v1 deprecation.
 2. **Phase 2** — once the contract is frozen and invariant-tested, orchestrate two parallel generator agents (frontend + backend lanes) via the Claude Code `Agent` tool with `isolation: "worktree"`. An evaluator agent gates merges.
 
 **Critical rule**: `apps/hwd/` is off-limits to the Phase 2 generators. The hardware loops there are running in production and must not be touched. Invariant `test_hwd_routes.py` + `test_import_boundaries.py` enforce this.
@@ -140,7 +140,7 @@ This is a deliberate departure from the Anthropic blog post. Read their posts (l
 
 ### Phasing
 
-- **Phase 1 (sequential, ~1 session)** — Contract author writes `contracts/webapp-v1.yaml`, generates Pydantic models + TS client, adds `test_api_contract.py` invariant that asserts every contract endpoint exists in the FastAPI app and round-trips through the models. Freeze at a git SHA.
+- **Phase 1 (sequential, ~1 session)** — Contract author writes `contracts/webapp-v1.yaml`, generates Pydantic models + TS client, adds a contract invariant that asserts every contract endpoint exists in the FastAPI app and round-trips through the models. Freeze at a git SHA. That invariant is now retired with webapp-v1 deprecation.
 - **Phase 2 (parallel, many sessions)** — Two Generator worktrees land separate branches. Evaluator runs on `main` after each lane merge. Loop.
 
 ### Gating
@@ -203,10 +203,10 @@ Central artifact. Grounds every agent. Lives at `docs/plans/webapp-rewrite.json`
   "contract": {
     "openapi": "contracts/webapp-v1.yaml",
     "frozen_at_sha": "<filled at end of phase 1>",
-    "invariant_test": "apps/tests/invariants/test_api_contract.py"
+    "invariant_test": "<legacy contract invariant; now retired>"
   },
   "invariants": [
-    "apps/tests/invariants/test_api_contract.py",
+    "<legacy contract invariant; now retired>",
     "apps/tests/invariants/test_auth_boundary.py",
     "apps/tests/invariants/test_import_boundaries.py",
     "apps/tests/invariants/test_hwd_routes.py"
@@ -324,7 +324,7 @@ Paired reference: [`docs/proposals/data_model.md`](../proposals/data_model.md) �
 ### Invariants the evaluator checks after each feature
 
 1. `uv run pytest -q` green (invariants + per-app suites per the root `testpaths`).
-2. Contract test (`test_api_contract.py`, Phase 1 introduces) green — proves OpenAPI spec ↔ FastAPI routes ↔ Pydantic models ↔ TS client all agree.
+2. Contract test green — proved OpenAPI spec ↔ FastAPI routes ↔ Pydantic models ↔ TS client all agreed. This legacy invariant is now retired with webapp-v1 deprecation.
 3. `cd web-ui && pnpm lint && pnpm typecheck && pnpm build` clean.
 4. `cd web-ui && pnpm test` (Vitest) green.
 5. Feature-specific `agent-browser` script (under `docs/plans/evaluator-checks/`) green against the live stack on :8001, with no console errors and expected network calls observed.
@@ -359,7 +359,7 @@ Do these in order:
 
 5. **Phase 1 freeze — do this yourself, not via agents.** Deliverables:
    - `contracts/webapp-v1.yaml` (OpenAPI 3.1) — translation of `docs/proposals/API.md`. Don't redesign; translate. Include request/response schemas, error codes, auth scheme.
-   - `apps/tests/invariants/test_api_contract.py` — asserts every path+method in the spec exists in `dirt_web.app.app`, and response schemas round-trip through the generated Pydantic models.
+   - Legacy contract invariant — asserted every path+method in the spec existed in `dirt_web.app.app`, and response schemas round-tripped through the generated Pydantic models. This invariant has since been removed.
    - `docs/plans/webapp-rewrite.json` — full feature list + acceptance criteria + dependencies + lane per feature. See §6 for shape.
    - Generated TS client in `web-ui/src/lib/` (pick `openapi-ts` vs `orval` — that's a Phase 1 decision; lean `openapi-ts` for minimal-footprint output).
    - Get the user's sign-off on the plan JSON before freezing.
@@ -446,4 +446,4 @@ At that point the original mockup from `debug/webapp.zip` is approximately repro
 
 ---
 
-*Written at end of Phase 0 cutover session. Updated 2026-04-19 at end of session 2 (pg cutover + Phase 1 design work). Updated 2026-04-20 at end of session 3 (architectural-invariant hardening: PY-01..09, TS-01..16, XX-01/02 landed; Phase 1 contract freeze landed: `contracts/webapp-v1.yaml`, `dirt-contracts` workspace member with generated Pydantic models, `web-ui/src/api-client/{generated/schema,client,index}.ts`, `apps/tests/invariants/test_api_contract.py`, `docs/plans/webapp-rewrite.json` with 29 features; stale pointers to deleted `docs/proposals/{pg-cutover-plan,singleton-retirement}.md` and `docs/progress/architectural-invariants*.json` removed; tag `contract-frozen-2026-04-20`). If this document is more than a couple of weeks stale, re-verify the top-of-doc status banner + section 2 (Phase 0/1 recap) against current repo state before trusting the rest.*
+*Written at end of Phase 0 cutover session. Updated 2026-04-19 at end of session 2 (pg cutover + Phase 1 design work). Updated 2026-04-20 at end of session 3 (architectural-invariant hardening: PY-01..09, TS-01..16, XX-01/02 landed; Phase 1 contract freeze landed: `contracts/webapp-v1.yaml`, `dirt-contracts` workspace member with generated Pydantic models, `web-ui/src/api-client/{generated/schema,client,index}.ts`, legacy contract invariant, `docs/plans/webapp-rewrite.json` with 29 features; stale pointers to deleted `docs/proposals/{pg-cutover-plan,singleton-retirement}.md` and `docs/progress/architectural-invariants*.json` removed; tag `contract-frozen-2026-04-20`). If this document is more than a couple of weeks stale, re-verify the top-of-doc status banner + section 2 (Phase 0/1 recap) against current repo state before trusting the rest.*

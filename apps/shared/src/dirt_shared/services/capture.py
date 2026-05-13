@@ -3,7 +3,7 @@
 import asyncio
 import contextlib
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
@@ -28,11 +28,6 @@ from dirt_shared.services.camera_publisher import (
 )
 from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID
 
-# Type alias for the camera-daemon boundary — exposed as a constructor
-# parameter on ``CaptureService`` so tests can inject a fake without
-# patching the daemon socket.
-FrameCapturer = Callable[[], Awaitable[bytes | None]]
-
 logger = logging.getLogger(__name__)
 
 
@@ -41,45 +36,24 @@ class SnapshotWritable(Protocol):
         """Write one captured frame and return the resulting artifact."""
 
 
-class _FrameCapturerCameraSource:
-    def __init__(
-        self,
-        frame_capturer: FrameCapturer,
-        clock: Callable[[], datetime],
-    ) -> None:
-        self._frame_capturer = frame_capturer
-        self._clock = clock
-
-    async def capture(self) -> CapturedFrame:
-        data = await self._frame_capturer()
-        if data is None:
-            raise CameraCaptureError("camera capture returned no frame")
-        return CapturedFrame(jpeg_bytes=data, captured_at=self._clock())
-
-
 class CaptureService:
     """Snapshot capture + persistence + periodic loop."""
 
-    def __init__(  # noqa: PLR0913 - preserves existing capture test seams.
+    def __init__(  # noqa: PLR0913 - keeps production composition explicit.
         self,
         engine: AsyncEngine,
         config: CaptureConfig,
         *,
         camera_source: CameraSource | None = None,
         snapshot_writer: SnapshotWritable | None = None,
-        frame_capturer: FrameCapturer | None = None,
         capture_gate: CaptureGate | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self._engine = engine
         self._config = config
-        camera_source = camera_source or (
-            _FrameCapturerCameraSource(frame_capturer, clock)
-            if frame_capturer is not None
-            else ObsbotDaemonCameraSource(
-                socket_path=self._config.camera_socket_path,
-                clock=clock,
-            )
+        camera_source = camera_source or ObsbotDaemonCameraSource(
+            socket_path=self._config.camera_socket_path,
+            clock=clock,
         )
         snapshot_writer = snapshot_writer or SnapshotWriter(
             Path(self._config.snapshot_dir)

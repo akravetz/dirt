@@ -12,4 +12,4 @@ Each progress file should include:
 
 ## Current Features
 
-- **[webapp-rewrite.md](webapp-rewrite.md)** — Phase 0 ✅ (workspace split) + Phase 1 design ✅ (API + data-model proposals, pg cutover, service modules) + architectural-invariant hardening ✅ (PY-01..09, TS-01..16, XX-01/02 in `apps/tests/invariants/` and `web-ui/invariants/`) + Phase 1 contract freeze ✅ (`contracts/webapp-v1.yaml`, generated Pydantic + TS clients, `test_api_contract.py` invariant, `docs/plans/webapp-rewrite.json` with 29 features; tag `contract-frozen-2026-04-20`). Next 🟢: Phase 2 = parallel FE + BE generator agents.
+- **[webapp-rewrite.md](webapp-rewrite.md)** — Phase 0 ✅ (workspace split) + Phase 1 design ✅ (API + data-model proposals, pg cutover, service modules) + architectural-invariant hardening ✅ (PY-01..09, TS-01..16, XX-01/02 in `apps/tests/invariants/` and `web-ui/invariants/`) + Phase 1 contract freeze ✅ (`contracts/webapp-v1.yaml`, generated Pydantic + TS clients, legacy contract invariant now retired, `docs/plans/webapp-rewrite.json` with 29 features; tag `contract-frozen-2026-04-20`). Next 🟢: Phase 2 = parallel FE + BE generator agents.

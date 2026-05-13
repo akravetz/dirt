@@ -80,7 +80,7 @@
         },
         {
           "id": "task-02-f",
-          "description": "Protect apps/tests/invariants/** except apps/tests/invariants/contract_status.json.",
+          "description": "Protect apps/tests/invariants/**.",
           "status": "done"
         },
         {
@@ -322,9 +322,9 @@
     },
     {
       "id": "ac-09",
-      "description": "Codex hooks are enabled and block protected writes to the same paths the Claude hooks protected, with the contract_status.json carve-out preserved.",
+      "description": "Codex hooks are enabled and block protected writes to the same paths the Claude hooks protected.",
       "status": "done",
-      "verification": "python3 tomllib parse of .codex/config.toml passes; .codex/hooks/protect-invariants-*.sh return permissionDecision deny for protected writes and preserve the contract_status.json carve-out."
+      "verification": "python3 tomllib parse of .codex/config.toml passes; .codex/hooks/protect-invariants-*.sh return permissionDecision deny for protected writes."
     },
     {
       "id": "ac-10",

@@ -7,9 +7,9 @@
 # What this does NOT do:
 #   - Run tests. Pre-commit's pytest hooks still gate the commit; this
 #     script doesn't try to second-guess them.
-#   - Touch generated artifacts under contracts/python/, web-ui/src/
+#   - Touch generated artifacts under contracts/, contracts/python/, web-ui/src/
 #     api-client/generated/, web-ui/src/routeTree.gen.ts. Use
-#     `scripts/gen-contract` for the contract artifacts.
+#     `scripts/gen-hosted-contract` for hosted browser API artifacts.
 #   - Apply unsafe fixes. Both ruff and Biome have an --unsafe-fixes
 #     mode; we don't enable it here because the recovery from a bad
 #     unsafe fix is more painful than re-running the script.

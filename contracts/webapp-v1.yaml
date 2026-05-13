@@ -5,9 +5,9 @@ info:
   description: |
     JSON API consumed by the `web-ui/` SPA. Translation of `docs/proposals/API.md`.
 
-    This is the frozen Phase-1 contract. Changes require a new minor or major
-    version, an updated invariant test, and re-generation of the Pydantic
-    + TypeScript clients (see `scripts/gen-contract`).
+    This is the frozen Phase-1 local contract. Hosted browser API types are
+    generated from the control-plane FastAPI app with
+    `scripts/gen-hosted-contract`.
 
     Source of truth for endpoint behaviour, error semantics, and shape
     decisions: `docs/proposals/API.md`. This YAML is a translation, not a

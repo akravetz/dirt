@@ -12,10 +12,9 @@ renders the timestamp client-side.
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, Response
 
-from dirt_shared.services.capture import FrameCapturer
 from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID
 from dirt_shared.services.snapshots import SnapshotsService, get_snapshot_path
-from dirt_web.deps import get_frame_capturer, get_snapshots
+from dirt_web.deps import FrameCapturer, get_frame_capturer, get_snapshots
 
 router = APIRouter(prefix="/api/feed", tags=["feed"])
 

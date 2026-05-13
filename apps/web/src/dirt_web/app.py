@@ -57,9 +57,8 @@ def create_app(
     ``SPAFallbackMiddleware`` serves ``index.html`` for every non-/api/
     path that would otherwise 404, so TanStack Router can handle
     deeplinks on refresh. Implementing SPA fallback as middleware
-    (instead of a ``/{full_path:path}`` catch-all route) keeps the
-    registered route table identical to the OpenAPI contract, which
-    ``test_api_contract.py`` audits.
+    (instead of a ``/{full_path:path}`` catch-all route) keeps API routes
+    visible as ordinary FastAPI routes.
     """
     core = build_core_services(engine=engine, settings=settings)
     engine = core.engine

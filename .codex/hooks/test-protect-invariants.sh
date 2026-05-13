@@ -55,15 +55,8 @@ check_bash deny "tee -a .githooks/pre-commit" "tee"
 check_bash deny "touch web-ui/src/api-client/generated/marker" "generated"
 
 echo ""
-echo "=== Bash contract_status.json carve-out ==="
-check_bash clean "sed -i 's/a/b/' apps/tests/invariants/contract_status.json" "sed contract_status"
-check_bash clean "echo '{}' > apps/tests/invariants/contract_status.json" "redirect contract_status"
-check_bash deny "sed -i 's/x/y/' apps/tests/invariants/test_foo.py apps/tests/invariants/contract_status.json" "mixed protected"
-
-echo ""
 echo "=== apply_patch clean cases ==="
 check_patch clean $'*** Begin Patch\n*** Update File: README.md\n@@\n-old\n+new\n*** End Patch' "unprotected update"
-check_patch clean $'*** Begin Patch\n*** Update File: apps/tests/invariants/contract_status.json\n@@\n-{}\n+{}\n*** End Patch' "contract_status update"
 
 echo ""
 echo "=== apply_patch protected cases ==="
@@ -71,7 +64,6 @@ check_patch deny $'*** Begin Patch\n*** Update File: apps/tests/invariants/test_
 check_patch deny $'*** Begin Patch\n*** Add File: .githooks/pre-commit\n+#!/usr/bin/env bash\n*** End Patch' "githook add"
 check_patch deny $'*** Begin Patch\n*** Delete File: web-ui/invariants/README.md\n*** End Patch' "web-ui invariant delete"
 check_patch deny $'*** Begin Patch\n*** Update File: tmp.txt\n*** Move to: web-ui/src/api-client/generated/tmp.txt\n*** End Patch' "generated move"
-check_patch deny $'*** Begin Patch\n*** Update File: apps/tests/invariants/contract_status.json\n@@\n-{}\n+{}\n*** Update File: apps/tests/invariants/test_foo.py\n@@\n-old\n+new\n*** End Patch' "mixed contract_status and protected"
 
 echo ""
 echo "=============================================="
