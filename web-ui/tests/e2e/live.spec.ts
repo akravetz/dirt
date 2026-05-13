@@ -9,16 +9,6 @@
 //      matching id
 //   5. Dragging the zoom slider fires POST /api/ptz/zoom
 //
-// Fixtures come from MSW handlers in web-ui/src/mocks/handlers.ts:
-//   - /api/feed/live.jpg          → 1×1 JPEG (Content-Type image/jpeg,
-//                                   Cache-Control no-store)
-//   - /api/ptz/state              → 5 presets (overview + plant_a..d),
-//                                   active preset "overview"
-//   - /api/ptz/preset/{id}        → updates state, echoes PTZApplied
-//   - /api/ptz/look               → updates state, nulls preset, echoes
-//                                   PTZApplied
-//   - /api/ptz/zoom               → 200 (exactly one of zoom|delta), 422
-//                                   otherwise
 import { expect, test } from "@playwright/test";
 
 import { collectConsoleErrors } from "./_helpers";

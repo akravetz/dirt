@@ -20,16 +20,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
-import { type components, createDirtApiClient, isHostedApiMode } from "@/api-client";
 import {
-  type CloudCommand,
-  type CloudCommandCreate,
-  type CloudCommandStatus,
-  type CloudCommandType,
-  type CloudSyncStatus,
-  cloudGet,
-  cloudPost,
-} from "@/api-client/cloud";
+  type components,
+  createDirtApiClient,
+  createHostedApiClient,
+  type hostedComponents,
+  isHostedApiMode,
+} from "@/api-client";
 import { CameraFeed } from "@/ui/CameraFeed";
 import { PresetList, type PresetRow } from "@/ui/PresetList";
 import type { StickerColor } from "@/ui/plant-types";
@@ -43,13 +40,30 @@ export const Route = createFileRoute("/live")({
 });
 
 const api = createDirtApiClient();
+const hostedApi = createHostedApiClient();
 const PTZ_STATE_KEY = ["ptz.state"] as const;
 const HOSTED_TENT_ID = "main";
 const HOSTED_DEVICE_ID = "obsbot-main" as const;
 const HOSTED_CAPABILITY_ID = "ptz_move" as const;
+type HostedCommandCreate = hostedComponents["schemas"]["CommandCreateRequest"];
+type HostedCommandInput = Omit<HostedCommandCreate, "idempotency_key">;
+type HostedCommandType = HostedCommandCreate["command_type"];
+type HostedCommand = hostedComponents["schemas"]["CommandResponse"];
+type HostedSyncStatus = hostedComponents["schemas"]["SyncStatusResponse"];
+type CommandButtonState = {
+  disabled: boolean;
+  status: HostedSyncStatus["status"];
+  statusClass: string;
+};
+type CommandRowModel = {
+  id: string;
+  status: string;
+  statusClass: string;
+  typeLabel: string;
+};
 
 function LivePage() {
-  return isHostedApiMode ? <HostedCloudLivePage /> : <LocalLivePage />;
+  return isHostedApiMode ? <HostedLivePage /> : <LocalLivePage />;
 }
 
 function LocalLivePage() {
@@ -158,36 +172,48 @@ function LocalLivePage() {
   );
 }
 
-function HostedCloudLivePage() {
+function HostedLivePage() {
   const queryClient = useQueryClient();
   const syncQuery = useQuery({
     queryKey: ["cloud.sync.status"],
-    queryFn: async () => cloudGet<CloudSyncStatus>("/api/sync/status"),
+    queryFn: async () => {
+      const { data } = await hostedApi.GET("/api/sync/status");
+      return hostedData(data, "GET /api/sync/status");
+    },
     refetchInterval: 10_000,
   });
   const commandsQuery = useQuery({
     queryKey: ["cloud.commands.recent"],
-    queryFn: async () => cloudGet<CloudCommand[]>("/api/commands"),
+    queryFn: async () => {
+      const { data } = await hostedApi.GET("/api/commands");
+      return hostedData(data, "GET /api/commands");
+    },
     refetchInterval: 2_000,
   });
   const commandMutation = useMutation({
-    mutationFn: async (command: Omit<CloudCommandCreate, "idempotency_key">) =>
-      cloudPost<CloudCommand>("/api/commands", {
-        ...command,
-        idempotency_key: commandIdempotencyKey(command.command_type),
-      }),
+    mutationFn: async (command: HostedCommandInput) => {
+      const { data } = await hostedApi.POST("/api/commands", {
+        body: {
+          ...command,
+          idempotency_key: commandIdempotencyKey(command.command_type),
+        },
+      });
+      return hostedData(data, "POST /api/commands");
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["cloud.commands.recent"] });
       void queryClient.invalidateQueries({ queryKey: ["cloud.sync.status"] });
     },
   });
 
-  const syncStatus = syncQuery.data?.status ?? "offline";
-  const disabled = syncStatus !== "live" || commandMutation.isPending;
+  const buttonState = toCommandButtonState(syncQuery.data, commandMutation.isPending);
   const recentCommands = commandsQuery.data ?? [];
-  const latestCommand = recentCommands[0] ?? null;
+  const commandRows = toCommandRows(recentCommands.slice(0, 5));
 
-  const submit = (command_type: CloudCommandType, payload: Record<string, unknown>) => {
+  const submit = (
+    command_type: HostedCommandType,
+    payload: Record<string, unknown>,
+  ) => {
     commandMutation.mutate({
       tent_id: HOSTED_TENT_ID,
       device_id: HOSTED_DEVICE_ID,
@@ -205,9 +231,9 @@ function HostedCloudLivePage() {
             Tent Camera
           </h1>
           <span
-            className={`border px-2.5 py-1.5 font-mono text-fs-10 uppercase tracking-caps ${hostedStatusClass(syncStatus)}`}
+            className={`border px-2.5 py-1.5 font-mono text-fs-10 uppercase tracking-caps ${buttonState.statusClass}`}
           >
-            Gateway {syncStatus}
+            Gateway {buttonState.status}
           </span>
         </header>
         <section className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
@@ -218,9 +244,9 @@ function HostedCloudLivePage() {
                 <button
                   type="button"
                   aria-label="Look up"
-                  disabled={disabled}
+                  disabled={buttonState.disabled}
                   onClick={() => submit("ptz_look", { x: 0, y: -0.25 })}
-                  className={hostedControlButtonClass(disabled)}
+                  className={hostedControlButtonClass(buttonState.disabled)}
                 >
                   ^
                 </button>
@@ -228,9 +254,9 @@ function HostedCloudLivePage() {
                 <button
                   type="button"
                   aria-label="Look left"
-                  disabled={disabled}
+                  disabled={buttonState.disabled}
                   onClick={() => submit("ptz_look", { x: -0.25, y: 0 })}
-                  className={hostedControlButtonClass(disabled)}
+                  className={hostedControlButtonClass(buttonState.disabled)}
                 >
                   &lt;
                 </button>
@@ -238,9 +264,9 @@ function HostedCloudLivePage() {
                 <button
                   type="button"
                   aria-label="Look right"
-                  disabled={disabled}
+                  disabled={buttonState.disabled}
                   onClick={() => submit("ptz_look", { x: 0.25, y: 0 })}
-                  className={hostedControlButtonClass(disabled)}
+                  className={hostedControlButtonClass(buttonState.disabled)}
                 >
                   &gt;
                 </button>
@@ -248,9 +274,9 @@ function HostedCloudLivePage() {
                 <button
                   type="button"
                   aria-label="Look down"
-                  disabled={disabled}
+                  disabled={buttonState.disabled}
                   onClick={() => submit("ptz_look", { x: 0, y: 0.25 })}
-                  className={hostedControlButtonClass(disabled)}
+                  className={hostedControlButtonClass(buttonState.disabled)}
                 >
                   v
                 </button>
@@ -268,9 +294,9 @@ function HostedCloudLivePage() {
                   <button
                     key={preset.id}
                     type="button"
-                    disabled={disabled}
+                    disabled={buttonState.disabled}
                     onClick={() => submit("ptz_preset", { preset_id: preset.id })}
-                    className={hostedTextButtonClass(disabled)}
+                    className={hostedTextButtonClass(buttonState.disabled)}
                   >
                     {preset.label}
                   </button>
@@ -284,17 +310,17 @@ function HostedCloudLivePage() {
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  disabled={disabled}
+                  disabled={buttonState.disabled}
                   onClick={() => submit("ptz_zoom", { delta: -0.1 })}
-                  className={hostedTextButtonClass(disabled)}
+                  className={hostedTextButtonClass(buttonState.disabled)}
                 >
                   -
                 </button>
                 <button
                   type="button"
-                  disabled={disabled}
+                  disabled={buttonState.disabled}
                   onClick={() => submit("ptz_zoom", { delta: 0.1 })}
-                  className={hostedTextButtonClass(disabled)}
+                  className={hostedTextButtonClass(buttonState.disabled)}
                 >
                   +
                 </button>
@@ -308,22 +334,22 @@ function HostedCloudLivePage() {
                 <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
                   Loading
                 </p>
-              ) : latestCommand === null ? (
+              ) : commandRows.length === 0 ? (
                 <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
                   None
                 </p>
               ) : (
                 <ol className="flex flex-col gap-2">
-                  {recentCommands.slice(0, 5).map((command) => (
+                  {commandRows.map((command) => (
                     <li
-                      key={command.command_id}
+                      key={command.id}
                       className="flex items-center justify-between gap-3 border border-rule bg-paper px-3 py-2"
                     >
                       <span className="font-sans text-fs-12 text-ink">
-                        {formatCommandType(command.command_type)}
+                        {command.typeLabel}
                       </span>
                       <span
-                        className={`font-mono text-fs-10 uppercase tracking-caps ${commandStatusClass(command.status)}`}
+                        className={`font-mono text-fs-10 uppercase tracking-caps ${command.statusClass}`}
                       >
                         {command.status}
                       </span>
@@ -384,6 +410,13 @@ const HOSTED_PRESETS = [
   { id: "plant_d", label: "Plant D" },
 ] as const;
 
+function hostedData<T>(data: T | undefined, label: string): T {
+  if (data === undefined) {
+    throw new Error(`${label} returned no data`);
+  }
+  return data;
+}
+
 function toPresetRows(state: PTZState): readonly PresetRow[] {
   return state.presets.map((preset) => ({
     id: preset.id,
@@ -409,7 +442,7 @@ function normalizeStickerColor(
   return null;
 }
 
-function commandIdempotencyKey(commandType: CloudCommandType): string {
+function commandIdempotencyKey(commandType: HostedCommandType): string {
   const random =
     typeof crypto !== "undefined" && "randomUUID" in crypto
       ? crypto.randomUUID()
@@ -435,13 +468,34 @@ function hostedTextButtonClass(disabled: boolean): string {
   ].join(" ");
 }
 
-function hostedStatusClass(status: CloudSyncStatus["status"]): string {
+function toCommandButtonState(
+  sync: HostedSyncStatus | undefined,
+  isSubmitting: boolean,
+): CommandButtonState {
+  const status = sync?.status ?? "offline";
+  return {
+    disabled: status !== "live" || isSubmitting,
+    status,
+    statusClass: toHostedStatusClass(status),
+  };
+}
+
+function toCommandRows(commands: readonly HostedCommand[]): readonly CommandRowModel[] {
+  return commands.map((command) => ({
+    id: command.command_id,
+    status: command.status,
+    statusClass: toCommandStatusClass(command.status),
+    typeLabel: toCommandTypeLabel(command.command_type),
+  }));
+}
+
+function toHostedStatusClass(status: HostedSyncStatus["status"]): string {
   if (status === "live") return "border-status-ok text-status-ok";
   if (status === "stale") return "border-status-warn text-status-warn";
   return "border-accent-magenta text-accent-magenta";
 }
 
-function commandStatusClass(status: CloudCommandStatus): string {
+function toCommandStatusClass(status: string): string {
   if (status === "succeeded") return "text-status-ok";
   if (status === "failed" || status === "rejected" || status === "expired") {
     return "text-accent-magenta";
@@ -449,7 +503,7 @@ function commandStatusClass(status: CloudCommandStatus): string {
   return "text-status-warn";
 }
 
-function formatCommandType(commandType: CloudCommandType): string {
+function toCommandTypeLabel(commandType: string): string {
   if (commandType === "ptz_preset") return "Preset";
   if (commandType === "ptz_look") return "Look";
   return "Zoom";

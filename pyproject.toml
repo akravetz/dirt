@@ -3,6 +3,10 @@ members = ["apps/*", "contracts/python"]
 exclude = ["apps/tests"]
 
 [tool.uv]
+required-version = ">=0.10.12,<0.11"
+# Delay newly uploaded registry artifacts so compromised releases have time to
+# be reported and yanked before routine dependency updates can select them.
+exclude-newer = "1 week"
 dev-dependencies = [
     "pytest>=8.3",
     "pytest-asyncio>=0.25",

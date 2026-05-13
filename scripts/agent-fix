@@ -20,10 +20,10 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 echo "→ ruff format"
-uv run ruff format
+uv run --locked ruff format
 
 echo "→ ruff check --fix"
-uv run ruff check --fix
+uv run --locked ruff check --fix
 
 echo "→ biome check --write (web-ui)"
 pnpm --dir web-ui exec biome check --write

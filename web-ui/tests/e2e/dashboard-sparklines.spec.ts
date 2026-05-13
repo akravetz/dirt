@@ -6,17 +6,11 @@
 // mega-test would obscure which assertions are really exercised. See
 // web-ui/tests/e2e/README.md §2.
 //
-// Fixtures come from the MSW handler for /api/sensors/history in
-// web-ui/src/mocks/handlers.ts (bucket count is 12 / 48 / 168 for
-// 1h / 24h / 7d, deterministic values per metric). MSW
-// intercepts in dev AND in the Vite build Playwright runs against, so
-// the spec is independent of the backend stack.
-//
 // NOTE on units (documented deviation):
 //   The plan description reads "°C / % / kPa / % / in". The existing
-//   backend contract + MSW fixture for /api/sensors/current surfaces the
-//   temperature metric as `temperature_f` with unit "°F". Re-using the
-//   same metric key (and visually agreeing with the gauge above the
+//   backend contract for /api/sensors/current surfaces the temperature
+//   metric as `temperature_f` with unit "°F". Re-using the same metric
+//   key (and visually agreeing with the gauge above the
 //   sparkline) takes precedence over the plan's indicative unit list,
 //   so the temperature sparkline tooltip shows "°F". See
 //   docs/plans/notes/frontend.dashboard.sparklines.md for the
@@ -83,8 +77,7 @@ test.describe("dashboard sparklines", () => {
     page,
   }) => {
     // Count every /api/sensors/history request the browser dispatches
-    // after we install the listener. `page.on('request', ...)` fires
-    // for MSW-intercepted fetches just like for real-network ones.
+    // after we install the listener.
     const requests: { range: string | null; metric: string | null }[] = [];
     page.on("request", (req) => {
       const u = new URL(req.url());
@@ -180,9 +173,9 @@ test.describe("dashboard sparklines", () => {
 
   test("hover tooltip shows the per-metric unit suffix", async ({ page }) => {
     // Hover each sparkline and assert its tooltip text contains the
-    // expected unit string. Units per MSW fixture:
-    //   temperature_f → "°F"  (see handlers.ts; plan asserts °C but the
-    //     contract is °F — documented in NOTES)
+    // expected unit string. The backend contract uses:
+    //   temperature_f → "°F"  (plan asserts °C, but the contract is °F
+    //     — documented in NOTES)
     //   humidity_pct  → "%"
     //   vpd_kpa       → "kPa"
     //   fan_pct       → "%"

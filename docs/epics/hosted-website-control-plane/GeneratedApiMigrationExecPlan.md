@@ -23,11 +23,11 @@ This plan intentionally covers five steps:
 ## Progress
 
 - [x] (2026-05-13T00:00:00-06:00) Created this ExecPlan from the hosted generated API migration discussion.
-- [ ] Milestone 1: establish the generated hosted client as the only browser fetch path for hosted routes.
-- [ ] Milestone 2: migrate hosted dashboard and live/PTZ queries to generated path calls.
-- [ ] Milestone 3: split generated DTOs from UI view models with explicit mappers.
-- [ ] Milestone 4: remove MSW wiring, handlers, worker script, package dependency, and MSW-only tests.
-- [ ] Milestone 5: add missing control-plane routes before frontend use, regenerate, and remove the old cloud client.
+- [x] (2026-05-13T06:01:54-06:00) Milestone 1: established the generated hosted client as the only browser fetch path for hosted routes.
+- [x] (2026-05-13T06:05:59-06:00) Milestone 2: migrated hosted dashboard and live/PTZ queries to generated path calls.
+- [x] (2026-05-13T06:11:39-06:00) Milestone 3: split generated DTOs from UI view models with explicit mappers.
+- [x] (2026-05-13T06:17:32-06:00) Milestone 4: removed MSW wiring, handlers, worker script, package dependency, and MSW-only tests.
+- [x] (2026-05-13T06:24:58-06:00) Milestone 5: confirmed no hosted route gaps, removed the old cloud client, scrubbed route-local `Cloud*` names, and added the app-local legacy import guardrail.
 
 
 ## Surprises & Discoveries
@@ -46,6 +46,24 @@ This plan intentionally covers five steps:
 
 - Observation: MSW currently mocks both local and hosted API routes, but the hosted generated-client migration should not spend effort retyping those mock contracts.
   Evidence: `web-ui/src/mocks/handlers.ts` contains hosted handlers for `/api/sites`, `/api/tents`, `/api/tents/:tentId/metrics/current`, `/api/sync/status`, and `/api/commands`, while `web-ui/src/mocks/__tests__/handlers.test.ts` tests hosted cloud fixtures. These are mock-only paths that duplicate the real control-plane API.
+
+- Observation: `scripts/gen-hosted-contract` is present, executable, and deterministic for the current tree.
+  Evidence: Running `scripts/gen-hosted-contract` completed with `✓ hosted contract regenerated` and left `contracts/hosted-browser-v1.json` plus `web-ui/src/api-client/generated/hosted-schema.ts` unchanged.
+
+- Observation: Hosted browser `CommandResponse` is intentionally looser than `CommandCreateRequest` in the generated schema.
+  Evidence: `web-ui/src/api-client/generated/hosted-schema.ts` narrows `CommandCreateRequest.command_type` to PTZ commands, while `CommandResponse.command_type` and `CommandResponse.status` are generated as `string`; the route-local `toCommandRows()` mapper owns display labels and status classes.
+
+- Observation: Removing MSW from `package.json` is not enough for a literal lockfile grep because pnpm records Vitest's optional `msw` peer metadata.
+  Evidence: After `pnpm --dir web-ui install --lockfile-only`, `web-ui/pnpm-lock.yaml` still contained `@vitest/mocker` optional peer metadata for `msw`; regenerating with `--config.auto-install-peers=false` removed the package resolution, and the remaining optional-peer metadata was removed from the lockfile.
+
+- Observation: `web-ui/src/api-client/cloud.ts` is now unused, but remains intentionally in place for Milestone 5.
+  Evidence: `pnpm --dir web-ui exec knip --config invariants/knip.json --no-progress` reports `src/api-client/cloud.ts` as an unused file after Milestone 4, while the Milestone 4 scope explicitly says not to delete it yet.
+
+- Observation: Milestone 5 found no hosted route gaps.
+  Evidence: `web-ui/src/routes/index.tsx` and `web-ui/src/routes/live.tsx` already consume generated hosted paths for sites, tents, tent state, current metrics, metric history, devices, light schedules, latest assets, sync status, command listing, and command creation. No `apps/control-plane` route edits or contract regeneration were needed.
+
+- Observation: ESLint flat config does not deep-merge rule options between config entries.
+  Evidence: A separate trailing `no-restricted-imports` override in `web-ui/eslint.config.ts` would replace the invariant ban list for matching files. The app-local shim now extends the existing `invariants/base` `no-restricted-imports` options in place before app-specific overrides are appended.
 
 
 ## Decision Log
@@ -69,7 +87,59 @@ This plan intentionally covers five steps:
 
 ## Outcomes & Retrospective
 
-Not yet implemented. At completion, update this section with the routes migrated, any API gaps discovered, and whether `web-ui/src/api-client/cloud.ts` was deleted or left as a temporary compatibility shim.
+Milestone 1 is complete. `web-ui/src/api-client/hosted.ts` now keeps `credentials: "include"`, redirects 401 responses through the configured unauthorized hook, and throws a status-bearing `HostedApiError` for non-OK responses so React Query observes hosted generated-client failures as rejected query/mutation promises.
+
+Validation for Milestone 1 passed:
+
+    scripts/gen-hosted-contract
+    pnpm --dir web-ui exec biome check src/api-client src/routes src/main.tsx src/test-setup.ts vitest.config.ts
+    pnpm --dir web-ui typecheck
+    pnpm --dir web-ui test
+
+No routes were migrated in this milestone, and `web-ui/src/api-client/cloud.ts` remains as the temporary compatibility shim for Milestones 2-5.
+
+Milestone 2 is complete. Hosted dashboard and live/PTZ route queries now call `createHostedApiClient()` generated paths for sites, tents, tent state, current metrics, metric history, devices, light schedules, latest assets, sync status, command listing, and command creation. The local `createDirtApiClient()` path remains unchanged for non-hosted UI mode.
+
+Validation for Milestone 2 passed:
+
+    pnpm --dir web-ui exec biome check src/api-client src/routes src/main.tsx src/test-setup.ts vitest.config.ts
+    pnpm --dir web-ui typecheck
+    pnpm --dir web-ui test
+
+Milestone 3 is complete. Hosted dashboard DTOs are now mapped into route-local view models for metric cards, metric source rows, latest asset display state, and device rows before rendering display components. Hosted live/PTZ DTOs are mapped into command button state and command row models, keeping generated schema types at mapper inputs while UI components consume display-specific fields.
+
+Validation for Milestone 3 passed:
+
+    pnpm --dir web-ui exec biome check src/api-client src/routes src/main.tsx src/test-setup.ts vitest.config.ts
+    pnpm --dir web-ui typecheck
+    pnpm --dir web-ui test
+
+The simplify pass found and applied one cleanup: `HostedCloudLivePage` now slices recent command DTOs before mapping and derives the empty command list state from command row view models rather than from a DTO sentinel.
+
+Milestone 4 is complete. The web UI no longer starts a dev Service Worker, no longer has Vitest MSW lifecycle setup, and no longer carries `web-ui/src/mocks/**`, `web-ui/public/mockServiceWorker.js`, the `msw` package entry, or `cloud_fixture` query plumbing in the temporary `cloud.ts` compatibility client. `web-ui/vitest.config.ts` now uses jsdom without a setup file. `web-ui/invariants/eslint.config.ts` no longer models a `src/mocks` architectural layer or main-to-mocks allowance.
+
+Validation for Milestone 4 passed:
+
+    pnpm --dir web-ui exec biome check src/api-client src/routes src/main.tsx vitest.config.ts
+    pnpm --dir web-ui typecheck
+    pnpm --dir web-ui test
+    rg -n "msw|setupWorker|setupServer|mockServiceWorker|cloud_fixture|mocks/browser|mocks/server" web-ui
+
+`pnpm --dir web-ui test` exits 0 with no matching test files after deleting the MSW-only handler tests. The Milestone 4 simplify pass found and applied stale cleanup in web-ui comments and the editable ESLint shim that still referenced deleted MSW fixtures.
+
+Milestone 5 is complete. The hosted frontend no longer has `api-client/cloud`, `cloudGet`, `cloudPost`, or route-local `Cloud*` names under `web-ui/src`. `web-ui/src/api-client/cloud.ts` was deleted after the import scrub, and `web-ui/eslint.config.ts` now rejects `@/api-client/cloud` with the message `Use createHostedApiClient() and generated hosted schema types instead.` The guardrail is applied by extending the imported invariant config entry so the existing `no-restricted-imports` bans remain active under ESLint flat-config rule replacement semantics.
+
+Validation for Milestone 5 passed:
+
+    rg -n "api-client/cloud|cloudGet|cloudPost|Cloud[A-Z]" web-ui/src
+    rg -n "msw|setupWorker|setupServer|mockServiceWorker|cloud_fixture|mocks/browser|mocks/server" web-ui
+    pnpm --dir web-ui exec biome check src/api-client src/routes src/main.tsx vitest.config.ts eslint.config.ts invariants tests/e2e
+    pnpm --dir web-ui typecheck
+    pnpm --dir web-ui test
+    uv run pytest apps/tests/invariants -q
+    pnpm --dir web-ui exec knip --config invariants/knip.json --no-progress
+
+The Milestone 5 simplify pass found no further cleanup worth applying beyond preserving the invariant `no-restricted-imports` entries while adding the legacy cloud-client ban.
 
 
 ## Context and Orientation

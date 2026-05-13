@@ -13,9 +13,6 @@
 //      (role/aria-label/textContent) reflects the device's status value
 //      — colour-only indicators are forbidden.
 //
-// Fixture values come from the MSW handler for /api/system/devices in
-// web-ui/src/mocks/handlers.ts (eight devices covering the full
-// DeviceStatusKind enum).
 import { type Page, expect, test } from "@playwright/test";
 
 const ALLOWED_STATUSES = ["ok", "listening", "warn", "offline"] as const;

@@ -8,6 +8,10 @@ resolution-markers = [
     "python_full_version < '3.14' and sys_platform != 'linux'",
 ]
 
+[options]
+exclude-newer = "2026-05-06T12:34:19.420543314Z"
+exclude-newer-span = "P1W"
+
 [manifest]
 members = [
     "dirt-camera-agent",

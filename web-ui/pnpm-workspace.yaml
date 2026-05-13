@@ -1,0 +1,13 @@
+packages:
+  - "."
+
+# Supply-chain guardrails:
+# - refuse packages published in the last 7 days during dependency resolution
+# - fail if dependency install scripts are present but not explicitly reviewed
+# - keep the known MSW postinstall script blocked; it is not needed for this app
+minimumReleaseAge: 10080
+strictDepBuilds: true
+dangerouslyAllowAllBuilds: false
+ignoredBuiltDependencies:
+  - msw
+verifyDepsBeforeRun: error

@@ -16,12 +16,6 @@
 //      fired (network tracking).
 //   7. Page console has no error-level entries after exercising the tab.
 //
-// Fixtures come from MSW handlers in web-ui/src/mocks/handlers.ts:
-//   - /api/wiki/tree   → root files (index.md, overview.md) + folders
-//     (concepts, daily, plants)
-//   - /api/wiki/file   → plant-a.md has frontmatter + subtitle + body
-//   - /api/wiki/search → "topping" matches a title (topping.md) and a
-//     content hit (plant-a.md)
 import { expect, test } from "@playwright/test";
 
 import { collectConsoleErrors } from "./_helpers";

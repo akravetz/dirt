@@ -6,11 +6,6 @@
 // mega-test would obscure which assertions are really exercised. See
 // web-ui/tests/e2e/README.md §2.
 //
-// Fixtures come from the MSW handlers for /api/plants/:code and
-// /api/plants/:code/moisture in web-ui/src/mocks/handlers.ts (six-entry
-// timeline, sticker A=yellow, moisture.current_pct=62). MSW intercepts
-// in dev AND in the Vite build Playwright runs against, so the spec is
-// independent of the backend stack.
 import { expect, test } from "@playwright/test";
 
 test.describe("plant detail", () => {
@@ -34,7 +29,7 @@ test.describe("plant detail", () => {
     page,
   }) => {
     // Capture the response so the header assertions derive from the
-    // live payload rather than hard-coded MSW fixture values.
+    // live payload rather than hard-coded values.
     const responsePromise = page.waitForResponse(
       (resp) =>
         new URL(resp.url()).pathname === "/api/plants/a" && resp.ok(),
@@ -112,9 +107,7 @@ test.describe("plant detail", () => {
     await expect(dialog).toBeVisible();
 
     // Row count == the live response's timeline length — the plan's
-    // literal contract. Hard-coding "6" coupled the spec to an MSW
-    // fixture that was always 6 entries per plant; real grow history
-    // grows over time.
+    // literal contract. Real grow history grows over time.
     const expectedCount = payload.timeline.length;
     expect(expectedCount).toBeGreaterThan(0);
     const timeline = dialog.getByRole("region", { name: "Timeline" });

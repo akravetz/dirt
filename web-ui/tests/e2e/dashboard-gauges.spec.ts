@@ -6,11 +6,6 @@
 // mega-test would obscure which assertions are really exercised. See
 // web-ui/tests/e2e/README.md §2.
 //
-// Fixture values come from the MSW handlers in
-// web-ui/src/mocks/handlers.ts (/api/sensors/current and
-// /api/grow/current). MSW intercepts these endpoints in dev AND in the
-// Vite build Playwright runs against, so the spec is independent of
-// the backend stack.
 import { expect, test } from "@playwright/test";
 
 test.describe("dashboard gauges", () => {
@@ -89,8 +84,8 @@ test.describe("dashboard gauges", () => {
     // Shape+presence assertion: each tile surfaces *some* numeric value
     // plus the metric's unit suffix. Values come from live BE captures
     // (refreshed via scripts/capture-fixtures), so the specific number
-    // drifts between runs; asserting an exact literal coupled the spec
-    // to the MSW fixture and broke on every recapture.
+    // drifts between runs; asserting an exact literal broke on every
+    // recapture.
     const TILES: Array<[string, string]> = [
       ["Temperature", "°F"],
       ["Humidity", "%"],
@@ -181,8 +176,7 @@ test.describe("dashboard gauges", () => {
     page,
   }) => {
     // Shape+presence: banner renders "Day N" for some positive integer
-    // N (day_number advances daily, so hard-coding the literal coupled
-    // the spec to the MSW fixture) plus stage, lights, and strain.
+    // N (day_number advances daily) plus stage, lights, and strain.
     const banner = page.getByRole("banner");
     await expect(banner).toContainText(/Day \d+/);
     await expect(banner).toContainText("Veg");

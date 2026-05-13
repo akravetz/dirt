@@ -16,14 +16,14 @@ repos:
       # runs both up front so the first commit usually goes through.
       - id: ruff-format
         name: ruff format
-        entry: uv run ruff format
+        entry: uv run --locked ruff format
         language: system
         files: '\.py$'
         pass_filenames: false
 
       - id: ruff-check
         name: ruff check --fix
-        entry: uv run ruff check --fix
+        entry: uv run --locked ruff check --fix
         language: system
         files: '\.py$'
         pass_filenames: false
@@ -33,7 +33,7 @@ repos:
       # web-ui shims via `tsc --showConfig` / `eslint --print-config`.
       - id: invariants
         name: pytest invariants (architectural)
-        entry: uv run pytest apps/tests/invariants/ -q
+        entry: uv run --locked pytest apps/tests/invariants/ -q
         language: system
         files: '^(apps/|web-ui/|pyproject\.toml|\.claude/settings\.json|\.claude/hooks/)'
         pass_filenames: false
@@ -43,49 +43,49 @@ repos:
       # dependency changes fan out through the apps that import dirt-shared.
       - id: pytest-hwd
         name: pytest apps/hwd
-        entry: uv run pytest apps/hwd -q
+        entry: uv run --locked pytest apps/hwd -q
         language: system
         files: '^(apps/(hwd|shared)/|pyproject\.toml|uv\.lock)'
         pass_filenames: false
 
       - id: pytest-web
         name: pytest apps/web
-        entry: uv run pytest apps/web -q
+        entry: uv run --locked pytest apps/web -q
         language: system
         files: '^(apps/(web|shared)/|contracts/python/|pyproject\.toml|uv\.lock)'
         pass_filenames: false
 
       - id: pytest-shared
         name: pytest apps/shared
-        entry: uv run pytest apps/shared -q
+        entry: uv run --locked pytest apps/shared -q
         language: system
         files: '^(apps/shared/|pyproject\.toml|uv\.lock)'
         pass_filenames: false
 
       - id: pytest-mcp
         name: pytest apps/mcp
-        entry: uv run pytest apps/mcp -q
+        entry: uv run --locked pytest apps/mcp -q
         language: system
         files: '^(apps/(mcp|shared)/|pyproject\.toml|uv\.lock)'
         pass_filenames: false
 
       - id: pytest-voice
         name: pytest apps/voice
-        entry: uv run pytest apps/voice -q
+        entry: uv run --locked pytest apps/voice -q
         language: system
         files: '^(apps/(voice|shared)/|pyproject\.toml|uv\.lock)'
         pass_filenames: false
 
       - id: pytest-control-plane
         name: pytest apps/control-plane
-        entry: uv run pytest apps/control-plane -q
+        entry: uv run --locked pytest apps/control-plane -q
         language: system
         files: '^(apps/(control-plane|shared)/|cloud/migrations/|pyproject\.toml|uv\.lock)'
         pass_filenames: false
 
       - id: pytest-gateway
         name: pytest apps/gateway
-        entry: uv run pytest apps/gateway -q
+        entry: uv run --locked pytest apps/gateway -q
         language: system
         files: '^(apps/(gateway|shared)/|pyproject\.toml|uv\.lock)'
         pass_filenames: false

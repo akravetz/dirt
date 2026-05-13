@@ -12,23 +12,57 @@
 import type { Linter } from "eslint";
 import invariants from "./invariants/eslint.config.ts";
 
-const config: Linter.Config[] = [
-  ...invariants,
-  // App-specific overrides go below.
-  //
-  // MSW smoke tests under src/mocks/__tests__/ need raw `fetch` to
-  // *prove* the worker intercepts the network layer. Running the call
-  // through src/api-client/ would defeat the purpose: the api-client
-  // only knows contract paths, but the smoke test hits a synthetic
-  // /api/__smoke endpoint so it's independent of any real BE route.
-  // Scope: test files under src/mocks/__tests__/ only.
-  {
-    name: "app/mocks-tests-raw-fetch",
-    files: ["src/mocks/__tests__/*.ts", "src/mocks/__tests__/*.tsx"],
+type RestrictedImportPath = {
+  name: string;
+  message: string;
+};
+
+type RestrictedImportsOptions = {
+  paths?: RestrictedImportPath[];
+  patterns?: unknown[];
+};
+
+type RestrictedImportsRule = ["error", RestrictedImportsOptions];
+
+const legacyHostedCloudImportRestriction = {
+  name: "@/api-client/cloud",
+  message: "Use createHostedApiClient() and generated hosted schema types instead.",
+} satisfies RestrictedImportPath;
+
+function isRestrictedImportsRule(rule: unknown): rule is RestrictedImportsRule {
+  return (
+    Array.isArray(rule) &&
+    rule[0] === "error" &&
+    typeof rule[1] === "object" &&
+    rule[1] !== null
+  );
+}
+
+function withLegacyHostedCloudImportBan(config: Linter.Config): Linter.Config {
+  const rule = config.rules?.["no-restricted-imports"];
+  if (config.name !== "invariants/base" || !isRestrictedImportsRule(rule)) {
+    return config;
+  }
+
+  const [, options] = rule;
+  return {
+    ...config,
     rules: {
-      "no-restricted-globals": "off",
+      ...config.rules,
+      "no-restricted-imports": [
+        "error",
+        {
+          ...options,
+          paths: [...(options.paths ?? []), legacyHostedCloudImportRestriction],
+        },
+      ],
     },
-  },
+  };
+}
+
+const config: Linter.Config[] = [
+  ...invariants.map(withLegacyHostedCloudImportBan),
+  // App-specific overrides go below.
   // Playwright e2e specs (tests/e2e/**) run inside the Playwright
   // Node-side test process, not inside the app bundle, and use
   // `page.addInitScript` to inject code that runs against the browser

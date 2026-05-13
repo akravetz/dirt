@@ -23,6 +23,16 @@ const defaultOnUnauthorized = (): void => {
   }
 };
 
+class HostedApiError extends Error {
+  readonly status: number;
+
+  constructor(method: string, path: string, status: number) {
+    super(`${method} ${path} failed with ${status}`);
+    this.name = "HostedApiError";
+    this.status = status;
+  }
+}
+
 export const createHostedApiClient = (
   options: HostedApiClientOptions = {},
 ): HostedApiClient => {
@@ -34,11 +44,13 @@ export const createHostedApiClient = (
   });
 
   const unauthorizedMiddleware: Middleware = {
-    onResponse: ({ response }) => {
+    onResponse: ({ request, response, schemaPath }) => {
       if (response.status === 401) {
         onUnauthorized();
       }
-      return response;
+      if (!response.ok) {
+        throw new HostedApiError(request.method, schemaPath, response.status);
+      }
     },
   };
   client.use(unauthorizedMiddleware);

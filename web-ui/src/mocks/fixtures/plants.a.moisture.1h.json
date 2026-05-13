@@ -1,8 +1,0 @@
-{
-  "code": "a",
-  "range": "1h",
-  "unit": "%",
-  "target": [55.0, 70.0],
-  "points": [],
-  "irrigation_events_24h": 0
-}

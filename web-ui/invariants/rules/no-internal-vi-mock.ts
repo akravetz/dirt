@@ -12,7 +12,7 @@
 //   - anything resolving to a relative path that stays inside src/
 //
 // Legitimate seams for test fakes (NOT flagged):
-//   - MSW at the api-client boundary (network-level mock)
+//   - API boundary fakes
 //   - QueryClientProvider with a test QueryClient
 //   - Context providers with fake implementations
 //   - Component props that take a dependency
@@ -25,7 +25,7 @@ import { formatInvariantMessage } from "./_message.ts";
 const MESSAGE = formatInvariantMessage({
   smell: "Internal Test Mock",
   why: "vi.mock('{{arg}}') targets an internal module — production code has no injection seam.",
-  fix: "Lift the dependency to a parameter / context / provider; swap in a fake from test code. Mocks at the api-client / MSW boundary (network level) are fine.",
+  fix: "Lift the dependency to a parameter / context / provider; swap in a fake from test code. API boundary fakes are fine.",
   violations: ["vi.mock('{{arg}}')"],
 });
 

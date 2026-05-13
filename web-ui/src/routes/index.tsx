@@ -1,11 +1,9 @@
 // Dashboard route (/) — five-gauge tile grid + sparklines strip.
 //
-// Fetches /api/sensors/current via TanStack Query. MSW intercepts the
-// request in dev + e2e tests (see web-ui/src/mocks/handlers.ts); in
-// production the same call hits the real backend on :8001. No
-// re-derivation of band_status happens here — the envelope's `status`
-// field is the authoritative value the backend stamps onto each
-// reading (see apps/shared/src/dirt_shared/services/grow_state.py).
+// Fetches /api/sensors/current via TanStack Query. No re-derivation of
+// band_status happens here — the envelope's `status` field is the
+// authoritative value the backend stamps onto each reading (see
+// apps/shared/src/dirt_shared/services/grow_state.py).
 //
 // Under the gauges, a 1h/24h/7d range switch + five sparklines render
 // bucketed history from /api/sensors/history (one fetch per metric per
@@ -22,20 +20,13 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import type { ChangeEvent, ReactNode } from "react";
 import { useState } from "react";
-import { type components, createDirtApiClient, isHostedApiMode } from "@/api-client";
 import {
-  type CloudAsset,
-  type CloudDevice,
-  type CloudLightSchedule,
-  type CloudLightSchedulesResponse,
-  type CloudMetric,
-  type CloudMetricHistory,
-  type CloudSite,
-  type CloudSyncStatus,
-  type CloudTent,
-  type CloudTentState,
-  cloudGet,
-} from "@/api-client/cloud";
+  type components,
+  createDirtApiClient,
+  createHostedApiClient,
+  type hostedComponents,
+  isHostedApiMode,
+} from "@/api-client";
 import { Gauge } from "@/ui/Gauge";
 import { HoverTimestamp } from "@/ui/HoverTimestamp";
 import { PlantDetail } from "@/ui/PlantDetail";
@@ -50,6 +41,7 @@ export const Route = createFileRoute("/")({
 });
 
 const api = createDirtApiClient();
+const hostedApi = createHostedApiClient();
 
 type SensorsCurrent = components["schemas"]["SensorsCurrent"];
 type MetricEnvelope = components["schemas"]["MetricEnvelope"];
@@ -57,7 +49,42 @@ type MetricMeta = components["schemas"]["SensorMetricMetadata"];
 type SparklineAccent = "temp" | "humidity" | "vpd" | "moisture" | "neutral";
 type MetricStatus = MetricEnvelope["status"];
 type LocalLightSchedule = components["schemas"]["LightSchedule"];
-type DashboardLightSchedule = LocalLightSchedule | CloudLightSchedule;
+type HostedAsset = hostedComponents["schemas"]["AssetResponse"];
+type HostedDevice = hostedComponents["schemas"]["DeviceResponse"];
+type HostedLightSchedule = hostedComponents["schemas"]["LightScheduleResponse"];
+type HostedMetric = hostedComponents["schemas"]["CurrentMetricResponse"];
+type HostedMetricHistory = hostedComponents["schemas"]["MetricHistoryResponse"];
+type HostedSyncStatus = hostedComponents["schemas"]["SyncStatusResponse"];
+type DashboardLightSchedule = LocalLightSchedule | HostedLightSchedule;
+type MetricFreshness = "live" | "stale";
+type MetricCardModel = {
+  accent: SparklineAccent;
+  format?: (value: number) => string;
+  key: string;
+  name: string;
+  status: MetricStatus;
+  unit: string;
+  value: number;
+};
+type MetricSourceModel = {
+  key: string;
+  label: string;
+  value: string;
+};
+type AssetPanelModel =
+  | { state: "unavailable" }
+  | { state: "empty" }
+  | {
+      state: "ready";
+      capturedValue: string;
+      imageUrl: string;
+    };
+type DeviceRowModel = {
+  id: string;
+  kindLabel: string;
+  lastSeenLabel: string;
+  name: string;
+};
 
 // Whitelist the accent strings the FE knows how to render. Anything else
 // from the registry falls back to "neutral" so a future BE addition
@@ -74,6 +101,13 @@ function asAccent(raw: string): SparklineAccent {
   return KNOWN_ACCENTS.has(raw as SparklineAccent)
     ? (raw as SparklineAccent)
     : "neutral";
+}
+
+function hostedData<T>(data: T | undefined, path: string): T {
+  if (data === undefined) {
+    throw new Error(`GET ${path} returned no data`);
+  }
+  return data;
 }
 
 // Metrics that display as integers (no decimal). Driven by the unit
@@ -96,7 +130,7 @@ function formatInteger(value: number): string {
   return `${Math.round(value)}`;
 }
 
-const CLOUD_METRIC_META: readonly MetricMeta[] = [
+const HOSTED_METRIC_META: readonly MetricMeta[] = [
   {
     metric: "temperature_f",
     display_name: "Temperature",
@@ -171,77 +205,101 @@ function HostedDashboardPage() {
 
   const sitesQuery = useQuery({
     queryKey: ["cloud.sites"],
-    queryFn: async () => cloudGet<CloudSite[]>("/api/sites"),
+    queryFn: async () => {
+      const { data } = await hostedApi.GET("/api/sites");
+      return hostedData(data, "/api/sites");
+    },
   });
 
   const tentsQuery = useQuery({
     queryKey: ["cloud.tents", selectedSiteId],
-    queryFn: async () =>
-      cloudGet<CloudTent[]>(`/api/tents?site_id=${encodeURIComponent(selectedSiteId)}`),
+    queryFn: async () => {
+      const { data } = await hostedApi.GET("/api/tents", {
+        params: { query: { site_id: selectedSiteId } },
+      });
+      return hostedData(data, "/api/tents");
+    },
     enabled: selectedSiteId.length > 0,
   });
 
   const stateQuery = useQuery({
     queryKey: ["cloud.tent.state", selectedTentId],
-    queryFn: async () =>
-      cloudGet<CloudTentState>(
-        `/api/tents/${encodeURIComponent(selectedTentId)}/state`,
-      ),
+    queryFn: async () => {
+      const { data } = await hostedApi.GET("/api/tents/{tent_id}/state", {
+        params: { path: { tent_id: selectedTentId } },
+      });
+      return hostedData(data, "/api/tents/{tent_id}/state");
+    },
     enabled: selectedTentId.length > 0,
   });
 
   const metricsQuery = useQuery({
     queryKey: ["cloud.metrics.current", selectedTentId],
-    queryFn: async () =>
-      cloudGet<CloudMetric[]>(
-        `/api/tents/${encodeURIComponent(selectedTentId)}/metrics/current`,
-      ),
+    queryFn: async () => {
+      const { data } = await hostedApi.GET("/api/tents/{tent_id}/metrics/current", {
+        params: { path: { tent_id: selectedTentId } },
+      });
+      return hostedData(data, "/api/tents/{tent_id}/metrics/current");
+    },
     enabled: selectedTentId.length > 0,
   });
 
   const historyResults = useQueries({
-    queries: CLOUD_METRIC_META.map((m) => ({
+    queries: HOSTED_METRIC_META.map((m) => ({
       queryKey: ["cloud.metrics.history", selectedTentId, range, m.metric] as const,
-      queryFn: async () =>
-        cloudGet<CloudMetricHistory>(
-          `/api/tents/${encodeURIComponent(selectedTentId)}/metrics/history?` +
-            `range=${encodeURIComponent(range)}&metric=${encodeURIComponent(m.metric)}`,
-        ),
+      queryFn: async () => {
+        const { data } = await hostedApi.GET("/api/tents/{tent_id}/metrics/history", {
+          params: {
+            path: { tent_id: selectedTentId },
+            query: { range, metric: m.metric },
+          },
+        });
+        return hostedData(data, "/api/tents/{tent_id}/metrics/history");
+      },
       enabled: selectedTentId.length > 0,
     })),
   });
 
   const devicesQuery = useQuery({
     queryKey: ["cloud.devices", selectedTentId],
-    queryFn: async () =>
-      cloudGet<CloudDevice[]>(
-        `/api/tents/${encodeURIComponent(selectedTentId)}/devices`,
-      ),
+    queryFn: async () => {
+      const { data } = await hostedApi.GET("/api/tents/{tent_id}/devices", {
+        params: { path: { tent_id: selectedTentId } },
+      });
+      return hostedData(data, "/api/tents/{tent_id}/devices");
+    },
     enabled: selectedTentId.length > 0,
   });
 
   const lightSchedulesQuery = useQuery({
     queryKey: ["cloud.lights.schedules", selectedTentId],
-    queryFn: async () =>
-      cloudGet<CloudLightSchedulesResponse>(
-        `/api/tents/${encodeURIComponent(selectedTentId)}/lights/schedules`,
-      ),
+    queryFn: async () => {
+      const { data } = await hostedApi.GET("/api/tents/{tent_id}/lights/schedules", {
+        params: { path: { tent_id: selectedTentId } },
+      });
+      return hostedData(data, "/api/tents/{tent_id}/lights/schedules");
+    },
     enabled: selectedTentId.length > 0,
   });
 
   const assetsQuery = useQuery({
     queryKey: ["cloud.assets.latest", selectedTentId],
-    queryFn: async () =>
-      cloudGet<CloudAsset[]>(
-        `/api/tents/${encodeURIComponent(selectedTentId)}/assets/latest`,
-      ),
+    queryFn: async () => {
+      const { data } = await hostedApi.GET("/api/tents/{tent_id}/assets/latest", {
+        params: { path: { tent_id: selectedTentId } },
+      });
+      return hostedData(data, "/api/tents/{tent_id}/assets/latest");
+    },
     enabled: selectedTentId.length > 0,
     retry: false,
   });
 
   const syncQuery = useQuery({
     queryKey: ["cloud.sync.status"],
-    queryFn: async () => cloudGet<CloudSyncStatus>("/api/sync/status"),
+    queryFn: async () => {
+      const { data } = await hostedApi.GET("/api/sync/status");
+      return hostedData(data, "/api/sync/status");
+    },
     refetchInterval: 30_000,
   });
 
@@ -249,11 +307,16 @@ function HostedDashboardPage() {
   const tents = tentsQuery.data ?? [];
   const selectedTent = tents.find((tent) => tent.tent_id === selectedTentId);
   const metrics = metricsQuery.data ?? [];
-  const metricsByName = new Map(metrics.map((metric) => [metric.metric, metric]));
   const syncStatus = syncQuery.data ?? null;
   const gatewayStatus =
-    syncStatus?.status ?? cloudGatewayStatus(syncStatus?.gateway_last_seen_at ?? null);
-  const newestAsset = assetsQuery.data?.[0] ?? null;
+    syncStatus?.status ?? hostedGatewayStatus(syncStatus?.gateway_last_seen_at ?? null);
+  const metricCards = toMetricCards(metrics);
+  const metricSourceRows = toMetricSourceRows(metrics);
+  const assetPanel = toAssetPanelModel(
+    assetsQuery.data?.[0] ?? null,
+    Boolean(assetsQuery.error),
+  );
+  const deviceRows = toDeviceRows(devicesQuery.data ?? []);
 
   const onSiteChange = (event: ChangeEvent<HTMLSelectElement>) => {
     const nextSite = event.currentTarget.value;
@@ -337,12 +400,12 @@ function HostedDashboardPage() {
         </section>
 
         <section className="grid grid-cols-1 gap-3 border border-rule-strong bg-paper-2 p-4 sm:grid-cols-3">
-          <CloudFact label="Tent" value={selectedTent?.name ?? selectedTentId} />
-          <CloudFact
+          <HostedFact label="Tent" value={selectedTent?.name ?? selectedTentId} />
+          <HostedFact
             label="Catalog"
             value={formatTimestamp(stateQuery.data?.last_catalog_sync_at ?? null)}
           />
-          <CloudFact
+          <HostedFact
             label="Gateway seen"
             value={formatTimestamp(syncStatus?.gateway_last_seen_at ?? null)}
           />
@@ -367,21 +430,17 @@ function HostedDashboardPage() {
           <>
             <div className="grid grid-cols-1 gap-px border border-rule-strong bg-rule sm:grid-cols-2 lg:grid-cols-6">
               <section aria-label="Environment gauges" className="contents">
-                {CLOUD_METRIC_META.map((m) => {
-                  const metric = metricsByName.get(m.metric);
-                  if (!metric) return null;
-                  const formatProp = isIntegerMetric(m)
-                    ? { format: formatInteger }
-                    : {};
+                {metricCards.map((card) => {
+                  const formatProp = card.format ? { format: card.format } : {};
                   return (
                     <Gauge
-                      key={m.metric}
-                      name={m.display_name}
-                      value={metric.value}
-                      unit={metric.unit ?? m.unit}
+                      key={card.key}
+                      name={card.name}
+                      value={card.value}
+                      unit={card.unit}
                       band={null}
-                      status={metricStatus(metric)}
-                      accent={asAccent(m.accent)}
+                      status={card.status}
+                      accent={card.accent}
                       {...formatProp}
                     />
                   );
@@ -393,11 +452,11 @@ function HostedDashboardPage() {
                 Metric Source Times
               </h2>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {metrics.map((metric) => (
-                  <CloudFact
-                    key={`${metric.capability_id}:${metric.metric}`}
-                    label={displayMetricName(metric.metric)}
-                    value={`${formatTimestamp(metric.source_updated_at)} · ${metricFreshnessLabel(metric)}`}
+                {metricSourceRows.map((metric) => (
+                  <HostedFact
+                    key={metric.key}
+                    label={metric.label}
+                    value={metric.value}
                   />
                 ))}
               </div>
@@ -416,7 +475,7 @@ function HostedDashboardPage() {
             />
           </header>
           <div className="grid grid-cols-1 border border-rule-strong bg-paper-2 sm:grid-cols-2 lg:grid-cols-3">
-            {CLOUD_METRIC_META.map((m, idx) => {
+            {HOSTED_METRIC_META.map((m, idx) => {
               const result = historyResults[idx];
               const points = toSparklinePoints(result?.data);
               const unit = result?.data?.points[0]?.unit ?? m.unit;
@@ -441,11 +500,8 @@ function HostedDashboardPage() {
         </section>
 
         <section className="grid gap-4 lg:grid-cols-[1fr_1fr]">
-          <CloudAssetsPanel
-            asset={newestAsset}
-            unavailable={Boolean(assetsQuery.error)}
-          />
-          <CloudDevicesPanel devices={devicesQuery.data ?? []} />
+          <HostedAssetsPanel model={assetPanel} />
+          <HostedDevicesPanel devices={deviceRows} />
         </section>
       </div>
     </main>
@@ -720,7 +776,7 @@ function StatusPill({ label, value }: { label: string; value: string }): ReactNo
   );
 }
 
-function CloudFact({ label, value }: { label: string; value: string }): ReactNode {
+function HostedFact({ label, value }: { label: string; value: string }): ReactNode {
   return (
     <div className="flex min-w-0 flex-col gap-1">
       <span className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
@@ -786,13 +842,7 @@ function LightSchedulePanel({
   );
 }
 
-function CloudAssetsPanel({
-  asset,
-  unavailable,
-}: {
-  asset: CloudAsset | null;
-  unavailable: boolean;
-}): ReactNode {
+function HostedAssetsPanel({ model }: { model: AssetPanelModel }): ReactNode {
   return (
     <section
       aria-label="Latest private asset"
@@ -801,21 +851,18 @@ function CloudAssetsPanel({
       <h2 className="font-sans text-fs-10 font-semibold uppercase tracking-cap-med text-ink-3">
         Latest Asset
       </h2>
-      {unavailable ? (
+      {model.state === "unavailable" ? (
         <p className="font-mono text-fs-10 uppercase tracking-caps text-accent-magenta">
           Signed asset URL unavailable
         </p>
-      ) : asset ? (
+      ) : model.state === "ready" ? (
         <>
           <img
-            src={asset.signed_url}
+            src={model.imageUrl}
             alt=""
             className="aspect-video w-full border border-rule-strong object-cover"
           />
-          <CloudFact
-            label="Captured"
-            value={`${formatTimestamp(asset.captured_at)} · expires ${formatTimestamp(asset.signed_url_expires_at)}`}
-          />
+          <HostedFact label="Captured" value={model.capturedValue} />
         </>
       ) : (
         <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
@@ -826,10 +873,10 @@ function CloudAssetsPanel({
   );
 }
 
-function CloudDevicesPanel({
+function HostedDevicesPanel({
   devices,
 }: {
-  devices: readonly CloudDevice[];
+  devices: readonly DeviceRowModel[];
 }): ReactNode {
   return (
     <section aria-label="Cloud devices" className="flex flex-col bg-paper-2 p-4">
@@ -854,18 +901,15 @@ function CloudDevicesPanel({
           </thead>
           <tbody>
             {devices.map((device) => (
-              <tr
-                key={device.device_id}
-                className="border-b border-rule last:border-b-0"
-              >
+              <tr key={device.id} className="border-b border-rule last:border-b-0">
                 <td className="px-3.5 py-2.5 text-ink">
                   {device.name}
                   <span className="ml-2 font-mono text-fs-10 uppercase tracking-caps text-ink-3">
-                    {device.is_active ? device.kind : "inactive"}
+                    {device.kindLabel}
                   </span>
                 </td>
                 <td className="px-3.5 py-2.5 text-right font-mono text-fs-10 uppercase tracking-caps text-ink-3">
-                  {formatAge(device.last_seen_at)}
+                  {device.lastSeenLabel}
                 </td>
               </tr>
             ))}
@@ -876,17 +920,66 @@ function CloudDevicesPanel({
   );
 }
 
-function metricStatus(metric: CloudMetric): MetricStatus {
-  return metricFreshnessLabel(metric) === "live" ? "ok" : "warn";
+function toMetricCards(metrics: readonly HostedMetric[]): readonly MetricCardModel[] {
+  const metricsByName = new Map(metrics.map((metric) => [metric.metric, metric]));
+  return HOSTED_METRIC_META.flatMap((meta) => {
+    const metric = metricsByName.get(meta.metric);
+    if (!metric) return [];
+    const card = {
+      accent: asAccent(meta.accent),
+      key: meta.metric,
+      name: meta.display_name,
+      status: toMetricStatus(metric),
+      unit: metric.unit ?? meta.unit,
+      value: metric.value,
+    };
+    return isIntegerMetric(meta) ? [{ ...card, format: formatInteger }] : [card];
+  });
 }
 
-function metricFreshnessLabel(metric: CloudMetric): "live" | "stale" {
+function toMetricSourceRows(
+  metrics: readonly HostedMetric[],
+): readonly MetricSourceModel[] {
+  return metrics.map((metric) => ({
+    key: `${metric.capability_id}:${metric.metric}`,
+    label: displayMetricName(metric.metric),
+    value: `${formatTimestamp(metric.source_updated_at)} · ${toMetricFreshness(metric)}`,
+  }));
+}
+
+function toAssetPanelModel(
+  asset: HostedAsset | null,
+  unavailable: boolean,
+): AssetPanelModel {
+  if (unavailable) return { state: "unavailable" };
+  if (asset === null) return { state: "empty" };
+  return {
+    state: "ready",
+    capturedValue: `${formatTimestamp(asset.captured_at)} · expires ${formatTimestamp(asset.signed_url_expires_at)}`,
+    imageUrl: asset.signed_url,
+  };
+}
+
+function toDeviceRows(devices: readonly HostedDevice[]): readonly DeviceRowModel[] {
+  return devices.map((device) => ({
+    id: device.device_id,
+    kindLabel: device.is_active ? device.kind : "inactive",
+    lastSeenLabel: formatAge(device.last_seen_at),
+    name: device.name,
+  }));
+}
+
+function toMetricStatus(metric: HostedMetric): MetricStatus {
+  return toMetricFreshness(metric) === "live" ? "ok" : "warn";
+}
+
+function toMetricFreshness(metric: HostedMetric): MetricFreshness {
   const sourceMs = Date.parse(metric.source_updated_at);
   if (!Number.isFinite(sourceMs)) return "stale";
   return Date.now() - sourceMs > metric.stale_after_s * 1000 ? "stale" : "live";
 }
 
-function cloudGatewayStatus(lastSeenAt: string | null): CloudSyncStatus["status"] {
+function hostedGatewayStatus(lastSeenAt: string | null): HostedSyncStatus["status"] {
   if (lastSeenAt === null) return "offline";
   const ageMs = Date.now() - Date.parse(lastSeenAt);
   if (!Number.isFinite(ageMs)) return "offline";
@@ -897,7 +990,7 @@ function cloudGatewayStatus(lastSeenAt: string | null): CloudSyncStatus["status"
 
 function displayMetricName(metric: string): string {
   return (
-    CLOUD_METRIC_META.find((item) => item.metric === metric)?.display_name ?? metric
+    HOSTED_METRIC_META.find((item) => item.metric === metric)?.display_name ?? metric
   );
 }
 
@@ -961,7 +1054,7 @@ function formatAge(value: string | null): string {
 }
 
 function toSparklinePoints(
-  history: CloudMetricHistory | undefined,
+  history: HostedMetricHistory | undefined,
 ): components["schemas"]["HistoryPoint"][] {
   return (
     history?.points.map((point) => ({

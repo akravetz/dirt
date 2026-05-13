@@ -6,11 +6,6 @@
 // mega-test would obscure which assertions are really exercised. See
 // web-ui/tests/e2e/README.md §2.
 //
-// Fixture values come from the MSW handler for /api/plants in
-// web-ui/src/mocks/handlers.ts (four plants A/B/C/D with sticker
-// colours yellow/orange/pink/blue and moisture percentages
-// 62/48/54/66). MSW intercepts in dev AND in the Vite build Playwright
-// runs against, so the spec is independent of the backend stack.
 import { expect, test } from "@playwright/test";
 
 test.describe("dashboard plants strip", () => {
@@ -97,8 +92,7 @@ test.describe("dashboard plants strip", () => {
 
   test("clicking plant A triggers GET /api/plants/a", async ({ page }) => {
     // Listener installed BEFORE the click so we see the network request
-    // deterministically. page.on('request', ...) fires for MSW-intercepted
-    // fetches just like for real-network ones.
+    // deterministically.
     const requests: string[] = [];
     page.on("request", (req) => {
       const u = new URL(req.url());
