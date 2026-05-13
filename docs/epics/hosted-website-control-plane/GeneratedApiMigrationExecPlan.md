@@ -16,7 +16,7 @@ This plan intentionally covers five steps:
 1. Replace `cloudGet<T>` and handwritten `Cloud*` API types with generated hosted API calls.
 2. Migrate route/query code to typed generated paths.
 3. Keep small UI mappers only where component view models differ from hosted DTOs.
-4. Update MSW hosted fixtures and tests to use generated hosted schema types.
+4. Remove MSW wiring instead of retyping hosted mock fixtures.
 5. Add missing hosted API routes in `apps/control-plane` before the frontend depends on them.
 
 
@@ -26,7 +26,7 @@ This plan intentionally covers five steps:
 - [ ] Milestone 1: establish the generated hosted client as the only browser fetch path for hosted routes.
 - [ ] Milestone 2: migrate hosted dashboard and live/PTZ queries to generated path calls.
 - [ ] Milestone 3: split generated DTOs from UI view models with explicit mappers.
-- [ ] Milestone 4: type MSW hosted fixtures and fixture tests from the generated hosted schema.
+- [ ] Milestone 4: remove MSW wiring, handlers, worker script, package dependency, and MSW-only tests.
 - [ ] Milestone 5: add missing control-plane routes before frontend use, regenerate, and remove the old cloud client.
 
 
@@ -41,8 +41,11 @@ This plan intentionally covers five steps:
 - Observation: A generated hosted client wrapper already exists in the current working tree, but the plan must be robust if an implementer starts from a commit where the scrub has not landed.
   Evidence: Expected files are `scripts/gen-hosted-contract`, `contracts/hosted-browser-v1.json`, `web-ui/src/api-client/generated/hosted-schema.ts`, and `web-ui/src/api-client/hosted.ts`.
 
-- Observation: The current handwritten `cloudGet` preserves the `cloud_fixture` query parameter used by MSW hosted scenarios.
-  Evidence: `appendFixtureParam()` in `web-ui/src/api-client/cloud.ts` appends `cloud_fixture` from `window.location.search` to every hosted request. A generated-client migration must preserve this behavior without adding `cloud_fixture` to production OpenAPI route schemas.
+- Observation: MSW is development/test-only and is not part of hosted production behavior.
+  Evidence: `web-ui/src/main.tsx` starts `./mocks/browser` only under `import.meta.env.DEV`, and `web-ui/src/test-setup.ts` starts `setupServer()` for Vitest. The production build tree-shakes `web-ui/src/mocks/**`.
+
+- Observation: MSW currently mocks both local and hosted API routes, but the hosted generated-client migration should not spend effort retyping those mock contracts.
+  Evidence: `web-ui/src/mocks/handlers.ts` contains hosted handlers for `/api/sites`, `/api/tents`, `/api/tents/:tentId/metrics/current`, `/api/sync/status`, and `/api/commands`, while `web-ui/src/mocks/__tests__/handlers.test.ts` tests hosted cloud fixtures. These are mock-only paths that duplicate the real control-plane API.
 
 
 ## Decision Log
@@ -55,8 +58,8 @@ This plan intentionally covers five steps:
   Rationale: Components should not invent network contracts, but it is valid for the UI to have display-specific models such as metric cards, freshness labels, or normalized PTZ command button state.
   Date/Author: 2026-05-13 / Codex
 
-- Decision: Preserve hosted MSW scenario selection outside the OpenAPI contract.
-  Rationale: `cloud_fixture` is a dev/test fixture knob, not a production API parameter. The generated client should append it through a wrapper or middleware so route calls remain typed against production schemas.
+- Decision: Remove MSW instead of patching its hosted fixtures.
+  Rationale: MSW is not used in production and its hosted fixtures duplicate the real generated control-plane API. Retyping them would preserve a second contract surface when the goal is to make the generated OpenAPI client the single frontend API authority.
   Date/Author: 2026-05-13 / Codex
 
 - Decision: Add missing hosted routes in `apps/control-plane` before frontend use.
@@ -87,23 +90,28 @@ The current hosted frontend still imports `web-ui/src/api-client/cloud.ts` from:
 - `web-ui/src/routes/index.tsx` for hosted dashboard data.
 - `web-ui/src/routes/live.tsx` for hosted sync status, command list, and PTZ command creation.
 
-The current hosted MSW fixtures live in:
+The current MSW wiring lives in:
 
-- `web-ui/src/mocks/handlers.ts`
-- `web-ui/src/mocks/__tests__/handlers.test.ts`
+- `web-ui/src/main.tsx`, which dynamically imports `./mocks/browser` in dev.
+- `web-ui/src/mocks/browser.ts`, which calls `setupWorker`.
+- `web-ui/src/mocks/server.ts`, which calls `setupServer`.
+- `web-ui/src/test-setup.ts`, which starts and stops the MSW server for Vitest.
+- `web-ui/src/mocks/handlers.ts` and `web-ui/src/mocks/__tests__/handlers.test.ts`, which define local and hosted mock API responses.
+- `web-ui/public/mockServiceWorker.js`, which is the generated browser worker script.
+- `web-ui/package.json` and `web-ui/pnpm-lock.yaml`, which include the `msw` dependency and `msw.workerDirectory` config.
 
-These fixtures currently define local test-only `Cloud*` interfaces. They should instead use generated hosted schema types where allowed by the frontend boundary rules. If an invariant forbids mocks importing from `@/api-client`, import type directly from `../api-client/generated/hosted-schema` or add a small `web-ui/src/mocks/hosted-types.ts` fixture-only type module if that better satisfies import boundaries.
+This plan removes those files and references rather than converting their hosted fixture types.
 
 
 ## Plan of Work
 
-Milestone 1 establishes the generated client as the only hosted request mechanism. Update `web-ui/src/api-client/hosted.ts` so it preserves the existing hosted behavior from `cloudGet`: credentials are included, `401` redirects to `/login`, errors are surfaced consistently to React Query, and `cloud_fixture` from the current page URL is appended in dev/test without polluting OpenAPI route types. Add helper types in this module only if they are consumed by application code; the `knip` invariant rejects unused exported types.
+Milestone 1 establishes the generated client as the only hosted request mechanism. Update `web-ui/src/api-client/hosted.ts` so it preserves the production behavior needed from `cloudGet`: credentials are included, `401` redirects to `/login`, and errors are surfaced consistently to React Query. Do not preserve `cloud_fixture`; it exists only for MSW hosted scenarios and should disappear with MSW. Add helper types in this module only if they are consumed by application code; the `knip` invariant rejects unused exported types.
 
 Milestone 2 migrates route/query code. In `web-ui/src/routes/index.tsx`, replace every `cloudGet<CloudX>()` call with `const hostedApi = createHostedApiClient()` and typed `hostedApi.GET(...)` calls. Use generated path literals such as `/api/sites`, `/api/tents`, `/api/tents/{tent_id}/metrics/current`, and `/api/tents/{tent_id}/metrics/history`. In `web-ui/src/routes/live.tsx`, replace `cloudGet` and `cloudPost` with generated `GET /api/sync/status`, `GET /api/commands`, and `POST /api/commands`.
 
 Milestone 3 introduces explicit mappers where the UI should not consume DTOs directly. Keep local view types near the component or in a small route-local helper when display state differs from the generated DTO. Examples include converting metric freshness into `"live" | "stale"`, deriving status class names, sorting metrics into card order, or adapting command payloads for button handlers. Do not recreate one-to-one `Cloud*` copies of API DTOs.
 
-Milestone 4 updates MSW fixtures. Replace test-only hosted response interfaces in `web-ui/src/mocks/__tests__/handlers.test.ts` and hosted fixture helper types in `web-ui/src/mocks/handlers.ts` with generated `components["schemas"][...]` aliases. Keep scenario-only types such as `CloudScenario` local because they model fixture behavior, not the API. Re-run fixture tests to prove the mock responses still satisfy the generated schema types.
+Milestone 4 removes MSW. Delete `web-ui/src/mocks/**`, remove the dev-only MSW dynamic import from `web-ui/src/main.tsx`, remove MSW lifecycle setup from Vitest, delete `web-ui/public/mockServiceWorker.js`, remove the `msw` package/config from `web-ui/package.json`, and refresh `web-ui/pnpm-lock.yaml`. Any tests that only prove MSW handlers work should be deleted. Tests that still cover real UI behavior should be rewritten to use direct component/service seams or real generated API calls, not mock API route handlers.
 
 Milestone 5 handles API gaps and removal. If the frontend needs a hosted route that is not present in `web-ui/src/api-client/generated/hosted-schema.ts`, add it first to `apps/control-plane/src/dirt_control/api/browser.py` with Pydantic request/response models, add focused `apps/control-plane/tests` coverage, run `scripts/gen-hosted-contract`, and only then consume it from React. Once all imports are gone, delete `web-ui/src/api-client/cloud.ts` and add the smallest possible guardrail: an ESLint `no-restricted-imports` entry in `web-ui/eslint.config.ts` that rejects `@/api-client/cloud`.
 
@@ -118,7 +126,6 @@ Before editing TypeScript, read the framework anchors required by `AGENTS.md`:
 
     sed -n '1,220p' docs/references/modern-idiomatic-typescript/INDEX.md
     sed -n '1,220p' docs/references/tanstack-router-v1/INDEX.md
-    sed -n '1,180p' docs/references/msw-v2/INDEX.md
 
 Confirm the hosted schema generation path exists:
 
@@ -134,7 +141,7 @@ Milestone 1 concrete edits:
 - Update `web-ui/src/api-client/hosted.ts`.
 - Preserve `credentials: "include"`.
 - Preserve redirect-on-401 behavior.
-- Add a fixture-query middleware or equivalent helper that appends `cloud_fixture` from `window.location.search` to outgoing hosted requests when present.
+- Do not carry forward `cloud_fixture` behavior from `cloud.ts`.
 - If a helper unwraps `openapi-fetch` results, it must include the response status in thrown errors and must not erase the generated data/error types at call sites.
 
 Milestone 2 concrete edits:
@@ -153,9 +160,13 @@ Milestone 3 concrete edits:
 
 Milestone 4 concrete edits:
 
-- In `web-ui/src/mocks/handlers.ts`, type hosted response literals with generated schema aliases.
-- In `web-ui/src/mocks/__tests__/handlers.test.ts`, remove local `CloudSyncStatus`, `CloudMetric`, `CloudTent`, `CloudDevice`, `CloudLightSchedulesResponse`, and `CloudCommand` interfaces.
-- Keep `CloudScenario` or rename it to `HostedFixtureScenario`; it is not an API DTO.
+- Delete `web-ui/src/mocks/browser.ts`, `web-ui/src/mocks/server.ts`, `web-ui/src/mocks/handlers.ts`, and `web-ui/src/mocks/__tests__/handlers.test.ts`.
+- Delete `web-ui/public/mockServiceWorker.js`.
+- Remove the `enableMocking()` function and `import.meta.env.DEV` MSW dynamic import from `web-ui/src/main.tsx`; mount React directly.
+- Remove MSW lifecycle imports and setup from `web-ui/src/test-setup.ts`. If the file becomes empty, remove it and remove `setupFiles` from `web-ui/vitest.config.ts`.
+- Remove `msw` from `web-ui/package.json`, remove the top-level `msw.workerDirectory` config, and update `web-ui/pnpm-lock.yaml` with `pnpm --dir web-ui install --lockfile-only` or `pnpm --dir web-ui remove msw`.
+- The user explicitly allows edits under `web-ui/invariants/**` for this MSW cleanup if necessary. Keep those edits narrow: remove stale MSW comments, remove MSW-specific fixture allowances, or update invariant expectations made obsolete by deleting MSW. Do not weaken unrelated guardrails.
+- Remove any docs in this plan's implementation diff that tell future agents to maintain MSW hosted fixtures.
 
 Milestone 5 concrete edits:
 
@@ -172,7 +183,7 @@ Milestone 5 concrete edits:
 
 Run these commands after each milestone that changes TypeScript:
 
-    pnpm --dir web-ui exec biome check src/api-client src/routes src/mocks
+    pnpm --dir web-ui exec biome check src/api-client src/routes src/main.tsx src/test-setup.ts vitest.config.ts
     pnpm --dir web-ui typecheck
     pnpm --dir web-ui test
 
@@ -192,6 +203,12 @@ Before completion, run:
 
 Expected result: no matches, except optional fixture scenario names if deliberately retained and not representing API DTOs.
 
+Run this MSW removal check:
+
+    rg -n "msw|setupWorker|setupServer|mockServiceWorker|cloud_fixture|mocks/browser|mocks/server" web-ui
+
+Expected result: no app, test, package, lockfile, or public worker references remain. References in historical docs outside `web-ui/` may remain if they are explicitly historical, but the active web frontend should have no MSW dependency.
+
 Run the focused architectural checks:
 
     uv run pytest apps/tests/invariants -q
@@ -201,7 +218,7 @@ Expected result: no dead exported types, no unused `cloud.ts`, and no invariant 
 
 Human acceptance:
 
-- Start the frontend in hosted mode against MSW or a real hosted API.
+- Start the frontend in hosted mode against a real hosted API or local control-plane dev server.
 - Open the hosted dashboard.
 - Confirm sites and tents load.
 - Switch from `main` to `breeding`.
@@ -216,9 +233,9 @@ Human acceptance:
 
 If generated schema output changes unexpectedly, inspect `apps/control-plane/src/dirt_control/api/browser.py` route decorators and Pydantic models first. Do not patch `web-ui/src/api-client/generated/hosted-schema.ts` by hand.
 
-If a route migration becomes too large, keep `cloud.ts` temporarily but remove one hosted route group at a time. The safe order is dashboard read routes first, live/PTZ command routes second, MSW fixture typing third, deletion last.
+If a route migration becomes too large, keep `cloud.ts` temporarily but remove one hosted route group at a time. The safe order is dashboard read routes first, live/PTZ command routes second, MSW removal third, deletion last.
 
-If `cloud_fixture` breaks, restore behavior in `web-ui/src/api-client/hosted.ts` instead of adding `cloud_fixture` to control-plane Pydantic query models. It is a frontend fixture concern.
+Do not restore `cloud_fixture` after MSW removal. If tests need deterministic hosted data, use a real test seam or control-plane test fixture instead of adding mock-only query parameters to production API clients.
 
 If a missing route is discovered, stop the frontend migration for that route. Add the FastAPI route and response model first, test it, regenerate, and resume.
 
@@ -233,8 +250,10 @@ Important current call sites:
 
     web-ui/src/routes/index.tsx
     web-ui/src/routes/live.tsx
-    web-ui/src/mocks/handlers.ts
-    web-ui/src/mocks/__tests__/handlers.test.ts
+
+MSW removal search:
+
+    rg -n "msw|setupWorker|setupServer|mockServiceWorker|cloud_fixture|mocks/browser|mocks/server" web-ui
 
 Expected generated schema names include:
 
@@ -261,7 +280,7 @@ End-state interfaces:
 - `web-ui/src/api-client/hosted.ts` exports `createHostedApiClient()`.
 - `web-ui/src/routes/index.tsx` and `web-ui/src/routes/live.tsx` use generated hosted API calls for hosted mode.
 - `web-ui/src/api-client/cloud.ts` is deleted after all imports are gone.
-- `web-ui/src/mocks/handlers.ts` and `web-ui/src/mocks/__tests__/handlers.test.ts` use generated hosted schema types for hosted API response/request fixtures.
+- MSW is removed from active frontend code: no `web-ui/src/mocks/**`, no `web-ui/public/mockServiceWorker.js`, no `msw` dependency/config, no `setupWorker`/`setupServer` wiring, and no `cloud_fixture` client behavior.
 - New hosted frontend-visible routes are first implemented in `apps/control-plane/src/dirt_control/api/browser.py` with Pydantic DTOs and tests, then consumed from generated TypeScript.
 
 External dependencies already present in the repo:
@@ -269,9 +288,10 @@ External dependencies already present in the repo:
 - `openapi-fetch` in `web-ui`.
 - `openapi-typescript` in `web-ui`.
 - FastAPI OpenAPI generation from `apps/control-plane`.
-- MSW v2 for frontend fixtures.
 
 
 ## Revision Notes
 
 - 2026-05-13 / Codex: Initial plan created for migrating hosted frontend code from handwritten cloud interfaces to generated OpenAPI types.
+- 2026-05-13 / Codex: Revised Milestone 4 to remove MSW instead of typing hosted mock fixtures; dropped `cloud_fixture` preservation because it exists only for MSW scenarios.
+- 2026-05-13 / Codex: Recorded explicit user permission to edit `web-ui/invariants/**` when necessary for MSW cleanup, limited to stale MSW wiring or expectations.
