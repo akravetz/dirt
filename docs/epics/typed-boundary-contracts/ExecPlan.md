@@ -20,9 +20,9 @@ The observable result is not merely cleaner code. A developer can run focused te
 - [x] (2026-05-09T04:49Z) Milestone 1: Add shared Pydantic gateway contract models without changing runtime behavior.
 - [x] (2026-05-09T05:53Z) Milestone 2: Drained/verified read-only outbox state, then converted read-only gateway projections and outbox enqueue paths to typed DTOs with no legacy replay adapter.
 - [x] (2026-05-09T06:06Z) Milestone 3: Converted asset upload and retention payloads to typed DTOs, validated asset outbox replay before cloud calls, and removed the legacy raw asset request path.
-- [ ] Milestone 4: Convert cloud command claim/result payloads to typed DTOs with discriminated PTZ payloads.
-- [ ] Milestone 5: Add local Pydantic response models to hosted browser API routes and align generated frontend types.
-- [ ] Milestone 6: Add narrow guardrail tests and log/audit data-consistency checks that prevent untyped boundary payloads from returning.
+- [x] (2026-05-13T02:17Z) Milestone 4: Converted cloud command claim/result payloads to typed DTOs with explicit PTZ payload models.
+- [x] (2026-05-13T02:24Z) Milestone 5: Add local Pydantic response models to hosted browser API routes and align generated frontend types.
+- [x] (2026-05-13T02:33Z) Milestone 6: Added narrow guardrail tests and data-consistency audit checks that prevent untyped boundary payloads from returning.
 
 
 ## Surprises & Discoveries
@@ -147,6 +147,62 @@ Validation passed:
     uv run ruff format apps/control-plane/src/dirt_control/api/gateway.py apps/control-plane/tests/test_api.py --check
 
 The simplify fallback pass reviewed reuse, quality, and efficiency over the Milestone 3 diff. It found no follow-up edits worth making; the duplicate-object-key control-plane fix stayed intentionally narrow and local to asset completion.
+
+Milestone 4 converted the PTZ command boundary to shared Pydantic DTOs. `CommandClaimResponse` now validates claimed commands before gateway command handling, with explicit payload models for `ptz_preset`, `ptz_look`, `ptz_zoom` absolute zoom, and `ptz_zoom` relative delta. `CommandResultRequest` and `CommandResultOutboxPayload` now carry command result reports through direct reporting and outbox replay, and `HttpCloudGatewayClient` validates both command claim and command result responses before returning them to gateway services.
+
+`GatewayCommandService` now handles typed `ClaimedCommand` instances instead of raw dictionaries. The old required-string, datetime, local-payload, and numeric payload parsing branches were removed; local safety checks remain for site scope, PTZ device/capability scope, and preset existence. The hosted control-plane gateway command claim/result endpoints now use the shared command request/response DTOs and declare response models.
+
+`apps/gateway/tests/test_sync.py` covers valid PTZ claim execution, typed command result reports, command result outbox replay validation before cloud calls, business-rule rejection without PTZ execution, and malformed PTZ claim rejection before execution or result reporting. The shared cloud contract tests now cover explicit PTZ payload model selection and command-type/payload mismatch rejection. Control-plane API tests were updated to use the current `preset_id` PTZ payload shape.
+
+Validation passed:
+
+    uv run pytest apps/gateway/tests/test_sync.py -q
+    uv run pytest apps/gateway/tests -q
+    uv run ruff check apps/gateway/src apps/gateway/tests apps/shared/src/dirt_shared/cloud_contract.py
+    uv run ruff format apps/gateway/src apps/gateway/tests apps/shared/src/dirt_shared/cloud_contract.py --check
+    uv run pytest apps/shared/tests/test_cloud_contract.py -q
+    uv run pytest apps/control-plane/tests/test_api.py -q
+    uv run ruff check apps/control-plane/src/dirt_control/api/gateway.py apps/control-plane/tests/test_api.py apps/shared/tests/test_cloud_contract.py
+    uv run ruff format apps/control-plane/src/dirt_control/api/gateway.py apps/control-plane/tests/test_api.py apps/shared/tests/test_cloud_contract.py --check
+
+The simplify fallback pass reviewed reuse, quality, and efficiency over the Milestone 4 diff because this runtime did not expose subagent spawning. It applied one lint-driven cleanup in the local command safety check and found no additional cleanup worth making within the milestone scope.
+
+Milestone 5 added local hosted browser response DTOs in `apps/control-plane/src/dirt_control/api/browser.py` and wired them into FastAPI `response_model` declarations for health, auth identity, sites, tents, tent state, current metrics, metric history, devices, light schedules, latest assets, signed asset responses, sync status, command create/detail/list responses, gateway credential rotation, and browser asset pruning. Route handlers and browser response helpers now return DTO instances instead of raw response dictionaries/lists where the shape is concrete.
+
+The browser-only DTOs stayed local to `apps/control-plane`. The simplify fallback pass reused the shared `PruneAssetsResponse` because that prune response shape is already a gateway/control-plane wire contract, and changed the internal light-state helper to a dataclass rather than a Pydantic response model. Command payload/result fields remain typed as opaque `dict[str, Any]` because those nested values are intentionally command-specific payload data, not concrete browser response envelopes.
+
+No generated frontend contract artifacts were updated. The hosted browser cloud client used by `web-ui` is manually typed in `web-ui/src/api-client/cloud.ts`; the generated contract path under `contracts/webapp-v1.yaml` still describes the local web API surface and was not changed by this hosted FastAPI response-model update.
+
+Validation passed:
+
+    uv run pytest apps/control-plane/tests -q
+    pnpm --dir web-ui typecheck
+    pnpm --dir web-ui lint
+
+Milestone 6 added agent-owned guardrails for the high-risk typed-boundary seams. `apps/gateway/tests/test_gateway_boundary_guardrails.py` now pins `dirt_gateway.protocols.CloudGatewayClient` request/response annotations and `LocalGatewayServices` projection returns to concrete DTOs where DTOs exist, while allowing intentional opaque values such as PTZ execution results and upload headers outside that owned protocol payload surface. `apps/control-plane/tests/test_control_plane_boundary_guardrails.py` now pins hosted browser `response_model` coverage from Milestone 5 and hosted gateway route request/response models for shared gateway DTOs. The guardrails also prove that catalog devices must include the required nullable `last_seen_at` key.
+
+The guardrails exposed one remaining contract drift in the hosted gateway read-only routes: heartbeat/catalog/latest-metrics/rollups were still using local request models or raw response annotations even though shared DTOs existed. Milestone 6 converted those route annotations to the shared `HeartbeatRequest`/`HeartbeatResponse`, `CatalogRequest`/`CatalogResponse`, `LatestMetricsRequest`/`UpsertCountResponse`, and `RollupsRequest`/`UpsertCountResponse` models. The gateway HTTP client and protocol now validate those response DTOs before returning.
+
+`/api/health` now emits a `data_consistency_missing_device_liveness` audit row when an active `CloudDevice` has current latest metrics for the same site/tent/device but `last_seen_at is None`. The health response keeps the existing 200/status semantics; the audit signal is deduped for the same device over a one-hour window and is committed only when a new audit row is emitted.
+
+Validation passed:
+
+    uv run pytest apps/gateway/tests/test_gateway_boundary_guardrails.py -q
+    uv run pytest apps/control-plane/tests/test_control_plane_boundary_guardrails.py apps/control-plane/tests/test_api.py::test_health_audits_current_metrics_without_device_liveness -q
+    uv run pytest apps/gateway/tests -q
+    uv run pytest apps/control-plane/tests -q
+    uv run pytest apps/shared/tests/test_cloud_contract.py -q
+    uv run ruff check apps/gateway/src/dirt_gateway/protocols.py apps/gateway/src/dirt_gateway/cloud.py apps/gateway/tests/test_sync.py apps/gateway/tests/test_gateway_boundary_guardrails.py apps/control-plane/src/dirt_control/api/gateway.py apps/control-plane/src/dirt_control/api/browser.py apps/control-plane/tests/test_api.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py
+    uv run ruff format apps/gateway/src/dirt_gateway/protocols.py apps/gateway/src/dirt_gateway/cloud.py apps/gateway/tests/test_sync.py apps/gateway/tests/test_gateway_boundary_guardrails.py apps/control-plane/src/dirt_control/api/gateway.py apps/control-plane/src/dirt_control/api/browser.py apps/control-plane/tests/test_api.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py --check
+
+The simplify fallback pass found two small cleanup opportunities and applied both: `/api/health` now avoids a no-op commit when a recent audit already exists, and the catalog liveness guardrail validates actual `CatalogRequest` rejection rather than only checking JSON Schema metadata. No production deploys, migrations, or human-owned invariants were changed.
+
+Final validation after completing all milestones:
+
+    scripts/agent-fix
+    git diff --check
+
+Both passed. The full suite command `uv run pytest -q` was also run; all typed-boundary, gateway, control-plane, shared, and invariant tests reached by the suite passed, but the command failed in unrelated wake-word import tests because the installed SciPy no longer exposes `scipy.special.sph_harm` for the `acoustics` dependency imported by `openwakeword`.
 
 
 ## Context and Orientation

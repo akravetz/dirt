@@ -4,7 +4,7 @@ type: environment
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/environment/temperature.md, wiki/concepts/vpd.md, wiki/overview.md, wiki/hardware/humidifier-control.md, wiki/decisions/2026-04-17-humidifier-kasa-ep10.md]
 created: 2026-04-06
-updated: 2026-05-10
+updated: 2026-05-12
 ---
 
 
@@ -60,6 +60,8 @@ VPD is the control-loop setpoint; RH is informational (temperature determines wh
 | 2026-05-08 | 68.78% now 🔴 / 76.95% overnight avg 🔴; VPD 0.82 kPa now 🔴 / 0.45 kPa overnight 🔴 | Wet regression: VPD missed the early-flower target in every window, with RH high all day and the overnight window back near seedling-level VPD. Treat airflow/clearing and humidifier off-gate verification as urgent. → [2026-05-08](../daily/2026-05-08.md) |
 | 2026-05-09 | 76.87% now 🔴 / 79.00% overnight avg 🔴; VPD 0.63 kPa now 🔴 / 0.45 kPa overnight 🔴 | Temperature recovered to usable bands, but RH stayed very high and current VPD worsened from May 8. This points to moisture load/clearing as the limiting factor, not temperature alone. → [2026-05-09](../daily/2026-05-09.md) |
 | 2026-05-10 | 77.00% now 🔴 / 78.47% overnight avg 🔴; VPD 0.63 kPa now 🔴 / 0.49 kPa overnight 🔴 | Third straight incomplete-coverage report with all-window low VPD. Temperature is usable overnight and now, but dew point rose to 64.97°F, so moisture clearing remains the main early-flower constraint. → [2026-05-10](../daily/2026-05-10.md) |
+| 2026-05-11 | Main: 78.63% now 🔴 / 77.20% overnight avg 🔴; VPD 0.59 kPa now 🔴 / 0.54 kPa overnight 🔴. Breeding: 58.31% now / 1.75 kPa VPD | Main tent remains too wet for early flower in every window, with dew point up to 65.91°F now. Breeding tent contrasts hot/dry during lights-on; check small plants for drying stress. → [2026-05-11](../daily/2026-05-11.md) |
+| 2026-05-12 | Main: 60.70% now ⚠️ / 58.86% overnight avg ⚠️; VPD 1.37 kPa now ⚠️ / 1.24 kPa overnight ✅. Breeding: 63.80% now / 1.09 kPa VPD | Main-tent averaged VPD recovered into target after the multi-day wet spell, but the current reading is slightly dry/high. Breeding tent swung from wet overnight (0.53 kPa) to usable now; inspect seedlings/clones manually. → [2026-05-12](../daily/2026-05-12.md) |
 
 ## Notable Events
 - **2026-03-20** — Dome propped open, room humidifier added to tent after RH consistently below 50% → [2026-03-27 daily](../daily/2026-03-27.md)
@@ -89,6 +91,8 @@ VPD is the control-loop setpoint; RH is informational (temperature determines wh
 - **2026-05-08** — The May 7 lights-on recovery did not hold. VPD fell below target in all windows (0.45 overnight, 0.67 morning, 0.82 now), with RH 68.78-76.95%. This reopens the daytime clearing problem and makes passive intake/exhaust verification urgent before the next dark window. → [2026-05-08](../daily/2026-05-08.md)
 - **2026-05-09** — The all-window low-VPD pattern persisted despite better temperature. Overnight VPD stayed at 0.45 kPa, morning averaged 0.61 kPa, and the current reading fell to 0.63 kPa with 76.87% RH. Clearing/air exchange is now the primary humidity-side action. → [2026-05-09](../daily/2026-05-09.md)
 - **2026-05-10** — VPD remained below early-flower target in every window for another day (0.49 overnight, 0.62 morning, 0.63 now). Since overnight/current temperature are in range, the actionable problem is still humidity removal: humidifier off behavior, exhaust, passive intake, and canopy airflow. → [2026-05-10](../daily/2026-05-10.md)
+- **2026-05-11** — Main-tent VPD remained below early-flower target in every window (0.54 overnight, 0.62 morning, 0.59 now), while the breeding tent reached 1.75 kPa VPD at 85.68°F. Treat main-tent air exchange and breeding-tent drying stress as separate problems. → [2026-05-11](../daily/2026-05-11.md)
+- **2026-05-12** — Main-tent VPD recovered to 1.24 kPa overnight and morning, ending the recent all-window low-VPD streak, but the current reading reached 1.37 kPa. Hold the recovery and avoid overshooting into a too-dry flower-week-2 profile. → [2026-05-12](../daily/2026-05-12.md)
 
 ## Deployed Control System
 

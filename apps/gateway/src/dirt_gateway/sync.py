@@ -23,6 +23,7 @@ from dirt_shared.cloud_assets import AssetUploader, AssetUploadRequest
 from dirt_shared.cloud_contract import (
     AssetRetentionRequest,
     CatalogRequest,
+    CommandResultOutboxPayload,
     HeartbeatRequest,
     LatestMetricsRequest,
     RollupsRequest,
@@ -340,9 +341,10 @@ class GatewaySyncService:
             )
             return
         if row.event_type == "command_result":
+            command_result = CommandResultOutboxPayload.model_validate(payload)
             await self._cloud.report_command_result(
-                command_id=str(payload["command_id"]),
-                payload=dict(payload["result"]),
+                command_id=command_result.command_id,
+                payload=command_result.result,
                 idempotency_key=row.idempotency_key,
             )
             return

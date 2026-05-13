@@ -4,7 +4,7 @@ type: breeding
 sources: []
 related: [wiki/breeding/README.md, wiki/breeding/isolation-tent-culture.md, wiki/breeding/male-evaluation.md, wiki/breeding/pollen-handling.md, wiki/breeding/cross-procedure.md]
 created: 2026-04-26
-updated: 2026-05-05
+updated: 2026-05-12
 ---
 
 # Isolation
@@ -20,7 +20,7 @@ Two layers of containment: a separate room with a closed door, and **inside that
 | **Isolation room** | Separate room with a closed door from the main tent. Confirmed available 2026-04-26. |
 | **Door** | Closed at all times when males or pollinated plants are inside. Add a draft-stopper at the bottom if there's a visible gap. |
 | **Containment tent** | 2×2×4 ft grow tent (already on hand) inside the isolation room. Zipped closed during all male flowering. Gives a true sealed-enclosure boundary that a closed-door alone cannot. |
-| **Tent ventilation** | 4" inline fan + carbon filter combo (~$80) running in extraction mode pulls air *out* of the tent through the carbon filter — creates negative pressure inside the tent (sides bow inward slightly when sealed). Pollen can't migrate against negative-pressure exhaust. **Mandatory**, not optional, for breeding. |
+| **Tent ventilation** | AC Infinity 4" air filtration kit purchased 2026-05-12. Run in extraction mode: carbon filter inside the tent at the upper port, short duct to the inline fan, exhaust out of the tent. Use passive lower intake only and run the fan low enough to keep the tent sides slightly bowed inward. Pollen can't migrate against negative-pressure exhaust. **Mandatory**, not optional, for breeding. |
 | **Tent light** | 100W LED quantum board (Spider Farmer SF1000 or generic Amazon, ~$90). Sufficient for 1–3 small males and a single flowering keeper clone — males don't need flower-grade PAR, but the keeper clone does. Sized to do double duty. |
 | **Tent air movement** | 6" oscillating clip fan inside the tent (~$15). On during normal operation, **off during pollen collection or pollination day** to prevent pollen scatter. |
 | **Tent environment monitoring** | Cheap digital hygrometer/thermometer (~$10) inside the tent. Doesn't need to match the main tent precisely — males tolerate 65–80 °F and 30–60% RH without complaint. Pollinated keeper clone needs main-tent flower targets (humidifier deferred unless RH falls below 40%). |
@@ -147,6 +147,7 @@ Symptoms: random calyx swelling on multiple plants outside the keeper, white pis
 ## Notes specific to our setup
 
 - The separate room with closed door (confirmed 2026-04-26) is the gating prerequisite — without this, the breeding program doesn't run. The 2×2×4 grow tent inside that room is the second containment layer; both must be in place before males flower.
+- The AC Infinity 4" fan/filter kit is the selected containment exhaust for the 2×2×4 tent. Do not add an active intake fan; negative pressure depends on exhaust exceeding passive intake.
 - Portable freezer arrives this week; placement is on a stable shelf in the isolation room, **outside the tent**, away from the door.
 - The current main tent flipped to 12/12 on 2026-05-03. Pollen risk is still zero until Track A males flower, but once males enter the isolation tent, treat the main tent as vulnerable because stigmas will be present. Track A now has 7 sprouted regular seedlings, with 5 healthy/vigorous as of 2026-05-05; sex watch remains around 2026-05-19 → 2026-05-26.
 - The cloning station (humidity dome + stasis-mode clones) lives **on a closet shelf in another room — not inside the isolation tent or the isolation room.** High-humidity domes and low-humidity flowering males are environmentally incompatible, and putting young clones near a flowering male invites contamination.

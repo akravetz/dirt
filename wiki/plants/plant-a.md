@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-05-10
+updated: 2026-05-12
 ---
 
 # Plant A
@@ -18,7 +18,7 @@ updated: 2026-05-10
 
 ## Current State
 
-Day 57 / Flower Day 7: A remains a vigorous primary purple keeper candidate with stable root-zone moisture at 60.83% and dense active stretch in the only available preset. Keep daily SCROG tucking and lower-airflow cleanup focused during stretch. See [2026-05-10](../daily/2026-05-10.md).
+Day 59 / Flower Day 9: A has no dedicated preset photo today, but root-zone moisture remains stable around 61%. Continue stretch-window SCROG checks once visual coverage is restored. See [2026-05-12](../daily/2026-05-12.md).
 
 ## Timeline
 
@@ -57,3 +57,5 @@ Day 57 / Flower Day 7: A remains a vigorous primary purple keeper candidate with
 - 2026-05-08 — [Day 55 / Flower Day 5: vigorous sativa-leaning tops, stable ~61% moisture, continue daily SCROG tucking](../daily/2026-05-08.md)
 - 2026-05-09 — [Day 56 / Flower Day 6: vigorous sativa-leaning tops, stable ~61% moisture, continue daily SCROG tucking](../daily/2026-05-09.md)
 - 2026-05-10 — [Day 57 / Flower Day 7: vigorous dense stretch tops, stable ~61% moisture, continue daily SCROG tucking](../daily/2026-05-10.md)
+- 2026-05-11 — [Day 58 / Flower Day 8: vigorous dense stretch tops, stable ~61% moisture, continue daily SCROG tucking](../daily/2026-05-11.md)
+- 2026-05-12 — [Day 59 / Flower Day 9: dedicated photo missing; moisture stable ~61%, continue stretch-window SCROG checks](../daily/2026-05-12.md)

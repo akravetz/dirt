@@ -30,13 +30,19 @@ from dirt_shared.cloud_contract import (
     AssetRetentionRequest,
     AssetSignUploadRequest,
     CatalogRequest,
+    CatalogResponse,
     CatalogSite,
     CatalogTent,
+    CommandClaimResponse,
+    CommandResultRequest,
+    CommandResultResponse,
+    HeartbeatResponse,
     LatestMetricsRequest,
     PruneAssetsResponse,
     RollupItem,
     RollupsRequest,
     SignUploadResponse,
+    UpsertCountResponse,
 )
 from dirt_shared.config import CloudGatewayConfig
 from dirt_shared.models import (
@@ -80,38 +86,47 @@ class RecordingCloudClient:
         self.asset_complete_requests: list[AssetCompleteRequest] = []
         self.call_counts: defaultdict[str, int] = defaultdict(int)
         self.claimed_commands: list[dict[str, Any]] = []
-        self.command_results: list[tuple[str, dict[str, Any], str]] = []
+        self.command_results: list[tuple[str, CommandResultRequest, str]] = []
         self.asset_failures: list[dict[str, Any]] = []
         self.retention_requests: list[dict[str, Any]] = []
 
     async def send_heartbeat(
         self, payload: Any, *, idempotency_key: str
-    ) -> dict[str, Any]:
+    ) -> HeartbeatResponse:
         payload = _payload_dict(payload)
         self._record("heartbeat", idempotency_key)
-        return {"ok": True, **payload}
+        return HeartbeatResponse.model_validate(
+            {"ok": True, **payload, "received_at": FIXED_NOW}
+        )
 
     async def put_catalog(
         self, payload: Any, *, idempotency_key: str
-    ) -> dict[str, Any]:
+    ) -> CatalogResponse:
         payload = _payload_dict(payload)
         self._record("catalog", idempotency_key)
         self.catalogs[idempotency_key] = payload
-        return {"ok": True}
+        return CatalogResponse(
+            sites=1,
+            tents=len(payload["tents"]),
+            zones=len(payload["zones"]),
+            devices=len(payload["devices"]),
+            capabilities=len(payload["capabilities"]),
+            schedules=len(payload["schedules"]),
+        )
 
     async def put_latest_metrics(
         self, payload: Any, *, idempotency_key: str
-    ) -> dict[str, Any]:
+    ) -> UpsertCountResponse:
         payload = _payload_dict(payload)
         self._record("latest_metrics", idempotency_key)
         for row in payload["metrics"]:
             key = (row["site_id"], row["tent_id"], row["capability_id"], row["metric"])
             self.latest_rows[key] = row
-        return {"ok": True}
+        return UpsertCountResponse(upserted=len(payload["metrics"]))
 
     async def post_rollups(
         self, payload: Any, *, idempotency_key: str
-    ) -> dict[str, Any]:
+    ) -> UpsertCountResponse:
         payload = _payload_dict(payload)
         self._record("rollups", idempotency_key)
         for row in payload["rollups"]:
@@ -124,7 +139,7 @@ class RecordingCloudClient:
                 row["bucket_start_at"],
             )
             self.rollup_rows[key] = row
-        return {"ok": True}
+        return UpsertCountResponse(upserted=len(payload["rollups"]))
 
     async def sign_upload(
         self, payload: AssetSignUploadRequest, *, idempotency_key: str
@@ -188,21 +203,40 @@ class RecordingCloudClient:
 
     async def claim_commands(
         self, *, site_id: str, limit: int, idempotency_key: str
-    ) -> dict[str, Any]:
+    ) -> CommandClaimResponse:
         del site_id
         self._record("command_claim", idempotency_key)
-        return {"commands": self.claimed_commands[:limit]}
+        return CommandClaimResponse.model_validate(
+            {"commands": self.claimed_commands[:limit]}
+        )
 
     async def report_command_result(
         self,
         *,
         command_id: str,
-        payload: dict[str, Any],
+        payload: CommandResultRequest,
         idempotency_key: str,
-    ) -> dict[str, Any]:
+    ) -> CommandResultResponse:
         self._record("command_result", idempotency_key)
         self.command_results.append((command_id, payload, idempotency_key))
-        return {"command_id": command_id, **payload}
+        return CommandResultResponse.model_validate(
+            {
+                "command_id": command_id,
+                "tent_id": "main",
+                "device_id": "obsbot-main",
+                "capability_id": "ptz_move",
+                "command_type": "ptz_preset",
+                "payload": {"preset_id": "overview"},
+                "queued_at": FIXED_NOW - timedelta(seconds=5),
+                "expires_at": FIXED_NOW + timedelta(seconds=55),
+                "claimed_by": "gateway-main",
+                "claimed_at": FIXED_NOW,
+                "requested_by": "admin",
+                "started_at": None,
+                "finished_at": None,
+                **payload.model_dump(mode="python"),
+            }
+        )
 
     def _record(self, event_type: str, idempotency_key: str) -> None:
         self.call_counts[event_type] += 1
@@ -411,14 +445,16 @@ def _cloud_command(
     *,
     command_type: str = "ptz_preset",
     payload: dict[str, Any] | None = None,
+    device_id: str | None = "obsbot-main",
+    capability_id: str | None = "ptz_move",
     expires_at: datetime | None = None,
 ) -> dict[str, Any]:
     return {
         "command_id": command_id,
         "site_id": "homebox",
         "tent_id": "main",
-        "device_id": "obsbot-main",
-        "capability_id": "ptz_move",
+        "device_id": device_id,
+        "capability_id": capability_id,
         "command_type": command_type,
         "payload": payload or {"preset_id": "overview"},
         "status": "claimed",
@@ -427,6 +463,8 @@ def _cloud_command(
         "claimed_by": "gateway-main",
         "claimed_at": FIXED_NOW.isoformat(),
         "requested_by": "admin",
+        "started_at": None,
+        "finished_at": None,
         "result": None,
         "error": None,
     }
@@ -821,6 +859,43 @@ async def test_asset_upload_outbox_replay_validates_stored_json_before_cloud_cal
     assert "byte_size" in str(row.last_error)
 
 
+async def test_command_result_outbox_replay_validates_stored_json_before_cloud_call(
+    app_engine: AsyncEngine,
+):
+    outbox = OutboxRepository(app_engine)
+    await outbox.enqueue(
+        event_type="command_result",
+        idempotency_key="homebox:command_result:bad-result",
+        payload={
+            "command_id": "cloud-bad-result",
+            "result": {
+                "site_id": "homebox",
+                "result": {"ok": True},
+                "error": None,
+            },
+        },
+        now=FIXED_NOW - timedelta(minutes=1),
+    )
+    cloud = RecordingCloudClient()
+    service = _service(app_engine, cloud, local_services=StaticLocalServices())
+
+    result = await service.run_once()
+
+    assert result.failed == 1
+    assert cloud.call_counts["command_result"] == 0
+    async with AsyncSession(app_engine) as session:
+        row = (
+            await session.exec(
+                select(CloudOutbox).where(
+                    CloudOutbox.idempotency_key == "homebox:command_result:bad-result"
+                )
+            )
+        ).one()
+    assert row.status == "pending"
+    assert row.attempt_count == 1
+    assert "status" in str(row.last_error)
+
+
 async def test_asset_sync_reports_upload_failures_and_retries(
     app_engine: AsyncEngine,
     tmp_path: Path,
@@ -883,9 +958,10 @@ async def test_command_loop_executes_ptz_and_records_local_ledger(
     assert result.executed == 1
     assert ptz.calls == [("preset", "overview")]
     assert [
-        (command_id, payload["status"])
+        (command_id, payload.status)
         for command_id, payload, _key in cloud.command_results
     ] == [("cloud-1", "running"), ("cloud-1", "succeeded")]
+    assert isinstance(cloud.command_results[0][1], CommandResultRequest)
     async with AsyncSession(app_engine) as session:
         command = (
             await session.exec(
@@ -910,14 +986,12 @@ async def test_command_loop_rejects_expired_and_invalid_without_ptz(
             expires_at=FIXED_NOW - timedelta(seconds=1),
         ),
         _cloud_command(
-            "cloud-unsafe",
-            command_type="fan_set_duty",
-            payload={"duty_pct": 80},
+            "cloud-unknown-preset",
+            payload={"preset_id": "not-a-preset"},
         ),
         _cloud_command(
-            "cloud-bad-payload",
-            command_type="ptz_look",
-            payload={"x": 0.8, "y": 0.0},
+            "cloud-unsafe-device",
+            device_id="fan-main",
         ),
     ]
     ptz = RecordingPTZ()
@@ -926,10 +1000,33 @@ async def test_command_loop_rejects_expired_and_invalid_without_ptz(
 
     assert result.executed == 0
     assert ptz.calls == []
-    statuses = [
-        payload["status"] for _command_id, payload, _key in cloud.command_results
-    ]
+    statuses = [payload.status for _command_id, payload, _key in cloud.command_results]
     assert statuses == ["expired", "rejected", "rejected"]
+    async with AsyncSession(app_engine) as session:
+        local_commands = (await session.exec(select(Command))).all()
+    assert local_commands == []
+
+
+async def test_command_loop_rejects_malformed_claim_before_execution_and_reporting(
+    app_engine: AsyncEngine,
+):
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command(
+            "cloud-bad-payload",
+            command_type="ptz_look",
+            payload={"x": 0.8, "y": 0.0},
+        )
+    ]
+    ptz = RecordingPTZ()
+
+    result = await _command_service(app_engine, cloud, ptz).run_once()
+
+    assert result.executed == 0
+    assert result.reported == 0
+    assert result.failed == 1
+    assert ptz.calls == []
+    assert cloud.command_results == []
     async with AsyncSession(app_engine) as session:
         local_commands = (await session.exec(select(Command))).all()
     assert local_commands == []
@@ -952,9 +1049,9 @@ async def test_command_loop_does_not_reexecute_terminal_local_command(
     assert second.executed == 0
     assert ptz.calls == [("zoom_by", 0.1)]
     terminal_reports = [
-        payload["status"]
+        payload.status
         for _command_id, payload, _key in cloud.command_results
-        if payload["status"] == "succeeded"
+        if payload.status == "succeeded"
     ]
     assert terminal_reports == ["succeeded", "succeeded"]
 

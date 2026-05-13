@@ -902,3 +902,30 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - **Plant B moisture remains critical:** 96.25% now, effectively unchanged from May 9; dryback verification remains urgent before reopening normal feed.
 - **Root zones:** A stable at 60.83%; C remains saturated at 89.96%; D remains high but easing at 85.82%.
 - Updated: `daily/2026-05-10.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-05-11] daily | Day 58 / Flower Day 8 - incomplete photos; main VPD still low; breeding tent hot/dry
+- Photos captured across 1 of 5 expected main presets (Plant A only). Overview, B, C, D, and breeding overview views are missing, so today's visual record is incomplete.
+- **Main-tent environment flag:** VPD missed early-flower target in every window again (0.54 kPa overnight, 0.62 morning, 0.59 now) while RH stayed high at 75.88-78.63%.
+- **Breeding-tent flag:** Current breeding tent reading is 85.68°F / 58.31% RH / 1.75 kPa VPD; check small plants/clones for drying stress because no breeding photo was captured.
+- **Plant B moisture remains critical:** 95.88% now, still near full saturation; dryback verification remains urgent before reopening normal feed.
+- **Root zones:** A stable at 60.93%; C remains saturated at 90.04%; D remains high but easing at 85.70%.
+- Updated: `daily/2026-05-11.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-05-12] query-filed | Track A short-veg flip and pollen aliquot strategy
+- User-confirmed Track A status: breeding-tent seedlings now have their first 2-3 sets of true leaves.
+- Filed the pollen-production operating plan: because the objective is strictly sex, cull females, and collect pollen, keep them under veg light only ~7-14 more days, then flip once most seedlings have 4-5 nodes, steady new growth, and no obvious stress.
+- Expanded pollen handling around parent identity and freezer management: assign `TA-M#` male IDs at sex confirmation, keep each male's pollen separate, collect in multiple sessions, dry with desiccant, flour-cut 4:1, and freeze many small single-use aliquots rather than one bulk tube.
+- Updated: `breeding/README.md`, `breeding/timeline.md`, `breeding/pollen-handling.md`, `index.md`.
+
+## [2026-05-12] manual update | AC Infinity 4 inch filtration kit purchased for breeding tent
+- User purchased the AC Infinity 4" air filtration kit for the 2x2x4 breeding/male isolation tent.
+- Filed it as the selected containment exhaust: carbon filter inside the upper tent area, inline fan exhausting out, passive lower intake only, fan run low enough to keep slight negative pressure.
+- Updated: `breeding/bill-of-materials.md`, `breeding/isolation.md`, `breeding/timeline.md`.
+
+## [2026-05-12] daily | Day 59 / Flower Day 9 - main VPD recovered; no main-tent photos
+- Photos captured across 0 of 5 expected main presets; only the breeding overview was available, and it mostly shows fan/vent/tent hardware rather than plant detail.
+- **Main-tent environment shift:** VPD averaged in range overnight and morning (1.24/1.24 kPa) after several low-VPD days, but the current reading is slightly high at 1.37 kPa with 80.01°F.
+- **Breeding-tent watch:** Overnight was wet at 0.53 kPa VPD / 77.88% RH, then recovered to 1.09 kPa now; manually inspect seedlings/clones because the photo cannot verify plant condition.
+- **Plant B moisture remains critical:** 95.84% now, still near full saturation; dryback verification remains urgent before reopening normal feed.
+- **Root zones:** A stable at 60.89%; C remains saturated at 89.88%; D remains high but easing at 84.79%.
+- Updated: `daily/2026-05-12.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.

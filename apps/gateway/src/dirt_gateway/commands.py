@@ -11,6 +11,16 @@ from dirt_gateway.cloud import CloudDeliveryError
 from dirt_gateway.outbox import OutboxRepository
 from dirt_gateway.protocols import BackoffPolicy, CloudGatewayClient, Sleeper
 from dirt_gateway.sync import ExponentialBackoff
+from dirt_shared.cloud_contract import (
+    ClaimedCommand,
+    CommandRequestStatus,
+    CommandResultOutboxPayload,
+    CommandResultRequest,
+    PtzLookPayload,
+    PtzPresetPayload,
+    PtzZoomAbsolutePayload,
+    PtzZoomRelativePayload,
+)
 from dirt_shared.config import CloudGatewayConfig
 from dirt_shared.models import CloudOutbox
 from dirt_shared.models.command import Command
@@ -104,17 +114,12 @@ class GatewayCommandService:
                 dry_run=False,
             )
 
-        commands = response.get("commands") if isinstance(response, dict) else None
-        if not isinstance(commands, list):
-            raise CloudDeliveryError("command claim response missing commands list")
+        commands = response.commands
 
         executed = 0
         reported = 0
         failed = 0
         for item in commands:
-            if not isinstance(item, dict):
-                failed += 1
-                continue
             try:
                 outcome = await self._handle_command(item)
             except Exception as exc:
@@ -124,7 +129,7 @@ class GatewayCommandService:
                     "command_failed",
                     site_id=self._config.site_id,
                     gateway_id=self._config.gateway_id,
-                    command_id=str(item.get("command_id", "")),
+                    command_id=item.command_id,
                     error=type(exc).__name__,
                 )
                 continue
@@ -144,11 +149,10 @@ class GatewayCommandService:
             await self.run_once()
             await sleeper.sleep(self._config.command_poll_interval_s)
 
-    async def _handle_command(self, item: dict[str, Any]) -> _CommandOutcome:
-        command_id = _required_str(item, "command_id")
+    async def _handle_command(self, item: ClaimedCommand) -> _CommandOutcome:
+        command_id = item.command_id
         now = self._clock()
-        expires_at = _parse_datetime(item.get("expires_at"))
-        if expires_at <= now:
+        if item.expires_at <= now:
             reported = await self._enqueue_and_try_report(
                 command_id=command_id,
                 status="expired",
@@ -166,13 +170,13 @@ class GatewayCommandService:
             return _CommandOutcome(executed=False, reported=reported)
 
         local_command = await self._ledger.enqueue(
-            command_type=_local_command_type(str(item["command_type"])),
+            command_type=_local_command_type(item.command_type),
             payload=_local_payload(item),
             idempotency_key=f"cloud-command:{command_id}",
-            requested_by=f"cloud:{item.get('requested_by', 'browser')}",
+            requested_by=f"cloud:{item.requested_by}",
             source="cloud_gateway",
             site_id=self._config.site_id,
-            tent_id=str(item["tent_id"]),
+            tent_id=item.tent_id,
             device_id=LOCAL_PTZ_DEVICE_ID,
             capability_id=LOCAL_PTZ_CAPABILITY_ID,
             zone_id=_zone_for_command(item),
@@ -182,9 +186,9 @@ class GatewayCommandService:
         return await self._report_existing_local_terminal(command_id, local_command)
 
     async def _execute_new_command(
-        self, item: dict[str, Any], local_command: Command
+        self, item: ClaimedCommand, local_command: Command
     ) -> _CommandOutcome:
-        command_id = str(item["command_id"])
+        command_id = item.command_id
         await self._ledger.start(local_command.command_id)
         await self._try_report_running(command_id)
         try:
@@ -221,7 +225,7 @@ class GatewayCommandService:
             site_id=self._config.site_id,
             gateway_id=self._config.gateway_id,
             command_id=command_id,
-            command_type=str(item["command_type"]),
+            command_type=item.command_type,
         )
         return _CommandOutcome(executed=True, reported=reported)
 
@@ -254,27 +258,29 @@ class GatewayCommandService:
         )
         return _CommandOutcome(executed=False, reported=reported)
 
-    async def _execute_ptz(self, item: dict[str, Any]) -> dict[str, Any]:
-        command_type = str(item["command_type"])
-        payload = item["payload"]
-        if command_type == "ptz_preset":
-            return await self._ptz.apply_preset(str(payload["preset_id"]))
-        if command_type == "ptz_look":
+    async def _execute_ptz(self, item: ClaimedCommand) -> dict[str, Any]:
+        payload = item.payload
+        if isinstance(payload, PtzPresetPayload):
+            return await self._ptz.apply_preset(payload.preset_id)
+        if isinstance(payload, PtzLookPayload):
             return await self._ptz.look_at_normalized(
-                float(payload["x"]),
-                float(payload["y"]),
+                payload.x,
+                payload.y,
             )
-        if command_type == "ptz_zoom":
-            if "zoom" in payload:
-                return await self._ptz.zoom_to(float(payload["zoom"]))
-            return await self._ptz.zoom_by(float(payload["delta"]))
-        raise ValueError(f"unsupported command_type: {command_type}")
+        if isinstance(payload, PtzZoomAbsolutePayload):
+            return await self._ptz.zoom_to(payload.zoom)
+        if isinstance(payload, PtzZoomRelativePayload):
+            return await self._ptz.zoom_by(payload.delta)
+        raise ValueError(f"unsupported command_type: {item.command_type}")
 
     async def _try_report_running(self, command_id: str) -> None:
         try:
             await self._cloud.report_command_result(
                 command_id=command_id,
-                payload={"site_id": self._config.site_id, "status": "running"},
+                payload=CommandResultRequest(
+                    site_id=self._config.site_id,
+                    status="running",
+                ),
                 idempotency_key=f"{self._config.site_id}:command:{command_id}:running",
             )
         except Exception:
@@ -290,22 +296,25 @@ class GatewayCommandService:
         self,
         *,
         command_id: str,
-        status: str,
+        status: CommandRequestStatus,
         result: dict[str, Any] | None = None,
         error: str | None = None,
     ) -> bool:
         now = self._clock()
-        payload = {
-            "site_id": self._config.site_id,
-            "status": status,
-            "result": result,
-            "error": error,
-        }
+        payload = CommandResultRequest(
+            site_id=self._config.site_id,
+            status=status,
+            result=result,
+            error=error,
+        )
         key = f"{self._config.site_id}:command:{command_id}:{status}"
         enqueued = await self._outbox.enqueue(
             event_type="command_result",
             idempotency_key=key,
-            payload={"command_id": command_id, "result": payload},
+            payload=CommandResultOutboxPayload(
+                command_id=command_id,
+                result=payload,
+            ).model_dump(mode="json"),
             now=now,
         )
         try:
@@ -346,37 +355,19 @@ class GatewayCommandService:
         )
         return True
 
-    def _validate_claimed_command(self, item: dict[str, Any]) -> str | None:
-        if item.get("site_id") != self._config.site_id:
+    def _validate_claimed_command(self, item: ClaimedCommand) -> str | None:
+        if item.site_id != self._config.site_id:
             return "command site scope does not match this gateway"
-        if item.get("device_id") != LOCAL_PTZ_DEVICE_ID:
+        if item.device_id != LOCAL_PTZ_DEVICE_ID:
             return "unsupported PTZ device target"
-        if item.get("capability_id") != LOCAL_PTZ_CAPABILITY_ID:
+        if item.capability_id != LOCAL_PTZ_CAPABILITY_ID:
             return "unsupported PTZ capability target"
-        command_type = item.get("command_type")
-        payload = item.get("payload")
-        if not isinstance(payload, dict):
-            return "command payload must be an object"
-        if command_type == "ptz_preset":
-            preset_id = payload.get("preset_id")
-            if not isinstance(preset_id, str) or not preset_id:
-                return "ptz_preset requires preset_id"
-            if self._ptz.get_preset(preset_id) is None:
-                return "unknown PTZ preset"
-            return None
-        if command_type == "ptz_look":
-            return _validate_number(payload, "x", -0.5, 0.5) or _validate_number(
-                payload, "y", -0.5, 0.5
-            )
-        if command_type == "ptz_zoom":
-            has_zoom = "zoom" in payload
-            has_delta = "delta" in payload
-            if has_zoom == has_delta:
-                return "ptz_zoom requires exactly one of zoom or delta"
-            if has_zoom:
-                return _validate_number(payload, "zoom", 1.0, 2.0)
-            return _validate_number(payload, "delta", -1.0, 1.0)
-        return "unsupported cloud command type"
+        if (
+            isinstance(item.payload, PtzPresetPayload)
+            and self._ptz.get_preset(item.payload.preset_id) is None
+        ):
+            return "unknown PTZ preset"
+        return None
 
     def _claim_idempotency_key(self) -> str:
         stamp = self._clock().isoformat(timespec="seconds")
@@ -389,36 +380,6 @@ class _CommandOutcome:
     reported: bool
 
 
-def _required_str(item: dict[str, Any], key: str) -> str:
-    value = item.get(key)
-    if not isinstance(value, str) or not value:
-        raise CloudDeliveryError(f"claimed command missing {key}")
-    return value
-
-
-def _parse_datetime(value: object) -> datetime:
-    if isinstance(value, datetime):
-        return value
-    if isinstance(value, str):
-        normalized = value.replace("Z", "+00:00")
-        return datetime.fromisoformat(normalized)
-    raise CloudDeliveryError("claimed command missing expires_at")
-
-
-def _validate_number(
-    payload: dict[str, Any],
-    key: str,
-    minimum: float,
-    maximum: float,
-) -> str | None:
-    value = payload.get(key)
-    if not isinstance(value, int | float):
-        return f"{key} must be numeric"
-    if not minimum <= float(value) <= maximum:
-        return f"{key} must be between {minimum:g} and {maximum:g}"
-    return None
-
-
 def _local_command_type(cloud_type: str) -> str:
     return {
         "ptz_preset": "ptz.preset",
@@ -427,22 +388,21 @@ def _local_command_type(cloud_type: str) -> str:
     }[cloud_type]
 
 
-def _local_payload(item: dict[str, Any]) -> dict[str, Any]:
-    payload = item["payload"]
-    command_type = item["command_type"]
-    if command_type == "ptz_preset":
-        return {"preset_id": str(payload["preset_id"])}
-    if command_type == "ptz_look":
-        return {"x": float(payload["x"]), "y": float(payload["y"])}
-    if "zoom" in payload:
-        return {"zoom": float(payload["zoom"])}
-    return {"delta": float(payload["delta"])}
+def _local_payload(item: ClaimedCommand) -> dict[str, Any]:
+    payload = item.payload
+    if isinstance(payload, PtzPresetPayload):
+        return {"preset_id": payload.preset_id}
+    if isinstance(payload, PtzLookPayload):
+        return {"x": payload.x, "y": payload.y}
+    if isinstance(payload, PtzZoomAbsolutePayload):
+        return {"zoom": payload.zoom}
+    return {"delta": payload.delta}
 
 
-def _zone_for_command(item: dict[str, Any]) -> str | None:
-    if item["command_type"] != "ptz_preset":
+def _zone_for_command(item: ClaimedCommand) -> str | None:
+    if not isinstance(item.payload, PtzPresetPayload):
         return "canopy"
-    preset_id = str(item["payload"]["preset_id"])
+    preset_id = item.payload.preset_id
     if preset_id.startswith("plant_") and len(preset_id) == len("plant_a"):
         return preset_id.replace("_", "-")
     return "canopy"

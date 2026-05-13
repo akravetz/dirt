@@ -4,7 +4,7 @@ type: breeding
 sources: []
 related: [wiki/breeding/README.md, wiki/breeding/male-evaluation.md, wiki/breeding/cross-procedure.md, wiki/breeding/isolation.md]
 created: 2026-04-26
-updated: 2026-04-26
+updated: 2026-05-12
 ---
 
 # Pollen Handling
@@ -32,11 +32,20 @@ Our target window: 18–24 months minimum. We won't need cryo for a hobby progra
 
 ## Collection
 
+### Parent identity
+
+Pollen is only useful if its parentage stays unambiguous. Treat each confirmed keeper male as a separate pollen lot from the moment sacs begin swelling.
+
+Assign male IDs at sex confirmation, before collection starts: `TA-M1`, `TA-M2`, `TA-M3`, etc. Use the same ID everywhere: plant tag, male-evaluation table, parchment label, drying container, aliquot tube, freezer box, and cross record.
+
+Minimum notes before collection: male ID, source population (`SBxBS01 Track A`), sex-confirmation date, flip date, first visible sac-swelling date, collection session/date, and quick [male-evaluation](male-evaluation.md) score summary. If two males both look worth preserving, collect and freeze them separately. Do not blend male pollen unless the breeding goal is explicitly a mixed-sire seed lot.
+
 ### Timing
 
 - Wait until ~33% of visible sacs are dehiscing (cracking open and shedding visible yellow pollen). Earlier = pollen not ready, lower viability. Later = sacs already shed, less collection yield.
 - Collect over **3 sessions** spaced 2–3 days apart (e.g., days 1, 4, 7) — sacs dehisce non-concurrently, so multiple passes capture more.
 - **Time of day:** mid-morning, after RH drops below ~50%. High humidity = clumpy pollen. Avoid right after lights-on (humidity is highest then in the isolation room).
+- For the current Track A speed run, expect first useful pollen roughly **2–4 weeks after the 12/12 flip**, with the exact date driven by male maturity and sac development.
 
 ### Method
 
@@ -55,6 +64,8 @@ Procedure:
 3. Gently shake the colas, or use the brush to sweep mature open sacs onto the paper.
 4. Use tweezers to remove individual swollen-but-unopened sacs and place them on the parchment to dehisce naturally over the next 24h.
 5. Close the parchment loosely and label it with male ID + collection date.
+
+Keep one parchment sheet and one drying container per male per session. If pollen from `TA-M1` touches tools or paper used for `TA-M2`, the lot becomes contaminated and cannot be used for clean parentage tracking.
 
 ### Yield expectation
 
@@ -110,19 +121,28 @@ In a small clean dish (e.g. a glass shot glass):
 
 ### Aliquot size
 
-For a single cross event (1–2 branches pollinated): **1/2 teaspoon of flour-cut pollen mix** is more than enough. Each aliquot tube should hold roughly that — call it 1–2 mL of the 4:1 mix.
+For a single cross event (1–2 branches pollinated): **1/4–1/2 teaspoon of flour-cut pollen mix** is more than enough. Each aliquot tube should hold roughly that — call it 0.5–2 mL of the 4:1 mix. Err smaller on the first batch so a single thaw does not waste the whole collection.
 
 A typical collection batch yields **8–15 aliquots**. That's 8–15 separate cross events possible from one male.
+
+### Aliquot strategy for the first Track A batch
+
+Default to more small tubes, not fewer large tubes: 2 tiny test aliquots per male for viability/practice, 8–12 standard branch aliquots for one lower-branch pollination each, and 1–2 reserve aliquots that stay untouched unless the line depends on them.
+
+If total pollen is low, prioritize **separate identity over volume**. A small clean `TA-M1` lot and a small clean `TA-M2` lot are more useful than one larger blended lot.
 
 ### Labeling
 
 Every aliquot gets:
-- Male ID (e.g. `M2`)
-- Collection date
-- Strain (`SBxBS01`)
-- Aliquot number (`1/12`)
+- Male ID (e.g. `TA-M2`)
+- Strain/population (`SBxBS01 Track A`)
+- Collection date or collection range
+- Aliquot number (`01/12`)
+- Mix ratio (`4:1 flour:pollen`)
 
-Permanent marker on the side, plus a dated label on the freezer drawer.
+Example: `TA-M2 SBxBS01 2026-06-18 03/12 4:1`.
+
+Permanent marker on the side, plus a dated label on the freezer box. Put the same ID in the inventory table before the tube goes into the freezer.
 
 ## Storage
 
@@ -138,8 +158,8 @@ A simple sheet inside the freezer, or a wiki page (`breeding/projects/<project>/
 
 | Aliquot | Male | Strain | Collected | Used | Notes |
 |---|---|---|---|---|---|
-| M2-1/12 | M2 | SBxBS01 | 2026-06-22 | — | full |
-| M2-2/12 | M2 | SBxBS01 | 2026-06-22 | 2026-12-15 | used on keeper K1 lower-left branch |
+| TA-M2-01/12 | TA-M2 | SBxBS01 Track A | 2026-06-22 | — | full |
+| TA-M2-02/12 | TA-M2 | SBxBS01 Track A | 2026-06-22 | 2026-12-15 | used on keeper K1 lower-left branch |
 | ... | | | | | |
 
 ## Thawing — single-use discipline

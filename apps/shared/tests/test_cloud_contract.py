@@ -9,6 +9,9 @@ from dirt_shared.cloud_contract import (
     AssetRetentionRequest,
     CatalogDevice,
     CommandClaimResponse,
+    PtzLookPayload,
+    PtzPresetPayload,
+    PtzZoomRelativePayload,
     SignUploadResponse,
 )
 
@@ -118,3 +121,56 @@ def test_command_claim_response_requires_nullable_wire_keys() -> None:
 
     assert exc_info.value.errors()[0]["loc"] == ("commands", 0, "claimed_at")
     assert exc_info.value.errors()[0]["type"] == "missing"
+
+
+def test_command_claim_response_uses_explicit_ptz_payload_models() -> None:
+    preset = _command_payload(
+        command_type="ptz_preset",
+        payload={"preset_id": "overview"},
+    )
+    look = _command_payload(command_type="ptz_look", payload={"x": 0.2, "y": -0.1})
+    zoom = _command_payload(command_type="ptz_zoom", payload={"delta": 0.1})
+
+    response = CommandClaimResponse(commands=[preset, look, zoom])
+
+    assert isinstance(response.commands[0].payload, PtzPresetPayload)
+    assert isinstance(response.commands[1].payload, PtzLookPayload)
+    assert isinstance(response.commands[2].payload, PtzZoomRelativePayload)
+
+
+def test_command_claim_response_rejects_mismatched_ptz_payload() -> None:
+    with pytest.raises(ValidationError) as exc_info:
+        CommandClaimResponse(
+            commands=[
+                _command_payload(
+                    command_type="ptz_preset",
+                    payload={"x": 0.2, "y": -0.1},
+                )
+            ]
+        )
+
+    assert exc_info.value.errors()[0]["type"] == "value_error"
+
+
+def _command_payload(
+    *, command_type: str, payload: dict[str, object]
+) -> dict[str, object]:
+    return {
+        "command_id": f"cmd_{command_type}",
+        "site_id": "homebox",
+        "tent_id": "main",
+        "device_id": "obsbot-main",
+        "capability_id": "ptz_move",
+        "command_type": command_type,
+        "payload": payload,
+        "status": "claimed",
+        "queued_at": "2026-05-09T12:00:00Z",
+        "expires_at": "2026-05-09T12:05:00Z",
+        "claimed_by": None,
+        "claimed_at": None,
+        "requested_by": "browser",
+        "started_at": None,
+        "finished_at": None,
+        "result": None,
+        "error": None,
+    }

@@ -22,11 +22,18 @@ from dirt_shared.cloud_contract import (
     AssetRetentionRequest,
     AssetSignUploadRequest,
     CatalogRequest,
+    CatalogResponse,
+    CommandClaimRequest,
+    CommandClaimResponse,
+    CommandResultRequest,
+    CommandResultResponse,
     HeartbeatRequest,
+    HeartbeatResponse,
     LatestMetricsRequest,
     PruneAssetsResponse,
     RollupsRequest,
     SignUploadResponse,
+    UpsertCountResponse,
 )
 
 
@@ -54,31 +61,35 @@ class HttpCloudGatewayClient:
 
     async def send_heartbeat(
         self, payload: HeartbeatRequest, *, idempotency_key: str
-    ) -> dict[str, Any]:
-        return await self._request(
+    ) -> HeartbeatResponse:
+        response = await self._request(
             "POST", "/api/gateway/v1/heartbeat", payload, idempotency_key
         )
+        return HeartbeatResponse.model_validate(response)
 
     async def put_catalog(
         self, payload: CatalogRequest, *, idempotency_key: str
-    ) -> dict[str, Any]:
-        return await self._request(
+    ) -> CatalogResponse:
+        response = await self._request(
             "PUT", "/api/gateway/v1/catalog", payload, idempotency_key
         )
+        return CatalogResponse.model_validate(response)
 
     async def put_latest_metrics(
         self, payload: LatestMetricsRequest, *, idempotency_key: str
-    ) -> dict[str, Any]:
-        return await self._request(
+    ) -> UpsertCountResponse:
+        response = await self._request(
             "PUT", "/api/gateway/v1/metrics/latest", payload, idempotency_key
         )
+        return UpsertCountResponse.model_validate(response)
 
     async def post_rollups(
         self, payload: RollupsRequest, *, idempotency_key: str
-    ) -> dict[str, Any]:
-        return await self._request(
+    ) -> UpsertCountResponse:
+        response = await self._request(
             "POST", "/api/gateway/v1/metrics/rollups", payload, idempotency_key
         )
+        return UpsertCountResponse.model_validate(response)
 
     async def sign_upload(
         self, payload: AssetSignUploadRequest, *, idempotency_key: str
@@ -129,27 +140,29 @@ class HttpCloudGatewayClient:
 
     async def claim_commands(
         self, *, site_id: str, limit: int, idempotency_key: str
-    ) -> dict[str, Any]:
-        return await self._request(
+    ) -> CommandClaimResponse:
+        response = await self._request(
             "POST",
             "/api/gateway/v1/commands/claim",
-            {"site_id": site_id, "limit": limit},
+            CommandClaimRequest(site_id=site_id, limit=limit),
             idempotency_key,
         )
+        return CommandClaimResponse.model_validate(response)
 
     async def report_command_result(
         self,
         *,
         command_id: str,
-        payload: dict[str, Any],
+        payload: CommandResultRequest,
         idempotency_key: str,
-    ) -> dict[str, Any]:
-        return await self._request(
+    ) -> CommandResultResponse:
+        response = await self._request(
             "POST",
             f"/api/gateway/v1/commands/{command_id}/result",
             payload,
             idempotency_key,
         )
+        return CommandResultResponse.model_validate(response)
 
     async def _request(
         self,

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Protocol
 
 from dirt_shared.cloud_assets import AssetUploadProjection
 from dirt_shared.cloud_contract import (
@@ -14,11 +14,17 @@ from dirt_shared.cloud_contract import (
     AssetRetentionRequest,
     AssetSignUploadRequest,
     CatalogRequest,
+    CatalogResponse,
+    CommandClaimResponse,
+    CommandResultRequest,
+    CommandResultResponse,
     HeartbeatRequest,
+    HeartbeatResponse,
     LatestMetricsRequest,
     PruneAssetsResponse,
     RollupsRequest,
     SignUploadResponse,
+    UpsertCountResponse,
 )
 from dirt_shared.config import CloudGatewayConfig
 
@@ -26,19 +32,19 @@ from dirt_shared.config import CloudGatewayConfig
 class CloudGatewayClient(Protocol):
     async def send_heartbeat(
         self, payload: HeartbeatRequest, *, idempotency_key: str
-    ) -> dict[str, Any]: ...
+    ) -> HeartbeatResponse: ...
 
     async def put_catalog(
         self, payload: CatalogRequest, *, idempotency_key: str
-    ) -> dict[str, Any]: ...
+    ) -> CatalogResponse: ...
 
     async def put_latest_metrics(
         self, payload: LatestMetricsRequest, *, idempotency_key: str
-    ) -> dict[str, Any]: ...
+    ) -> UpsertCountResponse: ...
 
     async def post_rollups(
         self, payload: RollupsRequest, *, idempotency_key: str
-    ) -> dict[str, Any]: ...
+    ) -> UpsertCountResponse: ...
 
     async def sign_upload(
         self, payload: AssetSignUploadRequest, *, idempotency_key: str
@@ -67,15 +73,15 @@ class CloudGatewayClient(Protocol):
 
     async def claim_commands(
         self, *, site_id: str, limit: int, idempotency_key: str
-    ) -> dict[str, Any]: ...
+    ) -> CommandClaimResponse: ...
 
     async def report_command_result(
         self,
         *,
         command_id: str,
-        payload: dict[str, Any],
+        payload: CommandResultRequest,
         idempotency_key: str,
-    ) -> dict[str, Any]: ...
+    ) -> CommandResultResponse: ...
 
 
 class LocalGatewayServices(Protocol):

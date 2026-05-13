@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime, time
+from datetime import datetime
 from typing import Any, TypeVar
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import SQLModel
@@ -44,132 +43,24 @@ from dirt_shared.cloud_contract import (
     AssetSignUploadRequest,
     CapturePolicyReason,
     CapturePolicyResponse,
+    CatalogRequest,
+    CatalogResponse,
+    CommandClaimRequest,
+    CommandClaimResponse,
+    CommandResultRequest,
+    CommandResultResponse,
+    HeartbeatRequest,
+    HeartbeatResponse,
+    LatestMetricsRequest,
     PruneAssetsResponse,
+    RollupItem,
+    RollupsRequest,
     SignUploadResponse,
+    UpsertCountResponse,
 )
 
 router = APIRouter(prefix="/api/gateway/v1")
 ModelT = TypeVar("ModelT", bound=SQLModel)
-
-
-class HeartbeatRequest(BaseModel):
-    site_id: str
-    gateway_id: str
-    backlog_depth: int = 0
-
-
-class CatalogSite(BaseModel):
-    site_id: str
-    name: str
-    timezone: str = "America/Denver"
-
-
-class CatalogTent(BaseModel):
-    tent_id: str
-    name: str
-    is_active: bool = True
-
-
-class CatalogZone(BaseModel):
-    tent_id: str
-    zone_id: str
-    name: str
-    kind: str = "environment"
-    is_active: bool = True
-
-
-class CatalogDevice(BaseModel):
-    tent_id: str
-    device_id: str
-    name: str
-    zone_id: str | None = None
-    kind: str = "sensor"
-    controller: str | None = None
-    is_active: bool = True
-    last_seen_at: datetime | None = None
-
-
-class CatalogCapability(BaseModel):
-    tent_id: str
-    device_id: str
-    capability_id: str
-    metric_name: str | None = None
-    kind: str = "metric"
-    unit: str | None = None
-    is_enabled: bool = True
-
-
-class CatalogSchedule(BaseModel):
-    site_id: str
-    tent_id: str
-    zone_id: str | None = None
-    device_id: str | None = None
-    capability_id: str | None = None
-    schedule_id: str
-    kind: str = "lights"
-    starts_local: time
-    ends_local: time
-    timezone: str = "America/Denver"
-    is_enabled: bool = True
-
-
-class CatalogRequest(BaseModel):
-    site: CatalogSite
-    tents: list[CatalogTent] = Field(default_factory=list)
-    zones: list[CatalogZone] = Field(default_factory=list)
-    devices: list[CatalogDevice] = Field(default_factory=list)
-    capabilities: list[CatalogCapability] = Field(default_factory=list)
-    schedules: list[CatalogSchedule] = Field(default_factory=list)
-
-
-class LatestMetricItem(BaseModel):
-    site_id: str
-    tent_id: str
-    capability_id: str
-    metric: str
-    value: float
-    source_updated_at: datetime
-    unit: str | None = None
-    zone_id: str | None = None
-    device_id: str | None = None
-    stale_after_s: int = 120
-
-
-class LatestMetricsRequest(BaseModel):
-    site_id: str
-    metrics: list[LatestMetricItem]
-
-
-class RollupItem(BaseModel):
-    site_id: str
-    tent_id: str
-    capability_id: str
-    metric: str
-    bucket: str
-    bucket_start_at: datetime
-    bucket_end_at: datetime
-    min_value: float | None = None
-    avg_value: float | None = None
-    max_value: float | None = None
-    sample_count: int = 0
-    unit: str | None = None
-
-
-class RollupsRequest(BaseModel):
-    site_id: str
-    rollups: list[RollupItem]
-
-
-class CommandClaimRequest(BaseModel):
-    site_id: str
-    limit: int = Field(default=1, ge=1, le=10)
-
-
-class CommandResultRequest(BaseModel):
-    site_id: str
-    status: str
-    result: dict[str, Any] | None = None
-    error: str | None = None
 
 
 async def require_gateway(
@@ -180,13 +71,13 @@ async def require_gateway(
     return await authenticate_gateway(request=request, session=session, now=clock())
 
 
-@router.post("/heartbeat")
+@router.post("/heartbeat", response_model=HeartbeatResponse)
 async def heartbeat(
     body: HeartbeatRequest,
     principal: GatewayPrincipal = Depends(require_gateway),
     session: AsyncSession = Depends(get_session),
     clock: Callable[[], datetime] = Depends(get_clock),
-) -> dict[str, Any]:
+) -> HeartbeatResponse:
     require_gateway_scope(principal, body.site_id)
     now = clock()
     credential = await session.get(GatewayCredential, principal.credential_id)
@@ -210,22 +101,22 @@ async def heartbeat(
         site.gateway_backlog_depth = body.backlog_depth
         site.updated_at = now
     await session.commit()
-    return {
-        "ok": True,
-        "site_id": body.site_id,
-        "gateway_id": body.gateway_id,
-        "backlog_depth": body.backlog_depth,
-        "received_at": now,
-    }
+    return HeartbeatResponse(
+        ok=True,
+        site_id=body.site_id,
+        gateway_id=body.gateway_id,
+        backlog_depth=body.backlog_depth,
+        received_at=now,
+    )
 
 
-@router.put("/catalog")
+@router.put("/catalog", response_model=CatalogResponse)
 async def catalog(
     body: CatalogRequest,
     principal: GatewayPrincipal = Depends(require_gateway),
     session: AsyncSession = Depends(get_session),
     clock: Callable[[], datetime] = Depends(get_clock),
-) -> dict[str, int]:
+) -> CatalogResponse:
     require_gateway_scope(principal, body.site.site_id)
     now = clock()
     await _upsert(
@@ -355,23 +246,23 @@ async def catalog(
             now=now,
         )
     await session.commit()
-    return {
-        "sites": 1,
-        "tents": len(body.tents),
-        "zones": len(body.zones),
-        "devices": len(body.devices),
-        "capabilities": len(body.capabilities),
-        "schedules": len(body.schedules),
-    }
+    return CatalogResponse(
+        sites=1,
+        tents=len(body.tents),
+        zones=len(body.zones),
+        devices=len(body.devices),
+        capabilities=len(body.capabilities),
+        schedules=len(body.schedules),
+    )
 
 
-@router.put("/metrics/latest")
+@router.put("/metrics/latest", response_model=UpsertCountResponse)
 async def metrics_latest(
     body: LatestMetricsRequest,
     principal: GatewayPrincipal = Depends(require_gateway),
     session: AsyncSession = Depends(get_session),
     clock: Callable[[], datetime] = Depends(get_clock),
-) -> dict[str, int]:
+) -> UpsertCountResponse:
     require_gateway_scope(principal, body.site_id)
     now = clock()
     for metric in body.metrics:
@@ -400,7 +291,7 @@ async def metrics_latest(
             now=now,
         )
     await session.commit()
-    return {"upserted": len(body.metrics)}
+    return UpsertCountResponse(upserted=len(body.metrics))
 
 
 @router.get(
@@ -485,13 +376,13 @@ async def camera_capture_policy(
     )
 
 
-@router.post("/metrics/rollups")
+@router.post("/metrics/rollups", response_model=UpsertCountResponse)
 async def metrics_rollups(
     body: RollupsRequest,
     principal: GatewayPrincipal = Depends(require_gateway),
     session: AsyncSession = Depends(get_session),
     clock: Callable[[], datetime] = Depends(get_clock),
-) -> dict[str, int]:
+) -> UpsertCountResponse:
     require_gateway_scope(principal, body.site_id)
     now = clock()
     for rollup in body.rollups:
@@ -520,7 +411,7 @@ async def metrics_rollups(
             now=now,
         )
     await session.commit()
-    return {"upserted": len(body.rollups)}
+    return UpsertCountResponse(upserted=len(body.rollups))
 
 
 @router.post("/assets/sign-upload", response_model=SignUploadResponse)
@@ -660,18 +551,18 @@ async def prune_assets(
     }
 
 
-@router.post("/commands/claim")
+@router.post("/commands/claim", response_model=CommandClaimResponse)
 async def claim_commands(
     body: CommandClaimRequest,
     principal: GatewayPrincipal = Depends(require_gateway),
     settings: CloudSettings = Depends(get_settings),
     session: AsyncSession = Depends(get_session),
     clock: Callable[[], datetime] = Depends(get_clock),
-) -> dict[str, Any]:
+) -> CommandClaimResponse:
     require_gateway_scope(principal, body.site_id)
     now = clock()
     if not settings.gateway_command_claim_enabled:
-        return {"commands": []}
+        return CommandClaimResponse(commands=[])
     expired_rows = (
         await session.execute(
             select(CloudCommand).where(
@@ -704,7 +595,7 @@ async def claim_commands(
     remaining = body.limit - len(commands)
     if remaining <= 0:
         await session.commit()
-        return {"commands": commands}
+        return CommandClaimResponse(commands=commands)
 
     rows = (
         await session.execute(
@@ -736,29 +627,21 @@ async def claim_commands(
         )
         commands.append(_command_payload(command))
     await session.commit()
-    return {"commands": commands}
+    return CommandClaimResponse(commands=commands)
 
 
-@router.post("/commands/{command_id}/result")
+@router.post("/commands/{command_id}/result", response_model=CommandResultResponse)
 async def command_result(
     command_id: str,
     body: CommandResultRequest,
     principal: GatewayPrincipal = Depends(require_gateway),
     session: AsyncSession = Depends(get_session),
     clock: Callable[[], datetime] = Depends(get_clock),
-) -> dict[str, Any]:
+) -> CommandResultResponse:
     require_gateway_scope(principal, body.site_id)
     command = await session.get(CloudCommand, command_id)
     if command is None or command.site_id != body.site_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "command not found")
-    if body.status not in {
-        "running",
-        "succeeded",
-        "failed",
-        "rejected",
-        "expired",
-    }:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "unsupported command status")
     if command.status in {"succeeded", "failed", "rejected", "expired"}:
         return _command_payload(command)
 
@@ -895,26 +778,26 @@ def _rollup_key(rollup: RollupItem) -> str:
     )
 
 
-def _command_payload(command: CloudCommand) -> dict[str, Any]:
-    return {
-        "command_id": command.command_id,
-        "site_id": command.site_id,
-        "tent_id": command.tent_id,
-        "device_id": command.device_id,
-        "capability_id": command.capability_id,
-        "command_type": command.command_type,
-        "payload": command.payload,
-        "status": command.status,
-        "queued_at": command.queued_at,
-        "expires_at": command.expires_at,
-        "claimed_by": command.claimed_by,
-        "claimed_at": command.claimed_at,
-        "requested_by": command.requested_by,
-        "started_at": command.started_at,
-        "finished_at": command.finished_at,
-        "result": command.result,
-        "error": command.error,
-    }
+def _command_payload(command: CloudCommand) -> CommandResultResponse:
+    return CommandResultResponse(
+        command_id=command.command_id,
+        site_id=command.site_id,
+        tent_id=command.tent_id,
+        device_id=command.device_id,
+        capability_id=command.capability_id,
+        command_type=command.command_type,
+        payload=command.payload,
+        status=command.status,
+        queued_at=command.queued_at,
+        expires_at=command.expires_at,
+        claimed_by=command.claimed_by,
+        claimed_at=command.claimed_at,
+        requested_by=command.requested_by,
+        started_at=command.started_at,
+        finished_at=command.finished_at,
+        result=command.result,
+        error=command.error,
+    )
 
 
 def _object_store(settings: CloudSettings) -> S3ObjectStore | None:

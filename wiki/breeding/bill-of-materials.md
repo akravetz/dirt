@@ -4,7 +4,7 @@ type: breeding
 sources: []
 related: [wiki/breeding/README.md, wiki/breeding/veg-tent-layout.md, wiki/breeding/isolation.md, wiki/breeding/isolation-tent-culture.md, wiki/breeding/cloning.md, wiki/breeding/pollen-handling.md]
 created: 2026-05-02
-updated: 2026-05-05
+updated: 2026-05-12
 ---
 
 # Breeding Program Bill of Materials
@@ -70,7 +70,7 @@ Detailed male-tent protocol lives in [isolation.md](isolation.md), [isolation-te
 |---|---:|---:|---|
 | Existing smaller tent | Reuse | 1 | Male isolation tent |
 | 100W LED quantum board | Needed/verify | 1 | Male flowering and later keeper-clone pollination |
-| 4 inch inline fan + carbon filter | Needed | 1 | Negative pressure / containment |
+| AC Infinity 4 inch air filtration kit | Purchased | 1 | Bought 2026-05-12 for male-tent negative pressure / containment; includes 4 inch inline fan, carbon filter, ducting, and speed controller |
 | 6 inch oscillating clip fan | Needed | 1 | Off during pollen collection |
 | Digital hygrometer/thermometer | Needed | 1 | Isolation tent monitoring |
 | 1 gal fabric pots | Active/verify | 7+ | Track A has 7 sprouted regular seedlings potted into coco/perlite on 2026-05-05; default for males in coco/perlite, chosen over 0.5 gal to reduce dryback/watering risk |

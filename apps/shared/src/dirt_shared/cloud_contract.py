@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from datetime import date, datetime, time
-from typing import Any, Literal
+from typing import Any, Literal, TypeAlias
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class CloudContractModel(BaseModel):
@@ -235,6 +235,27 @@ class CommandClaimRequest(CloudContractModel):
     limit: int = Field(default=1, ge=1, le=10)
 
 
+class PtzPresetPayload(CloudContractModel):
+    preset_id: str = Field(min_length=1)
+
+
+class PtzLookPayload(CloudContractModel):
+    x: float = Field(ge=-0.5, le=0.5)
+    y: float = Field(ge=-0.5, le=0.5)
+
+
+class PtzZoomAbsolutePayload(CloudContractModel):
+    zoom: float = Field(ge=1.0, le=2.0)
+
+
+class PtzZoomRelativePayload(CloudContractModel):
+    delta: float = Field(ge=-1.0, le=1.0)
+
+
+PtzZoomPayload: TypeAlias = PtzZoomAbsolutePayload | PtzZoomRelativePayload
+PtzCommandPayload: TypeAlias = PtzPresetPayload | PtzLookPayload | PtzZoomPayload
+
+
 class ClaimedCommand(CloudContractModel):
     command_id: str
     site_id: str
@@ -242,7 +263,7 @@ class ClaimedCommand(CloudContractModel):
     device_id: str | None
     capability_id: str | None
     command_type: CommandType
-    payload: dict[str, Any]
+    payload: PtzCommandPayload
     status: CommandResponseStatus
     queued_at: datetime
     expires_at: datetime
@@ -254,6 +275,22 @@ class ClaimedCommand(CloudContractModel):
     result: dict[str, Any] | None
     error: str | None
 
+    @model_validator(mode="after")
+    def _payload_matches_command_type(self) -> ClaimedCommand:
+        if self.command_type == "ptz_preset" and not isinstance(
+            self.payload, PtzPresetPayload
+        ):
+            raise ValueError("ptz_preset requires a preset payload")
+        if self.command_type == "ptz_look" and not isinstance(
+            self.payload, PtzLookPayload
+        ):
+            raise ValueError("ptz_look requires a look payload")
+        if self.command_type == "ptz_zoom" and not isinstance(
+            self.payload, PtzZoomAbsolutePayload | PtzZoomRelativePayload
+        ):
+            raise ValueError("ptz_zoom requires a zoom payload")
+        return self
+
 
 class CommandClaimResponse(CloudContractModel):
     commands: list[ClaimedCommand]
@@ -264,6 +301,11 @@ class CommandResultRequest(CloudContractModel):
     status: CommandRequestStatus
     result: dict[str, Any] | None = None
     error: str | None = None
+
+
+class CommandResultOutboxPayload(CloudContractModel):
+    command_id: str
+    result: CommandResultRequest
 
 
 class CommandResultResponse(ClaimedCommand):

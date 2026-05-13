@@ -4,7 +4,7 @@ type: breeding
 sources: []
 related: [wiki/breeding/README.md, wiki/breeding/stabilization-strategy.md, wiki/breeding/family-selection.md, wiki/breeding/feminized-production.md, wiki/breeding/cloning.md, wiki/breeding/pollen-handling.md, wiki/breeding/cross-procedure.md, wiki/decisions/2026-04-26-breeding-program-launch.md, wiki/decisions/2026-05-02-purple-stabilization-strategy.md]
 created: 2026-04-26
-updated: 2026-05-05
+updated: 2026-05-12
 ---
 
 # Breeding Program Timeline
@@ -16,7 +16,7 @@ Active calendar from program launch through F2 seed harvest and the first stabil
 ## High-level sequencing
 
 ```
-Track A (pollen production)     ┌──────── pop → flip → collect → frozen ─────┐
+Track A (pollen production)     ┌──────── pop → short veg → flip → sex/cull → collect → frozen ─────┐
                                 ▼                                            ▼
 2026-04-26 ──── 2026-05 ──── 2026-06 ──── 2026-07 ──── 2026-08 ──── 2026-09 ──── 2026-10 ──── 2026-11 ──── 2026-12 ──── 2027-01
 
@@ -39,23 +39,24 @@ Locked gear plan as of 2026-04-26 (decision: [clone + male tent gear](../decisio
 
 - [ ] **Cloning station** on a closet shelf in another room (NOT inside any tent): humidity dome (≥7" tall), Rapid Rooter 50-pack, Clonex gel, heat mat, 30–50W LED bar on 18/6 timer, 16oz solo cups + small bag of Happy Frog soil for post-rooting stasis pots, spray bottle, plant tags. Humidity dome is active as of 2026-05-02; A/B/C/D cuttings are perking, with 1 visible root as of 2026-05-05. Confirm shelf placement, lighting, heat mat, and post-rooting stasis supplies.
 - [ ] **Portable freezer** for pollen storage. Digital thermostat, -18 °C / 0 °F target. Located in the male isolation room.
-- [ ] **Male isolation: 2×2×4 grow tent** (already on hand) placed in a separate room. Outfit with: 100W LED quantum board (Spider Farmer SF1000 or generic Amazon), 4" inline fan + carbon filter combo (mandatory — pollen containment relies on negative pressure inside the tent), 6" oscillating clip fan, 1-gal fabric pots (5-pack), digital hygrometer, jeweler's loupe 40× for early sex confirmation, paper lunch bags, 1.5 mL Eppendorf tubes (50-pack) for pollen aliquots, silica desiccant packs. ~$245 one-time. Medium = existing coco/perlite. Nutrients = existing veg formula (half-strength).
+- [ ] **Male isolation: 2×2×4 grow tent** (already on hand) placed in a separate room. Outfit with: 100W LED quantum board (Spider Farmer SF1000 or generic Amazon), AC Infinity 4" air filtration kit (purchased 2026-05-12; mandatory — pollen containment relies on negative pressure inside the tent), 6" oscillating clip fan, 1-gal fabric pots (5-pack), digital hygrometer, jeweler's loupe 40× for early sex confirmation, paper lunch bags, 1.5 mL Eppendorf tubes (50-pack) for pollen aliquots, silica desiccant packs. Medium = existing coco/perlite. Nutrients = existing veg formula (half-strength).
 - [x] **Take clones** from all 4 current SBxBS01 plants (A, B, C, D). Done 2026-05-02; cuttings are under the humidity dome and perking, with 1 visible root as of 2026-05-05. Original target was **2026-04-28 (gear arrives) or 2026-04-29** after moving up from the 2026-05-03 → 2026-05-10 window because mid-veg tissue roots more readily than near-flip tissue. Asymmetric strategy remains the intended source plan: **lower laterals on A and D** (sativa-leaning, already at SCROG net — these branches are lollipop candidates anyway), **middle laterals on B and C** (indica-leaning, still need lower growth to reach the net). Label by mother. See [cloning.md](cloning.md), [2026-05-02](../daily/2026-05-02.md), and [2026-05-05](../daily/2026-05-05.md).
 - [x] **Start 10 SBxBS01 regulars** from the original-order pack. Started approximately 2026-04-28; 7 total sprouted, and 5 look healthy/vigorous as of 2026-05-05. The expected male count should now be based on the surviving/vigorous pool rather than the original 10-seed start. See [2026-05-05](../daily/2026-05-05.md).
 - [x] **Pot Track A sprouted regular seedlings into coco/perlite.** Done 2026-05-05 for all 7 sprouted seedlings. Continue the [isolation-tent culture](isolation-tent-culture.md) default: coco/perlite, hand-watered, runoff removed, labels secure.
 - [ ] Confirm/finalize second-pack selection (which BS line). Order arrives ~2 weeks after order.
 
-### Phase 1 — current grow in early flower, regulars sex (~2026-05-03 → 2026-05-26)
+### Phase 1 — current grow in early flower, Track A short veg + sex flip (~2026-05-03 → 2026-05-26)
 
 - [x] **2026-05-03:** flip current grow (4 plants) to 12/12. Clones were taken 2026-05-02; verify rooting before relying on them as preserved A/B/C/D genetics.
-- [ ] **~2026-05-19 → 2026-05-26:** Regulars (Day 21–28 from approximate 2026-04-28 germination) start showing pre-flowers. Identify sex via loupe at nodes 4–6.
-- [ ] **As soon as confirmed:** confine males to the 2×2×4 isolation tent, flip them to 12/12 immediately. Cull females (don't keep — space is tight and the keeper hunt happens in Track B).
+- [x] **2026-05-12:** Track A regular seedlings have their first 2–3 sets of true leaves. Because the objective is strictly sex identification, cull females, and collect pollen, do not veg for yield. Give them roughly **7–14 more days under the veg schedule**, then flip once most plants have **4–5 nodes**, steady new growth, and no obvious transplant/root stress.
+- [ ] **~2026-05-19 → 2026-05-26:** Flip the Track A batch to 12/12 for sexing and pollen production. If a plant clearly declares sex before the flip, act on it; otherwise use the flip to force declaration.
+- [ ] **After flip:** inspect nodes 4–6 with a loupe every 1–2 days. Cull females as soon as confirmed. Keep only male candidates that pass the [male-evaluation](male-evaluation.md) gates; if space is tight, prioritize purple stems, clean structure, vigor, and no hermie signs.
 - [ ] If <2 males survive the full 10-seed batch (P ≈ 1%), source another small pack from OBG. Pollen banking is the gating prerequisite for the cross.
 
-### Phase 2 — male evaluation + pollen collection (~2026-05-22 → 2026-06-30)
+### Phase 2 — male evaluation + pollen collection (~2026-05-26 → 2026-06-30)
 
-- [ ] **First 2 weeks of male flower (~2026-05-22 → 2026-06-05):** evaluate males per [male-evaluation.md](male-evaluation.md). Stem color, leaf morphology, vigor, terps via stem rub, structure. Pick the best male. Cull the others before any sacs open.
-- [ ] **~2026-06-15 → 2026-06-30:** sacs swelling and starting to dehisce. Collect pollen per [pollen-handling.md](pollen-handling.md). Flour-cut 4:1, aliquot into ~10 small vials, freeze. Cull the male after collection.
+- [ ] **First 1–2 weeks after Track A flip (~2026-05-26 → 2026-06-09):** evaluate males per [male-evaluation.md](male-evaluation.md). Stem color, leaf morphology, vigor, terps via stem rub, structure. Pick the best male; keep a second only if it also looks worth banking as a separate line. Cull losing males before any sacs open.
+- [ ] **~2–4 weeks after Track A flip (~2026-06-02 → 2026-06-23, adjust to actual flip):** sacs swell and start to dehisce. Collect pollen per [pollen-handling.md](pollen-handling.md). Keep each male separate (`TA-M1`, `TA-M2`, etc.), dry with desiccant, flour-cut 4:1, aliquot into many small single-use tubes, freeze. Cull the male after collection.
 - [ ] Verify pollen viability before banking long-term — wet test on a sacrificial female stigma if possible (or trust storage protocol).
 
 ### Phase 3 — current grow harvests, hunt prep (~2026-07-25 → 2026-08-10)

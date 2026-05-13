@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from pydantic import BaseModel, Field
-from sqlalchemy import desc, func, select
+from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import and_, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirt_control.audit import add_audit_event
@@ -33,6 +34,7 @@ from dirt_control.security import (
 )
 from dirt_control.settings import CloudSettings
 from dirt_control.storage import S3ObjectStore
+from dirt_shared.cloud_contract import PruneAssetsResponse
 
 router = APIRouter(prefix="/api")
 COMMAND_EXPIRY_SECONDS = 60
@@ -63,12 +65,180 @@ class GatewayCredentialRotateRequest(BaseModel):
     token_sha256: str = Field(min_length=64, max_length=64)
 
 
-@router.get("/health")
+class BrowserResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+SyncStatusLabel = Literal["live", "stale", "offline"]
+
+
+class UserResponse(BrowserResponse):
+    username: str
+
+
+class HealthResponse(BrowserResponse):
+    service: Literal["control-plane-api"]
+    ok: bool
+    site_id: str
+    status: SyncStatusLabel
+    gateway_last_seen_at: datetime | None
+    gateway_heartbeat_age_s: int | None
+    gateway_backlog_depth: int
+    command_backlog_depth: int
+    command_failures_24h: int
+    asset_failures_24h: int
+    asset_retention_days: int
+    commands_enabled: bool
+
+
+class SiteResponse(BrowserResponse):
+    site_id: str
+    name: str
+    timezone: str
+    is_active: bool
+    gateway_last_seen_at: datetime | None
+    last_catalog_sync_at: datetime | None
+
+
+class TentResponse(BrowserResponse):
+    site_id: str
+    tent_id: str
+    name: str
+    is_active: bool
+    synced_at: datetime
+
+
+class TentStateResponse(BrowserResponse):
+    site_id: str
+    tent_id: str
+    name: str
+    is_active: bool
+    gateway_last_seen_at: datetime | None
+    last_catalog_sync_at: datetime | None
+
+
+class CurrentMetricResponse(BrowserResponse):
+    metric: str
+    value: float
+    unit: str | None
+    capability_id: str
+    device_id: str | None
+    source_updated_at: datetime
+    received_at: datetime
+    stale_after_s: int
+
+
+class MetricHistoryPointResponse(BrowserResponse):
+    bucket: str
+    bucket_start_at: datetime
+    bucket_end_at: datetime
+    min: float | None
+    avg: float | None
+    max: float | None
+    sample_count: int
+    unit: str | None
+
+
+class MetricHistoryResponse(BrowserResponse):
+    metric: str
+    range: str
+    points: list[MetricHistoryPointResponse]
+
+
+class DeviceResponse(BrowserResponse):
+    device_id: str
+    name: str
+    kind: str
+    controller: str | None
+    is_active: bool
+    last_seen_at: datetime | None
+
+
+@dataclass(frozen=True)
+class LightState:
+    is_on: bool
+    minutes_until_off: float
+    minutes_until_on: float
+
+
+class LightScheduleResponse(BrowserResponse):
+    site_id: str
+    tent_id: str
+    zone_id: str | None
+    device_id: str | None
+    capability_id: str | None
+    schedule_id: str
+    kind: str
+    enabled: bool
+    timezone: str
+    starts_local: str
+    ends_local: str
+    duration_hours: float
+    is_on: bool
+    minutes_until_off: float
+    minutes_until_on: float
+
+
+class LightSchedulesResponse(BrowserResponse):
+    site_id: str
+    tent_id: str
+    schedules: list[LightScheduleResponse]
+
+
+class AssetResponse(BrowserResponse):
+    asset_id: str
+    kind: str
+    content_type: str
+    byte_size: int
+    sha256: str | None
+    captured_at: datetime
+    uploaded_at: datetime
+    signed_url: str
+    signed_url_expires_at: datetime
+
+
+class SyncStatusResponse(BrowserResponse):
+    site_id: str
+    gateway_last_seen_at: datetime | None
+    gateway_backlog_depth: int
+    last_catalog_sync_at: datetime | None
+    command_backlog_depth: int
+    status: SyncStatusLabel
+
+
+class CommandResponse(BrowserResponse):
+    command_id: str
+    idempotency_key: str
+    site_id: str
+    tent_id: str
+    device_id: str
+    capability_id: str
+    command_type: str
+    payload: dict[str, Any]
+    status: str
+    queued_at: datetime
+    expires_at: datetime
+    claimed_by: str | None
+    claimed_at: datetime | None
+    started_at: datetime | None
+    finished_at: datetime | None
+    result: dict[str, Any] | None
+    error: str | None
+
+
+class GatewayCredentialRotateResponse(BrowserResponse):
+    credential_id: str
+    gateway_id: str
+    allowed_site_id: str
+    rotated_at: datetime | None
+
+
+@router.get("/health", response_model=HealthResponse)
 async def health(
     settings: CloudSettings = Depends(get_settings),
     session: AsyncSession = Depends(get_session),
     clock: Callable[[], datetime] = Depends(get_clock),
-) -> dict[str, Any]:
+) -> HealthResponse:
     now = clock()
     site = await session.get(CloudSite, settings.default_site_id)
     command_backlog_depth = await _command_backlog_depth(
@@ -102,24 +272,30 @@ async def health(
     sync_status = _sync_status_label(
         site.gateway_last_seen_at if site else None, now=now
     )
-    return {
-        "service": "control-plane-api",
-        "ok": True,
-        "site_id": settings.default_site_id,
-        "status": sync_status,
-        "gateway_last_seen_at": site.gateway_last_seen_at if site else None,
-        "gateway_heartbeat_age_s": gateway_heartbeat_age_s,
-        "gateway_backlog_depth": site.gateway_backlog_depth if site else 0,
-        "command_backlog_depth": command_backlog_depth,
-        "command_failures_24h": command_failures_24h,
-        "asset_failures_24h": asset_failures_24h,
-        "asset_retention_days": settings.asset_retention_days,
-        "commands_enabled": settings.command_creation_enabled
+    if site is not None:
+        await _audit_missing_device_liveness(
+            session,
+            site_id=settings.default_site_id,
+            now=now,
+        )
+    return HealthResponse(
+        service="control-plane-api",
+        ok=True,
+        site_id=settings.default_site_id,
+        status=sync_status,
+        gateway_last_seen_at=site.gateway_last_seen_at if site else None,
+        gateway_heartbeat_age_s=gateway_heartbeat_age_s,
+        gateway_backlog_depth=site.gateway_backlog_depth if site else 0,
+        command_backlog_depth=command_backlog_depth,
+        command_failures_24h=command_failures_24h,
+        asset_failures_24h=asset_failures_24h,
+        asset_retention_days=settings.asset_retention_days,
+        commands_enabled=settings.command_creation_enabled
         and settings.gateway_command_claim_enabled,
-    }
+    )
 
 
-@router.post("/auth/login")
+@router.post("/auth/login", response_model=UserResponse)
 async def login(  # noqa: PLR0913
     body: LoginRequest,
     response: Response,
@@ -127,7 +303,7 @@ async def login(  # noqa: PLR0913
     settings: CloudSettings = Depends(get_settings),
     session: AsyncSession = Depends(get_session),
     clock: Callable[[], datetime] = Depends(get_clock),
-) -> dict[str, str]:
+) -> UserResponse:
     if body.username != settings.admin_username or not verify_password(
         body.password, settings.admin_password_hash
     ):
@@ -149,7 +325,7 @@ async def login(  # noqa: PLR0913
         actor_id=body.username,
     )
     await session.commit()
-    return {"username": body.username}
+    return UserResponse(username=body.username)
 
 
 @router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
@@ -157,39 +333,39 @@ async def logout(response: Response, request: Request) -> None:
     request.app.state.sessions.clear_cookie(response)
 
 
-@router.get("/auth/me")
-async def me(user: str = Depends(require_browser_user)) -> dict[str, str]:
-    return {"username": user}
+@router.get("/auth/me", response_model=UserResponse)
+async def me(user: str = Depends(require_browser_user)) -> UserResponse:
+    return UserResponse(username=user)
 
 
-@router.get("/sites")
+@router.get("/sites", response_model=list[SiteResponse])
 async def sites(
     _: str = Depends(require_browser_user),
     session: AsyncSession = Depends(get_session),
-) -> list[dict[str, Any]]:
+) -> list[SiteResponse]:
     rows = (
         await session.execute(select(CloudSite).order_by(CloudSite.site_id))
     ).scalars()
     return [
-        {
-            "site_id": row.site_id,
-            "name": row.name,
-            "timezone": row.timezone,
-            "is_active": row.is_active,
-            "gateway_last_seen_at": row.gateway_last_seen_at,
-            "last_catalog_sync_at": row.last_catalog_sync_at,
-        }
+        SiteResponse(
+            site_id=row.site_id,
+            name=row.name,
+            timezone=row.timezone,
+            is_active=row.is_active,
+            gateway_last_seen_at=row.gateway_last_seen_at,
+            last_catalog_sync_at=row.last_catalog_sync_at,
+        )
         for row in rows
     ]
 
 
-@router.get("/tents")
+@router.get("/tents", response_model=list[TentResponse])
 async def tents(
     site_id: str | None = None,
     _: str = Depends(require_browser_user),
     settings: CloudSettings = Depends(get_settings),
     session: AsyncSession = Depends(get_session),
-) -> list[dict[str, Any]]:
+) -> list[TentResponse]:
     scoped_site_id = site_id or settings.default_site_id
     rows = (
         await session.execute(
@@ -199,24 +375,24 @@ async def tents(
         )
     ).scalars()
     return [
-        {
-            "site_id": row.site_id,
-            "tent_id": row.tent_id,
-            "name": row.name,
-            "is_active": row.is_active,
-            "synced_at": row.synced_at,
-        }
+        TentResponse(
+            site_id=row.site_id,
+            tent_id=row.tent_id,
+            name=row.name,
+            is_active=row.is_active,
+            synced_at=row.synced_at,
+        )
         for row in rows
     ]
 
 
-@router.get("/tents/{tent_id}/state")
+@router.get("/tents/{tent_id}/state", response_model=TentStateResponse)
 async def tent_state(
     tent_id: str,
     _: str = Depends(require_browser_user),
     settings: CloudSettings = Depends(get_settings),
     session: AsyncSession = Depends(get_session),
-) -> dict[str, Any]:
+) -> TentStateResponse:
     site = await session.get(CloudSite, settings.default_site_id)
     tent = (
         await session.execute(
@@ -228,23 +404,25 @@ async def tent_state(
     ).scalar_one_or_none()
     if tent is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "tent not found")
-    return {
-        "site_id": tent.site_id,
-        "tent_id": tent.tent_id,
-        "name": tent.name,
-        "is_active": tent.is_active,
-        "gateway_last_seen_at": site.gateway_last_seen_at if site else None,
-        "last_catalog_sync_at": site.last_catalog_sync_at if site else None,
-    }
+    return TentStateResponse(
+        site_id=tent.site_id,
+        tent_id=tent.tent_id,
+        name=tent.name,
+        is_active=tent.is_active,
+        gateway_last_seen_at=site.gateway_last_seen_at if site else None,
+        last_catalog_sync_at=site.last_catalog_sync_at if site else None,
+    )
 
 
-@router.get("/tents/{tent_id}/metrics/current")
+@router.get(
+    "/tents/{tent_id}/metrics/current", response_model=list[CurrentMetricResponse]
+)
 async def current_metrics(
     tent_id: str,
     _: str = Depends(require_browser_user),
     settings: CloudSettings = Depends(get_settings),
     session: AsyncSession = Depends(get_session),
-) -> list[dict[str, Any]]:
+) -> list[CurrentMetricResponse]:
     rows = (
         await session.execute(
             select(CloudLatestMetric)
@@ -256,21 +434,21 @@ async def current_metrics(
         )
     ).scalars()
     return [
-        {
-            "metric": row.metric,
-            "value": row.value,
-            "unit": row.unit,
-            "capability_id": row.capability_id,
-            "device_id": row.device_id,
-            "source_updated_at": row.source_updated_at,
-            "received_at": row.received_at,
-            "stale_after_s": row.stale_after_s,
-        }
+        CurrentMetricResponse(
+            metric=row.metric,
+            value=row.value,
+            unit=row.unit,
+            capability_id=row.capability_id,
+            device_id=row.device_id,
+            source_updated_at=row.source_updated_at,
+            received_at=row.received_at,
+            stale_after_s=row.stale_after_s,
+        )
         for row in rows
     ]
 
 
-@router.get("/tents/{tent_id}/metrics/history")
+@router.get("/tents/{tent_id}/metrics/history", response_model=MetricHistoryResponse)
 async def metric_history(  # noqa: PLR0913
     tent_id: str,
     metric: str,
@@ -279,7 +457,7 @@ async def metric_history(  # noqa: PLR0913
     settings: CloudSettings = Depends(get_settings),
     session: AsyncSession = Depends(get_session),
     clock: Callable[[], datetime] = Depends(get_clock),
-) -> dict[str, Any]:
+) -> MetricHistoryResponse:
     range_spec = METRIC_HISTORY_RANGES.get(range)
     if range_spec is None:
         raise HTTPException(status_code=400, detail="invalid range")
@@ -298,32 +476,32 @@ async def metric_history(  # noqa: PLR0913
             .order_by(CloudMetricRollup.bucket_start_at)
         )
     ).scalars()
-    return {
-        "metric": metric,
-        "range": range,
-        "points": [
-            {
-                "bucket": row.bucket,
-                "bucket_start_at": row.bucket_start_at,
-                "bucket_end_at": row.bucket_end_at,
-                "min": row.min_value,
-                "avg": row.avg_value,
-                "max": row.max_value,
-                "sample_count": row.sample_count,
-                "unit": row.unit,
-            }
+    return MetricHistoryResponse(
+        metric=metric,
+        range=range,
+        points=[
+            MetricHistoryPointResponse(
+                bucket=row.bucket,
+                bucket_start_at=row.bucket_start_at,
+                bucket_end_at=row.bucket_end_at,
+                min=row.min_value,
+                avg=row.avg_value,
+                max=row.max_value,
+                sample_count=row.sample_count,
+                unit=row.unit,
+            )
             for row in rows
         ],
-    }
+    )
 
 
-@router.get("/tents/{tent_id}/devices")
+@router.get("/tents/{tent_id}/devices", response_model=list[DeviceResponse])
 async def devices(
     tent_id: str,
     _: str = Depends(require_browser_user),
     settings: CloudSettings = Depends(get_settings),
     session: AsyncSession = Depends(get_session),
-) -> list[dict[str, Any]]:
+) -> list[DeviceResponse]:
     rows = (
         await session.execute(
             select(CloudDevice)
@@ -335,26 +513,29 @@ async def devices(
         )
     ).scalars()
     return [
-        {
-            "device_id": row.device_id,
-            "name": row.name,
-            "kind": row.kind,
-            "controller": row.controller,
-            "is_active": row.is_active,
-            "last_seen_at": row.last_seen_at,
-        }
+        DeviceResponse(
+            device_id=row.device_id,
+            name=row.name,
+            kind=row.kind,
+            controller=row.controller,
+            is_active=row.is_active,
+            last_seen_at=row.last_seen_at,
+        )
         for row in rows
     ]
 
 
-@router.get("/tents/{tent_id}/lights/schedules")
+@router.get(
+    "/tents/{tent_id}/lights/schedules",
+    response_model=LightSchedulesResponse,
+)
 async def light_schedules(
     tent_id: str,
     _: str = Depends(require_browser_user),
     settings: CloudSettings = Depends(get_settings),
     session: AsyncSession = Depends(get_session),
     clock: Callable[[], datetime] = Depends(get_clock),
-) -> dict[str, Any]:
+) -> LightSchedulesResponse:
     rows = (
         await session.execute(
             select(CloudSchedule)
@@ -375,40 +556,42 @@ async def light_schedules(
             timezone=row.timezone,
         )
         schedules.append(
-            {
-                "site_id": row.site_id,
-                "tent_id": row.tent_id,
-                "zone_id": row.zone_id,
-                "device_id": row.device_id,
-                "capability_id": row.capability_id,
-                "schedule_id": row.schedule_id,
-                "kind": row.kind,
-                "enabled": row.is_enabled,
-                "timezone": row.timezone,
-                "starts_local": row.starts_local.strftime("%H:%M:%S"),
-                "ends_local": row.ends_local.strftime("%H:%M:%S"),
-                "duration_hours": _duration_hours(
+            LightScheduleResponse(
+                site_id=row.site_id,
+                tent_id=row.tent_id,
+                zone_id=row.zone_id,
+                device_id=row.device_id,
+                capability_id=row.capability_id,
+                schedule_id=row.schedule_id,
+                kind=row.kind,
+                enabled=row.is_enabled,
+                timezone=row.timezone,
+                starts_local=row.starts_local.strftime("%H:%M:%S"),
+                ends_local=row.ends_local.strftime("%H:%M:%S"),
+                duration_hours=_duration_hours(
                     row.starts_local,
                     row.ends_local,
                 ),
-                **state,
-            }
+                is_on=state.is_on,
+                minutes_until_off=state.minutes_until_off,
+                minutes_until_on=state.minutes_until_on,
+            )
         )
-    return {
-        "site_id": settings.default_site_id,
-        "tent_id": tent_id,
-        "schedules": schedules,
-    }
+    return LightSchedulesResponse(
+        site_id=settings.default_site_id,
+        tent_id=tent_id,
+        schedules=schedules,
+    )
 
 
-@router.get("/tents/{tent_id}/assets/latest")
+@router.get("/tents/{tent_id}/assets/latest", response_model=list[AssetResponse])
 async def latest_assets(
     tent_id: str,
     _: str = Depends(require_browser_user),
     settings: CloudSettings = Depends(get_settings),
     session: AsyncSession = Depends(get_session),
     clock: Callable[[], datetime] = Depends(get_clock),
-) -> list[dict[str, Any]]:
+) -> list[AssetResponse]:
     rows = (
         await session.execute(
             select(CloudAsset)
@@ -435,14 +618,14 @@ async def latest_assets(
     ]
 
 
-@router.get("/assets/{asset_id}/signed-url")
+@router.get("/assets/{asset_id}/signed-url", response_model=AssetResponse)
 async def asset_signed_url(
     asset_id: str,
     _: str = Depends(require_browser_user),
     settings: CloudSettings = Depends(get_settings),
     session: AsyncSession = Depends(get_session),
     clock: Callable[[], datetime] = Depends(get_clock),
-) -> dict[str, Any]:
+) -> AssetResponse:
     asset = await session.get(CloudAsset, asset_id)
     if asset is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "asset not found")
@@ -456,45 +639,49 @@ async def asset_signed_url(
     )
 
 
-@router.get("/sync/status")
+@router.get("/sync/status", response_model=SyncStatusResponse)
 async def sync_status(
     _: str = Depends(require_browser_user),
     settings: CloudSettings = Depends(get_settings),
     session: AsyncSession = Depends(get_session),
     clock: Callable[[], datetime] = Depends(get_clock),
-) -> dict[str, Any]:
+) -> SyncStatusResponse:
     site = await session.get(CloudSite, settings.default_site_id)
     command_backlog_depth = await _command_backlog_depth(
         session, site_id=settings.default_site_id
     )
     if site is None:
-        return {
-            "site_id": settings.default_site_id,
-            "gateway_last_seen_at": None,
-            "gateway_backlog_depth": 0,
-            "last_catalog_sync_at": None,
-            "command_backlog_depth": command_backlog_depth,
-            "status": "offline",
-        }
+        return SyncStatusResponse(
+            site_id=settings.default_site_id,
+            gateway_last_seen_at=None,
+            gateway_backlog_depth=0,
+            last_catalog_sync_at=None,
+            command_backlog_depth=command_backlog_depth,
+            status="offline",
+        )
     status_label = _sync_status_label(site.gateway_last_seen_at, now=clock())
-    return {
-        "site_id": site.site_id,
-        "gateway_last_seen_at": site.gateway_last_seen_at,
-        "gateway_backlog_depth": site.gateway_backlog_depth,
-        "last_catalog_sync_at": site.last_catalog_sync_at,
-        "command_backlog_depth": command_backlog_depth,
-        "status": status_label,
-    }
+    return SyncStatusResponse(
+        site_id=site.site_id,
+        gateway_last_seen_at=site.gateway_last_seen_at,
+        gateway_backlog_depth=site.gateway_backlog_depth,
+        last_catalog_sync_at=site.last_catalog_sync_at,
+        command_backlog_depth=command_backlog_depth,
+        status=status_label,
+    )
 
 
-@router.post("/commands", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/commands",
+    status_code=status.HTTP_201_CREATED,
+    response_model=CommandResponse,
+)
 async def create_command(
     body: CommandCreateRequest,
     user: str = Depends(require_browser_user),
     settings: CloudSettings = Depends(get_settings),
     session: AsyncSession = Depends(get_session),
     clock: Callable[[], datetime] = Depends(get_clock),
-) -> dict[str, Any]:
+) -> CommandResponse:
     if not settings.command_creation_enabled:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "commands disabled")
     existing = (
@@ -550,14 +737,17 @@ async def create_command(
     return _command_response(command)
 
 
-@router.post("/admin/gateway-credentials/{credential_id}/rotate")
+@router.post(
+    "/admin/gateway-credentials/{credential_id}/rotate",
+    response_model=GatewayCredentialRotateResponse,
+)
 async def rotate_gateway_credential(
     credential_id: str,
     body: GatewayCredentialRotateRequest,
     user: str = Depends(require_browser_user),
     session: AsyncSession = Depends(get_session),
     clock: Callable[[], datetime] = Depends(get_clock),
-) -> dict[str, Any]:
+) -> GatewayCredentialRotateResponse:
     credential = await session.get(GatewayCredential, credential_id)
     if credential is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "gateway credential not found")
@@ -577,21 +767,21 @@ async def rotate_gateway_credential(
         metadata={"gateway_id": credential.gateway_id},
     )
     await session.commit()
-    return {
-        "credential_id": credential.credential_id,
-        "gateway_id": credential.gateway_id,
-        "allowed_site_id": credential.allowed_site_id,
-        "rotated_at": credential.rotated_at,
-    }
+    return GatewayCredentialRotateResponse(
+        credential_id=credential.credential_id,
+        gateway_id=credential.gateway_id,
+        allowed_site_id=credential.allowed_site_id,
+        rotated_at=credential.rotated_at,
+    )
 
 
-@router.post("/admin/assets/prune-expired")
+@router.post("/admin/assets/prune-expired", response_model=PruneAssetsResponse)
 async def prune_assets(
     user: str = Depends(require_browser_user),
     settings: CloudSettings = Depends(get_settings),
     session: AsyncSession = Depends(get_session),
     clock: Callable[[], datetime] = Depends(get_clock),
-) -> dict[str, Any]:
+) -> PruneAssetsResponse:
     result = await prune_expired_assets(
         session,
         settings=settings,
@@ -600,31 +790,31 @@ async def prune_assets(
         actor_id=user,
         site_id=settings.default_site_id,
     )
-    return {
-        "cutoff": result.cutoff,
-        "matched": result.matched,
-        "objects_deleted": result.objects_deleted,
-    }
+    return PruneAssetsResponse(
+        cutoff=result.cutoff,
+        matched=result.matched,
+        objects_deleted=result.objects_deleted,
+    )
 
 
-@router.get("/commands/{command_id}")
+@router.get("/commands/{command_id}", response_model=CommandResponse)
 async def get_command(
     command_id: str,
     user: str = Depends(require_browser_user),
     session: AsyncSession = Depends(get_session),
-) -> dict[str, Any]:
+) -> CommandResponse:
     command = await session.get(CloudCommand, command_id)
     if command is None or command.requested_by != user:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "command not found")
     return _command_response(command)
 
 
-@router.get("/commands")
+@router.get("/commands", response_model=list[CommandResponse])
 async def list_commands(
     status: str | None = None,
     user: str = Depends(require_browser_user),
     session: AsyncSession = Depends(get_session),
-) -> list[dict[str, Any]]:
+) -> list[CommandResponse]:
     stmt = select(CloudCommand).where(CloudCommand.requested_by == user)
     if status is not None:
         stmt = stmt.where(CloudCommand.status == status)
@@ -641,7 +831,7 @@ def _asset_response(
     signer: UrlSigner,
     object_store: S3ObjectStore | None,
     now: datetime,
-) -> dict[str, Any]:
+) -> AssetResponse:
     expires_at = expires_from(now, settings.asset_url_ttl_s)
     if object_store is None:
         signed_url = signer.build_signed_url(
@@ -654,17 +844,17 @@ def _asset_response(
             object_key=asset.object_key,
             expires_in_s=settings.asset_url_ttl_s,
         )
-    return {
-        "asset_id": asset.asset_id,
-        "kind": asset.kind,
-        "content_type": asset.content_type,
-        "byte_size": asset.byte_size,
-        "sha256": asset.sha256,
-        "captured_at": asset.captured_at,
-        "uploaded_at": asset.uploaded_at,
-        "signed_url": signed_url,
-        "signed_url_expires_at": expires_at,
-    }
+    return AssetResponse(
+        asset_id=asset.asset_id,
+        kind=asset.kind,
+        content_type=asset.content_type,
+        byte_size=asset.byte_size,
+        sha256=asset.sha256,
+        captured_at=asset.captured_at,
+        uploaded_at=asset.uploaded_at,
+        signed_url=signed_url,
+        signed_url_expires_at=expires_at,
+    )
 
 
 def _object_store(settings: CloudSettings) -> S3ObjectStore | None:
@@ -678,29 +868,31 @@ def _object_store(settings: CloudSettings) -> S3ObjectStore | None:
     return S3ObjectStore(settings=settings)
 
 
-def _command_response(command: CloudCommand) -> dict[str, Any]:
-    return {
-        "command_id": command.command_id,
-        "idempotency_key": command.idempotency_key,
-        "site_id": command.site_id,
-        "tent_id": command.tent_id,
-        "device_id": command.device_id,
-        "capability_id": command.capability_id,
-        "command_type": command.command_type,
-        "payload": command.payload,
-        "status": command.status,
-        "queued_at": command.queued_at,
-        "expires_at": command.expires_at,
-        "claimed_by": command.claimed_by,
-        "claimed_at": command.claimed_at,
-        "started_at": command.started_at,
-        "finished_at": command.finished_at,
-        "result": command.result,
-        "error": command.error,
-    }
+def _command_response(command: CloudCommand) -> CommandResponse:
+    return CommandResponse(
+        command_id=command.command_id,
+        idempotency_key=command.idempotency_key,
+        site_id=command.site_id,
+        tent_id=command.tent_id,
+        device_id=command.device_id,
+        capability_id=command.capability_id,
+        command_type=command.command_type,
+        payload=command.payload,
+        status=command.status,
+        queued_at=command.queued_at,
+        expires_at=command.expires_at,
+        claimed_by=command.claimed_by,
+        claimed_at=command.claimed_at,
+        started_at=command.started_at,
+        finished_at=command.finished_at,
+        result=command.result,
+        error=command.error,
+    )
 
 
-def _sync_status_label(last_seen_at: datetime | None, *, now: datetime) -> str:
+def _sync_status_label(
+    last_seen_at: datetime | None, *, now: datetime
+) -> SyncStatusLabel:
     if last_seen_at is None:
         return "offline"
     age_s = (now - last_seen_at).total_seconds()
@@ -711,13 +903,98 @@ def _sync_status_label(last_seen_at: datetime | None, *, now: datetime) -> str:
     return "live"
 
 
+async def _audit_missing_device_liveness(
+    session: AsyncSession,
+    *,
+    site_id: str,
+    now: datetime,
+) -> None:
+    rows = (
+        await session.execute(
+            select(CloudDevice, CloudLatestMetric)
+            .join(
+                CloudLatestMetric,
+                and_(
+                    CloudLatestMetric.site_id == CloudDevice.site_id,
+                    CloudLatestMetric.tent_id == CloudDevice.tent_id,
+                    CloudLatestMetric.device_id == CloudDevice.device_id,
+                ),
+            )
+            .where(
+                CloudDevice.site_id == site_id,
+                CloudDevice.is_active.is_(True),
+                CloudDevice.last_seen_at.is_(None),
+            )
+            .order_by(CloudDevice.device_id, CloudLatestMetric.metric)
+        )
+    ).all()
+    current_by_device: dict[str, tuple[CloudDevice, list[CloudLatestMetric]]] = {}
+    for device, metric in rows:
+        if not _metric_is_current(metric, now=now):
+            continue
+        _, metrics = current_by_device.setdefault(device.device_key, (device, []))
+        metrics.append(metric)
+    if not current_by_device:
+        return
+
+    recent_subject_ids = set(
+        (
+            await session.execute(
+                select(CloudAuditEvent.subject_id).where(
+                    CloudAuditEvent.site_id == site_id,
+                    CloudAuditEvent.event_type
+                    == "data_consistency_missing_device_liveness",
+                    CloudAuditEvent.created_at >= now - timedelta(hours=1),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    emitted = False
+    for device_key, (device, metrics) in current_by_device.items():
+        if device_key in recent_subject_ids:
+            continue
+        emitted = True
+        add_audit_event(
+            session,
+            now=now,
+            event_type="data_consistency_missing_device_liveness",
+            actor_type="system",
+            site_id=site_id,
+            subject_type="cloud_device",
+            subject_id=device_key,
+            metadata={
+                "tent_id": device.tent_id,
+                "device_id": device.device_id,
+                "metrics": sorted({metric.metric for metric in metrics}),
+                "capability_ids": sorted({metric.capability_id for metric in metrics}),
+            },
+        )
+    if emitted:
+        await session.commit()
+
+
+def _metric_is_current(metric: CloudLatestMetric, *, now: datetime) -> bool:
+    updated_at = _same_timezone(metric.source_updated_at, now)
+    return updated_at + timedelta(seconds=metric.stale_after_s) >= now
+
+
+def _same_timezone(value: datetime, reference: datetime) -> datetime:
+    if value.tzinfo is None and reference.tzinfo is not None:
+        return value.replace(tzinfo=reference.tzinfo)
+    if value.tzinfo is not None and reference.tzinfo is None:
+        return value.replace(tzinfo=None)
+    return value
+
+
 def _light_state(
     starts_local: time,
     ends_local: time,
     now: datetime,
     *,
     timezone: str,
-) -> dict[str, Any]:
+) -> LightState:
     from zoneinfo import ZoneInfo
 
     now_local = now.astimezone(ZoneInfo(timezone))
@@ -741,11 +1018,11 @@ def _light_state(
             starts_local,
             tzinfo=now_local.tzinfo,
         )
-    return {
-        "is_on": is_on,
-        "minutes_until_off": (off_dt - now_local).total_seconds() / 60.0,
-        "minutes_until_on": (on_dt - now_local).total_seconds() / 60.0,
-    }
+    return LightState(
+        is_on=is_on,
+        minutes_until_off=(off_dt - now_local).total_seconds() / 60.0,
+        minutes_until_on=(on_dt - now_local).total_seconds() / 60.0,
+    )
 
 
 def _duration_hours(starts_local: time, ends_local: time) -> float:

@@ -1,7 +1,7 @@
 ---
 title: Index
 type: index
-updated: 2026-05-10
+updated: 2026-05-12
 ---
 
 # Grow Wiki Index
@@ -15,10 +15,10 @@ updated: 2026-05-10
 - [Hosted Control Plane](decisions/2026-05-05-hosted-control-plane.md) — Railway web UI/API plus outbound local gateway; remote inspection and PTZ-only command intent without moving hardware authority to cloud
 
 ## Plants
-- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; Flower Day 7; moisture stable 60.83%; daily stretch tucking
-- [Plant B](plants/plant-b.md) — 🟡 Secondary; Flower Day 7; moisture 96.25% — dryback verification urgent
-- [Plant C](plants/plant-c.md) — 🟡 Secondary; Flower Day 7; moisture 89.96% — lower-leaf/root-zone watch
-- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; Flower Day 7; moisture high 85.82%; tuck candidate
+- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; Flower Day 9; moisture stable 60.89%; restore photo coverage
+- [Plant B](plants/plant-b.md) — 🟡 Secondary; Flower Day 9; moisture 95.84% — dryback verification urgent
+- [Plant C](plants/plant-c.md) — 🟡 Secondary; Flower Day 9; moisture 89.88% — lower-leaf/root-zone watch
+- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; Flower Day 9; moisture high 84.79%; tuck candidate
 
 ## Daily Logs
 - [2026-03-27](daily/2026-03-27.md) — Day 13: Pre-transplant; 2–3 leaf sets
@@ -55,6 +55,8 @@ updated: 2026-05-10
 - [2026-05-08](daily/2026-05-08.md) — Day 55 / Flower Day 5: incomplete photo coverage (2/5 presets); VPD below target all windows (0.45/0.67/0.82 kPa) 🔴; Plant B moisture 96.38% 🔴
 - [2026-05-09](daily/2026-05-09.md) — Day 56 / Flower Day 6: incomplete photo coverage (1/5 presets); VPD below target all windows (0.45/0.61/0.63 kPa) 🔴; Plant B moisture 96.25% 🔴
 - [2026-05-10](daily/2026-05-10.md) — Day 57 / Flower Day 7: incomplete photo coverage (1/5 presets); VPD below target all windows (0.49/0.62/0.63 kPa) 🔴; Plant B moisture 96.25% 🔴
+- [2026-05-11](daily/2026-05-11.md) — Day 58 / Flower Day 8: incomplete photo coverage (1/5 main presets, no breeding overview); main VPD below target all windows (0.54/0.62/0.59 kPa) 🔴; breeding tent hot/dry at 85.68°F / 1.75 kPa; Plant B moisture 95.88% 🔴
+- [2026-05-12](daily/2026-05-12.md) — Day 59 / Flower Day 9: no main-tent photos; breeding overview only; main VPD averaged in range (1.24/1.24 kPa) but now high at 1.37 kPa; Plant B moisture 95.84% 🔴
 
 ## Environment
 - [Temperature](environment/temperature.md) — Trend log; targets by phase; notable events
@@ -102,7 +104,7 @@ updated: 2026-05-10
 - [Stabilization Strategy](breeding/stabilization-strategy.md) — target phenotype, F-line vs BX tradeoffs, accelerated generation cycle, male/female clone space model
 - [Progeny-Tested Family Selection](breeding/family-selection.md) — F3/F4/F5 family-lot sizing: 2x2 max, 4-family screens, 2-family comparisons, 1-family validation
 - [Feminized Seed Production Endpoint](breeding/feminized-production.md) — final clone roles, reversed-female pollen model, batch scaling, and >90% progeny-test threshold
-- [Timeline](breeding/timeline.md) — dated calendar from launch through F2 seed harvest and stabilization cycles; current propagation status recorded
+- [Timeline](breeding/timeline.md) — dated calendar from launch through F2 seed harvest and stabilization cycles; Track A short-veg/sex-flip plan recorded
 - [Isolation](breeding/isolation.md) — separate-room contamination protocol; gating for everything else
 - [Isolation Tent Culture](breeding/isolation-tent-culture.md) — 2x2 pot sizes, coco/perlite, runoff handling, and optional drip-assist plumbing
 - [Cloning](breeding/cloning.md) — procedure, equipment, mother management; safety net for the entire program

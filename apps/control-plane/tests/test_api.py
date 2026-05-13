@@ -255,6 +255,7 @@ async def test_catalog_upsert_is_idempotent(
                 "zone_id": "canopy",
                 "device_id": "env-main",
                 "name": "Env Main",
+                "last_seen_at": None,
             }
         ],
         "capabilities": [
@@ -320,6 +321,7 @@ async def test_gateway_camera_capture_policy_matches_camera_to_lights_by_tent(
                 "device_id": "obsbot-breeding",
                 "name": "Breeding Camera",
                 "kind": "camera",
+                "last_seen_at": FIXED_NOW.isoformat(),
             }
         ],
         "schedules": [
@@ -533,7 +535,7 @@ async def test_duplicate_command_idempotency_returns_same_intent_without_hardwar
         "device_id": "obsbot-main",
         "capability_id": "ptz_move",
         "command_type": "ptz_preset",
-        "payload": {"preset": "overview"},
+        "payload": {"preset_id": "overview"},
     }
 
     first = await authed_client.post("/api/commands", json=body)
@@ -603,7 +605,7 @@ async def test_command_creation_rejects_non_ptz_remote_control(
         "device_id": "obsbot-main",
         "capability_id": "ptz_move",
         "command_type": "ptz_preset",
-        "payload": {"preset": "overview"},
+        "payload": {"preset_id": "overview"},
     }
 
     unsafe_cases = [
@@ -762,7 +764,7 @@ async def test_sync_status_exposes_gateway_age_and_command_backlog(
             "device_id": "obsbot-main",
             "capability_id": "ptz_move",
             "command_type": "ptz_preset",
-            "payload": {"preset": "overview"},
+            "payload": {"preset_id": "overview"},
         },
     )
     assert command.status_code == 201
@@ -831,6 +833,84 @@ async def test_health_exposes_gateway_backlog_and_failure_counts(
     assert health.json()["asset_retention_days"] == 30
 
 
+async def test_health_audits_current_metrics_without_device_liveness(
+    client: AsyncClient,
+    cloud_engine: AsyncEngine,
+) -> None:
+    sessionmaker = create_sessionmaker(cloud_engine)
+    async with sessionmaker() as session:
+        session.add(
+            CloudSite(
+                site_id="homebox",
+                name="Homebox",
+                timezone="America/Denver",
+                gateway_last_seen_at=None,
+                gateway_backlog_depth=0,
+                last_catalog_sync_at=FIXED_NOW,
+                created_at=FIXED_NOW,
+                updated_at=FIXED_NOW,
+            )
+        )
+        session.add(
+            CloudDevice(
+                device_key="homebox:main:env-main",
+                site_id="homebox",
+                tent_id="main",
+                zone_id="canopy",
+                device_id="env-main",
+                name="Env Main",
+                kind="sensor",
+                is_active=True,
+                last_seen_at=None,
+                synced_at=FIXED_NOW,
+                created_at=FIXED_NOW,
+                updated_at=FIXED_NOW,
+            )
+        )
+        session.add(
+            CloudLatestMetric(
+                metric_key="homebox:main:env-main-temp:temperature_f",
+                site_id="homebox",
+                tent_id="main",
+                zone_id="canopy",
+                device_id="env-main",
+                capability_id="env-main-temp",
+                metric="temperature_f",
+                value=74.5,
+                unit="f",
+                source_updated_at=FIXED_NOW - timedelta(seconds=30),
+                received_at=FIXED_NOW,
+                stale_after_s=120,
+            )
+        )
+        await session.commit()
+
+    health = await client.get("/api/health")
+
+    assert health.status_code == 200
+    assert health.json()["ok"] is True
+    assert health.json()["status"] == "offline"
+    async with sessionmaker() as session:
+        event = (
+            await session.execute(
+                select(CloudAuditEvent).where(
+                    CloudAuditEvent.event_type
+                    == "data_consistency_missing_device_liveness"
+                )
+            )
+        ).scalar_one()
+    assert event.actor_type == "system"
+    assert event.site_id == "homebox"
+    assert event.subject_type == "cloud_device"
+    assert event.subject_id == "homebox:main:env-main"
+    assert event.event_metadata == {
+        "tent_id": "main",
+        "device_id": "env-main",
+        "metrics": ["temperature_f"],
+        "capability_ids": ["env-main-temp"],
+    }
+
+
 async def test_audit_rows_cover_auth_command_claim_result_and_rotation(
     authed_client: AsyncClient,
     gateway_headers: dict[str, str],
@@ -844,7 +924,7 @@ async def test_audit_rows_cover_auth_command_claim_result_and_rotation(
             "device_id": "obsbot-main",
             "capability_id": "ptz_move",
             "command_type": "ptz_preset",
-            "payload": {"preset": "overview"},
+            "payload": {"preset_id": "overview"},
         },
     )
     assert created.status_code == 201
@@ -917,7 +997,7 @@ async def test_command_creation_can_be_disabled_by_config(
                 "device_id": "obsbot-main",
                 "capability_id": "ptz_move",
                 "command_type": "ptz_preset",
-                "payload": {"preset": "overview"},
+                "payload": {"preset_id": "overview"},
             },
         )
     await transport.aclose()

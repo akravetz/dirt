@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-05-10
+updated: 2026-05-12
 ---
 
 # Plant B
@@ -19,7 +19,7 @@ updated: 2026-05-10
 
 ## Current State
 
-Day 57 / Flower Day 7: B has no dedicated preset photo today, and root-zone moisture remains critically saturated at 96.25% with no meaningful dryback. Keep dryback verification active and do not restore normal feed until tray/media checks support it. See [2026-05-10](../daily/2026-05-10.md).
+Day 59 / Flower Day 9: B has no dedicated preset photo today, and root-zone moisture remains critically saturated at 95.84% with only slight dryback. Keep dryback verification active and do not restore normal feed until tray/media checks support it. See [2026-05-12](../daily/2026-05-12.md).
 
 ## Timeline
 
@@ -58,3 +58,5 @@ Day 57 / Flower Day 7: B has no dedicated preset photo today, and root-zone mois
 - 2026-05-08 — [Day 55 / Flower Day 5: dedicated photo missing; moisture 96.38% keeps dryback verification urgent](../daily/2026-05-08.md)
 - 2026-05-09 — [Day 56 / Flower Day 6: dedicated photo missing; moisture 96.25% keeps dryback verification urgent](../daily/2026-05-09.md)
 - 2026-05-10 — [Day 57 / Flower Day 7: dedicated photo missing; moisture 96.25% keeps dryback verification urgent](../daily/2026-05-10.md)
+- 2026-05-11 — [Day 58 / Flower Day 8: dedicated photo missing; moisture 95.88% keeps dryback verification urgent](../daily/2026-05-11.md)
+- 2026-05-12 — [Day 59 / Flower Day 9: dedicated photo missing; moisture 95.84% keeps dryback verification urgent](../daily/2026-05-12.md)
