@@ -46,6 +46,36 @@ METRIC_HISTORY_RANGES: dict[str, tuple[str, timedelta]] = {
 }
 
 
+@dataclass(frozen=True)
+class DisplayMetricSpec:
+    storage_metric: str
+    display_metric: str
+    display_unit: str | None = None
+    transform: Callable[[float], float] | None = None
+
+
+def _mist_level_to_pct(value: float) -> float:
+    return value * 100.0 / 9.0
+
+
+DISPLAY_METRIC_BY_STORAGE: dict[str, DisplayMetricSpec] = {
+    "fan_duty_pct": DisplayMetricSpec(
+        storage_metric="fan_duty_pct",
+        display_metric="fan_pct",
+        display_unit="%",
+    ),
+    "humidifier_mist_level": DisplayMetricSpec(
+        storage_metric="humidifier_mist_level",
+        display_metric="humidifier_intensity_pct",
+        display_unit="%",
+        transform=_mist_level_to_pct,
+    ),
+}
+DISPLAY_METRIC_BY_PUBLIC: dict[str, DisplayMetricSpec] = {
+    spec.display_metric: spec for spec in DISPLAY_METRIC_BY_STORAGE.values()
+}
+
+
 class LoginRequest(BaseModel):
     username: str = Field(min_length=1)
     password: str = Field(min_length=1)
@@ -204,6 +234,31 @@ class SyncStatusResponse(BrowserResponse):
     last_catalog_sync_at: datetime | None
     command_backlog_depth: int
     status: SyncStatusLabel
+
+
+def _display_metric_value(
+    value: float | None, display_spec: DisplayMetricSpec | None
+) -> float | None:
+    if value is None:
+        return None
+    if display_spec is None or display_spec.transform is None:
+        return value
+    return round(display_spec.transform(value), 2)
+
+
+def _current_metric_response(row: CloudLatestMetric) -> CurrentMetricResponse:
+    display_spec = DISPLAY_METRIC_BY_STORAGE.get(row.metric)
+    display_value = _display_metric_value(row.value, display_spec)
+    return CurrentMetricResponse(
+        metric=display_spec.display_metric if display_spec else row.metric,
+        value=display_value if display_value is not None else row.value,
+        unit=display_spec.display_unit if display_spec else row.unit,
+        capability_id=row.capability_id,
+        device_id=row.device_id,
+        source_updated_at=row.source_updated_at,
+        received_at=row.received_at,
+        stale_after_s=row.stale_after_s,
+    )
 
 
 class CommandResponse(BrowserResponse):
@@ -433,19 +488,13 @@ async def current_metrics(
             .order_by(CloudLatestMetric.metric)
         )
     ).scalars()
-    return [
-        CurrentMetricResponse(
-            metric=row.metric,
-            value=row.value,
-            unit=row.unit,
-            capability_id=row.capability_id,
-            device_id=row.device_id,
-            source_updated_at=row.source_updated_at,
-            received_at=row.received_at,
-            stale_after_s=row.stale_after_s,
-        )
-        for row in rows
-    ]
+    responses: dict[str, CurrentMetricResponse] = {}
+    for row in rows:
+        response = _current_metric_response(row)
+        existing = responses.get(response.metric)
+        if existing is None or row.metric == response.metric:
+            responses[response.metric] = response
+    return list(responses.values())
 
 
 @router.get("/tents/{tent_id}/metrics/history", response_model=MetricHistoryResponse)
@@ -463,13 +512,15 @@ async def metric_history(  # noqa: PLR0913
         raise HTTPException(status_code=400, detail="invalid range")
     bucket, window = range_spec
     cutoff = clock() - window
+    display_spec = DISPLAY_METRIC_BY_PUBLIC.get(metric)
+    storage_metric = display_spec.storage_metric if display_spec else metric
     rows = (
         await session.execute(
             select(CloudMetricRollup)
             .where(
                 CloudMetricRollup.site_id == settings.default_site_id,
                 CloudMetricRollup.tent_id == tent_id,
-                CloudMetricRollup.metric == metric,
+                CloudMetricRollup.metric == storage_metric,
                 CloudMetricRollup.bucket == bucket,
                 CloudMetricRollup.bucket_start_at >= cutoff,
             )
@@ -484,11 +535,11 @@ async def metric_history(  # noqa: PLR0913
                 bucket=row.bucket,
                 bucket_start_at=row.bucket_start_at,
                 bucket_end_at=row.bucket_end_at,
-                min=row.min_value,
-                avg=row.avg_value,
-                max=row.max_value,
+                min=_display_metric_value(row.min_value, display_spec),
+                avg=_display_metric_value(row.avg_value, display_spec),
+                max=_display_metric_value(row.max_value, display_spec),
                 sample_count=row.sample_count,
-                unit=row.unit,
+                unit=display_spec.display_unit if display_spec else row.unit,
             )
             for row in rows
         ],

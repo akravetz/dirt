@@ -8,6 +8,9 @@ packages:
 minimumReleaseAge: 10080
 strictDepBuilds: true
 dangerouslyAllowAllBuilds: false
+onlyBuiltDependencies:
+  - esbuild
+  - unrs-resolver
 ignoredBuiltDependencies:
   - msw
 verifyDepsBeforeRun: error

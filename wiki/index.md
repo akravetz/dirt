@@ -1,7 +1,7 @@
 ---
 title: Index
 type: index
-updated: 2026-05-12
+updated: 2026-05-14
 ---
 
 # Grow Wiki Index
@@ -15,10 +15,10 @@ updated: 2026-05-12
 - [Hosted Control Plane](decisions/2026-05-05-hosted-control-plane.md) — Railway web UI/API plus outbound local gateway; remote inspection and PTZ-only command intent without moving hardware authority to cloud
 
 ## Plants
-- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; Flower Day 9; moisture stable 60.89%; restore photo coverage
-- [Plant B](plants/plant-b.md) — 🟡 Secondary; Flower Day 9; moisture 95.84% — dryback verification urgent
-- [Plant C](plants/plant-c.md) — 🟡 Secondary; Flower Day 9; moisture 89.88% — lower-leaf/root-zone watch
-- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; Flower Day 9; moisture high 84.79%; tuck candidate
+- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; Flower Day 11; moisture stable 61.51%; restore photo coverage
+- [Plant B](plants/plant-b.md) — 🟡 Secondary; Flower Day 11; moisture 95.92% — dryback verification urgent
+- [Plant C](plants/plant-c.md) — 🟡 Secondary; Flower Day 11; moisture 90.53% — lower-leaf/root-zone watch
+- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; Flower Day 11; moisture high 84.31%; tuck candidate
 
 ## Daily Logs
 - [2026-03-27](daily/2026-03-27.md) — Day 13: Pre-transplant; 2–3 leaf sets
@@ -57,6 +57,8 @@ updated: 2026-05-12
 - [2026-05-10](daily/2026-05-10.md) — Day 57 / Flower Day 7: incomplete photo coverage (1/5 presets); VPD below target all windows (0.49/0.62/0.63 kPa) 🔴; Plant B moisture 96.25% 🔴
 - [2026-05-11](daily/2026-05-11.md) — Day 58 / Flower Day 8: incomplete photo coverage (1/5 main presets, no breeding overview); main VPD below target all windows (0.54/0.62/0.59 kPa) 🔴; breeding tent hot/dry at 85.68°F / 1.75 kPa; Plant B moisture 95.88% 🔴
 - [2026-05-12](daily/2026-05-12.md) — Day 59 / Flower Day 9: no main-tent photos; breeding overview only; main VPD averaged in range (1.24/1.24 kPa) but now high at 1.37 kPa; Plant B moisture 95.84% 🔴
+- [2026-05-13](daily/2026-05-13.md) — Day 60 / Flower Day 10: no main-tent photos; breeding overview only; main VPD now high at 1.60 kPa with 85.80°F; Plant B moisture 95.47% 🔴
+- [2026-05-14](daily/2026-05-14.md) — Day 61 / Flower Day 11: no main-tent photos; breeding overview shows upright labeled young plants; main VPD in target all windows; Plant B moisture 95.92% 🔴
 
 ## Environment
 - [Temperature](environment/temperature.md) — Trend log; targets by phase; notable events

@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/coco-coir.md, wiki/concepts/lst.md, wiki/environment/nutrients.md]
 created: 2026-04-06
-updated: 2026-05-12
+updated: 2026-05-14
 ---
 
 # Plant C
@@ -19,7 +19,7 @@ updated: 2026-05-12
 
 ## Current State
 
-Day 59 / Flower Day 9: C has no dedicated preset photo today, and moisture remains saturated around 89.88%. Continue root-zone and airflow checks before treating prior lower/interior yellowing as a feed-strength problem. See [2026-05-12](../daily/2026-05-12.md).
+Day 61 / Flower Day 11: C has no dedicated preset photo today, and moisture remains saturated around 90.53%. Continue root-zone and airflow checks before treating prior lower/interior yellowing as a feed-strength problem. See [2026-05-14](../daily/2026-05-14.md).
 
 ## Timeline
 
@@ -60,3 +60,5 @@ Day 59 / Flower Day 9: C has no dedicated preset photo today, and moisture remai
 - 2026-05-10 — [Day 57 / Flower Day 7: dedicated photo missing; moisture still ~90%, keep root-zone/airflow watch](../daily/2026-05-10.md)
 - 2026-05-11 — [Day 58 / Flower Day 8: dedicated photo missing; moisture still ~90%, keep root-zone/airflow watch](../daily/2026-05-11.md)
 - 2026-05-12 — [Day 59 / Flower Day 9: dedicated photo missing; moisture still ~90%, keep root-zone/airflow watch](../daily/2026-05-12.md)
+- 2026-05-13 — [Day 60 / Flower Day 10: dedicated photo missing; moisture still ~90%, keep root-zone/airflow watch](../daily/2026-05-13.md)
+- 2026-05-14 — [Day 61 / Flower Day 11: dedicated photo missing; moisture still ~90.5%, keep root-zone/airflow watch](../daily/2026-05-14.md)

@@ -929,3 +929,19 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - **Plant B moisture remains critical:** 95.84% now, still near full saturation; dryback verification remains urgent before reopening normal feed.
 - **Root zones:** A stable at 60.89%; C remains saturated at 89.88%; D remains high but easing at 84.79%.
 - Updated: `daily/2026-05-12.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-05-13] daily | Day 60 / Flower Day 10 - main VPD overshot high; no main-tent photos
+- Photos captured across 0 of 5 expected main presets; only the breeding overview was available, and it mostly shows fan/vent/tent hardware plus a cropped `R4` container edge rather than plant detail.
+- **Main-tent environment shift:** Overnight and morning VPD were usable (1.00/1.15 kPa), but the current reading overshot high at 1.60 kPa with 85.80°F.
+- **Breeding-tent watch:** Overnight was wet at 0.59 kPa VPD / 73.19% RH, then recovered to 1.23 kPa now; manually inspect seedlings/clones because the photo cannot verify plant condition.
+- **Plant B moisture remains critical:** 95.47% now, still near full saturation; dryback verification remains urgent before reopening normal feed.
+- **Root zones:** A stable at 60.74%; C remains saturated at 89.56%; D remains high but easing at 83.84%.
+- Updated: `daily/2026-05-13.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-05-14] daily | Day 61 / Flower Day 11 - main VPD recovered; no main-tent photos
+- Photos captured across 0 of 5 expected main presets; only the breeding overview was available. It shows several labeled upright young plants, but remains incomplete for main-tent diagnosis.
+- **Main-tent environment recovery:** VPD is in target across all windows (1.17 overnight, 1.26 morning, 1.16 now) with current temperature back in range at 75.79°F.
+- **Breeding-tent watch:** Overnight was wet at 0.66 kPa VPD / 72.07% RH, then morning spiked dry at 1.49 kPa before settling to 1.26 kPa now; manually check surfaces and fan exposure.
+- **Plant B moisture remains critical:** 95.92% now, still near full saturation; dryback verification remains urgent before reopening normal feed.
+- **Root zones:** A stable at 61.51%; C remains saturated at 90.53%; D remains high at 84.31%.
+- Updated: `daily/2026-05-14.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.

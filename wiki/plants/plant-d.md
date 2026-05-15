@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-05-12
+updated: 2026-05-14
 ---
 
 # Plant D
@@ -19,7 +19,7 @@ updated: 2026-05-12
 
 ## Current State
 
-Day 59 / Flower Day 9: D has no dedicated preset photo today, but remains a primary purple keeper candidate with high moisture easing slightly to 84.79%. Keep tucking likely D/A stretch tops and watching lower shaded leaves/tray behavior. See [2026-05-12](../daily/2026-05-12.md).
+Day 61 / Flower Day 11: D has no dedicated preset photo today, but remains a primary purple keeper candidate with high moisture around 84.31%. Keep tucking likely D/A stretch tops and watching lower shaded leaves/tray behavior. See [2026-05-14](../daily/2026-05-14.md).
 
 ## Timeline
 
@@ -60,3 +60,5 @@ Day 59 / Flower Day 9: D has no dedicated preset photo today, but remains a prim
 - 2026-05-10 — [Day 57 / Flower Day 7: dedicated photo missing; moisture high but easing at 85.82%, tuck through stretch](../daily/2026-05-10.md)
 - 2026-05-11 — [Day 58 / Flower Day 8: dedicated photo missing; moisture high but easing at 85.70%, tuck through stretch](../daily/2026-05-11.md)
 - 2026-05-12 — [Day 59 / Flower Day 9: dedicated photo missing; moisture high but easing at 84.79%, tuck through stretch](../daily/2026-05-12.md)
+- 2026-05-13 — [Day 60 / Flower Day 10: dedicated photo missing; moisture high but easing at 83.84%, tuck through stretch](../daily/2026-05-13.md)
+- 2026-05-14 — [Day 61 / Flower Day 11: dedicated photo missing; moisture high at 84.31%, tuck through stretch](../daily/2026-05-14.md)

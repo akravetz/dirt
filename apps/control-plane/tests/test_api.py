@@ -134,13 +134,16 @@ def _rollup(
     bucket: str,
     start: datetime,
     avg: float,
+    metric: str = "temperature_f",
+    capability_id: str = "env-main-temp",
+    unit: str = "f",
 ) -> CloudMetricRollup:
     return CloudMetricRollup(
-        rollup_key=f"homebox:main:env-main-temp:temperature_f:{bucket}:{suffix}",
+        rollup_key=f"homebox:main:{capability_id}:{metric}:{bucket}:{suffix}",
         site_id="homebox",
         tent_id="main",
-        capability_id="env-main-temp",
-        metric="temperature_f",
+        capability_id=capability_id,
+        metric=metric,
         bucket=bucket,
         bucket_start_at=start,
         bucket_end_at=start + timedelta(minutes=5),
@@ -148,7 +151,7 @@ def _rollup(
         avg_value=avg,
         max_value=avg + 0.5,
         sample_count=1,
-        unit="f",
+        unit=unit,
         received_at=FIXED_NOW,
     )
 
@@ -481,6 +484,58 @@ async def test_latest_metric_upsert_is_idempotent(
     assert rows[0].value == 76.0
 
 
+async def test_current_metrics_expose_dashboard_display_names(
+    authed_client: AsyncClient,
+    cloud_engine: AsyncEngine,
+) -> None:
+    sessionmaker = create_sessionmaker(cloud_engine)
+    async with sessionmaker() as session:
+        session.add_all(
+            [
+                CloudLatestMetric(
+                    metric_key="homebox:main:fan_duty_pct:fan_duty_pct",
+                    site_id="homebox",
+                    tent_id="main",
+                    zone_id="canopy",
+                    device_id="fan-controller",
+                    capability_id="fan_duty_pct",
+                    metric="fan_duty_pct",
+                    value=42.0,
+                    unit="pct",
+                    source_updated_at=FIXED_NOW - timedelta(seconds=30),
+                    received_at=FIXED_NOW,
+                    stale_after_s=120,
+                ),
+                CloudLatestMetric(
+                    metric_key=(
+                        "homebox:main:humidifier_mist_level:humidifier_mist_level"
+                    ),
+                    site_id="homebox",
+                    tent_id="main",
+                    zone_id="canopy",
+                    device_id="govee-h7142-main",
+                    capability_id="humidifier_mist_level",
+                    metric="humidifier_mist_level",
+                    value=4.5,
+                    unit="level",
+                    source_updated_at=FIXED_NOW - timedelta(seconds=30),
+                    received_at=FIXED_NOW,
+                    stale_after_s=120,
+                ),
+            ]
+        )
+        await session.commit()
+
+    response = await authed_client.get("/api/tents/main/metrics/current")
+
+    assert response.status_code == 200
+    by_metric = {metric["metric"]: metric for metric in response.json()}
+    assert by_metric["fan_pct"]["value"] == 42.0
+    assert by_metric["fan_pct"]["unit"] == "%"
+    assert by_metric["humidifier_intensity_pct"]["value"] == 50.0
+    assert by_metric["humidifier_intensity_pct"]["unit"] == "%"
+
+
 async def test_metric_history_filters_bucket_and_window_by_range(
     authed_client: AsyncClient,
     cloud_engine: AsyncEngine,
@@ -523,6 +578,55 @@ async def test_metric_history_filters_bucket_and_window_by_range(
     assert [point["avg"] for point in one_day.json()["points"]] == [3.0]
     assert [point["bucket"] for point in seven_days.json()["points"]] == ["4h"]
     assert [point["avg"] for point in seven_days.json()["points"]] == [5.0]
+
+
+async def test_metric_history_exposes_dashboard_display_names(
+    authed_client: AsyncClient,
+    cloud_engine: AsyncEngine,
+) -> None:
+    sessionmaker = create_sessionmaker(cloud_engine)
+    async with sessionmaker() as session:
+        session.add_all(
+            [
+                _rollup(
+                    "fan",
+                    bucket="1h",
+                    start=FIXED_NOW - timedelta(hours=2),
+                    avg=44.0,
+                    metric="fan_duty_pct",
+                    capability_id="fan_duty_pct",
+                    unit="pct",
+                ),
+                _rollup(
+                    "humidifier",
+                    bucket="1h",
+                    start=FIXED_NOW - timedelta(hours=2),
+                    avg=4.5,
+                    metric="humidifier_mist_level",
+                    capability_id="humidifier_mist_level",
+                    unit="level",
+                ),
+            ]
+        )
+        await session.commit()
+
+    fan = await authed_client.get(
+        "/api/tents/main/metrics/history?range=24h&metric=fan_pct"
+    )
+    humidifier = await authed_client.get(
+        "/api/tents/main/metrics/history?range=24h&metric=humidifier_intensity_pct"
+    )
+
+    assert fan.status_code == 200
+    assert fan.json()["metric"] == "fan_pct"
+    assert fan.json()["points"][0]["avg"] == 44.0
+    assert fan.json()["points"][0]["unit"] == "%"
+    assert humidifier.status_code == 200
+    assert humidifier.json()["metric"] == "humidifier_intensity_pct"
+    assert humidifier.json()["points"][0]["min"] == 44.44
+    assert humidifier.json()["points"][0]["avg"] == 50.0
+    assert humidifier.json()["points"][0]["max"] == 55.56
+    assert humidifier.json()["points"][0]["unit"] == "%"
 
 
 async def test_duplicate_command_idempotency_returns_same_intent_without_hardware(

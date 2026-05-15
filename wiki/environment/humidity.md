@@ -4,7 +4,7 @@ type: environment
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/environment/temperature.md, wiki/concepts/vpd.md, wiki/overview.md, wiki/hardware/humidifier-control.md, wiki/decisions/2026-04-17-humidifier-kasa-ep10.md]
 created: 2026-04-06
-updated: 2026-05-12
+updated: 2026-05-14
 ---
 
 
@@ -62,6 +62,8 @@ VPD is the control-loop setpoint; RH is informational (temperature determines wh
 | 2026-05-10 | 77.00% now 🔴 / 78.47% overnight avg 🔴; VPD 0.63 kPa now 🔴 / 0.49 kPa overnight 🔴 | Third straight incomplete-coverage report with all-window low VPD. Temperature is usable overnight and now, but dew point rose to 64.97°F, so moisture clearing remains the main early-flower constraint. → [2026-05-10](../daily/2026-05-10.md) |
 | 2026-05-11 | Main: 78.63% now 🔴 / 77.20% overnight avg 🔴; VPD 0.59 kPa now 🔴 / 0.54 kPa overnight 🔴. Breeding: 58.31% now / 1.75 kPa VPD | Main tent remains too wet for early flower in every window, with dew point up to 65.91°F now. Breeding tent contrasts hot/dry during lights-on; check small plants for drying stress. → [2026-05-11](../daily/2026-05-11.md) |
 | 2026-05-12 | Main: 60.70% now ⚠️ / 58.86% overnight avg ⚠️; VPD 1.37 kPa now ⚠️ / 1.24 kPa overnight ✅. Breeding: 63.80% now / 1.09 kPa VPD | Main-tent averaged VPD recovered into target after the multi-day wet spell, but the current reading is slightly dry/high. Breeding tent swung from wet overnight (0.53 kPa) to usable now; inspect seedlings/clones manually. → [2026-05-12](../daily/2026-05-12.md) |
+| 2026-05-13 | Main: 62.12% now ⚠️ / 59.72% overnight avg ⚠️; VPD 1.60 kPa now 🔴 / 1.00 kPa overnight ✅. Breeding: 63.98% now / 1.23 kPa VPD | Main-tent averages stayed usable, but the current reading overshot high as temperature reached 85.8°F. Breeding tent still swings wet overnight to usable/drier lights-on; inspect small plants manually. → [2026-05-13](../daily/2026-05-13.md) |
+| 2026-05-14 | Main: 61.81% now ⚠️ / 57.97% overnight avg ⚠️; VPD 1.16 kPa now ✅ / 1.17 kPa overnight ✅. Breeding: 60.62% now / 1.26 kPa VPD | Main-tent VPD is back inside target across all windows after yesterday's dry/hot spike. Breeding tent still swings from wet overnight (0.66 kPa) to a dry morning spike (1.49 kPa); inspect small plants for damp surfaces and fan drying. → [2026-05-14](../daily/2026-05-14.md) |
 
 ## Notable Events
 - **2026-03-20** — Dome propped open, room humidifier added to tent after RH consistently below 50% → [2026-03-27 daily](../daily/2026-03-27.md)
@@ -93,6 +95,8 @@ VPD is the control-loop setpoint; RH is informational (temperature determines wh
 - **2026-05-10** — VPD remained below early-flower target in every window for another day (0.49 overnight, 0.62 morning, 0.63 now). Since overnight/current temperature are in range, the actionable problem is still humidity removal: humidifier off behavior, exhaust, passive intake, and canopy airflow. → [2026-05-10](../daily/2026-05-10.md)
 - **2026-05-11** — Main-tent VPD remained below early-flower target in every window (0.54 overnight, 0.62 morning, 0.59 now), while the breeding tent reached 1.75 kPa VPD at 85.68°F. Treat main-tent air exchange and breeding-tent drying stress as separate problems. → [2026-05-11](../daily/2026-05-11.md)
 - **2026-05-12** — Main-tent VPD recovered to 1.24 kPa overnight and morning, ending the recent all-window low-VPD streak, but the current reading reached 1.37 kPa. Hold the recovery and avoid overshooting into a too-dry flower-week-2 profile. → [2026-05-12](../daily/2026-05-12.md)
+- **2026-05-13** — The overshoot risk materialized in the current window: main-tent VPD reached 1.60 kPa at 85.8°F after acceptable overnight/morning averages. Pause additional drying changes until the next cycle shows whether this is a transient hot-window spike. → [2026-05-13](../daily/2026-05-13.md)
+- **2026-05-14** — Main-tent VPD recovered into target across all windows (1.17 overnight, 1.26 morning, 1.16 now). Keep the current profile steady rather than chasing yesterday's high-VPD spike; the breeding tent remains a separate wet-night/dry-morning small-plant watch. → [2026-05-14](../daily/2026-05-14.md)
 
 ## Deployed Control System
 
