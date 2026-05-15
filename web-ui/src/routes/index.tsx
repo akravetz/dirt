@@ -182,7 +182,7 @@ const HOSTED_METRIC_META: readonly MetricMeta[] = [
     unit: "in",
     accent: "neutral",
     y_min: 0,
-    y_max: 20,
+    y_max: 30,
     has_target_band: false,
   },
 ];
