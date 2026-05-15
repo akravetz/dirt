@@ -44,9 +44,11 @@ interface CameraFeedProps {
    * PTZLookRequest.
    */
   onLook: (x: number, y: number) => void;
+  /** External refresh trigger for PTZ moves that should fetch a new frame now. */
+  refreshKey?: number;
 }
 
-export function CameraFeed({ onLook }: CameraFeedProps): ReactNode {
+export function CameraFeed({ onLook, refreshKey = 0 }: CameraFeedProps): ReactNode {
   // Tick drives the cache-bust query param. Starts at mount-time so the
   // first src already has a unique query; subsequent ticks fire every
   // REFRESH_MS.
@@ -76,7 +78,7 @@ export function CameraFeed({ onLook }: CameraFeedProps): ReactNode {
     [onLook],
   );
 
-  const src = `/api/feed/live.jpg?t=${tick}`;
+  const src = `/api/feed/live.jpg?t=${tick}-${refreshKey}`;
 
   return (
     <figure

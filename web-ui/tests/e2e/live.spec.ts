@@ -146,6 +146,24 @@ test.describe("live tab", () => {
     await expect.poll(() => presetPosts, { timeout: 5_000 }).toContain("plant_d");
   });
 
+  test("clicking a preset refreshes the feed image without waiting for the timer", async ({
+    page,
+  }) => {
+    const figure = page.getByRole("figure", { name: "Live camera feed" });
+    const img = figure.locator("img");
+    const initial = await img.getAttribute("src");
+    expect(initial).not.toBeNull();
+
+    await page
+      .getByRole("region", { name: "Presets" })
+      .getByRole("button", { name: "Plant B" })
+      .click();
+
+    await expect
+      .poll(async () => await img.getAttribute("src"), { timeout: 5_000 })
+      .not.toBe(initial);
+  });
+
   test("dragging the zoom slider fires POST /api/ptz/zoom on release", async ({
     page,
   }) => {

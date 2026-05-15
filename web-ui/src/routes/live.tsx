@@ -13,9 +13,10 @@
 //     active-preset / current-zoom values. Mutations invalidate the
 //     cache so the UI reflects the new camera state after each move.
 //
-// Hosted mode submits PTZ-only command intent to the cloud control plane
-// and renders command lifecycle from /api/commands. The local gateway is
-// still the only process that executes camera moves.
+// Hosted mode renders the latest signed camera asset, submits PTZ-only
+// command intent to the cloud control plane, and renders command
+// lifecycle from /api/commands. The local gateway is still the only
+// process that executes camera moves.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
@@ -45,16 +46,23 @@ const PTZ_STATE_KEY = ["ptz.state"] as const;
 const HOSTED_TENT_ID = "main";
 const HOSTED_DEVICE_ID = "obsbot-main" as const;
 const HOSTED_CAPABILITY_ID = "ptz_move" as const;
+const HOSTED_ASSETS_KEY = ["cloud.assets.latest", HOSTED_TENT_ID] as const;
 type HostedCommandCreate = hostedComponents["schemas"]["CommandCreateRequest"];
 type HostedCommandInput = Omit<HostedCommandCreate, "idempotency_key">;
 type HostedCommandType = HostedCommandCreate["command_type"];
 type HostedCommand = hostedComponents["schemas"]["CommandResponse"];
 type HostedSyncStatus = hostedComponents["schemas"]["SyncStatusResponse"];
+type HostedAsset = hostedComponents["schemas"]["AssetResponse"];
 type CommandButtonState = {
   disabled: boolean;
   status: HostedSyncStatus["status"];
   statusClass: string;
 };
+type HostedCameraAssetState =
+  | { state: "loading" }
+  | { state: "empty" }
+  | { state: "unavailable" }
+  | { state: "ready"; asset: HostedAsset };
 type CommandRowModel = {
   id: string;
   status: string;
@@ -68,6 +76,10 @@ function LivePage() {
 
 function LocalLivePage() {
   const queryClient = useQueryClient();
+  const [feedRefreshKey, setFeedRefreshKey] = useState<number>(0);
+  const refreshFeed = () => {
+    setFeedRefreshKey((current) => current + 1);
+  };
 
   const stateQuery = useQuery({
     queryKey: PTZ_STATE_KEY,
@@ -96,6 +108,7 @@ function LocalLivePage() {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: PTZ_STATE_KEY });
+      refreshFeed();
     },
   });
 
@@ -109,6 +122,7 @@ function LocalLivePage() {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: PTZ_STATE_KEY });
+      refreshFeed();
     },
   });
 
@@ -122,6 +136,7 @@ function LocalLivePage() {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: PTZ_STATE_KEY });
+      refreshFeed();
     },
   });
 
@@ -138,6 +153,7 @@ function LocalLivePage() {
         </header>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
           <CameraFeed
+            refreshKey={feedRefreshKey}
             onLook={(x, y) => {
               lookMutation.mutate({ x, y });
             }}
@@ -174,6 +190,9 @@ function LocalLivePage() {
 
 function HostedLivePage() {
   const queryClient = useQueryClient();
+  const [assetRefreshCommandId, setAssetRefreshCommandId] = useState<string | null>(
+    null,
+  );
   const syncQuery = useQuery({
     queryKey: ["cloud.sync.status"],
     queryFn: async () => {
@@ -190,6 +209,17 @@ function HostedLivePage() {
     },
     refetchInterval: 2_000,
   });
+  const assetsQuery = useQuery({
+    queryKey: HOSTED_ASSETS_KEY,
+    queryFn: async () => {
+      const { data } = await hostedApi.GET("/api/tents/{tent_id}/assets/latest", {
+        params: { path: { tent_id: HOSTED_TENT_ID } },
+      });
+      return hostedData(data, "GET /api/tents/{tent_id}/assets/latest");
+    },
+    refetchInterval: 10_000,
+    retry: false,
+  });
   const commandMutation = useMutation({
     mutationFn: async (command: HostedCommandInput) => {
       const { data } = await hostedApi.POST("/api/commands", {
@@ -203,12 +233,31 @@ function HostedLivePage() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["cloud.commands.recent"] });
       void queryClient.invalidateQueries({ queryKey: ["cloud.sync.status"] });
+      void queryClient.invalidateQueries({ queryKey: HOSTED_ASSETS_KEY });
     },
   });
 
   const buttonState = toCommandButtonState(syncQuery.data, commandMutation.isPending);
   const recentCommands = commandsQuery.data ?? [];
   const commandRows = toCommandRows(recentCommands.slice(0, 5));
+  const latestSucceededCommandId =
+    recentCommands.find((command) => command.status === "succeeded")?.command_id ??
+    null;
+  const cameraAsset = toHostedCameraAssetState(
+    assetsQuery.data?.[0] ?? null,
+    assetsQuery.isLoading,
+    Boolean(assetsQuery.error),
+  );
+
+  useEffect(() => {
+    if (
+      latestSucceededCommandId !== null &&
+      latestSucceededCommandId !== assetRefreshCommandId
+    ) {
+      setAssetRefreshCommandId(latestSucceededCommandId);
+      void queryClient.invalidateQueries({ queryKey: HOSTED_ASSETS_KEY });
+    }
+  }, [assetRefreshCommandId, latestSucceededCommandId, queryClient]);
 
   const submit = (
     command_type: HostedCommandType,
@@ -237,53 +286,11 @@ function HostedLivePage() {
           </span>
         </header>
         <section className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
-          <div className="border border-rule-strong bg-paper-2 p-4">
-            <div className="grid aspect-video place-items-center border border-rule bg-paper">
-              <div className="grid grid-cols-3 gap-2">
-                <span aria-hidden="true" />
-                <button
-                  type="button"
-                  aria-label="Look up"
-                  disabled={buttonState.disabled}
-                  onClick={() => submit("ptz_look", { x: 0, y: -0.25 })}
-                  className={hostedControlButtonClass(buttonState.disabled)}
-                >
-                  ^
-                </button>
-                <span aria-hidden="true" />
-                <button
-                  type="button"
-                  aria-label="Look left"
-                  disabled={buttonState.disabled}
-                  onClick={() => submit("ptz_look", { x: -0.25, y: 0 })}
-                  className={hostedControlButtonClass(buttonState.disabled)}
-                >
-                  &lt;
-                </button>
-                <span aria-hidden="true" />
-                <button
-                  type="button"
-                  aria-label="Look right"
-                  disabled={buttonState.disabled}
-                  onClick={() => submit("ptz_look", { x: 0.25, y: 0 })}
-                  className={hostedControlButtonClass(buttonState.disabled)}
-                >
-                  &gt;
-                </button>
-                <span aria-hidden="true" />
-                <button
-                  type="button"
-                  aria-label="Look down"
-                  disabled={buttonState.disabled}
-                  onClick={() => submit("ptz_look", { x: 0, y: 0.25 })}
-                  className={hostedControlButtonClass(buttonState.disabled)}
-                >
-                  v
-                </button>
-                <span aria-hidden="true" />
-              </div>
-            </div>
-          </div>
+          <HostedCameraFeed
+            asset={cameraAsset}
+            disabled={buttonState.disabled}
+            onLook={(x, y) => submit("ptz_look", { x, y })}
+          />
           <aside className="flex flex-col gap-4">
             <section className="border border-rule-strong bg-paper-2 p-4">
               <h2 className="mb-3 font-mono text-fs-10 uppercase tracking-caps text-ink-3">
@@ -390,6 +397,62 @@ function PTZStatePanel({
   );
 }
 
+function HostedCameraFeed({
+  asset,
+  disabled,
+  onLook,
+}: {
+  asset: HostedCameraAssetState;
+  disabled: boolean;
+  onLook: (x: number, y: number) => void;
+}) {
+  const clickClass = disabled ? "cursor-not-allowed" : "cursor-crosshair";
+  return (
+    <figure
+      aria-label="Live camera feed"
+      className="flex flex-col gap-0 border border-ink bg-ink p-0 ring-1 ring-accent-purple ring-inset"
+    >
+      {asset.state === "ready" ? (
+        <button
+          type="button"
+          aria-label="Live camera feed"
+          disabled={disabled}
+          onClick={(event) => {
+            const rect = event.currentTarget.getBoundingClientRect();
+            if (rect.width === 0 || rect.height === 0) return;
+            const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            const y = ((event.clientY - rect.top) / rect.height) * 2 - 1;
+            onLook(clamp11(x), clamp11(y));
+          }}
+          className={`relative block aspect-video w-full p-0 ${clickClass}`}
+        >
+          <img
+            alt=""
+            src={asset.asset.signed_url}
+            className="absolute inset-0 block h-full w-full select-none object-contain"
+            draggable={false}
+          />
+        </button>
+      ) : (
+        <div className="grid aspect-video place-items-center bg-paper">
+          <p
+            className={`font-mono text-fs-10 uppercase tracking-caps ${
+              asset.state === "unavailable" ? "text-accent-magenta" : "text-ink-3"
+            }`}
+          >
+            {hostedAssetMessage(asset.state)}
+          </p>
+        </div>
+      )}
+      {asset.state === "ready" ? (
+        <figcaption className="border-t border-rule-strong bg-paper-2 px-3 py-2 font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+          Captured {formatTimestamp(asset.asset.captured_at)}
+        </figcaption>
+      ) : null}
+    </figure>
+  );
+}
+
 // Adapt PTZState.presets (full contract shape) to the narrower shape
 // PresetList consumes. Until /api/ptz/state returns, the right rail
 // shows a loading/error panel instead of invented preset rows.
@@ -450,15 +513,6 @@ function commandIdempotencyKey(commandType: HostedCommandType): string {
   return `hosted-live:${commandType}:${random}`;
 }
 
-function hostedControlButtonClass(disabled: boolean): string {
-  return [
-    "grid h-12 w-12 place-items-center border font-mono text-fs-14",
-    disabled
-      ? "cursor-not-allowed border-rule text-ink-3"
-      : "border-ink bg-paper text-ink hover:bg-paper-3",
-  ].join(" ");
-}
-
 function hostedTextButtonClass(disabled: boolean): string {
   return [
     "border px-3 py-2 text-left font-sans text-fs-12",
@@ -487,6 +541,40 @@ function toCommandRows(commands: readonly HostedCommand[]): readonly CommandRowM
     statusClass: toCommandStatusClass(command.status),
     typeLabel: toCommandTypeLabel(command.command_type),
   }));
+}
+
+function toHostedCameraAssetState(
+  asset: HostedAsset | null,
+  loading: boolean,
+  unavailable: boolean,
+): HostedCameraAssetState {
+  if (unavailable) return { state: "unavailable" };
+  if (loading) return { state: "loading" };
+  if (asset === null) return { state: "empty" };
+  return { state: "ready", asset };
+}
+
+function hostedAssetMessage(state: HostedCameraAssetState["state"]): string {
+  if (state === "unavailable") return "Signed asset URL unavailable";
+  if (state === "loading") return "Loading camera image";
+  return "No synced camera image";
+}
+
+function formatTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function clamp11(n: number): number {
+  if (n < -1) return -1;
+  if (n > 1) return 1;
+  return n;
 }
 
 function toHostedStatusClass(status: HostedSyncStatus["status"]): string {
