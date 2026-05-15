@@ -4,7 +4,7 @@ type: breeding
 sources: []
 related: [wiki/breeding/README.md, wiki/breeding/veg-tent-layout.md, wiki/breeding/isolation.md, wiki/breeding/isolation-tent-culture.md, wiki/breeding/cloning.md, wiki/breeding/pollen-handling.md]
 created: 2026-05-02
-updated: 2026-05-12
+updated: 2026-05-15
 ---
 
 # Breeding Program Bill of Materials
@@ -77,16 +77,19 @@ Detailed male-tent protocol lives in [isolation.md](isolation.md), [isolation-te
 | 2 gal fabric pot | Needed/verify | 1-2 | Seed mother / keeper clone in isolation tent |
 | Coco/perlite medium | Active/verify | TBD | Active Track A regular seedlings, isolation-tent males, and seed mother; hand-watered or drip-assisted |
 | Saucers or shallow boot tray | Needed | 1+ | Catch runoff under isolation pots; remove standing runoff |
-| 5 gal reservoir / bucket with lid | Optional | 1 | Drip-assist reservoir if hand-watering becomes annoying |
-| Sicce Syncra Silent 1.5 pump | Optional | 1 | Drip-assist pump; ~357-358 GPH, ~6 ft max head; sufficient for free-flow manifold, not pressure-compensating emitters |
-| Rain Bird free-flow 6-port manifold | Optional | 1 | Drip-assist splitter; choose free-flow, not fixed 2 GPH |
-| 1/2 inch main tubing | Optional | TBD | Pump to filter/manifold |
-| Inline filter | Optional | 1 | Protect small tubing/manifold from nutrient debris |
-| 1/4 inch distribution tubing | Optional | 6 equal lengths | Manifold to pots |
-| 1/4 inch inline valves | Optional | 6+ | One per plant for balancing; extras useful |
-| Tee + bypass valve | Optional | 1 | Return excess pump flow to reservoir |
-| Open drip stakes or simple halos | Optional | 6 | Visible outlet at each pot; open stakes preferred for first build |
-| Seconds-capable timer | Optional | 1 | Required for short calibrated irrigation pulses |
+| 5 gal reservoir / bucket with lid | Needed/verify | 1 | Drip-assist reservoir; use a lid to keep nutrient solution dark and clean |
+| Sicce Syncra Silent 1.5 pump | Purchased | 1 | User-confirmed purchased for drip assist; ~357-358 GPH, ~6 ft max head; sufficient for free-flow manifold, not pressure-compensating emitters |
+| Rain Bird free-flow 6-port manifold | Purchased | 1 | User-confirmed purchased; drip-assist splitter; choose free-flow, not fixed 2 GPH |
+| 1/2 inch main tubing | Needed | TBD | Pump to filter/manifold; black 1/2 inch ID vinyl tubing preferred over clear tubing to reduce algae |
+| 1/2 inch barbed fittings and hose clamps | Needed | 1 kit | Tee, straight couplers, hose clamps, and barb adapters for pump/filter/manifold plumbing |
+| 1/2 inch barb x 1/2 inch male NPT adapter | Needed | 1+ | Adapts main tubing to the Rain Bird manifold's 1/2 inch FPT inlet if not already included |
+| Inline filter | Needed | 1 | 150-200 mesh filter upstream of manifold; protect small tubing/manifold from nutrient debris |
+| 1/4 inch distribution tubing | Needed | 6 equal lengths | Blank tubing only, not emitter tubing; manifold to pots |
+| 1/4 inch inline valves | Needed | 6+ | One per plant for balancing; extras useful |
+| Tee + bypass valve | Needed | 1 | Return excess pump flow to reservoir so the pump is not forced entirely through tiny 1/4 inch lines |
+| Open drip stakes or simple halos | Needed | 6 | Visible outlet at each pot; open stakes preferred for first build |
+| Seconds-capable timer | Needed | 1 | Required for short calibrated irrigation pulses; ordinary minute timers are too coarse |
+| Water leak alarm | Needed | 1-2 | Put near reservoir/pump and near runoff tray |
 | Parchment paper | Needed | 1 pack | Pollen collection |
 | Paper lunch bags | Needed | 1 pack | Branch/sac handling |
 | 1.5 mL microcentrifuge tubes | Needed | 50+ | Pollen aliquots |
@@ -114,9 +117,9 @@ Detailed cloning protocol lives in [cloning.md](cloning.md).
 | 0.5 gal pots | Optional | Few | For important finalist clones only; too large for routine backup stasis |
 | Clone labels | Needed/verify | TBD | Mother ID + clone date |
 
-## Product links to add
+## Product links / Amazon searches
 
-Add links here once exact brands/models are selected:
+Add exact product links once a specific listing is selected. Current Amazon searches:
 
 - Botanicare 3x3 Core/ID flood tray:
 - Fast Fit 3x3 tray stand:
@@ -126,11 +129,19 @@ Add links here once exact brands/models are selected:
 - 15 gal sump tote:
 - pump filter bag:
 - float switches:
-- water alarm:
+- water alarm: [Amazon search - Govee water leak detector](https://www.amazon.com/s?k=Govee+water+leak+detector), [Amazon search - Zircon leak alert](https://www.amazon.com/s?k=Zircon+leak+alert+water+detector)
 - fill-line clip/bracket:
 - rockwool starter cubes:
 - 6 inch rockwool blocks:
 - waterproof labels:
-- Rain Bird free-flow 6-port manifold:
-- 1/4 inch inline valves:
-- seconds-capable timer:
+- Rain Bird free-flow 6-port manifold: purchased; [Amazon search - Rain Bird free-flow 6-port manifold](https://www.amazon.com/s?k=Rain+Bird+free+flow+6+port+manifold)
+- 5 gal reservoir / bucket with lid: [Amazon search - 5 gallon bucket with lid food grade](https://www.amazon.com/s?k=5+gallon+bucket+with+lid+food+grade)
+- 1/2 inch main tubing: [Amazon search - 1/2 inch ID black vinyl tubing](https://www.amazon.com/s?k=1%2F2+inch+ID+black+vinyl+tubing)
+- 1/2 inch barbed fittings and hose clamps: [Amazon search - 1/2 inch barbed tee ball valve fittings](https://www.amazon.com/s?k=1%2F2+inch+barbed+tee+ball+valve+fittings)
+- 1/2 inch barb x 1/2 inch male NPT adapter: [Amazon search - 1/2 barb x 1/2 male NPT adapter nylon](https://www.amazon.com/s?k=1%2F2+barb+x+1%2F2+male+NPT+adapter+nylon)
+- Inline filter: [Amazon search - 1/2 inch barb 150 mesh drip irrigation filter](https://www.amazon.com/s?k=1%2F2+inch+barb+150+mesh+drip+irrigation+filter), [Amazon search - Rain Bird RBY075MPTX 200 mesh filter](https://www.amazon.com/s?k=Rain+Bird+RBY075MPTX+200+mesh+filter)
+- 1/4 inch distribution tubing: [Amazon search - Rain Bird 1/4 inch distribution tubing](https://www.amazon.com/s?k=Rain+Bird+1%2F4+inch+distribution+tubing)
+- 1/4 inch inline valves: [Amazon search - Raindrip 1/4 inch barbed inline valve 10 pack](https://www.amazon.com/s?k=Raindrip+1%2F4+inch+barbed+inline+valve+10+pack)
+- Open drip stakes: [Amazon search - Rain Bird 1/4 inch tubing stake with bug cap](https://www.amazon.com/s?k=Rain+Bird+1%2F4+inch+tubing+stake+with+bug+cap)
+- Seconds-capable timer: [Amazon search - BN-LINK short period repeat cycle timer](https://www.amazon.com/s?k=BN-LINK+short+period+repeat+cycle+timer)
+- Runoff tray / saucers: [Amazon search - black waterproof boot tray](https://www.amazon.com/s?k=black+boot+tray+waterproof), [Amazon search - heavy duty plant saucers 12 inch](https://www.amazon.com/s?k=heavy+duty+plant+saucers+12+inch)

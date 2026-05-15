@@ -26,6 +26,8 @@ Every ExecPlan must produce demonstrably working behavior. Do not define success
 
 Purpose comes first. Begin each ExecPlan by explaining what the user can do after the change that they could not do before, why that matters, and how they can see it working.
 
+Every ExecPlan must follow the repository's simple clean architecture rule in `docs/rules/simple-clean-architecture.md`: build the simplest truthful model, prefer direct explicit code and data, add abstractions only for real shared responsibility, choose direct cutover for source-owned code, and do not leave dead wrappers or compatibility layers behind.
+
 ## Formatting Rules
 
 An ExecPlan is a single Markdown document. If an ExecPlan is embedded inside another Markdown conversation, wrap it in one fenced code block labeled `md`. If the ExecPlan is checked in as its own `.md` file, omit the outer fence.
