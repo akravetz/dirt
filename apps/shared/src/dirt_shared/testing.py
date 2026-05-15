@@ -54,8 +54,8 @@ def isolate_observability_logs(tmp_path, monkeypatch):
     """Point ``dirt.observability.logs_dir()`` at a per-test tmp directory.
 
     The env-var approach (vs monkeypatching the module's ``LOGS_DIR``
-    constant) survives the writer thread reading paths lazily — every
-    write resolves the env var freshly via :func:`logs_dir`.
+    constant) survives asynchronous writes because each ``log_event`` call
+    resolves and queues its destination path before returning.
     """
     test_logs = tmp_path / "logs"
     monkeypatch.setenv(LOGS_DIR_ENV, str(test_logs))

@@ -12,6 +12,7 @@ import time
 
 from dirt_shared.observability import (
     _DEFAULT_LOGS_DIR,
+    LOGS_DIR_ENV,
     log_event,
     logs_dir,
 )
@@ -61,6 +62,24 @@ def test_log_event_writes_to_tmp_not_production(isolate_observability_logs):
     assert not prod_stream_dir.exists(), (
         f"isolation_test stream leaked into production logs at {prod_stream_dir}"
     )
+
+
+def test_log_event_captures_log_dir_at_enqueue(tmp_path, monkeypatch):
+    """Async writes keep the log dir that was active at call time.
+
+    This prevents a queued event from falling back to production logs after a
+    pytest fixture restores environment variables during teardown.
+    """
+    first_logs = tmp_path / "first" / "logs"
+    second_logs = tmp_path / "second" / "logs"
+
+    monkeypatch.setenv(LOGS_DIR_ENV, str(first_logs))
+    log_event("enqueue_path_test", "smoke")
+    monkeypatch.setenv(LOGS_DIR_ENV, str(second_logs))
+    _drain_writer()
+
+    assert list((first_logs / "enqueue_path_test").glob("*.jsonl"))
+    assert not (second_logs / "enqueue_path_test").exists()
 
 
 def test_consecutive_tests_get_independent_dirs(

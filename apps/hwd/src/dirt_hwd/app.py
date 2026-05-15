@@ -26,7 +26,7 @@ from dirt_hwd.services.device_watchdog import (
 )
 from dirt_hwd.services.fan_controller import FanTrimLoopService
 from dirt_hwd.services.humidifier import HumidifierLoopService
-from dirt_hwd.services.lights import LightsLoopService
+from dirt_hwd.services.kasa_schedule import ScheduledKasaActuatorService
 from dirt_hwd.services.metric_freshness import (
     MetricFreshnessConfig,
     MetricFreshnessService,
@@ -109,8 +109,8 @@ def _default_background_services(
             clock=core.clock,
             fan_trim_config=settings.fan_trim(),
         ),
-        LightsLoopService(
-            settings.lights(),
+        ScheduledKasaActuatorService(
+            settings.scheduled_kasa(),
             engine=engine,
             clock=core.clock,
         ),

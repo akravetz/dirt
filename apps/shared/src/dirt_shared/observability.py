@@ -74,6 +74,7 @@ _RETENTION: dict[str, int] = {
     # 14d covers tuning workflow without filling disk
     "humidifier_shadow": 14,
     "lights": 30,  # lights plug state transitions — twice-daily
+    "heat_pad": 30,  # heat pad plug state transitions — twice-daily
     "fan_controller": 30,  # fan trim ticks + duty transitions
     "daily_report": 30,  # per-phase markers for the daily report run
     "device_status": 30,  # offline/online transitions from the device watchdog
@@ -113,7 +114,7 @@ def _log_path(stream: str) -> Path:
 # microseconds. High-volume callers (pipecat observer, portaudio callbacks)
 # would otherwise block on file I/O inside the audio loop.
 _QUEUE_MAX = 10_000
-_WriteItem = tuple[str, dict[str, Any]] | None
+_WriteItem = tuple[str, Path, dict[str, Any]] | None
 _write_queue: queue.Queue[_WriteItem] = queue.Queue(maxsize=_QUEUE_MAX)
 _dropped_since_warn = 0
 _writer_started = False
@@ -128,9 +129,8 @@ def _writer_loop() -> None:
         item = _write_queue.get()
         if item is None:
             return  # sentinel, currently unused (daemon dies with process)
-        stream, envelope = item
+        stream, path, envelope = item
         try:
-            path = _log_path(stream)
             # Keying on full path (not just stream:filename) so per-test
             # tmp directories rotate independently and a test changing
             # DIRT_LOGS_DIR mid-process doesn't reuse the prior dir's
@@ -205,7 +205,7 @@ def log_event(
         **fields,
     }
     try:
-        _write_queue.put_nowait((stream, envelope))
+        _write_queue.put_nowait((stream, _log_path(stream), envelope))
     except queue.Full:
         # Queue backlog is a sign the writer is wedged or we're producing
         # events absurdly fast. Drop, count, warn periodically rather than

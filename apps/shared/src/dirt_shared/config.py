@@ -78,16 +78,13 @@ class Settings(BaseSettings):
     voice_harvest_only: bool = Field(
         default=False, validation_alias="DIRT_VOICE_HARVEST_ONLY"
     )
-    # Kasa EP10 plug — now lights-only post-2026-04-27 H7142 cutover. The
-    # humidifier moved off Kasa entirely; see HumidifierConfig below.
+    # Kasa EP10 plugs used by scheduled local actuators such as lights and
+    # heat pads. The humidifier moved off Kasa entirely; see HumidifierConfig.
     kasa_username: str = ""
     kasa_password: str = ""
-    # Legacy single-plug host retained for old env files; current lights
-    # control resolves DB-known Kasa devices by provider_uid/MAC.
-    kasa_lights_host: str = "192.168.1.181"
     # Broadcast target for recovering Kasa devices after DHCP/IP changes.
     kasa_discovery_target: str = "255.255.255.255"
-    lights_poll_interval: int = 30
+    kasa_schedule_poll_interval: int = 30
     # Govee Public API v2 — drives the H7142 humidifier. Cloud-only; see
     # docs/references/govee-api/INDEX.md and wiki/hardware/humidifier-control.md.
     # MAC must be the colon-separated form Govee returns from /user/devices
@@ -256,12 +253,12 @@ class Settings(BaseSettings):
             retention_days=self.archive_retention_days,
         )
 
-    def lights(self) -> LightsConfig:
-        return LightsConfig(
+    def scheduled_kasa(self) -> ScheduledKasaConfig:
+        return ScheduledKasaConfig(
             kasa_username=self.kasa_username,
             kasa_password=self.kasa_password,
             discovery_target=self.kasa_discovery_target,
-            poll_interval=self.lights_poll_interval,
+            poll_interval=self.kasa_schedule_poll_interval,
         )
 
     def humidifier(self) -> HumidifierConfig:
@@ -343,7 +340,7 @@ class ArchiveConfig:
 
 
 @dataclass(frozen=True)
-class LightsConfig:
+class ScheduledKasaConfig:
     kasa_username: str
     kasa_password: str
     discovery_target: str

@@ -4,7 +4,7 @@ type: hardware
 sources: []
 related: [wiki/concepts/vpd.md, wiki/environment/temperature.md, wiki/environment/humidity.md, wiki/hardware/ptz-camera.md, wiki/overview.md]
 created: 2026-05-02
-updated: 2026-05-02
+updated: 2026-05-15
 ---
 
 # Thermal Imaging — PureThermal Mini Pro + FLIR Lepton 3.5
@@ -48,6 +48,29 @@ Relevant specs:
 | Sensor output | User-selectable 14-bit, 8-bit AGC, or 24-bit RGB/false-color |
 | Radiometry | Lepton 3.5 supports per-pixel temperature data |
 
+## Host Architecture
+
+Treat the PureThermal as a USB thermal camera, not as a simple sensor peripheral.
+
+The simplest reliable path is:
+
+```text
+PureThermal board inside tent
+  -> JST-SR USB cable through tent port
+  -> Linux USB host outside tent
+  -> /dev/thermal-camera udev symlink
+  -> thermal capture service
+  -> raw frame + summary metrics + overlay
+```
+
+Preferred host options:
+
+1. **Existing main Linux box** — best if USB reach is practical. It gives the cleanest software path because the PureThermal enumerates as a UVC video device.
+2. **Small Raspberry Pi outside the tent** — best if the main box is too far away. The Pi captures frames and posts summaries/artifacts back to Dirt over LAN/WiFi.
+3. **Inside-tent SBC** — avoid unless necessary. Heat, humidity, mist, cable strain, and nutrient splash make the tent a poor place for a Pi or similar board.
+
+Do **not** plan this around an ESP32-C3 SuperMini. The C3's USB is not a practical UVC camera host. ESP32-S2/S3 USB-host UVC is possible in theory, but it turns this into constrained camera-host firmware instead of a straightforward Linux capture service. Only revisit microcontroller hosting if a later version needs scalar-only thermal summaries and we are willing to write custom firmware.
+
 ## System Role
 
 This is a **fixed canopy sensor**, not a replacement for the OBSBOT PTZ camera.
@@ -58,6 +81,7 @@ Proposed data path:
 
 ```text
 PureThermal + Lepton
+  -> Linux USB host
   -> stable /dev/thermal-camera symlink
   -> thermal capture service
   -> raw radiometric frame (.npy or 16-bit TIFF)
@@ -106,6 +130,26 @@ thermal_debug_color.jpg      # optional raw display-mode capture for bring-up on
 
 Preferred mount: fixed overhead or high front/top angle aimed at the SCROG plane.
 
+Use a **rigid camera clamp plus a short 1/4-20 magic arm**, not a gooseneck. A gooseneck is easy to place but likely to drift, bounce when the tent is touched, and move the A/B/C/D thermal zones. For thermal telemetry, repeatable framing matters more than flexible positioning.
+
+Recommended physical stack:
+
+```text
+tent pole / crossbar
+  -> super clamp
+  -> short 1/4-20 magic arm or ball head
+  -> small vented project box or carrier plate
+  -> PureThermal board mounted on nylon standoffs
+```
+
+Initial position:
+
+- Mount from the front/top tent pole or upper side pole.
+- Aim at the SCROG/canopy center.
+- Start roughly **24-36 inches above the canopy** if the tent geometry allows it.
+- Use a downward angle around **35-45 degrees** from the front/top area.
+- Capture one test frame, adjust once, then lock the mount down so zone comparisons remain stable.
+
 Constraints:
 
 - Keep the thermal sensor off the OBSBOT gimbal.
@@ -113,9 +157,39 @@ Constraints:
 - Avoid reflective or transparent barriers in front of the Lepton lens. LWIR does not behave like visible light through common plastics/acrylic.
 - Keep humidifier mist from condensing on the board or lens.
 - Add physical strain relief for the JST-SR USB cable.
+- Add a drip loop before the cable exits the tent.
+- Keep the Linux host outside the tent when possible; only the PureThermal board should live inside.
 - Expect canopy-height drift; recalibrate zone mapping as the canopy rises through the SCROG.
 
+For the first enclosure, use splash protection and strain relief, not a sealed box. Drill or cut a front opening for the Lepton lens and leave no acrylic/plastic window in front of it. Keep the enclosure vented so it does not trap warm, humid air around the board.
+
 Initial zone mapping can be simple quadrants for Plants A/B/C/D. Refine to polygons if parallax or canopy spread makes quadrants misleading.
+
+## Bill of Materials
+
+| Item | Status | Qty | Notes |
+|---|---:|---:|---|
+| SparkFun PureThermal Mini Pro JST-SR with FLIR Lepton 3.5 | Purchased | 1 | User-confirmed purchased 2026-05-15; fixed canopy thermal camera |
+| JST-SR to USB cable | Needed/verify | 1 | Required; SparkFun notes the product does not include the USB cable |
+| Linux USB host | Needed/verify | 1 | Use existing main Linux box if USB reach works, otherwise a Raspberry Pi outside the tent |
+| Rigid super clamp + short 1/4-20 magic arm | Needed | 1 | Preferred mount; short arm reduces sag and frame drift |
+| Small vented ABS project box with mounting ears | Needed | 1 | Holds board, provides splash shielding and strain relief; no window in front of Lepton lens |
+| M2 or M2.5 nylon standoff kit | Needed | 1 kit | Mount PureThermal board inside box or on carrier plate |
+| 1/4-20 tripod insert / mounting plate | Needed | 1 | Gives the enclosure a standard camera-thread interface for the magic arm |
+| Cable strain relief clips | Needed | Several | Prevent JST-SR cable load from pulling on the board |
+| USB extension or active USB extension | Needed/verify | TBD | Only if main Linux host is too far away; prefer keeping the host outside the tent |
+
+## Amazon Searches
+
+Add exact product links after specific listings are selected.
+
+- Super clamp + magic arm: [Amazon search - SmallRig super clamp magic arm 1/4-20](https://www.amazon.com/s?k=SmallRig+super+clamp+magic+arm+1%2F4-20), [Amazon search - Ulanzi super clamp magic arm 1/4-20](https://www.amazon.com/s?k=Ulanzi+super+clamp+magic+arm+1%2F4-20)
+- ABS project box: [Amazon search - small ABS project box mounting flange](https://www.amazon.com/s?k=small+ABS+project+box+mounting+flange)
+- Nylon standoffs: [Amazon search - M2 nylon standoff kit](https://www.amazon.com/s?k=M2+nylon+standoff+kit), [Amazon search - M2.5 nylon standoff kit](https://www.amazon.com/s?k=M2.5+nylon+standoff+kit)
+- 1/4-20 mounting hardware: [Amazon search - 1/4-20 tripod mount insert plate](https://www.amazon.com/s?k=1%2F4-20+tripod+mount+insert+plate)
+- Cable strain relief: [Amazon search - adhesive cable strain relief clips](https://www.amazon.com/s?k=adhesive+cable+strain+relief+clips)
+- Raspberry Pi fallback host: [Amazon search - Raspberry Pi Zero 2 W kit](https://www.amazon.com/s?k=Raspberry+Pi+Zero+2+W+kit), [Amazon search - Raspberry Pi 4 kit](https://www.amazon.com/s?k=Raspberry+Pi+4+kit)
+- USB extension if needed: [Amazon search - active USB extension cable](https://www.amazon.com/s?k=active+USB+extension+cable)
 
 ## Bring-Up Checklist
 
@@ -126,9 +200,11 @@ Initial zone mapping can be simple quadrants for Plants A/B/C/D. Refine to polyg
 5. Verify raw Y16/GRAY16_LE capture.
 6. Convert raw values to deg F / deg C and validate against a known target.
 7. Create a udev rule for a stable `/dev/thermal-camera` symlink.
-8. Mount in tent and capture first overhead thermal frame.
-9. Define A/B/C/D canopy zones.
-10. Add daily-report integration only after raw radiometry is validated.
+8. Build the vented board enclosure and add cable strain relief.
+9. Clamp the mount to the tent pole/crossbar and route the cable with a drip loop.
+10. Mount in tent and capture first overhead/front-angle thermal frame.
+11. Define A/B/C/D canopy zones.
+12. Add daily-report integration only after raw radiometry is validated.
 
 ## Calibration Notes
 
@@ -178,6 +254,7 @@ Phase 4 — control feedback:
 - Storage format: `.npy` is easiest for agents/Python; 16-bit TIFF is more portable; both may be worth keeping initially.
 - Zone model: quadrants first, then calibrated polygons if RGB/thermal overlay proves stable.
 - Whether to add a fixed RGB companion camera for overlay alignment, or use the OBSBOT overview frame as a loose visual reference.
+- Final host placement: main Linux box via USB extension vs. Raspberry Pi outside the tent.
 
 ## References
 
@@ -185,3 +262,4 @@ Phase 4 — control feedback:
 - GroupGets PureThermal Mini Pro: https://groupgets.com/products/purethermal-mini-pro-jst-sr
 - GroupGets PureThermal UVC capture examples: https://github.com/groupgets/purethermal1-uvc-capture
 - FLIR Lepton 3.5 listing: https://groupgets.com/collections/frontpage/products/flir-lepton-3-5
+- Espressif USB host docs: https://docs.espressif.com/projects/esp-idf/en/stable/esp32s3/api-reference/peripherals/usb_host.html
