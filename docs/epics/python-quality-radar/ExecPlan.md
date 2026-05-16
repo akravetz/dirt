@@ -7,7 +7,7 @@ This plan follows `.agents/PLANS.md`.
 
 ## Purpose / Big Picture
 
-After this work, Dirt maintainers can run a single report-only command that surfaces likely Python quality and architecture debt introduced by high-speed AI-assisted development. The command will not claim that every finding is a bug. It will create a high-recall review queue for likely bloat, duplication, over-complex functions, weak boundary contracts, broad exception handling, dependency drift, and under-tested hot spots.
+After this work, Dirt maintainers can run a single report-only command that surfaces likely Python application-code quality and architecture debt introduced by high-speed AI-assisted development. The command will not claim that every finding is a bug. It will create a high-recall review queue for likely bloat, duplication, over-complex functions, weak boundary contracts, broad exception handling, dependency drift, and under-tested hot spots in production code.
 
 This matters because vibe coding often shifts effort from writing code to verifying code. Sonar's 2026 State of Code report says 96% of developers do not fully trust AI-generated code, yet only 48% always verify AI-assisted code before committing. GitClear's 2025 AI code quality report describes rising copy/paste and falling refactoring in 211 million changed lines. A 2025 arXiv paper, "Is Vibe Coding Safe?", reports that coding agents can produce functionally correct but insecure implementations on real-world vulnerability tasks. Dirt already has unusually strong architectural constraints, but the Python codebase still needs a broad radar that finds suspicious areas before reviewers decide which ones deserve cleanup or new invariants.
 
@@ -17,7 +17,7 @@ The observable result is a generated report in `var/reports/python-quality-radar
 ## Progress
 
 - [x] (2026-05-16T00:00Z) Researched common vibe-coding failure modes and mapped them to existing Dirt Python constraints.
-- [x] (2026-05-16T00:00Z) Ran exploratory local scans for Python file size, function span, Ruff complexity rules, raw payloads, broad exception handling, duplicate AST bodies, weak test-name signals, and dependency hygiene noise.
+- [x] (2026-05-16T00:00Z) Ran exploratory local scans for production Python file size, function span, Ruff complexity rules, raw payloads, broad exception handling, duplicate AST bodies, weak test-name signals, and dependency hygiene noise.
 - [x] (2026-05-16T00:00Z) Created this planning epic and ExecPlan.
 - [ ] Milestone 1: Add a report-only radar script with deterministic JSON and Markdown output.
 - [ ] Milestone 2: Add focused detector tests and baseline the current Python codebase.
@@ -31,8 +31,8 @@ The observable result is a generated report in `var/reports/python-quality-radar
 - Observation: Dirt already has invariant tests for several AI-code failure modes.
   Evidence: `apps/tests/invariants/` includes checks for import boundaries, auth boundaries, raw SQL outside the data layer, direct env reads outside config, module-level singletons, concrete clocks in production, patching production code, and schema ownership.
 
-- Observation: Broad lint selection is too noisy to become a gate directly.
-  Evidence: `uv run ruff check apps --select C901,PLR0912,PLR0915,PLR0913,PLR2004,TRY003,B904,S110,S112,S603,S607,F401,ARG --statistics` produced 541 findings, including 385 magic-value comparisons. That is useful radar input, not a useful CI failure mode.
+- Observation: Broad lint selection across all Python files is misleading because tests intentionally tolerate rougher style.
+  Evidence: The all-`apps` scan produced 541 findings, including 385 magic-value comparisons, but most magic-value findings were in tests. A production-only scan with `uv run ruff check apps/*/src --select C901,PLR0912,PLR0915,PLR0913,PLR2004,TRY003,B904,S110,S112,S603,S607,F401,ARG --statistics` produced 130 findings, including only 28 magic-value comparisons. The radar should therefore score `apps/*/src` findings and treat tests only as coverage/proximity evidence.
 
 - Observation: Complexity signals already point to a small set of review targets.
   Evidence: `uv run ruff check apps --select C901,PLR0912,PLR0915,PLR0913 --output-format=concise` flagged complex functions including `HumidifierLoopService.run`, `decide_fan_trim`, `collect_agent_trace`, `_backlinks_for`, `build_sensor_tools`, and wake-word training helpers.
@@ -45,6 +45,9 @@ The observable result is a generated report in `var/reports/python-quality-radar
 
 - Observation: The current test suite has broad coverage volume.
   Evidence: `uv run pytest --collect-only -q` collected 664 tests.
+
+- Observation: Test-code quality is not the primary target for this epic.
+  Evidence: Dirt already accepts that tests may be more repetitive or literal than production code when that makes behavior clear. The useful test signal for this epic is whether production hot spots have meaningful tests nearby, not whether test files have magic constants or duplicated fixtures.
 
 
 ## Decision Log
@@ -60,6 +63,10 @@ The observable result is a generated report in `var/reports/python-quality-radar
 - Decision: Scope the first implementation to Python production code under `apps/*/src`.
   Rationale: The user asked to focus on Python. Tests, wake-word data-generation scripts, firmware, frontend, and wiki content have different quality signals and would dilute the first report.
   Date/Author: 2026-05-16 / Codex
+
+- Decision: Do not score test-code style as product debt.
+  Rationale: Functional tests are allowed to be more literal, repetitive, and fixture-heavy than app code. The radar may inspect tests to estimate coverage proximity, but findings such as magic comparisons, duplicate setup, long test functions, or rough fixture style should not rank production cleanup work.
+  Date/Author: 2026-05-16 / User + Codex
 
 - Decision: Prefer simple AST and existing-tool collectors over adding a large quality platform.
   Rationale: The repo already uses Ruff, pytest, import-linter, deptry, and custom invariant tests. A small collector that composes those signals is easier to inspect and tune than introducing a heavyweight service.
@@ -87,7 +94,9 @@ The local architecture rules that matter most for this effort are:
 - `docs/rules/boundary-contracts.md`: use Pydantic DTOs for process, network, persistence, outbox, command, and generated-client boundaries; avoid raw `dict[str, Any]` for owned protocols.
 - `docs/commands.md`: use `uv run ...` for Python commands.
 
-The radar is a review tool. A finding means "review this location." It does not mean "refactor this blindly." Some large functions are legitimate control loops; some broad exceptions are appropriate daemon resilience; some duplicate shapes should stay separate because they describe different domain concepts. The report should make that tradeoff explicit.
+The radar is a review tool. A finding means "review this production location." It does not mean "refactor this blindly." Some large functions are legitimate control loops; some broad exceptions are appropriate daemon resilience; some duplicate shapes should stay separate because they describe different domain concepts. The report should make that tradeoff explicit.
+
+Tests are not part of the production smell scan. The radar may read tests only to answer questions such as "does this complex production module have nearby tests?" or "is this boundary contract exercised by any test?" It should not report test-file magic constants, duplicate fixtures, or long test functions as cleanup candidates.
 
 Important terms:
 
@@ -99,7 +108,7 @@ Important terms:
 
 ## Plan of Work
 
-Milestone 1 adds a small report-only command. Create `scripts/python-quality-radar` as the operator entrypoint and `apps/shared/src/dirt_shared/tools/python_quality_radar.py` or `scripts/lib/python_quality_radar.py` as the implementation module. Prefer `scripts/lib/` if the code is purely repository tooling and should not be imported by app services. The command scans `apps/*/src/**/*.py`, excluding generated, reference, validation, data-generation, and docker helper paths that are already excluded or special-cased by Ruff.
+Milestone 1 adds a small report-only command. Create `scripts/python-quality-radar` as the operator entrypoint and `apps/shared/src/dirt_shared/tools/python_quality_radar.py` or `scripts/lib/python_quality_radar.py` as the implementation module. Prefer `scripts/lib/` if the code is purely repository tooling and should not be imported by app services. The command scans production files under `apps/*/src/**/*.py`, excluding generated, reference, validation, data-generation, and docker helper paths that are already excluded or special-cased by Ruff. Test files are read only by the low-severity test-proximity detector.
 
 The first detector set should include:
 
@@ -109,7 +118,7 @@ The first detector set should include:
 - Error handling: broad `except Exception`, bare `except`, `pass` in exception handlers, and `contextlib.suppress`.
 - Suppressions: `# noqa`, `type: ignore`, `pragma: no cover`, and related comments.
 - Dependency/runtime bloat: imports of heavyweight packages at module import time, subprocess/network/filesystem operations, and per-package dependency hygiene where practical.
-- Test proximity: production files with no obvious matching test module or no test text mentioning the module stem; this is weak evidence and should score low unless combined with complexity or boundary findings.
+- Test proximity: production files with no obvious matching test module or no test text mentioning the module stem; this is weak evidence and should score low unless combined with complexity or boundary findings. Do not emit style findings for the test files themselves.
 
 Milestone 2 adds focused tests for the radar itself. Use small fixture files under an agent-owned test directory such as `apps/shared/tests/test_python_quality_radar.py` if the implementation is in `dirt_shared`, or add a pytest file under a new tooling test location if the repository already has a pattern for scripts tests. The tests should prove that each detector emits deterministic findings with stable categories and that the Markdown/JSON output order is stable.
 
@@ -122,7 +131,7 @@ Milestone 5 promotes repeated true positives into guardrails. Candidate guardrai
 - Agent-owned test that all owned boundary DTOs use Pydantic instead of raw dictionaries in gateway/control-plane protocol paths.
 - Agent-owned test that broad exception handlers in production loops either re-raise, return an explicit typed failure, or log structured context with `log_event()`.
 - Report-only or warning test for functions/classes over agreed thresholds, with allowlists requiring rationale.
-- Clone detector threshold for repeated blocks outside tests.
+- Clone detector threshold for repeated production-code blocks.
 - Workspace-aware dependency hygiene check for each package's `pyproject.toml`.
 
 
@@ -169,7 +178,7 @@ The implementation is accepted when these conditions are true:
 
 - `scripts/python-quality-radar --format markdown --output var/reports/python-quality-radar/latest.md` exits 0 and writes a readable report.
 - `scripts/python-quality-radar --format json --output var/reports/python-quality-radar/latest.json` exits 0 and writes deterministic JSON with file, line, category, severity, detector, and explanation fields.
-- The report includes at least these categories: `complexity`, `duplication`, `boundary`, `error-handling`, `suppression`, `dependency`, and `test-proximity`.
+- The report includes at least these production-code categories: `complexity`, `duplication`, `boundary`, `error-handling`, `suppression`, and `dependency`, plus the supporting `test-proximity` category.
 - Focused tests cover detector behavior and output ordering.
 - The first baseline review document identifies top review packets and separates true-positive cleanup candidates from noisy detector classes.
 - Existing human-owned invariants still pass.
@@ -199,7 +208,11 @@ This found 9 complexity findings, including complex functions in hwd control ser
 
     uv run ruff check apps --select C901,PLR0912,PLR0915,PLR0913,PLR2004,TRY003,B904,S110,S112,S603,S607,F401,ARG --statistics
 
-This found 541 issues. The largest bucket was 385 `PLR2004` magic-value comparisons, which confirms that broad lint expansion should feed a report rather than become a direct gate.
+This all-files scan found 541 issues. The largest bucket was 385 `PLR2004` magic-value comparisons, but manual review showed most of that bucket came from tests, where literal expected values are acceptable.
+
+    uv run ruff check apps/*/src --select C901,PLR0912,PLR0915,PLR0913,PLR2004,TRY003,B904,S110,S112,S603,S607,F401,ARG --statistics
+
+This production-only scan found 130 issues: 77 `TRY003`, 28 `PLR2004`, 13 `ARG001`, 6 `C901`, 4 `ARG002`, and 2 `PLR0912`. This is a better baseline for app-code debt radar work.
 
     uv run pytest --collect-only -q
 
@@ -234,3 +247,4 @@ The implementation may use the Python standard library AST support, Ruff via sub
 ## Revision Notes
 
 - 2026-05-16: Initial ExecPlan created from the Python vibe-coding quality audit discussion and exploratory local scans.
+- 2026-05-16: Revised scope to make production app code the scored surface and tests supporting coverage evidence only.
