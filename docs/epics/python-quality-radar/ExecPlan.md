@@ -96,8 +96,12 @@ The observable result is a generated report in `var/reports/python-quality-radar
   Rationale: `TRY300` is a lightweight pointer to try-block structure. Custom try-block AST analysis is unnecessary for the first report.
   Date/Author: 2026-05-16 / User + Codex
 
-- Decision: Prefer simple AST and existing-tool collectors over adding a large quality platform.
-  Rationale: The repo already uses Ruff, pytest, import-linter, deptry, and custom invariant tests. A small collector that composes those signals is easier to inspect and tune than introducing a heavyweight service.
+- Decision: Use Semgrep for repo-specific AST-like pattern detectors.
+  Rationale: Route-edge leakage, boundary raw payloads, service infrastructure imports, and simple thin-wrapper shapes are pattern-matching problems. Semgrep already provides Python-aware structural matching and JSON output, so the radar should use Semgrep rules instead of reinventing an AST parser for those detectors. Keep custom Python code for aggregation, scoring, DTO field-set comparison, and test proximity.
+  Date/Author: 2026-05-16 / User + Codex
+
+- Decision: Prefer existing analyzers and a thin Dirt-specific orchestrator over adding a quality platform to this epic.
+  Rationale: The repo already uses Ruff, pytest, import-linter, deptry, and custom invariant tests; this plan adds `jscpd` and Semgrep rather than building a general static-analysis engine. A small collector that composes tool outputs is easier to inspect and tune than introducing a heavyweight service. SonarQube is a separate future project, not part of this ExecPlan.
   Date/Author: 2026-05-16 / Codex
 
 - Decision: Treat boundary-contract drift as a first-class signal, not just a type-style concern.
@@ -142,11 +146,11 @@ The first detector set should include:
 
 - Size and complexity: non-comment LOC per file, function span, class span, argument count, and Ruff `C901`, `PLR0912`, `PLR0915`, `PLR0913` output.
 - Duplication: run `jscpd` against production Python files under `apps/*/src/**/*.py`, with tests and generated/reference helper paths excluded. Parse the `jscpd` JSON output into ranked review packets. Do not implement custom clone detection in v1.
-- Route edge logic: scan FastAPI route handlers with decorators such as `@router.get`, `@router.post`, `@router.put`, and `@router.delete`. Report route function span, branch count, direct DB/model imports, direct infrastructure calls, and obvious service-layer bypasses. Mark this detector as tricky and heuristic.
-- Service infrastructure imports: report service modules that import infrastructure-heavy packages or process-boundary tools such as `subprocess`, direct env access, cloud SDKs, `httpx`, hardware/client libraries, or framework modules. Score as a review signal, not an automatic smell.
-- Boundary payload risk: `dict[str, Any]`, bare `Any`, `json.loads`, `json.dumps`, `model_dump`, `model_validate`, FastAPI route return annotations, command payload/result fields, and outbox/cloud/gateway modules. Findings in gateway/control-plane/outbox/command files should score higher.
+- Route edge logic: use Semgrep rules to scan FastAPI route handlers with decorators such as `@router.get`, `@router.post`, `@router.put`, and `@router.delete`. Report direct DB/model imports or calls, direct infrastructure calls, raw response dictionaries, and obvious service-layer bypasses. Keep route span and branch count in the Python collector because those are metrics, not Semgrep patterns. Mark this detector as tricky and heuristic.
+- Service infrastructure imports: use Semgrep rules to report service modules that import infrastructure-heavy packages or process-boundary tools such as `subprocess`, direct env access, cloud SDKs, `httpx`, hardware/client libraries, or framework modules. Score as a review signal, not an automatic smell.
+- Boundary payload risk: use Semgrep rules for raw `dict[str, Any]` payloads, bare `Any` boundary parameters, `json.loads`, `json.dumps`, `model_dump`, `model_validate`, FastAPI route return annotations, command payload/result fields, and outbox/cloud/gateway modules. Findings in gateway/control-plane/outbox/command files should score higher.
 - Duplicate DTO / boundary model drift: compare Pydantic `BaseModel` classes ending in names like `Request`, `Response`, `Payload`, `Command`, or `Event` by field-name and type sets, especially across `dirt_shared`, `dirt_gateway`, `dirt_control`, and `dirt_web`.
-- Thin wrappers and stale forwarding: report functions or classes that primarily forward to another function/object, especially when names or comments contain `legacy`, `compat`, `adapter`, `alias`, `deprecated`, `temporary`, or `TODO remove`. Keep this contextual because real adapters and protocols can be valid.
+- Thin wrappers and stale forwarding: use Semgrep rules for simple forwarding shapes such as `return other(...)`, `return await other(...)`, and `return self._client.method(...)`, plus lexical markers such as `legacy`, `compat`, `adapter`, `alias`, `deprecated`, `temporary`, or `TODO remove`. Keep this contextual because real adapters and protocols can be valid.
 - Error handling: broad `except Exception`, bare `except`, `pass` in exception handlers, `contextlib.suppress`, and low-priority Ruff `TRY300` findings. Do not collect `TRY003` or implement custom try-block AST analysis.
 - Security: consume Ruff `S` findings only. Do not add custom security regexes in v1.
 - Async blocking risk: consume Ruff `ASYNC` findings only. Do not add custom async AST scanning in v1.
@@ -184,6 +188,10 @@ Create the tooling entrypoint and implementation:
 Run the duplication detector directly while developing the radar:
 
     pnpm dlx jscpd "apps/*/src/**/*.py" --reporters json,markdown --output var/reports/python-quality-radar/jscpd --ignore "**/tests/**" --ignore "**/reference/**" --ignore "**/data-gen/**" --ignore "**/validation/**" --ignore "**/docker/**"
+
+Run the Semgrep pattern suite directly while developing the radar:
+
+    uvx semgrep --config scripts/python-quality-radar-semgrep.yml --json apps/*/src
 
 Expected behavior after Milestone 1:
 
@@ -273,15 +281,14 @@ The final implementation should provide:
 - JSON report schema with fields for `path`, `line`, `category`, `detector`, `severity`, `message`, and optional `evidence`.
 - Markdown report grouped by ranked review packet.
 - `jscpd` integration for primary duplication detection, invoked through `pnpm dlx jscpd` unless the implementation later adds a pinned repo-local dev dependency.
-- Simple FastAPI route-handler scanner, marked heuristic in the report output.
-- Service infrastructure-import scanner.
+- Semgrep rule file such as `scripts/python-quality-radar-semgrep.yml` for route-edge leakage, boundary raw payloads, service infrastructure imports, and thin-wrapper candidates.
+- Simple route span and branch-count metrics in the Python collector, marked heuristic in the report output.
 - Pydantic DTO field-set similarity scanner.
-- Thin-wrapper and stale-forwarding scanner.
 - Ruff integration for `S`, `ASYNC`, and `TRY300` signals, with `TRY003` excluded.
 - Focused pytest coverage for detector behavior and deterministic output.
 - A baseline review document under `docs/epics/python-quality-radar/` or `docs/progress/`.
 
-The implementation may use the Python standard library AST support, Ruff via subprocess, and existing dev dependencies already available through `uv run`. Avoid adding new dependencies until the standard-library/existing-tool approach proves insufficient.
+The implementation should prefer existing analyzers over custom parsing: Ruff for lint/security/async/try signals, `jscpd` for duplication, Semgrep for repo-specific structural patterns, and custom Python only for aggregation, scoring, DTO field-set comparison, route metrics, and test proximity. Do not include SonarQube in this ExecPlan; evaluate it separately if a dashboard/platform project is desired later.
 
 
 ## Revision Notes
@@ -291,3 +298,4 @@ The implementation may use the Python standard library AST support, Ruff via sub
 - 2026-05-16: Removed `TRY003` from scope after review showed it only flagged long exception messages, which are not useful product-debt signals here.
 - 2026-05-16: Revised duplication detection to prefer `jscpd` over a custom clone detector.
 - 2026-05-16: Revised detector set after review: keep simple route scanning, service infrastructure imports, duplicate DTO detection, thin wrappers, Ruff `S`, Ruff `ASYNC`, and Ruff `TRY300`; skip lexical shared-module vocabulary scanning and custom security/async/try AST detectors.
+- 2026-05-16: Revised AST-like repo-specific detectors to use Semgrep rules instead of custom AST parsing, and left SonarQube for a separate future project.
