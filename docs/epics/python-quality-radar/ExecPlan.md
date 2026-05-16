@@ -31,8 +31,8 @@ The observable result is a generated report in `var/reports/python-quality-radar
 - Observation: Dirt already has invariant tests for several AI-code failure modes.
   Evidence: `apps/tests/invariants/` includes checks for import boundaries, auth boundaries, raw SQL outside the data layer, direct env reads outside config, module-level singletons, concrete clocks in production, patching production code, and schema ownership.
 
-- Observation: Broad lint selection across all Python files is misleading because tests intentionally tolerate rougher style.
-  Evidence: The all-`apps` scan produced 541 findings, including 385 magic-value comparisons, but most magic-value findings were in tests. A production-only scan with `uv run ruff check apps/*/src --select C901,PLR0912,PLR0915,PLR0913,PLR2004,TRY003,B904,S110,S112,S603,S607,F401,ARG --statistics` produced 130 findings, including only 28 magic-value comparisons. The radar should therefore score `apps/*/src` findings and treat tests only as coverage/proximity evidence.
+- Observation: Broad lint selection across all Python files is misleading because tests intentionally tolerate rougher style, and `TRY003` is not a useful signal for this audit.
+  Evidence: The all-`apps` scan produced 541 findings, including 385 magic-value comparisons, but most magic-value findings were in tests. The original production-only scan also included 77 `TRY003` long-exception-message findings, which are style noise for Dirt. A corrected production-only scan with `uv run ruff check apps/*/src --select C901,PLR0912,PLR0915,PLR0913,PLR2004,TRY300,B904,S110,S112,S603,S607,F401,ARG --statistics` produced 56 findings. The radar should score `apps/*/src` findings, exclude `TRY003`, and treat tests only as coverage/proximity evidence.
 
 - Observation: Complexity signals already point to a small set of review targets.
   Evidence: `uv run ruff check apps --select C901,PLR0912,PLR0915,PLR0913 --output-format=concise` flagged complex functions including `HumidifierLoopService.run`, `decide_fan_trim`, `collect_agent_trace`, `_backlinks_for`, `build_sensor_tools`, and wake-word training helpers.
@@ -66,6 +66,14 @@ The observable result is a generated report in `var/reports/python-quality-radar
 
 - Decision: Do not score test-code style as product debt.
   Rationale: Functional tests are allowed to be more literal, repetitive, and fixture-heavy than app code. The radar may inspect tests to estimate coverage proximity, but findings such as magic comparisons, duplicate setup, long test functions, or rough fixture style should not rank production cleanup work.
+  Date/Author: 2026-05-16 / User + Codex
+
+- Decision: Exclude Ruff `TRY003` from the radar.
+  Rationale: `TRY003` flags long exception messages outside exception classes. In this repo that is not a meaningful proxy for vibe-coded bloat, poor architecture, duplication, or correctness risk. The exception-handling signals worth reviewing are broad catches, swallowed failures, missing structured context, and overly wide `try` blocks around boundary or hardware operations.
+  Date/Author: 2026-05-16 / User + Codex
+
+- Decision: Use `jscpd` for duplication detection.
+  Rationale: Clone detection is a solved tool problem. `jscpd` gives configurable token/block thresholds and machine-readable reports across Python files, which is better than maintaining a bespoke line-window or AST-body clone detector. A small AST scan may still be useful as supplemental evidence for repeated helper shapes, but `jscpd` should be the primary duplication source.
   Date/Author: 2026-05-16 / User + Codex
 
 - Decision: Prefer simple AST and existing-tool collectors over adding a large quality platform.
@@ -113,9 +121,9 @@ Milestone 1 adds a small report-only command. Create `scripts/python-quality-rad
 The first detector set should include:
 
 - Size and complexity: non-comment LOC per file, function span, class span, argument count, and Ruff `C901`, `PLR0912`, `PLR0915`, `PLR0913` output.
-- Duplication: exact AST-body duplicate detection for functions over a small span threshold, plus line-window duplicate detection for repeated blocks of five or more meaningful lines.
+- Duplication: run `jscpd` against production Python files under `apps/*/src/**/*.py`, with tests and generated/reference helper paths excluded. Parse the `jscpd` JSON output into ranked review packets. Optional AST-body hashing may remain as supplemental evidence for repeated helper shapes, but it is not the primary detector.
 - Boundary payload risk: `dict[str, Any]`, bare `Any`, `json.loads`, `json.dumps`, `model_dump`, `model_validate`, FastAPI route return annotations, command payload/result fields, and outbox/cloud/gateway modules. Findings in gateway/control-plane/outbox/command files should score higher.
-- Error handling: broad `except Exception`, bare `except`, `pass` in exception handlers, and `contextlib.suppress`.
+- Error handling: broad `except Exception`, bare `except`, `pass` in exception handlers, `contextlib.suppress`, and low-priority `TRY300` wide-try/success-path signals around boundary or hardware operations. Do not collect `TRY003`.
 - Suppressions: `# noqa`, `type: ignore`, `pragma: no cover`, and related comments.
 - Dependency/runtime bloat: imports of heavyweight packages at module import time, subprocess/network/filesystem operations, and per-package dependency hygiene where practical.
 - Test proximity: production files with no obvious matching test module or no test text mentioning the module stem; this is weak evidence and should score low unless combined with complexity or boundary findings. Do not emit style findings for the test files themselves.
@@ -131,7 +139,7 @@ Milestone 5 promotes repeated true positives into guardrails. Candidate guardrai
 - Agent-owned test that all owned boundary DTOs use Pydantic instead of raw dictionaries in gateway/control-plane protocol paths.
 - Agent-owned test that broad exception handlers in production loops either re-raise, return an explicit typed failure, or log structured context with `log_event()`.
 - Report-only or warning test for functions/classes over agreed thresholds, with allowlists requiring rationale.
-- Clone detector threshold for repeated production-code blocks.
+- `jscpd` threshold for repeated production-code blocks, with an explicit ignore list for generated or vendored/reference files.
 - Workspace-aware dependency hygiene check for each package's `pyproject.toml`.
 
 
@@ -146,6 +154,10 @@ Create the tooling entrypoint and implementation:
     scripts/python-quality-radar --help
     scripts/python-quality-radar --format markdown --output var/reports/python-quality-radar/latest.md
     scripts/python-quality-radar --format json --output var/reports/python-quality-radar/latest.json
+
+Run the duplication detector directly while developing the radar:
+
+    pnpm dlx jscpd "apps/*/src/**/*.py" --reporters json,markdown --output var/reports/python-quality-radar/jscpd --ignore "**/tests/**" --ignore "**/reference/**" --ignore "**/data-gen/**" --ignore "**/validation/**" --ignore "**/docker/**"
 
 Expected behavior after Milestone 1:
 
@@ -206,13 +218,9 @@ Exploratory commands already run during planning:
 
 This found 9 complexity findings, including complex functions in hwd control services, shared agent tracing/wiki helpers, voice tool construction, and wake-word training code.
 
-    uv run ruff check apps --select C901,PLR0912,PLR0915,PLR0913,PLR2004,TRY003,B904,S110,S112,S603,S607,F401,ARG --statistics
+    uv run ruff check apps/*/src --select C901,PLR0912,PLR0915,PLR0913,PLR2004,TRY300,B904,S110,S112,S603,S607,F401,ARG --statistics
 
-This all-files scan found 541 issues. The largest bucket was 385 `PLR2004` magic-value comparisons, but manual review showed most of that bucket came from tests, where literal expected values are acceptable.
-
-    uv run ruff check apps/*/src --select C901,PLR0912,PLR0915,PLR0913,PLR2004,TRY003,B904,S110,S112,S603,S607,F401,ARG --statistics
-
-This production-only scan found 130 issues: 77 `TRY003`, 28 `PLR2004`, 13 `ARG001`, 6 `C901`, 4 `ARG002`, and 2 `PLR0912`. This is a better baseline for app-code debt radar work.
+This corrected production-only scan found 56 issues: 28 `PLR2004`, 13 `ARG001`, 6 `C901`, 4 `ARG002`, 3 `TRY300`, and 2 `PLR0912`. This is a better baseline for app-code debt radar work.
 
     uv run pytest --collect-only -q
 
@@ -238,6 +246,7 @@ The final implementation should provide:
 - A Python implementation module, preferably under `scripts/lib/` unless there is a concrete reason for app services to import it.
 - JSON report schema with fields for `path`, `line`, `category`, `detector`, `severity`, `message`, and optional `evidence`.
 - Markdown report grouped by ranked review packet.
+- `jscpd` integration for primary duplication detection, invoked through `pnpm dlx jscpd` unless the implementation later adds a pinned repo-local dev dependency.
 - Focused pytest coverage for detector behavior and deterministic output.
 - A baseline review document under `docs/epics/python-quality-radar/` or `docs/progress/`.
 
@@ -248,3 +257,5 @@ The implementation may use the Python standard library AST support, Ruff via sub
 
 - 2026-05-16: Initial ExecPlan created from the Python vibe-coding quality audit discussion and exploratory local scans.
 - 2026-05-16: Revised scope to make production app code the scored surface and tests supporting coverage evidence only.
+- 2026-05-16: Removed `TRY003` from scope after review showed it only flagged long exception messages, which are not useful product-debt signals here.
+- 2026-05-16: Revised duplication detection to prefer `jscpd` over a custom clone detector.
