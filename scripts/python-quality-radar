@@ -1,0 +1,19 @@
+#!/usr/bin/env -S uv run python
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+SCRIPTS_DIR = Path(__file__).resolve().parent
+
+
+def _main() -> int:
+    sys.dont_write_bytecode = True
+    sys.path.insert(0, str(SCRIPTS_DIR / "lib"))
+    from python_quality_radar import main
+
+    return main()
+
+
+if __name__ == "__main__":
+    raise SystemExit(_main())
