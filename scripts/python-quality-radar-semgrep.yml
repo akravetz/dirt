@@ -1,0 +1,212 @@
+rules:
+  - id: dirt.route-edge.raw-dict-return
+    languages: [python]
+    severity: INFO
+    message: FastAPI route returns a raw dict; review edge logic and response DTO use.
+    metadata:
+      category: route-edge
+      detector: semgrep-route-raw-dict
+      severity_score: 5
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              @$ROUTER.$METHOD(...)
+              def $FUNC(...):
+                  ...
+          - pattern-inside: |
+              @$ROUTER.$METHOD(...)
+              async def $FUNC(...):
+                  ...
+      - metavariable-regex:
+          metavariable: $METHOD
+          regex: "^(get|post|put|patch|delete)$"
+      - pattern-either:
+          - pattern: return {...}
+          - pattern: return dict(...)
+
+  - id: dirt.route-edge.direct-db-call
+    languages: [python]
+    severity: INFO
+    message: FastAPI route directly performs database query/commit work; review service-layer split.
+    metadata:
+      category: route-edge
+      detector: semgrep-route-direct-db-call
+      severity_score: 6
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              @$ROUTER.$METHOD(...)
+              def $FUNC(...):
+                  ...
+          - pattern-inside: |
+              @$ROUTER.$METHOD(...)
+              async def $FUNC(...):
+                  ...
+      - metavariable-regex:
+          metavariable: $METHOD
+          regex: "^(get|post|put|patch|delete)$"
+      - pattern-either:
+          - pattern: $SESSION.exec(...)
+          - pattern: $SESSION.execute(...)
+          - pattern: $SESSION.commit()
+          - pattern: select(...)
+
+  - id: dirt.service-infrastructure.import
+    languages: [python]
+    severity: INFO
+    message: Service module imports infrastructure-heavy or boundary tooling; review ownership and dependency direction.
+    metadata:
+      category: service-infrastructure
+      detector: semgrep-service-infrastructure-import
+      severity_score: 4
+    paths:
+      include:
+        - apps/*/src/**/services/**/*.py
+        - apps/*/src/**/*service*.py
+    pattern-either:
+      - pattern: import subprocess
+      - pattern: from subprocess import $X
+      - pattern: import httpx
+      - pattern: from httpx import $X
+      - pattern: import boto3
+      - pattern: from boto3 import $X
+      - pattern: import fastapi
+      - pattern: from fastapi import $X
+      - pattern: import kasa
+      - pattern: from kasa import $X
+      - pattern: os.environ[...]
+      - pattern: os.getenv(...)
+
+  - id: dirt.boundary.raw-dict-any
+    languages: [python]
+    severity: INFO
+    message: Raw dict[str, Any] appears near owned boundary code; review whether a Pydantic DTO should own this shape.
+    metadata:
+      category: boundary
+      detector: semgrep-boundary-raw-dict-any
+      severity_score: 6
+    paths:
+      include:
+        - apps/*/src/**/*api*.py
+        - apps/*/src/**/*browser*.py
+        - apps/*/src/**/*cloud*.py
+        - apps/*/src/**/*command*.py
+        - apps/*/src/**/*contract*.py
+        - apps/*/src/**/*gateway*.py
+        - apps/*/src/**/*outbox*.py
+        - apps/*/src/**/*protocol*.py
+        - apps/*/src/**/*sync*.py
+    pattern-either:
+      - pattern: dict[str, Any]
+      - pattern: dict[str, typing.Any]
+      - pattern: Dict[str, Any]
+      - pattern: Dict[str, typing.Any]
+
+  - id: dirt.boundary.json-or-model-conversion
+    languages: [python]
+    severity: INFO
+    message: Boundary serialization or validation call; review placement and typed contract ownership.
+    metadata:
+      category: boundary
+      detector: semgrep-boundary-json-model-conversion
+      severity_score: 3
+    paths:
+      include:
+        - apps/*/src/**/*api*.py
+        - apps/*/src/**/*browser*.py
+        - apps/*/src/**/*cloud*.py
+        - apps/*/src/**/*command*.py
+        - apps/*/src/**/*contract*.py
+        - apps/*/src/**/*gateway*.py
+        - apps/*/src/**/*outbox*.py
+        - apps/*/src/**/*protocol*.py
+        - apps/*/src/**/*sync*.py
+    pattern-either:
+      - pattern: json.loads(...)
+      - pattern: json.dumps(...)
+      - pattern: $MODEL.model_dump(...)
+      - pattern: $MODEL.model_validate(...)
+      - pattern: $MODEL.model_validate_json(...)
+
+  - id: dirt.thin-wrapper.forwarding-function
+    languages: [python]
+    severity: INFO
+    message: Simple forwarding function; review whether this wrapper is still carrying real responsibility.
+    metadata:
+      category: thin-wrapper
+      detector: semgrep-thin-wrapper-forwarding
+      severity_score: 3
+    pattern-either:
+      - pattern: |
+          def $F(...):
+              return $G(...)
+      - pattern: |
+          async def $F(...):
+              return await $G(...)
+      - pattern: |
+          def $F(...):
+              return self.$CLIENT.$METHOD(...)
+      - pattern: |
+          async def $F(...):
+              return await self.$CLIENT.$METHOD(...)
+
+  - id: dirt.thin-wrapper.stale-marker
+    languages: [python]
+    severity: INFO
+    message: Stale compatibility marker; review whether the legacy path can be removed.
+    metadata:
+      category: thin-wrapper
+      detector: semgrep-stale-marker
+      severity_score: 3
+    pattern-regex: "(?i)(\\b(legacy|compat|adapter|alias|deprecated|temporary)\\b|TODO\\s+remove)"
+
+  - id: dirt.error-handling.broad-exception
+    languages: [python]
+    severity: INFO
+    message: Broad exception handling; review whether the failure path is typed, logged, or intentionally resilient.
+    metadata:
+      category: error-handling
+      detector: semgrep-broad-exception
+      severity_score: 4
+    pattern-either:
+      - pattern: |
+          try:
+              ...
+          except Exception:
+              ...
+      - pattern: |
+          try:
+              ...
+          except:
+              ...
+      - pattern: contextlib.suppress(...)
+
+  - id: dirt.error-handling.pass-in-except
+    languages: [python]
+    severity: INFO
+    message: Exception handler suppresses with pass; review whether structured context is missing.
+    metadata:
+      category: error-handling
+      detector: semgrep-pass-in-except
+      severity_score: 5
+    pattern-either:
+      - pattern: |
+          try:
+              ...
+          except $EXC:
+              pass
+      - pattern: |
+          try:
+              ...
+          except:
+              pass
+
+  - id: dirt.suppression.comment
+    languages: [python]
+    severity: INFO
+    message: Suppression comment needs periodic review.
+    metadata:
+      category: suppression
+      detector: semgrep-suppression-comment
+      severity_score: 2
+    pattern-regex: "#\\s*(noqa\\b|type:\\s*ignore|pragma:\\s*no cover)"

@@ -19,9 +19,9 @@ The observable result is a generated report in `var/reports/python-quality-radar
 - [x] (2026-05-16T00:00Z) Researched common vibe-coding failure modes and mapped them to existing Dirt Python constraints.
 - [x] (2026-05-16T00:00Z) Ran exploratory local scans for production Python file size, function span, Ruff complexity rules, raw payloads, broad exception handling, duplication probes, weak test-name signals, and dependency hygiene noise.
 - [x] (2026-05-16T00:00Z) Created this planning epic and ExecPlan.
-- [ ] Milestone 1: Add a report-only radar script with deterministic JSON and Markdown output.
-- [ ] Milestone 2: Add focused detector tests and baseline the current Python codebase.
-- [ ] Milestone 3: Review the first report and create a prioritized cleanup backlog.
+- [x] (2026-05-16T13:51:24-06:00) Milestone 1: Add a report-only radar script with deterministic JSON and Markdown output.
+- [x] (2026-05-16T13:56:52-06:00) Milestone 2: Add focused detector tests and baseline the current Python codebase.
+- [x] (2026-05-16T14:00:50-06:00) Milestone 3: Review the first report and create a prioritized cleanup backlog.
 - [ ] Milestone 4: Run targeted cleanup passes over the highest-value findings.
 - [ ] Milestone 5: Promote repeated true-positive detector classes into guardrails.
 
@@ -48,6 +48,12 @@ The observable result is a generated report in `var/reports/python-quality-radar
 
 - Observation: Test-code quality is not the primary target for this epic.
   Evidence: Dirt already accepts that tests may be more repetitive or literal than production code when that makes behavior clear. The useful test signal for this epic is whether production hot spots have meaningful tests nearby, not whether test files have magic constants or duplicated fixtures.
+
+- Observation: The first report-only run produced no current findings for duplication, DTO drift, Ruff security, or Ruff async categories at the configured thresholds, but those categories are still present in the JSON schema and Markdown category counts.
+  Evidence: `scripts/python-quality-radar --format json --output var/reports/python-quality-radar/latest.json` reported `duplication: 0`, `dto-drift: 0`, `security: 0`, and `async: 0` with no tool-error findings.
+
+- Observation: Rendered JSON is deterministic through `sort_keys=True`, while Markdown category counts intentionally follow the canonical radar category order.
+  Evidence: `apps/shared/tests/test_python_quality_radar.py` now asserts canonical in-memory category ordering, alphabetized rendered JSON object keys, ranked finding order, and Markdown category ordering.
 
 
 ## Decision Log
@@ -111,7 +117,35 @@ The observable result is a generated report in `var/reports/python-quality-radar
 
 ## Outcomes & Retrospective
 
-No implementation has started. This plan creates the path for a report-first quality audit and later guardrails.
+Milestone 1 is implemented as a report-only operator command. The command writes only the requested output path, keeps `jscpd` intermediate files in a temporary directory, and emits deterministic JSON plus a Markdown review queue for production Python files under `apps/*/src/**/*.py`.
+
+Validation completed on 2026-05-16:
+
+    scripts/python-quality-radar --format markdown --output var/reports/python-quality-radar/latest.md
+    scripts/python-quality-radar --format json --output var/reports/python-quality-radar/latest.json
+    uvx semgrep --validate --config scripts/python-quality-radar-semgrep.yml
+    uv run ruff check scripts/lib/python_quality_radar.py scripts/python-quality-radar
+
+All commands exited 0. The generated reports remain under ignored `var/reports/python-quality-radar/` and should not be committed.
+
+Milestone 2 added focused unit tests for local detector behavior and deterministic report ordering without invoking real Ruff, jscpd, or Semgrep execution. The tests use small `tmp_path` fixture apps and monkeypatch external collector boundaries for report-level ordering coverage.
+
+Validation completed on 2026-05-16:
+
+    uv run pytest apps/shared/tests/test_python_quality_radar.py -q
+    uv run ruff check apps/shared/tests/test_python_quality_radar.py
+
+Both commands exited 0. The requested simplify pass was completed over the test diff using the sequential fallback because no subagent spawning tool is available in this runtime.
+
+Milestone 3 reviewed the first baseline report and captured the human-readable backlog in `docs/epics/python-quality-radar/baseline-review.md`. The validated baseline scanned 140 production files, used 82 test files for proximity evidence, produced 457 findings, and grouped them into 97 review packets. The review identified the highest-priority cleanup packets as control-plane gateway/browser route modules, gateway command/sync/cloud boundary code, the hwd humidifier loop, and the shared readings service. It also separated likely true-positive classes from noisy detector classes and listed candidate guardrails for Milestone 5.
+
+Validation completed on 2026-05-16:
+
+    scripts/python-quality-radar --format markdown --output var/reports/python-quality-radar/latest.md
+    scripts/python-quality-radar --format json --output var/reports/python-quality-radar/latest.json
+    sed -n '1,240p' docs/epics/python-quality-radar/baseline-review.md
+
+All commands exited 0. The manual simplify pass over the new baseline review adjusted the validated test-file count and tightened the true-positive cleanup section. Generated reports remain under ignored `var/reports/python-quality-radar/` and should not be committed.
 
 
 ## Context and Orientation
