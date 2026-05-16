@@ -17,7 +17,7 @@ The observable result is a generated report in `var/reports/python-quality-radar
 ## Progress
 
 - [x] (2026-05-16T00:00Z) Researched common vibe-coding failure modes and mapped them to existing Dirt Python constraints.
-- [x] (2026-05-16T00:00Z) Ran exploratory local scans for production Python file size, function span, Ruff complexity rules, raw payloads, broad exception handling, duplicate AST bodies, weak test-name signals, and dependency hygiene noise.
+- [x] (2026-05-16T00:00Z) Ran exploratory local scans for production Python file size, function span, Ruff complexity rules, raw payloads, broad exception handling, duplication probes, weak test-name signals, and dependency hygiene noise.
 - [x] (2026-05-16T00:00Z) Created this planning epic and ExecPlan.
 - [ ] Milestone 1: Add a report-only radar script with deterministic JSON and Markdown output.
 - [ ] Milestone 2: Add focused detector tests and baseline the current Python codebase.
@@ -32,13 +32,13 @@ The observable result is a generated report in `var/reports/python-quality-radar
   Evidence: `apps/tests/invariants/` includes checks for import boundaries, auth boundaries, raw SQL outside the data layer, direct env reads outside config, module-level singletons, concrete clocks in production, patching production code, and schema ownership.
 
 - Observation: Broad lint selection across all Python files is misleading because tests intentionally tolerate rougher style, and `TRY003` is not a useful signal for this audit.
-  Evidence: The all-`apps` scan produced 541 findings, including 385 magic-value comparisons, but most magic-value findings were in tests. The original production-only scan also included 77 `TRY003` long-exception-message findings, which are style noise for Dirt. A corrected production-only scan with `uv run ruff check apps/*/src --select C901,PLR0912,PLR0915,PLR0913,PLR2004,TRY300,B904,S110,S112,S603,S607,F401,ARG --statistics` produced 56 findings. The radar should score `apps/*/src` findings, exclude `TRY003`, and treat tests only as coverage/proximity evidence.
+  Evidence: The all-`apps` scan produced 541 findings, including 385 magic-value comparisons, but most magic-value findings were in tests. The original production-only scan also included 77 `TRY003` long-exception-message findings, which are style noise for Dirt. A corrected production-only scan with `uv run ruff check apps/*/src --select C901,PLR0912,PLR0915,PLR0913,PLR2004,TRY300,B904,S,ASYNC,F401,ARG --statistics` produced 56 findings. The radar should score `apps/*/src` findings, exclude `TRY003`, and treat tests only as coverage/proximity evidence.
 
 - Observation: Complexity signals already point to a small set of review targets.
   Evidence: `uv run ruff check apps --select C901,PLR0912,PLR0915,PLR0913 --output-format=concise` flagged complex functions including `HumidifierLoopService.run`, `decide_fan_trim`, `collect_agent_trace`, `_backlinks_for`, `build_sensor_tools`, and wake-word training helpers.
 
-- Observation: Exact AST-body duplication is low, but the quick scan still found concrete candidates.
-  Evidence: Duplicate-ish bodies included `open_capture_policy` in `apps/shared/src/dirt_shared/services/camera_publisher.py` and `_open_capture_policy` in `apps/control-plane/src/dirt_control/api/gateway.py`, plus repeated `_load_state` helpers in hwd watchdog/freshness services.
+- Observation: A hand-rolled AST clone prototype found a few candidates, but it should not become the implementation path.
+  Evidence: Duplicate-ish bodies included `open_capture_policy` in `apps/shared/src/dirt_shared/services/camera_publisher.py` and `_open_capture_policy` in `apps/control-plane/src/dirt_control/api/gateway.py`, plus repeated `_load_state` helpers in hwd watchdog/freshness services. The final duplication detector should use `jscpd` instead of maintaining custom clone logic.
 
 - Observation: Root-level dependency hygiene is too noisy in this workspace shape.
   Evidence: `uv run deptry apps --json-output /tmp/dirt-deptry.json` reported 1052 issues, mostly because workspace packages and dev dependencies are resolved differently from a single-package project. Dependency detection must run per package or use a custom workspace-aware collector.
@@ -73,7 +73,27 @@ The observable result is a generated report in `var/reports/python-quality-radar
   Date/Author: 2026-05-16 / User + Codex
 
 - Decision: Use `jscpd` for duplication detection.
-  Rationale: Clone detection is a solved tool problem. `jscpd` gives configurable token/block thresholds and machine-readable reports across Python files, which is better than maintaining a bespoke line-window or AST-body clone detector. A small AST scan may still be useful as supplemental evidence for repeated helper shapes, but `jscpd` should be the primary duplication source.
+  Rationale: Clone detection is a solved tool problem. `jscpd` gives configurable token/block thresholds and machine-readable reports across Python files, which is better than maintaining a bespoke line-window or AST-body clone detector.
+  Date/Author: 2026-05-16 / User + Codex
+
+- Decision: Keep FastAPI route scanning simple and explicitly mark it as tricky.
+  Rationale: Route functions are a useful place to catch business logic leaking into HTTP edge code, but deep semantic route analysis would be brittle. The first implementation should identify `@router.get` / `@router.post` style handlers and report simple metrics: span, branch count, direct model/db/infrastructure imports, and obvious service bypasses.
+  Date/Author: 2026-05-16 / User + Codex
+
+- Decision: Skip lexical shared-module app-specific vocabulary scanning.
+  Rationale: Existing import-boundary invariants already catch hard shared-to-app dependency violations. Lexical scans for words such as gateway, web, hwd, or voice inside `dirt_shared` would be noisy and would duplicate weaker versions of the protected invariants.
+  Date/Author: 2026-05-16 / User + Codex
+
+- Decision: Use Ruff `S` rules for the security radar surface.
+  Rationale: Ruff's Bandit-derived `S` rules are enough for the first report. Custom security regexes should not be added until the Ruff output shows a concrete gap.
+  Date/Author: 2026-05-16 / User + Codex
+
+- Decision: Use Ruff `ASYNC` rules for async blocking-risk detection.
+  Rationale: The repo already uses Ruff async rules. A custom AST scanner for blocking calls inside `async def` would duplicate existing tooling and add maintenance cost.
+  Date/Author: 2026-05-16 / User + Codex
+
+- Decision: Use Ruff `TRY300` only for wide-try/success-path review signals.
+  Rationale: `TRY300` is a lightweight pointer to try-block structure. Custom try-block AST analysis is unnecessary for the first report.
   Date/Author: 2026-05-16 / User + Codex
 
 - Decision: Prefer simple AST and existing-tool collectors over adding a large quality platform.
@@ -121,11 +141,16 @@ Milestone 1 adds a small report-only command. Create `scripts/python-quality-rad
 The first detector set should include:
 
 - Size and complexity: non-comment LOC per file, function span, class span, argument count, and Ruff `C901`, `PLR0912`, `PLR0915`, `PLR0913` output.
-- Duplication: run `jscpd` against production Python files under `apps/*/src/**/*.py`, with tests and generated/reference helper paths excluded. Parse the `jscpd` JSON output into ranked review packets. Optional AST-body hashing may remain as supplemental evidence for repeated helper shapes, but it is not the primary detector.
+- Duplication: run `jscpd` against production Python files under `apps/*/src/**/*.py`, with tests and generated/reference helper paths excluded. Parse the `jscpd` JSON output into ranked review packets. Do not implement custom clone detection in v1.
+- Route edge logic: scan FastAPI route handlers with decorators such as `@router.get`, `@router.post`, `@router.put`, and `@router.delete`. Report route function span, branch count, direct DB/model imports, direct infrastructure calls, and obvious service-layer bypasses. Mark this detector as tricky and heuristic.
+- Service infrastructure imports: report service modules that import infrastructure-heavy packages or process-boundary tools such as `subprocess`, direct env access, cloud SDKs, `httpx`, hardware/client libraries, or framework modules. Score as a review signal, not an automatic smell.
 - Boundary payload risk: `dict[str, Any]`, bare `Any`, `json.loads`, `json.dumps`, `model_dump`, `model_validate`, FastAPI route return annotations, command payload/result fields, and outbox/cloud/gateway modules. Findings in gateway/control-plane/outbox/command files should score higher.
-- Error handling: broad `except Exception`, bare `except`, `pass` in exception handlers, `contextlib.suppress`, and low-priority `TRY300` wide-try/success-path signals around boundary or hardware operations. Do not collect `TRY003`.
+- Duplicate DTO / boundary model drift: compare Pydantic `BaseModel` classes ending in names like `Request`, `Response`, `Payload`, `Command`, or `Event` by field-name and type sets, especially across `dirt_shared`, `dirt_gateway`, `dirt_control`, and `dirt_web`.
+- Thin wrappers and stale forwarding: report functions or classes that primarily forward to another function/object, especially when names or comments contain `legacy`, `compat`, `adapter`, `alias`, `deprecated`, `temporary`, or `TODO remove`. Keep this contextual because real adapters and protocols can be valid.
+- Error handling: broad `except Exception`, bare `except`, `pass` in exception handlers, `contextlib.suppress`, and low-priority Ruff `TRY300` findings. Do not collect `TRY003` or implement custom try-block AST analysis.
+- Security: consume Ruff `S` findings only. Do not add custom security regexes in v1.
+- Async blocking risk: consume Ruff `ASYNC` findings only. Do not add custom async AST scanning in v1.
 - Suppressions: `# noqa`, `type: ignore`, `pragma: no cover`, and related comments.
-- Dependency/runtime bloat: imports of heavyweight packages at module import time, subprocess/network/filesystem operations, and per-package dependency hygiene where practical.
 - Test proximity: production files with no obvious matching test module or no test text mentioning the module stem; this is weak evidence and should score low unless combined with complexity or boundary findings. Do not emit style findings for the test files themselves.
 
 Milestone 2 adds focused tests for the radar itself. Use small fixture files under an agent-owned test directory such as `apps/shared/tests/test_python_quality_radar.py` if the implementation is in `dirt_shared`, or add a pytest file under a new tooling test location if the repository already has a pattern for scripts tests. The tests should prove that each detector emits deterministic findings with stable categories and that the Markdown/JSON output order is stable.
@@ -140,7 +165,8 @@ Milestone 5 promotes repeated true positives into guardrails. Candidate guardrai
 - Agent-owned test that broad exception handlers in production loops either re-raise, return an explicit typed failure, or log structured context with `log_event()`.
 - Report-only or warning test for functions/classes over agreed thresholds, with allowlists requiring rationale.
 - `jscpd` threshold for repeated production-code blocks, with an explicit ignore list for generated or vendored/reference files.
-- Workspace-aware dependency hygiene check for each package's `pyproject.toml`.
+- Report-only review of route handlers that grow past the agreed edge-code threshold.
+- Report-only review of thin wrappers and stale forwarding code before any guardrail promotion.
 
 
 ## Concrete Steps
@@ -190,7 +216,7 @@ The implementation is accepted when these conditions are true:
 
 - `scripts/python-quality-radar --format markdown --output var/reports/python-quality-radar/latest.md` exits 0 and writes a readable report.
 - `scripts/python-quality-radar --format json --output var/reports/python-quality-radar/latest.json` exits 0 and writes deterministic JSON with file, line, category, severity, detector, and explanation fields.
-- The report includes at least these production-code categories: `complexity`, `duplication`, `boundary`, `error-handling`, `suppression`, and `dependency`, plus the supporting `test-proximity` category.
+- The report includes at least these production-code categories: `complexity`, `duplication`, `route-edge`, `service-infrastructure`, `boundary`, `dto-drift`, `thin-wrapper`, `error-handling`, `security`, `async`, and `suppression`, plus the supporting `test-proximity` category.
 - Focused tests cover detector behavior and output ordering.
 - The first baseline review document identifies top review packets and separates true-positive cleanup candidates from noisy detector classes.
 - Existing human-owned invariants still pass.
@@ -207,7 +233,7 @@ If a detector is too noisy, do not delete it immediately. Lower its severity, ma
 
 If implementation changes accidentally touch human-owned invariants under `apps/tests/invariants/`, revert only those edits and move the new check into an agent-owned test. Do not alter the protected invariant files as part of this plan.
 
-If dependency hygiene output remains noisy, keep it as an optional collector until a workspace-aware package mapping exists. Do not gate CI on raw `deptry apps` output.
+If dependency hygiene output remains noisy, keep it out of the first report until a workspace-aware package mapping exists. Do not gate CI on raw `deptry apps` output.
 
 
 ## Artifacts and Notes
@@ -218,9 +244,9 @@ Exploratory commands already run during planning:
 
 This found 9 complexity findings, including complex functions in hwd control services, shared agent tracing/wiki helpers, voice tool construction, and wake-word training code.
 
-    uv run ruff check apps/*/src --select C901,PLR0912,PLR0915,PLR0913,PLR2004,TRY300,B904,S110,S112,S603,S607,F401,ARG --statistics
+    uv run ruff check apps/*/src --select C901,PLR0912,PLR0915,PLR0913,PLR2004,TRY300,B904,S,ASYNC,F401,ARG --statistics
 
-This corrected production-only scan found 56 issues: 28 `PLR2004`, 13 `ARG001`, 6 `C901`, 4 `ARG002`, 3 `TRY300`, and 2 `PLR0912`. This is a better baseline for app-code debt radar work.
+This corrected production-only scan found 56 issues: 28 `PLR2004`, 13 `ARG001`, 6 `C901`, 4 `ARG002`, 3 `TRY300`, and 2 `PLR0912`. Adding Ruff `S` and `ASYNC` to the source-only selection did not add findings in the current tree, but those rule families remain part of the radar.
 
     uv run pytest --collect-only -q
 
@@ -228,7 +254,7 @@ This collected 664 tests.
 
     uv run deptry apps --json-output /tmp/dirt-deptry.json
 
-This produced 1052 dependency issues, mostly workspace-shape noise. Use per-package or custom dependency checks instead of this raw command for acceptance.
+This produced 1052 dependency issues, mostly workspace-shape noise. Keep dependency hygiene out of v1 unless a workspace-aware package mapping is added.
 
 External references that motivated detector categories:
 
@@ -247,6 +273,11 @@ The final implementation should provide:
 - JSON report schema with fields for `path`, `line`, `category`, `detector`, `severity`, `message`, and optional `evidence`.
 - Markdown report grouped by ranked review packet.
 - `jscpd` integration for primary duplication detection, invoked through `pnpm dlx jscpd` unless the implementation later adds a pinned repo-local dev dependency.
+- Simple FastAPI route-handler scanner, marked heuristic in the report output.
+- Service infrastructure-import scanner.
+- Pydantic DTO field-set similarity scanner.
+- Thin-wrapper and stale-forwarding scanner.
+- Ruff integration for `S`, `ASYNC`, and `TRY300` signals, with `TRY003` excluded.
 - Focused pytest coverage for detector behavior and deterministic output.
 - A baseline review document under `docs/epics/python-quality-radar/` or `docs/progress/`.
 
@@ -259,3 +290,4 @@ The implementation may use the Python standard library AST support, Ruff via sub
 - 2026-05-16: Revised scope to make production app code the scored surface and tests supporting coverage evidence only.
 - 2026-05-16: Removed `TRY003` from scope after review showed it only flagged long exception messages, which are not useful product-debt signals here.
 - 2026-05-16: Revised duplication detection to prefer `jscpd` over a custom clone detector.
+- 2026-05-16: Revised detector set after review: keep simple route scanning, service infrastructure imports, duplicate DTO detection, thin wrappers, Ruff `S`, Ruff `ASYNC`, and Ruff `TRY300`; skip lexical shared-module vocabulary scanning and custom security/async/try AST detectors.

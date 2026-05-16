@@ -6,7 +6,7 @@ Created: 2026-05-16
 
 ## Goal
 
-Build a high-recall, low-friction audit system for Python application-code quality and architecture debt in Dirt. The first result is a report that points reviewers toward likely vibe-coding failure modes in production code: duplication, oversized functions, weak boundary contracts, broad exception handling, hidden dependency drift, under-tested hot spots, and stale abstractions.
+Build a high-recall, low-friction audit system for Python application-code quality and architecture debt in Dirt. The first result is a report that points reviewers toward likely vibe-coding failure modes in production code: duplication, oversized functions, weak boundary contracts, route/business-logic leakage, broad exception handling, under-tested hot spots, and stale abstractions.
 
 ## Scope
 
@@ -19,7 +19,7 @@ Build a high-recall, low-friction audit system for Python application-code quali
 ## Acceptance Criteria
 
 - A developer can run one command from the repo root and get a deterministic Markdown and JSON report.
-- The report identifies at least complexity, clone, boundary-payload, broad-exception, suppression, dependency, and test-proximity signals.
+- The report identifies at least complexity, `jscpd` clone, route-edge, service-infrastructure, boundary-payload, DTO-drift, thin-wrapper, broad-exception, Ruff security, Ruff async, suppression, and test-proximity signals.
 - The first report is reviewed and converted into a prioritized remediation backlog.
 - At least three repeated true-positive patterns become new agent-owned or human-owned guardrails.
 
