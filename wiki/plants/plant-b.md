@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-05-14
+updated: 2026-05-16
 ---
 
 # Plant B
@@ -19,7 +19,7 @@ updated: 2026-05-14
 
 ## Current State
 
-Day 61 / Flower Day 11: B has no dedicated preset photo today, and root-zone moisture remains critically saturated at 95.92% with almost no movement. Keep dryback verification active and do not restore normal feed until tray/media checks support it. See [2026-05-14](../daily/2026-05-14.md).
+Day 63 / Flower Day 13: B is still mostly obscured by the fan, but visible tops remain upright; moisture edged down to 96.13% and is still critically high. Keep dryback verification active and do not restore normal feed until tray/media checks support it. See [2026-05-16](../daily/2026-05-16.md).
 
 ## Timeline
 
@@ -62,3 +62,5 @@ Day 61 / Flower Day 11: B has no dedicated preset photo today, and root-zone moi
 - 2026-05-12 — [Day 59 / Flower Day 9: dedicated photo missing; moisture 95.84% keeps dryback verification urgent](../daily/2026-05-12.md)
 - 2026-05-13 — [Day 60 / Flower Day 10: dedicated photo missing; moisture 95.47% keeps dryback verification urgent](../daily/2026-05-13.md)
 - 2026-05-14 — [Day 61 / Flower Day 11: dedicated photo missing; moisture 95.92% keeps dryback verification urgent](../daily/2026-05-14.md)
+- 2026-05-15 — [Day 62 / Flower Day 12: visible tops upright but photo partly obscured; moisture 96.29% keeps dryback verification urgent](../daily/2026-05-15.md)
+- 2026-05-16 — [Day 63 / Flower Day 13: visible tops upright but fan-obscured; moisture 96.13% keeps dryback verification urgent](../daily/2026-05-16.md)

@@ -4,7 +4,7 @@ type: breeding
 sources: []
 related: [wiki/breeding/README.md, wiki/breeding/veg-tent-layout.md, wiki/breeding/isolation.md, wiki/breeding/isolation-tent-culture.md, wiki/breeding/cloning.md, wiki/breeding/pollen-handling.md]
 created: 2026-05-02
-updated: 2026-05-15
+updated: 2026-05-16
 ---
 
 # Breeding Program Bill of Materials
@@ -88,7 +88,8 @@ Detailed male-tent protocol lives in [isolation.md](isolation.md), [isolation-te
 | 1/4 inch inline valves | Needed | 6+ | One per plant for balancing; extras useful |
 | Tee + bypass valve | Needed | 1 | Return excess pump flow to reservoir so the pump is not forced entirely through tiny 1/4 inch lines |
 | Open drip stakes or simple halos | Needed | 6 | Visible outlet at each pot; open stakes preferred for first build |
-| Seconds-capable timer | Needed | 1 | Required for short calibrated irrigation pulses; ordinary minute timers are too coarse |
+| Shelly Plus Plug US pump controller | Ordered | 1 | Permanent drip-assist controller; `dirt-hwd` should issue short pump pulses with device-side seconds auto-off so the plug turns itself off even if the service crashes |
+| Kasa EP10 temporary pump controller | Temporary/test | 1 | Use only for supervised calibration and first-water tests while the Shelly plug is in transit; do not rely on unattended service sleep + off command as the only shutoff |
 | Water leak alarm | Needed | 1-2 | Put near reservoir/pump and near runoff tray |
 | Parchment paper | Needed | 1 pack | Pollen collection |
 | Paper lunch bags | Needed | 1 pack | Branch/sac handling |
@@ -143,5 +144,6 @@ Add exact product links once a specific listing is selected. Current Amazon sear
 - 1/4 inch distribution tubing: [Amazon search - Rain Bird 1/4 inch distribution tubing](https://www.amazon.com/s?k=Rain+Bird+1%2F4+inch+distribution+tubing)
 - 1/4 inch inline valves: [Amazon search - Raindrip 1/4 inch barbed inline valve 10 pack](https://www.amazon.com/s?k=Raindrip+1%2F4+inch+barbed+inline+valve+10+pack)
 - Open drip stakes: [Amazon search - Rain Bird 1/4 inch tubing stake with bug cap](https://www.amazon.com/s?k=Rain+Bird+1%2F4+inch+tubing+stake+with+bug+cap)
-- Seconds-capable timer: [Amazon search - BN-LINK short period repeat cycle timer](https://www.amazon.com/s?k=BN-LINK+short+period+repeat+cycle+timer)
+- Shelly Plus Plug US pump controller: ordered; [Amazon search - Shelly Plus Plug US](https://www.amazon.com/s?k=Shelly+Plus+Plug+US)
+- Kasa EP10 temporary controller: reuse existing plug for supervised calibration/testing only
 - Runoff tray / saucers: [Amazon search - black waterproof boot tray](https://www.amazon.com/s?k=black+boot+tray+waterproof), [Amazon search - heavy duty plant saucers 12 inch](https://www.amazon.com/s?k=heavy+duty+plant+saucers+12+inch)

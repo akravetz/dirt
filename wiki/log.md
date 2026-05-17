@@ -945,3 +945,33 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - **Plant B moisture remains critical:** 95.92% now, still near full saturation; dryback verification remains urgent before reopening normal feed.
 - **Root zones:** A stable at 61.51%; C remains saturated at 90.53%; D remains high at 84.31%.
 - Updated: `daily/2026-05-14.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-05-15] daily | Day 62 / Flower Day 12 - full main coverage restored; VPD stable
+- Photos captured across all 5 expected main presets plus the breeding overview. The main canopy is dense, healthy overall, and actively stretching; the visible main risk is crowding/interior airflow rather than acute canopy damage.
+- **Main-tent environment stability:** VPD is in target across all windows for a second day (1.16 overnight, 1.21 morning, 1.09 now) with current temperature in range at 74.71°F.
+- **Breeding-tent watch:** Overnight was wet at 0.74 kPa VPD / 69.14% RH, then moved to hot/dry now at 81.23°F / 1.57 kPa; manually check surface moisture and fan exposure.
+- **Plant B moisture remains critical:** 96.29% now, still near full saturation; dryback verification remains urgent before reopening normal feed.
+- **Root zones:** A stable at 61.69%; C remains saturated at 90.69%; D remains high at 83.40%.
+- Updated: `daily/2026-05-15.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-05-16] query-filed | Isolation drip-assist pump controller decision
+- User selected **Shelly Plus Plug US** as the permanent controller for the 2x2 isolation-tent drip-assist pump.
+- Filed the control model: `dirt-hwd` owns irrigation schedules and sends short pump pulses, but the plug must enforce device-side seconds auto-off so a service crash or missed follow-up command cannot leave the pump running.
+- Documented temporary test path: an existing Kasa EP10 may be used for supervised calibration and first-water tests while the Shelly plug is in transit, but not as the only unattended shutoff path.
+- Updated: `breeding/isolation-tent-culture.md`, `breeding/bill-of-materials.md`.
+
+## [2026-05-16] query-filed | AC Infinity ThermoForge T3 direct-control investigation
+
+- User added an AC Infinity ThermoForge T3 to stabilize main-tent night temperatures and VPD, and wants to revisit programmatic heater control tomorrow.
+- Research summary: ThermoForge exposes external control through AC Infinity **UIS** cabling; Bluetooth/Wi-Fi are provided by a compatible UIS controller, not directly by the heater. The supported bridge path is Controller 69 Pro/Pro+/AI+ → UIS cable → ThermoForge.
+- Preferred investigation path mirrors the successful Cloudline fan work: passive inline tap, multimeter pre-flight, level-safe PulseView/sigrok capture, classify PWM/keep-alive vs richer serial protocol, then only replay with an ESP32 once pin voltages and OFF/fail behavior are known.
+- Safety distinction recorded: fan fail-safe can bias to high airflow, but heater fail-safe must bias to OFF on ESP32 reset, WiFi loss, stale commands, or host crash.
+- **New page:** [`wiki/hardware/ac-infinity-thermoforge-control.md`](hardware/ac-infinity-thermoforge-control.md).
+
+## [2026-05-16] daily | Day 63 / Flower Day 13 - full photos; main VPD stable; breeding tent dry
+- Photos captured across all 5 expected main presets plus the breeding overview. Plant B's dedicated view remains fan-obstructed, but the rest of the main canopy shows healthy stretch and dense early-flower sites.
+- **Main-tent environment stability:** VPD is in target across all windows for a third day (1.12 overnight, 1.10 morning, 1.09 now) with current temperature in range at 72.39°F.
+- **Breeding-tent watch:** Overnight was usable at 0.94 kPa VPD, then moved dry during lights-on to 77.61°F / 48.88% RH / 1.65 kPa; manually check surface moisture and fan angle.
+- **Plant B moisture remains critical:** 96.13% now, slightly lower than morning but still near full saturation; dryback verification remains urgent before reopening normal feed.
+- **Root zones:** A stable at 61.88%; C remains saturated at 90.93%; D remains high at 83.12%.
+- Updated: `daily/2026-05-16.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.

@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-05-14
+updated: 2026-05-16
 ---
 
 # Plant A
@@ -18,7 +18,7 @@ updated: 2026-05-14
 
 ## Current State
 
-Day 61 / Flower Day 11: A has no dedicated preset photo today, but root-zone moisture remains stable around 61.5%. Continue stretch-window SCROG checks once visual coverage is restored. See [2026-05-14](../daily/2026-05-14.md).
+Day 63 / Flower Day 13: A remains a vigorous primary stretch contributor with healthy tops, visible purple stems/petioles, and stable moisture near 61.9%. Continue daily tuck/spread work and airflow-lane checks through the stretch window. See [2026-05-16](../daily/2026-05-16.md).
 
 ## Timeline
 
@@ -61,3 +61,5 @@ Day 61 / Flower Day 11: A has no dedicated preset photo today, but root-zone moi
 - 2026-05-12 — [Day 59 / Flower Day 9: dedicated photo missing; moisture stable ~61%, continue stretch-window SCROG checks](../daily/2026-05-12.md)
 - 2026-05-13 — [Day 60 / Flower Day 10: dedicated photo missing; moisture stable ~61%, continue stretch-window SCROG checks](../daily/2026-05-13.md)
 - 2026-05-14 — [Day 61 / Flower Day 11: dedicated photo missing; moisture stable ~61.5%, continue stretch-window SCROG checks](../daily/2026-05-14.md)
+- 2026-05-15 — [Day 62 / Flower Day 12: vigorous stretch tops visible again; moisture stable ~61.7%, continue tuck/spread work](../daily/2026-05-15.md)
+- 2026-05-16 — [Day 63 / Flower Day 13: vigorous healthy stretch tops; moisture stable ~61.9%, continue tuck/spread work](../daily/2026-05-16.md)

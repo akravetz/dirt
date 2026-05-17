@@ -4,7 +4,7 @@ type: breeding
 sources: []
 related: [wiki/breeding/isolation.md, wiki/breeding/bill-of-materials.md, wiki/breeding/male-evaluation.md, wiki/breeding/cross-procedure.md, wiki/breeding/cloning.md]
 created: 2026-05-02
-updated: 2026-05-02
+updated: 2026-05-16
 ---
 
 # Isolation Tent Culture
@@ -58,3 +58,17 @@ Required safeguards:
 - calibrate every line into measuring cups before feeding plants
 
 Initial calibration: test 5, 10, and 20 second pulses, measure each outlet, adjust the bypass and inline valves, then connect to pots. Recheck output after any nutrient change or line cleaning.
+
+## Pump Control
+
+Permanent control target: **Shelly Plus Plug US** controlling the Sicce pump from an existing outlet, with `dirt-hwd` owning irrigation schedules and issuing short pump pulses. The important safety requirement is device-side auto-off: the command should turn the plug on with an auto-off duration in seconds, so a service crash or missed follow-up command does not leave the pump running.
+
+Temporary test controller: an existing **Kasa EP10** may be used for supervised calibration and first-water tests while the Shelly plug is in transit. Do not leave Kasa-driven irrigation unattended unless a separate physical or device-side shutoff is in place; the Kasa path depends on the controlling service or operator sending the off command.
+
+Operating rules:
+
+- plug the pump controller into a GFCI-protected outlet or GFCI power strip
+- keep the smart plug outside the splash zone and above reservoir height when practical
+- add a drip loop on the pump cord before it reaches the plug
+- default to missed irrigation over continuous pumping; fail-off is safer than fail-on
+- first real pulses stay supervised until measured output, runoff capture, and leak alarms are proven

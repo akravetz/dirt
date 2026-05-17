@@ -1,7 +1,7 @@
 ---
 title: Index
 type: index
-updated: 2026-05-14
+updated: 2026-05-16
 ---
 
 # Grow Wiki Index
@@ -15,10 +15,10 @@ updated: 2026-05-14
 - [Hosted Control Plane](decisions/2026-05-05-hosted-control-plane.md) — Railway web UI/API plus outbound local gateway; remote inspection and PTZ-only command intent without moving hardware authority to cloud
 
 ## Plants
-- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; Flower Day 11; moisture stable 61.51%; restore photo coverage
-- [Plant B](plants/plant-b.md) — 🟡 Secondary; Flower Day 11; moisture 95.92% — dryback verification urgent
-- [Plant C](plants/plant-c.md) — 🟡 Secondary; Flower Day 11; moisture 90.53% — lower-leaf/root-zone watch
-- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; Flower Day 11; moisture high 84.31%; tuck candidate
+- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; Flower Day 13; vigorous healthy stretch visible; moisture stable 61.88%; tuck/spread daily
+- [Plant B](plants/plant-b.md) — 🟡 Secondary; Flower Day 13; moisture 96.13% — dryback verification urgent
+- [Plant C](plants/plant-c.md) — 🟡 Secondary; Flower Day 13; moisture 90.93% — lower-leaf/root-zone watch
+- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; Flower Day 13; tall stretch visible; moisture high 83.12%; tuck/spread daily
 
 ## Daily Logs
 - [2026-03-27](daily/2026-03-27.md) — Day 13: Pre-transplant; 2–3 leaf sets
@@ -59,6 +59,8 @@ updated: 2026-05-14
 - [2026-05-12](daily/2026-05-12.md) — Day 59 / Flower Day 9: no main-tent photos; breeding overview only; main VPD averaged in range (1.24/1.24 kPa) but now high at 1.37 kPa; Plant B moisture 95.84% 🔴
 - [2026-05-13](daily/2026-05-13.md) — Day 60 / Flower Day 10: no main-tent photos; breeding overview only; main VPD now high at 1.60 kPa with 85.80°F; Plant B moisture 95.47% 🔴
 - [2026-05-14](daily/2026-05-14.md) — Day 61 / Flower Day 11: no main-tent photos; breeding overview shows upright labeled young plants; main VPD in target all windows; Plant B moisture 95.92% 🔴
+- [2026-05-15](daily/2026-05-15.md) — Day 62 / Flower Day 12: full photo coverage restored; main VPD in target all windows for second day; Plant B moisture 96.29% 🔴; breeding tent hot/dry now
+- [2026-05-16](daily/2026-05-16.md) — Day 63 / Flower Day 13: full photo coverage; main VPD in target all windows for third day; Plant B moisture 96.13% 🔴; breeding tent dry now
 
 ## Environment
 - [Temperature](environment/temperature.md) — Trend log; targets by phase; notable events
@@ -75,6 +77,7 @@ updated: 2026-05-14
 - [Reservoir Level (Autopot)](hardware/reservoir-level.md) — Submerged hydrostatic pressure transducer (DFRobot KIT0139) → ADS1115 → dedicated ESP32-C3 reservoir node → canonical `reservoir_in` ingest. Live as `reservoir-node`.
 - [Reservoir Level — Bench Bring-up](hardware/reservoir-level-bringup.md) — Detailed bench validation notes: wiring, provisional cal captures, noise characterization, capacitor experiment (2026-04-26).
 - [AC Infinity Fan Control + Tent Environmental Sensor](hardware/ac-infinity-fan-control.md) — Combined ESP32-C3 SuperMini node: drives the Cloudline LITE 6" fan via 2× 2N7000 MOSFETs on D+/B5 **and** reads an Adafruit SHT45 + PTFE cap over I²C (GPIO 4/5) for tent temp/RH/VPD. **Fan D+ bring-up + SHT45 read both validated 2026-04-22.** Combined firmware at `firmware/fan_controller/`. Tach (D−) deferred. WiFi/OTA/ingest integration next.
+- [AC Infinity ThermoForge T3 Control Investigation](hardware/ac-infinity-thermoforge-control.md) — Night-heater control investigation. Captures AC Infinity UIS docs, controller/API option, direct UIS reverse-engineering plan, and heater-specific fail-safe requirements before probing.
 
 ## Concepts
 - [Anthocyanin](concepts/anthocyanin.md) — Purple expression: genetic vs. environmental

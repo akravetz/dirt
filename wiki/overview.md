@@ -4,7 +4,7 @@ type: overview
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/index.md, wiki/plants/plant-a.md, wiki/plants/plant-b.md, wiki/plants/plant-c.md, wiki/plants/plant-d.md, wiki/decisions/2026-05-05-hosted-control-plane.md]
 created: 2026-04-06
-updated: 2026-05-14
+updated: 2026-05-16
 ---
 
 # Grow Overview
@@ -23,25 +23,25 @@ updated: 2026-05-14
 | **Water system** | Autopot 4-Pot XL + 25-gal FlexiTank (active since Apr 15) |
 | **Training** | Single top at node 4–5 → LST → SCROG |
 | **Start date** | 2026-03-15 (germination) |
-| **Grow day** | Day 61 (as of 2026-05-14) |
+| **Grow day** | Day 63 (as of 2026-05-16) |
 
 ## Current Stage
 
-**Early Flower — Day 11 of 12/12**. Flower start date is 2026-05-03; lights run 09:00–21:00 local tent time. Autopot has been active since Apr 15, all four plants are topped, and the SCROG net is installed; the next several days are still stretch management.
+**Early Flower — Day 13 of 12/12**. Flower start date is 2026-05-03; lights run 09:00–21:00 local tent time. Autopot has been active since Apr 15, all four plants are topped, and the SCROG net is installed; the next several days are still stretch management.
 
-**Main-tent VPD recovered into target** — overnight, morning, and current readings are 1.17, 1.26, and 1.16 kPa, all inside the 1.0–1.3 kPa early-flower band. Temperature is also usable now at 75.79°F. Hold this profile instead of chasing yesterday's transient high-VPD spike.
+**Main-tent VPD is stable in target** — overnight, morning, and current readings are 1.12, 1.10, and 1.09 kPa, all inside the 1.0–1.3 kPa early-flower band for a third consecutive day. Temperature is usable now at 72.39°F. Hold this profile instead of chasing the RH guide downward while VPD is already acceptable.
 
-**Air intake improvement needs steady-state verification** — the tent had been mostly zipped up, with limited intake through the bottom zipper only. Cooler room air is available outside the tent, and a 6-inch duct was purchased 2026-05-05 as a low passive intake. Now that VPD is back in target, compare the next overnight/morning cycle before changing airflow again.
+**Photo coverage is complete today** — all five expected main-tent presets plus the breeding overview were captured for 2026-05-16. The main canopy is dense, actively stretching, and healthy overall; the visible risk is crowding/interior airflow rather than acute canopy damage. Plant B's close view is still mostly blocked by the circulation fan.
 
-**Photo coverage is incomplete today** — no main-tent presets were captured for 2026-05-14. One breeding overview was captured and shows several labeled upright young plants, but it is still not a complete per-plant breeding inspection. Treat the main-tent visual record as missing.
+**Canopy management is the main visual task** — A and D remain the tall sativa-leaning stretch contributors. Keep tucking/spreading stretch tops and remove only dead, wet-contact, or deeply buried leaves; avoid heavy defoliation during active stretch.
 
-**Plant B root-zone moisture is still critical** — now 95.92%, down only 0.10 points from the morning average and still near full saturation. Because today's B preset is missing, B needs manual dryback verification: keep/close the float valve and verify the tray is not continuously feeding.
+**Plant B root-zone moisture is still critical** — now 96.13%, down only 0.40 points from the morning average and still near full saturation. Visible tops are upright in the obstructed photo, but manual dryback verification remains urgent: keep/close the float valve and verify the tray is not continuously feeding.
 
-**C/D remain saturated or high** — C is 90.53% and D is 84.31%. Today's dedicated C/D photos are missing, so inspect trays/media and airflow before assuming a nutrient deficiency or relying on visual stability.
+**C/D remain saturated or high** — C is 90.93% and D is 83.12%. Inspect trays/media and airflow before treating lower/interior symptoms as feed-strength problems.
 
-**Breeding tent needs manual surface and airflow inspection** — sensors swung from wet overnight (0.66 kPa VPD, 72.07% RH) to a dry morning spike (1.49 kPa VPD), then settled now to 77.25°F, 60.62% RH, and 1.26 kPa VPD. The overview shows upright young plants with labels visible, but check for damp media, direct fan drying, and wiring/label security.
+**Breeding tent needs lights-on dryback inspection** — sensors moved from 0.94 kPa VPD overnight to 1.65 kPa now, with current RH down to 48.88%. The overview shows upright small plants, but check surface moisture, direct fan exposure, and wiring/label security.
 
-**Breeding propagation is active** — clones from all four current plants were taken 2026-05-02 and are under a humidity dome; they were perking with 1 visible rooted clone as of 2026-05-05. Track A regular seedlings now have their first true-leaf sets in labeled pots, with a short veg/sex-flip plan filed 2026-05-12. A 4-inch AC Infinity filtration kit has been selected for the breeding/male isolation tent. See [breeding/cloning.md](breeding/cloning.md), [breeding/timeline.md](breeding/timeline.md), and [breeding/isolation.md](breeding/isolation.md).
+**Breeding propagation is active** — clones from all four current plants were taken 2026-05-02 and are under a humidity dome; they were perking with 1 visible rooted clone as of 2026-05-05. Track A regular seedlings now have their first true-leaf sets in labeled pots, with a short veg/sex-flip plan filed 2026-05-12. A 4-inch AC Infinity filtration kit has been selected for the breeding/male isolation tent, and Shelly Plus Plug US is the selected permanent controller for drip-assist pump safety. See [breeding/cloning.md](breeding/cloning.md), [breeding/timeline.md](breeding/timeline.md), and [breeding/isolation.md](breeding/isolation.md).
 
 **Reservoir refilled 2026-04-26 afternoon** — change window is open (~2026-05-03–06), and early-flower EC target should be verified at the next change.
 
@@ -54,38 +54,38 @@ updated: 2026-05-14
 
 | Plant | Flower | Purple | Priority | Status |
 |-------|--------|--------|----------|--------|
-| Plant A | Day 11 | ✅ Confirmed genetic | 🔴 Primary | Dedicated photo missing; moisture stable 61.51%; continue stretch-window SCROG checks |
-| Plant B | Day 11 | ❌ None | 🟡 Secondary | Dedicated photo missing; moisture 95.92% — dryback verification urgent |
-| Plant C | Day 11 | ⚠️ Stress-induced only | 🟡 Secondary | Dedicated photo missing; moisture 90.53% with lower-leaf/root-zone watch |
-| Plant D | Day 11 | ✅ Confirmed genetic | 🔴 Primary | Dedicated photo missing; moisture high 84.31%; likely tuck candidate |
+| Plant A | Day 13 | ✅ Confirmed genetic | 🔴 Primary | Vigorous healthy stretch tops; moisture stable 61.88%; tuck/spread daily |
+| Plant B | Day 13 | ❌ None | 🟡 Secondary | Visible tops upright but fan-obscured; moisture 96.13% — dryback verification urgent |
+| Plant C | Day 13 | ⚠️ Stress-induced only | 🟡 Secondary | Active upper growth; moisture 90.93% with lower-leaf/root-zone watch |
+| Plant D | Day 13 | ✅ Confirmed genetic | 🔴 Primary | Tall sativa-leaning stretch tops; moisture high 83.12%; tuck/spread daily |
 
-## Environment (Last Reading: May 14 14:00 MDT)
+## Environment (Last Reading: May 16 14:00 MDT)
 
 | Metric | Value | Target | Status |
 |--------|-------|--------|--------|
-| Temperature (now) | 75.79°F | 72–80°F early flower day | ✅ In range |
-| Temperature (morning avg) | 77.70°F | 72–80°F early flower day | ✅ In range |
-| Temperature (overnight avg) | 73.24°F | 65–70°F early flower night | ⚠️ Warm night |
-| Humidity (now) | 61.81% | 45–50% early flower guide | ⚠️ High by RH guide |
-| Humidity (overnight avg) | 57.97% | 45–50% early flower guide | ⚠️ High by RH guide |
-| VPD (now) | 1.16 kPa | 1.0–1.3 kPa | ✅ In range |
-| VPD (morning avg) | 1.26 kPa | 1.0–1.3 kPa | ✅ In range |
-| VPD (overnight avg) | 1.17 kPa | 1.0–1.3 kPa | ✅ In range |
-| Breeding temp/VPD (now) | 77.25°F / 1.26 kPa | small-plant watch | ✅ Usable now |
+| Temperature (now) | 72.39°F | 72–80°F early flower day | ✅ In range |
+| Temperature (morning avg) | 72.91°F | 72–80°F early flower day | ✅ In range |
+| Temperature (overnight avg) | 72.01°F | 65–70°F early flower night | ⚠️ Warm night |
+| Humidity (now) | 59.73% | 45–50% early flower guide | ⚠️ High by RH guide |
+| Humidity (overnight avg) | 58.08% | 45–50% early flower guide | ⚠️ High by RH guide |
+| VPD (now) | 1.09 kPa | 1.0–1.3 kPa | ✅ In range |
+| VPD (morning avg) | 1.10 kPa | 1.0–1.3 kPa | ✅ In range |
+| VPD (overnight avg) | 1.12 kPa | 1.0–1.3 kPa | ✅ In range |
+| Breeding temp/VPD (now) | 77.61°F / 1.65 kPa | small-plant watch | ⚠️ Dry now |
 | pH (watering) | 5.8 (target) | 5.5–6.0 | — |
 | EC (reservoir) | — | 1.4–1.6 early flower | ⚠️ Verify at next reservoir change |
 
 ## Active Action Items
 
-1. **Restore full main-tent photo coverage** 🔴 — No main-tent presets were captured today. Capture overview plus A/B/C/D presets before making visual diagnosis changes.
-2. **Escalate Plant B dryback verification** 🔴 — B is 95.92% now, still near full saturation. Verify the tray/float valve is actually interrupted and do not reopen unless manual inspection proves sensor error.
-3. **Manually inspect the breeding tent** 🔴 — The overview shows upright young plants, but sensors swung from wet overnight to a dry morning spike. Check damp surfaces, direct-fan drying, label security, and wiring around wet media.
-4. **Hold the main-tent environment recovery** 🟡 — VPD is in range across all windows today. Avoid overcorrecting toward either more mist or more drying until another cycle confirms the profile.
-5. **Manage breeding propagation** 🔴 — A/B/C/D clones still need rooted backup confirmation. Track A seedlings have first true-leaf sets; keep labels secure and follow the short-veg/sex-flip plan. The 4-inch AC Infinity filtration kit is selected for containment. See [breeding/timeline.md](breeding/timeline.md), [breeding/cloning.md](breeding/cloning.md), and [breeding/isolation.md](breeding/isolation.md).
-6. **Inspect Plants C and D root zones** 🟡 — C 90.53%, D 84.31%; both high, and today's dedicated photos are missing. Watch for wilting, drooping, stalled growth, sour smell, or standing tray water.
-7. **Tuck sativa-leaning canopy (A, D) daily if visual/manual inspection supports it** 🟡 — Stretch is still active in flower week 2; bend tallest A/D growth horizontally back under the SCROG net without stripping heavily.
-8. **Verify the 6-inch low passive intake setup** 🟡 — If installed, confirm the bend/light trap preserves 12/12 darkness and compare the next overnight/morning VPD against today's recovery.
-9. **Plan early-flower reservoir change** 🟡 — Reservoir refill window is open; verify pH 5.8 and transition EC deliberately for early flower instead of making a blind strength jump.
+1. **Escalate Plant B dryback verification** 🔴 — B is 96.13% now, still near full saturation. Verify the tray/float valve is actually interrupted and do not reopen unless manual inspection proves sensor error.
+2. **Tuck/spread the dense main canopy** 🔴 — Full photo coverage shows active stretch and layered interior growth. Work A/D tops horizontally under the SCROG and remove only dead, wet-contact, or deeply buried leaves.
+3. **Manually inspect the breeding tent now** 🔴 — Current breeding reading is 77.61°F / 1.65 kPa with RH down to 48.88%. Check surface moisture, direct-fan drying, label security, and wiring around wet media.
+4. **Hold the main-tent environment profile** 🟡 — VPD is in range across all windows for a third day. Avoid overcorrecting toward either more mist or more drying while the VPD band is stable.
+5. **Manage breeding propagation** 🔴 — A/B/C/D clones still need rooted backup confirmation. Track A seedlings have first true-leaf sets; keep labels secure and follow the short-veg/sex-flip plan. The 4-inch AC Infinity filtration kit is selected for containment, and Shelly Plus Plug US is selected for unattended drip-assist pump safety. See [breeding/timeline.md](breeding/timeline.md), [breeding/cloning.md](breeding/cloning.md), and [breeding/isolation.md](breeding/isolation.md).
+6. **Inspect Plants C and D root zones** 🟡 — C 90.93%, D 83.12%; both remain high. Watch for wilting, drooping, stalled growth, sour smell, or standing tray water.
+7. **Keep full camera coverage healthy** 🟡 — Today's complete photo set maintained the visual record; keep the main presets and breeding overview in the daily run, and try to reduce Plant B fan obstruction.
+8. **Plan early-flower reservoir change** 🟡 — Reservoir refill window is open; verify pH 5.8 and transition EC deliberately for early flower instead of making a blind strength jump.
+9. **Investigate ThermoForge T3 control deliberately** 🟡 — Heater control must fail OFF; follow the filed UIS/passive-tap investigation before any direct-control replay.
 
 _Resolved 2026-04-28: "Govee H7140 backup arrival" — arrived._
 _Resolved 2026-04-28: "Clone gear + Govee H7142 arrival" — clone gear arrived; H7142 deployed 2026-04-27._
@@ -113,6 +113,7 @@ _Resolved 2026-05-05: "Pot Track A regular seedlings into coco/perlite" — 7 to
 | ~~12/12 flip~~ | ✅ Done 2026-05-03; Flower Day 0 |
 | Track A seedling sex watch | ~2026-05-19 → 2026-05-26 from approximate 2026-04-28 germination |
 | Stretch management | Daily through early flower weeks 1–2 |
+| ThermoForge T3 direct-control investigation | Planned revisit 2026-05-17; fail-OFF requirements filed |
 | Clone selection | Flower weeks 3–4 |
 | Final pheno evaluation | Flower weeks 5–6 |
 | Breeding — F2 cross | After pheno evaluation; selected purple/sativa male × A or D |
@@ -148,6 +149,7 @@ _Resolved 2026-05-05: "Pot Track A regular seedlings into coco/perlite" — 7 to
 | **Thermal imaging** (PureThermal Mini Pro + FLIR Lepton 3.5) | Planned | Fixed canopy sensor for leaf-air delta, leaf-temperature-aware VPD, and hotspot maps. See [hardware/thermal-imaging.md](hardware/thermal-imaging.md). |
 | **Jabra Speak 410** (voice I/O) | Connected 2026-04-15 | Voice pipeline `dirt-voice.service` deployed 2026-04-18; v5 wake-word passive-harvest mode active. |
 | **AC Infinity Cloudline LITE 6" fan control** | Online (fw 0.2.0, 2026-04-22) | WiFi + HTTP control surface live; VPD-coupled closed-loop deferred. |
+| **AC Infinity ThermoForge T3** | Purchased / investigation planned | Programmatic heater control must fail OFF; UIS direct-control investigation filed in [hardware/ac-infinity-thermoforge-control.md](hardware/ac-infinity-thermoforge-control.md). |
 
 ## Denver Water Notes
 - Tap pH: 8.5–8.8 → GH pH Down required at every fill

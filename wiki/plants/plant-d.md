@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-05-14
+updated: 2026-05-16
 ---
 
 # Plant D
@@ -19,7 +19,7 @@ updated: 2026-05-14
 
 ## Current State
 
-Day 61 / Flower Day 11: D has no dedicated preset photo today, but remains a primary purple keeper candidate with high moisture around 84.31%. Keep tucking likely D/A stretch tops and watching lower shaded leaves/tray behavior. See [2026-05-14](../daily/2026-05-14.md).
+Day 63 / Flower Day 13: D remains a tall sativa-leaning primary keeper candidate with upright stretch tops, visible purple stems/petioles, and high moisture around 83.12%. Keep tucking/spreading D and A tops while watching tray behavior and lower shaded leaves. See [2026-05-16](../daily/2026-05-16.md).
 
 ## Timeline
 
@@ -62,3 +62,5 @@ Day 61 / Flower Day 11: D has no dedicated preset photo today, but remains a pri
 - 2026-05-12 — [Day 59 / Flower Day 9: dedicated photo missing; moisture high but easing at 84.79%, tuck through stretch](../daily/2026-05-12.md)
 - 2026-05-13 — [Day 60 / Flower Day 10: dedicated photo missing; moisture high but easing at 83.84%, tuck through stretch](../daily/2026-05-13.md)
 - 2026-05-14 — [Day 61 / Flower Day 11: dedicated photo missing; moisture high at 84.31%, tuck through stretch](../daily/2026-05-14.md)
+- 2026-05-15 — [Day 62 / Flower Day 12: tall stretch tops visible; moisture high at 83.40%, tuck/spread through stretch](../daily/2026-05-15.md)
+- 2026-05-16 — [Day 63 / Flower Day 13: tall stretch tops visible; moisture high at 83.12%, tuck/spread through stretch](../daily/2026-05-16.md)

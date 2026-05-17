@@ -4,7 +4,7 @@ type: environment
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/environment/humidity.md, wiki/overview.md]
 created: 2026-04-06
-updated: 2026-05-14
+updated: 2026-05-16
 ---
 
 # Temperature
@@ -61,6 +61,8 @@ updated: 2026-05-14
 | 2026-05-12 | Main 80.01°F now ⚠️ / 75.44°F overnight avg ⚠️ / 78.59°F morning avg ✅; breeding 75.40°F now ✅ | Main tent is warmer than target overnight and just over the day ceiling now, which helped VPD recover but risks a dry overshoot. Breeding tent is cooler now than yesterday but had a wet overnight. → [2026-05-12](../daily/2026-05-12.md) |
 | 2026-05-13 | Main 85.80°F now 🔴 / 69.77°F overnight avg ✅ / 77.62°F morning avg ✅; breeding 79.21°F now ✅ | Main tent temperature is now the current-window problem: overnight and morning were in range, but now is well above the 80°F early-flower day ceiling and pushed VPD high. → [2026-05-13](../daily/2026-05-13.md) |
 | 2026-05-14 | Main 75.79°F now ✅ / 73.24°F overnight avg ⚠️ / 77.70°F morning avg ✅; breeding 77.25°F now ✅ | Main-tent current/morning temperatures recovered from yesterday's hot spike and are back in the early-flower day band; overnight is warmer than the night band but paired with target VPD. Breeding tent morning reached 80.21°F, so keep a small-plant heat/airflow watch. → [2026-05-14](../daily/2026-05-14.md) |
+| 2026-05-15 | Main 74.71°F now ✅ / 73.19°F overnight avg ⚠️ / 75.92°F morning avg ✅; breeding 81.23°F now ⚠️ | Main-tent lights-on temperature stayed in range and VPD stayed controlled; overnight remains warmer than the night band. Breeding tent is hot now for small plants and paired with 1.57 kPa VPD. → [2026-05-15](../daily/2026-05-15.md) |
+| 2026-05-16 | Main 72.39°F now ✅ / 72.01°F overnight avg ⚠️ / 72.91°F morning avg ✅; breeding 77.61°F now ✅ | Main tent cooled toward the low end of the day band while VPD stayed in target. Breeding tent temperature is usable, but RH fell enough that VPD is dry for small plants. → [2026-05-16](../daily/2026-05-16.md) |
 
 ## Notable Events
 - **2026-03-21** — Overnight low of 59.5°F due to exhaust fan running too fast at night; resolved by throttling fan after lights-out → [2026-03-27 daily](../daily/2026-03-27.md)
@@ -88,3 +90,5 @@ updated: 2026-05-14
 - **2026-05-12** — Main-tent temperature is now the overshoot side of the VPD recovery: overnight averaged 75.44°F and now is 80.01°F. This helped dry the air, but the next adjustment should avoid pushing VPD further above target. → [2026-05-12](../daily/2026-05-12.md)
 - **2026-05-13** — Main-tent current temperature jumped to 85.8°F while overnight and morning stayed in range. Treat heat as the immediate driver of the 1.60 kPa VPD spike and avoid changes that add more heat or exhaust until the next cycle is reviewed. → [2026-05-13](../daily/2026-05-13.md)
 - **2026-05-14** — Main-tent temperature recovered from the prior hot current window: now is 75.79°F and morning averaged 77.70°F, both in range. Overnight averaged 73.24°F, warmer than the early-flower night band, but VPD remained controlled at 1.17 kPa. → [2026-05-14](../daily/2026-05-14.md)
+- **2026-05-15** — Main-tent current and morning temperatures stayed in the early-flower day band, supporting a second stable VPD day. Breeding tent current temperature reached 81.23°F, making fan angle and small-plant moisture checks more important than warming. → [2026-05-15](../daily/2026-05-15.md)
+- **2026-05-16** — Main-tent current temperature dropped to 72.39°F, still inside the early-flower day band and paired with target VPD. Breeding tent temperature is no longer hot at 77.61°F, but 48.88% RH / 1.65 kPa VPD makes drying stress the small-plant concern. → [2026-05-16](../daily/2026-05-16.md)

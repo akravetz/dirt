@@ -4,7 +4,7 @@ type: environment
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/environment/temperature.md, wiki/concepts/vpd.md, wiki/overview.md, wiki/hardware/humidifier-control.md, wiki/decisions/2026-04-17-humidifier-kasa-ep10.md]
 created: 2026-04-06
-updated: 2026-05-14
+updated: 2026-05-16
 ---
 
 
@@ -64,6 +64,8 @@ VPD is the control-loop setpoint; RH is informational (temperature determines wh
 | 2026-05-12 | Main: 60.70% now ⚠️ / 58.86% overnight avg ⚠️; VPD 1.37 kPa now ⚠️ / 1.24 kPa overnight ✅. Breeding: 63.80% now / 1.09 kPa VPD | Main-tent averaged VPD recovered into target after the multi-day wet spell, but the current reading is slightly dry/high. Breeding tent swung from wet overnight (0.53 kPa) to usable now; inspect seedlings/clones manually. → [2026-05-12](../daily/2026-05-12.md) |
 | 2026-05-13 | Main: 62.12% now ⚠️ / 59.72% overnight avg ⚠️; VPD 1.60 kPa now 🔴 / 1.00 kPa overnight ✅. Breeding: 63.98% now / 1.23 kPa VPD | Main-tent averages stayed usable, but the current reading overshot high as temperature reached 85.8°F. Breeding tent still swings wet overnight to usable/drier lights-on; inspect small plants manually. → [2026-05-13](../daily/2026-05-13.md) |
 | 2026-05-14 | Main: 61.81% now ⚠️ / 57.97% overnight avg ⚠️; VPD 1.16 kPa now ✅ / 1.17 kPa overnight ✅. Breeding: 60.62% now / 1.26 kPa VPD | Main-tent VPD is back inside target across all windows after yesterday's dry/hot spike. Breeding tent still swings from wet overnight (0.66 kPa) to a dry morning spike (1.49 kPa); inspect small plants for damp surfaces and fan drying. → [2026-05-14](../daily/2026-05-14.md) |
+| 2026-05-15 | Main: 62.88% now ⚠️ / 58.44% overnight avg ⚠️; VPD 1.09 kPa now ✅ / 1.16 kPa overnight ✅. Breeding: 56.91% now / 1.57 kPa VPD | Main-tent VPD held in target for a second day despite RH staying above the guide. Breeding tent still swings wet overnight to hot/dry now; inspect small plants for fan drying and surface moisture. → [2026-05-15](../daily/2026-05-15.md) |
+| 2026-05-16 | Main: 59.73% now ⚠️ / 58.08% overnight avg ⚠️; VPD 1.09 kPa now ✅ / 1.12 kPa overnight ✅. Breeding: 48.88% now / 1.65 kPa VPD | Main-tent VPD held target for a third day, so the main action remains canopy airflow rather than more environment correction. Breeding tent is dry during lights-on; check fan angle and surface moisture. → [2026-05-16](../daily/2026-05-16.md) |
 
 ## Notable Events
 - **2026-03-20** — Dome propped open, room humidifier added to tent after RH consistently below 50% → [2026-03-27 daily](../daily/2026-03-27.md)
@@ -97,6 +99,8 @@ VPD is the control-loop setpoint; RH is informational (temperature determines wh
 - **2026-05-12** — Main-tent VPD recovered to 1.24 kPa overnight and morning, ending the recent all-window low-VPD streak, but the current reading reached 1.37 kPa. Hold the recovery and avoid overshooting into a too-dry flower-week-2 profile. → [2026-05-12](../daily/2026-05-12.md)
 - **2026-05-13** — The overshoot risk materialized in the current window: main-tent VPD reached 1.60 kPa at 85.8°F after acceptable overnight/morning averages. Pause additional drying changes until the next cycle shows whether this is a transient hot-window spike. → [2026-05-13](../daily/2026-05-13.md)
 - **2026-05-14** — Main-tent VPD recovered into target across all windows (1.17 overnight, 1.26 morning, 1.16 now). Keep the current profile steady rather than chasing yesterday's high-VPD spike; the breeding tent remains a separate wet-night/dry-morning small-plant watch. → [2026-05-14](../daily/2026-05-14.md)
+- **2026-05-15** — Main-tent VPD held target for a second consecutive day (1.16 overnight, 1.21 morning, 1.09 now), so the main action shifts from environment correction to dense-canopy airflow. Breeding tent remains a separate swing problem: 0.74 kPa overnight to 1.57 kPa now. → [2026-05-15](../daily/2026-05-15.md)
+- **2026-05-16** — Main-tent VPD held target for a third consecutive day (1.12 overnight, 1.10 morning, 1.09 now). Keep the stable profile and focus on airflow through the dense canopy. Breeding tent moved from 0.94 kPa overnight to 1.65 kPa now, so small-plant fan exposure and surface moisture remain the separate watch. → [2026-05-16](../daily/2026-05-16.md)
 
 ## Deployed Control System
 
