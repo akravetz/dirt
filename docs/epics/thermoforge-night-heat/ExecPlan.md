@@ -37,6 +37,7 @@ The safety and reliability goals are explicit:
 - [x] (2026-05-16) Live-tested local BLE writes: off, on, and set heat level `4` worked against Controller 69 Pro `80:B5:4E:4D:27:CA`.
 - [x] (2026-05-16) Wrote this implementation plan.
 - [x] (2026-05-16) Revised the plan to make ThermoForge placement and schedules DB-driven and to standardize existing Kasa heat pad vocabulary under `heater`.
+- [x] (2026-05-16) Removed the global ThermoForge enable flag from the plan; DB `device.enabled` and `schedule.enabled` are the runtime controls.
 - [ ] Promote the reverse-engineered ThermoForge protocol into tested app code.
 - [ ] Add an exact-MAC BLE client and night-heat actuator service.
 - [ ] Add configuration, observability, Telegram alerts, and retry/backoff behavior.
@@ -107,6 +108,10 @@ The safety and reliability goals are explicit:
 
 - Decision: Keep ThermoForge heat level `4` in service config for the first release.
   Rationale: The immediate need uses one configured level across ThermoForge devices. Adding per-schedule target JSON is possible later, but it is unnecessary until different boxes need different levels.
+  Date/Author: 2026-05-16 / User/Codex
+
+- Decision: Do not add a global ThermoForge enable environment variable.
+  Rationale: In the DB-driven model, enablement already belongs to `device.enabled` and `schedule.enabled`. A global env kill switch would create another source of truth. If there are no enabled AC Infinity BLE heater schedules, the service idles.
   Date/Author: 2026-05-16 / User/Codex
 
 
@@ -229,7 +234,6 @@ Add a `ThermoForgeConfig` slice in `apps/shared/src/dirt_shared/config.py`.
 
 Initial environment-backed fields:
 
-- `THERMOFORGE_ENABLED`, default false.
 - `THERMOFORGE_NIGHT_LEVEL`, default `4`.
 - `THERMOFORGE_POLL_INTERVAL`, default `30`.
 - `THERMOFORGE_CONNECT_TIMEOUT_S`, default `15`.
@@ -238,7 +242,7 @@ Initial environment-backed fields:
 
 Validate that `THERMOFORGE_NIGHT_LEVEL` is in the supported range observed for the controller. For this release, accept levels `0` through `10` unless implementation discovery proves the device constrains the set differently.
 
-Do not include `THERMOFORGE_MAC`, `THERMOFORGE_SITE_ID`, `THERMOFORGE_TENT_ID`, or `THERMOFORGE_DEVICE_ID` as production ownership settings. Production ownership comes from `device` and `schedule` rows.
+Do not include environment settings for global enablement, MAC, site ID, tent ID, or device ID as production ownership settings. Production ownership and enablement come from `device` and `schedule` rows.
 
 Milestone 5: Seed the first ThermoForge as a DB-known heater.
 
@@ -252,12 +256,15 @@ Suggested initial rows:
 - `device.controller='ac_infinity_ble'`;
 - `device.provider_uid_kind='mac'`;
 - `device.provider_uid='80:B5:4E:4D:27:CA'`;
+- `device.enabled=true`;
 - `device.tent_id` and `device.zone_id` scoped to the current physical location;
-- `capability.capability_id='power'`, `kind='actuator'`, `metric_name='heater_on'`, `unit='bool'`, `source='ac_infinity'`;
-- `capability.capability_id='heat_level'`, `kind='actuator'`, `metric_name='heater_heat_level'`, `unit='level'`, `source='ac_infinity'`;
-- `schedule.kind='heater'`, pointed at the ThermoForge device and its `power` capability.
+- `capability.capability_id='power'`, `kind='actuator'`, `metric_name='heater_on'`, `unit='bool'`, `source='ac_infinity'`, `enabled=true`;
+- `capability.capability_id='heat_level'`, `kind='actuator'`, `metric_name='heater_heat_level'`, `unit='level'`, `source='ac_infinity'`, `enabled=true`;
+- `schedule.schedule_id='main-thermoforge-night'`;
+- `schedule.kind='heater'`, pointed at the ThermoForge device and its `power` capability;
+- `schedule.starts_local='21:00'`, `schedule.ends_local='09:00'`, `schedule.timezone='America/Denver'`, `schedule.enabled=true`.
 
-Use whatever heater schedule matches the desired current deployment. If the main tent heater should mirror the dark period, seed the explicit same local window as the main tent dark period rather than deriving it at runtime from the light schedule. Future boxes, including Dirt Two, should be added by inserting another DB-known heater device plus another `heater` schedule.
+The main tent light schedule is currently `09:00` to `21:00`, so the first ThermoForge heater schedule must explicitly use the inverse dark window, `21:00` to `09:00`. Do not derive this at runtime from the light schedule. Future boxes, including Dirt Two, should be added by inserting another DB-known heater device plus another explicit `heater` schedule.
 
 Milestone 6: Implement the scheduled ThermoForge service.
 
@@ -313,7 +320,7 @@ If this requires a new `SensorSource` enum value, read `docs/database.md` and `d
 
 Milestone 9: Wire into `dirt-hwd`.
 
-In `apps/hwd/src/dirt_hwd/app.py`, instantiate and supervise `ScheduledThermoForgeService` only when `settings.thermoforge().enabled` is true.
+In `apps/hwd/src/dirt_hwd/app.py`, instantiate and supervise `ScheduledThermoForgeService` unconditionally after dependencies are installed. The service should query enabled AC Infinity BLE heater schedules each tick and idle cleanly when none exist.
 
 Keep the service independent from humidifier and Kasa scheduling code. Shared behavior such as backoff may be copied as a tiny helper or extracted only if there is an existing local helper that fits cleanly. Do not create a generic BLE actuator framework for one device.
 
@@ -322,10 +329,10 @@ Milestone 10: Live rollout.
 Before enabling production:
 
 - confirm the ThermoForge DB device has `provider_uid='80:B5:4E:4D:27:CA'`;
+- confirm the ThermoForge DB device has `enabled=true`;
 - confirm the ThermoForge DB device has an enabled `heater` schedule;
 - confirm the phone app is disconnected from the Controller 69 Pro;
 - run a short manual client smoke test if useful from `debug/ac-infinity-research/thermoforge_write.py`;
-- enable `THERMOFORGE_ENABLED=true`;
 - restart `dirt-hwd`;
 - observe `var/logs/heater/` and Telegram behavior.
 
@@ -354,9 +361,9 @@ Controlled live validation should cover:
 
    Then manually confirm it updates the existing Kasa breeding heat pad from `heat_pad` / `heat_pad_power` / `heat_pad_on` to `heater` / `power` / `heater_on` without duplicating rows.
 
-5. Add `ThermoForgeConfig` to `apps/shared/src/dirt_shared/config.py` with tests for defaults, enabled validation, and level range validation.
+5. Add `ThermoForgeConfig` to `apps/shared/src/dirt_shared/config.py` with tests for defaults and level range validation. Do not add a global `enabled` field.
 
-6. Add the first ThermoForge DB seed migration with an AC Infinity BLE device, `power` and `heat_level` capabilities, and an enabled `heater` schedule.
+6. Add the first ThermoForge DB seed migration with an enabled AC Infinity BLE device, enabled `power` and `heat_level` capabilities, and an enabled `heater` schedule from `21:00` to `09:00`.
 
 7. Add `apps/hwd/src/dirt_hwd/services/thermoforge.py` and tests in `apps/hwd/tests/test_thermoforge.py` covering schedule-derived target decisions, idempotent reconciliation, write ordering, failures, Telegram transitions, per-device backoff, and backoff cap.
 
@@ -397,7 +404,7 @@ Automated acceptance:
 
 Live acceptance:
 
-- With `THERMOFORGE_ENABLED=true`, `dirt-hwd` starts and keeps running.
+- With an enabled AC Infinity BLE `heater` schedule, `dirt-hwd` starts and keeps running.
 - During inactive heater schedule windows, the ThermoForge is commanded off.
 - During active heater schedule windows, the ThermoForge is commanded on at heat level `4`.
 - Disconnecting or occupying the controller BLE connection produces a Telegram alert and retry loop instead of a service crash.
@@ -419,10 +426,10 @@ If a migration is added for new reading source values or catalog rows, make it r
 
 Rollback is straightforward:
 
-- set `THERMOFORGE_ENABLED=false`;
+- set the ThermoForge `schedule.enabled=false` or `device.enabled=false`;
 - restart `dirt-hwd`;
 - leave protocol tests and debug artifacts in place unless the feature is abandoned;
-- manually control the ThermoForge through the AC Infinity app until the service is re-enabled.
+- manually control the ThermoForge through the AC Infinity app until the DB row is re-enabled.
 
 
 ## Artifacts and Notes
@@ -449,7 +456,6 @@ New app dependencies:
 
 New or changed configuration:
 
-- `THERMOFORGE_ENABLED`
 - `THERMOFORGE_NIGHT_LEVEL`
 - `THERMOFORGE_POLL_INTERVAL`
 - `THERMOFORGE_CONNECT_TIMEOUT_S`
