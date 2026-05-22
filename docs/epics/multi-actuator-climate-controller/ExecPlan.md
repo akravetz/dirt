@@ -26,11 +26,10 @@ The controller must preserve baseline fan operation. Fan floor is air filtration
 - [x] (2026-05-21) Ran historical regression in `debug/fan_temp_regression.py`; steady lights-on/heater-off data supports using fan increases as a modest cooling actuator.
 - [x] (2026-05-21) Searched current greenhouse/control-theory references for multivariable climate control, split-range PI, constrained control, day/night temperature/VPD policy, and anti-windup.
 - [x] (2026-05-21) Wrote this ExecPlan.
-- [ ] Confirm the dehumidifier Kasa plug identity after the user provisions it.
-- [ ] Implement and validate the DB-known dehumidifier actuator.
+- [x] (2026-05-21 21:43 MDT) Confirmed the dehumidifier Kasa plug identity: alias `tent-dehumidifier`, MAC `58:04:4F:10:3D:19`, IP `192.168.1.208`.
+- [x] (2026-05-21 21:44 MDT) Added and applied Atlas seed migration `20260522032000_seed_main_dehumidifier.sql`, creating DB device `kasa-dehumidifier-main` under `homebox/main/canopy` with capability `power -> dehumidifier_on`.
 - [ ] Implement pure climate policy/allocation code with focused tests.
-- [ ] Wire a shadow climate controller beside existing loops and compare logs.
-- [ ] Cut over to the new climate controller as the sole climate actuator authority.
+- [ ] Cut over directly to the new climate controller as the sole climate actuator authority, with guarded live validation.
 - [ ] Retire obsolete humidifier/fan authority paths and update documentation.
 
 
@@ -47,6 +46,12 @@ The controller must preserve baseline fan operation. Fan floor is air filtration
 
 - Observation: The humidifier PI module already has useful controller mechanics that should be reused as patterns, not as the final top-level architecture.
   Evidence: `apps/hwd/src/dirt_hwd/services/humidifier_pi.py` is a pure function with bounded integral state, threshold hysteresis, stale-sensor failsafe, and `track_delivered_output()` external-reset tracking.
+
+- Observation: The main ThermoForge heater is a discrete staged actuator with off plus heat levels 1 through 10, not a continuous actuator.
+  Evidence: `apps/hwd/src/dirt_hwd/services/thermoforge_protocol.py:level_body()` accepts levels `0 <= level <= 10` and rejects `-1` and `11`; status decoding returns `level=(frame[48] & 0x3c) >> 2`; `apps/shared/tests/test_config.py` validates `THERMOFORGE_NIGHT_LEVEL` and documents the current default as `4`; `apps/hwd/tests/test_thermoforge_protocol.py` verifies captured writes for levels `1`, `4`, and `7` plus a captured running level `4` status frame.
+
+- Observation: The dehumidifier Kasa plug is discoverable on the LAN and matches the user-provided MAC.
+  Evidence: `uv run --package dirt-hwd kasa --username "$KASA_USERNAME" --password "$KASA_PASSWORD" --target 192.168.1.255 --discovery-timeout 8 discover` found alias `tent-dehumidifier`, host `192.168.1.208`, model `EP10`, firmware `1.1.1 Build 250908 Rel.112508`, and MAC `58:04:4F:10:3D:19`.
 
 - Observation: Published greenhouse control work treats this as a coupled multivariable temperature/humidity problem and uses PI, split-range control, decoupling, anti-windup, and day/night scheme transfer.
   Evidence: ScienceDirect open-access article "A practical solution for multivariable control of temperature and humidity in greenhouses" says nighttime control uses heating and dehumidification, daytime control uses ventilation, dehumidification, and humidification, and the design uses PI, anti-windup, bumpless transfer, and split-range humidity control. Source: https://www.sciencedirect.com/science/article/pii/S094735802400027X.
@@ -80,18 +85,26 @@ The controller must preserve baseline fan operation. Fan floor is air filtration
   Rationale: Fan floor is baseline filtration, air exchange, and mixing. It can remain active with the heater. The controller should suppress only elevated fan cooling demand while heating, except when RH/VPD safety requires drying.
   Date/Author: 2026-05-21 / User/Codex
 
+- Decision: Model ThermoForge heater dispatch as staged output: off plus levels 1 through 10.
+  Rationale: The BLE protocol and tests show the device supports discrete levels `0..10`. The climate PI may compute continuous heat demand internally, but actuator dispatch must quantize that demand to a supported level with hysteresis and minimum hold times.
+  Date/Author: 2026-05-21 / User/Codex
+
+- Decision: Retire schedule-driven heater authority when the climate controller takes over.
+  Rationale: The current heater path is schedule-driven (`schedule.kind='heater'`) and effectively uses an explicit night window. That was correct for the first ThermoForge release, but climate heat should now be controlled by temperature/VPD/RH policy, not by a fixed schedule. Keep scheduled Kasa control for lights; remove heater schedules or disable their service path so there is one heater authority.
+  Date/Author: 2026-05-21 / User/Codex
+
 - Decision: Implement a constrained split-range PI supervisor before considering full MPC.
   Rationale: Model predictive control is common in greenhouse literature, but this tent does not yet have identified dehumidifier dynamics. A split-range PI supervisor is inspectable, testable, and consistent with the existing codebase. Historical actuator data can later support MPC if needed.
   Date/Author: 2026-05-21 / Codex
 
-- Decision: Use a shadow-mode milestone before authority cutover.
-  Rationale: The current loops are live climate controls. Shadow mode lets us compare proposed actuator commands against existing behavior without touching the tent.
-  Date/Author: 2026-05-21 / Codex
+- Decision: Do not run a shadow-mode rollout for the first climate controller release.
+  Rationale: The user is actively monitoring the tent and current VPD is concerningly low, so the improved control path should become authoritative immediately. The implementation must still be guarded by focused tests, startup safety checks, explicit live validation, and clear rollback instructions.
+  Date/Author: 2026-05-21 / User/Codex
 
 
 ## Outcomes & Retrospective
 
-Not started. At each milestone, update this section with what was implemented, what tests/logs proved it, and whether the implementation still matches the purpose above.
+Milestone 1 outcome: the main-tent dehumidifier is now registered as a DB-known Kasa actuator. Migration `migrations/20260522032000_seed_main_dehumidifier.sql` upserts `device_id='kasa-dehumidifier-main'` under `homebox/main/canopy`, with `controller='kasa'`, `provider_uid_kind='mac'`, `provider_uid='58:04:4F:10:3D:19'`, `ip='192.168.1.208'`, and metadata from Kasa discovery. It also upserts capability `capability_id='power'`, `metric_name='dehumidifier_on'`, `unit='bool'`, `source='kasa'`. Validation: `atlas migrate apply --env local --dry-run` showed one pending migration with two SQL statements; `pg_dump` backup `var/db-backups/dirt-20260521-214419-pre-main-dehumidifier.sql` was taken; `atlas migrate apply --env local` applied the migration; `atlas migrate status --env local` reported current version `20260522032000` with zero pending files; SQL verification showed the expected device and capability rows.
 
 
 ## Context and Orientation
@@ -115,8 +128,8 @@ Current relevant services:
 - `apps/hwd/src/dirt_hwd/services/humidifier_pi.py` is a pure PI controller for humidifier intensity. It should inform the new pure controller design.
 - `apps/hwd/src/dirt_hwd/services/humidifier_dispatch.py` maps a continuous humidifier output to H7142 levels. Reuse this dispatch boundary.
 - `apps/hwd/src/dirt_hwd/services/fan_controller.py` owns the current supervisory fan trim. Its top-level authority should be replaced, but its fan-node client usage and observability fields are useful references.
-- `apps/hwd/src/dirt_hwd/services/kasa_schedule.py` reconciles scheduled Kasa plugs such as lights and heater plugs. The dehumidifier plug should be modeled as a DB-known Kasa actuator but controlled by climate policy, not by a time schedule.
-- `apps/hwd/src/dirt_hwd/services/thermoforge.py` owns ThermoForge heater reconciliation. If present in the working tree, the new controller should either command it through a small explicit interface or route heater target decisions to its existing reconciliation path.
+- `apps/hwd/src/dirt_hwd/services/kasa_schedule.py` reconciles scheduled Kasa plugs such as lights and older heater plugs. After cutover it should remain a lights scheduler only. The dehumidifier plug should be modeled as a DB-known Kasa actuator but controlled by climate policy, not by a time schedule.
+- `apps/hwd/src/dirt_hwd/services/thermoforge.py` currently owns schedule-driven ThermoForge heater reconciliation. The climate controller should reuse its BLE protocol/client pieces but retire the schedule-derived target loop as heater authority.
 - `apps/shared/src/dirt_shared/services/grow_state.py` owns `STAGE_TARGETS` and lights context. Its current comments define `temperature_f` and `vpd_kpa` as primary targets and `humidity_pct` as an envelope.
 - `apps/shared/src/dirt_shared/config.py` owns environment-backed config slices such as `HumidifierConfig`, `FanTrimConfig`, and heater settings.
 - `apps/shared/src/dirt_shared/services/readings.py` provides latest readings and writes actuator readings.
@@ -135,8 +148,9 @@ Terms used in this plan:
 - Fan floor: minimum fan duty reserved for filtration, air exchange, and mixing. It is not considered active cooling demand.
 - Elevated fan demand: fan duty above floor requested for cooling or drying.
 - Split-range control: one signed demand is allocated to different actuators depending on direction, for example humidifier for too-dry VPD error and dehumidifier/fan for too-wet VPD error.
+- Staged heater dispatch: mapping a continuous internal heat demand to discrete ThermoForge states: off, then levels 1 through 10. Level 0 appears in decoded status when the unit is off; active heating commands should use levels 1 through 10.
 - Anti-windup: logic that prevents PI integrators from accumulating impossible demand while actuators are saturated, disabled, or clipped by higher-priority constraints.
-- Bumpless transfer: switching between lights-on/lights-off policies or shadow/live authority without a sudden jump caused by stale integral state.
+- Bumpless transfer: switching between lights-on/lights-off policies or replacing the previous controller authority without a sudden jump caused by stale integral state.
 
 
 ## Plan of Work
@@ -159,6 +173,7 @@ The policy should include:
 - hard minimum temperature, initially 70°F;
 - RH maximum by stage and phase;
 - fan floor and fan maximum;
+- heater supported levels, initially off plus ThermoForge levels 1 through 10;
 - actuator stale-sensor limits;
 - deadbands and minimum on/off durations for Kasa dehumidifier cycling.
 
@@ -180,8 +195,8 @@ Add `apps/hwd/src/dirt_hwd/services/climate_controller.py` or split pure logic i
 Suggested internal shape:
 
 - `ClimateInput`: timestamp, temperature, RH, VPD, reading ages, lights state, stage, current actuator states.
-- `ClimatePolicy`: bands, constraints, fan floor, actuator limits, deadbands, minimum cycle times.
-- `ClimateState`: PI integrators, last actuator changes, dehumidifier cycle state, mode/phase for bumpless transfer.
+- `ClimatePolicy`: bands, constraints, fan floor, actuator limits, ThermoForge supported levels, deadbands, minimum cycle times.
+- `ClimateState`: PI integrators, last actuator changes, dehumidifier cycle state, heater level hold state, mode/phase for bumpless transfer.
 - `ClimateDecision`: requested fan duty, humidifier intensity/level, dehumidifier power, heater target, reason codes, constraint flags, updated state.
 
 The algorithm should run in this priority order:
@@ -195,6 +210,8 @@ The algorithm should run in this priority order:
 
 Use anti-windup/external-reset logic. If the allocator clips humidifier output because RH is at max, the humidifier integrator must track delivered output. If dehumidifier minimum-off time prevents a requested on command, the drying integrator must not continue winding up as though the command were delivered. If fan is capped by low-temperature safety, the cooling/drying fan contribution should be tracked to the capped output.
 
+Heater dispatch must not pretend the ThermoForge is continuous. The temperature controller may compute a continuous internal heat demand in percent, but dispatch should quantize it to off or levels 1 through 10. Start with a simple monotonic bucket mapping from `heat_demand_pct` to levels, then add level-boundary hysteresis and a minimum level hold time so normal noise does not chatter between adjacent heat levels. A hard low-temperature guard may override the hold timer to step up faster; over-temperature or stale-sensor safety may command off immediately. The PI integrator should track delivered heat output after quantization so it does not wind up while the dispatch layer holds a lower level or keeps the heater off.
+
 Milestone 4: add actuator command boundaries.
 
 Create small explicit actuator interfaces so the climate service does not contain provider details:
@@ -202,42 +219,38 @@ Create small explicit actuator interfaces so the climate service does not contai
 - fan actuator: reads current duty and sets duty through the existing ESP32 fan node API;
 - humidifier actuator: uses existing Govee/H7142 dispatch and quantization;
 - dehumidifier actuator: sets a DB-known Kasa plug on/off and records `dehumidifier_on`;
-- heater actuator: commands existing heater authority, either Kasa heater plug or ThermoForge, without duplicating BLE/Kasa protocol code.
+- heater actuator: commands existing heater authority without duplicating BLE/Kasa protocol code. For ThermoForge, it must accept explicit staged targets: off or level 1 through 10. For a plain Kasa heater plug, it may only support off/on and should expose that lower-resolution capability to the allocator.
+
+Add a pure heater dispatch helper, for example `apps/hwd/src/dirt_hwd/services/heater_dispatch.py`, if no existing ThermoForge dispatch module fits. It should convert continuous heat demand to staged ThermoForge targets and enforce hysteresis/hold timers independently from BLE transport. Tests should cover off, low/mid/high level selection, boundary hysteresis, minimum hold behavior, hard low-temperature step-up, and immediate safety-off.
 
 Do not add generic actuator registries unless duplication becomes real during implementation. A direct `ClimateActuators` composition object with four explicit fields is enough.
 
-Milestone 5: shadow mode.
+Milestone 4b: remove schedule-driven heater ownership.
 
-Wire `ClimateControllerService` into `dirt-hwd` in shadow mode. In shadow mode it reads sensors and current actuator states, computes decisions, records a `climate_controller` `tick` event, but does not dispatch actuator changes.
+Before dispatch cutover, create the migration and service changes that make heater devices climate-controlled instead of schedule-controlled. Keep the heater `device` and `capability` rows. Remove or disable schedule rows whose only purpose is climate heat, such as `main-thermoforge-night` and any Kasa heater schedule that should no longer run independently. Do not remove light schedules.
 
-Keep current `HumidifierLoopService` and `FanTrimLoopService` live during this milestone. Shadow logs must include:
+Update `ScheduledKasaActuatorService` default schedule kinds so it only owns non-climate scheduled loads, currently lights. If a breeding heat pad still needs schedule-only behavior outside the climate controller scope, record that as an explicit exception in this plan; otherwise migrate it to the climate controller or disable its schedule too.
 
-- stage, lights state, phase;
-- temp/RH/VPD readings and ages;
-- active policy bands and hard constraints;
-- current actuator states;
-- proposed actuator commands;
-- delivered commands as `null` or unchanged in shadow;
-- demand terms for VPD and temperature;
-- reason codes and constraint flags.
+Refactor ThermoForge code so BLE connection, status read, `set_power()`, and `set_level()` remain usable by the climate heater actuator, but `ScheduledThermoForgeService` is no longer wired as a background service once `ClimateControllerService` dispatches heater commands. Do not leave a durable wrapper that computes heater targets from a schedule.
 
-Add a debug analyzer under `debug/climate-controller/analyze.py` or extend existing analysis scripts to compare proposed commands to observed actuator behavior and recent sensor trends. This analyzer should be a debug tool, not app code.
+Milestone 5: direct authority cutover with guarded live validation.
 
-Milestone 6: authority cutover.
-
-Stop wiring `FanTrimLoopService` and `HumidifierLoopService` as independent authorities. Wire `ClimateControllerService` in dispatch mode as the only loop allowed to command fan, humidifier, dehumidifier, and heater climate targets.
+Stop wiring `FanTrimLoopService`, `HumidifierLoopService`, and `ScheduledThermoForgeService` as independent climate authorities. Wire `ClimateControllerService` in dispatch mode as the only loop allowed to command fan, humidifier, dehumidifier, and heater climate targets. Keep scheduled Kasa light control running for light schedules only.
 
 Direct cutover is preferred over compatibility wrappers. If rollback is needed during live rollout, use git/service rollback and re-enable the old services in `app.py`; do not leave permanent dual-authority code paths.
 
 During cutover, preserve the hardware-specific event streams where useful, but make `climate_controller` the top-level decision stream. For example, a climate tick logs why the fan target changed; the fan actuator may still log the actual fan state change.
 
-Milestone 7: retire obsolete code and docs.
+Before restarting `dirt-hwd`, run the focused controller tests and verify current sensor freshness. After restart, watch `var/logs/climate_controller/YYYY-MM-DD.jsonl`, `var/logs/humidifier/YYYY-MM-DD.jsonl`, `var/logs/fan_controller/YYYY-MM-DD.jsonl`, and `var/logs/heater/YYYY-MM-DD.jsonl` for the first 10-15 minutes. Confirm there is exactly one climate authority emitting command decisions, no simultaneous humidifier/dehumidifier command, and VPD begins moving toward the active band. If the new controller behaves unexpectedly, stop `dirt-hwd`, restore the previous app wiring, restart, and record the rollback in this plan.
+
+Milestone 6: retire obsolete code and docs.
 
 After live behavior is stable, delete or demote obsolete top-level logic:
 
 - remove or stop using `FanTrimLoopService` authority code if it has no remaining caller;
 - keep `humidifier_dispatch.py` and provider-specific H7142 code;
 - remove humidifier PI controller paths that are replaced by climate PI, unless a pure helper remains genuinely reused;
+- remove scheduled heater target derivation and any obsolete `schedule.kind='heater'` rows that are no longer real scheduling contracts;
 - update `docs/observability.md`, `wiki/hardware/humidifier-control.md`, and any epic docs that still describe the old separate loops as authoritative.
 
 Move agent-owned tests to the new controller contract. Do not edit human-owned invariants under `apps/tests/invariants/`; fix code to satisfy them.
@@ -340,18 +353,13 @@ Pure controller tests must cover at least these cases:
 - Phase transition from lights-on to lights-off is bumpless: integrators do not cause a large immediate actuator jump.
 - Allocator clipping feeds back into integrator state so impossible demand does not wind up.
 
-Shadow-mode acceptance:
-
-- `dirt-hwd` runs with current authoritative loops still active.
-- `var/logs/climate_controller/YYYY-MM-DD.jsonl` receives one tick per poll interval.
-- Shadow ticks include policy bands, hard constraints, current actuator states, proposed commands, reasons, and sensor ages.
-- No fan, humidifier, dehumidifier, or heater command is dispatched by the shadow service.
-
 Dispatch-mode acceptance:
 
 - `ClimateControllerService` is the only app-wired climate authority for fan, humidifier, dehumidifier, and heater climate targets.
 - `FanTrimLoopService` no longer runs as an independent service.
 - `HumidifierLoopService` no longer runs as an independent control authority.
+- `ScheduledThermoForgeService` no longer runs as an independent heater authority.
+- Scheduled Kasa actuator control still owns lights, but no climate heater or dehumidifier command depends on a schedule row.
 - When VPD is above the lights-on target band and RH is below max, the humidifier command increases and the dehumidifier remains off.
 - When VPD is below the target band or RH is above max, the humidifier is off and dehumidifier/fan drying is requested according to temperature constraints.
 - When temperature falls below 70°F, heater demand appears and fan remains at floor unless drying safety overrides.
@@ -365,17 +373,17 @@ Human-observable live checks:
 - `var/logs/climate_controller/YYYY-MM-DD.jsonl` should show no simultaneous humidifier and dehumidifier command.
 - During lights-off, temperature should settle near the night target without falling below 70°F.
 - During lights-on, VPD should remain inside or close to the active flower band unless an actuator saturates.
+- Heater logs and readings should show supported ThermoForge levels only: off/effective level 0 when not running, or levels 1 through 10 while running.
+- During the first live 10-15 minutes after cutover, the operator should see exactly one climate decision stream and should not see old fan/humidifier/heater schedule loops issuing independent corrective commands.
 
 
 ## Idempotence and Recovery
 
-Reading docs, running tests, running dry-run migrations, and running shadow mode are safe to repeat.
+Reading docs, running tests, and running dry-run migrations are safe to repeat.
 
 Migrations must be idempotent or reviewed for idempotence before live apply. Seed migrations should use stable natural identifiers such as `site_id='homebox'`, `tent_id='main'`, `device_id='kasa-dehumidifier-main'`, and `capability_id='power'`. Do not create duplicate devices or capabilities if the migration is applied once and then inspected.
 
 Before applying local migrations, take a `pg_dump` backup under `var/db-backups/`. If a migration is wrong before apply, edit the migration and run `atlas migrate hash --env local`. If a migration is wrong after apply, create a forward corrective migration; do not hand-edit the live schema.
-
-Shadow-mode rollback is simple: remove or disable the shadow service wiring and restart `dirt-hwd`. Since shadow mode does not dispatch commands, no actuator recovery is needed.
 
 Dispatch-mode rollback during live rollout should be explicit:
 
@@ -422,7 +430,8 @@ Actuator dependencies:
 - Fan: existing fan controller ESP32 HTTP API via `dirt_shared.services.fan_node.FanNodeClient`.
 - Humidifier: existing Govee H7142 client/dispatch code from `apps/hwd/src/dirt_hwd/services/humidifier.py` and `humidifier_dispatch.py`.
 - Dehumidifier: Kasa plug local control, using existing Kasa dependency already present for lights/heaters.
-- Heater: existing Kasa heater plug and/or ThermoForge service path, depending on current deployed hardware.
+- Heater: existing Kasa heater plug and/or ThermoForge BLE client code, depending on current deployed hardware. Heater target selection must come from `ClimateControllerService`, not from `schedule.kind='heater'`.
+- ThermoForge heater: discrete levels `0..10` at the protocol/status layer. Climate dispatch should command off or levels `1..10`; decoded level `0` means effective off.
 
 Configuration dependencies:
 
@@ -433,6 +442,7 @@ Configuration dependencies:
 - Per-stage, per-phase RH max envelope.
 - Sensor stale thresholds.
 - Dehumidifier minimum on/off durations.
+- Heater level hysteresis and minimum level hold duration.
 - PI gains and integrator clamps for VPD and temperature terms.
 
 Database dependencies:

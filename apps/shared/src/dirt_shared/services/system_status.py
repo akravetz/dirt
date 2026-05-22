@@ -26,6 +26,15 @@ DeviceStatus_t = Literal["ok", "warn", "offline", "listening"]
 
 
 @dataclass(frozen=True)
+class WifiTelemetry:
+    rssi_dbm: int | None
+    reconnect_count: int | None
+    driver_reset_count: int | None
+    disconnect_reason: int | None
+    disconnected_for_ms: int | None
+
+
+@dataclass(frozen=True)
 class DeviceStatus:
     name: str
     kind: DeviceKind
@@ -36,6 +45,7 @@ class DeviceStatus:
     site_id: str = DEFAULT_SITE_ID
     tent_id: str | None = DEFAULT_TENT_ID
     zone_id: str | None = None
+    wifi: WifiTelemetry | None = None
 
 
 # How old a heartbeat can be before we flip ok → warn → offline.
@@ -76,6 +86,7 @@ class _ScopedDevice:
     tent_id: str | None
     zone_id: str | None
     last_seen: datetime | None
+    wifi: WifiTelemetry | None
 
 
 # ============================================================
@@ -165,6 +176,18 @@ def _is_user_service_active(unit: str) -> bool:
     return result.returncode == 0 and result.stdout.strip() == "active"
 
 
+def _wifi_telemetry(device: Device) -> WifiTelemetry | None:
+    if device.controller != "esp32":
+        return None
+    return WifiTelemetry(
+        rssi_dbm=device.wifi_rssi_dbm,
+        reconnect_count=device.wifi_reconnect_count,
+        driver_reset_count=device.wifi_driver_reset_count,
+        disconnect_reason=device.wifi_disconnect_reason,
+        disconnected_for_ms=device.wifi_disconnected_for_ms,
+    )
+
+
 class SystemStatusService:
     """Heterogenous device heartbeat collator. Constructor-inject the engine.
 
@@ -232,6 +255,7 @@ class SystemStatusService:
                 tent_id=tent_id,
                 zone_id=zone_id,
                 last_seen=device.last_seen,
+                wifi=_wifi_telemetry(device),
             )
         return [
             by_id[device_id] for device_id in _STATUS_DEVICE_ORDER if device_id in by_id
@@ -251,6 +275,7 @@ class SystemStatusService:
             site_id=device.site_id,
             tent_id=device.tent_id,
             zone_id=device.zone_id,
+            wifi=device.wifi,
         )
 
     def _camera_status(self, now: datetime, device: _ScopedDevice) -> DeviceStatus:

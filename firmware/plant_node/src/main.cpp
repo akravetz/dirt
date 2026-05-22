@@ -80,7 +80,7 @@ void setup() {
     adc1_config_width(ADC_WIDTH_BIT_12);
     adc1_config_channel_atten(MOISTURE_ADC_CH, ADC_ATTEN_DB_11);
 
-    wifi_client::connect(WIFI_SSID, WIFI_PASSWORD, HOSTNAME);
+    wifi_client::begin(WIFI_SSID, WIFI_PASSWORD, HOSTNAME);
     ota::begin(HOSTNAME, OTA_PASSWORD);
 }
 

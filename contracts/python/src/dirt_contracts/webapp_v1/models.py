@@ -467,6 +467,17 @@ class PlantMoistureHistory(BaseModel):
     irrigation_events_24h: conint(ge=0)
 
 
+class WifiTelemetry(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    rssi_dbm: int | None
+    reconnect_count: int | None
+    driver_reset_count: int | None
+    disconnect_reason: int | None
+    disconnected_for_ms: int | None
+
+
 class Kind(StrEnum):
     env_sensor = "env_sensor"
     moisture_node = "moisture_node"
@@ -484,6 +495,7 @@ class DeviceStatus(BaseModel):
     status: DeviceStatusKind
     last_seen: AwareDatetime | None
     note: str | None = None
+    wifi: WifiTelemetry | None
 
 
 class DevicesResponse(BaseModel):

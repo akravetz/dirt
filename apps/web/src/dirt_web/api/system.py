@@ -14,6 +14,7 @@ from dirt_contracts.webapp_v1.models import (
     DeviceStatus,
     DeviceStatusKind,
     Kind,
+    WifiTelemetry,
 )
 from fastapi import APIRouter, Depends
 
@@ -36,6 +37,15 @@ async def system_devices(
             status=DeviceStatusKind(s.status),
             last_seen=s.last_seen,
             note=s.note,
+            wifi=None
+            if s.wifi is None
+            else WifiTelemetry(
+                rssi_dbm=s.wifi.rssi_dbm,
+                reconnect_count=s.wifi.reconnect_count,
+                driver_reset_count=s.wifi.driver_reset_count,
+                disconnect_reason=s.wifi.disconnect_reason,
+                disconnected_for_ms=s.wifi.disconnected_for_ms,
+            ),
         )
         for s in statuses
     ]

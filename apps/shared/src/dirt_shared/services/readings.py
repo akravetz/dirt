@@ -234,6 +234,11 @@ async def _touch_device_heartbeat(  # noqa: PLR0913
     ip: str | None,
     firmware_version: str | None,
     uptime_ms: int | None,
+    wifi_rssi_dbm: int | None,
+    wifi_reconnect_count: int | None,
+    wifi_driver_reset_count: int | None,
+    wifi_disconnect_reason: int | None,
+    wifi_disconnected_for_ms: int | None,
 ) -> None:
     if device_id is None:
         return
@@ -257,6 +262,11 @@ async def _touch_device_heartbeat(  # noqa: PLR0913
         device.firmware_version = firmware_version
     if uptime_ms is not None:
         device.uptime_ms = uptime_ms
+    device.wifi_rssi_dbm = wifi_rssi_dbm
+    device.wifi_reconnect_count = wifi_reconnect_count
+    device.wifi_driver_reset_count = wifi_driver_reset_count
+    device.wifi_disconnect_reason = wifi_disconnect_reason
+    device.wifi_disconnected_for_ms = wifi_disconnected_for_ms
     device.last_seen = now
     device.updated_at = now
     session.add(device)
@@ -612,6 +622,11 @@ class ReadingsService:
         ip: str | None = None,
         firmware_version: str | None = None,
         uptime_ms: int | None = None,
+        wifi_rssi_dbm: int | None = None,
+        wifi_reconnect_count: int | None = None,
+        wifi_driver_reset_count: int | None = None,
+        wifi_disconnect_reason: int | None = None,
+        wifi_disconnected_for_ms: int | None = None,
         site_id: str = DEFAULT_SITE_ID,
         tent_id: str | None = DEFAULT_TENT_ID,
         zone_id: str | None = None,
@@ -631,6 +646,11 @@ class ReadingsService:
                 ip=ip,
                 firmware_version=firmware_version,
                 uptime_ms=uptime_ms,
+                wifi_rssi_dbm=wifi_rssi_dbm,
+                wifi_reconnect_count=wifi_reconnect_count,
+                wifi_driver_reset_count=wifi_driver_reset_count,
+                wifi_disconnect_reason=wifi_disconnect_reason,
+                wifi_disconnected_for_ms=wifi_disconnected_for_ms,
             )
 
             capability_ids = await _resolve_capability_ids(
@@ -686,6 +706,11 @@ class ReadingsService:
         ip: str | None = None,
         firmware_version: str | None = None,
         uptime_ms: int | None = None,
+        wifi_rssi_dbm: int | None = None,
+        wifi_reconnect_count: int | None = None,
+        wifi_driver_reset_count: int | None = None,
+        wifi_disconnect_reason: int | None = None,
+        wifi_disconnected_for_ms: int | None = None,
     ) -> None:
         """Update canonical device heartbeat."""
         now = self._clock()
@@ -700,6 +725,11 @@ class ReadingsService:
                 ip=ip,
                 firmware_version=firmware_version,
                 uptime_ms=uptime_ms,
+                wifi_rssi_dbm=wifi_rssi_dbm,
+                wifi_reconnect_count=wifi_reconnect_count,
+                wifi_driver_reset_count=wifi_driver_reset_count,
+                wifi_disconnect_reason=wifi_disconnect_reason,
+                wifi_disconnected_for_ms=wifi_disconnected_for_ms,
             )
             await session.commit()
 

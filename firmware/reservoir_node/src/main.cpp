@@ -124,7 +124,7 @@ void setup() {
     }
     ads.setGain(GAIN_FOUR);  // +/- 1.024V FS, 31.25 uV/count
 
-    wifi_client::connect(WIFI_SSID, WIFI_PASSWORD, HOSTNAME);
+    wifi_client::begin(WIFI_SSID, WIFI_PASSWORD, HOSTNAME);
     ota::begin(HOSTNAME, OTA_PASSWORD);
 }
 

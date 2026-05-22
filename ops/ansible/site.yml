@@ -25,6 +25,7 @@
       - dirt-web.service
     dirt_edge_packages:
       - avahi-daemon
+      - avahi-utils
       - build-essential
       - ca-certificates
       - cmake

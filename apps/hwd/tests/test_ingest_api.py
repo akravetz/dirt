@@ -76,6 +76,11 @@ async def test_ingest_writes_readings_and_node(client: AsyncClient, app_engine):
             firmware_version="0.1.0",
             ip="192.168.1.103",
             uptime_ms=60000,
+            wifi_rssi_dbm=-71,
+            wifi_reconnect_count=3,
+            wifi_driver_reset_count=1,
+            wifi_disconnect_reason=200,
+            wifi_disconnected_for_ms=0,
         ),
         headers=_auth_header(),
     )
@@ -103,6 +108,11 @@ async def test_ingest_writes_readings_and_node(client: AsyncClient, app_engine):
         assert str(device.ip) == "192.168.1.103"
         assert device.firmware_version == "0.1.0"
         assert device.uptime_ms == 60000
+        assert device.wifi_rssi_dbm == -71
+        assert device.wifi_reconnect_count == 3
+        assert device.wifi_driver_reset_count == 1
+        assert device.wifi_disconnect_reason == 200
+        assert device.wifi_disconnected_for_ms == 0
         assert device.last_seen is not None
 
 
@@ -462,6 +472,11 @@ async def test_reservoir_fault_payload_is_rejected_but_device_touched(
                 firmware_version="0.1.0",
                 ip="192.168.1.23",
                 uptime_ms=12345,
+                wifi_rssi_dbm=-82,
+                wifi_reconnect_count=7,
+                wifi_driver_reset_count=2,
+                wifi_disconnect_reason=201,
+                wifi_disconnected_for_ms=45000,
             ),
             headers=_auth_header(),
         )
@@ -493,6 +508,11 @@ async def test_reservoir_fault_payload_is_rejected_but_device_touched(
     assert str(device.ip) == "192.168.1.23"
     assert device.firmware_version == "0.1.0"
     assert device.uptime_ms == 12345
+    assert device.wifi_rssi_dbm == -82
+    assert device.wifi_reconnect_count == 7
+    assert device.wifi_driver_reset_count == 2
+    assert device.wifi_disconnect_reason == 201
+    assert device.wifi_disconnected_for_ms == 45000
     assert device.last_seen is not None
 
 

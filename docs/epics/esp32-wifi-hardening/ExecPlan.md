@@ -19,9 +19,9 @@ The user-visible result is a fleet that posts readings reliably through router h
 - [x] (2026-05-22) Queried local device freshness and watchdog history to confirm recurring offline transitions, especially on `plant-b-node`.
 - [x] (2026-05-22) Reviewed current ESP32-C3 WiFi guidance and SuperMini antenna notes.
 - [x] (2026-05-22) Wrote this epic and ExecPlan.
-- [ ] Implement firmware WiFi state machine and serial diagnostics.
-- [ ] Add server-side WiFi telemetry contract, database persistence, and dashboard projection.
-- [ ] Build all firmware profiles and run focused backend tests.
+- [x] (2026-05-22 02:56Z) Implemented shared firmware WiFi state machine, direct `begin()` call-site cutover, and ingest envelope WiFi telemetry.
+- [x] (2026-05-22 02:56Z) Added server-side WiFi telemetry fields to the typed ingest boundary, nullable `device` columns, Atlas migration `migrations/20260522024624_esp32_wifi_telemetry.sql`, local API projection, generated contracts, and dashboard table columns.
+- [x] (2026-05-22 02:56Z) Built all current firmware profiles and ran focused backend, frontend, e2e, invariant, and fixer validation. Hosted dashboard exposure is deferred until after local canary proof because the immediate rollout workflow is local `device` persistence plus the local dashboard, and adding cloud schema/catalog changes would expand the blast radius before the firmware behavior is proven.
 - [ ] OTA rollout to one canary node, then the rest of the fleet after soak.
 
 
@@ -41,6 +41,15 @@ The user-visible result is a fleet that posts readings reliably through router h
 
 - Observation: The SuperMini board can make marginal RF worse.
   Evidence: SuperMini hardware notes call out weak WiFi/BLE range from the tiny integrated antenna. CNX Software documented materially improved range after an antenna modification on cheap ESP32-C3 USB-C boards, which supports treating RF quality as a first-class diagnostic input.
+
+- Observation: The documented root firmware test command does not match the current PlatformIO layout.
+  Evidence: There is no root `firmware/platformio.ini`; validation used per-project builds in `firmware/plant_node`, `firmware/reservoir_node`, and `firmware/fan_controller`.
+
+- Observation: The plant-node builds still emit the pre-existing ESP-IDF ADC attenuation deprecation warning.
+  Evidence: `pio run -e plant-a` through `plant-d` all succeeded, with warnings that `ADC_ATTEN_DB_11` is deprecated and behaves as `ADC_ATTEN_DB_12`.
+
+- Observation: Local Atlas migration lint is unavailable with the installed Atlas CLI license level.
+  Evidence: `atlas migrate lint --env local --latest 1` exited with an Atlas Pro requirement message, so the generated nullable-column SQL was reviewed directly instead.
 
 
 ## Decision Log
@@ -69,10 +78,26 @@ The user-visible result is a fleet that posts readings reliably through router h
   Rationale: The firmware projects are all in this repo. If the helper API changes, update plant, reservoir, fan, and breeding-env call sites directly rather than preserving thin compatibility wrappers.
   Date/Author: 2026-05-22 / Codex
 
+- Decision: Represent local API WiFi diagnostics as a nested nullable `wifi` object.
+  Rationale: The generated Python and TypeScript models support a nested object cleanly, and grouping RSSI, reconnect count, driver reset count, disconnect reason, and disconnected duration keeps WiFi-specific data out of the main device-status namespace.
+  Date/Author: 2026-05-22 / Codex
+
+- Decision: Defer hosted dashboard WiFi telemetry for this implementation slice.
+  Rationale: The local canary rollout can be proven with firmware serial logs, local `device` columns, `/api/system/devices`, and the local dashboard. Carrying the fields through gateway catalog sync, cloud persistence, and hosted browser contracts is still valuable, but it should follow local proof so cloud migrations and hosted UI changes are not coupled to an unproven firmware policy.
+  Date/Author: 2026-05-22 / Codex
+
+- Decision: Use a short canary gate before fleet rollout instead of an overnight soak.
+  Rationale: The user prefers moving quickly once the first node proves it can reconnect and keep posting for about ten minutes. Roll out the remaining fleet one at a time after that short gate, while continuing to watch telemetry and device-status logs during the rollout.
+  Date/Author: 2026-05-22 / Codex/User
+
 
 ## Outcomes & Retrospective
 
-This plan is not implemented yet. Record rollout evidence here after the canary and fleet soak. The important retrospective question is whether offline transitions decline after firmware hardening. If they do, the SuperMini fleet can likely stay until boards fail physically. If they do not, the remaining evidence should identify weak RSSI, disconnect reason patterns, or hardware-specific failures that justify replacement.
+Code milestones 2 through 7 are implemented and validated locally. Firmware now uses a shared nonblocking WiFi state machine with event-captured disconnect reasons, exponential reconnect backoff, driver reset escalation after 5 minutes offline, MCU restart escalation after 15 minutes offline, and a `Snapshot` telemetry API. All current firmware profiles build after the direct `wifi_client::begin()` cutover.
+
+Local ingest accepts and persists numeric WiFi telemetry on `device`, including quality-rejected heartbeat-only payloads. `/api/system/devices` returns a typed nested `wifi` object, and the local dashboard system table renders RSSI, reconnects, driver resets, and disconnect reason with `--` placeholders for non-ESP32 or missing values. Hosted dashboard exposure is intentionally deferred; do not treat hosted device rows as complete for WiFi diagnostics until a follow-up carries these fields through gateway catalog sync and cloud browser contracts.
+
+The remaining retrospective question still depends on canary and fleet rollout: whether offline transitions decline after firmware hardening. If they do, the SuperMini fleet can likely stay until boards fail physically. If they do not, the persisted RSSI/reason-code evidence should identify weak RF, router behavior, or board-specific failures that justify replacement.
 
 
 ## Context and Orientation
@@ -364,18 +389,18 @@ Start with the most problematic plant node, likely `plant-b-node`, unless the cu
     set -a; source ../../.env; set +a
     pio run -e plant-b-ota -t upload
 
-Observe:
+Observe for about ten minutes:
 
 - Serial output if the node is connected by USB.
 - `device.last_seen`, `uptime_ms`, and WiFi telemetry fields.
 - `var/logs/device_status/YYYY-MM-DD.jsonl`.
 - `var/logs/metric_freshness/YYYY-MM-DD.jsonl`.
 
-Acceptance for canary: after a router/AP restart or intentional short outage, the node should return to fresh status without manual power cycling. During a normal overnight soak, offline transitions should decrease compared with the baseline.
+Acceptance for canary: after the flash, the node should stay fresh and continue posting for about ten minutes, with populated WiFi telemetry fields. If a router/AP restart or intentional short outage is practical, the node should return to fresh status without manual power cycling. If the ten-minute gate looks good, proceed to the remaining fleet one node at a time rather than waiting overnight.
 
 Milestone 9: Fleet rollout and hardware decision.
 
-After the canary soaks, OTA the rest of the fleet. At minimum:
+After the ten-minute canary gate passes, OTA the rest of the fleet one node at a time. At minimum:
 
 - `plant-a-node`
 - `plant-b-node`
@@ -385,7 +410,7 @@ After the canary soaks, OTA the rest of the fleet. At minimum:
 - `fan-controller`
 - `breeding-env-node`
 
-After 3-7 days, compare offline transitions, gap counts, RSSI, and reason-code patterns against the baseline.
+After rollout, keep watching device telemetry during the session, then compare offline transitions, gap counts, RSSI, and reason-code patterns against the baseline over the next 3-7 days.
 
 Decision criteria:
 
@@ -500,8 +525,10 @@ Web UI acceptance:
 
 Operational acceptance:
 
-- A canary node returns to fresh status after a controlled AP/router restart without manual power cycling.
-- During a 3-7 day soak, offline transition count and reading gap count are lower than the pre-change baseline, or the remaining failures have actionable RSSI/reason-code evidence.
+- A canary node stays fresh and posts WiFi telemetry for about ten minutes after OTA.
+- If a controlled AP/router restart is practical, the canary returns to fresh status without manual power cycling.
+- During and after one-at-a-time fleet rollout, nodes keep posting current WiFi telemetry.
+- Over the next 3-7 days, offline transition count and reading gap count are lower than the pre-change baseline, or the remaining failures have actionable RSSI/reason-code evidence.
 
 
 ## Idempotence and Recovery
@@ -548,6 +575,18 @@ The hardened behavior should look more like a state machine:
     still offline too long -> restart MCU
     successful ingest -> persist RSSI and counters
 
+Validation evidence from 2026-05-22 implementation:
+
+- `pio run -e plant-a`, `plant-b`, `plant-c`, and `plant-d` passed from `firmware/plant_node`.
+- `pio run -e reservoir` passed from `firmware/reservoir_node`.
+- `pio run -e fan` and `pio run -e breeding-env` passed from `firmware/fan_controller`.
+- `uv run pytest apps/hwd/tests/test_ingest*.py apps/shared/tests/test_readings_scope.py apps/shared/tests/test_system_status_scope.py apps/web/tests/test_system_devices_endpoint.py apps/tests/invariants/ -q` passed: 152 tests.
+- `pnpm --dir web-ui typecheck` passed.
+- `pnpm --dir web-ui test` passed with the current project state of no Vitest files.
+- `pnpm --dir web-ui test:e2e -- tests/e2e/dashboard-system-table.spec.ts` passed once the expected Vite dev server was running on the worktree port.
+- `scripts/agent-fix` passed after implementation.
+- `atlas migrate diff esp32_wifi_telemetry --env local` generated `migrations/20260522024624_esp32_wifi_telemetry.sql`; the migration has not been applied to the live local database in this coding pass.
+
 
 ## Interfaces and Dependencies
 
@@ -572,12 +611,12 @@ Persistence:
 
 Local web UI interfaces:
 
-- `apps/shared/src/dirt_shared/services/system_status.py` `DeviceStatus` includes nullable WiFi diagnostics.
+- `apps/shared/src/dirt_shared/services/system_status.py` `DeviceStatus` includes `wifi: WifiTelemetry | None`, and `WifiTelemetry` groups nullable RSSI, reconnect count, driver reset count, disconnect reason, and disconnected duration.
 - `apps/web/src/dirt_web/api/system.py` maps the diagnostics into the typed `/api/system/devices` response.
 - `contracts/webapp-v1.yaml`, `contracts/python/src/dirt_contracts/webapp_v1/models.py`, and `web-ui/src/api-client/generated/schema.ts` include the WiFi diagnostics shape.
 - `web-ui/src/ui/SystemTable.tsx` renders compact WiFi diagnostics for the existing dashboard system table.
 
-Optional hosted web UI interfaces, if included in the implementation PR:
+Optional hosted web UI interfaces, deferred from this implementation slice:
 
 - `dirt_shared.cloud_contract.CatalogDevice` carries nullable WiFi diagnostics.
 - `apps/control-plane/src/dirt_control/models/cloud.py:CloudDevice` persists nullable WiFi diagnostics in the cloud database.
@@ -601,3 +640,4 @@ External behavior:
 
 - 2026-05-22: Initial ExecPlan created from observed ESP32 offline behavior, firmware inspection, and ESP32-C3/SuperMini WiFi guidance.
 - 2026-05-22: Solidified Milestone 6 so WiFi telemetry must persist in `device` database columns and flow into the web UI device tables; log-only diagnostics are no longer an acceptable endpoint.
+- 2026-05-22: Implemented and validated local firmware/backend/dashboard code milestones; recorded hosted dashboard telemetry as deferred until after local canary proof.

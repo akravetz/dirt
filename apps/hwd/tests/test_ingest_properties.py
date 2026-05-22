@@ -51,6 +51,11 @@ _METRICS = st.dictionaries(_METRIC_NAME, _METRIC_VALUE, max_size=8)
     ip=st.none() | st.from_regex(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$"),
     firmware_version=st.none() | st.text(max_size=32),
     uptime_ms=st.none() | st.integers(min_value=0, max_value=2**32 - 1),
+    wifi_rssi_dbm=st.none() | st.integers(min_value=-127, max_value=0),
+    wifi_reconnect_count=st.none() | st.integers(min_value=0, max_value=2**32 - 1),
+    wifi_driver_reset_count=st.none() | st.integers(min_value=0, max_value=2**32 - 1),
+    wifi_disconnect_reason=st.none() | st.integers(min_value=0, max_value=255),
+    wifi_disconnected_for_ms=st.none() | st.integers(min_value=0, max_value=2**32 - 1),
 )
 def test_valid_payload_parses(
     device_id: str,
@@ -59,6 +64,11 @@ def test_valid_payload_parses(
     ip: str | None,
     firmware_version: str | None,
     uptime_ms: int | None,
+    wifi_rssi_dbm: int | None,
+    wifi_reconnect_count: int | None,
+    wifi_driver_reset_count: int | None,
+    wifi_disconnect_reason: int | None,
+    wifi_disconnected_for_ms: int | None,
 ) -> None:
     """Any payload inside the declared bounds parses to an IngestPayload."""
     payload = IngestPayload(
@@ -68,10 +78,20 @@ def test_valid_payload_parses(
         ip=ip,
         firmware_version=firmware_version,
         uptime_ms=uptime_ms,
+        wifi_rssi_dbm=wifi_rssi_dbm,
+        wifi_reconnect_count=wifi_reconnect_count,
+        wifi_driver_reset_count=wifi_driver_reset_count,
+        wifi_disconnect_reason=wifi_disconnect_reason,
+        wifi_disconnected_for_ms=wifi_disconnected_for_ms,
     )
     assert payload.device_id == device_id
     assert payload.metrics == metrics
     assert payload.source == source
+    assert payload.wifi_rssi_dbm == wifi_rssi_dbm
+    assert payload.wifi_reconnect_count == wifi_reconnect_count
+    assert payload.wifi_driver_reset_count == wifi_driver_reset_count
+    assert payload.wifi_disconnect_reason == wifi_disconnect_reason
+    assert payload.wifi_disconnected_for_ms == wifi_disconnected_for_ms
 
 
 @given(device_id=st.text(min_size=65, max_size=200))

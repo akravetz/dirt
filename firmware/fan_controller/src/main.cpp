@@ -344,7 +344,7 @@ void setup() {
 #endif
 
     // WiFi + OTA
-    wifi_client::connect(WIFI_SSID, WIFI_PASSWORD, HOSTNAME);
+    wifi_client::begin(WIFI_SSID, WIFI_PASSWORD, HOSTNAME);
     ota::begin(HOSTNAME, OTA_PASSWORD);
 #if FAN_CONTROL_ENABLED
     http_server.on("/fan", HTTP_GET, handle_get_fan);

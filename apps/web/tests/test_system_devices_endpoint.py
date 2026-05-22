@@ -21,7 +21,7 @@ import pytest
 from dirt_contracts.webapp_v1.models import DevicesResponse, DeviceStatusKind
 from httpx import ASGITransport, AsyncClient
 
-from dirt_shared.services.system_status import DeviceStatus
+from dirt_shared.services.system_status import DeviceStatus, WifiTelemetry
 from dirt_web.app import create_app
 from dirt_web.deps import get_system_status
 
@@ -46,30 +46,41 @@ class _FakeSystemStatusService:
                 kind="env_sensor",
                 status="ok",
                 last_seen=self._now,
+                wifi=WifiTelemetry(
+                    rssi_dbm=-70,
+                    reconnect_count=3,
+                    driver_reset_count=1,
+                    disconnect_reason=200,
+                    disconnected_for_ms=0,
+                ),
             ),
             DeviceStatus(
                 name="ESP32-C3 · plant_a",
                 kind="moisture_node",
                 status="ok",
                 last_seen=self._now,
+                wifi=None,
             ),
             DeviceStatus(
                 name="ESP32-C3 · plant_b",
                 kind="moisture_node",
                 status="warn",
                 last_seen=self._now,
+                wifi=None,
             ),
             DeviceStatus(
                 name="ESP32-C3 · plant_c",
                 kind="moisture_node",
                 status="offline",
                 last_seen=None,
+                wifi=None,
             ),
             DeviceStatus(
                 name="ESP32-C3 · plant_d",
                 kind="moisture_node",
                 status="ok",
                 last_seen=self._now,
+                wifi=None,
             ),
             DeviceStatus(
                 name="Humidifier (Govee H7142)",
@@ -163,3 +174,11 @@ async def test_system_devices_returns_eight_rows(client: AsyncClient):
     assert "offline" in statuses
     assert "warn" in statuses
     assert "ok" in statuses
+    first_wifi = model.devices[0].wifi
+    assert first_wifi is not None
+    assert first_wifi.rssi_dbm == -70
+    assert first_wifi.reconnect_count == 3
+    assert first_wifi.driver_reset_count == 1
+    assert first_wifi.disconnect_reason == 200
+    assert first_wifi.disconnected_for_ms == 0
+    assert all(device.wifi is None for device in model.devices[1:])

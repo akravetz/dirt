@@ -37,6 +37,11 @@ class IngestPayload(BaseModel):
     ip: str | None = None
     firmware_version: str | None = None
     uptime_ms: int | None = None
+    wifi_rssi_dbm: int | None = None
+    wifi_reconnect_count: int | None = None
+    wifi_driver_reset_count: int | None = None
+    wifi_disconnect_reason: int | None = None
+    wifi_disconnected_for_ms: int | None = None
 
 
 def _augment_temp_rh_metrics(metrics: dict[str, float]) -> dict[str, float]:
@@ -128,6 +133,11 @@ async def ingest_sensors(  # noqa: PLR0913 — FastAPI boundary bundles request,
             ip=ip,
             firmware_version=payload.firmware_version,
             uptime_ms=payload.uptime_ms,
+            wifi_rssi_dbm=payload.wifi_rssi_dbm,
+            wifi_reconnect_count=payload.wifi_reconnect_count,
+            wifi_driver_reset_count=payload.wifi_driver_reset_count,
+            wifi_disconnect_reason=payload.wifi_disconnect_reason,
+            wifi_disconnected_for_ms=payload.wifi_disconnected_for_ms,
         )
         return {
             "ok": True,
@@ -142,6 +152,11 @@ async def ingest_sensors(  # noqa: PLR0913 — FastAPI boundary bundles request,
         ip=ip,
         firmware_version=payload.firmware_version,
         uptime_ms=payload.uptime_ms,
+        wifi_rssi_dbm=payload.wifi_rssi_dbm,
+        wifi_reconnect_count=payload.wifi_reconnect_count,
+        wifi_driver_reset_count=payload.wifi_driver_reset_count,
+        wifi_disconnect_reason=payload.wifi_disconnect_reason,
+        wifi_disconnected_for_ms=payload.wifi_disconnected_for_ms,
         site_id=payload.site_id,
         tent_id=payload.tent_id,
         zone_id=payload.zone_id,

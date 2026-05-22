@@ -76,6 +76,11 @@ async def test_scoped_ingest_updates_device_heartbeat(app_engine):
         ip="192.168.1.101",
         firmware_version="0.2.0",
         uptime_ms=1234,
+        wifi_rssi_dbm=-74,
+        wifi_reconnect_count=4,
+        wifi_driver_reset_count=1,
+        wifi_disconnect_reason=200,
+        wifi_disconnected_for_ms=0,
         site_id="homebox",
         tent_id="main",
         zone_id="plant-a",
@@ -91,6 +96,11 @@ async def test_scoped_ingest_updates_device_heartbeat(app_engine):
     assert str(device.ip) == "192.168.1.101"
     assert device.firmware_version == "0.2.0"
     assert device.uptime_ms == 1234
+    assert device.wifi_rssi_dbm == -74
+    assert device.wifi_reconnect_count == 4
+    assert device.wifi_driver_reset_count == 1
+    assert device.wifi_disconnect_reason == 200
+    assert device.wifi_disconnected_for_ms == 0
 
 
 async def test_touch_device_updates_device_heartbeat(app_engine):
@@ -103,6 +113,11 @@ async def test_touch_device_updates_device_heartbeat(app_engine):
         ip="192.168.1.102",
         firmware_version="0.1.5",
         uptime_ms=4321,
+        wifi_rssi_dbm=-81,
+        wifi_reconnect_count=9,
+        wifi_driver_reset_count=2,
+        wifi_disconnect_reason=201,
+        wifi_disconnected_for_ms=30000,
     )
 
     async with AsyncSession(app_engine) as session:
@@ -114,3 +129,36 @@ async def test_touch_device_updates_device_heartbeat(app_engine):
     assert str(device.ip) == "192.168.1.102"
     assert device.firmware_version == "0.1.5"
     assert device.uptime_ms == 4321
+    assert device.wifi_rssi_dbm == -81
+    assert device.wifi_reconnect_count == 9
+    assert device.wifi_driver_reset_count == 2
+    assert device.wifi_disconnect_reason == 201
+    assert device.wifi_disconnected_for_ms == 30000
+
+
+async def test_touch_device_without_wifi_telemetry_clears_stale_values(app_engine):
+    readings = ReadingsService(
+        app_engine, clock=lambda: datetime(2026, 5, 4, 0, 2, tzinfo=UTC)
+    )
+
+    await readings.touch_device(
+        device_id="plant-a-node",
+        wifi_rssi_dbm=-81,
+        wifi_reconnect_count=9,
+        wifi_driver_reset_count=2,
+        wifi_disconnect_reason=201,
+        wifi_disconnected_for_ms=30000,
+    )
+    await readings.touch_device(device_id="plant-a-node", uptime_ms=5000)
+
+    async with AsyncSession(app_engine) as session:
+        device = (
+            await session.exec(select(Device).where(Device.device_id == "plant-a-node"))
+        ).one()
+
+    assert device.uptime_ms == 5000
+    assert device.wifi_rssi_dbm is None
+    assert device.wifi_reconnect_count is None
+    assert device.wifi_driver_reset_count is None
+    assert device.wifi_disconnect_reason is None
+    assert device.wifi_disconnected_for_ms is None

@@ -718,6 +718,13 @@ export interface components {
       points: components["schemas"]["HistoryPoint"][];
       irrigation_events_24h: number;
     };
+    WifiTelemetry: {
+      rssi_dbm: number | null;
+      reconnect_count: number | null;
+      driver_reset_count: number | null;
+      disconnect_reason: number | null;
+      disconnected_for_ms: number | null;
+    };
     DeviceStatus: {
       name: string;
       /** @enum {string} */
@@ -725,6 +732,7 @@ export interface components {
       status: components["schemas"]["DeviceStatusKind"];
       last_seen: string | null;
       note?: string | null;
+      wifi: components["schemas"]["WifiTelemetry"] | null;
     };
     DevicesResponse: {
       /** Format: date-time */

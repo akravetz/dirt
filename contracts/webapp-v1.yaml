@@ -1216,10 +1216,31 @@ components:
 
     # ---- System ----
 
+    WifiTelemetry:
+      type: object
+      additionalProperties: false
+      required:
+        - rssi_dbm
+        - reconnect_count
+        - driver_reset_count
+        - disconnect_reason
+        - disconnected_for_ms
+      properties:
+        rssi_dbm:
+          oneOf: [{ type: integer }, { type: 'null' }]
+        reconnect_count:
+          oneOf: [{ type: integer }, { type: 'null' }]
+        driver_reset_count:
+          oneOf: [{ type: integer }, { type: 'null' }]
+        disconnect_reason:
+          oneOf: [{ type: integer }, { type: 'null' }]
+        disconnected_for_ms:
+          oneOf: [{ type: integer }, { type: 'null' }]
+
     DeviceStatus:
       type: object
       additionalProperties: false
-      required: [name, kind, status, last_seen]
+      required: [name, kind, status, last_seen, wifi]
       properties:
         name: { type: string }
         kind:
@@ -1230,6 +1251,10 @@ components:
           oneOf: [{ type: string, format: date-time }, { type: 'null' }]
         note:
           oneOf: [{ type: string }, { type: 'null' }]
+        wifi:
+          oneOf:
+            - { $ref: '#/components/schemas/WifiTelemetry' }
+            - { type: 'null' }
 
     DevicesResponse:
       type: object

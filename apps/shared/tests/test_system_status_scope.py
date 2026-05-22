@@ -20,6 +20,11 @@ async def test_system_status_uses_device_table_projection(
         ).one()
         plant_a.name = "Renamed Plant A Node"
         plant_a.last_seen = T0
+        plant_a.wifi_rssi_dbm = -73
+        plant_a.wifi_reconnect_count = 5
+        plant_a.wifi_driver_reset_count = 1
+        plant_a.wifi_disconnect_reason = 200
+        plant_a.wifi_disconnected_for_ms = 0
         humidifier = (
             await session.exec(
                 select(Device).where(Device.device_id == "govee-h7142-main")
@@ -53,10 +58,17 @@ async def test_system_status_uses_device_table_projection(
     assert renamed.site_id == "homebox"
     assert renamed.tent_id == "main"
     assert renamed.zone_id == "plant-a"
+    assert renamed.wifi is not None
+    assert renamed.wifi.rssi_dbm == -73
+    assert renamed.wifi.reconnect_count == 5
+    assert renamed.wifi.driver_reset_count == 1
+    assert renamed.wifi.disconnect_reason == 200
+    assert renamed.wifi.disconnected_for_ms == 0
     humidifier = next(
         status for status in statuses if status.device_id == "govee-h7142-main"
     )
     assert humidifier.status == "ok"
+    assert humidifier.wifi is None
     voice = next(status for status in statuses if status.device_id == "jabra-claudia")
     assert voice.status == "listening"
     assert voice.tent_id is None

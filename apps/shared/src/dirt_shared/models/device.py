@@ -102,6 +102,21 @@ class Device(SQLModel, table=True):
     uptime_ms: int | None = Field(
         default=None, sa_column=Column(BigInteger, nullable=True)
     )
+    wifi_rssi_dbm: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    wifi_reconnect_count: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    wifi_driver_reset_count: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    wifi_disconnect_reason: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    wifi_disconnected_for_ms: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
     created_at: datetime = Field(
         default_factory=_utcnow,
         sa_column=Column(

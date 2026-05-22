@@ -1,5 +1,7 @@
 #include "ingest_client.h"
 
+#include "wifi_client.h"
+
 #include <HTTPClient.h>
 #include <WiFi.h>
 
@@ -32,10 +34,11 @@ int IngestClient::post(const char* site_id,
 
     // Hand-build JSON — the shape is stable enough that pulling in
     // ArduinoJson for a handful of fields isn't worth the flash cost.
-    // Typical payload ~280 bytes with scoped identity; reserve 384 to avoid
+    // Typical payload ~420 bytes with scoped identity and WiFi telemetry; reserve 512 to avoid
     // realloc while keeping RAM use predictable.
+    wifi_client::Snapshot wifi = wifi_client::snapshot();
     String body;
-    body.reserve(384);
+    body.reserve(512);
     body += "{\"site_id\":\"";
     body += site_id;
     body += "\",\"tent_id\":\"";
@@ -54,6 +57,16 @@ int IngestClient::post(const char* site_id,
     body += WiFi.localIP().toString();
     body += "\",\"uptime_ms\":";
     body += String(millis());
+    body += ",\"wifi_rssi_dbm\":";
+    body += String(wifi.rssi_dbm);
+    body += ",\"wifi_reconnect_count\":";
+    body += String(wifi.reconnect_count);
+    body += ",\"wifi_driver_reset_count\":";
+    body += String(wifi.driver_reset_count);
+    body += ",\"wifi_disconnect_reason\":";
+    body += String(wifi.last_disconnect_reason);
+    body += ",\"wifi_disconnected_for_ms\":";
+    body += String(wifi.disconnected_for_ms);
     body += ",\"metrics\":";
     body += metrics_json;
     body += "}";

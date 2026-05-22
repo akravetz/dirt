@@ -8,7 +8,7 @@
 // The `ui` layer is forbidden from importing `@/api-client`
 // (eslint-plugin-boundaries keeps presentational components
 // independent of the OpenAPI surface). The props type is therefore a
-// narrowed duck-typed mirror of the two fields we actually read from
+// narrowed duck-typed mirror of the fields we actually read from
 // contracts/webapp-v1.yaml #/components/schemas/DeviceStatus; the
 // route-level consumer passes the generated `DevicesResponse["devices"]`
 // straight in, and its typecheck catches drift.
@@ -16,15 +16,23 @@ import type { ReactNode } from "react";
 
 type DeviceStatusKind = "ok" | "listening" | "warn" | "offline";
 
-interface SystemTableRow {
+type WifiTelemetry = {
+  rssi_dbm: number | null;
+  reconnect_count: number | null;
+  driver_reset_count: number | null;
+  disconnect_reason: number | null;
+};
+
+type SystemTableRow = {
   name: string;
   status: DeviceStatusKind;
-}
+  wifi: WifiTelemetry | null;
+};
 
-interface SystemTableProps {
+type SystemTableProps = {
   /** Devices in the order the backend returned them. */
   devices: readonly SystemTableRow[];
-}
+};
 
 // Badge colour keyed on status. Advisory only — the aria-label +
 // visible text are the load-bearing accessible signals.
@@ -34,6 +42,10 @@ const BADGE_CLASS: Record<DeviceStatusKind, string> = {
   warn: "text-status-warn border-status-warn",
   offline: "text-status-err border-status-err",
 };
+
+function formatNullable(value: number | null | undefined): string {
+  return value == null ? "--" : String(value);
+}
 
 export function SystemTable({ devices }: SystemTableProps): ReactNode {
   return (
@@ -56,6 +68,30 @@ export function SystemTable({ devices }: SystemTableProps): ReactNode {
             >
               Status
             </th>
+            <th
+              scope="col"
+              className="border-b border-rule-strong px-2 py-1.5 text-right font-sans text-fs-10 font-semibold uppercase tracking-caps text-ink-2"
+            >
+              RSSI
+            </th>
+            <th
+              scope="col"
+              className="border-b border-rule-strong px-2 py-1.5 text-right font-sans text-fs-10 font-semibold uppercase tracking-caps text-ink-2"
+            >
+              Reconn
+            </th>
+            <th
+              scope="col"
+              className="border-b border-rule-strong px-2 py-1.5 text-right font-sans text-fs-10 font-semibold uppercase tracking-caps text-ink-2"
+            >
+              Reset
+            </th>
+            <th
+              scope="col"
+              className="border-b border-rule-strong px-2 py-1.5 text-right font-sans text-fs-10 font-semibold uppercase tracking-caps text-ink-2"
+            >
+              Reason
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -70,6 +106,18 @@ export function SystemTable({ devices }: SystemTableProps): ReactNode {
                 >
                   {device.status}
                 </span>
+              </td>
+              <td className="px-2 py-2.5 text-right font-mono text-fs-11 text-ink-2">
+                {formatNullable(device.wifi?.rssi_dbm)}
+              </td>
+              <td className="px-2 py-2.5 text-right font-mono text-fs-11 text-ink-2">
+                {formatNullable(device.wifi?.reconnect_count)}
+              </td>
+              <td className="px-2 py-2.5 text-right font-mono text-fs-11 text-ink-2">
+                {formatNullable(device.wifi?.driver_reset_count)}
+              </td>
+              <td className="px-2 py-2.5 text-right font-mono text-fs-11 text-ink-2">
+                {formatNullable(device.wifi?.disconnect_reason)}
               </td>
             </tr>
           ))}
