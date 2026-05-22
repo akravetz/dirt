@@ -43,6 +43,7 @@ class PlantSticker(StrEnum):
 
 
 class SensorSource(StrEnum):
+    AC_INFINITY = "ac_infinity"
     ARDUINO = "arduino"
     ESP32 = "esp32"
     KASA = "kasa"

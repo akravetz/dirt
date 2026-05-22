@@ -4,7 +4,7 @@ type: hardware
 sources: []
 related: [wiki/decisions/2026-04-26-govee-humidifier-pivot.md, wiki/decisions/2026-04-27-h7142-deployed.md, wiki/environment/humidity.md, wiki/concepts/vpd.md, docs/references/govee-api/INDEX.md]
 created: 2026-04-14
-updated: 2026-04-27
+updated: 2026-05-21
 ---
 
 # Humidifier Control
@@ -13,7 +13,7 @@ Closed-loop VPD control: tent SHT45 reading → VPD calc → PI controller in `d
 
 The H7142 was deployed 2026-04-27, replacing the Raydrop 4L + Kasa EP10 stack. The Raydrop had no software-readable intensity control — every overshoot, fan-coupling saturation event, and "stuck red LED" incident traced back to a $5-cost-saving design decision in a unit that didn't expose the dial. The H7142 exposes 9 discrete intensity levels via API at a similar price point. See [pivot decision 2026-04-26](../decisions/2026-04-26-govee-humidifier-pivot.md) and [deployment decision 2026-04-27](../decisions/2026-04-27-h7142-deployed.md). The Raydrop + Kasa stack was unplugged the same day.
 
-The loop targets **VPD** against the current stage's upper band (from `dirt.services.grow_state.current_targets()`), not a fixed RH. Night behavior is free — cooler air drops VPD on its own, so the humidifier shuts off during lights-off without needing a schedule. See [decision 2026-04-18](../decisions/2026-04-18-vpd-targeting.md) for the switch from fixed-RH control.
+The loop targets **VPD** against the current stage's upper band (from `dirt.services.grow_state.current_targets()`), not a fixed RH. Lights-off control is heater-aware: if night heat keeps VPD above target, the humidifier may run during the dark period as long as RH remains below the stage ceiling. See [decision 2026-04-18](../decisions/2026-04-18-vpd-targeting.md) for the switch from fixed-RH control.
 
 ## Deployment Status
 
@@ -61,7 +61,7 @@ Custom thin client at [`apps/shared/src/dirt_shared/services/govee.py`](../../ap
 
 ## Control Logic (deployed)
 
-**PI control on VPD with feedforward lights gating.** Continuous `u_pct ∈ [0, 100]` from the PI module, quantized to a discrete H7142 Manual-mode level (1..9) with hysteresis at boundaries. The PI controller has been live since 2026-04-25 in shadow mode — it became authoritative on 2026-04-27 when the H7142 cutover let us replace the Kasa bang-bang as the actuator.
+**PI control on VPD with a pre-lights-off transition guard.** Continuous `u_pct ∈ [0, 100]` from the PI module, quantized to a discrete H7142 Manual-mode level (1..9) with hysteresis at boundaries. The PI controller has been live since 2026-04-25 in shadow mode — it became authoritative on 2026-04-27 when the H7142 cutover let us replace the Kasa bang-bang as the actuator.
 
 ```
 loop every ~30s:
@@ -92,7 +92,7 @@ loop every ~30s:
 Pure-function module at `humidifier_pi.py`. Guards in priority order:
 
 1. **Failsafe — stale or missing VPD** → u=0 (force off; prefer brief dryness over runaway mist)
-2. **Outside lights window** → u=0 (don't run during the configured dark-period guard window)
+2. **Outside lights window** → u=0 during the configured pre-lights-off guard window
 3. **RH ceiling** → u=0 (mold-prevention envelope; force off when RH ≥ stage upper RH cap regardless of what VPD says)
 4. **PI active** — `error = vpd - setpoint`, where setpoint is derived from the active stage VPD band plus the configured night offset when applicable
 
@@ -133,7 +133,7 @@ and update procedure.
 The PI setpoint policy lives in
 [`apps/hwd/src/dirt_hwd/services/humidifier_pi.py`](../../apps/hwd/src/dirt_hwd/services/humidifier_pi.py):
 the deployed controller targets the selected edge of the active stage VPD band,
-then applies the configured night offset during the pre-lights-on window.
+then applies the configured night offset during lights-off.
 Runtime tuning values such as gains, threshold, night offset, and lights margin
 come from `HumidifierConfig` in
 [`apps/shared/src/dirt_shared/config.py`](../../apps/shared/src/dirt_shared/config.py)
@@ -147,8 +147,8 @@ Lights schedule comes from `growstate.lights_on_local` / `growstate.lights_off_l
 - **Upper-edge setpoint.** The humidifier only adds moisture; there's nothing to do when VPD is already in or below the band. Acting only at the dry edge keeps the duty cycle low.
 - **PI, not bang-bang.** Continuous-intensity actuator (9 levels). Big dead time. Asymmetric transfer function (can add moisture, can't actively remove). PI gives smooth response without the relay-cycling problem the bang-bang had on the Kasa. The 0.4 kPa deadband in the old loop was actuator-overshoot-sized — the PI eliminates it by ramping intensity instead of slamming the plug on/off.
 - **Feedforward, not derivative.** Dominant disturbance (lights on/off) is scheduled and periodic — use the clock to anticipate it. Derivative on sensor noise has 5-min smoothing lag and near-unit SNR for the signals we care about.
-- **Configured night offset.** The runtime `HumidifierConfig` value shifts the active setpoint lower during the pre-lights-on window. Keep the exact value in config so tuning changes do not require wiki edits.
-- **Configured prep window.** The runtime `HumidifierConfig` value defines the margin around lights transitions when the humidifier is forced off. Keep the exact value in config so schedule-tuning changes stay code-owned.
+- **Configured night offset.** The runtime `HumidifierConfig` value shifts the active setpoint during lights-off. Keep the exact value in config so tuning changes do not require wiki edits.
+- **Configured prep window.** The runtime `HumidifierConfig` value defines the margin before lights-off when the humidifier is forced off. Keep the exact value in config so schedule-tuning changes stay code-owned.
 - **Fan owns the too-humid side.** The humidifier PI remains intentionally one-sided: it adds moisture when VPD is too high, then gets out of the way. When plants transpire enough that RH runs high with the humidifier already off, `FanTrimLoopService` is the active control path. It keeps a configured exhaust floor, steps fan duty up/down against the active stage RH/VPD bands, and can run a pre-lights-off dry-down floor so the dark-period temperature drop lands closer to the target VPD band.
 - **Live-state diffing.** Source of truth is what the device reports, not what we last commanded. Divergence self-heals.
 - **No max-on / min-off guard.** PI integrator clamp (anti-windup) is the right tool for that — bounding u, not the plug.

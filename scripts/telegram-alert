@@ -14,10 +14,15 @@ Usage: telegram-alert <unit-name>
 from __future__ import annotations
 
 import os
+import json
 import subprocess
 import sys
+import time
 import urllib.parse
 import urllib.request
+from pathlib import Path
+
+DEFAULT_COOLDOWN_S = 15 * 60
 
 
 def _read_env_file(path: str) -> dict[str, str]:
@@ -33,6 +38,53 @@ def _read_env_file(path: str) -> dict[str, str]:
     except FileNotFoundError:
         pass
     return out
+
+
+def _load_state(path: Path) -> dict[str, dict[str, float | int]]:
+    try:
+        raw = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+
+    out: dict[str, dict[str, float | int]] = {}
+    for unit, entry in raw.items():
+        if not isinstance(unit, str) or not isinstance(entry, dict):
+            continue
+        last_sent_at = entry.get("last_sent_at")
+        suppressed_count = entry.get("suppressed_count", 0)
+        if not isinstance(last_sent_at, int | float):
+            continue
+        if not isinstance(suppressed_count, int):
+            suppressed_count = 0
+        out[unit] = {
+            "last_sent_at": float(last_sent_at),
+            "suppressed_count": max(0, suppressed_count),
+        }
+    return out
+
+
+def _save_state(path: Path, state: dict[str, dict[str, float | int]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(state, sort_keys=True))
+    tmp.replace(path)
+
+
+def _cooldown_s() -> float:
+    raw = os.environ.get("DIRT_SERVICE_ALERT_COOLDOWN_S", str(DEFAULT_COOLDOWN_S))
+    try:
+        return max(0.0, float(raw))
+    except ValueError:
+        return float(DEFAULT_COOLDOWN_S)
+
+
+def _state_path(repo_root: str) -> Path:
+    raw = os.environ.get("DIRT_SERVICE_ALERT_STATE_PATH")
+    if raw:
+        return Path(raw)
+    return Path(repo_root) / "var" / "logs" / "service_alert" / "state.json"
 
 
 def main() -> int:
@@ -52,6 +104,23 @@ def main() -> int:
         )
         return 0
 
+    now = time.time()
+    cooldown_s = _cooldown_s()
+    state_path = _state_path(repo_root)
+    state = _load_state(state_path)
+    entry = state.get(unit, {"last_sent_at": 0.0, "suppressed_count": 0})
+    last_sent_at = float(entry["last_sent_at"])
+    if cooldown_s > 0 and now - last_sent_at < cooldown_s:
+        entry["suppressed_count"] = int(entry["suppressed_count"]) + 1
+        state[unit] = entry
+        _save_state(state_path, state)
+        print(
+            f"telegram-alert: suppressed repeat alert for {unit}; "
+            f"cooldown {cooldown_s:.0f}s",
+            file=sys.stderr,
+        )
+        return 0
+
     try:
         tail = subprocess.check_output(
             ["journalctl", "--user", "-u", unit, "-n", "10", "--no-pager"],
@@ -63,8 +132,15 @@ def main() -> int:
         tail = f"(journalctl failed: {e})"
 
     tail_safe = tail.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    suppressed_count = int(entry["suppressed_count"])
+    suppressed_note = (
+        f"Suppressed repeats since last alert: {suppressed_count}\n"
+        if suppressed_count
+        else ""
+    )
     text = (
         f"<b>⚠ Service failed:</b> <code>{unit}</code>\n"
+        f"{suppressed_note}"
         f"<pre>{tail_safe[-2500:]}</pre>"
     )
 
@@ -83,6 +159,8 @@ def main() -> int:
     except Exception as e:
         print(f"telegram-alert: send failed: {e}", file=sys.stderr)
         return 1
+    state[unit] = {"last_sent_at": now, "suppressed_count": 0}
+    _save_state(state_path, state)
     return 0
 
 

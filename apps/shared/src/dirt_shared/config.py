@@ -5,7 +5,7 @@ from datetime import date
 from pathlib import Path
 
 from dotenv import load_dotenv
-from pydantic import Field, model_validator
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings
 
 load_dotenv()
@@ -79,12 +79,28 @@ class Settings(BaseSettings):
         default=False, validation_alias="DIRT_VOICE_HARVEST_ONLY"
     )
     # Kasa EP10 plugs used by scheduled local actuators such as lights and
-    # heat pads. The humidifier moved off Kasa entirely; see HumidifierConfig.
+    # heaters. The humidifier moved off Kasa entirely; see HumidifierConfig.
     kasa_username: str = ""
     kasa_password: str = ""
     # Broadcast target for recovering Kasa devices after DHCP/IP changes.
     kasa_discovery_target: str = "255.255.255.255"
     kasa_schedule_poll_interval: int = 30
+    # AC Infinity ThermoForge scheduled heater control. Ownership and
+    # enablement come from DB device/schedule rows, not global env settings.
+    thermoforge_night_level: int = Field(
+        default=4, validation_alias="THERMOFORGE_NIGHT_LEVEL", ge=0, le=10
+    )
+    thermoforge_poll_interval: int = Field(
+        default=30, validation_alias="THERMOFORGE_POLL_INTERVAL"
+    )
+    thermoforge_connect_timeout_s: int = Field(
+        default=15, validation_alias="THERMOFORGE_CONNECT_TIMEOUT_S"
+    )
+    thermoforge_offline_alert_failures: int = Field(
+        default=2,
+        validation_alias="THERMOFORGE_OFFLINE_ALERT_FAILURES",
+        ge=1,
+    )
     # Govee Public API v2 — drives the H7142 humidifier. Cloud-only; see
     # docs/references/govee-api/INDEX.md and wiki/hardware/humidifier-control.md.
     # MAC must be the colon-separated form Govee returns from /user/devices
@@ -104,11 +120,11 @@ class Settings(BaseSettings):
     humidifier_pi_integrator_clamp: float = 50.0
     humidifier_pi_threshold_pct: float = 5.0
     humidifier_pi_threshold_hysteresis_pct: float = 1.0
-    humidifier_pi_night_offset_kpa: float = -0.3
-    # Margin (minutes) around lights transitions during which the humidifier
-    # is forced OFF — extends the off-window from `lights_off - margin` through
-    # `lights_on - margin`. With the default 5 + a 23:00 → 05:00 dark cycle,
-    # the humidifier is allowed to run only between 04:55 and 22:55.
+    humidifier_pi_night_offset_kpa: float = 0.0
+    # Margin (minutes) before lights-off during which the humidifier is forced
+    # OFF. Lights-off VPD is now heater-aware: the PI loop may run through the
+    # dark period when VPD is high, while the RH ceiling remains the hard
+    # mold-prevention guard.
     # Sized to one tent-fan-volume turnover so the humidifier isn't actively
     # misting at the lights transition. Tightened from 30 → 5 on 2026-04-27
     # after Govee H7142 data showed RH clears 63%→43% within 5 min of OFF —
@@ -156,8 +172,11 @@ class Settings(BaseSettings):
     fan_trim_recover_vpd_margin_kpa: float = 0.05
     fan_trim_recover_hold_s: int = 300
     # Telegram bot. Outbound-only for V1.
-    telegram_bot_token: str = ""
-    telegram_allowed_user_id: str = ""
+    telegram_bot_token: str = Field(default="", validation_alias="TELEGRAM_BOT_TOKEN")
+    telegram_allowed_user_id: str = Field(
+        default="",
+        validation_alias=AliasChoices("TELEGRAM_CHAT_ID", "TELEGRAM_ALLOWED_USER_ID"),
+    )
     # Daily report.
     daily_report_photo_settle_s: float = 1.5
     daily_report_max_capture_age_ms: int = 400
@@ -261,6 +280,17 @@ class Settings(BaseSettings):
             poll_interval=self.kasa_schedule_poll_interval,
         )
 
+    def thermoforge(self) -> ThermoForgeConfig:
+        return ThermoForgeConfig(
+            night_level=self.thermoforge_night_level,
+            poll_interval=self.thermoforge_poll_interval,
+            connect_timeout_s=self.thermoforge_connect_timeout_s,
+            offline_alert_failures=self.thermoforge_offline_alert_failures,
+            state_path=self.data_dir / "logs" / "heater" / "state.json",
+            telegram_bot_token=self.telegram_bot_token,
+            telegram_chat_id=self.telegram_allowed_user_id,
+        )
+
     def humidifier(self) -> HumidifierConfig:
         return HumidifierConfig(
             govee_api_key=self.govee_api_key,
@@ -348,6 +378,17 @@ class ScheduledKasaConfig:
 
 
 @dataclass(frozen=True)
+class ThermoForgeConfig:
+    night_level: int
+    poll_interval: int
+    connect_timeout_s: int
+    offline_alert_failures: int
+    state_path: Path
+    telegram_bot_token: str
+    telegram_chat_id: str
+
+
+@dataclass(frozen=True)
 class HumidifierConfig:
     govee_api_key: str
     govee_sku: str
@@ -360,7 +401,7 @@ class HumidifierConfig:
     pi_threshold_pct: float
     pi_threshold_hysteresis_pct: float
     pi_night_offset_kpa: float
-    lights_off_prep_minutes: int  # margin around lights transitions
+    lights_off_prep_minutes: int  # pre-lights-off force-off margin
     poll_interval: int
     failsafe_stale_seconds: int
     ineffective_alert_after_s: int

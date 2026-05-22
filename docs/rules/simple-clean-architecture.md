@@ -45,13 +45,12 @@ Only do the former. When in doubt, choose direct explicit code and data first. A
 
 Good:
 
-- Replace `LightsLoopService` with `ScheduledKasaActuatorService` when the same loop controls both light plugs and heat-pad plugs.
-- Give a heat pad its own `kind='heat_pad'` schedule with explicit `starts_local` and `ends_local`.
+- Replace `LightsLoopService` with `ScheduledKasaActuatorService` when the same loop controls both light plugs and heater plugs.
+- Give a heater its own `kind='heater'` schedule with explicit `starts_local` and `ends_local`.
 - Rename tests and imports to the new canonical service in the same PR.
 
 Bad:
 
 - Keep `LightsLoopService` as a thin wrapper after it no longer only controls lights.
-- Store a heat-pad schedule as "inverse of lights" when explicit start/end times are enough.
+- Store a heater schedule as "inverse of lights" when explicit start/end times are enough.
 - Add adapter layers or compatibility aliases only to avoid updating owned callers.
-

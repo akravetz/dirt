@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-05-16
+updated: 2026-05-21
 ---
 
 # Plant A
@@ -18,7 +18,7 @@ updated: 2026-05-16
 
 ## Current State
 
-Day 63 / Flower Day 13: A remains a vigorous primary stretch contributor with healthy tops, visible purple stems/petioles, and stable moisture near 61.9%. Continue daily tuck/spread work and airflow-lane checks through the stretch window. See [2026-05-16](../daily/2026-05-16.md).
+Day 68 / Flower Day 18: Visible tops remain upright with active purple flower development, and rough moisture is stable near 57%. The 2026-05-17 low-pH tray finding remains open; recheck A tray/runoff pH+EC against B/C/D before further correction. See [2026-05-21](../daily/2026-05-21.md).
 
 ## Timeline
 
@@ -63,3 +63,8 @@ Day 63 / Flower Day 13: A remains a vigorous primary stretch contributor with he
 - 2026-05-14 — [Day 61 / Flower Day 11: dedicated photo missing; moisture stable ~61.5%, continue stretch-window SCROG checks](../daily/2026-05-14.md)
 - 2026-05-15 — [Day 62 / Flower Day 12: vigorous stretch tops visible again; moisture stable ~61.7%, continue tuck/spread work](../daily/2026-05-15.md)
 - 2026-05-16 — [Day 63 / Flower Day 13: vigorous healthy stretch tops; moisture stable ~61.9%, continue tuck/spread work](../daily/2026-05-16.md)
+- 2026-05-17 — [Day 64 / Flower Day 14: large moisture/probe movement plus Plant A tray pH 4.8; reservoir pH 5.8 / EC 1.4; 8-cup pH 5.8 corrective flush applied, recheck tray/runoff pH+EC](../daily/2026-05-17.md)
+- 2026-05-18 — [Day 65 / Flower Day 15: upright visible canopy and stable moisture near 56-57%, but A tray/runoff pH+EC recheck remains required](../daily/2026-05-18.md)
+- 2026-05-19 — [Day 66 / Flower Day 16: dedicated photo missing; moisture stable near 56%, A tray/runoff pH+EC recheck remains required](../daily/2026-05-19.md)
+- 2026-05-20 — [Day 67 / Flower Day 17: upright purple flower tops visible; moisture stable near 56%, A tray/runoff pH+EC recheck remains required](../daily/2026-05-20.md)
+- 2026-05-21 — [Day 68 / Flower Day 18: visible purple flower tops remain upright; moisture stable near 57%, A tray/runoff pH+EC recheck remains required](../daily/2026-05-21.md)

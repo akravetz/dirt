@@ -45,9 +45,9 @@ class PIConfig:
     integrator_clamp: float  # max |I| in %u (anti-windup)
     intensity_threshold: float  # below this → plug off (sub-threshold cutoff)
     threshold_hysteresis: float  # %u; threshold ± hysteresis/2 forms the band
-    night_offset_kpa: float  # negative; setpoint shift during lights-off
+    night_offset_kpa: float  # setpoint shift during lights-off
     failsafe_stale_s: float  # max VPD age before failsafe-OFF
-    lights_off_prep_minutes: float  # margin around lights-off / lights-on
+    lights_off_prep_minutes: float  # pre-lights-off force-off margin
 
 
 @dataclass(frozen=True)
@@ -89,16 +89,16 @@ class PIOutput:
 
 
 def _allowed_window(inp: PIInput, prep_minutes: float) -> bool:
-    """Mirror of the existing bang-bang ``allowed`` gate.
+    """Return whether humidification is allowed by the lights transition policy.
 
-    Allowed only:
-      - lights_on AND minutes_until_off >= prep_minutes (full-day phase), OR
-      - lights_off AND minutes_until_on <= prep_minutes (pre-lights-on ramp).
-
-    Force-off everywhere else (last `prep_minutes` of day; most of dark period)."""
+    The heater can keep lights-off VPD high, so the humidifier is allowed to
+    run during the dark period. The remaining clock-based guard is the small
+    pre-lights-off cutoff, which avoids misting into an imminent temperature
+    transition.
+    """
     if inp.lights_on:
         return inp.minutes_until_off >= prep_minutes
-    return inp.minutes_until_on <= prep_minutes
+    return True
 
 
 def _setpoint(inp: PIInput, night_offset_kpa: float) -> float:
@@ -129,7 +129,7 @@ def compute(cfg: PIConfig, state: PIState, inp: PIInput) -> PIOutput:
 
     Order of guards (most-protective first):
       1. Failsafe — stale or missing VPD → u=0.
-      2. Lights window — outside allowed window → u=0.
+      2. Lights transition — pre-lights-off guard window → u=0.
       3. RH ceiling — RH at/above stage cap → u=0 (envelope guard).
       4. Normal — PI on (setpoint - VPD).
 

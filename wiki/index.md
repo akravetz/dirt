@@ -1,7 +1,7 @@
 ---
 title: Index
 type: index
-updated: 2026-05-16
+updated: 2026-05-21
 ---
 
 # Grow Wiki Index
@@ -15,10 +15,10 @@ updated: 2026-05-16
 - [Hosted Control Plane](decisions/2026-05-05-hosted-control-plane.md) — Railway web UI/API plus outbound local gateway; remote inspection and PTZ-only command intent without moving hardware authority to cloud
 
 ## Plants
-- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; Flower Day 13; vigorous healthy stretch visible; moisture stable 61.88%; tuck/spread daily
-- [Plant B](plants/plant-b.md) — 🟡 Secondary; Flower Day 13; moisture 96.13% — dryback verification urgent
-- [Plant C](plants/plant-c.md) — 🟡 Secondary; Flower Day 13; moisture 90.93% — lower-leaf/root-zone watch
-- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; Flower Day 13; tall stretch visible; moisture high 83.12%; tuck/spread daily
+- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; Flower Day 18; upright purple flower tops; moisture stable near 57%; tray/runoff pH+EC recheck still required
+- [Plant B](plants/plant-b.md) — 🟡 Secondary; Flower Day 18; visible tops upright but fan-obscured; moisture 96.33% pinned — dryback verification urgent
+- [Plant C](plants/plant-c.md) — 🟡 Secondary; Flower Day 18; compact purple-toned flower sites; moisture 91.21% saturated — lower-leaf/root-zone watch
+- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; Flower Day 18; upright sativa-leaning purple flower tops; moisture stable near 51% after lower shift — verify by hand
 
 ## Daily Logs
 - [2026-03-27](daily/2026-03-27.md) — Day 13: Pre-transplant; 2–3 leaf sets
@@ -61,6 +61,11 @@ updated: 2026-05-16
 - [2026-05-14](daily/2026-05-14.md) — Day 61 / Flower Day 11: no main-tent photos; breeding overview shows upright labeled young plants; main VPD in target all windows; Plant B moisture 95.92% 🔴
 - [2026-05-15](daily/2026-05-15.md) — Day 62 / Flower Day 12: full photo coverage restored; main VPD in target all windows for second day; Plant B moisture 96.29% 🔴; breeding tent hot/dry now
 - [2026-05-16](daily/2026-05-16.md) — Day 63 / Flower Day 13: full photo coverage; main VPD in target all windows for third day; Plant B moisture 96.13% 🔴; breeding tent dry now
+- [2026-05-17](daily/2026-05-17.md) — Day 64 / Flower Day 14: full photo coverage; main VPD in target all windows for fourth day; Plant A moisture/probe movement needs verification; Plant B moisture 95.80% 🔴; breeding tent hot/dry now
+- [2026-05-18](daily/2026-05-18.md) — Day 65 / Flower Day 15: full photo coverage; main VPD swing returned (1.47 overnight → 0.78 now); Plant A pH recheck still open; Plant B/C moisture pinned 🔴
+- [2026-05-19](daily/2026-05-19.md) — Day 66 / Flower Day 16: incomplete photo coverage (breeding overview only); main VPD recovered lights-on (1.24 morning / 1.07 now); Plant B/C moisture pinned 🔴
+- [2026-05-20](daily/2026-05-20.md) — Day 67 / Flower Day 17: full photo coverage restored; main lights-on VPD in range but overnight high/dry; Plant B/C moisture pinned 🔴
+- [2026-05-21](daily/2026-05-21.md) — Day 68 / Flower Day 18: full photo coverage; main lights-on VPD in range but overnight still high/dry; Plant B/C moisture pinned 🔴; Plant D hand-check needed
 
 ## Environment
 - [Temperature](environment/temperature.md) — Trend log; targets by phase; notable events

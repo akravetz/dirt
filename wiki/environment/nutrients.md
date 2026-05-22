@@ -4,7 +4,7 @@ type: environment
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/concepts/coco-coir.md, wiki/concepts/autopot.md, wiki/overview.md]
 created: 2026-04-06
-updated: 2026-04-15
+updated: 2026-05-17
 ---
 
 # Nutrients & pH
@@ -52,6 +52,7 @@ These targets are for the **autopot reservoir** (continuous feed). Hand-feed EC 
 | 2026-04-05 | ⚠️ Plant C lighter green + edge spotting on older leaves | pH verification needed — ensure watering at exactly 5.8 → [2026-04-05 daily](../daily/2026-04-05.md) |
 | 2026-04-08 | ⚠️ Plant C worsening — brown/rust spots on multiple leaves; stress-induced purple on stems/petioles | Most likely pH lockout. Required: measure runoff pH and EC; flush with plain pH 5.8 water if runoff pH outside 5.5–6.2 → [2026-04-08 daily](../daily/2026-04-08.md) |
 | 2026-04-11 | ⚠️ Nutrient solution measured at 920 ppm (EC ~1.84) — above early veg target of 0.8–1.0 EC | Dilute next feed to EC 0.8–1.0. TDS-3 factor confirmed 0.5 (NaCl / 500 scale) on 2026-04-15 — 920 ppm is correct at EC 1.84 → [2026-04-11 daily](../daily/2026-04-11.md) |
+| 2026-05-17 | ⚠️ Plant A local low-pH tray/runoff — pH 4.8 with rough lower-leaf chlorosis/necrosis and stunting concern; reservoir was normal at pH 5.8 / EC 1.4 | Working diagnosis: localized low-pH lockout/root-zone acidification, not hot reservoir feed. Plant A received 8 cups pH 5.8 / EC 1.2 top flush; post-flush runoff EC ~1.1. Recheck A tray/runoff pH+EC before disturbing and compare B/C/D trays → [2026-05-17 daily](../daily/2026-05-17.md) |
 
 ## pH Correction History
 - **2026-03-28** — pH misconception corrected: Canna A+B buffering does NOT eliminate need for pH Down in Denver water. pH Down required every fill.

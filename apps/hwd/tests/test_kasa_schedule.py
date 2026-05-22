@@ -21,9 +21,12 @@ from dirt_shared.testing import create_test_capability, create_test_device
 
 LIGHTS_ON_LOCAL_NOON = datetime(2026, 5, 4, 18, 0, tzinfo=UTC)
 LIGHTS_ON_LOCAL_NOON_PLUS_ONE = datetime(2026, 5, 4, 18, 1, tzinfo=UTC)
-HEAT_PAD_ON_LOCAL_0300 = datetime(2026, 5, 4, 9, 0, tzinfo=UTC)
-HEAT_PAD_OFF_LOCAL_0700 = datetime(2026, 5, 4, 13, 0, tzinfo=UTC)
+HEATER_ON_LOCAL_0300 = datetime(2026, 5, 4, 9, 0, tzinfo=UTC)
+HEATER_OFF_LOCAL_0700 = datetime(2026, 5, 4, 13, 0, tzinfo=UTC)
 TEST_KASA_MAC = "AA:BB:CC:DD:EE:01"
+BREEDING_HEATER_DEVICE_ID = "kasa-heat-pad-breeding"
+BREEDING_HEATER_CAPABILITY_ID = "power"
+BREEDING_HEATER_SCHEDULE_ID = "breeding-heater-night"
 
 
 class _FakePlug:
@@ -106,8 +109,8 @@ def _target(
     return ScheduledKasaTarget(
         kind=kind,
         site_id="homebox",
-        tent_id="breeding" if kind == "heat_pad" else "clones",
-        zone_id="heat" if kind == "heat_pad" else "lights",
+        tent_id="breeding" if kind == "heater" else "clones",
+        zone_id="heat" if kind == "heater" else "lights",
         device_pk=device_pk,
         device_id=device_id or f"kasa-{kind}-test",
         capability_id=capability_id or f"{kind}_power",
@@ -156,7 +159,7 @@ async def test_scheduled_kasa_service_reconciles_existing_light_schedule() -> No
     ]
 
 
-async def test_heat_pad_turns_on_during_direct_schedule_window() -> None:
+async def test_heater_turns_on_during_direct_schedule_window() -> None:
     stop_event = asyncio.Event()
     plug = _FakePlug(stop_event)
     inventory = _FakeInventory(plug)
@@ -164,10 +167,10 @@ async def test_heat_pad_turns_on_during_direct_schedule_window() -> None:
     async def load_targets() -> list[ScheduledKasaTarget]:
         return [
             _target(
-                kind="heat_pad",
-                device_id="kasa-heat-pad-breeding",
-                capability_id="heat_pad_power",
-                schedule_id="breeding-heat-pad-night",
+                kind="heater",
+                device_id=BREEDING_HEATER_DEVICE_ID,
+                capability_id=BREEDING_HEATER_CAPABILITY_ID,
+                schedule_id=BREEDING_HEATER_SCHEDULE_ID,
                 starts_local=time(0, 0),
                 ends_local=time(6, 0),
             )
@@ -175,7 +178,7 @@ async def test_heat_pad_turns_on_during_direct_schedule_window() -> None:
 
     service = ScheduledKasaActuatorService(
         _config(),
-        clock=lambda: HEAT_PAD_ON_LOCAL_0300,
+        clock=lambda: HEATER_ON_LOCAL_0300,
         target_loader=load_targets,
         inventory=inventory,
     )
@@ -186,7 +189,7 @@ async def test_heat_pad_turns_on_during_direct_schedule_window() -> None:
     assert plug.turn_off_calls == 0
 
 
-async def test_heat_pad_turns_off_outside_direct_schedule_window() -> None:
+async def test_heater_turns_off_outside_direct_schedule_window() -> None:
     stop_event = asyncio.Event()
     plug = _FakePlug(stop_event, is_on=True)
     inventory = _FakeInventory(plug)
@@ -194,10 +197,10 @@ async def test_heat_pad_turns_off_outside_direct_schedule_window() -> None:
     async def load_targets() -> list[ScheduledKasaTarget]:
         return [
             _target(
-                kind="heat_pad",
-                device_id="kasa-heat-pad-breeding",
-                capability_id="heat_pad_power",
-                schedule_id="breeding-heat-pad-night",
+                kind="heater",
+                device_id=BREEDING_HEATER_DEVICE_ID,
+                capability_id=BREEDING_HEATER_CAPABILITY_ID,
+                schedule_id=BREEDING_HEATER_SCHEDULE_ID,
                 starts_local=time(0, 0),
                 ends_local=time(6, 0),
             )
@@ -205,7 +208,7 @@ async def test_heat_pad_turns_off_outside_direct_schedule_window() -> None:
 
     service = ScheduledKasaActuatorService(
         _config(),
-        clock=lambda: HEAT_PAD_OFF_LOCAL_0700,
+        clock=lambda: HEATER_OFF_LOCAL_0700,
         target_loader=load_targets,
         inventory=inventory,
     )
@@ -216,7 +219,7 @@ async def test_heat_pad_turns_off_outside_direct_schedule_window() -> None:
     assert plug.turn_off_calls == 1
 
 
-async def test_heat_pad_state_change_logs_heat_pad_stream() -> None:
+async def test_heater_state_change_logs_heater_stream() -> None:
     stop_event = asyncio.Event()
     plug = _FakePlug(stop_event)
     inventory = _FakeInventory(plug)
@@ -228,10 +231,10 @@ async def test_heat_pad_state_change_logs_heat_pad_stream() -> None:
     async def load_targets() -> list[ScheduledKasaTarget]:
         return [
             _target(
-                kind="heat_pad",
-                device_id="kasa-heat-pad-breeding",
-                capability_id="heat_pad_power",
-                schedule_id="breeding-heat-pad-night",
+                kind="heater",
+                device_id=BREEDING_HEATER_DEVICE_ID,
+                capability_id=BREEDING_HEATER_CAPABILITY_ID,
+                schedule_id=BREEDING_HEATER_SCHEDULE_ID,
                 starts_local=time(0, 0),
                 ends_local=time(6, 0),
             )
@@ -239,7 +242,7 @@ async def test_heat_pad_state_change_logs_heat_pad_stream() -> None:
 
     service = ScheduledKasaActuatorService(
         _config(),
-        clock=lambda: HEAT_PAD_ON_LOCAL_0300,
+        clock=lambda: HEATER_ON_LOCAL_0300,
         target_loader=load_targets,
         inventory=inventory,
         event_logger=capture_event,
@@ -249,14 +252,14 @@ async def test_heat_pad_state_change_logs_heat_pad_stream() -> None:
 
     assert len(events) == 1
     stream, event, fields = events[0]
-    assert stream == "heat_pad"
+    assert stream == "heater"
     assert event == "state_change"
     assert fields["site_id"] == "homebox"
     assert fields["tent_id"] == "breeding"
     assert fields["zone_id"] == "heat"
-    assert fields["device_id"] == "kasa-heat-pad-breeding"
-    assert fields["capability_id"] == "heat_pad_power"
-    assert fields["schedule_id"] == "breeding-heat-pad-night"
+    assert fields["device_id"] == BREEDING_HEATER_DEVICE_ID
+    assert fields["capability_id"] == BREEDING_HEATER_CAPABILITY_ID
+    assert fields["schedule_id"] == BREEDING_HEATER_SCHEDULE_ID
     assert fields["new_state"] == "on"
     assert fields["reason"] == "scheduled_on"
 

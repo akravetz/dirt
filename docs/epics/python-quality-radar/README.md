@@ -4,6 +4,8 @@ Status: planning
 Priority: high
 Created: 2026-05-16
 
+Current handoff: [handoff.md](handoff.md)
+
 ## Goal
 
 Build a high-recall, low-friction audit system for Python application-code quality and architecture debt in Dirt. The first result is a report that points reviewers toward likely vibe-coding failure modes in production code: duplication, oversized functions, weak boundary contracts, route/business-logic leakage, broad exception handling, under-tested hot spots, and stale abstractions.

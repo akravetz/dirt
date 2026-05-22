@@ -39,7 +39,7 @@ from dirt_shared.services.grow_state import derive_lights_from_times
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_SCHEDULE_KINDS = ("lights", "heat_pad")
+DEFAULT_SCHEDULE_KINDS = ("lights", "heater")
 
 
 @dataclass(frozen=True)

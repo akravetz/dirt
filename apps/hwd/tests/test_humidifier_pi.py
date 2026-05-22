@@ -40,7 +40,7 @@ def default_config(**overrides) -> PIConfig:
         integrator_clamp=100.0,
         intensity_threshold=5.0,
         threshold_hysteresis=1.0,
-        night_offset_kpa=-0.3,
+        night_offset_kpa=0.0,
         failsafe_stale_s=300.0,
         lights_off_prep_minutes=30.0,
     )
@@ -185,19 +185,20 @@ def test_failsafe_does_not_grow_integrator():
 # ---------------------------------------------------------------------------
 
 
-def test_outside_lights_window_dark_period_forces_zero():
+def test_lights_off_dark_period_allows_pi_control():
     cfg = default_config()
-    # Lights off, not yet inside the morning ramp-up window.
+    # Lights off, well before lights-on. With heater support, dark-period VPD
+    # is no longer assumed to fall for free, so the PI loop remains active.
     inp = default_input(
         lights_on=False,
         minutes_until_off=720.0,
-        minutes_until_on=cfg.lights_off_prep_minutes + 60.0,  # well outside ramp
+        minutes_until_on=cfg.lights_off_prep_minutes + 60.0,
         vpd=2.0,  # very dry; would normally drive u high
     )
     out = step(PIState(), inp)
-    assert out.u == 0.0
-    assert out.plug_on is False
-    assert out.reason is Reason.OUTSIDE_LIGHTS_WINDOW
+    assert out.reason is Reason.PI_ACTIVE
+    assert out.u > 0.0
+    assert out.plug_on is True
 
 
 def test_lights_on_pre_lights_off_prep_window_forces_zero():
@@ -214,22 +215,29 @@ def test_lights_on_pre_lights_off_prep_window_forces_zero():
     assert out.reason is Reason.OUTSIDE_LIGHTS_WINDOW
 
 
-def test_pre_lights_on_ramp_window_uses_night_setpoint():
-    """Inside the ramp window (lights still off, < prep_minutes until on) the
-    controller should run, but against the night-shifted setpoint."""
-    cfg = default_config()
-    # Lights off, just inside the ramp-up window. VPD slightly above the
-    # night-shifted setpoint (= upper_band + night_offset = 1.2 - 0.3 = 0.9).
+def test_lights_off_uses_configured_night_setpoint():
+    """Lights-off control runs against the configured night-shifted setpoint."""
+    cfg = default_config(night_offset_kpa=-0.3)
+    # Lights off, not near a transition. VPD slightly above the night-shifted
+    # setpoint (= upper_band + night_offset = 1.2 - 0.3 = 0.9).
     inp = default_input(
         lights_on=False,
         minutes_until_off=720.0,
-        minutes_until_on=cfg.lights_off_prep_minutes - 5.0,
+        minutes_until_on=cfg.lights_off_prep_minutes + 60.0,
         vpd=1.0,  # 0.1 kPa above night setpoint of 0.9
     )
-    out = step(PIState(), inp)
+    out = step(PIState(), inp, cfg)
     assert out.reason is Reason.PI_ACTIVE
     # Setpoint reported should match the night shift.
     assert out.setpoint_vpd == pytest.approx(0.9, abs=1e-9)
+
+
+def test_lights_off_default_setpoint_matches_day_upper_edge():
+    cfg = default_config()
+    inp = default_input(lights_on=False, minutes_until_on=120.0, vpd=1.30)
+    out = step(PIState(), inp, cfg)
+    assert out.reason is Reason.PI_ACTIVE
+    assert out.setpoint_vpd == pytest.approx(1.2, abs=1e-9)
 
 
 def test_lights_on_uses_day_setpoint():

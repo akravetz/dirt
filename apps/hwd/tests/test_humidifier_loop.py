@@ -40,7 +40,7 @@ def _config(**overrides) -> HumidifierConfig:
         pi_integrator_clamp=50.0,
         pi_threshold_pct=5.0,
         pi_threshold_hysteresis_pct=1.0,
-        pi_night_offset_kpa=-0.3,
+        pi_night_offset_kpa=0.0,
         lights_off_prep_minutes=5,
         poll_interval=30,
         failsafe_stale_seconds=300,
@@ -364,12 +364,11 @@ async def test_loop_steady_state_at_target_no_api_calls():
     assert paths == ["/router/api/v1/device/state"]
 
 
-async def test_loop_off_path_lights_off_outside_window_powers_off():
-    """Lights off and outside prep window → PI emits u=0 → if device is
-    currently ON, loop should send set_power(on=False)."""
+async def test_loop_lights_off_high_vpd_can_power_on_humidifier():
+    """Lights off and high VPD below the RH ceiling → PI can command mist."""
     cfg = _config(lights_off_prep_minutes=5)
-    readings = FakeReadings(vpd=1.5, rh=55.0, ts=T0)  # dry but irrelevant
-    # lights off, 120 min until on → outside the 5-min prep window
+    readings = FakeReadings(vpd=2.0, rh=55.0, ts=T0)
+    # lights off, 120 min until on → normal dark-period PI control
     grow = FakeGrow(_veg_lights_off())
     stop_event = asyncio.Event()
 
@@ -379,11 +378,11 @@ async def test_loop_off_path_lights_off_outside_window_powers_off():
                 {"instance": "online", "state": {"value": True}},
                 {
                     "instance": "powerSwitch",
-                    "state": {"value": 1},
-                },  # ON — must turn off
+                    "state": {"value": 0},
+                },  # OFF — high lights-off VPD should turn it on
                 {
                     "instance": "workMode",
-                    "state": {"value": {"workMode": 1, "modeValue": 5}},
+                    "state": {"value": {"workMode": 1, "modeValue": 1}},
                 },
             ]
         },
@@ -402,7 +401,7 @@ async def test_loop_off_path_lights_off_outside_window_powers_off():
     assert cap == {
         "type": "devices.capabilities.on_off",
         "instance": "powerSwitch",
-        "value": 0,
+        "value": 1,
     }
 
 

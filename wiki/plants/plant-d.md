@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-05-16
+updated: 2026-05-21
 ---
 
 # Plant D
@@ -19,7 +19,7 @@ updated: 2026-05-16
 
 ## Current State
 
-Day 63 / Flower Day 13: D remains a tall sativa-leaning primary keeper candidate with upright stretch tops, visible purple stems/petioles, and high moisture around 83.12%. Keep tucking/spreading D and A tops while watching tray behavior and lower shaded leaves. See [2026-05-16](../daily/2026-05-16.md).
+Day 68 / Flower Day 18: Dedicated photo shows upright sativa-leaning purple flower tops, while rough moisture is steady today near 51% after yesterday's higher reading. Verify media/tray/probe conditions by hand before acting on the lower signal. See [2026-05-21](../daily/2026-05-21.md).
 
 ## Timeline
 
@@ -64,3 +64,8 @@ Day 63 / Flower Day 13: D remains a tall sativa-leaning primary keeper candidate
 - 2026-05-14 — [Day 61 / Flower Day 11: dedicated photo missing; moisture high at 84.31%, tuck through stretch](../daily/2026-05-14.md)
 - 2026-05-15 — [Day 62 / Flower Day 12: tall stretch tops visible; moisture high at 83.40%, tuck/spread through stretch](../daily/2026-05-15.md)
 - 2026-05-16 — [Day 63 / Flower Day 13: tall stretch tops visible; moisture high at 83.12%, tuck/spread through stretch](../daily/2026-05-16.md)
+- 2026-05-17 — [Day 64 / Flower Day 14: tall stretch tops visible; moisture down to ~74.0% but still high, tuck/spread through stretch](../daily/2026-05-17.md)
+- 2026-05-18 — [Day 65 / Flower Day 15: upright sativa-leaning flower sites; moisture stable around 60% today after a large 24-hour drop, verify by hand](../daily/2026-05-18.md)
+- 2026-05-19 — [Day 66 / Flower Day 16: dedicated photo missing; moisture stable around 60% for a second day, verify by hand](../daily/2026-05-19.md)
+- 2026-05-20 — [Day 67 / Flower Day 17: upright sativa-leaning purple flower tops visible; moisture stable near 60%, verify by hand](../daily/2026-05-20.md)
+- 2026-05-21 — [Day 68 / Flower Day 18: upright sativa-leaning purple flower tops visible; moisture steady near 51% today after yesterday's higher reading, verify by hand](../daily/2026-05-21.md)

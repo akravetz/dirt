@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/coco-coir.md, wiki/concepts/lst.md, wiki/environment/nutrients.md]
 created: 2026-04-06
-updated: 2026-05-16
+updated: 2026-05-21
 ---
 
 # Plant C
@@ -19,7 +19,7 @@ updated: 2026-05-16
 
 ## Current State
 
-Day 63 / Flower Day 13: C has active upright upper growth, but the compact interior and saturated 90.93% moisture keep root-zone and airflow checks active. Treat lower/interior yellowing as a wet-root or shading issue before changing feed strength. See [2026-05-16](../daily/2026-05-16.md).
+Day 68 / Flower Day 18: Dedicated photo shows compact purple-toned flower sites with fresh pistils, while C remains saturated near 91.2%. Keep root-zone and interior-airflow checks active before treating shaded lower-leaf symptoms as a feed-strength issue. See [2026-05-21](../daily/2026-05-21.md).
 
 ## Timeline
 
@@ -64,3 +64,8 @@ Day 63 / Flower Day 13: C has active upright upper growth, but the compact inter
 - 2026-05-14 — [Day 61 / Flower Day 11: dedicated photo missing; moisture still ~90.5%, keep root-zone/airflow watch](../daily/2026-05-14.md)
 - 2026-05-15 — [Day 62 / Flower Day 12: upper growth active; moisture still ~90.7%, keep root-zone/airflow watch](../daily/2026-05-15.md)
 - 2026-05-16 — [Day 63 / Flower Day 13: upper growth active; moisture still ~90.9%, keep root-zone/airflow watch](../daily/2026-05-16.md)
+- 2026-05-17 — [Day 64 / Flower Day 14: compact flower sites active; moisture still ~90.9%, keep root-zone/airflow watch](../daily/2026-05-17.md)
+- 2026-05-18 — [Day 65 / Flower Day 15: compact flower sites upright; moisture ~91.3% remains saturated and flat, keep root-zone/airflow watch](../daily/2026-05-18.md)
+- 2026-05-19 — [Day 66 / Flower Day 16: dedicated photo missing; moisture ~90.9% remains saturated, keep root-zone/airflow watch](../daily/2026-05-19.md)
+- 2026-05-20 — [Day 67 / Flower Day 17: compact purple-toned flower sites active; moisture ~91.5% remains saturated, keep root-zone/airflow watch](../daily/2026-05-20.md)
+- 2026-05-21 — [Day 68 / Flower Day 18: compact purple-toned flower sites active; moisture ~91.2% remains saturated, keep root-zone/airflow watch](../daily/2026-05-21.md)

@@ -32,6 +32,7 @@ from dirt_hwd.services.metric_freshness import (
     MetricFreshnessService,
 )
 from dirt_hwd.services.sensor_quality import SensorQualityConfig, SensorQualityService
+from dirt_hwd.services.thermoforge import ScheduledThermoForgeService
 from dirt_hwd.supervise import supervise
 from dirt_shared.app_wiring import build_core_services
 from dirt_shared.config import Settings
@@ -111,6 +112,11 @@ def _default_background_services(
         ),
         ScheduledKasaActuatorService(
             settings.scheduled_kasa(),
+            engine=engine,
+            clock=core.clock,
+        ),
+        ScheduledThermoForgeService(
+            settings.thermoforge(),
             engine=engine,
             clock=core.clock,
         ),

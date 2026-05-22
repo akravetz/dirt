@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-05-16
+updated: 2026-05-21
 ---
 
 # Plant B
@@ -19,7 +19,7 @@ updated: 2026-05-16
 
 ## Current State
 
-Day 63 / Flower Day 13: B is still mostly obscured by the fan, but visible tops remain upright; moisture edged down to 96.13% and is still critically high. Keep dryback verification active and do not restore normal feed until tray/media checks support it. See [2026-05-16](../daily/2026-05-16.md).
+Day 68 / Flower Day 18: Visible tops remain upright despite fan obstruction, but B is still pinned wet near 96.3%. Keep dryback verification urgent and do not restore normal feed until tray/media checks support it. See [2026-05-21](../daily/2026-05-21.md).
 
 ## Timeline
 
@@ -64,3 +64,8 @@ Day 63 / Flower Day 13: B is still mostly obscured by the fan, but visible tops 
 - 2026-05-14 — [Day 61 / Flower Day 11: dedicated photo missing; moisture 95.92% keeps dryback verification urgent](../daily/2026-05-14.md)
 - 2026-05-15 — [Day 62 / Flower Day 12: visible tops upright but photo partly obscured; moisture 96.29% keeps dryback verification urgent](../daily/2026-05-15.md)
 - 2026-05-16 — [Day 63 / Flower Day 13: visible tops upright but fan-obscured; moisture 96.13% keeps dryback verification urgent](../daily/2026-05-16.md)
+- 2026-05-17 — [Day 64 / Flower Day 14: visible leaves upright but fan-obscured; moisture ~95.8% keeps dryback verification urgent](../daily/2026-05-17.md)
+- 2026-05-18 — [Day 65 / Flower Day 15: visible tops upright but fan-obscured; moisture ~96.2% remains pinned, dryback verification urgent](../daily/2026-05-18.md)
+- 2026-05-19 — [Day 66 / Flower Day 16: dedicated photo missing; moisture ~95.9% remains pinned wet, dryback verification urgent](../daily/2026-05-19.md)
+- 2026-05-20 — [Day 67 / Flower Day 17: visible tops upright but partly fan-obscured; moisture ~96.5% remains pinned wet, dryback verification urgent](../daily/2026-05-20.md)
+- 2026-05-21 — [Day 68 / Flower Day 18: visible tops upright but fan-obscured; moisture ~96.3% remains pinned wet, dryback verification urgent](../daily/2026-05-21.md)

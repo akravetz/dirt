@@ -222,7 +222,7 @@ def conservative_pi() -> PIConfig:
         integrator_clamp=50.0,
         intensity_threshold=5.0,
         threshold_hysteresis=1.0,
-        night_offset_kpa=-0.3,
+        night_offset_kpa=0.0,
         failsafe_stale_s=300.0,
         lights_off_prep_minutes=30.0,
     )
@@ -330,10 +330,7 @@ def test_lights_off_does_not_blow_up_integrator(tau_s, k, v_dry_eq):
     transitions:
 
       - Integrator bounded throughout (≤ integrator_clamp).
-      - Dark period (excluding ramp windows): mostly force-off via
-        OUTSIDE_LIGHTS_WINDOW.
-      - Pre-lights-on ramp window operates against the night-shifted
-        setpoint — observed, not asserted as "unexpected."
+      - Dark period stays in normal PI control instead of being force-off.
       - 2 h after lights return, VPD is within 0.2 kPa of day setpoint."""
     plant = FOPDTPlant(tau_s=tau_s, k_per_pct_at_baseline=k, v_dry_eq=v_dry_eq)
     cfg = conservative_pi()
@@ -358,13 +355,10 @@ def test_lights_off_does_not_blow_up_integrator(tau_s, k, v_dry_eq):
     # Integrator stays inside the clamp end-to-end.
     assert max(abs(x) for x in traj.integrator) <= cfg.integrator_clamp + 1e-9
 
-    # During the *core* of the dark period (excluding the last 30 min ramp
-    # window where pre-lights-on PI is allowed), reason must be force-off.
-    ramp_start_idx = dark_end - int(cfg.lights_off_prep_minutes * 60 / DT_S)
-    core_dark_reasons = set(traj.reason[dark_start + 1 : ramp_start_idx])
-    assert core_dark_reasons == {Reason.OUTSIDE_LIGHTS_WINDOW}, (
-        f"Core dark period must be 100% outside_lights_window; "
-        f"got reasons {core_dark_reasons}"
+    # During the dark period, heater-aware VPD control remains available.
+    dark_reasons = set(traj.reason[dark_start + 1 : dark_end])
+    assert dark_reasons == {Reason.PI_ACTIVE}, (
+        f"Dark period must remain in PI control; got reasons {dark_reasons}"
     )
 
     # 6 h after lights return, VPD inside 0.2 kPa envelope (tail-30-min avg).

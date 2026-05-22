@@ -2,26 +2,26 @@
 Description=Dirt camera daemon (OBSBOT SDK wrapper)
 Documentation=file://%h/code/dirt/services/camera-daemon/README.md
 After=default.target
-# Outer crash-loop budget: 5 nonzero exits (incl. watchdog SIGABRT) in 5
-# minutes → systemd leaves the unit `failed`. Reset with
-# `systemctl --user reset-failed dirt-camera`.
-StartLimitBurst=5
-StartLimitIntervalSec=300
+# OBSBOT USB can disappear for minutes and later re-enumerate. Retry slowly
+# enough that a long dropout does not leave the service permanently failed.
+StartLimitBurst=60
+StartLimitIntervalSec=3600
 OnFailure=dirt-service-alert@%n.service
 
 [Service]
 # Type=notify: daemon calls sd_notify(READY=1) after listen(), and
 # sd_notify(WATCHDOG=1) every 10s while a frame was decoded in the last
 # 15s. Stuck-but-alive (drain spinning or reconnect stalled) stops the
-# heartbeat and WatchdogSec=30s causes systemd to SIGABRT + restart,
-# converting silent disk-fills into visible failures.
+# heartbeat and WatchdogSec=30s causes systemd to SIGABRT + restart. Restart
+# retries are intentionally slow so transient USB outages self-heal after
+# re-enumeration instead of exhausting the start-limit budget.
 Type=notify
 WatchdogSec=30s
 # %h expands to the user's home directory in user units.
 EnvironmentFile=-%h/code/dirt/.env.dirt-camera
 ExecStart=%h/code/dirt/services/camera-daemon/dirt-camera-daemon
-Restart=on-failure
-RestartSec=5s
+Restart=always
+RestartSec=60s
 # Kill signal: give the daemon 10s to unlink its socket and release the SDK.
 KillSignal=SIGTERM
 TimeoutStopSec=10s
