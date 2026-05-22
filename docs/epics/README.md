@@ -64,6 +64,7 @@ This creates a GitHub issue with our standard template and the correct epic labe
 | [multi-kasa-lights](multi-kasa-lights/README.md) | planning | high |
 | [camera-edge](camera-edge/README.md) | planning | high |
 | [python-quality-radar](python-quality-radar/README.md) | planning | high |
+| [esp32-wifi-hardening](esp32-wifi-hardening/README.md) | planning | high |
 
 ## Rules for Agents
 
