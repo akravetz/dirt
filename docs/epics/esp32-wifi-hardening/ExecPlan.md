@@ -9,7 +9,7 @@ This plan follows `.agents/PLANS.md`.
 
 The ESP32-C3 SuperMini plant sensor fleet is repeatedly going offline long enough for Dirt to mark nodes stale or offline. After this change, each ESP32 node should recover from common WiFi failures without a manual power cycle, and Dirt should show enough WiFi health data to decide whether the remaining problem is firmware, RF placement, router behavior, or the SuperMini board design.
 
-The user-visible result is a fleet that posts readings reliably through router hiccups and weak-signal periods. When a node does drop, the operator can inspect the device row, logs, or serial output and see RSSI, reconnect count, driver reset count, and the last ESP32 disconnect reason. That evidence then drives the hardware decision: keep hardened SuperMinis, replace only bad nodes, standardize on SparkFun Pro Micro ESP32-C3, or test ESP32-C6 boards for a future migration.
+The user-visible result is a fleet that posts readings reliably through router hiccups and weak-signal periods. When a node does drop, the operator can inspect the database-backed device row, the dashboard system table, logs, or serial output and see RSSI, reconnect count, driver reset count, disconnected duration, and the last ESP32 disconnect reason. That evidence then drives the hardware decision: keep hardened SuperMinis, replace only bad nodes, standardize on SparkFun Pro Micro ESP32-C3, or test ESP32-C6 boards for a future migration.
 
 
 ## Progress
@@ -20,7 +20,7 @@ The user-visible result is a fleet that posts readings reliably through router h
 - [x] (2026-05-22) Reviewed current ESP32-C3 WiFi guidance and SuperMini antenna notes.
 - [x] (2026-05-22) Wrote this epic and ExecPlan.
 - [ ] Implement firmware WiFi state machine and serial diagnostics.
-- [ ] Add server-side WiFi telemetry contract and persistence or log projection.
+- [ ] Add server-side WiFi telemetry contract, database persistence, and dashboard projection.
 - [ ] Build all firmware profiles and run focused backend tests.
 - [ ] OTA rollout to one canary node, then the rest of the fleet after soak.
 
@@ -57,6 +57,14 @@ The user-visible result is a fleet that posts readings reliably through router h
   Rationale: The operator needs to compare devices and time windows. Numeric RSSI, reason, reconnect count, and reset count are queryable and can later drive UI or alert thresholds.
   Date/Author: 2026-05-22 / Codex
 
+- Decision: Persist ESP32 WiFi telemetry as nullable `device` columns, not as a log-only projection.
+  Rationale: The operator needs the current WiFi health in normal database queries, API responses, and the web UI. Logs remain useful supporting evidence, but they are not the source of truth for the latest device health.
+  Date/Author: 2026-05-22 / Codex
+
+- Decision: Surface WiFi telemetry through the existing device-status/device-catalog paths rather than inventing a separate WiFi diagnostics screen first.
+  Rationale: The current operator workflow already checks device rows in the dashboard. Extending `device`, `SystemStatusService`, `/api/system/devices`, and the existing React device tables keeps the change direct and makes the data visible where stale/offline status is already evaluated.
+  Date/Author: 2026-05-22 / Codex
+
 - Decision: Use source-owned direct cutover for firmware call sites.
   Rationale: The firmware projects are all in this repo. If the helper API changes, update plant, reservoir, fan, and breeding-env call sites directly rather than preserving thin compatibility wrappers.
   Date/Author: 2026-05-22 / Codex
@@ -79,6 +87,7 @@ Read these docs before implementation:
 - `docs/rules/simple-clean-architecture.md` before changing architecture or preserving compatibility paths.
 - `docs/rules/boundary-contracts.md` before changing the sensor ingest payload or any persisted boundary shape.
 - `docs/references/atlas/INDEX.md` before running Atlas migration commands.
+- `docs/references/modern-idiomatic-typescript/INDEX.md` and `docs/references/tailwind-v4/INDEX.md` before editing `web-ui/src/`.
 
 Current firmware profiles:
 
@@ -89,6 +98,10 @@ Current firmware profiles:
 - `firmware/common/ingest_client/ingest_client.cpp` builds the JSON ingest envelope with `site_id`, `tent_id`, `zone_id`, `device_id`, `source`, `firmware_version`, `ip`, `uptime_ms`, and `metrics`.
 - `apps/hwd/src/dirt_hwd/api/ingest.py` defines the `IngestPayload` Pydantic model for the `/api/ingest/sensors` boundary.
 - `apps/shared/src/dirt_shared/services/readings.py` updates `device.last_seen`, `device.ip`, `device.firmware_version`, and `device.uptime_ms` during ingest.
+- `apps/shared/src/dirt_shared/services/system_status.py` builds the local `/api/system/devices` rows from `device.last_seen` and device identity rows.
+- `apps/web/src/dirt_web/api/system.py` maps `SystemStatusService` rows into the `dirt-contracts` Pydantic `DeviceStatus` response.
+- `contracts/webapp-v1.yaml`, `contracts/python/src/dirt_contracts/webapp_v1/models.py`, and `web-ui/src/api-client/generated/schema.ts` define the local SPA device-status contract consumed by `web-ui/src/ui/SystemTable.tsx`.
+- Hosted dashboard device rows flow through `apps/gateway/src/dirt_gateway/local.py` -> `dirt_shared.cloud_contract.CatalogDevice` -> `apps/control-plane/src/dirt_control/models/cloud.py:CloudDevice` -> `apps/control-plane/src/dirt_control/api/browser.py:DeviceResponse` -> `web-ui/src/routes/index.tsx:HostedDevicesPanel`. If this epic's rollout must expose WiFi diagnostics on the hosted dashboard too, carry the same nullable fields through that catalog path and regenerate hosted browser types with `scripts/gen-hosted-contract`.
 - `apps/hwd/src/dirt_hwd/services/device_watchdog.py` and `apps/hwd/src/dirt_hwd/services/metric_freshness.py` emit offline/stale transitions.
 
 External references that motivate the design:
@@ -266,12 +279,11 @@ Add optional fields matching the firmware payload:
 - `wifi_disconnect_reason: int | None = None`
 - `wifi_disconnected_for_ms: int | None = None`
 
-Choose the simplest persistence model after inspecting current consumers:
+Persist the fields as nullable database columns. Do not use a log-only projection for the accepted implementation.
 
-1. Preferred direct model: add nullable columns to `apps/shared/src/dirt_shared/models/device.py` and an Atlas migration. Update `ReadingsService.touch_device()` and `ReadingsService.ingest_reading()` plumbing so the current device row exposes current WiFi health.
-2. If first-class columns are too broad for the initial PR, add an `esp32_wifi` observability stream that logs the accepted telemetry on every meaningful transition or count change. Do not silently rely on ignored extra fields.
+Add nullable columns to `apps/shared/src/dirt_shared/models/device.py` and an Atlas migration. Update `ReadingsService.touch_device()` and `ReadingsService.ingest_reading()` plumbing so every accepted heartbeat can update the current device row, including payloads whose sensor metrics were rejected by quality filters.
 
-If using columns, suggested names:
+Use these column names:
 
 - `wifi_rssi_dbm`
 - `wifi_reconnect_count`
@@ -279,13 +291,13 @@ If using columns, suggested names:
 - `wifi_disconnect_reason`
 - `wifi_disconnected_for_ms`
 
-Add focused tests in `apps/hwd/tests/` and `apps/shared/tests/` proving the ingest boundary accepts the new fields and writes them to the chosen projection.
+Add focused tests in `apps/hwd/tests/` and `apps/shared/tests/` proving the ingest boundary accepts the new fields and writes them to the `device` row. Update any test fixture device rows that need the new nullable attributes, but do not edit `apps/tests/invariants/`.
 
-Milestone 6: Add operator diagnostics.
+Milestone 6: Add database-backed operator diagnostics to the web UI.
 
-Expose the WiFi health somewhere easy to inspect. The minimum acceptable implementation is a documented SQL query and log stream. A better implementation extends the existing system/device status API if it already has a device row projection.
+Expose WiFi health from the persisted `device` columns in the existing operator surfaces. This milestone is not complete if the values are only present in firmware serial output, JSON logs, or ignored request fields.
 
-Minimum read-only SQL:
+First, keep the database inspection path obvious. This query should work after the migration and after any ESP32 has posted a payload with WiFi telemetry:
 
     SELECT device_id, last_seen, now() - last_seen AS staleness,
            wifi_rssi_dbm, wifi_reconnect_count, wifi_driver_reset_count,
@@ -294,7 +306,25 @@ Minimum read-only SQL:
     WHERE controller = 'esp32'
     ORDER BY device_id;
 
-If adding an API response, read `docs/rules/boundary-contracts.md` first and update a Pydantic response model, not a handwritten raw dictionary.
+Then expose the same current values through the local web API and dashboard:
+
+- Extend the internal `DeviceStatus` dataclass in `apps/shared/src/dirt_shared/services/system_status.py` with nullable `wifi_rssi_dbm`, `wifi_reconnect_count`, `wifi_driver_reset_count`, `wifi_disconnect_reason`, and `wifi_disconnected_for_ms`.
+- Extend `_ScopedDevice` and `_status_devices()` in `SystemStatusService` to select those columns from `Device` and copy them into heartbeat statuses for ESP32-backed rows. Leave non-ESP32 camera, voice, and Govee rows with `None` values.
+- Extend `contracts/webapp-v1.yaml` `DeviceStatus` with a nullable `wifi` object, or with the five nullable top-level fields if that is simpler for generated-model compatibility. Prefer a nested object if the generator cleanly supports it because it keeps WiFi-specific diagnostics grouped.
+- Regenerate `contracts/python/src/dirt_contracts/webapp_v1/models.py` and `web-ui/src/api-client/generated/schema.ts` from `contracts/webapp-v1.yaml`; do not hand-author a divergent TypeScript interface in `web-ui`.
+- Update `apps/web/src/dirt_web/api/system.py` to populate the Pydantic response model from the service result.
+- Update `web-ui/src/ui/SystemTable.tsx` to add compact WiFi columns for RSSI, reconnects, driver resets, and reason code. Render a restrained placeholder such as `--` when the value is `null`, and keep status as the primary quick-scan column.
+- Update `web-ui/tests/e2e/dashboard-system-table.spec.ts` so the dashboard test asserts the WiFi columns render from `/api/system/devices` when present and do not break rows without WiFi data.
+
+If hosted web UI exposure is in scope for the implementation PR, carry the same fields through the hosted catalog path instead of adding a local-only special case:
+
+- Extend `dirt_shared.cloud_contract.CatalogDevice` with the same nullable WiFi fields.
+- Extend `apps/gateway/src/dirt_gateway/local.py` to copy local `Device` WiFi columns into catalog payloads.
+- Add nullable columns to `apps/control-plane/src/dirt_control/models/cloud.py:CloudDevice` with a cloud Atlas migration.
+- Extend `apps/control-plane/src/dirt_control/api/gateway.py` catalog upsert and `apps/control-plane/src/dirt_control/api/browser.py:DeviceResponse`.
+- Run `scripts/gen-hosted-contract` and update `web-ui/src/routes/index.tsx:HostedDevicesPanel` to show the same compact diagnostics for hosted device rows.
+
+If hosted exposure is deferred, record that explicitly in `Progress` and `Outcomes & Retrospective` with the reason. Do not silently leave the hosted dashboard looking complete while only the local dashboard has WiFi diagnostics.
 
 Milestone 7: Validate firmware builds and backend tests.
 
@@ -313,11 +343,14 @@ Build all firmware profiles that consume the shared WiFi helper:
     pio run -e fan
     pio run -e breeding-env
 
-Run focused backend tests for any touched Python modules, plus invariants:
+Run focused backend and frontend checks for touched modules, plus invariants:
 
     cd /home/akcom/code/dirt
     uv run pytest apps/hwd/tests/test_ingest*.py apps/shared/tests/test_readings_scope.py -q
+    uv run pytest apps/web/tests/test_system_devices_endpoint.py -q
     uv run pytest apps/tests/invariants/ -q
+    pnpm --dir web-ui typecheck
+    pnpm --dir web-ui test
 
 Before committing implementation work, run:
 
@@ -383,12 +416,34 @@ Edit firmware:
     $EDITOR firmware/reservoir_node/src/main.cpp
     $EDITOR firmware/fan_controller/src/main.cpp
 
-If adding persisted DB columns:
+Add persisted DB columns:
 
     $EDITOR apps/shared/src/dirt_shared/models/device.py
     $EDITOR apps/shared/src/dirt_shared/services/readings.py
     $EDITOR apps/hwd/src/dirt_hwd/api/ingest.py
     atlas migrate diff esp32_wifi_telemetry --env local
+
+Add local dashboard projection:
+
+    $EDITOR apps/shared/src/dirt_shared/services/system_status.py
+    $EDITOR apps/web/src/dirt_web/api/system.py
+    $EDITOR contracts/webapp-v1.yaml
+    uv run datamodel-codegen --input contracts/webapp-v1.yaml --input-file-type openapi --output contracts/python/src/dirt_contracts/webapp_v1/models.py
+    pnpm --dir web-ui exec openapi-typescript ../contracts/webapp-v1.yaml -o src/api-client/generated/schema.ts
+    pnpm --dir web-ui exec biome check --write src/api-client/generated/schema.ts
+    $EDITOR web-ui/src/ui/SystemTable.tsx
+    $EDITOR web-ui/tests/e2e/dashboard-system-table.spec.ts
+
+If hosted dashboard exposure is included:
+
+    $EDITOR apps/shared/src/dirt_shared/cloud_contract.py
+    $EDITOR apps/gateway/src/dirt_gateway/local.py
+    $EDITOR apps/control-plane/src/dirt_control/models/cloud.py
+    $EDITOR apps/control-plane/src/dirt_control/api/gateway.py
+    $EDITOR apps/control-plane/src/dirt_control/api/browser.py
+    atlas migrate diff cloud_esp32_wifi_telemetry --env cloud
+    scripts/gen-hosted-contract
+    $EDITOR web-ui/src/routes/index.tsx
 
 Validate:
 
@@ -403,7 +458,9 @@ Validate:
     pio run -e breeding-env
 
     cd /home/akcom/code/dirt
-    uv run pytest apps/hwd/tests apps/shared/tests apps/tests/invariants -q
+    uv run pytest apps/hwd/tests apps/shared/tests apps/web/tests/test_system_devices_endpoint.py apps/tests/invariants -q
+    pnpm --dir web-ui typecheck
+    pnpm --dir web-ui test
 
 Run formatting/fixes before commit:
 
@@ -431,8 +488,15 @@ Firmware acceptance:
 Backend acceptance:
 
 - `POST /api/ingest/sensors` accepts the new WiFi telemetry fields through the Pydantic `IngestPayload`.
-- The chosen projection, either `device` columns or `esp32_wifi` logs, shows current RSSI, reconnect count, driver reset count, and last disconnect reason.
+- The `device` table has nullable WiFi telemetry columns, and ingest updates them on both normal sensor inserts and heartbeat-only accepted payloads.
+- `/api/system/devices` returns the current WiFi values for ESP32 rows through a typed Pydantic response model.
 - Existing ingest tests and invariants pass.
+
+Web UI acceptance:
+
+- The local dashboard system table renders RSSI, reconnect count, driver reset count, and last disconnect reason for ESP32 rows using the generated local API type.
+- Rows with `null` WiFi values still render cleanly with placeholders and no layout jump.
+- If hosted exposure is included, the hosted dashboard device table renders the same diagnostics after one gateway catalog sync and the hosted browser types are regenerated from `scripts/gen-hosted-contract`.
 
 Operational acceptance:
 
@@ -452,7 +516,7 @@ If a canary OTA makes a node unreachable, recover by USB flashing the previous k
 
 If the new WiFi policy causes rapid reboot loops, increase `MCU_RESTART_AFTER_MS`, disable the restart path temporarily, and rebuild. Do not remove event/reason logging while debugging.
 
-If backend telemetry fields are added but firmware is not rolled out yet, all fields must remain nullable so old firmware keeps ingesting.
+If backend telemetry fields are added but firmware is not rolled out yet, all local and hosted database/API/UI fields must remain nullable so old firmware keeps ingesting and dashboard rows without WiFi diagnostics still render.
 
 
 ## Artifacts and Notes
@@ -501,16 +565,29 @@ Backend boundary:
 - `apps/hwd/src/dirt_hwd/api/ingest.py`
   - `IngestPayload` has optional WiFi telemetry fields.
 
-Persistence or observability:
+Persistence:
 
-- Preferred: `apps/shared/src/dirt_shared/models/device.py` nullable WiFi telemetry columns, plus an Atlas migration under `migrations/`.
-- Acceptable initial alternative: `apps/shared/src/dirt_shared/observability.py` retention entry for an `esp32_wifi` stream and explicit log events from ingest.
+- `apps/shared/src/dirt_shared/models/device.py` nullable WiFi telemetry columns, plus an Atlas migration under `migrations/`.
+- `apps/shared/src/dirt_shared/services/readings.py` updates those columns during `touch_device()` and sensor ingest.
+
+Local web UI interfaces:
+
+- `apps/shared/src/dirt_shared/services/system_status.py` `DeviceStatus` includes nullable WiFi diagnostics.
+- `apps/web/src/dirt_web/api/system.py` maps the diagnostics into the typed `/api/system/devices` response.
+- `contracts/webapp-v1.yaml`, `contracts/python/src/dirt_contracts/webapp_v1/models.py`, and `web-ui/src/api-client/generated/schema.ts` include the WiFi diagnostics shape.
+- `web-ui/src/ui/SystemTable.tsx` renders compact WiFi diagnostics for the existing dashboard system table.
+
+Optional hosted web UI interfaces, if included in the implementation PR:
+
+- `dirt_shared.cloud_contract.CatalogDevice` carries nullable WiFi diagnostics.
+- `apps/control-plane/src/dirt_control/models/cloud.py:CloudDevice` persists nullable WiFi diagnostics in the cloud database.
+- `apps/control-plane/src/dirt_control/api/browser.py:DeviceResponse` and generated `web-ui/src/api-client/generated/hosted-schema.ts` expose those diagnostics.
 
 Validation dependencies:
 
 - PlatformIO for firmware builds.
 - `uv run pytest` for Python tests.
-- Atlas for schema migration generation and apply if persistence columns are used.
+- Atlas for schema migration generation and apply.
 - `.env` for database credentials and `PLANT_OTA_PASSWORD` during OTA.
 
 External behavior:
@@ -523,3 +600,4 @@ External behavior:
 ## Revision Notes
 
 - 2026-05-22: Initial ExecPlan created from observed ESP32 offline behavior, firmware inspection, and ESP32-C3/SuperMini WiFi guidance.
+- 2026-05-22: Solidified Milestone 6 so WiFi telemetry must persist in `device` database columns and flow into the web UI device tables; log-only diagnostics are no longer an acceptable endpoint.
