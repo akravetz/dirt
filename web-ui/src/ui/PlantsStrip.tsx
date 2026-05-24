@@ -1,5 +1,5 @@
-// Dashboard plants strip — four plant cards (A/B/C/D) under the
-// sparklines row. Thin composition around PlantCard; the dashboard
+// Dashboard plants strip under the sparklines row. Thin composition
+// around PlantCard; the dashboard
 // route owns the selected-plant state that drives frontend.plant_detail.
 //
 // ARIA contract: section[role=region][aria-label="Plants"] is the
@@ -7,12 +7,12 @@
 // is owned by PlantCard.
 import type { ReactNode } from "react";
 import { PlantCard, type PlantCardStatus } from "@/ui/PlantCard";
-import type { PlantCode, StickerColor } from "@/ui/plant-types";
+import type { PlantId, StickerColor } from "@/ui/plant-types";
 
 interface StripPlant {
-  code: PlantCode;
+  plant_id: PlantId;
   name: string;
-  sticker_color: StickerColor;
+  sticker_color: StickerColor | null;
   status: PlantCardStatus;
   moisture_pct: number | null;
 }
@@ -23,7 +23,7 @@ interface PlantsStripProps {
    * header as "Plants · Day N". null hides the suffix while the grow
    * query is loading. */
   dayNumber: number | null;
-  onSelect: (code: PlantCode) => void;
+  onSelect: (plantId: PlantId) => void;
 }
 
 export function PlantsStrip({
@@ -41,8 +41,8 @@ export function PlantsStrip({
       <div className="grid grid-cols-1 border border-rule-strong bg-paper-2 sm:grid-cols-2 lg:grid-cols-4">
         {plants.map((plant) => (
           <PlantCard
-            key={plant.code}
-            code={plant.code}
+            key={plant.plant_id}
+            plantId={plant.plant_id}
             name={plant.name}
             stickerColor={plant.sticker_color}
             status={plant.status}

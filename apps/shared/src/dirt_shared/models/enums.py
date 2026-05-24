@@ -39,6 +39,7 @@ class PlantSticker(StrEnum):
     YELLOW = "yellow"
     ORANGE = "orange"
     PINK = "pink"
+    BROWN = "brown"
     BLUE = "blue"
 
 

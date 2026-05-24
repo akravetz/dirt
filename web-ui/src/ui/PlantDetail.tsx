@@ -24,11 +24,11 @@ import { useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import { HoverTimestamp } from "@/ui/HoverTimestamp";
 import {
-  type PlantCode,
-  STICKER_BG,
-  STICKER_FILL,
-  STICKER_STROKE,
+  type PlantId,
   type StickerColor,
+  stickerBgClass,
+  stickerFillClass,
+  stickerStrokeClass,
 } from "@/ui/plant-types";
 import { RangeSwitch, type SparklineRange } from "@/ui/RangeSwitch";
 
@@ -59,11 +59,10 @@ interface MoistureHistoryPoint {
 }
 
 interface PlantDetailPayload {
-  code: PlantCode;
+  plant_id: PlantId;
   name: string;
-  sticker_color: StickerColor;
+  sticker_color: StickerColor | null;
   status: "primary" | "secondary" | "retired";
-  label: string;
   moisture: MoistureCurrent;
   timeline: readonly TimelineEntry[];
   note: PlantNote | null;
@@ -247,7 +246,7 @@ function MoistureChart({
   onHoverIndex,
 }: {
   points: readonly MoistureHistoryPoint[];
-  stickerColor: StickerColor;
+  stickerColor: StickerColor | null;
   hoverIndex: number | null;
   onHoverIndex: (index: number | null) => void;
 }): ReactNode {
@@ -301,10 +300,10 @@ function MoistureChart({
           onHoverIndex(null);
         }}
       >
-        <path d={areaPath} className={STICKER_FILL[stickerColor]} opacity="0.1" />
+        <path d={areaPath} className={stickerFillClass(stickerColor)} opacity="0.1" />
         <path
           d={linePath}
-          className={STICKER_STROKE[stickerColor]}
+          className={stickerStrokeClass(stickerColor)}
           strokeWidth="0.8"
           fill="none"
           vectorEffect="non-scaling-stroke"
@@ -326,7 +325,7 @@ function MoistureChart({
               cx={hoverX}
               cy={hoverY}
               r="1.3"
-              className={`${STICKER_FILL[stickerColor]} stroke-paper`}
+              className={`${stickerFillClass(stickerColor)} stroke-paper`}
               strokeWidth="0.5"
               vectorEffect="non-scaling-stroke"
             />
@@ -395,8 +394,8 @@ export function PlantDetail({
             <span
               role="img"
               aria-label="sticker"
-              data-color={payload.sticker_color}
-              className={`inline-block h-3.5 w-3.5 border border-ink ${STICKER_BG[payload.sticker_color]}`}
+              data-color={payload.sticker_color ?? undefined}
+              className={`inline-block h-3.5 w-3.5 border border-ink ${stickerBgClass(payload.sticker_color)}`}
             />
             <h2 className="font-sans text-fs-28 font-semibold tracking-tighter text-ink">
               {payload.name}
@@ -417,7 +416,6 @@ export function PlantDetail({
               close ✕
             </button>
           </div>
-          <p className="font-serif text-fs-15 italic text-ink-3">{payload.label}</p>
         </header>
 
         <MoistureHero currentPct={payload.moisture.current_pct} target={bandTarget} />

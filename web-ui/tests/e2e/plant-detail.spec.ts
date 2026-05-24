@@ -8,6 +8,41 @@
 //
 import { expect, test } from "@playwright/test";
 
+type PlantDetailPayload = {
+  plant_id: string;
+  sticker_color: string | null;
+  name: string;
+  status: string;
+  moisture: { current_pct: number | null };
+  timeline: unknown[];
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function assertPlantDetailPayload(value: unknown): asserts value is PlantDetailPayload {
+  expect(isRecord(value)).toBe(true);
+  if (!isRecord(value)) {
+    throw new Error("plant detail payload must be an object");
+  }
+  expect(typeof value.plant_id).toBe("string");
+  expect(typeof value.name).toBe("string");
+  expect(typeof value.status).toBe("string");
+  expect(value.sticker_color === null || typeof value.sticker_color === "string").toBe(
+    true,
+  );
+  expect(Array.isArray(value.timeline)).toBe(true);
+  expect(isRecord(value.moisture)).toBe(true);
+  if (!isRecord(value.moisture)) {
+    throw new Error("plant detail moisture payload must be an object");
+  }
+  expect(
+    value.moisture.current_pct === null ||
+      typeof value.moisture.current_pct === "number",
+  ).toBe(true);
+}
+
 test.describe("plant detail", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
@@ -35,22 +70,21 @@ test.describe("plant detail", () => {
         new URL(resp.url()).pathname === "/api/plants/a" && resp.ok(),
     );
     await page.getByRole("button", { name: "Plant A", exact: true }).click();
-    const payload = (await (await responsePromise).json()) as {
-      sticker_color: string;
-      name: string;
-      status: string;
-      label: string;
-    };
+    const payload: unknown = await (await responsePromise).json();
+    assertPlantDetailPayload(payload);
 
     const dialog = page.getByRole("dialog", { name: "Plant detail" });
     await expect(dialog).toBeVisible();
+    expect(payload.plant_id).toBe("a");
 
     // Sticker chip surfaces its colour via data-color — whatever the
     // response reports.
-    await expect(dialog.getByLabel("sticker")).toHaveAttribute(
-      "data-color",
-      payload.sticker_color,
-    );
+    const sticker = dialog.getByLabel("sticker");
+    if (payload.sticker_color === null) {
+      await expect(sticker).not.toHaveAttribute("data-color");
+    } else {
+      await expect(sticker).toHaveAttribute("data-color", payload.sticker_color);
+    }
 
     // Name rendered as a heading inside the drawer.
     await expect(
@@ -63,7 +97,6 @@ test.describe("plant detail", () => {
     const expectedStatus =
       payload.status.charAt(0).toUpperCase() + payload.status.slice(1);
     await expect(statusRow).toHaveText(expectedStatus);
-    await expect(dialog).toContainText(payload.label);
   });
 
   test("moisture hero displays moisture.current_pct from the response", async ({
@@ -74,9 +107,8 @@ test.describe("plant detail", () => {
         new URL(resp.url()).pathname === "/api/plants/a" && resp.ok(),
     );
     await page.getByRole("button", { name: "Plant A", exact: true }).click();
-    const payload = (await (await responsePromise).json()) as {
-      moisture: { current_pct: number | null };
-    };
+    const payload: unknown = await (await responsePromise).json();
+    assertPlantDetailPayload(payload);
 
     const dialog = page.getByRole("dialog", { name: "Plant detail" });
     await expect(dialog).toBeVisible();
@@ -99,9 +131,8 @@ test.describe("plant detail", () => {
         new URL(resp.url()).pathname === "/api/plants/a" && resp.ok(),
     );
     await page.getByRole("button", { name: "Plant A", exact: true }).click();
-    const payload = (await (await responsePromise).json()) as {
-      timeline: unknown[];
-    };
+    const payload: unknown = await (await responsePromise).json();
+    assertPlantDetailPayload(payload);
 
     const dialog = page.getByRole("dialog", { name: "Plant detail" });
     await expect(dialog).toBeVisible();

@@ -38,23 +38,26 @@ async def client(app_engine):
         yield ac
 
 
-async def _insert_breeding_grow(app_engine) -> None:
+async def _configure_breeding_grow(app_engine) -> None:
     async with AsyncSession(app_engine) as session:
         scope = await resolve_scope(session, site_id="homebox", tent_id="breeding")
         assert scope is not None
-        grow = GrowRun(
-            site_id=scope.site_pk,
-            tent_id=scope.tent_pk,
-            grow_run_id="breeding-2026-05-01",
-            name="Breeding trial",
-            purpose="breeding",
-            germination_date=date(2026, 5, 1),
-            flower_start_date=None,
-            strain="Breeding stock",
-            timezone="America/Denver",
-            plant_count=0,
-            is_current=True,
-        )
+        grow = (
+            await session.exec(
+                select(GrowRun)
+                .where(GrowRun.site_id == scope.site_pk)
+                .where(GrowRun.tent_id == scope.tent_pk)
+                .where(GrowRun.is_current.is_(True))
+            )
+        ).one()
+        grow.grow_run_id = "breeding-2026-05-01"
+        grow.name = "Breeding trial"
+        grow.purpose = "breeding"
+        grow.germination_date = date(2026, 5, 1)
+        grow.flower_start_date = None
+        grow.strain = "Breeding stock"
+        grow.timezone = "America/Denver"
+        grow.plant_count = 0
         session.add(grow)
         schedule = (
             await session.exec(
@@ -109,10 +112,7 @@ async def test_tent_grow_current_is_scoped_and_preserves_main_default(
     client: AsyncClient,
     app_engine,
 ):
-    missing = await client.get("/api/tents/breeding/grow/current")
-    assert missing.status_code == 404
-
-    await _insert_breeding_grow(app_engine)
+    await _configure_breeding_grow(app_engine)
 
     main_response = await client.get("/api/grow/current")
     assert main_response.status_code == 200

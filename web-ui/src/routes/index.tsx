@@ -31,7 +31,6 @@ import { Gauge } from "@/ui/Gauge";
 import { HoverTimestamp } from "@/ui/HoverTimestamp";
 import { PlantDetail } from "@/ui/PlantDetail";
 import { PlantsStrip } from "@/ui/PlantsStrip";
-import type { PlantCode } from "@/ui/plant-types";
 import { RangeSwitch, type SparklineRange } from "@/ui/RangeSwitch";
 import { Sparkline } from "@/ui/Sparkline";
 import { SystemTable } from "@/ui/SystemTable";
@@ -49,6 +48,7 @@ type MetricMeta = components["schemas"]["SensorMetricMetadata"];
 type SparklineAccent = "temp" | "humidity" | "vpd" | "moisture" | "neutral";
 type MetricStatus = MetricEnvelope["status"];
 type LocalLightSchedule = components["schemas"]["LightSchedule"];
+type LocalPlantId = components["schemas"]["Plant"]["plant_id"];
 type HostedAsset = hostedComponents["schemas"]["AssetResponse"];
 type HostedDevice = hostedComponents["schemas"]["DeviceResponse"];
 type HostedLightSchedule = hostedComponents["schemas"]["LightScheduleResponse"];
@@ -548,11 +548,10 @@ function LocalDashboardPage() {
 
   const [range, setRange] = useState<SparklineRange>("24h");
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  // Selected plant drives the detail drawer. null = drawer closed;
-  // a/b/c/d = drawer open for that plant. The per-plant useQuery below
-  // is enabled exactly when this is non-null, so flipping the state
-  // fires GET /api/plants/{code}.
-  const [selectedPlant, setSelectedPlant] = useState<PlantCode | null>(null);
+  // Selected plant drives the detail drawer. null = drawer closed.
+  // The per-plant useQuery below is enabled exactly when this is
+  // non-null, so flipping the state fires GET /api/plants/{plant_id}.
+  const [selectedPlant, setSelectedPlant] = useState<LocalPlantId | null>(null);
   const [plantMoistureRange, setPlantMoistureRange] = useState<SparklineRange>("24h");
 
   // Parallel history queries — one per dashboard metric. `useQueries`
@@ -598,13 +597,15 @@ function LocalDashboardPage() {
     },
   });
 
-  // /api/plants — feeds the four A/B/C/D cards rendered under the
+  // /api/plants — feeds the plant cards rendered under the
   // sparklines. Independent of the range switch; the strip is an
   // always-on snapshot (see frontend.dashboard.plants_strip).
   const plantsQuery = useQuery({
-    queryKey: ["plants.list"],
+    queryKey: ["plants.list", "main"],
     queryFn: async () => {
-      const { data, error } = await api.GET("/api/plants");
+      const { data, error } = await api.GET("/api/plants", {
+        params: { query: { tent_id: "main" } },
+      });
       if (error) throw error;
       return data;
     },
@@ -632,8 +633,11 @@ function LocalDashboardPage() {
     queryKey: ["plants.detail", selectedPlant] as const,
     queryFn: async () => {
       if (selectedPlant === null) throw new Error("no plant selected");
-      const { data, error } = await api.GET("/api/plants/{code}", {
-        params: { path: { code: selectedPlant } },
+      const { data, error } = await api.GET("/api/plants/{plant_id}", {
+        params: {
+          path: { plant_id: selectedPlant },
+          query: { tent_id: "main" },
+        },
       });
       if (error) throw error;
       return data;
@@ -644,10 +648,10 @@ function LocalDashboardPage() {
     queryKey: ["plants.moisture", selectedPlant, plantMoistureRange] as const,
     queryFn: async () => {
       if (selectedPlant === null) throw new Error("no plant selected");
-      const { data, error } = await api.GET("/api/plants/{code}/moisture", {
+      const { data, error } = await api.GET("/api/plants/{plant_id}/moisture", {
         params: {
-          path: { code: selectedPlant },
-          query: { range: plantMoistureRange },
+          path: { plant_id: selectedPlant },
+          query: { range: plantMoistureRange, tent_id: "main" },
         },
       });
       if (error) throw error;

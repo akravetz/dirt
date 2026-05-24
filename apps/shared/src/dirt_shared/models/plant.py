@@ -5,9 +5,9 @@ FKs:
 - ``site_id`` / ``tent_id`` — denormalized scope for fast default-tent reads.
 - ``moisture_capability_id`` — canonical soil-moisture stream for current reads.
 
-Uniqueness: ``(growrun_id, plant_id)`` — the stable 'a'/'b'/'c'/'d' label
-is unique per scoped grow run, not globally. Future grows can reuse A-D with
-different surrogate ids.
+Uniqueness: ``(growrun_id, plant_id)`` — the stable plant identifier is unique
+per scoped grow run, not globally. Future grows can reuse ids with different
+surrogate ids.
 """
 
 from __future__ import annotations
@@ -24,6 +24,7 @@ from sqlalchemy import (
     ForeignKey,
     Identity,
     Index,
+    Integer,
     Text,
     UniqueConstraint,
     text,
@@ -45,7 +46,6 @@ def _utcnow() -> datetime:
 class Plant(SQLModel, table=True):
     __tablename__ = "plant"
     __table_args__ = (
-        CheckConstraint("code ~ '^[a-z]$'", name="ck_plant_code_lowercase_letter"),
         CheckConstraint(
             "moisture_target_low >= 0 AND moisture_target_low < moisture_target_high",
             name="ck_plant_moisture_low_bounds",
@@ -96,10 +96,14 @@ class Plant(SQLModel, table=True):
         ),
     )
     plant_id: str = Field(sa_column=Column(Text, nullable=False))
-    code: str = Field(sa_column=Column(Text, nullable=False))
     name: str = Field(sa_column=Column(Text, nullable=False))
-    sticker_color: PlantSticker = Field(
-        sa_column=Column(PLANT_STICKER_ENUM, nullable=False)
+    display_order: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False, server_default=text("0")),
+    )
+    sticker_color: PlantSticker | None = Field(
+        default=None,
+        sa_column=Column(PLANT_STICKER_ENUM, nullable=True),
     )
     status: PlantStatus = Field(
         default=PlantStatus.SECONDARY,
@@ -113,7 +117,6 @@ class Plant(SQLModel, table=True):
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default=text("false")),
     )
-    label: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
     moisture_target_low: float = Field(
         default=55.0,
         sa_column=Column(Double, nullable=False, server_default=text("55")),

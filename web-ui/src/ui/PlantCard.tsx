@@ -1,5 +1,5 @@
-// Dashboard plant card — one per plant (A/B/C/D) inside the plants strip.
-// Clicking fires onSelect(code) so the parent can open the detail drawer
+// Dashboard plant card — one per plant inside the plants strip.
+// Clicking fires onSelect(plantId) so the parent can open the detail drawer
 // (frontend.plant_detail owns the drawer itself).
 //
 // ARIA contract the e2e spec relies on:
@@ -11,26 +11,26 @@
 //     [aria-valuenow=...]                    is the semantic width.
 import type { ReactNode } from "react";
 import {
-  type PlantCode,
-  STICKER_BG,
-  STICKER_FILL,
+  type PlantId,
   type StickerColor,
+  stickerBgClass,
+  stickerFillClass,
 } from "@/ui/plant-types";
 
 export type PlantCardStatus = "primary" | "secondary" | "retired";
 
 interface PlantCardProps {
-  code: PlantCode;
+  plantId: PlantId;
   name: string;
-  stickerColor: StickerColor;
+  stickerColor: StickerColor | null;
   status: PlantCardStatus;
   /** Latest calibrated moisture %; null if no calibration exists. */
   moisturePct: number | null;
-  onSelect: (code: PlantCode) => void;
+  onSelect: (plantId: PlantId) => void;
 }
 
 export function PlantCard({
-  code,
+  plantId,
   name,
   stickerColor,
   status,
@@ -51,7 +51,7 @@ export function PlantCard({
       aria-label={name}
       data-status={status}
       onClick={() => {
-        onSelect(code);
+        onSelect(plantId);
       }}
       className={`flex flex-col gap-3 bg-paper-2 px-4.5 py-4 pb-3.5 text-left transition hover:bg-paper-3 ${topBorder}`}
     >
@@ -59,8 +59,8 @@ export function PlantCard({
         <span
           role="img"
           aria-label="sticker"
-          data-color={stickerColor}
-          className={`inline-block h-2.5 w-2.5 border border-ink ${STICKER_BG[stickerColor]}`}
+          data-color={stickerColor ?? undefined}
+          className={`inline-block h-2.5 w-2.5 border border-ink ${stickerBgClass(stickerColor)}`}
         />
         <h3 className="font-sans text-fs-14 font-semibold text-ink">{name}</h3>
       </header>
@@ -91,7 +91,7 @@ export function PlantCard({
             y={0}
             width={pct}
             height={4}
-            className={STICKER_FILL[stickerColor]}
+            className={stickerFillClass(stickerColor)}
           />
         </svg>
       </div>

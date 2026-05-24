@@ -25,6 +25,7 @@ import {
   readRecentWikiFiles,
 } from "@/shared/storage";
 import { CmdKPalette, type PaletteSearchResult } from "@/ui/CmdKPalette";
+import { isStickerColor, type StickerColor } from "@/ui/plant-types";
 import { WikiDoc, type WikiFileDoc } from "@/ui/WikiDoc";
 import { WikiSidebar, type WikiTreeNode } from "@/ui/WikiSidebar";
 
@@ -84,19 +85,10 @@ function toSidebarTree(tree: WikiTreeResponseSchema["tree"]): WikiTreeNode[] {
   });
 }
 
-type SidebarSticker = "yellow" | "orange" | "pink" | "blue" | null;
 function narrowSticker(
   input: components["schemas"]["PlantStickerColor"] | null | undefined,
-): SidebarSticker {
-  if (
-    input === "yellow" ||
-    input === "orange" ||
-    input === "pink" ||
-    input === "blue"
-  ) {
-    return input;
-  }
-  return null;
+): StickerColor | null {
+  return isStickerColor(input) ? input : null;
 }
 
 function toWikiDoc(payload: WikiFileResponse): WikiFileDoc {

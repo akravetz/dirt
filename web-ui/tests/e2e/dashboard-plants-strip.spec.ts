@@ -53,9 +53,8 @@ test.describe("dashboard plants strip", () => {
     // The sticker chip inside each card surfaces its colour via the
     // data-color attribute. The spec reads that attribute directly,
     // which keeps the assertion anchored to the fixture's
-    // `sticker_color` string (yellow/orange/pink/blue per plant) rather
-    // than to a Tailwind class name that can drift under the
-    // designer's hand.
+    // `sticker_color` string from the API rather than to a Tailwind
+    // class name that can drift under the designer's hand.
     const expectations: ReadonlyArray<{ name: string; color: string }> = [
       { name: "Plant A", color: "yellow" },
       { name: "Plant B", color: "orange" },

@@ -91,11 +91,12 @@ async def test_current_main_growrun_and_plants_are_seeded(app_engine):
         result = await session.exec(
             select(GrowRun, Plant)
             .join(Plant, Plant.growrun_id == GrowRun.id)
+            .where(GrowRun.grow_run_id == "main-2026-03-15")
             .where(GrowRun.is_current.is_(True))
-            .order_by(Plant.code)
+            .order_by(Plant.display_order, Plant.plant_id)
         )
         rows = result.all()
 
-    assert [plant.code for _, plant in rows] == ["a", "b", "c", "d"]
     assert [plant.plant_id for _, plant in rows] == ["a", "b", "c", "d"]
+    assert [plant.display_order for _, plant in rows] == [1, 2, 3, 4]
     assert {grow.grow_run_id for grow, _ in rows} == {"main-2026-03-15"}

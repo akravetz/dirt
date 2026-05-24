@@ -30,7 +30,7 @@ import {
 } from "@/api-client";
 import { CameraFeed } from "@/ui/CameraFeed";
 import { PresetList, type PresetRow } from "@/ui/PresetList";
-import type { StickerColor } from "@/ui/plant-types";
+import { isStickerColor, type StickerColor } from "@/ui/plant-types";
 import { ZoomSlider } from "@/ui/ZoomSlider";
 
 type PTZState = components["schemas"]["PTZState"];
@@ -488,21 +488,13 @@ function toPresetRows(state: PTZState): readonly PresetRow[] {
   }));
 }
 
-// Contract and ui/plant-types both enumerate the same four sticker
-// colors; this narrows the contract's nullable/optional field down to
+// Contract and ui/plant-types both enumerate the same sticker colors;
+// this narrows the contract's nullable/optional field down to
 // the ui/ type so PresetList can use the shared STICKER_BG lookup.
 function normalizeStickerColor(
   input: ContractStickerColor | null | undefined,
 ): StickerColor | null {
-  if (
-    input === "yellow" ||
-    input === "orange" ||
-    input === "pink" ||
-    input === "blue"
-  ) {
-    return input;
-  }
-  return null;
+  return isStickerColor(input) ? input : null;
 }
 
 function commandIdempotencyKey(commandType: HostedCommandType): string {

@@ -372,16 +372,24 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /api/plants/{code}:
+  /api/plants/{plant_id}:
     get:
       tags: [plants]
       operationId: plantsDetail
       summary: Full plant-detail-drawer payload
       parameters:
-        - name: code
+        - name: plant_id
           in: path
           required: true
-          schema: { $ref: '#/components/schemas/PlantCode' }
+          schema: { type: string }
+        - name: site_id
+          in: query
+          required: false
+          schema: { type: string, default: homebox }
+        - name: tent_id
+          in: query
+          required: false
+          schema: { type: string, default: main }
       responses:
         '200':
           description: Plant detail.
@@ -393,20 +401,28 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/plants/{code}/moisture:
+  /api/plants/{plant_id}/moisture:
     get:
       tags: [plants]
       operationId: plantsMoisture
       summary: Moisture chart for the plant-detail drawer
       parameters:
-        - name: code
+        - name: plant_id
           in: path
           required: true
-          schema: { $ref: '#/components/schemas/PlantCode' }
+          schema: { type: string }
         - name: range
           in: query
           required: true
           schema: { $ref: '#/components/schemas/Range' }
+        - name: site_id
+          in: query
+          required: false
+          schema: { type: string, default: homebox }
+        - name: tent_id
+          in: query
+          required: false
+          schema: { type: string, default: main }
       responses:
         '200':
           description: Bucketed soil-moisture points + irrigation event count.
@@ -729,18 +745,13 @@ components:
         - reservoir_in
         - heater_intensity_pct
 
-    PlantCode:
-      type: string
-      enum: [a, b, c, d]
-      description: Stable lowercase letter; URL path param.
-
     PlantStatus:
       type: string
       enum: [primary, secondary, retired]
 
     PlantStickerColor:
       type: string
-      enum: [yellow, orange, pink, blue]
+      enum: [yellow, orange, pink, brown, blue]
 
     DeviceStatusKind:
       type: string
@@ -1101,7 +1112,7 @@ components:
       type: object
       additionalProperties: false
       required:
-        - code
+        - plant_id
         - name
         - sticker_color
         - status
@@ -1109,9 +1120,12 @@ components:
         - moisture_pct
         - moisture_ts
       properties:
-        code: { $ref: '#/components/schemas/PlantCode' }
+        plant_id: { type: string }
         name: { type: string }
-        sticker_color: { $ref: '#/components/schemas/PlantStickerColor' }
+        sticker_color:
+          oneOf:
+            - { $ref: '#/components/schemas/PlantStickerColor' }
+            - { type: 'null' }
         status: { $ref: '#/components/schemas/PlantStatus' }
         purple: { type: boolean }
         moisture_pct:
@@ -1167,25 +1181,26 @@ components:
       type: object
       additionalProperties: false
       required:
-        - code
+        - plant_id
         - name
         - sticker_color
         - status
         - purple
         - day
-        - label
         - moisture
         - timeline
         - note
         - wiki_path
       properties:
-        code: { $ref: '#/components/schemas/PlantCode' }
+        plant_id: { type: string }
         name: { type: string }
-        sticker_color: { $ref: '#/components/schemas/PlantStickerColor' }
+        sticker_color:
+          oneOf:
+            - { $ref: '#/components/schemas/PlantStickerColor' }
+            - { type: 'null' }
         status: { $ref: '#/components/schemas/PlantStatus' }
         purple: { type: boolean }
         day: { type: integer, minimum: 1 }
-        label: { type: string }
         moisture: { $ref: '#/components/schemas/PlantMoistureCurrent' }
         timeline:
           type: array
@@ -1199,9 +1214,9 @@ components:
     PlantMoistureHistory:
       type: object
       additionalProperties: false
-      required: [code, range, unit, target, points, irrigation_events_24h]
+      required: [plant_id, range, unit, target, points, irrigation_events_24h]
       properties:
-        code: { $ref: '#/components/schemas/PlantCode' }
+        plant_id: { type: string }
         range: { $ref: '#/components/schemas/Range' }
         unit: { type: string }
         target:

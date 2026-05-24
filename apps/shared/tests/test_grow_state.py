@@ -225,19 +225,15 @@ async def test_current_grow_is_scoped_per_tent(pg_engine):
         assert main is not None
         main.flower_start_date = date(2026, 5, 3)
         session.add(main)
-        session.add(
-            GrowRun(
-                site_id=breeding_site_id,
-                tent_id=breeding_tent_id,
-                grow_run_id="breeding-2026-05-04",
-                name="Breeding test run",
-                purpose="breeding",
-                germination_date=date(2026, 5, 4),
-                strain="Breeding stock",
-                plant_count=0,
-                is_current=True,
-            )
-        )
+        breeding = await current_grow_run(session, tent_id="breeding")
+        assert breeding is not None
+        breeding.grow_run_id = "breeding-2026-05-04"
+        breeding.name = "Breeding test run"
+        breeding.purpose = "breeding"
+        breeding.germination_date = date(2026, 5, 4)
+        breeding.strain = "Breeding stock"
+        breeding.plant_count = 0
+        session.add(breeding)
         await session.commit()
 
     svc = _svc(pg_engine, today=date(2026, 5, 4))

@@ -16,9 +16,13 @@ The work is complete when `/api/plants?tent_id=breeding` returns the five Track 
 ## Progress
 
 - [x] (2026-05-24T03:16:08Z) Created this ExecPlan from the user's decisions: remove useless `code`, remove duplicative `label`, use `plant_id` plus `name`, add `display_order`, expand and nullable-ize sticker color, seed five Track A plants, and defer multi-tent wiki refactor.
-- [ ] Implement schema/model migration for plant identity and Track A run seed.
-- [ ] Update backend services, API contracts, generated clients, frontend, and tests.
-- [ ] Validate with focused backend, contract, frontend, and invariant commands.
+- [x] (2026-05-24T04:48:10Z) Implement schema/model migration for plant identity and Track A run seed.
+- [x] (2026-05-24T05:09:31Z) Update backend services, API contracts, generated clients, frontend, and tests.
+  - [x] (2026-05-24T04:56:15Z) Milestone 2 backend services and local API updated to `plant_id`, display ordering, scoped detail/moisture queries, nullable sticker colors, and no DB `label`.
+  - [x] (2026-05-24T04:56:15Z) Milestone 3 webapp OpenAPI and generated Python/TypeScript clients updated to remove `PlantCode`, expose `plant_id`, remove plant detail `label`, and make plant sticker color required-nullable with `brown`.
+  - [x] (2026-05-24T05:02:21Z) Milestone 4 frontend consumers updated to use `plant_id`, handle nullable sticker colors, include `brown`, and remove plant detail label rendering.
+  - [x] (2026-05-24T05:09:31Z) Milestone 5 tests updated to assert the canonical `plant_id` contract, nullable sticker colors, seeded Track A breeding plants, and no plant `code`/`label` payload fields.
+- [x] (2026-05-24T05:14:09Z) Validate with focused backend, contract, frontend, invariant, migration, SQL, and API-smoke commands.
 
 
 ## Surprises & Discoveries
@@ -31,6 +35,15 @@ The work is complete when `/api/plants?tent_id=breeding` returns the five Track 
 
 - Observation: `code` is a boundary field, not just a database field.
   Evidence: `contracts/webapp-v1.yaml`, `contracts/python/src/dirt_contracts/webapp_v1/models.py`, `web-ui/src/api-client/generated/schema.ts`, `apps/web/src/dirt_web/api/plants.py`, `web-ui/src/ui/PlantsStrip.tsx`, and several tests reference `code` or `PlantCode`.
+
+- Observation: Atlas lint is not available in this local community CLI configuration.
+  Evidence: `atlas migrate lint --env local --latest 1` reported that the command requires Atlas Pro; `atlas migrate apply --env local --dry-run` was used for migration review instead.
+
+- Observation: Running the focused shared and web pytest commands concurrently races on the session-scoped Postgres template database.
+  Evidence: A parallel rerun produced `relation "growrun" does not exist` and `template database "dirt_test_template_7ff9482e8f" does not exist`; sequential reruns of the same commands passed.
+
+- Observation: The TypeScript dead-code invariant caught exported sticker constants after the UI moved to exported helper functions.
+  Evidence: `uv run pytest apps/tests/invariants/ -q` initially failed with unused exports `STICKER_FILL` and `STICKER_STROKE`; making those constants internal fixed the invariant without editing `apps/tests/invariants/`.
 
 
 ## Decision Log
@@ -62,7 +75,19 @@ The work is complete when `/api/plants?tent_id=breeding` returns the five Track 
 
 ## Outcomes & Retrospective
 
-Not started. When implemented, record whether the direct cutover removed all `code` and `label` usage, whether any compatibility exceptions remain, and what validation passed.
+- Milestone 1 implemented the persistence cutover in SQLModel and a pending Atlas migration. `Plant.code`, `Plant.label`, and `ck_plant_code_lowercase_letter` are removed from the model; `Plant.display_order` is non-null with server default `0`; `Plant.sticker_color` is nullable; and `PlantSticker` includes `brown`.
+- Migration `20260524044500_plant_identity_cleanup.sql` adds the `brown` enum value, adds/backfills `display_order`, drops `code` and `label`, makes `sticker_color` nullable, seeds `breeding-track-a-2026-04-28`, and seeds Track A plants R1-R5 with sticker colors pink, yellow, brown, blue, and orange.
+- Validation passed: `atlas migrate apply --env local --dry-run`; `uv run --package dirt-shared python -c "from dirt_shared.models.plant import Plant; from dirt_shared.models.enums import PlantSticker; assert hasattr(Plant, 'display_order'); assert not hasattr(Plant, 'code'); assert not hasattr(Plant, 'label'); assert PlantSticker.BROWN.value == 'brown'; print('ok')"`.
+- Milestone 2 updated `PlantsService`, local plant API handlers, daily sensor plant moisture lookup, and voice sensor tool lookup from `code` to `plant_id`. Lists now order by `display_order, plant_id`; detail and moisture endpoints accept `site_id`/`tent_id` and validate plant ids against scoped current grow rows.
+- Milestone 2 validation passed: `uv run --package dirt-shared python -c "... PlantSummary ..."`; `uv run --package dirt-web python -c "import dirt_web.api.plants; print('ok')"`; `uv run --package dirt-voice python -c "from dirt_voice.tools.sensors import build_sensor_tools ..."`; `uv run ruff check` and `uv run ruff format --check` on the touched backend files; `uv run pytest apps/shared/tests/test_daily_sensors.py -q`; `git diff --check` on the touched backend files.
+- Milestone 3 updated `contracts/webapp-v1.yaml`, regenerated `contracts/python/src/dirt_contracts/webapp_v1/models.py`, and regenerated `web-ui/src/api-client/generated/schema.ts`.
+- Milestone 3 validation passed: `uv run --package dirt-web python -c "from dirt_contracts.webapp_v1.models import Plant, PlantDetail, PlantMoistureHistory; ..."`; `uv run --package dirt-web python -c "import dirt_web.api.plants; print('ok')"`; `pnpm --dir web-ui exec biome check --write src/api-client/generated/schema.ts`. `rg` confirms no remaining `PlantCode` in contract/generated artifacts; remaining `label` matches are PTZ preset fields, not plant payloads.
+- Milestone 4 updated dashboard plant selection, plant cards, plant detail, wiki/live sticker narrowing, and shared plant UI types to use arbitrary string `plant_id` and nullable sticker helpers. Validation passed: `pnpm --dir web-ui typecheck`; `pnpm --dir web-ui lint`; `pnpm --dir web-ui test` (Vitest exited 0 with no matching `src/**/*.{test,spec}.{ts,tsx}` files).
+- Milestone 5 updated agent-owned shared, web API, and frontend e2e tests to use `plant_id` instead of `code`/`PlantCode`, remove plant `label` expectations, assert nullable `sticker_color`, and cover breeding Track A through API boundary behavior rather than duplicating seed SQL.
+- Milestone 5 validation passed: `uv run pytest apps/shared/tests/test_scoped_identity_models.py -q`; `uv run pytest apps/web/tests/test_plants_list_endpoint.py apps/web/tests/test_plants_detail_endpoint.py apps/web/tests/test_plants_moisture_endpoint.py -q`; `uv run ruff check` and `uv run ruff format --check` on touched Python tests; `pnpm --dir web-ui typecheck`; `pnpm --dir web-ui lint`; `pnpm --dir web-ui test` (no matching unit test files under `src`). Playwright e2e specs were not run because the worktree dev server was not running at `http://localhost:5171`.
+- Milestone 6 created backup `var/db-backups/dirt-2026-05-23-231143-pre-plant-identity-cleanup.sql`, applied migration `20260524044500_plant_identity_cleanup.sql` locally with `atlas migrate apply --env local`, and confirmed SQL acceptance. Current grow runs are `main-2026-03-15` and `breeding-track-a-2026-04-28`; breeding plants are `r1` through `r5` ordered 1-5 with sticker colors pink, yellow, brown, blue, orange; plant columns include `display_order`, `plant_id`, `name`, and nullable `sticker_color`, with `code` and `label` absent.
+- Milestone 6 validation passed: `uv run pytest apps/shared/tests/test_scoped_identity_models.py -q`; `uv run pytest apps/web/tests/test_plants_list_endpoint.py apps/web/tests/test_plants_detail_endpoint.py apps/web/tests/test_plants_moisture_endpoint.py -q`; `uv run pytest apps/tests/invariants/ -q` (`112 passed`); `pnpm --dir web-ui typecheck`; `pnpm --dir web-ui lint`; `pnpm --dir web-ui test` (no matching unit test files under `src`); local ASGI API smoke against the migrated database for `/api/plants?tent_id=main`, `/api/plants?tent_id=breeding`, `/api/plants/r1?tent_id=breeding`, and `/api/plants/a/moisture?range=24h&tent_id=main`; `git diff --check`.
+- Direct cutover outcome: source-owned code no longer uses `Plant.code`, `Plant.label`, `PlantCode`, or `get_plant_by_code`; the only remaining `label` fields in plant-adjacent searches belong to PTZ/wiki/UI generic labels, not the removed plant DB field.
 
 
 ## Context and Orientation
@@ -186,7 +211,7 @@ Update frontend files that consume plant identity and sticker colors:
 
 Run focused validation:
 
-    uv run pytest apps/shared/tests/test_scoped_identity_models.py apps/shared/tests/test_milestone4_scope.py -q
+    uv run pytest apps/shared/tests/test_scoped_identity_models.py -q
     uv run pytest apps/web/tests/test_plants_list_endpoint.py apps/web/tests/test_plants_detail_endpoint.py apps/web/tests/test_plants_moisture_endpoint.py -q
     uv run pytest apps/tests/invariants/ -q
     pnpm --dir web-ui typecheck

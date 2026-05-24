@@ -1,7 +1,7 @@
 """Plant CRUD + live moisture join.
 
 Backs ``GET /api/plants`` (summary of all plants for the dashboard strip)
-and the DB-side fields of ``GET /api/plants/{code}`` (drawer header +
+and the DB-side fields of ``GET /api/plants/{plant_id}`` (drawer header +
 live moisture). The narrative parts of the drawer come from
 ``PlantDetailService``, which parses the plant's wiki markdown.
 
@@ -40,12 +40,11 @@ from dirt_shared.services.scope import (
 class PlantSummary:
     """One row in ``GET /api/plants``."""
 
-    code: str
+    plant_id: str
     name: str
-    sticker_color: PlantSticker
+    sticker_color: PlantSticker | None
     status: PlantStatus
     purple: bool
-    label: str | None
     moisture_pct: float | None
     moisture_ts: datetime | None
     moisture_target_low: float
@@ -102,7 +101,7 @@ def bucket_moisture_points(
 
 @dataclass(frozen=True)
 class PlantMoistureStatus:
-    """Live moisture fields returned by ``/api/plants/{code}``."""
+    """Live moisture fields returned by ``/api/plants/{plant_id}``."""
 
     current_pct: float | None
     target: tuple[float, float]
@@ -112,14 +111,13 @@ class PlantMoistureStatus:
 
 @dataclass(frozen=True)
 class PlantDetailPayload:
-    """One-shot assembly for ``GET /api/plants/{code}``."""
+    """One-shot assembly for ``GET /api/plants/{plant_id}``."""
 
-    code: str
+    plant_id: str
     name: str
-    sticker_color: PlantSticker
+    sticker_color: PlantSticker | None
     status: PlantStatus
     purple: bool
-    label: str | None
     day: int
     moisture: PlantMoistureStatus
     timeline: list
@@ -216,7 +214,7 @@ class PlantsService:
                 await session.exec(
                     select(Plant)
                     .where(Plant.growrun_id == grow.id)
-                    .order_by(Plant.code)
+                    .order_by(Plant.display_order, Plant.plant_id)
                 )
             ).all()
 
@@ -227,12 +225,11 @@ class PlantsService:
                 )
                 summaries.append(
                     PlantSummary(
-                        code=p.code,
+                        plant_id=p.plant_id,
                         name=p.name,
                         sticker_color=p.sticker_color,
                         status=p.status,
                         purple=p.purple,
-                        label=p.label,
                         moisture_pct=pct,
                         moisture_ts=ts,
                         moisture_target_low=p.moisture_target_low,
@@ -241,14 +238,14 @@ class PlantsService:
                 )
             return summaries
 
-    async def get_plant_by_code(
+    async def get_plant_by_id(
         self,
-        code: str,
+        plant_id: str,
         *,
         site_id: str = DEFAULT_SITE_ID,
         tent_id: str = DEFAULT_TENT_ID,
     ) -> PlantSummary | None:
-        """Return the current scoped grow-run plant whose natural-key code matches."""
+        """Return the current scoped grow-run plant whose plant_id matches."""
         async with AsyncSession(self._engine) as session:
             grow = await current_grow_run(session, site_id=site_id, tent_id=tent_id)
             if grow is None:
@@ -257,7 +254,7 @@ class PlantsService:
                 await session.exec(
                     select(Plant)
                     .where(Plant.growrun_id == grow.id)
-                    .where(Plant.code == code)
+                    .where(Plant.plant_id == plant_id)
                 )
             ).first()
             if p is None:
@@ -266,12 +263,11 @@ class PlantsService:
                 session, p, site_id=site_id, tent_id=tent_id
             )
             return PlantSummary(
-                code=p.code,
+                plant_id=p.plant_id,
                 name=p.name,
                 sticker_color=p.sticker_color,
                 status=p.status,
                 purple=p.purple,
-                label=p.label,
                 moisture_pct=pct,
                 moisture_ts=ts,
                 moisture_target_low=p.moisture_target_low,
@@ -280,7 +276,7 @@ class PlantsService:
 
     async def get_plant_moisture_history(
         self,
-        code: str,
+        plant_id: str,
         cutoff: datetime,
         *,
         site_id: str = DEFAULT_SITE_ID,
@@ -295,7 +291,7 @@ class PlantsService:
                 await session.exec(
                     select(Plant)
                     .where(Plant.growrun_id == grow.id)
-                    .where(Plant.code == code)
+                    .where(Plant.plant_id == plant_id)
                 )
             ).first()
             if p is None:
@@ -332,13 +328,13 @@ class PlantsService:
 
     async def get_plant_detail_payload(
         self,
-        code: str,
+        plant_id: str,
         *,
         site_id: str = DEFAULT_SITE_ID,
         tent_id: str = DEFAULT_TENT_ID,
     ) -> PlantDetailPayload | None:
         """Combine ``PlantSummary`` + live moisture + ``PlantDetail`` wiki parse."""
-        summary = await self.get_plant_by_code(code, site_id=site_id, tent_id=tent_id)
+        summary = await self.get_plant_by_id(plant_id, site_id=site_id, tent_id=tent_id)
         if summary is None:
             return None
 
@@ -362,18 +358,17 @@ class PlantsService:
             ts=summary.moisture_ts,
         )
 
-        detail = self._plant_detail.get(code)
+        detail = self._plant_detail.get(plant_id)
         timeline = list(detail.timeline) if detail else []
         note = detail.note if detail else None
-        wiki_path = detail.wiki_path if detail else f"wiki/plants/plant-{code}.md"
+        wiki_path = detail.wiki_path if detail else f"wiki/plants/plant-{plant_id}.md"
 
         return PlantDetailPayload(
-            code=summary.code,
+            plant_id=summary.plant_id,
             name=summary.name,
             sticker_color=summary.sticker_color,
             status=summary.status,
             purple=summary.purple,
-            label=summary.label,
             day=day,
             moisture=moisture,
             timeline=timeline,

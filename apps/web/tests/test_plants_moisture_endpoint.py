@@ -1,4 +1,4 @@
-"""Unit tests for GET /api/plants/{code}/moisture.
+"""Unit tests for GET /api/plants/{plant_id}/moisture.
 
 Thin wrapper over ``PlantsService.get_plant_moisture_history`` plus the
 ``count_irrigation_events`` heuristic (upward jumps >= 5% between
@@ -13,7 +13,6 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from dirt_contracts.webapp_v1.models import (
-    PlantCode,
     PlantMoistureHistory,
     Range,
 )
@@ -102,7 +101,7 @@ async def test_plants_moisture_requires_auth():
         assert response.status_code == 401
 
 
-async def test_plants_moisture_unknown_code_is_404(client: AsyncClient):
+async def test_plants_moisture_unknown_plant_id_is_404(client: AsyncClient):
     response = await client.get("/api/plants/z/moisture?range=24h")
     assert response.status_code == 404
 
@@ -118,7 +117,7 @@ async def test_plants_moisture_empty_series(client: AsyncClient):
     response = await client.get("/api/plants/a/moisture?range=24h")
     assert response.status_code == 200
     model = PlantMoistureHistory.model_validate(response.json())
-    assert model.code == PlantCode.a
+    assert model.plant_id == "a"
     assert model.range == Range.field_24h
     assert model.points == []
     assert model.irrigation_events_24h == 0
@@ -151,7 +150,7 @@ async def test_plants_moisture_series_with_irrigation_events(
     response = await client.get("/api/plants/a/moisture?range=24h")
     assert response.status_code == 200
     model = PlantMoistureHistory.model_validate(response.json())
-    assert model.code == PlantCode.a
+    assert model.plant_id == "a"
     assert model.range == Range.field_24h
     assert model.irrigation_events_24h == 3
     # Non-empty series comes back in chronological order.

@@ -1,8 +1,8 @@
-"""Unit tests for GET /api/plants/{code}.
+"""Unit tests for GET /api/plants/{plant_id}.
 
 Thin wrapper over ``PlantsService.get_plant_detail_payload`` which
 composes the plant's DB row + live moisture + parsed
-``wiki/plants/plant-{code}.md`` frontmatter / Timeline / Current State.
+``wiki/plants/plant-{plant_id}.md`` frontmatter / Timeline / Current State.
 Tests drive the full ASGI stack with the template-seeded Postgres DB
 and assert the JSON body deserializes into the generated
 ``PlantDetail`` model.
@@ -13,7 +13,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
-from dirt_contracts.webapp_v1.models import PlantCode, PlantDetail, PlantStickerColor
+from dirt_contracts.webapp_v1.models import PlantDetail, PlantStickerColor
 from httpx import ASGITransport, AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -86,7 +86,7 @@ async def test_plants_detail_requires_auth():
         assert response.status_code == 401
 
 
-async def test_plants_detail_unknown_code_is_404(client: AsyncClient):
+async def test_plants_detail_unknown_plant_id_is_404(client: AsyncClient):
     response = await client.get("/api/plants/z")
     assert response.status_code == 404
     assert response.json() == {"detail": "unknown plant"}
@@ -102,7 +102,7 @@ async def test_plants_detail_returns_contract_shape(
     assert response.status_code == 200
     model = PlantDetail.model_validate(response.json())
 
-    assert model.code == PlantCode.a
+    assert model.plant_id == "a"
     assert model.name == "Plant A"
     assert model.sticker_color == PlantStickerColor.yellow
     assert model.purple is True
@@ -128,7 +128,23 @@ async def test_plants_detail_cold_cluster_no_moisture(
     response = await client.get("/api/plants/b")
     assert response.status_code == 200
     model = PlantDetail.model_validate(response.json())
-    assert model.code == PlantCode.b
+    assert model.plant_id == "b"
     assert model.moisture.current_pct is None
     assert model.moisture.ts is None
     assert model.wiki_path == "wiki/plants/plant-b.md"
+
+
+async def test_plants_detail_returns_scoped_breeding_plant(client: AsyncClient) -> None:
+    response = await client.get("/api/plants/r1", params={"tent_id": "breeding"})
+    assert response.status_code == 200
+    body = response.json()
+    assert "code" not in body
+    assert "label" not in body
+
+    model = PlantDetail.model_validate(body)
+    assert model.plant_id == "r1"
+    assert model.name == "Track A R1"
+    assert model.sticker_color == PlantStickerColor.pink
+    assert model.wiki_path == "wiki/plants/plant-r1.md"
+    assert model.timeline == []
+    assert model.note is None

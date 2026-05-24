@@ -56,17 +56,6 @@ class SensorMetric(StrEnum):
     heater_intensity_pct = "heater_intensity_pct"
 
 
-class PlantCode(StrEnum):
-    """
-    Stable lowercase letter; URL path param.
-    """
-
-    a = "a"
-    b = "b"
-    c = "c"
-    d = "d"
-
-
 class PlantStatus(StrEnum):
     primary = "primary"
     secondary = "secondary"
@@ -77,6 +66,7 @@ class PlantStickerColor(StrEnum):
     yellow = "yellow"
     orange = "orange"
     pink = "pink"
+    brown = "brown"
     blue = "blue"
 
 
@@ -391,9 +381,9 @@ class Plant(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    code: PlantCode
+    plant_id: str
     name: str
-    sticker_color: PlantStickerColor
+    sticker_color: PlantStickerColor | None
     status: PlantStatus
     purple: bool
     moisture_pct: float | None
@@ -443,13 +433,12 @@ class PlantDetail(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    code: PlantCode
+    plant_id: str
     name: str
-    sticker_color: PlantStickerColor
+    sticker_color: PlantStickerColor | None
     status: PlantStatus
     purple: bool
     day: conint(ge=1)
-    label: str
     moisture: PlantMoistureCurrent
     timeline: list[TimelineEntry]
     note: PlantNote | None
@@ -460,7 +449,7 @@ class PlantMoistureHistory(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    code: PlantCode
+    plant_id: str
     range: Range
     unit: str
     target: TargetBand | None

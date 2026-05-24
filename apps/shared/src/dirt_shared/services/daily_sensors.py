@@ -99,7 +99,7 @@ class DailySensorSnapshot:
     tent: dict[str, dict[str, WindowAvg | float | None]]
     """Legacy alias for ``tents["main"]``."""
     plants: dict[str, dict[str, WindowAvg | float | None]]
-    """{letter: moisture trend context for main-tent plants}"""
+    """{plant_id: moisture trend context for main-tent plants}"""
     tents: dict[str, dict[str, dict[str, WindowAvg | float | None]]] = field(
         default_factory=dict
     )
@@ -241,7 +241,7 @@ class SensorReader:
         rows = (
             await session.exec(
                 select(
-                    Plant.code,
+                    Plant.plant_id,
                     Device.device_id,
                     Capability.capability_id,
                     Capability.metric_name,
@@ -253,7 +253,7 @@ class SensorReader:
                 .where(Plant.moisture_capability_id.is_not(None))
                 .where(Capability.enabled.is_(True))
                 .where(Device.enabled.is_(True))
-                .order_by(Plant.code)
+                .order_by(Plant.display_order, Plant.plant_id)
             )
         ).all()
         self._plant_requirements = [
@@ -261,10 +261,10 @@ class SensorReader:
                 device_id=device_id,
                 capability_id=capability_id,
                 metric=metric_name,
-                subject=f"plant-{code}",
+                subject=f"plant-{plant_id}",
                 pk=pk,
             )
-            for code, device_id, capability_id, metric_name, pk in rows
+            for plant_id, device_id, capability_id, metric_name, pk in rows
             if metric_name == SOIL_METRIC
         ]
         return self._plant_requirements
@@ -485,8 +485,8 @@ class SensorReader:
                 now_pct = compute_calibrated_pct(now_r.value, cal.raw_low, cal.raw_high)
             overnight_raw = await self._avg_in_window(requirement, *overnight)
             morning_raw = await self._avg_in_window(requirement, *morning)
-            letter = requirement.subject.removeprefix("plant-")
-            plants[letter] = {
+            plant_id = requirement.subject.removeprefix("plant-")
+            plants[plant_id] = {
                 "overnight_raw": overnight_raw,
                 "morning_raw": morning_raw,
                 "now_raw": None if now_r is None else now_r.value,
@@ -504,13 +504,13 @@ class SensorReader:
                 "now_pct": now_pct,
                 "pct_delta_morning_to_now": None,
             }
-            morning_pct = plants[letter]["morning_pct"]
+            morning_pct = plants[plant_id]["morning_pct"]
             if (
                 isinstance(morning_pct, WindowAvg)
                 and morning_pct.avg is not None
                 and now_pct is not None
             ):
-                plants[letter]["pct_delta_morning_to_now"] = now_pct - morning_pct.avg
+                plants[plant_id]["pct_delta_morning_to_now"] = now_pct - morning_pct.avg
 
         return DailySensorSnapshot(
             date_mdt=target_date,

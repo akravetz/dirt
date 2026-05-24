@@ -246,7 +246,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/plants/{code}": {
+  "/api/plants/{plant_id}": {
     parameters: {
       query?: never;
       header?: never;
@@ -263,7 +263,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/plants/{code}/moisture": {
+  "/api/plants/{plant_id}/moisture": {
     parameters: {
       query?: never;
       header?: never;
@@ -474,15 +474,10 @@ export interface components {
       | "humidifier_intensity_pct"
       | "reservoir_in"
       | "heater_intensity_pct";
-    /**
-     * @description Stable lowercase letter; URL path param.
-     * @enum {string}
-     */
-    PlantCode: "a" | "b" | "c" | "d";
     /** @enum {string} */
     PlantStatus: "primary" | "secondary" | "retired";
     /** @enum {string} */
-    PlantStickerColor: "yellow" | "orange" | "pink" | "blue";
+    PlantStickerColor: "yellow" | "orange" | "pink" | "brown" | "blue";
     /** @enum {string} */
     DeviceStatusKind: "ok" | "listening" | "warn" | "offline";
     HistoryPoint: {
@@ -667,9 +662,9 @@ export interface components {
       metrics: components["schemas"]["SensorMetricMetadata"][];
     };
     Plant: {
-      code: components["schemas"]["PlantCode"];
+      plant_id: string;
       name: string;
-      sticker_color: components["schemas"]["PlantStickerColor"];
+      sticker_color: components["schemas"]["PlantStickerColor"] | null;
       status: components["schemas"]["PlantStatus"];
       purple: boolean;
       /** @description Latest calibrated soil moisture %; null if no calibration. */
@@ -699,20 +694,19 @@ export interface components {
       updated: string;
     };
     PlantDetail: {
-      code: components["schemas"]["PlantCode"];
+      plant_id: string;
       name: string;
-      sticker_color: components["schemas"]["PlantStickerColor"];
+      sticker_color: components["schemas"]["PlantStickerColor"] | null;
       status: components["schemas"]["PlantStatus"];
       purple: boolean;
       day: number;
-      label: string;
       moisture: components["schemas"]["PlantMoistureCurrent"];
       timeline: components["schemas"]["TimelineEntry"][];
       note: components["schemas"]["PlantNote"] | null;
       wiki_path: string;
     };
     PlantMoistureHistory: {
-      code: components["schemas"]["PlantCode"];
+      plant_id: string;
       range: components["schemas"]["Range"];
       unit: string;
       target: components["schemas"]["TargetBand"] | null;
@@ -1275,10 +1269,13 @@ export interface operations {
   };
   plantsDetail: {
     parameters: {
-      query?: never;
+      query?: {
+        site_id?: string;
+        tent_id?: string;
+      };
       header?: never;
       path: {
-        code: components["schemas"]["PlantCode"];
+        plant_id: string;
       };
       cookie?: never;
     };
@@ -1301,10 +1298,12 @@ export interface operations {
     parameters: {
       query: {
         range: components["schemas"]["Range"];
+        site_id?: string;
+        tent_id?: string;
       };
       header?: never;
       path: {
-        code: components["schemas"]["PlantCode"];
+        plant_id: string;
       };
       cookie?: never;
     };

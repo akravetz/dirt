@@ -1,12 +1,13 @@
 """Plant endpoints — dashboard strip + drawer + moisture history.
 
-``GET /api/plants`` lists A–D for the dashboard strip with each plant's
-latest calibrated moisture. ``GET /api/plants/{code}`` returns the full
+``GET /api/plants`` lists plants for the dashboard strip with each plant's
+latest calibrated moisture. ``GET /api/plants/{plant_id}`` returns the full
 drawer payload (header + moisture status + timeline + note + wiki_path).
-``GET /api/plants/{code}/moisture`` returns bucketed moisture points
+``GET /api/plants/{plant_id}/moisture`` returns bucketed moisture points
 over a requested range plus an irrigation-event count heuristic.
 All three are thin FastAPI wrappers around ``PlantsService`` +
-``PlantDetailService``; payload shapes already match the contract.
+``PlantDetailService``; payload construction targets the Milestone 3
+contract shape.
 """
 
 from __future__ import annotations
@@ -19,14 +20,12 @@ from dirt_contracts.webapp_v1.models import (
 from dirt_contracts.webapp_v1.models import (
     HistoryPoint,
     Plant,
-    PlantCode,
     PlantDetail,
     PlantMoistureCurrent,
     PlantMoistureHistory,
     PlantNote,
     PlantsResponse,
     PlantStatus,
-    PlantStickerColor,
     Range,
     TargetBand,
     TimelineEntry,
@@ -48,19 +47,15 @@ from dirt_web.deps import get_grow, get_plants
 router = APIRouter(tags=["plants"])
 
 
-def _parse_code(code: str) -> PlantCode:
-    """Validate ``{code}`` path param against the contract enum; 404 otherwise."""
-    try:
-        return PlantCode(code)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail="unknown plant") from exc
+def _sticker_color_value(s: PlantSummary | PlantDetailPayload) -> str | None:
+    return None if s.sticker_color is None else s.sticker_color.value
 
 
 def _plant_from_summary(s: PlantSummary) -> Plant:
     return Plant(
-        code=PlantCode(s.code),
+        plant_id=s.plant_id,
         name=s.name,
-        sticker_color=PlantStickerColor(s.sticker_color.value),
+        sticker_color=_sticker_color_value(s),
         status=PlantStatus(s.status.value),
         purple=s.purple,
         moisture_pct=s.moisture_pct,
@@ -75,7 +70,7 @@ async def plants_list(
     plants: PlantsService = Depends(get_plants),
     grow: GrowStateService = Depends(get_grow),
 ) -> PlantsResponse:
-    """Dashboard plants strip: A–D with latest calibrated moisture."""
+    """Dashboard plants strip with latest calibrated moisture."""
     summaries = await plants.list_plants(site_id=site_id, tent_id=tent_id)
     payload = await grow.get_grow_current_payload(site_id=site_id, tent_id=tent_id)
     return PlantsResponse(
@@ -115,24 +110,26 @@ def _note(detail: PlantDetailPayload) -> PlantNote | None:
     return PlantNote(text=detail.note.text, updated=detail.note.updated)
 
 
-@router.get("/api/plants/{code}", response_model=PlantDetail)
+@router.get("/api/plants/{plant_id}", response_model=PlantDetail)
 async def plants_detail(
-    code: str,
+    plant_id: str,
+    site_id: str = Query(DEFAULT_SITE_ID),
+    tent_id: str = Query(DEFAULT_TENT_ID),
     plants: PlantsService = Depends(get_plants),
 ) -> PlantDetail:
     """Plant-detail drawer payload — header + moisture + timeline + note."""
-    parsed = _parse_code(code)
-    detail = await plants.get_plant_detail_payload(parsed.value)
+    detail = await plants.get_plant_detail_payload(
+        plant_id, site_id=site_id, tent_id=tent_id
+    )
     if detail is None:
         raise HTTPException(status_code=404, detail="unknown plant")
     return PlantDetail(
-        code=parsed,
+        plant_id=detail.plant_id,
         name=detail.name,
-        sticker_color=PlantStickerColor(detail.sticker_color.value),
+        sticker_color=_sticker_color_value(detail),
         status=PlantStatus(detail.status.value),
         purple=detail.purple,
         day=max(detail.day, 1),
-        label=detail.label or "",
         moisture=_moisture_envelope(detail),
         timeline=_timeline_entries(detail),
         note=_note(detail),
@@ -140,15 +137,15 @@ async def plants_detail(
     )
 
 
-@router.get("/api/plants/{code}/moisture", response_model=PlantMoistureHistory)
+@router.get("/api/plants/{plant_id}/moisture", response_model=PlantMoistureHistory)
 async def plants_moisture(
-    code: str,
+    plant_id: str,
     range: Range = Query(...),
+    site_id: str = Query(DEFAULT_SITE_ID),
+    tent_id: str = Query(DEFAULT_TENT_ID),
     plants: PlantsService = Depends(get_plants),
 ) -> PlantMoistureHistory:
     """Bucketed soil-moisture points + irrigation-events-in-24h heuristic."""
-    parsed = _parse_code(code)
-
     # The irrigation-event badge is always over the last 24h regardless of
     # the requested sparkline range, so the drawer reads the same across
     # range toggles. When the requested range covers 24h, reuse those
@@ -158,10 +155,14 @@ async def plants_moisture(
     day_cutoff = now - RANGE_DELTAS["24h"]
     needs_separate_day_query = cutoff > day_cutoff
 
-    summary_task = plants.get_plant_by_code(parsed.value)
-    points_task = plants.get_plant_moisture_history(parsed.value, cutoff)
+    summary_task = plants.get_plant_by_id(plant_id, site_id=site_id, tent_id=tent_id)
+    points_task = plants.get_plant_moisture_history(
+        plant_id, cutoff, site_id=site_id, tent_id=tent_id
+    )
     if needs_separate_day_query:
-        day_task = plants.get_plant_moisture_history(parsed.value, day_cutoff)
+        day_task = plants.get_plant_moisture_history(
+            plant_id, day_cutoff, site_id=site_id, tent_id=tent_id
+        )
         summary, points, day_points = await asyncio.gather(
             summary_task, points_task, day_task
         )
@@ -179,7 +180,7 @@ async def plants_moisture(
     bucketed = bucket_moisture_points(points, range.value)
 
     return PlantMoistureHistory(
-        code=parsed,
+        plant_id=summary.plant_id,
         range=range,
         unit="%",
         target=TargetBand(

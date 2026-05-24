@@ -50,8 +50,9 @@ async def _latest_soil_moisture_pct(
 ) -> tuple[dict[str, float], list[float]]:
     """Latest calibrated soil moisture % per plant.
 
-    Returns ``({plant_letter: pct_rounded}, [reading_age_s, ...])`` —
-    letter is 'a'/'b'/'c'/'d', pct is 0-100. Plants without a reading
+    Returns ``({plant_id: pct_rounded}, [reading_age_s, ...])`` —
+    plant_id is the stable id in the current grow run, pct is 0-100.
+    Plants without a reading
     or without a usable calibration row are silently omitted.
     """
     out: dict[str, float] = {}
@@ -62,13 +63,13 @@ async def _latest_soil_moisture_pct(
             return out, ages
         plant_rows = (
             await session.exec(
-                select(Plant.code, Plant.moisture_capability_id)
+                select(Plant.plant_id, Plant.moisture_capability_id)
                 .where(Plant.growrun_id == grow.id)
                 .where(Plant.moisture_capability_id.is_not(None))
-                .order_by(Plant.code)
+                .order_by(Plant.display_order, Plant.plant_id)
             )
         ).all()
-        for plant_code, moisture_capability_id in plant_rows:
+        for plant_id, moisture_capability_id in plant_rows:
             reading_res = await session.exec(
                 select(SensorReading)
                 .where(SensorReading.capability_id == moisture_capability_id)
@@ -90,7 +91,7 @@ async def _latest_soil_moisture_pct(
             pct = compute_calibrated_pct(row.value, cal.raw_low, cal.raw_high)
             if pct is None:
                 continue
-            out[plant_code] = round(pct, 1)
+            out[plant_id] = round(pct, 1)
             ages.append((now - row.ts).total_seconds())
     return out, ages
 

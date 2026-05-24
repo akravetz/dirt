@@ -14,7 +14,7 @@
 import { useState } from "react";
 
 import { readExpandedWikiFolders, writeExpandedWikiFolders } from "@/shared/storage";
-import { STICKER_BG, type StickerColor } from "@/ui/plant-types";
+import { type StickerColor, stickerBgClass } from "@/ui/plant-types";
 
 const FILE_ROW_ACTIVE =
   "flex w-full items-center gap-1.5 whitespace-nowrap border-l-2 border-accent-magenta bg-paper py-1 pr-3 text-left font-sans text-fs-12 font-semibold leading-prose-tight text-ink";
@@ -52,9 +52,6 @@ function FileRow({
   onSelect: (path: string, title: string) => void;
   indented: boolean;
 }) {
-  const sticker = node.sticker_color
-    ? STICKER_BG[node.sticker_color as StickerColor]
-    : null;
   const pad = indented ? (active ? " pl-8" : " pl-8.5") : active ? " pl-5" : " pl-5.5";
   return (
     <li>
@@ -68,9 +65,9 @@ function FileRow({
         }}
         className={(active ? FILE_ROW_ACTIVE : FILE_ROW_IDLE) + pad}
       >
-        {sticker ? (
+        {node.sticker_color ? (
           <span
-            className={`inline-block h-2 w-2 shrink-0 border border-ink ${sticker}`}
+            className={`inline-block h-2 w-2 shrink-0 border border-ink ${stickerBgClass(node.sticker_color)}`}
             aria-hidden
           />
         ) : (
