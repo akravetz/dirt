@@ -1,4 +1,4 @@
-h1:LZpXew3UlkLkcuA18jPCwnhoQ7erl63QY0mTjkiASmM=
+h1:PmjmVp0kKYVcBnVHCE/DS/SNsB0XSxFjFsxNels+BLI=
 20260420003127_init.sql h1:GzLCe8kSX0b0TzsHZJNidBWSoeYe83HgnHXdkhGi1Ko=
 20260423180901_add_growstate_timezone.sql h1:hwtimWMWdMD8iw7GuYOMazB5dHSq40fKOSbUFDFPg0s=
 20260428003304_add_govee_sensor_source.sql h1:l7vbhthRMWFQVcLwvX+yhzrzLD0Tcp33QrLpmU4F7jQ=
@@ -21,3 +21,4 @@ h1:LZpXew3UlkLkcuA18jPCwnhoQ7erl63QY0mTjkiASmM=
 20260517143000_add_ac_infinity_sensor_source.sql h1:5n/p+3gLGAFF6MZ1zxzFI6zefe1h39Ii3Ej+tipEZi4=
 20260522024624_esp32_wifi_telemetry.sql h1:QS24jklMvFEmoMtDXMBts0lx3Xa/ZMAVKzRdJtmSq7Y=
 20260522032000_seed_main_dehumidifier.sql h1:SD76rNLzmxT1Lc7UXjDEb7P2AtfuspyVGphUPHzwmq4=
+20260522120000_disable_climate_heater_schedules.sql h1:MCVDmtaEbszGQfjdQZDxHGA/GT7iDUVqipIfSE9gSTE=

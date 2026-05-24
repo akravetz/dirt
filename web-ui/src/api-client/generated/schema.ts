@@ -472,7 +472,8 @@ export interface components {
       | "pressure_hpa"
       | "fan_pct"
       | "humidifier_intensity_pct"
-      | "reservoir_in";
+      | "reservoir_in"
+      | "heater_intensity_pct";
     /**
      * @description Stable lowercase letter; URL path param.
      * @enum {string}

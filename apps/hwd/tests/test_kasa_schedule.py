@@ -12,21 +12,29 @@ from dirt_hwd.services.kasa_inventory import (
     KasaVerifiedDevice,
 )
 from dirt_hwd.services.kasa_schedule import (
+    DEFAULT_SCHEDULE_KINDS,
     ScheduledKasaActuatorService,
     ScheduledKasaTarget,
 )
 from dirt_shared.config import ScheduledKasaConfig
-from dirt_shared.models import Device, Schedule, Site, Tent
+from dirt_shared.models import Capability, Device, Schedule, Site, Tent
 from dirt_shared.testing import create_test_capability, create_test_device
 
 LIGHTS_ON_LOCAL_NOON = datetime(2026, 5, 4, 18, 0, tzinfo=UTC)
 LIGHTS_ON_LOCAL_NOON_PLUS_ONE = datetime(2026, 5, 4, 18, 1, tzinfo=UTC)
-HEATER_ON_LOCAL_0300 = datetime(2026, 5, 4, 9, 0, tzinfo=UTC)
-HEATER_OFF_LOCAL_0700 = datetime(2026, 5, 4, 13, 0, tzinfo=UTC)
 TEST_KASA_MAC = "AA:BB:CC:DD:EE:01"
 BREEDING_HEATER_DEVICE_ID = "kasa-heat-pad-breeding"
 BREEDING_HEATER_CAPABILITY_ID = "power"
 BREEDING_HEATER_SCHEDULE_ID = "breeding-heater-night"
+CLIMATE_HEATER_SCHEDULE_IDS = {
+    "main-thermoforge-night",
+    BREEDING_HEATER_SCHEDULE_ID,
+}
+LIGHT_SCHEDULE_IDS = {
+    "main-lights-photoperiod",
+    "clones-lights-photoperiod",
+    "breeding-lights-photoperiod",
+}
 
 
 class _FakePlug:
@@ -159,67 +167,7 @@ async def test_scheduled_kasa_service_reconciles_existing_light_schedule() -> No
     ]
 
 
-async def test_heater_turns_on_during_direct_schedule_window() -> None:
-    stop_event = asyncio.Event()
-    plug = _FakePlug(stop_event)
-    inventory = _FakeInventory(plug)
-
-    async def load_targets() -> list[ScheduledKasaTarget]:
-        return [
-            _target(
-                kind="heater",
-                device_id=BREEDING_HEATER_DEVICE_ID,
-                capability_id=BREEDING_HEATER_CAPABILITY_ID,
-                schedule_id=BREEDING_HEATER_SCHEDULE_ID,
-                starts_local=time(0, 0),
-                ends_local=time(6, 0),
-            )
-        ]
-
-    service = ScheduledKasaActuatorService(
-        _config(),
-        clock=lambda: HEATER_ON_LOCAL_0300,
-        target_loader=load_targets,
-        inventory=inventory,
-    )
-
-    await _run_once(service, stop_event)
-
-    assert plug.turn_on_calls == 1
-    assert plug.turn_off_calls == 0
-
-
-async def test_heater_turns_off_outside_direct_schedule_window() -> None:
-    stop_event = asyncio.Event()
-    plug = _FakePlug(stop_event, is_on=True)
-    inventory = _FakeInventory(plug)
-
-    async def load_targets() -> list[ScheduledKasaTarget]:
-        return [
-            _target(
-                kind="heater",
-                device_id=BREEDING_HEATER_DEVICE_ID,
-                capability_id=BREEDING_HEATER_CAPABILITY_ID,
-                schedule_id=BREEDING_HEATER_SCHEDULE_ID,
-                starts_local=time(0, 0),
-                ends_local=time(6, 0),
-            )
-        ]
-
-    service = ScheduledKasaActuatorService(
-        _config(),
-        clock=lambda: HEATER_OFF_LOCAL_0700,
-        target_loader=load_targets,
-        inventory=inventory,
-    )
-
-    await _run_once(service, stop_event)
-
-    assert plug.turn_on_calls == 0
-    assert plug.turn_off_calls == 1
-
-
-async def test_heater_state_change_logs_heater_stream() -> None:
+async def test_state_change_logs_schedule_kind_stream() -> None:
     stop_event = asyncio.Event()
     plug = _FakePlug(stop_event)
     inventory = _FakeInventory(plug)
@@ -231,18 +179,18 @@ async def test_heater_state_change_logs_heater_stream() -> None:
     async def load_targets() -> list[ScheduledKasaTarget]:
         return [
             _target(
-                kind="heater",
-                device_id=BREEDING_HEATER_DEVICE_ID,
-                capability_id=BREEDING_HEATER_CAPABILITY_ID,
-                schedule_id=BREEDING_HEATER_SCHEDULE_ID,
-                starts_local=time(0, 0),
-                ends_local=time(6, 0),
+                kind="lights",
+                device_id="kasa-lights-clones",
+                capability_id="lights_power",
+                schedule_id="clones-lights-photoperiod",
+                starts_local=time(9, 0),
+                ends_local=time(21, 0),
             )
         ]
 
     service = ScheduledKasaActuatorService(
         _config(),
-        clock=lambda: HEATER_ON_LOCAL_0300,
+        clock=lambda: LIGHTS_ON_LOCAL_NOON,
         target_loader=load_targets,
         inventory=inventory,
         event_logger=capture_event,
@@ -252,16 +200,77 @@ async def test_heater_state_change_logs_heater_stream() -> None:
 
     assert len(events) == 1
     stream, event, fields = events[0]
-    assert stream == "heater"
+    assert stream == "lights"
     assert event == "state_change"
     assert fields["site_id"] == "homebox"
-    assert fields["tent_id"] == "breeding"
-    assert fields["zone_id"] == "heat"
-    assert fields["device_id"] == BREEDING_HEATER_DEVICE_ID
-    assert fields["capability_id"] == BREEDING_HEATER_CAPABILITY_ID
-    assert fields["schedule_id"] == BREEDING_HEATER_SCHEDULE_ID
+    assert fields["tent_id"] == "clones"
+    assert fields["zone_id"] == "lights"
+    assert fields["device_id"] == "kasa-lights-clones"
+    assert fields["capability_id"] == "lights_power"
+    assert fields["schedule_id"] == "clones-lights-photoperiod"
     assert fields["new_state"] == "on"
     assert fields["reason"] == "scheduled_on"
+
+
+async def test_default_schedule_kinds_are_lights_only() -> None:
+    assert DEFAULT_SCHEDULE_KINDS == ("lights",)
+
+
+async def test_heater_schedules_are_not_default_kasa_targets(app_engine) -> None:
+    service = ScheduledKasaActuatorService(_config(), engine=app_engine)
+
+    targets = await service._load_targets()
+
+    schedule_ids = {target.schedule_id for target in targets}
+    assert schedule_ids >= LIGHT_SCHEDULE_IDS
+    assert schedule_ids.isdisjoint(CLIMATE_HEATER_SCHEDULE_IDS)
+
+    async with AsyncSession(app_engine) as session:
+        schedule_rows = (
+            await session.exec(
+                select(Schedule.schedule_id, Schedule.kind, Schedule.enabled).where(
+                    Schedule.schedule_id.in_(
+                        CLIMATE_HEATER_SCHEDULE_IDS | LIGHT_SCHEDULE_IDS
+                    )
+                )
+            )
+        ).all()
+
+        rows_by_id = {
+            schedule_id: (kind, enabled) for schedule_id, kind, enabled in schedule_rows
+        }
+
+    for schedule_id in LIGHT_SCHEDULE_IDS:
+        assert rows_by_id[schedule_id] == ("lights", True)
+    for schedule_id in CLIMATE_HEATER_SCHEDULE_IDS:
+        assert rows_by_id[schedule_id] == ("heater", False)
+
+
+async def test_climate_heater_migration_keeps_devices_and_capabilities(
+    app_engine,
+) -> None:
+    async with AsyncSession(app_engine) as session:
+        rows = (
+            await session.exec(
+                select(Device.device_id, Capability.capability_id, Capability.enabled)
+                .join(Capability, Capability.device_id == Device.id)
+                .where(
+                    Device.device_id.in_(
+                        {
+                            "ac-infinity-thermoforge-main",
+                            BREEDING_HEATER_DEVICE_ID,
+                        }
+                    )
+                )
+                .order_by(Device.device_id, Capability.capability_id)
+            )
+        ).all()
+
+    assert rows == [
+        ("ac-infinity-thermoforge-main", "heat_level", True),
+        ("ac-infinity-thermoforge-main", "power", True),
+        (BREEDING_HEATER_DEVICE_ID, BREEDING_HEATER_CAPABILITY_ID, True),
+    ]
 
 
 async def test_successful_kasa_poll_refreshes_last_seen(app_engine) -> None:

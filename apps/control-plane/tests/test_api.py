@@ -522,6 +522,20 @@ async def test_current_metrics_expose_dashboard_display_names(
                     received_at=FIXED_NOW,
                     stale_after_s=120,
                 ),
+                CloudLatestMetric(
+                    metric_key="homebox:main:heat_level:heater_heat_level",
+                    site_id="homebox",
+                    tent_id="main",
+                    zone_id="heat",
+                    device_id="ac-infinity-thermoforge-main",
+                    capability_id="heat_level",
+                    metric="heater_heat_level",
+                    value=7.0,
+                    unit="level",
+                    source_updated_at=FIXED_NOW - timedelta(seconds=30),
+                    received_at=FIXED_NOW,
+                    stale_after_s=120,
+                ),
             ]
         )
         await session.commit()
@@ -534,6 +548,8 @@ async def test_current_metrics_expose_dashboard_display_names(
     assert by_metric["fan_pct"]["unit"] == "%"
     assert by_metric["humidifier_intensity_pct"]["value"] == 50.0
     assert by_metric["humidifier_intensity_pct"]["unit"] == "%"
+    assert by_metric["heater_intensity_pct"]["value"] == 70.0
+    assert by_metric["heater_intensity_pct"]["unit"] == "%"
 
 
 async def test_metric_history_filters_bucket_and_window_by_range(
@@ -606,6 +622,15 @@ async def test_metric_history_exposes_dashboard_display_names(
                     capability_id="humidifier_mist_level",
                     unit="level",
                 ),
+                _rollup(
+                    "heater",
+                    bucket="1h",
+                    start=FIXED_NOW - timedelta(hours=2),
+                    avg=7.0,
+                    metric="heater_heat_level",
+                    capability_id="heat_level",
+                    unit="level",
+                ),
             ]
         )
         await session.commit()
@@ -615,6 +640,9 @@ async def test_metric_history_exposes_dashboard_display_names(
     )
     humidifier = await authed_client.get(
         "/api/tents/main/metrics/history?range=24h&metric=humidifier_intensity_pct"
+    )
+    heater = await authed_client.get(
+        "/api/tents/main/metrics/history?range=24h&metric=heater_intensity_pct"
     )
 
     assert fan.status_code == 200
@@ -627,6 +655,10 @@ async def test_metric_history_exposes_dashboard_display_names(
     assert humidifier.json()["points"][0]["avg"] == 50.0
     assert humidifier.json()["points"][0]["max"] == 55.56
     assert humidifier.json()["points"][0]["unit"] == "%"
+    assert heater.status_code == 200
+    assert heater.json()["metric"] == "heater_intensity_pct"
+    assert heater.json()["points"][0]["avg"] == 70.0
+    assert heater.json()["points"][0]["unit"] == "%"
 
 
 async def test_duplicate_command_idempotency_returns_same_intent_without_hardware(

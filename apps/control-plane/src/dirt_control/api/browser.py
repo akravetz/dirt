@@ -58,6 +58,10 @@ def _mist_level_to_pct(value: float) -> float:
     return value * 100.0 / 9.0
 
 
+def _heat_level_to_pct(value: float) -> float:
+    return value * 10.0
+
+
 DISPLAY_METRIC_BY_STORAGE: dict[str, DisplayMetricSpec] = {
     "fan_duty_pct": DisplayMetricSpec(
         storage_metric="fan_duty_pct",
@@ -69,6 +73,12 @@ DISPLAY_METRIC_BY_STORAGE: dict[str, DisplayMetricSpec] = {
         display_metric="humidifier_intensity_pct",
         display_unit="%",
         transform=_mist_level_to_pct,
+    ),
+    "heater_heat_level": DisplayMetricSpec(
+        storage_metric="heater_heat_level",
+        display_metric="heater_intensity_pct",
+        display_unit="%",
+        transform=_heat_level_to_pct,
     ),
 }
 DISPLAY_METRIC_BY_PUBLIC: dict[str, DisplayMetricSpec] = {

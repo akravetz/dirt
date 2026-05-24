@@ -1,7 +1,7 @@
 ---
 title: Index
 type: index
-updated: 2026-05-21
+updated: 2026-05-23
 ---
 
 # Grow Wiki Index
@@ -15,10 +15,10 @@ updated: 2026-05-21
 - [Hosted Control Plane](decisions/2026-05-05-hosted-control-plane.md) — Railway web UI/API plus outbound local gateway; remote inspection and PTZ-only command intent without moving hardware authority to cloud
 
 ## Plants
-- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; Flower Day 18; upright purple flower tops; moisture stable near 57%; tray/runoff pH+EC recheck still required
-- [Plant B](plants/plant-b.md) — 🟡 Secondary; Flower Day 18; visible tops upright but fan-obscured; moisture 96.33% pinned — dryback verification urgent
-- [Plant C](plants/plant-c.md) — 🟡 Secondary; Flower Day 18; compact purple-toned flower sites; moisture 91.21% saturated — lower-leaf/root-zone watch
-- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; Flower Day 18; upright sativa-leaning purple flower tops; moisture stable near 51% after lower shift — verify by hand
+- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; Flower Day 20; upright purple flower tops; moisture stable near 58.7%; tray/runoff pH+EC recheck still required
+- [Plant B](plants/plant-b.md) — 🟡 Secondary; Flower Day 20; visible tops upright but fan-obscured; moisture 96.17% pinned — dryback verification urgent
+- [Plant C](plants/plant-c.md) — 🟡 Secondary; Flower Day 20; compact purple-toned flower sites; moisture 90.81% saturated — lower-leaf/root-zone watch
+- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; Flower Day 20; upright sativa-leaning purple flower tops; moisture dropped to 46.43% now — verify by hand
 
 ## Daily Logs
 - [2026-03-27](daily/2026-03-27.md) — Day 13: Pre-transplant; 2–3 leaf sets
@@ -66,6 +66,8 @@ updated: 2026-05-21
 - [2026-05-19](daily/2026-05-19.md) — Day 66 / Flower Day 16: incomplete photo coverage (breeding overview only); main VPD recovered lights-on (1.24 morning / 1.07 now); Plant B/C moisture pinned 🔴
 - [2026-05-20](daily/2026-05-20.md) — Day 67 / Flower Day 17: full photo coverage restored; main lights-on VPD in range but overnight high/dry; Plant B/C moisture pinned 🔴
 - [2026-05-21](daily/2026-05-21.md) — Day 68 / Flower Day 18: full photo coverage; main lights-on VPD in range but overnight still high/dry; Plant B/C moisture pinned 🔴; Plant D hand-check needed
+- [2026-05-22](daily/2026-05-22.md) — Day 69 / Flower Day 19: full photo coverage; main lights-on VPD in range but overnight slightly wet/low; Plant B/C moisture pinned 🔴; airflow work needed
+- [2026-05-23](daily/2026-05-23.md) — Day 70 / Flower Day 20: full photo coverage; main lights-on VPD in range but overnight slightly wet/low; Plant B/C moisture pinned 🔴; Plant D lower signal and breeding RH spike need checks
 
 ## Environment
 - [Temperature](environment/temperature.md) — Trend log; targets by phase; notable events

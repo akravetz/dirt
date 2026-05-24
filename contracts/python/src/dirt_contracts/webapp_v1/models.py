@@ -53,6 +53,7 @@ class SensorMetric(StrEnum):
     fan_pct = "fan_pct"
     humidifier_intensity_pct = "humidifier_intensity_pct"
     reservoir_in = "reservoir_in"
+    heater_intensity_pct = "heater_intensity_pct"
 
 
 class PlantCode(StrEnum):

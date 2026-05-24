@@ -4,7 +4,7 @@ type: overview
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/index.md, wiki/plants/plant-a.md, wiki/plants/plant-b.md, wiki/plants/plant-c.md, wiki/plants/plant-d.md, wiki/decisions/2026-05-05-hosted-control-plane.md]
 created: 2026-04-06
-updated: 2026-05-21
+updated: 2026-05-23
 ---
 
 # Grow Overview
@@ -23,23 +23,23 @@ updated: 2026-05-21
 | **Water system** | Autopot 4-Pot XL + 25-gal FlexiTank (active since Apr 15) |
 | **Training** | Single top at node 4–5 → LST → SCROG |
 | **Start date** | 2026-03-15 (germination) |
-| **Grow day** | Day 68 (as of 2026-05-21) |
+| **Grow day** | Day 70 (as of 2026-05-23) |
 
 ## Current Stage
 
-**Early Flower — Day 18 of 12/12**. Flower start date is 2026-05-03; lights run 09:00–21:00 local tent time. Autopot has been active since Apr 15, all four plants are topped, and the SCROG net is installed; stretch management and interior airflow remain daily work.
+**Early Flower — Day 20 of 12/12**. Flower start date is 2026-05-03; lights run 09:00–21:00 local tent time. Autopot has been active since Apr 15, all four plants are topped, and the SCROG net is installed; late-stretch cleanup and interior airflow remain daily work.
 
-**Full daily photo coverage captured** — main overview, Plant A, Plant B, Plant C, Plant D, and breeding overview were captured for 2026-05-21. The main canopy is dense, upright, and stacking early flower sites with purple expression visible across multiple tops; Plant B remains partly fan-obstructed.
+**Full daily photo coverage captured** — main overview, Plant A, Plant B, Plant C, Plant D, and breeding overview were captured for 2026-05-23. The main canopy is dense, upright, and stacking early flower sites with purple expression visible across multiple tops; Plant B remains partly fan-obstructed.
 
-**Main-tent VPD is usable during lights-on, dry/high overnight** — morning averaged 1.28 kPa and now is 1.24 kPa, both inside the early-flower target. The 00-06 window averaged 78.38°F and 1.44 kPa, so watch the night profile before making a control change; do not chase RH alone while current VPD is in range.
+**Main-tent VPD is usable during lights-on, slightly wet/low overnight** — morning and current readings are both 1.08 kPa, inside the early-flower target. The 00-06 window repeated the slightly wet/low pattern at 71.58°F / 0.89 kPa, so avoid adding humidity and keep airflow through the dense canopy active.
 
-**Plant A is still on a local low-pH root-zone watch** — A looks upright with active purple flower tops and stable rough moisture near 57%, but the 2026-05-17 tray/runoff pH 4.8 finding remains open. Recheck A tray/runoff pH and EC before disturbing it again and compare with B/C/D tray samples.
+**Plant A is still on a local low-pH root-zone watch** — A looks upright with active purple flower tops and stable rough moisture near 58.7%, but the 2026-05-17 tray/runoff pH 4.8 finding remains open. Recheck A tray/runoff pH and EC before disturbing it again and compare with B/C/D tray samples.
 
-**Plant B and Plant C root-zone moisture remain critical** — B is 96.33% now and C is 91.21% now, both effectively flat from morning and pinned wet. Manual dryback verification remains urgent: check tray standing water, float behavior, media smell, and probe placement.
+**Plant B and Plant C root-zone moisture remain critical** — B is 96.17% now and C is 90.81% now, both effectively pinned wet. Manual dryback verification remains urgent: check tray standing water, float behavior, media smell, and probe placement.
 
-**Plant D needs a hand check after a lower signal** — D has upright sativa-leaning purple flower tops and a rough moisture signal stable today near 51%, down from yesterday's roughly 60%. Verify tray/media/probe conditions by hand before changing irrigation assumptions, then continue only light spread/tuck work that improves airflow.
+**Plant D needs a hand check after a large lower move** — D has upright sativa-leaning purple flower tops, but rough moisture moved from a 50.59% morning average to 46.43% now. Verify tray/media/probe conditions by hand before changing irrigation assumptions, then continue only light spread/tuck work that improves airflow.
 
-**Breeding tent is a lights-on dry watch** — sensors moved from 0.90 kPa VPD overnight to 1.61 kPa morning and 1.71 kPa now, with current temperature 76.77°F. The overview shows upright labeled seedlings, but surface media looks dry in places and the fan is close to the pots; check pot weight and fan angle.
+**Breeding tent is a current wet/RH-spike watch** — sensors moved from a usable 1.26 kPa VPD morning to 79.50°F / 80.16% RH / 0.68 kPa now. The overview shows upright labeled seedlings, so check recent watering, fan blockage, direct humid air, and sensor exposure before making a broad environment change.
 
 **Breeding propagation is active** — clones from all four current plants were taken 2026-05-02 and are under a humidity dome; they were perking with 1 visible rooted clone as of 2026-05-05. Track A regular seedlings now have their first true-leaf sets in labeled pots, with a short veg/sex-flip plan filed 2026-05-12. A 4-inch AC Infinity filtration kit has been selected for the breeding/male isolation tent, and Shelly Plus Plug US is the selected permanent controller for drip-assist pump safety. See [breeding/cloning.md](breeding/cloning.md), [breeding/timeline.md](breeding/timeline.md), and [breeding/isolation.md](breeding/isolation.md).
 
@@ -54,36 +54,36 @@ updated: 2026-05-21
 
 | Plant | Flower | Purple | Priority | Status |
 |-------|--------|--------|----------|--------|
-| Plant A | Day 18 | ✅ Confirmed genetic | 🔴 Primary | Upright purple flower tops; moisture stable near 57%; A tray/runoff pH+EC recheck still required |
-| Plant B | Day 18 | ❌ None | 🟡 Secondary | Visible tops upright but fan-obscured; moisture 96.33% pinned — dryback verification urgent |
-| Plant C | Day 18 | ⚠️ Stress-induced only | 🟡 Secondary | Compact purple-toned flower sites active; moisture 91.21% saturated with root-zone/airflow watch |
-| Plant D | Day 18 | ✅ Confirmed genetic | 🔴 Primary | Upright sativa-leaning purple flower tops; moisture stable today near 51% after lower shift — verify by hand |
+| Plant A | Day 20 | ✅ Confirmed genetic | 🔴 Primary | Upright purple flower tops; moisture stable near 58.7%; A tray/runoff pH+EC recheck still required |
+| Plant B | Day 20 | ❌ None | 🟡 Secondary | Visible tops upright but fan-obscured; moisture 96.17% pinned — dryback verification urgent |
+| Plant C | Day 20 | ⚠️ Stress-induced only | 🟡 Secondary | Compact purple-toned flower sites active; moisture 90.81% saturated with root-zone/airflow watch |
+| Plant D | Day 20 | ✅ Confirmed genetic | 🔴 Primary | Upright sativa-leaning purple flower tops; moisture dropped to 46.43% now — verify by hand |
 
-## Environment (Last Reading: May 21 14:00 MDT)
+## Environment (Last Reading: May 23 14:00 MDT)
 
 | Metric | Value | Target | Status |
 |--------|-------|--------|--------|
-| Temperature (now) | 73.90°F | 72–80°F early flower day | ✅ In range |
-| Temperature (morning avg) | 75.88°F | 72–80°F early flower day | ✅ In range |
-| Temperature (overnight avg) | 78.38°F | 65–70°F early flower night | ⚠️ Warm night |
-| Humidity (now) | 56.75% | 45–50% early flower guide | ⚠️ High by RH guide |
-| Humidity (overnight avg) | 56.67% | 45–50% early flower guide | ⚠️ High by RH guide |
-| VPD (now) | 1.24 kPa | 1.0–1.3 kPa | ✅ In range |
-| VPD (morning avg) | 1.28 kPa | 1.0–1.3 kPa | ✅ High edge |
-| VPD (overnight avg) | 1.44 kPa | 1.0–1.3 kPa | ⚠️ High/dry |
-| Breeding temp/VPD (now) | 76.77°F / 1.71 kPa | small-plant watch | ⚠️ Dry now |
+| Temperature (now) | 78.26°F | 72–80°F early flower day | ✅ In range |
+| Temperature (morning avg) | 76.14°F | 72–80°F early flower day | ✅ In range |
+| Temperature (overnight avg) | 71.58°F | 65–70°F early flower night | ⚠️ Slightly warm night |
+| Humidity (now) | 67.26% | 45–50% early flower guide | ⚠️ High by RH guide |
+| Humidity (overnight avg) | 66.50% | 45–50% early flower guide | ⚠️ High by RH guide |
+| VPD (now) | 1.08 kPa | 1.0–1.3 kPa | ✅ In range |
+| VPD (morning avg) | 1.08 kPa | 1.0–1.3 kPa | ✅ In range |
+| VPD (overnight avg) | 0.89 kPa | 1.0–1.3 kPa | ⚠️ Slightly wet/low |
+| Breeding temp/VPD (now) | 79.50°F / 0.68 kPa | small-plant watch | ⚠️ Wet/RH spike now |
 | pH (reservoir) | - | 5.5–6.0 | Not captured |
 | EC (reservoir) | - | 1.4–1.6 early flower | Not captured |
 
 ## Active Action Items
 
 1. **Recheck Plant A tray/runoff pH+EC** 🔴 — A tray/runoff measured pH 4.8 on 2026-05-17 while reservoir was pH 5.8 / EC 1.4; an 8-cup pH 5.8 / EC 1.2 flush was applied. Measure A before disturbing it next and compare B/C/D tray pH+EC.
-2. **Escalate Plant B and Plant C dryback verification** 🔴 — B is 96.33% now and C is 91.21%, both still effectively pinned wet. Verify tray/float behavior, standing water, media smell, and probe placement before restoring normal feed.
-3. **Hold main-tent lights-on environment steady** 🟡 — Morning and current VPD are in range at 1.28 and 1.24 kPa. Watch the next 00-06 window, which ran high/dry at 1.44 kPa with a warm 78.38°F night, before making a control change.
-4. **Keep opening airflow lanes through the dense canopy** 🟡 — Full photos show upright stacking flower sites and a crowded canopy. Reduce interior humidity pockets and fan obstruction while avoiding heavy defoliation past the stretch window.
-5. **Confirm Plant D by hand** 🟡 — D is stable today near 51% after yesterday's higher rough signal; verify tray/media/probe conditions before interpreting it as true dryback.
+2. **Escalate Plant B and Plant C dryback verification** 🔴 — B is 96.17% now and C is 90.81%, both still effectively pinned wet. Verify tray/float behavior, standing water, media smell, and probe placement before restoring normal feed.
+3. **Hand-check Plant D today** 🔴 — D dropped from a 50.59% morning average to 46.43% now. Verify tray/media/probe conditions before interpreting the move as true dryback or changing irrigation assumptions.
+4. **Hold main-tent lights-on environment steady** 🟡 — Morning and current VPD are both in range at 1.08 kPa. The overnight window repeated slightly wet/low at 0.89 kPa; avoid adding humidity and keep watching the night profile.
+5. **Keep opening airflow lanes through the dense canopy** 🟡 — Full photos show upright stacking flower sites and a crowded canopy, while current RH/dew point are high. Reduce interior humidity pockets and fan obstruction while avoiding heavy defoliation past the stretch window.
 6. **Manage breeding propagation** 🔴 — A/B/C/D clones still need rooted backup confirmation. Track A seedlings have first true-leaf sets; keep labels secure and follow the short-veg/sex-flip plan. The 4-inch AC Infinity filtration kit is selected for containment, and Shelly Plus Plug US is selected for unattended drip-assist pump safety. See [breeding/timeline.md](breeding/timeline.md), [breeding/cloning.md](breeding/cloning.md), and [breeding/isolation.md](breeding/isolation.md).
-7. **Manually inspect the breeding tent** 🟡 — Current breeding reading is 76.77°F / 1.71 kPa after a 1.61 kPa morning. Check pot weight, surface moisture, direct-fan drying, label security, and wiring around wet media.
+7. **Investigate the breeding-tent RH spike** 🟡 — Current breeding reading is 79.50°F / 80.16% RH / 0.68 kPa after a usable 1.26 kPa morning. Check recent watering, fan blockage, direct humid air, label security, and wiring around wet media.
 8. **Keep reservoir feed steady until pH data says otherwise** 🟡 — No reservoir pH/EC was captured today; do not adjust the whole reservoir based on Plant A unless other trays show the same low-pH pattern.
 9. **Investigate ThermoForge T3 control deliberately** 🟡 — Heater control must fail OFF; follow the filed UIS/passive-tap investigation before any direct-control replay.
 

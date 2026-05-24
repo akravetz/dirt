@@ -727,6 +727,7 @@ components:
         - fan_pct
         - humidifier_intensity_pct
         - reservoir_in
+        - heater_intensity_pct
 
     PlantCode:
       type: string

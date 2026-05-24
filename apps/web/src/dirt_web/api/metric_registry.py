@@ -53,6 +53,11 @@ def _mist_level_to_pct(v: float) -> float:
     return v * 100.0 / 9.0
 
 
+def _heat_level_to_pct(v: float) -> float:
+    """ThermoForge heat level (0..10) → intensity percent (0..100)."""
+    return v * 10.0
+
+
 @functools.cache
 def _registry() -> dict[SensorMetric, MetricSpec]:
     return {
@@ -150,6 +155,19 @@ def _registry() -> dict[SensorMetric, MetricSpec]:
             db_metric="reservoir_in",
             db_device_id="reservoir-node",
             dashboard_position=5,
+        ),
+        SensorMetric.heater_intensity_pct: MetricSpec(
+            metric=SensorMetric.heater_intensity_pct,
+            display_name="Heat",
+            unit="%",
+            accent="temp",
+            y_min=0.0,
+            y_max=100.0,
+            has_target_band=False,
+            db_metric="heater_heat_level",
+            db_device_id="ac-infinity-thermoforge-main",
+            transform=_heat_level_to_pct,
+            dashboard_position=6,
         ),
     }
 

@@ -9,7 +9,8 @@ from time import monotonic
 from typing import Protocol
 
 from bleak import BleakClient
-from bleak.exc import BleakError
+from bleak.backends.device import BLEDevice
+from bleak.exc import BleakDeviceNotFoundError, BleakError
 
 from dirt_hwd.services.thermoforge_protocol import (
     NOTIFY_CHARACTERISTIC_UUID,
@@ -75,12 +76,26 @@ class ThermoForgeBleBackend(Protocol):
     ) -> None: ...
 
 
+BleakClientFactory = Callable[[str | BLEDevice], ThermoForgeBleBackend]
+
+
 class _BleakBackend:
-    def __init__(self, config: ThermoForgeBleConfig) -> None:
-        self._client = BleakClient(config.mac)
+    def __init__(
+        self,
+        config: ThermoForgeBleConfig,
+        *,
+        client_factory: BleakClientFactory = BleakClient,
+    ) -> None:
+        self._config = config
+        self._client_factory = client_factory
+        self._client = client_factory(config.mac)
 
     async def connect(self) -> None:
-        await self._client.connect()
+        try:
+            await self._client.connect()
+        except BleakDeviceNotFoundError:
+            self._client = self._client_factory(_bluez_cached_device(self._config.mac))
+            await self._client.connect()
 
     async def disconnect(self) -> None:
         await self._client.disconnect()
@@ -107,6 +122,22 @@ class _BleakBackend:
             data,
             response=response,
         )
+
+
+def _bluez_cached_device(mac: str) -> BLEDevice:
+    address = mac.upper()
+    path = f"/org/bluez/hci0/dev_{address.replace(':', '_')}"
+    return BLEDevice(
+        address,
+        address,
+        details={
+            "path": path,
+            "props": {
+                "Address": address,
+                "Name": address,
+            },
+        },
+    )
 
 
 BackendFactory = Callable[[ThermoForgeBleConfig], ThermoForgeBleBackend]

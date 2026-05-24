@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/coco-coir.md, wiki/concepts/lst.md, wiki/environment/nutrients.md]
 created: 2026-04-06
-updated: 2026-05-21
+updated: 2026-05-23
 ---
 
 # Plant C
@@ -19,7 +19,7 @@ updated: 2026-05-21
 
 ## Current State
 
-Day 68 / Flower Day 18: Dedicated photo shows compact purple-toned flower sites with fresh pistils, while C remains saturated near 91.2%. Keep root-zone and interior-airflow checks active before treating shaded lower-leaf symptoms as a feed-strength issue. See [2026-05-21](../daily/2026-05-21.md).
+Day 70 / Flower Day 20: Dedicated photo shows compact purple-toned flower sites with fresh pistils, while C remains saturated near 90.8%. Keep root-zone and interior-airflow checks active before treating shaded lower-leaf symptoms as a feed-strength issue. See [2026-05-23](../daily/2026-05-23.md).
 
 ## Timeline
 
@@ -69,3 +69,5 @@ Day 68 / Flower Day 18: Dedicated photo shows compact purple-toned flower sites 
 - 2026-05-19 — [Day 66 / Flower Day 16: dedicated photo missing; moisture ~90.9% remains saturated, keep root-zone/airflow watch](../daily/2026-05-19.md)
 - 2026-05-20 — [Day 67 / Flower Day 17: compact purple-toned flower sites active; moisture ~91.5% remains saturated, keep root-zone/airflow watch](../daily/2026-05-20.md)
 - 2026-05-21 — [Day 68 / Flower Day 18: compact purple-toned flower sites active; moisture ~91.2% remains saturated, keep root-zone/airflow watch](../daily/2026-05-21.md)
+- 2026-05-22 — [Day 69 / Flower Day 19: compact purple-toned flower sites active; moisture ~91.1% remains saturated, keep root-zone/airflow watch](../daily/2026-05-22.md)
+- 2026-05-23 — [Day 70 / Flower Day 20: compact purple-toned flower sites active; moisture ~90.8% remains saturated, keep root-zone/airflow watch](../daily/2026-05-23.md)

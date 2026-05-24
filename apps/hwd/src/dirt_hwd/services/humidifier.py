@@ -69,7 +69,8 @@ SHADOW_STREAM = "humidifier_shadow"
 # 200ms is generous for the Govee cloud round-trip path; the second call
 # would arrive ahead of the device's first command settling otherwise and
 # the H7142 is observed to drop the closer-spaced second command.
-_BOOT_TICK_INTERLEAVE_S = 0.2
+H7142_BOOT_TICK_INTERLEAVE_S = 0.2
+_BOOT_TICK_INTERLEAVE_S = H7142_BOOT_TICK_INTERLEAVE_S
 
 
 # ============================================================
@@ -174,7 +175,7 @@ class DispatchDiff:
     no_op: bool
 
 
-def _plan_dispatch(
+def plan_dispatch(
     *,
     current_power: bool | None,
     current_level: int | None,
@@ -221,6 +222,19 @@ def _plan_dispatch(
         )
     return DispatchDiff(
         set_power_on=None, set_level=target_level, interleave=False, no_op=False
+    )
+
+
+def _plan_dispatch(
+    *,
+    current_power: bool | None,
+    current_level: int | None,
+    target_level: int | None,
+) -> DispatchDiff:
+    return plan_dispatch(
+        current_power=current_power,
+        current_level=current_level,
+        target_level=target_level,
     )
 
 

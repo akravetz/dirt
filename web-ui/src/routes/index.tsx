@@ -185,6 +185,15 @@ const HOSTED_METRIC_META: readonly MetricMeta[] = [
     y_max: 30,
     has_target_band: false,
   },
+  {
+    metric: "heater_intensity_pct",
+    display_name: "Heat",
+    unit: "%",
+    accent: "temp",
+    y_min: 0,
+    y_max: 100,
+    has_target_band: false,
+  },
 ];
 
 function freshnessLabel(data: SensorsCurrent): {

@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-05-21
+updated: 2026-05-23
 ---
 
 # Plant D
@@ -19,7 +19,7 @@ updated: 2026-05-21
 
 ## Current State
 
-Day 68 / Flower Day 18: Dedicated photo shows upright sativa-leaning purple flower tops, while rough moisture is steady today near 51% after yesterday's higher reading. Verify media/tray/probe conditions by hand before acting on the lower signal. See [2026-05-21](../daily/2026-05-21.md).
+Day 70 / Flower Day 20: Dedicated photo shows upright sativa-leaning purple flower tops, while rough moisture dropped to 46.4% now. Verify media/tray/probe conditions by hand today before acting on the lower signal. See [2026-05-23](../daily/2026-05-23.md).
 
 ## Timeline
 
@@ -69,3 +69,5 @@ Day 68 / Flower Day 18: Dedicated photo shows upright sativa-leaning purple flow
 - 2026-05-19 — [Day 66 / Flower Day 16: dedicated photo missing; moisture stable around 60% for a second day, verify by hand](../daily/2026-05-19.md)
 - 2026-05-20 — [Day 67 / Flower Day 17: upright sativa-leaning purple flower tops visible; moisture stable near 60%, verify by hand](../daily/2026-05-20.md)
 - 2026-05-21 — [Day 68 / Flower Day 18: upright sativa-leaning purple flower tops visible; moisture steady near 51% today after yesterday's higher reading, verify by hand](../daily/2026-05-21.md)
+- 2026-05-22 — [Day 69 / Flower Day 19: upright sativa-leaning purple flower tops visible; moisture steady near 51% for a second day, verify by hand](../daily/2026-05-22.md)
+- 2026-05-23 — [Day 70 / Flower Day 20: upright sativa-leaning purple flower tops visible; moisture dropped to ~46.4% now, verify media/tray/probe by hand](../daily/2026-05-23.md)

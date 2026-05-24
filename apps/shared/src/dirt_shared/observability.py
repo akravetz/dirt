@@ -76,6 +76,7 @@ _RETENTION: dict[str, int] = {
     "lights": 30,  # lights plug state transitions — twice-daily
     "heater": 30,  # scheduled heater transitions + ThermoForge BLE telemetry
     "fan_controller": 30,  # fan trim ticks + duty transitions
+    "climate_controller": 30,  # unified climate decisions + command targets
     "daily_report": 30,  # per-phase markers for the daily report run
     "device_status": 30,  # offline/online transitions from the device watchdog
     "metric_freshness": 30,  # per-(location, metric) dropout transitions

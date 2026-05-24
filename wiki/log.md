@@ -1026,3 +1026,21 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - **Plant D moisture:** Stable today near 51% after yesterday's higher rough signal; verify media/tray/probe conditions by hand.
 - **Breeding-tent watch:** Seedlings look upright, but VPD is dry during lights-on at 1.61 morning and 1.71 now; check pot weight, surface moisture, and fan angle.
 - Updated: `daily/2026-05-21.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-05-22] daily | Day 69 / Flower Day 19 - full photos; lights-on VPD in range
+- Photos captured across all 5 expected main presets plus the breeding overview. The main canopy is dense, upright, and stacking early flower sites with purple expression visible across multiple tops; Plant B remains partly fan-obstructed.
+- **Main-tent environment:** Morning and current VPD are in range at 1.08 and 1.05 kPa, while overnight shifted slightly wet/low at 71.17°F and 0.88 kPa after the prior dry/high nights.
+- **Plant A follow-up:** Visible tops are upright and purple with stable moisture near 58%, but the 2026-05-17 low-pH tray finding remains open until A tray/runoff pH+EC is rechecked against B/C/D.
+- **Plant B/C moisture remains critical:** B is pinned at 96.25%, and C is pinned at 91.05%; manual tray/float/media/probe checks remain urgent.
+- **Plant D moisture:** Stable near 51% for a second day; verify media/tray/probe conditions by hand.
+- **Breeding-tent watch:** Seedlings look upright, but VPD is dry during lights-on at 1.34 morning and 1.46 now; check pot weight, surface moisture, and fan angle.
+- Updated: `daily/2026-05-22.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-05-23] daily | Day 70 / Flower Day 20 - full photos; lights-on VPD in range
+- Photos captured across all 5 expected main presets plus the breeding overview. The main canopy remains dense, upright, and flower-heavy with purple expression across multiple tops; Plant B remains partly fan-obstructed.
+- **Main-tent environment:** Morning and current VPD are both in range at 1.08 kPa, while overnight repeated the slightly wet/low pattern at 71.58°F and 0.89 kPa.
+- **Plant A follow-up:** Visible tops are upright and purple with stable moisture near 58.7%, but the 2026-05-17 low-pH tray finding remains open until A tray/runoff pH+EC is rechecked against B/C/D.
+- **Plant B/C moisture remains critical:** B is pinned at 96.17%, and C is pinned at 90.81%; manual tray/float/media/probe checks remain urgent.
+- **Plant D moisture:** D dropped from a 50.59% morning average to 46.43% now; verify tray/media/probe conditions by hand before acting on the lower signal.
+- **Breeding-tent watch:** Seedlings look upright, but current RH spiked to 80.16% with 0.68 kPa VPD after a usable morning; check watering timing, fan blockage, and sensor exposure.
+- Updated: `daily/2026-05-23.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.

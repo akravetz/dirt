@@ -1,11 +1,11 @@
 """Unit tests for GET /api/sensors/history.
 
 The endpoint returns bucketed ``(ts, value)`` points for one metric over
-the requested range. All metrics query ``ReadingsService``. Only
-``fan_pct`` has a contract↔DB name mismatch (resolves to
-``fan_duty_pct`` at the endpoint boundary); every other metric — now
-including ``reservoir_in`` (firmware emits inches natively after
-2026-04-26) — uses the contract name directly.
+the requested range. All metrics query ``ReadingsService``. Display
+metrics can resolve to different DB metrics at the endpoint boundary:
+``fan_pct`` reads ``fan_duty_pct``, ``humidifier_intensity_pct`` reads
+``humidifier_mist_level``, and ``heater_intensity_pct`` reads the raw
+ThermoForge ``heater_heat_level``.
 
 Tests drive the full ASGI stack with an isolated Postgres DB and assert
 the response body deserializes into the generated
@@ -19,7 +19,10 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from dirt_contracts.webapp_v1.models import SensorsHistoryResponse
+from dirt_contracts.webapp_v1.models import (
+    SensorsHistoryResponse,
+    SensorsMetadataResponse,
+)
 from httpx import ASGITransport, AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -49,7 +52,7 @@ async def _capability_id(
 
 
 async def _seed_tent_series(engine, hours: int = 48) -> None:
-    """Insert a dense series for the four DB-backed sparkline metrics."""
+    """Insert a dense series for the DB-backed sparkline metrics."""
     async with AsyncSession(engine) as s:
         caps = {
             metric: await _capability_id(
@@ -59,6 +62,11 @@ async def _seed_tent_series(engine, hours: int = 48) -> None:
         }
         reservoir_cap = await _capability_id(
             s, device_id="reservoir-node", metric_name="reservoir_in"
+        )
+        heater_cap = await _capability_id(
+            s,
+            device_id="ac-infinity-thermoforge-main",
+            metric_name="heater_heat_level",
         )
 
         now = datetime.now(UTC)
@@ -81,6 +89,7 @@ async def _seed_tent_series(engine, hours: int = 48) -> None:
                 # Reservoir sweeps 20.0 → 29.0 in so bucket averages have
                 # variance without crossing zero.
                 (reservoir_cap, "reservoir_in", 20.0 + (i % 10)),
+                (heater_cap, "heater_heat_level", float(i % 11)),
             ):
                 readings.append(
                     SensorReading(
@@ -162,6 +171,30 @@ async def test_sensors_history_requires_auth():
         # the SPA handles /login routing client-side.
         assert response.status_code == 401
         assert response.headers["content-type"].startswith("application/json")
+
+
+async def test_sensors_metadata_includes_heat_intensity_tile(
+    client: AsyncClient,
+) -> None:
+    response = await client.get("/api/sensors/metadata")
+
+    assert response.status_code == 200
+    model = SensorsMetadataResponse.model_validate(response.json())
+    assert [metric.metric.value for metric in model.metrics] == [
+        "temperature_f",
+        "humidity_pct",
+        "vpd_kpa",
+        "fan_pct",
+        "humidifier_intensity_pct",
+        "reservoir_in",
+        "heater_intensity_pct",
+    ]
+    heat = model.metrics[-1]
+    assert heat.display_name == "Heat"
+    assert heat.unit == "%"
+    assert heat.y_min == 0.0
+    assert heat.y_max == 100.0
+    assert heat.has_target_band is False
 
 
 @pytest.mark.parametrize("range_param", ["1h", "24h", "7d"])
@@ -276,6 +309,25 @@ async def test_sensors_history_reservoir_in(client: AsyncClient, app_engine) -> 
     # Seeded sweep is 20–29 in; every bucket average lands inside.
     for pt in model.points:
         assert 20.0 <= pt.value <= 29.0
+
+
+async def test_sensors_history_heater_intensity_pct(
+    client: AsyncClient, app_engine
+) -> None:
+    """Heat intensity reads raw ThermoForge level and returns normalized percent."""
+    await _seed_tent_series(app_engine)
+
+    response = await client.get(
+        "/api/sensors/history",
+        params={"range": "24h", "metric": "heater_intensity_pct"},
+    )
+    assert response.status_code == 200
+    model = SensorsHistoryResponse.model_validate(response.json())
+    assert model.metric.value == "heater_intensity_pct"
+    assert model.unit == "%"
+    assert len(model.points) > 0
+    for pt in model.points:
+        assert 0.0 <= pt.value <= 100.0
 
 
 async def test_sensors_history_invalid_range(client: AsyncClient) -> None:

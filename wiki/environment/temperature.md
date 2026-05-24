@@ -4,7 +4,7 @@ type: environment
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/environment/humidity.md, wiki/overview.md]
 created: 2026-04-06
-updated: 2026-05-21
+updated: 2026-05-23
 ---
 
 # Temperature
@@ -68,6 +68,8 @@ updated: 2026-05-21
 | 2026-05-19 | Main 73.78°F now ✅ / 77.46°F overnight avg ⚠️ / 75.76°F morning avg ✅; breeding 77.77°F now ✅ | Main-tent lights-on temperatures are back in the early-flower day band while the 00-06 window remains warmer than the night band. Breeding temperature is usable, with drying driven more by lights-on RH/fan exposure than heat. → [2026-05-19](../daily/2026-05-19.md) |
 | 2026-05-20 | Main 72.88°F now ✅ / 79.02°F overnight avg ⚠️ / 76.80°F morning avg ✅; breeding 75.87°F now ✅ | Main-tent lights-on temperature remains in range, but the 00-06 window stayed very warm for early flower and paired with dry/high VPD. Breeding temperature is usable; the small-plant concern is dry lights-on air rather than heat. → [2026-05-20](../daily/2026-05-20.md) |
 | 2026-05-21 | Main 73.90°F now ✅ / 78.38°F overnight avg ⚠️ / 75.88°F morning avg ✅; breeding 76.77°F now ✅ | Main-tent lights-on temperature remains in range while the 00-06 window stays warmer than the early-flower night band. Breeding temperature is usable; dryness is driven by low lights-on RH/fan exposure. → [2026-05-21](../daily/2026-05-21.md) |
+| 2026-05-22 | Main 78.21°F now ✅ / 71.17°F overnight avg ⚠️ / 75.99°F morning avg ✅; breeding 77.36°F now ✅ | Main-tent lights-on temperature remains in range, and the 00-06 window cooled substantially versus the prior warm nights but is still slightly above the early-flower night band. Breeding temperature is usable; small-plant concern remains lights-on dry air/fan exposure. → [2026-05-22](../daily/2026-05-22.md) |
+| 2026-05-23 | Main 78.26°F now ✅ / 71.58°F overnight avg ⚠️ / 76.14°F morning avg ✅; breeding 79.50°F now ✅ | Main-tent lights-on temperature remains in range, with the 00-06 window still slightly above the early-flower night band. Breeding temperature is usable/warm; today's breeding anomaly is the current RH/dew-point spike rather than heat alone. → [2026-05-23](../daily/2026-05-23.md) |
 
 ## Notable Events
 - **2026-03-21** — Overnight low of 59.5°F due to exhaust fan running too fast at night; resolved by throttling fan after lights-out → [2026-03-27 daily](../daily/2026-03-27.md)
@@ -102,3 +104,5 @@ updated: 2026-05-21
 - **2026-05-19** — Main-tent temperature recovered to a usable lights-on profile (75.76°F morning, 73.78°F now), but the overnight average remains warm at 77.46°F. Breeding temperature is usable, so today's breeding watch is mostly fan exposure plus small-pot drydown rather than heat. → [2026-05-19](../daily/2026-05-19.md)
 - **2026-05-20** — Main-tent lights-on temperature remained usable (76.80°F morning, 72.88°F now), but the overnight average rose to 79.02°F and helped push overnight VPD to 1.51 kPa. Treat this as a night-profile watch; the current lights-on temperature does not need correction. → [2026-05-20](../daily/2026-05-20.md)
 - **2026-05-21** — Main-tent lights-on temperature stayed usable (75.88°F morning, 73.90°F now), while overnight remained warm at 78.38°F and paired with 1.44 kPa VPD. This is still a night-profile watch, not a lights-on heat correction. → [2026-05-21](../daily/2026-05-21.md)
+- **2026-05-22** — Main-tent overnight temperature cooled to 71.17°F after the prior 78-79°F nights, still a little above the early-flower night band but no longer driving dry/high VPD. Lights-on temperature is in range, so the environment action is airflow/humidity-profile monitoring rather than heat correction. → [2026-05-22](../daily/2026-05-22.md)
+- **2026-05-23** — Main-tent temperature repeated yesterday's usable lights-on pattern and slightly-warm night profile: 71.58°F overnight, 76.14°F morning, and 78.26°F now. Temperature is not the limiting control problem today; humidity pockets and the breeding-tent current moisture spike are. → [2026-05-23](../daily/2026-05-23.md)

@@ -15,24 +15,35 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Protocol
 
+import httpx
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from dirt_hwd.api.ingest import router as ingest_router
 from dirt_hwd.services.archive import ArchiveService
+from dirt_hwd.services.climate_actuators import (
+    ClimateActuators,
+    DatabaseThermoForgeHeaterActuator,
+    FanNodeActuator,
+    H7142HumidifierActuator,
+    KasaDehumidifierActuator,
+)
+from dirt_hwd.services.climate_controller import (
+    ClimateActuatorRuntime,
+    ClimateControllerService,
+)
+from dirt_hwd.services.climate_policy import default_climate_policy
 from dirt_hwd.services.device_watchdog import (
     DeviceWatchdogConfig,
     DeviceWatchdogService,
 )
-from dirt_hwd.services.fan_controller import FanTrimLoopService
-from dirt_hwd.services.humidifier import HumidifierLoopService
 from dirt_hwd.services.kasa_schedule import ScheduledKasaActuatorService
 from dirt_hwd.services.metric_freshness import (
     MetricFreshnessConfig,
     MetricFreshnessService,
 )
 from dirt_hwd.services.sensor_quality import SensorQualityConfig, SensorQualityService
-from dirt_hwd.services.thermoforge import ScheduledThermoForgeService
+from dirt_hwd.services.thermoforge_ble import ThermoForgeBleClient, ThermoForgeBleConfig
 from dirt_hwd.supervise import supervise
 from dirt_shared.app_wiring import build_core_services
 from dirt_shared.config import Settings
@@ -42,6 +53,8 @@ from dirt_shared.services.camera_publisher import (
     DatabaseCameraLightScheduleGate,
 )
 from dirt_shared.services.capture import CaptureService
+from dirt_shared.services.fan_node import FanNodeClient
+from dirt_shared.services.govee import GoveeClient
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +67,30 @@ class BackgroundService(Protocol):
     """
 
     async def run(self, stop_event: asyncio.Event) -> None: ...
+
+
+class _LazyGoveeClient:
+    def __init__(self, api_key: str, http: httpx.AsyncClient) -> None:
+        self._api_key = api_key
+        self._http = http
+        self._resolved: GoveeClient | None = None
+
+    def _client(self) -> GoveeClient:
+        if self._resolved is None:
+            self._resolved = GoveeClient(api_key=self._api_key, http=self._http)
+        return self._resolved
+
+    async def discover(self):
+        return await self._client().discover()
+
+    async def get_state(self, sku: str, mac: str):
+        return await self._client().get_state(sku, mac)
+
+    async def set_power(self, sku: str, mac: str, *, on: bool) -> None:
+        await self._client().set_power(sku, mac, on=on)
+
+    async def set_manual_level(self, sku: str, mac: str, level: int) -> None:
+        await self._client().set_manual_level(sku, mac, level)
 
 
 async def _crash_watchdog(
@@ -92,6 +129,7 @@ def _default_background_services(
     core,
 ) -> list[BackgroundService]:
     """Build the production background services from settings."""
+    humidifier_config = settings.humidifier()
     return [
         CaptureService(
             engine,
@@ -103,27 +141,22 @@ def _default_background_services(
             clock=core.clock,
         ),
         ArchiveService(settings.archive(), clock=core.clock),
-        HumidifierLoopService(
-            settings.humidifier(),
+        ClimateControllerService(
             readings=core.readings,
             grow=core.grow,
+            actuator_runtime_factory=lambda: _build_climate_actuator_runtime(
+                engine=engine,
+                settings=settings,
+                core=core,
+            ),
+            policy=default_climate_policy(),
             clock=core.clock,
-            fan_trim_config=settings.fan_trim(),
+            poll_interval_s=humidifier_config.poll_interval,
+            humidifier_levels=humidifier_config.mist_levels,
         ),
         ScheduledKasaActuatorService(
             settings.scheduled_kasa(),
             engine=engine,
-            clock=core.clock,
-        ),
-        ScheduledThermoForgeService(
-            settings.thermoforge(),
-            engine=engine,
-            clock=core.clock,
-        ),
-        FanTrimLoopService(
-            settings.fan_trim(),
-            readings=core.readings,
-            grow=core.grow,
             clock=core.clock,
         ),
         DeviceWatchdogService(
@@ -154,6 +187,45 @@ def _default_background_services(
             clock=core.clock,
         ),
     ]
+
+
+def _build_climate_actuator_runtime(
+    *,
+    engine: AsyncEngine,
+    settings: Settings,
+    core,
+) -> ClimateActuatorRuntime:
+    humidifier_config = settings.humidifier()
+    fan_trim_config = settings.fan_trim()
+    thermoforge_config = settings.thermoforge()
+    http = httpx.AsyncClient(timeout=15.0)
+
+    actuators = ClimateActuators(
+        fan=FanNodeActuator(
+            FanNodeClient(http, base_url=fan_trim_config.base_url),
+        ),
+        humidifier=H7142HumidifierActuator(
+            humidifier_config,
+            _LazyGoveeClient(humidifier_config.govee_api_key, http),
+            readings=core.readings,
+        ),
+        dehumidifier=KasaDehumidifierActuator(
+            settings.scheduled_kasa(),
+            engine=engine,
+            readings=core.readings,
+        ),
+        heater=DatabaseThermoForgeHeaterActuator(
+            engine=engine,
+            readings=core.readings,
+            client_factory=lambda mac: ThermoForgeBleClient(
+                ThermoForgeBleConfig(
+                    mac=mac,
+                    status_timeout_s=thermoforge_config.connect_timeout_s,
+                )
+            ),
+        ),
+    )
+    return ClimateActuatorRuntime(actuators=actuators, close=http.aclose)
 
 
 def create_app(
