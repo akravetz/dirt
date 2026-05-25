@@ -6,7 +6,7 @@ This file follows the OpenAI Cookbook ExecPlan pattern, adapted to Dirt's `.agen
 
 ## How To Use ExecPlans
 
-When authoring an ExecPlan, follow this file closely. If this file is not already in context, read it in full before writing or revising the plan. Start from the skeleton below, then fill it in as you inspect the repository and learn what the change requires.
+When authoring an ExecPlan, follow this file closely. If this file is not already in context, read it in full before writing or revising the plan. Also read `docs/rules/simple-clean-architecture.md` before drafting or revising the design, data model, abstractions, compatibility choices, or test strategy. Start from the skeleton below, then fill it in as you inspect the repository and learn what the change requires.
 
 When implementing an ExecPlan, continue through the next milestone without asking the user for routine next steps. Keep the plan current as work proceeds. At every stopping point, update progress, discoveries, decisions, and next actions so a later agent can resume from the ExecPlan alone.
 
@@ -26,7 +26,7 @@ Every ExecPlan must produce demonstrably working behavior. Do not define success
 
 Purpose comes first. Begin each ExecPlan by explaining what the user can do after the change that they could not do before, why that matters, and how they can see it working.
 
-Every ExecPlan must follow the repository's simple clean architecture rule in `docs/rules/simple-clean-architecture.md`: build the simplest truthful model, prefer direct explicit code and data, add abstractions only for real shared responsibility, choose direct cutover for source-owned code, and do not leave dead wrappers or compatibility layers behind.
+Every ExecPlan must follow the repository's simple clean architecture rule in `docs/rules/simple-clean-architecture.md`: build the simplest truthful model, prefer direct explicit code and data, add abstractions only for real shared responsibility, choose direct cutover for source-owned code, do not leave dead wrappers or compatibility layers behind, and write tests that protect behavior and contracts rather than fixture topology or mutable seed values.
 
 ## Formatting Rules
 

@@ -1,7 +1,7 @@
 ---
 title: Index
 type: index
-updated: 2026-05-24
+updated: 2026-05-25
 ---
 
 # Grow Wiki Index
@@ -126,6 +126,7 @@ updated: 2026-05-24
 - [Pollen Handling](breeding/pollen-handling.md) — collection, drying, 4:1 flour cut, aliquoting, freezer storage, single-thaw discipline
 - [Cross Procedure](breeding/cross-procedure.md) — paintbrush pollination, branch labeling, seed maturation, harvest
 - [Breeding Veg/Female Tent Layout](breeding/veg-tent-layout.md) — 3x3 ebb-and-flow SOG table inside 4x4 tent: start 25 seedlings, cull to 16 final rockwool-block sites, external reservoir + sump return
+- [Breeding Veg/Female Tent Coco DTW Alternative](breeding/veg-tent-coco-dtw-layout.md) — proposed 16-site coco drain-to-waste table using small square pots, pressure-compensating drip, low drain tray, and waste handling
 - [Breeding Program Bill of Materials](breeding/bill-of-materials.md) — running purchase/reuse list for the candidate tent, male tent, cloning shelf, and pollen handling
 
 ## Decisions

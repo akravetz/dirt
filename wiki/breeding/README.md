@@ -2,9 +2,9 @@
 title: Breeding Program — Section Index
 type: breeding
 sources: []
-related: [wiki/concepts/oregon-breeding-group.md, wiki/concepts/anthocyanin.md, wiki/concepts/cannabis-genomics.md, wiki/breeding/veg-tent-layout.md, wiki/breeding/bill-of-materials.md, wiki/breeding/feminized-production.md, wiki/breeding/family-selection.md, wiki/decisions/2026-04-26-breeding-program-launch.md, wiki/decisions/2026-05-02-purple-stabilization-strategy.md]
+related: [wiki/concepts/oregon-breeding-group.md, wiki/concepts/anthocyanin.md, wiki/concepts/cannabis-genomics.md, wiki/breeding/veg-tent-layout.md, wiki/breeding/veg-tent-coco-dtw-layout.md, wiki/breeding/bill-of-materials.md, wiki/breeding/feminized-production.md, wiki/breeding/family-selection.md, wiki/decisions/2026-04-26-breeding-program-launch.md, wiki/decisions/2026-05-02-purple-stabilization-strategy.md]
 created: 2026-04-26
-updated: 2026-05-12
+updated: 2026-05-25
 ---
 
 # Breeding Program
@@ -47,7 +47,8 @@ Read in this order if you're new to the program:
 11. **[pollen-handling.md](pollen-handling.md)** — collection, drying, 4:1 flour cut, aliquoting, freezer storage, thaw discipline.
 12. **[cross-procedure.md](cross-procedure.md)** — paintbrush pollination, branch labeling, seed harvest timing.
 13. **[veg-tent-layout.md](veg-tent-layout.md)** — 3x3 ebb-and-flow SOG table inside the 4x4 tent for high-count female/candidate generations.
-14. **[bill-of-materials.md](bill-of-materials.md)** — running purchase/reuse list for the breeding buildout.
+14. **[veg-tent-coco-dtw-layout.md](veg-tent-coco-dtw-layout.md)** — proposed coco drain-to-waste alternative using small square pots, pressure-compensating drip, and a low drain tray.
+15. **[bill-of-materials.md](bill-of-materials.md)** — running purchase/reuse list for the breeding buildout.
 
 The actual *project* page (parent selections, generation log, seed lots, and progeny-test results) will be created once the first cross is made — likely as `breeding/project-2026-purple-line.md`.
 

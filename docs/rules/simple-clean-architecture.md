@@ -37,23 +37,38 @@ Tests should validate behavior, contracts, and architectural boundaries, not pin
 
 Do not write tests that assert the current value of mutable configuration, database seed rows, schedule times, device names, plant labels, or other operator-owned data unless the value itself is the product contract. Those tests are configuration snapshots, not regression tests. They fail when the operator changes the system correctly, and they teach agents to preserve stale data instead of preserving behavior.
 
+Every test should have a useful failure model. Before adding a test, ask: "If this fails, what product behavior, boundary contract, or safety property did we break?" If the honest answer is "the fixture was built differently" or "the implementation was refactored," the test is probably a change detector, not a behavior test.
+
+Do not test fixture topology by itself. If a test creates a parent object, a child object, and then asserts that the child's foreign key equals the parent's ID, it usually proves only that the fixture was assembled the way the test assembled it. That is not useful unless the code under test is responsible for selecting, deriving, or validating that relationship. Prefer tests where behavior would be wrong if the relationship were wrong.
+
+Treat configuration and seed data as inputs. Tests may create explicit fixtures with concrete values, but they should use those values to exercise behavior, not to declare today's operator choices permanent. When a seeded value matters operationally, verify it through migration review, a smoke query, or an acceptance checklist; do not turn it into an evergreen unit-test assertion unless the literal value is source-owned product behavior.
+
 When database or config data is involved, test one of these instead:
 
 - The code accepts and serializes whatever configured rows exist.
 - A boundary payload includes required fields and rejects malformed shapes.
 - A behavior changes correctly for an explicitly created test fixture.
 - A safety invariant holds across values, preferably with a minimal fixture or parametrized examples.
+- Selection behavior: given multiple valid configured targets, the system chooses the intended target and ignores unrelated ones.
+- Gating behavior: disabled, stale, invalid, unauthorized, or out-of-scope inputs do not trigger side effects.
+- Idempotency behavior: repeated processing of the same logical event does not duplicate side effects.
+- Unit and range behavior: explicit units are honored and invalid ranges are rejected.
 
 Bad:
 
-- Assert that seeded `breeding` lights start at `06:00:00`.
-- Assert exact current device IDs, schedule names, or grow config values unless those values are declared constants in source and are the thing under test.
+- Assert exact current device IDs, schedule names, hostnames, times, labels, thresholds, or other mutable deployment values unless those values are declared constants in source and are the thing under test.
+- Create related fixture rows, then only assert that their foreign-key IDs equal each other.
+- Assert a private helper was called or an internal branch was reached when the externally visible behavior would catch the same bug.
+- Snapshot a broad payload or generated file when the test only needs to protect a few boundary fields.
 
 Good:
 
-- Seed a schedule inside the test and assert gateway catalog sync includes that schedule with the required typed fields.
-- Assert every synced schedule has `site_id`, `tent_id`, `device_id`, `starts_local`, `ends_local`, and timezone-local semantics.
-- Assert invalid or missing schedule fields fail validation at the boundary.
+- Create two plausible targets and assert the system selects the one configured for the action.
+- Create enabled and disabled inputs and assert only enabled inputs produce side effects.
+- Process the same due event twice and assert the side effect occurs once.
+- Assert required boundary fields are present, malformed shapes are rejected, and unknown owned-protocol fields fail loudly.
+- Assert invalid units, negative durations, impossible ranges, or unknown control states fail at the model or database boundary.
+- Assert a public API response, emitted event, database fact, or command payload has the required behavior while allowing unrelated fields to vary.
 
 If a test breaks because normal config or seed data changed, first ask whether the test is pinning incidental data. Prefer deleting or rewriting the test over updating expected literals.
 
