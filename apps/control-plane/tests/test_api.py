@@ -150,6 +150,8 @@ def _rollup(
     bucket: str,
     start: datetime,
     avg: float,
+    min_value: float | None = None,
+    max_value: float | None = None,
     metric: str = "temperature_f",
     capability_id: str = "env-main-temp",
     unit: str = "f",
@@ -163,9 +165,9 @@ def _rollup(
         bucket=bucket,
         bucket_start_at=start,
         bucket_end_at=start + timedelta(minutes=5),
-        min_value=avg - 0.5,
+        min_value=avg - 0.5 if min_value is None else min_value,
         avg_value=avg,
-        max_value=avg + 0.5,
+        max_value=avg + 0.5 if max_value is None else max_value,
         sample_count=1,
         unit=unit,
         received_at=FIXED_NOW,
@@ -552,6 +554,20 @@ async def test_current_metrics_expose_dashboard_display_names(
                     received_at=FIXED_NOW,
                     stale_after_s=120,
                 ),
+                CloudLatestMetric(
+                    metric_key="homebox:main:power:dehumidifier_on",
+                    site_id="homebox",
+                    tent_id="main",
+                    zone_id="canopy",
+                    device_id="kasa-dehumidifier-main",
+                    capability_id="power",
+                    metric="dehumidifier_on",
+                    value=1.0,
+                    unit="bool",
+                    source_updated_at=FIXED_NOW - timedelta(seconds=30),
+                    received_at=FIXED_NOW,
+                    stale_after_s=120,
+                ),
             ]
         )
         await session.commit()
@@ -566,6 +582,8 @@ async def test_current_metrics_expose_dashboard_display_names(
     assert by_metric["humidifier_intensity_pct"]["unit"] == "%"
     assert by_metric["heater_intensity_pct"]["value"] == 70.0
     assert by_metric["heater_intensity_pct"]["unit"] == "%"
+    assert by_metric["dehumidifier_runtime_pct"]["value"] == 100.0
+    assert by_metric["dehumidifier_runtime_pct"]["unit"] == "%"
 
 
 async def test_metric_history_filters_bucket_and_window_by_range(
@@ -647,6 +665,17 @@ async def test_metric_history_exposes_dashboard_display_names(
                     capability_id="heat_level",
                     unit="level",
                 ),
+                _rollup(
+                    "dehumidifier",
+                    bucket="1h",
+                    start=FIXED_NOW - timedelta(hours=2),
+                    min_value=0.0,
+                    avg=0.65,
+                    max_value=1.0,
+                    metric="dehumidifier_on",
+                    capability_id="power",
+                    unit="bool",
+                ),
             ]
         )
         await session.commit()
@@ -659,6 +688,9 @@ async def test_metric_history_exposes_dashboard_display_names(
     )
     heater = await authed_client.get(
         "/api/tents/main/metrics/history?range=24h&metric=heater_intensity_pct"
+    )
+    dehumidifier = await authed_client.get(
+        "/api/tents/main/metrics/history?range=24h&metric=dehumidifier_runtime_pct"
     )
 
     assert fan.status_code == 200
@@ -675,6 +707,12 @@ async def test_metric_history_exposes_dashboard_display_names(
     assert heater.json()["metric"] == "heater_intensity_pct"
     assert heater.json()["points"][0]["avg"] == 70.0
     assert heater.json()["points"][0]["unit"] == "%"
+    assert dehumidifier.status_code == 200
+    assert dehumidifier.json()["metric"] == "dehumidifier_runtime_pct"
+    assert dehumidifier.json()["points"][0]["min"] == 0.0
+    assert dehumidifier.json()["points"][0]["avg"] == 65.0
+    assert dehumidifier.json()["points"][0]["max"] == 100.0
+    assert dehumidifier.json()["points"][0]["unit"] == "%"
 
 
 async def test_duplicate_command_idempotency_returns_same_intent_without_hardware(

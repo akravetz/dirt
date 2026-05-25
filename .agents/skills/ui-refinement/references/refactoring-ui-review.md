@@ -23,6 +23,19 @@ Useful public summaries also emphasize designing in grayscale first, using spaci
 
 ## Audit Order
 
+### 0. Collaboration Gate
+
+For broad refinement prompts, the first deliverable is an audit and proposal, not code. The user should see the reasoning before implementation starts.
+
+The proposal should make each change easy to approve, reject, or modify:
+
+- name the UI problem
+- explain why it matters for the screen's job
+- describe the intended visual effect
+- call out tradeoffs or risk
+
+Only move from proposal to code after the user approves a direction or asks for implementation.
+
 ### 1. User Job and First Impression
 
 Start with the task, not layout decoration.
@@ -129,6 +142,7 @@ Look for:
 - status colors that are too saturated for routine states
 - links/buttons colored when placement or weight would suffice
 - charts and badges dominating the screen
+- light/dark mode drift where borders, status colors, chart lines, muted text, or selected states lose contrast or change hierarchy
 
 Change levers:
 
@@ -137,6 +151,7 @@ Change levers:
 - use contrast for focus, not decoration
 - choose status colors with enough text contrast
 - keep recurring statuses visually consistent
+- review light and dark screenshots side by side before judging a color or contrast change
 
 ### 7. Affordances and States
 
@@ -178,7 +193,7 @@ Change levers:
 - preserve primary hierarchy on mobile
 - collapse secondary details before primary values
 - avoid viewport-scaled font sizes
-- capture both first-viewport and full-page screenshots so the visible landing impression and below-the-fold scroll content are reviewed separately
+- capture both first-viewport and full-page screenshots, in light and dark theme, so the visible landing impression and below-the-fold scroll content are reviewed separately
 
 ## Implementation Bias
 

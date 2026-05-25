@@ -34,6 +34,11 @@ type MetricMeta = {
   y_max: number;
   has_target_band: boolean;
 };
+type MetricGroup = {
+  ariaLabel: string;
+  label: string;
+  metrics: readonly MetricMeta[];
+};
 type HistoryPoint = {
   ts: string;
   value: number;
@@ -98,7 +103,7 @@ function formatInteger(value: number): string {
   return `${Math.round(value)}`;
 }
 
-const HOSTED_METRIC_META: readonly MetricMeta[] = [
+const CURRENT_METRIC_META: readonly MetricMeta[] = [
   {
     metric: "temperature_f",
     display_name: "Temperature",
@@ -164,6 +169,101 @@ const HOSTED_METRIC_META: readonly MetricMeta[] = [
   },
 ];
 
+const HISTORY_METRIC_GROUPS: readonly MetricGroup[] = [
+  {
+    ariaLabel: "Temperature loop history",
+    label: "Temperature Loop",
+    metrics: [
+      {
+        metric: "temperature_f",
+        display_name: "Temperature",
+        unit: "°F",
+        accent: "temp",
+        y_min: 60,
+        y_max: 90,
+        has_target_band: false,
+      },
+      {
+        metric: "heater_intensity_pct",
+        display_name: "Heat",
+        unit: "%",
+        accent: "temp",
+        y_min: 0,
+        y_max: 100,
+        has_target_band: false,
+      },
+      {
+        metric: "fan_pct",
+        display_name: "Fan",
+        unit: "%",
+        accent: "temp",
+        y_min: 0,
+        y_max: 100,
+        has_target_band: false,
+      },
+    ],
+  },
+  {
+    ariaLabel: "Humidity loop history",
+    label: "Humidity Loop",
+    metrics: [
+      {
+        metric: "humidity_pct",
+        display_name: "Humidity",
+        unit: "%",
+        accent: "humidity",
+        y_min: 20,
+        y_max: 90,
+        has_target_band: false,
+      },
+      {
+        metric: "humidifier_intensity_pct",
+        display_name: "Humidifier",
+        unit: "%",
+        accent: "humidity",
+        y_min: 0,
+        y_max: 100,
+        has_target_band: false,
+      },
+      {
+        metric: "dehumidifier_runtime_pct",
+        display_name: "Dehumidifier",
+        unit: "%",
+        accent: "humidity",
+        y_min: 0,
+        y_max: 100,
+        has_target_band: false,
+      },
+    ],
+  },
+  {
+    ariaLabel: "Plant and water history",
+    label: "Plant / Water",
+    metrics: [
+      {
+        metric: "vpd_kpa",
+        display_name: "VPD",
+        unit: "kPa",
+        accent: "vpd",
+        y_min: 0,
+        y_max: 2,
+        has_target_band: false,
+      },
+      {
+        metric: "reservoir_in",
+        display_name: "Reservoir",
+        unit: "in",
+        accent: "moisture",
+        y_min: 0,
+        y_max: 30,
+        has_target_band: false,
+      },
+    ],
+  },
+];
+
+const HISTORY_METRIC_META = HISTORY_METRIC_GROUPS.flatMap((group) => group.metrics);
+
 function HostedDashboardPage() {
   const [range, setRange] = useState<SparklineRange>("24h");
   const [selectedSiteId, setSelectedSiteId] = useState("homebox");
@@ -212,7 +312,7 @@ function HostedDashboardPage() {
   });
 
   const historyResults = useQueries({
-    queries: HOSTED_METRIC_META.map((m) => ({
+    queries: HISTORY_METRIC_META.map((m) => ({
       queryKey: ["cloud.metrics.history", selectedTentId, range, m.metric] as const,
       queryFn: async () => {
         const { data } = await hostedApi.GET("/api/tents/{tent_id}/metrics/history", {
@@ -278,6 +378,9 @@ function HostedDashboardPage() {
   const gatewayStatus =
     syncStatus?.status ?? hostedGatewayStatus(syncStatus?.gateway_last_seen_at ?? null);
   const metricCards = toMetricCards(metrics);
+  const historyByMetric = new Map(
+    HISTORY_METRIC_META.map((m, idx) => [m.metric, historyResults[idx]]),
+  );
   const assetPanel = toAssetPanelModel(
     assetsQuery.data?.[0] ?? null,
     Boolean(assetsQuery.error),
@@ -416,7 +519,7 @@ function HostedDashboardPage() {
           </div>
         )}
 
-        <section aria-label="Environment history" className="flex flex-col">
+        <section aria-label="Metric history" className="flex flex-col">
           <header className="flex items-baseline justify-between border-b border-rule px-0.5 py-2">
             <h2 className="font-sans text-fs-11 font-semibold uppercase tracking-cap-wide text-ink-2">
               History
@@ -426,28 +529,45 @@ function HostedDashboardPage() {
               points={toSparklinePoints(historyResults.find((r) => r.data)?.data)}
             />
           </header>
-          <div className="grid grid-cols-1 border border-rule-strong bg-paper-2 sm:grid-cols-2 lg:grid-cols-3">
-            {HOSTED_METRIC_META.map((m, idx) => {
-              const result = historyResults[idx];
-              const points = toSparklinePoints(result?.data);
-              const unit = result?.data?.points[0]?.unit ?? m.unit;
-              const yProps = {
-                ...(m.y_min !== null && m.y_min !== undefined ? { yMin: m.y_min } : {}),
-                ...(m.y_max !== null && m.y_max !== undefined ? { yMax: m.y_max } : {}),
-              };
-              return (
-                <Sparkline
-                  key={m.metric}
-                  name={m.display_name}
-                  points={points}
-                  unit={unit ?? ""}
-                  accent={asAccent(m.accent)}
-                  hoverIndex={hoverIndex}
-                  onHoverIndex={setHoverIndex}
-                  {...yProps}
-                />
-              );
-            })}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            {HISTORY_METRIC_GROUPS.map((group) => (
+              <section
+                key={group.label}
+                aria-label={group.ariaLabel}
+                className="flex min-w-0 flex-col"
+              >
+                <h3 className="border-x border-t border-rule-strong bg-paper-2 px-3.5 py-2 font-sans text-fs-10 font-semibold uppercase tracking-cap-med text-ink-3">
+                  {group.label}
+                </h3>
+                <div className="grid grid-cols-1 border border-rule-strong bg-paper-2">
+                  {group.metrics.map((m) => {
+                    const result = historyByMetric.get(m.metric);
+                    const points = toSparklinePoints(result?.data);
+                    const unit = result?.data?.points[0]?.unit ?? m.unit;
+                    const yProps = {
+                      ...(m.y_min !== null && m.y_min !== undefined
+                        ? { yMin: m.y_min }
+                        : {}),
+                      ...(m.y_max !== null && m.y_max !== undefined
+                        ? { yMax: m.y_max }
+                        : {}),
+                    };
+                    return (
+                      <Sparkline
+                        key={m.metric}
+                        name={m.display_name}
+                        points={points}
+                        unit={unit ?? ""}
+                        accent={asAccent(m.accent)}
+                        hoverIndex={hoverIndex}
+                        onHoverIndex={setHoverIndex}
+                        {...yProps}
+                      />
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
           </div>
         </section>
 
@@ -528,31 +648,49 @@ function LightSchedulePanel({
           {schedules.map((schedule) => (
             <div
               key={schedule.schedule_id}
-              className="grid gap-2 border border-rule bg-paper px-3.5 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:gap-4"
+              className="grid gap-3 border border-rule bg-paper px-3.5 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:gap-5"
             >
-              <div className="min-w-0">
-                <p className="truncate font-sans text-fs-13 font-semibold text-ink">
-                  {lightScheduleLabel(schedule)}
-                </p>
+              <div className="min-w-0 space-y-1">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <p className="truncate font-sans text-fs-13 font-semibold text-ink">
+                    {lightScheduleLabel(schedule)}
+                  </p>
+                  <LightStatePill isOn={schedule.is_on} />
+                </div>
                 <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+                  {formatNextTransition(schedule)}
+                </p>
+              </div>
+              <div className="space-y-1 font-mono text-fs-10 uppercase tracking-caps">
+                <p className="text-ink-3">Photoperiod</p>
+                <p className="text-ink">{formatPhotoperiod(schedule.duration_hours)}</p>
+              </div>
+              <div className="space-y-1 font-mono text-fs-10 uppercase tracking-caps sm:text-right">
+                <p className="text-ink-3">Daily window</p>
+                <p className="text-ink">
                   {formatScheduleTime(schedule.starts_local)}-
                   {formatScheduleTime(schedule.ends_local)} local
                 </p>
-              </div>
-              <span className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
-                {formatPhotoperiod(schedule.duration_hours)}
-              </span>
-              <div className="flex flex-wrap items-center gap-2 font-mono text-fs-10 uppercase tracking-caps sm:justify-end">
-                <span className={schedule.is_on ? "text-status-ok" : "text-ink-3"}>
-                  {schedule.is_on ? "On" : "Off"}
-                </span>
-                <span className="text-ink-3">{formatNextTransition(schedule)}</span>
               </div>
             </div>
           ))}
         </div>
       )}
     </section>
+  );
+}
+
+function LightStatePill({ isOn }: { isOn: boolean }): ReactNode {
+  return (
+    <span
+      className={
+        isOn
+          ? "inline-flex border border-status-ok bg-status-ok px-2 py-1 font-mono text-fs-10 uppercase tracking-caps text-paper"
+          : "inline-flex border border-rule-strong bg-paper-2 px-2 py-1 font-mono text-fs-10 uppercase tracking-caps text-ink"
+      }
+    >
+      {isOn ? "On now" : "Off now"}
+    </span>
   );
 }
 
@@ -636,7 +774,7 @@ function HostedDevicesPanel({
 
 function toMetricCards(metrics: readonly HostedMetric[]): readonly MetricCardModel[] {
   const metricsByName = new Map(metrics.map((metric) => [metric.metric, metric]));
-  return HOSTED_METRIC_META.flatMap((meta) => {
+  return CURRENT_METRIC_META.flatMap((meta) => {
     const metric = metricsByName.get(meta.metric);
     if (!metric) return [];
     const card = {
@@ -707,7 +845,7 @@ function formatScheduleTime(value: string): string {
 function formatPhotoperiod(durationHours: number): string {
   const onHours = Math.round(durationHours * 10) / 10;
   const offHours = Math.round((24 - durationHours) * 10) / 10;
-  return `${formatHourCount(onHours)}/${formatHourCount(offHours)}`;
+  return `${formatHourCount(onHours)} on / ${formatHourCount(offHours)} off`;
 }
 
 function formatScheduleCount(count: number): string {
@@ -715,7 +853,7 @@ function formatScheduleCount(count: number): string {
 }
 
 function formatHourCount(value: number): string {
-  return Number.isInteger(value) ? `${value}` : `${value.toFixed(1)}`;
+  return `${Number.isInteger(value) ? value : value.toFixed(1)}h`;
 }
 
 function formatNextTransition(schedule: DashboardLightSchedule): string {

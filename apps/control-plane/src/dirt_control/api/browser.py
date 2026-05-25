@@ -57,6 +57,10 @@ def _heat_level_to_pct(value: float) -> float:
     return value * 10.0
 
 
+def _bool_to_pct(value: float) -> float:
+    return value * 100.0
+
+
 DISPLAY_METRIC_BY_STORAGE: dict[str, DisplayMetricSpec] = {
     "fan_duty_pct": DisplayMetricSpec(
         storage_metric="fan_duty_pct",
@@ -74,6 +78,12 @@ DISPLAY_METRIC_BY_STORAGE: dict[str, DisplayMetricSpec] = {
         display_metric="heater_intensity_pct",
         display_unit="%",
         transform=_heat_level_to_pct,
+    ),
+    "dehumidifier_on": DisplayMetricSpec(
+        storage_metric="dehumidifier_on",
+        display_metric="dehumidifier_runtime_pct",
+        display_unit="%",
+        transform=_bool_to_pct,
     ),
 }
 DISPLAY_METRIC_BY_PUBLIC: dict[str, DisplayMetricSpec] = {

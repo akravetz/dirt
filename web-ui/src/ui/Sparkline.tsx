@@ -1,6 +1,6 @@
 // Single history tile for the dashboard history grid.
 //
-// Fetches /api/sensors/history is delegated to the parent; this component
+// Fetching metric history is delegated to the parent; this component
 // is purely presentational and renders:
 //   - a translucent area fill under the line + the polyline itself
 //   - a shared crosshair: a dashed vertical line + data-point dot at the
@@ -18,7 +18,7 @@
 //   - <svg aria-label="sparkline" role="img">     — the chart surface
 //     the test pointer-hovers on.
 //   - <svg aria-label="crosshair">                — rendered only when
-//     hoverIndex !== null. getByLabel("crosshair") count = 5 during hover.
+//     hoverIndex !== null.
 //   - role="tooltip" element                       — visible when
 //     hoverIndex !== null; textContent includes the formatted value and
 //     the unit string so the e2e can assert per-metric unit suffixes.
@@ -36,7 +36,7 @@ interface SparklineProps {
   name: string;
   /** Bucketed series for the current range. Empty while loading. */
   points: readonly HistoryPoint[];
-  /** Unit string from the /api/sensors/history envelope (e.g. "°F", "kPa"). */
+  /** Unit string from the metric-history envelope (e.g. "°F", "kPa"). */
   unit: string;
   /** Sensor accent (line + marker + diamond + area-fill colour). */
   accent?: SparklineAccent;

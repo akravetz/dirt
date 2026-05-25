@@ -19,7 +19,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-
 COMMANDS = {
     "up": "up",
     "down": "down",
@@ -402,10 +401,22 @@ def up(paths: Paths, runtime: Runtime, env_values: dict[str, str]) -> int:
         )
         return 1
 
+    occupied = occupied_dev_ports(runtime)
+    if occupied:
+        print("error: local dev ports are already in use.", file=sys.stderr)
+        for label, port, owner in occupied:
+            print(
+                f"  {label} port {port}: {owner or 'owner unknown'}",
+                file=sys.stderr,
+            )
+        print("Run `make dev-down` first, then retry `make dev-up`.", file=sys.stderr)
+        return 1
+
     child_env = build_child_env(os.environ, env_values)
     api_log = paths.logs_dir / "api.log"
     web_log = paths.logs_dir / "web.log"
     children: list[subprocess.Popen[bytes]] = []
+    keep_children = False
 
     def interrupt(_signum: int, _frame: object) -> None:
         raise KeyboardInterrupt
@@ -417,7 +428,9 @@ def up(paths: Paths, runtime: Runtime, env_values: dict[str, str]) -> int:
             api_command(runtime.api_port), child_env, api_log, paths.repo_root
         )
         children.append(api_proc)
-        state = update_process_state(state, "api", api_proc.pid, api_log)
+        state = update_process_state(
+            state, "api", api_proc.pid, api_command(runtime.api_port), api_log
+        )
         write_state(paths.state_path, state)
         wait_for_health(local_api_health_url(runtime), api_proc)
 
@@ -426,13 +439,15 @@ def up(paths: Paths, runtime: Runtime, env_values: dict[str, str]) -> int:
         web_env["WEBUI_DEV_PORT"] = str(runtime.web_port)
         web_proc = start_process(web_command(), web_env, web_log, paths.repo_root)
         children.append(web_proc)
-        state = update_process_state(state, "web", web_proc.pid, web_log)
+        state = update_process_state(state, "web", web_proc.pid, web_command(), web_log)
         write_state(paths.state_path, state)
+        wait_for_port(runtime.web_port, web_proc)
 
         print(f"Control-plane API: {runtime.api_url}")
         print(f"Web UI: {runtime.web_url}")
         print(f"Logs: {paths.logs_dir}")
-        return wait_for_children(children)
+        keep_children = True
+        return 0
     except KeyboardInterrupt:
         return 130
     except RuntimeError as exc:
@@ -441,8 +456,9 @@ def up(paths: Paths, runtime: Runtime, env_values: dict[str, str]) -> int:
     finally:
         signal.signal(signal.SIGINT, old_sigint)
         signal.signal(signal.SIGTERM, old_sigterm)
-        for child in children:
-            terminate_process_group(child.pid)
+        if not keep_children:
+            for child in children:
+                terminate_process_group(child.pid)
 
 
 def api_command(api_port: int) -> list[str]:
@@ -579,7 +595,7 @@ def restore_dump(
         if not run_logged(
             command, pg_env(os.environ, local), restore_log, paths.repo_root
         ):
-            print(f"error: local dev database restore failed.", file=sys.stderr)
+            print("error: local dev database restore failed.", file=sys.stderr)
             print(f"Restore log: {restore_log}", file=sys.stderr)
             return False
 
@@ -591,7 +607,7 @@ def restore_dump(
         paths.repo_root,
         input_text=sanitize_sql,
     ):
-        print(f"error: post-restore sanitization failed.", file=sys.stderr)
+        print("error: post-restore sanitization failed.", file=sys.stderr)
         print(f"Sanitize log: {sanitize_log}", file=sys.stderr)
         print(
             "WARNING: production credentials may still be present in the local "
@@ -906,7 +922,7 @@ def wait_for_health(
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
         if process.poll() is not None:
-            raise RuntimeError(f"control-plane API exited early; see logs for details")
+            raise RuntimeError("control-plane API exited early; see logs for details")
         try:
             with urllib.request.urlopen(url, timeout=1) as response:
                 if response.status == 200:
@@ -916,13 +932,17 @@ def wait_for_health(
     raise RuntimeError(f"timed out waiting for {url}")
 
 
-def wait_for_children(children: list[subprocess.Popen[bytes]]) -> int:
-    while True:
-        for child in children:
-            code = child.poll()
-            if code is not None:
-                return code
-        time.sleep(0.5)
+def wait_for_port(
+    port: int, process: subprocess.Popen[bytes], timeout_s: float = 30
+) -> None:
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            raise RuntimeError("web UI exited early; see logs for details")
+        if port_open(port):
+            return
+        time.sleep(0.25)
+    raise RuntimeError(f"timed out waiting for local port {port}")
 
 
 def down(paths: Paths) -> int:
@@ -931,12 +951,18 @@ def down(paths: Paths) -> int:
     skipped: list[str] = []
     for name, info in state.get("processes", {}).items():
         pid = int(info.get("pid") or 0)
-        if pid and process_alive(pid):
-            if is_safe_dev_process(pid):
-                terminate_process_group(pid)
-                stopped.append(f"{name} pid {pid}")
-            else:
-                skipped.append(f"{name} pid {pid}")
+        pgid = int(info.get("pgid") or pid)
+        command = str(info.get("command") or "")
+        safe = bool(command and is_safe_dev_command(command)) or (
+            pid and process_alive(pid) and is_safe_dev_process(pid)
+        )
+        if not pgid:
+            continue
+        if safe:
+            terminate_process_group(pgid)
+            stopped.append(f"{name} pgid {pgid}")
+        elif pid and process_alive(pid):
+            skipped.append(f"{name} pid {pid}")
     if stopped:
         print("Stopped " + ", ".join(stopped))
     else:
@@ -957,10 +983,14 @@ def is_safe_dev_process(pid: int) -> bool:
     except OSError:
         return False
     joined = " ".join(parts)
+    return is_safe_dev_command(joined)
+
+
+def is_safe_dev_command(command: str) -> bool:
     return (
-        "dirt_control.app:create_app" in parts
-        or joined.endswith("pnpm --dir web-ui dev")
-        or joined.endswith(f"pnpm --dir web-ui dev --host {DEV_BIND_HOST}")
+        "dirt_control.app:create_app" in command
+        or command.endswith("pnpm --dir web-ui dev")
+        or command.endswith(f"pnpm --dir web-ui dev --host {DEV_BIND_HOST}")
     )
 
 
@@ -997,6 +1027,14 @@ def process_alive(pid: int) -> bool:
     return True
 
 
+def occupied_dev_ports(runtime: Runtime) -> list[tuple[str, int, str | None]]:
+    occupied: list[tuple[str, int, str | None]] = []
+    for label, port in (("API", runtime.api_port), ("Web", runtime.web_port)):
+        if port_open(port):
+            occupied.append((label, port, port_owner_description(port)))
+    return occupied
+
+
 def render_status(paths: Paths, runtime: Runtime) -> str:
     state = update_static_state(read_state(paths.state_path), paths, runtime)
     write_state(paths.state_path, state)
@@ -1013,6 +1051,8 @@ def render_status(paths: Paths, runtime: Runtime) -> str:
     web_pid = int(processes.get("web", {}).get("pid") or 0)
     api_reachable = yes_no(port_open(runtime.api_port))
     web_reachable = yes_no(port_open(runtime.web_port))
+    api_owner = port_owner_description(runtime.api_port)
+    web_owner = port_owner_description(runtime.web_port)
     restored = yes_no(has_restore_marker(state, runtime.database_name))
     lines = [
         "Dirt dev environment status",
@@ -1024,6 +1064,8 @@ def render_status(paths: Paths, runtime: Runtime) -> str:
         f"  Logs: {paths.logs_dir}",
         f"  API process: {pid_status(api_pid)}",
         f"  Web process: {pid_status(web_pid)}",
+        f"  API port owner: {api_owner or 'none'}",
+        f"  Web port owner: {web_owner or 'none'}",
         f"  Latest dump: {latest_dump_path}",
     ]
     if latest_dump_at:
@@ -1055,6 +1097,65 @@ def port_open(port: int) -> bool:
         return False
 
 
+def port_owner_description(port: int) -> str | None:
+    inode = listening_tcp_inode(port)
+    if inode is None:
+        return None
+    for proc_dir in Path("/proc").iterdir():
+        if not proc_dir.name.isdigit():
+            continue
+        pid = int(proc_dir.name)
+        fd_dir = proc_dir / "fd"
+        try:
+            fds = list(fd_dir.iterdir())
+        except OSError:
+            continue
+        socket_ref = f"socket:[{inode}]"
+        for fd in fds:
+            try:
+                if os.readlink(fd) != socket_ref:
+                    continue
+            except OSError:
+                continue
+            return f"pid {pid} ({process_command(pid) or 'unknown command'})"
+    return f"socket inode {inode}"
+
+
+def listening_tcp_inode(port: int) -> str | None:
+    port_hex = f"{port:04X}"
+    for table in (Path("/proc/net/tcp"), Path("/proc/net/tcp6")):
+        try:
+            lines = table.read_text().splitlines()[1:]
+        except OSError:
+            continue
+        for line in lines:
+            parts = line.split()
+            if len(parts) < 10:
+                continue
+            local_address = parts[1]
+            state = parts[3]
+            inode = parts[9]
+            if state != "0A":
+                continue
+            _, _, local_port_hex = local_address.rpartition(":")
+            if local_port_hex.upper() == port_hex:
+                return inode
+    return None
+
+
+def process_command(pid: int) -> str | None:
+    cmdline_path = Path("/proc") / str(pid) / "cmdline"
+    try:
+        parts = [
+            part
+            for part in cmdline_path.read_bytes().decode("utf-8", "replace").split("\0")
+            if part
+        ]
+    except OSError:
+        return None
+    return " ".join(parts)
+
+
 def has_restore_marker(state: dict[str, Any], database_name: str) -> bool:
     restore = state.get("restore")
     return (
@@ -1079,11 +1180,16 @@ def update_static_state(
 
 
 def update_process_state(
-    state: dict[str, Any], name: str, pid: int, log_path: Path
+    state: dict[str, Any], name: str, pid: int, command: list[str], log_path: Path
 ) -> dict[str, Any]:
     updated = dict(state)
     processes = dict(updated.get("processes", {}))
-    processes[name] = {"pid": pid, "log": str(log_path)}
+    processes[name] = {
+        "pid": pid,
+        "pgid": pid,
+        "command": shlex.join(command),
+        "log": str(log_path),
+    }
     updated["processes"] = processes
     return updated
 
