@@ -16,11 +16,11 @@ The schedule is not an instruction to leave a pump on for a window. Irrigation u
 
 - [x] (2026-05-24 05:18Z) Read repository command, database, Atlas, boundary-contract, and simple-clean-architecture guidance.
 - [x] (2026-05-24 05:18Z) Confirmed live Shelly mDNS hostname `ShellyPlugUSG4-ACEBE6F59BDC.local`, IP `192.168.1.44`, model `S4PL-00116US`, and MAC `ACEBE6F59BDC`.
-- [ ] Add nullable `device.hostname` to the SQLModel and Atlas migration.
-- [ ] Seed the Shelly breeding drip pump device row with hostname, IP hint, MAC provider UID, and an actuator capability.
-- [ ] Add irrigation pulse storage: schedule seed, item rows, SQLModel table models, and a run ledger for idempotent dispatch.
-- [ ] Add focused Shelly client/resolution tests and implementation.
-- [ ] Validate with focused tests, invariants as appropriate, and `scripts/agent-fix`.
+- [x] (2026-05-25 04:14Z) Add nullable `device.hostname` to the SQLModel and Atlas migration.
+- [x] (2026-05-25 04:30Z) Seed the Shelly breeding drip pump device row with hostname, IP hint, MAC provider UID, and an actuator capability.
+- [x] (2026-05-25 04:30Z) Add irrigation pulse storage: schedule seed, item rows, SQLModel table models, and a run ledger for idempotent dispatch.
+- [x] (2026-05-25 04:55Z) Add focused Shelly client/resolution tests and implementation.
+- [x] (2026-05-25 05:03Z) Validate with focused tests, invariants as appropriate, and `scripts/agent-fix`.
 - [ ] Commit and push.
 
 ## Surprises & Discoveries
@@ -33,6 +33,9 @@ The schedule is not an instruction to leave a pump on for a window. Irrigation u
 
 - Observation: Dirt already has a scoped `schedule` table for local actuator schedules, but no `schedule_item` table.
   Evidence: `apps/shared/src/dirt_shared/models/schedule.py` defines only `Schedule`; `\dt *schedule*` in the live database returns only `public.schedule`.
+
+- Observation: The installed local Atlas CLI does not support `atlas migrate hash --dry-run`, and `atlas migrate lint --env local --latest 1` is gated behind Atlas Pro.
+  Evidence: Milestone validation attempted both commands; `atlas migrate hash` without `--dry-run` succeeded, and focused pytest passed.
 
 ## Decision Log
 
@@ -70,7 +73,15 @@ The schedule is not an instruction to leave a pump on for a window. Irrigation u
 
 ## Outcomes & Retrospective
 
-Pending implementation.
+- Added nullable `Device.hostname` backed by `device.hostname text NULL` in migration `20260525041423_add_device_hostname.sql`.
+- Validation: `uv run pytest apps/shared/tests/test_scoped_identity_models.py -q` passed with 2 tests; `atlas migrate diff verify_device_hostname --env local` reported the migration directory is synced; `atlas migrate hash` succeeded.
+- Added idempotent seed migration `20260525043000_seed_shelly_breeding_drip_pump.sql` for `shelly-breeding-drip-pump` under `homebox/breeding`, including hostname, IP hint, MAC provider UID, Shelly metadata, and one `pump_power` actuator capability.
+- Validation: `atlas migrate hash` passed; `uv run pytest apps/shared/tests/test_scoped_identity_models.py -q` passed with 2 tests.
+- Added `IrrigationScheduleItem` and `IrrigationRun` SQLModel tables, exported them from `dirt_shared.models`, and added migration `20260525043001_add_irrigation_pulse_storage.sql` with duration/status checks, duplicate-run uniqueness, a disabled `kind='irrigation'` schedule seed, and a disabled 11:00 / 5 second calibration pulse seed.
+- Validation: `uv run pytest apps/shared/tests/test_irrigation_models.py apps/shared/tests/test_scoped_identity_models.py -q` passed with 6 tests; `atlas migrate hash` and `atlas migrate diff verify_irrigation_pulse_storage --env local` passed in worker validation.
+- Added HWD Shelly client, DB target loader, and irrigation scheduler `run_once()` service with hostname-before-IP endpoint ordering, Shelly identity verification, `Switch.Set` timed pulse dispatch with `toggle_after`, enabled schedule/item filtering, duplicate run suppression, and failed dispatch recording.
+- Validation: `uv run pytest apps/hwd/tests/test_shelly.py apps/hwd/tests/test_shelly_irrigation.py apps/shared/tests/test_irrigation_models.py -q` passed with 13 tests; scoped Ruff format/check passed in worker validation.
+- Final validation: `uv run pytest apps/hwd/tests/test_shelly.py apps/hwd/tests/test_shelly_irrigation.py apps/shared/tests/test_scoped_identity_models.py -q` passed with 11 tests; `uv run pytest apps/tests/invariants/ -q` passed with 41 tests; `scripts/agent-fix` completed all fixers.
 
 ## Context and Orientation
 
@@ -96,7 +107,7 @@ This plan includes the database foundation for an autonomous irrigation schedule
 6. Add `apps/hwd/src/dirt_hwd/services/shelly.py` with an internal `ShellyPlugTarget`, DB loader, and `ShellyPlugClient` that uses `hostname` before `ip`, verifies `Shelly.GetDeviceInfo`, and sends timed `Switch.Set` pulses.
 7. Add an irrigation scheduler service, either in `apps/hwd/src/dirt_hwd/services/shelly_irrigation.py` or next to the Shelly client if the file remains small. The service should load enabled `kind='irrigation'` schedules and enabled pulse items, compute the current due pulse in the schedule timezone, create or reuse the `irrigation_run` row for idempotency, and dispatch exactly one `toggle_after=duration_s` Shelly pulse when due.
 8. Add focused tests in `apps/hwd/tests/test_shelly.py` or a separate `apps/hwd/tests/test_shelly_irrigation.py` that cover endpoint ordering, identity mismatch rejection, timed pulse payload shape, DB target loading, due-pulse detection, duplicate-run suppression, disabled schedule/item filtering, constrained run statuses, and failure status recording.
-9. Extend shared-model tests with explicit fixtures that prove irrigation schedules and pulse storage point at the selected pump capability. Do not write tests that pin the current deployed Shelly hostname, IP, MAC, schedule ID, or 11:00 / 5 second seed values; those are operator-owned seed data, not product contracts.
+9. Extend tests with explicit fixtures that prove behavior rather than fixture topology: multiple plausible pump capabilities should result in dispatch only to the configured target, disabled schedules or items should not dispatch, invalid run statuses and non-positive durations should fail at the model or database boundary, and duplicate due pulses should be suppressed. Do not write tests that merely assert fixture-created foreign-key equality, and do not pin the current deployed Shelly hostname, IP, MAC, schedule ID, or 11:00 / 5 second seed values; those are operator-owned seed data, not product contracts.
 
 ## Concrete Steps
 

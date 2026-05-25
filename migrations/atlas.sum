@@ -1,4 +1,4 @@
-h1:zRJPf9CcPM8hR/f1ev1liSYvoMzbODo03ZDFMbG6dko=
+h1:rnoRjlal4yrQ8UCM9otVIrAR2DrRy60xUCD3oRIOIFw=
 20260420003127_init.sql h1:GzLCe8kSX0b0TzsHZJNidBWSoeYe83HgnHXdkhGi1Ko=
 20260423180901_add_growstate_timezone.sql h1:hwtimWMWdMD8iw7GuYOMazB5dHSq40fKOSbUFDFPg0s=
 20260428003304_add_govee_sensor_source.sql h1:l7vbhthRMWFQVcLwvX+yhzrzLD0Tcp33QrLpmU4F7jQ=
@@ -25,3 +25,6 @@ h1:zRJPf9CcPM8hR/f1ev1liSYvoMzbODo03ZDFMbG6dko=
 20260524044500_plant_identity_cleanup.sql h1:shz5fTyCZqc7Y9/U4a7i6oketPqSeuqJQN7d4RfHvu0=
 20260524143000_flip_breeding_tent_to_flower.sql h1:QoFSFxMYRzz/OfB4lbmyZNSp4xNIeSiTO4PGSUbuMRo=
 20260525010000_correct_clone_breeding_kasa_identity.sql h1:HUZSabDFgCmg5GXZ0+eYTqree8B+XBhRry9pASqg1kg=
+20260525041423_add_device_hostname.sql h1:Ku0ZNzo+7vz32jP6ux1vBCf3CZW780H+2iK5U+w9OqM=
+20260525043000_seed_shelly_breeding_drip_pump.sql h1:dXRNomchjyvQbiiKEt7CdM5ygPTYxcAkV0WHBN4j8BQ=
+20260525043001_add_irrigation_pulse_storage.sql h1:1Id1n/LYeK3TWAnfWEdr1x7f+i/RugYj9Wzta9Ztyng=

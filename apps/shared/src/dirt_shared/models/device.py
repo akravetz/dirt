@@ -90,6 +90,7 @@ class Device(SQLModel, table=True):
         sa_column=Column(TIMESTAMP(timezone=True), nullable=True),
     )
     ip: str | None = Field(default=None, sa_column=Column(INET, nullable=True))
+    hostname: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
     provider_uid_kind: str | None = Field(
         default=None, sa_column=Column(Text, nullable=True)
     )
