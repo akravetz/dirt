@@ -51,6 +51,22 @@ That script loads ignored `.env` first and `.env.prod` second by default, syncs 
 - **Disable hosted command creation**: set Railway `DIRT_CLOUD_COMMAND_CREATION_ENABLED=false` on `control-plane-api` and redeploy/restart through Railway. Read-only sync remains active.
 - **Disable gateway command claiming**: set Railway `DIRT_CLOUD_GATEWAY_COMMAND_CLAIM_ENABLED=false` on `control-plane-api`; the gateway will continue read-only sync and asset retention but receive no commands to execute.
 
+## Local hosted UI / control-plane dev
+
+Use the root Make targets as the public local dev lifecycle for hosted dashboard iteration. The default loop is:
+
+```bash
+make dev-up
+```
+
+`make dev-up` starts the local control-plane API and Vite UI wired together for hosted dashboard development. It reuses the local dev database and does not refresh production data by itself.
+
+- **First use / fresh hosted data**: `make dev-refresh-db` creates a local compressed dump from the hosted control-plane database, restores only into the guarded local dev database, and sanitizes local-only state. Run this before the first `make dev-up`, or whenever you intentionally want a fresh production-shaped dev database.
+- **Status**: `make dev-status` reports whether the local API and web ports are reachable, the dev database name, the latest dump, and log pointers.
+- **Stop**: `make dev-down` stops the local dev processes recorded by the lifecycle script without touching unrelated services.
+- **Reset from latest dump**: `make dev-reset` restores the local dev database from the most recent local compressed dump and starts the environment again. It does not contact Railway.
+- **Assets placeholder**: `make dev-refresh-assets` is intentionally a stub for now. It exits successfully and points you to place files under `var/dev/control-plane/assets/<object_key>` until production asset mirroring is implemented.
+
 ## Firmware
 
 - **Firmware test**: `cd firmware && pio test -e native` (runs on host, no hardware needed)
@@ -59,7 +75,7 @@ That script loads ignored `.env` first and `.env.prod` second by default, syncs 
 
 ## Web UI
 
-- **Dev server**: `pnpm --dir web-ui dev` (Vite on :5173, MSW mocks on)
+- **Standalone Vite debug server**: `pnpm --dir web-ui dev` (Vite on :5173, MSW mocks on). Use this only when isolating frontend/MSW behavior; hosted dashboard iteration should use `make dev-up`.
 - **Production build**: `pnpm --dir web-ui build` — writes `web-ui/dist/` for the hosted Railway `web-ui` service.
 - **Typecheck / lint / test**: `pnpm --dir web-ui {typecheck,lint,test}`
 

@@ -12,7 +12,7 @@ from sqlalchemy import and_, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirt_control.audit import add_audit_event
-from dirt_control.deps import get_clock, get_session, get_settings
+from dirt_control.deps import get_asset_store, get_clock, get_session, get_settings
 from dirt_control.models import (
     CloudAsset,
     CloudAuditEvent,
@@ -26,14 +26,9 @@ from dirt_control.models import (
     GatewayCredential,
 )
 from dirt_control.retention import prune_expired_assets
-from dirt_control.security import (
-    UrlSigner,
-    expires_from,
-    require_browser_user,
-    verify_password,
-)
+from dirt_control.security import expires_from, require_browser_user, verify_password
 from dirt_control.settings import CloudSettings
-from dirt_control.storage import S3ObjectStore
+from dirt_control.storage import AssetStore
 from dirt_shared.cloud_contract import PruneAssetsResponse
 
 router = APIRouter(prefix="/api")
@@ -650,6 +645,7 @@ async def latest_assets(
     tent_id: str,
     _: str = Depends(require_browser_user),
     settings: CloudSettings = Depends(get_settings),
+    asset_store: AssetStore = Depends(get_asset_store),
     session: AsyncSession = Depends(get_session),
     clock: Callable[[], datetime] = Depends(get_clock),
 ) -> list[AssetResponse]:
@@ -664,15 +660,12 @@ async def latest_assets(
             .limit(10)
         )
     ).scalars()
-    signer = UrlSigner(settings.session_secret)
-    object_store = _object_store(settings)
     now = clock()
     return [
         _asset_response(
             row,
             settings=settings,
-            signer=signer,
-            object_store=object_store,
+            asset_store=asset_store,
             now=now,
         )
         for row in rows
@@ -684,18 +677,17 @@ async def asset_signed_url(
     asset_id: str,
     _: str = Depends(require_browser_user),
     settings: CloudSettings = Depends(get_settings),
+    asset_store: AssetStore = Depends(get_asset_store),
     session: AsyncSession = Depends(get_session),
     clock: Callable[[], datetime] = Depends(get_clock),
 ) -> AssetResponse:
     asset = await session.get(CloudAsset, asset_id)
     if asset is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "asset not found")
-    signer = UrlSigner(settings.session_secret)
     return _asset_response(
         asset,
         settings=settings,
-        signer=signer,
-        object_store=_object_store(settings),
+        asset_store=asset_store,
         now=clock(),
     )
 
@@ -840,6 +832,7 @@ async def rotate_gateway_credential(
 async def prune_assets(
     user: str = Depends(require_browser_user),
     settings: CloudSettings = Depends(get_settings),
+    asset_store: AssetStore = Depends(get_asset_store),
     session: AsyncSession = Depends(get_session),
     clock: Callable[[], datetime] = Depends(get_clock),
 ) -> PruneAssetsResponse:
@@ -850,6 +843,7 @@ async def prune_assets(
         actor_type="browser",
         actor_id=user,
         site_id=settings.default_site_id,
+        object_store=asset_store,
     )
     return PruneAssetsResponse(
         cutoff=result.cutoff,
@@ -889,22 +883,14 @@ def _asset_response(
     asset: CloudAsset,
     *,
     settings: CloudSettings,
-    signer: UrlSigner,
-    object_store: S3ObjectStore | None,
+    asset_store: AssetStore,
     now: datetime,
 ) -> AssetResponse:
     expires_at = expires_from(now, settings.asset_url_ttl_s)
-    if object_store is None:
-        signed_url = signer.build_signed_url(
-            base_url=settings.public_asset_base_url,
-            subject=asset.object_key,
-            expires_at=expires_at,
-        )
-    else:
-        signed_url = object_store.presign_get(
-            object_key=asset.object_key,
-            expires_in_s=settings.asset_url_ttl_s,
-        )
+    signed_url = asset_store.presign_get(
+        object_key=asset.object_key,
+        expires_in_s=settings.asset_url_ttl_s,
+    )
     return AssetResponse(
         asset_id=asset.asset_id,
         kind=asset.kind,
@@ -916,17 +902,6 @@ def _asset_response(
         signed_url=signed_url,
         signed_url_expires_at=expires_at,
     )
-
-
-def _object_store(settings: CloudSettings) -> S3ObjectStore | None:
-    if not (
-        settings.s3_endpoint
-        and settings.s3_region
-        and settings.s3_access_key_id
-        and settings.s3_secret_access_key
-    ):
-        return None
-    return S3ObjectStore(settings=settings)
 
 
 def _command_response(command: CloudCommand) -> CommandResponse:

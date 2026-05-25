@@ -18,3 +18,7 @@ def get_settings(request: Request):
 
 def get_clock(request: Request) -> Callable[[], datetime]:
     return request.app.state.clock
+
+
+def get_asset_store(request: Request):
+    return request.app.state.asset_store
