@@ -26,6 +26,7 @@ Assets should use the same database `object_key` in production and dev. Producti
 - [x] (2026-05-25) Decided `scripts/dev-env` should be implemented in Python for clearer process supervision, safer database handling, and testable helpers.
 - [x] (2026-05-25) Added a minimal root `Makefile` with `help` and `fix` so active agent guidance can point at `make fix` immediately.
 - [x] (2026-05-25) Decided to add an asset-store abstraction with S3 for production, local files for dev, and a stubbed `make dev-refresh-assets` command for later production asset mirroring.
+- [x] (2026-05-25) Resolved remaining implementation choices: use `DIRT_CLOUD_ASSET_STORE` / `DIRT_CLOUD_LOCAL_ASSET_ROOT`; make first `make dev-up` fail clearly if no dev DB has been restored; allow local command creation but disable command claiming; use 404/existing UI unavailable state for missing local assets.
 - [ ] Implement root `Makefile` dev lifecycle targets.
 - [ ] Implement `scripts/dev-env`.
 - [ ] Implement control-plane asset-store abstraction and local file serving.
@@ -108,8 +109,24 @@ Assets should use the same database `object_key` in production and dev. Producti
   Rationale: Keeping object keys stable means restored production metadata works in dev without DB rewrites. A local file store can serve `homebox/main/...` from `var/dev/control-plane/assets/homebox/main/...`; missing files should be an ordinary local asset miss rather than corrupt metadata.
   Date/Author: 2026-05-25 / user and Codex.
 
+- Decision: Use `DIRT_CLOUD_ASSET_STORE=local|s3` and `DIRT_CLOUD_LOCAL_ASSET_ROOT=<path>` as the asset-store selection settings.
+  Rationale: These names are explicit, scoped to the cloud control-plane runtime, and make production/dev behavior inspectable from process env. Production should use S3; local dev should set `DIRT_CLOUD_ASSET_STORE=local` and root files under `var/dev/control-plane/assets`.
+  Date/Author: 2026-05-25 / user and Codex.
+
 - Decision: Add `make dev-refresh-assets` now, but implement it initially as a TODO stub.
   Rationale: The command reserves the user-facing interface and documents the intended workflow without pulling S3 credential handling, retention policy, or asset selection into the first dev DB harness implementation.
+  Date/Author: 2026-05-25 / user and Codex.
+
+- Decision: `make dev-up` should fail with a clear message if no local dev DB has been restored yet.
+  Rationale: Refreshing from Railway is too heavyweight and externally visible to hide inside startup. The user should explicitly run `make dev-refresh-db` before first use or after they intentionally want fresher production data.
+  Date/Author: 2026-05-25 / user and Codex.
+
+- Decision: Local command creation may remain enabled, but command claiming should be disabled in the dev control-plane process.
+  Rationale: This lets frontend command creation UI exercise the real API and local database while ensuring no continuously running gateway can claim and execute those commands unless a user deliberately opts into a hardware integration workflow.
+  Date/Author: 2026-05-25 / user and Codex.
+
+- Decision: Missing local asset files should return 404 and rely on the existing UI unavailable/error state.
+  Rationale: Backend placeholders are not required for the MVP. Returning a normal miss keeps the local asset store honest and lets frontend asset error handling remain visible during dev.
   Date/Author: 2026-05-25 / user and Codex.
 
 - Decision: Use `pg_dump -Fc` and `pg_restore` for refresh/reset rather than Atlas migrations as the normal dev data path.
@@ -238,7 +255,7 @@ Introduce an explicit asset store boundary in `apps/control-plane/src/dirt_contr
 - `presign_get(object_key, expires_in_s) -> str`
 - `delete_objects(object_keys) -> int`
 
-Keep the existing production S3 behavior as the S3 implementation. Add a local implementation selected by settings, for example `DIRT_CLOUD_ASSET_STORE=local` or equivalent, with local root `DIRT_CLOUD_LOCAL_ASSET_ROOT=var/dev/control-plane/assets`. The local implementation should generate signed local API URLs, not direct `file://` URLs, because browsers cannot load arbitrary local files from the web UI safely or portably.
+Keep the existing production S3 behavior as the S3 implementation. Add a local implementation selected by `DIRT_CLOUD_ASSET_STORE=local`, with local root `DIRT_CLOUD_LOCAL_ASSET_ROOT=var/dev/control-plane/assets`. Production should use `DIRT_CLOUD_ASSET_STORE=s3` or the existing S3 configuration default. The local implementation should generate signed local API URLs, not direct `file://` URLs, because browsers cannot load arbitrary local files from the web UI safely or portably.
 
 Add a local asset read route to the control-plane API, for example `GET /dev-assets/{object_key:path}`. This route should only be enabled when the local asset store is selected. It must verify the existing URL signature/expiry, normalize and validate the path under the asset root, and return 404 for missing files. Do not implement production S3 mirroring in this milestone.
 
@@ -340,6 +357,7 @@ The change is accepted when:
 - `make dev-refresh-db` clears active `cloud_command` rows with statuses `queued`, `claimed`, and `running`.
 - `make dev-refresh-db` keeps `cloud_audit_event` rows.
 - `make dev-up` can be run from a clean shell with no `DIRT_CLOUD_DATABASE_URL` pointed at production and uses the local-only dev cloud database.
+- `make dev-up` fails with a clear message directing the user to `make dev-refresh-db` when the dev database has not been restored yet.
 - `make dev-up` does not use `.env.prod`.
 - `make dev-up` starts the local control-plane API and web UI.
 - The Vite frontend has `VITE_DIRT_API_BASE_URL` set to the local API URL.
@@ -348,7 +366,7 @@ The change is accepted when:
 - Dashboard API calls go to the local control-plane API, not Railway and not MSW.
 - Restored asset metadata does not require DB URL rewriting; local asset URLs are generated at request time from `object_key`.
 - When local asset files exist under `var/dev/control-plane/assets/<object_key>`, the browser can load them through the local control-plane API.
-- Missing local asset files return 404 or the UI's existing unavailable state, not a production S3 request.
+- Missing local asset files return 404 and trigger the UI's existing unavailable/error state, not a production S3 request.
 - `make dev-refresh-assets` prints the TODO message and exits successfully.
 - `make dev-down` stops started processes without killing unrelated services.
 - `make dev-reset` refuses to drop any database outside the expected dev prefix.
@@ -447,7 +465,7 @@ Environment variables set for the control-plane process:
 - `DIRT_CLOUD_SITE_ID=homebox`
 - `DIRT_CLOUD_GATEWAY_COMMAND_CLAIM_ENABLED=false`
 - `DIRT_CLOUD_COMMAND_CREATION_ENABLED` may remain true; commands can be created but not claimed unless a user explicitly starts a continuous local gateway.
-- `DIRT_CLOUD_ASSET_STORE=local` or the final selected equivalent setting.
+- `DIRT_CLOUD_ASSET_STORE=local`
 - `DIRT_CLOUD_LOCAL_ASSET_ROOT=var/dev/control-plane/assets` or an absolute resolved path under `var/dev/control-plane/assets`.
 
 Environment variables used only for dev DB refresh:
@@ -476,3 +494,4 @@ External tools required:
 - 2026-05-25: Initial plan created after reviewing the local control-plane code path and deciding to use root Make targets backed by `scripts/dev-env`.
 - 2026-05-25: Revised plan to use compressed Railway `pg_dump` restore as the primary dev database path. Added `make dev-refresh-db`, local post-restore sanitization, gateway credential replacement, active command clearing, audit retention, and asset deferral.
 - 2026-05-25: Added the asset-store abstraction milestone, local file serving target, and stubbed `make dev-refresh-assets` command. The plan keeps production S3 and dev local files behind one narrow object-key based boundary.
+- 2026-05-25: Resolved remaining open choices: asset env names are fixed, first-run startup fails with a clear refresh instruction, command creation remains enabled while claiming is disabled, and missing local asset files return 404.
