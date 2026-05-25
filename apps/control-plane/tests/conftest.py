@@ -139,6 +139,7 @@ async def settings(cloud_engine: AsyncEngine) -> CloudSettings:
         DIRT_CLOUD_ADMIN_PASSWORD_HASH=sha256_password_hash(ADMIN_PASSWORD),
         DIRT_CLOUD_SESSION_SECRET="test-session-secret-at-least-16",
         DIRT_CLOUD_SESSION_COOKIE_SECURE=False,
+        DIRT_CLOUD_ASSET_STORE="local",
         DIRT_CLOUD_ASSET_PUBLIC_BASE_URL="https://assets.test",
     )
 

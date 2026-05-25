@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Annotated
+from pathlib import Path
+from typing import Annotated, Literal
 
 from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -28,6 +29,13 @@ class CloudSettings(BaseSettings):
     asset_url_ttl_s: int = Field(default=300, alias="DIRT_CLOUD_ASSET_URL_TTL_S")
     asset_retention_days: int = Field(
         default=30, alias="DIRT_CLOUD_ASSET_RETENTION_DAYS"
+    )
+    asset_store: Literal["s3", "local"] = Field(
+        default="s3", alias="DIRT_CLOUD_ASSET_STORE"
+    )
+    local_asset_root: Path = Field(
+        default=Path("var/dev/control-plane/assets"),
+        alias="DIRT_CLOUD_LOCAL_ASSET_ROOT",
     )
     command_creation_enabled: bool = Field(
         default=True, alias="DIRT_CLOUD_COMMAND_CREATION_ENABLED"

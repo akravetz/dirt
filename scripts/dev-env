@@ -1,0 +1,1107 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import secrets
+import shlex
+import signal
+import socket
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+
+COMMANDS = {
+    "up": "up",
+    "down": "down",
+    "--down": "down",
+    "reset": "reset",
+    "--reset": "reset",
+    "refresh-db": "refresh-db",
+    "--refresh-db": "refresh-db",
+    "refresh-assets": "refresh-assets",
+    "--refresh-assets": "refresh-assets",
+    "status": "status",
+    "--status": "status",
+}
+USAGE = """Usage:
+  scripts/dev-env [up]
+  scripts/dev-env {down|reset|refresh-db|refresh-assets|status}
+  scripts/dev-env {--down|--reset|--refresh-db|--refresh-assets|--status}
+
+Commands:
+  up              Start local control-plane API and Vite. This is the default.
+  down            Stop local processes recorded in dev-env state.
+  reset           Restore from the latest local dump, then start the environment.
+  refresh-db      Refresh from hosted control-plane dump.
+  refresh-assets  TODO stub for later production asset mirroring.
+  status          Show ports, database name, logs path, and reachability.
+"""
+
+ENV_ORDER = [
+    "DIRT_DEV_WORKTREE_ID",
+    "DIRT_DEV_PG_HOST",
+    "DIRT_DEV_PG_PORT",
+    "DIRT_DEV_PG_USER",
+    "DIRT_DEV_PG_PASSWORD",
+    "DIRT_DEV_CLOUD_DATABASE",
+    "DIRT_CLOUD_DATABASE_URL",
+    "DIRT_CLOUD_ADMIN_USERNAME",
+    "DIRT_CLOUD_ADMIN_PASSWORD",
+    "DIRT_CLOUD_ADMIN_PASSWORD_HASH",
+    "DIRT_CLOUD_SESSION_SECRET",
+    "DIRT_CLOUD_SESSION_COOKIE_SECURE",
+    "DIRT_CLOUD_ALLOWED_ORIGINS",
+    "DIRT_CLOUD_SITE_ID",
+    "DIRT_CLOUD_GATEWAY_ID",
+    "DIRT_CLOUD_GATEWAY_CREDENTIAL_ID",
+    "DIRT_CLOUD_GATEWAY_TOKEN",
+    "DIRT_CLOUD_GATEWAY_TOKEN_SHA256",
+    "DIRT_CLOUD_COMMAND_CREATION_ENABLED",
+    "DIRT_CLOUD_GATEWAY_COMMAND_CLAIM_ENABLED",
+    "DIRT_CLOUD_ASSET_STORE",
+    "DIRT_CLOUD_LOCAL_ASSET_ROOT",
+    "DIRT_CLOUD_ASSET_PUBLIC_BASE_URL",
+]
+DEV_BIND_HOST = "0.0.0.0"
+LOOPBACK_HOST = "127.0.0.1"
+PUBLIC_HOST_ENV = "DIRT_DEV_PUBLIC_HOST"
+LOCAL_ADMIN_USERNAME = "dev-admin"
+LOCAL_ADMIN_PASSWORD = "dev-password"
+
+
+@dataclass(frozen=True)
+class Paths:
+    repo_root: Path
+    dev_root: Path
+    logs_dir: Path
+    dumps_dir: Path
+    assets_dir: Path
+    env_path: Path
+    state_path: Path
+
+
+@dataclass(frozen=True)
+class Runtime:
+    repo_root: Path
+    worktree_id: str
+    web_port: int
+    api_port: int
+    database_name: str
+    api_url: str
+    web_url: str
+
+
+@dataclass(frozen=True)
+class PgConnection:
+    host: str
+    port: str
+    user: str
+    password: str
+    database: str
+    sslmode: str | None = None
+
+
+@dataclass(frozen=True)
+class PgBinaries:
+    pg_dump: str = "pg_dump"
+    pg_restore: str = "pg_restore"
+    dropdb: str = "dropdb"
+    createdb: str = "createdb"
+    psql: str = "psql"
+
+
+def main(argv: list[str] | None = None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
+    try:
+        command = parse_command(argv)
+    except ValueError as exc:
+        print(f"error: {exc}\n", file=sys.stderr)
+        print(USAGE, file=sys.stderr, end="")
+        return 2
+    if command == "help":
+        print(USAGE, end="")
+        return 0
+
+    repo_root = resolve_repo_root()
+    paths = paths_for(repo_root)
+    paths.logs_dir.mkdir(parents=True, exist_ok=True)
+    paths.dumps_dir.mkdir(parents=True, exist_ok=True)
+    paths.assets_dir.mkdir(parents=True, exist_ok=True)
+    runtime = runtime_for(repo_root)
+    env_values = ensure_local_env(paths, runtime)
+
+    if command == "up":
+        return up(paths, runtime, env_values)
+    if command == "down":
+        return down(paths)
+    if command == "reset":
+        return reset(paths, runtime, env_values)
+    if command == "refresh-db":
+        return refresh_db(paths, runtime, env_values)
+    if command == "refresh-assets":
+        print(
+            "TODO: dev asset refresh will mirror selected production assets into "
+            f"{paths.assets_dir}"
+        )
+        return 0
+    if command == "status":
+        print(render_status(paths, runtime))
+        return 0
+
+    raise AssertionError(f"unhandled command: {command}")
+
+
+def parse_command(argv: list[str]) -> str:
+    if not argv:
+        return "up"
+    if argv == ["--help"] or argv == ["-h"]:
+        return "help"
+    if len(argv) != 1:
+        raise ValueError("expected at most one command")
+    command = COMMANDS.get(argv[0])
+    if command is None:
+        raise ValueError(f"unknown command: {argv[0]}")
+    return command
+
+
+def resolve_repo_root() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
+def paths_for(repo_root: Path) -> Paths:
+    dev_root = repo_root / "var" / "dev" / "control-plane"
+    return Paths(
+        repo_root=repo_root,
+        dev_root=dev_root,
+        logs_dir=dev_root / "logs",
+        dumps_dir=dev_root / "dumps",
+        assets_dir=dev_root / "assets",
+        env_path=dev_root / "env",
+        state_path=dev_root / "state.json",
+    )
+
+
+def runtime_for(repo_root: Path) -> Runtime:
+    worktree_id = worktree_identity(repo_root)
+    web_port = compute_web_port(repo_root)
+    api_port = compute_api_port(worktree_id)
+    database_name = database_name_for(worktree_id)
+    public_host = dev_public_host()
+    return Runtime(
+        repo_root=repo_root,
+        worktree_id=worktree_id,
+        web_port=web_port,
+        api_port=api_port,
+        database_name=database_name,
+        api_url=f"http://{public_host}:{api_port}",
+        web_url=f"http://{public_host}:{web_port}",
+    )
+
+
+def dev_public_host() -> str:
+    override = os.environ.get(PUBLIC_HOST_ENV)
+    if override:
+        return override
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.connect(("8.8.8.8", 80))
+            host = sock.getsockname()[0]
+    except OSError:
+        return LOOPBACK_HOST
+    return host if host and not host.startswith("127.") else LOOPBACK_HOST
+
+
+def worktree_identity(repo_root: Path) -> str:
+    return hashlib.sha256(str(repo_root.resolve()).encode("utf-8")).hexdigest()
+
+
+def compute_web_port(repo_root: Path) -> int:
+    output = subprocess.check_output(  # noqa: S603
+        [str(repo_root / "scripts" / "worktree-port"), str(repo_root)],
+        text=True,
+    )
+    return int(output.strip())
+
+
+def compute_api_port(worktree_id: str) -> int:
+    return 8020 + (int(worktree_id[:4], 16) % 30)
+
+
+def database_name_for(worktree_id: str) -> str:
+    name = f"dirt_cloud_dev_{worktree_id[:10]}"
+    validate_dev_database_name(name)
+    return name
+
+
+def validate_dev_database_name(name: str) -> None:
+    prefix = "dirt_cloud_dev_"
+    suffix = name.removeprefix(prefix)
+    if (
+        not name.startswith(prefix)
+        or len(suffix) != 10
+        or any(char not in "0123456789abcdef" for char in suffix)
+    ):
+        raise ValueError(f"unsafe dev database name: {name}")
+
+
+def ensure_local_env(paths: Paths, runtime: Runtime) -> dict[str, str]:
+    existing = read_env_file(paths.env_path)
+    root_env = read_env_file(paths.repo_root / ".env")
+    values = dict(existing)
+
+    gateway_token = values.get("DIRT_CLOUD_GATEWAY_TOKEN") or token()
+    session_secret = values.get("DIRT_CLOUD_SESSION_SECRET") or token(48)
+    pg_user = local_pg_value(values, root_env, "USER", "dirt")
+    pg_password = local_pg_value(values, root_env, "PASSWORD", "")
+    pg_host = local_pg_value(values, root_env, "HOST", "127.0.0.1")
+    pg_port = local_pg_value(values, root_env, "PORT", "5432")
+    database_url = build_database_url(
+        user=pg_user,
+        password=pg_password,
+        host=pg_host,
+        port=pg_port,
+        database=runtime.database_name,
+    )
+
+    values.update(
+        {
+            "DIRT_DEV_WORKTREE_ID": runtime.worktree_id[:10],
+            "DIRT_DEV_PG_HOST": pg_host,
+            "DIRT_DEV_PG_PORT": pg_port,
+            "DIRT_DEV_PG_USER": pg_user,
+            "DIRT_DEV_PG_PASSWORD": pg_password,
+            "DIRT_DEV_CLOUD_DATABASE": runtime.database_name,
+            "DIRT_CLOUD_DATABASE_URL": database_url,
+            "DIRT_CLOUD_ADMIN_USERNAME": LOCAL_ADMIN_USERNAME,
+            "DIRT_CLOUD_ADMIN_PASSWORD": LOCAL_ADMIN_PASSWORD,
+            "DIRT_CLOUD_ADMIN_PASSWORD_HASH": sha256_password_hash(
+                LOCAL_ADMIN_PASSWORD
+            ),
+            "DIRT_CLOUD_SESSION_SECRET": session_secret,
+            "DIRT_CLOUD_SESSION_COOKIE_SECURE": "false",
+            "DIRT_CLOUD_ALLOWED_ORIGINS": ",".join(
+                [
+                    runtime.web_url,
+                    f"http://{LOOPBACK_HOST}:{runtime.web_port}",
+                    f"http://localhost:{runtime.web_port}",
+                ]
+            ),
+            "DIRT_CLOUD_SITE_ID": values.get("DIRT_CLOUD_SITE_ID", "homebox"),
+            "DIRT_CLOUD_GATEWAY_ID": values.get(
+                "DIRT_CLOUD_GATEWAY_ID", f"dev-gateway-{runtime.worktree_id[:10]}"
+            ),
+            "DIRT_CLOUD_GATEWAY_CREDENTIAL_ID": values.get(
+                "DIRT_CLOUD_GATEWAY_CREDENTIAL_ID",
+                f"dev-gateway-{runtime.worktree_id[:10]}",
+            ),
+            "DIRT_CLOUD_GATEWAY_TOKEN": gateway_token,
+            "DIRT_CLOUD_GATEWAY_TOKEN_SHA256": sha256_hexdigest(gateway_token),
+            "DIRT_CLOUD_COMMAND_CREATION_ENABLED": "true",
+            "DIRT_CLOUD_GATEWAY_COMMAND_CLAIM_ENABLED": "false",
+            "DIRT_CLOUD_ASSET_STORE": "local",
+            "DIRT_CLOUD_LOCAL_ASSET_ROOT": str(paths.assets_dir),
+            "DIRT_CLOUD_ASSET_PUBLIC_BASE_URL": f"{runtime.api_url}/api/dev-assets",
+        }
+    )
+    write_env_file(paths.env_path, values)
+    return values
+
+
+def local_pg_value(
+    existing: dict[str, str], root_env: dict[str, str], suffix: str, default: str
+) -> str:
+    dev_key = f"DIRT_DEV_PG_{suffix}"
+    local_key = f"DIRT_PG_{suffix}"
+    for value in (
+        existing.get(dev_key),
+        os.environ.get(dev_key),
+        root_env.get(dev_key),
+        os.environ.get(local_key),
+        root_env.get(local_key),
+    ):
+        if value:
+            return value
+    return default
+
+
+def token(nbytes: int = 32) -> str:
+    return secrets.token_urlsafe(nbytes)
+
+
+def build_database_url(
+    *, user: str, password: str, host: str, port: str, database: str
+) -> str:
+    quoted_user = urllib.parse.quote(user, safe="")
+    quoted_database = urllib.parse.quote(database, safe="")
+    auth = quoted_user
+    if password:
+        auth = f"{quoted_user}:{urllib.parse.quote(password, safe='')}"
+    return f"postgresql+asyncpg://{auth}@{host}:{port}/{quoted_database}"
+
+
+def sha256_hexdigest(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def sha256_password_hash(password: str) -> str:
+    return f"sha256:{sha256_hexdigest(password)}"
+
+
+def read_env_file(path: Path) -> dict[str, str]:
+    if not path.exists():
+        return {}
+    values: dict[str, str] = {}
+    for raw_line in path.read_text().splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, raw_value = line.split("=", 1)
+        key = key.strip()
+        value = raw_value.strip()
+        if value:
+            parsed = shlex.split(value, comments=False, posix=True)
+            values[key] = parsed[0] if parsed else ""
+        else:
+            values[key] = ""
+    return values
+
+
+def write_env_file(path: Path, values: dict[str, str]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = ["# Local-only dev control-plane credentials. Do not commit.\n"]
+    seen: set[str] = set()
+    for key in ENV_ORDER:
+        if key in values:
+            lines.append(f"{key}={shlex.quote(values[key])}\n")
+            seen.add(key)
+    for key in sorted(set(values) - seen):
+        lines.append(f"{key}={shlex.quote(values[key])}\n")
+    path.write_text("".join(lines))
+    path.chmod(0o600)
+
+
+def up(paths: Paths, runtime: Runtime, env_values: dict[str, str]) -> int:
+    state = read_state(paths.state_path)
+    state = update_static_state(state, paths, runtime)
+    write_state(paths.state_path, state)
+    if not has_restore_marker(state, runtime.database_name):
+        print(
+            "Local control-plane dev database has not been restored yet.\n"
+            "Run `make dev-refresh-db` before `scripts/dev-env up`.",
+            file=sys.stderr,
+        )
+        return 1
+
+    child_env = build_child_env(os.environ, env_values)
+    api_log = paths.logs_dir / "api.log"
+    web_log = paths.logs_dir / "web.log"
+    children: list[subprocess.Popen[bytes]] = []
+
+    def interrupt(_signum: int, _frame: object) -> None:
+        raise KeyboardInterrupt
+
+    old_sigint = signal.signal(signal.SIGINT, interrupt)
+    old_sigterm = signal.signal(signal.SIGTERM, interrupt)
+    try:
+        api_proc = start_process(
+            api_command(runtime.api_port), child_env, api_log, paths.repo_root
+        )
+        children.append(api_proc)
+        state = update_process_state(state, "api", api_proc.pid, api_log)
+        write_state(paths.state_path, state)
+        wait_for_health(local_api_health_url(runtime), api_proc)
+
+        web_env = dict(child_env)
+        web_env["VITE_DIRT_API_BASE_URL"] = runtime.api_url
+        web_env["WEBUI_DEV_PORT"] = str(runtime.web_port)
+        web_proc = start_process(web_command(), web_env, web_log, paths.repo_root)
+        children.append(web_proc)
+        state = update_process_state(state, "web", web_proc.pid, web_log)
+        write_state(paths.state_path, state)
+
+        print(f"Control-plane API: {runtime.api_url}")
+        print(f"Web UI: {runtime.web_url}")
+        print(f"Logs: {paths.logs_dir}")
+        return wait_for_children(children)
+    except KeyboardInterrupt:
+        return 130
+    except RuntimeError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        signal.signal(signal.SIGINT, old_sigint)
+        signal.signal(signal.SIGTERM, old_sigterm)
+        for child in children:
+            terminate_process_group(child.pid)
+
+
+def api_command(api_port: int) -> list[str]:
+    return [
+        "uv",
+        "run",
+        "--package",
+        "dirt-control-plane",
+        "uvicorn",
+        "dirt_control.app:create_app",
+        "--factory",
+        "--host",
+        DEV_BIND_HOST,
+        "--port",
+        str(api_port),
+    ]
+
+
+def web_command() -> list[str]:
+    return ["pnpm", "--dir", "web-ui", "dev", "--host", DEV_BIND_HOST]
+
+
+def build_child_env(
+    base_env: dict[str, str], local_values: dict[str, str]
+) -> dict[str, str]:
+    clean = {
+        key: value
+        for key, value in base_env.items()
+        if not should_strip_from_child_env(key)
+    }
+    clean.update(local_values)
+    clean["PYTHONUNBUFFERED"] = "1"
+    return clean
+
+
+def should_strip_from_child_env(key: str) -> bool:
+    return (
+        key == "DATABASE_URL"
+        or key == "DATABASE_PUBLIC_URL"
+        or key == "DIRT_DEV_SOURCE_CLOUD_DATABASE_URL"
+        or key.startswith("DIRT_CLOUD_")
+        or key.startswith("RAILWAY_")
+    )
+
+
+def start_process(
+    command: list[str], env: dict[str, str], log_path: Path, cwd: Path
+) -> subprocess.Popen[bytes]:
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log = log_path.open("ab")
+    try:
+        return subprocess.Popen(  # noqa: S603
+            command,
+            cwd=cwd,
+            env=env,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+    finally:
+        log.close()
+
+
+def refresh_db(paths: Paths, runtime: Runtime, env_values: dict[str, str]) -> int:
+    down(paths)
+    binaries = pg_binaries(os.environ)
+    try:
+        source_url = resolve_source_database_url(paths)
+    except RuntimeError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    timestamp = utc_timestamp()
+    dump_path = paths.dumps_dir / f"control-plane-{timestamp}.dump"
+    dump_log = paths.logs_dir / f"dump-{timestamp}.log"
+    source = pg_connection_from_url(source_url)
+    if not run_logged(
+        pg_dump_command(dump_path, source, binaries),
+        pg_env(os.environ, source),
+        dump_log,
+        paths.repo_root,
+    ):
+        print(
+            "error: pg_dump failed; existing local dev database was left untouched.",
+            file=sys.stderr,
+        )
+        print(f"Dump log: {dump_log}", file=sys.stderr)
+        return 1
+
+    if not restore_dump(paths, runtime, env_values, dump_path, timestamp, binaries):
+        return 1
+
+    print(f"Refreshed dev database {runtime.database_name}.")
+    print(f"Latest dump: {dump_path}")
+    return 0
+
+
+def reset(paths: Paths, runtime: Runtime, env_values: dict[str, str]) -> int:
+    down(paths)
+    binaries = pg_binaries(os.environ)
+    dump_path = latest_dump(paths.dumps_dir)
+    if dump_path is None:
+        print(
+            f"No local dev database dumps found in {paths.dumps_dir}.\n"
+            "Run `make dev-refresh-db` before `scripts/dev-env reset`.",
+            file=sys.stderr,
+        )
+        return 1
+    if not restore_dump(
+        paths, runtime, env_values, dump_path, utc_timestamp(), binaries
+    ):
+        return 1
+    return up(paths, runtime, env_values)
+
+
+def restore_dump(
+    paths: Paths,
+    runtime: Runtime,
+    env_values: dict[str, str],
+    dump_path: Path,
+    timestamp: str,
+    binaries: PgBinaries | None = None,
+) -> bool:
+    validate_dev_database_name(runtime.database_name)
+    binaries = binaries or pg_binaries(os.environ)
+    local = local_pg_connection(env_values, runtime.database_name)
+    restore_log = paths.logs_dir / f"restore-{timestamp}.log"
+    sanitize_log = paths.logs_dir / f"sanitize-{timestamp}.log"
+    for command in (
+        dropdb_command(local, binaries),
+        createdb_command(local, binaries),
+        pg_restore_command(dump_path, local, binaries),
+    ):
+        if not run_logged(
+            command, pg_env(os.environ, local), restore_log, paths.repo_root
+        ):
+            print(f"error: local dev database restore failed.", file=sys.stderr)
+            print(f"Restore log: {restore_log}", file=sys.stderr)
+            return False
+
+    sanitize_sql = build_sanitization_sql(env_values)
+    if not run_logged(
+        psql_command(local, binaries),
+        pg_env(os.environ, local),
+        sanitize_log,
+        paths.repo_root,
+        input_text=sanitize_sql,
+    ):
+        print(f"error: post-restore sanitization failed.", file=sys.stderr)
+        print(f"Sanitize log: {sanitize_log}", file=sys.stderr)
+        print(
+            "WARNING: production credentials may still be present in the local "
+            "dev database.",
+            file=sys.stderr,
+        )
+        return False
+
+    state = update_static_state(read_state(paths.state_path), paths, runtime)
+    state["restore"] = {
+        "database_name": runtime.database_name,
+        "dump_path": str(dump_path),
+        "dump_created_at": dump_timestamp(dump_path),
+        "restored_at": datetime.now(UTC).isoformat(),
+    }
+    write_state(paths.state_path, state)
+    return True
+
+
+def resolve_source_database_url(paths: Paths) -> str:
+    explicit = os.environ.get("DIRT_DEV_SOURCE_CLOUD_DATABASE_URL")
+    if explicit:
+        return explicit
+
+    root_env = read_env_file(paths.repo_root / ".env")
+    service_id = env_or_root("RAILWAY_POSTGRES_SERVICE_ID", root_env)
+    environment = env_or_root("RAILWAY_ENVIRONMENT", root_env)
+    if not service_id or not environment:
+        raise RuntimeError(
+            "no hosted source database URL was provided. Set "
+            "DIRT_DEV_SOURCE_CLOUD_DATABASE_URL, or set RAILWAY_POSTGRES_SERVICE_ID "
+            "and RAILWAY_ENVIRONMENT with Railway CLI access."
+        )
+
+    try:
+        result = subprocess.run(  # noqa: S603
+            [
+                "railway",
+                "variable",
+                "list",
+                "--service",
+                service_id,
+                "--environment",
+                environment,
+                "--json",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError(
+            "Railway CLI is required when DIRT_DEV_SOURCE_CLOUD_DATABASE_URL is unset."
+        ) from exc
+    if result.returncode != 0:
+        raise RuntimeError(
+            "could not resolve hosted source database URL from Railway. "
+            "Set DIRT_DEV_SOURCE_CLOUD_DATABASE_URL explicitly."
+        )
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("Railway variable output was not valid JSON.") from exc
+    source_url = data.get("DATABASE_PUBLIC_URL") if isinstance(data, dict) else None
+    if not source_url:
+        raise RuntimeError(
+            "Railway did not return DATABASE_PUBLIC_URL. "
+            "Set DIRT_DEV_SOURCE_CLOUD_DATABASE_URL explicitly."
+        )
+    return str(source_url)
+
+
+def env_or_root(name: str, root_env: dict[str, str]) -> str:
+    if name in os.environ:
+        return os.environ[name]
+    return root_env.get(name, "")
+
+
+def pg_connection_from_url(url: str) -> PgConnection:
+    parsed = urllib.parse.urlsplit(url)
+    if parsed.scheme not in {"postgres", "postgresql"}:
+        raise RuntimeError("source database URL must use postgres:// or postgresql://")
+    database = urllib.parse.unquote(parsed.path.lstrip("/"))
+    if not parsed.hostname or not parsed.username or not database:
+        raise RuntimeError("source database URL is missing host, user, or database")
+    query = urllib.parse.parse_qs(parsed.query)
+    sslmode = first_query_value(query, "sslmode")
+    return PgConnection(
+        host=parsed.hostname,
+        port=str(parsed.port or 5432),
+        user=urllib.parse.unquote(parsed.username),
+        password=urllib.parse.unquote(parsed.password or ""),
+        database=database,
+        sslmode=sslmode,
+    )
+
+
+def first_query_value(query: dict[str, list[str]], name: str) -> str | None:
+    values = query.get(name)
+    return values[0] if values else None
+
+
+def local_pg_connection(env_values: dict[str, str], database: str) -> PgConnection:
+    validate_dev_database_name(database)
+    return PgConnection(
+        host=env_values["DIRT_DEV_PG_HOST"],
+        port=env_values["DIRT_DEV_PG_PORT"],
+        user=env_values["DIRT_DEV_PG_USER"],
+        password=env_values.get("DIRT_DEV_PG_PASSWORD", ""),
+        database=database,
+    )
+
+
+def pg_env(base_env: dict[str, str], connection: PgConnection) -> dict[str, str]:
+    env = minimal_subprocess_env(base_env)
+    env["PGPASSWORD"] = connection.password
+    if connection.sslmode:
+        env["PGSSLMODE"] = connection.sslmode
+    return env
+
+
+def minimal_subprocess_env(base_env: dict[str, str]) -> dict[str, str]:
+    keep = {"HOME", "LANG", "LOGNAME", "PATH", "TERM", "TZ", "USER"}
+    return {
+        key: value
+        for key, value in base_env.items()
+        if key in keep or key.startswith("LC_")
+    }
+
+
+def pg_binaries(env: dict[str, str]) -> PgBinaries:
+    return PgBinaries(
+        pg_dump=env.get("DIRT_DEV_PG_DUMP_BIN", "pg_dump"),
+        pg_restore=env.get("DIRT_DEV_PG_RESTORE_BIN", "pg_restore"),
+        dropdb=env.get("DIRT_DEV_DROPDB_BIN", "dropdb"),
+        createdb=env.get("DIRT_DEV_CREATEDB_BIN", "createdb"),
+        psql=env.get("DIRT_DEV_PSQL_BIN", "psql"),
+    )
+
+
+def pg_dump_command(
+    dump_path: Path, source: PgConnection, binaries: PgBinaries | None = None
+) -> list[str]:
+    binaries = binaries or PgBinaries()
+    return [
+        binaries.pg_dump,
+        "-Fc",
+        "-f",
+        str(dump_path),
+        "-h",
+        source.host,
+        "-p",
+        source.port,
+        "-U",
+        source.user,
+        "-d",
+        source.database,
+    ]
+
+
+def dropdb_command(
+    connection: PgConnection, binaries: PgBinaries | None = None
+) -> list[str]:
+    validate_dev_database_name(connection.database)
+    binaries = binaries or PgBinaries()
+    return [
+        binaries.dropdb,
+        "--if-exists",
+        "--force",
+        "-h",
+        connection.host,
+        "-p",
+        connection.port,
+        "-U",
+        connection.user,
+        connection.database,
+    ]
+
+
+def createdb_command(
+    connection: PgConnection, binaries: PgBinaries | None = None
+) -> list[str]:
+    validate_dev_database_name(connection.database)
+    binaries = binaries or PgBinaries()
+    return [
+        binaries.createdb,
+        "-h",
+        connection.host,
+        "-p",
+        connection.port,
+        "-U",
+        connection.user,
+        connection.database,
+    ]
+
+
+def pg_restore_command(
+    dump_path: Path, connection: PgConnection, binaries: PgBinaries | None = None
+) -> list[str]:
+    validate_dev_database_name(connection.database)
+    binaries = binaries or PgBinaries()
+    return [
+        binaries.pg_restore,
+        "-h",
+        connection.host,
+        "-p",
+        connection.port,
+        "-U",
+        connection.user,
+        "--no-owner",
+        "-d",
+        connection.database,
+        str(dump_path),
+    ]
+
+
+def psql_command(
+    connection: PgConnection, binaries: PgBinaries | None = None
+) -> list[str]:
+    validate_dev_database_name(connection.database)
+    binaries = binaries or PgBinaries()
+    return [
+        binaries.psql,
+        "-X",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        connection.host,
+        "-p",
+        connection.port,
+        "-U",
+        connection.user,
+        "-d",
+        connection.database,
+    ]
+
+
+def run_logged(
+    command: list[str],
+    env: dict[str, str],
+    log_path: Path,
+    cwd: Path,
+    *,
+    input_text: str | None = None,
+) -> bool:
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("ab") as log:
+        result = subprocess.run(  # noqa: S603
+            command,
+            cwd=cwd,
+            env=env,
+            input=input_text.encode("utf-8") if input_text is not None else None,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+    return result.returncode == 0
+
+
+def build_sanitization_sql(env_values: dict[str, str]) -> str:
+    return f"""
+DELETE FROM gateway_credential;
+INSERT INTO gateway_credential (
+    credential_id,
+    gateway_id,
+    token_sha256,
+    allowed_site_id,
+    is_active,
+    last_used_at,
+    rotated_at,
+    revoked_at,
+    created_at,
+    updated_at
+) VALUES (
+    {sql_literal(env_values["DIRT_CLOUD_GATEWAY_CREDENTIAL_ID"])},
+    {sql_literal(env_values["DIRT_CLOUD_GATEWAY_ID"])},
+    {sql_literal(env_values["DIRT_CLOUD_GATEWAY_TOKEN_SHA256"])},
+    {sql_literal(env_values["DIRT_CLOUD_SITE_ID"])},
+    TRUE,
+    NULL,
+    NULL,
+    NULL,
+    NOW(),
+    NOW()
+);
+DELETE FROM cloud_command WHERE status IN ('queued', 'claimed', 'running');
+"""
+
+
+def sql_literal(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
+
+
+def latest_dump(dumps_dir: Path) -> Path | None:
+    dumps = [path for path in dumps_dir.glob("*.dump") if path.is_file()]
+    if not dumps:
+        return None
+    return max(dumps, key=lambda path: path.stat().st_mtime)
+
+
+def dump_timestamp(dump_path: Path) -> str:
+    return datetime.fromtimestamp(dump_path.stat().st_mtime, UTC).isoformat()
+
+
+def utc_timestamp() -> str:
+    return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+
+
+def wait_for_health(
+    url: str, process: subprocess.Popen[bytes], timeout_s: float = 30
+) -> None:
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            raise RuntimeError(f"control-plane API exited early; see logs for details")
+        try:
+            with urllib.request.urlopen(url, timeout=1) as response:
+                if response.status == 200:
+                    return
+        except (OSError, urllib.error.URLError):
+            time.sleep(0.25)
+    raise RuntimeError(f"timed out waiting for {url}")
+
+
+def wait_for_children(children: list[subprocess.Popen[bytes]]) -> int:
+    while True:
+        for child in children:
+            code = child.poll()
+            if code is not None:
+                return code
+        time.sleep(0.5)
+
+
+def down(paths: Paths) -> int:
+    state = read_state(paths.state_path)
+    stopped: list[str] = []
+    skipped: list[str] = []
+    for name, info in state.get("processes", {}).items():
+        pid = int(info.get("pid") or 0)
+        if pid and process_alive(pid):
+            if is_safe_dev_process(pid):
+                terminate_process_group(pid)
+                stopped.append(f"{name} pid {pid}")
+            else:
+                skipped.append(f"{name} pid {pid}")
+    if stopped:
+        print("Stopped " + ", ".join(stopped))
+    else:
+        print("No dev-env processes are running.")
+    if skipped:
+        print("Skipped stale or unrelated recorded process " + ", ".join(skipped))
+    return 0
+
+
+def is_safe_dev_process(pid: int) -> bool:
+    cmdline_path = Path("/proc") / str(pid) / "cmdline"
+    try:
+        parts = [
+            part
+            for part in cmdline_path.read_bytes().decode("utf-8", "replace").split("\0")
+            if part
+        ]
+    except OSError:
+        return False
+    joined = " ".join(parts)
+    return (
+        "dirt_control.app:create_app" in parts
+        or joined.endswith("pnpm --dir web-ui dev")
+        or joined.endswith(f"pnpm --dir web-ui dev --host {DEV_BIND_HOST}")
+    )
+
+
+def terminate_process_group(pid: int) -> None:
+    if pid <= 0:
+        return
+    try:
+        os.killpg(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    except PermissionError:
+        return
+    except OSError:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError:
+            return
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        if not process_alive(pid):
+            return
+        time.sleep(0.1)
+    try:
+        os.killpg(pid, signal.SIGKILL)
+    except OSError:
+        return
+
+
+def process_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
+def render_status(paths: Paths, runtime: Runtime) -> str:
+    state = update_static_state(read_state(paths.state_path), paths, runtime)
+    write_state(paths.state_path, state)
+    restore = state.get("restore", {})
+    fallback_dump = latest_dump(paths.dumps_dir)
+    latest_dump_path = restore.get("dump_path") or (
+        str(fallback_dump) if fallback_dump is not None else "none"
+    )
+    latest_dump_at = restore.get("dump_created_at") or (
+        dump_timestamp(fallback_dump) if fallback_dump is not None else None
+    )
+    processes = state.get("processes", {})
+    api_pid = int(processes.get("api", {}).get("pid") or 0)
+    web_pid = int(processes.get("web", {}).get("pid") or 0)
+    api_reachable = yes_no(port_open(runtime.api_port))
+    web_reachable = yes_no(port_open(runtime.web_port))
+    restored = yes_no(has_restore_marker(state, runtime.database_name))
+    lines = [
+        "Dirt dev environment status",
+        f"  API:  {runtime.api_url} "
+        f"(port {runtime.api_port}, reachable: {api_reachable})",
+        f"  Web:  {runtime.web_url} "
+        f"(port {runtime.web_port}, reachable: {web_reachable})",
+        f"  DB:   {runtime.database_name} (restored: {restored})",
+        f"  Logs: {paths.logs_dir}",
+        f"  API process: {pid_status(api_pid)}",
+        f"  Web process: {pid_status(web_pid)}",
+        f"  Latest dump: {latest_dump_path}",
+    ]
+    if latest_dump_at:
+        lines.append(f"  Latest dump at: {latest_dump_at}")
+    if restore.get("restored_at"):
+        lines.append(f"  Restored at: {restore['restored_at']}")
+    return "\n".join(lines)
+
+
+def local_api_health_url(runtime: Runtime) -> str:
+    return f"http://{LOOPBACK_HOST}:{runtime.api_port}/healthz"
+
+
+def yes_no(value: bool) -> str:
+    return "yes" if value else "no"
+
+
+def pid_status(pid: int) -> str:
+    if not pid:
+        return "not recorded"
+    return f"pid {pid}, alive: {yes_no(process_alive(pid))}"
+
+
+def port_open(port: int) -> bool:
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=0.2):
+            return True
+    except OSError:
+        return False
+
+
+def has_restore_marker(state: dict[str, Any], database_name: str) -> bool:
+    restore = state.get("restore")
+    return (
+        isinstance(restore, dict)
+        and restore.get("database_name") == database_name
+        and bool(restore.get("restored_at"))
+    )
+
+
+def update_static_state(
+    state: dict[str, Any], paths: Paths, runtime: Runtime
+) -> dict[str, Any]:
+    updated = dict(state)
+    updated["schema_version"] = 1
+    updated["repo_root"] = str(paths.repo_root)
+    updated["ports"] = {"api": runtime.api_port, "web": runtime.web_port}
+    updated["database"] = {"name": runtime.database_name}
+    updated["urls"] = {"api": runtime.api_url, "web": runtime.web_url}
+    updated["logs_dir"] = str(paths.logs_dir)
+    updated.setdefault("processes", {})
+    return updated
+
+
+def update_process_state(
+    state: dict[str, Any], name: str, pid: int, log_path: Path
+) -> dict[str, Any]:
+    updated = dict(state)
+    processes = dict(updated.get("processes", {}))
+    processes[name] = {"pid": pid, "log": str(log_path)}
+    updated["processes"] = processes
+    return updated
+
+
+def read_state(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def write_state(path: Path, state: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n")
+
+
+if __name__ == "__main__":
+    sys.exit(main())

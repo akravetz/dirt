@@ -6,6 +6,7 @@ import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
+from urllib.parse import quote, urlencode
 
 from fastapi import HTTPException, Request, Response, status
 from itsdangerous import BadSignature, URLSafeSerializer
@@ -129,6 +130,22 @@ class UrlSigner:
         digest = hmac.new(self._secret, payload.encode("utf-8"), hashlib.sha256)
         return f"{payload}:{digest.hexdigest()}"
 
+    def verify(
+        self,
+        *,
+        subject: str,
+        expires: int,
+        signature: str,
+        now: datetime,
+    ) -> bool:
+        if int(now.timestamp()) > expires:
+            return False
+        expected = self.sign(
+            subject=subject,
+            expires_at=datetime.fromtimestamp(expires, tz=now.tzinfo),
+        )
+        return secrets.compare_digest(signature, expected)
+
     def build_signed_url(
         self,
         *,
@@ -136,15 +153,18 @@ class UrlSigner:
         subject: str,
         expires_at: datetime,
         params: dict[str, Any] | None = None,
+        signed_subject: str | None = None,
     ) -> str:
         query = {
             "expires": int(expires_at.timestamp()),
-            "signature": self.sign(subject=subject, expires_at=expires_at),
+            "signature": self.sign(
+                subject=signed_subject or subject,
+                expires_at=expires_at,
+            ),
         }
         if params:
             query.update({key: str(value) for key, value in params.items()})
-        rendered = "&".join(f"{key}={value}" for key, value in query.items())
-        return f"{base_url.rstrip('/')}/{subject}?{rendered}"
+        return f"{base_url.rstrip('/')}/{quote(subject, safe='/')}?{urlencode(query)}"
 
 
 def expires_from(now: datetime, seconds: int) -> datetime:

@@ -4,6 +4,7 @@ import ast
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -24,7 +25,7 @@ from dirt_control.models import (
     GatewayCredential,
 )
 from dirt_control.settings import CloudSettings
-from dirt_control.storage import S3ObjectStore
+from dirt_control.storage import S3ObjectStore, create_asset_store
 
 FIXED_NOW = datetime(2026, 5, 5, 3, 45, tzinfo=UTC)
 
@@ -126,6 +127,21 @@ def test_s3_object_store_generates_private_presigned_urls(monkeypatch) -> None:
             "method": "GET",
         },
     ]
+
+
+def test_asset_store_defaults_to_s3_and_requires_credentials() -> None:
+    settings = CloudSettings(
+        DATABASE_URL="postgresql+asyncpg://user:pass@db.example/dirt",
+        DIRT_CLOUD_ADMIN_USERNAME="admin",
+        DIRT_CLOUD_ADMIN_PASSWORD_HASH="hash",
+        DIRT_CLOUD_SESSION_SECRET="test-session-secret-at-least-16",
+    )
+
+    assert settings.asset_store == "s3"
+    with pytest.raises(
+        ValueError, match="DIRT_CLOUD_ASSET_STORE=s3 requires S3 settings"
+    ):
+        create_asset_store(settings=settings, clock=lambda: FIXED_NOW)
 
 
 def _rollup(

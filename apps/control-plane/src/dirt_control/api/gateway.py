@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import SQLModel
 
 from dirt_control.audit import add_audit_event
-from dirt_control.deps import get_clock, get_session, get_settings
+from dirt_control.deps import get_asset_store, get_clock, get_session, get_settings
 from dirt_control.models import (
     CloudAsset,
     CloudCapability,
@@ -27,13 +27,12 @@ from dirt_control.models import (
 from dirt_control.retention import prune_expired_assets
 from dirt_control.security import (
     GatewayPrincipal,
-    UrlSigner,
     authenticate_gateway,
     expires_from,
     require_gateway_scope,
 )
 from dirt_control.settings import CloudSettings
-from dirt_control.storage import S3ObjectStore
+from dirt_control.storage import AssetStore
 from dirt_shared.cloud_contract import (
     AssetCompleteRequest,
     AssetCompleteResponse,
@@ -419,25 +418,16 @@ async def sign_upload(
     body: AssetSignUploadRequest,
     principal: GatewayPrincipal = Depends(require_gateway),
     settings: CloudSettings = Depends(get_settings),
+    asset_store: AssetStore = Depends(get_asset_store),
     clock: Callable[[], datetime] = Depends(get_clock),
 ) -> dict[str, Any]:
     require_gateway_scope(principal, body.site_id)
     expires_at = expires_from(clock(), settings.upload_url_ttl_s)
-    object_store = _object_store(settings)
-    if object_store is None:
-        signer = UrlSigner(settings.session_secret)
-        upload_url = signer.build_signed_url(
-            base_url=settings.public_asset_base_url,
-            subject=body.object_key,
-            expires_at=expires_at,
-            params={"method": "PUT", "content_type": body.content_type},
-        )
-    else:
-        upload_url = object_store.presign_put(
-            object_key=body.object_key,
-            content_type=body.content_type,
-            expires_in_s=settings.upload_url_ttl_s,
-        )
+    upload_url = asset_store.presign_put(
+        object_key=body.object_key,
+        content_type=body.content_type,
+        expires_in_s=settings.upload_url_ttl_s,
+    )
     return {
         "asset_id": body.asset_id,
         "object_key": body.object_key,
@@ -527,10 +517,11 @@ async def asset_upload_failure(
 
 
 @router.post("/assets/prune-expired", response_model=PruneAssetsResponse)
-async def prune_assets(
+async def prune_assets(  # noqa: PLR0913
     body: AssetRetentionRequest,
     principal: GatewayPrincipal = Depends(require_gateway),
     settings: CloudSettings = Depends(get_settings),
+    asset_store: AssetStore = Depends(get_asset_store),
     session: AsyncSession = Depends(get_session),
     clock: Callable[[], datetime] = Depends(get_clock),
 ) -> dict[str, Any]:
@@ -542,7 +533,7 @@ async def prune_assets(
         actor_type="gateway",
         actor_id=principal.gateway_id,
         site_id=body.site_id,
-        object_store=_object_store(settings),
+        object_store=asset_store,
     )
     return {
         "cutoff": result.cutoff,
@@ -798,14 +789,3 @@ def _command_payload(command: CloudCommand) -> CommandResultResponse:
         result=command.result,
         error=command.error,
     )
-
-
-def _object_store(settings: CloudSettings) -> S3ObjectStore | None:
-    if not (
-        settings.s3_endpoint
-        and settings.s3_region
-        and settings.s3_access_key_id
-        and settings.s3_secret_access_key
-    ):
-        return None
-    return S3ObjectStore(settings=settings)

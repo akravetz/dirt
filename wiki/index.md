@@ -97,6 +97,7 @@ updated: 2026-05-25
 - [Damping Off](concepts/damping-off.md) — Fungal disease; symptoms, prevention, current risk assessment (RH elevated)
 - [DLI & Light Management](concepts/dli-light-management.md) — Daily Light Integral, PPFD targets, Fold-650 ramp plan
 - [Flushing (Coco)](concepts/flushing.md) — Pre-harvest flush protocol; coco timing (5–7 days); Autopot procedure
+- [Curing](concepts/curing.md) — Post-dry Grove Bag curing workflow: 58–62% RH target, 75% fill, first-two-week checks, jar fallback, and long-term storage notes
 - [Lollipopping & Defoliation](concepts/lollipopping-defoliation.md) — Flip-day techniques; SCROG integration; week 3 hard stop
 - [Trichome Stages](concepts/trichome-stages.md) — Harvest timing; clear/cloudy/amber; pheno hunt evaluation criteria
 - [VPD](concepts/vpd.md) — Vapor Pressure Deficit: formula, targets by stage, current situation, coco interaction
