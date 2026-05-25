@@ -76,44 +76,7 @@ class S3ObjectStore:
         return deleted
 
 
-class SignedUrlAssetStore:
-    def __init__(
-        self,
-        *,
-        base_url: str,
-        signer: UrlSigner,
-        clock: Callable[[], datetime],
-    ) -> None:
-        self._base_url = base_url
-        self._signer = signer
-        self._clock = clock
-
-    def presign_put(
-        self,
-        *,
-        object_key: str,
-        content_type: str,
-        expires_in_s: int,
-    ) -> str:
-        return self._signer.build_signed_url(
-            base_url=self._base_url,
-            subject=object_key,
-            expires_at=expires_from(self._clock(), expires_in_s),
-            params={"method": "PUT", "content_type": content_type},
-        )
-
-    def presign_get(self, *, object_key: str, expires_in_s: int) -> str:
-        return self._signer.build_signed_url(
-            base_url=self._base_url,
-            subject=object_key,
-            expires_at=expires_from(self._clock(), expires_in_s),
-        )
-
-    def delete_objects(self, object_keys: Sequence[str]) -> int:
-        return 0
-
-
-class LocalAssetStore(SignedUrlAssetStore):
+class LocalAssetStore:
     def __init__(
         self,
         *,
@@ -122,8 +85,10 @@ class LocalAssetStore(SignedUrlAssetStore):
         signer: UrlSigner,
         clock: Callable[[], datetime],
     ) -> None:
-        super().__init__(base_url=base_url, signer=signer, clock=clock)
         self._root = root
+        self._base_url = base_url
+        self._signer = signer
+        self._clock = clock
 
     def presign_put(
         self,
@@ -141,6 +106,13 @@ class LocalAssetStore(SignedUrlAssetStore):
             ),
             expires_at=expires_from(self._clock(), expires_in_s),
             params={"method": "PUT", "content_type": content_type},
+        )
+
+    def presign_get(self, *, object_key: str, expires_in_s: int) -> str:
+        return self._signer.build_signed_url(
+            base_url=self._base_url,
+            subject=object_key,
+            expires_at=expires_from(self._clock(), expires_in_s),
         )
 
     def verify_url_signature(
@@ -194,7 +166,6 @@ def create_asset_store(
     clock: Callable[[], datetime],
 ) -> AssetStore:
     signer = UrlSigner(settings.session_secret)
-    has_s3_settings = _has_s3_settings(settings)
     if settings.asset_store == "local":
         return LocalAssetStore(
             root=settings.local_asset_root,
@@ -202,15 +173,11 @@ def create_asset_store(
             signer=signer,
             clock=clock,
         )
-    if settings.asset_store == "s3" or has_s3_settings:
-        if not has_s3_settings:
+    if settings.asset_store == "s3":
+        if not _has_s3_settings(settings):
             raise ValueError("DIRT_CLOUD_ASSET_STORE=s3 requires S3 settings")
         return S3ObjectStore(settings=settings)
-    return SignedUrlAssetStore(
-        base_url=settings.public_asset_base_url,
-        signer=signer,
-        clock=clock,
-    )
+    raise ValueError(f"unsupported DIRT_CLOUD_ASSET_STORE: {settings.asset_store}")
 
 
 def _has_s3_settings(settings: CloudSettings) -> bool:

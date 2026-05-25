@@ -27,6 +27,7 @@ Assets should use the same database `object_key` in production and dev. Producti
 - [x] (2026-05-25) Added a minimal root `Makefile` with `help` and `fix` so active agent guidance can point at `make fix` immediately.
 - [x] (2026-05-25) Decided to add an asset-store abstraction with S3 for production, local files for dev, and a stubbed `make dev-refresh-assets` command for later production asset mirroring.
 - [x] (2026-05-25) Resolved remaining implementation choices: use `DIRT_CLOUD_ASSET_STORE` / `DIRT_CLOUD_LOCAL_ASSET_ROOT`; make first `make dev-up` fail clearly if no dev DB has been restored; allow local command creation but disable command claiming; use 404/existing UI unavailable state for missing local assets.
+- [x] (2026-05-25) Removed the vague asset-store auto mode and dead signed-URL fallback. `DIRT_CLOUD_ASSET_STORE` now accepts only `s3` or `local`, defaults to `s3`, and fails startup loudly when S3 credentials are missing.
 - [x] (2026-05-25 17:08Z) Implemented root `Makefile` dev lifecycle targets for `dev-up`, `dev-down`, `dev-reset`, `dev-refresh-db`, `dev-refresh-assets`, and `dev-status`; each delegates directly to `scripts/dev-env`. Kept `fix` delegating to `scripts/agent-fix`.
 - [x] (2026-05-25 17:16Z) Implemented `scripts/dev-env` milestone 2 command surface, local env/state generation, deterministic ports, guarded `up`, safe `down`, status reporting, and deferred refresh stubs.
 - [x] (2026-05-25 17:24Z) Implemented `dev-refresh-db` and `dev-reset` lifecycle in `scripts/dev-env`, including safe `pg_dump -Fc` command construction, strict dev database name guards, local restore/reset commands, post-restore sanitization, latest dump state/status, and focused unit coverage.
@@ -34,6 +35,7 @@ Assets should use the same database `object_key` in production and dev. Producti
 - [x] (2026-05-25 18:01Z) Added focused validation for command parsing, safe dev database names, local env generation and repair, production env stripping, PostgreSQL command construction, restore safety flags, sanitization SQL, reset dump selection, and Vite command construction in `apps/shared/tests/test_dev_env_script.py`.
 - [x] (2026-05-25 17:40Z) Updated `docs/commands.md` to present `make dev-up` as the canonical local hosted UI/control-plane dev loop, document `dev-refresh-db`, `dev-status`, `dev-down`, `dev-reset`, and stubbed `dev-refresh-assets`, keep `pnpm --dir web-ui dev` as a standalone debugging detail, and preserve `make fix` as the commit/fix path.
 - [x] (2026-05-25 18:02Z) Ran the harness end to end: installed GNU Make 4.4.1 in the container, verified `make help`, refreshed the local dev DB from Railway using PostgreSQL 18 client overrides, validated sanitization, started the local API/UI, logged in through `agent-browser`, confirmed dashboard API calls went to `http://127.0.0.1:8021`, verified `make dev-status`, `make dev-refresh-assets`, and `make fix`, and validated `dev-reset` from the latest local dump.
+- [x] (2026-05-25) Updated dev API and Vite startup to bind on `0.0.0.0` for LAN access, advertise the detected dev host in browser-facing URLs, and allow `DIRT_DEV_PUBLIC_HOST=<host-or-ip>` override.
 
 
 ## Surprises & Discoveries
@@ -80,8 +82,8 @@ Assets should use the same database `object_key` in production and dev. Producti
 - Observation: Restoring a Railway dump into a local role must ignore hosted object ownership.
   Evidence: `pg_restore` failed with `must be able to SET ROLE "postgres"` until `pg_restore_command()` added `--no-owner`.
 
-- Observation: Vite needed an explicit host argument in the correct pnpm script form to match the planned `127.0.0.1` web URL.
-  Evidence: `pnpm --dir web-ui dev -- --host 127.0.0.1` produced `vite -- --host 127.0.0.1` and only served `http://localhost:5171/`; `pnpm --dir web-ui dev --host 127.0.0.1` served `http://127.0.0.1:5171/`.
+- Observation: Vite needed an explicit host argument in the correct pnpm script form, and both local dev services need to bind on the public interface for LAN access.
+  Evidence: `pnpm --dir web-ui dev -- --host 0.0.0.0` produced `vite -- --host 0.0.0.0`; `pnpm --dir web-ui dev --host 0.0.0.0` passes the host option to Vite correctly. The harness now uses `0.0.0.0` for Vite and uvicorn bind hosts while advertising the detected LAN host in browser-facing URLs.
 
 
 ## Decision Log
@@ -135,7 +137,7 @@ Assets should use the same database `object_key` in production and dev. Producti
   Date/Author: 2026-05-25 / user and Codex.
 
 - Decision: Use `DIRT_CLOUD_ASSET_STORE=local|s3` and `DIRT_CLOUD_LOCAL_ASSET_ROOT=<path>` as the asset-store selection settings.
-  Rationale: These names are explicit, scoped to the cloud control-plane runtime, and make production/dev behavior inspectable from process env. Production should use S3; local dev should set `DIRT_CLOUD_ASSET_STORE=local` and root files under `var/dev/control-plane/assets`.
+  Rationale: These names are explicit, scoped to the cloud control-plane runtime, and make production/dev behavior inspectable from process env. Production defaults to `s3` and fails loudly if the S3 settings are missing; local dev should set `DIRT_CLOUD_ASSET_STORE=local` and root files under `var/dev/control-plane/assets`.
   Date/Author: 2026-05-25 / user and Codex.
 
 - Decision: Add `make dev-refresh-assets` now, but implement it initially as a TODO stub.
@@ -161,22 +163,22 @@ Assets should use the same database `object_key` in production and dev. Producti
 
 ## Outcomes & Retrospective
 
-All milestones are complete. The root command catalog exists in `Makefile`, with dev lifecycle recipes delegating to `scripts/dev-env` and `fix` delegating to `scripts/agent-fix`. `scripts/dev-env` provides the lifecycle command surface, deterministic ports, local-only env/state generation, a successful asset-refresh TODO stub, safe `status`/`down`, a guarded `up` path that refuses to start until a dev database restore has completed, and DB refresh/reset paths with strict local dev database safety checks and post-restore sanitization. The control plane resolves assets through a configured store boundary with S3, signed-url fallback, and local dev file implementations; local dev assets can be PUT/GET through signed `/api/dev-assets/{object_key:path}` URLs without rewriting restored `object_key` metadata. `docs/commands.md` presents the Make targets as the public local dev lifecycle.
+All milestones are complete. The root command catalog exists in `Makefile`, with dev lifecycle recipes delegating to `scripts/dev-env` and `fix` delegating to `scripts/agent-fix`. `scripts/dev-env` provides the lifecycle command surface, deterministic ports, local-only env/state generation, a successful asset-refresh TODO stub, safe `status`/`down`, a guarded `up` path that refuses to start until a dev database restore has completed, public-interface binds for LAN access, and DB refresh/reset paths with strict local dev database safety checks and post-restore sanitization. The control plane resolves assets through a configured store boundary with S3 and local dev file implementations; local dev assets can be PUT/GET through signed `/api/dev-assets/{object_key:path}` URLs without rewriting restored `object_key` metadata. `docs/commands.md` presents the Make targets as the public local dev lifecycle.
 
 End-to-end validation restored the Railway control-plane database into `dirt_cloud_dev_7ff9482e8f`, sanitized it to one local gateway credential, zero active `queued` / `claimed` / `running` commands, and retained 5744 audit rows. The local API was healthy at `http://127.0.0.1:8021/healthz`, the web UI served at `http://127.0.0.1:5171/`, browser login succeeded with the generated local credentials, and dashboard network calls went to `http://127.0.0.1:8021/api/...`.
 
-Validation passed: `make help`; `make dev-status`; `make dev-refresh-assets`; `make fix`; `uv run pytest apps/shared/tests/test_dev_env_script.py -q` with 14 tests; `uv run pytest apps/control-plane/tests -q` with 34 tests; `uv run pytest apps/gateway/tests -q` with 22 tests; and `pnpm --dir web-ui typecheck`.
+Validation passed: `make help`; `make dev-status`; `make dev-refresh-assets`; `make fix`; `uv run pytest apps/shared/tests/test_dev_env_script.py -q` with 15 tests; `uv run pytest apps/control-plane/tests -q` with 35 tests; `uv run pytest apps/gateway/tests -q` with 22 tests; and `pnpm --dir web-ui typecheck`.
 
 
 ## Context and Orientation
 
-The frontend lives in `web-ui/`. It is a Vite React app. Its API client reads `VITE_DIRT_API_BASE_URL` from `web-ui/src/api-client/hosted.ts`; if unset, it uses `/` as the API base. For local control-plane development, Vite should run on its deterministic worktree port and set `VITE_DIRT_API_BASE_URL=http://127.0.0.1:<api-port>`.
+The frontend lives in `web-ui/`. It is a Vite React app. Its API client reads `VITE_DIRT_API_BASE_URL` from `web-ui/src/api-client/hosted.ts`; if unset, it uses `/` as the API base. For local control-plane development, Vite should run on its deterministic worktree port, bind to `0.0.0.0`, and set `VITE_DIRT_API_BASE_URL` to the dev host URL for the local API. `DIRT_DEV_PUBLIC_HOST=<host-or-ip>` may be used when the auto-detected LAN host is not the one to advertise.
 
 The hosted control-plane API lives in `apps/control-plane/`. The Railway start command in `apps/control-plane/railway.json` is:
 
     PYTHONPATH=/app/src uvicorn dirt_control.app:create_app --factory --host 0.0.0.0 --port $PORT
 
-For local development, the equivalent command should bind to `127.0.0.1` and use a local port. The FastAPI app is created by `dirt_control.app:create_app`. It requires `CloudSettings`, including:
+For local development, the equivalent command should bind to `0.0.0.0` and use a local port. The FastAPI app is created by `dirt_control.app:create_app`. It requires `CloudSettings`, including:
 
 - `DIRT_CLOUD_DATABASE_URL`
 - `DIRT_CLOUD_ADMIN_USERNAME`
@@ -249,7 +251,7 @@ Implement `scripts/dev-env` as Python. Keep the executable path extensionless so
 5. Verify a dedicated cloud dev database exists and has been restored from a local dump.
 6. Refuse to start if no dev database exists, and tell the user to run `make dev-refresh-db`, unless the implementation chooses to auto-refresh on first run.
 7. Start uvicorn for `apps/control-plane`.
-8. Wait for `http://127.0.0.1:<api-port>/healthz`.
+8. Wait for `http://127.0.0.1:<api-port>/healthz` locally after binding uvicorn to `0.0.0.0`.
 9. Start Vite through `pnpm --dir web-ui dev` with `VITE_DIRT_API_BASE_URL` set.
 10. Trap process exit and clean up child processes it started.
 
@@ -284,7 +286,7 @@ Introduce an explicit asset store boundary in `apps/control-plane/src/dirt_contr
 - `presign_get(object_key, expires_in_s) -> str`
 - `delete_objects(object_keys) -> int`
 
-Keep the existing production S3 behavior as the S3 implementation. Add a local implementation selected by `DIRT_CLOUD_ASSET_STORE=local`, with local root `DIRT_CLOUD_LOCAL_ASSET_ROOT=var/dev/control-plane/assets`. Production should use `DIRT_CLOUD_ASSET_STORE=s3` or the existing S3 configuration default. The local implementation should generate signed local API URLs, not direct `file://` URLs, because browsers cannot load arbitrary local files from the web UI safely or portably.
+Keep the existing production S3 behavior as the S3 implementation. Add a local implementation selected by `DIRT_CLOUD_ASSET_STORE=local`, with local root `DIRT_CLOUD_LOCAL_ASSET_ROOT=var/dev/control-plane/assets`. Production defaults to `DIRT_CLOUD_ASSET_STORE=s3` and should fail startup if the required S3 settings are not configured. The local implementation should generate signed local API URLs, not direct `file://` URLs, because browsers cannot load arbitrary local files from the web UI safely or portably.
 
 Add a local asset read route to the control-plane API, for example `GET /dev-assets/{object_key:path}`. This route should only be enabled when the local asset store is selected. It must verify the existing URL signature/expiry, normalize and validate the path under the asset root, and return 404 for missing files. Do not implement production S3 mirroring in this milestone.
 
@@ -354,8 +356,8 @@ In a separate terminal:
 
 Expected behavior:
 
-- It reports the control-plane API as reachable at `http://127.0.0.1:<api-port>/healthz`.
-- It reports the web UI as reachable at `http://127.0.0.1:<web-port>/`.
+- It reports the control-plane API as reachable at the detected or overridden dev host URL.
+- It reports the web UI as reachable at the detected or overridden dev host URL.
 - It reports the dev database name under the safe `dirt_cloud_dev_` prefix.
 
 Stop the environment:
@@ -504,7 +506,7 @@ Environment variables used only for dev DB refresh:
 
 Environment variables set for web UI:
 
-- `VITE_DIRT_API_BASE_URL=http://127.0.0.1:<api-port>`
+- `VITE_DIRT_API_BASE_URL=http://<dev-host>:<api-port>`
 - `WEBUI_DEV_PORT=<computed-web-port>`
 
 External tools required:

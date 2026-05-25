@@ -160,7 +160,7 @@ def test_process_commands_are_explicit() -> None:
         "dirt_control.app:create_app",
         "--factory",
         "--host",
-        "127.0.0.1",
+        script.DEV_BIND_HOST,
         "--port",
         "8023",
     ]
@@ -170,8 +170,15 @@ def test_process_commands_are_explicit() -> None:
         "web-ui",
         "dev",
         "--host",
-        "127.0.0.1",
+        script.DEV_BIND_HOST,
     ]
+
+
+def test_public_host_can_be_overridden(monkeypatch: pytest.MonkeyPatch) -> None:
+    script = _load_script()
+    monkeypatch.setenv("DIRT_DEV_PUBLIC_HOST", "192.168.1.50")
+
+    assert script.dev_public_host() == "192.168.1.50"
 
 
 def test_pg_dump_command_uses_custom_format_without_url_or_password() -> None:

@@ -30,8 +30,8 @@ class CloudSettings(BaseSettings):
     asset_retention_days: int = Field(
         default=30, alias="DIRT_CLOUD_ASSET_RETENTION_DAYS"
     )
-    asset_store: Literal["auto", "s3", "local"] = Field(
-        default="auto", alias="DIRT_CLOUD_ASSET_STORE"
+    asset_store: Literal["s3", "local"] = Field(
+        default="s3", alias="DIRT_CLOUD_ASSET_STORE"
     )
     local_asset_root: Path = Field(
         default=Path("var/dev/control-plane/assets"),

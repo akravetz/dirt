@@ -59,7 +59,7 @@ Use the root Make targets as the public local dev lifecycle for hosted dashboard
 make dev-up
 ```
 
-`make dev-up` starts the local control-plane API and Vite UI wired together for hosted dashboard development. It reuses the local dev database and does not refresh production data by itself.
+`make dev-up` starts the local control-plane API and Vite UI wired together for hosted dashboard development. It binds both services on the public interface for LAN access, advertises the detected local host/IP in the printed URLs, and reuses the local dev database without refreshing production data by itself. Set `DIRT_DEV_PUBLIC_HOST=<host-or-ip>` before running it if the advertised host should be overridden.
 
 - **First use / fresh hosted data**: `make dev-refresh-db` creates a local compressed dump from the hosted control-plane database, restores only into the guarded local dev database, and sanitizes local-only state. Run this before the first `make dev-up`, or whenever you intentionally want a fresh production-shaped dev database.
 - **Status**: `make dev-status` reports whether the local API and web ports are reachable, the dev database name, the latest dump, and log pointers.

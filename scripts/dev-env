@@ -72,6 +72,9 @@ ENV_ORDER = [
     "DIRT_CLOUD_LOCAL_ASSET_ROOT",
     "DIRT_CLOUD_ASSET_PUBLIC_BASE_URL",
 ]
+DEV_BIND_HOST = "0.0.0.0"
+LOOPBACK_HOST = "127.0.0.1"
+PUBLIC_HOST_ENV = "DIRT_DEV_PUBLIC_HOST"
 
 
 @dataclass(frozen=True)
@@ -191,15 +194,29 @@ def runtime_for(repo_root: Path) -> Runtime:
     web_port = compute_web_port(repo_root)
     api_port = compute_api_port(worktree_id)
     database_name = database_name_for(worktree_id)
+    public_host = dev_public_host()
     return Runtime(
         repo_root=repo_root,
         worktree_id=worktree_id,
         web_port=web_port,
         api_port=api_port,
         database_name=database_name,
-        api_url=f"http://127.0.0.1:{api_port}",
-        web_url=f"http://127.0.0.1:{web_port}",
+        api_url=f"http://{public_host}:{api_port}",
+        web_url=f"http://{public_host}:{web_port}",
     )
+
+
+def dev_public_host() -> str:
+    override = os.environ.get(PUBLIC_HOST_ENV)
+    if override:
+        return override
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.connect(("8.8.8.8", 80))
+            host = sock.getsockname()[0]
+    except OSError:
+        return LOOPBACK_HOST
+    return host if host and not host.startswith("127.") else LOOPBACK_HOST
 
 
 def worktree_identity(repo_root: Path) -> str:
@@ -274,6 +291,7 @@ def ensure_local_env(paths: Paths, runtime: Runtime) -> dict[str, str]:
             "DIRT_CLOUD_ALLOWED_ORIGINS": ",".join(
                 [
                     runtime.web_url,
+                    f"http://{LOOPBACK_HOST}:{runtime.web_port}",
                     f"http://localhost:{runtime.web_port}",
                 ]
             ),
@@ -400,7 +418,7 @@ def up(paths: Paths, runtime: Runtime, env_values: dict[str, str]) -> int:
         children.append(api_proc)
         state = update_process_state(state, "api", api_proc.pid, api_log)
         write_state(paths.state_path, state)
-        wait_for_health(f"{runtime.api_url}/healthz", api_proc)
+        wait_for_health(local_api_health_url(runtime), api_proc)
 
         web_env = dict(child_env)
         web_env["VITE_DIRT_API_BASE_URL"] = runtime.api_url
@@ -436,14 +454,14 @@ def api_command(api_port: int) -> list[str]:
         "dirt_control.app:create_app",
         "--factory",
         "--host",
-        "127.0.0.1",
+        DEV_BIND_HOST,
         "--port",
         str(api_port),
     ]
 
 
 def web_command() -> list[str]:
-    return ["pnpm", "--dir", "web-ui", "dev", "--host", "127.0.0.1"]
+    return ["pnpm", "--dir", "web-ui", "dev", "--host", DEV_BIND_HOST]
 
 
 def build_child_env(
@@ -941,7 +959,7 @@ def is_safe_dev_process(pid: int) -> bool:
     return (
         "dirt_control.app:create_app" in parts
         or joined.endswith("pnpm --dir web-ui dev")
-        or joined.endswith("pnpm --dir web-ui dev --host 127.0.0.1")
+        or joined.endswith(f"pnpm --dir web-ui dev --host {DEV_BIND_HOST}")
     )
 
 
@@ -1012,6 +1030,10 @@ def render_status(paths: Paths, runtime: Runtime) -> str:
     if restore.get("restored_at"):
         lines.append(f"  Restored at: {restore['restored_at']}")
     return "\n".join(lines)
+
+
+def local_api_health_url(runtime: Runtime) -> str:
+    return f"http://{LOOPBACK_HOST}:{runtime.api_port}/healthz"
 
 
 def yes_no(value: bool) -> str:
