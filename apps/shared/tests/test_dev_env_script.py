@@ -79,7 +79,9 @@ def test_ensure_local_env_generates_local_only_values(tmp_path: Path) -> None:
     values = script.ensure_local_env(paths, runtime)
     reread = script.ensure_local_env(paths, runtime)
 
-    assert values["DIRT_CLOUD_ADMIN_PASSWORD"] == reread["DIRT_CLOUD_ADMIN_PASSWORD"]
+    assert values["DIRT_CLOUD_ADMIN_USERNAME"] == "dev-admin"
+    assert values["DIRT_CLOUD_ADMIN_PASSWORD"] == "dev-password"
+    assert reread["DIRT_CLOUD_ADMIN_PASSWORD"] == "dev-password"
     assert values["DIRT_CLOUD_GATEWAY_TOKEN"] == reread["DIRT_CLOUD_GATEWAY_TOKEN"]
     assert values["DIRT_CLOUD_DATABASE_URL"].endswith("/dirt_cloud_dev_0123abcdef")
     assert values["DIRT_CLOUD_SESSION_COOKIE_SECURE"] == "false"
@@ -88,6 +90,36 @@ def test_ensure_local_env_generates_local_only_values(tmp_path: Path) -> None:
     assert values["DIRT_CLOUD_LOCAL_ASSET_ROOT"] == str(paths.assets_dir)
     assert "railway" not in paths.env_path.read_text().lower()
     assert stat.S_IMODE(paths.env_path.stat().st_mode) == 0o600
+
+
+def test_ensure_local_env_replaces_old_generated_admin_password(
+    tmp_path: Path,
+) -> None:
+    script = _load_script()
+    paths = script.paths_for(tmp_path)
+    paths.logs_dir.mkdir(parents=True)
+    paths.dumps_dir.mkdir(parents=True)
+    paths.assets_dir.mkdir(parents=True)
+    paths.env_path.parent.mkdir(parents=True, exist_ok=True)
+    paths.env_path.write_text(
+        "DIRT_CLOUD_ADMIN_USERNAME=old-admin\n"
+        "DIRT_CLOUD_ADMIN_PASSWORD=random-old-password\n"
+    )
+    runtime = script.Runtime(
+        repo_root=tmp_path,
+        worktree_id="0123abcdef" * 6 + "0123",
+        web_port=5173,
+        api_port=8023,
+        database_name="dirt_cloud_dev_0123abcdef",
+        api_url="http://127.0.0.1:8023",
+        web_url="http://127.0.0.1:5173",
+    )
+
+    values = script.ensure_local_env(paths, runtime)
+
+    assert values["DIRT_CLOUD_ADMIN_USERNAME"] == "dev-admin"
+    assert values["DIRT_CLOUD_ADMIN_PASSWORD"] == "dev-password"
+    assert "DIRT_CLOUD_ADMIN_PASSWORD=dev-password" in paths.env_path.read_text()
 
 
 def test_ensure_local_env_repairs_empty_dev_pg_password_from_root_env(

@@ -7,6 +7,46 @@
 > that match what you're about to do. The triggers tell you *when* each
 > doc is load-bearing. Don't proceed on this index alone.
 
+## Fast path: local hosted dashboard
+
+Use this when working on `web-ui/`, `apps/control-plane/`, hosted dashboard behavior, or browser-visible API flows.
+
+1. Read [`docs/commands.md`](docs/commands.md).
+2. Start the local hosted dev stack:
+
+   ```bash
+   make dev-up
+   ```
+
+   If it says the dev database has not been restored yet, run:
+
+   ```bash
+   make dev-refresh-db
+   make dev-up
+   ```
+
+3. Get the current URLs:
+
+   ```bash
+   make dev-status
+   ```
+
+4. Use `agent-browser` for browser work. Do not use raw Playwright for agentic browser interaction.
+5. Open the Web URL reported by `make dev-status`.
+6. Log in with local dev credentials:
+   - Username: `dev-admin`
+   - Password: `dev-password`
+
+Local auth uses the real browser login/session flow. There is no auth bypass; `make dev-up` configures the control plane with a local password hash and `DIRT_CLOUD_SESSION_COOKIE_SECURE=false` for HTTP dev.
+
+The dev API and Vite bind on the public interface for LAN access. If the advertised host is wrong, restart with:
+
+```bash
+DIRT_DEV_PUBLIC_HOST=<host-or-ip> make dev-up
+```
+
+Deeper details live in [`docs/commands.md`](docs/commands.md); start there before changing the harness.
+
 ## Repository layout
 
 - `apps/{hwd,shared,voice,wake-word,control-plane,gateway,camera-agent}/` — Python services (uv workspace; each has its own `pyproject.toml` + tests). `dirt-hwd` runs on :8000 (production keep-alive — no routine rewrites), and `dirt-gateway` syncs outbound to the hosted control plane.

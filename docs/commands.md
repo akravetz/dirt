@@ -63,6 +63,7 @@ make dev-up
 
 - **First use / fresh hosted data**: `make dev-refresh-db` creates a local compressed dump from the hosted control-plane database, restores only into the guarded local dev database, and sanitizes local-only state. Run this before the first `make dev-up`, or whenever you intentionally want a fresh production-shaped dev database.
 - **Status**: `make dev-status` reports whether the local API and web ports are reachable, the dev database name, the latest dump, and log pointers.
+- **Browser login**: use the Web URL from `make dev-status` and log in with username `dev-admin`, password `dev-password`. This uses the real browser session flow with local-only credentials.
 - **Stop**: `make dev-down` stops the local dev processes recorded by the lifecycle script without touching unrelated services.
 - **Reset from latest dump**: `make dev-reset` restores the local dev database from the most recent local compressed dump and starts the environment again. It does not contact Railway.
 - **Assets placeholder**: `make dev-refresh-assets` is intentionally a stub for now. It exits successfully and points you to place files under `var/dev/control-plane/assets/<object_key>` until production asset mirroring is implemented.

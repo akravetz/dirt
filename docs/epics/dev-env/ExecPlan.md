@@ -36,6 +36,7 @@ Assets should use the same database `object_key` in production and dev. Producti
 - [x] (2026-05-25 17:40Z) Updated `docs/commands.md` to present `make dev-up` as the canonical local hosted UI/control-plane dev loop, document `dev-refresh-db`, `dev-status`, `dev-down`, `dev-reset`, and stubbed `dev-refresh-assets`, keep `pnpm --dir web-ui dev` as a standalone debugging detail, and preserve `make fix` as the commit/fix path.
 - [x] (2026-05-25 18:02Z) Ran the harness end to end: installed GNU Make 4.4.1 in the container, verified `make help`, refreshed the local dev DB from Railway using PostgreSQL 18 client overrides, validated sanitization, started the local API/UI, logged in through `agent-browser`, confirmed dashboard API calls went to `http://127.0.0.1:8021`, verified `make dev-status`, `make dev-refresh-assets`, and `make fix`, and validated `dev-reset` from the latest local dump.
 - [x] (2026-05-25) Updated dev API and Vite startup to bind on `0.0.0.0` for LAN access, advertise the detected dev host in browser-facing URLs, and allow `DIRT_DEV_PUBLIC_HOST=<host-or-ip>` override.
+- [x] (2026-05-25) Added the local hosted dashboard fast path to `AGENTS.md` and made local browser auth deterministic with username `dev-admin` and password `dev-password`.
 
 
 ## Surprises & Discoveries
@@ -163,11 +164,11 @@ Assets should use the same database `object_key` in production and dev. Producti
 
 ## Outcomes & Retrospective
 
-All milestones are complete. The root command catalog exists in `Makefile`, with dev lifecycle recipes delegating to `scripts/dev-env` and `fix` delegating to `scripts/agent-fix`. `scripts/dev-env` provides the lifecycle command surface, deterministic ports, local-only env/state generation, a successful asset-refresh TODO stub, safe `status`/`down`, a guarded `up` path that refuses to start until a dev database restore has completed, public-interface binds for LAN access, and DB refresh/reset paths with strict local dev database safety checks and post-restore sanitization. The control plane resolves assets through a configured store boundary with S3 and local dev file implementations; local dev assets can be PUT/GET through signed `/api/dev-assets/{object_key:path}` URLs without rewriting restored `object_key` metadata. `docs/commands.md` presents the Make targets as the public local dev lifecycle.
+All milestones are complete. The root command catalog exists in `Makefile`, with dev lifecycle recipes delegating to `scripts/dev-env` and `fix` delegating to `scripts/agent-fix`. `scripts/dev-env` provides the lifecycle command surface, deterministic ports, local-only env/state generation with static browser credentials (`dev-admin` / `dev-password`), a successful asset-refresh TODO stub, safe `status`/`down`, a guarded `up` path that refuses to start until a dev database restore has completed, public-interface binds for LAN access, and DB refresh/reset paths with strict local dev database safety checks and post-restore sanitization. The control plane resolves assets through a configured store boundary with S3 and local dev file implementations; local dev assets can be PUT/GET through signed `/api/dev-assets/{object_key:path}` URLs without rewriting restored `object_key` metadata. `AGENTS.md` now includes the fast path for starting the stack and logging in through `agent-browser`; `docs/commands.md` presents the Make targets as the public local dev lifecycle.
 
-End-to-end validation restored the Railway control-plane database into `dirt_cloud_dev_7ff9482e8f`, sanitized it to one local gateway credential, zero active `queued` / `claimed` / `running` commands, and retained 5744 audit rows. The local API was healthy at `http://127.0.0.1:8021/healthz`, the web UI served at `http://127.0.0.1:5171/`, browser login succeeded with the generated local credentials, and dashboard network calls went to `http://127.0.0.1:8021/api/...`.
+End-to-end validation restored the Railway control-plane database into `dirt_cloud_dev_7ff9482e8f`, sanitized it to one local gateway credential, zero active `queued` / `claimed` / `running` commands, and retained 5744 audit rows. The local API was healthy at `http://127.0.0.1:8021/healthz`, the web UI served at `http://127.0.0.1:5171/`, browser login succeeded with local dev credentials, and dashboard network calls went to `http://127.0.0.1:8021/api/...`.
 
-Validation passed: `make help`; `make dev-status`; `make dev-refresh-assets`; `make fix`; `uv run pytest apps/shared/tests/test_dev_env_script.py -q` with 15 tests; `uv run pytest apps/control-plane/tests -q` with 35 tests; `uv run pytest apps/gateway/tests -q` with 22 tests; and `pnpm --dir web-ui typecheck`.
+Validation passed: `make help`; `make dev-status`; `make dev-refresh-assets`; `make fix`; `uv run pytest apps/shared/tests/test_dev_env_script.py -q` with 16 tests; `uv run pytest apps/control-plane/tests -q` with 35 tests; `uv run pytest apps/gateway/tests -q` with 22 tests; and `pnpm --dir web-ui typecheck`.
 
 
 ## Context and Orientation
@@ -255,7 +256,7 @@ Implement `scripts/dev-env` as Python. Keep the executable path extensionless so
 9. Start Vite through `pnpm --dir web-ui dev` with `VITE_DIRT_API_BASE_URL` set.
 10. Trap process exit and clean up child processes it started.
 
-The script should write logs under `var/dev/control-plane/logs/`, dumps under `var/dev/control-plane/dumps/`, and a state file under `var/dev/control-plane/state.json` containing ports, PIDs, database name, dump path, and URLs. It must not print generated secrets by default. It may print the local username and where the password file lives. `var/` is already gitignored, but the script and docs should still describe this location as the only approved storage for local dumps and secrets.
+The script should write logs under `var/dev/control-plane/logs/`, dumps under `var/dev/control-plane/dumps/`, and a state file under `var/dev/control-plane/state.json` containing ports, PIDs, database name, dump path, and URLs. It must not print generated gateway/session secrets by default. Browser login uses static local credentials: username `dev-admin`, password `dev-password`. `var/` is already gitignored, but the script and docs should still describe this location as the only approved storage for local dumps and local-only secrets.
 
 Milestone 3: Implement `dev-refresh-db`, restore, and sanitization.
 
@@ -408,7 +409,7 @@ Automated validation should include at least:
     uv run pytest apps/gateway/tests -q
     pnpm --dir web-ui typecheck
 
-If adding unit tests around `scripts/dev-env`, prefer behavior checks such as safe database name validation, env-file generation without leaking secrets, and command construction. Do not test mutable generated passwords or exact port numbers except when the deterministic algorithm itself is the behavior under test.
+If adding unit tests around `scripts/dev-env`, prefer behavior checks such as safe database name validation, env-file generation without leaking secrets, static local browser credentials, and command construction. Do not test exact port numbers except when the deterministic algorithm itself is the behavior under test.
 
 
 ## Idempotence and Recovery

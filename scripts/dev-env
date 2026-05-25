@@ -75,6 +75,8 @@ ENV_ORDER = [
 DEV_BIND_HOST = "0.0.0.0"
 LOOPBACK_HOST = "127.0.0.1"
 PUBLIC_HOST_ENV = "DIRT_DEV_PUBLIC_HOST"
+LOCAL_ADMIN_USERNAME = "dev-admin"
+LOCAL_ADMIN_PASSWORD = "dev-password"
 
 
 @dataclass(frozen=True)
@@ -257,7 +259,6 @@ def ensure_local_env(paths: Paths, runtime: Runtime) -> dict[str, str]:
     root_env = read_env_file(paths.repo_root / ".env")
     values = dict(existing)
 
-    admin_password = values.get("DIRT_CLOUD_ADMIN_PASSWORD") or token()
     gateway_token = values.get("DIRT_CLOUD_GATEWAY_TOKEN") or token()
     session_secret = values.get("DIRT_CLOUD_SESSION_SECRET") or token(48)
     pg_user = local_pg_value(values, root_env, "USER", "dirt")
@@ -281,11 +282,11 @@ def ensure_local_env(paths: Paths, runtime: Runtime) -> dict[str, str]:
             "DIRT_DEV_PG_PASSWORD": pg_password,
             "DIRT_DEV_CLOUD_DATABASE": runtime.database_name,
             "DIRT_CLOUD_DATABASE_URL": database_url,
-            "DIRT_CLOUD_ADMIN_USERNAME": values.get(
-                "DIRT_CLOUD_ADMIN_USERNAME", "dev-admin"
+            "DIRT_CLOUD_ADMIN_USERNAME": LOCAL_ADMIN_USERNAME,
+            "DIRT_CLOUD_ADMIN_PASSWORD": LOCAL_ADMIN_PASSWORD,
+            "DIRT_CLOUD_ADMIN_PASSWORD_HASH": sha256_password_hash(
+                LOCAL_ADMIN_PASSWORD
             ),
-            "DIRT_CLOUD_ADMIN_PASSWORD": admin_password,
-            "DIRT_CLOUD_ADMIN_PASSWORD_HASH": sha256_password_hash(admin_password),
             "DIRT_CLOUD_SESSION_SECRET": session_secret,
             "DIRT_CLOUD_SESSION_COOKIE_SECURE": "false",
             "DIRT_CLOUD_ALLOWED_ORIGINS": ",".join(
