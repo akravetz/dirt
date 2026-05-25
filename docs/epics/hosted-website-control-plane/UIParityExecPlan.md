@@ -318,7 +318,7 @@ Run browser acceptance locally after building the SPA served by `dirt-web`:
 
 Deploy only through the supported flow:
 
-    scripts/agent-fix
+    make fix
     scripts/deploy-control-plane
 
 Capture hosted acceptance after deploy:

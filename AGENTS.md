@@ -71,7 +71,7 @@ Read the linked doc *before* doing the activity in the trigger column.
 - **Python commands**: Always use `uv run ...` / `uv add ...`; never invoke bare `python`, `pip`, or `pytest`.
 - **Scratch dir**: write throwaway scripts to `debug/`. Don't clutter `apps/` or `scripts/`.
 - **Hosted deploys**: use only `scripts/deploy-control-plane` for Railway deployments. It applies the dedicated cloud Atlas migrations before deploying `control-plane-api` and `web-ui`; do not run app-start DDL or ad hoc `railway up` for these services.
-- **Commits**: run `scripts/agent-fix` before `git add` + `git commit`. Pre-commit hooks are write-mode; if a hook modifies files, re-add and re-commit. Never `--no-verify`. Don't auto-amend.
+- **Commits**: run `make fix` before `git add` + `git commit`. Pre-commit hooks are write-mode; if a hook modifies files, re-add and re-commit. Never `--no-verify`. Don't auto-amend.
 - **Tests**: `apps/tests/invariants/` is HUMAN-OWNED — fix your code to pass invariants, never modify them. Per-app tests under `apps/<app>/tests/` are agent-owned. Tests that write to disk must use `tmp_path` and the autouse `isolate_observability_logs` fixture (see [`docs/observability.md`](docs/observability.md)).
 - **Risky actions**: confirm before destructive ops (force push, hard reset, rm of unfamiliar files), shared-state mutations, or anything visible to others (chat sends, PR comments). Auto mode does not override this.
 

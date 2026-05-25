@@ -214,7 +214,7 @@ Run existing broad safety checks after implementation milestones:
 
 Before committing implementation work:
 
-    scripts/agent-fix
+    make fix
     git diff --check
 
 

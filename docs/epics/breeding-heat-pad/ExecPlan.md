@@ -77,7 +77,7 @@ All implementation and live rollout milestones completed. `ScheduledKasaActuator
 
 Validation completed on 2026-05-15:
 
-- `scripts/agent-fix` passed.
+- `make fix` passed.
 - `uv run pytest apps/hwd/tests/test_kasa_schedule.py -q` passed: 6 tests.
 - `uv run pytest apps/tests/invariants/ -q` passed: 112 tests.
 - `uv run pytest apps/hwd/tests apps/shared/tests apps/tests/invariants -q` passed: 463 tests.
@@ -267,7 +267,7 @@ Review and manually adjust the generated migration if Atlas cannot express the i
 
 Before committing:
 
-    scripts/agent-fix
+    make fix
     uv run pytest -q
 
 Live apply and service restart require operator awareness because they affect a heat source:

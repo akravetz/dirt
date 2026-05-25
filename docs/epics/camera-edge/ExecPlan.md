@@ -364,7 +364,7 @@ Use the hosted API with authenticated browser credentials or an existing browser
 
 Before committing implementation work:
 
-    scripts/agent-fix
+    make fix
     git status --short
 
 Milestone 7 cleanup checks should include targeted searches such as:

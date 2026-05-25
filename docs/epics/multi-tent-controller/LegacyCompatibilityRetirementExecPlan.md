@@ -432,7 +432,7 @@ Local webapp-v1 contract regeneration is retired. For hosted control-plane API c
 
 Before committing:
 
-    scripts/agent-fix
+    make fix
     uv run pytest apps/tests/invariants/ -q
     uv run pytest apps/shared/tests apps/hwd/tests apps/web/tests -q
     git diff --check

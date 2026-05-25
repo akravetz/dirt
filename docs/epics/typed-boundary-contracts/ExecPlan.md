@@ -199,7 +199,7 @@ The simplify fallback pass found two small cleanup opportunities and applied bot
 
 Final validation after completing all milestones:
 
-    scripts/agent-fix
+    make fix
     git diff --check
 
 Both passed. The full suite command `uv run pytest -q` was also run; all typed-boundary, gateway, control-plane, shared, and invariant tests reached by the suite passed, but the command failed in unrelated wake-word import tests because the installed SciPy no longer exposes `scipy.special.sph_harm` for the `acoustics` dependency imported by `openwakeword`.
@@ -281,7 +281,7 @@ Milestone 5 commands:
 Full validation before completion:
 
     uv run pytest -q
-    scripts/agent-fix
+    make fix
 
 Expected result for the focused gateway test after Milestone 2:
 
@@ -312,7 +312,7 @@ Outbox rows created before this migration may contain older payload shapes. The 
 
 Cloud API changes must remain backward compatible with the currently deployed gateway until the local gateway is restarted on new code. For owned request DTOs, make newly required fields required at the producer first, then tighten the receiver after deployment if necessary.
 
-If `scripts/agent-fix` rewrites files, re-run the focused tests before committing. Do not modify `apps/tests/invariants/` unless the user explicitly asks; if an invariant fails, fix production code or add a new agent-owned test first.
+If `make fix` rewrites files, re-run the focused tests before committing. Do not modify `apps/tests/invariants/` unless the user explicitly asks; if an invariant fails, fix production code or add a new agent-owned test first.
 
 
 ## Artifacts and Notes

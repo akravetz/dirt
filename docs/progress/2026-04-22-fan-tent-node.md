@@ -266,7 +266,7 @@ PGPASSWORD=$DIRT_PG_PASSWORD psql -h 127.0.0.1 -U dirt -d dirt -c \
 ### Commit current uncommitted work (when ready)
 ```bash
 cd /home/akcom/code/dirt
-scripts/agent-fix       # formatters before commit — always run first
+make fix       # formatters before commit — always run first
 git add firmware/fan_controller/ wiki/
 git commit -m "feat(firmware.fan_controller): merge SHT45 tent sensor into fan-controller ESP32
 ...

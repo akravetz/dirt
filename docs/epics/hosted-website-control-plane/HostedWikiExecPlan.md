@@ -99,7 +99,7 @@ Milestone 4 adds cloud gateway and browser routes. Add `PUT /api/gateway/v1/wiki
 
 Milestone 5 aligns the frontend contract. Run `scripts/gen-hosted-contract` so `contracts/hosted-browser-v1.json` and `web-ui/src/api-client/generated/hosted-schema.ts` include `/api/wiki/*`. If `web-ui/src/routes/wiki.tsx` can continue to use `createDirtApiClient()` safely because hosted and local route shapes are identical, keep the frontend change minimal and document that choice. If the generated-hosted-client guardrails require hosted routes to use `createHostedApiClient()`, add a small API-client selector while preserving the same UI components and view models. Do not add hand-written hosted wiki TypeScript interfaces.
 
-Milestone 6 validates and deploys. Run focused backend tests, regenerate hosted contracts, run frontend typecheck/build if frontend files changed, run `scripts/agent-fix`, then deploy through `scripts/deploy-control-plane`. After deployment and one gateway sync cycle, use `agent-browser` to verify hosted `/wiki`: sidebar loads, opening `wiki/overview.md` renders Markdown, search returns expected results, unauthenticated `/api/wiki/tree` is rejected, and authenticated `/api/wiki/tree` returns 200.
+Milestone 6 validates and deploys. Run focused backend tests, regenerate hosted contracts, run frontend typecheck/build if frontend files changed, run `make fix`, then deploy through `scripts/deploy-control-plane`. After deployment and one gateway sync cycle, use `agent-browser` to verify hosted `/wiki`: sidebar loads, opening `wiki/overview.md` renders Markdown, search returns expected results, unauthenticated `/api/wiki/tree` is rejected, and authenticated `/api/wiki/tree` returns 200.
 
 
 ## Concrete Steps
@@ -145,7 +145,7 @@ If `web-ui/src/routes/wiki.tsx` or API-client code changes:
 
 Before committing implementation changes:
 
-    scripts/agent-fix
+    make fix
 
 Deploy only after tests pass and the user is ready for hosted rollout:
 

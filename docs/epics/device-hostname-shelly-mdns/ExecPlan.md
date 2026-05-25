@@ -20,7 +20,7 @@ The schedule is not an instruction to leave a pump on for a window. Irrigation u
 - [x] (2026-05-25 04:30Z) Seed the Shelly breeding drip pump device row with hostname, IP hint, MAC provider UID, and an actuator capability.
 - [x] (2026-05-25 04:30Z) Add irrigation pulse storage: schedule seed, item rows, SQLModel table models, and a run ledger for idempotent dispatch.
 - [x] (2026-05-25 04:55Z) Add focused Shelly client/resolution tests and implementation.
-- [x] (2026-05-25 05:03Z) Validate with focused tests, invariants as appropriate, and `scripts/agent-fix`.
+- [x] (2026-05-25 05:03Z) Validate with focused tests, invariants as appropriate, and `make fix`.
 - [ ] Commit and push.
 
 ## Surprises & Discoveries
@@ -81,7 +81,7 @@ The schedule is not an instruction to leave a pump on for a window. Irrigation u
 - Validation: `uv run pytest apps/shared/tests/test_irrigation_models.py apps/shared/tests/test_scoped_identity_models.py -q` passed with 6 tests; `atlas migrate hash` and `atlas migrate diff verify_irrigation_pulse_storage --env local` passed in worker validation.
 - Added HWD Shelly client, DB target loader, and irrigation scheduler `run_once()` service with hostname-before-IP endpoint ordering, Shelly identity verification, `Switch.Set` timed pulse dispatch with `toggle_after`, enabled schedule/item filtering, duplicate run suppression, and failed dispatch recording.
 - Validation: `uv run pytest apps/hwd/tests/test_shelly.py apps/hwd/tests/test_shelly_irrigation.py apps/shared/tests/test_irrigation_models.py -q` passed with 13 tests; scoped Ruff format/check passed in worker validation.
-- Final validation: `uv run pytest apps/hwd/tests/test_shelly.py apps/hwd/tests/test_shelly_irrigation.py apps/shared/tests/test_scoped_identity_models.py -q` passed with 11 tests; `uv run pytest apps/tests/invariants/ -q` passed with 41 tests; `scripts/agent-fix` completed all fixers.
+- Final validation: `uv run pytest apps/hwd/tests/test_shelly.py apps/hwd/tests/test_shelly_irrigation.py apps/shared/tests/test_scoped_identity_models.py -q` passed with 11 tests; `uv run pytest apps/tests/invariants/ -q` passed with 41 tests; `make fix` completed all fixers.
 
 ## Context and Orientation
 
@@ -116,7 +116,7 @@ Run from the repository root:
     cd /home/akcom/code/dirt
     uv run pytest apps/hwd/tests/test_shelly.py apps/hwd/tests/test_shelly_irrigation.py apps/shared/tests/test_scoped_identity_models.py -q
     uv run pytest apps/tests/invariants/ -q
-    scripts/agent-fix
+    make fix
     git status --short
     git add docs/epics/device-hostname-shelly-mdns/ExecPlan.md apps/shared/src/dirt_shared/models/device.py apps/shared/src/dirt_shared/models/irrigation.py apps/shared/src/dirt_shared/models/__init__.py apps/shared/tests/test_scoped_identity_models.py apps/hwd/src/dirt_hwd/services/shelly.py apps/hwd/src/dirt_hwd/services/shelly_irrigation.py apps/hwd/tests/test_shelly.py apps/hwd/tests/test_shelly_irrigation.py migrations migrations/atlas.sum
     git commit -m "Add Shelly irrigation scheduling foundation"
@@ -138,7 +138,7 @@ Acceptance requires:
 - Shelly tests prove the client tries the hostname before IP and refuses to control a plug whose RPC identity does not match the DB target.
 - Timed pulse tests prove the RPC payload includes `toggle_after`, not a sleep-and-off sequence.
 - Irrigation scheduler tests prove a due pulse creates one run record and one Shelly command, while a repeated scheduler tick for the same intended start time does not dispatch again.
-- Focused pytest commands and `scripts/agent-fix` complete.
+- Focused pytest commands and `make fix` complete.
 
 ## Idempotence and Recovery
 

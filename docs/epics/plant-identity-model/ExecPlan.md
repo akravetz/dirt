@@ -220,7 +220,7 @@ Run focused validation:
 
 Before committing later, run:
 
-    scripts/agent-fix
+    make fix
 
 
 ## Validation and Acceptance

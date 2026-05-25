@@ -527,7 +527,7 @@ Expected validation commands for frontend work:
 
 Expected validation commands before commit:
 
-    scripts/agent-fix
+    make fix
     git status --short
 
 
@@ -685,7 +685,7 @@ Replacement Worker M2b validation on 2026-05-05:
 - `uv run ruff check apps/control-plane cloud/atlas/load-sqlmodel.py` passed.
 - `uv run ruff format apps/control-plane cloud/atlas/load-sqlmodel.py --check` passed with `14 files already formatted`.
 - `uv run --package dirt-control-plane python cloud/atlas/load-sqlmodel.py | sed -n '1,20p'` emitted cloud Postgres DDL beginning with `CREATE TABLE cloud_site`.
-- Main-agent verification reran `uv run pytest apps/control-plane/tests -q`, `uv run pytest apps/tests/invariants/ -q`, `uv run ruff check apps/control-plane cloud/atlas/load-sqlmodel.py`, `uv run ruff format apps/control-plane cloud/atlas/load-sqlmodel.py --check`, and `scripts/agent-fix`; all passed after replacing the brittle hardware-import assertion with a source import scan.
+- Main-agent verification reran `uv run pytest apps/control-plane/tests -q`, `uv run pytest apps/tests/invariants/ -q`, `uv run ruff check apps/control-plane cloud/atlas/load-sqlmodel.py`, `uv run ruff format apps/control-plane cloud/atlas/load-sqlmodel.py --check`, and `make fix`; all passed after replacing the brittle hardware-import assertion with a source import scan.
 
 Milestone 3 implementation artifacts on 2026-05-05:
 
@@ -798,7 +798,7 @@ Milestone 6 validation on 2026-05-05:
 - Main-agent deployment attempt 2 stopped before app deployment because the app service `DATABASE_URL` used Railway's private internal hostname, which local Atlas cannot resolve. Verification then switched the script fallback to the Postgres service `DATABASE_PUBLIC_URL`.
 - Full backend validation `uv run pytest -q` ran and failed only in pre-existing wake-word surfaces: 596 passed, 2 skipped, 4 failed (`apps/wake-word/tests/test_imports.py` cannot import `scipy.special.sph_harm`; `test_paths.py` TPU-layout fallback; `test_seed.py` duplicate suffix behavior). No wake-word files were touched in this milestone.
 - Frontend validation passed: `pnpm --dir web-ui typecheck`, `pnpm --dir web-ui lint`, `pnpm --dir web-ui test` with `7 passed`, and `pnpm --dir web-ui build`.
-- `scripts/agent-fix` passed and applied no additional changes.
+- `make fix` passed and applied no additional changes.
 - Production `scripts/deploy-control-plane` completed after provider-specific Railway build/runtime fixes. Final Railway states: API deployment `e6aad95d-4518-4382-a2e2-a4612d26611b` `SUCCESS`; web-ui deployment `c6e7f321-d330-4cef-88d3-293587fe391c` `SUCCESS`.
 - Public production smoke checks passed: `https://api.sirius-forge.com/api/health` returned `ok=true`, `service=control-plane-api`, `status=offline`, `asset_retention_days=30`, `commands_enabled=true`; `https://sirius-forge.com/` served built SPA asset references and no placeholder text.
 - Public auth/privacy checks passed: unauthenticated `/api/sites`, `/api/tents/main/assets/latest`, and `/api/assets/example/signed-url` returned 401; authenticated login returned 200 and session-authenticated `/api/auth/me` and `/api/sites` returned 200. This verifies grow asset metadata and signed-URL access are browser-session protected in production.
@@ -806,7 +806,7 @@ Milestone 6 validation on 2026-05-05:
 - Local gateway production readiness checks passed: local Atlas migration `20260505035619_cloud_gateway_durability` was applied explicitly, `scripts/install-systemd` installed the unit, `systemctl --user is-active dirt-gateway` returned `active`, and the cloud health endpoint reported `status=live` with a current heartbeat.
 - Final asset privacy checks passed: unauthenticated `/api/tents/main/assets/latest` returned 401; authenticated `/api/tents/main/assets/latest` returned five assets whose signed URL host was `t3.storageapi.dev`; no public asset route is required for V1.
 - Residual operational state at final check: local outbox still had pending heartbeat/latest/rollup rows and one asset row while delivered assets had reached five; cloud health reported `gateway_backlog_depth=12` and `asset_failures_24h=18` from earlier failed upload attempts. This is safe to leave because the gateway is active and retrying, but the old failure counter/backlog should be watched after the next normal sync cycles.
-- Connection-pressure fix validation passed: `uv run pytest apps/control-plane/tests -q` passed with `19 passed`, `uv run ruff check apps/control-plane` passed, `bash -n scripts/deploy-control-plane` passed, and `scripts/agent-fix` passed.
+- Connection-pressure fix validation passed: `uv run pytest apps/control-plane/tests -q` passed with `19 passed`, `uv run ruff check apps/control-plane` passed, `bash -n scripts/deploy-control-plane` passed, and `make fix` passed.
 - Final redeploy completed through `scripts/deploy-control-plane` after the connection-pressure fix. Final Railway states: API deployment `e73f460b-6044-47a3-9709-0056ad850da1` `SUCCESS`; web-ui deployment `ea2c7480-bdf2-48c8-abdd-80bf8332b19b` `SUCCESS`.
 - Final smoke checks passed: five repeated `/api/health` probes returned 200 in roughly 150-240 ms after the redeploy; `systemctl --user is-active dirt-gateway` returned `active`; the hosted UI served built asset references and no placeholder text; unauthenticated asset reads returned 401; authenticated asset reads returned eight private S3 presigned assets on `t3.storageapi.dev`.
 - Residual operational state at the final post-fix check: local outbox had delivered all eight asset uploads, with only the expected pending heartbeat/latest rows and 14 pending rollup catch-up rows; cloud health reported a live gateway, `gateway_backlog_depth=14`, zero command failures in 24 hours, and `asset_failures_24h=18` from earlier failed upload attempts.

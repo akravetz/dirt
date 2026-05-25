@@ -8,7 +8,7 @@ Use the **`agent-browser`** CLI for every agentic browser interaction (navigatin
 
 ## Committing
 
-Before `git add` + `git commit`, run **`scripts/agent-fix`**. It applies every formatter and safe lint-fix in one pass (ruff format, ruff check --fix, Biome check --write, ESLint --fix) so the pre-commit hooks don't bounce you back for cosmetic drift.
+Before `git add` + `git commit`, run **`make fix`**. It applies every formatter and safe lint-fix in one pass (ruff format, ruff check --fix, Biome check --write, ESLint --fix) so the pre-commit hooks don't bounce you back for cosmetic drift.
 
 The pre-commit hooks run in **write-mode** (not check-mode). If a hook still modifies files during the commit, pre-commit aborts with "files were modified by this hook" — the recovery is `git add -A && git commit ...` again, NOT chasing each formatter's `--write` flag separately. If a hook fails for a non-cosmetic reason (test failure, type error, invariant violation), fix the underlying code; never edit the hook config or skip with `--no-verify`.
 

@@ -262,7 +262,7 @@ Before applying live schema changes:
 
 Before committing any milestone:
 
-    scripts/agent-fix
+    make fix
     uv run pytest apps/tests/invariants/ -q
     uv run pytest apps/shared/tests apps/hwd/tests apps/web/tests -q
     git diff --check

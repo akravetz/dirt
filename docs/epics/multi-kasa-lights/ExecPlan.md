@@ -337,7 +337,7 @@ Implement UI display:
 Run broader validation before commit:
 
     uv run pytest -q
-    scripts/agent-fix
+    make fix
     git status --short
 
 

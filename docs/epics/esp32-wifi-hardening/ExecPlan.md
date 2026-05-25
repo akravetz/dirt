@@ -379,7 +379,7 @@ Run focused backend and frontend checks for touched modules, plus invariants:
 
 Before committing implementation work, run:
 
-    scripts/agent-fix
+    make fix
 
 Milestone 8: Canary OTA rollout.
 
@@ -490,7 +490,7 @@ Validate:
 Run formatting/fixes before commit:
 
     cd /home/akcom/code/dirt
-    scripts/agent-fix
+    make fix
 
 Canary upload:
 
@@ -584,7 +584,7 @@ Validation evidence from 2026-05-22 implementation:
 - `pnpm --dir web-ui typecheck` passed.
 - `pnpm --dir web-ui test` passed with the current project state of no Vitest files.
 - `pnpm --dir web-ui test:e2e -- tests/e2e/dashboard-system-table.spec.ts` passed once the expected Vite dev server was running on the worktree port.
-- `scripts/agent-fix` passed after implementation.
+- `make fix` passed after implementation.
 - `atlas migrate diff esp32_wifi_telemetry --env local` generated `migrations/20260522024624_esp32_wifi_telemetry.sql`; the migration has not been applied to the live local database in this coding pass.
 
 
