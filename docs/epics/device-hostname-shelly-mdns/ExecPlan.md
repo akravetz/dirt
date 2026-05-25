@@ -6,7 +6,7 @@ This plan follows `.agents/PLANS.md`.
 
 ## Purpose / Big Picture
 
-After this change, Dirt can store a device's local DNS or mDNS hostname directly on the `device` row and use that hostname as the preferred reachability hint for the Shelly Plus Plug US that will control the breeding-tent drip-assist pump. It will also have the database foundation for repeatable irrigation pulses: an enabled irrigation schedule attached to the Shelly pump capability, one or more local-time pulse items with explicit seconds durations, and a durable run ledger so the hardware service can avoid duplicate watering after restarts. This matters because DHCP IP addresses can move, while the Shelly advertises a stable `.local` hostname on the LAN, and because watering is an edge-triggered action where duplicate dispatch is riskier than a missed pulse. A human can observe the result by querying the database for `shelly-breeding-drip-pump`, seeing `hostname='ShellyPlugUSG4-ACEBE6F59BDC.local'`, seeing an irrigation schedule with pulse items, and by running focused tests that prove the Shelly client prefers hostname, falls back to IP, verifies the returned Shelly identity before control, and records pulse attempts idempotently.
+After this change, Dirt can store a device's local DNS or mDNS hostname directly on the `device` row and use that hostname as the preferred reachability hint for the Shelly Plus Plug US that will control the breeding-tent drip-assist pump. It will also have the database foundation for repeatable irrigation pulses: an irrigation schedule attached to the Shelly pump capability, a disabled seed pulse at 11:00 local time for 5 seconds, and a durable run ledger so the hardware service can avoid duplicate watering after restarts. This matters because DHCP IP addresses can move, while the Shelly advertises a stable `.local` hostname on the LAN, and because watering is an edge-triggered action where duplicate dispatch is riskier than a missed pulse. A human can observe the result by querying the database for `shelly-breeding-drip-pump`, seeing the current Shelly hostname seed, seeing an irrigation schedule with the disabled 11:00 / 5 second pulse item, and by running focused tests that use fixtures to prove the Shelly client prefers hostname, falls back to IP, verifies the returned Shelly identity before control, and records pulse attempts idempotently.
 
 The hostname is not authority. Stable device identity still comes from provider identity fields such as `provider_uid_kind='mac'` and `provider_uid='ACEBE6F59BDC'`. The hostname and IP are reachability hints only.
 
@@ -56,6 +56,18 @@ The schedule is not an instruction to leave a pump on for a window. Irrigation u
   Rationale: The Shelly safety command accepts seconds through `toggle_after`. A unit-bearing column prevents ambiguity and avoids hidden conversions for safety-critical pump control.
   Date/Author: 2026-05-25 / Codex
 
+- Decision: Keep the irrigation item time column named `starts_local`.
+  Rationale: The existing `schedule` model already uses `starts_local` for local-time schedule semantics. Keeping the same spelling avoids a one-off `start_local` variant for the same concept.
+  Date/Author: 2026-05-25 / Codex
+
+- Decision: Seed the first irrigation pulse as disabled, 11:00 local time, 5 seconds.
+  Rationale: This records the intended first schedule without making a migration turn on unattended watering. A disabled seed is visible and inspectable, but activation remains a deliberate operator action after calibration and leak checks.
+  Date/Author: 2026-05-25 / Codex
+
+- Decision: Constrain `irrigation_run.status` to a small fixed vocabulary.
+  Rationale: Run status is control-flow data. A database check constraint prevents spelling drift and makes scheduler behavior easier to query and test.
+  Date/Author: 2026-05-25 / Codex
+
 ## Outcomes & Retrospective
 
 Pending implementation.
@@ -79,12 +91,12 @@ This plan includes the database foundation for an autonomous irrigation schedule
 1. Update `Device` in `apps/shared/src/dirt_shared/models/device.py` with `hostname: str | None`, backed by nullable `Text`.
 2. Add SQLModel table models for irrigation pulse storage, likely in `apps/shared/src/dirt_shared/models/irrigation.py`, and export them from `apps/shared/src/dirt_shared/models/__init__.py`.
 3. Define `IrrigationScheduleItem` with `schedule_id` as a foreign key to `schedule.id`, `starts_local time not null`, `duration_s integer not null`, `enabled boolean not null default true`, nullable `label text`, and timestamps. Add a check constraint that `duration_s > 0`.
-4. Define `IrrigationRun` with foreign keys to `schedule.id`, `irrigation_schedule_item.id`, `device.id`, and `capability.id`; `intended_start_at timestamptz not null`; nullable `started_at` and `finished_at`; `duration_s integer not null`; `status text not null`; nullable `error text`; and timestamps. Add a unique constraint on `schedule_item_id, intended_start_at` so retry logic cannot create duplicate run records for the same pulse.
-5. Add an Atlas migration under `migrations/` that adds `device.hostname`, creates the irrigation tables, seeds or updates the `shelly-breeding-drip-pump` device under `homebox/breeding`, adds the Shelly pump capability, creates a `schedule` row with `kind='irrigation'`, and seeds conservative disabled or short supervised pulse items for calibration. If the first real pulse timing is unknown, seed the schedule disabled and leave item rows disabled.
+4. Define `IrrigationRun` with foreign keys to `schedule.id`, `irrigation_schedule_item.id`, `device.id`, and `capability.id`; `intended_start_at timestamptz not null`; nullable `started_at` and `finished_at`; `duration_s integer not null`; `status text not null`; nullable `error text`; and timestamps. Add a unique constraint on `schedule_item_id, intended_start_at` so retry logic cannot create duplicate run records for the same pulse. Add a check constraint limiting `status` to `pending`, `dispatched`, `failed`, or `skipped`.
+5. Add an Atlas migration under `migrations/` that adds `device.hostname`, creates the irrigation tables, seeds or updates the `shelly-breeding-drip-pump` device under `homebox/breeding`, adds the Shelly pump capability, creates a disabled `schedule` row with `kind='irrigation'`, and seeds one disabled calibration pulse item with `starts_local='11:00:00'` and `duration_s=5`.
 6. Add `apps/hwd/src/dirt_hwd/services/shelly.py` with an internal `ShellyPlugTarget`, DB loader, and `ShellyPlugClient` that uses `hostname` before `ip`, verifies `Shelly.GetDeviceInfo`, and sends timed `Switch.Set` pulses.
 7. Add an irrigation scheduler service, either in `apps/hwd/src/dirt_hwd/services/shelly_irrigation.py` or next to the Shelly client if the file remains small. The service should load enabled `kind='irrigation'` schedules and enabled pulse items, compute the current due pulse in the schedule timezone, create or reuse the `irrigation_run` row for idempotency, and dispatch exactly one `toggle_after=duration_s` Shelly pulse when due.
-8. Add focused tests in `apps/hwd/tests/test_shelly.py` or a separate `apps/hwd/tests/test_shelly_irrigation.py` that cover endpoint ordering, identity mismatch rejection, timed pulse payload shape, DB target loading, due-pulse detection, duplicate-run suppression, disabled schedule/item filtering, and failure status recording.
-9. Extend existing scoped identity smoke tests to assert the seeded Shelly row has the expected hostname and provider UID, and add shared-model tests that assert the seeded irrigation schedule and pulse storage point at the Shelly pump capability.
+8. Add focused tests in `apps/hwd/tests/test_shelly.py` or a separate `apps/hwd/tests/test_shelly_irrigation.py` that cover endpoint ordering, identity mismatch rejection, timed pulse payload shape, DB target loading, due-pulse detection, duplicate-run suppression, disabled schedule/item filtering, constrained run statuses, and failure status recording.
+9. Extend shared-model tests with explicit fixtures that prove irrigation schedules and pulse storage point at the selected pump capability. Do not write tests that pin the current deployed Shelly hostname, IP, MAC, schedule ID, or 11:00 / 5 second seed values; those are operator-owned seed data, not product contracts.
 
 ## Concrete Steps
 
@@ -109,9 +121,9 @@ Acceptance requires:
 
 - `Device.hostname` exists in the SQLModel and migration.
 - `IrrigationScheduleItem` and `IrrigationRun` exist as SQLModel table models and are backed by Atlas-managed tables.
-- The seeded `shelly-breeding-drip-pump` row has `hostname='ShellyPlugUSG4-ACEBE6F59BDC.local'`, `ip='192.168.1.44'`, `controller='shelly'`, `provider_uid_kind='mac'`, and `provider_uid='ACEBE6F59BDC'`.
-- The seeded Shelly capability is the target of a `schedule` row with `kind='irrigation'`; pulse definitions live in `irrigation_schedule_item` with explicit `duration_s`.
-- `irrigation_run` has a uniqueness rule that prevents duplicate run rows for the same schedule item and intended start time.
+- The migration seeds the current Shelly deployment row with hostname, IP hint, MAC provider UID, and controller metadata, but tests use fixtures rather than asserting those literal seed values.
+- The seeded Shelly capability is the target of a disabled `schedule` row with `kind='irrigation'`; `irrigation_schedule_item` contains one disabled seed pulse at 11:00 local time with `duration_s=5`.
+- `irrigation_run` has a uniqueness rule that prevents duplicate run rows for the same schedule item and intended start time, plus a check constraint limiting status to `pending`, `dispatched`, `failed`, or `skipped`.
 - Shelly tests prove the client tries the hostname before IP and refuses to control a plug whose RPC identity does not match the DB target.
 - Timed pulse tests prove the RPC payload includes `toggle_after`, not a sleep-and-off sequence.
 - Irrigation scheduler tests prove a due pulse creates one run record and one Shelly command, while a repeated scheduler tick for the same intended start time does not dispatch again.
@@ -119,7 +131,7 @@ Acceptance requires:
 
 ## Idempotence and Recovery
 
-The migration should use `ALTER TABLE ... ADD COLUMN` once, `CREATE TABLE` for the new irrigation tables, and idempotent `INSERT ... ON CONFLICT` seed statements for the Shelly row, capability, schedule row, and any calibration pulse items. Re-running tests is safe. If Atlas checksum drift occurs because of the existing uncommitted migration work, regenerate the migration hash with `atlas migrate hash` or the repo-approved Atlas workflow, preserving the unrelated migration file.
+The migration should use `ALTER TABLE ... ADD COLUMN` once, `CREATE TABLE` for the new irrigation tables, and idempotent `INSERT ... ON CONFLICT` seed statements for the Shelly row, capability, disabled schedule row, and disabled 11:00 / 5 second calibration pulse item. Re-running tests is safe. If Atlas checksum drift occurs because of the existing uncommitted migration work, regenerate the migration hash with `atlas migrate hash` or the repo-approved Atlas workflow, preserving the unrelated migration file.
 
 The irrigation scheduler must write or find the `irrigation_run` row before dispatching a pulse. If the service crashes after creating a run row but before sending the Shelly command, the conservative recovery is to mark the row failed or skipped and require a later retry/manual decision rather than blindly replaying an old water pulse. Missed irrigation is safer than duplicate watering.
 
@@ -147,6 +159,7 @@ Database:
 - Seeded device row `device_id='shelly-breeding-drip-pump'`
 - Seeded capability row for future pump power state
 - `schedule.kind='irrigation'` row targeting the Shelly pump capability
+- Disabled seed pulse: `starts_local='11:00:00'`, `duration_s=5`, `enabled=false`
 - `irrigation_schedule_item` table:
   - `id bigint primary key`
   - `schedule_id bigint not null references schedule(id)`
@@ -166,7 +179,7 @@ Database:
   - `started_at timestamptz null`
   - `finished_at timestamptz null`
   - `duration_s integer not null check (duration_s > 0)`
-  - `status text not null`
+  - `status text not null check (status in ('pending', 'dispatched', 'failed', 'skipped'))`
   - `error text null`
   - `created_at timestamptz not null default now()`
   - `updated_at timestamptz not null default now()`
@@ -190,3 +203,4 @@ External:
 
 - 2026-05-24 / Codex: Initial plan created.
 - 2026-05-25 / Codex: Expanded scope to include irrigation pulse schedule storage and idempotent run ledger, reusing the existing `schedule` table instead of introducing a parallel `water_schedule` table.
+- 2026-05-25 / Codex: Refined the plan under the simple-clean test rule: tests must use fixtures instead of pinning deployed seed values; `irrigation_run.status` is constrained; the first seed pulse is disabled at 11:00 local time for 5 seconds.
