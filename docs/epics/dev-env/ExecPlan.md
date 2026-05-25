@@ -12,7 +12,9 @@ The observable result is a browser at the Vite URL that can log in, render dashb
 
 The public interface should be the root `Makefile`. The implementation script should be named `scripts/dev-env`, not `scripts/dev-up`, because it manages the whole local environment lifecycle: start, stop, reset, and status.
 
-The primary local data path should be a repeatable refresh from the deployed Railway Postgres database into a local dev database. The refresh command must be read-only against Railway and destructive only against the computed local dev database. Active commands must be cleared after restore, production gateway credentials must be replaced with local dev credentials, and cloud audit rows should be kept for realistic operational history. Asset behavior is intentionally deferred and should be decided separately.
+The primary local data path should be a repeatable refresh from the deployed Railway Postgres database into a local dev database. The refresh command must be read-only against Railway and destructive only against the computed local dev database. Active commands must be cleared after restore, production gateway credentials must be replaced with local dev credentials, and cloud audit rows should be kept for realistic operational history.
+
+Assets should use the same database `object_key` in production and dev. Production should resolve object keys through S3 presigned URLs. Dev should be able to resolve object keys to files under `var/dev/control-plane/assets/`. Copying production assets is a later explicit command, `make dev-refresh-assets`, initially implemented as a stub that prints a TODO message.
 
 
 ## Progress
@@ -23,8 +25,10 @@ The primary local data path should be a repeatable refresh from the deployed Rai
 - [x] (2026-05-25) Simplified the public fix command to only `make fix`; the lower-level formatter script remains an implementation detail.
 - [x] (2026-05-25) Decided `scripts/dev-env` should be implemented in Python for clearer process supervision, safer database handling, and testable helpers.
 - [x] (2026-05-25) Added a minimal root `Makefile` with `help` and `fix` so active agent guidance can point at `make fix` immediately.
+- [x] (2026-05-25) Decided to add an asset-store abstraction with S3 for production, local files for dev, and a stubbed `make dev-refresh-assets` command for later production asset mirroring.
 - [ ] Implement root `Makefile` dev lifecycle targets.
 - [ ] Implement `scripts/dev-env`.
+- [ ] Implement control-plane asset-store abstraction and local file serving.
 - [ ] Add focused validation for the command surface and safe env generation.
 - [ ] Update `docs/commands.md` and relevant agent-facing instructions to prefer `make` targets.
 - [ ] Run the harness end to end and record the resulting URLs and health checks.
@@ -49,6 +53,9 @@ The primary local data path should be a repeatable refresh from the deployed Rai
 
 - Observation: Asset upload is the least clean local path because the no-S3 fallback returns signed URLs under `DIRT_CLOUD_ASSET_PUBLIC_BASE_URL`, but it does not serve local bytes.
   Evidence: `apps/control-plane/src/dirt_control/api/gateway.py` signs upload URLs with `UrlSigner` when no object store is configured; `apps/control-plane/src/dirt_control/api/browser.py` returns signed asset URLs the same way.
+
+- Observation: The cloud database stores asset metadata and `object_key`; browser-facing signed URLs are generated at request time. This means a restored database does not require URL rewriting for dev assets if dev and prod both use the same object keys.
+  Evidence: `CloudAsset.object_key` is persisted in `apps/control-plane/src/dirt_control/models/cloud.py`; `_asset_response()` in `apps/control-plane/src/dirt_control/api/browser.py` builds the `signed_url` from the store/signing implementation when the API response is served.
 
 
 ## Decision Log
@@ -92,6 +99,18 @@ The primary local data path should be a repeatable refresh from the deployed Rai
 - Decision: Defer local asset serving behavior.
   Rationale: The database restore preserves asset metadata, but whether local dev should load images through production S3, local files, placeholder assets, or a proxy is a separate product/security decision. The harness should not solve assets in the first implementation beyond avoiding secret leakage.
   Date/Author: 2026-05-25 / Codex.
+
+- Decision: Replace the current implicit no-S3 signing fallback with an explicit asset-store boundary.
+  Rationale: S3 and local disk are infrastructure implementations of the same responsibility: turning an `object_key` into a readable or writable URL and deleting object keys for retention. A narrow store boundary keeps API routes free of environment-specific branches and keeps the database model stable.
+  Date/Author: 2026-05-25 / user and Codex.
+
+- Decision: Implement local dev assets as files rooted at `var/dev/control-plane/assets/` using unchanged `CloudAsset.object_key` paths.
+  Rationale: Keeping object keys stable means restored production metadata works in dev without DB rewrites. A local file store can serve `homebox/main/...` from `var/dev/control-plane/assets/homebox/main/...`; missing files should be an ordinary local asset miss rather than corrupt metadata.
+  Date/Author: 2026-05-25 / user and Codex.
+
+- Decision: Add `make dev-refresh-assets` now, but implement it initially as a TODO stub.
+  Rationale: The command reserves the user-facing interface and documents the intended workflow without pulling S3 credential handling, retention policy, or asset selection into the first dev DB harness implementation.
+  Date/Author: 2026-05-25 / user and Codex.
 
 - Decision: Use `pg_dump -Fc` and `pg_restore` for refresh/reset rather than Atlas migrations as the normal dev data path.
   Rationale: The source database is already migrated by production deploys. A custom-format dump restores schema and data together, preserves realistic state, and can be reused locally without contacting Railway. Atlas remains relevant for schema changes and production deploys, not for normal `make dev-up`.
@@ -137,6 +156,15 @@ The local gateway lives in `apps/gateway/`, but the default dev environment shou
 
 The existing script `scripts/worktree-port` returns a deterministic Vite port per worktree in the `5170-5199` range. `scripts/dev-env` should reuse that for the web UI and derive a separate deterministic API port from the same worktree identity, such as `8020-8049`.
 
+Control-plane assets are currently handled by `S3ObjectStore` in `apps/control-plane/src/dirt_control/storage.py` plus direct fallback signing in API modules. The clean target model is:
+
+- `CloudAsset` rows remain metadata only; `object_key` is the durable portable asset identifier.
+- `AssetStore` is a narrow infrastructure boundary with `presign_get`, `presign_put`, and `delete_objects`.
+- `S3AssetStore` keeps current production behavior using boto3 presigned URLs.
+- `LocalAssetStore` maps `object_key` to `var/dev/control-plane/assets/<object_key>` and returns URLs served by the local control-plane API.
+- Browser and gateway API routes ask the configured store for URLs instead of branching on S3 env vars.
+- A local dev asset route verifies the signature/expiry, resolves the requested object key under the configured local asset root, prevents path traversal, and returns the file or 404. Missing files are acceptable until `dev-refresh-assets` is implemented.
+
 
 ## Plan of Work
 
@@ -149,6 +177,7 @@ Create a root `Makefile` with `.PHONY` targets:
 - `dev-down`
 - `dev-reset`
 - `dev-refresh-db`
+- `dev-refresh-assets`
 - `dev-status`
 - `fix`
 
@@ -162,6 +191,7 @@ Use a strict script with clear subcommands:
 - `--down` or `down`
 - `--reset` or `reset`
 - `--refresh-db` or `refresh-db`
+- `--refresh-assets` or `refresh-assets`
 - `--status` or `status`
 
 Implement `scripts/dev-env` as Python. Keep the executable path extensionless so the public command remains `scripts/dev-env`, but put normal Python code behind it: dataclasses or typed helpers for paths/state, small functions for database commands, and subprocess wrappers that are easy to test. The script should:
@@ -200,7 +230,21 @@ Milestone 3: Implement `dev-refresh-db`, restore, and sanitization.
 
 The script must refuse to drop databases whose names do not start with the expected prefix. This is a hard safety rule.
 
-Milestone 4: Update documentation.
+Milestone 4: Add asset-store boundary and local dev file serving.
+
+Introduce an explicit asset store boundary in `apps/control-plane/src/dirt_control/storage.py` or a nearby module. The interface should cover only current API needs:
+
+- `presign_put(object_key, content_type, expires_in_s) -> str`
+- `presign_get(object_key, expires_in_s) -> str`
+- `delete_objects(object_keys) -> int`
+
+Keep the existing production S3 behavior as the S3 implementation. Add a local implementation selected by settings, for example `DIRT_CLOUD_ASSET_STORE=local` or equivalent, with local root `DIRT_CLOUD_LOCAL_ASSET_ROOT=var/dev/control-plane/assets`. The local implementation should generate signed local API URLs, not direct `file://` URLs, because browsers cannot load arbitrary local files from the web UI safely or portably.
+
+Add a local asset read route to the control-plane API, for example `GET /dev-assets/{object_key:path}`. This route should only be enabled when the local asset store is selected. It must verify the existing URL signature/expiry, normalize and validate the path under the asset root, and return 404 for missing files. Do not implement production S3 mirroring in this milestone.
+
+Add `make dev-refresh-assets` and `scripts/dev-env refresh-assets` as a stub. The command should print a concise TODO message explaining that production asset mirroring is not implemented yet and that local files can be placed under `var/dev/control-plane/assets/<object_key>` manually. The command should exit successfully so the public interface exists but does not pretend to sync anything.
+
+Milestone 5: Update documentation.
 
 Update `docs/commands.md` so the canonical frontend iteration path is:
 
@@ -212,7 +256,7 @@ Document lower-level commands only as debugging details. Update the commit instr
 
 The lower-level formatter script remains an implementation detail because hooks and humans may still call it directly when debugging, but docs should present the Make target as the public interface.
 
-Milestone 5: Validate end to end.
+Milestone 6: Validate end to end.
 
 Run the validation commands listed below. Then open the Vite URL, log in with local credentials, and confirm the dashboard renders using the local control-plane API. If the local hardware database has no current gateway-projected data, the page should still load with real API empty states rather than mock data.
 
@@ -243,6 +287,14 @@ Run the harness:
 If no local dump has been restored yet, refresh the dev DB first:
 
     make dev-refresh-db
+
+Optional asset placeholder workflow:
+
+    make dev-refresh-assets
+
+Expected result:
+
+    dev-refresh-assets is not implemented yet. Place files under var/dev/control-plane/assets/<object_key> to satisfy restored asset metadata locally.
 
 Expected terminal behavior:
 
@@ -280,6 +332,7 @@ Expected behavior:
 The change is accepted when:
 
 - `make help` lists `dev-up`, `dev-down`, `dev-reset`, `dev-refresh-db`, `dev-status`, and `fix`.
+- `make help` lists `dev-refresh-assets`.
 - `make fix` runs the existing formatter/lint-fix workflow.
 - `make dev-refresh-db` creates a compressed local dump from the Railway control-plane database without printing the source URL or secrets.
 - `make dev-refresh-db` restores only into the computed local dev database and refuses any unsafe target database name.
@@ -293,6 +346,10 @@ The change is accepted when:
 - Local browser login succeeds over HTTP because `DIRT_CLOUD_SESSION_COOKIE_SECURE=false`.
 - CORS allows the Vite origin because `DIRT_CLOUD_ALLOWED_ORIGINS` includes the computed web URL.
 - Dashboard API calls go to the local control-plane API, not Railway and not MSW.
+- Restored asset metadata does not require DB URL rewriting; local asset URLs are generated at request time from `object_key`.
+- When local asset files exist under `var/dev/control-plane/assets/<object_key>`, the browser can load them through the local control-plane API.
+- Missing local asset files return 404 or the UI's existing unavailable state, not a production S3 request.
+- `make dev-refresh-assets` prints the TODO message and exits successfully.
 - `make dev-down` stops started processes without killing unrelated services.
 - `make dev-reset` refuses to drop any database outside the expected dev prefix.
 
@@ -317,6 +374,8 @@ Normal `make dev-up` should be safe to repeat. It should reuse the existing dev 
 
 If `pg_dump` fails, the script must leave the existing local dev database untouched and print the dump log path. If `pg_restore` fails, the script should not start the API/web stack and should print the restore log path. If post-restore sanitization fails, the script should stop and warn that production credentials may still be present in the local database; it should not start the API until sanitization succeeds.
 
+If a local asset file is missing, the local asset route should return 404. This should not block `make dev-up` or database restore. `make dev-refresh-assets` is a stub and should not mutate local files until a later plan fills in production mirroring.
+
 If Vite exits, the foreground `make dev-up` process should shut down the API child it started before returning.
 
 
@@ -330,6 +389,7 @@ Relevant existing files:
 - `apps/control-plane/src/dirt_control/app.py` creates the FastAPI app and installs CORS only when origins are configured.
 - `apps/control-plane/src/dirt_control/settings.py` defines required cloud settings and local cookie behavior.
 - `apps/control-plane/src/dirt_control/bootstrap_gateway.py` seeds gateway credentials and provides a useful implementation reference for replacing restored production gateway credentials with dev credentials.
+- `apps/control-plane/src/dirt_control/storage.py` contains the current S3 object store and is the likely home for the asset-store boundary.
 - `apps/gateway/src/dirt_gateway/main.py` exposes one-shot sync for explicit integration testing, but it is no longer the default dev data path.
 - `cloud/migrations/` holds the hosted control-plane schema migrations.
 - `.gitignore` ignores `var/`; local dumps and generated secrets must live under `var/dev/control-plane/`.
@@ -350,6 +410,7 @@ Public command interface:
 - `make dev-down`
 - `make dev-reset`
 - `make dev-refresh-db`
+- `make dev-refresh-assets`
 - `make dev-status`
 - `make fix`
 
@@ -360,12 +421,14 @@ Implementation script interface:
 - `scripts/dev-env down` or `scripts/dev-env --down`
 - `scripts/dev-env reset` or `scripts/dev-env --reset`
 - `scripts/dev-env refresh-db` or `scripts/dev-env --refresh-db`
+- `scripts/dev-env refresh-assets` or `scripts/dev-env --refresh-assets`
 - `scripts/dev-env status` or `scripts/dev-env --status`
 
 Generated local state:
 
 - `var/dev/control-plane/env`
 - `var/dev/control-plane/state.json`
+- `var/dev/control-plane/assets/**`
 - `var/dev/control-plane/dumps/*.dump`
 - `var/dev/control-plane/logs/control-plane.log`
 - `var/dev/control-plane/logs/dump.log`
@@ -384,6 +447,8 @@ Environment variables set for the control-plane process:
 - `DIRT_CLOUD_SITE_ID=homebox`
 - `DIRT_CLOUD_GATEWAY_COMMAND_CLAIM_ENABLED=false`
 - `DIRT_CLOUD_COMMAND_CREATION_ENABLED` may remain true; commands can be created but not claimed unless a user explicitly starts a continuous local gateway.
+- `DIRT_CLOUD_ASSET_STORE=local` or the final selected equivalent setting.
+- `DIRT_CLOUD_LOCAL_ASSET_ROOT=var/dev/control-plane/assets` or an absolute resolved path under `var/dev/control-plane/assets`.
 
 Environment variables used only for dev DB refresh:
 
@@ -410,3 +475,4 @@ External tools required:
 
 - 2026-05-25: Initial plan created after reviewing the local control-plane code path and deciding to use root Make targets backed by `scripts/dev-env`.
 - 2026-05-25: Revised plan to use compressed Railway `pg_dump` restore as the primary dev database path. Added `make dev-refresh-db`, local post-restore sanitization, gateway credential replacement, active command clearing, audit retention, and asset deferral.
+- 2026-05-25: Added the asset-store abstraction milestone, local file serving target, and stubbed `make dev-refresh-assets` command. The plan keeps production S3 and dev local files behind one narrow object-key based boundary.
