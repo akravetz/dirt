@@ -4,7 +4,7 @@ type: environment
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/environment/temperature.md, wiki/concepts/vpd.md, wiki/overview.md, wiki/hardware/humidifier-control.md, wiki/decisions/2026-04-17-humidifier-kasa-ep10.md]
 created: 2026-04-06
-updated: 2026-05-24
+updated: 2026-05-25
 ---
 
 
@@ -74,6 +74,7 @@ VPD is the control-loop setpoint; RH is informational (temperature determines wh
 | 2026-05-22 | Main: 68.02% now ⚠️ / 66.16% overnight avg ⚠️; VPD 1.05 kPa now ✅ / 0.88 kPa overnight ⚠️. Breeding: 54.58% now / 1.46 kPa VPD | Main-tent lights-on VPD remains usable, but the night profile flipped from dry/high to slightly wet/low while current RH/dew point rose. Keep airflow work active and watch the next overnight before changing humidity broadly. Breeding tent remains a small-pot dry watch. → [2026-05-22](../daily/2026-05-22.md) |
 | 2026-05-23 | Main: 67.26% now ⚠️ / 66.50% overnight avg ⚠️; VPD 1.08 kPa now ✅ / 0.89 kPa overnight ⚠️. Breeding: 80.16% now / 0.68 kPa VPD | Main-tent lights-on VPD remains usable while the slightly wet/low overnight pattern repeated; airflow through the dense canopy remains the action. Breeding tent flipped from a usable 1.26 kPa morning to a wet/current RH spike, so check watering timing, fan blockage, and sensor exposure. → [2026-05-23](../daily/2026-05-23.md) |
 | 2026-05-24 | Main: 59.42% now ⚠️ / 63.18% overnight avg ⚠️; VPD 1.36 kPa now ✅ / 0.95 kPa overnight ⚠️. Breeding: 78.96% now / 0.75 kPa VPD | Main tent entered late flower: lights-on VPD is in the new 1.2-1.5 kPa band, but RH/dew point remain high and overnight is wet/low. Breeding also flipped to 12/12 today and is persistently wet, so airflow, watering timing, and sensor exposure need checks before the first dark cycles stack humidity. → [2026-05-24](../daily/2026-05-24.md) |
+| 2026-05-25 | Main: 65.52% now ⚠️ / 62.78% overnight avg ⚠️; VPD 1.01 kPa now ⚠️ / 0.95 kPa overnight ⚠️. Breeding: 53.02% now / 1.46 kPa VPD | Main tent remains too humid for late flower: morning VPD was in range at 1.25 kPa, but overnight and now are wet/low with a high current dew point. Breeding corrected sharply from yesterday's wet profile into a drier small-pot watch, so verify pot weight and fan exposure. → [2026-05-25](../daily/2026-05-25.md) |
 
 ## Notable Events
 - **2026-03-20** — Dome propped open, room humidifier added to tent after RH consistently below 50% → [2026-03-27 daily](../daily/2026-03-27.md)
@@ -117,6 +118,7 @@ VPD is the control-loop setpoint; RH is informational (temperature determines wh
 - **2026-05-22** — Main-tent lights-on VPD stayed usable (1.08 morning, 1.05 now), but the overnight window shifted to slightly wet/low at 0.88 kPa after the prior dry/high nights. Current RH and dew point rose, so airflow through the dense canopy is the action while the next overnight confirms the direction. Breeding tent is less dry than yesterday but still a small-pot/fan-angle watch at 1.46 kPa now. → [2026-05-22](../daily/2026-05-22.md)
 - **2026-05-23** — Main-tent lights-on VPD stayed usable (1.08 morning, 1.08 now), while the overnight window repeated the slightly wet/low profile at 0.89 kPa. Current RH/dew point remain high, so airflow and canopy-pocket clearing matter more than adding humidity. Breeding tent current RH spiked to 80.16% with 0.68 kPa VPD after a usable morning, making watering/fan/sensor checks the immediate action. → [2026-05-23](../daily/2026-05-23.md)
 - **2026-05-24** — Main tent crossed into late flower, raising the VPD target to 1.2-1.5 kPa and lowering the RH guide to 40-45%. Current VPD is in range at 1.36 kPa, but overnight remains wet/low and RH is still high. Breeding tent also entered 12/12 today and is wet across all windows, so it needs a moisture/airflow check before dark-cycle humidity repeats. → [2026-05-24](../daily/2026-05-24.md)
+- **2026-05-25** — Main-tent late-flower control regressed wet in the current window: morning averaged 1.25 kPa, but now is 1.01 kPa at 65.52% RH. The breeding tent improved in the opposite direction, from wet yesterday to 1.46 kPa now, so small-pot drydown should be checked before watering assumptions change. → [2026-05-25](../daily/2026-05-25.md)
 
 ## Deployed Control System
 

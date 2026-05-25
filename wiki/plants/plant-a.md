@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-05-24
+updated: 2026-05-25
 ---
 
 # Plant A
@@ -18,7 +18,7 @@ updated: 2026-05-24
 
 ## Current State
 
-Day 71 / Flower Day 21: Limited view still shows upright purple flower tops, and rough moisture remains stable near 59%. The 2026-05-17 low-pH tray finding remains open; recheck A tray/runoff pH+EC against B/C/D before further correction. See [2026-05-24](../daily/2026-05-24.md).
+Day 72 / Flower Day 22: Limited view still shows upright purple flower tops, and rough moisture remains stable near 59.7%. The 2026-05-17 low-pH tray finding remains open; recheck A tray/runoff pH+EC against B/C/D before further correction. See [2026-05-25](../daily/2026-05-25.md).
 
 ## Timeline
 
@@ -71,3 +71,4 @@ Day 71 / Flower Day 21: Limited view still shows upright purple flower tops, and
 - 2026-05-22 — [Day 69 / Flower Day 19: visible purple flower tops remain upright; moisture stable near 58%, A tray/runoff pH+EC recheck remains required](../daily/2026-05-22.md)
 - 2026-05-23 — [Day 70 / Flower Day 20: visible purple flower tops remain upright; moisture stable near 58.7%, A tray/runoff pH+EC recheck remains required](../daily/2026-05-23.md)
 - 2026-05-24 — [Day 71 / Flower Day 21: limited view shows upright purple flower tops; moisture stable near 59%, A tray/runoff pH+EC recheck remains required](../daily/2026-05-24.md)
+- 2026-05-25 — [Day 72 / Flower Day 22: limited view shows upright purple flower tops; moisture stable near 59.7%, A tray/runoff pH+EC recheck remains required](../daily/2026-05-25.md)

@@ -14,10 +14,11 @@ Preserve the existing product, data model, and component conventions unless the 
 ## Required Setup
 
 1. Read the repo's command docs before running anything.
-2. Start or reuse the local dev server.
-3. Use the required browser automation tool for the repo.
-4. Capture the current screen at desktop and mobile widths before making UI changes.
-5. Read `references/refactoring-ui-review.md` before the first audit in a session.
+2. Check `git status --short` and keep unrelated dirty files out of the pass.
+3. Start or reuse the local dev server.
+4. Use the required browser automation tool for the repo.
+5. Capture the current screen at desktop and mobile widths before making UI changes. Capture both first-viewport screenshots and full-page screenshots when the surface naturally scrolls.
+6. Read `references/refactoring-ui-review.md` before the first audit in a session.
 
 For this Dirt repo, that usually means:
 
@@ -58,6 +59,14 @@ Inspect the live UI and produce a concise audit organized by:
 
 Include 2-5 proposed changes, ordered by impact. Ask for direction before broad visual changes unless the user already approved implementation.
 
+When auditing a dashboard or repeated-item surface, explicitly check representative item counts:
+
+- **0 items**: empty state preserves layout and does not look broken.
+- **1 item**: grid/list treatments do not leave dead-fill lanes or awkward empty tracks.
+- **Many items**: wrapping, borders, row rhythm, and scroll behavior still scan cleanly.
+
+When auditing mobile, explicitly check the first viewport for horizontal overflow, clipped nav tabs, clipped action buttons, and controls that require sideways scrolling without a clear affordance.
+
 ### 3. Implement One Pass
 
 After direction is clear:
@@ -73,9 +82,10 @@ After direction is clear:
 After edits:
 
 1. Let hot reload update the page, or restart only if the stack requires it.
-2. Capture desktop and mobile screenshots.
-3. Check text fit, overlap, empty/loading/error states touched by the change, and obvious console/network failures.
-4. Run focused type/lint/test commands appropriate to touched files.
+2. Capture desktop and mobile screenshots for both the current viewport and full page when the surface scrolls.
+3. Check text fit, overlap, empty/loading/error states touched by the change, low-count repeated-item states, and mobile nav/action clipping.
+4. Check browser console and page errors. Treat normal dev-server messages such as Vite connection/hot-update logs and React DevTools suggestions as noise; investigate warnings, uncaught errors, failed module loads, and API/network failures.
+5. Run focused type/lint/test commands appropriate to touched files. If a test command exits successfully because no tests matched, report that explicitly as "no test files found" rather than implying behavioral coverage.
 
 ### 5. Report for Human Review
 
@@ -85,6 +95,7 @@ Return:
 - what changed
 - screenshot paths or a concise visual description if screenshots are unavailable
 - validation run
+- unrelated dirty files noticed before the pass, if any
 - open tradeoffs or specific questions
 
 Use review-friendly language: "keep/revert/tighten" candidates, not a defensive explanation of every choice.

@@ -71,8 +71,8 @@ export function TopBar({ growContext = null, onLogout }: TopBarProps) {
   const nextTheme: Theme = theme === "dark" ? "light" : "dark";
 
   return (
-    <header className="flex items-stretch gap-6 border-b border-rule bg-paper px-5 py-3">
-      <div className="flex items-baseline gap-2.5">
+    <header className="flex flex-wrap items-center gap-x-5 gap-y-3 border-b border-rule bg-paper px-5 py-3">
+      <div className="flex min-w-0 items-baseline gap-2.5">
         <h1 className="font-serif text-fs-26 font-medium italic leading-none tracking-tight text-ink">
           dirt<span className="text-accent-magenta">.</span>
         </h1>
@@ -91,7 +91,10 @@ export function TopBar({ growContext = null, onLogout }: TopBarProps) {
           </p>
         ) : null}
       </div>
-      <nav aria-label="Primary" className="mx-auto flex items-center gap-1.5">
+      <nav
+        aria-label="Primary"
+        className="order-3 flex w-full items-center gap-1.5 overflow-x-auto sm:order-none sm:mx-auto sm:w-auto"
+      >
         {TABS.map(({ label, path }) => {
           const active = pathname === path;
           return (
@@ -104,8 +107,8 @@ export function TopBar({ growContext = null, onLogout }: TopBarProps) {
               aria-current={active ? "page" : undefined}
               className={
                 active
-                  ? "border border-ink bg-paper-2 px-4.5 py-2 font-sans text-fs-11 font-semibold uppercase tracking-cap-ui text-ink transition"
-                  : "border border-rule px-4.5 py-2 font-sans text-fs-11 font-semibold uppercase tracking-cap-ui text-ink-3 transition hover:border-rule-strong hover:text-ink"
+                  ? "shrink-0 border border-ink bg-paper-2 px-4.5 py-2 font-sans text-fs-11 font-semibold uppercase tracking-cap-ui text-ink transition"
+                  : "shrink-0 border border-rule px-4.5 py-2 font-sans text-fs-11 font-semibold uppercase tracking-cap-ui text-ink-3 transition hover:border-rule-strong hover:text-ink"
               }
             >
               {label}
@@ -113,7 +116,7 @@ export function TopBar({ growContext = null, onLogout }: TopBarProps) {
           );
         })}
       </nav>
-      <div className="flex items-center gap-4.5 font-mono text-fs-11 text-ink-3">
+      <div className="ml-auto flex items-center gap-2 font-mono text-fs-11 text-ink-3 sm:gap-4.5">
         <button
           type="button"
           aria-label={`Switch to ${nextTheme} theme`}

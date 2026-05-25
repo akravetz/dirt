@@ -1053,3 +1053,12 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - **Plant D moisture:** D is lower but stable near 47.10% after yesterday's drop; verify tray/media/probe conditions by hand before acting on the lower signal.
 - **Breeding-tent watch:** Breeding is Flower Day 0 and wet across all windows, now 80.44°F / 78.96% RH / 0.75 kPa; check watering timing, fan direction, sensor exposure, pot weight, and standing moisture.
 - Updated: `daily/2026-05-24.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `breeding/timeline.md`, `overview.md`, `index.md`.
+
+## [2026-05-25] daily | Day 72 / Flower Day 22 - full photos; main current VPD wet/low
+- Photos captured across all 5 expected main presets plus the breeding overview. The main canopy remains dense, upright, and purple-flowered; Plant B and Plant C dedicated views remain heavily fan-obstructed.
+- **Main-tent environment:** Morning VPD averaged 1.25 kPa, but overnight stayed wet/low at 0.95 kPa and now fell to 1.01 kPa with 65.52% RH. Late-flower drying and canopy airflow remain the main action.
+- **Plant A follow-up:** Limited view shows upright purple flower tops with stable moisture near 59.70%, but the 2026-05-17 low-pH tray finding remains open until A tray/runoff pH+EC is rechecked against B/C/D.
+- **Plant B/C moisture remains critical:** B is pinned at 96.05%, and C is pinned at 91.21%; manual tray/float/media/probe checks remain urgent, especially because today's photos are obstructed.
+- **Plant D moisture:** D is lower but stable near 47.54%; verify tray/media/probe conditions by hand before acting on the lower signal.
+- **Breeding-tent watch:** Breeding is Flower Day 1 and corrected from yesterday's wet profile to 76.46°F / 53.02% RH / 1.46 kPa now; check pot weight and fan exposure before changing watering.
+- Updated: `daily/2026-05-25.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.

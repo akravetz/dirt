@@ -66,6 +66,7 @@ Look for:
 - flat lists that should be grouped or summarized
 - tables/cards with no clear scan axis
 - repeated labels that slow scanning
+- repeated-item grids that only look good with a full row of items
 
 Change levers:
 
@@ -74,6 +75,7 @@ Change levers:
 - use consistent label/value patterns
 - reserve large type for genuinely primary state
 - show related controls near the data they affect
+- test 0/1/many item counts before committing a grid treatment; avoid `gap-px` or background-rule grids that create dead-fill lanes in one-item states
 
 ### 4. Spacing and Grouping
 
@@ -167,6 +169,7 @@ Look for:
 - controls moving unpredictably on hover/loading
 - mobile views that preserve desktop density without structure
 - text overlap or clipped buttons
+- first-viewport horizontal overflow, clipped nav tabs, clipped toolbar actions, or hidden overflow that makes primary controls unavailable
 
 Change levers:
 
@@ -175,6 +178,7 @@ Change levers:
 - preserve primary hierarchy on mobile
 - collapse secondary details before primary values
 - avoid viewport-scaled font sizes
+- capture both first-viewport and full-page screenshots so the visible landing impression and below-the-fold scroll content are reviewed separately
 
 ## Implementation Bias
 

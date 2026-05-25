@@ -316,15 +316,15 @@ function HostedDashboardPage() {
 
   return (
     <main className="flex-1 overflow-auto">
-      <div className="mx-auto flex max-w-350 flex-col gap-6 px-8 pb-16 pt-7">
-        <section className="grid gap-4 border-b border-rule-strong pb-4 lg:grid-cols-[1fr_auto]">
-          <div className="flex flex-wrap items-center gap-3">
+      <div className="mx-auto flex max-w-350 flex-col gap-5 px-5 pb-14 pt-5 sm:px-8 sm:pb-16 sm:pt-7">
+        <section className="grid gap-3 border-b border-rule-strong pb-4 lg:grid-cols-[1fr_auto]">
+          <div className="flex flex-wrap items-end gap-3">
             <label className="flex flex-col gap-1 font-mono text-fs-10 uppercase tracking-caps text-ink-3">
               Site
               <select
                 value={selectedSiteId}
                 onChange={onSiteChange}
-                className="border border-rule-strong bg-paper px-3 py-2 font-sans text-fs-12 normal-case tracking-normal text-ink"
+                className="min-w-28 border border-rule-strong bg-paper px-3 py-2 font-sans text-fs-12 normal-case tracking-normal text-ink"
               >
                 {sites.map((site) => (
                   <option key={site.site_id} value={site.site_id}>
@@ -338,7 +338,7 @@ function HostedDashboardPage() {
               <select
                 value={selectedTentId}
                 onChange={onTentChange}
-                className="border border-rule-strong bg-paper px-3 py-2 font-sans text-fs-12 normal-case tracking-normal text-ink"
+                className="min-w-32 border border-rule-strong bg-paper px-3 py-2 font-sans text-fs-12 normal-case tracking-normal text-ink"
               >
                 {tents.map((tent) => (
                   <option key={tent.tent_id} value={tent.tent_id}>
@@ -348,16 +348,18 @@ function HostedDashboardPage() {
                 ))}
               </select>
             </label>
-            <span className="border border-rule px-2.5 py-1.5 font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+            <span className="border border-rule bg-paper-2 px-2.5 py-2 font-mono text-fs-10 uppercase tracking-caps text-ink-3">
               Read only
             </span>
           </div>
-          <div className="flex flex-wrap items-end justify-start gap-3 lg:justify-end">
+          <div className="flex flex-wrap items-end justify-start gap-2 lg:justify-end">
             <StatusPill
+              tone={gatewayStatus}
               label={gatewayStatus}
               value={`Gateway ${formatAge(syncStatus?.gateway_last_seen_at ?? null)}`}
             />
             <StatusPill
+              tone={syncStatus?.command_backlog_depth ? "warn" : "ok"}
               label="backlog"
               value={`${syncStatus?.command_backlog_depth ?? 0} queued`}
             />
@@ -365,7 +367,7 @@ function HostedDashboardPage() {
           </div>
         </section>
 
-        <section className="grid grid-cols-1 gap-3 border border-rule-strong bg-paper-2 p-4 sm:grid-cols-3">
+        <section className="grid grid-cols-1 gap-px border border-rule-strong bg-rule sm:grid-cols-3">
           <HostedFact label="Tent" value={selectedTent?.name ?? selectedTentId} />
           <HostedFact
             label="Catalog"
@@ -393,7 +395,7 @@ function HostedDashboardPage() {
             </p>
           </section>
         ) : (
-          <div className="grid grid-cols-1 gap-px border border-rule-strong bg-rule sm:grid-cols-2 lg:grid-cols-6">
+          <div className="grid grid-cols-1 gap-px border border-rule-strong bg-rule sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-7">
             <section aria-label="Environment gauges" className="contents">
               {metricCards.map((card) => {
                 const formatProp = card.format ? { format: card.format } : {};
@@ -458,9 +460,24 @@ function HostedDashboardPage() {
   );
 }
 
-function StatusPill({ label, value }: { label: string; value: string }): ReactNode {
+function StatusPill({
+  label,
+  tone,
+  value,
+}: {
+  label: string;
+  tone: "live" | "stale" | "offline" | "ok" | "warn";
+  value: string;
+}): ReactNode {
+  const dotClass =
+    tone === "live" || tone === "ok"
+      ? "bg-status-ok"
+      : tone === "stale" || tone === "warn"
+        ? "bg-status-warn"
+        : "bg-status-err";
   return (
     <span className="inline-flex items-center gap-2 border border-rule bg-paper-2 px-2.5 py-1.5 font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+      <span aria-hidden="true" className={`h-1.5 w-1.5 ${dotClass}`} />
       <span className="text-ink">{label}</span>
       <span>{value}</span>
     </span>
@@ -469,7 +486,7 @@ function StatusPill({ label, value }: { label: string; value: string }): ReactNo
 
 function HostedFact({ label, value }: { label: string; value: string }): ReactNode {
   return (
-    <div className="flex min-w-0 flex-col gap-1">
+    <div className="flex min-w-0 flex-col gap-1 bg-paper-2 p-3 sm:p-4">
       <span className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
         {label}
       </span>
@@ -486,10 +503,18 @@ function LightSchedulePanel({
   loading: boolean;
 }): ReactNode {
   return (
-    <section aria-label="Light schedules" className="flex flex-col bg-paper-2 p-4">
-      <h2 className="mb-2 font-sans text-fs-10 font-semibold uppercase tracking-cap-med text-ink-3">
-        Light Schedule
-      </h2>
+    <section
+      aria-label="Light schedules"
+      className="border border-rule bg-paper-2 px-4 py-3"
+    >
+      <header className="mb-3 flex items-baseline justify-between gap-3">
+        <h2 className="font-sans text-fs-10 font-semibold uppercase tracking-cap-med text-ink-3">
+          Light Schedule
+        </h2>
+        <span className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+          {formatScheduleCount(schedules.length)}
+        </span>
+      </header>
       {loading ? (
         <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
           Loading light schedule…
@@ -499,27 +524,25 @@ function LightSchedulePanel({
           No light schedule synced for this tent.
         </p>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-2">
           {schedules.map((schedule) => (
             <div
               key={schedule.schedule_id}
-              className="border border-rule bg-paper px-3.5 py-3"
+              className="grid gap-2 border border-rule bg-paper px-3.5 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:gap-4"
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate font-sans text-fs-13 font-semibold text-ink">
-                    {lightScheduleLabel(schedule)}
-                  </p>
-                  <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
-                    {formatScheduleTime(schedule.starts_local)}-
-                    {formatScheduleTime(schedule.ends_local)} local
-                  </p>
-                </div>
-                <span className="shrink-0 font-mono text-fs-10 uppercase tracking-caps text-ink-3">
-                  {formatPhotoperiod(schedule.duration_hours)}
-                </span>
+              <div className="min-w-0">
+                <p className="truncate font-sans text-fs-13 font-semibold text-ink">
+                  {lightScheduleLabel(schedule)}
+                </p>
+                <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+                  {formatScheduleTime(schedule.starts_local)}-
+                  {formatScheduleTime(schedule.ends_local)} local
+                </p>
               </div>
-              <div className="mt-2 flex flex-wrap items-center gap-2 font-mono text-fs-10 uppercase tracking-caps">
+              <span className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+                {formatPhotoperiod(schedule.duration_hours)}
+              </span>
+              <div className="flex flex-wrap items-center gap-2 font-mono text-fs-10 uppercase tracking-caps sm:justify-end">
                 <span className={schedule.is_on ? "text-status-ok" : "text-ink-3"}>
                   {schedule.is_on ? "On" : "Off"}
                 </span>
@@ -685,6 +708,10 @@ function formatPhotoperiod(durationHours: number): string {
   const onHours = Math.round(durationHours * 10) / 10;
   const offHours = Math.round((24 - durationHours) * 10) / 10;
   return `${formatHourCount(onHours)}/${formatHourCount(offHours)}`;
+}
+
+function formatScheduleCount(count: number): string {
+  return `${count} schedule${count === 1 ? "" : "s"}`;
 }
 
 function formatHourCount(value: number): string {

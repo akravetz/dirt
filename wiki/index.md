@@ -15,10 +15,10 @@ updated: 2026-05-25
 - [Hosted Control Plane](decisions/2026-05-05-hosted-control-plane.md) — Railway web UI/API plus outbound local gateway; remote inspection and PTZ-only command intent without moving hardware authority to cloud
 
 ## Plants
-- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; Flower Day 21; limited view shows upright purple flower tops; moisture stable near 59.15%; tray/runoff pH+EC recheck still required
-- [Plant B](plants/plant-b.md) — 🟡 Secondary; Flower Day 21; dedicated view fan-obstructed; moisture 95.96% pinned — dryback verification urgent
-- [Plant C](plants/plant-c.md) — 🟡 Secondary; Flower Day 21; fan-obstructed active purple-toned flowers; moisture 90.89% saturated — lower-leaf/root-zone watch
-- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; Flower Day 21; upright sativa-leaning purple flower tops; moisture lower but stable near 47.10% — verify by hand
+- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; Flower Day 22; limited view shows upright purple flower tops; moisture stable near 59.70%; tray/runoff pH+EC recheck still required
+- [Plant B](plants/plant-b.md) — 🟡 Secondary; Flower Day 22; dedicated view still fan-obstructed; moisture 96.05% pinned — dryback verification urgent
+- [Plant C](plants/plant-c.md) — 🟡 Secondary; Flower Day 22; fan-obstructed blurred purple-toned flowers; moisture 91.21% saturated — lower-leaf/root-zone watch
+- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; Flower Day 22; upright sativa-leaning purple flower tops; moisture lower but stable near 47.54% — verify by hand
 
 ## Daily Logs
 - [2026-03-27](daily/2026-03-27.md) — Day 13: Pre-transplant; 2–3 leaf sets
@@ -69,6 +69,7 @@ updated: 2026-05-25
 - [2026-05-22](daily/2026-05-22.md) — Day 69 / Flower Day 19: full photo coverage; main lights-on VPD in range but overnight slightly wet/low; Plant B/C moisture pinned 🔴; airflow work needed
 - [2026-05-23](daily/2026-05-23.md) — Day 70 / Flower Day 20: full photo coverage; main lights-on VPD in range but overnight slightly wet/low; Plant B/C moisture pinned 🔴; Plant D lower signal and breeding RH spike need checks
 - [2026-05-24](daily/2026-05-24.md) — Day 71 / Flower Day 21: full photo coverage but B/C fan-obstructed; main entered late flower with lights-on VPD in range but RH high; Plant B/C moisture pinned 🔴; breeding Flower Day 0 wet/low
+- [2026-05-25](daily/2026-05-25.md) — Day 72 / Flower Day 22: full photo coverage but B/C fan-obstructed; main current VPD wet/low at 1.01 kPa with high RH; Plant B/C moisture pinned 🔴; breeding corrected drier
 
 ## Environment
 - [Temperature](environment/temperature.md) — Trend log; targets by phase; notable events
