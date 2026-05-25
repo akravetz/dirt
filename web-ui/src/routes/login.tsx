@@ -6,7 +6,7 @@
 // string back to the presentational component, which flips aria-invalid
 // and renders the role="alert" block.
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { createDirtApiClient } from "@/api-client";
+import { createHostedApiClient } from "@/api-client";
 import { LoginScreen } from "@/ui/LoginScreen";
 
 export const Route = createFileRoute("/login")({
@@ -17,8 +17,9 @@ export const Route = createFileRoute("/login")({
 // middleware by default; we're already here and want the 401 to bubble
 // through as "invalid credentials", so disarm the redirect for this
 // screen's client.
-const api = createDirtApiClient({
+const api = createHostedApiClient({
   onUnauthorized: () => {},
+  throwOnError: false,
 });
 
 function LoginPage() {

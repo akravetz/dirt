@@ -7,12 +7,11 @@ the test, never modify this file.
 
 Purpose: The dirt_hwd FastAPI app (port 8000, the keep-alive daemon) must
 expose only sensor ingest endpoints. Any route not in the allowlist is a
-boundary violation — web UI / sensors API / MCP belong on dirt_web.
+boundary violation; the local web UI and MCP surface have been retired.
 
 Additional contract: /api/ingest/sensors must reject unauthenticated
-requests with 401 (bearer-token check). Unlike dirt_web (cookie sessions)
-the hwd app has no AuthMiddleware — each endpoint carries its own auth
-dependency.
+requests with 401 (bearer-token check). The hwd app has no global
+AuthMiddleware — each endpoint carries its own auth dependency.
 """
 
 import pytest
@@ -50,7 +49,7 @@ def test_hwd_exposes_only_ingest_paths():
     unexpected = paths - FRAMEWORK_PATHS - ALLOWED_HWD_PATHS
     assert not unexpected, (
         f"dirt_hwd.app exposes paths outside the ingest allowlist: {sorted(unexpected)}.\n"
-        "FIX: move the route to dirt_web (cookie auth) or dirt_mcp (bearer auth).\n"
+        "FIX: do not add browser/API/MCP routes to dirt_hwd.\n"
         "Keep dirt_hwd scope to ingest + HW lifespan only."
     )
 

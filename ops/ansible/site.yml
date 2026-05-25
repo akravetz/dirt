@@ -22,7 +22,6 @@
       - dirt-logrotate.timer
       - dirt-service-alert@.service
       - dirt-voice.service
-      - dirt-web.service
     dirt_edge_packages:
       - avahi-daemon
       - avahi-utils

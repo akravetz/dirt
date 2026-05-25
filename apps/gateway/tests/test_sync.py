@@ -56,7 +56,6 @@ from dirt_shared.models import (
 )
 from dirt_shared.models.enums import SensorSource
 from dirt_shared.services.commands import CommandService
-from dirt_shared.testing import create_test_device
 
 FIXED_NOW = datetime(2026, 5, 5, 12, 0, tzinfo=UTC)
 
@@ -499,66 +498,6 @@ async def _seed_temperature_readings(engine: AsyncEngine) -> None:
                 )
             )
         await session.commit()
-
-
-async def test_catalog_syncs_homebox_main_and_breeding(app_engine: AsyncEngine):
-    async with AsyncSession(app_engine) as session:
-        breeding_env = await create_test_device(
-            session,
-            tent_id="breeding",
-            zone_id="canopy",
-            device_id="test-breeding-catalog-node",
-            name="Test breeding catalog node",
-            kind="env_sensor",
-            controller="test",
-        )
-        breeding_env.last_seen = FIXED_NOW
-        await session.commit()
-
-    cloud = RecordingCloudClient()
-    local = GatewayLocalServiceBundle(app_engine, clock=lambda: FIXED_NOW)
-    projection = await local.collect_catalog("homebox")
-    assert isinstance(projection, CatalogRequest)
-    breeding_projection_devices = [
-        device
-        for device in projection.devices
-        if device.tent_id == "breeding"
-        and device.device_id == "test-breeding-catalog-node"
-    ]
-    assert len(breeding_projection_devices) == 1
-    assert breeding_projection_devices[0].last_seen_at == FIXED_NOW
-    expected_breeding_device = breeding_projection_devices[0].model_dump(mode="json")
-
-    result = await _service(app_engine, cloud, local_services=local).run_once()
-
-    assert result.failed == 0
-    assert cloud.catalogs
-    catalog = next(iter(cloud.catalogs.values()))
-    assert catalog["site"]["site_id"] == "homebox"
-    assert {tent["tent_id"] for tent in catalog["tents"]} == {
-        "main",
-        "breeding",
-        "clones",
-    }
-    assert {
-        (schedule["tent_id"], schedule["device_id"], schedule["starts_local"])
-        for schedule in catalog["schedules"]
-    } >= {
-        ("main", "kasa-lights-main", "09:00:00"),
-        ("breeding", "kasa-lights-breeding", "06:00:00"),
-        ("clones", "kasa-lights-clones", "06:00:00"),
-    }
-    breeding_devices = [
-        device
-        for device in catalog["devices"]
-        if device["tent_id"] == "breeding"
-        and device["device_id"] == "test-breeding-catalog-node"
-    ]
-    assert breeding_devices == [expected_breeding_device]
-    assert {
-        (device["tent_id"], device["device_id"], device["kind"])
-        for device in catalog["devices"]
-    } >= {("breeding", "obsbot-breeding", "camera")}
 
 
 async def test_latest_metrics_and_rollups_are_not_duplicated(

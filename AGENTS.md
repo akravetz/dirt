@@ -9,14 +9,14 @@
 
 ## Repository layout
 
-- `apps/{hwd,web,shared,mcp,voice,wake-word,control-plane,gateway}/` — Python services (uv workspace; each has its own `pyproject.toml` + tests). `dirt-hwd` runs on :8000 (production keep-alive — no routine rewrites), `dirt-web` on :8001 (UI + MCP), `dirt-gateway` syncs outbound to the hosted control plane.
+- `apps/{hwd,shared,voice,wake-word,control-plane,gateway,camera-agent}/` — Python services (uv workspace; each has its own `pyproject.toml` + tests). `dirt-hwd` runs on :8000 (production keep-alive — no routine rewrites), and `dirt-gateway` syncs outbound to the hosted control plane.
 - `apps/tests/invariants/` — **HUMAN-OWNED** architectural rules. Never modify; fix code to satisfy the test instead.
 - `apps/wake-word/` — wake-word retraining infra; data artifacts gitignored under `var/wake-word/`. Read [`apps/wake-word/AGENTS.md`](apps/wake-word/AGENTS.md) before touching.
 - `firmware/{fan_controller,reservoir_node,…}/` — ESP32 firmware (PlatformIO).
 - `web-ui/` — Vite + React + TS + TanStack Router/Query + Tailwind v4 + Biome. Dev server :5173.
 - `wiki/` — agent-maintained grow knowledge base. Start at [`wiki/AGENTS.md`](wiki/AGENTS.md) for any wiki work.
 - `var/` — runtime data (snapshots, logs, sessions, photos, db-backups, wake-word artifacts). Gitignored. Override root via `DIRT_DATA_DIR`.
-- `contracts/` — OpenAPI spec + generated Pydantic + TS schema.
+- `contracts/` — generated API contract artifacts.
 - `debug/` — agent sandbox. Write throwaway scripts here; never imported by app code.
 - `docs/` — progressive-disclosure index (next section).
 - `systemd/` — user-level systemd units; `scripts/install-systemd` symlinks them.
@@ -29,7 +29,7 @@ Read the linked doc *before* doing the activity in the trigger column.
 
 | Doc | Read before |
 |---|---|
-| [`docs/commands.md`](docs/commands.md) | running anything (dev/test/lint/firmware/web-ui/PTZ/voice/daily-report/web-api auth/hosted deploys) |
+| [`docs/commands.md`](docs/commands.md) | running anything (dev/test/lint/firmware/web-ui/PTZ/voice/daily-report/hosted deploys) |
 | [`docs/database.md`](docs/database.md) | writing SQL, editing `apps/shared/src/dirt_shared/models/`, running `atlas migrate` |
 | [`docs/observability.md`](docs/observability.md) | calling `log_event()`, debugging across `var/logs/`, adding a new log stream, writing tests that touch shared filesystem |
 | [`docs/hosted-control-plane.md`](docs/hosted-control-plane.md) | deploying or rolling back Railway hosted control plane, operating `dirt-gateway`, checking cloud health, rotating hosted secrets, pruning cloud assets |

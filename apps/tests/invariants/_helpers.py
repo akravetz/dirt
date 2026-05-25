@@ -21,9 +21,7 @@ APPS_ROOT: Path = Path(__file__).resolve().parents[2]
 
 APPS: tuple[str, ...] = (
     "dirt_hwd",
-    "dirt_web",
     "dirt_shared",
-    "dirt_mcp",
     "dirt_voice",
 )
 
@@ -33,7 +31,6 @@ APPS: tuple[str, ...] = (
 COMPOSITION_ROOTS: frozenset[str] = frozenset(
     {
         "hwd/src/dirt_hwd/app.py",  # builds dirt-hwd FastAPI app + lifespan
-        "web/src/dirt_web/app.py",  # builds dirt-web FastAPI app + lifespan
     }
 )
 

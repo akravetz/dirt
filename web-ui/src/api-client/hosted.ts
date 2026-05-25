@@ -7,7 +7,6 @@
  * response interfaces in `cloud.ts`.
  */
 import createClient, { type Middleware } from "openapi-fetch";
-import { dirtApiBaseUrl } from "./client";
 import type { paths } from "./generated/hosted-schema";
 
 type HostedApiClient = ReturnType<typeof createClient<paths>>;
@@ -15,6 +14,7 @@ type HostedApiClient = ReturnType<typeof createClient<paths>>;
 interface HostedApiClientOptions {
   baseUrl?: string;
   onUnauthorized?: () => void;
+  throwOnError?: boolean;
 }
 
 const defaultOnUnauthorized = (): void => {
@@ -22,6 +22,11 @@ const defaultOnUnauthorized = (): void => {
     window.location.assign("/login");
   }
 };
+
+const configuredApiBaseUrl = import.meta.env.VITE_DIRT_API_BASE_URL?.trim() ?? "";
+
+export const dirtApiBaseUrl =
+  configuredApiBaseUrl.length > 0 ? configuredApiBaseUrl.replace(/\/+$/, "") : "/";
 
 class HostedApiError extends Error {
   readonly status: number;
@@ -36,7 +41,11 @@ class HostedApiError extends Error {
 export const createHostedApiClient = (
   options: HostedApiClientOptions = {},
 ): HostedApiClient => {
-  const { baseUrl = dirtApiBaseUrl, onUnauthorized = defaultOnUnauthorized } = options;
+  const {
+    baseUrl = dirtApiBaseUrl,
+    onUnauthorized = defaultOnUnauthorized,
+    throwOnError = true,
+  } = options;
 
   const client = createClient<paths>({
     baseUrl,
@@ -48,7 +57,7 @@ export const createHostedApiClient = (
       if (response.status === 401) {
         onUnauthorized();
       }
-      if (!response.ok) {
+      if (!response.ok && throwOnError) {
         throw new HostedApiError(request.method, schemaPath, response.status);
       }
     },

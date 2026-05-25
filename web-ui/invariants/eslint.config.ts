@@ -334,9 +334,9 @@ const config: Linter.Config[] = [
       // WHY: single outward-facing boundary. Auth headers, retry,
       // error mapping, and contract-drift detection all live in the
       // generated api-client wrapper. Agents drifting toward "just call
-      // fetch" in a route loader would bypass every seam.
+      // fetch" in a route loader would bypass the boundary.
       // FIX: call the typed client from src/api-client/ (regenerated
-      // from contracts/webapp-v1.yaml).
+      // from the hosted browser OpenAPI contract).
       "no-restricted-globals": [
         "error",
         {

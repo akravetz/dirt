@@ -4,14 +4,14 @@ type: breeding
 sources: []
 related: [wiki/breeding/README.md, wiki/breeding/stabilization-strategy.md, wiki/breeding/family-selection.md, wiki/breeding/feminized-production.md, wiki/breeding/cloning.md, wiki/breeding/pollen-handling.md, wiki/breeding/cross-procedure.md, wiki/decisions/2026-04-26-breeding-program-launch.md, wiki/decisions/2026-05-02-purple-stabilization-strategy.md]
 created: 2026-04-26
-updated: 2026-05-12
+updated: 2026-05-24
 ---
 
 # Breeding Program Timeline
 
 Active calendar from program launch through F2 seed harvest and the first stabilization cycles. Dates are *targets* and will drift with reality — update this page as actual events happen, and link daily entries when relevant work occurs. The program took shape in [the launch decision](../decisions/2026-04-26-breeding-program-launch.md) and was narrowed toward purple/sativa stabilization in [the 2026-05-02 strategy decision](../decisions/2026-05-02-purple-stabilization-strategy.md).
 
-> **Anchor dates:** current grow germination 2026-03-15 (Day 0). Program launch was 2026-04-26 (Day 43 of veg). Current grow flipped to 12/12 on **2026-05-03** (Flower Day 0), after clone preservation work began.
+> **Anchor dates:** current grow germination 2026-03-15 (Day 0). Program launch was 2026-04-26 (Day 43 of veg). Current grow flipped to 12/12 on **2026-05-03** (Flower Day 0), after clone preservation work began. Track A / breeding tent flipped to 12/12 on **2026-05-24** (Flower Day 0).
 
 ## High-level sequencing
 
@@ -49,7 +49,7 @@ Locked gear plan as of 2026-04-26 (decision: [clone + male tent gear](../decisio
 
 - [x] **2026-05-03:** flip current grow (4 plants) to 12/12. Clones were taken 2026-05-02; verify rooting before relying on them as preserved A/B/C/D genetics.
 - [x] **2026-05-12:** Track A regular seedlings have their first 2–3 sets of true leaves. Because the objective is strictly sex identification, cull females, and collect pollen, do not veg for yield. Give them roughly **7–14 more days under the veg schedule**, then flip once most plants have **4–5 nodes**, steady new growth, and no obvious transplant/root stress.
-- [ ] **~2026-05-19 → 2026-05-26:** Flip the Track A batch to 12/12 for sexing and pollen production. If a plant clearly declares sex before the flip, act on it; otherwise use the flip to force declaration.
+- [x] **2026-05-24:** Flip the Track A batch to 12/12 for sexing and pollen production. Daily report shows upright labeled plants, but the tent is wet across all sensor windows; check watering, airflow, and sensor exposure before the first dark cycles repeat. See [2026-05-24](../daily/2026-05-24.md).
 - [ ] **After flip:** inspect nodes 4–6 with a loupe every 1–2 days. Cull females as soon as confirmed. Keep only male candidates that pass the [male-evaluation](male-evaluation.md) gates; if space is tight, prioritize purple stems, clean structure, vigor, and no hermie signs.
 - [ ] If <2 males survive the full 10-seed batch (P ≈ 1%), source another small pack from OBG. Pollen banking is the gating prerequisite for the cross.
 

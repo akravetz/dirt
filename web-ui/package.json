@@ -17,8 +17,6 @@
     "format": "biome format --write .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:e2e": "WEBUI_DEV_PORT=$(../scripts/worktree-port) playwright test",
-    "test:e2e:ui": "WEBUI_DEV_PORT=$(../scripts/worktree-port) playwright test --ui",
     "knip": "knip --config invariants/knip.json"
   },
   "dependencies": {
@@ -27,13 +25,11 @@
     "@tanstack/react-router": "^1.168.23",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "react-markdown": "^10.1.0",
     "tailwindcss": "^4.2.2"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.12",
     "@eslint/js": "^10.0.1",
-    "@playwright/test": "^1.59.1",
     "@tanstack/eslint-plugin-router": "^1.161.6",
     "@tanstack/router-plugin": "^1.167.22",
     "@types/node": "^24.12.2",

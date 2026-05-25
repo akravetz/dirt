@@ -294,12 +294,6 @@ def create_app(
     app.state.engine = engine
     app.state.settings = settings
     app.state.readings = core.readings
-    app.state.grow = core.grow
-    app.state.light_schedules = core.light_schedules
-    app.state.snapshots = core.snapshots
-    app.state.plant_detail = core.plant_detail
-    app.state.plants = core.plants
-    app.state.system_status = core.system_status
     app.state.sensor_quality = SensorQualityService(
         SensorQualityConfig(
             state_path=settings.data_dir / "logs" / "sensor_quality" / "state.json",

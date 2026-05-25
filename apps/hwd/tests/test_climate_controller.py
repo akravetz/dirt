@@ -13,6 +13,7 @@ from dirt_hwd.services.climate_controller import (
     ClimateControllerService,
     ClimateInput,
     ClimateState,
+    ClimateTuning,
     decide_climate,
 )
 from dirt_hwd.services.climate_policy import default_climate_policy
@@ -183,15 +184,50 @@ def test_high_vpd_humidifies_without_drying_or_fan_relief() -> None:
     assert decision.dehumidifier_on is False
     assert decision.fan_duty_pct == POLICY.fan.floor_pct
     assert decision.heater_level == 0
+    assert decision.demand.raw_drying_pct == 0.0
+    assert decision.demand.raw_heat_pct == 0.0
     assert "vpd_split_humidify" in decision.reasons
 
 
+def test_decision_exposes_vpd_first_diagnostics() -> None:
+    decision = _decide(vpd_kpa=1.55, rh_pct=52.0, temperature_f=77.0)
+
+    assert decision.active_mode == "vpd_humidify"
+    assert decision.vpd.band_low_kpa == 1.1
+    assert decision.vpd.band_high_kpa == 1.3
+    assert decision.vpd.selected_setpoint_kpa == 1.3
+    assert decision.vpd.selected_edge == "upper_edge"
+    assert decision.vpd.control_vpd_kpa == 1.55
+    assert decision.vpd.error_kpa == pytest.approx(0.25)
+    assert decision.demand.raw_humidifier_pct > 0
+    assert decision.demand.clipped_humidifier_pct == decision.humidifier_pct
+    assert decision.demand.delivered_humidifier_pct == decision.humidifier_pct
+    assert "humidifier_tracking_delivered_output" in (
+        decision.demand.anti_windup_reasons
+    )
+
+
+def test_low_vpd_diagnostics_use_negative_error() -> None:
+    decision = _decide(vpd_kpa=0.82, rh_pct=64.0, temperature_f=78.0)
+
+    assert decision.active_mode == "vpd_dehumidify"
+    assert decision.vpd.selected_setpoint_kpa == 1.1
+    assert decision.vpd.selected_edge == "lower_edge"
+    assert decision.vpd.error_kpa == pytest.approx(-0.28)
+    assert decision.demand.raw_drying_pct > 0
+    assert decision.demand.raw_heat_pct > 0
+    assert decision.demand.clipped_heat_pct > 0.0
+    assert decision.demand.heater_limit_reason is None
+    assert decision.demand.delivered_drying_pct > 0
+    assert decision.demand.dehumidifier_allocation_reason == "dehumidifier_turn_on"
+
+
 def test_low_vpd_requests_dehumidifier_and_may_raise_fan() -> None:
-    decision = _decide(vpd_kpa=0.82, rh_pct=58.0, temperature_f=78.0)
+    decision = _decide(vpd_kpa=0.82, rh_pct=64.0, temperature_f=78.0)
 
     assert decision.humidifier_pct == 0.0
     assert decision.dehumidifier_on is True
-    assert decision.fan_duty_pct > POLICY.fan.floor_pct
+    assert decision.heater_level > 0
     assert "vpd_split_dry" in decision.reasons
 
 
@@ -219,7 +255,7 @@ def test_low_temperature_with_low_vpd_prefers_dehumidifier_over_fan_purge() -> N
         lights_on=False,
         temperature_f=68.5,
         vpd_kpa=0.82,
-        rh_pct=70.0,
+        rh_pct=74.0,
     )
 
     assert decision.heater_level > 0
@@ -233,18 +269,80 @@ def test_low_vpd_near_floor_uses_heat_recovery_without_fan_purge() -> None:
         lights_on=False,
         temperature_f=70.2,
         vpd_kpa=0.82,
-        rh_pct=67.0,
+        rh_pct=74.0,
     )
 
     assert decision.heater_level > 0
     assert decision.dehumidifier_on is True
-    assert decision.fan_duty_pct == POLICY.fan.floor_pct
+    assert decision.fan_duty_pct > POLICY.fan.floor_pct
+    assert "dehumidifier_owns_vpd_recovery" in decision.reasons
     assert "vpd_recovery_heat" in decision.reasons
-    assert "fan_floor" in decision.reasons
+    assert "fan_elevated_for_drying" in decision.reasons
     assert "hard_low_temperature" not in decision.constraints
 
 
-def test_vpd_recovery_heat_continues_until_vpd_exit_or_temperature_cap() -> None:
+def test_rh_above_ceiling_dehumidifier_owns_and_allows_heat_assist() -> None:
+    state = ClimateState(
+        heat_integral=80.0,
+        last_tick_at=T0 - timedelta(seconds=120),
+        phase="lights_off",
+        heater_level=5,
+        heater_last_changed_at=T0 - timedelta(seconds=240),
+    )
+
+    decision = _decide(
+        state,
+        lights_on=False,
+        temperature_f=72.0,
+        vpd_kpa=0.82,
+        rh_pct=78.0,
+    )
+
+    assert decision.active_mode == "hard_rh_guard"
+    assert decision.dehumidifier_on is True
+    assert decision.heater_level > 0
+    assert decision.demand.raw_heat_pct > 0.0
+    assert decision.demand.clipped_heat_pct > 0.0
+    assert decision.demand.delivered_heat_pct > 0.0
+    assert decision.demand.heater_limit_reason in {None, "heater_min_dwell"}
+    assert "dehumidifier_owns_vpd_recovery" in decision.reasons
+    assert "vpd_recovery_heat" in decision.reasons
+    assert "hard_rh" in decision.constraints
+
+
+def test_rh_above_ceiling_still_allows_low_temperature_protection_heat() -> None:
+    decision = _decide(
+        lights_on=False,
+        temperature_f=68.5,
+        vpd_kpa=0.82,
+        rh_pct=78.0,
+    )
+
+    assert decision.dehumidifier_on is True
+    assert decision.heater_level > 0
+    assert "hard_low_temperature_guard" in decision.reasons
+    assert "vpd_recovery_heat" in decision.reasons
+
+
+@pytest.mark.parametrize("temperature_f", [70.0, 71.0, 72.0])
+def test_low_vpd_with_normal_rh_uses_heat_recovery_without_dehumidifier(
+    temperature_f: float,
+) -> None:
+    decision = _decide(
+        lights_on=False,
+        temperature_f=temperature_f,
+        vpd_kpa=0.82,
+        rh_pct=60.0,
+    )
+
+    assert decision.heater_level > 0
+    assert decision.dehumidifier_on is False
+    assert decision.fan_duty_pct == POLICY.fan.floor_pct
+    assert decision.active_mode == "vpd_heat_assist"
+    assert "vpd_recovery_heat" in decision.reasons
+
+
+def test_vpd_recovery_heat_continues_until_vpd_release_or_temperature_cap() -> None:
     state = ClimateState(
         last_tick_at=T0 - timedelta(seconds=120),
         phase="lights_off",
@@ -257,7 +355,7 @@ def test_vpd_recovery_heat_continues_until_vpd_exit_or_temperature_cap() -> None
         lights_on=False,
         temperature_f=71.7,
         vpd_kpa=0.93,
-        rh_pct=64.0,
+        rh_pct=60.0,
     )
 
     assert decision.heater_level > 0
@@ -265,12 +363,12 @@ def test_vpd_recovery_heat_continues_until_vpd_exit_or_temperature_cap() -> None
     assert "vpd_recovery_heat" in decision.reasons
 
 
-def test_vpd_recovery_heat_exits_at_vpd_exit_threshold() -> None:
+def test_vpd_recovery_heat_exits_inside_vpd_deadband() -> None:
     state = ClimateState(
         last_tick_at=T0 - timedelta(seconds=120),
         phase="lights_off",
         heater_level=5,
-        heater_last_changed_at=T0 - timedelta(seconds=240),
+        heater_last_changed_at=T0 - timedelta(seconds=301),
     )
 
     decision = _decide(
@@ -281,8 +379,9 @@ def test_vpd_recovery_heat_exits_at_vpd_exit_threshold() -> None:
         rh_pct=62.0,
     )
 
-    assert decision.heater_level == 0
+    assert decision.heater_level == 4
     assert "vpd_recovery_heat" not in decision.reasons
+    assert "heater_decay_step_down" in decision.reasons
 
 
 def test_vpd_recovery_heat_maintains_at_phase_high_until_safety_cap() -> None:
@@ -298,14 +397,14 @@ def test_vpd_recovery_heat_maintains_at_phase_high_until_safety_cap() -> None:
         lights_on=False,
         temperature_f=72.0,
         vpd_kpa=0.82,
-        rh_pct=66.0,
+        rh_pct=60.0,
     )
 
-    assert decision.heater_level == 5
-    assert "heater_vpd_recovery_maintenance" in decision.reasons
+    assert decision.heater_level > 0
+    assert "vpd_recovery_heat" in decision.reasons
 
 
-def test_vpd_recovery_heat_exits_at_temperature_safety_cap() -> None:
+def test_low_vpd_high_rh_can_keep_heater_recovery_at_old_temperature_high() -> None:
     state = ClimateState(
         last_tick_at=T0 - timedelta(seconds=120),
         phase="lights_off",
@@ -316,13 +415,18 @@ def test_vpd_recovery_heat_exits_at_temperature_safety_cap() -> None:
     decision = _decide(
         state,
         lights_on=False,
-        temperature_f=72.5,
+        temperature_f=72.0,
         vpd_kpa=0.82,
-        rh_pct=66.0,
+        rh_pct=74.0,
     )
 
-    assert decision.heater_level == 0
+    assert decision.heater_level > 0
     assert decision.fan_duty_pct > POLICY.fan.floor_pct
+    assert decision.dehumidifier_on is True
+    assert decision.active_mode == "vpd_dehumidify"
+    assert "dehumidifier_owns_vpd_recovery" in decision.reasons
+    assert "vpd_recovery_heat" in decision.reasons
+    assert "fan_elevated_for_drying" in decision.reasons
 
 
 def test_vpd_recovery_uses_lights_on_temperature_high() -> None:
@@ -338,35 +442,108 @@ def test_vpd_recovery_uses_lights_on_temperature_high() -> None:
         lights_on=True,
         temperature_f=78.0,
         vpd_kpa=0.82,
-        rh_pct=58.0,
+        rh_pct=52.0,
     )
 
-    assert decision.heater_level == 5
+    assert decision.heater_level > 0
+    assert decision.dehumidifier_on is False
     assert "vpd_recovery_heat" in decision.reasons
-    assert "heater_vpd_recovery_maintenance" in decision.reasons
 
 
-def test_vpd_recovery_lights_on_exits_at_temperature_safety_cap() -> None:
+def test_temperature_at_80f_suppresses_heat_demand() -> None:
+    changed_at = T0 - timedelta(seconds=240)
     state = ClimateState(
+        heat_integral=60.0,
         last_tick_at=T0 - timedelta(seconds=120),
         phase="lights_on",
         heater_level=5,
-        heater_last_changed_at=T0 - timedelta(seconds=240),
+        heater_last_changed_at=changed_at,
     )
 
     decision = _decide(
         state,
         lights_on=True,
-        temperature_f=78.5,
+        temperature_f=80.0,
         vpd_kpa=0.82,
-        rh_pct=58.0,
+        rh_pct=52.0,
     )
 
     assert decision.heater_level == 0
+    assert (T0 - changed_at).total_seconds() < ClimateTuning().heater_minimum_dwell_s
+    assert decision.state.heater_last_changed_at == T0
+    assert decision.demand.raw_heat_pct > 0.0
+    assert decision.demand.clipped_heat_pct == 0.0
+    assert decision.state.heat_integral < 0.0
+    assert decision.demand.heater_limit_reason == "heater_safety_off"
+    assert "heat_tracking_clipped_delivery" in decision.demand.anti_windup_reasons
     assert "heater_safety_off" in decision.reasons
 
 
-def test_drying_fan_waits_for_enter_threshold_from_floor() -> None:
+def test_normal_heater_changes_obey_five_minute_dwell() -> None:
+    changed_at = T0 - timedelta(seconds=240)
+    state = ClimateState(
+        heat_integral=40.0,
+        last_tick_at=T0 - timedelta(seconds=120),
+        phase="lights_off",
+        heater_level=3,
+        heater_last_changed_at=changed_at,
+    )
+
+    decision = _decide(
+        state,
+        lights_on=False,
+        temperature_f=70.2,
+        vpd_kpa=0.82,
+        rh_pct=60.0,
+    )
+
+    assert ClimateTuning().heater_minimum_dwell_s == 300.0
+    assert decision.heater_level == 3
+    assert decision.state.heater_last_changed_at == changed_at
+    assert "heater_min_dwell" in decision.reasons
+
+
+def test_heater_level_changes_by_one_level_per_dwell_window() -> None:
+    state = ClimateState(
+        heat_integral=90.0,
+        last_tick_at=T0 - timedelta(seconds=120),
+        phase="lights_off",
+        heater_level=2,
+        heater_last_changed_at=T0 - timedelta(seconds=301),
+    )
+
+    decision = _decide(
+        state,
+        lights_on=False,
+        temperature_f=70.2,
+        vpd_kpa=0.82,
+        rh_pct=60.0,
+    )
+
+    assert decision.heater_level == 3
+    assert "heater_rate_limited_step" in decision.reasons
+
+
+def test_nearest_heater_quantization_is_less_aggressive_than_ceil() -> None:
+    state = ClimateState(
+        heat_integral=12.0,
+        last_tick_at=T0 - timedelta(seconds=120),
+        phase="lights_off",
+    )
+
+    decision = _decide(
+        state,
+        lights_on=False,
+        temperature_f=70.2,
+        vpd_kpa=0.82,
+        rh_pct=60.0,
+    )
+
+    assert decision.demand.raw_heat_pct == pytest.approx(14.144)
+    assert decision.heater_level == 1
+
+
+def test_vpd_inside_deadband_starts_no_new_actuator_mode() -> None:
     decision = _decide(
         lights_on=False,
         temperature_f=71.4,
@@ -376,7 +553,11 @@ def test_drying_fan_waits_for_enter_threshold_from_floor() -> None:
     )
 
     assert decision.fan_duty_pct == POLICY.fan.floor_pct
-    assert "vpd_split_dry" in decision.reasons
+    assert decision.humidifier_pct == 0.0
+    assert decision.dehumidifier_on is False
+    assert decision.heater_level == 0
+    assert decision.active_mode == "vpd_hold"
+    assert "hold_in_band" in decision.reasons
     assert "fan_elevated_for_drying" not in decision.reasons
 
 
@@ -394,7 +575,90 @@ def test_drying_fan_holds_until_exit_threshold_once_elevated() -> None:
     assert "fan_elevated_for_drying" in decision.reasons
 
 
-def test_drying_fan_slew_limits_non_safety_step_up() -> None:
+def test_drying_fan_enters_near_rh_ceiling_for_current_flower_late_policy() -> None:
+    decision = _decide(
+        stage="flower_late",
+        lights_on=False,
+        temperature_f=70.5,
+        vpd_kpa=0.88,
+        rh_pct=63.6,
+        current_fan_pct=POLICY.fan.floor_pct,
+    )
+
+    assert decision.fan_duty_pct > POLICY.fan.floor_pct
+    assert "fan_elevated_for_drying" in decision.reasons
+
+
+def test_drying_fan_does_not_enter_below_rh_hysteresis_threshold() -> None:
+    decision = _decide(
+        stage="flower_late",
+        lights_on=False,
+        temperature_f=70.5,
+        vpd_kpa=0.88,
+        rh_pct=63.4,
+        current_fan_pct=POLICY.fan.floor_pct,
+    )
+
+    assert decision.fan_duty_pct == POLICY.fan.floor_pct
+    assert "fan_elevated_for_drying" not in decision.reasons
+
+
+def test_drying_fan_holds_until_rh_exit_threshold_once_elevated() -> None:
+    decision = _decide(
+        stage="flower_late",
+        lights_on=False,
+        temperature_f=70.5,
+        vpd_kpa=0.88,
+        rh_pct=61.5,
+        current_fan_pct=70,
+    )
+
+    assert decision.fan_duty_pct == 70
+    assert "fan_drying_rh_hysteresis_hold" in decision.reasons
+    assert "fan_elevated_for_drying" in decision.reasons
+
+
+def test_drying_fan_rh_hold_survives_inside_vpd_band_with_heater_active() -> None:
+    state = ClimateState(
+        phase="lights_off",
+        heater_level=2,
+        heater_last_changed_at=T0 - timedelta(seconds=120),
+    )
+
+    decision = _decide(
+        state,
+        stage="flower_late",
+        lights_on=False,
+        temperature_f=71.8,
+        vpd_kpa=1.03,
+        rh_pct=61.5,
+        current_fan_pct=70,
+        current_heater_level=2,
+    )
+
+    assert decision.fan_duty_pct == 70
+    assert decision.heater_level == 2
+    assert "fan_drying_rh_hysteresis_hold" in decision.reasons
+    assert "fan_elevated_for_drying" in decision.reasons
+    assert "heater_elevated_fan_non_safety_suppressed" not in decision.conflicts
+
+
+def test_drying_fan_starts_exiting_below_rh_hysteresis_threshold() -> None:
+    decision = _decide(
+        stage="flower_late",
+        lights_on=False,
+        temperature_f=70.5,
+        vpd_kpa=0.88,
+        rh_pct=60.9,
+        current_fan_pct=70,
+    )
+
+    assert decision.fan_duty_pct < 70
+    assert "fan_slew_limited" in decision.reasons
+    assert "fan_drying_rh_hysteresis_hold" not in decision.reasons
+
+
+def test_rh_hysteresis_allows_drying_fan_during_heat_recovery() -> None:
     decision = _decide(
         lights_on=False,
         temperature_f=72.0,
@@ -403,8 +667,10 @@ def test_drying_fan_slew_limits_non_safety_step_up() -> None:
         current_fan_pct=POLICY.fan.floor_pct,
     )
 
-    assert decision.fan_duty_pct == POLICY.fan.floor_pct + 15
-    assert "fan_slew_limited" in decision.reasons
+    assert decision.heater_level > 0
+    assert decision.fan_duty_pct > POLICY.fan.floor_pct
+    assert "vpd_recovery_heat" in decision.reasons
+    assert "fan_elevated_for_drying" in decision.reasons
 
 
 def test_hard_rh_guard_bypasses_fan_slew_limit() -> None:
@@ -421,15 +687,15 @@ def test_hard_rh_guard_bypasses_fan_slew_limit() -> None:
     assert "fan_slew_limited" not in decision.reasons
 
 
-def test_heater_with_fan_floor_is_not_a_conflict() -> None:
+def test_temperature_below_preferred_low_does_not_start_heat_inside_vpd_band() -> None:
     decision = _decide(temperature_f=71.0, vpd_kpa=1.2, rh_pct=55.0)
 
-    assert decision.heater_level > 0
+    assert decision.heater_level == 0
     assert decision.fan_duty_pct == POLICY.fan.floor_pct
     assert decision.conflicts == ()
 
 
-def test_heater_suppresses_existing_elevated_fan_cooling() -> None:
+def test_inside_vpd_band_decays_existing_elevated_fan_without_heat_conflict() -> None:
     decision = _decide(
         temperature_f=71.0,
         vpd_kpa=1.2,
@@ -437,9 +703,9 @@ def test_heater_suppresses_existing_elevated_fan_cooling() -> None:
         current_fan_pct=60,
     )
 
-    assert decision.heater_level > 0
+    assert decision.heater_level == 0
     assert decision.fan_duty_pct == 45
-    assert "heater_elevated_fan_cooling_suppressed" in decision.conflicts
+    assert decision.conflicts == ()
     assert "fan_slew_limited" in decision.reasons
 
 
@@ -471,11 +737,43 @@ def test_dehumidifier_minimum_off_time_blocks_rapid_restart() -> None:
         dehumidifier_last_changed_at=T0 - timedelta(seconds=60),
     )
 
-    decision = _decide(state, vpd_kpa=0.82, rh_pct=58.0, temperature_f=76.0)
+    decision = _decide(state, vpd_kpa=0.82, rh_pct=64.0, temperature_f=76.0)
 
     assert decision.dehumidifier_on is False
     assert "dehumidifier_min_off_hold" in decision.reasons
     assert decision.state.drying_integral < state.drying_integral
+
+
+def test_dehumidifier_min_off_ownership_keeps_current_heater_during_dwell() -> None:
+    state = ClimateState(
+        heat_integral=70.0,
+        last_tick_at=T0 - timedelta(seconds=120),
+        phase="lights_off",
+        dehumidifier_on=False,
+        dehumidifier_last_changed_at=T0 - timedelta(seconds=60),
+        heater_level=4,
+        heater_last_changed_at=T0 - timedelta(seconds=240),
+    )
+
+    decision = _decide(
+        state,
+        lights_on=False,
+        temperature_f=72.0,
+        vpd_kpa=0.82,
+        rh_pct=78.0,
+    )
+
+    assert decision.dehumidifier_on is False
+    assert decision.heater_level == 4
+    assert decision.demand.dehumidifier_allocation_reason == "dehumidifier_min_off_hold"
+    assert decision.demand.raw_heat_pct > 0.0
+    assert decision.demand.clipped_heat_pct > 0.0
+    assert decision.demand.delivered_heat_pct == 40.0
+    assert decision.demand.heater_allocation_reason == "heater_min_dwell"
+    assert decision.state.heater_last_changed_at == T0 - timedelta(seconds=240)
+    assert "dehumidifier_owns_vpd_recovery" in decision.reasons
+    assert "vpd_recovery_heat" in decision.reasons
+    assert "heater_min_dwell" in decision.reasons
 
 
 def test_dehumidifier_minimum_on_time_blocks_rapid_stop() -> None:
@@ -516,6 +814,13 @@ def test_phase_transition_is_bumpless() -> None:
     assert decision.dehumidifier_on is False
     assert decision.fan_duty_pct == POLICY.fan.floor_pct
     assert decision.heater_level == 0
+    assert decision.state.humidifier_integral == 0.0
+    assert decision.state.drying_integral == 0.0
+    assert decision.state.heat_integral == 0.0
+    assert decision.state.cooling_fan_integral == 0.0
+    assert decision.demand.raw_humidifier_pct == 0.0
+    assert decision.demand.raw_drying_pct == 0.0
+    assert decision.demand.raw_heat_pct == 0.0
     assert "phase_transition_bumpless" in decision.reasons
 
 
@@ -529,7 +834,174 @@ def test_clipping_feedback_prevents_humidifier_windup() -> None:
     decision = _decide(state, vpd_kpa=1.7, rh_pct=70.0, temperature_f=77.0)
 
     assert decision.humidifier_pct == 0.0
+    assert decision.demand.raw_humidifier_pct > 0.0
+    assert decision.demand.clipped_humidifier_pct == 0.0
     assert decision.state.humidifier_integral < 0.0
+
+
+def test_dehumidifier_owned_recovery_allows_heat_assist_without_windup() -> None:
+    state = ClimateState(
+        heat_integral=70.0,
+        last_tick_at=T0 - timedelta(seconds=120),
+        phase="lights_off",
+        heater_level=5,
+        heater_last_changed_at=T0 - timedelta(seconds=301),
+    )
+
+    decision = _decide(
+        state,
+        lights_on=False,
+        temperature_f=72.0,
+        vpd_kpa=0.82,
+        rh_pct=74.0,
+    )
+
+    assert decision.dehumidifier_on is True
+    assert decision.demand.dehumidifier_allocation_reason == "dehumidifier_turn_on"
+    assert decision.state.dehumidifier_last_changed_at == T0
+    assert decision.heater_level > 0
+    assert decision.demand.raw_heat_pct > 0.0
+    assert decision.demand.clipped_heat_pct > 0.0
+    assert decision.demand.delivered_heat_pct > 0.0
+    assert decision.demand.heater_limit_reason == "heater_rate_limited_step"
+    assert "vpd_recovery_heat" in decision.reasons
+
+
+@pytest.mark.parametrize(
+    ("vpd_kpa", "rh_pct", "temperature_f"),
+    [
+        (1.55, 52.0, 77.0),
+        (1.55, 78.0, 77.0),
+        (0.82, 78.0, 72.0),
+    ],
+)
+def test_humidifier_and_dehumidifier_are_never_both_requested(
+    vpd_kpa: float,
+    rh_pct: float,
+    temperature_f: float,
+) -> None:
+    decision = _decide(vpd_kpa=vpd_kpa, rh_pct=rh_pct, temperature_f=temperature_f)
+
+    assert not (decision.humidifier_pct > 0 and decision.dehumidifier_on)
+
+
+def test_fan_floor_coexists_with_heater() -> None:
+    decision = _decide(
+        lights_on=False,
+        temperature_f=70.2,
+        vpd_kpa=0.82,
+        rh_pct=60.0,
+    )
+
+    assert decision.heater_level > 0
+    assert decision.fan_duty_pct == POLICY.fan.floor_pct
+    assert "fan_floor" in decision.reasons
+    assert decision.conflicts == ()
+
+
+def test_humidifier_to_dehumidifier_handoff_resets_humidifier_integral() -> None:
+    state = ClimateState(
+        humidifier_integral=90.0,
+        last_tick_at=T0 - timedelta(seconds=120),
+        phase="lights_on",
+    )
+
+    decision = _decide(state, vpd_kpa=0.82, rh_pct=74.0, temperature_f=78.0)
+
+    assert decision.humidifier_pct == 0.0
+    assert decision.dehumidifier_on is True
+    assert decision.demand.raw_humidifier_pct == 0.0
+    assert decision.state.humidifier_integral == 0.0
+
+
+def test_heater_assist_to_hold_steps_down_stale_heat_integral() -> None:
+    state = ClimateState(
+        heat_integral=80.0,
+        last_tick_at=T0 - timedelta(seconds=120),
+        phase="lights_off",
+        heater_level=5,
+        heater_last_changed_at=T0 - timedelta(seconds=301),
+    )
+
+    decision = _decide(
+        state,
+        lights_on=False,
+        temperature_f=71.5,
+        vpd_kpa=0.96,
+        rh_pct=62.0,
+    )
+
+    assert decision.active_mode == "vpd_hold"
+    assert decision.heater_level == 4
+    assert decision.demand.raw_heat_pct == 0.0
+    assert decision.state.heat_integral == 40.0
+    assert "heater_decay_step_down" in decision.reasons
+
+
+def test_stale_temperature_turns_heater_off_without_dwell() -> None:
+    state = ClimateState(
+        heat_integral=60.0,
+        last_tick_at=T0 - timedelta(seconds=30),
+        phase="lights_off",
+        heater_level=5,
+        heater_last_changed_at=T0 - timedelta(seconds=60),
+    )
+
+    decision = _decide(
+        state,
+        lights_on=False,
+        temperature_f=71.0,
+        temperature_age_s=600.0,
+        vpd_kpa=0.82,
+        rh_pct=60.0,
+    )
+
+    assert decision.heater_level == 0
+    assert decision.state.heater_last_changed_at == T0
+    assert "failsafe_stale_temperature" in decision.reasons
+
+
+def test_restart_seeds_heat_integral_from_observed_heater_level() -> None:
+    decision = _decide(
+        lights_on=False,
+        temperature_f=70.2,
+        vpd_kpa=0.82,
+        rh_pct=60.0,
+        current_heater_level=4,
+    )
+
+    assert decision.active_mode == "vpd_heat_assist"
+    assert decision.heater_level == 4
+    assert decision.demand.raw_heat_pct == pytest.approx(40.0)
+    expected_heat_p = ClimateTuning().heater_kp * (0.9 - 0.82)
+    assert decision.state.heat_integral == pytest.approx(40.0 - expected_heat_p)
+
+
+def test_heater_suppressed_cooling_fan_tracks_delivered_zero() -> None:
+    state = ClimateState(
+        last_tick_at=T0 - timedelta(seconds=120),
+        phase="lights_off",
+        heater_level=4,
+        heater_last_changed_at=T0 - timedelta(seconds=240),
+    )
+
+    decision = _decide(
+        state,
+        lights_on=False,
+        temperature_f=72.5,
+        vpd_kpa=0.82,
+        rh_pct=60.0,
+    )
+
+    assert decision.heater_level > 0
+    assert decision.fan_duty_pct == POLICY.fan.floor_pct
+    assert decision.demand.raw_cooling_fan_pct > 0.0
+    assert decision.demand.delivered_cooling_fan_pct == 0.0
+    assert decision.state.cooling_fan_integral < 0.0
+    assert "cooling_fan_tracking_clipped_delivery" in (
+        decision.demand.anti_windup_reasons
+    )
+    assert "heater_elevated_fan_cooling_suppressed" in decision.conflicts
 
 
 @pytest.mark.parametrize("missing_field", ["vpd", "rh"])
@@ -582,6 +1054,13 @@ async def test_service_tick_dispatches_humidify_decision_and_logs_reason_codes()
     assert event == "tick"
     assert fields["target_humidifier_pct"] == round(decision.humidifier_pct, 1)
     assert fields["target_dehumidifier_on"] is False
+    assert fields["active_mode"] == "vpd_humidify"
+    assert fields["vpd_selected_edge"] == "upper_edge"
+    assert fields["vpd_selected_setpoint_kpa"] == 1.3
+    assert fields["vpd_error_kpa"] == pytest.approx(0.25)
+    assert fields["raw_humidifier_demand_pct"] > 0
+    assert fields["delivered_humidifier_pct"] == round(decision.humidifier_pct, 1)
+    assert "humidifier_tracking_delivered_output" in fields["anti_windup_reasons"]
     assert "vpd_split_humidify" in fields["reasons"]
 
 
@@ -589,7 +1068,7 @@ async def test_service_tick_turns_humidifier_off_before_dehumidifying() -> None:
     service, _readings, fan, humidifier, dehumidifier, heater, events = _service(
         {
             "temperature_f": 78.0,
-            "humidity_pct": 58.0,
+            "humidity_pct": 64.0,
             "vpd_kpa": 0.82,
             "humidifier_mist_level": 4.0,
             "dehumidifier_on": 0.0,
@@ -604,7 +1083,8 @@ async def test_service_tick_turns_humidifier_off_before_dehumidifying() -> None:
     assert humidifier.intensities == [0.0]
     assert dehumidifier.powers == [True]
     assert fan.set_calls == [decision.fan_duty_pct]
-    assert heater.levels == [0]
+    assert heater.levels == [decision.heater_level]
+    assert decision.heater_level > 0
     assert events[0][2]["target_humidifier_pct"] == 0.0
     assert events[0][2]["target_dehumidifier_on"] is True
     assert "vpd_split_dry" in events[0][2]["reasons"]

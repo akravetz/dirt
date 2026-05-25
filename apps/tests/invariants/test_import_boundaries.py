@@ -8,15 +8,15 @@ never modify the .ini file or this wrapper.
 
 Architectural import boundaries are enforced by ``import-linter`` rather
 than custom AST checks. The .ini config is the single source of truth
-for "which package may import which". The seven contracts there encode:
+for "which package may import which". The contracts there encode:
 
-  1. Five cross-package isolation rules (dirt_shared is pure; HW lives
-     in dirt_hwd; web is the UI/API; mcp mounts into web; voice is its
-     own process). Apps share state ONLY through the database or HTTP
+  1. Cross-package isolation rules (dirt_shared is pure; HW lives
+     in dirt_hwd; voice is its own process). Apps share state ONLY
+     through the database or HTTP
      across process boundaries.
-  2. Two API-layer rules (dirt_hwd.api and dirt_web.api may not reach
-     past the service layer into dirt_shared.db / .models — sessions and
-     model usage stay encapsulated in services).
+  2. API-layer rules (dirt_hwd.api may not reach past the service layer
+     into dirt_shared.db / .models — sessions and model usage stay
+     encapsulated in services).
 
 Both the .ini file and this wrapper live in ``apps/tests/invariants/``,
 the directory protected from agent edits.
@@ -54,12 +54,12 @@ def test_import_boundaries() -> None:
         "=========================================================\n\n"
         "WHY this rule exists:\n"
         "  Each dirt-* package is a deployable unit with a clear\n"
-        "  responsibility (dirt_hwd = hardware daemon; dirt_web = UI/API;\n"
-        "  dirt_mcp = MCP server; dirt_voice = voice channel; dirt_shared\n"
-        "  = pure, stateless code). Direct cross-app imports collapse\n"
+        "  responsibility (dirt_hwd = hardware daemon; dirt_voice = voice\n"
+        "  channel; dirt_shared = pure, stateless code). Direct cross-app\n"
+        "  imports collapse\n"
         "  these units into one — a code change in dirt_hwd suddenly\n"
-        "  affects dirt_web's deployment, the test isolation guarantees\n"
-        "  break, and the package boundary becomes fiction. The api/*\n"
+        "  affects another process's deployment, the test isolation\n"
+        "  guarantees break, and the package boundary becomes fiction. The api/*\n"
         "  layer rule has the same shape one level down: API routes are\n"
         "  HTTP edge code, services are business logic. If api reaches\n"
         "  past services into db/models directly, route handlers can\n"

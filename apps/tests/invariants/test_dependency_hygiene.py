@@ -17,7 +17,7 @@ every deploy for the life of the repo).
 ``deptry`` catches both in one pass. We run it per workspace package
 (``apps/<app>/src/``) so each package's dependency contract is checked
 against its own ``pyproject.toml`` rather than a merged view — which
-lets dirt-hwd legitimately declare ``pyserial`` while dirt-web doesn't.
+lets dirt-hwd legitimately declare ``pyserial`` while dirt-voice doesn't.
 
 Per-package config lives at ``[tool.deptry]`` / ``[tool.deptry.*]`` in
 each ``apps/<app>/pyproject.toml``. The only allowed runtime option

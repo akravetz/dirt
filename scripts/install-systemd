@@ -18,7 +18,6 @@ mkdir -p "$TARGET_DIR"
 
 UNITS=(
     dirt-hwd.service
-    dirt-web.service
     dirt-camera.service
     dirt-camera-agent.service
     dirt-gateway.service
@@ -44,8 +43,8 @@ done
 systemctl --user daemon-reload
 echo
 echo "daemon-reload done. Next (explicit) steps:"
-echo "  systemctl --user enable dirt-hwd dirt-web dirt-camera dirt-gateway dirt-voice dirt-daily-report.timer dirt-logrotate.timer"
-echo "  systemctl --user start  dirt-hwd dirt-web"
+echo "  systemctl --user enable dirt-hwd dirt-camera dirt-gateway dirt-voice dirt-daily-report.timer dirt-logrotate.timer"
+echo "  systemctl --user start  dirt-hwd"
 echo "  systemctl --user start  dirt-gateway"
 echo "  # camera-only edge hosts: systemctl --user enable --now dirt-camera dirt-camera-agent"
 echo

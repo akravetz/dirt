@@ -239,9 +239,6 @@ def below_band(value: float, band: tuple[float, float] | None) -> bool:
 class GrowStateService:
     """Grow-stage queries + lights schedule. Constructor-inject the engine.
 
-    Wired into ``app.state.grow`` by ``dirt_web.app.create_app``;
-    resolved by ``get_grow`` provider in ``dirt_web.deps``.
-
     The clock is constructor-injected and threads through every method's
     "what time is it now" reads. Composition roots wire one shared clock
     (see ``app_wiring.build_core_services``); tests pass a frozen clock

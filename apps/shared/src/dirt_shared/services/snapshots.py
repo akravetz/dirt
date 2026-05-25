@@ -10,12 +10,7 @@ from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID, resolve
 
 
 class SnapshotsService:
-    """Reads from the snapshot archive. Constructor-inject the engine.
-
-    Wired into FastAPI via ``app.state.snapshots`` in
-    ``dirt_web.app.create_app``; resolved by the ``get_snapshots``
-    provider in ``dirt_web.deps``.
-    """
+    """Reads from the snapshot archive. Constructor-inject the engine."""
 
     def __init__(self, engine: AsyncEngine) -> None:
         self._engine = engine

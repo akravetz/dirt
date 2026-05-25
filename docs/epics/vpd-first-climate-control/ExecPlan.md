@@ -27,11 +27,19 @@ The core design is a constrained, mode-supervised PI controller:
 - [x] (2026-05-24) Inspected recent `var/logs/climate_controller/2026-05-24.jsonl` entries and confirmed heater cycling around lights-off: the controller ramps through high ThermoForge levels, then turns off after crossing the upper/safety region, then repeats as temperature/VPD fall again.
 - [x] (2026-05-24) Searched current control-theory references for PID/PI tuning, anti-windup, process lag/dead time, hysteresis, and temperature control.
 - [x] (2026-05-24) Wrote this ExecPlan.
-- [ ] Implement the VPD-first pure controller changes and focused tests.
-- [ ] Wire new logging fields and validate with tests.
-- [ ] Run focused and full validation.
-- [ ] Restart `dirt-hwd` only after code/test validation and live preflight checks.
-- [ ] Observe one dark-period control window and update this plan with measured outcomes.
+- [x] (2026-05-24 00:01 MDT) Milestone 1 complete: added VPD-first pure-controller diagnostic data and logging vocabulary, with focused tests for decision/log fields.
+- [x] (2026-05-24 00:01 MDT) Milestone 2 complete: replaced temperature-primary demand selection with VPD-first split-range demand and focused tests.
+- [x] (2026-05-24 00:01 MDT) Milestone 3 complete: added actuator-conditioned PI tracking, anti-windup, and bumpless handoff coverage.
+- [x] (2026-05-24 00:01 MDT) Milestone 4 complete: added heater 5 minute dwell, one-level rate limiting, nearest-level quantization, and asymmetric safety behavior.
+- [x] (2026-05-24 00:01 MDT) Milestone 5 complete: made low-VPD recovery ownership explicit and prevented actuator fighting.
+- [x] (2026-05-24 00:01 MDT) Milestone 6 complete: audited and tightened focused VPD-first controller behavior tests.
+- [x] (2026-05-24 00:02 MDT) Wired new logging fields and validated with tests.
+- [x] (2026-05-24 00:02 MDT) Focused and full validation passed.
+- [x] (2026-05-24 00:51 MDT) Restarted `dirt-hwd` after code/test validation, live preflight checks, and a post-restart correction.
+- [x] (2026-05-24 01:01 MDT) Observed an initial dark-period control window and recorded measured outcomes.
+- [x] (2026-05-24 01:18 MDT) Incorporated live grower feedback that the physical dehumidifier recovers slowly: removed the dehumidifier-ownership heater kill and validated focused controller tests.
+- [x] (2026-05-24 01:20 MDT) Restarted `dirt-hwd` with the simplified heater/dehumidifier coexistence behavior and observed initial live ticks.
+- [x] (2026-05-24 01:54 MDT) Added RH hysteresis for elevated drying fan: for the current `65%` flower-late RH ceiling, enter above `63.5%` and do not leave until below `61%`; restarted `dirt-hwd`.
 
 
 ## Surprises & Discoveries
@@ -86,7 +94,106 @@ The core design is a constrained, mode-supervised PI controller:
 
 ## Outcomes & Retrospective
 
-No implementation has been performed yet. This section must be updated after each milestone with the code changes, validation commands, observed behavior, and any tuning changes made during live observation.
+- Milestone 1 completed at 2026-05-24 00:01 MDT. `ClimateDecision` now carries explicit VPD diagnostics (`active_mode`, active band, selected edge/setpoint, control VPD, signed error), raw/clipped/delivered demand diagnostics, anti-windup tracking reason vocabulary, and heater/dehumidifier allocation/limit reasons. `_log_tick()` flattens those fields into the `climate_controller` tick stream. Focused tests cover positive/negative VPD error semantics, selected VPD edge/setpoint, active mode, demand diagnostics, and log emission.
+
+  Validation:
+  - `uv run pytest apps/hwd/tests/test_climate_controller.py -q` -> 31 passed
+  - `uv run ruff check apps/hwd/src/dirt_hwd/services/climate_controller.py apps/hwd/tests/test_climate_controller.py` -> passed
+
+  Surprise: no behavior rewrite was needed for Milestone 1. The new diagnostics intentionally describe the current allocator behavior so later milestones can replace the temperature-primary controller against visible vocabulary.
+
+- Milestone 2 completed at 2026-05-24 00:01 MDT. `_compute_demand()` now uses the active VPD band plus `policy.dehumidifier.vpd_deadband_kpa` as the primary split-range mode selector. High VPD requests humidification while suppressing drying and heat except hard-low temperature protection; low VPD requests drying with dehumidifier ownership near/above the RH ceiling and heater assist under the normal dwell/rate/safety limits; in-band/deadband VPD starts no new actuator mode; and heat demand/integral are suppressed at the explicit 80°F safety cap instead of the old preferred phase high edge.
+
+  Validation:
+  - `uv run pytest apps/hwd/tests/test_climate_controller.py -q` -> 32 passed
+  - `uv run ruff check apps/hwd/src/dirt_hwd/services/climate_controller.py apps/hwd/tests/test_climate_controller.py` -> passed
+
+  Surprise: reused `policy.dehumidifier.rh_deadband_pct` as the near-ceiling RH selector for dehumidifier ownership instead of adding another tuning field.
+
+- Milestone 3 completed at 2026-05-24 00:01 MDT. Humidifier, drying, heat, and cooling-fan integrators now track delivered/clipped output. Raw heat demand remains visible before 80°F and dehumidifier-ownership clipping, phase changes reset stale integrals, and service-restart startup can seed integrals from observed nonzero actuator readings for bumpless handoff.
+
+  Validation:
+  - `uv run pytest apps/hwd/tests/test_climate_controller.py -q` -> 37 passed
+  - `uv run ruff check apps/hwd/src/dirt_hwd/services/climate_controller.py apps/hwd/tests/test_climate_controller.py` -> passed
+  - `git diff --check -- apps/hwd/src/dirt_hwd/services/climate_controller.py apps/hwd/tests/test_climate_controller.py` -> passed
+
+  Surprise: existing drying tracking used requested fan contribution instead of actual allocated fan output; Milestone 3 changed tracking to use delivered fan/dehumidifier output.
+
+- Milestone 4 completed at 2026-05-24 00:01 MDT. Heater allocation now uses `heater_minimum_dwell_s = 300.0`, nearest ThermoForge level quantization with 5% boundary hysteresis, one-level-per-dwell rate limiting, immediate `80.0°F` safety-off, stale-temperature failsafe off, VPD recovery maintenance below release, and gradual step-down once heat is no longer requested.
+
+  Validation:
+  - `uv run pytest apps/hwd/tests/test_climate_controller.py -q` -> 41 passed
+  - `uv run ruff check apps/hwd/src/dirt_hwd/services/climate_controller.py apps/hwd/tests/test_climate_controller.py` -> passed
+  - `git diff --check -- apps/hwd/src/dirt_hwd/services/climate_controller.py apps/hwd/tests/test_climate_controller.py` -> passed
+
+  Surprise: during dehumidifier-owned recovery, heater now steps down over dwell windows rather than hard-off immediately. That preserves the Milestone 4 dwell/rate-limit rule; full actuator conflict ownership remains Milestone 5.
+
+- Milestone 5 completed at 2026-05-24 00:01 MDT. Low-VPD recovery ownership is explicit. High/near-ceiling RH gives dehumidifier ownership, but heater VPD assist may still run under the normal dwell/rate limits and the 80°F cap. Heat integral tracks delivered heat during dehumidifier-owned recovery. Focused tests cover dehumidifier ownership, heat-assisted low-VPD recovery, high-VPD humidifier ownership, humidifier/dehumidifier mutual exclusion, and fan/heater conflict rules.
+
+  Validation:
+  - `uv run pytest apps/hwd/tests/test_climate_controller.py -q` -> 47 passed
+  - `uv run ruff check apps/hwd/src/dirt_hwd/services/climate_controller.py apps/hwd/tests/test_climate_controller.py` -> passed
+  - `git diff --check -- apps/hwd/src/dirt_hwd/services/climate_controller.py apps/hwd/tests/test_climate_controller.py` -> passed
+
+  Surprise: Live grower feedback after restart showed that treating dehumidifier ownership as a heater kill was too conservative for the actual tent because the physical dehumidifier recovers slowly. The later simplification removes that kill and lets heater assist coexist with dehumidifier recovery.
+
+- Milestone 6 completed at 2026-05-24 00:01 MDT. Focused climate-controller tests now cover the VPD-first behaviors listed in this plan: low-VPD heater assist through the 70-72°F lights-off range, RH-ceiling dehumidifier ownership without heat windup, heater dwell/rate limits with immediate 80°F and stale-temperature safety-off, VPD deadband hold/gradual decay, bumpless phase and dehumidifier handoffs, humidifier/dehumidifier mutual exclusion, and fan/heater coexistence with cooling suppression.
+
+  Validation:
+  - `uv run pytest apps/hwd/tests/test_climate_controller.py -q` -> 49 passed
+  - `uv run ruff check apps/hwd/src/dirt_hwd/services/climate_controller.py apps/hwd/tests/test_climate_controller.py` -> passed
+  - `git diff --check -- apps/hwd/src/dirt_hwd/services/climate_controller.py apps/hwd/tests/test_climate_controller.py` -> passed
+
+- Post-restart correction completed at 2026-05-24 00:51 MDT, then superseded by the 01:18 MDT simplification. Initial live observation showed that when RH/VPD gave dehumidifier ownership but the dehumidifier was held by `dehumidifier_min_off_hold`, the heater could still be held by heater dwell with `delivered_heat_pct=40.0` even though heat was clipped. That correction briefly suppressed heater VPD assist based on `demand.dehumidifier_owns_vpd`; live grower feedback then removed that suppression because the real dehumidifier recovers slowly.
+
+  Validation:
+  - `uv run pytest apps/hwd/tests/test_climate_controller.py -q` -> 50 passed
+  - `uv run pytest apps/hwd/tests/test_climate_controller.py apps/hwd/tests/test_climate_policy.py apps/hwd/tests/test_climate_actuators.py -q` -> 66 passed
+  - `uv run pytest apps/hwd/tests -q` -> 287 passed
+  - `uv run pytest apps/tests/invariants -q` -> 112 passed
+  - `uv run ruff check apps/hwd/src/dirt_hwd/services/climate_controller.py apps/hwd/tests/test_climate_controller.py` -> passed
+  - `uv run ruff check` -> passed
+  - `git diff --check -- apps/hwd/src/dirt_hwd/services/climate_controller.py apps/hwd/tests/test_climate_controller.py` -> passed
+
+- Live restart and observation completed at 2026-05-24 01:01 MDT, before the 01:18 MDT simplification. `systemctl --user status dirt-hwd --no-pager` reported `active (running)` after restart. During the initial dark-period sample, climate ticks included the new VPD-first diagnostic fields. No simultaneous humidifier/dehumidifier target appeared. At that time, dehumidifier/RH ownership held heater target at `0`; VPD moved through low-VPD dehumidifier correction, in-band cooling/hold, then RH-guard dehumidifier correction. The old high-amplitude heater `0 -> 9/10 -> 0` cycling did not appear in that observation window.
+
+  Representative corrected observations:
+  - `2026-05-24T06:58:08Z`: `active_mode=hard_rh_guard`, `target_dehumidifier_on=true`, `target_heater_level=0`, `vpd_kpa=0.8938`, `temperature_f=70.754`.
+  - `2026-05-24T06:59:17Z`: `target_dehumidifier_on=true`, `target_heater_level=0`, `delivered_drying_pct=100.0`, `delivered_heat_pct=0.0`, `vpd_kpa=0.8258`.
+  - `2026-05-24T06:59:51Z`: same ownership state held.
+  - `2026-05-24T07:01:01Z`: `target_dehumidifier_on=true`, `target_heater_level=0`, `raw_heat_demand_pct=0.2`, `clipped_heat_demand_pct=0.0`, `delivered_heat_pct=0.0`.
+
+  Surprise: an archive verification error for a historical timelapse date appeared in the journal during the first restart, but `dirt-hwd` remained active and continued ingesting sensor posts. This was outside the climate-controller path and did not block rollout.
+
+- Live simplification completed at 2026-05-24 01:18 MDT. Based on grower feedback that the real dehumidifier acts slowly, the controller no longer kills heater assist just because RH/high-moisture recovery is dehumidifier-owned. Low-VPD heat can now run with the dehumidifier, subject to the same nearest-level quantization, 5 minute dwell, one-level rate limit, elevated-fan conflict handling, stale-sensor fail-safe, and immediate 80°F heater safety-off.
+
+  Validation:
+  - `uv run pytest apps/hwd/tests/test_climate_controller.py -q` -> 50 passed
+
+  Runtime observation after restart:
+  - `systemctl --user status dirt-hwd --no-pager` reported `active (running)` after the 2026-05-24 01:19 MDT restart.
+  - `2026-05-24T07:19:08Z`: with `humidity_pct=67.22`, `vpd_kpa=0.822`, and dehumidifier on, the controller requested `target_heater_level=1` with `heater_allocation_reason=heater_level_request`; reasons included both `vpd_recovery_heat` and `dehumidifier_owns_vpd_recovery`.
+  - `2026-05-24T07:19:44Z`: dehumidifier remained on, heater held level `1`, and VPD rose to `0.873`; no simultaneous humidifier/dehumidifier target appeared.
+
+- Drying fan hysteresis completed at 2026-05-24 01:54 MDT. Elevated drying fan entry now uses `rh_max_pct - 1.5`, and exit uses `rh_max_pct - 4.0`; for the current flower-late `65%` RH ceiling, that means enter above `63.5%` and hold until RH drops below `61%`. The hysteresis is fan-specific; it does not change the dehumidifier or humidifier ownership thresholds.
+
+  Validation:
+  - `uv run pytest apps/hwd/tests/test_climate_controller.py -q` -> 55 passed
+  - `uv run pytest apps/hwd/tests/test_climate_controller.py apps/hwd/tests/test_climate_policy.py apps/hwd/tests/test_climate_actuators.py -q` -> 71 passed
+  - `uv run ruff check apps/hwd/src/dirt_hwd/services/climate_controller.py apps/hwd/tests/test_climate_controller.py` -> passed
+
+  Runtime observation after restart:
+  - `systemctl --user status dirt-hwd --no-pager` reported `active (running)` after the 2026-05-24 01:54 MDT restart.
+  - Immediate post-restart ticks had RH around `62.5%` with fan at floor, which is below the `63.5%` entry threshold, so no new elevated fan cycle was started.
+
+- Validation milestone completed at 2026-05-24 00:02 MDT.
+
+  Validation:
+  - `uv run pytest apps/hwd/tests/test_climate_controller.py apps/hwd/tests/test_climate_policy.py apps/hwd/tests/test_climate_actuators.py -q` -> 65 passed
+  - `uv run ruff check apps/hwd/src/dirt_hwd/services/climate_controller.py apps/hwd/src/dirt_hwd/services/climate_policy.py apps/hwd/tests/test_climate_controller.py apps/hwd/tests/test_climate_policy.py` -> passed
+  - `uv run pytest apps/hwd/tests -q` -> 286 passed
+  - `uv run pytest apps/tests/invariants -q` -> 112 passed
+  - `uv run ruff check` -> passed
 
 
 ## Context and Orientation
@@ -158,7 +265,7 @@ Milestone 2: Replace heater temperature-primary demand with VPD-first split-rang
 Refactor `_compute_demand()` so VPD error is primary:
 
 - If VPD is above the active upper band plus deadband, the air is too dry. Request humidifier demand. Suppress drying outputs. Keep heater off unless temperature is independently below a hard minimum.
-- If VPD is below the active lower band minus deadband, the air is too wet. Request drying demand. Prefer the dehumidifier when RH is high or above the RH ceiling. Allow heater-assisted VPD recovery when RH is not already being actively corrected by dehumidifier or when temperature is near the low side and there is temperature headroom. Allow elevated fan drying only when temperature is safe and the fan will not fight heater recovery.
+- If VPD is below the active lower band minus deadband, the air is too wet. Request drying demand. Prefer the dehumidifier when RH is high or above the RH ceiling. Allow heater-assisted VPD recovery under the normal dwell/rate limits and the 80°F safety cap, even when the dehumidifier is also recovering slowly. Allow elevated fan drying only when temperature is safe and the fan will not fight heater recovery.
 - If VPD is inside the active band or deadband, hold or gently decay active outputs. Do not create new actuator changes solely to optimize within the band.
 
 Keep temperature as a constraint and secondary trim:
@@ -170,8 +277,8 @@ Keep temperature as a constraint and secondary trim:
 Keep RH as a constraint and mode selector:
 
 - If RH is above the phase/stage RH ceiling, force humidifier off.
-- If low VPD coincides with high RH, let the dehumidifier own recovery first.
-- While dehumidifier is actively on for high RH/low VPD, suppress or strongly limit heater VPD-assist unless needed for low-temperature protection. This prevents dehumidifier and heater from overshooting VPD together.
+- If low VPD coincides with high RH, let the dehumidifier own moisture removal.
+- Do not kill heater assist solely because the dehumidifier owns moisture removal. The real dehumidifier recovers slowly, so heater assist may coexist with dehumidification while the 80°F cap, dwell, rate limit, and fan conflict rules prevent aggressive heat swings.
 
 Use the existing `policy.dehumidifier.vpd_deadband_kpa` value, currently `0.05`, as the initial VPD mode deadband unless implementation evidence shows a separate tuning field is clearer. If a separate field is added to `ClimateTuning`, start with `0.05 kPa` and name it directly, for example `vpd_control_deadband_kpa`.
 
@@ -190,7 +297,7 @@ Required anti-windup cases:
 
 - Humidifier demand clipped to zero by RH ceiling, dehumidifier-on state, lights/prep guard, stale sensor, or high humidity.
 - Drying demand clipped because dehumidifier is held off by minimum-off dwell, fan is capped by temperature safety, or VPD has re-entered band.
-- Heat demand clipped because temperature reached 80°F, heater is held by 5 minute dwell, dehumidifier owns recovery, or stale temperature prevents safe heat.
+- Heat demand clipped because temperature reached 80°F, heater is held by 5 minute dwell/rate limiting, the active mode does not request heat, or stale temperature prevents safe heat.
 - Cooling fan demand clipped because heater is active or fan is already at max.
 
 Required bumpless handoff cases:
@@ -230,7 +337,7 @@ Milestone 5: Keep dehumidifier and humidifier from fighting the heater.
 
 Update allocation rules and tests so the controller has clear ownership of low-VPD recovery:
 
-- If RH is above ceiling, dehumidifier owns recovery. Heater may run only for low-temperature protection or slow VPD assist if temperature is below the desired lower comfort area and the 80°F cap is far away.
+- If RH is above ceiling, dehumidifier owns moisture removal. Heater may still run for low-VPD recovery under the normal dwell/rate limits and the 80°F cap.
 - If dehumidifier is on due to low VPD/high RH, the heater integral should track delivered heat, not accumulate extra heat demand.
 - If VPD is low but RH is not above ceiling and temperature has headroom, heater may own recovery.
 - If VPD is high, humidifier owns recovery and heater must not be used for VPD.
@@ -291,7 +398,7 @@ During the first 10-15 minutes, verify:
 - no simultaneous humidifier/dehumidifier target appears;
 - heater targets change no faster than the 5 minute dwell unless safety-off fires;
 - VPD error and active mode are logged clearly;
-- if the heater is capped by 80°F or dehumidifier ownership, heat integral does not continue winding up.
+- if the heater is capped by 80°F, held by dwell/rate limiting, or disabled by inactive mode, heat integral does not continue winding up.
 
 During the first dark-period window after deployment, verify the user-visible goal:
 
@@ -355,7 +462,7 @@ Runtime acceptance:
 - `var/logs/climate_controller/YYYY-MM-DD.jsonl` includes VPD-first diagnostic fields for each tick.
 - In a dark-period low-VPD condition, heater level changes obey 5 minute dwell except for 80°F safety-off or stale-sensor safety.
 - Heater does not repeatedly oscillate between `0` and `9/10` while trying to recover VPD.
-- If RH is above ceiling, dehumidifier ownership is visible in the reasons and heater integrator does not wind up against that mode.
+- If RH is above ceiling, dehumidifier ownership is visible in the reasons and heater assist remains bounded by dwell/rate limiting plus the 80°F cap.
 - If VPD is in the configured deadband, the controller does not start new corrective actuator modes.
 - At or above 80°F, heater target is `0` immediately and the log reason is explicit.
 

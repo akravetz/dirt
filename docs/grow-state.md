@@ -8,6 +8,12 @@ Read before writing any code that branches on stage (veg / flower_early / flower
 - **Flower start date:** 2026-05-03 (authoritative: current main `growrun.flower_start_date`).
 - **Light schedule:** 12/12, lights on 09:00-21:00 local tent time (`America/Denver`; authoritative: enabled current main `schedule` row with `kind='lights'`).
 
+## Breeding tent
+
+- **Germination date:** 2026-04-28 (authoritative: current `growrun.germination_date` for `site_id='homebox'` and `tent_id='breeding'`).
+- **Flower start date:** 2026-05-24 (authoritative: current breeding `growrun.flower_start_date`).
+- **Light schedule:** 12/12, lights on 09:00-21:00 local tent time (`America/Denver`; authoritative: enabled current breeding `schedule` row with `kind='lights'`).
+
 ## Deriving stage without the DB
 
 - If `flower_start_date` is NULL (or `today` is before it) → `veg`.

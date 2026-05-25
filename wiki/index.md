@@ -1,7 +1,7 @@
 ---
 title: Index
 type: index
-updated: 2026-05-23
+updated: 2026-05-24
 ---
 
 # Grow Wiki Index
@@ -15,10 +15,10 @@ updated: 2026-05-23
 - [Hosted Control Plane](decisions/2026-05-05-hosted-control-plane.md) — Railway web UI/API plus outbound local gateway; remote inspection and PTZ-only command intent without moving hardware authority to cloud
 
 ## Plants
-- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; Flower Day 20; upright purple flower tops; moisture stable near 58.7%; tray/runoff pH+EC recheck still required
-- [Plant B](plants/plant-b.md) — 🟡 Secondary; Flower Day 20; visible tops upright but fan-obscured; moisture 96.17% pinned — dryback verification urgent
-- [Plant C](plants/plant-c.md) — 🟡 Secondary; Flower Day 20; compact purple-toned flower sites; moisture 90.81% saturated — lower-leaf/root-zone watch
-- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; Flower Day 20; upright sativa-leaning purple flower tops; moisture dropped to 46.43% now — verify by hand
+- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; Flower Day 21; limited view shows upright purple flower tops; moisture stable near 59.15%; tray/runoff pH+EC recheck still required
+- [Plant B](plants/plant-b.md) — 🟡 Secondary; Flower Day 21; dedicated view fan-obstructed; moisture 95.96% pinned — dryback verification urgent
+- [Plant C](plants/plant-c.md) — 🟡 Secondary; Flower Day 21; fan-obstructed active purple-toned flowers; moisture 90.89% saturated — lower-leaf/root-zone watch
+- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; Flower Day 21; upright sativa-leaning purple flower tops; moisture lower but stable near 47.10% — verify by hand
 
 ## Daily Logs
 - [2026-03-27](daily/2026-03-27.md) — Day 13: Pre-transplant; 2–3 leaf sets
@@ -68,6 +68,7 @@ updated: 2026-05-23
 - [2026-05-21](daily/2026-05-21.md) — Day 68 / Flower Day 18: full photo coverage; main lights-on VPD in range but overnight still high/dry; Plant B/C moisture pinned 🔴; Plant D hand-check needed
 - [2026-05-22](daily/2026-05-22.md) — Day 69 / Flower Day 19: full photo coverage; main lights-on VPD in range but overnight slightly wet/low; Plant B/C moisture pinned 🔴; airflow work needed
 - [2026-05-23](daily/2026-05-23.md) — Day 70 / Flower Day 20: full photo coverage; main lights-on VPD in range but overnight slightly wet/low; Plant B/C moisture pinned 🔴; Plant D lower signal and breeding RH spike need checks
+- [2026-05-24](daily/2026-05-24.md) — Day 71 / Flower Day 21: full photo coverage but B/C fan-obstructed; main entered late flower with lights-on VPD in range but RH high; Plant B/C moisture pinned 🔴; breeding Flower Day 0 wet/low
 
 ## Environment
 - [Temperature](environment/temperature.md) — Trend log; targets by phase; notable events
@@ -116,7 +117,7 @@ updated: 2026-05-23
 - [Stabilization Strategy](breeding/stabilization-strategy.md) — target phenotype, F-line vs BX tradeoffs, accelerated generation cycle, male/female clone space model
 - [Progeny-Tested Family Selection](breeding/family-selection.md) — F3/F4/F5 family-lot sizing: 2x2 max, 4-family screens, 2-family comparisons, 1-family validation
 - [Feminized Seed Production Endpoint](breeding/feminized-production.md) — final clone roles, reversed-female pollen model, batch scaling, and >90% progeny-test threshold
-- [Timeline](breeding/timeline.md) — dated calendar from launch through F2 seed harvest and stabilization cycles; Track A short-veg/sex-flip plan recorded
+- [Timeline](breeding/timeline.md) — dated calendar from launch through F2 seed harvest and stabilization cycles; Track A flipped to 12/12 on 2026-05-24 for sexing/pollen production
 - [Isolation](breeding/isolation.md) — separate-room contamination protocol; gating for everything else
 - [Isolation Tent Culture](breeding/isolation-tent-culture.md) — 2x2 pot sizes, coco/perlite, runoff handling, and optional drip-assist plumbing
 - [Cloning](breeding/cloning.md) — procedure, equipment, mother management; safety net for the entire program

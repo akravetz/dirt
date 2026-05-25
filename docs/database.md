@@ -55,7 +55,7 @@ LIMIT 1;
 1. Edit SQLModel classes in `apps/shared/src/dirt_shared/models/`
 2. `atlas migrate diff <name> --env local` (writes plain SQL to `migrations/`)
 3. Review the generated file
-4. Take a normal `pg_dump` backup before live applies
+4. Take a compressed custom-format `pg_dump` backup before live applies
 5. `atlas migrate apply --env local`
 
 **NEVER run DDL from app code** — `apps/tests/invariants/test_schema_managed_by_atlas.py` enforces this. Full workflow + HCL reference: `docs/references/atlas/INDEX.md`.
@@ -64,7 +64,23 @@ LIMIT 1;
 
 ## Backups + rollback
 
-- **Backups**: manual for now (`pg_dump dirt > var/db-backups/dirt-$(date +%F).sql`). Automation deferred per `docs/proposals/pg-cutover-plan.md` §6 non-scope.
-- **Legacy sensor cleanup**: migration `20260504144109_scoped_firmware_legacy_removal.sql` removed `sensornode`, `sensor_location`, and `sensorreading.sensornode_id` after converting historical `reservoir_depth_cm` rows to canonical `reservoir_in` (`value / 2.54`) and deleting known trash `pressure_hpa` / one-off plant-a `humidity_pct` null-capability rows. It was applied live on 2026-05-04 after `pg_dump` backup `var/db-backups/dirt-20260504-092029-pre-scoped-firmware-legacy-removal.sql`.
+- **Pre-migration backups**: manual for now, but use compressed custom format instead of plain SQL. These are short-lived rollback artifacts for destructive local applies, not archival history:
+  ```bash
+  set -a; source .env; set +a
+  mkdir -p var/db-backups
+  PGPASSWORD=$DIRT_PG_PASSWORD pg_dump \
+    -h 127.0.0.1 -U dirt -d dirt \
+    -Fc --compress=zstd:level=6 \
+    -f var/db-backups/dirt-$(date +%F-%H%M%S)-pre-change.dump
+  ```
+- **Restore compressed dumps** into a fresh database with `pg_restore`; do not restore over the live database casually:
+  ```bash
+  createdb dirt_restore
+  pg_restore -h 127.0.0.1 -U dirt -d dirt_restore var/db-backups/<backup>.dump
+  ```
+- **High-volume data**: if a migration does not touch append-only fact tables, it can be reasonable to omit their data from the rollback artifact with `--exclude-table-data=<table>` while still dumping schema. Do this deliberately and record the omission in the plan/outcome; do not exclude data for tables being migrated.
+- **Plain SQL dumps**: use only when human-readable SQL is specifically needed. For routine pre-DDL safety, prefer `-Fc` because it is compressed by default and restores through `pg_restore`.
+- **Disaster recovery**: manual `pg_dump` files are not a point-in-time recovery strategy. If Dirt needs real archival recovery, set up base backups plus WAL archiving or a managed PostgreSQL backup tool; this remains deferred per `docs/proposals/pg-cutover-plan.md` §6 non-scope.
+- **Legacy sensor cleanup**: migration `20260504144109_scoped_firmware_legacy_removal.sql` removed `sensornode`, `sensor_location`, and `sensorreading.sensornode_id` after converting historical `reservoir_depth_cm` rows to canonical `reservoir_in` (`value / 2.54`) and deleting known trash `pressure_hpa` / one-off plant-a `humidity_pct` null-capability rows. It was applied live on 2026-05-04 after plain SQL `pg_dump` backup `var/db-backups/dirt-20260504-092029-pre-scoped-firmware-legacy-removal.sql`; future backups should use the compressed custom-format command above.
 - **Rollback artifact**: pre-cutover sqlite preserved at `var/dirt.db.pre-pg-cutover` through ~2026-05-03; restore procedure in [ADR-006](adrs/006-postgres-and-atlas.md).
 - **Why Postgres + Atlas**: [ADR-006](adrs/006-postgres-and-atlas.md).

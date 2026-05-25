@@ -4,7 +4,7 @@ type: breeding
 sources: []
 related: [wiki/breeding/stabilization-strategy.md, wiki/breeding/veg-tent-layout.md, wiki/breeding/pheno-hunt-protocol.md, wiki/breeding/male-evaluation.md, wiki/breeding/cross-procedure.md]
 created: 2026-05-02
-updated: 2026-05-02
+updated: 2026-05-24
 ---
 
 # Progeny-Tested Family Selection
@@ -20,6 +20,60 @@ F2-M1 x F2-F2 -> F3 family C
 ```
 
 The family, not just the individual plant, is what gets judged. A beautiful F2 plant is useful only if its offspring keep producing the target.
+
+The short rule:
+
+```text
+Select individual plants by phenotype.
+Advance families by progeny performance.
+```
+
+That means a standout plant is a candidate parent, not proof that the line is stable. The test is whether that plant's seed lot throws a high percentage of dark-purple, sativa-leaning, trellis-friendly offspring.
+
+## How families continue each generation
+
+A family exists whenever the parents are known. The first SBxBS01 cross can already create separate F2 families:
+
+```text
+TA-M1 x A clone -> F2-A family
+TA-M1 x D clone -> F2-D family
+```
+
+If the 16-site test is split 8 seeds from F2-A and 8 seeds from F2-D, judge the families by their hit rate:
+
+| Family | Example result | Decision |
+|---|---|---|
+| F2-A | 5/8 on target, 0 herms | Advance as the main line |
+| F2-D | 2/8 on target, 1 herm | Drop, unless one clone has an exceptional trait worth preserving as a backup |
+
+If one F2 family clearly dominates, do not keep both families on equal footing just because both parents looked interesting. Pick the best male and female candidates inside the winning family and make the next generation:
+
+```text
+F2-A-M1 x F2-A-F1 -> F3-A1
+```
+
+That F3-A1 seed lot is now one family. The next run asks whether that family throws the target consistently. If it does, choose the best F3 plants inside it and make 1-4 F4 subfamilies:
+
+```text
+F3-A1-M1 x F3-A1-F1 -> F4-A1a
+F3-A1-M2 x F3-A1-F1 -> F4-A1b
+F3-A1-M1 x F3-A1-F2 -> F4-A1c
+F3-A1-M2 x F3-A1-F2 -> F4-A1d
+```
+
+Then test those F4 subfamilies and advance the one with the best target percentage. The loop repeats at F5 and beyond: grow the current winning family, select the best candidates inside it, make a few known next-generation family lots, test those lots, and advance one winner.
+
+With only 16 plant sites, keep the loop small:
+
+```text
+F2 test: 8 seeds from F2-A + 8 seeds from F2-D
+F3 creation: best selected F2 parent pair(s) from the winning family
+F3 test: 16 seeds from one F3 family, or 8 + 8 from two candidate F3 families
+F4 creation: 1-4 known crosses from the best F3 candidates
+F4 test: 4 x 4 family screen, 8 + 8 comparison, or 16-seed validation
+```
+
+Do not collapse the process into "best-looking plant every time" too early. That bottlenecks the line before the parents have been tested through offspring. Use one best pair only when the population gives one obvious pair or when space forces the choice.
 
 ## Default operating rule
 

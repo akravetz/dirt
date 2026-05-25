@@ -1,5 +1,5 @@
 [tool.uv.workspace]
-members = ["apps/*", "contracts/python"]
+members = ["apps/*"]
 exclude = ["apps/tests"]
 
 [tool.uv]
@@ -13,7 +13,6 @@ dev-dependencies = [
     "httpx>=0.28",
     "ruff>=0.11",
     "pytestarch>=4.0.1",
-    "pytest-playwright-asyncio>=0.7.2",
     "pytest-testmon>=2.2.0",
     "schemdraw>=0.22",
     "matplotlib>=3.10.8",
@@ -22,8 +21,6 @@ dev-dependencies = [
     "deptry>=0.25.1",
     "hypothesis>=6.152.1",
     "pre-commit>=4.5.1",
-    "datamodel-code-generator>=0.56.1",
-    "dirt-contracts",
     "wandb>=0.26,<0.27",
     "boto3>=1.36",
 ]
@@ -32,13 +29,10 @@ dev-dependencies = [
 python-kasa = { git = "https://github.com/ZeliardM/python-kasa.git", rev = "feature/new-klap" }
 dirt-shared = { workspace = true }
 dirt-hwd = { workspace = true }
-dirt-web = { workspace = true }
-dirt-mcp = { workspace = true }
 dirt-voice = { workspace = true }
 dirt-control-plane = { workspace = true }
 dirt-gateway = { workspace = true }
 dirt-camera-agent = { workspace = true }
-dirt-contracts = { workspace = true }
 
 [tool.pytest.ini_options]
 # Discovery roots: cross-cutting invariants at apps/tests/ plus per-app unit
@@ -47,9 +41,7 @@ dirt-contracts = { workspace = true }
 testpaths = [
     "apps/tests",
     "apps/hwd/tests",
-    "apps/web/tests",
     "apps/shared/tests",
-    "apps/mcp/tests",
     "apps/voice/tests",
     "apps/control-plane/tests",
     "apps/gateway/tests",
@@ -63,7 +55,7 @@ markers = [
 ]
 
 [tool.ruff]
-src = ["apps/hwd/src", "apps/web/src", "apps/shared/src", "apps/mcp/src", "apps/voice/src", "apps/wake-word/src", "apps/control-plane/src", "apps/gateway/src", "apps/camera-agent/src"]
+src = ["apps/hwd/src", "apps/shared/src", "apps/voice/src", "apps/wake-word/src", "apps/control-plane/src", "apps/gateway/src", "apps/camera-agent/src"]
 line-length = 88
 # Agent-owned surfaces only. .claude/ is harness / skill scaffolding
 # shipped from upstream; scripts/ holds one-off maintenance tooling with
@@ -126,8 +118,6 @@ ignore = ["ASYNC240", "RUF001", "RUF002", "RUF003"]
 # understand that.
 "apps/*/src/**/api/*.py" = ["B008"]
 "apps/*/src/dirt_hwd/api/*.py" = ["B008"]
-"apps/*/src/dirt_web/api/*.py" = ["B008"]
-"apps/*/src/dirt_mcp/**.py" = ["B008"]
 # Test files and invariants prefer readability (long docstrings,
 # structured-data tables, pytest parametrize lines) over a hard 88-char
 # bound; SLF001 (private member access) is the entire point of a unit
@@ -159,7 +149,6 @@ ignore = ["ASYNC240", "RUF001", "RUF002", "RUF003"]
 # Entry points bind uvicorn to 0.0.0.0 — the whole point is to accept
 # LAN traffic; S104 is paranoid here.
 "apps/hwd/src/dirt_hwd/main.py" = ["S104"]
-"apps/web/src/dirt_web/main.py" = ["S104"]
 # Config defaults include sentinel strings like "change-me-in-production"
 # so non-voice deployments can boot without dashing through every
 # secret.

@@ -1,8 +1,6 @@
 """Sensor ingest endpoint.
 
-ESP32 plant nodes POST their readings here. Uses shared-secret bearer auth
-(separate from the cookie-auth UI and the MCP bearer token). Excluded from
-AuthMiddleware via the `/api/ingest` prefix in app.py.
+ESP32 plant nodes POST their readings here. Uses shared-secret bearer auth.
 """
 
 from __future__ import annotations

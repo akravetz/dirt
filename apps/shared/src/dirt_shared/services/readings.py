@@ -461,10 +461,6 @@ async def _update_calibration(
 class ReadingsService:
     """Sensor reading ingest + query. Constructor-inject the engine.
 
-    Wired into FastAPI via ``app.state.readings`` in
-    ``dirt_web.app.create_app``; resolved by the ``get_readings``
-    provider in ``dirt_web.deps``.
-
     The clock is constructor-injected so ingest stamps and history
     cutoffs are deterministic in tests.
     """

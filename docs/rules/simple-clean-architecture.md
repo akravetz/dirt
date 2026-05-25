@@ -31,6 +31,32 @@ Use compatibility only for a real boundary. Compatibility and migration safety a
 
 Move tests to the canonical contract. Agent-owned tests should validate the new source of truth. Do not preserve old names or old shapes in tests unless they are public contracts that still exist.
 
+## Test Value Rule
+
+Tests should validate behavior, contracts, and architectural boundaries, not pin incidental configuration or seed data values.
+
+Do not write tests that assert the current value of mutable configuration, database seed rows, schedule times, device names, plant labels, or other operator-owned data unless the value itself is the product contract. Those tests are configuration snapshots, not regression tests. They fail when the operator changes the system correctly, and they teach agents to preserve stale data instead of preserving behavior.
+
+When database or config data is involved, test one of these instead:
+
+- The code accepts and serializes whatever configured rows exist.
+- A boundary payload includes required fields and rejects malformed shapes.
+- A behavior changes correctly for an explicitly created test fixture.
+- A safety invariant holds across values, preferably with a minimal fixture or parametrized examples.
+
+Bad:
+
+- Assert that seeded `breeding` lights start at `06:00:00`.
+- Assert exact current device IDs, schedule names, or grow config values unless those values are declared constants in source and are the thing under test.
+
+Good:
+
+- Seed a schedule inside the test and assert gateway catalog sync includes that schedule with the required typed fields.
+- Assert every synced schedule has `site_id`, `tent_id`, `device_id`, `starts_local`, `ends_local`, and timezone-local semantics.
+- Assert invalid or missing schedule fields fail validation at the boundary.
+
+If a test breaks because normal config or seed data changed, first ask whether the test is pinning incidental data. Prefer deleting or rewriting the test over updating expected literals.
+
 ## Abstraction Test
 
 Before adding an abstraction, ask:

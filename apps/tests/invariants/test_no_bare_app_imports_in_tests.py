@@ -16,13 +16,13 @@ module-level singleton built once at import. That instance:
 
 Architecturally: tests construct a fresh app per test via
 ``create_app(...)`` from the same module — passing the per-test engine,
-disabling MCP / background services as needed, and using
+disabling background services as needed, and using
 ``app.dependency_overrides[provider] = lambda: fake`` to swap collaborators.
 
 Detection (AST):
   * Walk apps/*/tests/**/*.py.
   * For each top-level ``ImportFrom`` whose module matches
-    ``dirt_(hwd|web|mcp|voice)\\.app``:
+    ``dirt_(hwd|voice)\\.app``:
     if any ``alias.name == "app"`` → violation.
     Importing ``create_app``, ``lifespan``, ``AuthMiddleware``, etc. is fine.
 
@@ -42,8 +42,6 @@ from ._helpers import APPS, APPS_ROOT, format_invariant_failure
 _TARGET_PKGS: frozenset[str] = frozenset(
     {
         "dirt_hwd.app",
-        "dirt_web.app",
-        "dirt_mcp.app",
         "dirt_voice.app",
         # dirt_shared has no .app module, listed for completeness.
         "dirt_shared.app",
@@ -96,7 +94,7 @@ def test_no_bare_app_imports_in_tests(app: str) -> None:
                     "per-test app:\n\n"
                     "    @pytest.fixture\n"
                     "    async def client(app_engine):\n"
-                    "        app = create_app(engine=app_engine, run_mcp=False)\n"
+                    "        app = create_app(engine=app_engine)\n"
                     "        ...\n\n"
                     "Override services with ``app.dependency_overrides[provider]``\n"
                     "to substitute fakes — no ``mock.patch`` needed."

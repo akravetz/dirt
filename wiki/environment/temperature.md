@@ -4,7 +4,7 @@ type: environment
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/environment/humidity.md, wiki/overview.md]
 created: 2026-04-06
-updated: 2026-05-23
+updated: 2026-05-24
 ---
 
 # Temperature
@@ -18,7 +18,7 @@ updated: 2026-05-23
 | Early Flower | 72–80°F | 65–70°F |
 | Late Flower | 68–75°F | 62–68°F |
 
-**Current phase:** Early flower — target 72–80°F day and 65–70°F night.
+**Current phase:** Late flower — target 68–75°F day and 62–68°F night.
 
 **Denver note:** Ambient room temps run ~67°F night / 72°F day — good but slightly cool for seedlings. The tent's active heating from the Fold-650 light raises internal temps above ambient.
 
@@ -70,6 +70,7 @@ updated: 2026-05-23
 | 2026-05-21 | Main 73.90°F now ✅ / 78.38°F overnight avg ⚠️ / 75.88°F morning avg ✅; breeding 76.77°F now ✅ | Main-tent lights-on temperature remains in range while the 00-06 window stays warmer than the early-flower night band. Breeding temperature is usable; dryness is driven by low lights-on RH/fan exposure. → [2026-05-21](../daily/2026-05-21.md) |
 | 2026-05-22 | Main 78.21°F now ✅ / 71.17°F overnight avg ⚠️ / 75.99°F morning avg ✅; breeding 77.36°F now ✅ | Main-tent lights-on temperature remains in range, and the 00-06 window cooled substantially versus the prior warm nights but is still slightly above the early-flower night band. Breeding temperature is usable; small-plant concern remains lights-on dry air/fan exposure. → [2026-05-22](../daily/2026-05-22.md) |
 | 2026-05-23 | Main 78.26°F now ✅ / 71.58°F overnight avg ⚠️ / 76.14°F morning avg ✅; breeding 79.50°F now ✅ | Main-tent lights-on temperature remains in range, with the 00-06 window still slightly above the early-flower night band. Breeding temperature is usable/warm; today's breeding anomaly is the current RH/dew-point spike rather than heat alone. → [2026-05-23](../daily/2026-05-23.md) |
+| 2026-05-24 | Main 78.62°F now ⚠️ / 70.73°F overnight avg ⚠️ / 75.87°F morning avg ⚠️; breeding 80.44°F now ✅ | Main tent entered late flower, so the same temperatures that were usable yesterday are now warm against the 68-75°F day and 62-68°F night guides. Breeding is warm but usable for its Flower Day 0 start; the larger breeding issue is humidity/VPD. → [2026-05-24](../daily/2026-05-24.md) |
 
 ## Notable Events
 - **2026-03-21** — Overnight low of 59.5°F due to exhaust fan running too fast at night; resolved by throttling fan after lights-out → [2026-03-27 daily](../daily/2026-03-27.md)
@@ -106,3 +107,4 @@ updated: 2026-05-23
 - **2026-05-21** — Main-tent lights-on temperature stayed usable (75.88°F morning, 73.90°F now), while overnight remained warm at 78.38°F and paired with 1.44 kPa VPD. This is still a night-profile watch, not a lights-on heat correction. → [2026-05-21](../daily/2026-05-21.md)
 - **2026-05-22** — Main-tent overnight temperature cooled to 71.17°F after the prior 78-79°F nights, still a little above the early-flower night band but no longer driving dry/high VPD. Lights-on temperature is in range, so the environment action is airflow/humidity-profile monitoring rather than heat correction. → [2026-05-22](../daily/2026-05-22.md)
 - **2026-05-23** — Main-tent temperature repeated yesterday's usable lights-on pattern and slightly-warm night profile: 71.58°F overnight, 76.14°F morning, and 78.26°F now. Temperature is not the limiting control problem today; humidity pockets and the breeding-tent current moisture spike are. → [2026-05-23](../daily/2026-05-23.md)
+- **2026-05-24** — Main tent crossed into late flower, changing the temperature interpretation: 75.87°F morning and 78.62°F now are warm against the new day guide, and 70.73°F overnight is above the night guide. Use cooler/drier airflow where practical, but keep the primary focus on lowering RH and dew point. → [2026-05-24](../daily/2026-05-24.md)

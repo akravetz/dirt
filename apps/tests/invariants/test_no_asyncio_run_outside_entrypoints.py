@@ -154,8 +154,8 @@ def test_no_asyncio_run_outside_entrypoints(app: str) -> None:
                     "    `asyncio.run(main())` inside\n"
                     "    `if __name__ == '__main__':` — then the rule accepts\n"
                     "    it as the process's single event-loop owner.\n\n"
-                    "IF the file genuinely is a composition root (dirt-hwd or\n"
-                    "dirt-web app factory), add it to `COMPOSITION_ROOTS` in\n"
+                    "IF the file genuinely is a composition root (for example,\n"
+                    "the dirt-hwd app factory), add it to `COMPOSITION_ROOTS` in\n"
                     "apps/tests/invariants/_helpers.py with a WHY comment.\n"
                     "That list is deliberately short."
                 ),

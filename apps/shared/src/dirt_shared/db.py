@@ -4,8 +4,8 @@ Schema + migrations are owned by Atlas (see ADR-006, ``atlas.hcl``,
 ``migrations/``). This module hands out engines and sessions; it does
 not own a module-level singleton (singleton-retirement, 2026-04-19).
 
-Composition roots (``dirt_web.app.create_app``, ``dirt_hwd.app.create_app``,
-``dirt_voice`` startup) call ``build_core_services`` from
+Composition roots (``dirt_hwd.app.create_app``, ``dirt_voice`` startup)
+call ``build_core_services`` from
 ``dirt_shared.app_wiring`` to construct an engine once per process.
 """
 

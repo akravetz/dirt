@@ -27,18 +27,9 @@ DEFAULT_CAMERA_SOCKET_PATH = Path("/tmp/dirt-camera.sock")  # noqa: S108
 
 class Settings(BaseSettings):
     app_name: str = "Dirt"
-    auth_username: str = "admin"
-    auth_password: str = "changeme"
     # Runtime data directory: snapshots/ + archives/ + logs/ + sessions/
     # all live under this. Override via DIRT_DATA_DIR env var.
     data_dir: Path = Field(default=_REPO_ROOT / "var", validation_alias="DIRT_DATA_DIR")
-    # Built SPA bundle served by dirt-web. Must contain index.html and an
-    # assets/ subdirectory populated by `pnpm --dir web-ui build`. Override
-    # via DIRT_WEB_UI_DIST_DIR (tests point this at a tmp_path fixture).
-    web_ui_dist_dir: Path = Field(
-        default=_REPO_ROOT / "web-ui" / "dist",
-        validation_alias="DIRT_WEB_UI_DIST_DIR",
-    )
     # Postgres — either set DATABASE_URL explicitly or provide the components
     # (DIRT_PG_{HOST,PORT,USER,PASSWORD,DATABASE}) and let _derive_db_url
     # assemble the async URL. No sqlite fallback post-cutover (ADR-006).
@@ -58,8 +49,6 @@ class Settings(BaseSettings):
     )
     capture_interval: int = 300  # 5 minutes
     archive_retention_days: int = 7
-    secret_key: str = "change-me-in-production"
-    mcp_bearer_token: str = "change-me-in-production"
     sensor_ingest_token: str = "change-me-in-production"
     # Voice channel. Empty defaults so non-voice deployments don't fail to boot;
     # dirt_voice.channels.voice validates presence at startup.
@@ -333,15 +322,6 @@ class Settings(BaseSettings):
             recover_hold_s=self.fan_trim_recover_hold_s,
         )
 
-    def auth(self) -> AuthConfig:
-        return AuthConfig(
-            username=self.auth_username,
-            password=self.auth_password,
-            secret_key=self.secret_key,
-            sensor_ingest_token=self.sensor_ingest_token,
-            mcp_bearer_token=self.mcp_bearer_token,
-        )
-
     def cloud_gateway(self) -> CloudGatewayConfig:
         return CloudGatewayConfig(
             api_base_url=self.cloud_api_base_url,
@@ -428,15 +408,6 @@ class FanTrimConfig:
     recover_rh_buffer_pct: float
     recover_vpd_margin_kpa: float
     recover_hold_s: int
-
-
-@dataclass(frozen=True)
-class AuthConfig:
-    username: str
-    password: str
-    secret_key: str
-    sensor_ingest_token: str
-    mcp_bearer_token: str
 
 
 @dataclass(frozen=True)

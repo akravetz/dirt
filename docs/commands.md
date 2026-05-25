@@ -14,16 +14,16 @@ The pre-commit hooks run in **write-mode** (not check-mode). If a hook still mod
 
 ## Monitoring app (Python services)
 
-The local backend runs as systemd-managed processes. `dirt-hwd` is hardware + ingest (:8000), `dirt-web` is UI + MCP (:8001), and `dirt-gateway` is the outbound-only hosted control-plane sync. There is no single `main.py`.
+The local backend runs as systemd-managed processes. `dirt-hwd` is hardware + ingest (:8000), and `dirt-gateway` is the outbound-only hosted control-plane sync. There is no single `main.py`.
 
-- **Service control**: `systemctl --user {start,stop,restart,status} dirt-hwd dirt-web dirt-gateway`
-- **Tail logs**: `journalctl --user -u dirt-hwd -f` (or `dirt-web`, `dirt-gateway`)
-- **Dev foreground run**: `systemctl --user stop dirt-hwd && uv run --package dirt-hwd python -m dirt_hwd.main` (same pattern for `dirt-web`)
+- **Service control**: `systemctl --user {start,stop,restart,status} dirt-hwd dirt-gateway`
+- **Tail logs**: `journalctl --user -u dirt-hwd -f` (or `dirt-gateway`)
+- **Dev foreground run**: `systemctl --user stop dirt-hwd && uv run --package dirt-hwd python -m dirt_hwd.main`
 - **Gateway dry run**: `uv run --package dirt-gateway python -m dirt_gateway.main --once --dry-run` after stopping `dirt-gateway` if it is already running
 - **Install systemd units from repo**: `scripts/install-systemd`
 - **Test all**: `uv run pytest -q` (runs invariants + all per-app suites per `testpaths`)
 - **Invariants only**: `uv run pytest apps/tests/invariants/ -q`
-- **One app's tests**: `cd apps/hwd && uv run pytest -q` (or `apps/web`, `apps/shared`, `apps/mcp`)
+- **One app's tests**: `cd apps/hwd && uv run pytest -q` (or `apps/shared`, `apps/voice`, `apps/control-plane`, `apps/gateway`, `apps/camera-agent`, `apps/wake-word`)
 - **Single test**: `uv run pytest apps/<app>/tests/test_foo.py::test_name -v`
 - **Lint**: `uv run ruff check`
 - **Format**: `uv run ruff format`
@@ -42,7 +42,7 @@ Read `docs/database.md` and `docs/references/atlas/INDEX.md` before changing clo
 scripts/deploy-control-plane
 ```
 
-That script loads ignored `.env` first and `.env.prod` second by default, syncs the required Railway service variables without printing values, runs `atlas migrate apply --env cloud`, upserts the V1 gateway credential row, deploys `apps/control-plane/` to Railway service `control-plane-api`, deploys `web-ui/` to Railway service `web-ui`, then waits for smoke checks at `DIRT_CLOUD_API_BASE_URL/api/health` and `DIRT_CLOUD_UI_BASE_URL/`. Hosted browser auth uses `DIRT_CLOUD_ADMIN_USERNAME` plus `DIRT_CLOUD_ADMIN_PASSWORD_HASH`; it does not read local `AUTH_USERNAME` / `AUTH_PASSWORD`. If `DIRT_CLOUD_DATABASE_URL` is unset locally, it reads `DATABASE_PUBLIC_URL` from the Railway Postgres service without printing it. Do not print `.env` / `.env.prod`, do not run app-start DDL, and do not bypass this script with ad hoc `railway up`.
+That script loads ignored `.env` first and `.env.prod` second by default, syncs the required Railway service variables without printing values, runs `atlas migrate apply --env cloud`, upserts the V1 gateway credential row, deploys `apps/control-plane/` to Railway service `control-plane-api`, deploys `web-ui/` to Railway service `web-ui`, then waits for smoke checks at `DIRT_CLOUD_API_BASE_URL/api/health` and `DIRT_CLOUD_UI_BASE_URL/`. Hosted browser auth uses `DIRT_CLOUD_ADMIN_USERNAME` plus `DIRT_CLOUD_ADMIN_PASSWORD_HASH`. If `DIRT_CLOUD_DATABASE_URL` is unset locally, it reads `DATABASE_PUBLIC_URL` from the Railway Postgres service without printing it. Do not print `.env` / `.env.prod`, do not run app-start DDL, and do not bypass this script with ad hoc `railway up`.
 
 - **Cloud API health**: `curl -fsS "$DIRT_CLOUD_API_BASE_URL/api/health" | jq .`
 - **Hosted sync status**: login through the hosted UI, then use `/api/sync/status` from the browser session if you need the browser-shaped response.
@@ -60,24 +60,8 @@ That script loads ignored `.env` first and `.env.prod` second by default, syncs 
 ## Web UI
 
 - **Dev server**: `pnpm --dir web-ui dev` (Vite on :5173, MSW mocks on)
-- **Production build**: `pnpm --dir web-ui build` — writes `web-ui/dist/` which the running `dirt-web` service serves directly (SPA fallback + `/assets/` mount; no restart needed, just reload the browser).
+- **Production build**: `pnpm --dir web-ui build` — writes `web-ui/dist/` for the hosted Railway `web-ui` service.
 - **Typecheck / lint / test**: `pnpm --dir web-ui {typecheck,lint,test}`
-
-## Web API auth (when curl-ing dirt-web :8001)
-
-`dirt-web` enforces cookie-session auth on every `/api/*` route except `/api/auth/*`. An unauthenticated `curl http://127.0.0.1:8001/api/...` returns `{"detail":"unauthorized"}`. **Prefer psql for ad-hoc state checks** — the DB has the same data without the auth dance. Only reach for the API when you specifically need an API-shaped response (e.g. reproducing a UI bug).
-
-- **Credentials**: `AUTH_USERNAME` / `AUTH_PASSWORD` in `.env` (defaults `admin` / `changeme`). Loaded into `settings.auth_username` / `settings.auth_password` via Pydantic env mapping in `apps/shared/src/dirt_shared/config.py`.
-- **Login + call pattern (with cookie jar):**
-  ```bash
-  set -a; source .env; set +a
-  COOKIES=$(mktemp)
-  curl -sS -c "$COOKIES" -H 'Content-Type: application/json' \
-    -d "{\"username\":\"$AUTH_USERNAME\",\"password\":\"$AUTH_PASSWORD\"}" \
-    http://127.0.0.1:8001/api/auth/login >/dev/null
-  curl -sS -b "$COOKIES" http://127.0.0.1:8001/api/system/devices | jq .
-  ```
-- **MCP** (`/mcp` mount) uses a separate bearer token (`MCP_BEARER_TOKEN` env / `settings.mcp_bearer_token`), not the session cookie.
 
 ## PTZ camera
 

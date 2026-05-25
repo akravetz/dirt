@@ -6,15 +6,13 @@
 # Main repo at /home/akcom/code/dirt resolves to one port; each
 # agent worktree under .agents/worktrees/<name> resolves to its own.
 #
-# Used by web-ui/vite.config.ts (server.port) and
-# web-ui/playwright.config.ts (baseURL) via the WEBUI_DEV_PORT env
-# var wrapped into the package.json scripts:
+# Used by web-ui/vite.config.ts (server.port) via the WEBUI_DEV_PORT
+# env var wrapped into the package.json scripts:
 #
 #     "dev": "WEBUI_DEV_PORT=$(../scripts/worktree-port) vite"
-#     "test:e2e": "WEBUI_DEV_PORT=$(../scripts/worktree-port) playwright test"
 #
-# Bare pnpm dev in main still works because both configs fall back to
-# 5173 when WEBUI_DEV_PORT is unset; the wrapper just makes worktree
+# Bare pnpm dev in main still works because Vite falls back to 5173
+# when WEBUI_DEV_PORT is unset; the wrapper just makes worktree
 # sessions self-organizing.
 #
 # Collision probability (birthday): ~12% at 3 worktrees, ~47% at 7.
