@@ -1,0 +1,4 @@
+interface:
+  display_name: "UI Refinement"
+  short_description: "Refine existing UI in review loops."
+  default_prompt: "Refine an existing UI surface using a browser-first audit, Refactoring UI principles, screenshots, and short human review loops."
