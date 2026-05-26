@@ -60,6 +60,7 @@ ROLLUP_SYNC_INTERVALS: dict[str, timedelta] = {
     "5m": timedelta(minutes=5),
     "1h": timedelta(hours=1),
     "4h": timedelta(hours=4),
+    "1d": timedelta(days=1),
 }
 
 

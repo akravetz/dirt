@@ -600,6 +600,24 @@ async def test_metric_history_filters_bucket_and_window_by_range(
         _rollup("old-1h", bucket="1h", start=FIXED_NOW - timedelta(days=2), avg=4.0),
         _rollup("fresh-4h", bucket="4h", start=FIXED_NOW - timedelta(days=2), avg=5.0),
         _rollup("old-4h", bucket="4h", start=FIXED_NOW - timedelta(days=8), avg=6.0),
+        _rollup(
+            "fresh-30d-4h",
+            bucket="4h",
+            start=FIXED_NOW - timedelta(days=20),
+            avg=7.0,
+        ),
+        _rollup(
+            "fresh-90d-1d",
+            bucket="1d",
+            start=FIXED_NOW - timedelta(days=60),
+            avg=8.0,
+        ),
+        _rollup(
+            "old-90d-1d",
+            bucket="1d",
+            start=FIXED_NOW - timedelta(days=100),
+            avg=9.0,
+        ),
     ]
     async with sessionmaker() as session:
         session.add_all(rows)
@@ -614,13 +632,21 @@ async def test_metric_history_filters_bucket_and_window_by_range(
     seven_days = await authed_client.get(
         "/api/tents/main/metrics/history?range=7d&metric=temperature_f"
     )
-    invalid = await authed_client.get(
+    thirty_days = await authed_client.get(
         "/api/tents/main/metrics/history?range=30d&metric=temperature_f"
+    )
+    ninety_days = await authed_client.get(
+        "/api/tents/main/metrics/history?range=90d&metric=temperature_f"
+    )
+    invalid = await authed_client.get(
+        "/api/tents/main/metrics/history?range=180d&metric=temperature_f"
     )
 
     assert one_hour.status_code == 200
     assert one_day.status_code == 200
     assert seven_days.status_code == 200
+    assert thirty_days.status_code == 200
+    assert ninety_days.status_code == 200
     assert invalid.status_code == 400
     assert [point["bucket"] for point in one_hour.json()["points"]] == ["5m"]
     assert [point["avg"] for point in one_hour.json()["points"]] == [2.0]
@@ -628,6 +654,14 @@ async def test_metric_history_filters_bucket_and_window_by_range(
     assert [point["avg"] for point in one_day.json()["points"]] == [3.0]
     assert [point["bucket"] for point in seven_days.json()["points"]] == ["4h"]
     assert [point["avg"] for point in seven_days.json()["points"]] == [5.0]
+    assert [point["bucket"] for point in thirty_days.json()["points"]] == [
+        "4h",
+        "4h",
+        "4h",
+    ]
+    assert [point["avg"] for point in thirty_days.json()["points"]] == [7.0, 6.0, 5.0]
+    assert [point["bucket"] for point in ninety_days.json()["points"]] == ["1d"]
+    assert [point["avg"] for point in ninety_days.json()["points"]] == [8.0]
 
 
 async def test_metric_history_exposes_dashboard_display_names(

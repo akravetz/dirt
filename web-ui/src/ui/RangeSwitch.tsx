@@ -1,6 +1,6 @@
-// 1h / 24h / 7d range switcher.
+// 1h / 24h / 7d / 30d / 90d range switcher.
 //
-// Renders three toggle buttons wrapped in a role="group" — these are
+// Renders toggle buttons wrapped in a role="group" — these are
 // mutually exclusive window selectors, but modelling them as HTML
 // <input type="radio"> fights the visual design (button-shaped chips
 // with a colored border on the active one). Instead, each <button>
@@ -16,9 +16,9 @@
 // through from the api-client types.
 import type { ReactNode } from "react";
 
-export type SparklineRange = "1h" | "24h" | "7d";
+export type SparklineRange = "1h" | "24h" | "7d" | "30d" | "90d";
 
-const RANGES: readonly SparklineRange[] = ["1h", "24h", "7d"] as const;
+const RANGES: readonly SparklineRange[] = ["1h", "24h", "7d", "30d", "90d"] as const;
 
 interface RangeSwitchProps {
   value: SparklineRange;

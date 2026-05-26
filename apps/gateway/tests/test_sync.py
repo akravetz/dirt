@@ -305,7 +305,7 @@ class ChangingRollupLocalServices(StaticLocalServices):
         self, site_id: str, *, bucket_names: set[str] | None = None
     ) -> RollupsRequest:
         self.index += 1
-        buckets = sorted(bucket_names or {"5m", "1h", "4h"})
+        buckets = sorted(bucket_names or {"5m", "1h", "4h", "1d"})
         return RollupsRequest(
             site_id=site_id,
             rollups=[
@@ -336,7 +336,7 @@ class RecordingRollupLocalServices(StaticLocalServices):
     async def collect_rollups(
         self, site_id: str, *, bucket_names: set[str] | None = None
     ) -> RollupsRequest:
-        buckets = frozenset(bucket_names or {"5m", "1h", "4h"})
+        buckets = frozenset(bucket_names or {"5m", "1h", "4h", "1d"})
         self.requests.append(buckets)
         return RollupsRequest(
             site_id=site_id,
@@ -517,6 +517,7 @@ async def test_latest_metrics_and_rollups_are_not_duplicated(
     assert cloud.call_counts["rollups"] == 1
     assert ("homebox", "main", "temperature_f", "temperature_f") in cloud.latest_rows
     assert any(key[4] == "4h" for key in cloud.rollup_rows)
+    assert any(key[4] == "1d" for key in cloud.rollup_rows)
 
 
 async def test_offline_cloud_failures_remain_pending_then_retry_without_duplicates(
@@ -669,12 +670,15 @@ async def test_rollup_buckets_use_independent_sync_intervals(
     await service.run_once()
     now = FIXED_NOW + timedelta(hours=4)
     await service.run_once()
+    now = FIXED_NOW + timedelta(days=1)
+    await service.run_once()
 
     assert local.requests == [
-        frozenset({"5m", "1h", "4h"}),
+        frozenset({"5m", "1h", "4h", "1d"}),
         frozenset({"5m"}),
         frozenset({"5m", "1h"}),
         frozenset({"5m", "1h", "4h"}),
+        frozenset({"5m", "1h", "4h", "1d"}),
     ]
 
 

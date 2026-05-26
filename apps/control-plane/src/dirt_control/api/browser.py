@@ -38,6 +38,8 @@ METRIC_HISTORY_RANGES: dict[str, tuple[str, timedelta]] = {
     "1h": ("5m", timedelta(hours=1)),
     "24h": ("1h", timedelta(hours=24)),
     "7d": ("4h", timedelta(days=7)),
+    "30d": ("4h", timedelta(days=30)),
+    "90d": ("1d", timedelta(days=90)),
 }
 
 

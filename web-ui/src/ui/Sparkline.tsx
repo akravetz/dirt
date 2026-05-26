@@ -40,6 +40,8 @@ interface SparklineProps {
   unit: string;
   /** Sensor accent (line + marker + diamond + area-fill colour). */
   accent?: SparklineAccent;
+  /** Message shown when the selected range has no points. */
+  emptyLabel?: string;
   /**
    * Shared crosshair index across the history grid; null = no hover.
    * Derived from the parent's pointer-move handler.
@@ -92,6 +94,7 @@ export function Sparkline({
   points,
   unit,
   accent = "neutral",
+  emptyLabel = "No data for this range",
   hoverIndex,
   onHoverIndex,
   yMin,
@@ -114,7 +117,11 @@ export function Sparkline({
           </span>
           <span>{name}</span>
         </header>
-        <p className="font-mono text-fs-11 text-ink-3">—</p>
+        <div className="flex h-10 items-center border border-dashed border-rule px-2">
+          <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+            {emptyLabel}
+          </p>
+        </div>
       </article>
     );
   }

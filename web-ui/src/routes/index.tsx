@@ -559,6 +559,11 @@ function HostedDashboardPage() {
                         points={points}
                         unit={unit ?? ""}
                         accent={asAccent(m.accent)}
+                        emptyLabel={
+                          result?.isLoading
+                            ? "Loading data"
+                            : formatEmptyHistoryLabel(range)
+                        }
                         hoverIndex={hoverIndex}
                         onHoverIndex={setHoverIndex}
                         {...yProps}
@@ -891,6 +896,21 @@ function formatAge(value: string | null): string {
   const minutes = Math.round(seconds / 60);
   if (minutes < 60) return `${minutes}m ago`;
   return `${Math.round(minutes / 60)}h ago`;
+}
+
+function formatEmptyHistoryLabel(range: SparklineRange): string {
+  switch (range) {
+    case "1h":
+      return "No 5-minute data in the last hour";
+    case "24h":
+      return "No hourly data in the last 24 hours";
+    case "7d":
+      return "No 4-hour data in the last 7 days";
+    case "30d":
+      return "No 4-hour data in the last 30 days";
+    case "90d":
+      return "No daily data in the last 90 days";
+  }
 }
 
 function toSparklinePoints(history: HostedMetricHistory | undefined): HistoryPoint[] {

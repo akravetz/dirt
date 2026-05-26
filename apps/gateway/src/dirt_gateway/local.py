@@ -44,6 +44,7 @@ ROLLUP_SPECS: tuple[tuple[str, timedelta, int], ...] = (
     ("5m", timedelta(hours=24), 300),
     ("1h", timedelta(days=7), 3600),
     ("4h", timedelta(days=30), 14400),
+    ("1d", timedelta(days=90), 86400),
 )
 
 
