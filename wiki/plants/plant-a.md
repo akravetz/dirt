@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-05-25
+updated: 2026-05-26
 ---
 
 # Plant A
@@ -18,7 +18,7 @@ updated: 2026-05-25
 
 ## Current State
 
-Day 72 / Flower Day 22: Limited view still shows upright purple flower tops, and rough moisture remains stable near 59.7%. The 2026-05-17 low-pH tray finding remains open; recheck A tray/runoff pH+EC against B/C/D before further correction. See [2026-05-25](../daily/2026-05-25.md).
+Day 73 / Flower Day 23: Close manual photos show persistent lime/yellow color with edge/tip necrosis; the plant has reportedly looked lime/yellow for roughly 2-3 weeks. The Autopot feeder tray is pulled/closed overnight after tray solution measured pH 6.0 and reservoir was reported around pH 5.6. Tomorrow's priority is a root-zone diagnostic after lights-on: reservoir pH/EC/temp, tray/lower-pot smell and wetness, and a 1:1.5 coco extraction on A plus one healthy comparison plant before further flushing or feed changes. See [2026-05-26](../daily/2026-05-26.md).
 
 ## Timeline
 
@@ -72,3 +72,4 @@ Day 72 / Flower Day 22: Limited view still shows upright purple flower tops, and
 - 2026-05-23 — [Day 70 / Flower Day 20: visible purple flower tops remain upright; moisture stable near 58.7%, A tray/runoff pH+EC recheck remains required](../daily/2026-05-23.md)
 - 2026-05-24 — [Day 71 / Flower Day 21: limited view shows upright purple flower tops; moisture stable near 59%, A tray/runoff pH+EC recheck remains required](../daily/2026-05-24.md)
 - 2026-05-25 — [Day 72 / Flower Day 22: limited view shows upright purple flower tops; moisture stable near 59.7%, A tray/runoff pH+EC recheck remains required](../daily/2026-05-25.md)
+- 2026-05-26 — [Day 73 / Flower Day 23: manual closeups show persistent lime/yellow color and edge/tip necrosis; feeder tray pulled/closed overnight, diagnostic root-zone pH/EC extraction planned after lights-on](../daily/2026-05-26.md)

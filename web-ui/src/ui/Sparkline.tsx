@@ -2,7 +2,8 @@
 //
 // Fetching metric history is delegated to the parent; this component
 // is purely presentational and renders:
-//   - a translucent area fill under the line + the polyline itself
+//   - a translucent area fill under the line + the polyline itself, split
+//     into segments where the series has explicit missing buckets
 //   - a shared crosshair: a dashed vertical line + data-point dot at the
 //     `hoverIndex` supplied by the parent (null → no crosshair)
 //   - an accessible tooltip (role="tooltip") showing value + unit when a
@@ -26,7 +27,12 @@ import type { ReactNode } from "react";
 
 interface HistoryPoint {
   ts: string;
-  value: number;
+  value: number | null;
+}
+
+interface HoverPoint {
+  index: number;
+  ts: string;
 }
 
 type SparklineAccent = "temp" | "humidity" | "vpd" | "moisture" | "neutral";
@@ -49,6 +55,8 @@ interface SparklineProps {
   hoverIndex: number | null;
   /** Called when the pointer moves over a bucket in this sparkline. */
   onHoverIndex: (index: number | null) => void;
+  /** Called with the bucket timestamp for the sparkline currently being hovered. */
+  onHoverPoint?: (point: HoverPoint | null) => void;
   /**
    * Optional fixed y-axis domain. When both ends are supplied the chart
    * uses them instead of auto-scaling to the data, and out-of-domain
@@ -97,6 +105,7 @@ export function Sparkline({
   emptyLabel = "No data for this range",
   hoverIndex,
   onHoverIndex,
+  onHoverPoint,
   yMin,
   yMax,
 }: SparklineProps): ReactNode {
@@ -126,7 +135,28 @@ export function Sparkline({
     );
   }
 
-  const values = points.map((p) => p.value);
+  const values = points.flatMap((p) => (p.value === null ? [] : [p.value]));
+  if (values.length === 0) {
+    return (
+      <article
+        aria-label={`${name} sparkline`}
+        className="flex flex-col gap-2 border-b border-r border-rule bg-paper-2 px-3.5 py-3"
+      >
+        <header className="flex items-center gap-2 font-sans text-fs-11 font-medium text-ink-2">
+          <span aria-hidden="true" className={diamondColor}>
+            ◆
+          </span>
+          <span>{name}</span>
+        </header>
+        <div className="flex h-10 items-center border border-dashed border-rule px-2">
+          <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+            {emptyLabel}
+          </p>
+        </div>
+      </article>
+    );
+  }
+
   const hasFixedDomain = yMin !== undefined && yMax !== undefined && yMax > yMin;
   const min = hasFixedDomain ? (yMin as number) : Math.min(...values);
   const max = hasFixedDomain ? (yMax as number) : Math.max(...values);
@@ -138,15 +168,9 @@ export function Sparkline({
   };
   const xFor = (i: number): number => (points.length === 1 ? VIEWBOX_W / 2 : i * stepX);
 
-  const linePath = points
-    .map((p, i) => {
-      const cmd = i === 0 ? "M" : "L";
-      return `${cmd} ${xFor(i).toFixed(2)} ${yFor(p.value).toFixed(2)}`;
-    })
-    .join(" ");
-  const areaPath = `${linePath} L ${VIEWBOX_W.toFixed(2)} ${VIEWBOX_H} L 0 ${VIEWBOX_H} Z`;
+  const pathSegments = buildPathSegments(points, xFor, yFor);
 
-  const handleMove = (event: React.PointerEvent<SVGSVGElement>): void => {
+  const handlePointerPosition = (event: React.PointerEvent<SVGSVGElement>): void => {
     const rect = event.currentTarget.getBoundingClientRect();
     const relX = event.clientX - rect.left;
     if (rect.width <= 0) {
@@ -156,13 +180,41 @@ export function Sparkline({
     const ratio = Math.max(0, Math.min(1, relX / rect.width));
     const index = Math.round(ratio * (points.length - 1));
     onHoverIndex(index);
+    const point = points[index];
+    onHoverPoint?.(point ? { index, ts: point.ts } : null);
+  };
+
+  const handlePointerDown = (event: React.PointerEvent<SVGSVGElement>): void => {
+    if (event.pointerType === "touch") {
+      event.preventDefault();
+    }
+    event.currentTarget.setPointerCapture(event.pointerId);
+    handlePointerPosition(event);
+  };
+
+  const handlePointerUp = (event: React.PointerEvent<SVGSVGElement>): void => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  const handlePointerLeave = (event: React.PointerEvent<SVGSVGElement>): void => {
+    if (event.pointerType === "touch") {
+      return;
+    }
+    onHoverIndex(null);
+    onHoverPoint?.(null);
   };
 
   const clampedHover =
     hoverIndex === null ? null : Math.max(0, Math.min(points.length - 1, hoverIndex));
-  const hovered = clampedHover === null ? null : (points[clampedHover] ?? null);
+  const hoverPoint = clampedHover === null ? null : (points[clampedHover] ?? null);
+  const hovered =
+    hoverPoint?.value === undefined || hoverPoint.value === null
+      ? null
+      : { ts: hoverPoint.ts, value: hoverPoint.value };
   const hoverX = clampedHover === null ? null : xFor(clampedHover);
-  const hoverY = hovered ? yFor(hovered.value) : null;
+  const hoverY = hovered === null ? null : yFor(hovered.value);
   const hoverRatio =
     clampedHover === null ? null : clampedHover / (points.length - 1 || 1);
 
@@ -183,22 +235,33 @@ export function Sparkline({
           role="img"
           viewBox={`0 0 ${VIEWBOX_W} ${VIEWBOX_H}`}
           preserveAspectRatio="none"
-          className="block h-10 w-full"
-          onPointerMove={handleMove}
-          onPointerLeave={() => {
-            onHoverIndex(null);
-          }}
+          className="block h-10 w-full touch-none select-none"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerPosition}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          onPointerLeave={handlePointerLeave}
         >
           <title>{`${name} — ${points.length} points`}</title>
-          <path d={areaPath} className={areaFill} opacity="0.1" />
-          <path
-            d={linePath}
-            className={lineStroke}
-            strokeWidth="0.8"
-            fill="none"
-            vectorEffect="non-scaling-stroke"
-          />
-          {hoverX !== null && hoverY !== null ? (
+          {pathSegments.map((segment) => (
+            <path
+              key={`area-${segment.key}`}
+              d={segment.areaPath}
+              className={areaFill}
+              opacity="0.1"
+            />
+          ))}
+          {pathSegments.map((segment) => (
+            <path
+              key={`line-${segment.key}`}
+              d={segment.linePath}
+              className={lineStroke}
+              strokeWidth="0.8"
+              fill="none"
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
+          {hoverX !== null ? (
             <g aria-label="crosshair">
               <line
                 x1={hoverX}
@@ -211,14 +274,16 @@ export function Sparkline({
                 vectorEffect="non-scaling-stroke"
                 opacity="0.55"
               />
-              <circle
-                cx={hoverX}
-                cy={hoverY}
-                r="1.3"
-                className={`${ACCENT_FILL[accent]} stroke-paper`}
-                strokeWidth="0.5"
-                vectorEffect="non-scaling-stroke"
-              />
+              {hoverY !== null ? (
+                <circle
+                  cx={hoverX}
+                  cy={hoverY}
+                  r="1.3"
+                  className={`${ACCENT_FILL[accent]} stroke-paper`}
+                  strokeWidth="0.5"
+                  vectorEffect="non-scaling-stroke"
+                />
+              ) : null}
             </g>
           ) : null}
         </svg>
@@ -236,4 +301,58 @@ export function Sparkline({
       </div>
     </article>
   );
+}
+
+type PathPoint = {
+  x: number;
+  y: number;
+};
+
+type PathSegment = {
+  areaPath: string;
+  key: string;
+  linePath: string;
+};
+
+function buildPathSegments(
+  points: readonly HistoryPoint[],
+  xFor: (index: number) => number,
+  yFor: (value: number) => number,
+): PathSegment[] {
+  const segments: PathSegment[] = [];
+  let current: PathPoint[] = [];
+  let startIndex = 0;
+
+  const flush = (endIndex: number): void => {
+    if (current.length === 0) return;
+    const linePath = current
+      .map((point, index) => {
+        const cmd = index === 0 ? "M" : "L";
+        return `${cmd} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
+      })
+      .join(" ");
+    const first = current[0];
+    const last = current[current.length - 1];
+    if (first === undefined || last === undefined) return;
+    segments.push({
+      key: `${startIndex}-${endIndex}`,
+      linePath,
+      areaPath: `${linePath} L ${last.x.toFixed(2)} ${VIEWBOX_H} L ${first.x.toFixed(2)} ${VIEWBOX_H} Z`,
+    });
+    current = [];
+  };
+
+  points.forEach((point, index) => {
+    if (point.value === null) {
+      flush(index - 1);
+      return;
+    }
+    if (current.length === 0) {
+      startIndex = index;
+    }
+    current.push({ x: xFor(index), y: yFor(point.value) });
+  });
+  flush(points.length - 1);
+
+  return segments;
 }

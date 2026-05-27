@@ -1,6 +1,6 @@
 // Shared "timestamp of the hovered bucket" rendered in a section header
 // while a sparkline/chart is being hovered. Used by both the dashboard
-// history grid (all five sparklines share one hoverIndex) and the
+// history grid (all sparklines share one hoverIndex) and the
 // plant-detail moisture chart (single chart, scoped hoverIndex).
 //
 // Returns null when no bucket is hovered or the timestamp is missing /
@@ -18,17 +18,20 @@ const HOVER_TS_FMT = new Intl.DateTimeFormat(undefined, {
 interface HoverTimestampProps {
   hoverIndex: number | null;
   points: readonly { ts: string }[];
+  timestamp?: string | null;
   className?: string;
 }
 
 export function HoverTimestamp({
   hoverIndex,
   points,
+  timestamp = null,
   className = "font-mono text-fs-11 tabular-nums text-ink-2",
 }: HoverTimestampProps): ReactNode {
-  if (hoverIndex === null || points.length === 0) return null;
-  const clamped = Math.max(0, Math.min(points.length - 1, hoverIndex));
-  const ts = points[clamped]?.ts;
+  if (timestamp === null && (hoverIndex === null || points.length === 0)) return null;
+  const clamped =
+    hoverIndex === null ? null : Math.max(0, Math.min(points.length - 1, hoverIndex));
+  const ts = timestamp ?? (clamped === null ? null : points[clamped]?.ts);
   if (!ts) return null;
   const date = new Date(ts);
   if (Number.isNaN(date.getTime())) return null;

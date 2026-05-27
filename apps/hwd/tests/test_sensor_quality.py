@@ -34,7 +34,18 @@ def test_reservoir_negative_depth_is_rejected() -> None:
     assert decision.metrics == {}
     assert decision.rejected == frozenset({"reservoir_pressure_raw", "reservoir_in"})
     assert any("below alive floor" in r for r in decision.reasons)
-    assert any("below 0" in r for r in decision.reasons)
+    assert any("below 2" in r for r in decision.reasons)
+
+
+def test_reservoir_below_quarantine_floor_depth_is_rejected() -> None:
+    decision = evaluate_metrics(
+        "reservoir-node",
+        {"reservoir_pressure_raw": 17_225.0, "reservoir_in": 0.58},
+    )
+
+    assert decision.metrics == {}
+    assert decision.rejected == frozenset({"reservoir_pressure_raw", "reservoir_in"})
+    assert decision.reasons == ("depth 0.58 in below 2",)
 
 
 def test_reservoir_plausible_depth_passes_through() -> None:

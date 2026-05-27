@@ -2,9 +2,9 @@
 title: "Hardware — Reservoir Level (Autopot, hydrostatic pressure transducer)"
 type: hardware
 sources: []
-related: [wiki/concepts/autopot.md, wiki/decisions/2026-04-18-reservoir-level-pressure-transducer.md, wiki/decisions/2026-04-11-reservoir-stand.md, wiki/hardware/esp32-plant-nodes.md]
+related: [wiki/concepts/autopot.md, wiki/decisions/2026-04-18-reservoir-level-pressure-transducer.md, wiki/decisions/2026-04-11-reservoir-stand.md, wiki/hardware/esp32-plant-nodes.md, wiki/hardware/project-box-enclosures.md]
 created: 2026-04-18
-updated: 2026-05-04
+updated: 2026-05-25
 ---
 
 # Reservoir Level (Autopot 25-gal FlexiTank Pro)
@@ -38,6 +38,9 @@ Method: **submerged hydrostatic pressure transducer** at the bottom of the tank.
 | 1 | M16 cable gland (or similar) | Tank-lid pass-through for the probe cable + atmospheric vent | Amazon |
 | — | Project box (small IP54 enclosure, ~80×60×40 mm) | Houses the SEN0262 + ADS1115 + ESP32 outside the tank, dry side of the cable vent | Any |
 | — | Hookup wire, 22 AWG, 4-conductor (red / black / SDA / SCL) | Probe-to-enclosure I²C and power | On-hand |
+
+Project-box enclosure planning and the enclosure shopping list are tracked in
+[Project Box Enclosures](project-box-enclosures.md).
 
 Loop draw is ~20 mA + node ~150 mA peak ≈ 200 mA total — the 1 A brick has 5× headroom. Do **not** upsize to a 2 A brick; bigger supplies tend to ripple harder on a precision analog rail.
 

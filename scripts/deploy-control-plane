@@ -20,6 +20,9 @@ deploys web-ui to Railway service web-ui, then runs public smoke checks.
 
 Set DIRT_CONTROL_PLANE_ENV_FILE=/path/to/env to use a different ignored env file.
 Set DIRT_CONTROL_PLANE_BASE_ENV_FILE=/path/to/env to override the base .env.
+Set DIRT_RAILWAY_VARIABLE_SYNC_TIMEOUT_S=seconds to override the bulk variable
+sync HTTP timeout.
+Set DIRT_RAILWAY_VARIABLE_SYNC_ATTEMPTS=count to override bulk variable sync retries.
 EOF
 }
 
@@ -175,28 +178,164 @@ wait_for_http() {
     return 1
 }
 
-sync_railway_variable_from_env() {
+sync_railway_variables_from_env() {
     local service_id="$1"
-    local name="$2"
+    shift
 
-    if [ -z "${!name:-}" ]; then
+    if [ "$#" -eq 0 ]; then
         return 0
     fi
 
-    printf "%s" "${!name}" | railway variable set "$name" \
-        --stdin \
-        --skip-deploys \
-        --service "$service_id" \
-        --environment "$RAILWAY_ENVIRONMENT" \
-        >/dev/null
+    uv run python - "$service_id" "$@" <<'PY'
+import json
+import os
+import subprocess
+import sys
+import time
+import tempfile
+
+service_id = sys.argv[1]
+names = sys.argv[2:]
+variables = {name: os.environ[name] for name in names if os.environ.get(name)}
+
+if not variables:
+    raise SystemExit(0)
+
+required = [
+    "RAILWAY_API_TOKEN",
+    "RAILWAY_PROJECT_ID",
+    "RAILWAY_ENVIRONMENT_ID",
+]
+missing = [name for name in required if not os.environ.get(name)]
+if missing:
+    print(
+        "ERROR: required environment variable is unset: " + ", ".join(missing),
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+
+body = json.dumps(
+    {
+        "query": """
+mutation VariableCollectionUpsert($input: VariableCollectionUpsertInput!) {
+  variableCollectionUpsert(input: $input)
+}
+""",
+        "variables": {
+            "input": {
+                "projectId": os.environ["RAILWAY_PROJECT_ID"],
+                "environmentId": os.environ["RAILWAY_ENVIRONMENT_ID"],
+                "serviceId": service_id,
+                "variables": variables,
+                "replace": False,
+                "skipDeploys": True,
+            }
+        },
+    }
+)
+
+attempts = int(os.environ.get("DIRT_RAILWAY_VARIABLE_SYNC_ATTEMPTS", "3"))
+timeout_s = float(os.environ.get("DIRT_RAILWAY_VARIABLE_SYNC_TIMEOUT_S", "60"))
+curl_config_path = ""
+
+try:
+    with tempfile.NamedTemporaryFile("w", delete=False) as curl_config:
+        curl_config_path = curl_config.name
+        os.chmod(curl_config_path, 0o600)
+        curl_config.write(
+            f'header = "Authorization: Bearer {os.environ["RAILWAY_API_TOKEN"]}"\n'
+        )
+        curl_config.write('header = "Content-Type: application/json"\n')
+
+    for attempt in range(1, attempts + 1):
+        proc = subprocess.run(
+            [
+                "curl",
+                "-sS",
+                "--connect-timeout",
+                "15",
+                "--max-time",
+                str(timeout_s),
+                "--config",
+                curl_config_path,
+                "--data-binary",
+                "@-",
+                "https://backboard.railway.com/graphql/v2",
+            ],
+            input=body,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        if proc.returncode != 0:
+            if attempt == attempts:
+                print(
+                    f"ERROR: Railway bulk variable sync failed for service {service_id} "
+                    f"after {attempts} attempts: {proc.stderr.strip()}",
+                    file=sys.stderr,
+                )
+                raise SystemExit(1)
+            print(
+                f"Retrying Railway bulk variable sync for service {service_id} "
+                f"after failed attempt {attempt}/{attempts}...",
+                file=sys.stderr,
+            )
+            time.sleep(3)
+            continue
+
+        try:
+            payload = json.loads(proc.stdout)
+        except json.JSONDecodeError as exc:
+            if attempt == attempts:
+                print(
+                    f"ERROR: Railway bulk variable sync returned invalid JSON "
+                    f"for service {service_id}: {exc}",
+                    file=sys.stderr,
+                )
+                raise SystemExit(1) from exc
+            print(
+                f"Retrying Railway bulk variable sync for service {service_id} "
+                f"after invalid JSON on attempt {attempt}/{attempts}...",
+                file=sys.stderr,
+            )
+            time.sleep(3)
+            continue
+
+        errors = payload.get("errors")
+        if errors:
+            messages = "; ".join(str(error.get("message", error)) for error in errors)
+            print(
+                f"ERROR: Railway bulk variable sync failed for service {service_id}: "
+                f"{messages}",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
+
+        if payload.get("data", {}).get("variableCollectionUpsert") is not True:
+            print(
+                f"ERROR: Railway bulk variable sync returned an unexpected response "
+                f"for service {service_id}",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
+
+        print(f"Synced {len(variables)} Railway variables for service {service_id}.")
+        raise SystemExit(0)
+finally:
+    if curl_config_path:
+        try:
+            os.unlink(curl_config_path)
+        except OSError:
+            pass
+PY
 }
 
-sync_required_railway_variable_from_env() {
-    local service_id="$1"
-    local name="$2"
-
-    require_env "$name"
-    sync_railway_variable_from_env "$service_id" "$name"
+require_envs() {
+    local name
+    for name in "$@"; do
+        require_env "$name"
+    done
 }
 
 require_cmd atlas
@@ -204,8 +343,10 @@ require_cmd railway
 require_cmd curl
 require_cmd uv
 
+require_env RAILWAY_API_TOKEN
 require_env RAILWAY_PROJECT_ID
 require_env RAILWAY_ENVIRONMENT
+require_env RAILWAY_ENVIRONMENT_ID
 require_env RAILWAY_CONTROL_PLANE_API_SERVICE_ID
 require_env RAILWAY_WEB_UI_SERVICE_ID
 require_env RAILWAY_POSTGRES_SERVICE_ID
@@ -227,19 +368,21 @@ require_env DIRT_CLOUD_DATABASE_URL
 cd "$ROOT_DIR"
 
 echo "Syncing Railway service variables..."
-sync_required_railway_variable_from_env \
-    "$RAILWAY_CONTROL_PLANE_API_SERVICE_ID" DIRT_CLOUD_ADMIN_USERNAME
-sync_required_railway_variable_from_env \
-    "$RAILWAY_CONTROL_PLANE_API_SERVICE_ID" DIRT_CLOUD_ADMIN_PASSWORD_HASH
-sync_required_railway_variable_from_env \
-    "$RAILWAY_CONTROL_PLANE_API_SERVICE_ID" DIRT_CLOUD_SESSION_SECRET
-sync_required_railway_variable_from_env \
-    "$RAILWAY_CONTROL_PLANE_API_SERVICE_ID" DIRT_CLOUD_GATEWAY_TOKEN_SHA256
-sync_required_railway_variable_from_env \
-    "$RAILWAY_CONTROL_PLANE_API_SERVICE_ID" DIRT_CLOUD_ALLOWED_ORIGINS
-sync_required_railway_variable_from_env \
-    "$RAILWAY_CONTROL_PLANE_API_SERVICE_ID" DIRT_CLOUD_UI_BASE_URL
-for name in \
+require_envs \
+    DIRT_CLOUD_ADMIN_USERNAME \
+    DIRT_CLOUD_ADMIN_PASSWORD_HASH \
+    DIRT_CLOUD_SESSION_SECRET \
+    DIRT_CLOUD_GATEWAY_TOKEN_SHA256 \
+    DIRT_CLOUD_ALLOWED_ORIGINS \
+    DIRT_CLOUD_UI_BASE_URL
+sync_railway_variables_from_env \
+    "$RAILWAY_CONTROL_PLANE_API_SERVICE_ID" \
+    DIRT_CLOUD_ADMIN_USERNAME \
+    DIRT_CLOUD_ADMIN_PASSWORD_HASH \
+    DIRT_CLOUD_SESSION_SECRET \
+    DIRT_CLOUD_GATEWAY_TOKEN_SHA256 \
+    DIRT_CLOUD_ALLOWED_ORIGINS \
+    DIRT_CLOUD_UI_BASE_URL \
     DIRT_CLOUD_ASSET_RETENTION_DAYS \
     DIRT_CLOUD_ASSET_STORE \
     DIRT_CLOUD_ASSET_PUBLIC_BASE_URL \
@@ -251,11 +394,10 @@ for name in \
     DIRT_CLOUD_S3_REGION \
     DIRT_CLOUD_S3_SECRET_ACCESS_KEY \
     DIRT_CLOUD_SITE_ID
-do
-    sync_railway_variable_from_env "$RAILWAY_CONTROL_PLANE_API_SERVICE_ID" "$name"
-done
-sync_required_railway_variable_from_env \
-    "$RAILWAY_WEB_UI_SERVICE_ID" VITE_DIRT_API_BASE_URL
+require_env VITE_DIRT_API_BASE_URL
+sync_railway_variables_from_env \
+    "$RAILWAY_WEB_UI_SERVICE_ID" \
+    VITE_DIRT_API_BASE_URL
 
 echo "Applying cloud Atlas migrations..."
 atlas migrate apply --env cloud

@@ -1,7 +1,7 @@
 ---
 title: Index
 type: index
-updated: 2026-05-25
+updated: 2026-05-26
 ---
 
 # Grow Wiki Index
@@ -15,10 +15,10 @@ updated: 2026-05-25
 - [Hosted Control Plane](decisions/2026-05-05-hosted-control-plane.md) — Railway web UI/API plus outbound local gateway; remote inspection and PTZ-only command intent without moving hardware authority to cloud
 
 ## Plants
-- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; Flower Day 22; limited view shows upright purple flower tops; moisture stable near 59.70%; tray/runoff pH+EC recheck still required
-- [Plant B](plants/plant-b.md) — 🟡 Secondary; Flower Day 22; dedicated view still fan-obstructed; moisture 96.05% pinned — dryback verification urgent
-- [Plant C](plants/plant-c.md) — 🟡 Secondary; Flower Day 22; fan-obstructed blurred purple-toned flowers; moisture 91.21% saturated — lower-leaf/root-zone watch
-- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; Flower Day 22; upright sativa-leaning purple flower tops; moisture lower but stable near 47.54% — verify by hand
+- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; Flower Day 23; upright purple flower tops; moisture stable near 59.88%; tray/runoff pH+EC recheck still required
+- [Plant B](plants/plant-b.md) — 🟡 Secondary; Flower Day 23; dedicated view nearly fully fan-obstructed; moisture 96.25% pinned — dryback verification urgent
+- [Plant C](plants/plant-c.md) — 🟡 Secondary; Flower Day 23; partly fan-obstructed purple-toned flowers; moisture 91.29% saturated — lower-leaf/root-zone watch
+- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; Flower Day 23; upright sativa-leaning purple flower tops; moisture lower and drifting near 47.02% — verify by hand
 
 ## Daily Logs
 - [2026-03-27](daily/2026-03-27.md) — Day 13: Pre-transplant; 2–3 leaf sets
@@ -70,6 +70,7 @@ updated: 2026-05-25
 - [2026-05-23](daily/2026-05-23.md) — Day 70 / Flower Day 20: full photo coverage; main lights-on VPD in range but overnight slightly wet/low; Plant B/C moisture pinned 🔴; Plant D lower signal and breeding RH spike need checks
 - [2026-05-24](daily/2026-05-24.md) — Day 71 / Flower Day 21: full photo coverage but B/C fan-obstructed; main entered late flower with lights-on VPD in range but RH high; Plant B/C moisture pinned 🔴; breeding Flower Day 0 wet/low
 - [2026-05-25](daily/2026-05-25.md) — Day 72 / Flower Day 22: full photo coverage but B/C fan-obstructed; main current VPD wet/low at 1.01 kPa with high RH; Plant B/C moisture pinned 🔴; breeding corrected drier
+- [2026-05-26](daily/2026-05-26.md) — Day 73 / Flower Day 23: full photo coverage but Plant B fan-obstructed; main current VPD recovered to dry edge but overnight still wet/low; Plant B/C moisture pinned 🔴; breeding dry/high
 
 ## Environment
 - [Temperature](environment/temperature.md) — Trend log; targets by phase; notable events
@@ -85,6 +86,7 @@ updated: 2026-05-25
 - [Voice Channel (Claudia)](hardware/voice-channel.md) — Production Pipecat pipeline on top of the Jabra; `dirt-voice.service`; agent tools; session logs. **Deployed 2026-04-18.**
 - [Reservoir Level (Autopot)](hardware/reservoir-level.md) — Submerged hydrostatic pressure transducer (DFRobot KIT0139) → ADS1115 → dedicated ESP32-C3 reservoir node → canonical `reservoir_in` ingest. Live as `reservoir-node`.
 - [Reservoir Level — Bench Bring-up](hardware/reservoir-level-bringup.md) — Detailed bench validation notes: wiring, provisional cal captures, noise characterization, capacitor experiment (2026-04-26).
+- [Project Box Enclosures](hardware/project-box-enclosures.md) — BOM and build practices for moving reservoir and SHT45 electronics into gasketed ABS boxes with cable glands, strain relief, and sensor airflow.
 - [AC Infinity Fan Control + Tent Environmental Sensor](hardware/ac-infinity-fan-control.md) — Combined ESP32-C3 SuperMini node: drives the Cloudline LITE 6" fan via 2× 2N7000 MOSFETs on D+/B5 **and** reads an Adafruit SHT45 + PTFE cap over I²C (GPIO 4/5) for tent temp/RH/VPD. **Fan D+ bring-up + SHT45 read both validated 2026-04-22.** Combined firmware at `firmware/fan_controller/`. Tach (D−) deferred. WiFi/OTA/ingest integration next.
 - [AC Infinity ThermoForge T3 Control Investigation](hardware/ac-infinity-thermoforge-control.md) — Night-heater control investigation. Captures AC Infinity UIS docs, controller/API option, direct UIS reverse-engineering plan, and heater-specific fail-safe requirements before probing.
 

@@ -41,7 +41,7 @@ type MetricGroup = {
 };
 type HistoryPoint = {
   ts: string;
-  value: number;
+  value: number | null;
 };
 type MetricFreshness = "live" | "stale";
 type MetricCardModel = {
@@ -269,6 +269,7 @@ function HostedDashboardPage() {
   const [selectedSiteId, setSelectedSiteId] = useState("homebox");
   const [selectedTentId, setSelectedTentId] = useState("main");
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const [hoverTimestamp, setHoverTimestamp] = useState<string | null>(null);
 
   const sitesQuery = useQuery({
     queryKey: ["cloud.sites"],
@@ -381,6 +382,7 @@ function HostedDashboardPage() {
   const historyByMetric = new Map(
     HISTORY_METRIC_META.map((m, idx) => [m.metric, historyResults[idx]]),
   );
+  const historyAxis = buildHistoryAxis(historyResults.map((result) => result.data));
   const assetPanel = toAssetPanelModel(
     assetsQuery.data?.[0] ?? null,
     Boolean(assetsQuery.error),
@@ -466,7 +468,6 @@ function HostedDashboardPage() {
               label="backlog"
               value={`${syncStatus?.command_backlog_depth ?? 0} queued`}
             />
-            <RangeSwitch value={range} onChange={setRange} />
           </div>
         </section>
 
@@ -520,14 +521,18 @@ function HostedDashboardPage() {
         )}
 
         <section aria-label="Metric history" className="flex flex-col">
-          <header className="flex items-baseline justify-between border-b border-rule px-0.5 py-2">
-            <h2 className="font-sans text-fs-11 font-semibold uppercase tracking-cap-wide text-ink-2">
-              History
-            </h2>
-            <HoverTimestamp
-              hoverIndex={hoverIndex}
-              points={toSparklinePoints(historyResults.find((r) => r.data)?.data)}
-            />
+          <header className="sticky top-0 z-20 flex flex-col gap-2 border-b border-rule bg-paper/95 px-0.5 py-2 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-h-7 items-baseline justify-between gap-3">
+              <h2 className="font-sans text-fs-11 font-semibold uppercase tracking-cap-wide text-ink-2">
+                History
+              </h2>
+              <HoverTimestamp
+                hoverIndex={hoverIndex}
+                points={historyAxis.map((ts) => ({ ts }))}
+                timestamp={hoverTimestamp}
+              />
+            </div>
+            <RangeSwitch value={range} onChange={setRange} />
           </header>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             {HISTORY_METRIC_GROUPS.map((group) => (
@@ -542,7 +547,9 @@ function HostedDashboardPage() {
                 <div className="grid grid-cols-1 border border-rule-strong bg-paper-2">
                   {group.metrics.map((m) => {
                     const result = historyByMetric.get(m.metric);
-                    const points = toSparklinePoints(result?.data);
+                    const points = result?.data
+                      ? toSparklinePoints(result.data, historyAxis)
+                      : [];
                     const unit = result?.data?.points[0]?.unit ?? m.unit;
                     const yProps = {
                       ...(m.y_min !== null && m.y_min !== undefined
@@ -566,6 +573,9 @@ function HostedDashboardPage() {
                         }
                         hoverIndex={hoverIndex}
                         onHoverIndex={setHoverIndex}
+                        onHoverPoint={(point) => {
+                          setHoverTimestamp(point?.ts ?? null);
+                        }}
                         {...yProps}
                       />
                     );
@@ -913,11 +923,34 @@ function formatEmptyHistoryLabel(range: SparklineRange): string {
   }
 }
 
-function toSparklinePoints(history: HostedMetricHistory | undefined): HistoryPoint[] {
-  return (
-    history?.points.map((point) => ({
-      ts: point.bucket_start_at,
-      value: point.avg ?? point.max ?? point.min ?? 0,
-    })) ?? []
+function buildHistoryAxis(
+  histories: readonly (HostedMetricHistory | undefined)[],
+): string[] {
+  const timestamps = new Set<string>();
+  for (const history of histories) {
+    for (const point of history?.points ?? []) {
+      timestamps.add(point.bucket_start_at);
+    }
+  }
+  return [...timestamps].sort(compareIsoTimestamps);
+}
+
+function compareIsoTimestamps(a: string, b: string): number {
+  return new Date(a).getTime() - new Date(b).getTime();
+}
+
+function toSparklinePoints(
+  history: HostedMetricHistory,
+  axis: readonly string[],
+): HistoryPoint[] {
+  const valuesByTimestamp = new Map(
+    history.points.map((point) => [
+      point.bucket_start_at,
+      point.avg ?? point.max ?? point.min ?? null,
+    ]),
   );
+  return axis.map((ts) => ({
+    ts,
+    value: valuesByTimestamp.get(ts) ?? null,
+  }));
 }

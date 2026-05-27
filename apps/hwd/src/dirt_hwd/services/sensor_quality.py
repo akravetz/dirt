@@ -27,12 +27,12 @@ STREAM = "sensor_quality"
 RESERVOIR_DEVICE_ID = "reservoir-node"
 RESERVOIR_METRICS = frozenset({"reservoir_pressure_raw", "reservoir_in"})
 
-# Firmware calibration says dry-air zero is raw ~= 18540 and the probe's
-# published depth bottoms out around 0.79 in. Anything materially below this
-# is not "empty reservoir"; it is an analog-chain/loop fault.
+# The probe physically cannot produce useful reservoir-level telemetry this
+# low in our mounted geometry; lower readings are analog-chain faults, not a
+# merely empty reservoir.
 RESERVOIR_RAW_MIN = 17_000.0
 RESERVOIR_RAW_MAX = 30_000.0
-RESERVOIR_IN_MIN = 0.0
+RESERVOIR_IN_MIN = 2.0
 RESERVOIR_IN_MAX = 40.0
 
 _VALID_STATES = frozenset({"ok", "bad"})
@@ -178,7 +178,7 @@ def _reservoir_reasons(metrics: dict[str, float]) -> list[str]:
         )
 
     if depth is not None and depth < RESERVOIR_IN_MIN:
-        reasons.append(f"depth {depth:.2f} in below 0")
+        reasons.append(f"depth {depth:.2f} in below {RESERVOIR_IN_MIN:.0f}")
     elif depth is not None and depth > RESERVOIR_IN_MAX:
         reasons.append(
             f"depth {depth:.2f} in above plausible ceiling {RESERVOIR_IN_MAX:.0f}"

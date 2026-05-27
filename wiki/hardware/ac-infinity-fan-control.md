@@ -2,9 +2,9 @@
 title: Hardware — AC Infinity Fan Control + Tent Environmental Sensor (combined node)
 type: hardware
 sources: [debug/fan-pwm/sweep-v2.sr, debug/fan-pwm/sweep-11steps.sr, debug/fan-pwm/sweep-v3.sr]
-related: [wiki/hardware/humidifier-control.md, wiki/hardware/esp32-plant-nodes.md, wiki/decisions/2026-04-22-sht45-tent-node-esp32.md]
+related: [wiki/hardware/humidifier-control.md, wiki/hardware/esp32-plant-nodes.md, wiki/hardware/project-box-enclosures.md, wiki/decisions/2026-04-22-sht45-tent-node-esp32.md]
 created: 2026-04-18
-updated: 2026-05-04
+updated: 2026-05-25
 ---
 
 # AC Infinity Cloudline LITE 6" Fan Control + Tent Environmental Sensor

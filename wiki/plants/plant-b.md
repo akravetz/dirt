@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-05-25
+updated: 2026-05-26
 ---
 
 # Plant B
@@ -19,7 +19,7 @@ updated: 2026-05-25
 
 ## Current State
 
-Day 72 / Flower Day 22: Dedicated view is still fan-obstructed, and B remains pinned wet near 96.1%. Keep dryback verification urgent and do not restore normal feed until tray/media checks support it. See [2026-05-25](../daily/2026-05-25.md).
+Day 73 / Flower Day 23: Dedicated view is still almost fully fan-obstructed, and B remains pinned wet near 96.3%. Keep dryback verification urgent and do not restore normal feed until tray/media checks support it. See [2026-05-26](../daily/2026-05-26.md).
 
 ## Timeline
 
@@ -73,3 +73,4 @@ Day 72 / Flower Day 22: Dedicated view is still fan-obstructed, and B remains pi
 - 2026-05-23 — [Day 70 / Flower Day 20: visible tops upright but fan-obscured; moisture ~96.2% remains pinned wet, dryback verification urgent](../daily/2026-05-23.md)
 - 2026-05-24 — [Day 71 / Flower Day 21: dedicated view fan-obstructed; moisture ~96.0% remains pinned wet, dryback verification urgent](../daily/2026-05-24.md)
 - 2026-05-25 — [Day 72 / Flower Day 22: dedicated view still fan-obstructed; moisture ~96.1% remains pinned wet, dryback verification urgent](../daily/2026-05-25.md)
+- 2026-05-26 — [Day 73 / Flower Day 23: dedicated view nearly fully fan-obstructed; moisture ~96.3% remains pinned wet, dryback verification urgent](../daily/2026-05-26.md)
