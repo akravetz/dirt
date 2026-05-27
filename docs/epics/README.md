@@ -66,6 +66,7 @@ This creates a GitHub issue with our standard template and the correct epic labe
 | [python-quality-radar](python-quality-radar/README.md) | planning | high |
 | [esp32-wifi-hardening](esp32-wifi-hardening/README.md) | planning | high |
 | [dev-env](dev-env/README.md) | planning | high |
+| [seeed-xiao-esp32c3-fleet-migration](seeed-xiao-esp32c3-fleet-migration/README.md) | planning | high |
 
 ## Rules for Agents
 
