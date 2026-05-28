@@ -1071,3 +1071,19 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - **Plant D moisture:** D is lower and drifting near 47.02%; verify tray/media/probe conditions by hand before acting on the lower signal.
 - **Breeding-tent watch:** Breeding is Flower Day 2 and dry/high now at 76.80°F / 41.04% RH / 1.86 kPa; check pot weight and fan exposure.
 - Updated: `daily/2026-05-26.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-05-27] daily | Day 74 / Flower Day 24 - full photos; lights-on VPD in range
+- Photos captured across all 5 expected main presets plus the breeding overview. The main canopy remains dense, upright, and purple-flowered; Plant B is still non-diagnostic behind the fan, and Plant C is partly obstructed/soft-focused.
+- **Main-tent environment:** Morning/current VPD are in late-flower range at 1.26/1.44 kPa, but overnight stayed wet/low at 0.99 kPa with 60.97% RH. Keep dark-cycle drying and airflow active.
+- **Plant A follow-up:** Visible tops are upright and moisture is stable near 61.35%, but the root-zone pH/EC diagnostic remains open until A is checked against a healthy comparison pot.
+- **Plant B/C moisture remains critical:** B is pinned at 96.09%, and C is pinned at 91.37%; manual tray/float/media/probe checks remain urgent, especially because B's photo is non-diagnostic.
+- **Plant D moisture:** D's rough signal moved sharply wetter to 48.81% now; verify tray/media/probe conditions by hand before treating it as true rewetting.
+- **Breeding-tent watch:** Breeding is Flower Day 3 and dry/high now at 79.47°F / 52.97% RH / 1.62 kPa; check pot weight and fan exposure.
+- Updated: `daily/2026-05-27.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-05-27] query-filed | Plant A extraction diagnostic and dryback plan
+- User completed a 1:1.5 distilled-water coco extraction after a 2-hour rest: Plant A measured pH 5.78 / EC 4.4 and healthy comparison Plant D measured pH 5.97 / EC 3.0.
+- Plant A's sample was visibly wetter than D's. Hourly sensor review after A's valve was closed around 19:00-20:00 MDT on 2026-05-26 showed mostly flat moisture overnight near 61.8%, then slow lights-on dryback to roughly 61.2% by late afternoon.
+- Assessment filed: current evidence points away from active low-pH lockout and toward high root-zone EC/salt concentration plus wet/slower cycling in Plant A.
+- Action filed: A's tray/stand was removed and cleaned, valve remains closed, and A should dry back until the top coco is no longer visibly wet before any controlled weak pH 5.8 Canna top rinse around EC 0.6-0.8; remove runoff immediately and do not adjust the whole reservoir based on A alone.
+- Updated: `daily/2026-05-27.md`, `plants/plant-a.md`, `environment/nutrients.md`, `overview.md`, `index.md`.

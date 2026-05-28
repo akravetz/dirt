@@ -4,7 +4,7 @@ type: environment
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/environment/humidity.md, wiki/overview.md]
 created: 2026-04-06
-updated: 2026-05-26
+updated: 2026-05-27
 ---
 
 # Temperature
@@ -73,6 +73,7 @@ updated: 2026-05-26
 | 2026-05-24 | Main 78.62°F now ⚠️ / 70.73°F overnight avg ⚠️ / 75.87°F morning avg ⚠️; breeding 80.44°F now ✅ | Main tent entered late flower, so the same temperatures that were usable yesterday are now warm against the 68-75°F day and 62-68°F night guides. Breeding is warm but usable for its Flower Day 0 start; the larger breeding issue is humidity/VPD. → [2026-05-24](../daily/2026-05-24.md) |
 | 2026-05-25 | Main 74.64°F now ✅ / 70.68°F overnight avg ⚠️ / 76.13°F morning avg ⚠️; breeding 76.46°F now ✅ | Main-tent current temperature is back inside the late-flower day guide, but overnight and morning remain warm; today's late-flower miss is still humidity/VPD, not lack of heat. Breeding temperature is usable after yesterday's warm start. → [2026-05-25](../daily/2026-05-25.md) |
 | 2026-05-26 | Main 76.84°F now ⚠️ / 70.52°F overnight avg ⚠️ / 74.37°F morning avg ✅; breeding 76.80°F now ✅ | Main-tent morning temperature was usable, but overnight and now remain warm for late flower. The current warmth contributes to the 1.52 kPa dry-edge VPD, while overnight still misses wet/low, so avoid heat-first corrections. → [2026-05-26](../daily/2026-05-26.md) |
+| 2026-05-27 | Main 78.60°F now ⚠️ / 70.50°F overnight avg ⚠️ / 75.38°F morning avg ⚠️; breeding 79.47°F now ⚠️ | Main-tent temperature is warm across the late-flower interpretation, but VPD is in range during lights-on and wet/low overnight. Treat the main issue as moisture clearing and airflow, not a heat-first correction. Breeding is warm/dry now for small plants. → [2026-05-27](../daily/2026-05-27.md) |
 
 ## Notable Events
 - **2026-03-21** — Overnight low of 59.5°F due to exhaust fan running too fast at night; resolved by throttling fan after lights-out → [2026-03-27 daily](../daily/2026-03-27.md)
@@ -112,3 +113,4 @@ updated: 2026-05-26
 - **2026-05-24** — Main tent crossed into late flower, changing the temperature interpretation: 75.87°F morning and 78.62°F now are warm against the new day guide, and 70.73°F overnight is above the night guide. Use cooler/drier airflow where practical, but keep the primary focus on lowering RH and dew point. → [2026-05-24](../daily/2026-05-24.md)
 - **2026-05-25** — Main-tent current temperature improved to 74.64°F, inside the late-flower day guide, while overnight and morning remain warm at 70.68°F and 76.13°F. Since VPD is still wet/low now, humidity removal and airflow remain the higher-value levers. → [2026-05-25](../daily/2026-05-25.md)
 - **2026-05-26** — Main-tent temperature remains slightly warm for late flower overnight and now, but the mixed VPD profile means the correction should not be simply more heat or more cooling. Hold lights-on temperature near the guide while improving dark-cycle moisture clearing. → [2026-05-26](../daily/2026-05-26.md)
+- **2026-05-27** — Main-tent temperature ran warm for late flower in all windows, peaking at 78.60°F now. Because lights-on VPD is still in range and the overnight miss is wet/low, prioritize airflow/moisture removal over temperature-only changes. Breeding is warm and dry now at 79.47°F / 1.62 kPa. → [2026-05-27](../daily/2026-05-27.md)

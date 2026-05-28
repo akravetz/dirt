@@ -1,4 +1,4 @@
-// ESP32-C3 SuperMini reservoir-node firmware.
+// Seeed XIAO ESP32-C3 reservoir canary firmware.
 //
 // Reads the DFRobot KIT0139 hydrostatic pressure transducer through a
 // SEN0262 4-20mA->0-5V converter on an ADS1115 (I2C 0x48), converts raw
@@ -11,14 +11,14 @@
 // Secrets (from src/secrets.h, gitignored):
 //   WIFI_SSID, WIFI_PASSWORD, SERVER_URL, SENSOR_INGEST_TOKEN, OTA_PASSWORD
 //
-// mDNS hostname: dirt-reservoir.local
+// mDNS hostname: dirt-reservoir-xiao.local
 // OTA port:      3232 (ArduinoOTA default)
 //
 // Calibration lives in firmware (mirroring the tent SHT45 pattern: device
 // ships already-calibrated values; server stores them as-is). Recalibrate
 // by editing the constants below and OTA-reflashing. The raw count is also
 // POSTed so history can be recomputed against new constants if cal changes.
-// Posts as homebox/main/reservoir/reservoir-node.
+// Posts as homebox/main/reservoir/reservoir-xiao.
 // Full rationale: wiki/hardware/reservoir-level.md "Where the calibration lives".
 
 #include <Arduino.h>
@@ -42,8 +42,8 @@ constexpr uint16_t SAMPLE_COUNT     = 32;     // ~9 mV jitter at GAIN_FOUR
 const char* const SITE_ID = "homebox";
 const char* const TENT_ID = "main";
 const char* const ZONE_ID = "reservoir";
-const char* const DEVICE_ID = "reservoir-node";
-const char* const HOSTNAME = "dirt-reservoir";
+const char* const DEVICE_ID = "reservoir-xiao";
+const char* const HOSTNAME = "dirt-reservoir-xiao";
 
 // --- Calibration ----------------------------------------------------------
 //
@@ -125,7 +125,7 @@ float rawToDepthIn(int32_t raw) {
 void setup() {
     Serial.begin(115200);
     delay(2000);  // give USB-CDC host a moment
-    Serial.printf("\n# reservoir-node fw=%s\n", FIRMWARE_VERSION);
+    Serial.printf("\n# reservoir-xiao fw=%s\n", FIRMWARE_VERSION);
 
     Wire.begin(GPIO_I2C_SDA, GPIO_I2C_SCL);
     if (!ads.begin(ADS_ADDR, &Wire)) {

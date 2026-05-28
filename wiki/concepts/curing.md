@@ -1,157 +1,197 @@
 ---
-title: Concept — Curing
+title: Concept - Curing
 type: concept
 sources: []
-related: [wiki/concepts/flushing.md, wiki/concepts/trichome-stages.md]
+related: [wiki/concepts/drying.md, wiki/concepts/flushing.md, wiki/concepts/trichome-stages.md, wiki/concepts/vpd.md]
 created: 2026-05-25
-updated: 2026-05-25
+updated: 2026-05-28
 ---
 
 # Curing
 
-Curing is the controlled post-dry rest that lets moisture equalize through the buds, reduces harsh green flavors, and preserves aroma before long-term storage. For this grow, the default cure is **Grove Bags / TerpLoc-style curing bags** because they reduce daily burping labor while still keeping the cure in the same practical moisture window as jars.
+Curing is the post-dry equalization and aging step. It is not a way to finish drying wet cannabis. The dry has already removed most of the water; curing lets remaining moisture redistribute through the buds, reduces raw green harshness, and protects aroma before long-term storage.
 
-The bags are not a shortcut around drying. They work only after the buds are already properly dried.
+For this grow, the cure should be treated as a product-stability problem, not a live-plant environment problem.
 
----
+- **Primary target:** flower water activity (`aw`) or sealed-container equilibrium RH.
+- **Practical target:** **58-62% RH** inside the sealed container.
+- **Safety ceiling:** **0.65 aw / 65% equilibrium RH**. Above this, return to drying.
+- **Temperature goal:** cool and stable, preferably **60-65°F**, never warm storage.
+- **Light goal:** dark.
+- **Default container:** Grove Bags / TerpLoc-style bags for the main cure, with glass jars as the higher-control fallback.
+
+## What Actually Matters
+
+### Water Activity Is the Cure Metric
+
+Water activity measures the free water available for microbial growth and chemical reactions. It is not the same as total moisture content. ASTM's acceptable range for dry cannabis flower is **0.55-0.65 aw**, and state testing programs commonly use **0.65 aw** as the pass/fail ceiling.
+
+In a sealed container at equilibrium, `aw` maps closely to RH:
+
+| Flower aw | Container RH | Interpretation |
+|---:|---:|---|
+| 0.50-0.54 | 50-54% | Too dry for a meaningful cure |
+| 0.55-0.57 | 55-57% | Stable but slightly dry |
+| 0.58-0.62 | 58-62% | Target cure window |
+| 0.63-0.65 | 63-65% | Wet edge; monitor closely |
+| >0.65 | >65% | Mold-risk handoff error; dry further |
+
+If a water-activity meter is available, use it as the release metric. If not, use calibrated mini hygrometers in representative jars/bags and let the sealed test equilibrate for 12-24 hours.
+
+### Temperature Preserves Chemistry
+
+Cool storage slows cannabinoid degradation, terpene loss, and oxidation. Storage research repeatedly points in the same direction: light and warmth accelerate THC loss and CBN formation, while cool/dark storage preserves chemistry better.
+
+Room temperature is acceptable for a normal 4-8 week cure if it is stable and below about 70°F. For long-term keeper samples, glass jars in cool/dark storage are preferred.
+
+### VPD Is Secondary During Cure
+
+VPD is useful in drying because the room is actively pulling moisture from exposed plant material. In a sealed jar or Grove Bag, the important measurement is the container's equilibrium RH / flower `aw`.
+
+Use VPD only if curing in an active room or if running a controlled dry-cure chamber. In that case, VPD is a rate-control variable for moisture migration. It is not the final release criterion.
+
+### Dew Point Is a Guardrail
+
+Dew point helps prevent condensation and explains room moisture load, but it is not the cure target. A sealed container can be at the correct RH/aw across several cool temperatures. The main dew-point rule is simple: avoid temperature swings that cause condensation inside bags or jars.
 
 ## Default Method: Grove Bags
 
-Use Grove Bags for the main cure when buds are dry enough to enter a sealed container safely.
+Use Grove Bags for the main cure after the flower has already passed the dry handoff.
 
 ### Equipment
 
 - Grove Bags or equivalent TerpLoc-style curing bags
-- Mini hygrometers, at least one per cultivar or per representative bag
-- Optional pin moisture meter for stem/bud moisture
-- Clean tray or rack for any buds that need extra drying
-- Labels: cultivar/plant, harvest date, dry-end date, bag date
+- Mini hygrometers, at least one per plant or representative bag
+- Optional water-activity meter
+- Optional pin moisture meter
+- Clean tray or rack for correction drying
+- Labels: plant, harvest date, dry-end date, bag date, dry-test RH or `aw`
 
 ### Bagging Readiness
 
-Before bagging, buds should be dry on the outside but not crispy all the way through:
+Before bagging:
 
 - Small stems snap rather than fold.
-- Buds feel springy, not wet or spongy.
-- A test bud sealed in a jar with a hygrometer for 12-24 hours stabilizes near **58-62% RH**.
+- Buds feel dry outside but still springy, not brittle.
+- A sealed jar test stabilizes at **58-62% RH** after 12-24 hours.
 - If using a pin moisture meter, Grove's guidance is **10-12% moisture content**.
+- No ammonia, sour, compost, or wet-hay odor.
 
-Do not put wet flower in Grove Bags. If the sealed test reads over 65% RH, dry longer before bagging.
+Do not bag wet flower. If the sealed test reads over 65% RH, dry longer.
 
 ### Loading Bags
 
-1. Trim buds before bagging.
+1. Trim before bagging unless intentionally doing a loose post-dry trim later.
 2. Fill bags about **75% full**, leaving about **25% headspace**.
-3. Do not compress buds and do not squeeze the air out.
-4. Put a mini hygrometer in at least one representative bag per batch.
+3. Do not compress buds and do not squeeze air out.
+4. Put a hygrometer in at least one representative bag per batch.
 5. Zip fully. Heat seal bags intended for long cure or long-term storage.
-6. Store cool and dark, ideally **60-70°F** with stable room humidity.
+6. Store cool and dark.
 
-### First Two Weeks
+## First Two Weeks
 
-Check representative bag RH without opening if the hygrometer is visible.
+The first two weeks are the correction window. Watch representative bag or jar RH without opening unless an action is needed.
 
 | Reading | Action |
 |---|---|
 | 58-62% RH | Ideal. Leave sealed. |
-| 63-65% RH | Watch closely. Open briefly or leave unsealed for a short period if it keeps rising. |
-| 66-70% RH | Too wet. Open the bag and air buds on a clean tray until they return to target. |
-| >70% RH | Mold-risk zone. Remove from bag and dry further. Inspect carefully. |
-| <55% RH | Too dry for an active cure. Use as smoke/storage flower; a humidity pack can stabilize but will not fully restore the cure. |
+| 63-65% RH | Wet edge. Inspect daily; open briefly or return to tray if it keeps rising. |
+| 66-70% RH | Too wet. Remove and air on a clean tray until back in range. |
+| >70% RH | High mold risk. Remove, dry further, and inspect carefully. |
+| <55% RH | Too dry for active cure. Stabilize for storage; do not expect full cure recovery. |
 
-If the bag smells like ammonia, sour compost, or wet hay, the buds went in too wet. Remove them from the bag, dry further, and inspect for mold. Moldy cannabis is not salvageable for consumption.
+If a container smells like ammonia, sour compost, or wet hay, the buds were sealed too wet. Remove them, dry further, and inspect for mold. Moldy cannabis should be discarded, not salvaged for consumption.
 
-### Cure Length
+## Cure Length
 
 - Minimum useful cure: **2-4 weeks**
 - Preferred target for this grow: **6-8 weeks**
-- Longer cure: up to **3 months** for dense flowers or cultivars that continue improving
+- Long cure: **2-3 months** for dense flower or keeper evaluation samples
 
-Keep a small jar for daily-use flower once the cure is underway. Repeatedly opening the main cure bags defeats part of the low-oxygen, low-handling benefit.
-
----
+Keep a small working jar once the cure is underway. Repeatedly opening the main cure bags adds oxygen, loses aroma, and defeats part of the low-handling benefit.
 
 ## When to Use Jars Instead
 
-Glass jars remain the higher-control fallback.
+Glass jars are the higher-control fallback.
 
 Use jars when:
 
 - The dry endpoint is uncertain.
-- A bag reads high RH and needs active correction.
-- You want to inspect and smell the cure daily.
-- The batch is very small.
-- A bag zipper or seal is questionable.
-- The flower is especially valuable and you want inert glass for long-term storage.
+- A Grove Bag reads high RH and needs active correction.
+- The batch is small.
+- You want daily smell/texture inspection.
+- A bag zipper or heat seal is questionable.
+- The sample is especially valuable for keeper evaluation.
+- Long-term storage beyond the main cure is the goal.
 
-Jar process: fill jars about 70-75%, add hygrometers, burp daily for the first week, then every few days through weeks 2-4. Keep jar RH in the same **58-62%** target range.
+Jar process:
 
----
+1. Fill jars 70-75%; do not compress.
+2. Add calibrated hygrometers.
+3. During week 1, open briefly once or twice daily if RH is in range; leave open longer only when RH is high.
+4. During weeks 2-4, burp every few days if RH remains stable.
+5. After RH is stable in the target range, minimize openings.
 
-## Grove Bag Pros and Cons
+## Automation Notes
 
-### Pros
+For a scientific cure workflow, measure the product, not just the room.
 
-- Much less labor than daily jar burping.
-- Easier for a multi-plant harvest; fewer containers and less shelf space.
-- Less bud handling during the cure.
-- Less breakage risk than glass.
-- Good odor control when the zipper or heat seal is correct.
-- Opaque/UV-protected bags reduce light exposure compared with clear jars.
-- Useful for keeping larger lots sealed while moving a small daily-use portion to a jar.
+Recommended logging:
 
-### Cons
+- `plant_id`
+- `harvest_date`
+- `dry_start_date`
+- `dry_end_date`
+- `container_type`
+- `container_weight_empty`
+- `flower_weight`
+- `sealed_test_rh_pct`
+- `sealed_test_temp_f`
+- `water_activity_aw` if available
+- `container_rh_pct`
+- `container_temp_f`
+- `odor_notes`
+- `correction_action`
 
-- Not foolproof: wet flower can still mold.
-- Less direct control than jars during the first week.
-- Zippers and seals are common user-reported failure points.
-- Small bags and dry rooms may slowly dry flower over longer storage.
-- User reports on long-term storage are mixed; some report excellent 6+ month storage, while others prefer jars after the first month.
-- Vendor preservation claims are stronger than the independent public evidence available.
-- Plastic contact is a preference concern for some growers; glass is more inert.
+Control rules:
 
-Practical stance: use Grove Bags for the main cure, but spot-check with hygrometers and keep jars available as a correction and long-term fallback.
-
----
+- Do not allow any sealed container above 65% RH without action.
+- Do not open stable 58-62% bags just to "burp" them.
+- If using Grove Bags, treat bag RH as a spot-check, not as a closed-loop actuator.
+- If using jars, burping is manual moisture/oxygen exchange during the early cure; stop once stable.
+- For long-term storage, prioritize cool/dark/stable over continued burping.
 
 ## Long-Term Storage
 
-After the cure, store flower cool, dark, sealed, and stable.
+After the active cure:
 
-Preferred approach:
+1. Keep bulk flower sealed, cool, dark, and stable.
+2. Use a small working jar for daily access.
+3. For keeper samples or storage beyond several months, prefer glass jars with 58% or 62% humidity packs.
+4. Avoid warm rooms, sunlight, and repeated temperature swings.
+5. Do not store above 65% RH or 0.65 aw.
 
-1. Keep bulk flower in heat-sealed Grove Bags if RH is stable and the bags will not be opened often.
-2. Move a small working amount to a jar for daily access.
-3. For prized keeper samples or storage beyond several months, consider glass jars with a 58% or 62% humidity pack.
-4. Avoid warm storage, direct light, and repeated temperature swings.
-
-Heat and light accelerate cannabinoid and terpene degradation. A four-year storage study found THC degradation and CBN formation depended on storage time, temperature, and light exposure. University of Vermont Extension also warns that temperatures above 70°F can reduce terpene and cannabinoid quality over time.
-
----
+Grove Bags are acceptable for bulk cured flower if the zipper/heat seal is trustworthy and the bags are not opened repeatedly. Glass is more inert and easier to inspect, so it remains the preferred long-term option for important keeper samples.
 
 ## Process Summary
 
-1. Dry buds normally.
-2. Confirm readiness with stem snap, bud feel, and preferably a 12-24 hour jar RH test.
-3. Bag only when the test stabilizes near **58-62% RH**.
-4. Fill Grove Bags 75%, leave 25% headspace, and do not compress.
-5. Add representative hygrometers.
-6. Seal and store cool/dark.
-7. Watch RH during the first two weeks.
-8. Cure 6-8 weeks.
-9. Keep bulk sealed; use a small jar for active consumption.
-
----
+1. Dry flower to the correct handoff point.
+2. Confirm with a 12-24 hour sealed RH test or water-activity reading.
+3. Start cure only around **58-62% RH / 0.58-0.62 aw**.
+4. Use Grove Bags for the main cure; use jars when higher control is needed.
+5. Watch the first two weeks closely.
+6. Cure 6-8 weeks for this grow.
+7. Move daily-use flower to a small working jar and keep bulk sealed.
 
 ## Sources
 
-- [Grove Bags FAQ](https://grovebags.com/pages/faqs) — manufacturer guidance: bags are for curing/storing, not drying wet flower; 10-12% moisture; 25% headspace; 58-62% target RH.
-- [Grove Bags: Curing with TerpLoc](https://grovebags.com/pages/curing-with-terploc) — manufacturer curing workflow and headspace recommendation.
-- [Leafly: Drying and Curing Bud](https://www.leafly.com/learn/growing/harvesting-marijuana/drying-curing-cannabis) — jar RH range, burping schedule, ammonia warning, cool/dark storage.
-- [New York Office of Cannabis Management: Medical Home Cultivation Guide](https://cannabis.ny.gov/system/files/documents/2022/10/medical-home-cultivation-guide-.pdf) — stem snap/springy cue, 1-3 month cure window, mold disposal warning.
-- [University of Vermont Extension / SARE: Industrial Hemp for Flower Production](https://projects.sare.org/media/pdf/2/0/2/2020_Hemp_101-1.pdf) — drying/storage temperature guidance and terpene/cannabinoid quality risk above 70°F.
-- [Zamengo et al. 2019: Storage Conditions and Cannabinoid Degradation](https://www.sciencedirect.com/science/article/pii/S0379073818308818) — temperature and light influence THC degradation and CBN formation over storage.
-- [420 VapeZone: Grove Bags Review](https://420vapezone.com/grove-bags/) — side-by-side user test with jars and Grove Bags; no-burp benefit but not foolproof.
-- [Reddit: GroveBags Review, Good for Curing but Not for Storage](https://www.reddit.com/r/GrowBuddy/comments/17rzdnj/grovebags_review_good_for_curing_but_not_for/) — mixed user feedback on bag size, seals, freshness, and long-term storage.
-- [Reddit: Grove Bags vs Jars with Bovedas](https://www.reddit.com/r/microgrowery/comments/1j6v7ij/grove_bags_vs_jars_with_bovedas/) — user feedback emphasizing correct moisture endpoint, heat sealing, and jars as higher-control fallback.
-- [Reddit: Has Anyone Tried Grove Bags for Curing?](https://www.reddit.com/r/microgrowery/comments/1nal7ne/has_anyone_tried_grove_bags_for_curing/) — user feedback on no-burp use, zipper concerns, humidity drift, and hybrid bag/jar workflows.
+- [ASTM: Two Cannabis Standards You Should Know About](https://www.astm.org/news/two-cannabis-standards-you-should-know-about) - water activity as the critical dry-flower moisture metric; acceptable dry cannabis flower range 0.55-0.65 aw.
+- [ASTM D8196](https://store.astm.org/d8196-20.html) - water-activity testing as a quality-control step for cannabis flower storage safety and quality.
+- [California Code of Regulations, Section 15717](https://regulations.justia.com/states/california/title-4/division-19/chapter-6/article-5/section-15717/) - dried flower water activity passes if it does not exceed 0.65 aw.
+- [Cannabis Science and Technology: Impact of Water Activity on Cannabis Flower](https://www.cannabissciencetech.com/view/impact-of-water-activity-on-the-chemical-composition-and-smoking-quality-of-cannabis-flower-the-science-of-smokability-phase-i-results) - 0.45, 0.65, and 0.85 aw comparison; 0.65 aw associated with higher terpene content and less irritation than over-dried 0.45 aw samples.
+- [Baek, Grab, and Chen 2025, Postharvest Drying and Curing Affect Cannabinoid Contents and Microbial Levels in Industrial Hemp](https://www.mdpi.com/2223-7747/14/3/414) - curing increased moisture 3.3-13.6% in sealed containers; curing method was not a major driver in that study.
+- [Das et al. 2022, Postharvest Operations of Cannabis and Their Effect on Cannabinoid Content](https://www.mdpi.com/2306-5354/9/8/364) - review of drying, curing, water activity, equilibrium moisture content, storage, and postharvest effects.
+- [Grove Bags FAQ](https://grovebags.com/pages/faqs) - manufacturer guidance: bags are for curing/storing, not drying wet flower; 10-12% moisture; 25% headspace; 58-62% RH.
+- [Leafly: Drying and Curing Cannabis](https://www.leafly.com/learn/growing/harvesting-marijuana/drying-curing-cannabis) - applied jar cure guidance, 55-65% RH, burping, ammonia warning, and cool/dark storage.
+- [New York Office of Cannabis Management: Medical Home Cultivation Guide](https://cannabis.ny.gov/system/files/documents/2022/10/medical-home-cultivation-guide-.pdf) - home-cultivation curing cues, mold warnings, airtight storage, and disposal guidance for moldy cannabis.
+- [Zamengo et al. 2019, The Role of Time and Storage Conditions on Hashish and Marijuana Composition](https://www.sciencedirect.com/science/article/pii/S0379073818308818) - four-year storage study showing THC degradation and CBN formation depend on time, light, and temperature.

@@ -23,8 +23,12 @@ The design goal is a direct cutover: use the XIAO board definition, keep the exi
 - [x] (2026-05-27) Confirmed the currently attached ESP32-C3 USB devices enumerate as Espressif USB JTAG/serial debug units on `/dev/ttyACM0` and `/dev/ttyACM1`.
 - [x] (2026-05-27) Built the current SuperMini/DevKitM firmware profiles `plant-a`, `reservoir`, and `fan` successfully as a baseline.
 - [x] (2026-05-27) Wrote this epic and ExecPlan.
-- [ ] Implement XIAO board-target cutover in firmware.
+- [x] (2026-05-27) Differentiated the plugged-in XIAO from the already-flashed Dirt ESP32-C3 by reading flash contents: `/dev/ttyACM0` / MAC `e8:f6:0a:16:9f:fc` contained a XIAO Arduino/factory image; `/dev/ttyACM1` / MAC `ac:a7:04:d5:31:e0` contained Dirt reservoir firmware strings.
+- [x] (2026-05-27) Converted `firmware/reservoir_node` into a XIAO reservoir canary build using `board = seeed_xiao_esp32c3`, `FIRMWARE_VERSION="0.1.3-xiao-canary"`, device ID `reservoir-xiao`, hostname `dirt-reservoir-xiao`, and OTA target `dirt-reservoir-xiao.local`.
+- [x] (2026-05-27) Built and USB-flashed the XIAO reservoir canary to `/dev/ttyACM0`; read back flash from `0x10000` and confirmed `reservoir-xiao`, `dirt-reservoir-xiao`, and `0.1.3-xiao-canary` are present.
+- [ ] Implement XIAO board-target cutover in the remaining production firmware.
 - [ ] Validate a USB-connected XIAO canary.
+- [ ] Wire the XIAO reservoir canary to ADS1115/SEN0262/probe hardware and confirm I2C detection plus live reservoir readings.
 - [ ] Migrate deployed nodes one at a time.
 - [ ] Update wiki hardware pages after rollout.
 
@@ -36,6 +40,15 @@ The design goal is a direct cutover: use the XIAO board definition, keep the exi
 
 - Observation: The attached XIAO board cannot be distinguished from other ESP32-C3 USB-CDC devices by VID/PID alone on this host.
   Evidence: `pio device list` showed `/dev/ttyACM0` and `/dev/ttyACM1` with USB `VID:PID=303A:1001`, both described as `USB JTAG/serial debug unit`.
+
+- Observation: Flash contents can distinguish the XIAO canary from an already-flashed Dirt board when USB metadata is ambiguous.
+  Evidence: Reading flash from `/dev/ttyACM0` / MAC `e8:f6:0a:16:9f:fc` showed an Arduino XIAO build string, while `/dev/ttyACM1` / MAC `ac:a7:04:d5:31:e0` contained `reservoir-node`, `dirt-reservoir`, and reservoir metric payload strings.
+
+- Observation: The XIAO board was not blank from the factory, even though it was not flashed with Dirt firmware.
+  Evidence: Flash offset `0x0` on `/dev/ttyACM0` contained a valid ESP image header and `esp32:esp32:XIAO_ESP32C3` strings before the canary flash.
+
+- Observation: Non-interactive `pio device monitor` fails without a TTY, and a TTY-backed monitor attached after upload did not capture the early boot banner.
+  Evidence: The first monitor attempt failed with `termios.error: (25, 'Inappropriate ioctl for device')`; the TTY-backed monitor opened `/dev/ttyACM0` and RTS toggling worked, but no boot text was captured. Read-back from flash confirmed the canary identity instead.
 
 - Observation: PlatformIO's installed `seeed_xiao_esp32c3.json` board manifest accepts both Seeed's native `0x2886:0x0046` hardware ID and Espressif's ROM USB/JTAG `0x303a:0x1001` ID.
   Evidence: `~/.platformio/platforms/espressif32/boards/seeed_xiao_esp32c3.json` lists both IDs under `build.hwids`.
@@ -67,6 +80,14 @@ The design goal is a direct cutover: use the XIAO board definition, keep the exi
 
 - Decision: Preserve existing device IDs, hostnames, metrics, OTA password, and ingest payloads.
   Rationale: This is a hardware board migration, not a data-model migration. The backend, gateway, dashboard, and historical queries should continue to see `plant-a-node`, `reservoir-node`, `fan-controller`, and `breeding-env-node` as the same logical devices.
+  Date/Author: 2026-05-27 / Codex
+
+- Decision: Use a temporary reservoir canary identity before wiring the XIAO into the live reservoir chain.
+  Rationale: The existing reservoir node may remain online during bench testing. Using `reservoir-xiao` and `dirt-reservoir-xiao` prevents hostname/device identity collisions while still exercising the reservoir firmware, ADS1115 I2C path, WiFi, OTA, and ingest contract.
+  Date/Author: 2026-05-27 / Codex
+
+- Decision: Do not write a separate XIAO reservoir controller.
+  Rationale: The existing reservoir firmware is already board-agnostic at the controller level and uses explicit chip GPIOs for I2C. The canary needs a board target and temporary identity, not a forked firmware implementation.
   Date/Author: 2026-05-27 / Codex
 
 
@@ -340,14 +361,46 @@ Local evidence captured on 2026-05-27:
     esp32-c3-devkitm-1  ESP32C3  160MHz       4MB      320KB  Espressif ESP32-C3-DevKitM-1
 
     pio device list
-    /dev/ttyACM1  USB VID:PID=303A:1001 SER=E8:F6:0A:16:9F:FC
-    /dev/ttyACM0  USB VID:PID=303A:1001 SER=AC:A7:04:D5:31:E0
+    /dev/ttyACM0  USB VID:PID=303A:1001 SER=E8:F6:0A:16:9F:FC
+    /dev/ttyACM1  USB VID:PID=303A:1001 SER=AC:A7:04:D5:31:E0
 
 Current baseline builds succeeded before board-target edits:
 
     cd firmware/plant_node && pio run -e plant-a
     cd firmware/reservoir_node && pio run -e reservoir
     cd firmware/fan_controller && pio run -e fan
+
+Reservoir XIAO canary evidence captured on 2026-05-27:
+
+    /dev/ttyACM0
+    MAC: e8:f6:0a:16:9f:fc
+    Pre-flash flash strings included:
+    esp32:esp32:XIAO_ESP32C3:UploadSpeed=921600,CDCOnBoot=default,CPUFreq=160,FlashFreq=80,FlashMode=qio,FlashSize=4M,PartitionScheme=no_ota,DebugLevel=none,EraseFlash=none
+
+    /dev/ttyACM1
+    MAC: ac:a7:04:d5:31:e0
+    Flash strings included:
+    reservoir-node
+    dirt-reservoir
+    reservoir_pressure_raw
+
+    cd firmware/reservoir_node
+    pio run -e reservoir
+    pio run -e reservoir -t upload
+
+    Upload target:
+    /dev/ttyACM0, MAC e8:f6:0a:16:9f:fc
+
+    Read-back strings from /dev/ttyACM0 after upload:
+    reservoir-xiao
+    0.1.3-xiao-canary
+    dirt-reservoir-xiao
+
+Open validation remaining for this canary:
+
+- Serial boot output was not captured after upload.
+- ADS1115/SEN0262/probe hardware has not yet been wired to the XIAO canary.
+- WiFi join, mDNS, OTA, ingest, and `device.last_seen` are not yet proven for `reservoir-xiao`.
 
 
 ## Interfaces and Dependencies

@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-05-26
+updated: 2026-05-27
 ---
 
 # Plant A
@@ -18,7 +18,7 @@ updated: 2026-05-26
 
 ## Current State
 
-Day 73 / Flower Day 23: Close manual photos show persistent lime/yellow color with edge/tip necrosis; the plant has reportedly looked lime/yellow for roughly 2-3 weeks. The Autopot feeder tray is pulled/closed overnight after tray solution measured pH 6.0 and reservoir was reported around pH 5.6. Tomorrow's priority is a root-zone diagnostic after lights-on: reservoir pH/EC/temp, tray/lower-pot smell and wetness, and a 1:1.5 coco extraction on A plus one healthy comparison plant before further flushing or feed changes. See [2026-05-26](../daily/2026-05-26.md).
+Day 74 / Flower Day 24: Visible tops remain upright with purple-toned flowers. The A-versus-D coco extraction shifted the diagnosis away from active low-pH lockout and toward high EC plus wet/slower root-zone cycling: A measured pH 5.78 / EC 4.4, while healthy D measured pH 5.97 / EC 3.0, and A's sample was visibly wetter. A's Autopot valve remains closed after the tray/stand was cleaned; let A dry back until the top coco is no longer visibly wet before any controlled weak pH 5.8 top rinse. See [2026-05-27](../daily/2026-05-27.md).
 
 ## Timeline
 
@@ -73,3 +73,4 @@ Day 73 / Flower Day 23: Close manual photos show persistent lime/yellow color wi
 - 2026-05-24 — [Day 71 / Flower Day 21: limited view shows upright purple flower tops; moisture stable near 59%, A tray/runoff pH+EC recheck remains required](../daily/2026-05-24.md)
 - 2026-05-25 — [Day 72 / Flower Day 22: limited view shows upright purple flower tops; moisture stable near 59.7%, A tray/runoff pH+EC recheck remains required](../daily/2026-05-25.md)
 - 2026-05-26 — [Day 73 / Flower Day 23: manual closeups show persistent lime/yellow color and edge/tip necrosis; feeder tray pulled/closed overnight, diagnostic root-zone pH/EC extraction planned after lights-on](../daily/2026-05-26.md)
+- 2026-05-27 — [Day 74 / Flower Day 24: upright purple flower tops visible; A-vs-D extraction shows pH in range but A high EC/wetter; valve closed and dryback continued before any weak top rinse](../daily/2026-05-27.md)

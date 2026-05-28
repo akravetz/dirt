@@ -4,7 +4,7 @@ type: hardware
 sources: []
 related: [wiki/concepts/vpd.md, wiki/environment/temperature.md, wiki/environment/humidity.md, wiki/hardware/ptz-camera.md, wiki/overview.md]
 created: 2026-05-02
-updated: 2026-05-15
+updated: 2026-05-27
 ---
 
 # Thermal Imaging — PureThermal Mini Pro + FLIR Lepton 3.5
@@ -126,6 +126,57 @@ thermal_overlay.jpg          # human-readable false-color overlay
 thermal_debug_color.jpg      # optional raw display-mode capture for bring-up only
 ```
 
+## Bench Bring-Up Notes
+
+2026-05-27: User plugged the PureThermal into the local USB hub. Linux enumerated it successfully as `PureThermal (fw:v1.3.0): PureTh` on bus path `usb-0000:00:14.0-3.4`, serial `801c0019-5105-3133-3733-303400000000`.
+
+Observed V4L2 nodes:
+
+| Node | Role |
+|---|---|
+| `/dev/video1` | Video capture node |
+| `/dev/video3` | UVC metadata capture node |
+
+Supported `/dev/video1` formats from `v4l2-ctl --list-formats-ext`:
+
+| Format | Size | Use |
+|---|---:|---|
+| `Y16 ` | 160x120 or 160x122 | Raw 16-bit thermal capture; use this for measurements. |
+| `BGR3` | 160x120 | 24-bit color-scaled image; useful for quick visual inspection only. |
+| `RGBP` | 160x120 | 16-bit RGB 5-6-5 color output. |
+| `UYVY` | 160x120 | UVC color/video output. |
+| `GREY` | 160x120 | 8-bit greyscale output. |
+
+Verified captures:
+
+```text
+debug/thermal/purethermal-y16-test.raw   # 38400 bytes, 160 * 120 * 2
+debug/thermal/purethermal-bgr3-test.raw  # 57600 bytes, 160 * 120 * 3
+debug/thermal/purethermal-bgr3-test.png  # color-scaled PNG for inspection
+```
+
+Raw conversion check:
+
+```text
+debug/thermal/purethermal-y16-conversion-test.raw  # 38400 bytes, one frame
+debug/thermal/purethermal-y16-10frame.raw          # 384000 bytes, ten frames
+debug/thermal/inspect_y16.py                       # temporary parser
+```
+
+Treating `Y16 ` values as TLinear centikelvin (`raw / 100 - 273.15`) produced plausible room-temperature values. A ten-frame bench capture after skipping ten startup frames reported:
+
+| Metric | Raw | Converted |
+|---|---:|---:|
+| min | 29304 | 19.89 deg C / 67.80 deg F |
+| median | 29647 | 23.32 deg C / 73.98 deg F |
+| mean | 29707.63 | 23.93 deg C / 75.07 deg F |
+| p95 | 30117 | 28.02 deg C / 82.44 deg F |
+| max | 30204 | 28.89 deg C / 84.00 deg F |
+
+Per-frame median drift across the ten-frame capture was 0.04 deg C, so the raw stream is stable over a one-second bench sample. At roughly the same time, the main-tent SHT45 air reading was 20.8 deg C / 69.44 deg F. Do not treat the +2.5 deg C thermal-vs-air difference as a calibrated offset yet because the camera was on the USB hub/bench, not mounted against a known target in the tent.
+
+The color-scaled output works, but keep it out of measurement logic. The next useful step is validating the converted `Y16 ` values against a known-temperature matte target.
+
 ## Mounting Plan
 
 Preferred mount: fixed overhead or high front/top angle aimed at the SCROG plane.
@@ -193,12 +244,12 @@ Add exact product links after specific listings are selected.
 
 ## Bring-Up Checklist
 
-1. Connect outside the tent and verify USB enumeration with `lsusb`.
-2. Identify the video node with `v4l2-ctl --list-devices`.
-3. Check supported formats with `v4l2-ctl --list-formats-ext`.
-4. Verify colorized UVC output for basic hardware health.
-5. Verify raw Y16/GRAY16_LE capture.
-6. Convert raw values to deg F / deg C and validate against a known target.
+1. Done 2026-05-27 — connect outside the tent and verify USB enumeration with `lsusb`.
+2. Done 2026-05-27 — identify the video node with `v4l2-ctl --list-devices`.
+3. Done 2026-05-27 — check supported formats with `v4l2-ctl --list-formats-ext`.
+4. Done 2026-05-27 — verify colorized UVC output for basic hardware health.
+5. Done 2026-05-27 — verify raw `Y16 `/GRAY16_LE capture.
+6. Partially done 2026-05-27 — confirm raw `Y16 ` conversion to deg F / deg C; still validate against a known target.
 7. Create a udev rule for a stable `/dev/thermal-camera` symlink.
 8. Build the vented board enclosure and add cable strain relief.
 9. Clamp the mount to the tent pole/crossbar and route the cable with a drip loop.

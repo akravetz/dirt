@@ -1,7 +1,7 @@
 ---
 title: Index
 type: index
-updated: 2026-05-26
+updated: 2026-05-27
 ---
 
 # Grow Wiki Index
@@ -15,10 +15,10 @@ updated: 2026-05-26
 - [Hosted Control Plane](decisions/2026-05-05-hosted-control-plane.md) — Railway web UI/API plus outbound local gateway; remote inspection and PTZ-only command intent without moving hardware authority to cloud
 
 ## Plants
-- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; Flower Day 23; upright purple flower tops; moisture stable near 59.88%; tray/runoff pH+EC recheck still required
-- [Plant B](plants/plant-b.md) — 🟡 Secondary; Flower Day 23; dedicated view nearly fully fan-obstructed; moisture 96.25% pinned — dryback verification urgent
-- [Plant C](plants/plant-c.md) — 🟡 Secondary; Flower Day 23; partly fan-obstructed purple-toned flowers; moisture 91.29% saturated — lower-leaf/root-zone watch
-- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; Flower Day 23; upright sativa-leaning purple flower tops; moisture lower and drifting near 47.02% — verify by hand
+- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; Flower Day 24; upright purple flower tops; extraction pH in range but A EC high/wetter than D; valve closed and dryback continued before any weak top rinse
+- [Plant B](plants/plant-b.md) — 🟡 Secondary; Flower Day 24; dedicated view non-diagnostic behind fan; moisture 96.09% pinned — dryback verification urgent
+- [Plant C](plants/plant-c.md) — 🟡 Secondary; Flower Day 24; partly fan-obstructed purple-toned flower sites; moisture 91.37% saturated — lower-leaf/root-zone watch
+- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; Flower Day 24; upright sativa-leaning purple flower tops; moisture signal moved sharply wetter to 48.81% — verify by hand
 
 ## Daily Logs
 - [2026-03-27](daily/2026-03-27.md) — Day 13: Pre-transplant; 2–3 leaf sets
@@ -71,6 +71,7 @@ updated: 2026-05-26
 - [2026-05-24](daily/2026-05-24.md) — Day 71 / Flower Day 21: full photo coverage but B/C fan-obstructed; main entered late flower with lights-on VPD in range but RH high; Plant B/C moisture pinned 🔴; breeding Flower Day 0 wet/low
 - [2026-05-25](daily/2026-05-25.md) — Day 72 / Flower Day 22: full photo coverage but B/C fan-obstructed; main current VPD wet/low at 1.01 kPa with high RH; Plant B/C moisture pinned 🔴; breeding corrected drier
 - [2026-05-26](daily/2026-05-26.md) — Day 73 / Flower Day 23: full photo coverage but Plant B fan-obstructed; main current VPD recovered to dry edge but overnight still wet/low; Plant B/C moisture pinned 🔴; breeding dry/high
+- [2026-05-27](daily/2026-05-27.md) — Day 74 / Flower Day 24: full photo coverage but Plant B non-diagnostic; main lights-on VPD in range but overnight wet/low; Plant B/C moisture pinned 🔴; Plant D moisture signal moved sharply wetter
 
 ## Environment
 - [Temperature](environment/temperature.md) — Trend log; targets by phase; notable events
@@ -100,7 +101,8 @@ updated: 2026-05-26
 - [Damping Off](concepts/damping-off.md) — Fungal disease; symptoms, prevention, current risk assessment (RH elevated)
 - [DLI & Light Management](concepts/dli-light-management.md) — Daily Light Integral, PPFD targets, Fold-650 ramp plan
 - [Flushing (Coco)](concepts/flushing.md) — Pre-harvest flush protocol; coco timing (5–7 days); Autopot procedure
-- [Curing](concepts/curing.md) — Post-dry Grove Bag curing workflow: 58–62% RH target, 75% fill, first-two-week checks, jar fallback, and long-term storage notes
+- [Drying](concepts/drying.md) — Post-harvest dry-room targets: water-activity endpoint, VPD/rate control, temperature guardrails, sealed-test handoff, and automation notes
+- [Curing](concepts/curing.md) — Post-dry curing workflow: 58–62% equilibrium RH / 0.58–0.62 aw target, Grove Bag default, jar fallback, and storage notes
 - [Lollipopping & Defoliation](concepts/lollipopping-defoliation.md) — Flip-day techniques; SCROG integration; week 3 hard stop
 - [Trichome Stages](concepts/trichome-stages.md) — Harvest timing; clear/cloudy/amber; pheno hunt evaluation criteria
 - [VPD](concepts/vpd.md) — Vapor Pressure Deficit: formula, targets by stage, current situation, coco interaction

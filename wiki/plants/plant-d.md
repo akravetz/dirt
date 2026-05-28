@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-05-26
+updated: 2026-05-27
 ---
 
 # Plant D
@@ -19,7 +19,7 @@ updated: 2026-05-26
 
 ## Current State
 
-Day 73 / Flower Day 23: Dedicated photo shows upright sativa-leaning purple flower tops, while rough moisture is lower and drifting slowly near 47.0%. Verify media/tray/probe conditions by hand before acting on the lower signal. See [2026-05-26](../daily/2026-05-26.md).
+Day 74 / Flower Day 24: Dedicated photo shows upright sativa-leaning purple flower tops, while rough moisture moved sharply wetter to 48.81% from the morning signal. Verify media/tray/probe conditions by hand before treating the movement as true rewetting or changing irrigation assumptions. See [2026-05-27](../daily/2026-05-27.md).
 
 ## Timeline
 
@@ -74,3 +74,4 @@ Day 73 / Flower Day 23: Dedicated photo shows upright sativa-leaning purple flow
 - 2026-05-24 — [Day 71 / Flower Day 21: upright sativa-leaning purple flower tops visible; moisture lower but stable near 47.1%, verify media/tray/probe by hand](../daily/2026-05-24.md)
 - 2026-05-25 — [Day 72 / Flower Day 22: upright sativa-leaning purple flower tops visible; moisture lower but stable near 47.5%, verify media/tray/probe by hand](../daily/2026-05-25.md)
 - 2026-05-26 — [Day 73 / Flower Day 23: upright sativa-leaning purple flower tops visible; moisture lower and drifting near 47.0%, verify media/tray/probe by hand](../daily/2026-05-26.md)
+- 2026-05-27 — [Day 74 / Flower Day 24: upright sativa-leaning purple flower tops visible; moisture signal moved sharply wetter to ~48.8%, verify media/tray/probe by hand](../daily/2026-05-27.md)
