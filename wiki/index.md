@@ -102,6 +102,8 @@ updated: 2026-05-27
 - [DLI & Light Management](concepts/dli-light-management.md) — Daily Light Integral, PPFD targets, Fold-650 ramp plan
 - [Flushing (Coco)](concepts/flushing.md) — Pre-harvest flush protocol; coco timing (5–7 days); Autopot procedure
 - [Trimming](concepts/trimming.md) — Post-harvest trim strategy: hybrid dry-trim default, wet/dry tradeoffs, hand-trim standard, trim-material handling, and logging fields
+- [Dry Sift Hash](concepts/dry-sift-hash.md) — Solventless dry-screen hash for purple sugar trim/popcorn: color-preservation tradeoff, screen workflow, grades, pressing, and logging
+- [Fresh Frozen Bubble Hash](concepts/fresh-frozen-bubble-hash.md) — Solventless ice-water hash from fresh frozen trim/popcorn: terpene-preserving workflow, micron fractions, drying risk, and purple-water reality
 - [Drying](concepts/drying.md) — Post-harvest dry-room targets: water-activity endpoint, VPD/rate control, temperature guardrails, sealed-test handoff, and automation notes
 - [Curing](concepts/curing.md) — Post-dry curing workflow: 58–62% equilibrium RH / 0.58–0.62 aw target, Grove Bag default, jar fallback, and storage notes
 - [Lollipopping & Defoliation](concepts/lollipopping-defoliation.md) — Flip-day techniques; SCROG integration; week 3 hard stop
