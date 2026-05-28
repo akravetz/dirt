@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-05-27
+updated: 2026-05-28
 ---
 
 # Plant A
@@ -18,7 +18,7 @@ updated: 2026-05-27
 
 ## Current State
 
-Day 74 / Flower Day 24: Visible tops remain upright with purple-toned flowers. The A-versus-D coco extraction shifted the diagnosis away from active low-pH lockout and toward high EC plus wet/slower root-zone cycling: A measured pH 5.78 / EC 4.4, while healthy D measured pH 5.97 / EC 3.0, and A's sample was visibly wetter. A's Autopot valve remains closed after the tray/stand was cleaned; let A dry back until the top coco is no longer visibly wet before any controlled weak pH 5.8 top rinse. See [2026-05-27](../daily/2026-05-27.md).
+Day 75 / Flower Day 25: Visible tops remain upright with purple flowers and active white pistils, while rough moisture has moved drier to 52.13% now. Continue the high-EC/wet-root-zone dryback plan from the 2026-05-27 extraction; inspect top coco before any controlled weak pH 5.8 top rinse. See [2026-05-28](../daily/2026-05-28.md).
 
 ## Timeline
 
@@ -74,3 +74,4 @@ Day 74 / Flower Day 24: Visible tops remain upright with purple-toned flowers. T
 - 2026-05-25 — [Day 72 / Flower Day 22: limited view shows upright purple flower tops; moisture stable near 59.7%, A tray/runoff pH+EC recheck remains required](../daily/2026-05-25.md)
 - 2026-05-26 — [Day 73 / Flower Day 23: manual closeups show persistent lime/yellow color and edge/tip necrosis; feeder tray pulled/closed overnight, diagnostic root-zone pH/EC extraction planned after lights-on](../daily/2026-05-26.md)
 - 2026-05-27 — [Day 74 / Flower Day 24: upright purple flower tops visible; A-vs-D extraction shows pH in range but A high EC/wetter; valve closed and dryback continued before any weak top rinse](../daily/2026-05-27.md)
+- 2026-05-28 — [Day 75 / Flower Day 25: upright purple flower tops visible; rough moisture drier near 52%, continue dryback/high-EC watch before any weak top rinse](../daily/2026-05-28.md)

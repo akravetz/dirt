@@ -213,9 +213,9 @@ def default_climate_policy(
                 ),
                 lights_off=PhaseClimatePolicy(
                     phase="lights_off",
-                    vpd_kpa=Band(1.0, 1.2),
+                    vpd_kpa=Band(1.1, 1.3),
                     temperature_f=Band(70.0, 72.0),
-                    rh_max_pct=65.0,
+                    rh_max_pct=60.0,
                 ),
             ),
         ),

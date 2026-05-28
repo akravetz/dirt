@@ -580,8 +580,8 @@ def test_drying_fan_enters_near_rh_ceiling_for_current_flower_late_policy() -> N
         stage="flower_late",
         lights_on=False,
         temperature_f=70.5,
-        vpd_kpa=0.88,
-        rh_pct=63.6,
+        vpd_kpa=1.04,
+        rh_pct=58.6,
         current_fan_pct=POLICY.fan.floor_pct,
     )
 
@@ -594,8 +594,8 @@ def test_drying_fan_does_not_enter_below_rh_hysteresis_threshold() -> None:
         stage="flower_late",
         lights_on=False,
         temperature_f=70.5,
-        vpd_kpa=0.88,
-        rh_pct=63.4,
+        vpd_kpa=1.04,
+        rh_pct=58.4,
         current_fan_pct=POLICY.fan.floor_pct,
     )
 
@@ -608,8 +608,8 @@ def test_drying_fan_holds_until_rh_exit_threshold_once_elevated() -> None:
         stage="flower_late",
         lights_on=False,
         temperature_f=70.5,
-        vpd_kpa=0.88,
-        rh_pct=61.5,
+        vpd_kpa=1.15,
+        rh_pct=56.5,
         current_fan_pct=70,
     )
 
@@ -630,8 +630,8 @@ def test_drying_fan_rh_hold_survives_inside_vpd_band_with_heater_active() -> Non
         stage="flower_late",
         lights_on=False,
         temperature_f=71.8,
-        vpd_kpa=1.03,
-        rh_pct=61.5,
+        vpd_kpa=1.15,
+        rh_pct=56.5,
         current_fan_pct=70,
         current_heater_level=2,
     )
@@ -648,8 +648,8 @@ def test_drying_fan_starts_exiting_below_rh_hysteresis_threshold() -> None:
         stage="flower_late",
         lights_on=False,
         temperature_f=70.5,
-        vpd_kpa=0.88,
-        rh_pct=60.9,
+        vpd_kpa=1.15,
+        rh_pct=55.9,
         current_fan_pct=70,
     )
 

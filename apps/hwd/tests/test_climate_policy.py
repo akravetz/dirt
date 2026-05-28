@@ -40,6 +40,16 @@ def test_lights_off_stage_policy_is_distinct_from_lights_on() -> None:
     assert lights_off.rh_max_pct == 75.0
 
 
+def test_late_flower_lights_off_policy_stays_drier() -> None:
+    policy = default_climate_policy()
+
+    lights_off = policy.for_stage_phase("flower_late", "lights_off")
+
+    assert lights_off.vpd_kpa.as_tuple() == (1.1, 1.3)
+    assert lights_off.temperature_f.as_tuple() == (70.0, 72.0)
+    assert lights_off.rh_max_pct == 60.0
+
+
 def test_hard_minimum_temperature_is_explicit_and_configurable() -> None:
     default_policy = default_climate_policy()
     custom_policy = default_climate_policy(
@@ -58,7 +68,7 @@ def test_rh_max_values_are_explicit_by_stage_and_phase() -> None:
     assert policy.for_stage_phase("flower_early", "lights_on").rh_max_pct == 65.0
     assert policy.for_stage_phase("flower_early", "lights_off").rh_max_pct == 75.0
     assert policy.for_stage_phase("flower_late", "lights_on").rh_max_pct == 55.0
-    assert policy.for_stage_phase("flower_late", "lights_off").rh_max_pct == 65.0
+    assert policy.for_stage_phase("flower_late", "lights_off").rh_max_pct == 60.0
 
 
 def test_fan_limits_are_explicit_and_configurable() -> None:

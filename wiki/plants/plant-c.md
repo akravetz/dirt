@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/coco-coir.md, wiki/concepts/lst.md, wiki/environment/nutrients.md]
 created: 2026-04-06
-updated: 2026-05-27
+updated: 2026-05-28
 ---
 
 # Plant C
@@ -19,7 +19,7 @@ updated: 2026-05-27
 
 ## Current State
 
-Day 74 / Flower Day 24: Partly fan-obstructed/soft view still shows purple-toned flower sites, while C remains saturated near 91.37%. Keep root-zone and interior-airflow checks active before treating shaded leaf color as a feed-strength issue. See [2026-05-27](../daily/2026-05-27.md).
+Day 75 / Flower Day 25: Partly fan-obstructed/soft view still shows purple-toned flower sites, while C remains saturated near 91.45%. Keep root-zone and interior-airflow checks active before treating shaded leaf color as a feed-strength issue. See [2026-05-28](../daily/2026-05-28.md).
 
 ## Timeline
 
@@ -75,3 +75,4 @@ Day 74 / Flower Day 24: Partly fan-obstructed/soft view still shows purple-toned
 - 2026-05-25 — [Day 72 / Flower Day 22: fan-obstructed view with blurred purple-toned flowers; moisture ~91.2% remains saturated, keep root-zone/airflow watch](../daily/2026-05-25.md)
 - 2026-05-26 — [Day 73 / Flower Day 23: partly fan-obstructed active purple-toned flowers; moisture ~91.3% remains saturated, keep root-zone/airflow watch](../daily/2026-05-26.md)
 - 2026-05-27 — [Day 74 / Flower Day 24: partly fan-obstructed purple-toned flower sites; moisture ~91.4% remains saturated, keep root-zone/airflow watch](../daily/2026-05-27.md)
+- 2026-05-28 — [Day 75 / Flower Day 25: partly fan-obstructed purple-toned flower sites; moisture ~91.5% remains saturated, keep root-zone/airflow watch](../daily/2026-05-28.md)

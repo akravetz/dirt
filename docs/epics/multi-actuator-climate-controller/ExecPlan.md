@@ -200,7 +200,7 @@ Initial policy should be conservative and explicit. Suggested starting values:
 - flower early lights-on: VPD 1.1-1.3 kPa, temp 76-78°F, RH max 65% unless the user overrides to 80%;
 - flower early lights-off: VPD 0.9-1.1 kPa, temp 70-72°F, RH max 75-80%;
 - flower late lights-on: VPD 1.2-1.5 kPa, temp 74-78°F, RH max 55-60%;
-- flower late lights-off: VPD 1.0-1.2 kPa, temp 70-72°F, RH max 65%.
+- flower late lights-off: VPD 1.1-1.3 kPa, temp 70-72°F, RH max 60%.
 
 These are starting controller policy values, not hidden constants. Implement them in `Settings` or a policy module so they are easy to inspect and tune. If the user confirms flower RH max should be exactly 80%, represent it directly as an envelope value even if VPD policy normally keeps actual RH lower.
 
