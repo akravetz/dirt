@@ -2,7 +2,7 @@
 title: Concept — Plant Training Methods
 type: concept
 sources: [raw/chat-history/bible.md, raw/chat-history/all-chat-summary.md]
-related: [wiki/concepts/lst.md, wiki/concepts/scrog.md, wiki/plants/plant-a.md, wiki/plants/plant-b.md, wiki/plants/plant-c.md, wiki/plants/plant-d.md, wiki/decisions/2026-03-16-medium-and-training.md]
+related: [wiki/concepts/lst.md, wiki/concepts/scrog.md, wiki/grows/main-2026-03-15/plants/plant-a.md, wiki/grows/main-2026-03-15/plants/plant-b.md, wiki/grows/main-2026-03-15/plants/plant-c.md, wiki/grows/main-2026-03-15/plants/plant-d.md, wiki/decisions/2026-03-16-medium-and-training.md]
 created: 2026-04-06
 updated: 2026-04-07
 ---

@@ -2,7 +2,7 @@
 title: "Decision: Anthocyanin Priority Shift (Plants A & D Elevated)"
 type: decision
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
-related: [wiki/concepts/anthocyanin.md, wiki/plants/plant-a.md, wiki/plants/plant-d.md, wiki/daily/2026-04-01.md]
+related: [wiki/concepts/anthocyanin.md, wiki/grows/main-2026-03-15/plants/plant-a.md, wiki/grows/main-2026-03-15/plants/plant-d.md, wiki/daily/2026-04-01.md]
 created: 2026-04-06
 updated: 2026-04-06
 ---

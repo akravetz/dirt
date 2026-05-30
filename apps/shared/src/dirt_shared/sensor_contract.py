@@ -69,6 +69,9 @@ DEVICE_METRICS: dict[str, DeviceContract] = {
     "reservoir-node": {
         "reservoir_pressure_raw": ("reservoir_pressure_raw", True, True),
         "reservoir_in": ("reservoir_in", True, True),
+        "reservoir_ph_raw": ("reservoir_ph_raw", True, True),
+        "reservoir_ph_voltage": ("reservoir_ph_voltage", True, True),
+        "reservoir_ph": ("reservoir_ph", True, True),
     },
 }
 

@@ -30,6 +30,9 @@ _PLAUSIBLE: dict[str, float] = {
     "soil_moisture_raw": 1800.0,
     "reservoir_pressure_raw": 22000.0,
     "reservoir_in": 12.0,
+    "reservoir_ph_raw": 16000.0,
+    "reservoir_ph_voltage": 2.0,
+    "reservoir_ph": 4.18,
 }
 
 

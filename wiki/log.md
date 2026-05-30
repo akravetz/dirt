@@ -1096,3 +1096,20 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - **Plant D moisture:** D is lower/slightly drier near 44.96%; keep media/tray/probe hand-check open because recent probe movement was large.
 - **Breeding-tent watch:** Breeding is Flower Day 4 and dry/high now at 77.49°F / 50.52% RH / 1.59 kPa; check pot weight and fan exposure.
 - Updated: `daily/2026-05-28.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-05-30] daily | Day 77 / Flower Day 27 - full photos; lights-on VPD upper edge
+- Added `daily/2026-05-29.md` as a continuity entry because raw photos existed for 2026-05-29 but no daily page had been created; no 2026-05-29 sensor JSON or attached photo synthesis was available, so no per-plant observations were invented.
+- Photos captured across all 5 expected main presets plus the breeding overview. The main canopy remains dense, upright, and purple-flowered; Plant B is still non-diagnostic behind the fan, and several other views are partly obstructed.
+- **Main-tent environment:** Morning/current VPD are in late-flower range at 1.32/1.50 kPa, but overnight stayed wet/low at 1.07 kPa with 58.28% RH. Keep dark-cycle drying and airflow active rather than adding lights-on humidity.
+- **Plant A follow-up:** Visible tops are upright with purple flowers, and rough moisture moved sharply drier near 35.55%; hand-check top coco/tray state before any weak rinse or refeed decision.
+- **Plant B/C moisture remains critical:** B is pinned at 95.43%, and C remains high at 88.72% despite drifting drier; manual tray/float/media/probe checks remain urgent, especially because B's photo is non-diagnostic.
+- **Plant D moisture:** D is low/flat near 44.72%; keep media/tray/probe hand-check open because recent probe movement was large.
+- **Breeding-tent watch:** Breeding is Flower Day 6 and usable now at 75.11°F / 50.26% RH / 1.48 kPa; keep pot-weight and fan-exposure checks active.
+- Updated: `daily/2026-05-29.md`, `daily/2026-05-30.md`, `plants/plant-{a,b,c,d}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-05-30] query-filed | Grow-scoped plant wiki and Track A male confirmations
+- Restructured plant pages under `wiki/grows/<grow_run_id>/plants/` to match the database model where `growrun.grow_run_id` owns scoped `plant.plant_id` values.
+- Moved main A-D plant pages to `wiki/grows/main-2026-03-15/plants/` and added grow `README.md` landing pages for `main-2026-03-15` and `breeding-track-a-2026-04-28`, matching the existing section-page convention used by `wiki/breeding/README.md`.
+- Created Track A pollen-run plant pages for R1-R5 under `wiki/grows/breeding-track-a-2026-04-28/plants/`.
+- Filed today's breeding update: seven regular seeds germinated, two died during transplant to coco coir, five active plants remain (R1-R5), and R1/R4 have confirmed male pre-sex organs / male sex expression as of 2026-05-30.
+- Updated wiki conventions, wiki routing instructions, daily-update workflow notes, daily synthesis prompt text, and wiki lint to recognize grow-scoped plant pages.

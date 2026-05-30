@@ -2,7 +2,7 @@
 title: Concept — Nutrient Burn
 type: concept
 sources: []
-related: [wiki/environment/nutrients.md, wiki/concepts/ec.md, wiki/plants/plant-a.md]
+related: [wiki/environment/nutrients.md, wiki/concepts/ec.md, wiki/grows/main-2026-03-15/plants/plant-a.md]
 created: 2026-04-12
 updated: 2026-04-12
 ---

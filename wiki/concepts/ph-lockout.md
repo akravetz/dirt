@@ -2,7 +2,7 @@
 title: Concept — pH Lockout
 type: concept
 sources: []
-related: [wiki/environment/nutrients.md, wiki/concepts/coco-coir.md, wiki/plants/plant-c.md]
+related: [wiki/environment/nutrients.md, wiki/concepts/coco-coir.md, wiki/grows/main-2026-03-15/plants/plant-c.md]
 created: 2026-04-12
 updated: 2026-04-12
 ---
@@ -51,6 +51,6 @@ pH lockout (also called nutrient lockout) occurs when the root zone pH drifts ou
 
 ## Current Relevance
 
-**Plant C** (as of Day 28, Apr 11) — brown/rust spots on multiple leaves, most likely diagnosis is pH lockout from pH drift during hand-watering. Runoff pH/EC test is the top outstanding action item. See [Plant C](../plants/plant-c.md).
+**Plant C** (as of Day 28, Apr 11) — brown/rust spots on multiple leaves, most likely diagnosis is pH lockout from pH drift during hand-watering. Runoff pH/EC test is the top outstanding action item. See [Plant C](../grows/main-2026-03-15/plants/plant-c.md).
 
 Denver tap water at pH 8.5–8.8 makes pH drift especially likely if pH Down is inconsistently applied. See [Nutrients & pH](../environment/nutrients.md).

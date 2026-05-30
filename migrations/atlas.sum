@@ -1,4 +1,4 @@
-h1:rnoRjlal4yrQ8UCM9otVIrAR2DrRy60xUCD3oRIOIFw=
+h1:hVK3nPKdstZxJbvYmN4bfLl4/sMjGPOtblIeeJathYI=
 20260420003127_init.sql h1:GzLCe8kSX0b0TzsHZJNidBWSoeYe83HgnHXdkhGi1Ko=
 20260423180901_add_growstate_timezone.sql h1:hwtimWMWdMD8iw7GuYOMazB5dHSq40fKOSbUFDFPg0s=
 20260428003304_add_govee_sensor_source.sql h1:l7vbhthRMWFQVcLwvX+yhzrzLD0Tcp33QrLpmU4F7jQ=
@@ -28,3 +28,5 @@ h1:rnoRjlal4yrQ8UCM9otVIrAR2DrRy60xUCD3oRIOIFw=
 20260525041423_add_device_hostname.sql h1:Ku0ZNzo+7vz32jP6ux1vBCf3CZW780H+2iK5U+w9OqM=
 20260525043000_seed_shelly_breeding_drip_pump.sql h1:dXRNomchjyvQbiiKEt7CdM5ygPTYxcAkV0WHBN4j8BQ=
 20260525043001_add_irrigation_pulse_storage.sql h1:1Id1n/LYeK3TWAnfWEdr1x7f+i/RugYj9Wzta9Ztyng=
+20260530153000_add_reservoir_ph_probe_voltage.sql h1:drByUuDYArMe28TdrMeqsEa7MZTxVyrAoqRl7xmqjoA=
+20260530200000_add_reservoir_ph_metric.sql h1:ofWFDybrN1hheV2Oi/B8RSrP0WPc9g3GifaikfYoXhM=

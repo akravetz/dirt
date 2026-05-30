@@ -41,16 +41,18 @@ class ClimateTuning:
     heater_ki: float = 0.04
     cooling_fan_kp: float = 10.0
     cooling_fan_ki: float = 0.05
-    drying_fan_share: float = 0.5
+    drying_fan_share: float = 1.0
     integrator_clamp_pct: float = 100.0
     heater_level_hysteresis_pct: float = 5.0
     heater_minimum_dwell_s: float = 300.0
-    fan_drying_enter_kpa: float = 0.85
-    fan_drying_exit_kpa: float = 0.95
-    fan_drying_rh_enter_below_max_pct: float = 1.5
-    fan_drying_rh_exit_below_max_pct: float = 4.0
+    dehumidifier_drying_enter_pct: float = 25.0
+    dehumidifier_drying_exit_pct: float = 10.0
+    dehumidifier_rh_enter_below_max_pct: float = 2.0
+    dehumidifier_rh_exit_below_max_pct: float = 4.0
+    fan_minimum_dwell_s: float = 180.0
     fan_slew_step_pct: int = 15
     fan_slew_safety_temp_margin_f: float = 0.5
+    fan_rh_emergency_margin_pct: float = 3.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,6 +84,7 @@ class ClimateState:
     dehumidifier_last_changed_at: datetime | None = None
     heater_level: int = 0
     heater_last_changed_at: datetime | None = None
+    fan_last_changed_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -569,7 +572,7 @@ class _Demand:
     vpd_too_high: bool
     hard_low_temp: bool
     heater_safety_cap: bool
-    dehumidifier_owns_vpd: bool
+    dehumidifier_requested: bool
     vpd_recovery_heat: bool
     reasons: tuple[str, ...]
 
@@ -586,7 +589,7 @@ class _DemandReasonFlags:
     rh_guard: bool
     vpd_too_high: bool
     vpd_too_low: bool
-    dehumidifier_owns_vpd: bool
+    dehumidifier_requested: bool
     hard_low_temp: bool
     temp_low: bool
     temp_high: bool
@@ -613,9 +616,30 @@ class _UpdateContext:
 @dataclass(frozen=True, slots=True)
 class _FanSlewContext:
     policy: ClimatePolicy
+    state: ClimateState
     inp: ClimateInput
     demand: _Demand
     target_high_f: float
+    tuning: ClimateTuning
+
+
+@dataclass(frozen=True, slots=True)
+class _FanAllocationContext:
+    policy: ClimatePolicy
+    state: ClimateState
+    inp: ClimateInput
+    demand: _Demand
+    heater_level: int
+    tuning: ClimateTuning
+
+
+@dataclass(frozen=True, slots=True)
+class _DehumidifierRequestContext:
+    policy: ClimatePolicy
+    state: ClimateState
+    inp: ClimateInput
+    rh_guard: bool
+    drying_pct: float
     tuning: ClimateTuning
 
 
@@ -690,11 +714,14 @@ def decide_climate(
         tuning=tuning,
     )
     fan_pct, fan_reasons, conflicts = _allocate_fan(
-        policy,
-        inp,
-        demand,
-        heater_level=heater_level,
-        tuning=tuning,
+        _FanAllocationContext(
+            policy=policy,
+            state=state,
+            inp=inp,
+            demand=demand,
+            heater_level=heater_level,
+            tuning=tuning,
+        )
     )
     humidifier_pct, humidifier_reasons = _allocate_humidifier(
         demand,
@@ -924,10 +951,6 @@ def _compute_demand(
     vpd_too_low = inp.vpd_kpa < phase_policy.vpd_kpa.low - vpd_deadband_kpa
     hard_low_temp = inp.temperature_f < policy.hard_min_temperature_f
     heater_safety_cap = inp.temperature_f >= HEATER_SAFETY_MAX_F
-    dehumidifier_owns_vpd = rh_guard or (
-        vpd_too_low and _rh_high_for_dehumidifier(policy, inp)
-    )
-
     humidifier_error = (
         max(0.0, inp.vpd_kpa - phase_policy.vpd_kpa.high) if vpd_too_high else 0.0
     )
@@ -1010,6 +1033,19 @@ def _compute_demand(
     raw_drying_pct = drying_p + drying_integral
     raw_heat_pct = heat_p + heat_integral
     raw_cooling_fan_pct = cooling_fan_p + cooling_fan_integral
+    drying_pct = (
+        _pct(raw_drying_pct) if drying_vpd_error > 0 or drying_rh_error > 0 else 0.0
+    )
+    dehumidifier_requested = _dehumidifier_requested_from_drying_demand(
+        _DehumidifierRequestContext(
+            policy=policy,
+            state=state,
+            inp=inp,
+            rh_guard=rh_guard,
+            drying_pct=drying_pct,
+            tuning=tuning,
+        )
+    )
     clipped_cooling_fan_pct = min(
         policy.fan.max_pct - policy.fan.floor_pct,
         raw_cooling_fan_pct,
@@ -1020,7 +1056,7 @@ def _compute_demand(
             rh_guard=rh_guard,
             vpd_too_high=vpd_too_high,
             vpd_too_low=vpd_too_low,
-            dehumidifier_owns_vpd=dehumidifier_owns_vpd,
+            dehumidifier_requested=dehumidifier_requested,
             hard_low_temp=hard_low_temp,
             temp_low=False,
             temp_high=inp.temperature_f > phase_policy.temperature_f.high,
@@ -1033,9 +1069,7 @@ def _compute_demand(
         raw_heat_pct=raw_heat_pct,
         raw_cooling_fan_pct=raw_cooling_fan_pct,
         humidifier_pct=_pct(raw_humidifier_pct) if humidifier_error > 0 else 0.0,
-        drying_pct=_pct(raw_drying_pct)
-        if drying_vpd_error > 0 or drying_rh_error > 0
-        else 0.0,
+        drying_pct=drying_pct,
         heat_pct=_pct(raw_heat_pct) if heat_allowed and raw_heat_error > 0 else 0.0,
         cooling_fan_pct=round(_pct(clipped_cooling_fan_pct))
         if cooling_fan_error > 0
@@ -1049,7 +1083,7 @@ def _compute_demand(
         vpd_too_low=vpd_too_low,
         hard_low_temp=hard_low_temp,
         heater_safety_cap=heater_safety_cap,
-        dehumidifier_owns_vpd=dehumidifier_owns_vpd,
+        dehumidifier_requested=dehumidifier_requested,
         vpd_recovery_heat=vpd_recovery_heat,
         reasons=reasons,
     )
@@ -1077,6 +1111,34 @@ def _observed_drying_pct(policy: ClimatePolicy, inp: ClimateInput) -> float:
     return min(100.0, fan_delivery + dehumidifier_delivery)
 
 
+def _dehumidifier_requested_from_drying_demand(
+    ctx: _DehumidifierRequestContext,
+) -> bool:
+    if ctx.rh_guard:
+        return True
+    phase_policy = ctx.policy.for_stage_phase(
+        ctx.inp.stage,
+        phase_from_lights(ctx.inp.lights_on),
+    )
+    currently_on = _current_dehumidifier_on(ctx.state, ctx.inp)
+    rh_margin_pct = (
+        ctx.tuning.dehumidifier_rh_exit_below_max_pct
+        if currently_on
+        else ctx.tuning.dehumidifier_rh_enter_below_max_pct
+    )
+    rh_near_ceiling = ctx.inp.rh_pct is not None and (
+        ctx.inp.rh_pct >= phase_policy.rh_max_pct - rh_margin_pct
+    )
+    if currently_on:
+        return (
+            rh_near_ceiling
+            and ctx.drying_pct >= ctx.tuning.dehumidifier_drying_exit_pct
+        )
+    return (
+        rh_near_ceiling and ctx.drying_pct >= ctx.tuning.dehumidifier_drying_enter_pct
+    )
+
+
 def _vpd_recovery_heat_requested(
     policy: ClimatePolicy,
     state: ClimateState,
@@ -1094,13 +1156,6 @@ def _vpd_recovery_heat_requested(
     if current > 0 and inp.vpd_kpa < vpd_release_kpa:
         return True
     return vpd_too_low
-
-
-def _rh_high_for_dehumidifier(policy: ClimatePolicy, inp: ClimateInput) -> bool:
-    phase_policy = policy.for_stage_phase(inp.stage, phase_from_lights(inp.lights_on))
-    assert inp.rh_pct is not None  # noqa: S101 - narrowed by caller.
-    threshold = phase_policy.rh_max_pct - policy.dehumidifier.rh_deadband_pct
-    return inp.rh_pct >= threshold
 
 
 def _heat_p_term(
@@ -1125,8 +1180,8 @@ def _demand_reasons(flags: _DemandReasonFlags) -> tuple[str, ...]:
         reasons.append("temperature_trim_heat")
     if flags.vpd_recovery_heat:
         reasons.append("vpd_recovery_heat")
-    if flags.dehumidifier_owns_vpd:
-        reasons.append("dehumidifier_owns_vpd_recovery")
+    if flags.dehumidifier_requested:
+        reasons.append("dehumidifier_requested_for_drying")
     if flags.vpd_too_high:
         reasons.append("vpd_split_humidify")
     if flags.vpd_too_low:
@@ -1143,7 +1198,7 @@ def _allocate_dehumidifier(
     demand: _Demand,
 ) -> tuple[bool, str]:
     current_on = _current_dehumidifier_on(state, inp)
-    requested_on = demand.dehumidifier_owns_vpd
+    requested_on = demand.dehumidifier_requested
     if requested_on == current_on:
         return current_on, "dehumidifier_on" if current_on else "dehumidifier_off"
 
@@ -1261,13 +1316,14 @@ def _within_heater_dwell(
 
 
 def _allocate_fan(
-    policy: ClimatePolicy,
-    inp: ClimateInput,
-    demand: _Demand,
-    *,
-    heater_level: int,
-    tuning: ClimateTuning,
+    ctx: _FanAllocationContext,
 ) -> tuple[int, tuple[str, ...], tuple[str, ...]]:
+    policy = ctx.policy
+    state = ctx.state
+    inp = ctx.inp
+    demand = ctx.demand
+    heater_level = ctx.heater_level
+    tuning = ctx.tuning
     phase_policy = policy.for_stage_phase(inp.stage, phase_from_lights(inp.lights_on))
     max_elevated = policy.fan.max_pct - policy.fan.floor_pct
     drying_fan_pct = round(
@@ -1276,19 +1332,7 @@ def _allocate_fan(
     cooling_fan_pct = demand.cooling_fan_pct
     reasons: list[str] = []
     conflicts: list[str] = []
-
-    drying_fan_pct, hysteresis_reasons = _drying_fan_pct_after_hysteresis(
-        policy,
-        inp,
-        demand,
-        drying_fan_pct,
-        tuning,
-    )
-    reasons.extend(hysteresis_reasons)
-    rh_drying_fan_active = any(
-        reason in {"fan_drying_rh_enter", "fan_drying_rh_hysteresis_hold"}
-        for reason in hysteresis_reasons
-    )
+    drying_fan_active = drying_fan_pct > 0
 
     if heater_level > 0 and cooling_fan_pct > 0:
         cooling_fan_pct = 0
@@ -1299,31 +1343,26 @@ def _allocate_fan(
         and not (demand.rh_guard or demand.vpd_too_low)
     ):
         conflicts.append("heater_elevated_fan_cooling_suppressed")
-    if demand.vpd_recovery_heat and not demand.rh_guard and not rh_drying_fan_active:
+    if demand.vpd_recovery_heat and not demand.rh_guard and not drying_fan_active:
         drying_fan_pct = 0
+        drying_fan_active = False
     if heater_level > 0 and drying_fan_pct > 0:
-        if demand.rh_guard or demand.vpd_too_low or rh_drying_fan_active:
+        if demand.rh_guard or demand.vpd_too_low or drying_fan_active:
             reasons.append("heater_with_elevated_fan_drying_allowed")
         else:
             drying_fan_pct = 0
+            drying_fan_active = False
             conflicts.append("heater_elevated_fan_non_safety_suppressed")
 
     if _near_low_temperature(policy, inp) and not demand.rh_guard:
         drying_fan_pct = 0
+        drying_fan_active = False
     elevated = max(cooling_fan_pct, drying_fan_pct)
-    if elevated > 0:
-        fan_reason = (
-            "fan_elevated_for_drying"
-            if drying_fan_pct >= cooling_fan_pct
-            else "fan_elevated_for_cooling"
-        )
-        reasons.append(fan_reason)
-    else:
-        reasons.append("fan_floor")
     requested = policy.fan.floor_pct + elevated
-    fan_pct = _slew_fan_target(
+    fan_pct, pacing_reasons = _paced_fan_target(
         _FanSlewContext(
             policy=policy,
+            state=state,
             inp=inp,
             demand=demand,
             target_high_f=phase_policy.temperature_f.high,
@@ -1331,42 +1370,40 @@ def _allocate_fan(
         ),
         target_pct=requested,
     )
+    reasons.extend(pacing_reasons)
+    if elevated > 0:
+        fan_reason = (
+            "fan_elevated_for_drying"
+            if drying_fan_pct >= cooling_fan_pct
+            else "fan_elevated_for_cooling"
+        )
+        reasons.append(fan_reason)
+    elif fan_pct > policy.fan.floor_pct and inp.current_fan_pct > policy.fan.floor_pct:
+        reasons.append("fan_drying_decay")
+    else:
+        reasons.append("fan_floor")
     if fan_pct != requested:
         reasons.append("fan_slew_limited")
     return fan_pct, tuple(reasons), tuple(conflicts)
 
 
-def _drying_fan_pct_after_hysteresis(
-    policy: ClimatePolicy,
-    inp: ClimateInput,
-    demand: _Demand,
-    requested_pct: int,
-    tuning: ClimateTuning,
+def _paced_fan_target(
+    ctx: _FanSlewContext,
+    *,
+    target_pct: int,
 ) -> tuple[int, tuple[str, ...]]:
-    phase_policy = policy.for_stage_phase(inp.stage, phase_from_lights(inp.lights_on))
-    current_elevated = max(0, inp.current_fan_pct - policy.fan.floor_pct)
-    if inp.rh_pct is not None:
-        rh_enter_pct = (
-            phase_policy.rh_max_pct - tuning.fan_drying_rh_enter_below_max_pct
+    if not _fan_pacing_bypassed(ctx, target_pct=target_pct):
+        changed_at = ctx.state.fan_last_changed_at
+        elapsed_s = (
+            None if changed_at is None else (ctx.inp.now - changed_at).total_seconds()
         )
-        rh_exit_pct = phase_policy.rh_max_pct - tuning.fan_drying_rh_exit_below_max_pct
-        if current_elevated > 0 and inp.rh_pct >= rh_exit_pct:
-            return max(requested_pct, current_elevated), (
-                "fan_drying_rh_hysteresis_hold",
-            )
-        if inp.rh_pct > rh_enter_pct:
-            return requested_pct, ("fan_drying_rh_enter",)
-
-    if demand.rh_guard:
-        return requested_pct, ()
-    if demand.vpd_recovery_heat or inp.vpd_kpa is None:
-        return 0, ()
-
-    if current_elevated > 0 and inp.vpd_kpa < tuning.fan_drying_exit_kpa:
-        return max(requested_pct, current_elevated), ("fan_drying_hysteresis_hold",)
-    if inp.vpd_kpa < tuning.fan_drying_enter_kpa:
-        return requested_pct, ()
-    return 0, ()
+        if (
+            target_pct != ctx.inp.current_fan_pct
+            and elapsed_s is not None
+            and elapsed_s < ctx.tuning.fan_minimum_dwell_s
+        ):
+            return ctx.inp.current_fan_pct, ("fan_min_dwell",)
+    return _slew_fan_target(ctx, target_pct=target_pct), ()
 
 
 def _slew_fan_target(ctx: _FanSlewContext, *, target_pct: int) -> int:
@@ -1385,14 +1422,29 @@ def _slew_fan_target(ctx: _FanSlewContext, *, target_pct: int) -> int:
 
 
 def _fan_slew_bypassed(ctx: _FanSlewContext, *, target_pct: int) -> bool:
-    if ctx.demand.rh_guard or ctx.demand.hard_low_temp:
-        return True
-    if ctx.inp.temperature_f is not None and (
-        ctx.inp.temperature_f
-        >= ctx.target_high_f + ctx.tuning.fan_slew_safety_temp_margin_f
-    ):
+    if _fan_pacing_bypassed(ctx, target_pct=target_pct):
         return True
     return target_pct == ctx.inp.current_fan_pct
+
+
+def _fan_pacing_bypassed(ctx: _FanSlewContext, *, target_pct: int) -> bool:
+    if ctx.demand.hard_low_temp:
+        return True
+    phase_policy = ctx.policy.for_stage_phase(
+        ctx.inp.stage,
+        phase_from_lights(ctx.inp.lights_on),
+    )
+    if (
+        ctx.demand.rh_guard
+        and ctx.inp.rh_pct is not None
+        and ctx.inp.rh_pct
+        >= phase_policy.rh_max_pct + ctx.tuning.fan_rh_emergency_margin_pct
+    ):
+        return True
+    return ctx.inp.temperature_f is not None and (
+        ctx.inp.temperature_f
+        >= ctx.target_high_f + ctx.tuning.fan_slew_safety_temp_margin_f
+    )
 
 
 def _near_low_temperature(policy: ClimatePolicy, inp: ClimateInput) -> bool:
@@ -1424,7 +1476,7 @@ def _active_mode(demand: _Demand, allocation: _Allocation) -> str:
         return "hard_rh_guard"
     if allocation.humidifier_pct > 0 or demand.vpd_too_high:
         return "vpd_humidify"
-    if demand.dehumidifier_owns_vpd and allocation.dehumidifier_on:
+    if demand.dehumidifier_requested and allocation.dehumidifier_on:
         return "vpd_dehumidify"
     if demand.vpd_recovery_heat or (demand.vpd_too_low and allocation.heater_level > 0):
         return "vpd_heat_assist"
@@ -1507,7 +1559,10 @@ def _delivered_drying_diagnostic_pct(
 ) -> float:
     fan_delivery = (
         max(0.0, fan_pct - policy.fan.floor_pct)
-        if "fan_elevated_for_drying" in fan_reasons
+        if (
+            "fan_elevated_for_drying" in fan_reasons
+            or "fan_drying_decay" in fan_reasons
+        )
         else 0.0
     )
     dehumidifier_delivery = 60.0 if allocation.dehumidifier_on else 0.0
@@ -1575,6 +1630,7 @@ def _updated_state(
         inp,
     )
     heater_changed = allocation.heater_level != _current_heater_level(state, inp)
+    fan_changed = ctx.fan_pct != inp.current_fan_pct
     humidifier_integral = _track_integral(
         demand.humidifier_p_term,
         allocation.humidifier_pct,
@@ -1595,6 +1651,7 @@ def _updated_state(
         inp.now if dehumidifier_changed else state.dehumidifier_last_changed_at
     )
     heater_last_changed_at = inp.now if heater_changed else state.heater_last_changed_at
+    fan_last_changed_at = inp.now if fan_changed else state.fan_last_changed_at
     return replace(
         state,
         humidifier_integral=humidifier_integral,
@@ -1619,6 +1676,7 @@ def _updated_state(
         dehumidifier_last_changed_at=dehumidifier_last_changed_at,
         heater_level=allocation.heater_level,
         heater_last_changed_at=heater_last_changed_at,
+        fan_last_changed_at=fan_last_changed_at,
     )
 
 

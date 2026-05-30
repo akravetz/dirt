@@ -35,7 +35,13 @@ interface HoverPoint {
   ts: string;
 }
 
-type SparklineAccent = "temp" | "humidity" | "vpd" | "moisture" | "neutral";
+type SparklineAccent =
+  | "temp"
+  | "humidity"
+  | "vpd"
+  | "moisture"
+  | "reservoir"
+  | "neutral";
 
 interface SparklineProps {
   /** Metric display name; the article's accessible name + heading text. */
@@ -72,6 +78,7 @@ const ACCENT_STROKE: Record<SparklineAccent, string> = {
   humidity: "stroke-sensor-humidity",
   vpd: "stroke-sensor-vpd",
   moisture: "stroke-sensor-moisture",
+  reservoir: "stroke-sensor-reservoir",
   neutral: "stroke-ink",
 };
 const ACCENT_FILL: Record<SparklineAccent, string> = {
@@ -79,6 +86,7 @@ const ACCENT_FILL: Record<SparklineAccent, string> = {
   humidity: "fill-sensor-humidity",
   vpd: "fill-sensor-vpd",
   moisture: "fill-sensor-moisture",
+  reservoir: "fill-sensor-reservoir",
   neutral: "fill-ink",
 };
 const ACCENT_TEXT: Record<SparklineAccent, string> = {
@@ -86,6 +94,7 @@ const ACCENT_TEXT: Record<SparklineAccent, string> = {
   humidity: "text-sensor-humidity",
   vpd: "text-sensor-vpd",
   moisture: "text-sensor-moisture",
+  reservoir: "text-sensor-reservoir",
   neutral: "text-ink",
 };
 

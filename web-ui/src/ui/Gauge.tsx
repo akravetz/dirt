@@ -29,7 +29,7 @@ import type { ReactNode } from "react";
 // api-client/, and a one-line literal union is cheaper than routing a
 // shared type through src/shared/.
 type GaugeStatus = "ok" | "warn" | "crit";
-type GaugeAccent = "temp" | "humidity" | "vpd" | "moisture" | "neutral";
+type GaugeAccent = "temp" | "humidity" | "vpd" | "moisture" | "reservoir" | "neutral";
 
 interface GaugeProps {
   /** Metric display name; also the tile's accessible name + heading text. */
@@ -65,6 +65,7 @@ const ACCENT_STROKE: Record<GaugeAccent, string> = {
   humidity: "stroke-sensor-humidity",
   vpd: "stroke-sensor-vpd",
   moisture: "stroke-sensor-moisture",
+  reservoir: "stroke-sensor-reservoir",
   neutral: "stroke-ink-3",
 };
 

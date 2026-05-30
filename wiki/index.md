@@ -1,7 +1,7 @@
 ---
 title: Index
 type: index
-updated: 2026-05-28
+updated: 2026-05-30
 ---
 
 # Grow Wiki Index
@@ -14,11 +14,21 @@ updated: 2026-05-28
 - [Wake-Word Experiment Log](wake-word-experiments.md) — append-only log of every "hey Claudia" model trained: what changed, why, training config, validation results
 - [Hosted Control Plane](decisions/2026-05-05-hosted-control-plane.md) — Railway web UI/API plus outbound local gateway; remote inspection and PTZ-only command intent without moving hardware authority to cloud
 
-## Plants
-- [Plant A](plants/plant-a.md) — 🔴 Primary keeper; Flower Day 25; upright purple flower tops; rough moisture drier near 52.13%; continue high-EC/wet-root-zone dryback before any weak top rinse
-- [Plant B](plants/plant-b.md) — 🟡 Secondary; Flower Day 25; dedicated view non-diagnostic behind fan; moisture 96.50% pinned — dryback verification urgent
-- [Plant C](plants/plant-c.md) — 🟡 Secondary; Flower Day 25; partly fan-obstructed purple-toned flower sites; moisture 91.45% saturated — lower-leaf/root-zone watch
-- [Plant D](plants/plant-d.md) — 🔴 Primary keeper; Flower Day 25; upright sativa-leaning purple flower tops; moisture lower/slightly drier near 44.96% — verify by hand
+## Grow Runs
+- [Grow Runs](grows/README.md) — Database-scoped growrun index; folders are keyed by `growrun.grow_run_id`
+- [Main grow 2026-03-15](grows/main-2026-03-15/README.md) — Current main tent flower run; database `growrun.grow_run_id = main-2026-03-15`
+- [Track A pollen run](grows/breeding-track-a-2026-04-28/README.md) — Current breeding tent male sexing and pollen-collection run; database `growrun.grow_run_id = breeding-track-a-2026-04-28`
+
+## Current Plants
+- [Plant A](grows/main-2026-03-15/plants/plant-a.md) — 🔴 Primary keeper; Flower Day 27; upright purple flower tops; rough moisture moved sharply drier near 35.55%; hand-check before weak rinse/refeed decision
+- [Plant B](grows/main-2026-03-15/plants/plant-b.md) — 🟡 Secondary; Flower Day 27; dedicated view non-diagnostic behind fan; moisture 95.43% pinned — dryback verification urgent
+- [Plant C](grows/main-2026-03-15/plants/plant-c.md) — 🟡 Secondary; Flower Day 27; partly fan-obstructed purple-toned flower sites; moisture 88.72% still high but drifting drier — root-zone/airflow watch
+- [Plant D](grows/main-2026-03-15/plants/plant-d.md) — 🔴 Primary keeper; Flower Day 27; upright sativa-leaning purple flower tops; moisture low/flat near 44.72% — verify by hand
+- [R1](grows/breeding-track-a-2026-04-28/plants/plant-r1.md) — Track A pollen run; confirmed male pre-sex organs / male sex expression on 2026-05-30
+- [R2](grows/breeding-track-a-2026-04-28/plants/plant-r2.md) — Track A pollen run; sex not confirmed in wiki as of 2026-05-30
+- [R3](grows/breeding-track-a-2026-04-28/plants/plant-r3.md) — Track A pollen run; sex not confirmed in wiki as of 2026-05-30
+- [R4](grows/breeding-track-a-2026-04-28/plants/plant-r4.md) — Track A pollen run; confirmed male pre-sex organs / male sex expression on 2026-05-30
+- [R5](grows/breeding-track-a-2026-04-28/plants/plant-r5.md) — Track A pollen run; sex not confirmed in wiki as of 2026-05-30
 
 ## Daily Logs
 - [2026-03-27](daily/2026-03-27.md) — Day 13: Pre-transplant; 2–3 leaf sets
@@ -73,6 +83,8 @@ updated: 2026-05-28
 - [2026-05-26](daily/2026-05-26.md) — Day 73 / Flower Day 23: full photo coverage but Plant B fan-obstructed; main current VPD recovered to dry edge but overnight still wet/low; Plant B/C moisture pinned 🔴; breeding dry/high
 - [2026-05-27](daily/2026-05-27.md) — Day 74 / Flower Day 24: full photo coverage but Plant B non-diagnostic; main lights-on VPD in range but overnight wet/low; Plant B/C moisture pinned 🔴; Plant D moisture signal moved sharply wetter
 - [2026-05-28](daily/2026-05-28.md) — Day 75 / Flower Day 25: full photo coverage but Plant B non-diagnostic; main lights-on VPD in range but overnight wet/low; Plant B/C moisture pinned 🔴; Plant A dryback progressing
+- [2026-05-29](daily/2026-05-29.md) — Day 76 / Flower Day 26: continuity entry for complete raw photo inventory; no sensor JSON or attached photo synthesis available
+- [2026-05-30](daily/2026-05-30.md) — Day 77 / Flower Day 27: full photo coverage but Plant B non-diagnostic; main lights-on VPD upper-edge but overnight wet/low; Plant A dryback moved sharply; Plant B pinned wet 🔴
 
 ## Environment
 - [Temperature](environment/temperature.md) — Trend log; targets by phase; notable events

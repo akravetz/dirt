@@ -16,7 +16,13 @@ export const Route = createFileRoute("/")({
 
 const hostedApi = createHostedApiClient();
 
-type SparklineAccent = "temp" | "humidity" | "vpd" | "moisture" | "neutral";
+type SparklineAccent =
+  | "temp"
+  | "humidity"
+  | "vpd"
+  | "moisture"
+  | "reservoir"
+  | "neutral";
 type MetricStatus = "ok" | "warn" | "crit";
 type HostedAsset = hostedComponents["schemas"]["AssetResponse"];
 type HostedDevice = hostedComponents["schemas"]["DeviceResponse"];
@@ -76,6 +82,7 @@ const KNOWN_ACCENTS: ReadonlySet<SparklineAccent> = new Set([
   "humidity",
   "vpd",
   "moisture",
+  "reservoir",
   "neutral",
 ]);
 
@@ -153,7 +160,7 @@ const CURRENT_METRIC_META: readonly MetricMeta[] = [
     metric: "reservoir_in",
     display_name: "Reservoir",
     unit: "in",
-    accent: "neutral",
+    accent: "reservoir",
     y_min: 0,
     y_max: 30,
     has_target_band: false,
@@ -253,9 +260,18 @@ const HISTORY_METRIC_GROUPS: readonly MetricGroup[] = [
         metric: "reservoir_in",
         display_name: "Reservoir",
         unit: "in",
-        accent: "moisture",
+        accent: "reservoir",
         y_min: 0,
         y_max: 30,
+        has_target_band: false,
+      },
+      {
+        metric: "reservoir_ph",
+        display_name: "pH",
+        unit: "pH",
+        accent: "reservoir",
+        y_min: 4,
+        y_max: 10,
         has_target_band: false,
       },
     ],

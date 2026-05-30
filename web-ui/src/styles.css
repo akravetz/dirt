@@ -45,6 +45,7 @@
   --sensor-humidity: #2a6fa8;
   --sensor-vpd: #4a6b38;
   --sensor-moisture: #7a4a24;
+  --sensor-reservoir: #007a6a;
 
   --status-ok: #4a6b38;
   --status-warn: #b87a1f;
@@ -80,6 +81,7 @@
   --sensor-humidity: #42a5f5;
   --sensor-vpd: #66bb6a;
   --sensor-moisture: #c08457;
+  --sensor-reservoir: #2dd4bf;
 
   --status-ok: #66bb6a;
   --status-warn: #e0a44b;
@@ -113,6 +115,7 @@
   --color-sensor-humidity: var(--sensor-humidity);
   --color-sensor-vpd: var(--sensor-vpd);
   --color-sensor-moisture: var(--sensor-moisture);
+  --color-sensor-reservoir: var(--sensor-reservoir);
 
   --color-status-ok: var(--status-ok);
   --color-status-warn: var(--status-warn);

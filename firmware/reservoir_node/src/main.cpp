@@ -1,4 +1,4 @@
-// Seeed XIAO ESP32-C3 reservoir canary firmware.
+// Seeed XIAO ESP32-C3 reservoir firmware.
 //
 // Reads the DFRobot KIT0139 hydrostatic pressure transducer through a
 // SEN0262 4-20mA->0-5V converter on an ADS1115 (I2C 0x48), converts raw
@@ -11,14 +11,14 @@
 // Secrets (from src/secrets.h, gitignored):
 //   WIFI_SSID, WIFI_PASSWORD, SERVER_URL, SENSOR_INGEST_TOKEN, OTA_PASSWORD
 //
-// mDNS hostname: dirt-reservoir-xiao.local
+// mDNS hostname: dirt-reservoir.local
 // OTA port:      3232 (ArduinoOTA default)
 //
 // Calibration lives in firmware (mirroring the tent SHT45 pattern: device
 // ships already-calibrated values; server stores them as-is). Recalibrate
 // by editing the constants below and OTA-reflashing. The raw count is also
 // POSTed so history can be recomputed against new constants if cal changes.
-// Posts as homebox/main/reservoir/reservoir-xiao.
+// Posts as homebox/main/reservoir/reservoir-node.
 // Full rationale: wiki/hardware/reservoir-level.md "Where the calibration lives".
 
 #include <Arduino.h>
@@ -42,8 +42,8 @@ constexpr uint16_t SAMPLE_COUNT     = 32;     // ~9 mV jitter at GAIN_FOUR
 const char* const SITE_ID = "homebox";
 const char* const TENT_ID = "main";
 const char* const ZONE_ID = "reservoir";
-const char* const DEVICE_ID = "reservoir-xiao";
-const char* const HOSTNAME = "dirt-reservoir-xiao";
+const char* const DEVICE_ID = "reservoir-node";
+const char* const HOSTNAME = "dirt-reservoir";
 
 // --- Calibration ----------------------------------------------------------
 //
@@ -85,6 +85,10 @@ constexpr float ADS_GAIN_TWOTHIRDS_LSB_V = 0.00018750f;
 constexpr float ADS_GAIN_ONE_LSB_V       = 0.00012500f;
 constexpr float ADS_GAIN_TWO_LSB_V       = 0.00006250f;
 constexpr float ADS_GAIN_FOUR_LSB_V = 0.00003125f;
+constexpr float PH_CAL_LOW_PH = 4.00f;
+constexpr float PH_CAL_LOW_V  = 2.0313f;
+constexpr float PH_CAL_HIGH_PH = 10.00f;
+constexpr float PH_CAL_HIGH_V  = 0.9905f;
 
 // --- State ----------------------------------------------------------------
 
@@ -120,6 +124,11 @@ float rawToDepthIn(int32_t raw) {
     return tank_cm / CM_PER_INCH;
 }
 
+float voltageToPh(float voltage) {
+    float slope = (PH_CAL_HIGH_PH - PH_CAL_LOW_PH) / (PH_CAL_HIGH_V - PH_CAL_LOW_V);
+    return PH_CAL_LOW_PH + slope * (voltage - PH_CAL_LOW_V);
+}
+
 // --- Lifecycle ------------------------------------------------------------
 
 void setup() {
@@ -150,68 +159,33 @@ void loop() {
         lastPost = now;
         int16_t raw0_gain_two = readAdsRawAtGain(0, GAIN_TWO);
         int32_t raw0          = gainTwoRawToCalibrationRaw(raw0_gain_two);
-        int16_t raw1          = readAdsRaw(1);
-        int16_t raw2          = readAdsRaw(2);
-        int16_t raw3          = readAdsRaw(3);
-        int16_t a0_gain_twothirds = readAdsRawAtGain(0, GAIN_TWOTHIRDS);
-        int16_t a0_gain_one       = readAdsRawAtGain(0, GAIN_ONE);
-        int16_t a0_gain_two       = readAdsRawAtGain(0, GAIN_TWO);
-        int16_t a0_gain_four      = readAdsRawAtGain(0, GAIN_FOUR);
+        int16_t ph_raw        = readAdsRawAtGain(1, GAIN_ONE);
+        float   ph_voltage    = ph_raw * ADS_GAIN_ONE_LSB_V;
+        float   ph            = voltageToPh(ph_voltage);
         float   depth_in = rawToDepthIn(raw0);
-        char    metrics[768];
+        char    metrics[320];
         snprintf(metrics, sizeof(metrics),
                  "{"
                  "\"reservoir_pressure_raw\":%ld,"
                  "\"reservoir_in\":%.2f,"
-                 "\"reservoir_diag_ads_gain\":%d,"
-                 "\"reservoir_diag_a0_raw\":%ld,"
-                 "\"reservoir_diag_a1_raw\":%d,"
-                 "\"reservoir_diag_a2_raw\":%d,"
-                 "\"reservoir_diag_a3_raw\":%d,"
-                 "\"reservoir_diag_a0_v\":%.3f,"
-                 "\"reservoir_diag_a1_v\":%.3f,"
-                 "\"reservoir_diag_a2_v\":%.3f,"
-                 "\"reservoir_diag_a3_v\":%.3f,"
-                 "\"reservoir_diag_a0_gain_two_canonical_raw\":%ld,"
-                 "\"reservoir_diag_a0_gain_twothirds_raw\":%d,"
-                 "\"reservoir_diag_a0_gain_one_raw\":%d,"
-                 "\"reservoir_diag_a0_gain_two_raw\":%d,"
-                 "\"reservoir_diag_a0_gain_four_raw\":%d,"
-                 "\"reservoir_diag_a0_gain_twothirds_v\":%.3f,"
-                 "\"reservoir_diag_a0_gain_one_v\":%.3f,"
-                 "\"reservoir_diag_a0_gain_two_v\":%.3f,"
-                 "\"reservoir_diag_a0_gain_four_v\":%.3f"
+                 "\"reservoir_ph_raw\":%d,"
+                 "\"reservoir_ph_voltage\":%.4f,"
+                 "\"reservoir_ph\":%.2f"
                  "}",
                  (long)raw0,
                  depth_in,
-                 (int)GAIN_TWO,
-                 (long)raw0,
-                 raw1,
-                 raw2,
-                 raw3,
-                 raw0 * ADS_GAIN_FOUR_LSB_V,
-                 raw1 * ADS_GAIN_TWO_LSB_V,
-                 raw2 * ADS_GAIN_TWO_LSB_V,
-                 raw3 * ADS_GAIN_TWO_LSB_V,
-                 (long)gainTwoRawToCalibrationRaw(a0_gain_two),
-                 a0_gain_twothirds,
-                 a0_gain_one,
-                 a0_gain_two,
-                 a0_gain_four,
-                 a0_gain_twothirds * ADS_GAIN_TWOTHIRDS_LSB_V,
-                 a0_gain_one * ADS_GAIN_ONE_LSB_V,
-                 a0_gain_two * ADS_GAIN_TWO_LSB_V,
-                 a0_gain_four * ADS_GAIN_FOUR_LSB_V);
+                 ph_raw,
+                 ph_voltage,
+                 ph);
         int code = ingest.post(SITE_ID, TENT_ID, ZONE_ID, DEVICE_ID, metrics);
         if (code > 0) {
-            Serial.printf("[post] a0_cal=%ld a0_gain_two=%d gain_v=[%.3f %.3f %.3f %.3f] depth_in=%.2f http=%d\n",
+            Serial.printf("[post] a0_cal=%ld a0_gain_two=%d depth_in=%.2f ph_raw=%d ph_v=%.4f ph=%.2f http=%d\n",
                           (long)raw0,
                           raw0_gain_two,
-                          a0_gain_twothirds * ADS_GAIN_TWOTHIRDS_LSB_V,
-                          a0_gain_one * ADS_GAIN_ONE_LSB_V,
-                          a0_gain_two * ADS_GAIN_TWO_LSB_V,
-                          a0_gain_four * ADS_GAIN_FOUR_LSB_V,
                           depth_in,
+                          ph_raw,
+                          ph_voltage,
+                          ph,
                           code);
         }
     }

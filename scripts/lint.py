@@ -76,7 +76,7 @@ def check_index_sync() -> list[str]:
     index_path = WIKI / "index.md"
 
     if not index_path.exists():
-        return ["wiki/index.md does not exist"]
+        return ["wi../README.md does not exist"]
 
     text = index_path.read_text()
     links = extract_md_links(text)
@@ -101,7 +101,7 @@ def check_index_sync() -> list[str]:
     all_wiki: set[str] = {
         p.resolve().relative_to(WIKI.resolve()).as_posix()
         for p in WIKI.rglob("*.md")
-        if p.name not in META_FILES
+        if p.relative_to(WIKI).as_posix() not in META_FILES
     }
 
     for path_str in sorted(all_wiki - indexed):
@@ -121,10 +121,9 @@ def check_backlinks() -> list[str]:
     """Dailies mentioning plants must be linked from plant timelines."""
     issues = []
 
-    plants_dir = WIKI / "plants"
     daily_dir = WIKI / "daily"
 
-    plant_files = list(plants_dir.glob("*.md")) if plants_dir.exists() else []
+    plant_files = sorted((WIKI / "grows").glob("*/plants/*.md"))
     daily_files = list(daily_dir.glob("*.md")) if daily_dir.exists() else []
 
     # For each plant file, extract dates in its Timeline section
@@ -362,7 +361,7 @@ def check_frontmatter() -> list[str]:
     """Every wiki .md (except index.md, log.md) must have required frontmatter."""
     issues = []
     for md_file in sorted(WIKI.rglob("*.md")):
-        if md_file.name in SKIP_FILES:
+        if md_file.relative_to(WIKI).as_posix() in SKIP_FILES:
             continue
         text = md_file.read_text()
         rel = md_file.relative_to(REPO)

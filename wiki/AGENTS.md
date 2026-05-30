@@ -16,7 +16,7 @@ Answer from the smallest relevant file first. The table below tells you where to
 | Question shape | File(s) |
 |---|---|
 | "what's next" / "what should I do" / "current plan" / "upcoming" | `overview.md` (Active Action Items + Upcoming Milestones) — **usually sufficient alone** |
-| "how are the plants" / "current status" / per-plant status | `overview.md` (Plant Status table), then `plants/plant-[abcd].md` (Current State at top; Timeline below) |
+| "how are the plants" / "current status" / per-plant status | `overview.md` (Plant Status table), then `grows/<grow_run_id>/plants/plant-<plant_id>.md` (Current State at top; Timeline below) |
 | "how did X happen" / past observations | `daily/YYYY-MM-DD.md` (most recent first) |
 | "why did we decide Y" / decision rationale | `decisions/YYYY-MM-DD-<slug>.md` |
 | "what is VPD / LST / DLI / flushing / …" | `concepts/<topic>.md` |
@@ -27,7 +27,7 @@ Answer from the smallest relevant file first. The table below tells you where to
 ### Don't
 
 - **Don't `Read` `log.md`.** Append-only activity log, grows unboundedly, almost never answers a question directly. Grep only as a last resort.
-- **Don't glob for files that don't exist.** Full top-level layout: `breeding/  concepts/  daily/  decisions/  environment/  hardware/  plants/`, plus `index.md`, `log.md`, `overview.md`, `wake-word-experiments.md`. There is no `schedule/`, `timeline/`, or `journal/`.
+- **Don't glob for files that don't exist.** Full top-level layout: `breeding/  concepts/  daily/  decisions/  environment/  grows/  hardware/`, plus `index.md`, `log.md`, `overview.md`, `wake-word-experiments.md`. There is no top-level `plants/`, `schedule/`, `timeline/`, or `journal/`.
 - **Don't read multiple full files when one section of `overview.md` answers the question.** Start there.
 
 ### Canonical sections in `overview.md`
@@ -43,11 +43,15 @@ Most "quick answer" questions resolve from these sections alone:
 
 ---
 
-## Plant labeling
+## Grow and Plant Labeling
 
-Plants are labeled **A, B, C, D** — matching the physical pot labels. Canonical naming throughout the wiki and in all agent work.
+Plant identity is scoped by grow run, matching the database: `growrun.grow_run_id`
+owns a set of `plant.plant_id` values. Do not treat plant labels as globally
+unique.
 
-- Plant files: `wiki/plants/plant-a.md`, `wiki/plants/plant-b.md`, `wiki/plants/plant-c.md`, `wiki/plants/plant-d.md`
+- Grow index: `wiki/grows/README.md`
+- Main grow files: `wiki/grows/main-2026-03-15/plants/plant-a.md`, `wiki/grows/main-2026-03-15/plants/plant-b.md`, `wiki/grows/main-2026-03-15/plants/plant-c.md`, `wiki/grows/main-2026-03-15/plants/plant-d.md`
+- Breeding Track A files: `wiki/grows/breeding-track-a-2026-04-28/plants/plant-r1.md` through `plant-r5.md`
 - Early documentation (before 2026-04-06) used numeric labels (Plant 1/2/3/4). The mapping was: 1→A, 2→B, 3→C, 4→D. Do NOT use the numeric labels; use A/B/C/D exclusively.
 
 ## Commands

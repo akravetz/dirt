@@ -32,7 +32,7 @@ Drop zone for incoming material. Subfolders:
 Agent-maintained knowledge base. All wiki files follow the conventions in [`conventions.md`](conventions.md). Subfolders:
 
 - `daily/` — One file per day (`YYYY-MM-DD.md`). Canonical observation records.
-- `plants/` — One file per plant (A–D). Timelines + current state, linking into dailies.
+- `grows/` — Database-scoped grow runs keyed by `growrun.grow_run_id`; each grow owns `plants/plant-<plant_id>.md` pages with timelines + current state linking into dailies.
 - `environment/` — Trend pages for temp/humidity/VPD/lighting/nutrients/etc.
 - `hardware/` — One file per deployed system (sensors, cameras, controllers). Operational state, wiring, configuration.
 - `concepts/` — Reference knowledge for both growing and technical domains (e.g., VPD, LST, EC metering, sensor placement).

@@ -2,9 +2,9 @@
 title: Breeding Program Timeline
 type: breeding
 sources: []
-related: [wiki/breeding/README.md, wiki/breeding/stabilization-strategy.md, wiki/breeding/family-selection.md, wiki/breeding/feminized-production.md, wiki/breeding/cloning.md, wiki/breeding/pollen-handling.md, wiki/breeding/cross-procedure.md, wiki/decisions/2026-04-26-breeding-program-launch.md, wiki/decisions/2026-05-02-purple-stabilization-strategy.md]
+related: [wiki/breeding/README.md, wiki/breeding/stabilization-strategy.md, wiki/breeding/family-selection.md, wiki/breeding/feminized-production.md, wiki/breeding/cloning.md, wiki/breeding/pollen-handling.md, wiki/breeding/cross-procedure.md, wiki/grows/breeding-track-a-2026-04-28/README.md, wiki/decisions/2026-04-26-breeding-program-launch.md, wiki/decisions/2026-05-02-purple-stabilization-strategy.md]
 created: 2026-04-26
-updated: 2026-05-24
+updated: 2026-05-30
 ---
 
 # Breeding Program Timeline
@@ -41,8 +41,8 @@ Locked gear plan as of 2026-04-26 (decision: [clone + male tent gear](../decisio
 - [ ] **Portable freezer** for pollen storage. Digital thermostat, -18 °C / 0 °F target. Located in the male isolation room.
 - [ ] **Male isolation: 2×2×4 grow tent** (already on hand) placed in a separate room. Outfit with: 100W LED quantum board (Spider Farmer SF1000 or generic Amazon), AC Infinity 4" air filtration kit (purchased 2026-05-12; mandatory — pollen containment relies on negative pressure inside the tent), 6" oscillating clip fan, 1-gal fabric pots (5-pack), digital hygrometer, jeweler's loupe 40× for early sex confirmation, paper lunch bags, 1.5 mL Eppendorf tubes (50-pack) for pollen aliquots, silica desiccant packs. Medium = existing coco/perlite. Nutrients = existing veg formula (half-strength).
 - [x] **Take clones** from all 4 current SBxBS01 plants (A, B, C, D). Done 2026-05-02; cuttings are under the humidity dome and perking, with 1 visible root as of 2026-05-05. Original target was **2026-04-28 (gear arrives) or 2026-04-29** after moving up from the 2026-05-03 → 2026-05-10 window because mid-veg tissue roots more readily than near-flip tissue. Asymmetric strategy remains the intended source plan: **lower laterals on A and D** (sativa-leaning, already at SCROG net — these branches are lollipop candidates anyway), **middle laterals on B and C** (indica-leaning, still need lower growth to reach the net). Label by mother. See [cloning.md](cloning.md), [2026-05-02](../daily/2026-05-02.md), and [2026-05-05](../daily/2026-05-05.md).
-- [x] **Start 10 SBxBS01 regulars** from the original-order pack. Started approximately 2026-04-28; 7 total sprouted, and 5 look healthy/vigorous as of 2026-05-05. The expected male count should now be based on the surviving/vigorous pool rather than the original 10-seed start. See [2026-05-05](../daily/2026-05-05.md).
-- [x] **Pot Track A sprouted regular seedlings into coco/perlite.** Done 2026-05-05 for all 7 sprouted seedlings. Continue the [isolation-tent culture](isolation-tent-culture.md) default: coco/perlite, hand-watered, runoff removed, labels secure.
+- [x] **Start 10 SBxBS01 regulars** from the original-order pack. Started approximately 2026-04-28; 7 total sprouted, 2 died during transplant to coco coir, and 5 active plants remain as R1-R5. The expected male count should now be based on the surviving pool rather than the original 10-seed start. See [Track A pollen run](../grows/breeding-track-a-2026-04-28/README.md) and [2026-05-05](../daily/2026-05-05.md).
+- [x] **Pot Track A sprouted regular seedlings into coco/perlite.** Done 2026-05-05; clarified 2026-05-30 that 5 plants survived transplant and remain active. Continue the [isolation-tent culture](isolation-tent-culture.md) default: coco/perlite, hand-watered, runoff removed, labels secure.
 - [ ] Confirm/finalize second-pack selection (which BS line). Order arrives ~2 weeks after order.
 
 ### Phase 1 — current grow in early flower, Track A short veg + sex flip (~2026-05-03 → 2026-05-26)
@@ -50,6 +50,7 @@ Locked gear plan as of 2026-04-26 (decision: [clone + male tent gear](../decisio
 - [x] **2026-05-03:** flip current grow (4 plants) to 12/12. Clones were taken 2026-05-02; verify rooting before relying on them as preserved A/B/C/D genetics.
 - [x] **2026-05-12:** Track A regular seedlings have their first 2–3 sets of true leaves. Because the objective is strictly sex identification, cull females, and collect pollen, do not veg for yield. Give them roughly **7–14 more days under the veg schedule**, then flip once most plants have **4–5 nodes**, steady new growth, and no obvious transplant/root stress.
 - [x] **2026-05-24:** Flip the Track A batch to 12/12 for sexing and pollen production. Daily report shows upright labeled plants, but the tent is wet across all sensor windows; check watering, airflow, and sensor exposure before the first dark cycles repeat. See [2026-05-24](../daily/2026-05-24.md).
+- [x] **2026-05-30:** R1 and R4 confirmed male pre-sex organs / male sex expression. Continue inspecting R2, R3, and R5; evaluate R1/R4 against [male-evaluation.md](male-evaluation.md) before pollen collection. See [Track A pollen run](../grows/breeding-track-a-2026-04-28/README.md).
 - [ ] **After flip:** inspect nodes 4–6 with a loupe every 1–2 days. Cull females as soon as confirmed. Keep only male candidates that pass the [male-evaluation](male-evaluation.md) gates; if space is tight, prioritize purple stems, clean structure, vigor, and no hermie signs.
 - [ ] If <2 males survive the full 10-seed batch (P ≈ 1%), source another small pack from OBG. Pollen banking is the gating prerequisite for the cross.
 
