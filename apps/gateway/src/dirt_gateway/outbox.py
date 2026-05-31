@@ -143,6 +143,7 @@ class OutboxRepository:
         event_type: str,
         now: datetime,
         keep_idempotency_key: str | None = None,
+        keep_idempotency_keys: set[str] | None = None,
     ) -> int:
         async with AsyncSession(self._engine) as session:
             statement = (
@@ -153,6 +154,10 @@ class OutboxRepository:
             if keep_idempotency_key is not None:
                 statement = statement.where(
                     CloudOutbox.idempotency_key != keep_idempotency_key
+                )
+            if keep_idempotency_keys:
+                statement = statement.where(
+                    CloudOutbox.idempotency_key.not_in(keep_idempotency_keys)
                 )
             rows = (await session.exec(statement)).all()
             for row in rows:

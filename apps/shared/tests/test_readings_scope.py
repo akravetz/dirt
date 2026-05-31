@@ -7,8 +7,9 @@ from datetime import UTC, datetime
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from dirt_shared.models.device import Device
+from dirt_shared.models.device import Capability, Device
 from dirt_shared.models.enums import SensorSource
+from dirt_shared.models.sensor_calibration import SensorCalibration
 from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.services.readings import ReadingsService
 from dirt_shared.testing import create_test_capability, create_test_device
@@ -101,6 +102,67 @@ async def test_scoped_ingest_updates_device_heartbeat(app_engine):
     assert device.wifi_driver_reset_count == 1
     assert device.wifi_disconnect_reason == 200
     assert device.wifi_disconnected_for_ms == 0
+
+
+async def test_auto_calibration_updated_at_tracks_extrema_changes(app_engine):
+    timestamps = [
+        datetime(2026, 5, 4, 0, 0, tzinfo=UTC),
+        datetime(2026, 5, 4, 0, 1, tzinfo=UTC),
+        datetime(2026, 5, 4, 0, 2, tzinfo=UTC),
+        datetime(2026, 5, 4, 0, 3, tzinfo=UTC),
+    ]
+    clock_index = 0
+
+    def clock() -> datetime:
+        return timestamps[clock_index]
+
+    readings = ReadingsService(app_engine, clock=clock)
+
+    async def ingest(value: float) -> SensorCalibration:
+        await readings.ingest_reading(
+            {"soil_moisture_raw": value},
+            source=SensorSource.ESP32,
+            site_id="homebox",
+            tent_id="main",
+            zone_id="plant-a",
+            device_id="plant-a-node",
+        )
+        async with AsyncSession(app_engine) as session:
+            return (
+                await session.exec(
+                    select(SensorCalibration)
+                    .join(
+                        Capability,
+                        Capability.id == SensorCalibration.capability_id,
+                    )
+                    .join(Device, Device.id == Capability.device_id)
+                    .where(Device.device_id == "plant-a-node")
+                    .where(SensorCalibration.metric == "soil_moisture_raw")
+                )
+            ).one()
+
+    cal = await ingest(2500.0)
+    assert cal.raw_low == 2500.0
+    assert cal.raw_high == 2500.0
+    assert cal.updated_at == timestamps[0]
+
+    clock_index = 1
+    cal = await ingest(2400.0)
+    assert cal.raw_low == 2400.0
+    assert cal.raw_high == 2500.0
+    assert cal.updated_at == timestamps[1]
+
+    clock_index = 2
+    cal = await ingest(2450.0)
+    assert cal.raw_low == 2400.0
+    assert cal.raw_high == 2500.0
+    assert cal.updated_at == timestamps[1]
+
+    clock_index = 3
+    cal = await ingest(2600.0)
+    assert cal.raw_low == 2400.0
+    assert cal.raw_high == 2600.0
+    assert cal.updated_at == timestamps[3]
 
 
 async def test_touch_device_updates_device_heartbeat(app_engine):

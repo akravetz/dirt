@@ -93,6 +93,8 @@ updated: 2026-05-30
 
 ## Hardware
 - [ESP32-C3 Per-Plant Nodes](hardware/esp32-plant-nodes.md) — Wireless soil moisture nodes (A/B/C/D); **all four live as of 2026-04-16** (A/D on v1.2 sensors, B/C on v2.0)
+- [Soil Moisture Sensing Options](hardware/soil-moisture-sensing-options.md) — Comparison of capacitive probes, mid-tier analog sensors, SDI-12 options, TEROS 10, TEROS 12, and starter BOM sketches for reusable SDI-12 integration.
+- [SDI-12 Substrate Sensors](hardware/sdi-12-substrate-sensors.md) — Reusable SDI-12 bus setup notes, USB vs ESP32/WiFi BOM sketches, and TBSMP03/TEROS 12 deep dives.
 - [Humidifier Control](hardware/humidifier-control.md) — **GoveeLife H7142** (6 L cool-mist, 9 Manual-mode levels via Govee Public API v2) driven by a host-side PI controller + 9-bucket dispatch quantizer on tent SHT45-derived VPD. In service since 2026-04-27 (replaced Raydrop+Kasa).
 - [PTZ Camera (OBSBOT Tiny 2 Lite + daemon)](hardware/ptz-camera.md) — Programmable gimbal + zoom; persistent C++ daemon + `scripts/camera` CLI; per-plant presets calibrated
 - [Thermal Imaging](hardware/thermal-imaging.md) — Planned fixed PureThermal Mini Pro + FLIR Lepton 3.5 canopy sensor for leaf-air delta, leaf-temperature-aware VPD, and hotspot maps

@@ -27,13 +27,18 @@ from dirt_shared.cloud_contract import (
     HeartbeatRequest,
     LatestMetricsRequest,
     RollupsRequest,
+    WikiProjectionRequest,
 )
 from dirt_shared.config import CloudGatewayConfig
 from dirt_shared.models import CloudOutbox
 from dirt_shared.observability import log_event
 
 ReadOnlyProjectionPayload = (
-    HeartbeatRequest | CatalogRequest | LatestMetricsRequest | RollupsRequest
+    HeartbeatRequest
+    | CatalogRequest
+    | LatestMetricsRequest
+    | RollupsRequest
+    | WikiProjectionRequest
 )
 TypedProjectionPayload = (
     ReadOnlyProjectionPayload | AssetRetentionRequest | AssetUploadProjection
@@ -62,6 +67,8 @@ ROLLUP_SYNC_INTERVALS: dict[str, timedelta] = {
     "4h": timedelta(hours=4),
     "1d": timedelta(days=1),
 }
+ROLLUP_CHUNK_SIZE = 500
+ROLLUP_DELIVERY_LIMIT = 20
 
 
 class ExponentialBackoff:
@@ -84,6 +91,7 @@ class GatewaySyncService:
             "heartbeat",
             "latest_metrics",
             "catalog",
+            "wiki",
             "asset_upload",
             "asset_retention",
             "command_result",
@@ -171,6 +179,9 @@ class GatewaySyncService:
             "latest_metrics": _Projection(
                 await self._local.collect_latest_metrics(self._config.site_id)
             ),
+            "wiki": _Projection(
+                await self._local.collect_wiki_pages(self._config.site_id)
+            ),
         }
         rollup_buckets = await self._due_rollup_buckets(now)
         if rollup_buckets:
@@ -211,6 +222,13 @@ class GatewaySyncService:
         created = 0
         for event_type, projection in projections.items():
             payload = _projection_payload_json(projection.payload)
+            if event_type == "rollups":
+                created += await self._enqueue_rollup_projection(
+                    projection,
+                    payload=payload,
+                    now=now,
+                )
+                continue
             key = self._idempotency_key(event_type, payload, now=now)
             result = await self._outbox.enqueue(
                 event_type=event_type,
@@ -218,7 +236,7 @@ class GatewaySyncService:
                 payload=payload,
                 now=now,
             )
-            if event_type == "rollups":
+            if event_type in {"rollups", "wiki"}:
                 superseded = await self._outbox.supersede_pending(
                     event_type=event_type,
                     keep_idempotency_key=key,
@@ -233,16 +251,17 @@ class GatewaySyncService:
                         event_type=event_type,
                         count=superseded,
                     )
-                for bucket in projection.rollup_bucket_names:
-                    await self._outbox.set_cursor(
-                        cursor_key=_rollup_cursor_key(bucket),
-                        cursor_value={
-                            "bucket": bucket,
-                            "last_enqueued_at": now,
-                            "idempotency_key": key,
-                        },
-                        now=now,
-                    )
+                if event_type == "rollups":
+                    for bucket in projection.rollup_bucket_names:
+                        await self._outbox.set_cursor(
+                            cursor_key=_rollup_cursor_key(bucket),
+                            cursor_value={
+                                "bucket": bucket,
+                                "last_enqueued_at": now,
+                                "idempotency_key": key,
+                            },
+                            now=now,
+                        )
             if result.created:
                 created += 1
                 log_event(
@@ -253,6 +272,69 @@ class GatewaySyncService:
                     event_type=event_type,
                     idempotency_key=key,
                 )
+        return created
+
+    async def _enqueue_rollup_projection(
+        self,
+        projection: _Projection,
+        *,
+        payload: dict[str, Any],
+        now: datetime,
+    ) -> int:
+        rollups = payload.get("rollups")
+        if not isinstance(rollups, list):
+            rollups = []
+        base_key = self._idempotency_key("rollups", payload, now=now)
+        created = 0
+        current_keys: set[str] = set()
+        chunk_starts = list(range(0, len(rollups), ROLLUP_CHUNK_SIZE)) or [0]
+        for index, start in enumerate(chunk_starts):
+            chunk_payload = {
+                **payload,
+                "rollups": rollups[start : start + ROLLUP_CHUNK_SIZE],
+            }
+            key = f"{base_key}:chunk:{index:03d}"
+            current_keys.add(key)
+            result = await self._outbox.enqueue(
+                event_type="rollups",
+                idempotency_key=key,
+                payload=chunk_payload,
+                now=now,
+            )
+            if result.created:
+                created += 1
+                log_event(
+                    "cloud_gateway",
+                    "enqueued",
+                    site_id=self._config.site_id,
+                    gateway_id=self._config.gateway_id,
+                    event_type="rollups",
+                    idempotency_key=key,
+                )
+        superseded = await self._outbox.supersede_pending(
+            event_type="rollups",
+            keep_idempotency_keys=current_keys,
+            now=now,
+        )
+        if superseded:
+            log_event(
+                "cloud_gateway",
+                "superseded",
+                site_id=self._config.site_id,
+                gateway_id=self._config.gateway_id,
+                event_type="rollups",
+                count=superseded,
+            )
+        for bucket in projection.rollup_bucket_names:
+            await self._outbox.set_cursor(
+                cursor_key=_rollup_cursor_key(bucket),
+                cursor_value={
+                    "bucket": bucket,
+                    "last_enqueued_at": now,
+                    "idempotency_key": base_key,
+                },
+                now=now,
+            )
         return created
 
     async def _deliver_due(self) -> tuple[int, int]:
@@ -270,7 +352,7 @@ class GatewaySyncService:
                 await self._outbox.due_for_event_types(
                     event_types={"rollups"},
                     now=self._clock(),
-                    limit=1,
+                    limit=ROLLUP_DELIVERY_LIMIT,
                 )
             ),
         ]
@@ -325,6 +407,12 @@ class GatewaySyncService:
             return
         if row.event_type == "rollups":
             await self._cloud.post_rollups(
+                _validate_read_only_payload(row.event_type, payload),
+                idempotency_key=row.idempotency_key,
+            )
+            return
+        if row.event_type == "wiki":
+            await self._cloud.put_wiki_projection(
                 _validate_read_only_payload(row.event_type, payload),
                 idempotency_key=row.idempotency_key,
             )
@@ -433,11 +521,23 @@ class GatewaySyncService:
         if event_type == "heartbeat":
             stamp = now.isoformat(timespec="seconds")
             return f"{self._config.site_id}:{self._config.gateway_id}:heartbeat:{stamp}"
+        if event_type == "wiki":
+            content_hash = payload.get("content_hash")
+            if isinstance(content_hash, str):
+                return f"{self._config.site_id}:wiki:{content_hash}"
         return f"{self._config.site_id}:{event_type}:{stable_json_hash(payload)}"
 
 
 def _count_projection(value: dict[str, Any]) -> int:
-    for key in ("metrics", "rollups", "tents", "devices", "capabilities"):
+    for key in (
+        "metrics",
+        "rollups",
+        "tents",
+        "devices",
+        "capabilities",
+        "plants",
+        "pages",
+    ):
         item = value.get(key)
         if isinstance(item, list):
             return len(item)
@@ -486,4 +586,5 @@ _READ_ONLY_EVENT_MODELS: dict[str, type[ReadOnlyProjectionPayload]] = {
     "catalog": CatalogRequest,
     "latest_metrics": LatestMetricsRequest,
     "rollups": RollupsRequest,
+    "wiki": WikiProjectionRequest,
 }

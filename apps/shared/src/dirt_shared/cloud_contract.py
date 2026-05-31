@@ -99,6 +99,23 @@ class CatalogSchedule(CloudContractModel):
     is_enabled: bool = True
 
 
+class CatalogPlant(CloudContractModel):
+    tent_id: str
+    grow_run_id: str
+    plant_id: str
+    name: str
+    display_order: int
+    sticker_color: str | None = Field(...)
+    status: str
+    purple: bool
+    moisture_target_low: float
+    moisture_target_high: float
+    moisture_device_id: str | None = Field(...)
+    moisture_capability_id: str | None = Field(...)
+    wiki_path: str | None = Field(...)
+    is_active: bool
+
+
 class CatalogRequest(CloudContractModel):
     site: CatalogSite
     tents: list[CatalogTent] = Field(default_factory=list)
@@ -106,6 +123,7 @@ class CatalogRequest(CloudContractModel):
     devices: list[CatalogDevice] = Field(default_factory=list)
     capabilities: list[CatalogCapability] = Field(default_factory=list)
     schedules: list[CatalogSchedule] = Field(default_factory=list)
+    plants: list[CatalogPlant] = Field(default_factory=list)
 
 
 class CatalogResponse(CloudContractModel):
@@ -115,18 +133,19 @@ class CatalogResponse(CloudContractModel):
     devices: int
     capabilities: int
     schedules: int
+    plants: int
 
 
 class LatestMetricItem(CloudContractModel):
     site_id: str
     tent_id: str
+    device_id: str
     capability_id: str
     metric: str
     value: float
     source_updated_at: datetime
     unit: str | None = None
     zone_id: str | None = None
-    device_id: str | None = None
     stale_after_s: int = 120
 
 
@@ -142,6 +161,7 @@ class UpsertCountResponse(CloudContractModel):
 class RollupItem(CloudContractModel):
     site_id: str
     tent_id: str
+    device_id: str
     capability_id: str
     metric: str
     bucket: str
@@ -157,6 +177,29 @@ class RollupItem(CloudContractModel):
 class RollupsRequest(CloudContractModel):
     site_id: str
     rollups: list[RollupItem]
+
+
+class WikiProjectionPage(CloudContractModel):
+    path: str
+    title: str
+    frontmatter: dict[str, Any]
+    body_markdown: str
+    sha256: str
+    source_updated_at: datetime
+
+
+class WikiProjectionRequest(CloudContractModel):
+    site_id: str
+    generated_at: datetime
+    pages: list[WikiProjectionPage]
+    excluded_paths: list[str] = Field(default_factory=list)
+    content_hash: str
+
+
+class WikiProjectionResponse(CloudContractModel):
+    upserted: int
+    deleted: int
+    synced_at: datetime
 
 
 class AssetSignUploadRequest(CloudContractModel):

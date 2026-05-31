@@ -433,6 +433,7 @@ async def _update_calibration(
     value: float,
     *,
     capability_id: int | None = None,
+    updated_at: datetime,
 ) -> None:
     """Widen the scoped calibration range if ``value`` is a new extremum."""
     if capability_id is None:
@@ -449,13 +450,19 @@ async def _update_calibration(
                 metric=metric,
                 raw_low=value,
                 raw_high=value,
+                updated_at=updated_at,
             )
         )
     else:
+        changed = False
         if value < cal.raw_low:
             cal.raw_low = value
+            changed = True
         if value > cal.raw_high:
             cal.raw_high = value
+            changed = True
+        if changed:
+            cal.updated_at = updated_at
 
 
 class ReadingsService:
@@ -687,6 +694,7 @@ class ReadingsService:
                         metric_name,
                         value,
                         capability_id=resolved_capability_id,
+                        updated_at=now,
                     )
 
             await session.commit()

@@ -401,6 +401,9 @@ def up(paths: Paths, runtime: Runtime, env_values: dict[str, str]) -> int:
         )
         return 1
 
+    if not apply_cloud_migrations(paths, runtime, env_values, utc_timestamp()):
+        return 1
+
     occupied = occupied_dev_ports(runtime)
     if occupied:
         print("error: local dev ports are already in use.", file=sys.stderr)
@@ -616,6 +619,9 @@ def restore_dump(
         )
         return False
 
+    if not apply_cloud_migrations(paths, runtime, env_values, timestamp):
+        return False
+
     state = update_static_state(read_state(paths.state_path), paths, runtime)
     state["restore"] = {
         "database_name": runtime.database_name,
@@ -625,6 +631,41 @@ def restore_dump(
     }
     write_state(paths.state_path, state)
     return True
+
+
+def apply_cloud_migrations(
+    paths: Paths, runtime: Runtime, env_values: dict[str, str], timestamp: str
+) -> bool:
+    validate_dev_database_name(runtime.database_name)
+    local = local_pg_connection(env_values, runtime.database_name)
+    migration_log = paths.logs_dir / f"migrate-{timestamp}.log"
+    env = minimal_subprocess_env(os.environ)
+    env["DIRT_CLOUD_DATABASE_URL"] = atlas_postgres_url(local)
+    if run_logged(
+        [
+            "atlas",
+            "migrate",
+            "apply",
+            "--env",
+            "cloud",
+            "--revisions-schema",
+            "atlas_schema_revisions",
+        ],
+        env,
+        migration_log,
+        paths.repo_root,
+    ):
+        state = update_static_state(read_state(paths.state_path), paths, runtime)
+        state["migrations"] = {
+            "database_name": runtime.database_name,
+            "applied_at": datetime.now(UTC).isoformat(),
+            "log_path": str(migration_log),
+        }
+        write_state(paths.state_path, state)
+        return True
+    print("error: local dev database migration failed.", file=sys.stderr)
+    print(f"Migration log: {migration_log}", file=sys.stderr)
+    return False
 
 
 def resolve_source_database_url(paths: Paths) -> str:
@@ -702,6 +743,18 @@ def pg_connection_from_url(url: str) -> PgConnection:
         password=urllib.parse.unquote(parsed.password or ""),
         database=database,
         sslmode=sslmode,
+    )
+
+
+def atlas_postgres_url(connection: PgConnection) -> str:
+    validate_dev_database_name(connection.database)
+    user = urllib.parse.quote(connection.user, safe="")
+    password = urllib.parse.quote(connection.password, safe="")
+    database = urllib.parse.quote(connection.database, safe="")
+    host = urllib.parse.quote(connection.host, safe="")
+    return (
+        f"postgres://{user}:{password}@{host}:{connection.port}/{database}"
+        "?sslmode=disable&search_path=public"
     )
 
 
