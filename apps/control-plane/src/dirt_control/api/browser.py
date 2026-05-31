@@ -20,9 +20,11 @@ from dirt_control.models import (
     CloudDevice,
     CloudLatestMetric,
     CloudMetricRollup,
+    CloudPlant,
     CloudSchedule,
     CloudSite,
     CloudTent,
+    CloudWikiPage,
     GatewayCredential,
 )
 from dirt_control.retention import prune_expired_assets
@@ -169,7 +171,7 @@ class CurrentMetricResponse(BrowserResponse):
     value: float
     unit: str | None
     capability_id: str
-    device_id: str | None
+    device_id: str
     source_updated_at: datetime
     received_at: datetime
     stale_after_s: int
@@ -190,6 +192,95 @@ class MetricHistoryResponse(BrowserResponse):
     metric: str
     range: str
     points: list[MetricHistoryPointResponse]
+
+
+class PlantSummaryResponse(BrowserResponse):
+    site_id: str
+    tent_id: str
+    grow_run_id: str
+    plant_id: str
+    name: str
+    display_order: int
+    sticker_color: str | None
+    status: str
+    purple: bool
+    moisture_target_low: float
+    moisture_target_high: float
+    moisture_device_id: str | None
+    moisture_capability_id: str | None
+    wiki_path: str | None
+    is_active: bool
+    has_moisture_stream: bool
+    latest_moisture: PlantLatestMoistureResponse | None
+
+
+class PlantTargetBoundsResponse(BrowserResponse):
+    low: float
+    high: float
+
+
+class PlantLatestMoistureResponse(BrowserResponse):
+    metric: Literal["soil_moisture_pct"]
+    value: float
+    unit: str | None
+    device_id: str
+    capability_id: str
+    source_updated_at: datetime
+    received_at: datetime
+    stale_after_s: int
+
+
+class PlantMoistureFreshnessResponse(BrowserResponse):
+    source_age_s: int
+    is_current: bool
+
+
+class PlantMoistureSeriesResponse(BrowserResponse):
+    site_id: str
+    tent_id: str
+    grow_run_id: str
+    plant_id: str
+    name: str
+    display_order: int
+    sticker_color: str | None
+    target_bounds: PlantTargetBoundsResponse
+    latest_moisture: PlantLatestMoistureResponse | None
+    points: list[MetricHistoryPointResponse]
+
+
+class PlantMoistureComparisonResponse(BrowserResponse):
+    metric: Literal["soil_moisture_pct"]
+    range: str
+    plants: list[PlantMoistureSeriesResponse]
+
+
+class PlantWikiContentResponse(BrowserResponse):
+    path: str
+    title: str
+    frontmatter: dict[str, Any]
+    body_markdown: str
+    sha256: str
+    source_updated_at: datetime
+
+
+class PlantDetailResponse(BrowserResponse):
+    site_id: str
+    tent_id: str
+    grow_run_id: str
+    plant_id: str
+    name: str
+    display_order: int
+    sticker_color: str | None
+    status: str
+    purple: bool
+    is_active: bool
+    moisture_device_id: str
+    moisture_capability_id: str
+    target_bounds: PlantTargetBoundsResponse
+    latest_moisture: PlantLatestMoistureResponse | None
+    freshness: PlantMoistureFreshnessResponse | None
+    wiki_path: str | None
+    wiki_content: PlantWikiContentResponse | None
 
 
 class DeviceResponse(BrowserResponse):
@@ -502,22 +593,22 @@ async def current_metrics(
                 CloudLatestMetric.site_id == settings.default_site_id,
                 CloudLatestMetric.tent_id == tent_id,
             )
-            .order_by(CloudLatestMetric.metric)
+            .order_by(
+                CloudLatestMetric.metric,
+                CloudLatestMetric.device_id,
+                CloudLatestMetric.capability_id,
+            )
         )
     ).scalars()
-    responses: dict[str, CurrentMetricResponse] = {}
-    for row in rows:
-        response = _current_metric_response(row)
-        existing = responses.get(response.metric)
-        if existing is None or row.metric == response.metric:
-            responses[response.metric] = response
-    return list(responses.values())
+    return [_current_metric_response(row) for row in rows]
 
 
 @router.get("/tents/{tent_id}/metrics/history", response_model=MetricHistoryResponse)
 async def metric_history(  # noqa: PLR0913
     tent_id: str,
     metric: str,
+    device_id: str | None = None,
+    capability_id: str | None = None,
     range: str = "24h",
     _: str = Depends(require_browser_user),
     settings: CloudSettings = Depends(get_settings),
@@ -527,10 +618,23 @@ async def metric_history(  # noqa: PLR0913
     range_spec = METRIC_HISTORY_RANGES.get(range)
     if range_spec is None:
         raise HTTPException(status_code=400, detail="invalid range")
+    if (device_id is None) != (capability_id is None):
+        raise HTTPException(
+            status_code=400,
+            detail="device_id and capability_id must be supplied together",
+        )
     bucket, window = range_spec
     cutoff = clock() - window
     display_spec = DISPLAY_METRIC_BY_PUBLIC.get(metric)
     storage_metric = display_spec.storage_metric if display_spec else metric
+    stream_filters = (
+        (
+            CloudMetricRollup.device_id == device_id,
+            CloudMetricRollup.capability_id == capability_id,
+        )
+        if device_id is not None and capability_id is not None
+        else ()
+    )
     rows = (
         await session.execute(
             select(CloudMetricRollup)
@@ -541,6 +645,7 @@ async def metric_history(  # noqa: PLR0913
                 CloudMetricRollup.bucket == bucket,
                 CloudMetricRollup.bucket_start_at >= cutoff,
             )
+            .where(*stream_filters)
             .order_by(CloudMetricRollup.bucket_start_at)
         )
     ).scalars()
@@ -557,6 +662,194 @@ async def metric_history(  # noqa: PLR0913
                 max=_display_metric_value(row.max_value, display_spec),
                 sample_count=row.sample_count,
                 unit=display_spec.display_unit if display_spec else row.unit,
+            )
+            for row in rows
+        ],
+    )
+
+
+@router.get("/tents/{tent_id}/plants", response_model=list[PlantSummaryResponse])
+async def plants(
+    tent_id: str,
+    _: str = Depends(require_browser_user),
+    settings: CloudSettings = Depends(get_settings),
+    session: AsyncSession = Depends(get_session),
+) -> list[PlantSummaryResponse]:
+    latest_rows = await _latest_plants(
+        session,
+        site_id=settings.default_site_id,
+        tent_id=tent_id,
+    )
+    latest_moisture_by_stream = await _latest_plant_moisture_by_streams(
+        session,
+        site_id=settings.default_site_id,
+        tent_id=tent_id,
+        plants=latest_rows,
+    )
+    return [
+        _plant_summary_response(
+            row,
+            latest=latest_moisture_by_stream.get(_plant_moisture_stream_key(row)),
+        )
+        for row in latest_rows
+    ]
+
+
+@router.get(
+    "/tents/{tent_id}/plants/moisture/history",
+    response_model=PlantMoistureComparisonResponse,
+)
+async def plant_moisture_comparison_history(
+    tent_id: str,
+    range: str = "24h",
+    _: str = Depends(require_browser_user),
+    settings: CloudSettings = Depends(get_settings),
+    session: AsyncSession = Depends(get_session),
+    clock: Callable[[], datetime] = Depends(get_clock),
+) -> PlantMoistureComparisonResponse:
+    range_spec = METRIC_HISTORY_RANGES.get(range)
+    if range_spec is None:
+        raise HTTPException(status_code=400, detail="invalid range")
+
+    plants = [
+        plant
+        for plant in await _latest_plants(
+            session,
+            site_id=settings.default_site_id,
+            tent_id=tent_id,
+        )
+        if _plant_has_moisture_stream(plant)
+    ]
+    bucket, window = range_spec
+    cutoff = clock() - window
+    stream_keys = _plant_moisture_stream_keys(plants)
+    rollups_by_stream: dict[tuple[str, str], list[CloudMetricRollup]] = {
+        stream_key: [] for stream_key in stream_keys
+    }
+    if stream_keys:
+        rows = (
+            await session.execute(
+                select(CloudMetricRollup)
+                .where(
+                    CloudMetricRollup.site_id == settings.default_site_id,
+                    CloudMetricRollup.tent_id == tent_id,
+                    CloudMetricRollup.metric == "soil_moisture_pct",
+                    CloudMetricRollup.bucket == bucket,
+                    CloudMetricRollup.bucket_start_at >= cutoff,
+                )
+                .order_by(CloudMetricRollup.bucket_start_at)
+            )
+        ).scalars()
+        for row in rows:
+            stream_key = (row.device_id, row.capability_id)
+            if stream_key in rollups_by_stream:
+                rollups_by_stream[stream_key].append(row)
+
+    latest_moisture_by_stream = await _latest_plant_moisture_by_streams(
+        session,
+        site_id=settings.default_site_id,
+        tent_id=tent_id,
+        plants=plants,
+    )
+    return PlantMoistureComparisonResponse(
+        metric="soil_moisture_pct",
+        range=range,
+        plants=[
+            _plant_moisture_series_response(
+                plant,
+                latest=latest_moisture_by_stream.get(_plant_moisture_stream_key(plant)),
+                rollups=rollups_by_stream.get(_plant_moisture_stream_key(plant), []),
+            )
+            for plant in plants
+        ],
+    )
+
+
+@router.get("/tents/{tent_id}/plants/{plant_id}", response_model=PlantDetailResponse)
+async def plant_detail(
+    tent_id: str,
+    plant_id: str,
+    _: str = Depends(require_browser_user),
+    settings: CloudSettings = Depends(get_settings),
+    session: AsyncSession = Depends(get_session),
+    clock: Callable[[], datetime] = Depends(get_clock),
+) -> PlantDetailResponse:
+    plant = await _get_moisture_backed_plant(
+        session,
+        site_id=settings.default_site_id,
+        tent_id=tent_id,
+        plant_id=plant_id,
+    )
+    latest = await _latest_plant_moisture(
+        session,
+        site_id=settings.default_site_id,
+        plant=plant,
+    )
+    wiki_page = await _plant_wiki_page(
+        session,
+        site_id=settings.default_site_id,
+        plant=plant,
+    )
+    return _plant_detail_response(
+        plant,
+        latest=latest,
+        wiki_page=wiki_page,
+        now=clock(),
+    )
+
+
+@router.get(
+    "/tents/{tent_id}/plants/{plant_id}/moisture/history",
+    response_model=MetricHistoryResponse,
+)
+async def plant_moisture_history(  # noqa: PLR0913
+    tent_id: str,
+    plant_id: str,
+    range: str = "24h",
+    _: str = Depends(require_browser_user),
+    settings: CloudSettings = Depends(get_settings),
+    session: AsyncSession = Depends(get_session),
+    clock: Callable[[], datetime] = Depends(get_clock),
+) -> MetricHistoryResponse:
+    range_spec = METRIC_HISTORY_RANGES.get(range)
+    if range_spec is None:
+        raise HTTPException(status_code=400, detail="invalid range")
+    plant = await _get_moisture_backed_plant(
+        session,
+        site_id=settings.default_site_id,
+        tent_id=tent_id,
+        plant_id=plant_id,
+    )
+    bucket, window = range_spec
+    cutoff = clock() - window
+    rows = (
+        await session.execute(
+            select(CloudMetricRollup)
+            .where(
+                CloudMetricRollup.site_id == settings.default_site_id,
+                CloudMetricRollup.tent_id == tent_id,
+                CloudMetricRollup.device_id == plant.moisture_device_id,
+                CloudMetricRollup.capability_id == plant.moisture_capability_id,
+                CloudMetricRollup.metric == "soil_moisture_pct",
+                CloudMetricRollup.bucket == bucket,
+                CloudMetricRollup.bucket_start_at >= cutoff,
+            )
+            .order_by(CloudMetricRollup.bucket_start_at)
+        )
+    ).scalars()
+    return MetricHistoryResponse(
+        metric="soil_moisture_pct",
+        range=range,
+        points=[
+            MetricHistoryPointResponse(
+                bucket=row.bucket,
+                bucket_start_at=row.bucket_start_at,
+                bucket_end_at=row.bucket_end_at,
+                min=row.min_value,
+                avg=row.avg_value,
+                max=row.max_value,
+                sample_count=row.sample_count,
+                unit=row.unit,
             )
             for row in rows
         ],
@@ -889,6 +1182,284 @@ async def list_commands(
         await session.execute(stmt.order_by(desc(CloudCommand.queued_at)).limit(50))
     ).scalars()
     return [_command_response(command) for command in rows]
+
+
+def _plant_has_moisture_stream(plant: CloudPlant) -> bool:
+    return (
+        plant.moisture_device_id is not None
+        and plant.moisture_capability_id is not None
+    )
+
+
+def _plant_moisture_stream_key(plant: CloudPlant) -> tuple[str, str] | None:
+    if plant.moisture_device_id is None or plant.moisture_capability_id is None:
+        return None
+    return (plant.moisture_device_id, plant.moisture_capability_id)
+
+
+def _plant_moisture_stream_keys(plants: list[CloudPlant]) -> set[tuple[str, str]]:
+    stream_keys: set[tuple[str, str]] = set()
+    for plant in plants:
+        stream_key = _plant_moisture_stream_key(plant)
+        if stream_key is not None:
+            stream_keys.add(stream_key)
+    return stream_keys
+
+
+def _plant_recency_order() -> tuple[Any, ...]:
+    return (
+        desc(CloudPlant.synced_at),
+        desc(CloudPlant.updated_at),
+        desc(CloudPlant.created_at),
+        desc(CloudPlant.grow_run_id),
+        desc(CloudPlant.plant_key),
+    )
+
+
+async def _latest_plants(
+    session: AsyncSession,
+    *,
+    site_id: str,
+    tent_id: str,
+) -> list[CloudPlant]:
+    rows = (
+        await session.execute(
+            select(CloudPlant)
+            .where(
+                CloudPlant.site_id == site_id,
+                CloudPlant.tent_id == tent_id,
+            )
+            .order_by(CloudPlant.plant_id, *_plant_recency_order())
+        )
+    ).scalars()
+    latest_by_plant_id: dict[str, CloudPlant] = {}
+    for row in rows:
+        latest_by_plant_id.setdefault(row.plant_id, row)
+    return sorted(
+        latest_by_plant_id.values(),
+        key=lambda plant: (plant.display_order, plant.plant_id),
+    )
+
+
+def _plant_summary_response(
+    plant: CloudPlant,
+    *,
+    latest: CloudLatestMetric | None,
+) -> PlantSummaryResponse:
+    return PlantSummaryResponse(
+        site_id=plant.site_id,
+        tent_id=plant.tent_id,
+        grow_run_id=plant.grow_run_id,
+        plant_id=plant.plant_id,
+        name=plant.name,
+        display_order=plant.display_order,
+        sticker_color=plant.sticker_color,
+        status=plant.status,
+        purple=plant.purple,
+        moisture_target_low=plant.moisture_target_low,
+        moisture_target_high=plant.moisture_target_high,
+        moisture_device_id=plant.moisture_device_id,
+        moisture_capability_id=plant.moisture_capability_id,
+        wiki_path=plant.wiki_path,
+        is_active=plant.is_active,
+        has_moisture_stream=_plant_has_moisture_stream(plant),
+        latest_moisture=_plant_latest_moisture_response(latest),
+    )
+
+
+async def _get_moisture_backed_plant(
+    session: AsyncSession,
+    *,
+    site_id: str,
+    tent_id: str,
+    plant_id: str,
+) -> CloudPlant:
+    plant = (
+        await session.execute(
+            select(CloudPlant)
+            .where(
+                CloudPlant.site_id == site_id,
+                CloudPlant.tent_id == tent_id,
+                CloudPlant.plant_id == plant_id,
+            )
+            .order_by(*_plant_recency_order())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if plant is None or not _plant_has_moisture_stream(plant):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "plant not found")
+    return plant
+
+
+async def _latest_plant_moisture(
+    session: AsyncSession,
+    *,
+    site_id: str,
+    plant: CloudPlant,
+) -> CloudLatestMetric | None:
+    return (
+        await session.execute(
+            select(CloudLatestMetric).where(
+                CloudLatestMetric.site_id == site_id,
+                CloudLatestMetric.tent_id == plant.tent_id,
+                CloudLatestMetric.device_id == plant.moisture_device_id,
+                CloudLatestMetric.capability_id == plant.moisture_capability_id,
+                CloudLatestMetric.metric == "soil_moisture_pct",
+            )
+        )
+    ).scalar_one_or_none()
+
+
+async def _latest_plant_moisture_by_streams(
+    session: AsyncSession,
+    *,
+    site_id: str,
+    tent_id: str,
+    plants: list[CloudPlant],
+) -> dict[tuple[str, str], CloudLatestMetric]:
+    stream_keys = _plant_moisture_stream_keys(plants)
+    if not stream_keys:
+        return {}
+    rows = (
+        await session.execute(
+            select(CloudLatestMetric).where(
+                CloudLatestMetric.site_id == site_id,
+                CloudLatestMetric.tent_id == tent_id,
+                CloudLatestMetric.metric == "soil_moisture_pct",
+            )
+        )
+    ).scalars()
+    return {
+        stream_key: row
+        for row in rows
+        if (stream_key := (row.device_id, row.capability_id)) in stream_keys
+    }
+
+
+async def _plant_wiki_page(
+    session: AsyncSession,
+    *,
+    site_id: str,
+    plant: CloudPlant,
+) -> CloudWikiPage | None:
+    if plant.wiki_path is None:
+        return None
+    return (
+        await session.execute(
+            select(CloudWikiPage).where(
+                CloudWikiPage.site_id == site_id,
+                CloudWikiPage.path == plant.wiki_path,
+            )
+        )
+    ).scalar_one_or_none()
+
+
+def _plant_latest_moisture_response(
+    latest: CloudLatestMetric | None,
+) -> PlantLatestMoistureResponse | None:
+    if latest is None:
+        return None
+    return PlantLatestMoistureResponse(
+        metric="soil_moisture_pct",
+        value=latest.value,
+        unit=latest.unit,
+        device_id=latest.device_id,
+        capability_id=latest.capability_id,
+        source_updated_at=latest.source_updated_at,
+        received_at=latest.received_at,
+        stale_after_s=latest.stale_after_s,
+    )
+
+
+def _metric_history_point_response(
+    row: CloudMetricRollup,
+) -> MetricHistoryPointResponse:
+    return MetricHistoryPointResponse(
+        bucket=row.bucket,
+        bucket_start_at=row.bucket_start_at,
+        bucket_end_at=row.bucket_end_at,
+        min=row.min_value,
+        avg=row.avg_value,
+        max=row.max_value,
+        sample_count=row.sample_count,
+        unit=row.unit,
+    )
+
+
+def _plant_moisture_series_response(
+    plant: CloudPlant,
+    *,
+    latest: CloudLatestMetric | None,
+    rollups: list[CloudMetricRollup],
+) -> PlantMoistureSeriesResponse:
+    return PlantMoistureSeriesResponse(
+        site_id=plant.site_id,
+        tent_id=plant.tent_id,
+        grow_run_id=plant.grow_run_id,
+        plant_id=plant.plant_id,
+        name=plant.name,
+        display_order=plant.display_order,
+        sticker_color=plant.sticker_color,
+        target_bounds=PlantTargetBoundsResponse(
+            low=plant.moisture_target_low,
+            high=plant.moisture_target_high,
+        ),
+        latest_moisture=_plant_latest_moisture_response(latest),
+        points=[_metric_history_point_response(row) for row in rollups],
+    )
+
+
+def _plant_detail_response(
+    plant: CloudPlant,
+    *,
+    latest: CloudLatestMetric | None,
+    wiki_page: CloudWikiPage | None,
+    now: datetime,
+) -> PlantDetailResponse:
+    latest_response = _plant_latest_moisture_response(latest)
+    freshness = None
+    if latest is not None:
+        updated_at = _same_timezone(latest.source_updated_at, now)
+        source_age_s = max(0, int((now - updated_at).total_seconds()))
+        freshness = PlantMoistureFreshnessResponse(
+            source_age_s=source_age_s,
+            is_current=_metric_is_current(latest, now=now),
+        )
+    if plant.moisture_device_id is None or plant.moisture_capability_id is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "plant not found")
+    return PlantDetailResponse(
+        site_id=plant.site_id,
+        tent_id=plant.tent_id,
+        grow_run_id=plant.grow_run_id,
+        plant_id=plant.plant_id,
+        name=plant.name,
+        display_order=plant.display_order,
+        sticker_color=plant.sticker_color,
+        status=plant.status,
+        purple=plant.purple,
+        is_active=plant.is_active,
+        moisture_device_id=plant.moisture_device_id,
+        moisture_capability_id=plant.moisture_capability_id,
+        target_bounds=PlantTargetBoundsResponse(
+            low=plant.moisture_target_low,
+            high=plant.moisture_target_high,
+        ),
+        latest_moisture=latest_response,
+        freshness=freshness,
+        wiki_path=plant.wiki_path,
+        wiki_content=(
+            None
+            if wiki_page is None
+            else PlantWikiContentResponse(
+                path=wiki_page.path,
+                title=wiki_page.title,
+                frontmatter=wiki_page.frontmatter,
+                body_markdown=wiki_page.body_markdown,
+                sha256=wiki_page.sha256,
+                source_updated_at=wiki_page.source_updated_at,
+            )
+        ),
+    )
 
 
 def _asset_response(

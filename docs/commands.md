@@ -77,12 +77,12 @@ make dev-up
 
 `make dev-up` starts the local control-plane API and Vite UI wired together for hosted dashboard development. It binds both services on the public interface for LAN access, advertises the detected local host/IP in the printed URLs, and reuses the local dev database without refreshing production data by itself. Set `DIRT_DEV_PUBLIC_HOST=<host-or-ip>` before running it if the advertised host should be overridden.
 
-- **First use / fresh hosted data**: `make dev-refresh-db` creates a local compressed dump from the hosted control-plane database, restores only into the guarded local dev database, sanitizes local-only state, and applies pending cloud migrations. Run this before the first `make dev-up`, or whenever you intentionally want a fresh production-shaped dev database.
+- **First use / fresh hosted data**: `make dev-refresh-db` creates a local compressed dump from the hosted control-plane database, restores only into the guarded local dev database, sanitizes local-only state, applies pending cloud migrations, and marks local projection data for reseeding on the next `make dev-up`. Run this before the first `make dev-up`, or whenever you intentionally want a fresh production-shaped dev database.
 - **Status**: `make dev-status` reports whether the local API and web ports are reachable, the dev database name, the latest dump, and log pointers.
 - **Browser login**: use the Web URL from `make dev-status` and log in with username `dev-admin`, password `dev-password`. This uses the real browser session flow with local-only credentials.
 - **Stop**: `make dev-down` stops the local dev processes recorded by the lifecycle script without touching unrelated services.
 - **Reset from latest dump**: `make dev-reset` restores the local dev database from the most recent local compressed dump, reapplies pending cloud migrations, and starts the environment again. It does not contact Railway.
-- **Automatic migrations**: `make dev-up` also applies pending cloud migrations to the guarded local dev database before starting the API/web processes, so branch switches and newly pulled migrations do not require a separate manual migration command.
+- **Automatic migrations and seeding**: `make dev-up` also applies pending cloud migrations to the guarded local dev database before starting the API/web processes. If the migration marker differs from the last successful local seed marker, it seeds catalog/latest metrics/wiki/rollups from the local source database and wiki through the local gateway API boundary before starting Vite. It does not infer from empty tables.
 - **Assets placeholder**: `make dev-refresh-assets` is intentionally a stub for now. It exits successfully and points you to place files under `var/dev/control-plane/assets/<object_key>` until production asset mirroring is implemented.
 
 ## Firmware

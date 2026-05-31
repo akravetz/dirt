@@ -6,9 +6,11 @@ from dirt_control.models.cloud import (
     CloudDevice,
     CloudLatestMetric,
     CloudMetricRollup,
+    CloudPlant,
     CloudSchedule,
     CloudSite,
     CloudTent,
+    CloudWikiPage,
     CloudZone,
     GatewayCredential,
 )
@@ -21,9 +23,11 @@ __all__ = [
     "CloudDevice",
     "CloudLatestMetric",
     "CloudMetricRollup",
+    "CloudPlant",
     "CloudSchedule",
     "CloudSite",
     "CloudTent",
+    "CloudWikiPage",
     "CloudZone",
     "GatewayCredential",
 ]

@@ -582,6 +582,20 @@ def test_up_applies_cloud_migrations_before_starting_services(
     assert calls == ["migrate"]
 
 
+def test_dev_seed_gate_is_based_on_migration_marker() -> None:
+    script = _load_script()
+
+    assert script.needs_dev_seed({}, "marker-a")
+    assert script.needs_dev_seed(
+        {"seed": {"migration_marker": "marker-b", "seeded_at": "now"}},
+        "marker-a",
+    )
+    assert not script.needs_dev_seed(
+        {"seed": {"migration_marker": "marker-a", "seeded_at": "now"}},
+        "marker-a",
+    )
+
+
 def test_reset_uses_latest_local_dump_without_source_resolution(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
