@@ -580,6 +580,7 @@ async def _seed_history_rollup_readings(engine: AsyncEngine) -> set[str]:
         "vpd_kpa": ("kPa", [1.1, 1.3]),
         "reservoir_in": ("in", [7.0, 7.5]),
         "reservoir_ph": ("pH", [6.1, 6.3]),
+        "dehumidifier_on": ("bool", [0.0, 1.0, 1.0]),
         "reservoir_ph_voltage": ("V", [1.2, 1.3]),
         "temperature_c": ("C", [22.2, 23.3]),
     }
@@ -714,8 +715,10 @@ async def test_collect_rollups_filters_history_from_metric_registry(
         "vpd_kpa",
         "reservoir_in",
         "reservoir_ph",
+        "dehumidifier_runtime_pct",
         "soil_moisture_pct",
     } <= metrics
+    assert "dehumidifier_on" not in metrics
     assert "soil_moisture_raw" not in metrics
     assert "reservoir_ph_voltage" not in metrics
     assert "temperature_c" not in metrics
@@ -723,6 +726,13 @@ async def test_collect_rollups_filters_history_from_metric_registry(
     assert moisture_rollups
     assert {item.capability_id for item in moisture_rollups} == {"soil_moisture_raw"}
     assert {item.unit for item in moisture_rollups} == {"%"}
+    dehumidifier_rollups = [
+        item for item in rollups if item.metric == "dehumidifier_runtime_pct"
+    ]
+    assert dehumidifier_rollups
+    assert {item.capability_id for item in dehumidifier_rollups} == {"dehumidifier_on"}
+    assert {item.unit for item in dehumidifier_rollups} == {"%"}
+    assert {item.avg_value for item in dehumidifier_rollups} == {66.6667}
 
 
 async def test_collect_rollups_disables_legacy_moisture_from_registry(

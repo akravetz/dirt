@@ -924,7 +924,7 @@ async def test_metric_presentation_exposes_ordered_backend_registry(
                     display_order=20,
                 ),
                 CloudMetricPresentation(
-                    metric="dehumidifier_on",
+                    metric="dehumidifier_runtime_pct",
                     display_name="Dehumidifier Runtime",
                     unit="%",
                     accent="humidity",
@@ -1005,10 +1005,10 @@ async def test_metric_presentation_exposes_ordered_backend_registry(
     ]
     assert [metric["metric"] for metric in body["history_groups"][1]["metrics"]] == [
         "humidity_pct",
-        "dehumidifier_on",
+        "dehumidifier_runtime_pct",
     ]
     assert body["history_groups"][1]["metrics"][1] == {
-        "metric": "dehumidifier_on",
+        "metric": "dehumidifier_runtime_pct",
         "display_name": "Dehumidifier Runtime",
         "unit": "%",
         "accent": "humidity",
@@ -1654,7 +1654,7 @@ async def test_browser_plant_history_uses_latest_synced_row_per_public_plant_id(
     assert [point["avg"] for point in response.json()["points"]] == [65.0]
 
 
-async def test_metric_history_uses_canonical_metrics_and_runtime_percentage(
+async def test_metric_history_uses_canonical_metrics_and_dehumidifier_runtime(
     authed_client: AsyncClient,
     cloud_engine: AsyncEngine,
 ) -> None:
@@ -1696,11 +1696,11 @@ async def test_metric_history_uses_canonical_metrics_and_runtime_percentage(
                     bucket="1h",
                     start=FIXED_NOW - timedelta(hours=2),
                     min_value=0.0,
-                    avg=0.65,
-                    max_value=1.0,
-                    metric="dehumidifier_on",
+                    avg=65.0,
+                    max_value=100.0,
+                    metric="dehumidifier_runtime_pct",
                     capability_id="power",
-                    unit="bool",
+                    unit="%",
                 ),
             ]
         )
@@ -1716,7 +1716,7 @@ async def test_metric_history_uses_canonical_metrics_and_runtime_percentage(
         "/api/tents/main/metrics/history?range=24h&metric=heater_intensity_pct"
     )
     dehumidifier = await authed_client.get(
-        "/api/tents/main/metrics/history?range=24h&metric=dehumidifier_on"
+        "/api/tents/main/metrics/history?range=24h&metric=dehumidifier_runtime_pct"
     )
 
     assert fan.status_code == 200
@@ -1734,7 +1734,7 @@ async def test_metric_history_uses_canonical_metrics_and_runtime_percentage(
     assert heater.json()["points"][0]["avg"] == 70.0
     assert heater.json()["points"][0]["unit"] == "%"
     assert dehumidifier.status_code == 200
-    assert dehumidifier.json()["metric"] == "dehumidifier_on"
+    assert dehumidifier.json()["metric"] == "dehumidifier_runtime_pct"
     assert dehumidifier.json()["points"][0]["min"] == 0.0
     assert dehumidifier.json()["points"][0]["avg"] == 65.0
     assert dehumidifier.json()["points"][0]["max"] == 100.0

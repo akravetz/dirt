@@ -44,7 +44,6 @@ METRIC_HISTORY_RANGES: dict[str, tuple[str, timedelta]] = {
     "30d": ("4h", timedelta(days=30)),
     "90d": ("1d", timedelta(days=90)),
 }
-DEHUMIDIFIER_STATE_METRIC = "dehumidifier_on"
 
 
 class LoginRequest(BaseModel):
@@ -336,20 +335,6 @@ def _current_metric_response(row: CloudLatestMetric) -> CurrentMetricResponse:
         received_at=row.received_at,
         stale_after_s=row.stale_after_s,
     )
-
-
-def _history_metric_value(value: float | None, metric: str) -> float | None:
-    if value is None:
-        return None
-    if metric == DEHUMIDIFIER_STATE_METRIC:
-        return round(value * 100.0, 2)
-    return value
-
-
-def _history_metric_unit(unit: str | None, metric: str) -> str | None:
-    if metric == DEHUMIDIFIER_STATE_METRIC:
-        return "%"
-    return unit
 
 
 def _presentation_metric_response(
@@ -727,11 +712,11 @@ async def metric_history(  # noqa: PLR0913
                 bucket=row.bucket,
                 bucket_start_at=row.bucket_start_at,
                 bucket_end_at=row.bucket_end_at,
-                min=_history_metric_value(row.min_value, metric),
-                avg=_history_metric_value(row.avg_value, metric),
-                max=_history_metric_value(row.max_value, metric),
+                min=row.min_value,
+                avg=row.avg_value,
+                max=row.max_value,
                 sample_count=row.sample_count,
-                unit=_history_metric_unit(row.unit, metric),
+                unit=row.unit,
             )
             for row in rows
         ],

@@ -188,6 +188,15 @@ class GatewayLocalServiceBundle:
                     )
                 )
                 rollups.extend(
+                    await collect_dehumidifier_runtime_rollups(
+                        session,
+                        site_id=site_id,
+                        since=now - window,
+                        bucket=bucket,
+                        bucket_s=bucket_s,
+                    )
+                )
+                rollups.extend(
                     await collect_legacy_calibrated_soil_moisture_rollups(
                         session,
                         site_id=site_id,
@@ -495,6 +504,64 @@ GROUP BY
   mp.unit,
   sc.raw_low,
   sc.raw_high,
+  bucket_start_at
+ORDER BY bucket_start_at, t.tent_id, d.device_id, c.capability_id, mp.metric
+"""
+    result = await session.exec(
+        text(sql),
+        params={"site_id": site_id, "since": since, "bucket_s": bucket_s},
+    )
+    return _rollup_items_from_rows(
+        result.mappings().all(),
+        site_id=site_id,
+        bucket=bucket,
+        bucket_s=bucket_s,
+    )
+
+
+async def collect_dehumidifier_runtime_rollups(
+    session: AsyncSession,
+    *,
+    site_id: str,
+    since: datetime,
+    bucket: str,
+    bucket_s: int,
+) -> list[RollupItem]:
+    sql = """
+SELECT
+  t.tent_id,
+  d.device_id,
+  c.capability_id,
+  mp.metric AS metric,
+  mp.unit,
+  date_bin(
+    make_interval(secs => :bucket_s),
+    sr.ts,
+    TIMESTAMPTZ '1970-01-01'
+  ) AS bucket_start_at,
+  round((min(sr.value) * 100.0)::numeric, 4)::double precision AS min_value,
+  round((avg(sr.value) * 100.0)::numeric, 4)::double precision AS avg_value,
+  round((max(sr.value) * 100.0)::numeric, 4)::double precision AS max_value,
+  count(*) AS sample_count
+FROM sensorreading sr
+JOIN capability c ON c.id = sr.capability_id
+JOIN metric_presentation mp
+  ON mp.metric = 'dehumidifier_runtime_pct'
+ AND mp.history_enabled = true
+JOIN device d ON d.id = c.device_id
+JOIN site s ON s.id = d.site_id
+JOIN tent t ON t.id = d.tent_id
+WHERE s.site_id = :site_id
+  AND sr.ts >= :since
+  AND c.enabled = true
+  AND c.metric_name = 'dehumidifier_on'
+  AND sr.metric = 'dehumidifier_on'
+GROUP BY
+  t.tent_id,
+  d.device_id,
+  c.capability_id,
+  mp.metric,
+  mp.unit,
   bucket_start_at
 ORDER BY bucket_start_at, t.tent_id, d.device_id, c.capability_id, mp.metric
 """

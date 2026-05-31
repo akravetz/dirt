@@ -11,6 +11,7 @@ PRODUCT_HISTORY_METRICS = {
     "fan_pct",
     "humidity_pct",
     "humidifier_intensity_pct",
+    "dehumidifier_runtime_pct",
     "vpd_kpa",
     "reservoir_in",
     "reservoir_ph",
@@ -46,18 +47,23 @@ async def test_cloud_metric_presentation_seed_marks_product_history(cloud_engine
     assert "soil_moisture_raw" not in by_metric
 
 
-async def test_cloud_dehumidifier_presentation_uses_canonical_binary_metric(
+async def test_cloud_dehumidifier_presentation_uses_runtime_history_metric(
     cloud_engine,
 ):
     async with AsyncSession(cloud_engine) as session:
-        row = (
+        rows = (
             await session.exec(
                 select(CloudMetricPresentation).where(
-                    CloudMetricPresentation.metric == "dehumidifier_on"
+                    CloudMetricPresentation.metric.in_(
+                        ["dehumidifier_on", "dehumidifier_runtime_pct"]
+                    )
                 )
             )
-        ).one()
+        ).all()
 
-    assert row.history_enabled is True
-    assert row.current_enabled is False
-    assert row.unit == "%"
+    by_metric = {row.metric: row for row in rows}
+
+    assert "dehumidifier_on" not in by_metric
+    assert by_metric["dehumidifier_runtime_pct"].history_enabled is True
+    assert by_metric["dehumidifier_runtime_pct"].current_enabled is False
+    assert by_metric["dehumidifier_runtime_pct"].unit == "%"
