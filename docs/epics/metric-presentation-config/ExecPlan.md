@@ -19,6 +19,7 @@ This is a direct cutover. Do not add frontend fallback lists, metric alias compa
 - [x] (2026-05-31 22:15Z) Revised the plan to canonicalize product metric names before adding the registry. Native hardware levels remain controller details or logs, not cloud/browser metric aliases.
 - [x] (2026-05-31 22:30Z) Revised the plan to delete persisted native humidifier/heater level streams instead of keeping them as diagnostic readings.
 - [x] (2026-05-31 22:40Z) Clarified that canonical intensity readings must represent effective quantized actuator output, not raw requested control demand.
+- [x] (2026-05-31 22:55Z) Quarantined calibrated soil moisture as a disposable legacy projection and clarified that rollup SQL should live inside named functions rather than module-level SQL constants.
 - [ ] Canonicalize product metric names at the producer/storage boundary and directly migrate owned local/cloud data.
 - [ ] Implement the metric presentation registry in local and cloud persistence.
 - [ ] Expose the browser presentation contract and regenerate hosted API types.
@@ -52,6 +53,15 @@ This is a direct cutover. Do not add frontend fallback lists, metric alias compa
 - Observation: The gateway rollup projection currently emits every enabled metric with a metric name, then adds calibrated `soil_moisture_pct`.
   Evidence: `_ROLLUP_SQL` in `apps/gateway/src/dirt_gateway/local.py` filters only on `c.metric_name IS NOT NULL`, so raw and diagnostic streams are eligible unless filtered after the query.
 
+- Observation: Soil moisture calibration is the only current metric path that depends on `sensorcalibration`.
+  Evidence: `apps/shared/src/dirt_shared/services/readings.py` defines `AUTO_CALIBRATED_METRICS = {"soil_moisture_raw"}`. Gateway latest/rollup SQL, daily sensors, and voice sensor tools all special-case `soil_moisture_raw + sensorcalibration -> soil_moisture_pct`.
+
+- Observation: Dynamic soil moisture calibration is current hardware tech debt, not the desired long-term metric architecture.
+  Evidence: Plant-node firmware emits raw ADC `soil_moisture_raw`, and the local database auto-widens `sensorcalibration` rows. Future soil moisture sensors are expected to behave more like reservoir sensors by producing normalized/calibrated product values at hardware or producer level.
+
+- Observation: `_ROLLUP_SQL` is a mixed-responsibility implementation detail.
+  Evidence: The constant currently combines canonical bucket aggregation, metric eligibility, calibration joins, derived soil moisture math, and cloud payload shape. The implementation should use named functions for projection behavior, with any SQL scoped inside those functions.
+
 - Observation: Some frontend code is visual styling, not domain presentation config, and should stay in the frontend.
   Evidence: `web-ui/src/ui/Sparkline.tsx`, `web-ui/src/ui/Gauge.tsx`, and `web-ui/src/ui/MoistureComparisonChart.tsx` map semantic accents or sticker colors to Tailwind classes and implement chart interactions. The backend should send semantic accent names and metric config, not CSS class names.
 
@@ -79,6 +89,14 @@ This is a direct cutover. Do not add frontend fallback lists, metric alias compa
 
 - Decision: Treat `dehumidifier_on` as the canonical binary metric and `dehumidifier_runtime_pct` as a rollup presentation, unless implementation discovers the product truly wants latest state as 0/100 percent.
   Rationale: `dehumidifier_runtime_pct` is not a native latest state; it is an aggregation over time. Collapsing it into the latest metric would make the model less truthful.
+  Date/Author: 2026-05-31 / Codex
+
+- Decision: Quarantine soil moisture calibration as a legacy projection, not a general transform system.
+  Rationale: `soil_moisture_raw + sensorcalibration -> soil_moisture_pct` is the only current calibration-table metric path and is likely to disappear when better soil moisture hardware emits normalized values. Keep it working today, but isolate it behind named projection functions so deleting it later does not disturb the canonical metric rollup path.
+  Date/Author: 2026-05-31 / Codex
+
+- Decision: Replace module-level rollup SQL blobs with named projection functions.
+  Rationale: A constant named `_ROLLUP_SQL` hides domain policy and mixed responsibilities. SQL is fine for efficient bucket aggregation, but it should live inside functions with names like `collect_canonical_history_rollups()` and `collect_legacy_calibrated_soil_moisture_rollups()` so the architecture exposes what each projection does.
   Date/Author: 2026-05-31 / Codex
 
 - Decision: `history_enabled` is fail-closed.
@@ -123,6 +141,10 @@ The metric model has three layers:
 Transforms from native hardware state to product telemetry belong at the producer/storage boundary. Product intensity telemetry must represent effective quantized output, not raw requested demand. For example, if the humidifier controller requests `47%` but Govee dispatch quantizes that to level `4` of `9`, persist `humidifier_intensity_pct=44.4` and log the requested demand separately. If the ThermoForge controller requests about `36%` but dispatches heat level `4` of `10`, persist `heater_intensity_pct=40`. Native levels remain available in controller variables and structured logs, not as separate persisted readings.
 
 The desired owner of dashboard presentation is a metric presentation registry stored in both local and cloud databases. The local database copy lets the gateway filter rollups before upload. The cloud copy lets the browser API expose presentation groups and validate canonical metric requests. Seed rows are source-owned through migrations or an idempotent seed module, so the configuration is reviewed with code and safe to recreate.
+
+Soil moisture calibration is the one accepted derived-metric exception in this plan. Treat it as a quarantined legacy adapter for current plant nodes, not as a pattern for other metrics. The adapter derives `soil_moisture_pct` from local `soil_moisture_raw` readings and `sensorcalibration` rows. It should be the only gateway/control-plane place that knows about the calibration table. The general rollup path should not know calibration exists.
+
+When future soil moisture sensors emit calibrated moisture directly, deleting the legacy adapter should be the only gateway projection cleanup required. At that point `soil_moisture_pct` should flow through the canonical metric path like reservoir or climate metrics.
 
 Recommended registry fields:
 
@@ -171,7 +193,9 @@ The endpoint should return ordered current metrics, ordered history groups, and 
 
 Milestone 4: Filter gateway rollup projection from the same registry.
 
-Update `apps/gateway/src/dirt_gateway/local.py` so `_ROLLUP_SQL` or the Python projection layer includes only `history_enabled` canonical metrics and derived history metrics present in the local registry. The cleanest implementation is to join the local registry in SQL for base rows and to emit derived calibrated rows such as `soil_moisture_pct` only when that derived canonical metric is history-enabled.
+Update `apps/gateway/src/dirt_gateway/local.py` so the general rollup projection includes only `history_enabled` canonical metrics from the local registry. Replace the module-level `_ROLLUP_SQL` constant with named projection functions. The general function should aggregate canonical readings only; it should not contain calibration joins, `UNION ALL`, or soil moisture exceptions.
+
+Add a separate, plainly named legacy projection function for current calibrated plant moisture, for example `collect_legacy_calibrated_soil_moisture_rollups()`. That function may use SQL internally, but it owns the whole temporary exception: read `soil_moisture_raw`, join `sensorcalibration`, derive `soil_moisture_pct`, and emit rows only when the registry has `soil_moisture_pct` history-enabled. Do not add a generic metric transform framework for this one case.
 
 The filter must fail closed. If no `history_enabled` registry rows exist, `collect_rollups()` should return no rollups or raise a clear local configuration error that prevents upload; it must not send every metric.
 
@@ -213,6 +237,13 @@ Expected result after implementation: old product names remain only in historica
 
 Create the local and cloud registry models and migrations after the canonical metric cutover is defined. Use Atlas commands from `docs/database.md`; do not hand-edit generated Atlas metadata incorrectly. After migrations exist, run the migration lint commands documented there.
 
+Refactor gateway rollup collection into named functions. Keep SQL where it is the right tool for bucket aggregation, but keep each SQL query scoped inside the function that names its domain responsibility. The expected shape is:
+
+    async def collect_canonical_history_rollups(...): ...
+    async def collect_legacy_calibrated_soil_moisture_rollups(...): ...
+
+`collect_rollups()` should compose those functions into the `RollupsRequest`. It should not execute a single broad `_ROLLUP_SQL` constant that combines canonical aggregation and legacy calibration.
+
 Add backend tests. Suggested test targets:
 
     uv run pytest apps/shared/tests apps/gateway/tests/test_sync.py apps/control-plane/tests/test_api.py -q
@@ -250,6 +281,9 @@ The implementation is accepted when all of these are true:
 - HWD tests prove humidifier and heater producers persist `humidifier_intensity_pct` and `heater_intensity_pct`, not `humidifier_mist_level` or `heater_heat_level`.
 - HWD tests prove persisted intensity readings are effective quantized output. For humidifier, a request that quantizes to level `4` of `9` persists approximately `44.4`, not the raw requested percent. For heater, a dispatched or observed level `4` persists `40`.
 - Climate-controller tests prove actuator state reconstruction reads canonical percent metrics and converts heater intensity back to native ThermoForge level only inside HWD decision/dispatch code.
+- Gateway tests prove canonical rollup collection uses registry-enabled canonical metrics without calibration joins or soil moisture-specific `UNION ALL`.
+- Gateway tests prove calibrated soil moisture rollups are produced only by the legacy projection, only as `soil_moisture_pct`, and only when `soil_moisture_pct` is history-enabled. `soil_moisture_raw` is not synced to hosted rollups.
+- `rg -n "_ROLLUP_SQL|_LATEST_METRICS_SQL" apps/gateway/src/dirt_gateway/local.py` returns no broad module-level projection SQL constants. Small SQL strings scoped inside named functions are acceptable.
 - A local projection or debug SQL transcript shows history-enabled rollups exclude raw/internal streams and the payload is smaller than the incident path that sent every metric.
 - In the browser, the dashboard still shows current cards and the three history groups, but those groups come from the backend endpoint.
 
@@ -262,6 +296,8 @@ Metric canonicalization migrations are direct cutovers. They should update owned
 Deleting native level persistence means removing active capability rows and historical local/cloud metric rows for `humidifier_mist_level` and `heater_heat_level`, after the canonical percent streams exist. Keep native level information in logs. Do not add a diagnostic metric table or hidden persistence path in this plan.
 
 Gateway filtering must be fail-closed. If the local registry is missing, the gateway must not upload all rollup streams. It may upload zero rollups with a clear log event or raise a clear configuration error. Tests should protect this behavior.
+
+The legacy soil moisture projection must also fail closed. If `soil_moisture_pct` is missing from the registry or disabled for history, it emits no rows. If calibration is missing or degenerate for a plant node, it skips that derived stream and should not emit raw moisture as a fallback.
 
 The frontend cutover is intentionally not backward-compatible with an API that lacks the presentation endpoint. During deployment, use `scripts/deploy-control-plane` so the cloud migration and API deploy happen before the web UI deploy. If deployment fails after the API migration but before the web UI deploy, the old web UI can keep using existing endpoints until the new deploy is retried. If deployment fails after the new web UI deploy, roll back using the hosted deployment process in `docs/hosted-control-plane.md`.
 
@@ -277,6 +313,7 @@ Frontend audit evidence from 2026-05-31:
 - `web-ui/src/routes/index.tsx` maps `HISTORY_METRIC_META` into one `/api/tents/{tent_id}/metrics/history` query per metric.
 - `apps/control-plane/src/dirt_control/api/browser.py` contains `DISPLAY_METRIC_BY_STORAGE` and `DISPLAY_METRIC_BY_PUBLIC`, which are partial backend display mappings.
 - `apps/gateway/src/dirt_gateway/local.py` currently filters rollup base rows only by `c.metric_name IS NOT NULL` and then unions calibrated `soil_moisture_pct`.
+- `sensorcalibration` is only part of the current soil moisture path. It should be quarantined behind the legacy calibrated soil moisture projection rather than shaping the general rollup architecture.
 - `firmware/fan_controller/src/main.cpp` currently emits `fan_duty_pct`; this should become `fan_pct` during the canonical metric cutover.
 - HWD currently records native actuator metrics such as `humidifier_mist_level` and `heater_heat_level`, and the climate controller reads those persisted streams back. The plan deletes those persisted native streams, records percent intensity product telemetry instead, and keeps native level details in structured logs and controller variables.
 - The persisted percent intensity must be the quantized effective output. Raw requested control demand remains observable through logs, not through current-state readings.
@@ -297,6 +334,7 @@ New or changed interfaces expected at completion:
 - Browser route `GET /api/tents/{tent_id}/metrics/presentation` with generated OpenAPI types consumed by `web-ui/src/api-client/generated/hosted-schema.ts`.
 - Pydantic browser DTOs for metric presentation groups, presentation metric rows, and supported ranges.
 - Gateway rollup projection that filters by local registry `history_enabled`.
+- Legacy calibrated soil moisture projection function that derives `soil_moisture_pct` from `soil_moisture_raw` plus `sensorcalibration`, isolated from the canonical rollup path and documented as removable tech debt.
 - Control-plane metric history route that validates canonical metric names against the cloud registry. It should not map browser aliases to different stored metric names.
 - Frontend dashboard code that consumes generated presentation DTOs and no longer owns domain metric groups or display metadata.
 
@@ -308,3 +346,4 @@ No new external package dependency is expected for this plan.
 - 2026-05-31: Revised the design to collapse stored/public metric aliases before adding the presentation registry. Native actuator levels remain hardware/controller details or log fields; product telemetry is normalized at the producer/storage boundary.
 - 2026-05-31: Revised the native actuator decision to delete persisted `humidifier_mist_level` and `heater_heat_level` streams. Native levels remain in HWD controller/driver logic and structured logs; persisted readings use percent intensity.
 - 2026-05-31: Clarified that persisted `humidifier_intensity_pct` and `heater_intensity_pct` are effective quantized output, not raw requested demand, so the climate loop's feedback model remains truthful.
+- 2026-05-31: Quarantined calibrated soil moisture as a disposable legacy projection and directed implementation away from broad module-level rollup SQL constants toward named projection functions.
