@@ -1,4 +1,4 @@
-h1:fa2GnprynI776TuyJbK4F5DFdcSb5tzipAJ9nyQ4lNw=
+h1:oEWjohcdc5sZs9Rb8flPsN0rfrvVQKFOPHo85oQx86s=
 20260505033411_cloud_control_plane_initial.sql h1:xKFBil06DkN6sXUbx1vStXik3y7cho6yZOOW41OsjEE=
 20260505045254_cloud_operational_hardening.sql h1:I7wpFkAA1D5caKbXIV7M5J5rfTslnsgGK0aUMeyT2wU=
 20260509041000_cloud_light_schedules.sql h1:We0s0BhwCAxHmZ/pf75EM+7uPGsk0a9RcFGvjwU5YA8=
@@ -8,3 +8,4 @@ h1:fa2GnprynI776TuyJbK4F5DFdcSb5tzipAJ9nyQ4lNw=
 20260531231000_canonical_metric_names.sql h1:KXDDtk8TYIDTy/+YsCHIVAHhvCTPyJQX1K5TetVj9HM=
 20260531233500_metric_presentation_registry.sql h1:9U/34WrcqhRHLvRmhEcM1FD4IqBD0Vq/HGMo1dywmx4=
 20260531235500_dehumidifier_runtime_history.sql h1:pL+tDNooJVR8VYGBLD3daSbJ8gxNy3PvGebRTJLDkm0=
+20260531235900_metric_presentation_identity_pk.sql h1:4XuZ2wFj5pj47y1/iiT/OTTIv4mNXBttochQvA0AiPw=

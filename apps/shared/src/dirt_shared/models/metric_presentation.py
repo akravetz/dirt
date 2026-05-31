@@ -2,14 +2,29 @@
 
 from __future__ import annotations
 
-from sqlalchemy import Boolean, Column, Double, Integer, Text, text
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Column,
+    Double,
+    Identity,
+    Integer,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlmodel import Field, SQLModel
 
 
 class MetricPresentation(SQLModel, table=True):
     __tablename__ = "metric_presentation"
+    __table_args__ = (UniqueConstraint("metric", name="uq_metric_presentation_metric"),)
 
-    metric: str = Field(sa_column=Column(Text, primary_key=True))
+    id: int | None = Field(
+        default=None,
+        sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
+    )
+    metric: str = Field(sa_column=Column(Text, nullable=False))
     display_name: str = Field(sa_column=Column(Text, nullable=False))
     unit: str = Field(sa_column=Column(Text, nullable=False))
     accent: str = Field(sa_column=Column(Text, nullable=False))

@@ -5,11 +5,14 @@ from typing import Any
 
 from sqlalchemy import (
     JSON,
+    BigInteger,
     Column,
     DateTime,
     Float,
+    Identity,
     Index,
     Integer,
+    String,
     Text,
     Time,
     UniqueConstraint,
@@ -287,8 +290,15 @@ class CloudMetricRollup(SQLModel, table=True):
 
 class CloudMetricPresentation(SQLModel, table=True):
     __tablename__ = "cloud_metric_presentation"
+    __table_args__ = (
+        UniqueConstraint("metric", name="uq_cloud_metric_presentation_metric"),
+    )
 
-    metric: str = Field(primary_key=True, max_length=120)
+    id: int | None = Field(
+        default=None,
+        sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
+    )
+    metric: str = Field(sa_column=Column(String(120), nullable=False))
     display_name: str = Field(max_length=160)
     unit: str = Field(max_length=40)
     accent: str = Field(max_length=40)

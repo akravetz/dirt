@@ -40,6 +40,7 @@ async def test_cloud_metric_presentation_seed_marks_product_history(cloud_engine
 
     assert history_metrics >= PRODUCT_HISTORY_METRICS
     assert by_metric["soil_moisture_pct"].accent == "moisture"
+    assert by_metric["soil_moisture_pct"].id is not None
     assert by_metric["soil_moisture_pct"].unit == "%"
     assert by_metric["soil_moisture_pct"].history_enabled is True
     assert by_metric["soil_moisture_pct"].current_enabled is False
