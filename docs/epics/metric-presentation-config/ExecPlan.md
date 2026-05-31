@@ -16,7 +16,9 @@ This is a direct cutover. Do not add frontend fallback lists, metric alias compa
 
 - [x] (2026-05-31 21:35Z) Audited the hosted dashboard frontend and backend rollup/display paths.
 - [x] (2026-05-31 21:50Z) Wrote the initial ExecPlan with a backend-owned registry, direct frontend cutover, and validation strategy.
-- [x] (2026-05-31 22:15Z) Revised the plan to canonicalize product metric names before adding the registry. Native hardware levels remain controller details or diagnostics, not cloud/browser metric aliases.
+- [x] (2026-05-31 22:15Z) Revised the plan to canonicalize product metric names before adding the registry. Native hardware levels remain controller details or logs, not cloud/browser metric aliases.
+- [x] (2026-05-31 22:30Z) Revised the plan to delete persisted native humidifier/heater level streams instead of keeping them as diagnostic readings.
+- [x] (2026-05-31 22:40Z) Clarified that canonical intensity readings must represent effective quantized actuator output, not raw requested control demand.
 - [ ] Canonicalize product metric names at the producer/storage boundary and directly migrate owned local/cloud data.
 - [ ] Implement the metric presentation registry in local and cloud persistence.
 - [ ] Expose the browser presentation contract and regenerate hosted API types.
@@ -36,7 +38,13 @@ This is a direct cutover. Do not add frontend fallback lists, metric alias compa
   Evidence: `fan_duty_pct` is stored locally and in cloud rollups but the browser requests `fan_pct`; `humidifier_mist_level` is stored as a native 0..9 Govee level but the browser wants `humidifier_intensity_pct`; `heater_heat_level` is stored as a native 0..10 ThermoForge level but the browser wants `heater_intensity_pct`. These transforms belong at telemetry production time, where hardware semantics are known, not in the browser API.
 
 - Observation: Native actuator levels are still real hardware concepts.
-  Evidence: HWD services command or observe native levels such as Govee mist level and ThermoForge heat level. Those native values may remain inside hardware/controller code and logs, or be persisted as explicitly diagnostic/internal metrics, but the cloud product metric should be normalized.
+  Evidence: HWD services command or observe native levels such as Govee mist level and ThermoForge heat level. Those native values should remain inside hardware/controller code and structured logs. They should not remain persisted `sensorreading` streams unless a future product need requires queryable native-level history.
+
+- Observation: Current HWD code reads native persisted levels back into the climate controller.
+  Evidence: `apps/hwd/src/dirt_hwd/services/climate_controller.py` reads latest `humidifier_mist_level` and `heater_heat_level` to reconstruct current actuator state. The cleanup must update those reads to canonical percent metrics: `humidifier_intensity_pct` directly, and `heater_intensity_pct` converted back to a native level inside HWD when dispatch logic needs a ThermoForge level.
+
+- Observation: Control-loop feedback must use effective actuator output, not requested continuous demand.
+  Evidence: HWD quantizes humidifier demand to Govee levels and heater demand to ThermoForge levels before dispatch. Persisting the requested demand as current state would make the next loop believe the actuator delivered values it physically cannot deliver, weakening hysteresis, rate limiting, and anti-chatter behavior.
 
 - Observation: `dehumidifier_on` is different from the level-to-percent cases.
   Evidence: A latest `dehumidifier_runtime_pct` value is not a hardware state; it is the bucket average of binary `dehumidifier_on` readings. The canonical latest metric should stay `dehumidifier_on` unless the product explicitly wants latest state represented as 0/100 percent. Runtime percent should be a rollup presentation of the binary canonical stream.
@@ -59,6 +67,14 @@ This is a direct cutover. Do not add frontend fallback lists, metric alias compa
 
 - Decision: Normalize native actuator levels at the telemetry boundary, while keeping native hardware concepts inside controller code.
   Rationale: Hardware drivers need native values such as Govee mist level `0..9` and ThermoForge heat level `0..10`. The hosted product dashboard needs device-independent product telemetry such as `humidifier_intensity_pct` and `heater_intensity_pct`. The transform belongs near the producer that understands the native scale, not in the cloud browser API.
+  Date/Author: 2026-05-31 / Codex
+
+- Decision: Delete persisted native humidifier/heater level metric streams.
+  Rationale: `humidifier_mist_level` and `heater_heat_level` are hardware-native implementation details, not product telemetry. Keeping them in `sensorreading` as diagnostic/internal rows would preserve parallel truths in the database. Structured HWD logs can retain native level details for debugging, while persisted readings use canonical product metrics.
+  Date/Author: 2026-05-31 / Codex
+
+- Decision: Canonical intensity metrics represent effective quantized output.
+  Rationale: `humidifier_intensity_pct` and `heater_intensity_pct` are persisted readings and later control-loop feedback. They must be derived from the actual dispatched or observed native level, such as `target_level / 9 * 100` for Govee or `level * 10` for ThermoForge, not from raw requested PI/controller demand. Requested continuous demand belongs in logs.
   Date/Author: 2026-05-31 / Codex
 
 - Decision: Treat `dehumidifier_on` as the canonical binary metric and `dehumidifier_runtime_pct` as a rollup presentation, unless implementation discovers the product truly wants latest state as 0/100 percent.
@@ -101,10 +117,10 @@ The frontend also has local UI components. `web-ui/src/ui/Sparkline.tsx` and `we
 The metric model has three layers:
 
 - Hardware command/state: device-native values that drivers and controllers need, such as ThermoForge heat level `0..10` or Govee mist level `0..9`.
-- Local diagnostics: optional internal telemetry or logs that preserve native details for debugging. These streams may be persisted locally, but they are not product-facing hosted dashboard history by default.
+- Local diagnostics: structured logs that preserve native details for debugging, such as commanded Govee target level or observed ThermoForge level. Do not persist native humidifier/heater levels as `sensorreading` rows in this plan.
 - Product telemetry: canonical metric streams stored for dashboard/current/history use, such as `fan_pct`, `heater_intensity_pct`, `humidifier_intensity_pct`, `temperature_f`, `humidity_pct`, and `soil_moisture_pct`.
 
-Transforms from native hardware state to product telemetry belong at the producer/storage boundary. For example, the ThermoForge service may command native `heat_level=4`, but it should record product telemetry as `heater_intensity_pct=40`. If native `heater_heat_level=4` is still useful, it must be explicitly diagnostic/internal and excluded from hosted rollups.
+Transforms from native hardware state to product telemetry belong at the producer/storage boundary. Product intensity telemetry must represent effective quantized output, not raw requested demand. For example, if the humidifier controller requests `47%` but Govee dispatch quantizes that to level `4` of `9`, persist `humidifier_intensity_pct=44.4` and log the requested demand separately. If the ThermoForge controller requests about `36%` but dispatches heat level `4` of `10`, persist `heater_intensity_pct=40`. Native levels remain available in controller variables and structured logs, not as separate persisted readings.
 
 The desired owner of dashboard presentation is a metric presentation registry stored in both local and cloud databases. The local database copy lets the gateway filter rollups before upload. The cloud copy lets the browser API expose presentation groups and validate canonical metric requests. Seed rows are source-owned through migrations or an idempotent seed module, so the configuration is reviewed with code and safe to recreate.
 
@@ -133,7 +149,9 @@ Update source-owned producers, capability seeds, local data, cloud data, tests, 
 
 Rename `fan_duty_pct` to `fan_pct` as the canonical product fan metric. This includes firmware in `firmware/fan_controller/`, ingest capability mappings such as `apps/shared/src/dirt_shared/sensor_contract.py`, local capability seed migrations or new direct migration updates, tests, docs, local `sensorreading` rows, `cloud_latest_metric`, and `cloud_metric_rollup`.
 
-Normalize humidifier and heater product telemetry at the HWD producer boundary. Controller/driver code may keep native command/state values, but persisted product telemetry should be `humidifier_intensity_pct` and `heater_intensity_pct`. If native `humidifier_mist_level` or `heater_heat_level` remains persisted, mark it diagnostic/internal and exclude it from hosted rollups. Prefer deleting diagnostic persistence if logs already cover the debugging need.
+Normalize humidifier and heater product telemetry at the HWD producer boundary. Controller/driver code may keep native command/state values, but persisted product telemetry should be `humidifier_intensity_pct` and `heater_intensity_pct`. Those persisted intensity values must be computed from the effective quantized target or observed level, not from raw requested demand. Delete persisted `humidifier_mist_level` and `heater_heat_level` streams from producer code, capability seeds, tests, local data, and cloud data. Preserve native level observability and requested continuous demand in structured logs, such as Govee `requested_u_pct` plus `target_level`, and ThermoForge requested heat percent plus dispatched or observed level.
+
+Update climate-controller state reconstruction so it no longer reads native persisted levels. Read `humidifier_intensity_pct` directly for `current_humidifier_pct`. Read `heater_intensity_pct` and convert to the native ThermoForge level inside HWD when the allocator needs `current_heater_level`, for example `round(intensity_pct / 10)` with the same clamping rules used when dispatching levels.
 
 Keep `dehumidifier_on` as the canonical stored latest/state metric. Add explicit rollup/presentation handling so history can show runtime percentage from bucket averages without pretending `dehumidifier_runtime_pct` is a native latest metric.
 
@@ -191,7 +209,7 @@ Update product metric producers before relying on the registry. This includes th
 
     rg -n "fan_duty_pct|humidifier_mist_level|heater_heat_level|DISPLAY_METRIC_BY_STORAGE|DISPLAY_METRIC_BY_PUBLIC" apps web-ui firmware docs migrations cloud -S
 
-Expected result after implementation: old names remain only in historical migrations/docs, native diagnostic code that is explicitly excluded from hosted presentation, or comments explaining the direct migration. They must not remain in cloud/browser alias maps.
+Expected result after implementation: old product names remain only in historical migrations/docs or comments explaining the direct migration. `humidifier_mist_level` and `heater_heat_level` must not remain as active persisted reading streams, cloud/browser alias maps, or gateway rollup inputs. Native level values may remain as local variable names, driver command concepts, and structured log fields.
 
 Create the local and cloud registry models and migrations after the canonical metric cutover is defined. Use Atlas commands from `docs/database.md`; do not hand-edit generated Atlas metadata incorrectly. After migrations exist, run the migration lint commands documented there.
 
@@ -228,7 +246,10 @@ The implementation is accepted when all of these are true:
 - Frontend typecheck and tests pass using generated hosted contract types.
 - `rg -n "CURRENT_METRIC_META|HISTORY_METRIC_GROUPS|MetricMeta|MetricGroup|HISTORY_METRIC_META|isIntegerMetric" web-ui/src` returns no dashboard-owned metric registry.
 - `rg -n "DISPLAY_METRIC_BY_STORAGE|DISPLAY_METRIC_BY_PUBLIC" apps/control-plane/src` returns no obsolete split registry.
-- `rg -n "fan_duty_pct|humidifier_mist_level|heater_heat_level" apps/control-plane apps/gateway web-ui firmware apps/shared/src/dirt_shared/sensor_contract.py` returns no product telemetry dependency on the old names. Any remaining HWD native diagnostic usage must be explicitly internal and excluded from hosted rollups.
+- `rg -n "fan_duty_pct|humidifier_mist_level|heater_heat_level" apps/control-plane apps/gateway web-ui firmware apps/shared/src/dirt_shared/sensor_contract.py` returns no product telemetry dependency on the old names.
+- HWD tests prove humidifier and heater producers persist `humidifier_intensity_pct` and `heater_intensity_pct`, not `humidifier_mist_level` or `heater_heat_level`.
+- HWD tests prove persisted intensity readings are effective quantized output. For humidifier, a request that quantizes to level `4` of `9` persists approximately `44.4`, not the raw requested percent. For heater, a dispatched or observed level `4` persists `40`.
+- Climate-controller tests prove actuator state reconstruction reads canonical percent metrics and converts heater intensity back to native ThermoForge level only inside HWD decision/dispatch code.
 - A local projection or debug SQL transcript shows history-enabled rollups exclude raw/internal streams and the payload is smaller than the incident path that sent every metric.
 - In the browser, the dashboard still shows current cards and the three history groups, but those groups come from the backend endpoint.
 
@@ -237,6 +258,8 @@ The implementation is accepted when all of these are true:
 Registry seed operations must be idempotent upserts. Re-running migrations in a fresh local or cloud database should produce the same registry rows.
 
 Metric canonicalization migrations are direct cutovers. They should update owned local and cloud rows in place and update capability seeds so new readings use the canonical names. They should be safe to reapply only through normal Atlas migration guarantees, not through runtime compatibility code.
+
+Deleting native level persistence means removing active capability rows and historical local/cloud metric rows for `humidifier_mist_level` and `heater_heat_level`, after the canonical percent streams exist. Keep native level information in logs. Do not add a diagnostic metric table or hidden persistence path in this plan.
 
 Gateway filtering must be fail-closed. If the local registry is missing, the gateway must not upload all rollup streams. It may upload zero rollups with a clear log event or raise a clear configuration error. Tests should protect this behavior.
 
@@ -255,7 +278,8 @@ Frontend audit evidence from 2026-05-31:
 - `apps/control-plane/src/dirt_control/api/browser.py` contains `DISPLAY_METRIC_BY_STORAGE` and `DISPLAY_METRIC_BY_PUBLIC`, which are partial backend display mappings.
 - `apps/gateway/src/dirt_gateway/local.py` currently filters rollup base rows only by `c.metric_name IS NOT NULL` and then unions calibrated `soil_moisture_pct`.
 - `firmware/fan_controller/src/main.cpp` currently emits `fan_duty_pct`; this should become `fan_pct` during the canonical metric cutover.
-- HWD currently records native actuator metrics such as `humidifier_mist_level` and `heater_heat_level`; the plan distinguishes those native values from product telemetry and moves the product streams to percent intensity at the producer boundary.
+- HWD currently records native actuator metrics such as `humidifier_mist_level` and `heater_heat_level`, and the climate controller reads those persisted streams back. The plan deletes those persisted native streams, records percent intensity product telemetry instead, and keeps native level details in structured logs and controller variables.
+- The persisted percent intensity must be the quantized effective output. Raw requested control demand remains observable through logs, not through current-state readings.
 
 Production incident context that motivated the plan:
 
@@ -281,4 +305,6 @@ No new external package dependency is expected for this plan.
 ## Revision Notes
 
 - 2026-05-31: Initial ExecPlan created after auditing hosted dashboard frontend presentation smells and the gateway/control-plane rollup path.
-- 2026-05-31: Revised the design to collapse stored/public metric aliases before adding the presentation registry. Native actuator levels remain hardware/controller details or explicit diagnostics; product telemetry is normalized at the producer/storage boundary.
+- 2026-05-31: Revised the design to collapse stored/public metric aliases before adding the presentation registry. Native actuator levels remain hardware/controller details or log fields; product telemetry is normalized at the producer/storage boundary.
+- 2026-05-31: Revised the native actuator decision to delete persisted `humidifier_mist_level` and `heater_heat_level` streams. Native levels remain in HWD controller/driver logic and structured logs; persisted readings use percent intensity.
+- 2026-05-31: Clarified that persisted `humidifier_intensity_pct` and `heater_intensity_pct` are effective quantized output, not raw requested demand, so the climate loop's feedback model remains truthful.
