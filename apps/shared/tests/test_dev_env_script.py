@@ -301,6 +301,38 @@ def test_pg_restore_command_ignores_original_ownership() -> None:
     assert not any("postgresql://" in part for part in command)
 
 
+def test_atlas_postgres_url_targets_guarded_dev_database() -> None:
+    script = _load_script()
+    connection = script.PgConnection(
+        host="127.0.0.1",
+        port="5432",
+        user="dirt",
+        password="local secret",
+        database="dirt_cloud_dev_0123abcdef",
+    )
+
+    url = script.atlas_postgres_url(connection)
+
+    assert url == (
+        "postgres://dirt:local%20secret@127.0.0.1:5432/"
+        "dirt_cloud_dev_0123abcdef?sslmode=disable&search_path=public"
+    )
+
+
+def test_atlas_postgres_url_refuses_non_dev_database() -> None:
+    script = _load_script()
+    connection = script.PgConnection(
+        host="127.0.0.1",
+        port="5432",
+        user="dirt",
+        password="local-secret",
+        database="dirt",
+    )
+
+    with pytest.raises(ValueError):
+        script.atlas_postgres_url(connection)
+
+
 def test_pg_env_keeps_password_without_inheriting_cloud_secrets() -> None:
     script = _load_script()
     connection = script.PgConnection(
@@ -365,6 +397,79 @@ def test_sanitization_sql_replaces_credentials_and_keeps_audit_rows() -> None:
     assert "'claimed'" in sql
     assert "'running'" in sql
     assert "cloud_audit_event" not in sql
+
+
+def test_restore_dump_sanitizes_then_applies_cloud_migrations(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    script = _load_script()
+    paths = script.paths_for(tmp_path)
+    paths.logs_dir.mkdir(parents=True)
+    paths.dumps_dir.mkdir(parents=True)
+    paths.assets_dir.mkdir(parents=True)
+    dump_path = paths.dumps_dir / "demo.dump"
+    dump_path.write_text("demo")
+    runtime = script.Runtime(
+        repo_root=tmp_path,
+        worktree_id="0123abcdef" * 6 + "0123",
+        web_port=5173,
+        api_port=8023,
+        database_name="dirt_cloud_dev_0123abcdef",
+        api_url="http://127.0.0.1:8023",
+        web_url="http://127.0.0.1:5173",
+    )
+    env_values = {
+        "DIRT_DEV_PG_HOST": "127.0.0.1",
+        "DIRT_DEV_PG_PORT": "5432",
+        "DIRT_DEV_PG_USER": "dirt",
+        "DIRT_DEV_PG_PASSWORD": "local-secret",
+        "DIRT_CLOUD_GATEWAY_CREDENTIAL_ID": "dev-credential",
+        "DIRT_CLOUD_GATEWAY_ID": "dev-gateway",
+        "DIRT_CLOUD_GATEWAY_TOKEN_SHA256": "abc123",
+        "DIRT_CLOUD_SITE_ID": "homebox",
+    }
+    calls: list[tuple[list[str], str | None, str | None]] = []
+
+    def record_run(
+        command: list[str],
+        env: dict[str, str],
+        _log_path: Path,
+        _cwd: Path,
+        *,
+        input_text: str | None = None,
+    ) -> bool:
+        calls.append((command, input_text, env.get("DIRT_CLOUD_DATABASE_URL")))
+        return True
+
+    monkeypatch.setattr(script, "run_logged", record_run)
+
+    assert script.restore_dump(paths, runtime, env_values, dump_path, "stamp")
+
+    commands = [call[0] for call in calls]
+    assert [command[0] for command in commands] == [
+        "dropdb",
+        "createdb",
+        "pg_restore",
+        "psql",
+        "atlas",
+    ]
+    assert calls[3][1] is not None
+    assert commands[4] == [
+        "atlas",
+        "migrate",
+        "apply",
+        "--env",
+        "cloud",
+        "--revisions-schema",
+        "atlas_schema_revisions",
+    ]
+    assert calls[4][2] == (
+        "postgres://dirt:local-secret@127.0.0.1:5432/"
+        "dirt_cloud_dev_0123abcdef?sslmode=disable&search_path=public"
+    )
+    state = script.read_state(paths.state_path)
+    assert state["restore"]["database_name"] == "dirt_cloud_dev_0123abcdef"
+    assert state["migrations"]["database_name"] == "dirt_cloud_dev_0123abcdef"
 
 
 def test_refresh_db_leaves_local_db_untouched_when_dump_fails(
@@ -433,6 +538,62 @@ def test_refresh_db_leaves_local_db_untouched_when_dump_fails(
     )
     assert "source-secret" not in captured.err
     assert "local-secret" not in captured.err
+
+
+def test_up_applies_cloud_migrations_before_starting_services(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    script = _load_script()
+    paths = script.paths_for(tmp_path)
+    paths.logs_dir.mkdir(parents=True)
+    paths.dumps_dir.mkdir(parents=True)
+    paths.assets_dir.mkdir(parents=True)
+    runtime = script.Runtime(
+        repo_root=tmp_path,
+        worktree_id="0123abcdef" * 6 + "0123",
+        web_port=5173,
+        api_port=8023,
+        database_name="dirt_cloud_dev_0123abcdef",
+        api_url="http://127.0.0.1:8023",
+        web_url="http://127.0.0.1:5173",
+    )
+    script.write_state(
+        paths.state_path,
+        {
+            "restore": {
+                "database_name": "dirt_cloud_dev_0123abcdef",
+                "restored_at": "2026-05-31T00:00:00+00:00",
+            }
+        },
+    )
+    calls: list[str] = []
+
+    monkeypatch.setattr(
+        script, "occupied_dev_ports", lambda _runtime: [("api", 8023, "owner")]
+    )
+    monkeypatch.setattr(
+        script,
+        "apply_cloud_migrations",
+        lambda _paths, _runtime, _env_values, _timestamp: (
+            calls.append("migrate") is None
+        ),
+    )
+    assert script.up(paths, runtime, {}) == 1
+    assert calls == ["migrate"]
+
+
+def test_dev_seed_gate_is_based_on_migration_marker() -> None:
+    script = _load_script()
+
+    assert script.needs_dev_seed({}, "marker-a")
+    assert script.needs_dev_seed(
+        {"seed": {"migration_marker": "marker-b", "seeded_at": "now"}},
+        "marker-a",
+    )
+    assert not script.needs_dev_seed(
+        {"seed": {"migration_marker": "marker-a", "seeded_at": "now"}},
+        "marker-a",
+    )
 
 
 def test_reset_uses_latest_local_dump_without_source_resolution(

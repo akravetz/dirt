@@ -11,11 +11,13 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 import dirt_gateway
+import dirt_gateway.local as gateway_local
 from dirt_gateway.cloud import CloudDeliveryError
 from dirt_gateway.commands import GatewayCommandService
 from dirt_gateway.local import GatewayLocalServiceBundle
@@ -29,6 +31,7 @@ from dirt_shared.cloud_contract import (
     AssetFailureResponse,
     AssetRetentionRequest,
     AssetSignUploadRequest,
+    CatalogPlant,
     CatalogRequest,
     CatalogResponse,
     CatalogSite,
@@ -43,6 +46,8 @@ from dirt_shared.cloud_contract import (
     RollupsRequest,
     SignUploadResponse,
     UpsertCountResponse,
+    WikiProjectionRequest,
+    WikiProjectionResponse,
 )
 from dirt_shared.config import CloudGatewayConfig
 from dirt_shared.models import (
@@ -50,11 +55,14 @@ from dirt_shared.models import (
     CloudOutbox,
     Command,
     Device,
+    GrowRun,
+    Plant,
+    SensorCalibration,
     SensorReading,
     Site,
     Tent,
 )
-from dirt_shared.models.enums import SensorSource
+from dirt_shared.models.enums import PlantStatus, PlantSticker, SensorSource
 from dirt_shared.services.commands import CommandService
 
 FIXED_NOW = datetime(2026, 5, 5, 12, 0, tzinfo=UTC)
@@ -78,8 +86,10 @@ class RecordingCloudClient:
         self.calls: list[tuple[str, str]] = []
         self.successful_calls: list[tuple[str, str]] = []
         self.catalogs: dict[str, dict[str, Any]] = {}
-        self.latest_rows: dict[tuple[str, str, str, str], dict[str, Any]] = {}
-        self.rollup_rows: dict[tuple[str, str, str, str, str, str], dict[str, Any]] = {}
+        self.latest_rows: dict[tuple[str, str, str, str, str], dict[str, Any]] = {}
+        self.rollup_rows: dict[
+            tuple[str, str, str, str, str, str, str], dict[str, Any]
+        ] = {}
         self.assets: dict[str, dict[str, Any]] = {}
         self.asset_sign_requests: list[AssetSignUploadRequest] = []
         self.asset_complete_requests: list[AssetCompleteRequest] = []
@@ -88,6 +98,7 @@ class RecordingCloudClient:
         self.command_results: list[tuple[str, CommandResultRequest, str]] = []
         self.asset_failures: list[dict[str, Any]] = []
         self.retention_requests: list[dict[str, Any]] = []
+        self.wiki_projections: dict[str, dict[str, Any]] = {}
 
     async def send_heartbeat(
         self, payload: Any, *, idempotency_key: str
@@ -111,6 +122,7 @@ class RecordingCloudClient:
             devices=len(payload["devices"]),
             capabilities=len(payload["capabilities"]),
             schedules=len(payload["schedules"]),
+            plants=len(payload["plants"]),
         )
 
     async def put_latest_metrics(
@@ -119,7 +131,13 @@ class RecordingCloudClient:
         payload = _payload_dict(payload)
         self._record("latest_metrics", idempotency_key)
         for row in payload["metrics"]:
-            key = (row["site_id"], row["tent_id"], row["capability_id"], row["metric"])
+            key = (
+                row["site_id"],
+                row["tent_id"],
+                row["device_id"],
+                row["capability_id"],
+                row["metric"],
+            )
             self.latest_rows[key] = row
         return UpsertCountResponse(upserted=len(payload["metrics"]))
 
@@ -132,6 +150,7 @@ class RecordingCloudClient:
             key = (
                 row["site_id"],
                 row["tent_id"],
+                row["device_id"],
                 row["capability_id"],
                 row["metric"],
                 row["bucket"],
@@ -139,6 +158,18 @@ class RecordingCloudClient:
             )
             self.rollup_rows[key] = row
         return UpsertCountResponse(upserted=len(payload["rollups"]))
+
+    async def put_wiki_projection(
+        self, payload: Any, *, idempotency_key: str
+    ) -> WikiProjectionResponse:
+        payload = _payload_dict(payload)
+        self._record("wiki", idempotency_key)
+        self.wiki_projections[idempotency_key] = payload
+        return WikiProjectionResponse(
+            upserted=len(payload["pages"]),
+            deleted=0,
+            synced_at=FIXED_NOW,
+        )
 
     async def sign_upload(
         self, payload: AssetSignUploadRequest, *, idempotency_key: str
@@ -291,6 +322,15 @@ class StaticLocalServices:
         del bucket_names
         return RollupsRequest(site_id=site_id, rollups=[])
 
+    async def collect_wiki_pages(self, site_id: str) -> WikiProjectionRequest:
+        return WikiProjectionRequest(
+            site_id=site_id,
+            generated_at=FIXED_NOW,
+            pages=[],
+            excluded_paths=["wiki/AGENTS.md"],
+            content_hash="0" * 64,
+        )
+
     async def latest_snapshot_asset(self, site_id: str) -> AssetUploadProjection | None:
         del site_id
         return self.asset
@@ -312,6 +352,7 @@ class ChangingRollupLocalServices(StaticLocalServices):
                 RollupItem(
                     site_id=site_id,
                     tent_id="main",
+                    device_id="fan-controller",
                     capability_id="temperature_f",
                     metric="temperature_f",
                     bucket=bucket,
@@ -344,6 +385,7 @@ class RecordingRollupLocalServices(StaticLocalServices):
                 RollupItem(
                     site_id=site_id,
                     tent_id="main",
+                    device_id="fan-controller",
                     capability_id="temperature_f",
                     metric="temperature_f",
                     bucket=bucket,
@@ -515,9 +557,288 @@ async def test_latest_metrics_and_rollups_are_not_duplicated(
     assert second.enqueued == 0
     assert cloud.call_counts["latest_metrics"] == 1
     assert cloud.call_counts["rollups"] == 1
-    assert ("homebox", "main", "temperature_f", "temperature_f") in cloud.latest_rows
-    assert any(key[4] == "4h" for key in cloud.rollup_rows)
-    assert any(key[4] == "1d" for key in cloud.rollup_rows)
+    assert cloud.call_counts["wiki"] == 1
+    assert (
+        "homebox",
+        "main",
+        "fan-controller",
+        "temperature_f",
+        "temperature_f",
+    ) in cloud.latest_rows
+    assert any(key[5] == "4h" for key in cloud.rollup_rows)
+    assert any(key[5] == "1d" for key in cloud.rollup_rows)
+
+
+async def test_collect_metrics_derives_calibrated_soil_moisture_pct(
+    app_engine: AsyncEngine,
+) -> None:
+    async with AsyncSession(app_engine) as session:
+        site_pk = (
+            await session.exec(select(Site.id).where(Site.site_id == "homebox"))
+        ).one()
+        tent = (
+            await session.exec(
+                select(Tent).where(Tent.site_id == site_pk, Tent.tent_id == "main")
+            )
+        ).one()
+        device = Device(
+            site_id=site_pk,
+            tent_id=tent.id,
+            device_id="test-moisture-node",
+            name="Test Moisture Node",
+            kind="moisture_node",
+            controller="test",
+        )
+        session.add(device)
+        await session.flush()
+        capability = Capability(
+            device_id=device.id,
+            capability_id="soil_moisture_raw",
+            name="Soil Moisture Raw",
+            kind="measurement",
+            metric_name="soil_moisture_raw",
+            unit="raw",
+            source="test",
+        )
+        session.add(capability)
+        await session.flush()
+        session.add(
+            SensorCalibration(
+                capability_id=capability.id,
+                metric="soil_moisture_raw",
+                raw_low=1000.0,
+                raw_high=3000.0,
+            )
+        )
+        session.add_all(
+            [
+                SensorReading(
+                    ts=FIXED_NOW - timedelta(minutes=10),
+                    capability_id=capability.id,
+                    metric="soil_moisture_raw",
+                    value=1000.0,
+                    source=SensorSource.ESP32,
+                ),
+                SensorReading(
+                    ts=FIXED_NOW - timedelta(minutes=5),
+                    capability_id=capability.id,
+                    metric="soil_moisture_raw",
+                    value=2000.0,
+                    source=SensorSource.ESP32,
+                ),
+                SensorReading(
+                    ts=FIXED_NOW - timedelta(minutes=1),
+                    capability_id=capability.id,
+                    metric="soil_moisture_raw",
+                    value=3000.0,
+                    source=SensorSource.ESP32,
+                ),
+            ]
+        )
+        await session.commit()
+
+    bundle = GatewayLocalServiceBundle(app_engine, clock=lambda: FIXED_NOW)
+    latest = await bundle.collect_latest_metrics("homebox")
+    rollups = await bundle.collect_rollups("homebox", bucket_names={"5m"})
+
+    latest_pct = [
+        item
+        for item in latest.metrics
+        if item.device_id == "test-moisture-node" and item.metric == "soil_moisture_pct"
+    ]
+    rollup_pct = [
+        item
+        for item in rollups.rollups
+        if item.device_id == "test-moisture-node" and item.metric == "soil_moisture_pct"
+    ]
+    assert len(latest_pct) == 1
+    assert latest_pct[0].capability_id == "soil_moisture_raw"
+    assert latest_pct[0].value == 0.0
+    assert latest_pct[0].unit == "%"
+    assert rollup_pct
+    assert {item.unit for item in rollup_pct} == {"%"}
+    assert any(item.min_value == 0.0 for item in rollup_pct)
+    assert any(item.max_value == 100.0 for item in rollup_pct)
+
+
+async def test_collect_catalog_projects_current_grow_plants(
+    app_engine: AsyncEngine,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    wiki_root = tmp_path / "wiki"
+    plant_dir = wiki_root / "grows" / "test-grow" / "plants"
+    plant_dir.mkdir(parents=True)
+    (plant_dir / "plant-x1.md").write_text("# Test X1\n", encoding="utf-8")
+    monkeypatch.setattr(gateway_local, "WIKI_ROOT", wiki_root)
+
+    async with AsyncSession(app_engine) as session:
+        site_pk = (
+            await session.exec(select(Site.id).where(Site.site_id == "homebox"))
+        ).one()
+        tent = Tent(
+            site_id=site_pk,
+            tent_id="test-plants",
+            name="Test Plants",
+            role="test",
+        )
+        session.add(tent)
+        await session.flush()
+        device = Device(
+            site_id=site_pk,
+            tent_id=tent.id,
+            device_id="test-plant-node",
+            name="Test Plant Node",
+            kind="moisture_node",
+            controller="test",
+        )
+        session.add(device)
+        await session.flush()
+        capability = Capability(
+            device_id=device.id,
+            capability_id="soil_moisture_raw",
+            name="Soil Moisture Raw",
+            kind="measurement",
+            metric_name="soil_moisture_raw",
+            unit="raw",
+            source="test",
+        )
+        session.add(capability)
+        await session.flush()
+        grow_run = GrowRun(
+            site_id=site_pk,
+            tent_id=tent.id,
+            grow_run_id="test-grow",
+            name="Test Grow",
+            purpose="test",
+            plant_count=2,
+            is_current=True,
+        )
+        session.add(grow_run)
+        await session.flush()
+        session.add_all(
+            [
+                Plant(
+                    site_id=site_pk,
+                    tent_id=tent.id,
+                    growrun_id=grow_run.id,
+                    moisture_capability_id=capability.id,
+                    plant_id="x1",
+                    name="Test X1",
+                    display_order=1,
+                    sticker_color=PlantSticker.BLUE,
+                    status=PlantStatus.PRIMARY,
+                    purple=True,
+                    moisture_target_low=42.0,
+                    moisture_target_high=58.0,
+                ),
+                Plant(
+                    site_id=site_pk,
+                    tent_id=tent.id,
+                    growrun_id=grow_run.id,
+                    plant_id="x2",
+                    name="Test X2",
+                    display_order=2,
+                    status=PlantStatus.RETIRED,
+                ),
+            ]
+        )
+        await session.commit()
+
+    payload = await GatewayLocalServiceBundle(
+        app_engine, clock=lambda: FIXED_NOW
+    ).collect_catalog("homebox")
+
+    plants = [plant for plant in payload.plants if plant.tent_id == "test-plants"]
+    assert plants == [
+        CatalogPlant(
+            tent_id="test-plants",
+            grow_run_id="test-grow",
+            plant_id="x1",
+            name="Test X1",
+            display_order=1,
+            sticker_color="blue",
+            status="primary",
+            purple=True,
+            moisture_target_low=42.0,
+            moisture_target_high=58.0,
+            moisture_device_id="test-plant-node",
+            moisture_capability_id="soil_moisture_raw",
+            wiki_path="wiki/grows/test-grow/plants/plant-x1.md",
+            is_active=True,
+        ),
+        CatalogPlant(
+            tent_id="test-plants",
+            grow_run_id="test-grow",
+            plant_id="x2",
+            name="Test X2",
+            display_order=2,
+            sticker_color=None,
+            status="retired",
+            purple=False,
+            moisture_target_low=55.0,
+            moisture_target_high=70.0,
+            moisture_device_id=None,
+            moisture_capability_id=None,
+            wiki_path=None,
+            is_active=False,
+        ),
+    ]
+
+
+async def test_collect_wiki_pages_projects_grow_run_plant_markdown(
+    app_engine: AsyncEngine,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    wiki_root = tmp_path / "wiki"
+    plant_dir = wiki_root / "grows" / "main-2026-03-15" / "plants"
+    plant_dir.mkdir(parents=True)
+    (wiki_root / "AGENTS.md").write_text("private agent notes\n", encoding="utf-8")
+    page_path = plant_dir / "plant-a.md"
+    page_path.write_text(
+        "\n".join(
+            [
+                "---",
+                "title: Plant A",
+                "type: plant",
+                "sources: [raw/chat-history/all-chat-summary.md, memory.md]",
+                "purple: true",
+                "---",
+                "# Plant A",
+                "",
+                "Body text.",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(gateway_local, "WIKI_ROOT", wiki_root)
+
+    payload = await GatewayLocalServiceBundle(
+        app_engine, clock=lambda: FIXED_NOW
+    ).collect_wiki_pages("homebox")
+
+    assert payload.site_id == "homebox"
+    assert payload.generated_at == FIXED_NOW
+    assert payload.excluded_paths == [
+        "wiki/AGENTS.md",
+        "wiki/private/**",
+        "wiki/raw/**",
+    ]
+    assert len(payload.content_hash) == 64
+    assert len(payload.pages) == 1
+    page = payload.pages[0]
+    assert page.path == "wiki/grows/main-2026-03-15/plants/plant-a.md"
+    assert page.title == "Plant A"
+    assert page.frontmatter == {
+        "title": "Plant A",
+        "type": "plant",
+        "sources": ["raw/chat-history/all-chat-summary.md", "memory.md"],
+        "purple": True,
+    }
+    assert page.body_markdown == "# Plant A\n\nBody text.\n"
+    assert len(page.sha256) == 64
 
 
 async def test_offline_cloud_failures_remain_pending_then_retry_without_duplicates(

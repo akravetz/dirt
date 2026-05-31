@@ -27,13 +27,18 @@ from dirt_shared.cloud_contract import (
     HeartbeatRequest,
     LatestMetricsRequest,
     RollupsRequest,
+    WikiProjectionRequest,
 )
 from dirt_shared.config import CloudGatewayConfig
 from dirt_shared.models import CloudOutbox
 from dirt_shared.observability import log_event
 
 ReadOnlyProjectionPayload = (
-    HeartbeatRequest | CatalogRequest | LatestMetricsRequest | RollupsRequest
+    HeartbeatRequest
+    | CatalogRequest
+    | LatestMetricsRequest
+    | RollupsRequest
+    | WikiProjectionRequest
 )
 TypedProjectionPayload = (
     ReadOnlyProjectionPayload | AssetRetentionRequest | AssetUploadProjection
@@ -84,6 +89,7 @@ class GatewaySyncService:
             "heartbeat",
             "latest_metrics",
             "catalog",
+            "wiki",
             "asset_upload",
             "asset_retention",
             "command_result",
@@ -171,6 +177,9 @@ class GatewaySyncService:
             "latest_metrics": _Projection(
                 await self._local.collect_latest_metrics(self._config.site_id)
             ),
+            "wiki": _Projection(
+                await self._local.collect_wiki_pages(self._config.site_id)
+            ),
         }
         rollup_buckets = await self._due_rollup_buckets(now)
         if rollup_buckets:
@@ -218,7 +227,7 @@ class GatewaySyncService:
                 payload=payload,
                 now=now,
             )
-            if event_type == "rollups":
+            if event_type in {"rollups", "wiki"}:
                 superseded = await self._outbox.supersede_pending(
                     event_type=event_type,
                     keep_idempotency_key=key,
@@ -233,16 +242,17 @@ class GatewaySyncService:
                         event_type=event_type,
                         count=superseded,
                     )
-                for bucket in projection.rollup_bucket_names:
-                    await self._outbox.set_cursor(
-                        cursor_key=_rollup_cursor_key(bucket),
-                        cursor_value={
-                            "bucket": bucket,
-                            "last_enqueued_at": now,
-                            "idempotency_key": key,
-                        },
-                        now=now,
-                    )
+                if event_type == "rollups":
+                    for bucket in projection.rollup_bucket_names:
+                        await self._outbox.set_cursor(
+                            cursor_key=_rollup_cursor_key(bucket),
+                            cursor_value={
+                                "bucket": bucket,
+                                "last_enqueued_at": now,
+                                "idempotency_key": key,
+                            },
+                            now=now,
+                        )
             if result.created:
                 created += 1
                 log_event(
@@ -325,6 +335,12 @@ class GatewaySyncService:
             return
         if row.event_type == "rollups":
             await self._cloud.post_rollups(
+                _validate_read_only_payload(row.event_type, payload),
+                idempotency_key=row.idempotency_key,
+            )
+            return
+        if row.event_type == "wiki":
+            await self._cloud.put_wiki_projection(
                 _validate_read_only_payload(row.event_type, payload),
                 idempotency_key=row.idempotency_key,
             )
@@ -433,11 +449,23 @@ class GatewaySyncService:
         if event_type == "heartbeat":
             stamp = now.isoformat(timespec="seconds")
             return f"{self._config.site_id}:{self._config.gateway_id}:heartbeat:{stamp}"
+        if event_type == "wiki":
+            content_hash = payload.get("content_hash")
+            if isinstance(content_hash, str):
+                return f"{self._config.site_id}:wiki:{content_hash}"
         return f"{self._config.site_id}:{event_type}:{stable_json_hash(payload)}"
 
 
 def _count_projection(value: dict[str, Any]) -> int:
-    for key in ("metrics", "rollups", "tents", "devices", "capabilities"):
+    for key in (
+        "metrics",
+        "rollups",
+        "tents",
+        "devices",
+        "capabilities",
+        "plants",
+        "pages",
+    ):
         item = value.get(key)
         if isinstance(item, list):
             return len(item)
@@ -486,4 +514,5 @@ _READ_ONLY_EVENT_MODELS: dict[str, type[ReadOnlyProjectionPayload]] = {
     "catalog": CatalogRequest,
     "latest_metrics": LatestMetricsRequest,
     "rollups": RollupsRequest,
+    "wiki": WikiProjectionRequest,
 }

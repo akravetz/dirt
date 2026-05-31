@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+"""Seed a local hosted control-plane dev API from local source state.
+
+This is a dev-harness admin process, not the production gateway loop. It reuses
+the same gateway HTTP ingestion boundary, but intentionally bypasses the local
+gateway outbox and rollup cursors so a fresh dev database gets complete current
+projection data.
+"""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+from collections import Counter
+from datetime import UTC, datetime
+
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.pool import NullPool
+
+from dirt_gateway.cloud import HttpCloudGatewayClient
+from dirt_gateway.local import GatewayLocalServiceBundle
+from dirt_shared.config import Settings
+
+ROLLUP_BUCKETS = frozenset({"5m", "1h", "4h", "1d"})
+
+
+async def seed_control_plane(*, include_rollups: bool) -> dict[str, object]:
+    settings = Settings()
+    config = settings.cloud_gateway()
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    client = HttpCloudGatewayClient(
+        base_url=config.api_base_url,
+        gateway_token=config.gateway_token,
+    )
+
+    def clock() -> datetime:
+        return datetime.now(UTC)
+
+    try:
+        local = GatewayLocalServiceBundle(engine, clock=clock)
+        catalog = await local.collect_catalog(config.site_id)
+        latest = await local.collect_latest_metrics(config.site_id)
+        wiki = await local.collect_wiki_pages(config.site_id)
+        rollups = (
+            await local.collect_rollups(config.site_id, bucket_names=set(ROLLUP_BUCKETS))
+            if include_rollups
+            else None
+        )
+
+        seed_id = clock().isoformat()
+        await client.put_catalog(catalog, idempotency_key=f"dev-seed:catalog:{seed_id}")
+        await client.put_latest_metrics(
+            latest, idempotency_key=f"dev-seed:latest:{seed_id}"
+        )
+        await client.put_wiki_projection(wiki, idempotency_key=f"dev-seed:wiki:{seed_id}")
+        if rollups is not None:
+            await client.post_rollups(
+                rollups, idempotency_key=f"dev-seed:rollups:{seed_id}"
+            )
+
+        rollup_counts: dict[str, int] = {}
+        if rollups is not None:
+            rollup_counts = dict(
+                sorted(Counter(item.bucket for item in rollups.rollups).items())
+            )
+        return {
+            "site_id": config.site_id,
+            "catalog": {
+                "tents": len(catalog.tents),
+                "zones": len(catalog.zones),
+                "devices": len(catalog.devices),
+                "capabilities": len(catalog.capabilities),
+                "schedules": len(catalog.schedules),
+                "plants": len(catalog.plants),
+            },
+            "latest_metrics": len(latest.metrics),
+            "wiki_pages": len(wiki.pages),
+            "rollups": rollup_counts,
+        }
+    finally:
+        await client.aclose()
+        await engine.dispose()
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Seed a local hosted control-plane dev API"
+    )
+    parser.add_argument(
+        "--skip-rollups",
+        action="store_true",
+        help="seed catalog/latest/wiki only",
+    )
+    args = parser.parse_args()
+    result = asyncio.run(seed_control_plane(include_rollups=not args.skip_rollups))
+    print(json.dumps(result, sort_keys=True))
+
+
+if __name__ == "__main__":
+    main()

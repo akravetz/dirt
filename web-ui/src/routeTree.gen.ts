@@ -13,6 +13,7 @@ import { Route as WikiRouteImport } from './routes/wiki'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LiveRouteImport } from './routes/live'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as TentsTentIdPlantsPlantIdRouteImport } from './routes/tents.$tentId.plants.$plantId'
 
 const WikiRoute = WikiRouteImport.update({
   id: '/wiki',
@@ -34,18 +35,26 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TentsTentIdPlantsPlantIdRoute =
+  TentsTentIdPlantsPlantIdRouteImport.update({
+    id: '/tents/$tentId/plants/$plantId',
+    path: '/tents/$tentId/plants/$plantId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/live': typeof LiveRoute
   '/login': typeof LoginRoute
   '/wiki': typeof WikiRoute
+  '/tents/$tentId/plants/$plantId': typeof TentsTentIdPlantsPlantIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/live': typeof LiveRoute
   '/login': typeof LoginRoute
   '/wiki': typeof WikiRoute
+  '/tents/$tentId/plants/$plantId': typeof TentsTentIdPlantsPlantIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -53,13 +62,25 @@ export interface FileRoutesById {
   '/live': typeof LiveRoute
   '/login': typeof LoginRoute
   '/wiki': typeof WikiRoute
+  '/tents/$tentId/plants/$plantId': typeof TentsTentIdPlantsPlantIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/live' | '/login' | '/wiki'
+  fullPaths:
+    | '/'
+    | '/live'
+    | '/login'
+    | '/wiki'
+    | '/tents/$tentId/plants/$plantId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/live' | '/login' | '/wiki'
-  id: '__root__' | '/' | '/live' | '/login' | '/wiki'
+  to: '/' | '/live' | '/login' | '/wiki' | '/tents/$tentId/plants/$plantId'
+  id:
+    | '__root__'
+    | '/'
+    | '/live'
+    | '/login'
+    | '/wiki'
+    | '/tents/$tentId/plants/$plantId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -67,6 +88,7 @@ export interface RootRouteChildren {
   LiveRoute: typeof LiveRoute
   LoginRoute: typeof LoginRoute
   WikiRoute: typeof WikiRoute
+  TentsTentIdPlantsPlantIdRoute: typeof TentsTentIdPlantsPlantIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -99,6 +121,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/tents/$tentId/plants/$plantId': {
+      id: '/tents/$tentId/plants/$plantId'
+      path: '/tents/$tentId/plants/$plantId'
+      fullPath: '/tents/$tentId/plants/$plantId'
+      preLoaderRoute: typeof TentsTentIdPlantsPlantIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -107,6 +136,7 @@ const rootRouteChildren: RootRouteChildren = {
   LiveRoute: LiveRoute,
   LoginRoute: LoginRoute,
   WikiRoute: WikiRoute,
+  TentsTentIdPlantsPlantIdRoute: TentsTentIdPlantsPlantIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

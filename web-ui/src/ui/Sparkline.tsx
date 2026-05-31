@@ -103,7 +103,13 @@ const VIEWBOX_H = 30;
 
 function formatValue(value: number, unit: string): string {
   if (unit === "%") return `${Math.round(value)}${unit}`;
+  if (unit === "raw") return `${formatRawValue(value)} raw`;
   return `${value.toFixed(1)}${unit}`;
+}
+
+function formatRawValue(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? `${rounded}` : rounded.toFixed(1);
 }
 
 export function Sparkline({

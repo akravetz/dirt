@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: scripts/worktree-bootstrap [WORKTREE_PATH]
+
+Set up ignored local files for a git worktree.
+
+The bootstrap links shared secrets/config from the primary checkout and creates
+per-worktree runtime directories. It intentionally does not link var/, because
+the dev harness stores process state, dumps, assets, and logs there per
+worktree.
+EOF
+}
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  usage
+  exit 0
+fi
+
+target="${1:-.}"
+target="$(realpath "$target")"
+
+if ! git -C "$target" rev-parse --show-toplevel >/dev/null 2>&1; then
+  echo "error: $target is not inside a git worktree" >&2
+  exit 2
+fi
+
+target_root="$(git -C "$target" rev-parse --show-toplevel)"
+common_git_dir="$(git -C "$target_root" rev-parse --path-format=absolute --git-common-dir)"
+
+if [[ "$(basename "$common_git_dir")" != ".git" ]]; then
+  echo "error: cannot infer primary checkout from git common dir: $common_git_dir" >&2
+  exit 2
+fi
+
+source_root="$(dirname "$common_git_dir")"
+
+if [[ "$target_root" == "$source_root" ]]; then
+  echo "worktree-bootstrap: $target_root is the primary checkout; nothing to do."
+  exit 0
+fi
+
+link_shared_entry() {
+  local name="$1"
+  local source="$source_root/$name"
+  local dest="$target_root/$name"
+
+  if [[ ! -e "$source" && ! -L "$source" ]]; then
+    return
+  fi
+
+  if [[ -e "$dest" || -L "$dest" ]]; then
+    return
+  fi
+
+  ln -s "$(realpath --relative-to="$target_root" "$source")" "$dest"
+  echo "linked $name -> $source"
+}
+
+for name in \
+  .env \
+  .env.prod \
+  .env.dirt-camera \
+  .env.dirt2-camera-agent \
+  debug
+do
+  link_shared_entry "$name"
+done
+
+mkdir -p "$target_root/var"
+echo "ensured local var/ in $target_root"

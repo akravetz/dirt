@@ -34,6 +34,8 @@ from dirt_shared.cloud_contract import (
     RollupsRequest,
     SignUploadResponse,
     UpsertCountResponse,
+    WikiProjectionRequest,
+    WikiProjectionResponse,
 )
 
 
@@ -90,6 +92,14 @@ class HttpCloudGatewayClient:
             "POST", "/api/gateway/v1/metrics/rollups", payload, idempotency_key
         )
         return UpsertCountResponse.model_validate(response)
+
+    async def put_wiki_projection(
+        self, payload: WikiProjectionRequest, *, idempotency_key: str
+    ) -> WikiProjectionResponse:
+        response = await self._request(
+            "PUT", "/api/gateway/v1/wiki", payload, idempotency_key
+        )
+        return WikiProjectionResponse.model_validate(response)
 
     async def sign_upload(
         self, payload: AssetSignUploadRequest, *, idempotency_key: str

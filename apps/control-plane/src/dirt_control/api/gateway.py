@@ -18,9 +18,11 @@ from dirt_control.models import (
     CloudDevice,
     CloudLatestMetric,
     CloudMetricRollup,
+    CloudPlant,
     CloudSchedule,
     CloudSite,
     CloudTent,
+    CloudWikiPage,
     CloudZone,
     GatewayCredential,
 )
@@ -56,6 +58,8 @@ from dirt_shared.cloud_contract import (
     RollupsRequest,
     SignUploadResponse,
     UpsertCountResponse,
+    WikiProjectionRequest,
+    WikiProjectionResponse,
 )
 
 router = APIRouter(prefix="/api/gateway/v1")
@@ -198,11 +202,17 @@ async def catalog(
             session,
             CloudCapability,
             _capability_key(
-                body.site.site_id, capability.tent_id, capability.capability_id
+                body.site.site_id,
+                capability.tent_id,
+                capability.device_id,
+                capability.capability_id,
             ),
             {
                 "capability_key": _capability_key(
-                    body.site.site_id, capability.tent_id, capability.capability_id
+                    body.site.site_id,
+                    capability.tent_id,
+                    capability.device_id,
+                    capability.capability_id,
                 ),
                 "site_id": body.site.site_id,
                 "tent_id": capability.tent_id,
@@ -244,6 +254,40 @@ async def catalog(
             },
             now=now,
         )
+    for plant in body.plants:
+        key = _plant_key(
+            body.site.site_id,
+            plant.tent_id,
+            plant.grow_run_id,
+            plant.plant_id,
+        )
+        await _upsert(
+            session,
+            CloudPlant,
+            key,
+            {
+                "plant_key": key,
+                "site_id": body.site.site_id,
+                "tent_id": plant.tent_id,
+                "grow_run_id": plant.grow_run_id,
+                "plant_id": plant.plant_id,
+                "name": plant.name,
+                "display_order": plant.display_order,
+                "sticker_color": plant.sticker_color,
+                "status": plant.status,
+                "purple": plant.purple,
+                "moisture_target_low": plant.moisture_target_low,
+                "moisture_target_high": plant.moisture_target_high,
+                "moisture_device_id": plant.moisture_device_id,
+                "moisture_capability_id": plant.moisture_capability_id,
+                "wiki_path": plant.wiki_path,
+                "is_active": plant.is_active,
+                "synced_at": now,
+                "created_at": now,
+                "updated_at": now,
+            },
+            now=now,
+        )
     await session.commit()
     return CatalogResponse(
         sites=1,
@@ -252,7 +296,57 @@ async def catalog(
         devices=len(body.devices),
         capabilities=len(body.capabilities),
         schedules=len(body.schedules),
+        plants=len(body.plants),
     )
+
+
+@router.put("/wiki", response_model=WikiProjectionResponse)
+async def wiki_projection(
+    body: WikiProjectionRequest,
+    principal: GatewayPrincipal = Depends(require_gateway),
+    session: AsyncSession = Depends(get_session),
+    clock: Callable[[], datetime] = Depends(get_clock),
+) -> WikiProjectionResponse:
+    require_gateway_scope(principal, body.site_id)
+    now = clock()
+    incoming_paths = {page.path for page in body.pages}
+    upserted = 0
+    for page in body.pages:
+        key = _wiki_key(body.site_id, page.path)
+        await _upsert(
+            session,
+            CloudWikiPage,
+            key,
+            {
+                "wiki_key": key,
+                "site_id": body.site_id,
+                "path": page.path,
+                "title": page.title,
+                "frontmatter": page.frontmatter,
+                "body_markdown": page.body_markdown,
+                "sha256": page.sha256,
+                "source_updated_at": page.source_updated_at,
+                "synced_at": now,
+                "created_at": now,
+                "updated_at": now,
+            },
+            now=now,
+        )
+        upserted += 1
+
+    existing = (
+        await session.execute(
+            select(CloudWikiPage).where(CloudWikiPage.site_id == body.site_id)
+        )
+    ).scalars()
+    deleted = 0
+    for row in existing:
+        if row.path not in incoming_paths:
+            await session.delete(row)
+            deleted += 1
+
+    await session.commit()
+    return WikiProjectionResponse(upserted=upserted, deleted=deleted, synced_at=now)
 
 
 @router.put("/metrics/latest", response_model=UpsertCountResponse)
@@ -267,7 +361,11 @@ async def metrics_latest(
     for metric in body.metrics:
         require_gateway_scope(principal, metric.site_id)
         key = _metric_key(
-            metric.site_id, metric.tent_id, metric.capability_id, metric.metric
+            metric.site_id,
+            metric.tent_id,
+            metric.device_id,
+            metric.capability_id,
+            metric.metric,
         )
         await _upsert(
             session,
@@ -395,6 +493,7 @@ async def metrics_rollups(
                 "rollup_key": key,
                 "site_id": rollup.site_id,
                 "tent_id": rollup.tent_id,
+                "device_id": rollup.device_id,
                 "capability_id": rollup.capability_id,
                 "metric": rollup.metric,
                 "bucket": rollup.bucket,
@@ -750,21 +849,34 @@ def _device_key(site_id: str, tent_id: str, device_id: str) -> str:
     return f"{site_id}:{tent_id}:{device_id}"
 
 
-def _capability_key(site_id: str, tent_id: str, capability_id: str) -> str:
-    return f"{site_id}:{tent_id}:{capability_id}"
+def _capability_key(
+    site_id: str, tent_id: str, device_id: str, capability_id: str
+) -> str:
+    return f"{site_id}:{tent_id}:{device_id}:{capability_id}"
 
 
 def _schedule_key(site_id: str, tent_id: str, schedule_id: str) -> str:
     return f"{site_id}:{tent_id}:{schedule_id}"
 
 
-def _metric_key(site_id: str, tent_id: str, capability_id: str, metric: str) -> str:
-    return f"{site_id}:{tent_id}:{capability_id}:{metric}"
+def _plant_key(site_id: str, tent_id: str, grow_run_id: str, plant_id: str) -> str:
+    return f"{site_id}:{tent_id}:{grow_run_id}:{plant_id}"
+
+
+def _wiki_key(site_id: str, path: str) -> str:
+    return f"{site_id}:{path}"
+
+
+def _metric_key(
+    site_id: str, tent_id: str, device_id: str, capability_id: str, metric: str
+) -> str:
+    return f"{site_id}:{tent_id}:{device_id}:{capability_id}:{metric}"
 
 
 def _rollup_key(rollup: RollupItem) -> str:
     return (
-        f"{rollup.site_id}:{rollup.tent_id}:{rollup.capability_id}:"
+        f"{rollup.site_id}:{rollup.tent_id}:{rollup.device_id}:"
+        f"{rollup.capability_id}:"
         f"{rollup.metric}:{rollup.bucket}:{rollup.bucket_start_at.isoformat()}"
     )
 

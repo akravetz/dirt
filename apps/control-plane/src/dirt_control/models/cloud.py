@@ -10,6 +10,7 @@ from sqlalchemy import (
     Float,
     Index,
     Integer,
+    Text,
     Time,
     UniqueConstraint,
 )
@@ -112,9 +113,11 @@ class CloudDevice(SQLModel, table=True):
 
 class CloudCapability(SQLModel, table=True):
     __tablename__ = "cloud_capability"
-    __table_args__ = (UniqueConstraint("site_id", "tent_id", "capability_id"),)
+    __table_args__ = (
+        UniqueConstraint("site_id", "tent_id", "device_id", "capability_id"),
+    )
 
-    capability_key: str = Field(primary_key=True, max_length=320)
+    capability_key: str = Field(primary_key=True, max_length=480)
     site_id: str = Field(index=True, max_length=80)
     tent_id: str = Field(index=True, max_length=80)
     device_id: str = Field(index=True, max_length=120)
@@ -161,17 +164,77 @@ class CloudSchedule(SQLModel, table=True):
     )
 
 
+class CloudPlant(SQLModel, table=True):
+    __tablename__ = "cloud_plant"
+    __table_args__ = (
+        UniqueConstraint("site_id", "tent_id", "grow_run_id", "plant_id"),
+    )
+
+    plant_key: str = Field(primary_key=True, max_length=480)
+    site_id: str = Field(index=True, max_length=80)
+    tent_id: str = Field(index=True, max_length=80)
+    grow_run_id: str = Field(index=True, max_length=160)
+    plant_id: str = Field(index=True, max_length=80)
+    name: str = Field(max_length=160)
+    display_order: int = Field(sa_column=Column(Integer, nullable=False))
+    sticker_color: str | None = Field(default=None, max_length=40)
+    status: str = Field(max_length=40)
+    purple: bool = False
+    moisture_target_low: float = Field(sa_column=Column(Float, nullable=False))
+    moisture_target_high: float = Field(sa_column=Column(Float, nullable=False))
+    moisture_device_id: str | None = Field(default=None, index=True, max_length=120)
+    moisture_capability_id: str | None = Field(default=None, index=True, max_length=160)
+    wiki_path: str | None = Field(default=None, max_length=500)
+    is_active: bool = True
+    synced_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    created_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    updated_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+
+
+class CloudWikiPage(SQLModel, table=True):
+    __tablename__ = "cloud_wiki_page"
+    __table_args__ = (UniqueConstraint("site_id", "path"),)
+
+    wiki_key: str = Field(primary_key=True, max_length=600)
+    site_id: str = Field(index=True, max_length=80)
+    path: str = Field(index=True, max_length=500)
+    title: str = Field(max_length=300)
+    frontmatter: dict[str, Any] = Field(
+        default_factory=dict, sa_column=Column(JSON, nullable=False)
+    )
+    body_markdown: str = Field(sa_column=Column(Text, nullable=False))
+    sha256: str = Field(max_length=64)
+    source_updated_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    synced_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    created_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    updated_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+
+
 class CloudLatestMetric(SQLModel, table=True):
     __tablename__ = "cloud_latest_metric"
     __table_args__ = (
-        UniqueConstraint("site_id", "tent_id", "capability_id", "metric"),
+        UniqueConstraint("site_id", "tent_id", "device_id", "capability_id", "metric"),
     )
 
-    metric_key: str = Field(primary_key=True, max_length=360)
+    metric_key: str = Field(primary_key=True, max_length=700)
     site_id: str = Field(index=True, max_length=80)
     tent_id: str = Field(index=True, max_length=80)
     zone_id: str | None = Field(default=None, index=True, max_length=80)
-    device_id: str | None = Field(default=None, index=True, max_length=120)
+    device_id: str = Field(index=True, max_length=120)
     capability_id: str = Field(index=True, max_length=160)
     metric: str = Field(index=True, max_length=120)
     value: float = Field(sa_column=Column(Float, nullable=False))
@@ -191,6 +254,7 @@ class CloudMetricRollup(SQLModel, table=True):
         UniqueConstraint(
             "site_id",
             "tent_id",
+            "device_id",
             "capability_id",
             "metric",
             "bucket",
@@ -198,9 +262,10 @@ class CloudMetricRollup(SQLModel, table=True):
         ),
     )
 
-    rollup_key: str = Field(primary_key=True, max_length=480)
+    rollup_key: str = Field(primary_key=True, max_length=700)
     site_id: str = Field(index=True, max_length=80)
     tent_id: str = Field(index=True, max_length=80)
+    device_id: str = Field(index=True, max_length=120)
     capability_id: str = Field(index=True, max_length=160)
     metric: str = Field(index=True, max_length=120)
     bucket: str = Field(index=True, max_length=40)

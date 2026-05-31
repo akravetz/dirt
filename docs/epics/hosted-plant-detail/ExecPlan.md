@@ -17,11 +17,12 @@ The work is complete when the hosted UI has a tent-scoped route such as `/tents/
 ## Progress
 
 - [x] (2026-05-28T00:00Z) Created this ExecPlan from the request to recreate the old local plant detail page on the Railway-hosted UI with clean, durable architecture.
-- [ ] Milestone 1: correct hosted metric stream identity so per-plant soil streams are distinguishable.
-- [ ] Milestone 2: sync current-grow plant metadata to the hosted control plane.
-- [ ] Milestone 3: expose browser-authenticated hosted plant list/detail/history APIs.
-- [ ] Milestone 4: project plant wiki pages to the hosted control plane and compose them into plant detail responses.
-- [ ] Milestone 5: build the hosted React plant detail route and dashboard links.
+- [x] (2026-05-31T06:38Z) Milestone 1: correct hosted metric stream identity so per-plant soil streams are distinguishable.
+- [x] (2026-05-31T06:50Z) Milestone 2: sync current-grow plant metadata to the hosted control plane.
+- [x] (2026-05-31T07:00Z) Milestone 3: expose browser-authenticated hosted plant list/detail/history APIs.
+- [x] (2026-05-31T07:18Z) Milestone 4: project plant wiki pages to the hosted control plane and compose them into plant detail responses.
+- [x] (2026-05-31T07:27Z) Milestone 5: build the hosted React plant detail route and dashboard links.
+- [x] (2026-05-31T07:40Z) Milestone 6 local validation: focused tests, generated contracts, local hosted stack, and browser screenshots passed.
 - [ ] Milestone 6: validate locally, deploy through the supported Railway script, and capture hosted acceptance evidence.
 
 
@@ -44,6 +45,18 @@ The work is complete when the hosted UI has a tent-scoped route such as `/tents/
 
 - Observation: Plant wiki pages are now scoped under grow-run folders, matching the database identity model.
   Evidence: `wiki/AGENTS.md` and `wiki/grows/README.md` document `wiki/grows/<grow_run_id>/plants/plant-<plant_id>.md`; current main-tent pages live under `wiki/grows/main-2026-03-15/plants/`; Track A pages live under `wiki/grows/breeding-track-a-2026-04-28/plants/`.
+
+- Observation: `scripts/gen-hosted-contract` can fail in a local shell when the default asset store is `s3` and S3 credentials are not present, even if only browser OpenAPI generation is needed.
+  Evidence: The first run failed with `DIRT_CLOUD_ASSET_STORE=s3 requires S3 settings`; rerunning as `DIRT_CLOUD_ASSET_STORE=local scripts/gen-hosted-contract` completed successfully.
+
+- Observation: The older hosted wiki ExecPlan references local wiki service and web app paths that are not present in this repo shape.
+  Evidence: `apps/shared/src/dirt_shared/services/wiki.py` and `apps/web/src/dirt_web/api/wiki.py` are absent; current hosted wiki browser UI is `web-ui/src/routes/wiki.tsx` and remains a placeholder. Milestone 4 therefore implemented the narrow read-only plant-page projection directly from `wiki/grows/*/plants/*.md`.
+
+- Observation: The hosted frontend does not currently carry a Markdown rendering dependency.
+  Evidence: `web-ui/package.json` has no Markdown renderer. Milestone 5 added a small reusable `MarkdownDocument` that renders the projected Markdown body as readable prewrapped text instead of adding `react-markdown`; this keeps the plant page dependency-free while leaving a future hosted wiki route free to adopt full Markdown rendering deliberately.
+
+- Observation: The documented local dev database refresh path is currently blocked by a PostgreSQL client/server major-version mismatch on this machine.
+  Evidence: `make dev-refresh-db` failed because local `pg_dump` is 17.10 while the hosted source is PostgreSQL 18.3. For local browser validation, a guarded `dirt_cloud_dev_*` database was recreated from checked-in `cloud/migrations/*.sql` and seeded with minimal plant-detail data; production was not modified.
 
 
 ## Decision Log
@@ -68,10 +81,46 @@ The work is complete when the hosted UI has a tent-scoped route such as `/tents/
   Rationale: The plant page needs `wiki/grows/<grow_run_id>/plants/plant-<plant_id>.md` content, but that should still use the same `CloudWikiPage` shape chosen for the full hosted wiki rather than inventing a plant-only markdown field. The path must include `grow_run_id` because `plant_id` is scoped to a grow run and labels such as `a` or `r1` are not globally unique.
   Date/Author: 2026-05-28; updated 2026-05-31 / Codex
 
+- Decision: Browser plant detail and plant moisture history return `404` for plants that exist but do not have both `moisture_device_id` and `moisture_capability_id`.
+  Rationale: The first detail route is a moisture-backed plant resource, not a generic plant profile. Returning `404` keeps missing plants and unavailable moisture-backed plant pages consistent, while the list route still exposes all synced plant rows with `has_moisture_stream=false` so the frontend can avoid linking unsupported rows.
+  Date/Author: 2026-05-31 / Codex
+
+- Decision: Browser plant APIs resolve `plant_id` to the newest synced `CloudPlant` row for the tent when multiple grow runs reuse the same public plant id.
+  Rationale: The Milestone 3 browser route is scoped by tent and plant id, not by grow run id. Selecting by latest `synced_at`, then deterministic row tie-breakers, exposes the current/latest projection without adding a `CloudGrowRun` concept in this milestone.
+  Date/Author: 2026-05-31 / Codex
+
+- Decision: Render plant wiki Markdown as prewrapped text for the first hosted plant detail page.
+  Rationale: The milestone needs useful plant wiki content, not a full hosted wiki browser/CMS. Avoiding a Markdown dependency keeps the frontend change small and reversible; `MarkdownDocument` is a reusable boundary if the future hosted wiki route adopts a maintained renderer.
+  Date/Author: 2026-05-31 / Codex
+
 
 ## Outcomes & Retrospective
 
-Not yet implemented. Update this section after each milestone with the actual behavior, any residual gaps, and the evidence used to accept or defer work.
+Milestone 1 completed on 2026-05-31. Hosted metric streams are now keyed by `site_id + tent_id + device_id + capability_id + metric` across gateway DTOs, cloud storage keys, gateway upserts, rollup collection, and browser metric history filters. `LatestMetricItem`, `RollupItem`, `CloudLatestMetric.device_id`, and `CloudMetricRollup.device_id` are required and non-null. `CloudCapability`, `CloudLatestMetric`, and `CloudMetricRollup` uniqueness/key construction now includes `device_id`, and current metrics no longer collapse distinct device-owned streams with the same metric name.
+
+The cloud migration `20260531063154_hosted_metric_stream_identity.sql` performs a direct cutover: it rebuilds cloud capability/latest metric keys with `device_id`, deletes latest metric rows missing `device_id`, deletes old rollup rows that cannot be device-attributed, then adds the non-null rollup `device_id` column and device-scoped unique constraints. The Atlas dry-run was pointed at a disposable local cloud database, not production.
+
+Validation evidence: `uv run pytest apps/shared/tests/test_cloud_contract.py -q` passed with 10 tests; `uv run pytest apps/gateway/tests/test_sync.py apps/gateway/tests/test_gateway_boundary_guardrails.py -q` passed with 20 tests; `uv run pytest apps/control-plane/tests -q` passed with 39 tests; `uv run pytest apps/tests/invariants -q` passed with 41 tests; `pnpm --dir web-ui typecheck` passed; `atlas migrate diff hosted_metric_stream_identity_check --env cloud` reported the migration directory synced with desired state; `atlas migrate apply --env cloud --dry-run` against a disposable local cloud database completed through version `20260531063154`.
+
+Milestone 2 completed on 2026-05-31. Gateway catalog sync now carries `CatalogPlant` rows for current grow-run plants, including grow-run scoped plant identity, display metadata, moisture target bounds, optional moisture device/capability identifiers, optional grow-run scoped wiki path, and active status. The gateway builds plant rows from local current grow runs and resolves `Plant.moisture_capability_id -> Capability -> Device` when a moisture stream exists. The hosted control plane now stores those rows in `CloudPlant`, keyed by `site_id + tent_id + grow_run_id + plant_id`, and the catalog route upserts them idempotently. The cloud migration `20260531064806_hosted_plant_catalog.sql` creates the `cloud_plant` table and indexes moisture stream lookup fields.
+
+Validation evidence: `uv run pytest apps/shared/tests/test_cloud_contract.py -q` passed with 11 tests; `uv run pytest apps/gateway/tests/test_sync.py apps/gateway/tests/test_gateway_boundary_guardrails.py -q` passed with 21 tests; `uv run pytest apps/control-plane/tests -q` passed with 39 tests; `uv run pytest apps/tests/invariants -q` passed with 41 tests; `atlas migrate diff hosted_plant_catalog_check --env cloud` reported the migration directory synced with desired state; `atlas migrate apply --env cloud --dry-run` against a disposable local cloud database completed through version `20260531064806`; `DIRT_CLOUD_ASSET_STORE=local scripts/gen-hosted-contract` completed successfully. No browser plant APIs, wiki projection, frontend routes, or deployment were included.
+
+Milestone 3 completed on 2026-05-31. The hosted browser API now exposes authenticated `GET /api/tents/{tent_id}/plants`, `GET /api/tents/{tent_id}/plants/{plant_id}`, and `GET /api/tents/{tent_id}/plants/{plant_id}/moisture/history`. Plant list responses include the newest synced row per `plant_id` for the tent, ordered by `display_order`, plus a `has_moisture_stream` boolean. Detail responses require the newest synced row for that tent/plant id to be moisture-backed and include plant metadata, target bounds, latest `soil_moisture_raw` when available, freshness, `wiki_path`, and a required `wiki_content: null` placeholder for Milestone 4. Plant moisture history reuses `METRIC_HISTORY_RANGES` and filters rollups by the selected plant row's `moisture_device_id`, `moisture_capability_id`, and `metric='soil_moisture_raw'`. Missing plants and plants without moisture stream identity return `404`; invalid history ranges return `400`.
+
+Validation evidence: `uv run ruff check apps/control-plane/src/dirt_control/api/browser.py apps/control-plane/tests/test_api.py` passed; `set -a; source /home/akcom/code/dirt/.env; set +a; uv run pytest apps/control-plane/tests -q` passed with 46 tests after adding duplicate-plant-id regression coverage; `DIRT_CLOUD_ASSET_STORE=local scripts/gen-hosted-contract` completed successfully before the latest-synced correction, and was not rerun for the correction because the response schema did not change; `set -a; source /home/akcom/code/dirt/.env; set +a; uv run pytest apps/tests/invariants -q` passed with 41 tests; `pnpm --dir web-ui typecheck` passed. The target worktree had no `.env`, so DB-backed pytest commands needed the shared `/home/akcom/code/dirt/.env` loaded for local Postgres credentials.
+
+Milestone 4 completed on 2026-05-31. The shared gateway contract now includes `WikiProjectionPage`, `WikiProjectionRequest`, and `WikiProjectionResponse`. The gateway projects only grow-run plant Markdown pages under `wiki/grows/*/plants/*.md`, parses frontmatter and body separately, derives titles from frontmatter or first H1, computes stable content hashes, reports explicit excluded wiki paths, and enqueues a read-only `"wiki"` projection with an idempotency key based on `content_hash`. The hosted control plane now stores projected pages in `CloudWikiPage`, keyed by `site_id + path`, and exposes authenticated `PUT /api/gateway/v1/wiki` for upsert/delete projection semantics. Browser plant detail responses now join `CloudPlant.wiki_path` to `CloudWikiPage.path` and return `wiki_content` with path, title, frontmatter, Markdown body, sha256, and source update time when a matching page exists, otherwise `null`.
+
+Validation evidence: `uv run pytest apps/shared/tests/test_cloud_contract.py -q` passed with 12 tests; `set -a; source /home/akcom/code/dirt/.env >/dev/null 2>&1; set +a; uv run pytest apps/gateway/tests/test_sync.py apps/gateway/tests/test_gateway_boundary_guardrails.py -q` passed with 22 tests; `set -a; source /home/akcom/code/dirt/.env >/dev/null 2>&1; set +a; uv run pytest apps/control-plane/tests -q` passed with 47 tests; `set -a; source /home/akcom/code/dirt/.env >/dev/null 2>&1; set +a; uv run pytest apps/tests/invariants -q` passed with 41 tests; `DIRT_CLOUD_ASSET_STORE=local scripts/gen-hosted-contract` completed successfully; `pnpm --dir web-ui typecheck` passed; `uv run ruff check` on the touched Python files passed; `git diff --check` passed. `atlas migrate hash --env cloud` updated `cloud/migrations/atlas.sum`, and `atlas migrate diff hosted_wiki_projection_check --env cloud` reported the migration directory synced with desired state. `atlas migrate apply --env cloud --dry-run` could not run in this shell because `DIRT_CLOUD_DATABASE_URL` is unset; no production database was touched.
+
+Milestone 5 completed on 2026-05-31. The hosted UI now has a TanStack file route at `/tents/$tentId/plants/$plantId` implemented in `web-ui/src/routes/tents.$tentId.plants.$plantId.tsx`, with `Route.useParams()` for tent/plant identity and generated hosted schema types through `@/api-client`. The route fetches plant detail and selected-range moisture history with `createHostedApiClient()`, reuses `RangeSwitch`, `Sparkline`, and `HoverTimestamp`, and renders plant identity, active/status/freshness indicators, current moisture, target band, moisture history, and optional projected wiki content. Soil moisture history uses the API stream unit and auto-scales raw `soil_moisture_raw` values; plant target bounds are displayed explicitly as percent because the stored plant bounds are 0-100 targets, not raw sensor units. The dashboard now fetches `GET /api/tents/{tent_id}/plants` for the selected tent, renders a compact Plants section, links only rows with `has_moisture_stream=true`, and uses TanStack `Link` navigation to avoid full page reloads. `web-ui/src/routeTree.gen.ts` was regenerated by the TanStack Router Vite plugin.
+
+Validation evidence: `pnpm --dir web-ui typecheck` passed; `pnpm --dir web-ui lint` passed; `pnpm --dir web-ui test` passed with 2 tests after adding raw-unit tooltip coverage; `pnpm --dir web-ui build` passed; `git diff --check` passed. A simplify pass moved shared sticker rendering and history-empty labels into `web-ui/src/ui/PlantSticker.tsx` and `web-ui/src/ui/historyRangeLabels.ts`.
+
+Milestone 6 local validation completed on 2026-05-31, except for the externally visible production deploy and hosted acceptance checks. Focused backend validation passed after Milestone 5: `uv run pytest apps/shared/tests/test_cloud_contract.py -q` passed with 12 tests; `set -a; source /home/akcom/code/dirt/.env >/dev/null 2>&1; set +a; uv run pytest apps/gateway/tests/test_sync.py apps/gateway/tests/test_gateway_boundary_guardrails.py -q` passed with 22 tests; `set -a; source /home/akcom/code/dirt/.env >/dev/null 2>&1; set +a; uv run pytest apps/control-plane/tests -q` passed with 47 tests; `set -a; source /home/akcom/code/dirt/.env >/dev/null 2>&1; set +a; uv run pytest apps/tests/invariants -q` passed with 41 tests. `DIRT_CLOUD_ASSET_STORE=local scripts/gen-hosted-contract` completed successfully; `atlas migrate hash --env cloud && atlas migrate diff hosted_plant_detail_check --env cloud` reported the migration directory synced with desired state; `git diff --check` passed. `atlas migrate apply --env cloud --dry-run` still could not run directly because no cloud URL was configured for Atlas in this shell.
+
+Local hosted browser validation used `make dev-up` after the local dev database was recreated from checked-in cloud migrations and seeded with minimal plant rows, metrics, rollups, and wiki content because `make dev-refresh-db` was blocked by the PostgreSQL 17/18 dump mismatch. The stack started at API `http://192.168.1.79:8037` and Web `http://192.168.1.79:5187`. Browser login with `dev-admin` / `dev-password` succeeded. The dashboard showed a compact Plants section for the selected tent and exposed links only for moisture-backed rows. Direct browser navigation to `/tents/main/plants/a` rendered Plant A metadata, current raw moisture as `1810 raw`, percent target bounds, range controls, a soil-moisture sparkline, and projected wiki content. Desktop and mobile screenshots were captured at `var/dev/control-plane/screenshots/plant-detail-desktop.png`, `var/dev/control-plane/screenshots/plant-detail-mobile.png`, and `var/dev/control-plane/screenshots/plant-detail-mobile-raw-unit-fixed.png`. Production deploy and hosted acceptance are pending explicit approval to run `scripts/deploy-control-plane`.
 
 
 ## Context and Orientation
