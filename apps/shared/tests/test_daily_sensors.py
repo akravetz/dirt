@@ -97,6 +97,7 @@ def _all_tent_metrics_fresh() -> list[tuple]:
         (TENT_DEVICE, "humidity_pct", 50.0, fresh_ts, SensorSource.ARDUINO),
         (TENT_DEVICE, "vpd_kpa", 1.5, fresh_ts, SensorSource.ARDUINO),
         (TENT_DEVICE, "dew_point_f", 58.0, fresh_ts, SensorSource.ARDUINO),
+        (TENT_DEVICE, "fan_pct", 35.0, fresh_ts, SensorSource.ARDUINO),
     ]
 
 

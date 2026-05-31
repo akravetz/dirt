@@ -83,7 +83,7 @@ async def test_default_site_tents_zones_and_capabilities_are_seeded(app_engine):
         "exhaust",
         "lights",
     } <= zone_ids
-    assert {"temperature_f", "humidity_pct", "vpd_kpa", "fan_duty_pct"} <= fan_caps
+    assert {"temperature_f", "humidity_pct", "vpd_kpa", "fan_pct"} <= fan_caps
 
 
 async def test_current_main_growrun_and_plants_are_seeded(app_engine):

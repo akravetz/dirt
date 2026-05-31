@@ -39,6 +39,8 @@ settings = CloudSettings(
     admin_password_hash="not-a-real-password-hash",
     session_secret="contract-codegen-secret",
     session_cookie_secure=False,
+    asset_store="local",
+    public_asset_base_url="https://assets.invalid",
 )
 spec = deepcopy(create_app(settings=settings).openapi())
 spec["info"]["title"] = "Dirt Hosted Browser API"

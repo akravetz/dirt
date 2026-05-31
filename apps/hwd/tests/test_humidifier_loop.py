@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import httpx
+import pytest
 
 from dirt_hwd.services.humidifier import (
     DispatchDiff,
@@ -103,7 +104,7 @@ class FakeReadings:
             return self.vpd
         if metric == "humidity_pct":
             return self.rh
-        if metric == "fan_duty_pct":
+        if metric == "fan_pct":
             return self.fan
         return None
 
@@ -291,11 +292,11 @@ async def test_loop_boot_tick_powers_on_and_sets_level_with_interleave():
     # u_pct from 3.9 kPa error * kc=8 = 31.2 → bucket ceil(31.2/11.11) = 3.
     assert workmode_call["value"]["modeValue"] == 3
 
-    # Actuator breadcrumb recorded with the dispatched level.
+    # Actuator breadcrumb records the effective quantized output.
     assert len(readings.ingested) == 1
     metrics, source, ingest_kwargs = readings.ingested[0]
     assert metrics["humidifier_on"] == 1.0
-    assert metrics["humidifier_mist_level"] == 3.0
+    assert metrics["humidifier_intensity_pct"] == pytest.approx(100.0 / 3.0)
     assert source == "govee"
     assert ingest_kwargs == {
         "site_id": "homebox",
@@ -450,15 +451,15 @@ async def test_loop_allocator_turns_off_humidifier_when_fan_relief_first():
     }
     metrics, _source, _ingest_kwargs = readings.ingested[0]
     assert metrics["humidifier_on"] == 0.0
-    assert metrics["humidifier_mist_level"] == 0.0
+    assert metrics["humidifier_intensity_pct"] == 0.0
     assert readings.latest_calls[-1] == (
-        "fan_duty_pct",
+        "fan_pct",
         {
             "site_id": "homebox",
             "tent_id": "main",
             "zone_id": "canopy",
             "device_id": "fan-controller",
-            "capability_id": "fan_duty_pct",
+            "capability_id": "fan_pct",
         },
     )
 

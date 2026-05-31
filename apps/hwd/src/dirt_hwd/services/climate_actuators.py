@@ -21,6 +21,7 @@ from dirt_hwd.services.humidifier_dispatch import (
     DispatchConfig,
     DispatchOutput,
     DispatchState,
+    level_to_intensity_pct,
     quantize,
 )
 from dirt_hwd.services.kasa_inventory import (
@@ -41,7 +42,7 @@ from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID
 DEFAULT_DEHUMIDIFIER_DEVICE_ID = "kasa-dehumidifier-main"
 DEHUMIDIFIER_METRIC = "dehumidifier_on"
 DEFAULT_THERMOFORGE_DEVICE_ID = "ac-infinity-thermoforge-main"
-THERMOFORGE_HEAT_LEVEL_METRIC = "heater_heat_level"
+HEATER_INTENSITY_METRIC = "heater_intensity_pct"
 DEFAULT_HUMIDIFIER_DEVICE_ID = "govee-h7142-main"
 
 
@@ -177,12 +178,14 @@ class H7142HumidifierActuator:
     async def _record_actuator(self, target_level: int | None) -> None:
         if self._readings is None:
             return
+        intensity_pct = level_to_intensity_pct(
+            target_level,
+            self._dispatch_config.levels,
+        )
         await self._readings.ingest_reading(
             {
                 "humidifier_on": 0.0 if target_level is None else 1.0,
-                "humidifier_mist_level": 0.0
-                if target_level is None
-                else float(target_level),
+                "humidifier_intensity_pct": intensity_pct,
             },
             source=SensorSource.GOVEE,
             site_id=self._site_id,
@@ -434,7 +437,9 @@ class ThermoForgeHeaterActuator:
         await self._readings.ingest_reading(
             {
                 "heater_on": 1.0 if status.running else 0.0,
-                "heater_heat_level": float(status.level if status.running else 0),
+                "heater_intensity_pct": float(
+                    (status.level if status.running else 0) * 10
+                ),
             },
             device_id=self._device.device_id,
             source=SensorSource.AC_INFINITY,
@@ -471,7 +476,7 @@ async def load_thermoforge_actuator_device(
                 .where(DbDevice.controller == "ac_infinity_ble")
                 .where(DbDevice.provider_uid_kind == "mac")
                 .where(col(DbDevice.provider_uid).is_not(None))
-                .where(Capability.metric_name == THERMOFORGE_HEAT_LEVEL_METRIC)
+                .where(Capability.metric_name == HEATER_INTENSITY_METRIC)
                 .where(Capability.enabled.is_(True))
                 .limit(1)
             )

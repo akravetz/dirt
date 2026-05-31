@@ -24,6 +24,7 @@
 //     hoverIndex !== null; textContent includes the formatted value and
 //     the unit string so the e2e can assert per-metric unit suffixes.
 import type { ReactNode } from "react";
+import { formatMetricValue } from "@/shared/metricFormat";
 
 interface HistoryPoint {
   ts: string;
@@ -52,6 +53,8 @@ interface SparklineProps {
   unit: string;
   /** Sensor accent (line + marker + diamond + area-fill colour). */
   accent?: SparklineAccent;
+  /** Number of decimal places the backend presentation registry requests. */
+  valuePrecision?: number;
   /** Message shown when the selected range has no points. */
   emptyLabel?: string;
   /**
@@ -101,15 +104,9 @@ const ACCENT_TEXT: Record<SparklineAccent, string> = {
 const VIEWBOX_W = 100;
 const VIEWBOX_H = 30;
 
-function formatValue(value: number, unit: string): string {
-  if (unit === "%") return `${Math.round(value)}${unit}`;
-  if (unit === "raw") return `${formatRawValue(value)} raw`;
-  return `${value.toFixed(1)}${unit}`;
-}
-
-function formatRawValue(value: number): string {
-  const rounded = Math.round(value * 10) / 10;
-  return Number.isInteger(rounded) ? `${rounded}` : rounded.toFixed(1);
+function formatValue(value: number, unit: string, precision: number): string {
+  const formatted = formatMetricValue(value, precision);
+  return unit === "raw" ? `${formatted} raw` : `${formatted}${unit}`;
 }
 
 export function Sparkline({
@@ -117,6 +114,7 @@ export function Sparkline({
   points,
   unit,
   accent = "neutral",
+  valuePrecision = 1,
   emptyLabel = "No data for this range",
   hoverIndex,
   onHoverIndex,
@@ -310,7 +308,7 @@ export function Sparkline({
             style={{ left: `${hoverRatio * 100}%` }}
             className={`pointer-events-none absolute -top-3.5 -translate-x-1/2 whitespace-nowrap border border-rule-strong bg-paper px-1.5 py-px font-mono text-fs-10 tabular-nums ${tooltipColor}`}
           >
-            {formatValue(hovered.value, unit)}
+            {formatValue(hovered.value, unit, valuePrecision)}
           </span>
         ) : null}
       </div>

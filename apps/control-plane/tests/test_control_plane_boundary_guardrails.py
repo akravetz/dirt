@@ -14,6 +14,8 @@ from dirt_control.api.browser import (
     HealthResponse,
     LightSchedulesResponse,
     MetricHistoryResponse,
+    MetricPresentationMetricResponse,
+    MetricPresentationResponse,
     SiteResponse,
     SyncStatusResponse,
     TentResponse,
@@ -53,6 +55,9 @@ def test_hosted_browser_routes_keep_response_models() -> None:
     )
     assert routes[("GET", "/api/tents/{tent_id}/metrics/history")] is (
         MetricHistoryResponse
+    )
+    assert routes[("GET", "/api/tents/{tent_id}/metrics/presentation")] is (
+        MetricPresentationResponse
     )
     assert routes[("GET", "/api/tents/{tent_id}/devices")] == list[DeviceResponse]
     assert routes[("GET", "/api/tents/{tent_id}/lights/schedules")] is (
@@ -128,6 +133,31 @@ def test_gateway_catalog_rejects_omitted_device_liveness() -> None:
                     }
                 ],
             }
+        )
+
+
+def test_metric_presentation_metric_response_requires_owned_contract_shape() -> None:
+    payload = {
+        "metric": "temperature_f",
+        "display_name": "Temperature",
+        "unit": "F",
+        "accent": "temp",
+        "value_precision": 1,
+        "y_min": None,
+        "y_max": None,
+        "display_order": 10,
+    }
+
+    assert MetricPresentationMetricResponse.model_validate(payload).y_min is None
+
+    missing_required_nullable = dict(payload)
+    del missing_required_nullable["y_min"]
+    with pytest.raises(ValidationError):
+        MetricPresentationMetricResponse.model_validate(missing_required_nullable)
+
+    with pytest.raises(ValidationError):
+        MetricPresentationMetricResponse.model_validate(
+            {**payload, "unexpected_unit": "%"}
         )
 
 

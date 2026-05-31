@@ -312,6 +312,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/tents/{tent_id}/metrics/presentation": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Metric Presentation */
+    get: operations["metric_presentation_api_tents__tent_id__metrics_presentation_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/tents/{tent_id}/plants": {
     parameters: {
       query?: never;
@@ -1238,6 +1255,52 @@ export interface components {
       points: components["schemas"]["MetricHistoryPointResponse"][];
       /** Range */
       range: string;
+    };
+    /** MetricPresentationHistoryGroupResponse */
+    MetricPresentationHistoryGroupResponse: {
+      /** Display Order */
+      display_order: number;
+      /** Group */
+      group: string;
+      /** Label */
+      label: string;
+      /** Metrics */
+      metrics: components["schemas"]["MetricPresentationMetricResponse"][];
+    };
+    /** MetricPresentationMetricResponse */
+    MetricPresentationMetricResponse: {
+      /** Accent */
+      accent: string;
+      /** Display Name */
+      display_name: string;
+      /** Display Order */
+      display_order: number;
+      /** Metric */
+      metric: string;
+      /** Unit */
+      unit: string;
+      /** Value Precision */
+      value_precision: number;
+      /** Y Max */
+      y_max: number | null;
+      /** Y Min */
+      y_min: number | null;
+    };
+    /** MetricPresentationRangeResponse */
+    MetricPresentationRangeResponse: {
+      /** Bucket */
+      bucket: string;
+      /** Range */
+      range: string;
+    };
+    /** MetricPresentationResponse */
+    MetricPresentationResponse: {
+      /** Current Metrics */
+      current_metrics: components["schemas"]["MetricPresentationMetricResponse"][];
+      /** History Groups */
+      history_groups: components["schemas"]["MetricPresentationHistoryGroupResponse"][];
+      /** Supported Ranges */
+      supported_ranges: components["schemas"]["MetricPresentationRangeResponse"][];
     };
     /** PlantDetailResponse */
     PlantDetailResponse: {
@@ -2209,6 +2272,37 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["MetricHistoryResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  metric_presentation_api_tents__tent_id__metrics_presentation_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        tent_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MetricPresentationResponse"];
         };
       };
       /** @description Validation Error */

@@ -208,7 +208,10 @@ async def test_h7142_humidifier_actuator_uses_quantizer_and_dispatch_plan() -> N
     ]
     assert readings.calls == [
         {
-            "metrics": {"humidifier_on": 1.0, "humidifier_mist_level": 4.0},
+            "metrics": {
+                "humidifier_on": 1.0,
+                "humidifier_intensity_pct": pytest.approx(400.0 / 9.0),
+            },
             "source": "govee",
             "site_id": "homebox",
             "tent_id": "main",
@@ -311,7 +314,7 @@ async def test_thermoforge_heater_actuator_reconciles_and_records_reading() -> N
     ]
     assert readings.calls == [
         {
-            "metrics": {"heater_on": 1.0, "heater_heat_level": 4.0},
+            "metrics": {"heater_on": 1.0, "heater_intensity_pct": 40.0},
             "device_id": "ac-infinity-thermoforge-main",
             "source": "ac_infinity",
             "site_id": "homebox",

@@ -19,6 +19,7 @@ from dirt_control.models import (
     CloudCommand,
     CloudDevice,
     CloudLatestMetric,
+    CloudMetricPresentation,
     CloudMetricRollup,
     CloudPlant,
     CloudSchedule,
@@ -43,56 +44,7 @@ METRIC_HISTORY_RANGES: dict[str, tuple[str, timedelta]] = {
     "30d": ("4h", timedelta(days=30)),
     "90d": ("1d", timedelta(days=90)),
 }
-
-
-@dataclass(frozen=True)
-class DisplayMetricSpec:
-    storage_metric: str
-    display_metric: str
-    display_unit: str | None = None
-    transform: Callable[[float], float] | None = None
-
-
-def _mist_level_to_pct(value: float) -> float:
-    return value * 100.0 / 9.0
-
-
-def _heat_level_to_pct(value: float) -> float:
-    return value * 10.0
-
-
-def _bool_to_pct(value: float) -> float:
-    return value * 100.0
-
-
-DISPLAY_METRIC_BY_STORAGE: dict[str, DisplayMetricSpec] = {
-    "fan_duty_pct": DisplayMetricSpec(
-        storage_metric="fan_duty_pct",
-        display_metric="fan_pct",
-        display_unit="%",
-    ),
-    "humidifier_mist_level": DisplayMetricSpec(
-        storage_metric="humidifier_mist_level",
-        display_metric="humidifier_intensity_pct",
-        display_unit="%",
-        transform=_mist_level_to_pct,
-    ),
-    "heater_heat_level": DisplayMetricSpec(
-        storage_metric="heater_heat_level",
-        display_metric="heater_intensity_pct",
-        display_unit="%",
-        transform=_heat_level_to_pct,
-    ),
-    "dehumidifier_on": DisplayMetricSpec(
-        storage_metric="dehumidifier_on",
-        display_metric="dehumidifier_runtime_pct",
-        display_unit="%",
-        transform=_bool_to_pct,
-    ),
-}
-DISPLAY_METRIC_BY_PUBLIC: dict[str, DisplayMetricSpec] = {
-    spec.display_metric: spec for spec in DISPLAY_METRIC_BY_STORAGE.values()
-}
+DEHUMIDIFIER_STATE_METRIC = "dehumidifier_on"
 
 
 class LoginRequest(BaseModel):
@@ -192,6 +144,35 @@ class MetricHistoryResponse(BrowserResponse):
     metric: str
     range: str
     points: list[MetricHistoryPointResponse]
+
+
+class MetricPresentationRangeResponse(BrowserResponse):
+    range: str
+    bucket: str
+
+
+class MetricPresentationMetricResponse(BrowserResponse):
+    metric: str
+    display_name: str
+    unit: str
+    accent: str
+    value_precision: int
+    y_min: float | None
+    y_max: float | None
+    display_order: int
+
+
+class MetricPresentationHistoryGroupResponse(BrowserResponse):
+    group: str
+    label: str
+    display_order: int
+    metrics: list[MetricPresentationMetricResponse]
+
+
+class MetricPresentationResponse(BrowserResponse):
+    current_metrics: list[MetricPresentationMetricResponse]
+    history_groups: list[MetricPresentationHistoryGroupResponse]
+    supported_ranges: list[MetricPresentationRangeResponse]
 
 
 class PlantSummaryResponse(BrowserResponse):
@@ -344,29 +325,66 @@ class SyncStatusResponse(BrowserResponse):
     status: SyncStatusLabel
 
 
-def _display_metric_value(
-    value: float | None, display_spec: DisplayMetricSpec | None
-) -> float | None:
-    if value is None:
-        return None
-    if display_spec is None or display_spec.transform is None:
-        return value
-    return round(display_spec.transform(value), 2)
-
-
 def _current_metric_response(row: CloudLatestMetric) -> CurrentMetricResponse:
-    display_spec = DISPLAY_METRIC_BY_STORAGE.get(row.metric)
-    display_value = _display_metric_value(row.value, display_spec)
     return CurrentMetricResponse(
-        metric=display_spec.display_metric if display_spec else row.metric,
-        value=display_value if display_value is not None else row.value,
-        unit=display_spec.display_unit if display_spec else row.unit,
+        metric=row.metric,
+        value=row.value,
+        unit=row.unit,
         capability_id=row.capability_id,
         device_id=row.device_id,
         source_updated_at=row.source_updated_at,
         received_at=row.received_at,
         stale_after_s=row.stale_after_s,
     )
+
+
+def _history_metric_value(value: float | None, metric: str) -> float | None:
+    if value is None:
+        return None
+    if metric == DEHUMIDIFIER_STATE_METRIC:
+        return round(value * 100.0, 2)
+    return value
+
+
+def _history_metric_unit(unit: str | None, metric: str) -> str | None:
+    if metric == DEHUMIDIFIER_STATE_METRIC:
+        return "%"
+    return unit
+
+
+def _presentation_metric_response(
+    row: CloudMetricPresentation,
+) -> MetricPresentationMetricResponse:
+    return MetricPresentationMetricResponse(
+        metric=row.metric,
+        display_name=row.display_name,
+        unit=row.unit,
+        accent=row.accent,
+        value_precision=row.value_precision,
+        y_min=row.y_min,
+        y_max=row.y_max,
+        display_order=row.display_order,
+    )
+
+
+def _supported_metric_ranges_response() -> list[MetricPresentationRangeResponse]:
+    return [
+        MetricPresentationRangeResponse(range=range_key, bucket=bucket)
+        for range_key, (bucket, _) in METRIC_HISTORY_RANGES.items()
+    ]
+
+
+def _history_group_parts(row: CloudMetricPresentation) -> tuple[str, str, int]:
+    if (
+        row.dashboard_group is None
+        or row.dashboard_group_label is None
+        or row.dashboard_group_order is None
+    ):
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "history metric presentation row missing dashboard group",
+        )
+    return row.dashboard_group, row.dashboard_group_label, row.dashboard_group_order
 
 
 class CommandResponse(BrowserResponse):
@@ -603,6 +621,60 @@ async def current_metrics(
     return [_current_metric_response(row) for row in rows]
 
 
+@router.get(
+    "/tents/{tent_id}/metrics/presentation",
+    response_model=MetricPresentationResponse,
+)
+async def metric_presentation(
+    tent_id: str,
+    _: str = Depends(require_browser_user),
+    session: AsyncSession = Depends(get_session),
+) -> MetricPresentationResponse:
+    rows = (
+        (
+            await session.execute(
+                select(CloudMetricPresentation).order_by(
+                    CloudMetricPresentation.display_order,
+                    CloudMetricPresentation.metric,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    history_rows = sorted(
+        (row for row in rows if row.history_enabled),
+        key=lambda row: (
+            row.dashboard_group_order if row.dashboard_group_order is not None else 0,
+            row.display_order,
+            row.metric,
+        ),
+    )
+    history_groups: list[MetricPresentationHistoryGroupResponse] = []
+    history_groups_by_key: dict[str, MetricPresentationHistoryGroupResponse] = {}
+    for row in history_rows:
+        group_key, group_label, group_order = _history_group_parts(row)
+        existing_group = history_groups_by_key.get(group_key)
+        if existing_group is None:
+            existing_group = MetricPresentationHistoryGroupResponse(
+                group=group_key,
+                label=group_label,
+                display_order=group_order,
+                metrics=[],
+            )
+            history_groups_by_key[group_key] = existing_group
+            history_groups.append(existing_group)
+        existing_group.metrics.append(_presentation_metric_response(row))
+
+    return MetricPresentationResponse(
+        current_metrics=[
+            _presentation_metric_response(row) for row in rows if row.current_enabled
+        ],
+        history_groups=history_groups,
+        supported_ranges=_supported_metric_ranges_response(),
+    )
+
+
 @router.get("/tents/{tent_id}/metrics/history", response_model=MetricHistoryResponse)
 async def metric_history(  # noqa: PLR0913
     tent_id: str,
@@ -625,8 +697,6 @@ async def metric_history(  # noqa: PLR0913
         )
     bucket, window = range_spec
     cutoff = clock() - window
-    display_spec = DISPLAY_METRIC_BY_PUBLIC.get(metric)
-    storage_metric = display_spec.storage_metric if display_spec else metric
     stream_filters = (
         (
             CloudMetricRollup.device_id == device_id,
@@ -641,7 +711,7 @@ async def metric_history(  # noqa: PLR0913
             .where(
                 CloudMetricRollup.site_id == settings.default_site_id,
                 CloudMetricRollup.tent_id == tent_id,
-                CloudMetricRollup.metric == storage_metric,
+                CloudMetricRollup.metric == metric,
                 CloudMetricRollup.bucket == bucket,
                 CloudMetricRollup.bucket_start_at >= cutoff,
             )
@@ -657,11 +727,11 @@ async def metric_history(  # noqa: PLR0913
                 bucket=row.bucket,
                 bucket_start_at=row.bucket_start_at,
                 bucket_end_at=row.bucket_end_at,
-                min=_display_metric_value(row.min_value, display_spec),
-                avg=_display_metric_value(row.avg_value, display_spec),
-                max=_display_metric_value(row.max_value, display_spec),
+                min=_history_metric_value(row.min_value, metric),
+                avg=_history_metric_value(row.avg_value, metric),
+                max=_history_metric_value(row.max_value, metric),
                 sample_count=row.sample_count,
-                unit=display_spec.display_unit if display_spec else row.unit,
+                unit=_history_metric_unit(row.unit, metric),
             )
             for row in rows
         ],

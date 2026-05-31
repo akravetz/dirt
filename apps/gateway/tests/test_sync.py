@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import asyncio
 import importlib
+import inspect
 import json
 import pkgutil
 import sys
@@ -12,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -56,6 +58,7 @@ from dirt_shared.models import (
     Command,
     Device,
     GrowRun,
+    MetricPresentation,
     Plant,
     SensorCalibration,
     SensorReading,
@@ -570,6 +573,102 @@ async def _seed_temperature_readings(engine: AsyncEngine) -> None:
         await session.commit()
 
 
+async def _seed_history_rollup_readings(engine: AsyncEngine) -> set[str]:
+    readings_by_metric = {
+        "temperature_f": ("F", [72.0, 74.0]),
+        "humidity_pct": ("%", [50.0, 55.0]),
+        "vpd_kpa": ("kPa", [1.1, 1.3]),
+        "reservoir_in": ("in", [7.0, 7.5]),
+        "reservoir_ph": ("pH", [6.1, 6.3]),
+        "reservoir_ph_voltage": ("V", [1.2, 1.3]),
+        "temperature_c": ("C", [22.2, 23.3]),
+    }
+    device_ids = {"test-history-node", "test-history-moisture"}
+    async with AsyncSession(engine) as session:
+        site_pk = (
+            await session.exec(select(Site.id).where(Site.site_id == "homebox"))
+        ).one()
+        tent = (
+            await session.exec(
+                select(Tent).where(Tent.site_id == site_pk, Tent.tent_id == "main")
+            )
+        ).one()
+        device = Device(
+            site_id=site_pk,
+            tent_id=tent.id,
+            device_id="test-history-node",
+            name="Test History Node",
+            kind="test",
+            controller="test",
+        )
+        session.add(device)
+        await session.flush()
+        for metric, (unit, values) in readings_by_metric.items():
+            capability = Capability(
+                device_id=device.id,
+                capability_id=metric,
+                name=metric,
+                kind="measurement",
+                metric_name=metric,
+                unit=unit,
+                source="test",
+            )
+            session.add(capability)
+            await session.flush()
+            for index, value in enumerate(values, start=1):
+                session.add(
+                    SensorReading(
+                        ts=FIXED_NOW - timedelta(minutes=index),
+                        capability_id=capability.id,
+                        metric=metric,
+                        value=value,
+                        source=SensorSource.ESP32,
+                    )
+                )
+
+        moisture_device = Device(
+            site_id=site_pk,
+            tent_id=tent.id,
+            device_id="test-history-moisture",
+            name="Test History Moisture",
+            kind="moisture_node",
+            controller="test",
+        )
+        session.add(moisture_device)
+        await session.flush()
+        moisture_capability = Capability(
+            device_id=moisture_device.id,
+            capability_id="soil_moisture_raw",
+            name="Soil Moisture Raw",
+            kind="measurement",
+            metric_name="soil_moisture_raw",
+            unit="raw",
+            source="test",
+        )
+        session.add(moisture_capability)
+        await session.flush()
+        session.add(
+            SensorCalibration(
+                capability_id=moisture_capability.id,
+                metric="soil_moisture_raw",
+                raw_low=1000.0,
+                raw_high=3000.0,
+            )
+        )
+        for index, value in enumerate([1000.0, 2000.0, 3000.0], start=1):
+            session.add(
+                SensorReading(
+                    ts=FIXED_NOW - timedelta(minutes=index),
+                    capability_id=moisture_capability.id,
+                    metric="soil_moisture_raw",
+                    value=value,
+                    source=SensorSource.ESP32,
+                )
+            )
+        await session.commit()
+    return device_ids
+
+
 async def test_latest_metrics_and_rollups_are_not_duplicated(
     app_engine: AsyncEngine,
 ):
@@ -595,6 +694,93 @@ async def test_latest_metrics_and_rollups_are_not_duplicated(
     ) in cloud.latest_rows
     assert any(key[5] == "4h" for key in cloud.rollup_rows)
     assert any(key[5] == "1d" for key in cloud.rollup_rows)
+
+
+async def test_collect_rollups_filters_history_from_metric_registry(
+    app_engine: AsyncEngine,
+) -> None:
+    device_ids = await _seed_history_rollup_readings(app_engine)
+
+    payload = await GatewayLocalServiceBundle(
+        app_engine, clock=lambda: FIXED_NOW
+    ).collect_rollups("homebox", bucket_names={"5m"})
+
+    rollups = [item for item in payload.rollups if item.device_id in device_ids]
+    metrics = {item.metric for item in rollups}
+
+    assert {
+        "temperature_f",
+        "humidity_pct",
+        "vpd_kpa",
+        "reservoir_in",
+        "reservoir_ph",
+        "soil_moisture_pct",
+    } <= metrics
+    assert "soil_moisture_raw" not in metrics
+    assert "reservoir_ph_voltage" not in metrics
+    assert "temperature_c" not in metrics
+    moisture_rollups = [item for item in rollups if item.metric == "soil_moisture_pct"]
+    assert moisture_rollups
+    assert {item.capability_id for item in moisture_rollups} == {"soil_moisture_raw"}
+    assert {item.unit for item in moisture_rollups} == {"%"}
+
+
+async def test_collect_rollups_disables_legacy_moisture_from_registry(
+    app_engine: AsyncEngine,
+) -> None:
+    device_ids = await _seed_history_rollup_readings(app_engine)
+    async with AsyncSession(app_engine) as session:
+        moisture = (
+            await session.exec(
+                select(MetricPresentation).where(
+                    MetricPresentation.metric == "soil_moisture_pct"
+                )
+            )
+        ).one()
+        moisture.history_enabled = False
+        session.add(moisture)
+        await session.commit()
+
+    payload = await GatewayLocalServiceBundle(
+        app_engine, clock=lambda: FIXED_NOW
+    ).collect_rollups("homebox", bucket_names={"5m"})
+
+    metrics = {item.metric for item in payload.rollups if item.device_id in device_ids}
+    assert "temperature_f" in metrics
+    assert "soil_moisture_pct" not in metrics
+    assert "soil_moisture_raw" not in metrics
+
+
+async def test_collect_rollups_fails_closed_without_history_registry(
+    app_engine: AsyncEngine,
+) -> None:
+    await _seed_history_rollup_readings(app_engine)
+    async with AsyncSession(app_engine) as session:
+        await session.exec(text("DELETE FROM metric_presentation"))
+        await session.commit()
+
+    payload = await GatewayLocalServiceBundle(
+        app_engine, clock=lambda: FIXED_NOW
+    ).collect_rollups("homebox", bucket_names={"5m"})
+
+    assert payload.rollups == []
+
+
+def test_canonical_rollup_projection_has_no_legacy_moisture_path() -> None:
+    canonical_source = inspect.getsource(
+        gateway_local.collect_canonical_history_rollups
+    )
+    legacy_source = inspect.getsource(
+        gateway_local.collect_legacy_calibrated_soil_moisture_rollups
+    )
+
+    assert "sensorcalibration" not in canonical_source
+    assert "UNION ALL" not in canonical_source.upper()
+    assert "soil_moisture_raw" not in canonical_source
+    assert "soil_moisture_pct" not in canonical_source
+    assert "sensorcalibration" in legacy_source
+    assert "soil_moisture_raw" in legacy_source
+    assert "soil_moisture_pct" in legacy_source
 
 
 async def test_collect_metrics_derives_calibrated_soil_moisture_pct(

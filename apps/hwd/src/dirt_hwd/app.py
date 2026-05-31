@@ -152,7 +152,6 @@ def _default_background_services(
             policy=default_climate_policy(),
             clock=core.clock,
             poll_interval_s=humidifier_config.poll_interval,
-            humidifier_levels=humidifier_config.mist_levels,
         ),
         ScheduledKasaActuatorService(
             settings.scheduled_kasa(),

@@ -50,6 +50,12 @@ def _bucket_width(levels: int) -> float:
     return 100.0 / levels
 
 
+def level_to_intensity_pct(level: int | None, levels: int) -> float:
+    if level is None:
+        return 0.0
+    return level / levels * 100.0
+
+
 def _naive_level(u_pct: float, levels: int) -> int:
     """Bucket map: (0, w] → 1, (w, 2w] → 2, …, (>(levels-1)*w) → levels."""
     width = _bucket_width(levels)

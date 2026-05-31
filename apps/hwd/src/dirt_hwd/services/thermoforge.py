@@ -500,7 +500,7 @@ class ScheduledThermoForgeService:
         await self._readings.ingest_reading(
             {
                 "heater_on": 1.0 if status.running else 0.0,
-                "heater_heat_level": float(_effective_level(status)),
+                "heater_intensity_pct": float(_effective_level(status) * 10),
             },
             device_id=target.device_id,
             source=SensorSource.AC_INFINITY,

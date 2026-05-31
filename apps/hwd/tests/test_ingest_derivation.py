@@ -26,7 +26,7 @@ from dirt_shared.sensor_contract import (
 _PLAUSIBLE: dict[str, float] = {
     "temperature_c": 24.0,
     "humidity_pct": 55.0,
-    "fan_duty_pct": 30.0,
+    "fan_pct": 30.0,
     "soil_moisture_raw": 1800.0,
     "reservoir_pressure_raw": 22000.0,
     "reservoir_in": 12.0,
@@ -74,7 +74,7 @@ def test_warn_on_emitted_drift_silent_when_complete(
     caplog.set_level(logging.WARNING, logger="dirt_hwd.api.ingest")
     _warn_on_emitted_drift(
         "fan-controller",
-        {"temperature_c": 24.0, "humidity_pct": 55.0, "fan_duty_pct": 30.0},
+        {"temperature_c": 24.0, "humidity_pct": 55.0, "fan_pct": 30.0},
     )
     assert not caplog.records
 
