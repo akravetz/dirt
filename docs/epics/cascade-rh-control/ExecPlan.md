@@ -46,6 +46,12 @@ The observable behavior is a `climate_controller` log stream where fan targets m
 - Decision: Use control-system concepts directly: cascade control, split-range allocation, feedforward for scheduled disturbances, and anti-windup/bumpless tracking around actuator limits.
   Rationale: Control.com describes cascade control as nested loops where the secondary loop responds faster; it also notes the secondary process must be faster-responding than the primary. Split-range control describes allocating one controller output across multiple final control elements. Anti-windup is needed when actuator saturation or binary dwell prevents delivered output from matching requested output.
   Date/Author: 2026-05-31 / Codex
+- Decision: Cooling fan demand is permitted only as bounded assist unless a hard high-temperature safety threshold is crossed.
+  Rationale: The fan reliably exchanges humid tent air for drier lung-room air, but the lung-room temperature gradient is unreliable. Treating cooling demand as an equal peer to RH/VPD drying lets mild temperature error worsen high VPD or low RH. The fan should remain primary for RH/VPD; cooling is a capped nudge except for true heat safety.
+  Date/Author: 2026-05-31 / Codex
+- Decision: Lights-off feedforward is a bounded fan RH-bias, not an unconditional fan blast.
+  Rationale: Lights-off is a predictable disturbance: temperature falls and VPD can collapse before feedback has time to recover. The fan should start drying only when pre-transition RH/VPD and trend indicate risk, and dehumidifier pre-enable should be reserved for sustained load. This preserves fast protection without creating a scheduled oscillation.
+  Date/Author: 2026-05-31 / Codex
 
 
 ## Outcomes & Retrospective
@@ -85,13 +91,43 @@ Milestone 1 adds tests and a replay harness before changing behavior. Create pur
 
 Milestone 2 separates demand concepts inside `climate_controller.py` without adding durable compatibility layers. Keep a direct model: `fan_rh_demand`, `fan_cooling_demand`, and `dehumidifier_capacity_request` are better names than one overloaded `drying_pct` if the implementation needs them. Preserve current public service boundaries and event fields unless a field becomes misleading; if new fields are needed, add explicit diagnostics and update tests.
 
-Milestone 3 implements the fan inner loop. The fan loop should compute a continuous fan target from RH error and low-VPD pressure, with integral tracking from delivered fan elevation. Fan duty must respect floor/max, have a longer dwell or smoother rate limit than today, and reserve emergency bypass for genuinely unsafe RH excursions. Cooling fan demand should be capped or deprioritized when it conflicts with RH/VPD behavior because fan is not reliable active cooling.
+Milestone 3 implements the fan inner loop. The fan loop should compute a continuous fan target from RH error and low-VPD pressure, with integral tracking from delivered fan elevation. Fan duty must respect floor/max, have a longer dwell or smoother rate limit than today, and reserve emergency bypass for genuinely unsafe RH excursions.
+
+Cooling fan demand must be humidity-aware and bounded. Compute separate targets for RH/VPD drying and temperature assist, then cap cooling assist before combining:
+
+    fan_rh_target = floor + rh_vpd_inner_loop_output
+    raw_cooling_target = floor + cooling_loop_output
+
+    if temp_f >= hard_cooling_temp_f:
+        cooling_cap = fan_max
+    elif vpd_kpa > vpd_high + cooling_high_vpd_margin_kpa:
+        cooling_cap = floor + cooling_high_vpd_cap_pct
+    elif rh_pct < rh_max - cooling_dry_air_margin_pct:
+        cooling_cap = floor + cooling_dry_air_cap_pct
+    else:
+        cooling_cap = floor + cooling_assist_cap_pct
+
+    fan_cooling_target = min(raw_cooling_target, cooling_cap)
+    final_fan_target = max(fan_rh_target, fan_cooling_target)
+
+Initial tuning should be conservative: `cooling_assist_cap_pct = 15`, `cooling_dry_air_cap_pct = 10`, `cooling_high_vpd_cap_pct = 5`, `cooling_high_vpd_margin_kpa = 0.05`, `hard_cooling_temp_f = 82`, and `post_lights_off_cooling_suppress_s = 1800`. During the first 20-30 minutes after lights-off, suppress ordinary cooling assist caused only by the lower night temperature target; allow fan movement for RH/VPD drying and hard heat safety.
 
 Milestone 4 implements the dehumidifier outer loop. Replace instantaneous dehumidifier requests with a sustained-burden signal: if fan elevation is high for a configured window while RH/VPD indicate drying load, request dehumidifier on. If fan returns near floor and RH/VPD remain stable for a longer window, request dehumidifier off. Keep dehumidifier minimum on/off dwell. Track delivered drying capacity for anti-windup.
 
-Milestone 5 adds lights-off feedforward. The schedule already provides lights context through grow state. Before lights-off, modestly raise the fan setpoint or bias the fan RH loop if RH/VPD trend suggests the temperature drop will push VPD low. Optionally pre-enable dehumidifier only when sustained fan burden or RH trend is already high. After the transition, let feedback take over and decay the feedforward bias.
+Milestone 5 adds lights-off feedforward. The schedule already provides lights context through grow state. Feedforward must be concrete and bounded:
 
-Milestone 6 validates and tunes. Run unit tests, hwd tests, shared tests if changed, invariants, and replay. Compare before/after metrics over at least one recent day. Commit only after the plan's acceptance criteria are satisfied.
+- Activation window: start evaluating `45 minutes` before scheduled lights-off and keep a post-transition decay state for `30 minutes` after lights-off.
+- Risk inputs: current `rh_pct`, `vpd_kpa`, `temperature_f`, `minutes_until_off`, short RH slope over roughly `10 minutes`, and current fan burden.
+- Entry condition: apply feedforward only if either RH is within `3%` of the upcoming lights-off RH ceiling, VPD is within `0.10 kPa` of the upcoming lights-off VPD floor, RH slope is rising by at least `0.5%` over 10 minutes, or fan burden has been above `floor + 20%` for at least `10 minutes`.
+- Fan output shape: add a feedforward bias to the RH/VPD fan inner loop, not a separate unconditional target. Initial bias should ramp from `0` to at most `+15% fan duty` across the pre-lights-off window. If current RH is already above the current or upcoming ceiling, allow the normal RH loop to exceed this cap; the cap only limits feedforward-only demand.
+- No dry-air push: if VPD is already above the current upper band or RH is more than `5%` below the upcoming ceiling, feedforward bias must be `0` so the fan does not pre-dry an already-dry tent.
+- Dehumidifier pre-enable: request dehumidifier before lights-off only when fan burden has been elevated for the sustained window or RH is already above the upcoming lights-off ceiling. Do not pre-enable dehumidifier solely because lights-off is approaching.
+- Decay: after lights-off, linearly decay the feedforward bias to `0` over `30 minutes`. Feedback RH/VPD demand can still keep fan elevated if the tent actually needs it.
+- Safety override: hard high RH or hard temperature safety can override the feedforward cap; high VPD and dry-air caps still protect ordinary cooling assist.
+
+Initial tuning should be `lights_off_feedforward_window_s = 2700`, `lights_off_feedforward_decay_s = 1800`, `lights_off_feedforward_max_bias_pct = 15`, `lights_off_feedforward_rh_near_ceiling_pct = 3`, `lights_off_feedforward_vpd_floor_margin_kpa = 0.10`, `lights_off_feedforward_rh_slope_pct_per_10m = 0.5`, `fan_burden_pre_enable_pct = 20`, and `fan_burden_pre_enable_s = 600`.
+
+Milestone 6 validates, tunes, and reports the replay analysis. Run unit tests, hwd tests, shared tests if changed, invariants, and replay. Compare before/after metrics over the last 1 day and the last 4 days. The milestone is not complete until the implementer writes a concise report into `Artifacts and Notes` with the replay command, date ranges, before/after metrics, interpretation, and any tuning follow-up. Commit only after the plan's acceptance criteria are satisfied.
 
 
 ## Concrete Steps
@@ -147,7 +183,12 @@ Pure controller tests must show:
 - Dehumidifier stays on through minimum dwell and does not toggle on single-tick RH dips.
 - Fan decays smoothly after RH/VPD recovery instead of jumping directly from max to floor unless a safety condition requires it.
 - High VPD with RH below ceiling humidifies or holds fan near floor rather than drying harder.
-- Temperature-high can request cooling fan assist, but not override hard RH/VPD safety logic.
+- Mild temperature-high can request only capped cooling fan assist when RH/VPD are not asking for drying.
+- High VPD or low RH caps cooling fan assist near floor so cooling does not worsen the real humidity/VPD error.
+- Hard high temperature, initially `82F`, can bypass cooling caps because heat safety wins.
+- Ordinary post-lights-off cooling demand is suppressed during the settling window unless RH/VPD drying or hard heat safety requires fan movement.
+- Lights-off feedforward creates at most the configured fan bias when RH/VPD risk is present, creates zero bias when the tent is already dry/high-VPD, and decays to zero after lights-off.
+- Dehumidifier pre-enable before lights-off happens only from sustained fan burden or RH already above the upcoming lights-off ceiling.
 
 Replay acceptance should compare current behavior against new behavior using recent local telemetry. A successful run should show:
 
@@ -155,6 +196,13 @@ Replay acceptance should compare current behavior against new behavior using rec
 - Similar or better RH-in-band percentage for the relevant stage/phase.
 - Similar or better time spent below unsafe high-RH margins.
 - Dehumidifier cycles that respect dwell and do not increase materially without improving fan burden.
+
+Replay reporting is required for two windows:
+
+- Last 1 day, ending at replay time.
+- Last 4 days, ending at replay time.
+
+For each window, report at least: total ticks, large fan steps, large fan reversals, median absolute RH error, RH-in-band percentage, high-RH exceedance minutes, high-VPD exceedance minutes, dehumidifier cycles, humidifier/dehumidifier conflict avoidance events, and any hard safety overrides. Include both baseline/current-controller metrics and new-controller replay metrics in the same table so the reviewer can see the tradeoffs.
 
 Live acceptance after deployment should use:
 
@@ -198,6 +246,8 @@ The main implementation interface is `decide_climate()` and its supporting datac
 Expected internal data after implementation:
 
 - `ClimateTuning` includes explicit tuning for fan RH loop, fan cooling loop, fan burden windows, dehumidifier burden thresholds, and lights-off feedforward bias.
+- `ClimateTuning` includes cooling-specific caps: ordinary cooling assist cap, dry-air cap, high-VPD cap, high-VPD margin, hard cooling temperature, and post-lights-off cooling suppression duration.
+- `ClimateTuning` includes lights-off feedforward window, decay duration, maximum fan bias, RH/VPD risk margins, RH slope threshold, and fan-burden pre-enable threshold/window.
 - `ClimateState` stores enough state to support fan/dehumidifier cascade behavior: fan integral or tracked burden, dehumidifier dwell state, and any feedforward decay state that must persist across ticks.
 - `climate_controller` logs include enough fields to diagnose fan RH demand, fan cooling demand, sustained fan burden, dehumidifier outer-loop request, and delivered actuator output.
 
@@ -207,3 +257,6 @@ No new external service or package dependency is expected.
 ## Revision Notes
 
 - 2026-05-31: Initial ExecPlan drafted for review.
+- 2026-05-31: Added concrete humidity-aware cooling fan cap policy after operator review.
+- 2026-05-31: Added concrete lights-off feedforward policy after operator review.
+- 2026-05-31: Added required last-1-day and last-4-day replay report for milestone 6.
