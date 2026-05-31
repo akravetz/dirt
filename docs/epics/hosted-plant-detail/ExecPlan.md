@@ -11,7 +11,7 @@ After this change, an authenticated operator using the Railway-hosted UI can ope
 
 This matters because the hosted UI is becoming the operator-facing control plane. Plant-level status should not depend on the retired local browser UI or on direct filesystem/database access. The architecture must remain flexible for later plants, tents, and grow runs without baking `a` through `d` into route code or cloud storage.
 
-The work is complete when the hosted UI has a tent-scoped route such as `/tents/$tentId/plants/$plantId` that can be reached from the hosted dashboard for moisture-backed plants, `Plant A` through `Plant D` render from synced plant metadata rather than a hardcoded frontend list, the moisture graph uses the selected range and the plant's own metric stream, the plant wiki page renders from a cloud projection of `wiki/plants/plant-a.md` style content, and plants without a soil-moisture stream are not linked as detail pages.
+The work is complete when the hosted UI has a tent-scoped route such as `/tents/$tentId/plants/$plantId` that can be reached from the hosted dashboard for moisture-backed plants, `Plant A` through `Plant D` render from synced plant metadata rather than a hardcoded frontend list, the moisture graph uses the selected range and the plant's own metric stream, the plant wiki page renders from a cloud projection of `wiki/grows/main-2026-03-15/plants/plant-a.md` style content, and plants without a soil-moisture stream are not linked as detail pages.
 
 
 ## Progress
@@ -30,6 +30,9 @@ The work is complete when the hosted UI has a tent-scoped route such as `/tents/
 - Observation: Hosted metric rollups currently do not carry `device_id`, and both latest and rollup cloud uniqueness are keyed by `site_id`, `tent_id`, public `capability_id`, and `metric`.
   Evidence: `apps/control-plane/src/dirt_control/models/cloud.py` defines `CloudLatestMetric` uniqueness on `site_id, tent_id, capability_id, metric` and `CloudMetricRollup` uniqueness on `site_id, tent_id, capability_id, metric, bucket, bucket_start_at`; `apps/gateway/src/dirt_gateway/local.py` emits rollups grouped by `t.tent_id, c.capability_id, c.metric_name, c.unit, bucket_start_at`.
 
+- Observation: There are no concrete local non-device metrics in the current PostgreSQL source of truth.
+  Evidence: On 2026-05-31, `sensorreading.capability_id` and `capability.device_id` were both `NOT NULL`; `SELECT COUNT(*) FILTER (WHERE capability_id IS NULL) FROM sensorreading` returned `0`; `SELECT COUNT(*) FROM sensorreading sr LEFT JOIN capability c ON c.id = sr.capability_id LEFT JOIN device d ON d.id = c.device_id WHERE d.id IS NULL` returned `0`; all 18 distinct `sensorreading.metric` values had `missing_device = 0`.
+
 - Observation: The local plant model already contains the durable plant identity needed for this page.
   Evidence: `apps/shared/src/dirt_shared/models/plant.py` has `plant_id`, `name`, `display_order`, `status`, `purple`, moisture target bounds, and nullable `moisture_capability_id` scoped to a current `growrun`.
 
@@ -39,12 +42,15 @@ The work is complete when the hosted UI has a tent-scoped route such as `/tents/
 - Observation: The hosted wiki route is currently a placeholder, while a separate hosted wiki ExecPlan already chose a site-scoped row-per-page projection.
   Evidence: `web-ui/src/routes/wiki.tsx` intentionally makes no network calls and shows "Wiki unavailable"; `docs/epics/hosted-website-control-plane/HostedWikiExecPlan.md` describes a `CloudWikiPage` projection and browser `/api/wiki/*` routes.
 
+- Observation: Plant wiki pages are now scoped under grow-run folders, matching the database identity model.
+  Evidence: `wiki/AGENTS.md` and `wiki/grows/README.md` document `wiki/grows/<grow_run_id>/plants/plant-<plant_id>.md`; current main-tent pages live under `wiki/grows/main-2026-03-15/plants/`; Track A pages live under `wiki/grows/breeding-track-a-2026-04-28/plants/`.
+
 
 ## Decision Log
 
 - Decision: Treat hosted metric stream identity as `site_id + tent_id + device_id + capability_id + metric`.
-  Rationale: Local `capability.capability_id` is unique per device, not per tent. All plant moisture nodes can truthfully expose `capability_id='soil_moisture_raw'`, so hosted storage and rollups must include `device_id` to avoid collapsing Plant A through Plant D into one trend.
-  Date/Author: 2026-05-28 / Codex
+  Rationale: Local `capability.capability_id` is unique per device, not per tent. All plant moisture nodes can truthfully expose `capability_id='soil_moisture_raw'`, so hosted storage and rollups must include `device_id` to avoid collapsing Plant A through Plant D into one trend. Current local metric readings are all device-owned through `sensorreading -> capability -> device`, so `device_id` should be required and non-null in hosted metric contracts and storage rather than required-but-nullable.
+  Date/Author: 2026-05-28; updated 2026-05-31 / Codex
 
 - Decision: Add a hosted plant projection to the existing catalog sync instead of hardcoding current main-tent plants in the browser.
   Rationale: Plants are scoped identity data like tents, devices, capabilities, and schedules. Syncing them through the gateway keeps the cloud inspectable and lets future plants appear without frontend code changes.
@@ -59,8 +65,8 @@ The work is complete when the hosted UI has a tent-scoped route such as `/tents/
   Date/Author: 2026-05-28 / Codex
 
 - Decision: Implement only the wiki projection slice needed by plant detail if the full hosted wiki plan has not landed by implementation time.
-  Rationale: The plant page needs `wiki/plants/*.md` content, but that should still use the same `CloudWikiPage` shape chosen for the full hosted wiki rather than inventing a plant-only markdown field.
-  Date/Author: 2026-05-28 / Codex
+  Rationale: The plant page needs `wiki/grows/<grow_run_id>/plants/plant-<plant_id>.md` content, but that should still use the same `CloudWikiPage` shape chosen for the full hosted wiki rather than inventing a plant-only markdown field. The path must include `grow_run_id` because `plant_id` is scoped to a grow run and labels such as `a` or `r1` are not globally unique.
+  Date/Author: 2026-05-28; updated 2026-05-31 / Codex
 
 
 ## Outcomes & Retrospective
@@ -84,7 +90,7 @@ The hosted control plane is the Railway-deployed API and web UI. Local services 
 
 The local plant source of truth is `apps/shared/src/dirt_shared/models/plant.py`. A `Plant` row belongs to a `GrowRun`, `Site`, and `Tent`. Its durable public identifier is `plant_id`, sorted by `display_order`. `moisture_capability_id` points at the local numeric `Capability.id` for that plant's canonical soil-moisture stream. The local public stream identifiers needed by hosted cloud are on `Capability.capability_id`, `Capability.metric_name`, and the owning `Device.device_id`.
 
-The current main-tent plant wiki pages live at `wiki/plants/plant-a.md`, `wiki/plants/plant-b.md`, `wiki/plants/plant-c.md`, and `wiki/plants/plant-d.md`. They contain Markdown frontmatter and body content. The first hosted plant detail route can use the convention `wiki/plants/plant-{plant_id}.md` for main-tent plants, but the cloud contract should carry an explicit nullable `wiki_path` so later plants are not forced into the same filename pattern.
+The current main-tent plant wiki pages live at `wiki/grows/main-2026-03-15/plants/plant-a.md`, `wiki/grows/main-2026-03-15/plants/plant-b.md`, `wiki/grows/main-2026-03-15/plants/plant-c.md`, and `wiki/grows/main-2026-03-15/plants/plant-d.md`. They contain Markdown frontmatter and body content. Plant wiki paths follow the grow-run scoped convention `wiki/grows/<grow_run_id>/plants/plant-<plant_id>.md`. The cloud contract should still carry an explicit nullable `wiki_path` so future exceptions can be represented without route code guessing paths.
 
 Before implementation, read the documentation required by `AGENTS.md`:
 
@@ -105,11 +111,11 @@ If implementing wiki projection work, also read:
 
 ## Plan of Work
 
-Milestone 1 corrects hosted metric stream identity. Extend `LatestMetricItem` and `RollupItem` in `apps/shared/src/dirt_shared/cloud_contract.py` so `device_id` is required for owned metric streams. If a concrete existing non-device metric is found, keep the field required-but-nullable with `Field(...)`, but the local collector should provide a value for every metric coming from `capability -> device`. Update `apps/gateway/src/dirt_gateway/local.py` to group rollups by `Device.device_id` as well as `Capability.capability_id`, and to emit `device_id` on rollups. Add `device_id` to `CloudMetricRollup` in `apps/control-plane/src/dirt_control/models/cloud.py`; update `CloudLatestMetric`, `CloudMetricRollup`, and `CloudCapability` uniqueness/key construction so device-owned capability identifiers are not assumed tent-unique. Update gateway upserts in `apps/control-plane/src/dirt_control/api/gateway.py` and browser history reads in `apps/control-plane/src/dirt_control/api/browser.py`.
+Milestone 1 corrects hosted metric stream identity. Extend `LatestMetricItem` and `RollupItem` in `apps/shared/src/dirt_shared/cloud_contract.py` so `device_id` is required and non-null for metric streams. The current local database has been validated to have no non-device metric readings, so do not model `device_id` as required-but-nullable for latest metrics or rollups. Update `apps/gateway/src/dirt_gateway/local.py` to group rollups by `Device.device_id` as well as `Capability.capability_id`, and to emit `device_id` on rollups. Add non-null `device_id` to `CloudMetricRollup` in `apps/control-plane/src/dirt_control/models/cloud.py`; make the hosted latest metric `device_id` contract/storage non-null as well; update `CloudLatestMetric`, `CloudMetricRollup`, and `CloudCapability` uniqueness/key construction so device-owned capability identifiers are not assumed tent-unique. Update gateway upserts in `apps/control-plane/src/dirt_control/api/gateway.py` and browser history reads in `apps/control-plane/src/dirt_control/api/browser.py`.
 
-Milestone 1 should use a direct cutover. Do not add compatibility wrappers that preserve the old stream key as a second source of truth. Existing hosted rollups that lack `device_id` can remain for dashboard history until they age out, but plant detail queries must require a plant row with a concrete `device_id` and must ignore old rollups where `device_id` is null.
+Milestone 1 should use a direct cutover. Do not add compatibility wrappers that preserve the old stream key as a second source of truth. Existing hosted latest metric and rollup rows that lack device identity should be discarded or rebuilt by the migration/sync path instead of preserved as nullable rows. Plant detail queries must require a plant row with a concrete `device_id` and read only the new device-scoped rollup identity.
 
-Milestone 2 syncs plant metadata. Add a `CatalogPlant` DTO to `apps/shared/src/dirt_shared/cloud_contract.py` and a `plants: list[CatalogPlant]` field to `CatalogRequest`. The DTO should include `tent_id`, `grow_run_id`, `plant_id`, `name`, `display_order`, nullable `sticker_color`, `status`, `purple`, `moisture_target_low`, `moisture_target_high`, nullable `moisture_device_id`, nullable `moisture_capability_id`, nullable `wiki_path`, and `is_active`. Build these rows in `GatewayLocalServiceBundle.collect_catalog()` by querying the current grow run for each tent and joining `Plant.moisture_capability_id -> Capability -> Device` when present. Add `CloudPlant` to `apps/control-plane/src/dirt_control/models/cloud.py`, keyed by `site_id + tent_id + grow_run_id + plant_id`, and upsert it from the catalog route.
+Milestone 2 syncs plant metadata. Add a `CatalogPlant` DTO to `apps/shared/src/dirt_shared/cloud_contract.py` and a `plants: list[CatalogPlant]` field to `CatalogRequest`. The DTO should include `tent_id`, `grow_run_id`, `plant_id`, `name`, `display_order`, nullable `sticker_color`, `status`, `purple`, `moisture_target_low`, `moisture_target_high`, nullable `moisture_device_id`, nullable `moisture_capability_id`, nullable `wiki_path`, and `is_active`. Build these rows in `GatewayLocalServiceBundle.collect_catalog()` by querying the current grow run for each tent and joining `Plant.moisture_capability_id -> Capability -> Device` when present. Set `wiki_path` from the grow-run scoped convention, for example `wiki/grows/{grow_run_id}/plants/plant-{plant_id}.md`, when that file exists. Add `CloudPlant` to `apps/control-plane/src/dirt_control/models/cloud.py`, keyed by `site_id + tent_id + grow_run_id + plant_id`, and upsert it from the catalog route.
 
 Milestone 3 exposes browser plant APIs from the hosted control plane. Add Pydantic browser response models in `apps/control-plane/src/dirt_control/api/browser.py`, keeping `extra="forbid"` through `BrowserResponse`. Add:
 
@@ -123,7 +129,7 @@ Milestone 4 makes wiki content available to the plant page. If the full hosted w
 
 - Add `WikiProjectionPage`, `WikiProjectionRequest`, and `WikiProjectionResponse` DTOs to `apps/shared/src/dirt_shared/cloud_contract.py`.
 - Add `CloudWikiPage` to `apps/control-plane/src/dirt_control/models/cloud.py` with `site_id`, `path`, `title`, `frontmatter` JSON, `body_markdown`, `sha256`, `source_updated_at`, `synced_at`, `created_at`, and `updated_at`.
-- Add `GatewayLocalServiceBundle.collect_wiki_pages(site_id)` that projects only `wiki/plants/*.md` for this milestone, with explicit exclusion of `wiki/AGENTS.md` and any raw/private paths.
+- Add `GatewayLocalServiceBundle.collect_wiki_pages(site_id)` that projects only `wiki/grows/*/plants/*.md` for this milestone, with explicit exclusion of `wiki/AGENTS.md` and any raw/private paths.
 - Add `PUT /api/gateway/v1/wiki` and wire the gateway sync event if the general route does not already exist.
 - Compose optional wiki content into the hosted plant detail response by joining `CloudPlant.wiki_path` to `CloudWikiPage.path`.
 
@@ -146,10 +152,16 @@ Inspect the current stream data and confirm that plant moisture capabilities are
 
     rg -n "soil_moisture_raw|moisture_capability_id|CloudMetricRollup|LatestMetricItem|RollupItem" apps migrations cloud/migrations
 
-For any SQL inspection, use the credentials from `.env` without printing secrets:
+The non-device metric check was run on 2026-05-31 and found no local non-device metric readings. Re-run before implementation if the database has changed materially. Use the credentials from `.env` without printing secrets:
 
     set -a; source .env; set +a
-    PGPASSWORD=$DIRT_PG_PASSWORD psql -h 127.0.0.1 -U dirt -d dirt -P pager=off -c "\d plant" -c "\d capability" -c "\d sensorreading"
+    PGPASSWORD=$DIRT_PG_PASSWORD psql -h 127.0.0.1 -U dirt -d dirt -P pager=off \
+      -c "\d plant" \
+      -c "\d capability" \
+      -c "\d sensorreading" \
+      -c "SELECT COUNT(*) AS total_readings, COUNT(*) FILTER (WHERE capability_id IS NULL) AS readings_without_capability FROM sensorreading;" \
+      -c "SELECT COUNT(*) AS readings_with_missing_device FROM sensorreading sr LEFT JOIN capability c ON c.id = sr.capability_id LEFT JOIN device d ON d.id = c.device_id WHERE d.id IS NULL;" \
+      -c "SELECT sr.metric, COUNT(*) AS readings, COUNT(*) FILTER (WHERE d.id IS NULL) AS missing_device FROM sensorreading sr LEFT JOIN capability c ON c.id = sr.capability_id LEFT JOIN device d ON d.id = c.device_id GROUP BY sr.metric ORDER BY sr.metric;"
 
 Implement Milestone 1 files:
 
@@ -248,7 +260,7 @@ Frontend acceptance:
 - Clicking Plant A navigates to `/tents/main/plants/a` and renders without a full page reload.
 - The detail page has a range switch with the same allowed ranges as the dashboard.
 - Hovering the moisture sparkline shows the crosshair and timestamp/value behavior expected from the existing `Sparkline` component.
-- Wiki content from `wiki/plants/plant-a.md` is visible on the page when the projection exists; the page still renders a useful metadata and graph view if the wiki page is missing.
+- Wiki content from `wiki/grows/main-2026-03-15/plants/plant-a.md` is visible on the page when the projection exists; the page still renders a useful metadata and graph view if the wiki page is missing.
 - A plant without a moisture stream is not linked from the dashboard and does not show an empty graph page.
 - The page works at desktop and mobile widths without overlapping text, clipped buttons, or chart layout shifts.
 
