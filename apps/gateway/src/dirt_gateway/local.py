@@ -149,7 +149,7 @@ class GatewayLocalServiceBundle:
         metrics: list[LatestMetricItem] = []
         async with AsyncSession(self._engine) as session:
             result = await session.exec(
-                text(_LATEST_METRICS_SQL),
+                text(_latest_metrics_sql()),
                 params={"site_id": site_id},
             )
             for row in result.mappings().all():
@@ -178,33 +178,33 @@ class GatewayLocalServiceBundle:
             for bucket, window, bucket_s in ROLLUP_SPECS:
                 if bucket_names is not None and bucket not in bucket_names:
                     continue
-                result = await session.exec(
-                    text(_ROLLUP_SQL),
-                    params={
-                        "site_id": site_id,
-                        "since": now - window,
-                        "bucket_s": bucket_s,
-                    },
-                )
-                for row in result.mappings().all():
-                    bucket_start = _as_utc(row["bucket_start_at"])
-                    rollups.append(
-                        RollupItem(
-                            site_id=site_id,
-                            tent_id=row["tent_id"],
-                            device_id=row["device_id"],
-                            capability_id=row["capability_id"],
-                            metric=row["metric"],
-                            bucket=bucket,
-                            bucket_start_at=bucket_start,
-                            bucket_end_at=bucket_start + timedelta(seconds=bucket_s),
-                            min_value=_maybe_float(row["min_value"]),
-                            avg_value=_maybe_float(row["avg_value"]),
-                            max_value=_maybe_float(row["max_value"]),
-                            sample_count=int(row["sample_count"]),
-                            unit=row["unit"],
-                        )
+                rollups.extend(
+                    await collect_canonical_history_rollups(
+                        session,
+                        site_id=site_id,
+                        since=now - window,
+                        bucket=bucket,
+                        bucket_s=bucket_s,
                     )
+                )
+                rollups.extend(
+                    await collect_dehumidifier_runtime_rollups(
+                        session,
+                        site_id=site_id,
+                        since=now - window,
+                        bucket=bucket,
+                        bucket_s=bucket_s,
+                    )
+                )
+                rollups.extend(
+                    await collect_legacy_calibrated_soil_moisture_rollups(
+                        session,
+                        site_id=site_id,
+                        since=now - window,
+                        bucket=bucket,
+                        bucket_s=bucket_s,
+                    )
+                )
         return RollupsRequest(site_id=site_id, rollups=rollups)
 
     async def collect_wiki_pages(self, site_id: str) -> WikiProjectionRequest:
@@ -364,7 +364,221 @@ class GatewayLocalServiceBundle:
             return None if device is None else device.device_id
 
 
-_LATEST_METRICS_SQL = """
+async def collect_canonical_history_rollups(
+    session: AsyncSession,
+    *,
+    site_id: str,
+    since: datetime,
+    bucket: str,
+    bucket_s: int,
+) -> list[RollupItem]:
+    sql = """
+SELECT
+  t.tent_id,
+  d.device_id,
+  c.capability_id,
+  c.metric_name AS metric,
+  c.unit,
+  date_bin(
+    make_interval(secs => :bucket_s),
+    sr.ts,
+    TIMESTAMPTZ '1970-01-01'
+  ) AS bucket_start_at,
+  min(sr.value) AS min_value,
+  avg(sr.value) AS avg_value,
+  max(sr.value) AS max_value,
+  count(*) AS sample_count
+FROM sensorreading sr
+JOIN capability c ON c.id = sr.capability_id
+JOIN metric_presentation mp
+  ON mp.metric = c.metric_name
+ AND mp.history_enabled = true
+JOIN device d ON d.id = c.device_id
+JOIN site s ON s.id = d.site_id
+JOIN tent t ON t.id = d.tent_id
+WHERE s.site_id = :site_id
+  AND sr.ts >= :since
+  AND c.enabled = true
+  AND c.metric_name IS NOT NULL
+  AND sr.metric = c.metric_name
+GROUP BY
+  t.tent_id,
+  d.device_id,
+  c.capability_id,
+  c.metric_name,
+  c.unit,
+  bucket_start_at
+ORDER BY bucket_start_at, t.tent_id, d.device_id, c.capability_id, c.metric_name
+"""
+    result = await session.exec(
+        text(sql),
+        params={"site_id": site_id, "since": since, "bucket_s": bucket_s},
+    )
+    return _rollup_items_from_rows(
+        result.mappings().all(),
+        site_id=site_id,
+        bucket=bucket,
+        bucket_s=bucket_s,
+    )
+
+
+async def collect_legacy_calibrated_soil_moisture_rollups(
+    session: AsyncSession,
+    *,
+    site_id: str,
+    since: datetime,
+    bucket: str,
+    bucket_s: int,
+) -> list[RollupItem]:
+    sql = """
+SELECT
+  t.tent_id,
+  d.device_id,
+  c.capability_id,
+  mp.metric AS metric,
+  mp.unit,
+  date_bin(
+    make_interval(secs => :bucket_s),
+    sr.ts,
+    TIMESTAMPTZ '1970-01-01'
+  ) AS bucket_start_at,
+  round(
+    (
+      LEAST(
+        100.0,
+        GREATEST(
+          0.0,
+          100.0 * (sc.raw_high - max(sr.value)) / (sc.raw_high - sc.raw_low)
+        )
+      )
+    )::numeric,
+    4
+  )::double precision AS min_value,
+  round(
+    (
+      LEAST(
+        100.0,
+        GREATEST(
+          0.0,
+          100.0 * (sc.raw_high - avg(sr.value)) / (sc.raw_high - sc.raw_low)
+        )
+      )
+    )::numeric,
+    4
+  )::double precision AS avg_value,
+  round(
+    (
+      LEAST(
+        100.0,
+        GREATEST(
+          0.0,
+          100.0 * (sc.raw_high - min(sr.value)) / (sc.raw_high - sc.raw_low)
+        )
+      )
+    )::numeric,
+    4
+  )::double precision AS max_value,
+  count(*) AS sample_count
+FROM sensorreading sr
+JOIN capability c ON c.id = sr.capability_id
+JOIN sensorcalibration sc
+  ON sc.capability_id = c.id
+ AND sc.metric = 'soil_moisture_raw'
+ AND sc.raw_high > sc.raw_low
+JOIN metric_presentation mp
+  ON mp.metric = 'soil_moisture_pct'
+ AND mp.history_enabled = true
+JOIN device d ON d.id = c.device_id
+JOIN site s ON s.id = d.site_id
+JOIN tent t ON t.id = d.tent_id
+WHERE s.site_id = :site_id
+  AND sr.ts >= :since
+  AND c.enabled = true
+  AND c.metric_name = 'soil_moisture_raw'
+  AND sr.metric = 'soil_moisture_raw'
+GROUP BY
+  t.tent_id,
+  d.device_id,
+  c.capability_id,
+  mp.metric,
+  mp.unit,
+  sc.raw_low,
+  sc.raw_high,
+  bucket_start_at
+ORDER BY bucket_start_at, t.tent_id, d.device_id, c.capability_id, mp.metric
+"""
+    result = await session.exec(
+        text(sql),
+        params={"site_id": site_id, "since": since, "bucket_s": bucket_s},
+    )
+    return _rollup_items_from_rows(
+        result.mappings().all(),
+        site_id=site_id,
+        bucket=bucket,
+        bucket_s=bucket_s,
+    )
+
+
+async def collect_dehumidifier_runtime_rollups(
+    session: AsyncSession,
+    *,
+    site_id: str,
+    since: datetime,
+    bucket: str,
+    bucket_s: int,
+) -> list[RollupItem]:
+    sql = """
+SELECT
+  t.tent_id,
+  d.device_id,
+  c.capability_id,
+  mp.metric AS metric,
+  mp.unit,
+  date_bin(
+    make_interval(secs => :bucket_s),
+    sr.ts,
+    TIMESTAMPTZ '1970-01-01'
+  ) AS bucket_start_at,
+  round((min(sr.value) * 100.0)::numeric, 4)::double precision AS min_value,
+  round((avg(sr.value) * 100.0)::numeric, 4)::double precision AS avg_value,
+  round((max(sr.value) * 100.0)::numeric, 4)::double precision AS max_value,
+  count(*) AS sample_count
+FROM sensorreading sr
+JOIN capability c ON c.id = sr.capability_id
+JOIN metric_presentation mp
+  ON mp.metric = 'dehumidifier_runtime_pct'
+ AND mp.history_enabled = true
+JOIN device d ON d.id = c.device_id
+JOIN site s ON s.id = d.site_id
+JOIN tent t ON t.id = d.tent_id
+WHERE s.site_id = :site_id
+  AND sr.ts >= :since
+  AND c.enabled = true
+  AND c.metric_name = 'dehumidifier_on'
+  AND sr.metric = 'dehumidifier_on'
+GROUP BY
+  t.tent_id,
+  d.device_id,
+  c.capability_id,
+  mp.metric,
+  mp.unit,
+  bucket_start_at
+ORDER BY bucket_start_at, t.tent_id, d.device_id, c.capability_id, mp.metric
+"""
+    result = await session.exec(
+        text(sql),
+        params={"site_id": site_id, "since": since, "bucket_s": bucket_s},
+    )
+    return _rollup_items_from_rows(
+        result.mappings().all(),
+        site_id=site_id,
+        bucket=bucket,
+        bucket_s=bucket_s,
+    )
+
+
+def _latest_metrics_sql() -> str:
+    return """
 WITH latest AS (
   SELECT DISTINCT ON (capability_id)
     capability_id,
@@ -434,104 +648,34 @@ ORDER BY device_id, capability_id, metric
 """
 
 
-_ROLLUP_SQL = """
-WITH base AS (
-  SELECT
-    t.tent_id,
-    d.device_id,
-    c.capability_id,
-    c.metric_name AS metric,
-    c.unit,
-    date_bin(
-      make_interval(secs => :bucket_s),
-      sr.ts,
-      TIMESTAMPTZ '1970-01-01'
-    ) AS bucket_start_at,
-    min(sr.value) AS min_value,
-    avg(sr.value) AS avg_value,
-    max(sr.value) AS max_value,
-    count(*) AS sample_count
-  FROM sensorreading sr
-  JOIN capability c ON c.id = sr.capability_id
-  JOIN device d ON d.id = c.device_id
-  JOIN site s ON s.id = d.site_id
-  JOIN tent t ON t.id = d.tent_id
-  WHERE s.site_id = :site_id
-    AND sr.ts >= :since
-    AND c.metric_name IS NOT NULL
-  GROUP BY
-    t.tent_id,
-    d.device_id,
-    c.capability_id,
-    c.metric_name,
-    c.unit,
-    bucket_start_at
-)
-SELECT
-  tent_id,
-  device_id,
-  capability_id,
-  metric,
-  unit,
-  bucket_start_at,
-  min_value,
-  avg_value,
-  max_value,
-  sample_count
-FROM base
-UNION ALL
-SELECT
-  base.tent_id,
-  base.device_id,
-  base.capability_id,
-  'soil_moisture_pct' AS metric,
-  '%' AS unit,
-  base.bucket_start_at,
-  round(
-    (
-      LEAST(
-        100.0,
-        GREATEST(
-          0.0,
-          100.0 * (sc.raw_high - base.max_value) / (sc.raw_high - sc.raw_low)
+def _rollup_items_from_rows(
+    rows: list[Any],
+    *,
+    site_id: str,
+    bucket: str,
+    bucket_s: int,
+) -> list[RollupItem]:
+    rollups: list[RollupItem] = []
+    for row in rows:
+        bucket_start = _as_utc(row["bucket_start_at"])
+        rollups.append(
+            RollupItem(
+                site_id=site_id,
+                tent_id=row["tent_id"],
+                device_id=row["device_id"],
+                capability_id=row["capability_id"],
+                metric=row["metric"],
+                bucket=bucket,
+                bucket_start_at=bucket_start,
+                bucket_end_at=bucket_start + timedelta(seconds=bucket_s),
+                min_value=_maybe_float(row["min_value"]),
+                avg_value=_maybe_float(row["avg_value"]),
+                max_value=_maybe_float(row["max_value"]),
+                sample_count=int(row["sample_count"]),
+                unit=row["unit"],
+            )
         )
-      )
-    )::numeric,
-    4
-  )::double precision AS min_value,
-  round(
-    (
-      LEAST(
-        100.0,
-        GREATEST(
-          0.0,
-          100.0 * (sc.raw_high - base.avg_value) / (sc.raw_high - sc.raw_low)
-        )
-      )
-    )::numeric,
-    4
-  )::double precision AS avg_value,
-  round(
-    (
-      LEAST(
-        100.0,
-        GREATEST(
-          0.0,
-          100.0 * (sc.raw_high - base.min_value) / (sc.raw_high - sc.raw_low)
-        )
-      )
-    )::numeric,
-    4
-  )::double precision AS max_value,
-  base.sample_count
-FROM base
-JOIN device d ON d.device_id = base.device_id
-JOIN capability c ON c.device_id = d.id AND c.capability_id = base.capability_id
-JOIN sensorcalibration sc ON sc.capability_id = c.id AND sc.metric = base.metric
-WHERE base.metric = 'soil_moisture_raw'
-  AND sc.raw_high > sc.raw_low
-ORDER BY bucket_start_at, tent_id, device_id, capability_id, metric
-"""
+    return rollups
 
 
 def _as_utc(ts: datetime) -> datetime:

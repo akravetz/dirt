@@ -19,7 +19,7 @@ afterEach(() => {
 });
 
 describe("Sparkline", () => {
-  it("separates raw units in the tooltip", () => {
+  it("formats tooltip values with the supplied precision", () => {
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
@@ -29,6 +29,7 @@ describe("Sparkline", () => {
         <Sparkline
           name="Soil moisture"
           unit="raw"
+          valuePrecision={0}
           points={[{ ts: "2026-05-01T00:00:00Z", value: 1810 }]}
           hoverIndex={0}
           onHoverIndex={vi.fn()}

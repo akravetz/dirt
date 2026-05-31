@@ -144,7 +144,7 @@ class ClimateDemandDiagnostics:
 
 @dataclass(frozen=True, slots=True)
 class ClimateDecision:
-    fan_duty_pct: int
+    fan_pct: int
     humidifier_pct: float
     dehumidifier_on: bool
     heater_level: int
@@ -190,9 +190,9 @@ class _SensorSnapshot:
     temperature: _Reading | None
     rh: _Reading | None
     vpd: _Reading | None
-    humidifier_level: _Reading | None
+    humidifier_intensity: _Reading | None
     dehumidifier_on: _Reading | None
-    heater_level: _Reading | None
+    heater_intensity: _Reading | None
 
 
 class ClimateControllerService:
@@ -217,7 +217,6 @@ class ClimateControllerService:
         humidifier_device_id: str = DEFAULT_HUMIDIFIER_DEVICE_ID,
         dehumidifier_device_id: str = DEFAULT_DEHUMIDIFIER_DEVICE_ID,
         heater_device_id: str = DEFAULT_THERMOFORGE_DEVICE_ID,
-        humidifier_levels: int = 9,
     ) -> None:
         if actuators is None and actuator_runtime_factory is None:
             raise ValueError("actuators or actuator_runtime_factory is required")
@@ -237,7 +236,6 @@ class ClimateControllerService:
         self._humidifier_device_id = humidifier_device_id
         self._dehumidifier_device_id = dehumidifier_device_id
         self._heater_device_id = heater_device_id
-        self._humidifier_levels = humidifier_levels
         self._state = ClimateState()
 
     async def run(self, stop_event: asyncio.Event) -> None:
@@ -303,13 +301,13 @@ class ClimateControllerService:
             vpd_kpa=_value(snapshot.vpd),
             vpd_age_s=_age_s(now, snapshot.vpd),
             current_fan_pct=current_fan_pct,
-            current_humidifier_pct=self._humidifier_pct(snapshot.humidifier_level),
+            current_humidifier_pct=_pct_reading(snapshot.humidifier_intensity),
             current_dehumidifier_on=_bool_reading(
                 snapshot.dehumidifier_on,
                 fallback=self._state.dehumidifier_on,
             ),
-            current_heater_level=_int_reading(
-                snapshot.heater_level,
+            current_heater_level=_heater_level_from_intensity(
+                snapshot.heater_intensity,
                 fallback=self._state.heater_level,
             ),
         )
@@ -324,20 +322,20 @@ class ClimateControllerService:
             temperature,
             rh,
             vpd,
-            humidifier_level,
+            humidifier_intensity,
             dehumidifier_on,
-            heater_level,
+            heater_intensity,
         ) = await asyncio.gather(
             self._canopy_reading("temperature_f"),
             self._canopy_reading("humidity_pct"),
             self._canopy_reading("vpd_kpa"),
             self._readings.get_latest_reading(
-                "humidifier_mist_level",
+                "humidifier_intensity_pct",
                 site_id=self._site_id,
                 tent_id=self._tent_id,
                 zone_id=self._zone_id,
                 device_id=self._humidifier_device_id,
-                capability_id="humidifier_mist_level",
+                capability_id="humidifier_intensity_pct",
             ),
             self._readings.get_latest_reading(
                 "dehumidifier_on",
@@ -348,7 +346,7 @@ class ClimateControllerService:
                 capability_id="power",
             ),
             self._readings.get_latest_reading(
-                "heater_heat_level",
+                "heater_intensity_pct",
                 site_id=self._site_id,
                 tent_id=self._tent_id,
                 device_id=self._heater_device_id,
@@ -359,9 +357,9 @@ class ClimateControllerService:
             temperature=temperature,
             rh=rh,
             vpd=vpd,
-            humidifier_level=humidifier_level,
+            humidifier_intensity=humidifier_intensity,
             dehumidifier_on=dehumidifier_on,
-            heater_level=heater_level,
+            heater_intensity=heater_intensity,
         )
 
     async def _canopy_reading(self, metric: str) -> _Reading | None:
@@ -391,8 +389,8 @@ class ClimateControllerService:
             if dehumidifier_off:
                 await self._dispatch_humidifier(actuators, decision.humidifier_pct)
 
-        if decision.fan_duty_pct != inp.current_fan_pct:
-            await self._dispatch_fan(actuators, decision.fan_duty_pct)
+        if decision.fan_pct != inp.current_fan_pct:
+            await self._dispatch_fan(actuators, decision.fan_pct)
 
         target = (
             ThermoForgeHeaterTarget.off()
@@ -474,11 +472,6 @@ class ClimateControllerService:
             **fields,
         )
 
-    def _humidifier_pct(self, reading: _Reading | None) -> float:
-        if reading is None:
-            return 0.0
-        return max(0.0, min(100.0, reading.value / self._humidifier_levels * 100.0))
-
     def _log_tick(
         self,
         ctx: GrowContext,
@@ -509,7 +502,7 @@ class ClimateControllerService:
             temperature_high_f=phase_policy.temperature_f.high,
             rh_max_pct=phase_policy.rh_max_pct,
             current_fan_pct=inp.current_fan_pct,
-            target_fan_pct=decision.fan_duty_pct,
+            target_fan_pct=decision.fan_pct,
             current_humidifier_pct=round(inp.current_humidifier_pct, 1),
             target_humidifier_pct=round(decision.humidifier_pct, 1),
             current_dehumidifier_on=inp.current_dehumidifier_on,
@@ -731,7 +724,7 @@ def decide_climate(
             else state.heater_last_changed_at,
         )
         return ClimateDecision(
-            fan_duty_pct=policy.fan.floor_pct,
+            fan_pct=policy.fan.floor_pct,
             humidifier_pct=0.0,
             dehumidifier_on=False,
             heater_level=0,
@@ -790,7 +783,7 @@ def decide_climate(
         ),
     )
     return ClimateDecision(
-        fan_duty_pct=fan_pct,
+        fan_pct=fan_pct,
         humidifier_pct=humidifier_pct,
         dehumidifier_on=dehumidifier_on,
         heater_level=heater_level,
@@ -939,7 +932,7 @@ def _failsafe_decision(
         else phase_state.state.heater_last_changed_at,
     )
     return ClimateDecision(
-        fan_duty_pct=policy.fan.floor_pct,
+        fan_pct=policy.fan.floor_pct,
         humidifier_pct=0.0,
         dehumidifier_on=False,
         heater_level=heater_level,
@@ -2051,7 +2044,13 @@ def _bool_reading(reading: _Reading | None, *, fallback: bool) -> bool:
     return reading.value >= 0.5
 
 
-def _int_reading(reading: _Reading | None, *, fallback: int) -> int:
+def _pct_reading(reading: _Reading | None) -> float:
+    if reading is None:
+        return 0.0
+    return max(0.0, min(100.0, reading.value))
+
+
+def _heater_level_from_intensity(reading: _Reading | None, *, fallback: int) -> int:
     if reading is None:
         return fallback
-    return max(0, min(10, round(reading.value)))
+    return max(0, min(10, round(reading.value / 10.0)))

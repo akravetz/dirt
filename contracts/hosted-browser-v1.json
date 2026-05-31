@@ -2273,6 +2273,153 @@
         "title": "MetricHistoryResponse",
         "type": "object"
       },
+      "MetricPresentationHistoryGroupResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "display_order": {
+            "title": "Display Order",
+            "type": "integer"
+          },
+          "group": {
+            "title": "Group",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/MetricPresentationMetricResponse"
+            },
+            "title": "Metrics",
+            "type": "array"
+          }
+        },
+        "required": [
+          "group",
+          "label",
+          "display_order",
+          "metrics"
+        ],
+        "title": "MetricPresentationHistoryGroupResponse",
+        "type": "object"
+      },
+      "MetricPresentationMetricResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "accent": {
+            "title": "Accent",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "display_order": {
+            "title": "Display Order",
+            "type": "integer"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "value_precision": {
+            "title": "Value Precision",
+            "type": "integer"
+          },
+          "y_max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y Max"
+          },
+          "y_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y Min"
+          }
+        },
+        "required": [
+          "metric",
+          "display_name",
+          "unit",
+          "accent",
+          "value_precision",
+          "y_min",
+          "y_max",
+          "display_order"
+        ],
+        "title": "MetricPresentationMetricResponse",
+        "type": "object"
+      },
+      "MetricPresentationRangeResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "bucket": {
+            "title": "Bucket",
+            "type": "string"
+          },
+          "range": {
+            "title": "Range",
+            "type": "string"
+          }
+        },
+        "required": [
+          "range",
+          "bucket"
+        ],
+        "title": "MetricPresentationRangeResponse",
+        "type": "object"
+      },
+      "MetricPresentationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "current_metrics": {
+            "items": {
+              "$ref": "#/components/schemas/MetricPresentationMetricResponse"
+            },
+            "title": "Current Metrics",
+            "type": "array"
+          },
+          "history_groups": {
+            "items": {
+              "$ref": "#/components/schemas/MetricPresentationHistoryGroupResponse"
+            },
+            "title": "History Groups",
+            "type": "array"
+          },
+          "supported_ranges": {
+            "items": {
+              "$ref": "#/components/schemas/MetricPresentationRangeResponse"
+            },
+            "title": "Supported Ranges",
+            "type": "array"
+          }
+        },
+        "required": [
+          "current_metrics",
+          "history_groups",
+          "supported_ranges"
+        ],
+        "title": "MetricPresentationResponse",
+        "type": "object"
+      },
       "PlantDetailResponse": {
         "additionalProperties": false,
         "properties": {
@@ -4252,6 +4399,45 @@
           }
         },
         "summary": "Metric History"
+      }
+    },
+    "/api/tents/{tent_id}/metrics/presentation": {
+      "get": {
+        "operationId": "metric_presentation_api_tents__tent_id__metrics_presentation_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tent_id",
+            "required": true,
+            "schema": {
+              "title": "Tent Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetricPresentationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Metric Presentation"
       }
     },
     "/api/tents/{tent_id}/plants": {

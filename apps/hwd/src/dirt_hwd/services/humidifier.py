@@ -34,6 +34,7 @@ from dirt_hwd.services.humidifier_dispatch import (
     DispatchConfig,
     DispatchOutput,
     DispatchState,
+    level_to_intensity_pct,
     quantize,
 )
 from dirt_hwd.services.humidifier_pi import (
@@ -293,12 +294,11 @@ class HumidifierLoopService:
 
     async def _record_actuator(self, target_level: int | None) -> None:
         """Record the commanded actuator state as a sensor reading."""
+        intensity_pct = level_to_intensity_pct(target_level, self._config.mist_levels)
         await self._readings.ingest_reading(
             {
                 "humidifier_on": 0.0 if target_level is None else 1.0,
-                "humidifier_mist_level": 0.0
-                if target_level is None
-                else float(target_level),
+                "humidifier_intensity_pct": intensity_pct,
             },
             source=SensorSource.GOVEE,
             site_id=self._site_id,
@@ -426,12 +426,12 @@ class HumidifierLoopService:
                     if self._allocator_config is not None:
                         reading_tasks.append(
                             self._readings.get_latest_reading(
-                                "fan_duty_pct",
+                                "fan_pct",
                                 site_id=self._site_id,
                                 tent_id=self._tent_id,
                                 zone_id=self._zone_id,
                                 device_id=self._canopy_device_id,
-                                capability_id="fan_duty_pct",
+                                capability_id="fan_pct",
                             )
                         )
                     readings = await asyncio.gather(*reading_tasks)

@@ -398,7 +398,7 @@ async def test_tent_ingest_derives_temperature_f_vpd_dew_point(
             metrics={
                 "temperature_c": 20.6,
                 "humidity_pct": 49.0,
-                "fan_duty_pct": 30.0,
+                "fan_pct": 30.0,
             },
         ),
         headers=_auth_header(),
@@ -420,7 +420,7 @@ async def test_tent_ingest_derives_temperature_f_vpd_dew_point(
     by_metric = {m: v for m, v in rows}
     assert abs(by_metric["temperature_c"] - 20.6) < 1e-6
     assert abs(by_metric["humidity_pct"] - 49.0) < 1e-6
-    assert abs(by_metric["fan_duty_pct"] - 30.0) < 1e-6
+    assert abs(by_metric["fan_pct"] - 30.0) < 1e-6
     assert abs(by_metric["temperature_f"] - 69.08) < 0.01
     # 20.6°C / 49 %RH → VPD ≈ 1.24 kPa
     assert 1.2 < by_metric["vpd_kpa"] < 1.3

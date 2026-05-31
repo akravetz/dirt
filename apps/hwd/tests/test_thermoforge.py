@@ -527,7 +527,7 @@ async def test_records_actuator_readings_with_ac_infinity_source(
 
     assert readings.calls == [
         {
-            "metrics": {"heater_on": 0.0, "heater_heat_level": 0.0},
+            "metrics": {"heater_on": 0.0, "heater_intensity_pct": 0.0},
             "device_id": "ac-infinity-thermoforge-test",
             "source": SensorSource.AC_INFINITY,
             "site_id": "homebox",
@@ -535,7 +535,7 @@ async def test_records_actuator_readings_with_ac_infinity_source(
             "zone_id": "heat",
         },
         {
-            "metrics": {"heater_on": 1.0, "heater_heat_level": 4.0},
+            "metrics": {"heater_on": 1.0, "heater_intensity_pct": 40.0},
             "device_id": "ac-infinity-thermoforge-test",
             "source": SensorSource.AC_INFINITY,
             "site_id": "homebox",
@@ -576,8 +576,8 @@ async def test_records_actuator_readings_through_readings_service(
             device=device,
             capability_id="heat_level",
             kind="actuator",
-            metric_name="heater_heat_level",
-            unit="level",
+            metric_name="heater_intensity_pct",
+            unit="%",
             source="ac_infinity",
             enabled=True,
         )
@@ -606,13 +606,15 @@ async def test_records_actuator_readings_through_readings_service(
                 .join(SensorReading, SensorReading.capability_id == Capability.id)
                 .join(Device, Device.id == Capability.device_id)
                 .where(Device.device_id == "thermoforge-reading-test")
-                .where(Capability.metric_name.in_({"heater_on", "heater_heat_level"}))
+                .where(
+                    Capability.metric_name.in_({"heater_on", "heater_intensity_pct"})
+                )
                 .order_by(Capability.metric_name)
             )
         ).all()
 
     assert rows == [
-        ("heater_heat_level", 4.0, SensorSource.AC_INFINITY),
+        ("heater_intensity_pct", 40.0, SensorSource.AC_INFINITY),
         ("heater_on", 1.0, SensorSource.AC_INFINITY),
     ]
 

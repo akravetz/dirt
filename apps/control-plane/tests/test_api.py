@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 import dirt_control
@@ -19,6 +19,7 @@ from dirt_control.models import (
     CloudCommand,
     CloudDevice,
     CloudLatestMetric,
+    CloudMetricPresentation,
     CloudMetricRollup,
     CloudPlant,
     CloudSchedule,
@@ -778,7 +779,7 @@ async def test_rollup_upsert_keeps_device_scoped_streams_separate(
     assert [row.avg_value for row in rows] == [1800.0, 2200.0]
 
 
-async def test_current_metrics_expose_dashboard_display_names(
+async def test_current_metrics_expose_canonical_metric_names(
     authed_client: AsyncClient,
     cloud_engine: AsyncEngine,
 ) -> None:
@@ -787,17 +788,15 @@ async def test_current_metrics_expose_dashboard_display_names(
         session.add_all(
             [
                 CloudLatestMetric(
-                    metric_key=(
-                        "homebox:main:fan-controller:fan_duty_pct:fan_duty_pct"
-                    ),
+                    metric_key=("homebox:main:fan-controller:fan_pct:fan_pct"),
                     site_id="homebox",
                     tent_id="main",
                     zone_id="canopy",
                     device_id="fan-controller",
-                    capability_id="fan_duty_pct",
-                    metric="fan_duty_pct",
+                    capability_id="fan_pct",
+                    metric="fan_pct",
                     value=42.0,
-                    unit="pct",
+                    unit="%",
                     source_updated_at=FIXED_NOW - timedelta(seconds=30),
                     received_at=FIXED_NOW,
                     stale_after_s=120,
@@ -805,16 +804,16 @@ async def test_current_metrics_expose_dashboard_display_names(
                 CloudLatestMetric(
                     metric_key=(
                         "homebox:main:govee-h7142-main:"
-                        "humidifier_mist_level:humidifier_mist_level"
+                        "humidifier_intensity_pct:humidifier_intensity_pct"
                     ),
                     site_id="homebox",
                     tent_id="main",
                     zone_id="canopy",
                     device_id="govee-h7142-main",
-                    capability_id="humidifier_mist_level",
-                    metric="humidifier_mist_level",
-                    value=4.5,
-                    unit="level",
+                    capability_id="humidifier_intensity_pct",
+                    metric="humidifier_intensity_pct",
+                    value=50.0,
+                    unit="%",
                     source_updated_at=FIXED_NOW - timedelta(seconds=30),
                     received_at=FIXED_NOW,
                     stale_after_s=120,
@@ -822,16 +821,16 @@ async def test_current_metrics_expose_dashboard_display_names(
                 CloudLatestMetric(
                     metric_key=(
                         "homebox:main:ac-infinity-thermoforge-main:"
-                        "heat_level:heater_heat_level"
+                        "heat_level:heater_intensity_pct"
                     ),
                     site_id="homebox",
                     tent_id="main",
                     zone_id="heat",
                     device_id="ac-infinity-thermoforge-main",
                     capability_id="heat_level",
-                    metric="heater_heat_level",
-                    value=7.0,
-                    unit="level",
+                    metric="heater_intensity_pct",
+                    value=70.0,
+                    unit="%",
                     source_updated_at=FIXED_NOW - timedelta(seconds=30),
                     received_at=FIXED_NOW,
                     stale_after_s=120,
@@ -866,8 +865,175 @@ async def test_current_metrics_expose_dashboard_display_names(
     assert by_metric["humidifier_intensity_pct"]["unit"] == "%"
     assert by_metric["heater_intensity_pct"]["value"] == 70.0
     assert by_metric["heater_intensity_pct"]["unit"] == "%"
-    assert by_metric["dehumidifier_runtime_pct"]["value"] == 100.0
-    assert by_metric["dehumidifier_runtime_pct"]["unit"] == "%"
+    assert by_metric["dehumidifier_on"]["value"] == 1.0
+    assert by_metric["dehumidifier_on"]["unit"] == "bool"
+
+
+async def test_metric_presentation_exposes_ordered_backend_registry(
+    authed_client: AsyncClient,
+    cloud_engine: AsyncEngine,
+) -> None:
+    sessionmaker = create_sessionmaker(cloud_engine)
+    async with sessionmaker() as session:
+        await session.execute(delete(CloudMetricPresentation))
+        session.add_all(
+            [
+                CloudMetricPresentation(
+                    metric="fan_pct",
+                    display_name="Fan Speed",
+                    unit="%",
+                    accent="neutral",
+                    value_precision=0,
+                    y_min=0.0,
+                    y_max=100.0,
+                    current_enabled=True,
+                    history_enabled=True,
+                    dashboard_group="temperature_loop",
+                    dashboard_group_label="Temperature Loop",
+                    dashboard_group_order=10,
+                    display_order=30,
+                ),
+                CloudMetricPresentation(
+                    metric="heater_intensity_pct",
+                    display_name="Heat Output",
+                    unit="%",
+                    accent="temp",
+                    value_precision=0,
+                    y_min=0.0,
+                    y_max=100.0,
+                    current_enabled=True,
+                    history_enabled=True,
+                    dashboard_group="temperature_loop",
+                    dashboard_group_label="Temperature Loop",
+                    dashboard_group_order=10,
+                    display_order=10,
+                ),
+                CloudMetricPresentation(
+                    metric="humidity_pct",
+                    display_name="Canopy Humidity",
+                    unit="%",
+                    accent="humidity",
+                    value_precision=1,
+                    y_min=20.0,
+                    y_max=90.0,
+                    current_enabled=True,
+                    history_enabled=True,
+                    dashboard_group="humidity_loop",
+                    dashboard_group_label="Humidity Loop",
+                    dashboard_group_order=20,
+                    display_order=20,
+                ),
+                CloudMetricPresentation(
+                    metric="dehumidifier_runtime_pct",
+                    display_name="Dehumidifier Runtime",
+                    unit="%",
+                    accent="humidity",
+                    value_precision=0,
+                    y_min=0.0,
+                    y_max=100.0,
+                    current_enabled=False,
+                    history_enabled=True,
+                    dashboard_group="humidity_loop",
+                    dashboard_group_label="Humidity Loop",
+                    dashboard_group_order=20,
+                    display_order=25,
+                ),
+                CloudMetricPresentation(
+                    metric="vpd_kpa",
+                    display_name="VPD",
+                    unit="kPa",
+                    accent="vpd",
+                    value_precision=2,
+                    y_min=0.1,
+                    y_max=1.9,
+                    current_enabled=True,
+                    history_enabled=True,
+                    dashboard_group="plant_water",
+                    dashboard_group_label="Plant / Water",
+                    dashboard_group_order=30,
+                    display_order=40,
+                ),
+                CloudMetricPresentation(
+                    metric="soil_moisture_raw",
+                    display_name="Raw Moisture",
+                    unit="raw",
+                    accent="neutral",
+                    value_precision=0,
+                    y_min=None,
+                    y_max=None,
+                    current_enabled=False,
+                    history_enabled=False,
+                    dashboard_group=None,
+                    dashboard_group_label=None,
+                    dashboard_group_order=None,
+                    display_order=50,
+                ),
+            ]
+        )
+        await session.commit()
+
+    response = await authed_client.get("/api/tents/main/metrics/presentation")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [metric["metric"] for metric in body["current_metrics"]] == [
+        "heater_intensity_pct",
+        "humidity_pct",
+        "fan_pct",
+        "vpd_kpa",
+    ]
+    assert body["current_metrics"][0] == {
+        "metric": "heater_intensity_pct",
+        "display_name": "Heat Output",
+        "unit": "%",
+        "accent": "temp",
+        "value_precision": 0,
+        "y_min": 0.0,
+        "y_max": 100.0,
+        "display_order": 10,
+    }
+    assert [group["group"] for group in body["history_groups"]] == [
+        "temperature_loop",
+        "humidity_loop",
+        "plant_water",
+    ]
+    assert body["history_groups"][0]["label"] == "Temperature Loop"
+    assert body["history_groups"][0]["display_order"] == 10
+    assert [metric["metric"] for metric in body["history_groups"][0]["metrics"]] == [
+        "heater_intensity_pct",
+        "fan_pct",
+    ]
+    assert [metric["metric"] for metric in body["history_groups"][1]["metrics"]] == [
+        "humidity_pct",
+        "dehumidifier_runtime_pct",
+    ]
+    assert body["history_groups"][1]["metrics"][1] == {
+        "metric": "dehumidifier_runtime_pct",
+        "display_name": "Dehumidifier Runtime",
+        "unit": "%",
+        "accent": "humidity",
+        "value_precision": 0,
+        "y_min": 0.0,
+        "y_max": 100.0,
+        "display_order": 25,
+    }
+    assert body["history_groups"][2]["metrics"][0] == {
+        "metric": "vpd_kpa",
+        "display_name": "VPD",
+        "unit": "kPa",
+        "accent": "vpd",
+        "value_precision": 2,
+        "y_min": 0.1,
+        "y_max": 1.9,
+        "display_order": 40,
+    }
+    assert body["supported_ranges"] == [
+        {"range": "1h", "bucket": "5m"},
+        {"range": "24h", "bucket": "1h"},
+        {"range": "7d", "bucket": "4h"},
+        {"range": "30d", "bucket": "4h"},
+        {"range": "90d", "bucket": "1d"},
+    ]
 
 
 async def test_current_metrics_keep_device_scoped_streams_separate(
@@ -1488,7 +1654,7 @@ async def test_browser_plant_history_uses_latest_synced_row_per_public_plant_id(
     assert [point["avg"] for point in response.json()["points"]] == [65.0]
 
 
-async def test_metric_history_exposes_dashboard_display_names(
+async def test_metric_history_uses_canonical_metrics_and_dehumidifier_runtime(
     authed_client: AsyncClient,
     cloud_engine: AsyncEngine,
 ) -> None:
@@ -1501,38 +1667,40 @@ async def test_metric_history_exposes_dashboard_display_names(
                     bucket="1h",
                     start=FIXED_NOW - timedelta(hours=2),
                     avg=44.0,
-                    metric="fan_duty_pct",
-                    capability_id="fan_duty_pct",
-                    unit="pct",
+                    metric="fan_pct",
+                    capability_id="fan_pct",
+                    unit="%",
                 ),
                 _rollup(
                     "humidifier",
                     bucket="1h",
                     start=FIXED_NOW - timedelta(hours=2),
-                    avg=4.5,
-                    metric="humidifier_mist_level",
-                    capability_id="humidifier_mist_level",
-                    unit="level",
+                    avg=50.0,
+                    min_value=44.44,
+                    max_value=55.56,
+                    metric="humidifier_intensity_pct",
+                    capability_id="humidifier_intensity_pct",
+                    unit="%",
                 ),
                 _rollup(
                     "heater",
                     bucket="1h",
                     start=FIXED_NOW - timedelta(hours=2),
-                    avg=7.0,
-                    metric="heater_heat_level",
+                    avg=70.0,
+                    metric="heater_intensity_pct",
                     capability_id="heat_level",
-                    unit="level",
+                    unit="%",
                 ),
                 _rollup(
                     "dehumidifier",
                     bucket="1h",
                     start=FIXED_NOW - timedelta(hours=2),
                     min_value=0.0,
-                    avg=0.65,
-                    max_value=1.0,
-                    metric="dehumidifier_on",
+                    avg=65.0,
+                    max_value=100.0,
+                    metric="dehumidifier_runtime_pct",
                     capability_id="power",
-                    unit="bool",
+                    unit="%",
                 ),
             ]
         )

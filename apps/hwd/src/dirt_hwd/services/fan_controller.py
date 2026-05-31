@@ -323,7 +323,7 @@ class FanTrimLoopService:
                         log_event(
                             STREAM,
                             "state_change",
-                            **self._scope_fields(capability_id="fan_duty_pct"),
+                            **self._scope_fields(capability_id="fan_pct"),
                             old_pct=current,
                             new_pct=ack,
                             target_pct=decision.target_pct,
@@ -343,7 +343,7 @@ class FanTrimLoopService:
                     log_event(
                         STREAM,
                         "tick",
-                        **self._scope_fields(capability_id="fan_duty_pct"),
+                        **self._scope_fields(capability_id="fan_pct"),
                         current_pct=current,
                         target_pct=decision.target_pct,
                         reason=decision.reason,

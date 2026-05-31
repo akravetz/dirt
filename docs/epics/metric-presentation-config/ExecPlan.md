@@ -20,11 +20,13 @@ This is a direct cutover. Do not add frontend fallback lists, metric alias compa
 - [x] (2026-05-31 22:30Z) Revised the plan to delete persisted native humidifier/heater level streams instead of keeping them as diagnostic readings.
 - [x] (2026-05-31 22:40Z) Clarified that canonical intensity readings must represent effective quantized actuator output, not raw requested control demand.
 - [x] (2026-05-31 22:55Z) Quarantined calibrated soil moisture as a disposable legacy projection and clarified that rollup SQL should live inside named functions rather than module-level SQL constants.
-- [ ] Canonicalize product metric names at the producer/storage boundary and directly migrate owned local/cloud data.
-- [ ] Implement the metric presentation registry in local and cloud persistence.
-- [ ] Expose the browser presentation contract and regenerate hosted API types.
-- [ ] Filter gateway rollup projection from the registry so raw/internal streams are not sent.
-- [ ] Cut the dashboard frontend over to the backend presentation endpoint and delete the frontend domain config.
+- [x] (2026-05-31) Canonicalized product metric names at the producer/storage boundary and directly migrated owned local/cloud data.
+- [x] (2026-05-31) Implemented the metric presentation registry in local and cloud persistence.
+- [x] (2026-05-31) Exposed the browser presentation contract and regenerated hosted API types.
+- [x] (2026-05-31) Filtered gateway rollup projection from the registry so raw/internal streams are not sent.
+- [x] (2026-05-31) Cut the dashboard frontend over to the backend presentation endpoint and deleted the frontend domain config.
+- [x] (2026-05-31) Removed stale metric presentation code paths and tightened the new browser presentation DTO boundary tests.
+- [x] (2026-05-31) Validated locally through tests, local migration apply, hosted dev stack restart, and browser/API smoke.
 - [ ] Validate locally, update this plan with evidence, and deploy through the hosted deploy script.
 
 ## Surprises & Discoveries
@@ -64,6 +66,24 @@ This is a direct cutover. Do not add frontend fallback lists, metric alias compa
 
 - Observation: Some frontend code is visual styling, not domain presentation config, and should stay in the frontend.
   Evidence: `web-ui/src/ui/Sparkline.tsx`, `web-ui/src/ui/Gauge.tsx`, and `web-ui/src/ui/MoistureComparisonChart.tsx` map semantic accents or sticker colors to Tailwind classes and implement chart interactions. The backend should send semantic accent names and metric config, not CSS class names.
+
+- Observation: Parallel pytest invocations in one worktree can collide on the shared worktree-namespaced Postgres template database.
+  Evidence: An initial parallel run of HWD/shared/control-plane focused tests failed with `database "dirt_test_template_7ff9482e8f" does not exist` while another pytest process was creating/dropping the same template. The same focused targets passed when rerun sequentially.
+
+- Observation: The installed Atlas CLI gates `atlas migrate lint` behind Atlas Pro login.
+  Evidence: `atlas migrate lint --env local --latest 1` and `atlas migrate lint --env cloud --latest 1` both aborted with "Starting with v0.38, 'atlas migrate lint' is available only to Atlas Pro users." Local migration validation used `atlas migrate hash --env local`, `atlas migrate hash --env cloud`, `atlas migrate apply --env local --dry-run`, and `atlas migrate status --env local` instead. Cloud dry-run/status could not run because hosted database URL/driver configuration was unavailable in this shell.
+
+- Observation: Pytest can also collide at collection time when separate test files share a basename.
+  Evidence: The registry tests were split across shared and control-plane packages. A same-basename test file caused combined collection friction, so the control-plane test was named `test_cloud_metric_presentation_registry.py`.
+
+- Observation: Hosted contract generation can inherit runtime asset-store defaults unless codegen settings pin them.
+  Evidence: `scripts/gen-hosted-contract` initially failed because `CloudSettings` defaulted to S3 asset storage without S3 credentials in the shell. The script now sets `asset_store="local"` and a deterministic placeholder public asset base URL for OpenAPI generation.
+
+- Observation: Legacy metric-name assertions in active registry tests can make stale-code acceptance searches noisy after direct cutover.
+  Evidence: The Milestone 6 search for `fan_duty_pct|humidifier_mist_level|heater_heat_level` initially found those strings only in registry test constants. The tests now cover current raw/internal registry exclusions without preserving old product aliases in active code paths.
+
+- Observation: Hosted dev seeding now depends on the local source database having the registry migration applied.
+  Evidence: `make dev-up` failed before applying local migrations because `scripts/dev-seed-control-plane` called gateway rollup projection and PostgreSQL reported `relation "metric_presentation" does not exist`. After taking a compressed backup and applying local Atlas migrations, `make dev-up` succeeded.
 
 ## Decision Log
 
@@ -113,7 +133,51 @@ This is a direct cutover. Do not add frontend fallback lists, metric alias compa
 
 ## Outcomes & Retrospective
 
-Not yet implemented. At completion, record the measured before/after rollup projection size, the tests that passed, and whether any metric presentation decisions were deferred.
+Milestone 1 completed on 2026-05-31. Firmware ingest now emits `fan_pct`; `dirt_shared.sensor_contract` treats `fan_pct` as the persisted fan product metric; active HWD producers persist `humidifier_intensity_pct` and `heater_intensity_pct` from effective quantized outputs while native levels remain only in controller/driver variables and structured log fields. Climate-controller state reconstruction reads canonical percent metrics and converts heater intensity back to a ThermoForge native level only inside HWD.
+
+Direct Atlas migrations were added for local and cloud data/capability rows: `migrations/20260531231000_canonical_metric_names.sql` and `cloud/migrations/20260531231000_canonical_metric_names.sql`. They rename `fan_duty_pct` rows to `fan_pct`, convert native humidifier levels to `humidifier_intensity_pct = level / 9 * 100`, convert native heater levels to `heater_intensity_pct = level * 10`, update owned capability rows, and remove the old native persisted stream names from active storage paths.
+
+Validation passed: `uv run ruff check` on touched Python files; `uv run pytest apps/hwd/tests/test_app_composition.py apps/hwd/tests/test_ingest_derivation.py apps/hwd/tests/test_ingest_api.py apps/hwd/tests/test_humidifier_loop.py apps/hwd/tests/test_climate_actuators.py apps/hwd/tests/test_climate_controller.py apps/hwd/tests/test_thermoforge.py -q` (`143 passed`); `uv run pytest apps/shared/tests/test_scoped_identity_models.py -q` (`2 passed`); `uv run pytest apps/control-plane/tests/test_api.py -q` (`40 passed`); `uv run pytest apps/gateway/tests/test_sync.py -q` (`21 passed`). `atlas migrate apply --env local --dry-run` showed one pending local migration with six SQL statements, and `atlas migrate status --env local` reported current `20260530200000`, next `20260531231000`, pending files `1`. The scoped active-code search `rg -n "fan_duty_pct|humidifier_mist_level|heater_heat_level" apps/control-plane apps/gateway web-ui firmware apps/shared/src/dirt_shared/sensor_contract.py -S` returned no matches, and `rg -n "DISPLAY_METRIC_BY_STORAGE|DISPLAY_METRIC_BY_PUBLIC" apps/control-plane/src -S` returned no matches. The broader milestone search only reports migration history/new cutover migrations, historical docs/plan text, and native humidifier mist-level configuration.
+
+Milestone 2 completed on 2026-05-31. Local table model `MetricPresentation` and cloud table model `CloudMetricPresentation` were added with the backend-owned presentation fields: canonical metric, display name, unit, accent, value precision, optional y-axis bounds, current/history enablement, dashboard group metadata, and display order. Local and cloud migrations `20260531233500_metric_presentation_registry.sql` create the registry tables and seed explicit source-owned rows with `ON CONFLICT DO UPDATE`.
+
+The seed includes product history rows for `temperature_f`, `heater_intensity_pct`, `fan_pct`, `humidity_pct`, `humidifier_intensity_pct`, `vpd_kpa`, `reservoir_in`, `reservoir_ph`, and `soil_moisture_pct`. It does not include `soil_moisture_raw` or old/native actuator streams. Follow-up migration `20260531235500_dehumidifier_runtime_history.sql` moves history presentation from the binary `dehumidifier_on` state to derived rollup metric `dehumidifier_runtime_pct`.
+
+Validation passed: `uv run ruff check apps/shared/src/dirt_shared/models/metric_presentation.py apps/shared/src/dirt_shared/models/__init__.py apps/control-plane/src/dirt_control/models/cloud.py apps/control-plane/src/dirt_control/models/__init__.py apps/shared/tests/test_metric_presentation_registry.py apps/control-plane/tests/test_cloud_metric_presentation_registry.py`; `uv run pytest apps/shared/tests/test_metric_presentation_registry.py apps/control-plane/tests/test_cloud_metric_presentation_registry.py -q` (`4 passed`); `atlas migrate hash --env local`; `atlas migrate hash --env cloud`; `set -a; source .env; set +a; atlas migrate apply --env local --dry-run` (two pending migrations, eight SQL statements); and `git diff --check`. Atlas lint remains blocked by the installed CLI's Pro login gate.
+
+Milestone 3 completed on 2026-05-31. The control-plane browser API now exposes `GET /api/tents/{tent_id}/metrics/presentation` with Pydantic response models for current metrics, history groups, and supported ranges. The endpoint reads `CloudMetricPresentation` rows, returns canonical metric names plus display labels, units, semantic accents, y-axis bounds, value precision, and display order, and groups history metrics server-side by backend registry data.
+
+The old control-plane display maps are gone. Current/latest metric responses use canonical stored metric names directly. Metric history also queries stored rollup metric names directly; dehumidifier runtime history is now stored and queried as `dehumidifier_runtime_pct`, while latest state remains `dehumidifier_on`.
+
+Hosted browser OpenAPI and generated TypeScript schema were regenerated with `scripts/gen-hosted-contract`. Validation passed: `uv run ruff check apps/control-plane/src/dirt_control/api/browser.py apps/control-plane/tests/test_api.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py apps/control-plane/tests/test_cloud_metric_presentation_registry.py`; `uv run pytest apps/control-plane/tests/test_api.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py apps/control-plane/tests/test_cloud_metric_presentation_registry.py -q` (`46 passed`); `scripts/gen-hosted-contract`; `pnpm --dir web-ui typecheck`; `rg -n "DISPLAY_METRIC_BY_STORAGE|DISPLAY_METRIC_BY_PUBLIC" apps/control-plane/src -S` (no matches); and `git diff --check`.
+
+Milestone 4 completed on 2026-05-31. Gateway rollups now compose named projections: `collect_canonical_history_rollups()` joins the local `metric_presentation` registry and emits only `history_enabled` canonical metrics; `collect_dehumidifier_runtime_rollups()` derives `dehumidifier_runtime_pct` from binary `dehumidifier_on` readings; and `collect_legacy_calibrated_soil_moisture_rollups()` owns the temporary `soil_moisture_raw` plus `sensorcalibration` adapter and emits only `soil_moisture_pct` when that product metric is history-enabled.
+
+The rollup path now fails closed. If the registry is empty or a metric is not history-enabled, it is not uploaded. Gateway tests cover product metrics (`temperature_f`, `humidity_pct`, `vpd_kpa`, `reservoir_in`, `reservoir_ph`, `dehumidifier_runtime_pct`), raw/internal exclusions (`dehumidifier_on`, `soil_moisture_raw`, `reservoir_ph_voltage`, `temperature_c`), legacy calibrated moisture gating, and empty-registry behavior. The broad module-level projection SQL constants were removed; latest metrics SQL was also moved behind a named helper because the acceptance search covered `_LATEST_METRICS_SQL`.
+
+Validation passed: `uv run ruff check apps/gateway/src/dirt_gateway/local.py apps/gateway/tests/test_sync.py`; `uv run pytest apps/gateway/tests/test_sync.py -q` (`25 passed`); `rg -n "_ROLLUP_SQL|_LATEST_METRICS_SQL" apps/gateway/src/dirt_gateway/local.py` (no matches); and `git diff --check`.
+
+Milestone 5 completed on 2026-05-31. The hosted dashboard route now fetches `/api/tents/{tent_id}/metrics/presentation` through the generated OpenAPI client. Current cards are built from backend `current_metrics` presentation rows plus current metric values, and history queries are built from backend `history_groups` using stored rollup metric names. Dehumidifier history now queries derived rollup metric `dehumidifier_runtime_pct`.
+
+Frontend-owned dashboard metric registries were deleted: `MetricMeta`, `MetricGroup`, `CURRENT_METRIC_META`, `HISTORY_METRIC_GROUPS`, `HISTORY_METRIC_META`, and `isIntegerMetric()` are gone. Formatting now uses backend `value_precision`, shared through `web-ui/src/shared/metricFormat.ts`, while `asAccent()` still guards semantic accents and frontend visual components continue to own rendering details.
+
+Validation passed: `pnpm --dir web-ui typecheck`; `pnpm --dir web-ui lint`; `pnpm --dir web-ui test` (`3` files, `4` tests); `pnpm --dir web-ui build`; `rg -n "CURRENT_METRIC_META|HISTORY_METRIC_GROUPS|MetricMeta|MetricGroup|HISTORY_METRIC_META|isIntegerMetric" web-ui/src -S` (no matches); and `git diff --check`.
+
+Milestone 6 completed on 2026-05-31. Stale-code searches found no remaining frontend dashboard metric registries, no obsolete control-plane display maps, and no old product metric names in active control-plane/gateway/web-ui/firmware/shared sensor-contract paths. The frontend continues to consume generated hosted OpenAPI schema types through `hostedComponents["schemas"]`, with no handwritten metric presentation response interfaces.
+
+Boundary coverage was tightened with a DTO regression test proving `MetricPresentationMetricResponse` requires explicitly present nullable fields such as `y_min` and rejects unknown fields through the owned `BrowserResponse` contract. Registry tests no longer keep old product alias constants in active test code.
+
+Validation passed: `uv run ruff check` on touched Python files/tests; `uv run pytest apps/control-plane/tests/test_api.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py apps/control-plane/tests/test_cloud_metric_presentation_registry.py apps/gateway/tests/test_sync.py -q` (`72 passed`); `uv run pytest apps/shared/tests/test_metric_presentation_registry.py -q` (`2 passed`); `pnpm --dir web-ui typecheck`; `pnpm --dir web-ui lint`; `pnpm --dir web-ui test` (`3` files, `4` tests); required stale-code searches; generated hosted type usage search; and `git diff --check`.
+
+Local validation and smoke completed on 2026-05-31. A compressed custom-format backup was written before applying local migrations: `var/db-backups/dirt-2026-05-31-115905-pre-metric-presentation-config.dump`. `atlas migrate apply --env local` applied `20260531231000_canonical_metric_names.sql` and `20260531233500_metric_presentation_registry.sql` to the local `dirt` database. `make dev-up` then started the local hosted stack at API `http://192.168.1.79:8021` and Web `http://192.168.1.79:5171`.
+
+Full local validation passed after updating the daily sensor fixture to seed canonical `fan_pct`: `uv run pytest -q` (`676 passed`, `1 skipped`), `pnpm --dir web-ui build`, `atlas migrate hash --env local`, `atlas migrate hash --env cloud`, and `git diff --check`. Atlas lint remains blocked by the installed CLI's Pro login gate. Required stale-code searches returned no matches for frontend metric registries, control-plane display maps, or old active product metric names.
+
+Local projection evidence for the 24-hour `5m` bucket showed the registry filter materially reduces rollup payload shape. The old all-enabled path plus legacy calibrated soil moisture would produce `8318` rows across `18` metric streams, including raw/internal streams such as `temperature_c`, `dew_point_f`, `heater_on`, `humidifier_on`, `reservoir_ph_raw`, `reservoir_ph_voltage`, `reservoir_pressure_raw`, and `soil_moisture_raw`. The new registry-filtered projection produces product streams such as `dehumidifier_runtime_pct`, `fan_pct`, `heater_intensity_pct`, `humidifier_intensity_pct`, `humidity_pct`, `reservoir_in`, `reservoir_ph`, `soil_moisture_pct`, `temperature_f`, and `vpd_kpa`.
+
+Browser smoke passed against the local hosted dev stack using the real login flow (`dev-admin` / `dev-password`). The dashboard rendered the backend-driven current cards and history groups. Authenticated browser fetches confirmed `GET /api/tents/main/metrics/presentation` returns current metrics `temperature_f`, `humidity_pct`, `vpd_kpa`, `fan_pct`, `humidifier_intensity_pct`, `reservoir_in`, and `heater_intensity_pct`; history groups `temperature_loop`, `humidity_loop`, and `plant_water`; and supported ranges `1h`, `24h`, `7d`, `30d`, and `90d`. Follow-up implementation changed dehumidifier history to query `dehumidifier_runtime_pct` instead of `dehumidifier_on`.
+
+Hosted deployment has not been run yet. The remaining unchecked plan item still includes `scripts/deploy-control-plane`, which is externally visible shared state and requires explicit operator confirmation.
 
 ## Context and Orientation
 
@@ -161,7 +225,7 @@ Recommended registry fields:
 - `dashboard_group_order`: order of groups.
 - `display_order`: order inside current cards or a group.
 
-The first seed set should reproduce the current dashboard's useful metrics while excluding raw/internal diagnostics from history. It should include history rows for `temperature_f`, `heater_intensity_pct`, `fan_pct`, `humidity_pct`, `humidifier_intensity_pct`, `vpd_kpa`, `reservoir_in`, and `reservoir_ph`. It should include `soil_moisture_pct` if and only if the dashboard should show plant/water moisture history; it must not include `soil_moisture_raw` as history-enabled. For the dehumidifier, store the canonical binary stream as `dehumidifier_on`; the browser history DTO may label the rollup aggregate as `dehumidifier_runtime_pct` because bucket average of a binary state is runtime percentage.
+The first seed set should reproduce the current dashboard's useful metrics while excluding raw/internal diagnostics from history. It should include history rows for `temperature_f`, `heater_intensity_pct`, `fan_pct`, `humidity_pct`, `humidifier_intensity_pct`, `vpd_kpa`, `reservoir_in`, `reservoir_ph`, and `dehumidifier_runtime_pct`. It should include `soil_moisture_pct` if and only if the dashboard should show plant/water moisture history; it must not include `soil_moisture_raw` as history-enabled. For the dehumidifier, store the canonical binary latest/state stream as `dehumidifier_on`, and derive `dehumidifier_runtime_pct` only in history rollups because bucket average of a binary state is runtime percentage.
 
 ## Plan of Work
 
@@ -273,7 +337,7 @@ The implementation is accepted when all of these are true:
 
 - Gateway rollup tests prove `soil_moisture_raw` and other raw/internal diagnostic streams are not emitted for history, while product-facing rows such as `temperature_f`, `humidity_pct`, `vpd_kpa`, `reservoir_in`, `reservoir_ph`, and calibrated `soil_moisture_pct` behave according to the registry.
 - Control-plane API tests prove the presentation endpoint returns ordered current metrics, ordered history groups, supported ranges, semantic accents, units, y-axis bounds, and value precision from backend data.
-- Browser API tests prove canonical metrics such as `fan_pct`, `humidifier_intensity_pct`, and `heater_intensity_pct` are stored, synced, requested, and returned by the same name. They also prove dehumidifier history can present bucketed `dehumidifier_on` averages as runtime percentage without making `dehumidifier_runtime_pct` a latest/state metric.
+- Browser API tests prove canonical metrics such as `fan_pct`, `humidifier_intensity_pct`, and `heater_intensity_pct` are stored, synced, requested, and returned by the same name. They also prove dehumidifier latest state remains `dehumidifier_on` while history uses `dehumidifier_runtime_pct`.
 - Frontend typecheck and tests pass using generated hosted contract types.
 - `rg -n "CURRENT_METRIC_META|HISTORY_METRIC_GROUPS|MetricMeta|MetricGroup|HISTORY_METRIC_META|isIntegerMetric" web-ui/src` returns no dashboard-owned metric registry.
 - `rg -n "DISPLAY_METRIC_BY_STORAGE|DISPLAY_METRIC_BY_PUBLIC" apps/control-plane/src` returns no obsolete split registry.

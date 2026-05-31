@@ -3,7 +3,7 @@
 // also drives an AC Infinity Cloudline fan via two 2N7000 MOSFETs on GPIO 6/7.
 //
 // Network roles:
-//   - Posts {temperature_c, humidity_pct} plus fan_duty_pct when fan control
+//   - Posts {temperature_c, humidity_pct} plus fan_pct when fan control
 //     is enabled to the dirt ingest endpoint.
 //   - Exposes a LAN HTTP control surface on :80 — POST /fan {"duty_pct":N}
 //     sets the fan; GET /fan returns {"set_duty_pct":N,"reported_duty_pct":N}.
@@ -235,7 +235,7 @@ void complete_cycle() {
 
     char metrics[96];
     snprintf(metrics, sizeof(metrics),
-             "{\"temperature_c\":%.2f,\"humidity_pct\":%.2f,\"fan_duty_pct\":%u}",
+             "{\"temperature_c\":%.2f,\"humidity_pct\":%.2f,\"fan_pct\":%u}",
              temp.temperature, humidity.relative_humidity, g_set_duty_pct);
 #else
     Serial.printf("[cycle] %.2f°C (%.1f°F) RH %.1f%% VPD %.2f kPa\n",

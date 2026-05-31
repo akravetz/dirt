@@ -5,11 +5,14 @@ from typing import Any
 
 from sqlalchemy import (
     JSON,
+    BigInteger,
     Column,
     DateTime,
     Float,
+    Identity,
     Index,
     Integer,
+    String,
     Text,
     Time,
     UniqueConstraint,
@@ -283,6 +286,31 @@ class CloudMetricRollup(SQLModel, table=True):
     received_at: datetime = Field(
         sa_column=Column(DateTime(timezone=True), nullable=False)
     )
+
+
+class CloudMetricPresentation(SQLModel, table=True):
+    __tablename__ = "cloud_metric_presentation"
+    __table_args__ = (
+        UniqueConstraint("metric", name="uq_cloud_metric_presentation_metric"),
+    )
+
+    id: int | None = Field(
+        default=None,
+        sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
+    )
+    metric: str = Field(sa_column=Column(String(120), nullable=False))
+    display_name: str = Field(max_length=160)
+    unit: str = Field(max_length=40)
+    accent: str = Field(max_length=40)
+    value_precision: int
+    y_min: float | None = Field(default=None, sa_column=Column(Float, nullable=True))
+    y_max: float | None = Field(default=None, sa_column=Column(Float, nullable=True))
+    current_enabled: bool
+    history_enabled: bool
+    dashboard_group: str | None = Field(default=None, max_length=80)
+    dashboard_group_label: str | None = Field(default=None, max_length=160)
+    dashboard_group_order: int | None = None
+    display_order: int
 
 
 class CloudAsset(SQLModel, table=True):

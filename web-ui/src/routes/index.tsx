@@ -5,6 +5,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import type { ChangeEvent, ReactNode } from "react";
 import { useState } from "react";
 import { createHostedApiClient, type hostedComponents } from "@/api-client";
+import { formatMetricValue } from "@/shared/metricFormat";
 import { Gauge } from "@/ui/Gauge";
 import { HoverTimestamp } from "@/ui/HoverTimestamp";
 import { formatEmptyHistoryLabel } from "@/ui/historyRangeLabels";
@@ -32,23 +33,11 @@ type HostedDevice = hostedComponents["schemas"]["DeviceResponse"];
 type HostedLightSchedule = hostedComponents["schemas"]["LightScheduleResponse"];
 type HostedMetric = hostedComponents["schemas"]["CurrentMetricResponse"];
 type HostedMetricHistory = hostedComponents["schemas"]["MetricHistoryResponse"];
+type HostedMetricPresentation =
+  hostedComponents["schemas"]["MetricPresentationMetricResponse"];
 type HostedPlant = hostedComponents["schemas"]["PlantSummaryResponse"];
 type HostedSyncStatus = hostedComponents["schemas"]["SyncStatusResponse"];
 type DashboardLightSchedule = HostedLightSchedule;
-type MetricMeta = {
-  metric: string;
-  display_name: string;
-  unit: string;
-  accent: SparklineAccent;
-  y_min: number;
-  y_max: number;
-  has_target_band: boolean;
-};
-type MetricGroup = {
-  ariaLabel: string;
-  label: string;
-  metrics: readonly MetricMeta[];
-};
 type HistoryPoint = {
   ts: string;
   value: number | null;
@@ -56,12 +45,12 @@ type HistoryPoint = {
 type MetricFreshness = "live" | "stale";
 type MetricCardModel = {
   accent: SparklineAccent;
-  format?: (value: number) => string;
   key: string;
   name: string;
   status: MetricStatus;
   unit: string;
   value: number;
+  valuePrecision: number;
 };
 type AssetPanelModel =
   | { state: "unavailable" }
@@ -103,186 +92,9 @@ function hostedData<T>(data: T | undefined, path: string): T {
   return data;
 }
 
-// Metrics that display as integers (no decimal). Driven by the unit
-// being unitless `%` or `in`; keeps the formatter rule local to the FE
-// without dragging a bool through the contract.
-function isIntegerMetric(m: MetricMeta): boolean {
-  return m.unit === "%" || m.unit === "in";
-}
-
 function formatInteger(value: number): string {
   return `${Math.round(value)}`;
 }
-
-const CURRENT_METRIC_META: readonly MetricMeta[] = [
-  {
-    metric: "temperature_f",
-    display_name: "Temperature",
-    unit: "°F",
-    accent: "temp",
-    y_min: 60,
-    y_max: 90,
-    has_target_band: false,
-  },
-  {
-    metric: "humidity_pct",
-    display_name: "Humidity",
-    unit: "%",
-    accent: "humidity",
-    y_min: 20,
-    y_max: 90,
-    has_target_band: false,
-  },
-  {
-    metric: "vpd_kpa",
-    display_name: "VPD",
-    unit: "kPa",
-    accent: "vpd",
-    y_min: 0,
-    y_max: 2,
-    has_target_band: false,
-  },
-  {
-    metric: "fan_pct",
-    display_name: "Fan",
-    unit: "%",
-    accent: "neutral",
-    y_min: 0,
-    y_max: 100,
-    has_target_band: false,
-  },
-  {
-    metric: "humidifier_intensity_pct",
-    display_name: "Humidifier",
-    unit: "%",
-    accent: "humidity",
-    y_min: 0,
-    y_max: 100,
-    has_target_band: false,
-  },
-  {
-    metric: "reservoir_in",
-    display_name: "Reservoir",
-    unit: "in",
-    accent: "reservoir",
-    y_min: 0,
-    y_max: 30,
-    has_target_band: false,
-  },
-  {
-    metric: "heater_intensity_pct",
-    display_name: "Heat",
-    unit: "%",
-    accent: "temp",
-    y_min: 0,
-    y_max: 100,
-    has_target_band: false,
-  },
-];
-
-const HISTORY_METRIC_GROUPS: readonly MetricGroup[] = [
-  {
-    ariaLabel: "Temperature loop history",
-    label: "Temperature Loop",
-    metrics: [
-      {
-        metric: "temperature_f",
-        display_name: "Temperature",
-        unit: "°F",
-        accent: "temp",
-        y_min: 60,
-        y_max: 90,
-        has_target_band: false,
-      },
-      {
-        metric: "heater_intensity_pct",
-        display_name: "Heat",
-        unit: "%",
-        accent: "temp",
-        y_min: 0,
-        y_max: 100,
-        has_target_band: false,
-      },
-      {
-        metric: "fan_pct",
-        display_name: "Fan",
-        unit: "%",
-        accent: "temp",
-        y_min: 0,
-        y_max: 100,
-        has_target_band: false,
-      },
-    ],
-  },
-  {
-    ariaLabel: "Humidity loop history",
-    label: "Humidity Loop",
-    metrics: [
-      {
-        metric: "humidity_pct",
-        display_name: "Humidity",
-        unit: "%",
-        accent: "humidity",
-        y_min: 20,
-        y_max: 90,
-        has_target_band: false,
-      },
-      {
-        metric: "humidifier_intensity_pct",
-        display_name: "Humidifier",
-        unit: "%",
-        accent: "humidity",
-        y_min: 0,
-        y_max: 100,
-        has_target_band: false,
-      },
-      {
-        metric: "dehumidifier_runtime_pct",
-        display_name: "Dehumidifier",
-        unit: "%",
-        accent: "humidity",
-        y_min: 0,
-        y_max: 100,
-        has_target_band: false,
-      },
-    ],
-  },
-  {
-    ariaLabel: "Plant and water history",
-    label: "Plant / Water",
-    metrics: [
-      {
-        metric: "vpd_kpa",
-        display_name: "VPD",
-        unit: "kPa",
-        accent: "vpd",
-        y_min: 0,
-        y_max: 2,
-        has_target_band: false,
-      },
-      {
-        metric: "reservoir_in",
-        display_name: "Reservoir",
-        unit: "in",
-        accent: "reservoir",
-        y_min: 0,
-        y_max: 30,
-        has_target_band: false,
-      },
-      {
-        metric: "reservoir_ph",
-        display_name: "pH",
-        unit: "pH",
-        accent: "reservoir",
-        y_min: 4,
-        y_max: 10,
-        has_target_band: false,
-      },
-    ],
-  },
-];
-
-const HISTORY_METRIC_META = HISTORY_METRIC_GROUPS.flatMap((group) => group.metrics);
 
 function HostedDashboardPage() {
   const [range, setRange] = useState<SparklineRange>("24h");
@@ -332,6 +144,20 @@ function HostedDashboardPage() {
     enabled: selectedTentId.length > 0,
   });
 
+  const presentationQuery = useQuery({
+    queryKey: ["cloud.metrics.presentation", selectedTentId],
+    queryFn: async () => {
+      const { data } = await hostedApi.GET(
+        "/api/tents/{tent_id}/metrics/presentation",
+        {
+          params: { path: { tent_id: selectedTentId } },
+        },
+      );
+      return hostedData(data, "/api/tents/{tent_id}/metrics/presentation");
+    },
+    enabled: selectedTentId.length > 0,
+  });
+
   const plantsQuery = useQuery({
     queryKey: ["cloud.plants", selectedTentId],
     queryFn: async () => {
@@ -343,8 +169,10 @@ function HostedDashboardPage() {
     enabled: selectedTentId.length > 0,
   });
 
+  const historyGroups = presentationQuery.data?.history_groups ?? [];
+  const historyMetrics = historyGroups.flatMap((group) => group.metrics);
   const historyResults = useQueries({
-    queries: HISTORY_METRIC_META.map((m) => ({
+    queries: historyMetrics.map((m) => ({
       queryKey: ["cloud.metrics.history", selectedTentId, range, m.metric] as const,
       queryFn: async () => {
         const { data } = await hostedApi.GET("/api/tents/{tent_id}/metrics/history", {
@@ -355,7 +183,7 @@ function HostedDashboardPage() {
         });
         return hostedData(data, "/api/tents/{tent_id}/metrics/history");
       },
-      enabled: selectedTentId.length > 0,
+      enabled: selectedTentId.length > 0 && presentationQuery.isSuccess,
     })),
   });
 
@@ -410,9 +238,12 @@ function HostedDashboardPage() {
   const syncStatus = syncQuery.data ?? null;
   const gatewayStatus =
     syncStatus?.status ?? hostedGatewayStatus(syncStatus?.gateway_last_seen_at ?? null);
-  const metricCards = toMetricCards(metrics);
+  const metricCards = toMetricCards(
+    metrics,
+    presentationQuery.data?.current_metrics ?? [],
+  );
   const historyByMetric = new Map(
-    HISTORY_METRIC_META.map((m, idx) => [m.metric, historyResults[idx]]),
+    historyMetrics.map((m, idx) => [m.metric, historyResults[idx]]),
   );
   const historyAxis = buildHistoryAxis(historyResults.map((result) => result.data));
   const assetPanel = toAssetPanelModel(
@@ -520,11 +351,17 @@ function HostedDashboardPage() {
           loading={lightSchedulesQuery.isLoading}
         />
 
-        {metricsQuery.isLoading ? (
+        {metricsQuery.isLoading || presentationQuery.isLoading ? (
           <p className="font-mono text-xs uppercase tracking-caps text-ink-3">
             Loading current metrics…
           </p>
-        ) : metrics.length === 0 ? (
+        ) : metricsQuery.error || presentationQuery.error ? (
+          <section className="border border-rule-strong bg-paper-2 p-5">
+            <p className="font-mono text-fs-10 uppercase tracking-caps text-accent-magenta">
+              Failed to load metric presentation.
+            </p>
+          </section>
+        ) : metrics.length === 0 || metricCards.length === 0 ? (
           <section className="border border-rule-strong bg-paper-2 p-5">
             <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
               No synced metrics for this tent yet.
@@ -533,21 +370,18 @@ function HostedDashboardPage() {
         ) : (
           <div className="grid grid-cols-1 gap-px border border-rule-strong bg-rule sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-7">
             <section aria-label="Environment gauges" className="contents">
-              {metricCards.map((card) => {
-                const formatProp = card.format ? { format: card.format } : {};
-                return (
-                  <Gauge
-                    key={card.key}
-                    name={card.name}
-                    value={card.value}
-                    unit={card.unit}
-                    band={null}
-                    status={card.status}
-                    accent={card.accent}
-                    {...formatProp}
-                  />
-                );
-              })}
+              {metricCards.map((card) => (
+                <Gauge
+                  key={card.key}
+                  name={card.name}
+                  value={card.value}
+                  unit={card.unit}
+                  band={null}
+                  status={card.status}
+                  accent={card.accent}
+                  format={(value) => formatMetricValue(value, card.valuePrecision)}
+                />
+              ))}
             </section>
           </div>
         )}
@@ -573,10 +407,10 @@ function HostedDashboardPage() {
             <RangeSwitch value={range} onChange={setRange} />
           </header>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            {HISTORY_METRIC_GROUPS.map((group) => (
+            {historyGroups.map((group) => (
               <section
-                key={group.label}
-                aria-label={group.ariaLabel}
+                key={group.group}
+                aria-label={`${group.label} history`}
                 className="flex min-w-0 flex-col"
               >
                 <h3 className="border-x border-t border-rule-strong bg-paper-2 px-3.5 py-2 font-sans text-fs-10 font-semibold uppercase tracking-cap-med text-ink-3">
@@ -604,6 +438,7 @@ function HostedDashboardPage() {
                         points={points}
                         unit={unit ?? ""}
                         accent={asAccent(m.accent)}
+                        valuePrecision={m.value_precision}
                         emptyLabel={
                           result?.isLoading
                             ? "Loading data"
@@ -930,20 +765,25 @@ function HostedDevicesPanel({
   );
 }
 
-function toMetricCards(metrics: readonly HostedMetric[]): readonly MetricCardModel[] {
+function toMetricCards(
+  metrics: readonly HostedMetric[],
+  presentations: readonly HostedMetricPresentation[],
+): readonly MetricCardModel[] {
   const metricsByName = new Map(metrics.map((metric) => [metric.metric, metric]));
-  return CURRENT_METRIC_META.flatMap((meta) => {
-    const metric = metricsByName.get(meta.metric);
+  return presentations.flatMap((presentation) => {
+    const metric = metricsByName.get(presentation.metric);
     if (!metric) return [];
-    const card = {
-      accent: asAccent(meta.accent),
-      key: meta.metric,
-      name: meta.display_name,
-      status: toMetricStatus(metric),
-      unit: metric.unit ?? meta.unit,
-      value: metric.value,
-    };
-    return isIntegerMetric(meta) ? [{ ...card, format: formatInteger }] : [card];
+    return [
+      {
+        accent: asAccent(presentation.accent),
+        key: presentation.metric,
+        name: presentation.display_name,
+        status: toMetricStatus(metric),
+        unit: presentation.unit,
+        value: metric.value,
+        valuePrecision: presentation.value_precision,
+      },
+    ];
   });
 }
 

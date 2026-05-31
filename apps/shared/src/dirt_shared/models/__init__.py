@@ -22,6 +22,7 @@ from dirt_shared.models.enums import (
 )
 from dirt_shared.models.grow_run import GrowRun
 from dirt_shared.models.irrigation import IrrigationRun, IrrigationScheduleItem
+from dirt_shared.models.metric_presentation import MetricPresentation
 from dirt_shared.models.plant import Plant
 from dirt_shared.models.schedule import Schedule
 from dirt_shared.models.sensor_calibration import SensorCalibration
@@ -45,6 +46,7 @@ __all__ = [
     "GrowStage",
     "IrrigationRun",
     "IrrigationScheduleItem",
+    "MetricPresentation",
     "Plant",
     "PlantStatus",
     "PlantSticker",
