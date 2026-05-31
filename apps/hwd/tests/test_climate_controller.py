@@ -811,6 +811,58 @@ def test_dehumidifier_minimum_on_time_blocks_rapid_stop() -> None:
     assert "dehumidifier_min_on_hold" in decision.reasons
 
 
+def test_high_vpd_releases_dehumidifier_before_stable_off_window() -> None:
+    state = ClimateState(
+        last_tick_at=T0 - timedelta(seconds=30),
+        phase="lights_off",
+        dehumidifier_on=True,
+        dehumidifier_last_changed_at=T0 - timedelta(minutes=20),
+        dehumidifier_stable_off_started_at=T0 - timedelta(minutes=5),
+    )
+
+    decision = _decide(
+        state,
+        stage="flower_late",
+        lights_on=False,
+        temperature_f=74.5,
+        rh_pct=48.0,
+        vpd_kpa=1.51,
+        current_dehumidifier_on=True,
+    )
+
+    assert decision.dehumidifier_on is False
+    assert decision.humidifier_pct > 0.0
+    assert decision.demand.dehumidifier_capacity_request is False
+    assert "dehumidifier_turn_off" in decision.reasons
+    assert "humidifier_request" in decision.reasons
+
+
+def test_high_vpd_dehumidifier_release_still_respects_minimum_on_time() -> None:
+    state = ClimateState(
+        last_tick_at=T0 - timedelta(seconds=30),
+        phase="lights_off",
+        dehumidifier_on=True,
+        dehumidifier_last_changed_at=T0 - timedelta(seconds=60),
+        dehumidifier_stable_off_started_at=T0 - timedelta(minutes=5),
+    )
+
+    decision = _decide(
+        state,
+        stage="flower_late",
+        lights_on=False,
+        temperature_f=74.5,
+        rh_pct=48.0,
+        vpd_kpa=1.51,
+        current_dehumidifier_on=True,
+    )
+
+    assert decision.dehumidifier_on is True
+    assert decision.humidifier_pct == 0.0
+    assert decision.demand.dehumidifier_capacity_request is False
+    assert "dehumidifier_min_on_hold" in decision.reasons
+    assert "humidifier_forced_off_dehumidifier_on" in decision.reasons
+
+
 def test_phase_transition_is_bumpless() -> None:
     state = ClimateState(
         humidifier_integral=100.0,

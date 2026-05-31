@@ -1277,6 +1277,9 @@ def _rh_slope_pct_per_10m(
 def _dehumidifier_capacity_requested(
     ctx: _DehumidifierRequestContext,
 ) -> bool:
+    if _vpd_humidification_needed(ctx):
+        return False
+
     if _pre_lights_off_feedforward_window(ctx.inp, ctx.tuning):
         return _pre_lights_off_dehumidifier_capacity_requested(ctx)
 
@@ -1320,6 +1323,14 @@ def _pre_lights_off_dehumidifier_capacity_requested(
         state=ctx.state,
         inp=ctx.inp,
         tuning=ctx.tuning,
+    )
+
+
+def _vpd_humidification_needed(ctx: _DehumidifierRequestContext) -> bool:
+    return (
+        not ctx.rh_guard
+        and ctx.inp.vpd_kpa is not None
+        and ctx.inp.vpd_kpa > ctx.phase_policy.vpd_kpa.high
     )
 
 

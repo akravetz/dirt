@@ -320,5 +320,6 @@ No new external service or package dependency is expected.
 - 2026-05-31: Initial ExecPlan drafted for review.
 - 2026-05-31: Removed the earlier fan-as-cooling policy after replay breakdown showed hard RH fan-up versus hard low-temperature fan-down was the dominant oscillation path.
 - 2026-05-31: Reran replay after removing fan-as-cooling; large fan reversals dropped to `0` over 1 day and `1` over 4 days in the read-only replay.
+- 2026-05-31: Released dehumidifier capacity immediately when VPD is above the phase high edge and RH is not in guard, so humidification is no longer blocked by a stale dehumidifier stable-off timer.
 - 2026-05-31: Added concrete lights-off feedforward policy after operator review.
 - 2026-05-31: Added required last-1-day and last-4-day replay report for milestone 6.
