@@ -1,12 +1,14 @@
 // Hosted dashboard route (/) — synced tent metrics, assets, devices,
 // light schedules, and gateway status from the Railway control plane.
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import type { ChangeEvent, ReactNode } from "react";
 import { useState } from "react";
 import { createHostedApiClient, type hostedComponents } from "@/api-client";
 import { Gauge } from "@/ui/Gauge";
 import { HoverTimestamp } from "@/ui/HoverTimestamp";
+import { formatEmptyHistoryLabel } from "@/ui/historyRangeLabels";
+import { PlantSticker } from "@/ui/PlantSticker";
 import { RangeSwitch, type SparklineRange } from "@/ui/RangeSwitch";
 import { Sparkline } from "@/ui/Sparkline";
 
@@ -15,6 +17,7 @@ export const Route = createFileRoute("/")({
 });
 
 const hostedApi = createHostedApiClient();
+const PLANT_DETAIL_ROUTE = "/tents/$tentId/plants/$plantId" as const;
 
 type SparklineAccent =
   | "temp"
@@ -29,6 +32,7 @@ type HostedDevice = hostedComponents["schemas"]["DeviceResponse"];
 type HostedLightSchedule = hostedComponents["schemas"]["LightScheduleResponse"];
 type HostedMetric = hostedComponents["schemas"]["CurrentMetricResponse"];
 type HostedMetricHistory = hostedComponents["schemas"]["MetricHistoryResponse"];
+type HostedPlant = hostedComponents["schemas"]["PlantSummaryResponse"];
 type HostedSyncStatus = hostedComponents["schemas"]["SyncStatusResponse"];
 type DashboardLightSchedule = HostedLightSchedule;
 type MetricMeta = {
@@ -328,6 +332,17 @@ function HostedDashboardPage() {
     enabled: selectedTentId.length > 0,
   });
 
+  const plantsQuery = useQuery({
+    queryKey: ["cloud.plants", selectedTentId],
+    queryFn: async () => {
+      const { data } = await hostedApi.GET("/api/tents/{tent_id}/plants", {
+        params: { path: { tent_id: selectedTentId } },
+      });
+      return hostedData(data, "/api/tents/{tent_id}/plants");
+    },
+    enabled: selectedTentId.length > 0,
+  });
+
   const historyResults = useQueries({
     queries: HISTORY_METRIC_META.map((m) => ({
       queryKey: ["cloud.metrics.history", selectedTentId, range, m.metric] as const,
@@ -391,6 +406,7 @@ function HostedDashboardPage() {
   const tents = tentsQuery.data ?? [];
   const selectedTent = tents.find((tent) => tent.tent_id === selectedTentId);
   const metrics = metricsQuery.data ?? [];
+  const plants = plantsQuery.data ?? [];
   const syncStatus = syncQuery.data ?? null;
   const gatewayStatus =
     syncStatus?.status ?? hostedGatewayStatus(syncStatus?.gateway_last_seen_at ?? null);
@@ -535,6 +551,12 @@ function HostedDashboardPage() {
             </section>
           </div>
         )}
+
+        <HostedPlantsPanel
+          plants={plants}
+          tentId={selectedTentId}
+          loading={plantsQuery.isLoading}
+        />
 
         <section aria-label="Metric history" className="flex flex-col">
           <header className="sticky top-0 z-20 flex flex-col gap-2 border-b border-rule bg-paper/95 px-0.5 py-2 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
@@ -725,6 +747,111 @@ function LightStatePill({ isOn }: { isOn: boolean }): ReactNode {
   );
 }
 
+function HostedPlantsPanel({
+  loading,
+  plants,
+  tentId,
+}: {
+  loading: boolean;
+  plants: readonly HostedPlant[];
+  tentId: string;
+}): ReactNode {
+  return (
+    <section
+      aria-label="Plant moisture"
+      className="border border-rule bg-paper-2 px-4 py-3"
+    >
+      <header className="mb-3 flex items-baseline justify-between gap-3">
+        <h2 className="font-sans text-fs-10 font-semibold uppercase tracking-cap-med text-ink-3">
+          Plant Moisture
+        </h2>
+        <span className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+          {formatPlantCount(plants.length)}
+        </span>
+      </header>
+      {loading ? (
+        <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+          Loading plants…
+        </p>
+      ) : plants.length === 0 ? (
+        <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+          No plants synced for this tent.
+        </p>
+      ) : (
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+          {plants.map((plant) =>
+            plant.has_moisture_stream ? (
+              <Link
+                key={plant.plant_id}
+                to={PLANT_DETAIL_ROUTE}
+                params={{ tentId, plantId: plant.plant_id }}
+                className="group min-w-0 border border-rule bg-paper px-3.5 py-3 transition hover:border-rule-strong"
+              >
+                <PlantRowContent plant={plant} linked />
+              </Link>
+            ) : (
+              <div
+                key={plant.plant_id}
+                className="min-w-0 border border-rule bg-paper px-3.5 py-3 opacity-75"
+              >
+                <PlantRowContent plant={plant} linked={false} />
+              </div>
+            ),
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function PlantRowContent({
+  linked,
+  plant,
+}: {
+  linked: boolean;
+  plant: HostedPlant;
+}): ReactNode {
+  const moistureValue = plant.latest_moisture?.value ?? null;
+  const moisturePercent =
+    moistureValue === null ? null : Math.max(0, Math.min(100, moistureValue));
+  return (
+    <div className="flex min-w-0 flex-col gap-2">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-2">
+            <PlantSticker color={plant.sticker_color} size="sm" />
+            <p className="truncate font-sans text-fs-13 font-semibold text-ink">
+              {plant.name}
+            </p>
+          </div>
+          <p className="mt-1 font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+            {plant.status} · target {formatMoistureTarget(plant)}
+          </p>
+        </div>
+        <span className="shrink-0 font-mono text-fs-12 tabular-nums text-ink">
+          {moistureValue === null ? "No reading" : formatMoistureValue(moistureValue)}
+        </span>
+      </div>
+      <div className="h-2 border border-rule bg-paper-2">
+        {moisturePercent === null ? (
+          <div className="h-full bg-[repeating-linear-gradient(90deg,var(--color-rule)_0,var(--color-rule)_2px,transparent_2px,transparent_6px)]" />
+        ) : (
+          <div
+            // eslint-disable-next-line no-restricted-syntax -- data-driven bar width is not expressible in build-time Tailwind classes
+            style={{ width: `${moisturePercent}%` }}
+            className="h-full bg-sensor-moisture"
+          />
+        )}
+      </div>
+      {linked ? null : (
+        <span className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+          No moisture stream
+        </span>
+      )}
+    </div>
+  );
+}
+
 function HostedAssetsPanel({ model }: { model: AssetPanelModel }): ReactNode {
   return (
     <section
@@ -883,6 +1010,10 @@ function formatScheduleCount(count: number): string {
   return `${count} schedule${count === 1 ? "" : "s"}`;
 }
 
+function formatPlantCount(count: number): string {
+  return `${count} plant${count === 1 ? "" : "s"}`;
+}
+
 function formatHourCount(value: number): string {
   return `${Number.isInteger(value) ? value : value.toFixed(1)}h`;
 }
@@ -901,6 +1032,16 @@ function formatMinutes(value: number): string {
   if (hours === 0) return `${minutes}m`;
   if (minutes === 0) return `${hours}h`;
   return `${hours}h ${minutes}m`;
+}
+
+function formatMoistureTarget(plant: HostedPlant): string {
+  return `${formatInteger(plant.moisture_target_low)}-${formatInteger(
+    plant.moisture_target_high,
+  )}%`;
+}
+
+function formatMoistureValue(value: number): string {
+  return `${formatInteger(value)}%`;
 }
 
 function formatTimestamp(value: string | null): string {
@@ -922,21 +1063,6 @@ function formatAge(value: string | null): string {
   const minutes = Math.round(seconds / 60);
   if (minutes < 60) return `${minutes}m ago`;
   return `${Math.round(minutes / 60)}h ago`;
-}
-
-function formatEmptyHistoryLabel(range: SparklineRange): string {
-  switch (range) {
-    case "1h":
-      return "No 5-minute data in the last hour";
-    case "24h":
-      return "No hourly data in the last 24 hours";
-    case "7d":
-      return "No 4-hour data in the last 7 days";
-    case "30d":
-      return "No 4-hour data in the last 30 days";
-    case "90d":
-      return "No daily data in the last 90 days";
-  }
 }
 
 function buildHistoryAxis(

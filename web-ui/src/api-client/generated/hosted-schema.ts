@@ -141,6 +141,24 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/dev-assets/{object_key}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read Dev Asset */
+    get: operations["read_dev_asset_api_dev_assets__object_key__get"];
+    /** Write Dev Asset */
+    put: operations["write_dev_asset_api_dev_assets__object_key__put"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/health": {
     parameters: {
       query?: never;
@@ -286,6 +304,74 @@ export interface paths {
     };
     /** Metric History */
     get: operations["metric_history_api_tents__tent_id__metrics_history_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tents/{tent_id}/plants": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Plants */
+    get: operations["plants_api_tents__tent_id__plants_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tents/{tent_id}/plants/moisture/history": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Plant Moisture Comparison History */
+    get: operations["plant_moisture_comparison_history_api_tents__tent_id__plants_moisture_history_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tents/{tent_id}/plants/{plant_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Plant Detail */
+    get: operations["plant_detail_api_tents__tent_id__plants__plant_id__get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tents/{tent_id}/plants/{plant_id}/moisture/history": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Plant Moisture History */
+    get: operations["plant_moisture_history_api_tents__tent_id__plants__plant_id__moisture_history_get"];
     put?: never;
     post?: never;
     delete?: never;
@@ -535,12 +621,45 @@ export interface components {
       /** Zone Id */
       zone_id?: string | null;
     };
+    /** CatalogPlant */
+    CatalogPlant: {
+      /** Display Order */
+      display_order: number;
+      /** Grow Run Id */
+      grow_run_id: string;
+      /** Is Active */
+      is_active: boolean;
+      /** Moisture Capability Id */
+      moisture_capability_id: string | null;
+      /** Moisture Device Id */
+      moisture_device_id: string | null;
+      /** Moisture Target High */
+      moisture_target_high: number;
+      /** Moisture Target Low */
+      moisture_target_low: number;
+      /** Name */
+      name: string;
+      /** Plant Id */
+      plant_id: string;
+      /** Purple */
+      purple: boolean;
+      /** Status */
+      status: string;
+      /** Sticker Color */
+      sticker_color: string | null;
+      /** Tent Id */
+      tent_id: string;
+      /** Wiki Path */
+      wiki_path: string | null;
+    };
     /** CatalogRequest */
     CatalogRequest: {
       /** Capabilities */
       capabilities?: components["schemas"]["CatalogCapability"][];
       /** Devices */
       devices?: components["schemas"]["CatalogDevice"][];
+      /** Plants */
+      plants?: components["schemas"]["CatalogPlant"][];
       /** Schedules */
       schedules?: components["schemas"]["CatalogSchedule"][];
       site: components["schemas"]["CatalogSite"];
@@ -555,6 +674,8 @@ export interface components {
       capabilities: number;
       /** Devices */
       devices: number;
+      /** Plants */
+      plants: number;
       /** Schedules */
       schedules: number;
       /** Sites */
@@ -882,7 +1003,7 @@ export interface components {
       /** Capability Id */
       capability_id: string;
       /** Device Id */
-      device_id: string | null;
+      device_id: string;
       /** Metric */
       metric: string;
       /**
@@ -1004,7 +1125,7 @@ export interface components {
       /** Capability Id */
       capability_id: string;
       /** Device Id */
-      device_id?: string | null;
+      device_id: string;
       /** Metric */
       metric: string;
       /** Site Id */
@@ -1118,6 +1239,170 @@ export interface components {
       /** Range */
       range: string;
     };
+    /** PlantDetailResponse */
+    PlantDetailResponse: {
+      /** Display Order */
+      display_order: number;
+      freshness: components["schemas"]["PlantMoistureFreshnessResponse"] | null;
+      /** Grow Run Id */
+      grow_run_id: string;
+      /** Is Active */
+      is_active: boolean;
+      latest_moisture: components["schemas"]["PlantLatestMoistureResponse"] | null;
+      /** Moisture Capability Id */
+      moisture_capability_id: string;
+      /** Moisture Device Id */
+      moisture_device_id: string;
+      /** Name */
+      name: string;
+      /** Plant Id */
+      plant_id: string;
+      /** Purple */
+      purple: boolean;
+      /** Site Id */
+      site_id: string;
+      /** Status */
+      status: string;
+      /** Sticker Color */
+      sticker_color: string | null;
+      target_bounds: components["schemas"]["PlantTargetBoundsResponse"];
+      /** Tent Id */
+      tent_id: string;
+      wiki_content: components["schemas"]["PlantWikiContentResponse"] | null;
+      /** Wiki Path */
+      wiki_path: string | null;
+    };
+    /** PlantLatestMoistureResponse */
+    PlantLatestMoistureResponse: {
+      /** Capability Id */
+      capability_id: string;
+      /** Device Id */
+      device_id: string;
+      /**
+       * Metric
+       * @constant
+       */
+      metric: "soil_moisture_pct";
+      /**
+       * Received At
+       * Format: date-time
+       */
+      received_at: string;
+      /**
+       * Source Updated At
+       * Format: date-time
+       */
+      source_updated_at: string;
+      /** Stale After S */
+      stale_after_s: number;
+      /** Unit */
+      unit: string | null;
+      /** Value */
+      value: number;
+    };
+    /** PlantMoistureComparisonResponse */
+    PlantMoistureComparisonResponse: {
+      /**
+       * Metric
+       * @constant
+       */
+      metric: "soil_moisture_pct";
+      /** Plants */
+      plants: components["schemas"]["PlantMoistureSeriesResponse"][];
+      /** Range */
+      range: string;
+    };
+    /** PlantMoistureFreshnessResponse */
+    PlantMoistureFreshnessResponse: {
+      /** Is Current */
+      is_current: boolean;
+      /** Source Age S */
+      source_age_s: number;
+    };
+    /** PlantMoistureSeriesResponse */
+    PlantMoistureSeriesResponse: {
+      /** Display Order */
+      display_order: number;
+      /** Grow Run Id */
+      grow_run_id: string;
+      latest_moisture: components["schemas"]["PlantLatestMoistureResponse"] | null;
+      /** Name */
+      name: string;
+      /** Plant Id */
+      plant_id: string;
+      /** Points */
+      points: components["schemas"]["MetricHistoryPointResponse"][];
+      /** Site Id */
+      site_id: string;
+      /** Sticker Color */
+      sticker_color: string | null;
+      target_bounds: components["schemas"]["PlantTargetBoundsResponse"];
+      /** Tent Id */
+      tent_id: string;
+    };
+    /** PlantSummaryResponse */
+    PlantSummaryResponse: {
+      /** Display Order */
+      display_order: number;
+      /** Grow Run Id */
+      grow_run_id: string;
+      /** Has Moisture Stream */
+      has_moisture_stream: boolean;
+      /** Is Active */
+      is_active: boolean;
+      latest_moisture: components["schemas"]["PlantLatestMoistureResponse"] | null;
+      /** Moisture Capability Id */
+      moisture_capability_id: string | null;
+      /** Moisture Device Id */
+      moisture_device_id: string | null;
+      /** Moisture Target High */
+      moisture_target_high: number;
+      /** Moisture Target Low */
+      moisture_target_low: number;
+      /** Name */
+      name: string;
+      /** Plant Id */
+      plant_id: string;
+      /** Purple */
+      purple: boolean;
+      /** Site Id */
+      site_id: string;
+      /** Status */
+      status: string;
+      /** Sticker Color */
+      sticker_color: string | null;
+      /** Tent Id */
+      tent_id: string;
+      /** Wiki Path */
+      wiki_path: string | null;
+    };
+    /** PlantTargetBoundsResponse */
+    PlantTargetBoundsResponse: {
+      /** High */
+      high: number;
+      /** Low */
+      low: number;
+    };
+    /** PlantWikiContentResponse */
+    PlantWikiContentResponse: {
+      /** Body Markdown */
+      body_markdown: string;
+      /** Frontmatter */
+      frontmatter: {
+        [key: string]: unknown;
+      };
+      /** Path */
+      path: string;
+      /** Sha256 */
+      sha256: string;
+      /**
+       * Source Updated At
+       * Format: date-time
+       */
+      source_updated_at: string;
+      /** Title */
+      title: string;
+    };
     /** PruneAssetsResponse */
     PruneAssetsResponse: {
       /**
@@ -1170,6 +1455,8 @@ export interface components {
       bucket_start_at: string;
       /** Capability Id */
       capability_id: string;
+      /** Device Id */
+      device_id: string;
       /** Max Value */
       max_value?: number | null;
       /** Metric */
@@ -1306,6 +1593,54 @@ export interface components {
       msg: string;
       /** Error Type */
       type: string;
+    };
+    /** WikiProjectionPage */
+    WikiProjectionPage: {
+      /** Body Markdown */
+      body_markdown: string;
+      /** Frontmatter */
+      frontmatter: {
+        [key: string]: unknown;
+      };
+      /** Path */
+      path: string;
+      /** Sha256 */
+      sha256: string;
+      /**
+       * Source Updated At
+       * Format: date-time
+       */
+      source_updated_at: string;
+      /** Title */
+      title: string;
+    };
+    /** WikiProjectionRequest */
+    WikiProjectionRequest: {
+      /** Content Hash */
+      content_hash: string;
+      /** Excluded Paths */
+      excluded_paths?: string[];
+      /**
+       * Generated At
+       * Format: date-time
+       */
+      generated_at: string;
+      /** Pages */
+      pages: components["schemas"]["WikiProjectionPage"][];
+      /** Site Id */
+      site_id: string;
+    };
+    /** WikiProjectionResponse */
+    WikiProjectionResponse: {
+      /** Deleted */
+      deleted: number;
+      /**
+       * Synced At
+       * Format: date-time
+       */
+      synced_at: string;
+      /** Upserted */
+      upserted: number;
     };
   };
   responses: never;
@@ -1568,6 +1903,74 @@ export interface operations {
       };
     };
   };
+  read_dev_asset_api_dev_assets__object_key__get: {
+    parameters: {
+      query?: {
+        expires?: number | null;
+        signature?: string | null;
+      };
+      header?: never;
+      path: {
+        object_key: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  write_dev_asset_api_dev_assets__object_key__put: {
+    parameters: {
+      query?: {
+        expires?: number | null;
+        signature?: string | null;
+        method?: string | null;
+        content_type?: string | null;
+      };
+      header?: never;
+      path: {
+        object_key: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   health_api_health_get: {
     parameters: {
       query?: never;
@@ -1787,11 +2190,143 @@ export interface operations {
     parameters: {
       query: {
         metric: string;
+        device_id?: string | null;
+        capability_id?: string | null;
         range?: string;
       };
       header?: never;
       path: {
         tent_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MetricHistoryResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  plants_api_tents__tent_id__plants_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        tent_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PlantSummaryResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  plant_moisture_comparison_history_api_tents__tent_id__plants_moisture_history_get: {
+    parameters: {
+      query?: {
+        range?: string;
+      };
+      header?: never;
+      path: {
+        tent_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PlantMoistureComparisonResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  plant_detail_api_tents__tent_id__plants__plant_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        tent_id: string;
+        plant_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PlantDetailResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  plant_moisture_history_api_tents__tent_id__plants__plant_id__moisture_history_get: {
+    parameters: {
+      query?: {
+        range?: string;
+      };
+      header?: never;
+      path: {
+        tent_id: string;
+        plant_id: string;
       };
       cookie?: never;
     };

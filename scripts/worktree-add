@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: scripts/worktree-add WORKTREE_PATH BRANCH [START_POINT]
+
+Create a new branch worktree, then bootstrap ignored local files.
+
+Examples:
+  scripts/worktree-add ../dirt-hosted-plant-detail hosted-plant-detail
+  scripts/worktree-add .agents/worktrees/example feature/example origin/main
+EOF
+}
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  usage
+  exit 0
+fi
+
+if [[ $# -lt 2 || $# -gt 3 ]]; then
+  usage >&2
+  exit 2
+fi
+
+worktree_path="$1"
+branch="$2"
+start_point="${3:-HEAD}"
+
+repo_root="$(git rev-parse --show-toplevel)"
+
+git worktree add -b "$branch" "$worktree_path" "$start_point"
+"$repo_root/scripts/worktree-bootstrap" "$worktree_path"

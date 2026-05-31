@@ -19,6 +19,26 @@ afterEach(() => {
 });
 
 describe("Sparkline", () => {
+  it("separates raw units in the tooltip", () => {
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+
+    act(() => {
+      root?.render(
+        <Sparkline
+          name="Soil moisture"
+          unit="raw"
+          points={[{ ts: "2026-05-01T00:00:00Z", value: 1810 }]}
+          hoverIndex={0}
+          onHoverIndex={vi.fn()}
+        />,
+      );
+    });
+
+    expect(container.querySelector("[role='tooltip']")?.textContent).toBe("1810 raw");
+  });
+
   it("renders explicit gaps and keeps the shared crosshair on missing buckets", () => {
     vi.spyOn(SVGElement.prototype, "getBoundingClientRect").mockReturnValue({
       x: 0,

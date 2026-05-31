@@ -567,6 +567,113 @@
         "title": "CatalogDevice",
         "type": "object"
       },
+      "CatalogPlant": {
+        "additionalProperties": false,
+        "properties": {
+          "display_order": {
+            "title": "Display Order",
+            "type": "integer"
+          },
+          "grow_run_id": {
+            "title": "Grow Run Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "moisture_capability_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Moisture Capability Id"
+          },
+          "moisture_device_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Moisture Device Id"
+          },
+          "moisture_target_high": {
+            "title": "Moisture Target High",
+            "type": "number"
+          },
+          "moisture_target_low": {
+            "title": "Moisture Target Low",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "plant_id": {
+            "title": "Plant Id",
+            "type": "string"
+          },
+          "purple": {
+            "title": "Purple",
+            "type": "boolean"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "sticker_color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sticker Color"
+          },
+          "tent_id": {
+            "title": "Tent Id",
+            "type": "string"
+          },
+          "wiki_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wiki Path"
+          }
+        },
+        "required": [
+          "tent_id",
+          "grow_run_id",
+          "plant_id",
+          "name",
+          "display_order",
+          "sticker_color",
+          "status",
+          "purple",
+          "moisture_target_low",
+          "moisture_target_high",
+          "moisture_device_id",
+          "moisture_capability_id",
+          "wiki_path",
+          "is_active"
+        ],
+        "title": "CatalogPlant",
+        "type": "object"
+      },
       "CatalogRequest": {
         "additionalProperties": false,
         "properties": {
@@ -582,6 +689,13 @@
               "$ref": "#/components/schemas/CatalogDevice"
             },
             "title": "Devices",
+            "type": "array"
+          },
+          "plants": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogPlant"
+            },
+            "title": "Plants",
             "type": "array"
           },
           "schedules": {
@@ -626,6 +740,10 @@
             "title": "Devices",
             "type": "integer"
           },
+          "plants": {
+            "title": "Plants",
+            "type": "integer"
+          },
           "schedules": {
             "title": "Schedules",
             "type": "integer"
@@ -649,7 +767,8 @@
           "zones",
           "devices",
           "capabilities",
-          "schedules"
+          "schedules",
+          "plants"
         ],
         "title": "CatalogResponse",
         "type": "object"
@@ -1484,15 +1603,8 @@
             "type": "string"
           },
           "device_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Device Id"
+            "title": "Device Id",
+            "type": "string"
           },
           "metric": {
             "title": "Metric",
@@ -1817,15 +1929,8 @@
             "type": "string"
           },
           "device_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Device Id"
+            "title": "Device Id",
+            "type": "string"
           },
           "metric": {
             "title": "Metric",
@@ -1879,6 +1984,7 @@
         "required": [
           "site_id",
           "tent_id",
+          "device_id",
           "capability_id",
           "metric",
           "value",
@@ -2167,6 +2273,499 @@
         "title": "MetricHistoryResponse",
         "type": "object"
       },
+      "PlantDetailResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "display_order": {
+            "title": "Display Order",
+            "type": "integer"
+          },
+          "freshness": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlantMoistureFreshnessResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "grow_run_id": {
+            "title": "Grow Run Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "latest_moisture": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlantLatestMoistureResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "moisture_capability_id": {
+            "title": "Moisture Capability Id",
+            "type": "string"
+          },
+          "moisture_device_id": {
+            "title": "Moisture Device Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "plant_id": {
+            "title": "Plant Id",
+            "type": "string"
+          },
+          "purple": {
+            "title": "Purple",
+            "type": "boolean"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "sticker_color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sticker Color"
+          },
+          "target_bounds": {
+            "$ref": "#/components/schemas/PlantTargetBoundsResponse"
+          },
+          "tent_id": {
+            "title": "Tent Id",
+            "type": "string"
+          },
+          "wiki_content": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlantWikiContentResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "wiki_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wiki Path"
+          }
+        },
+        "required": [
+          "site_id",
+          "tent_id",
+          "grow_run_id",
+          "plant_id",
+          "name",
+          "display_order",
+          "sticker_color",
+          "status",
+          "purple",
+          "is_active",
+          "moisture_device_id",
+          "moisture_capability_id",
+          "target_bounds",
+          "latest_moisture",
+          "freshness",
+          "wiki_path",
+          "wiki_content"
+        ],
+        "title": "PlantDetailResponse",
+        "type": "object"
+      },
+      "PlantLatestMoistureResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "capability_id": {
+            "title": "Capability Id",
+            "type": "string"
+          },
+          "device_id": {
+            "title": "Device Id",
+            "type": "string"
+          },
+          "metric": {
+            "const": "soil_moisture_pct",
+            "title": "Metric",
+            "type": "string"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          },
+          "source_updated_at": {
+            "format": "date-time",
+            "title": "Source Updated At",
+            "type": "string"
+          },
+          "stale_after_s": {
+            "title": "Stale After S",
+            "type": "integer"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "metric",
+          "value",
+          "unit",
+          "device_id",
+          "capability_id",
+          "source_updated_at",
+          "received_at",
+          "stale_after_s"
+        ],
+        "title": "PlantLatestMoistureResponse",
+        "type": "object"
+      },
+      "PlantMoistureComparisonResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "metric": {
+            "const": "soil_moisture_pct",
+            "title": "Metric",
+            "type": "string"
+          },
+          "plants": {
+            "items": {
+              "$ref": "#/components/schemas/PlantMoistureSeriesResponse"
+            },
+            "title": "Plants",
+            "type": "array"
+          },
+          "range": {
+            "title": "Range",
+            "type": "string"
+          }
+        },
+        "required": [
+          "metric",
+          "range",
+          "plants"
+        ],
+        "title": "PlantMoistureComparisonResponse",
+        "type": "object"
+      },
+      "PlantMoistureFreshnessResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "is_current": {
+            "title": "Is Current",
+            "type": "boolean"
+          },
+          "source_age_s": {
+            "title": "Source Age S",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "source_age_s",
+          "is_current"
+        ],
+        "title": "PlantMoistureFreshnessResponse",
+        "type": "object"
+      },
+      "PlantMoistureSeriesResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "display_order": {
+            "title": "Display Order",
+            "type": "integer"
+          },
+          "grow_run_id": {
+            "title": "Grow Run Id",
+            "type": "string"
+          },
+          "latest_moisture": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlantLatestMoistureResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "plant_id": {
+            "title": "Plant Id",
+            "type": "string"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/MetricHistoryPointResponse"
+            },
+            "title": "Points",
+            "type": "array"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          },
+          "sticker_color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sticker Color"
+          },
+          "target_bounds": {
+            "$ref": "#/components/schemas/PlantTargetBoundsResponse"
+          },
+          "tent_id": {
+            "title": "Tent Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "site_id",
+          "tent_id",
+          "grow_run_id",
+          "plant_id",
+          "name",
+          "display_order",
+          "sticker_color",
+          "target_bounds",
+          "latest_moisture",
+          "points"
+        ],
+        "title": "PlantMoistureSeriesResponse",
+        "type": "object"
+      },
+      "PlantSummaryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "display_order": {
+            "title": "Display Order",
+            "type": "integer"
+          },
+          "grow_run_id": {
+            "title": "Grow Run Id",
+            "type": "string"
+          },
+          "has_moisture_stream": {
+            "title": "Has Moisture Stream",
+            "type": "boolean"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "latest_moisture": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlantLatestMoistureResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "moisture_capability_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Moisture Capability Id"
+          },
+          "moisture_device_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Moisture Device Id"
+          },
+          "moisture_target_high": {
+            "title": "Moisture Target High",
+            "type": "number"
+          },
+          "moisture_target_low": {
+            "title": "Moisture Target Low",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "plant_id": {
+            "title": "Plant Id",
+            "type": "string"
+          },
+          "purple": {
+            "title": "Purple",
+            "type": "boolean"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "sticker_color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sticker Color"
+          },
+          "tent_id": {
+            "title": "Tent Id",
+            "type": "string"
+          },
+          "wiki_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wiki Path"
+          }
+        },
+        "required": [
+          "site_id",
+          "tent_id",
+          "grow_run_id",
+          "plant_id",
+          "name",
+          "display_order",
+          "sticker_color",
+          "status",
+          "purple",
+          "moisture_target_low",
+          "moisture_target_high",
+          "moisture_device_id",
+          "moisture_capability_id",
+          "wiki_path",
+          "is_active",
+          "has_moisture_stream",
+          "latest_moisture"
+        ],
+        "title": "PlantSummaryResponse",
+        "type": "object"
+      },
+      "PlantTargetBoundsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "high": {
+            "title": "High",
+            "type": "number"
+          },
+          "low": {
+            "title": "Low",
+            "type": "number"
+          }
+        },
+        "required": [
+          "low",
+          "high"
+        ],
+        "title": "PlantTargetBoundsResponse",
+        "type": "object"
+      },
+      "PlantWikiContentResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "body_markdown": {
+            "title": "Body Markdown",
+            "type": "string"
+          },
+          "frontmatter": {
+            "additionalProperties": true,
+            "title": "Frontmatter",
+            "type": "object"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "source_updated_at": {
+            "format": "date-time",
+            "title": "Source Updated At",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "title",
+          "frontmatter",
+          "body_markdown",
+          "sha256",
+          "source_updated_at"
+        ],
+        "title": "PlantWikiContentResponse",
+        "type": "object"
+      },
       "PruneAssetsResponse": {
         "additionalProperties": false,
         "properties": {
@@ -2294,6 +2893,10 @@
             "title": "Capability Id",
             "type": "string"
           },
+          "device_id": {
+            "title": "Device Id",
+            "type": "string"
+          },
           "max_value": {
             "anyOf": [
               {
@@ -2348,6 +2951,7 @@
         "required": [
           "site_id",
           "tent_id",
+          "device_id",
           "capability_id",
           "metric",
           "bucket",
@@ -2707,6 +3311,112 @@
         ],
         "title": "ValidationError",
         "type": "object"
+      },
+      "WikiProjectionPage": {
+        "additionalProperties": false,
+        "properties": {
+          "body_markdown": {
+            "title": "Body Markdown",
+            "type": "string"
+          },
+          "frontmatter": {
+            "additionalProperties": true,
+            "title": "Frontmatter",
+            "type": "object"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "source_updated_at": {
+            "format": "date-time",
+            "title": "Source Updated At",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "title",
+          "frontmatter",
+          "body_markdown",
+          "sha256",
+          "source_updated_at"
+        ],
+        "title": "WikiProjectionPage",
+        "type": "object"
+      },
+      "WikiProjectionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "excluded_paths": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Excluded Paths",
+            "type": "array"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "pages": {
+            "items": {
+              "$ref": "#/components/schemas/WikiProjectionPage"
+            },
+            "title": "Pages",
+            "type": "array"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "site_id",
+          "generated_at",
+          "pages",
+          "content_hash"
+        ],
+        "title": "WikiProjectionRequest",
+        "type": "object"
+      },
+      "WikiProjectionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "deleted": {
+            "title": "Deleted",
+            "type": "integer"
+          },
+          "synced_at": {
+            "format": "date-time",
+            "title": "Synced At",
+            "type": "string"
+          },
+          "upserted": {
+            "title": "Upserted",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "upserted",
+          "deleted",
+          "synced_at"
+        ],
+        "title": "WikiProjectionResponse",
+        "type": "object"
       }
     }
   },
@@ -3015,6 +3725,169 @@
         "summary": "Get Command"
       }
     },
+    "/api/dev-assets/{object_key}": {
+      "get": {
+        "operationId": "read_dev_asset_api_dev_assets__object_key__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "object_key",
+            "required": true,
+            "schema": {
+              "title": "Object Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expires",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Expires"
+            }
+          },
+          {
+            "in": "query",
+            "name": "signature",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Signature"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Dev Asset"
+      },
+      "put": {
+        "operationId": "write_dev_asset_api_dev_assets__object_key__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "object_key",
+            "required": true,
+            "schema": {
+              "title": "Object Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expires",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Expires"
+            }
+          },
+          {
+            "in": "query",
+            "name": "signature",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Signature"
+            }
+          },
+          {
+            "in": "query",
+            "name": "method",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Method"
+            }
+          },
+          {
+            "in": "query",
+            "name": "content_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Content Type"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Write Dev Asset"
+      }
+    },
     "/api/health": {
       "get": {
         "operationId": "health_api_health_get",
@@ -3315,6 +4188,38 @@
           },
           {
             "in": "query",
+            "name": "device_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Device Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "capability_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Capability Id"
+            }
+          },
+          {
+            "in": "query",
             "name": "range",
             "required": false,
             "schema": {
@@ -3347,6 +4252,204 @@
           }
         },
         "summary": "Metric History"
+      }
+    },
+    "/api/tents/{tent_id}/plants": {
+      "get": {
+        "operationId": "plants_api_tents__tent_id__plants_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tent_id",
+            "required": true,
+            "schema": {
+              "title": "Tent Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PlantSummaryResponse"
+                  },
+                  "title": "Response Plants Api Tents  Tent Id  Plants Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Plants"
+      }
+    },
+    "/api/tents/{tent_id}/plants/moisture/history": {
+      "get": {
+        "operationId": "plant_moisture_comparison_history_api_tents__tent_id__plants_moisture_history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tent_id",
+            "required": true,
+            "schema": {
+              "title": "Tent Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "range",
+            "required": false,
+            "schema": {
+              "default": "24h",
+              "title": "Range",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlantMoistureComparisonResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Plant Moisture Comparison History"
+      }
+    },
+    "/api/tents/{tent_id}/plants/{plant_id}": {
+      "get": {
+        "operationId": "plant_detail_api_tents__tent_id__plants__plant_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tent_id",
+            "required": true,
+            "schema": {
+              "title": "Tent Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "plant_id",
+            "required": true,
+            "schema": {
+              "title": "Plant Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlantDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Plant Detail"
+      }
+    },
+    "/api/tents/{tent_id}/plants/{plant_id}/moisture/history": {
+      "get": {
+        "operationId": "plant_moisture_history_api_tents__tent_id__plants__plant_id__moisture_history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tent_id",
+            "required": true,
+            "schema": {
+              "title": "Tent Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "plant_id",
+            "required": true,
+            "schema": {
+              "title": "Plant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "range",
+            "required": false,
+            "schema": {
+              "default": "24h",
+              "title": "Range",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetricHistoryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Plant Moisture History"
       }
     },
     "/api/tents/{tent_id}/state": {

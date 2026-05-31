@@ -25,6 +25,8 @@ from dirt_shared.cloud_contract import (
     RollupsRequest,
     SignUploadResponse,
     UpsertCountResponse,
+    WikiProjectionRequest,
+    WikiProjectionResponse,
 )
 from dirt_shared.config import CloudGatewayConfig
 
@@ -45,6 +47,10 @@ class CloudGatewayClient(Protocol):
     async def post_rollups(
         self, payload: RollupsRequest, *, idempotency_key: str
     ) -> UpsertCountResponse: ...
+
+    async def put_wiki_projection(
+        self, payload: WikiProjectionRequest, *, idempotency_key: str
+    ) -> WikiProjectionResponse: ...
 
     async def sign_upload(
         self, payload: AssetSignUploadRequest, *, idempotency_key: str
@@ -92,6 +98,8 @@ class LocalGatewayServices(Protocol):
     async def collect_rollups(
         self, site_id: str, *, bucket_names: set[str] | None = None
     ) -> RollupsRequest: ...
+
+    async def collect_wiki_pages(self, site_id: str) -> WikiProjectionRequest: ...
 
     async def latest_snapshot_asset(
         self, site_id: str

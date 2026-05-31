@@ -401,6 +401,11 @@ def up(paths: Paths, runtime: Runtime, env_values: dict[str, str]) -> int:
         )
         return 1
 
+    if not apply_cloud_migrations(paths, runtime, env_values, utc_timestamp()):
+        return 1
+    seed_marker = current_migration_marker(paths)
+    state = read_state(paths.state_path)
+
     occupied = occupied_dev_ports(runtime)
     if occupied:
         print("error: local dev ports are already in use.", file=sys.stderr)
@@ -433,6 +438,10 @@ def up(paths: Paths, runtime: Runtime, env_values: dict[str, str]) -> int:
         )
         write_state(paths.state_path, state)
         wait_for_health(local_api_health_url(runtime), api_proc)
+        if needs_dev_seed(read_state(paths.state_path), seed_marker):
+            if not run_dev_seed(paths, runtime, env_values, seed_marker):
+                return 1
+            state = read_state(paths.state_path)
 
         web_env = dict(child_env)
         web_env["VITE_DIRT_API_BASE_URL"] = runtime.api_url
@@ -616,7 +625,11 @@ def restore_dump(
         )
         return False
 
+    if not apply_cloud_migrations(paths, runtime, env_values, timestamp):
+        return False
+
     state = update_static_state(read_state(paths.state_path), paths, runtime)
+    state.pop("seed", None)
     state["restore"] = {
         "database_name": runtime.database_name,
         "dump_path": str(dump_path),
@@ -625,6 +638,99 @@ def restore_dump(
     }
     write_state(paths.state_path, state)
     return True
+
+
+def apply_cloud_migrations(
+    paths: Paths, runtime: Runtime, env_values: dict[str, str], timestamp: str
+) -> bool:
+    validate_dev_database_name(runtime.database_name)
+    local = local_pg_connection(env_values, runtime.database_name)
+    migration_log = paths.logs_dir / f"migrate-{timestamp}.log"
+    marker = current_migration_marker(paths)
+    env = minimal_subprocess_env(os.environ)
+    env["DIRT_CLOUD_DATABASE_URL"] = atlas_postgres_url(local)
+    if run_logged(
+        [
+            "atlas",
+            "migrate",
+            "apply",
+            "--env",
+            "cloud",
+            "--revisions-schema",
+            "atlas_schema_revisions",
+        ],
+        env,
+        migration_log,
+        paths.repo_root,
+    ):
+        state = update_static_state(read_state(paths.state_path), paths, runtime)
+        state["migrations"] = {
+            "database_name": runtime.database_name,
+            "marker": marker,
+            "applied_at": datetime.now(UTC).isoformat(),
+            "log_path": str(migration_log),
+        }
+        write_state(paths.state_path, state)
+        return True
+    print("error: local dev database migration failed.", file=sys.stderr)
+    print(f"Migration log: {migration_log}", file=sys.stderr)
+    return False
+
+
+def needs_dev_seed(state: dict[str, Any], migration_marker: str) -> bool:
+    seed = state.get("seed")
+    return not (
+        isinstance(seed, dict)
+        and seed.get("migration_marker") == migration_marker
+        and bool(seed.get("seeded_at"))
+    )
+
+
+def run_dev_seed(
+    paths: Paths, runtime: Runtime, env_values: dict[str, str], migration_marker: str
+) -> bool:
+    seed_log = paths.logs_dir / f"seed-{utc_timestamp()}.log"
+    env = build_child_env(os.environ, env_values)
+    env["DIRT_CLOUD_API_BASE_URL"] = runtime.api_url
+    env["DIRT_CLOUD_DRY_RUN"] = "false"
+    env["DIRT_CLOUD_ASSET_SYNC_ENABLED"] = "false"
+    ok = run_logged(
+        [
+            "uv",
+            "run",
+            "--package",
+            "dirt-gateway",
+            "python",
+            "scripts/dev-seed-control-plane",
+        ],
+        env,
+        seed_log,
+        paths.repo_root,
+    )
+    if not ok:
+        print("error: local dev data seed failed.", file=sys.stderr)
+        print(f"Seed log: {seed_log}", file=sys.stderr)
+        return False
+    state = update_static_state(read_state(paths.state_path), paths, runtime)
+    state["seed"] = {
+        "database_name": runtime.database_name,
+        "migration_marker": migration_marker,
+        "seeded_at": datetime.now(UTC).isoformat(),
+        "log_path": str(seed_log),
+    }
+    write_state(paths.state_path, state)
+    return True
+
+
+def current_migration_marker(paths: Paths) -> str:
+    digest = hashlib.sha256()
+    migration_dir = paths.repo_root / "cloud" / "migrations"
+    atlas_sum = migration_dir / "atlas.sum"
+    if atlas_sum.exists():
+        digest.update(atlas_sum.read_bytes())
+    for path in sorted(migration_dir.glob("*.sql")):
+        digest.update(path.name.encode("utf-8"))
+    return digest.hexdigest()
 
 
 def resolve_source_database_url(paths: Paths) -> str:
@@ -702,6 +808,18 @@ def pg_connection_from_url(url: str) -> PgConnection:
         password=urllib.parse.unquote(parsed.password or ""),
         database=database,
         sslmode=sslmode,
+    )
+
+
+def atlas_postgres_url(connection: PgConnection) -> str:
+    validate_dev_database_name(connection.database)
+    user = urllib.parse.quote(connection.user, safe="")
+    password = urllib.parse.quote(connection.password, safe="")
+    database = urllib.parse.quote(connection.database, safe="")
+    host = urllib.parse.quote(connection.host, safe="")
+    return (
+        f"postgres://{user}:{password}@{host}:{connection.port}/{database}"
+        "?sslmode=disable&search_path=public"
     )
 
 
