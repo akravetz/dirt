@@ -23,6 +23,12 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["ingest"])
 
+_WIRE_METRIC_ALIASES: dict[str, dict[str, str]] = {
+    "fan-controller": {
+        "fan_duty_pct": "fan_pct",
+    },
+}
+
 
 class IngestPayload(BaseModel):
     metrics: dict[str, float]
@@ -62,6 +68,21 @@ def _augment_temp_rh_metrics(metrics: dict[str, float]) -> dict[str, float]:
         "vpd_kpa": vpd,
         "dew_point_f": dew_c * 9 / 5 + 32,
     }
+
+
+def _canonicalize_wire_metrics(
+    device_id: str | None, metrics: dict[str, float]
+) -> dict[str, float]:
+    aliases = _WIRE_METRIC_ALIASES.get(device_id or "")
+    if not aliases:
+        return metrics
+    canonical = dict(metrics)
+    for old_name, new_name in aliases.items():
+        if old_name not in canonical:
+            continue
+        value = canonical.pop(old_name)
+        canonical.setdefault(new_name, value)
+    return canonical
 
 
 def _warn_on_emitted_drift(
@@ -116,9 +137,10 @@ async def ingest_sensors(  # noqa: PLR0913 — FastAPI boundary bundles request,
     # If caller didn't self-report IP, use the connection's remote address.
     ip = payload.ip or (request.client.host if request.client else None)
 
-    _warn_on_emitted_drift(payload.device_id, payload.metrics)
+    wire_metrics = _canonicalize_wire_metrics(payload.device_id, payload.metrics)
+    _warn_on_emitted_drift(payload.device_id, wire_metrics)
 
-    metrics = _augment_temp_rh_metrics(payload.metrics)
+    metrics = _augment_temp_rh_metrics(wire_metrics)
     assert payload.device_id is not None  # noqa: S101 (validated above)
     quality = await sensor_quality.filter_metrics(payload.device_id, metrics)
 

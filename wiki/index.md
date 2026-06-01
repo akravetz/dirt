@@ -1,7 +1,7 @@
 ---
 title: Index
 type: index
-updated: 2026-05-30
+updated: 2026-05-31
 ---
 
 # Grow Wiki Index
@@ -13,6 +13,7 @@ updated: 2026-05-30
 - [Cannabis Genomics](concepts/cannabis-genomics.md) — bioinformatics pipeline: reference assemblies, variant calling, SnpEff, kinship/PCA, MAS workflow
 - [Wake-Word Experiment Log](wake-word-experiments.md) — append-only log of every "hey Claudia" model trained: what changed, why, training config, validation results
 - [Hosted Control Plane](decisions/2026-05-05-hosted-control-plane.md) — Railway web UI/API plus outbound local gateway; remote inspection and PTZ-only command intent without moving hardware authority to cloud
+- [Kalash Valley Black Target](decisions/2026-05-31-kalash-valley-black-target.md) — Breeding pivot: Kalash Valley Black is now the priority black-color donor for a future SBxBS01 × Kalash Valley Black line, pending September 2026 sourcing
 
 ## Grow Runs
 - [Grow Runs](grows/README.md) — Database-scoped growrun index; folders are keyed by `growrun.grow_run_id`
@@ -20,10 +21,10 @@ updated: 2026-05-30
 - [Track A pollen run](grows/breeding-track-a-2026-04-28/README.md) — Current breeding tent male sexing and pollen-collection run; database `growrun.grow_run_id = breeding-track-a-2026-04-28`
 
 ## Current Plants
-- [Plant A](grows/main-2026-03-15/plants/plant-a.md) — 🔴 Primary keeper; Flower Day 27; upright purple flower tops; rough moisture moved sharply drier near 35.55%; hand-check before weak rinse/refeed decision
-- [Plant B](grows/main-2026-03-15/plants/plant-b.md) — 🟡 Secondary; Flower Day 27; dedicated view non-diagnostic behind fan; moisture 95.43% pinned — dryback verification urgent
-- [Plant C](grows/main-2026-03-15/plants/plant-c.md) — 🟡 Secondary; Flower Day 27; partly fan-obstructed purple-toned flower sites; moisture 88.72% still high but drifting drier — root-zone/airflow watch
-- [Plant D](grows/main-2026-03-15/plants/plant-d.md) — 🔴 Primary keeper; Flower Day 27; upright sativa-leaning purple flower tops; moisture low/flat near 44.72% — verify by hand
+- [Plant A](grows/main-2026-03-15/plants/plant-a.md) — 🔴 Primary keeper; Flower Day 28; healthier growth tips reported after dryback; weak pH 5.8 top rinse/feed runoff pH 6.2 and EC ~40% above input; reopen Autopot only as monitored test
+- [Plant B](grows/main-2026-03-15/plants/plant-b.md) — 🟡 Secondary; Flower Day 28; dedicated view non-diagnostic behind fan; last synthesized moisture 95.43% pinned — dryback verification urgent
+- [Plant C](grows/main-2026-03-15/plants/plant-c.md) — 🟡 Secondary; Flower Day 28; partly fan-obstructed purple-toned flower sites; last synthesized moisture 88.72% still high but drifting drier — root-zone/airflow watch
+- [Plant D](grows/main-2026-03-15/plants/plant-d.md) — 🔴 Primary keeper; Flower Day 28; upright sativa-leaning purple flower tops; last synthesized moisture low/flat near 44.72% — verify by hand
 - [R1](grows/breeding-track-a-2026-04-28/plants/plant-r1.md) — Track A pollen run; confirmed male pre-sex organs / male sex expression on 2026-05-30
 - [R2](grows/breeding-track-a-2026-04-28/plants/plant-r2.md) — Track A pollen run; sex not confirmed in wiki as of 2026-05-30
 - [R3](grows/breeding-track-a-2026-04-28/plants/plant-r3.md) — Track A pollen run; sex not confirmed in wiki as of 2026-05-30
@@ -85,6 +86,7 @@ updated: 2026-05-30
 - [2026-05-28](daily/2026-05-28.md) — Day 75 / Flower Day 25: full photo coverage but Plant B non-diagnostic; main lights-on VPD in range but overnight wet/low; Plant B/C moisture pinned 🔴; Plant A dryback progressing
 - [2026-05-29](daily/2026-05-29.md) — Day 76 / Flower Day 26: continuity entry for complete raw photo inventory; no sensor JSON or attached photo synthesis available
 - [2026-05-30](daily/2026-05-30.md) — Day 77 / Flower Day 27: full photo coverage but Plant B non-diagnostic; main lights-on VPD upper-edge but overnight wet/low; Plant A dryback moved sharply; Plant B pinned wet 🔴
+- [2026-05-31](daily/2026-05-31.md) — Day 78 / Flower Day 28: Plant A manual follow-up; healthier growth tips after dryback; weak top rinse/feed runoff pH 6.2 and EC ~40% above input; stop rinsing and monitor before reopening Autopot
 
 ## Environment
 - [Temperature](environment/temperature.md) — Trend log; targets by phase; notable events
@@ -138,7 +140,7 @@ updated: 2026-05-30
 ## Breeding
 - [Breeding Section README](breeding/README.md) — SBxBS01 stabilization program: pollen banking + phenotype selection → F2, progeny-tested F3/F4 families, then feminized production validation
 - [Nomenclature](breeding/nomenclature.md) — F1/F2/feminized/BX/S1/IBL vocabulary tied to our SBxBS01 program
-- [Stabilization Strategy](breeding/stabilization-strategy.md) — target phenotype, F-line vs BX tradeoffs, accelerated generation cycle, male/female clone space model
+- [Stabilization Strategy](breeding/stabilization-strategy.md) — black-line target through Kalash Valley Black, introgression path, accelerated generation cycle, male/female clone space model
 - [Progeny-Tested Family Selection](breeding/family-selection.md) — F3/F4/F5 family-lot sizing: 2x2 max, 4-family screens, 2-family comparisons, 1-family validation
 - [Feminized Seed Production Endpoint](breeding/feminized-production.md) — final clone roles, reversed-female pollen model, batch scaling, and >90% progeny-test threshold
 - [Timeline](breeding/timeline.md) — dated calendar from launch through F2 seed harvest and stabilization cycles; Track A flipped to 12/12 on 2026-05-24 for sexing/pollen production
@@ -157,6 +159,7 @@ updated: 2026-05-30
 - [Pheno-Split Flip Strategy (2026-04-26)](decisions/2026-04-26-pheno-flip-strategy.md) — Original tuck-and-flip strategy for the mixed canopy; actual 12/12 flip occurred 2026-05-03. Includes gear-list rationale for the 2×2×4 male tent + closet-shelf cloning station.
 - [Breeding Program Launch (2026-04-26)](decisions/2026-04-26-breeding-program-launch.md) — Two-track SBxBS01 F2 selection program; pollen banking + 10-pack pheno hunt → F2 cross. Scope, alternatives, trait priorities.
 - [Purple Stabilization Strategy (2026-05-02)](decisions/2026-05-02-purple-stabilization-strategy.md) — Narrowed goal to dark-purple, sativa-leaning line ending in validated feminized seed production; prefer progeny-tested F-generation selection, with BX to A/D as backup anchor route.
+- [Kalash Valley Black Target (2026-05-31)](decisions/2026-05-31-kalash-valley-black-target.md) — Upgrades the long-term breeding target from dark-purple SBxBS01 stabilization to a black-line introgression using Kalash Valley Black as the outside donor and elite purple/fruity Serious Black as the bridge parent.
 - [Hosted Control Plane (2026-05-05)](decisions/2026-05-05-hosted-control-plane.md) — Railway-hosted web UI/API backed by private assets and an outbound-only local gateway; V1 remote commands are PTZ-only and expire after 60 seconds.
 - [Medium, Nutrients & Training (2026-03-16)](decisions/2026-03-16-medium-and-training.md) — Coco/perlite, Canna A+B, single top → LST → SCROG
 - [Anthocyanin Priority Shift (2026-04-01)](decisions/2026-04-01-anthocyanin-priority.md) — Plants A & D elevated to primary keeper candidates

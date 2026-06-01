@@ -2,14 +2,14 @@
 title: Breeding Program Timeline
 type: breeding
 sources: []
-related: [wiki/breeding/README.md, wiki/breeding/stabilization-strategy.md, wiki/breeding/family-selection.md, wiki/breeding/feminized-production.md, wiki/breeding/cloning.md, wiki/breeding/pollen-handling.md, wiki/breeding/cross-procedure.md, wiki/grows/breeding-track-a-2026-04-28/README.md, wiki/decisions/2026-04-26-breeding-program-launch.md, wiki/decisions/2026-05-02-purple-stabilization-strategy.md]
+related: [wiki/breeding/README.md, wiki/breeding/stabilization-strategy.md, wiki/breeding/family-selection.md, wiki/breeding/feminized-production.md, wiki/breeding/cloning.md, wiki/breeding/pollen-handling.md, wiki/breeding/cross-procedure.md, wiki/grows/breeding-track-a-2026-04-28/README.md, wiki/decisions/2026-04-26-breeding-program-launch.md, wiki/decisions/2026-05-02-purple-stabilization-strategy.md, wiki/decisions/2026-05-31-kalash-valley-black-target.md]
 created: 2026-04-26
-updated: 2026-05-30
+updated: 2026-05-31
 ---
 
 # Breeding Program Timeline
 
-Active calendar from program launch through F2 seed harvest and the first stabilization cycles. Dates are *targets* and will drift with reality — update this page as actual events happen, and link daily entries when relevant work occurs. The program took shape in [the launch decision](../decisions/2026-04-26-breeding-program-launch.md) and was narrowed toward purple/sativa stabilization in [the 2026-05-02 strategy decision](../decisions/2026-05-02-purple-stabilization-strategy.md).
+Active calendar from program launch through the first stabilization cycles. Dates are *targets* and will drift with reality — update this page as actual events happen, and link daily entries when relevant work occurs. The program took shape in [the launch decision](../decisions/2026-04-26-breeding-program-launch.md), was narrowed toward purple/sativa stabilization in [the 2026-05-02 strategy decision](../decisions/2026-05-02-purple-stabilization-strategy.md), and now has a black-line target through [Kalash Valley Black](../decisions/2026-05-31-kalash-valley-black-target.md).
 
 > **Anchor dates:** current grow germination 2026-03-15 (Day 0). Program launch was 2026-04-26 (Day 43 of veg). Current grow flipped to 12/12 on **2026-05-03** (Flower Day 0), after clone preservation work began. Track A / breeding tent flipped to 12/12 on **2026-05-24** (Flower Day 0).
 
@@ -24,10 +24,12 @@ Current grow                    ── flip ──────── flower (~9�
                                                                                   ▼
 Track B (10-pack hunt)                                                           pop → veg → flip → flower ────── harvest, identify keeper
                                                                                                                         │
-F2 cross (clone of keeper × banked pollen)                                                                              ▼ pollinate clone
-                                                                                                                                  │
-F2 seed harvest                                                                                                                   ▼ harvest seeds
-F3/F4 stabilization                                                                                                                ▼ fast-cycle progeny tests
+Kalash Valley Black sourcing checkpoint                                                                 ▼ recheck/order no earlier than Sep 2026
+                                                                                                        │
+Black-line cross (elite SBxBS01 × Kalash Valley Black)                                                    ▼ pollinate selected parent
+                                                                                                                 │
+Black-line seed harvest                                                                                          ▼ harvest seeds
+F2/F3+ stabilization                                                                                              ▼ fast-cycle progeny tests
 Feminized production validation                                                                                                    ▼ reverse elite female, produce/test fem lot
 ```
 
@@ -43,7 +45,7 @@ Locked gear plan as of 2026-04-26 (decision: [clone + male tent gear](../decisio
 - [x] **Take clones** from all 4 current SBxBS01 plants (A, B, C, D). Done 2026-05-02; cuttings are under the humidity dome and perking, with 1 visible root as of 2026-05-05. Original target was **2026-04-28 (gear arrives) or 2026-04-29** after moving up from the 2026-05-03 → 2026-05-10 window because mid-veg tissue roots more readily than near-flip tissue. Asymmetric strategy remains the intended source plan: **lower laterals on A and D** (sativa-leaning, already at SCROG net — these branches are lollipop candidates anyway), **middle laterals on B and C** (indica-leaning, still need lower growth to reach the net). Label by mother. See [cloning.md](cloning.md), [2026-05-02](../daily/2026-05-02.md), and [2026-05-05](../daily/2026-05-05.md).
 - [x] **Start 10 SBxBS01 regulars** from the original-order pack. Started approximately 2026-04-28; 7 total sprouted, 2 died during transplant to coco coir, and 5 active plants remain as R1-R5. The expected male count should now be based on the surviving pool rather than the original 10-seed start. See [Track A pollen run](../grows/breeding-track-a-2026-04-28/README.md) and [2026-05-05](../daily/2026-05-05.md).
 - [x] **Pot Track A sprouted regular seedlings into coco/perlite.** Done 2026-05-05; clarified 2026-05-30 that 5 plants survived transplant and remain active. Continue the [isolation-tent culture](isolation-tent-culture.md) default: coco/perlite, hand-watered, runoff removed, labels secure.
-- [ ] Confirm/finalize second-pack selection (which BS line). Order arrives ~2 weeks after order.
+- [ ] Confirm/finalize whether any interim second-pack BS line is still useful. This is now subordinate to the Kalash Valley Black target; do not let it consume the main line unless it improves parent selection before September.
 
 ### Phase 1 — current grow in early flower, Track A short veg + sex flip (~2026-05-03 → 2026-05-26)
 
@@ -67,36 +69,43 @@ Locked gear plan as of 2026-04-26 (decision: [clone + male tent gear](../decisio
 - [ ] Tent down for 1–2 weeks for cleaning, IPM reset, hardware updates.
 - [ ] **~2026-08-10:** pop the second 10-pack (whichever BS line was chosen).
 
-### Phase 4 — Track B pheno hunt (~2026-08-10 → 2026-11-15)
+### Phase 4 — interim Track B pheno hunt or hold for Kalash (~2026-08-10 → 2026-11-15)
 
-- [ ] **~2026-08-10 → 2026-09-05:** veg the 10-pack. Goal: ~3–4 weeks of veg, plants kept short for the 2x2 (or 4x4) space. No topping unless specifically wanted as a selection criterion.
+- [ ] **Decision checkpoint before ~2026-08-10:** decide whether to run an interim 10-pack hunt or preserve space/resources for Kalash Valley Black sourcing. The default bias is now to avoid broad side-project exploration unless it directly helps identify a better purple/fruity Serious Black parent.
+- [ ] **~2026-08-10 → 2026-09-05:** if running an interim 10-pack, veg it for ~3–4 weeks with plants kept short for the 2x2 (or 4x4) space. No topping unless specifically wanted as a selection criterion.
 - [ ] **~2026-09-01 → 2026-09-05:** take 2–3 clones from each of the 10 plants *before flip*. Label each clone with mother number. This is non-negotiable — losing a keeper without a clone resets the program.
 - [ ] **~2026-09-05:** flip all 10 to 12/12.
 - [ ] **Throughout flower (~2026-09-05 → 2026-11-10):** score each plant weekly per the rubric. Photos, stem rubs, structural notes. See [pheno-hunt-protocol.md](pheno-hunt-protocol.md).
 - [ ] **~2026-11-10 → 2026-11-15:** harvest. Final ranking after dry/cure (~2 weeks later).
 
-### Phase 5 — F2 cross (~2026-11-20 → 2027-01-30)
+### Phase 4.5 — Kalash Valley Black sourcing checkpoint (~2026-09)
 
-- [ ] **~2026-11-20:** identify the keeper (or top 2). Pull her clone from the mother station, transplant into final pot.
-- [ ] **~2026-11-20 → 2026-12-10:** veg clone briefly (already a rooted plant, doesn't need much). Move to isolation room.
-- [ ] **~2026-12-10:** flip clone to 12/12.
-- [ ] **~2026-12-25 → 2027-01-05 (week 2–3 of flower):** pollinate one or two selected lower branches per [cross-procedure.md](cross-procedure.md). Paintbrush from a thawed pollen aliquot. Label each branch.
-- [ ] **~2027-02-05 → 2027-02-20:** seed harvest from pollinated branches. The rest of the plant produces normal smokable flower. Cure seeds, label, archive.
+- [ ] **September 2026:** recheck Kalash Valley Black availability, Mandala Seeds USA shipping status, and checkout constraints. Product page source: `https://shop.mandalaseeds.com/products/kalash-valley-black?variant=55636931084612`.
+- [ ] If available, source enough regular seeds to evaluate both sexes. Prefer 10 regular seeds if stock and budget allow; 5 regular seeds is a fallback but lowers the chance of finding both a good male and female.
+- [ ] On receipt, record seed source, pack size, order date, arrival date, and storage conditions. Create a grow-scoped run page before germination.
 
-### Phase 6 — accelerated F2 progeny test (~2027-02-20 → 2027-05)
+### Phase 5 — black-line cross (~after Kalash parent evaluation)
 
-- [ ] Germinate a high-count F2 test population in small containers.
-- [ ] Veg 14–21 days, then cull hard for early purple stems/petioles, longer internodes, vigor, and clean structure.
+- [ ] Identify the SBxBS01 bridge parent: likely A or D if one finishes with exceptional purple color, fruit terps, and preserved clone identity.
+- [ ] Identify Kalash Valley Black parent(s): prioritize true black/near-black maturation, sweet/berry/floral aroma, vigor, and no intersex traits.
+- [ ] Make known-family cross lots. Preferred first direction is elite purple/fruity SBxBS01 female x Kalash Valley Black male if the SBxBS01 clone is available. Keep reciprocal direction open if the best Kalash plant is female and SBxBS01 pollen is available.
+- [ ] Pollinate one or two selected lower branches per [cross-procedure.md](cross-procedure.md). Label each branch with both parent IDs and cross direction.
+- [ ] Seed harvest 4-6 weeks after pollination. Cure seeds, label, archive, and create the black-line project page.
+
+### Phase 6 — accelerated black-line progeny test
+
+- [ ] Germinate a high-count black-line test population in small containers.
+- [ ] Veg 14–21 days, then cull hard for early anthocyanin signal, vigor, clean structure, and obvious off-types.
 - [ ] Take small backup clones only from female candidates worth flowering; hold them in stasis.
-- [ ] Flower F2 seed plants early. Keep only 2–4 best males long enough to collect separately labeled pollen; cull males after collection.
-- [ ] Pollinate selected F2 females with separate F2 male pollen lots to create 2–4 F3 family seed lots; default max is a 2x2 cross, not a full matrix.
-- [ ] Use the F3 generation as a progeny test: screen families per [family-selection.md](family-selection.md), then keep the family with the highest percentage of dark-purple, sativa-leaning offspring.
+- [ ] Flower test plants early. Keep only 2–4 best males long enough to collect separately labeled pollen; cull males after collection.
+- [ ] Pollinate selected females with separate male pollen lots to create 2–4 family seed lots; default max is a 2x2 cross, not a full matrix.
+- [ ] Use the next generation as a progeny test: screen families per [family-selection.md](family-selection.md), then keep the family with the highest percentage of black/near-black, fruit-forward offspring.
 
 ### Phase 7 — repeat family selection toward F4/F5
 
 - [ ] Repeat accelerated selection with the best F3 family.
 - [ ] Make only 1–4 next-generation family lots per cycle; shift from 4-family screens to 2-family comparisons or 1-family validation as consistency improves.
-- [ ] Continue only families where most seedlings show early purple expression and trellis-friendly structure.
+- [ ] Continue only families where most seedlings show early anthocyanin expression and later black/near-black flower color with acceptable fruit terps and manageable structure.
 - [ ] Use backcrossing to A/D only if A or D proves to be the exact phenotype anchor and F-line families fail to improve consistency.
 
 ### Phase 8 — feminized production validation
@@ -113,7 +122,7 @@ Locked gear plan as of 2026-04-26 (decision: [clone + male tent gear](../decisio
 - ✅ Mark each item as it's done.
 - 📅 If a phase slips, edit the date (don't add a new line — keep the schedule readable).
 - 🔗 When a phase milestone happens, link the corresponding daily entry inline.
-- 📌 If the second-pack decision changes scope (e.g., we pick a BS line that needs a different hunt size), edit Phase 4.
+- 📌 If Kalash Valley Black sourcing changes timing or stock availability, edit Phase 4.5 and the downstream cross timing.
 - 📌 If progeny-test results show one family breeding true, edit Phases 6–7 around that family rather than preserving every branch of the plan.
 
 ## Critical-path callouts
@@ -123,11 +132,13 @@ These are the items where slippage cascades:
 1. **Cloning station up before the flip** — active as of 2026-05-02, with A/B/C/D cuttings under the humidity dome. As of 2026-05-05 they are perking but only 1 visible root is present, so the clone-station gate is now rooting and maintaining clear clone identity.
 2. **Pollen banked before the keeper female finishes flower** — without pollen, there's no cross. Phase 2 must complete by end of June at the latest.
 3. **Female clone stasis capacity** — every serious selection round needs small backup clones from promising females before flip. The shelf can be tiny, but losing a keeper before progeny testing resets the line.
-4. **Separate pollen lots** — males are short-lived, but their pollen must be separately labeled so F3/F4 families can be progeny-tested.
+4. **Kalash Valley Black sourcing checkpoint** — recheck availability in September 2026; this is now the main outside-genetics dependency.
+5. **Separate pollen lots** — males are short-lived, but their pollen must be separately labeled so later families can be progeny-tested.
 
 ## Open dependencies
 
-- Second pack purchase (which BS line) — see [the launch decision](../decisions/2026-04-26-breeding-program-launch.md).
+- Kalash Valley Black purchase window — see [the 2026-05-31 target decision](../decisions/2026-05-31-kalash-valley-black-target.md).
+- Interim second pack purchase (which BS line, if any) — see [the launch decision](../decisions/2026-04-26-breeding-program-launch.md).
 - Isolation room outfit (light, fan, environmental control) — see [isolation.md](isolation.md).
 - Mother-plant retention space — once clones root, capacity depends on the A/B/C/D take rate and future hunt size. Track A currently has 7 sprouted regulars, 5 vigorous, and is for pollen rather than long-term mother retention.
-- Progeny-test tracking page — create `breeding/project-2026-purple-line.md` once the first cross has parent IDs and seed lots.
+- Progeny-test tracking page — create `breeding/project-2026-black-line.md` once the first Kalash Valley Black cross has parent IDs and seed lots.

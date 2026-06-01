@@ -4,7 +4,7 @@ type: overview
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wi../README.md, wiki/grows/main-2026-03-15/README.md, wiki/grows/main-2026-03-15/plants/plant-a.md, wiki/grows/main-2026-03-15/plants/plant-b.md, wiki/grows/main-2026-03-15/plants/plant-c.md, wiki/grows/main-2026-03-15/plants/plant-d.md, wiki/grows/breeding-track-a-2026-04-28/README.md, wiki/grows/breeding-track-a-2026-04-28/plants/plant-r1.md, wiki/grows/breeding-track-a-2026-04-28/plants/plant-r4.md, wiki/decisions/2026-05-05-hosted-control-plane.md]
 created: 2026-04-06
-updated: 2026-05-30
+updated: 2026-05-31
 ---
 
 # Grow Overview
@@ -23,23 +23,23 @@ updated: 2026-05-30
 | **Water system** | Autopot 4-Pot XL + 25-gal FlexiTank (active since Apr 15) |
 | **Training** | Single top at node 4–5 → LST → SCROG |
 | **Start date** | 2026-03-15 (germination) |
-| **Grow day** | Day 77 (as of 2026-05-30) |
+| **Grow day** | Day 78 (as of 2026-05-31) |
 
 ## Current Stage
 
-**Late Flower — Day 27 of 12/12**. Flower start date is 2026-05-03; lights run 09:00–21:00 local tent time. Autopot has been active since Apr 15, all four plants are topped, and the SCROG net is installed; airflow, dark-cycle humidity reduction, and flower-site inspection now outrank stretch training.
+**Late Flower — Day 28 of 12/12**. Flower start date is 2026-05-03; lights run 09:00–21:00 local tent time. Autopot has been active since Apr 15, all four plants are topped, and the SCROG net is installed; airflow, dark-cycle humidity reduction, and flower-site inspection now outrank stretch training.
 
-**Full daily photo coverage captured, but Plant B remains non-diagnostic** — main overview, Plant A, Plant B, Plant C, Plant D, and breeding overview were captured for 2026-05-30. The main canopy is dense, upright, and purple-flowered; Plant B is still blocked by the fan, while the overview, Plant C, Plant D, and breeding overview are partly obstructed.
+**Manual Plant A follow-up filed 2026-05-31** — Plant A reportedly looks healthier after the extended dryback, with small dark-green growth tips. A controlled weak pH 5.8 Canna top rinse/feed produced runoff at pH 6.2 with EC about 40% above input; stop further rinsing, remove runoff, leave the valve closed 12-24 hours, and only reopen Autopot as a monitored test if pot/tray conditions stay clean.
 
 **Main tent lights-on is at the upper edge, but overnight remains too wet for late flower** — morning VPD averaged 1.32 kPa and the current reading is 1.50 kPa, but overnight stayed wet/low at 1.07 kPa with 58.28% RH. Keep dark-cycle moisture clearing and canopy airflow active; do not add humidity just because the current reading is dry-edge.
 
-**Plant A dryback moved sharply** — A's rough signal is down to 35.55% now after a large drier move from morning. The 2026-05-27 A-versus-D extraction still points to high EC plus wetter/slower cycling rather than active low pH; hand-check top coco, tray state, and runoff-removal readiness before any controlled weak pH 5.8 top rinse or refeed decision.
+**Plant A rinse decision completed** — A's rough signal was stable near 35.7% on 2026-05-31 after the large dryback. The latest runoff result argues against active low-pH lockout or a severe salt dump; the current task is post-rinse dryback and cautious Autopot reintroduction, not more flushing.
 
 **Plant B remains critical; Plant C is still high but drifting drier** — B is 95.43% now and visually blind behind the fan. C is 88.72% now, still saturated by rough context but finally moving drier. Manual dryback verification remains urgent: check tray standing water, float behavior, media smell, and probe placement.
 
 **Plant D remains a probe/media hand-check** — D has upright sativa-leaning purple flower tops and is low/flat at 44.72% now. Because D recently showed a large rough-signal movement, verify tray/media/probe conditions by hand before changing irrigation assumptions.
 
-**Breeding tent is Flower Day 6 and more usable now** — breeding flower start date is 2026-05-24. Current reading is 75.11°F / 50.26% RH / 1.48 kPa after a usable overnight; keep pot-weight and fan-exposure checks active for the small containers. Track A has five active plants, R1-R5; R1 and R4 have confirmed male pre-sex organs / male sex expression as of 2026-05-30.
+**Breeding tent is Flower Day 7 by date and needs continued sex watch** — breeding flower start date is 2026-05-24. Last synthesized reading was 75.11°F / 50.26% RH / 1.48 kPa after a usable overnight; keep pot-weight and fan-exposure checks active for the small containers. Track A has five active plants, R1-R5; R1 and R4 have confirmed male pre-sex organs / male sex expression as of 2026-05-30.
 
 **Breeding propagation is active** — clones from all four current plants were taken 2026-05-02 and are under a humidity dome; they were perking with 1 visible rooted clone as of 2026-05-05. Track A regulars flipped to 12/12 on 2026-05-24 for sexing and pollen production. Seven regular seeds germinated, but two died during transplant to coco coir, leaving five active plants. A 4-inch AC Infinity filtration kit has been selected for the breeding/male isolation tent, and Shelly Plus Plug US is the selected permanent controller for drip-assist pump safety. See [Track A pollen run](grows/breeding-track-a-2026-04-28/README.md), [breeding/cloning.md](breeding/cloning.md), [breeding/timeline.md](breeding/timeline.md), and [breeding/isolation.md](breeding/isolation.md).
 
@@ -54,20 +54,20 @@ updated: 2026-05-30
 
 | Plant | Flower | Purple | Priority | Status |
 |-------|--------|--------|----------|--------|
-| Plant A | Day 27 | ✅ Confirmed genetic | 🔴 Primary | Upright purple flower tops; rough moisture moved sharply drier near 35.55%; hand-check before any weak rinse or refeed decision |
-| Plant B | Day 27 | ❌ None | 🟡 Secondary | Dedicated view non-diagnostic behind fan; moisture 95.43% pinned — dryback verification urgent |
-| Plant C | Day 27 | ⚠️ Stress-induced only | 🟡 Secondary | Partly fan-obstructed purple-toned flower sites; moisture 88.72% still high but drifting drier with root-zone/airflow watch |
-| Plant D | Day 27 | ✅ Confirmed genetic | 🔴 Primary | Upright sativa-leaning purple flower tops; moisture low/flat near 44.72% — verify by hand |
+| Plant A | Day 28 | ✅ Confirmed genetic | 🔴 Primary | Healthier growth tips reported after dryback; weak pH 5.8 top rinse/feed runoff pH 6.2 and EC ~40% above input; stop rinsing and reopen Autopot only as monitored test |
+| Plant B | Day 28 | ❌ None | 🟡 Secondary | Dedicated view non-diagnostic behind fan; moisture 95.43% pinned on last synthesis — dryback verification urgent |
+| Plant C | Day 28 | ⚠️ Stress-induced only | 🟡 Secondary | Partly fan-obstructed purple-toned flower sites; moisture 88.72% still high but drifting drier on last synthesis with root-zone/airflow watch |
+| Plant D | Day 28 | ✅ Confirmed genetic | 🔴 Primary | Upright sativa-leaning purple flower tops; moisture low/flat near 44.72% on last synthesis — verify by hand |
 
 ## Breeding Track A Plant Status
 
 | Plant | Flower | Sex status | Current action |
 |-------|--------|------------|----------------|
-| R1 | Day 6 | Confirmed male expression | Evaluate male quality before pollen collection |
-| R2 | Day 6 | Not confirmed in wiki | Continue sex watch |
-| R3 | Day 6 | Not confirmed in wiki | Continue sex watch |
-| R4 | Day 6 | Confirmed male expression | Evaluate male quality before pollen collection |
-| R5 | Day 6 | Not confirmed in wiki | Continue sex watch |
+| R1 | Day 7 | Confirmed male expression | Evaluate male quality before pollen collection |
+| R2 | Day 7 | Not confirmed in wiki | Continue sex watch |
+| R3 | Day 7 | Not confirmed in wiki | Continue sex watch |
+| R4 | Day 7 | Confirmed male expression | Evaluate male quality before pollen collection |
+| R5 | Day 7 | Not confirmed in wiki | Continue sex watch |
 
 ## Environment (Last Reading: May 30 14:00 MDT)
 
@@ -88,7 +88,7 @@ updated: 2026-05-30
 ## Active Action Items
 
 1. **Keep main-tent dark-cycle drying and airflow active** 🔴 — Lights-on VPD is in range/upper-edge at 1.32/1.50 kPa, but overnight remains wet/low at 1.07 kPa. Prioritize exhaust/dehumidification if available, fan clearance, and airflow lanes through the dense canopy.
-2. **Hand-check Plant A before any rinse or refeed decision** 🔴 — A moved sharply drier by rough signal to 35.55% now after the 2026-05-27 high-EC/wet-root-zone diagnosis. Confirm top coco, tray state, and runoff-removal readiness before a controlled weak pH 5.8 Canna top rinse; do not let coco dry completely.
+2. **Keep Plant A post-rinse recovery controlled** 🔴 — Stop further rinsing after the 2026-05-31 runoff result, remove all runoff, leave the valve closed 12-24 hours, and reopen Autopot only as a monitored test if leaf posture remains upright and the tray/pot do not feel heavy, sour, or stagnant.
 3. **Escalate Plant B and Plant C dryback verification** 🔴 — B is 95.43% now and C is 88.72%; B remains effectively pinned wet and C is still high despite finally drifting drier. Verify tray/float behavior, standing water, media smell, and probe placement before restoring normal feed.
 4. **Hand-check Plant D today** 🟡 — D is low/flat near 44.72%, but recent probe movement was large. Verify tray/media/probe conditions before changing irrigation assumptions.
 5. **Check breeding-tent pot weight and fan exposure** 🟡 — Breeding is usable now at 75.11°F / 50.26% RH / 1.48 kPa, but small containers can still dry quickly near the upper VPD edge.

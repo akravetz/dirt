@@ -14,7 +14,11 @@ import logging
 
 import pytest
 
-from dirt_hwd.api.ingest import _augment_temp_rh_metrics, _warn_on_emitted_drift
+from dirt_hwd.api.ingest import (
+    _augment_temp_rh_metrics,
+    _canonicalize_wire_metrics,
+    _warn_on_emitted_drift,
+)
 from dirt_shared.sensor_contract import (
     DEVICE_METRICS,
     emitted_metrics_for_device_id,
@@ -86,3 +90,22 @@ def test_warn_on_emitted_drift_silent_for_unknown_device(
     caplog.set_level(logging.WARNING, logger="dirt_hwd.api.ingest")
     _warn_on_emitted_drift("not-a-real-device", {})
     assert not caplog.records
+
+
+def test_fan_controller_wire_alias_canonicalizes_to_fan_pct() -> None:
+    metrics = _canonicalize_wire_metrics(
+        "fan-controller",
+        {"temperature_c": 24.0, "humidity_pct": 55.0, "fan_duty_pct": 42.0},
+    )
+
+    assert metrics["fan_pct"] == 42.0
+    assert "fan_duty_pct" not in metrics
+
+
+def test_fan_controller_wire_alias_prefers_canonical_metric() -> None:
+    metrics = _canonicalize_wire_metrics(
+        "fan-controller",
+        {"fan_duty_pct": 42.0, "fan_pct": 41.0},
+    )
+
+    assert metrics == {"fan_pct": 41.0}
