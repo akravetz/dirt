@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implement ExecPlan"
+  short_description: "Run ExecPlans milestone by milestone"
+  default_prompt: "Use $implement-exec-plan to execute the next milestones in this ExecPlan."
