@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-05-30
+updated: 2026-05-31
 ---
 
 # Plant A
@@ -18,7 +18,7 @@ updated: 2026-05-30
 
 ## Current State
 
-Day 77 / Flower Day 27: Visible tops remain upright with purple flowers and active white pistils, and rough moisture moved sharply drier to 35.55% now. Hand-check top coco, tray state, and runoff-removal readiness before any controlled weak pH 5.8 top rinse or refeed decision. See [2026-05-30](../../../daily/2026-05-30.md).
+Day 78 / Flower Day 28: Plant A looks healthier after the extended dryback, with small dark-green growth tips reported. A controlled weak pH 5.8 Canna top rinse/feed produced runoff at pH 6.2 with EC about 40% above input, so stop further rinsing, remove runoff, keep the valve closed 12-24 hours, and only reopen Autopot as a monitored test if the pot/tray stay clean and the plant remains upright. See [2026-05-31](../../../daily/2026-05-31.md).
 
 ## Timeline
 
@@ -76,3 +76,4 @@ Day 77 / Flower Day 27: Visible tops remain upright with purple flowers and acti
 - 2026-05-27 — [Day 74 / Flower Day 24: upright purple flower tops visible; A-vs-D extraction shows pH in range but A high EC/wetter; valve closed and dryback continued before any weak top rinse](../../../daily/2026-05-27.md)
 - 2026-05-28 — [Day 75 / Flower Day 25: upright purple flower tops visible; rough moisture drier near 52%, continue dryback/high-EC watch before any weak top rinse](../../../daily/2026-05-28.md)
 - 2026-05-30 — [Day 77 / Flower Day 27: upright purple flower tops visible; rough moisture moved sharply drier near 35.6%, hand-check before any weak rinse or refeed decision](../../../daily/2026-05-30.md)
+- 2026-05-31 — [Day 78 / Flower Day 28: healthier growth tips reported; weak pH 5.8 top rinse/feed runoff pH 6.2 and EC ~40% above input; stop rinsing and reopen Autopot only as a monitored test](../../../daily/2026-05-31.md)

@@ -1,30 +1,57 @@
 ---
-title: Stabilization Strategy — Dark Purple Sativa-Leaning Line
+title: Stabilization Strategy — Black Line via Kalash Valley Black
 type: breeding
 sources: []
-related: [wiki/breeding/README.md, wiki/breeding/family-selection.md, wiki/breeding/feminized-production.md, wiki/breeding/pheno-hunt-protocol.md, wiki/breeding/male-evaluation.md, wiki/breeding/cloning.md, wiki/breeding/nomenclature.md, wiki/decisions/2026-05-02-purple-stabilization-strategy.md]
+related: [wiki/breeding/README.md, wiki/breeding/family-selection.md, wiki/breeding/feminized-production.md, wiki/breeding/pheno-hunt-protocol.md, wiki/breeding/male-evaluation.md, wiki/breeding/cloning.md, wiki/breeding/nomenclature.md, wiki/decisions/2026-05-02-purple-stabilization-strategy.md, wiki/decisions/2026-05-31-kalash-valley-black-target.md]
 created: 2026-05-02
-updated: 2026-05-02
+updated: 2026-05-31
 ---
 
 # Stabilization Strategy
 
-The breeding goal is now narrower than "make useful F2 seed": stabilize the most interesting SBxBS01 expression into seeds that reliably produce:
+The breeding goal has a new north star: make an actual black line by combining the best purple/fruity Serious Black expression with Kalash Valley Black once that stock can be sourced. The earlier dark-purple SBxBS01 work is no longer discarded; it becomes the bridge-parent selection program.
 
-- dark purple buds
-- dark purple stems and leaves
-- longer internodal spacing / sativa-leaning structure
-- plants that train cleanly through a trellis or SCROG
+Target seeds should reliably produce:
 
-Yield is secondary. Flower quality, terpene appeal, and hermaphrodite resistance still matter as disqualifiers, but the line is being selected first for purple expression plus trellis-friendly morphology.
+- black or near-black buds by mid/late flower
+- strong genetic anthocyanin expression visible before cold-triggered late flower color
+- fruit-forward terpenes, ideally berry/sweet/floral from both the Serious Black side and Kalash Valley Black side
+- manageable structure that can still train through a trellis or SCROG
+- acceptable flower time, hermaphrodite resistance, and local-environment resilience
+
+Yield is secondary. The line is being selected first for black color plus enjoyable fruit terpene profile, then for structure, reliability, and production practicality.
 
 The final production endpoint is stable feminized seed: large batches where progeny testing shows >90% on-target female offspring. Regular males remain useful for early F-generation work, but final production should use elite female clones and reversed female pollen.
 
 ## Main implication
 
-Do not optimize the next steps around broad BS-line exploration. The main line should stay focused on the current SBxBS01 pool, especially A and D if flower confirms they are the best expression of the target.
+Do not optimize the next steps around broad BS-line exploration unless it supports the Kalash Valley Black plan. The main pre-Kalash work should stay focused on identifying and preserving the best SBxBS01 parent, especially A or D if flower confirms exceptional color, fruit, structure, and health.
 
-The second-pack / other-BS-line question becomes a side-project decision unless it directly supports the target. Distinct lines such as BS45 may be interesting, but they add variation when the stabilization goal needs selection pressure in one direction.
+The second-pack / other-BS-line question becomes a side-project or interim parent-selection decision. Distinct BS lines may be interesting, but Kalash Valley Black is now the high-value outside donor because it directly addresses the original black-cannabis goal.
+
+## Kalash Valley Black introgression path
+
+Kalash Valley Black should be treated as an outside parent population, not just a novelty plant. Once sourced, the first job is to identify what it contributes:
+
+- true black or near-black maturation
+- berry/sweet/floral aroma
+- resilience to mold, temperature swings, heat, cold, and drought
+- any drawbacks from indica landrace structure, tall/lanky habit, or flower timing
+
+Preferred first cross if A/D or another current-grow clone proves elite:
+
+```text
+elite purple/fruity SBxBS01 female x Kalash Valley Black male -> F1 black-line base
+F1 siblings / selected backcrosses -> F2/F3 family tests for black color + fruit terps
+```
+
+Keep reciprocal crossing open if the best Kalash Valley Black plant is female and SBxBS01 Track A produces a male worth using:
+
+```text
+Kalash Valley Black female x selected SBxBS01 male -> reciprocal F1
+```
+
+Keep the cross directions separate. Maternal effects, seed vigor, and trait expression may differ, and separate lots preserve information.
 
 ## Why A/D are anchors, not proof of stability
 
@@ -36,49 +63,18 @@ The only way to know whether the target is becoming fixed is progeny testing: gr
 
 ## F-line selection vs backcrossing
 
-### F2 keeper pair
+Use F-line selection when the post-Kalash population produces plants that combine black color, fruit terps, and workable structure better than either parent alone. Use backcrossing only when one parent is clearly the phenotype anchor and the next generation mostly needs to be pulled back toward that known plant. Backcrossing can recover a parent-like profile faster, but it narrows diversity and still requires progeny testing.
 
-Use this when the F2 population produces plants that are better than A/D or combine traits more cleanly.
-
-Pros:
-- exposes and recombines hidden variation
-- lets purple and sativa-leaning structure be selected from both sides
-- is the more direct path toward a new stabilized line
-- gives better information about which families actually pass the target forward
-
-Cons:
-- more variable next generation
-- requires selecting both male and female contributors
-- needs enough population size to avoid choosing from weak candidates
-
-### Backcross to A/D
-
-Use this when A or D is clearly the phenotype to preserve and the F2 mainly supplies useful pieces.
-
-Pros:
-- pulls offspring back toward a known proven parent
-- faster way to recover an A/D-like profile
-- can reduce some wild F2 variation
-- practical if the F2 is interesting but inconsistent
-
-Cons:
-- does not guarantee the phenotype is fixed
-- can also pull back unwanted A/D traits
-- narrows diversity faster
-- repeated BX work can become A/D preservation rather than a new selected line
-
-### Current bias
-
-For stable purple genetics, prefer F-generation progeny testing after the first F2 cross:
+For the black line, prefer known-family progeny testing after the first Kalash Valley Black introgression cross:
 
 ```
-F1 male x A/D clone -> F2
-select best purple/sativa F2s -> F3 family lots
-grow F3 progeny tests -> keep the family with highest purple/sativa consistency
+SBxBS01 elite x Kalash Valley Black -> F1 base
+select black/fruit/structure recombinants -> F2/F3 family lots
+grow progeny tests -> keep the family with highest black-color + fruit-terp consistency
 repeat toward F4/F5
 ```
 
-Keep A/D clones as backup anchors. Use a BX route only if A/D proves exceptional in flower and the F2 population does not produce a clearly better recombination.
+Keep A/D clones as backup anchors. Use a BX route only if one parent proves exceptional and the next population needs to be pulled back toward that known parent.
 
 ## Family selection scale
 
@@ -99,7 +95,7 @@ See [family-selection.md](family-selection.md) for the operating protocol.
 
 Feminized production is the destination, not the shortcut. The early program still needs regular male pollen because F2/F3 selection depends on exposing variation and comparing separate family lots.
 
-Once a family repeatedly passes the purple+sativa gates, switch the production model to female-only parents:
+Once a family repeatedly passes the black/color/terpene gates, switch the production model to female-only parents:
 
 ```
 elite proven female clone -> seed mother
@@ -129,7 +125,7 @@ Because yield is not the goal, generations can be run small and fast:
 
 1. Germinate more seeds than can be flowered.
 2. Veg 14-21 days in small containers.
-3. Cull anything without early purple stems/petioles, anything too squat/indica-leaning, weak plants, and malformed plants.
+3. Cull anything without early anthocyanin signal, weak plants, malformed plants, and structure that cannot be managed in the available space.
 4. Take tiny backup clones from candidates worth flowering.
 5. Flip early, with little or no training.
 6. Cull during flower weeks 3-6 for color, structure, herm traits, and weak aroma.
@@ -173,7 +169,7 @@ Practical target per generation:
 For regular F-generation work, use males without making them operationally permanent:
 
 1. Sex-test early if budget allows, or identify sex at nodes 4-6.
-2. Keep only males that match the target: purple stems/petioles, longer internodes, sativa-leaning structure, vigor, acceptable stem rub, and no intersex traits.
+2. Keep only males that match the target for the current generation: strong anthocyanin signal, vigor, acceptable stem rub, useful structure, and no intersex traits. For Kalash Valley Black males, black-line potential and berry/sweet/floral stem rub may outrank the old sativa-leaning preference.
 3. Flower finalists in isolation.
 4. Collect and label pollen separately (`F2-M1`, `F2-M2`, etc.).
 5. Cull all males after pollen collection.
@@ -185,10 +181,10 @@ Do not bulk-mix pollen unless intentionally making a broad population. Separate 
 
 For stabilization runs, gate before scoring:
 
-- no early purple stem/petiole expression = cull
-- compact/bushy indica morphology = cull unless the plant is otherwise exceptional
-- weak or absent bud purple by mid-flower = do not advance
+- no early anthocyanin signal = cull unless the plant is being held as a specific control
+- weak or absent bud color by mid-flower = do not advance for the black line
+- no plausible fruit/sweet/floral terpene contribution = do not advance unless color is extraordinary
 - hermaphrodite tendency = cull and discard that pollen/seed path
 - uncertain clone or pollen label = discard from breeding use
 
-After the gates, score terps, vigor, finish time, flower quality, and trellis behavior.
+After the gates, score black color depth, terps, vigor, finish time, flower quality, resilience, and trainability.

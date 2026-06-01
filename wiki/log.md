@@ -1113,3 +1113,17 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - Created Track A pollen-run plant pages for R1-R5 under `wiki/grows/breeding-track-a-2026-04-28/plants/`.
 - Filed today's breeding update: seven regular seeds germinated, two died during transplant to coco coir, five active plants remain (R1-R5), and R1/R4 have confirmed male pre-sex organs / male sex expression as of 2026-05-30.
 - Updated wiki conventions, wiki routing instructions, daily-update workflow notes, daily synthesis prompt text, and wiki lint to recognize grow-scoped plant pages.
+
+## [2026-05-31] query-filed | Plant A post-dryback rinse result
+- User reported Plant A looks healthier after extended dryback, with small dark-green growth tips.
+- Live moisture context at 11:24 MDT showed Plant A near raw 2717 / ~35.7% calibrated, stable after the 2026-05-30 sharp dryback.
+- Filed today's controlled weak pH 5.8 Canna top rinse/feed result: runoff pH 6.2 and EC about 40% above input.
+- Assessment filed: this does not support active low-pH lockout or a severe salt dump; stop further rinsing, remove runoff, leave A off Autopot for 12-24h, and reopen only as a monitored test if pot/tray conditions stay clean.
+- Updated: `daily/2026-05-31.md`, `plants/plant-a.md`, `environment/nutrients.md`, `index.md`.
+
+## [2026-05-31] query-filed | Kalash Valley Black breeding target
+- User reported a major breeding update: the original "black cannabis" goal may be reachable by using Kalash Valley Black as outside breeding stock.
+- Source check filed: Mandala Seeds lists Kalash Valley Black as an Indian Landrace Exchange regular-seed strain made available through Ace Seeds collaboration; listing describes Kalash, Pakistan genetics, sweet/berry/floral aroma, tall/lanky habit, deep black maturation, and broad environmental resilience.
+- Sourcing constraint filed: do not assume project access before September 2026; user reports Mandala's United States shipping is paused through September, so recheck availability and shipping before any purchase attempt.
+- Strategy filed: preserve and evaluate the best purple/fruity Serious Black / SBxBS01 parent, then prioritize a known-family SBxBS01 x Kalash Valley Black black-line project once Kalash stock can be sourced.
+- Updated: `decisions/2026-05-31-kalash-valley-black-target.md`, `breeding/README.md`, `breeding/stabilization-strategy.md`, `breeding/timeline.md`, `breeding/pheno-hunt-protocol.md`, `index.md`.

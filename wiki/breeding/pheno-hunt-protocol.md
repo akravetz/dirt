@@ -4,7 +4,7 @@ type: breeding
 sources: []
 related: [wiki/breeding/README.md, wiki/breeding/stabilization-strategy.md, wiki/breeding/cloning.md, wiki/concepts/anthocyanin.md, wiki/concepts/trichome-stages.md]
 created: 2026-04-26
-updated: 2026-05-02
+updated: 2026-05-31
 ---
 
 # Phenotype Hunt Protocol
@@ -19,16 +19,17 @@ See [cloning.md](cloning.md) for the procedure. Take 2–3 clones per mother for
 
 ## Selection axes (priority order)
 
-This is *our* priority order, tuned to what BS01 was selected for and what we care about. Adjust per project as goals shift. For stabilization runs, the first pass is gate-based: no early purple, no trellis-friendly structure, herm tendency, or uncertain labels remove a plant from breeding consideration before scoring.
+This is *our* priority order, tuned to what the current project needs. After the Kalash Valley Black target update, the first pass is gate-based: no early anthocyanin signal, weak eventual flower color, poor terpene contribution, herm tendency, or uncertain labels remove a plant from breeding consideration before scoring.
 
-### 1. Color (anthocyanin expression) — primary
+### 1. Color (black / anthocyanin expression) — primary
 
-The reason BS01 exists. Genetic anthocyanin (purple expressed at warm ambient temps) is the strongest signal we can score, and the easiest.
+The original SBxBS01 work selected for purple. The updated black-line target raises the color bar: purple is the bridge trait, but black or near-black flower expression is the desired endpoint once Kalash Valley Black is in the population.
 
 **How to score:**
 - Late veg: photograph stems and petioles under consistent light. Score 1–10 deepness of color.
-- Flower week 3, 6, 9: photograph again, this time scoring calyxes specifically (not just leaves — leaf purple doesn't always predict bud purple).
+- Flower week 3, 6, 9: photograph again, this time scoring calyxes specifically (not just leaves — leaf purple/black doesn't always predict bud color).
 - Distinguish from environmental purple — Denver's cool nights amplify color in late flower for *any* susceptible plant. Genetic phenos show purple at warm ambient temps from veg onward.
+- For Kalash Valley Black descendants, score both timing and depth: early anthocyanin signal is useful, but the hard target is black/near-black mature flower without needing extreme cold.
 
 See [`concepts/anthocyanin.md`](../concepts/anthocyanin.md) for the genetic-vs-environmental distinction in detail.
 
@@ -84,7 +85,7 @@ For each plant, maintain a row in a scoring spreadsheet (or per-plant page in `b
 | Plant | Color | Terps | Structure | Finish (days) | Vigor | Total | Notes |
 |---|---|---|---|---|---|---|---|
 
-Score each axis 1–10. For the current stabilization line, first apply hard gates (early purple, structure, no hermie, known labels), then total = weighted sum: `Color×3 + Structure×3 + Terps×2 + Vigor×1` (no Finish/Resilience until tiebreaker is needed). Adjust weights per project.
+Score each axis 1–10. For the black-line project, first apply hard gates (early anthocyanin signal, eventual flower color, no hermie, known labels), then total = weighted sum: `Color×4 + Terps×3 + Structure×2 + Vigor×1` (no Finish/Resilience until tiebreaker is needed). For the interim SBxBS01-only work, the old purple/sativa weighting remains acceptable, but do not let structure outrank black-color potential once Kalash Valley Black is involved.
 
 ## Schedule
 
