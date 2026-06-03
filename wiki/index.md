@@ -108,7 +108,7 @@ updated: 2026-06-02
 - [Reservoir Level — Bench Bring-up](hardware/reservoir-level-bringup.md) — Detailed bench validation notes: wiring, provisional cal captures, noise characterization, capacitor experiment (2026-04-26).
 - [Project Box Enclosures](hardware/project-box-enclosures.md) — BOM and build practices for moving reservoir and SHT45 electronics into gasketed ABS boxes with cable glands, strain relief, and sensor airflow.
 - [AC Infinity Fan Control + Tent Environmental Sensor](hardware/ac-infinity-fan-control.md) — Combined ESP32-C3 SuperMini node: drives the Cloudline LITE 6" fan via 2× 2N7000 MOSFETs on D+/B5 **and** reads an Adafruit SHT45 + PTFE cap over I²C (GPIO 4/5) for tent temp/RH/VPD. **Fan D+ bring-up + SHT45 read both validated 2026-04-22.** Combined firmware at `firmware/fan_controller/`. Tach (D−) deferred. WiFi/OTA/ingest integration next.
-- [AC Infinity ThermoForge T3 Control Investigation](hardware/ac-infinity-thermoforge-control.md) — Night-heater control investigation. Captures AC Infinity UIS docs, controller/API option, direct UIS reverse-engineering plan, and heater-specific fail-safe requirements before probing.
+- [AC Infinity ThermoForge T3 Control](hardware/ac-infinity-thermoforge-control.md) — ThermoForge climate-control status. Documents the active Dirt BLE actuator path, retired schedule-driven heater control, and UIS fallback investigation notes.
 
 ## Concepts
 - [Anthocyanin](concepts/anthocyanin.md) — Purple expression: genetic vs. environmental

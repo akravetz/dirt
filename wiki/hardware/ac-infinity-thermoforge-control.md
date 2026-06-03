@@ -1,19 +1,26 @@
 ---
-title: "Hardware — AC Infinity ThermoForge T3 Control Investigation"
+title: "Hardware — AC Infinity ThermoForge T3 Control"
 type: hardware
 sources: []
 related: [wiki/hardware/ac-infinity-fan-control.md, wiki/concepts/multi-actuator-environment-control.md, wiki/environment/temperature.md]
 created: 2026-05-16
-updated: 2026-05-16
+updated: 2026-06-03
 ---
 
-# AC Infinity ThermoForge T3 Control Investigation
+# AC Infinity ThermoForge T3 Control
 
-**Status (2026-05-16):** investigation parked for follow-up. The ThermoForge T3 is working well as a night heater and has made VPD/temperature more stable. Goal is to determine whether Dirt can control it directly, preferably through the low-voltage UIS cable path rather than cloud-only control. No hardware probing has been done yet.
+**Status (2026-06-03):** local BLE control is the active Dirt control path. `ClimateControllerService` computes heater targets as part of the unified main-tent climate loop, then the ThermoForge actuator sends AC Infinity BLE power / heat-level commands and records heater readings. The old schedule-driven heater path is retired; `schedule.kind='heater'` rows should not be used for climate heat.
 
 ## Goal
 
-Add programmatic heat control for the main tent while preserving the ThermoForge's built-in safety protections. Preferred end state: a local ESP32-class controller exposes a Dirt HTTP control surface, analogous to the current fan controller, and drives the heater through the ThermoForge's external low-voltage control interface.
+Maintain programmatic heat control for the main tent while preserving the ThermoForge's built-in safety protections. Current end state: Dirt controls the heater locally over BLE through the climate-controller actuator boundary. UIS direct control remains a possible fallback if BLE becomes unreliable or unavailable.
+
+## Current implementation
+
+- Device identity and enablement live in the database as `ac-infinity-thermoforge-main`; the device and capabilities remain even though heater schedules are retired.
+- `ClimateControllerService` is the only default climate authority for fan, humidifier, dehumidifier, and heater targets.
+- `DatabaseThermoForgeHeaterActuator` resolves the DB-known ThermoForge MAC and heater intensity capability, then uses the ThermoForge BLE client to reconcile power and heat level.
+- Heater state is visible through `climate_controller` operational logs and persisted actuator readings such as `heater_on` and `heater_intensity_pct`.
 
 ## What the docs say
 
@@ -31,17 +38,27 @@ Relevant public docs:
 
 ## Control options
 
-### Option A — AC Infinity controller as bridge
+### Option A — Dirt BLE control
 
-Use a Controller 69 Pro/Pro+/AI+ as the supported bridge:
+Use Dirt's local BLE client to reconcile ThermoForge power and heat level directly from the climate controller:
+
+```
+Dirt ClimateControllerService -> ThermoForge BLE client -> ThermoForge T3
+```
+
+This is the active path. It keeps heat coupled with VPD/RH/temperature policy and avoids a separate fixed night schedule.
+
+### Option B — AC Infinity controller as bridge
+
+Use a Controller 69 Pro/Pro+/AI+ as a supported bridge:
 
 ```
 Dirt -> AC Infinity cloud/BLE integration -> UIS controller -> UIS cable -> ThermoForge T3
 ```
 
-This is the fastest path to software control, but it depends on AC Infinity's controller/app ecosystem and community-reverse-engineered APIs rather than a documented local API.
+This could be useful if local BLE direct control proves unreliable, but it depends on AC Infinity's controller/app ecosystem and community-reverse-engineered APIs rather than a documented local API.
 
-### Option B — Direct UIS emulation
+### Option C — Direct UIS emulation
 
 Reverse-engineer the controller-to-ThermoForge UIS signaling, then replace the UIS controller with an ESP32-based low-voltage controller:
 
@@ -49,9 +66,9 @@ Reverse-engineer the controller-to-ThermoForge UIS signaling, then replace the U
 Dirt -> ESP32 HTTP endpoint -> low-voltage UIS emulation -> ThermoForge T3
 ```
 
-This is the preferred direction if the signaling is simple enough. It matches the successful fan-control pattern, where the stock remote's protocol turned out to be 4,969 Hz open-drain PWM plus a keep-alive line. See [AC Infinity Fan Control + Tent Environmental Sensor](ac-infinity-fan-control.md).
+This is a fallback direction if BLE control becomes unacceptable and the signaling is simple enough. It matches the successful fan-control pattern, where the stock remote's protocol turned out to be 4,969 Hz open-drain PWM plus a keep-alive line. See [AC Infinity Fan Control + Tent Environmental Sensor](ac-infinity-fan-control.md).
 
-### Option C — Smart plug / relay
+### Option D — Smart plug / relay
 
 Use a rated smart plug or relay only as a safety cutoff or crude fallback, not as the primary control loop. The ThermoForge is a 530 W heater; cycling mains power loses the heater's intended UIS-level modulation and increases safety/design risk compared with using the low-voltage control interface.
 
@@ -83,7 +100,7 @@ Minimum design constraints for any direct controller:
 - Keep the ThermoForge's own overheat/tilt/internal protections intact by controlling only the low-voltage external interface.
 - Never bypass or modify mains wiring.
 
-## Open questions for tomorrow
+## Future UIS fallback questions
 
 - Which UIS controller is available or needs ordering: Controller 69 Pro, 69 Pro+, or Controller AI+?
 - Does the ThermoForge's UIS traffic look like the fan's simple PWM/keep-alive pattern, or like a richer serial protocol?

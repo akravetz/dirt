@@ -158,7 +158,7 @@ _Resolved 2026-05-05 / clarified 2026-05-30: "Pot Track A regular seedlings into
 | **Thermal imaging** (PureThermal Mini Pro + FLIR Lepton 3.5) | Planned | Fixed canopy sensor for leaf-air delta, leaf-temperature-aware VPD, and hotspot maps. See [hardware/thermal-imaging.md](hardware/thermal-imaging.md). |
 | **Jabra Speak 410** (voice I/O) | Connected 2026-04-15 | Voice pipeline `dirt-voice.service` deployed 2026-04-18; v5 wake-word passive-harvest mode active. |
 | **AC Infinity Cloudline LITE 6" fan control** | Online (fw 0.2.0, 2026-04-22) | WiFi + HTTP control surface live; VPD-coupled closed-loop deferred. |
-| **AC Infinity ThermoForge T3** | Purchased / investigation planned | Programmatic heater control must fail OFF; UIS direct-control investigation filed in [hardware/ac-infinity-thermoforge-control.md](hardware/ac-infinity-thermoforge-control.md). |
+| **AC Infinity ThermoForge T3** | Online via local BLE climate control | `ClimateControllerService` owns heater targets alongside fan, humidifier, and dehumidifier control; the old schedule-driven heater rows are retired. UIS direct-control notes remain as a future fallback investigation in [hardware/ac-infinity-thermoforge-control.md](hardware/ac-infinity-thermoforge-control.md). |
 
 ## Denver Water Notes
 - Tap pH: 8.5–8.8 → GH pH Down required at every fill

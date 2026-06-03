@@ -86,12 +86,12 @@ Only do the former. When in doubt, choose direct explicit code and data first. A
 
 Good:
 
-- Replace `LightsLoopService` with `ScheduledKasaActuatorService` when the same loop controls both light plugs and heater plugs.
-- Give a heater its own `kind='heater'` schedule with explicit `starts_local` and `ends_local`.
+- Keep `ScheduledKasaActuatorService` lights-only when schedules only own light plugs.
+- Let `ClimateControllerService` own heater targets when heat is part of coupled VPD/RH/temperature control.
 - Rename tests and imports to the new canonical service in the same PR.
 
 Bad:
 
 - Keep `LightsLoopService` as a thin wrapper after it no longer only controls lights.
-- Store a heater schedule as "inverse of lights" when explicit start/end times are enough.
+- Encode climate heat as a fixed heater schedule after `ClimateControllerService` owns heat.
 - Add adapter layers or compatibility aliases only to avoid updating owned callers.

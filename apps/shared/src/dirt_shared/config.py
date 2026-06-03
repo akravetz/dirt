@@ -67,28 +67,17 @@ class Settings(BaseSettings):
     voice_harvest_only: bool = Field(
         default=False, validation_alias="DIRT_VOICE_HARVEST_ONLY"
     )
-    # Kasa EP10 plugs used by scheduled local actuators such as lights and
-    # heaters. The humidifier moved off Kasa entirely; see HumidifierConfig.
+    # Kasa EP10 plugs used by scheduled local light actuators. Climate
+    # actuators such as heaters are owned by ClimateControllerService.
     kasa_username: str = ""
     kasa_password: str = ""
     # Broadcast target for recovering Kasa devices after DHCP/IP changes.
     kasa_discovery_target: str = "255.255.255.255"
     kasa_schedule_poll_interval: int = 30
-    # AC Infinity ThermoForge scheduled heater control. Ownership and
-    # enablement come from DB device/schedule rows, not global env settings.
-    thermoforge_night_level: int = Field(
-        default=4, validation_alias="THERMOFORGE_NIGHT_LEVEL", ge=0, le=10
-    )
-    thermoforge_poll_interval: int = Field(
-        default=30, validation_alias="THERMOFORGE_POLL_INTERVAL"
-    )
+    # AC Infinity ThermoForge BLE status read timeout used by the climate
+    # heater actuator.
     thermoforge_connect_timeout_s: int = Field(
         default=15, validation_alias="THERMOFORGE_CONNECT_TIMEOUT_S"
-    )
-    thermoforge_offline_alert_failures: int = Field(
-        default=2,
-        validation_alias="THERMOFORGE_OFFLINE_ALERT_FAILURES",
-        ge=1,
     )
     # Govee Public API v2 — drives the H7142 humidifier. Cloud-only; see
     # docs/references/govee-api/INDEX.md and wiki/hardware/humidifier-control.md.
@@ -269,17 +258,6 @@ class Settings(BaseSettings):
             poll_interval=self.kasa_schedule_poll_interval,
         )
 
-    def thermoforge(self) -> ThermoForgeConfig:
-        return ThermoForgeConfig(
-            night_level=self.thermoforge_night_level,
-            poll_interval=self.thermoforge_poll_interval,
-            connect_timeout_s=self.thermoforge_connect_timeout_s,
-            offline_alert_failures=self.thermoforge_offline_alert_failures,
-            state_path=self.data_dir / "logs" / "heater" / "state.json",
-            telegram_bot_token=self.telegram_bot_token,
-            telegram_chat_id=self.telegram_allowed_user_id,
-        )
-
     def humidifier(self) -> HumidifierConfig:
         return HumidifierConfig(
             govee_api_key=self.govee_api_key,
@@ -355,17 +333,6 @@ class ScheduledKasaConfig:
     kasa_password: str
     discovery_target: str
     poll_interval: int
-
-
-@dataclass(frozen=True)
-class ThermoForgeConfig:
-    night_level: int
-    poll_interval: int
-    connect_timeout_s: int
-    offline_alert_failures: int
-    state_path: Path
-    telegram_bot_token: str
-    telegram_chat_id: str
 
 
 @dataclass(frozen=True)
