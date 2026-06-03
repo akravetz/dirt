@@ -4,7 +4,7 @@ type: hardware
 sources: []
 related: [wiki/decisions/2026-04-12-distributed-sensor-architecture.md, wiki/decisions/2026-04-14-esp32-c3-gpio3-adc.md, wiki/decisions/2026-04-14-server-side-auto-calibration.md, wiki/concepts/capacitive-soil-moisture.md]
 created: 2026-04-14
-updated: 2026-05-04
+updated: 2026-06-01
 ---
 
 # ESP32-C3 Per-Plant Nodes
@@ -15,7 +15,7 @@ One wireless sensor node per plant (A/B/C/D) inside the tent, each reading a cap
 
 | Node | Board | Sensor | IP | Status |
 |------|-------|--------|----|--------|
-| plant-a | ESP32-C3 SuperMini | Capacitive v1.2 | 192.168.1.250 | ✅ **Live 2026-04-14** |
+| plant-a | ESP32-C3 SuperMini live; Seeed Studio XIAO ESP32-C3 replacement flashed | Capacitive v1.2 | 192.168.1.250 | ✅ **Live 2026-04-14**; XIAO firmware `0.1.3-xiao` flashed 2026-06-01, sensor not wired/installed yet |
 | plant-b | ESP32-C3 SuperMini | Capacitive v2.0 | 192.168.1.243 | ✅ **Live 2026-04-16** |
 | plant-c | ESP32-C3 SuperMini (reused dev unit) | Capacitive v2.0 | 192.168.1.117 | ✅ **Live 2026-04-16** |
 | plant-d | ESP32-C3 SuperMini | Capacitive v1.2 | 192.168.1.59 | ✅ **Live 2026-04-14** |
@@ -24,7 +24,7 @@ One wireless sensor node per plant (A/B/C/D) inside the tent, each reading a cap
 
 ## Hardware
 
-- **Board:** ESP32-C3 SuperMini (clone, via Amazon). RISC-V single-core, WiFi, BLE 5.0, native USB-CDC on GPIO18/19 (enumerates as `/dev/ttyACM*`).
+- **Board:** currently deployed plant nodes are ESP32-C3 SuperMini clones. The migration target is Seeed Studio XIAO ESP32-C3, starting with Plant A.
 - **Sensor:** Capacitive Analog Soil Moisture Sensor v1.2 (555-timer based). See [capacitive soil moisture concept](../concepts/capacitive-soil-moisture.md).
 - **Power:** USB-C wall power (not battery — decision stands from the distributed sensor architecture; see also the 2026-04-14 discussion on why battery was re-evaluated and declined).
 
@@ -36,6 +36,18 @@ Sensor GND  →  board "GND"
 Sensor AOUT →  board "3"  (chip GPIO3 / ADC1_CH3)
 ```
 
+For the Seeed XIAO ESP32-C3 replacement boards:
+
+```
+Sensor VCC  →  XIAO "3V3"   (NOT 5V)
+Sensor GND  →  XIAO "GND"
+Sensor AOUT →  XIAO "D1"    (chip GPIO3 / ADC1_CH3)
+```
+
+Do not move the analog soil-moisture input to XIAO `D10`. `D10` is chip
+`GPIO10`, which is not ADC-capable on the ESP32-C3. The physically convenient
+pin is wrong for this analog probe.
+
 ### Do NOT use GPIO4
 
 GPIO4–GPIO7 on the ESP32-C3 are JTAG pins (MTMS/MTDI/MTCK/MTDO). When WiFi or BT is active the JTAG peripheral drives these pins, crushing any ADC reading on them to ~0. Empirically confirmed 2026-04-14: GPIO4 worked cleanly with no-WiFi firmware (raw ~2750 in air), then collapsed to raw=2–4 the moment WiFi came up. GPIO3 is the safe neighbor. See [GPIO3/ADC decision](../decisions/2026-04-14-esp32-c3-gpio3-adc.md).
@@ -44,10 +56,13 @@ GPIO4–GPIO7 on the ESP32-C3 are JTAG pins (MTMS/MTDI/MTCK/MTDO). When WiFi or 
 
 Pin silkscreens on this clone match the chip's GPIO numbering (verified empirically by wet/dry response testing). Other SuperMini clones may have labeling discrepancies — always verify before wiring.
 
+On Seeed XIAO ESP32-C3, use the Seeed `D` labels and confirm the chip GPIO:
+`D1` maps to chip `GPIO3` / `ADC1_CH3`.
+
 ## Firmware
 
 - **Location:** `firmware/plant_node/`
-- **Build tool:** PlatformIO with two envs per plant: `plant-{id}` for USB flash, `plant-{id}-ota` for subsequent wireless pushes
+- **Build tool:** PlatformIO with two envs per plant: `plant-{id}` for USB flash, `plant-{id}-ota` for subsequent wireless pushes. Current source target is `seeed_xiao_esp32c3`.
 - **Plant ID baked in at build time** via `-D PLANT_ID=\"a\"` build flag
 - **Firmware version** tracked via `-D FIRMWARE_VERSION=\"x.y.z\"` build flag; sent with every POST and stored on the scoped `device.firmware_version` row
 - **ADC driver:** ESP-IDF native `adc1_get_raw()` (Arduino `analogRead()` has documented WiFi-interaction issues on ESP32-C3)

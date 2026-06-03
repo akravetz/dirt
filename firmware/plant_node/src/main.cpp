@@ -1,6 +1,6 @@
-// ESP32-C3 SuperMini plant-node firmware.
+// Seeed Studio XIAO ESP32-C3 plant-node firmware.
 //
-// Reads a capacitive soil moisture sensor on GPIO3 and POSTs the raw ADC
+// Reads a capacitive soil moisture sensor on XIAO D1 / GPIO3 and POSTs the raw ADC
 // value to the dirt ingest endpoint every 30s. Supports WiFi OTA updates
 // (password-protected) so the board can be reflashed without disconnecting
 // from the pot.
@@ -29,7 +29,7 @@
 
 // --- Config ---------------------------------------------------------------
 
-constexpr int            MOISTURE_PIN    = 3;  // GPIO3 / ADC1_CH3
+constexpr int            MOISTURE_PIN    = 3;  // XIAO D1 / GPIO3 / ADC1_CH3
 constexpr adc1_channel_t MOISTURE_ADC_CH = ADC1_CHANNEL_3;
 // NOTE: Do NOT use GPIO4 on ESP32-C3 for ADC. GPIO4-7 are JTAG pins
 // (MTMS/MTDI/MTCK/MTDO) and the ADC reads collapse to ~0 when WiFi/BT is

@@ -4,7 +4,7 @@ type: environment
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/environment/temperature.md, wiki/concepts/vpd.md, wiki/overview.md, wiki/hardware/humidifier-control.md, wiki/decisions/2026-04-17-humidifier-kasa-ep10.md]
 created: 2026-04-06
-updated: 2026-05-30
+updated: 2026-06-02
 ---
 
 
@@ -79,6 +79,8 @@ VPD is the control-loop setpoint; RH is informational (temperature determines wh
 | 2026-05-27 | Main: 56.95% now ⚠️ / 60.97% overnight avg ⚠️; VPD 1.44 kPa now ✅ / 0.99 kPa overnight ⚠️. Breeding: 52.97% now / 1.62 kPa VPD | Main lights-on VPD is back in the late-flower band, but overnight remains wet/low and RH is above the guide in every window. Breeding is less extreme than yesterday but still dry/high for small pots, so keep pot-weight and fan-exposure checks active. → [2026-05-27](../daily/2026-05-27.md) |
 | 2026-05-28 | Main: 53.22% now ⚠️ / 59.12% overnight avg ⚠️; VPD 1.42 kPa now ✅ / 1.00 kPa overnight ⚠️. Breeding: 50.52% now / 1.59 kPa VPD | Main lights-on VPD stayed in the late-flower band for a second day, while the 00-06 window remains wet/low and RH stays above the guide. Breeding remains a dry/high small-pot watch. → [2026-05-28](../daily/2026-05-28.md) |
 | 2026-05-30 | Main: 52.42% now ⚠️ / 58.28% overnight avg ⚠️; VPD 1.50 kPa now ✅ / 1.07 kPa overnight ⚠️. Breeding: 50.26% now / 1.48 kPa VPD | Main lights-on VPD is at the upper edge of the late-flower band, but the 00-06 window remains wet/low with RH above the guide. Breeding is more usable than the recent dry spikes but still needs small-pot checks. → [2026-05-30](../daily/2026-05-30.md) |
+| 2026-06-01 | Main: 56.47% now ⚠️ / 57.49% overnight avg ⚠️; VPD 1.49 kPa now ✅ / 1.07 kPa overnight ⚠️. Breeding: 45.77% now / 1.67 kPa VPD | Main lights-on VPD remains in band but near the dry edge while the 00-06 window is still wet/low; current dew point climbed to 62.60°F. Breeding is dry/high during lights-on and the overview shows small-plant stress, so pot-weight and fan-exposure checks are active. → [2026-06-01](../daily/2026-06-01.md) |
+| 2026-06-02 | Main: 55.63% now ⚠️ / 58.02% overnight avg ⚠️; VPD 1.45 kPa now ✅ / 1.09 kPa overnight ⚠️. Breeding: 50.28% now / 1.43 kPa VPD | Main lights-on VPD remains in range, but the recurring late-flower miss is still the wet/low 00-06 window and elevated dew point. Breeding is less extreme than yesterday but remains a dry-side small-pot stress watch. → [2026-06-02](../daily/2026-06-02.md) |
 
 ## Notable Events
 - **2026-03-20** — Dome propped open, room humidifier added to tent after RH consistently below 50% → [2026-03-27 daily](../daily/2026-03-27.md)
@@ -127,6 +129,8 @@ VPD is the control-loop setpoint; RH is informational (temperature determines wh
 - **2026-05-27** — Main-tent lights-on VPD stayed in the late-flower band (1.26 morning, 1.44 now), but overnight remained wet/low at 0.99 kPa with 60.97% RH. Keep drying effort targeted at the dark cycle and dense-canopy airflow. Breeding eased from yesterday's dry/high spike but remains a small-pot dry watch at 1.62 kPa now. → [2026-05-27](../daily/2026-05-27.md)
 - **2026-05-28** — Main-tent lights-on VPD stayed in the late-flower band (1.26 morning, 1.42 now), but overnight remained wet/low at 1.00 kPa with 59.12% RH. This confirms the current action is still dark-cycle moisture clearing and canopy airflow, not added humidity. Breeding remains dry/high at 1.59 kPa now. → [2026-05-28](../daily/2026-05-28.md)
 - **2026-05-30** — Main-tent lights-on VPD stayed acceptable but reached the upper edge at 1.50 kPa now, while overnight stayed wet/low at 1.07 kPa with 58.28% RH. Keep correction focused on dark-cycle moisture clearing and airflow rather than adding lights-on humidity. Breeding improved to a usable 1.48 kPa now but remains a small-pot fan/pot-weight watch. → [2026-05-30](../daily/2026-05-30.md)
+- **2026-06-01** — Main-tent lights-on VPD is still in range at 1.35 morning / 1.49 now, but overnight remains wet/low at 1.07 kPa and the current dew point rose to 62.60°F. Breeding moved dry/high again at 1.64-1.67 kPa during lights-on, matching the pale/droopy small-plant overview. → [2026-06-01](../daily/2026-06-01.md)
+- **2026-06-02** — Main-tent lights-on VPD remained in range at 1.38 morning / 1.45 now, but overnight stayed wet/low at 1.09 kPa with RH near 58%. Breeding eased to 1.43 kPa now but the overview still showed pale/droopy stress, so small-pot checks remain active. → [2026-06-02](../daily/2026-06-02.md)
 
 ## Deployed Control System
 

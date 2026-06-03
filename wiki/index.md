@@ -1,7 +1,7 @@
 ---
 title: Index
 type: index
-updated: 2026-05-31
+updated: 2026-06-02
 ---
 
 # Grow Wiki Index
@@ -21,15 +21,15 @@ updated: 2026-05-31
 - [Track A pollen run](grows/breeding-track-a-2026-04-28/README.md) — Current breeding tent male sexing and pollen-collection run; database `growrun.grow_run_id = breeding-track-a-2026-04-28`
 
 ## Current Plants
-- [Plant A](grows/main-2026-03-15/plants/plant-a.md) — 🔴 Primary keeper; Flower Day 28; healthier growth tips reported after dryback; weak pH 5.8 top rinse/feed runoff pH 6.2 and EC ~40% above input; reopen Autopot only as monitored test
-- [Plant B](grows/main-2026-03-15/plants/plant-b.md) — 🟡 Secondary; Flower Day 28; dedicated view non-diagnostic behind fan; last synthesized moisture 95.43% pinned — dryback verification urgent
-- [Plant C](grows/main-2026-03-15/plants/plant-c.md) — 🟡 Secondary; Flower Day 28; partly fan-obstructed purple-toned flower sites; last synthesized moisture 88.72% still high but drifting drier — root-zone/airflow watch
-- [Plant D](grows/main-2026-03-15/plants/plant-d.md) — 🔴 Primary keeper; Flower Day 28; upright sativa-leaning purple flower tops; last synthesized moisture low/flat near 44.72% — verify by hand
-- [R1](grows/breeding-track-a-2026-04-28/plants/plant-r1.md) — Track A pollen run; confirmed male pre-sex organs / male sex expression on 2026-05-30
-- [R2](grows/breeding-track-a-2026-04-28/plants/plant-r2.md) — Track A pollen run; sex not confirmed in wiki as of 2026-05-30
-- [R3](grows/breeding-track-a-2026-04-28/plants/plant-r3.md) — Track A pollen run; sex not confirmed in wiki as of 2026-05-30
-- [R4](grows/breeding-track-a-2026-04-28/plants/plant-r4.md) — Track A pollen run; confirmed male pre-sex organs / male sex expression on 2026-05-30
-- [R5](grows/breeding-track-a-2026-04-28/plants/plant-r5.md) — Track A pollen run; sex not confirmed in wiki as of 2026-05-30
+- [Plant A](grows/main-2026-03-15/plants/plant-a.md) — 🔴 Primary keeper; Flower Day 30; dedicated photo missing; rough moisture continued controlled dry-side recovery, reopen Autopot only as monitored test
+- [Plant B](grows/main-2026-03-15/plants/plant-b.md) — 🟡 Secondary; Flower Day 30; dedicated photo missing; moisture 95.88% remains pinned wet — dryback verification urgent
+- [Plant C](grows/main-2026-03-15/plants/plant-c.md) — 🟡 Secondary; Flower Day 30; dedicated photo missing; moisture 90.08% remains high/flat — root-zone/airflow watch
+- [Plant D](grows/main-2026-03-15/plants/plant-d.md) — 🔴 Primary keeper; Flower Day 30; dedicated photo missing; moisture low/stale near 41.30% — verify by hand
+- [R1](grows/breeding-track-a-2026-04-28/plants/plant-r1.md) — Track A pollen run; confirmed male; dry-side breeding VPD keeps pot-weight and male-evaluation checks active
+- [R2](grows/breeding-track-a-2026-04-28/plants/plant-r2.md) — Track A pollen run; sex not confirmed in wiki; continue sex watch and small-pot checks
+- [R3](grows/breeding-track-a-2026-04-28/plants/plant-r3.md) — Track A pollen run; sex not confirmed in wiki; continue sex watch and small-pot checks
+- [R4](grows/breeding-track-a-2026-04-28/plants/plant-r4.md) — Track A pollen run; confirmed male; dry-side breeding VPD keeps pot-weight and male-evaluation checks active
+- [R5](grows/breeding-track-a-2026-04-28/plants/plant-r5.md) — Track A pollen run; sex not confirmed in wiki; continue sex watch and small-pot checks
 
 ## Daily Logs
 - [2026-03-27](daily/2026-03-27.md) — Day 13: Pre-transplant; 2–3 leaf sets
@@ -87,6 +87,8 @@ updated: 2026-05-31
 - [2026-05-29](daily/2026-05-29.md) — Day 76 / Flower Day 26: continuity entry for complete raw photo inventory; no sensor JSON or attached photo synthesis available
 - [2026-05-30](daily/2026-05-30.md) — Day 77 / Flower Day 27: full photo coverage but Plant B non-diagnostic; main lights-on VPD upper-edge but overnight wet/low; Plant A dryback moved sharply; Plant B pinned wet 🔴
 - [2026-05-31](daily/2026-05-31.md) — Day 78 / Flower Day 28: Plant A manual follow-up; healthier growth tips after dryback; weak top rinse/feed runoff pH 6.2 and EC ~40% above input; stop rinsing and monitor before reopening Autopot
+- [2026-06-01](daily/2026-06-01.md) — Day 79 / Flower Day 29: incomplete photo coverage (breeding overview only); main lights-on VPD in range but hot and overnight wet/low; B/C pinned wet; breeding dry/high with pale/droopy small-plant stress
+- [2026-06-02](daily/2026-06-02.md) — Day 80 / Flower Day 30: incomplete photo coverage (breeding overview only); main lights-on VPD in range but overnight wet/low; B/C pinned wet; breeding dry-side with pale/droopy small-plant stress
 
 ## Environment
 - [Temperature](environment/temperature.md) — Trend log; targets by phase; notable events

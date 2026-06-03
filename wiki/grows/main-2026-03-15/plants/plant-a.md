@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-05-31
+updated: 2026-06-02
 ---
 
 # Plant A
@@ -18,7 +18,7 @@ updated: 2026-05-31
 
 ## Current State
 
-Day 78 / Flower Day 28: Plant A looks healthier after the extended dryback, with small dark-green growth tips reported. A controlled weak pH 5.8 Canna top rinse/feed produced runoff at pH 6.2 with EC about 40% above input, so stop further rinsing, remove runoff, keep the valve closed 12-24 hours, and only reopen Autopot as a monitored test if the pot/tray stay clean and the plant remains upright. See [2026-05-31](../../../daily/2026-05-31.md).
+Day 80 / Flower Day 30: No dedicated photo was available, but rough moisture continued a controlled dry-side move after the 2026-05-31 rinse. Keep A in monitored recovery with no further rinse; reopen Autopot only as a watched test if tray and pot conditions stay clean. See [2026-06-02](../../../daily/2026-06-02.md).
 
 ## Timeline
 
@@ -77,3 +77,5 @@ Day 78 / Flower Day 28: Plant A looks healthier after the extended dryback, with
 - 2026-05-28 — [Day 75 / Flower Day 25: upright purple flower tops visible; rough moisture drier near 52%, continue dryback/high-EC watch before any weak top rinse](../../../daily/2026-05-28.md)
 - 2026-05-30 — [Day 77 / Flower Day 27: upright purple flower tops visible; rough moisture moved sharply drier near 35.6%, hand-check before any weak rinse or refeed decision](../../../daily/2026-05-30.md)
 - 2026-05-31 — [Day 78 / Flower Day 28: healthier growth tips reported; weak pH 5.8 top rinse/feed runoff pH 6.2 and EC ~40% above input; stop rinsing and reopen Autopot only as a monitored test](../../../daily/2026-05-31.md)
+- 2026-06-01 — [Day 79 / Flower Day 29: dedicated photo missing; rough moisture only slightly drier after rinse, keep monitored recovery before reopening Autopot](../../../daily/2026-06-01.md)
+- 2026-06-02 — [Day 80 / Flower Day 30: dedicated photo missing; rough moisture continued a controlled dry-side move, keep monitored recovery before any watched Autopot reopen](../../../daily/2026-06-02.md)

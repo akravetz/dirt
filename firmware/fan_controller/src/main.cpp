@@ -1,6 +1,6 @@
-// ESP32-C3 environmental node.
-// Reads an Adafruit SHT45 (0x44) over I²C on GPIO 4/5. The main-tent build
-// also drives an AC Infinity Cloudline fan via two 2N7000 MOSFETs on GPIO 6/7.
+// Seeed Studio XIAO ESP32-C3 environmental node.
+// Reads an Adafruit SHT45 (0x44) over I²C on XIAO D10/D0. The main-tent build
+// also drives an AC Infinity Cloudline fan via two 2N7000 MOSFETs on XIAO D1/D2.
 //
 // Network roles:
 //   - Posts {temperature_c, humidity_pct} plus fan_pct when fan control
@@ -36,10 +36,10 @@
 
 // --- Config ---------------------------------------------------------------
 
-constexpr uint8_t  GPIO_D_PLUS    = 6;
-constexpr uint8_t  GPIO_B5        = 7;
-constexpr uint8_t  GPIO_I2C_SDA   = 4;
-constexpr uint8_t  GPIO_I2C_SCL   = 5;
+constexpr uint8_t  GPIO_D_PLUS    = 3;   // XIAO D1
+constexpr uint8_t  GPIO_B5        = 4;   // XIAO D2
+constexpr uint8_t  GPIO_I2C_SDA   = 10;  // XIAO D10
+constexpr uint8_t  GPIO_I2C_SCL   = 2;   // XIAO D0; ESP32-C3 strapping pin, keep pulled high at boot.
 constexpr uint8_t  LEDC_CH_D_PLUS = 0;
 constexpr uint8_t  LEDC_CH_B5     = 1;
 constexpr uint32_t PWM_FREQ_HZ    = 5000;

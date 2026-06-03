@@ -1127,3 +1127,21 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - Sourcing constraint filed: do not assume project access before September 2026; user reports Mandala's United States shipping is paused through September, so recheck availability and shipping before any purchase attempt.
 - Strategy filed: preserve and evaluate the best purple/fruity Serious Black / SBxBS01 parent, then prioritize a known-family SBxBS01 x Kalash Valley Black black-line project once Kalash stock can be sourced.
 - Updated: `decisions/2026-05-31-kalash-valley-black-target.md`, `breeding/README.md`, `breeding/stabilization-strategy.md`, `breeding/timeline.md`, `breeding/pheno-hunt-protocol.md`, `index.md`.
+
+## [2026-06-01] daily | Day 79 / Flower Day 29 - breeding overview only; main photo coverage missing
+- Photo coverage was incomplete: only `breeding-overview.jpg` was available, so no main-tent per-plant visual observations were invented.
+- **Main-tent environment:** Morning/current VPD are in the late-flower band at 1.35/1.49 kPa, but overnight stayed wet/low at 1.07 kPa. Current temperature reached 79.45°F and dew point reached 62.60°F, so airflow and moisture clearing remain the priority.
+- **Plant A follow-up:** Rough moisture moved only slightly drier to 48.85% after the 2026-05-31 weak rinse/feed. Keep A in monitored recovery and avoid further rinsing.
+- **Plant B/C moisture remains critical:** B is pinned at 96.33%, and C remains high at 90.77%; manual tray/float/media/probe checks remain urgent.
+- **Plant D moisture:** D is low and drifting drier near 41.34%; verify media/tray/probe conditions by hand before changing irrigation assumptions.
+- **Breeding-tent watch:** Breeding is Flower Day 8 and dry/high during lights-on at 76.10°F / 45.77% RH / 1.67 kPa. The overview shows pale/droopy small-plant stress, so check pot weight, fan exposure, watering timing, and sex sites.
+- Updated: `daily/2026-06-01.md`, `plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-06-02] daily | Day 80 / Flower Day 30 - breeding overview only; main photo coverage missing
+- Photo coverage was incomplete again: only `breeding-overview.jpg` was available, so no main-tent per-plant visual observations were invented.
+- **Main-tent environment:** Morning/current VPD are in the late-flower band at 1.38/1.45 kPa, but overnight stayed wet/low at 1.09 kPa. Current temperature is still warm at 78.01°F and dew point is 60.83°F, so airflow and dark-cycle moisture clearing remain the priority.
+- **Plant A follow-up:** Rough moisture continued a controlled dry-side move to 44.68% after the 2026-05-31 weak rinse/feed. Keep A in monitored recovery and avoid further rinsing.
+- **Plant B/C moisture remains critical:** B is pinned at 95.88%, and C remains high/flat at 90.08%; manual tray/float/media/probe checks remain urgent.
+- **Plant D moisture:** D is low/stale near 41.30%; verify media/tray/probe conditions by hand before changing irrigation assumptions.
+- **Breeding-tent watch:** Breeding is Flower Day 9 and less extreme than yesterday but still dry-side now at 74.17°F / 50.28% RH / 1.43 kPa. The overview still shows pale/lime foliage, lower yellowing, and droop, so check pot weight, fan exposure, watering timing, and sex sites.
+- Updated: `daily/2026-06-02.md`, `plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.

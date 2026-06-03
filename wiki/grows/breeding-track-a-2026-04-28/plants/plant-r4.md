@@ -4,7 +4,7 @@ type: plant
 sources: []
 related: [wiki/grows/breeding-track-a-2026-04-28/README.md, wiki/breeding/male-evaluation.md, wiki/breeding/pollen-handling.md]
 created: 2026-05-30
-updated: 2026-05-30
+updated: 2026-06-02
 ---
 
 # R4
@@ -17,11 +17,7 @@ updated: 2026-05-30
 
 ## Current State
 
-R4 is one of five active SBxBS01 regular plants in the breeding tent Track A
-pollen run. Male expression is confirmed as of 2026-05-30. Keep R4 isolated in
-the breeding tent workflow and evaluate vigor, structure, stem color, aroma, and
-timing against the [male evaluation rubric](../../../breeding/male-evaluation.md)
-before collecting or prioritizing pollen.
+R4 is a confirmed male candidate in the breeding tent Track A pollen run. Today's overview was tent-level only, with no readable individual sex sites, so keep pot-weight checks active while evaluating R4 against the [male evaluation rubric](../../../breeding/male-evaluation.md) before pollen collection.
 
 ## Timeline
 
@@ -30,3 +26,5 @@ before collecting or prioritizing pollen.
 - 2026-05-13 — R4 label was visible, but foliage was cropped/obscured in the breeding overview. See [2026-05-13](../../../daily/2026-05-13.md).
 - 2026-05-24 — Breeding tent flipped to 12/12 for sexing and pollen production. See [2026-05-24](../../../daily/2026-05-24.md).
 - 2026-05-30 — User confirmed R4 shows male pre-sex organs / male sex expression. See [2026-05-30](../../../daily/2026-05-30.md).
+- 2026-06-01 — Breeding overview was tent-level only; dry/high lights-on VPD and pale/droopy foliage keep pot-weight and male-evaluation checks active. See [2026-06-01](../../../daily/2026-06-01.md).
+- 2026-06-02 — Breeding overview remained tent-level only; dry-side small-pot stress keeps pot-weight and male-evaluation checks active. See [2026-06-02](../../../daily/2026-06-02.md).

@@ -2,9 +2,9 @@
 title: Grow Overview
 type: overview
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
-related: [wi../README.md, wiki/grows/main-2026-03-15/README.md, wiki/grows/main-2026-03-15/plants/plant-a.md, wiki/grows/main-2026-03-15/plants/plant-b.md, wiki/grows/main-2026-03-15/plants/plant-c.md, wiki/grows/main-2026-03-15/plants/plant-d.md, wiki/grows/breeding-track-a-2026-04-28/README.md, wiki/grows/breeding-track-a-2026-04-28/plants/plant-r1.md, wiki/grows/breeding-track-a-2026-04-28/plants/plant-r4.md, wiki/decisions/2026-05-05-hosted-control-plane.md]
+related: [wiki/index.md, wiki/grows/main-2026-03-15/README.md, wiki/grows/main-2026-03-15/plants/plant-a.md, wiki/grows/main-2026-03-15/plants/plant-b.md, wiki/grows/main-2026-03-15/plants/plant-c.md, wiki/grows/main-2026-03-15/plants/plant-d.md, wiki/grows/breeding-track-a-2026-04-28/README.md, wiki/grows/breeding-track-a-2026-04-28/plants/plant-r1.md, wiki/grows/breeding-track-a-2026-04-28/plants/plant-r4.md, wiki/decisions/2026-05-05-hosted-control-plane.md]
 created: 2026-04-06
-updated: 2026-05-31
+updated: 2026-06-02
 ---
 
 # Grow Overview
@@ -23,23 +23,23 @@ updated: 2026-05-31
 | **Water system** | Autopot 4-Pot XL + 25-gal FlexiTank (active since Apr 15) |
 | **Training** | Single top at node 4–5 → LST → SCROG |
 | **Start date** | 2026-03-15 (germination) |
-| **Grow day** | Day 78 (as of 2026-05-31) |
+| **Grow day** | Day 80 (as of 2026-06-02) |
 
 ## Current Stage
 
-**Late Flower — Day 28 of 12/12**. Flower start date is 2026-05-03; lights run 09:00–21:00 local tent time. Autopot has been active since Apr 15, all four plants are topped, and the SCROG net is installed; airflow, dark-cycle humidity reduction, and flower-site inspection now outrank stretch training.
+**Late Flower — Day 30 of 12/12**. Flower start date is 2026-05-03; lights run 09:00–21:00 local tent time. Autopot has been active since Apr 15, all four plants are topped, and the SCROG net is installed; airflow, dark-cycle humidity reduction, flower-site inspection, and root-zone checks now outrank stretch training.
 
-**Manual Plant A follow-up filed 2026-05-31** — Plant A reportedly looks healthier after the extended dryback, with small dark-green growth tips. A controlled weak pH 5.8 Canna top rinse/feed produced runoff at pH 6.2 with EC about 40% above input; stop further rinsing, remove runoff, leave the valve closed 12-24 hours, and only reopen Autopot as a monitored test if pot/tray conditions stay clean.
+**Photo coverage is incomplete today** — only the breeding overview was available on 2026-06-02. Main-tent overview plus Plant A/B/C/D dedicated views are missing, so use manual inspection and sensors rather than making visual health calls from today's photos.
 
-**Main tent lights-on is at the upper edge, but overnight remains too wet for late flower** — morning VPD averaged 1.32 kPa and the current reading is 1.50 kPa, but overnight stayed wet/low at 1.07 kPa with 58.28% RH. Keep dark-cycle moisture clearing and canopy airflow active; do not add humidity just because the current reading is dry-edge.
+**Main tent lights-on is in range, while overnight remains too wet for late flower** — morning VPD averaged 1.38 kPa and the current reading is 1.45 kPa, but overnight stayed wet/low at 1.09 kPa with 58.02% RH. Current temperature is still warm at 78.01°F and dew point is 60.83°F, so keep dark-cycle moisture clearing and canopy airflow active.
 
-**Plant A rinse decision completed** — A's rough signal was stable near 35.7% on 2026-05-31 after the large dryback. The latest runoff result argues against active low-pH lockout or a severe salt dump; the current task is post-rinse dryback and cautious Autopot reintroduction, not more flushing.
+**Plant A is a monitored post-rinse recovery item** — after the 2026-05-31 weak top rinse/feed, A's rough signal continued a controlled dry-side move to 44.68% today. Do not rinse again; reopen Autopot only as a watched test if pot/tray conditions stay clean.
 
-**Plant B remains critical; Plant C is still high but drifting drier** — B is 95.43% now and visually blind behind the fan. C is 88.72% now, still saturated by rough context but finally moving drier. Manual dryback verification remains urgent: check tray standing water, float behavior, media smell, and probe placement.
+**Plant B and Plant C remain critical wet-root-zone checks** — B is 95.88% now and C is 90.08% now by rough context. Manual dryback verification remains urgent: check tray standing water, float behavior, media smell, and probe placement.
 
-**Plant D remains a probe/media hand-check** — D has upright sativa-leaning purple flower tops and is low/flat at 44.72% now. Because D recently showed a large rough-signal movement, verify tray/media/probe conditions by hand before changing irrigation assumptions.
+**Plant D remains a probe/media hand-check** — D is low and stale/flat at 41.30% now. Verify tray/media/probe conditions by hand before changing irrigation assumptions.
 
-**Breeding tent is Flower Day 7 by date and needs continued sex watch** — breeding flower start date is 2026-05-24. Last synthesized reading was 75.11°F / 50.26% RH / 1.48 kPa after a usable overnight; keep pot-weight and fan-exposure checks active for the small containers. Track A has five active plants, R1-R5; R1 and R4 have confirmed male pre-sex organs / male sex expression as of 2026-05-30.
+**Breeding tent is Flower Day 9 and still a small-pot stress watch** — breeding flower start date is 2026-05-24. Current reading is 74.17°F / 50.28% RH / 1.43 kPa, less extreme than yesterday but still dry-side for small containers, and the overview still shows pale/lime foliage, lower yellowing, and droop. Check pot weight, fan exposure, watering timing, and sex sites. Track A has five active plants, R1-R5; R1 and R4 have confirmed male pre-sex organs / male sex expression as of 2026-05-30.
 
 **Breeding propagation is active** — clones from all four current plants were taken 2026-05-02 and are under a humidity dome; they were perking with 1 visible rooted clone as of 2026-05-05. Track A regulars flipped to 12/12 on 2026-05-24 for sexing and pollen production. Seven regular seeds germinated, but two died during transplant to coco coir, leaving five active plants. A 4-inch AC Infinity filtration kit has been selected for the breeding/male isolation tent, and Shelly Plus Plug US is the selected permanent controller for drip-assist pump safety. See [Track A pollen run](grows/breeding-track-a-2026-04-28/README.md), [breeding/cloning.md](breeding/cloning.md), [breeding/timeline.md](breeding/timeline.md), and [breeding/isolation.md](breeding/isolation.md).
 
@@ -54,46 +54,46 @@ updated: 2026-05-31
 
 | Plant | Flower | Purple | Priority | Status |
 |-------|--------|--------|----------|--------|
-| Plant A | Day 28 | ✅ Confirmed genetic | 🔴 Primary | Healthier growth tips reported after dryback; weak pH 5.8 top rinse/feed runoff pH 6.2 and EC ~40% above input; stop rinsing and reopen Autopot only as monitored test |
-| Plant B | Day 28 | ❌ None | 🟡 Secondary | Dedicated view non-diagnostic behind fan; moisture 95.43% pinned on last synthesis — dryback verification urgent |
-| Plant C | Day 28 | ⚠️ Stress-induced only | 🟡 Secondary | Partly fan-obstructed purple-toned flower sites; moisture 88.72% still high but drifting drier on last synthesis with root-zone/airflow watch |
-| Plant D | Day 28 | ✅ Confirmed genetic | 🔴 Primary | Upright sativa-leaning purple flower tops; moisture low/flat near 44.72% on last synthesis — verify by hand |
+| Plant A | Day 30 | ✅ Confirmed genetic | 🔴 Primary | Dedicated photo missing; rough moisture 44.68% after post-rinse recovery — no further rinse, reopen Autopot only as monitored test |
+| Plant B | Day 30 | ❌ None | 🟡 Secondary | Dedicated photo missing; moisture 95.88% remains pinned wet — dryback verification urgent |
+| Plant C | Day 30 | ⚠️ Stress-induced only | 🟡 Secondary | Dedicated photo missing; moisture 90.08% remains high/flat — root-zone/airflow watch |
+| Plant D | Day 30 | ✅ Confirmed genetic | 🔴 Primary | Dedicated photo missing; moisture low/stale near 41.30% — verify media/tray/probe by hand |
 
 ## Breeding Track A Plant Status
 
 | Plant | Flower | Sex status | Current action |
 |-------|--------|------------|----------------|
-| R1 | Day 7 | Confirmed male expression | Evaluate male quality before pollen collection |
-| R2 | Day 7 | Not confirmed in wiki | Continue sex watch |
-| R3 | Day 7 | Not confirmed in wiki | Continue sex watch |
-| R4 | Day 7 | Confirmed male expression | Evaluate male quality before pollen collection |
-| R5 | Day 7 | Not confirmed in wiki | Continue sex watch |
+| R1 | Day 9 | Confirmed male expression | Evaluate male quality; check pot weight under dry-side VPD |
+| R2 | Day 9 | Not confirmed in wiki | Continue sex watch; check pot weight/fan exposure |
+| R3 | Day 9 | Not confirmed in wiki | Continue sex watch; check pot weight/fan exposure |
+| R4 | Day 9 | Confirmed male expression | Evaluate male quality; check pot weight under dry-side VPD |
+| R5 | Day 9 | Not confirmed in wiki | Continue sex watch; check pot weight/fan exposure |
 
-## Environment (Last Reading: May 30 14:00 MDT)
+## Environment (Last Reading: Jun 2 14:00 MDT)
 
 | Metric | Value | Target | Status |
 |--------|-------|--------|--------|
-| Temperature (now) | 76.77°F | 68–75°F late flower day | ⚠️ Warm |
-| Temperature (morning avg) | 75.61°F | 68–75°F late flower day | ⚠️ Slightly warm |
-| Temperature (overnight avg) | 70.62°F | 62–68°F late flower night | ⚠️ Warm night |
-| Humidity (now) | 52.42% | 40–45% late flower guide | ⚠️ High by RH guide |
-| Humidity (overnight avg) | 58.28% | 40–45% late flower guide | ⚠️ High by RH guide |
-| VPD (now) | 1.50 kPa | 1.2–1.5 kPa | ✅ Upper edge |
-| VPD (morning avg) | 1.32 kPa | 1.2–1.5 kPa | ✅ In range |
-| VPD (overnight avg) | 1.07 kPa | 1.2–1.5 kPa | ⚠️ Wet/low |
-| Breeding temp/VPD (now) | 75.11°F / 1.48 kPa | Flower Day 6 small-plant watch | ✅ Usable; check pots |
+| Temperature (now) | 78.01°F | 68–75°F late flower day | ⚠️ Warm |
+| Temperature (morning avg) | 76.80°F | 68–75°F late flower day | ⚠️ Warm |
+| Temperature (overnight avg) | 71.14°F | 62–68°F late flower night | ⚠️ Warm night |
+| Humidity (now) | 55.63% | 40–45% late flower guide | ⚠️ High by RH guide |
+| Humidity (overnight avg) | 58.02% | 40–45% late flower guide | ⚠️ High by RH guide |
+| VPD (now) | 1.45 kPa | 1.2–1.5 kPa | ✅ In range |
+| VPD (morning avg) | 1.38 kPa | 1.2–1.5 kPa | ✅ In range |
+| VPD (overnight avg) | 1.09 kPa | 1.2–1.5 kPa | ⚠️ Wet/low |
+| Breeding temp/VPD (now) | 74.17°F / 1.43 kPa | Flower Day 9 small-plant watch | ⚠️ Dry-side; check pots |
 | pH (reservoir) | - | 5.5–6.0 | Not captured |
 | EC (reservoir) | - | 1.2–1.4 late-flower taper | Not captured |
 
 ## Active Action Items
 
-1. **Keep main-tent dark-cycle drying and airflow active** 🔴 — Lights-on VPD is in range/upper-edge at 1.32/1.50 kPa, but overnight remains wet/low at 1.07 kPa. Prioritize exhaust/dehumidification if available, fan clearance, and airflow lanes through the dense canopy.
-2. **Keep Plant A post-rinse recovery controlled** 🔴 — Stop further rinsing after the 2026-05-31 runoff result, remove all runoff, leave the valve closed 12-24 hours, and reopen Autopot only as a monitored test if leaf posture remains upright and the tray/pot do not feel heavy, sour, or stagnant.
-3. **Escalate Plant B and Plant C dryback verification** 🔴 — B is 95.43% now and C is 88.72%; B remains effectively pinned wet and C is still high despite finally drifting drier. Verify tray/float behavior, standing water, media smell, and probe placement before restoring normal feed.
-4. **Hand-check Plant D today** 🟡 — D is low/flat near 44.72%, but recent probe movement was large. Verify tray/media/probe conditions before changing irrigation assumptions.
-5. **Check breeding-tent pot weight and fan exposure** 🟡 — Breeding is usable now at 75.11°F / 50.26% RH / 1.48 kPa, but small containers can still dry quickly near the upper VPD edge.
-6. **Improve photo clearance around the fan** 🟡 — Plant B remains effectively blind from the daily preset, and Plant C is still partly obstructed. Adjust fan position or camera preset if it can be done without reducing airflow.
-7. **Manage breeding propagation** 🔴 — A/B/C/D clones still need rooted backup confirmation. Track A is in sexing/pollen mode with five active plants; R1 and R4 are confirmed male as of 2026-05-30. Keep labels secure and use the male-evaluation rubric before pollen collection. The 4-inch AC Infinity filtration kit is selected for containment, and Shelly Plus Plug US is selected for unattended drip-assist pump safety. See [Track A pollen run](grows/breeding-track-a-2026-04-28/README.md), [breeding/timeline.md](breeding/timeline.md), [breeding/cloning.md](breeding/cloning.md), and [breeding/isolation.md](breeding/isolation.md).
+1. **Restore main-tent photo coverage** 🔴 — 2026-06-02 only captured the breeding overview. Get main overview plus Plant A/B/C/D presets before making visual health calls.
+2. **Keep main-tent dark-cycle drying and airflow active** 🔴 — Lights-on VPD is in range at 1.38/1.45 kPa, but overnight remains wet/low at 1.09 kPa and current dew point is 60.83°F. Prioritize exhaust/dehumidification if available, fan clearance, and airflow lanes through the dense canopy.
+3. **Keep Plant A post-rinse recovery controlled** 🔴 — Stop further rinsing after the 2026-05-31 runoff result and reopen Autopot only as a monitored test if leaf posture remains upright and the tray/pot do not feel heavy, sour, or stagnant.
+4. **Escalate Plant B and Plant C dryback verification** 🔴 — B is 95.88% now and C is 90.08%; both remain high/pinned by rough context. Verify tray/float behavior, standing water, media smell, and probe placement before restoring normal feed assumptions.
+5. **Hand-check Plant D today** 🟡 — D is low/stale near 41.30%. Verify tray/media/probe conditions before changing irrigation assumptions.
+6. **Check breeding-tent pot weight and fan exposure** 🔴 — Breeding is dry-side now at 74.17°F / 50.28% RH / 1.43 kPa, and the overview still shows pale/lime foliage, lower yellowing, and droop.
+7. **Manage breeding propagation** 🔴 — A/B/C/D clones still need rooted backup confirmation. Track A is in sexing/pollen mode with five active plants; R1 and R4 are confirmed male as of 2026-05-30, while R2/R3/R5 still need filed sex confirmation. Keep labels secure and use the male-evaluation rubric before pollen collection. The 4-inch AC Infinity filtration kit is selected for containment, and Shelly Plus Plug US is selected for unattended drip-assist pump safety. See [Track A pollen run](grows/breeding-track-a-2026-04-28/README.md), [breeding/timeline.md](breeding/timeline.md), [breeding/cloning.md](breeding/cloning.md), and [breeding/isolation.md](breeding/isolation.md).
 8. **Keep reservoir feed steady until pH data says otherwise** 🟡 — No reservoir pH/EC was captured today; do not adjust the whole reservoir based on Plant A unless other trays show the same low-pH pattern.
 9. **Investigate ThermoForge T3 control deliberately** 🟡 — Heater control must fail OFF; follow the filed UIS/passive-tap investigation before any direct-control replay.
 

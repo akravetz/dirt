@@ -4,7 +4,7 @@ type: environment
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/environment/humidity.md, wiki/overview.md]
 created: 2026-04-06
-updated: 2026-05-30
+updated: 2026-06-02
 ---
 
 # Temperature
@@ -76,6 +76,8 @@ updated: 2026-05-30
 | 2026-05-27 | Main 78.60°F now ⚠️ / 70.50°F overnight avg ⚠️ / 75.38°F morning avg ⚠️; breeding 79.47°F now ⚠️ | Main-tent temperature is warm across the late-flower interpretation, but VPD is in range during lights-on and wet/low overnight. Treat the main issue as moisture clearing and airflow, not a heat-first correction. Breeding is warm/dry now for small plants. → [2026-05-27](../daily/2026-05-27.md) |
 | 2026-05-28 | Main 75.78°F now ⚠️ / 69.41°F overnight avg ⚠️ / 74.35°F morning avg ✅; breeding 77.49°F now ⚠️ | Main-tent temperature improved versus yesterday but remains slightly warm for late flower at night and now. Since lights-on VPD is in range and the overnight miss is wet/low, keep focusing on moisture clearing and airflow. Breeding remains warm/dry for small plants. → [2026-05-28](../daily/2026-05-28.md) |
 | 2026-05-30 | Main 76.77°F now ⚠️ / 70.62°F overnight avg ⚠️ / 75.61°F morning avg ⚠️; breeding 75.11°F now ✅ | Main-tent temperature is warm across the late-flower guide, but the practical miss is still the wet/low overnight VPD and high RH. Breeding temperature is usable, with the small-plant watch driven more by upper-edge VPD than heat. → [2026-05-30](../daily/2026-05-30.md) |
+| 2026-06-01 | Main 79.45°F now ⚠️ / 70.14°F overnight avg ⚠️ / 75.95°F morning avg ⚠️; breeding 76.10°F now ⚠️ | Main-tent current temperature is hot for late flower and paired with high dew point, while overnight remains warm and wet/low by VPD. Breeding temperature is only warm, but low RH drives a dry/high small-pot profile. → [2026-06-01](../daily/2026-06-01.md) |
+| 2026-06-02 | Main 78.01°F now ⚠️ / 71.14°F overnight avg ⚠️ / 76.80°F morning avg ⚠️; breeding 74.17°F now ✅ | Main-tent current temperature cooled from yesterday but remains warm for late flower, and the overnight window is still warm while wet/low by VPD. Breeding temperature is usable; small-pot stress is driven more by dry-side VPD and fan exposure. → [2026-06-02](../daily/2026-06-02.md) |
 
 ## Notable Events
 - **2026-03-21** — Overnight low of 59.5°F due to exhaust fan running too fast at night; resolved by throttling fan after lights-out → [2026-03-27 daily](../daily/2026-03-27.md)
@@ -118,3 +120,5 @@ updated: 2026-05-30
 - **2026-05-27** — Main-tent temperature ran warm for late flower in all windows, peaking at 78.60°F now. Because lights-on VPD is still in range and the overnight miss is wet/low, prioritize airflow/moisture removal over temperature-only changes. Breeding is warm and dry now at 79.47°F / 1.62 kPa. → [2026-05-27](../daily/2026-05-27.md)
 - **2026-05-28** — Main-tent temperature cooled closer to the late-flower guide, with 74.35°F morning and 75.78°F now, but the 69.41°F overnight average is still slightly warm. The environment miss remains tied to dark-cycle RH/VPD, so avoid temperature-only corrections. Breeding is warm and dry now at 77.49°F / 1.59 kPa. → [2026-05-28](../daily/2026-05-28.md)
 - **2026-05-30** — Main-tent temperature is warm for late flower in all windows (70.62°F overnight, 75.61°F morning, 76.77°F now), but lights-on VPD is still acceptable and the overnight profile remains wet/low. Treat this as a moisture-clearing and airflow problem rather than a heat-first correction. Breeding temperature is usable at 75.11°F now. → [2026-05-30](../daily/2026-05-30.md)
+- **2026-06-01** — Main-tent temperature warmed further to 79.45°F now, above the late-flower day guide, while the 00-06 window stayed warm at 70.14°F and still wet/low by VPD. Keep corrections tied to airflow/moisture clearing rather than adding heat. Breeding is warm at 76.10°F now but the sharper issue is dry/high VPD for small pots. → [2026-06-01](../daily/2026-06-01.md)
+- **2026-06-02** — Main-tent current temperature cooled to 78.01°F but is still above the late-flower guide, and the 00-06 window warmed to 71.14°F while remaining wet/low by VPD. Breeding temperature is usable at 74.17°F now; keep that tent's action on pot weight and fan exposure. → [2026-06-02](../daily/2026-06-02.md)

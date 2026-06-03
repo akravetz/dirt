@@ -2,9 +2,9 @@
 title: Track A Pollen Run
 type: grow
 sources: []
-related: [wiki/breeding/README.md, wiki/breeding/timeline.md, wiki/breeding/male-evaluation.md, wiki/daily/2026-05-30.md]
+related: [wiki/breeding/README.md, wiki/breeding/timeline.md, wiki/breeding/male-evaluation.md, wiki/daily/2026-06-01.md]
 created: 2026-05-30
-updated: 2026-05-30
+updated: 2026-06-01
 ---
 
 # Track A Pollen Run
@@ -34,6 +34,10 @@ As of 2026-05-30, R1 and R4 have confirmed male pre-sex organs / male sex
 expression. Keep label integrity tight and evaluate male quality before pollen
 collection; do not treat first male expression alone as the selection decision.
 
+As of 2026-06-01, the breeding overview shows tent-level small-plant stress
+under dry/high lights-on VPD. Check pot weight, watering timing, and fan exposure
+while continuing sex watch on R2/R3/R5.
+
 ## Plants
 
 - [R1](plants/plant-r1.md) — database `plant.id = 5`, `plant.plant_id = r1`; confirmed male expression 2026-05-30
@@ -48,3 +52,4 @@ collection; do not treat first male expression alone as the selection decision.
 - 2026-05-05 — Seven sprouted regulars were potted into coco/perlite; five looked healthy/vigorous. See [2026-05-05](../../daily/2026-05-05.md).
 - 2026-05-24 — Breeding tent flipped to 12/12 for sexing and pollen production. See [2026-05-24](../../daily/2026-05-24.md).
 - 2026-05-30 — User confirmed only five active plants remain, R1-R5; R1 and R4 show male pre-sex organs / male sex expression. See [2026-05-30](../../daily/2026-05-30.md).
+- 2026-06-01 — Breeding overview showed pale/droopy small-plant stress under dry/high lights-on VPD; check pot weight, fan exposure, and sex sites. See [2026-06-01](../../daily/2026-06-01.md).

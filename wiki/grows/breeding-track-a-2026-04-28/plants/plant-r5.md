@@ -4,7 +4,7 @@ type: plant
 sources: []
 related: [wiki/grows/breeding-track-a-2026-04-28/README.md, wiki/breeding/male-evaluation.md]
 created: 2026-05-30
-updated: 2026-05-30
+updated: 2026-06-02
 ---
 
 # R5
@@ -17,9 +17,7 @@ updated: 2026-05-30
 
 ## Current State
 
-R5 is one of five active SBxBS01 regular plants in the breeding tent Track A
-pollen run. Daily overview photos often show R5 blurred or foregrounded but
-upright; no confirmed sex expression has been filed for R5 yet.
+R5 is one of five active SBxBS01 regular plants in the breeding tent Track A pollen run, with no confirmed sex expression filed yet. Today's overview was tent-level only and did not resolve individual sex sites, so continue sex watch while checking pot weight and fan exposure.
 
 ## Timeline
 
@@ -27,3 +25,5 @@ upright; no confirmed sex expression has been filed for R5 yet.
 - 2026-05-05 — Track A survivors potted into coco/perlite; five active plants carried forward. See [2026-05-05](../../../daily/2026-05-05.md).
 - 2026-05-18 — R5 label was visible and the plant appeared upright, though foreground blur limited diagnosis. See [2026-05-18](../../../daily/2026-05-18.md).
 - 2026-05-24 — Breeding tent flipped to 12/12 for sexing and pollen production. See [2026-05-24](../../../daily/2026-05-24.md).
+- 2026-06-01 — Breeding overview was tent-level only; no sex confirmation filed, and dry/high lights-on VPD keeps pot-weight and fan-exposure checks active. See [2026-06-01](../../../daily/2026-06-01.md).
+- 2026-06-02 — Breeding overview remained tent-level only; no sex confirmation filed, and dry-side small-pot stress keeps pot-weight and fan-exposure checks active. See [2026-06-02](../../../daily/2026-06-02.md).

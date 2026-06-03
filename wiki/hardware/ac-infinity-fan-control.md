@@ -4,16 +4,16 @@ type: hardware
 sources: [debug/fan-pwm/sweep-v2.sr, debug/fan-pwm/sweep-11steps.sr, debug/fan-pwm/sweep-v3.sr]
 related: [wiki/hardware/humidifier-control.md, wiki/hardware/esp32-plant-nodes.md, wiki/hardware/project-box-enclosures.md, wiki/decisions/2026-04-22-sht45-tent-node-esp32.md]
 created: 2026-04-18
-updated: 2026-05-25
+updated: 2026-06-01
 ---
 
 # AC Infinity Cloudline LITE 6" Fan Control + Tent Environmental Sensor
 
-**Status (2026-05-04):** **Dual-role node network-attached.** One ESP32-C3 SuperMini drives the fan via two 2N7000 MOSFETs (D+/B5) and reads an Adafruit SHT45 + PTFE cap over I²C (GPIO 4/5). Firmware [`firmware/fan_controller/`](../../firmware/fan_controller/) now joins WiFi, OTA-updates via `fan-controller.local`, runs a Sensirion-AN-matched SHT45 heater cycle (see [SHT45 heater schedule](#sht45-heater-schedule)), POSTs scoped identity `device_id="fan-controller"` with `{temperature_c, humidity_pct, fan_duty_pct}` to the host ingest every 60 s, and exposes a LAN HTTP control surface on port 80 (`POST /fan` / `GET /fan`). **Physical placement:** board sits on the tent floor; fan reached via the 7 ft USB-C cable. **Deviation from earlier plan:** SHT45 was initially slated for a dedicated `tent_node` ESP32 per [2026-04-22 SHT45 decision](../decisions/2026-04-22-sht45-tent-node-esp32.md); merged into the fan-control board the same day. **Tach (D−) path still unimplemented** — `GET /fan` returns the last-set duty for `reported_duty_pct` as a mock; see [Future integration](#future-integration) for the follow-up.
+**Status (2026-06-01):** **Dual-role node live on Seeed Studio XIAO ESP32-C3.** One XIAO drives the fan via two 2N7000 MOSFETs (D+/B5) and reads an Adafruit SHT45 + PTFE cap over I²C. Firmware [`firmware/fan_controller/`](../../firmware/fan_controller/) uses the XIAO board target, OTA-updates via `fan-controller.local`, runs a Sensirion-AN-matched SHT45 heater cycle (see [SHT45 heater schedule](#sht45-heater-schedule)), POSTs scoped identity `device_id="fan-controller"` with `{temperature_c, humidity_pct, fan_duty_pct}` to the host ingest every 60 s, and exposes a LAN HTTP control surface on port 80 (`POST /fan` / `GET /fan`). **Physical placement:** board sits on the tent floor; fan reached via the 7 ft USB-C cable. **Deviation from earlier plan:** SHT45 was initially slated for a dedicated `tent_node` ESP32 per [2026-04-22 SHT45 decision](../decisions/2026-04-22-sht45-tent-node-esp32.md); merged into the fan-control board the same day. **Tach (D−) path still unimplemented** — `GET /fan` returns the last-set duty for `reported_duty_pct` as a mock; see [Future integration](#future-integration) for the follow-up.
 
 ## Goal
 
-Drive the Cloudline LITE 6" inline fan from an ESP32-C3 SuperMini instead of AC Infinity's stock wired speed controller, and read tent temp/RH from a colocated SHT45 on the same board. End state: programmatic fan speed, closed-loop VPD coupling with the humidifier, and retirement of the Arduino Nano BME280 tent hub.
+Drive the Cloudline LITE 6" inline fan from a Seeed Studio XIAO ESP32-C3 instead of AC Infinity's stock wired speed controller, and read tent temp/RH from a colocated SHT45 on the same board. End state: programmatic fan speed, closed-loop VPD coupling with the humidifier, and retirement of the Arduino Nano BME280 tent hub.
 
 ## Protocol (confirmed 2026-04-21, sweep-v3.sr)
 
@@ -57,7 +57,7 @@ Implication: **the driver does not need to source 9V** — it only needs to pull
 
 **Failsafe behavior:** if the driver loses power, resets, or crashes, D+ floats → fan runs at 100%. For a grow tent this is the safer direction; overventilation won't kill plants, whereas a stalled fan in a sealed tent eventually will. We are intentionally leaning into this behavior rather than engineering around it.
 
-## Driver circuit (ESP32-C3 SuperMini)
+## Driver circuit (Seeed Studio XIAO ESP32-C3)
 
 Two N-channel logic-level MOSFETs, one per driven signal. ~$1 in parts.
 
@@ -68,7 +68,7 @@ Two N-channel logic-level MOSFETs, one per driven signal. ~$1 in parts.
                                  │ source                                        │ source
   fan GND (via Treedix) ────── common GND ────── ESP32 GND                       │
                                  │                                               │
-  ESP32 GPIO 6 ──────────────────┤ gate                        ESP32 GPIO 7 ─────┤ gate
+  XIAO D1 / GPIO3 ────────────────┤ gate              XIAO D2 / GPIO4 ────────────┤ gate
                                  │                                               │
                               [R1 10 kΩ]                                    [R2 10 kΩ]
                                  │                                               │
@@ -78,7 +78,7 @@ Two N-channel logic-level MOSFETs, one per driven signal. ~$1 in parts.
 - **Q1 drives D+** (speed command). **Q2 drives B5** (keep-alive heartbeat). Symmetric topology per signal.
 - **Drain → fan signal pad** on the Treedix breakout.
 - **Source → common GND.** Fan GND and ESP32 GND **must** be tied together; otherwise the MOSFETs have no reference and nothing happens.
-- **Gates → ESP32 GPIO 6 (D+) / GPIO 7 (B5).** LEDC peripheral, channel 0 for D+, channel 1 for B5, both at 5 kHz / 10-bit (matches the fan's 4,969 Hz carrier).
+- **Gates → XIAO D1 / GPIO3 (D+) and XIAO D2 / GPIO4 (B5).** LEDC peripheral, channel 0 for D+, channel 1 for B5, both at 5 kHz / 10-bit (matches the fan's 4,969 Hz carrier).
 - **10 kΩ gate pull-downs** (R1, R2). Keep each MOSFET OFF during ESP32 reset/boot (GPIO would otherwise float, causing a few ms of random pull-downs).
 - **Signal is inverted in firmware.** ESP32 HIGH = MOSFET on = line pulled LOW (fan sees LOW). So `duty_mcu = 100 − duty_wire`. D+ set via the `set_fan_speed()` helper; B5 statically driven at 1.4% MCU duty → 98.6% wire duty, mimicking the stock remote's keep-alive heartbeat.
 - **ESP32 USB-C powered independently** — the fan's 9V VBUS rail does not connect to the ESP32. The only electrical bridge between the two domains is common GND + the two signal wires going through the MOSFETs.
@@ -105,7 +105,7 @@ Sanity-check with a multimeter in diode mode before soldering: the body diode co
 
 | Part | Qty | Notes |
 |------|-----|-------|
-| ESP32-C3 SuperMini | 1 | USB-C powered. Same board as the plant nodes — fleet-uniform. Serves both fan-driver and tent-sensor roles. |
+| Seeed Studio XIAO ESP32-C3 | 1 | USB-C powered. Serves both fan-driver and tent-sensor roles. Replaced the Amazon SuperMini clone on 2026-06-01. |
 | 2N7000 N-channel MOSFET (logic-level, `Vgs(th)` ≤ 2.5V) | 2 | Q1 for D+, Q2 for B5. BSS138 is interchangeable. Any logic-level N-channel FET works. |
 | 10 kΩ resistor | 2 | Gate pull-downs, one per MOSFET. 5–100 kΩ is fine; 10 kΩ is unremarkable. |
 | Adafruit SHT45 + PTFE cap (product 5665) | 1 | I²C temp/RH sensor, addr `0x44`. 10 kΩ I²C pull-ups on-board — no external pull-ups needed. PTFE cap press-fits over the sensor window for mist/dust protection. |
@@ -124,12 +124,12 @@ The Adafruit SHT45 rides on the same ESP32-C3 as the fan driver, eating the four
 |---|---|---|
 | `VIN` | `3V3` | 3.3 V matches the ESP32 I²C logic level. The breakout also accepts 5 V via an on-board regulator — we don't use that path. |
 | `GND` | common GND rail | Same rail the MOSFET sources + ESP32 GND tie into. |
-| `SDA` | `GPIO 4` | Not GPIO 8 — GPIO 8 is the SuperMini's onboard LED + a boot-strap pin. GPIO 4 is the documented alternate I²C path; JTAG interference only matters for ADC reads, not driven I²C. |
-| `SCL` | `GPIO 5` | Not GPIO 9 — GPIO 9 is the BOOT button + a strap pin. |
+| `SDA` | XIAO `D10` / chip `GPIO10` | Chosen to reuse the existing aligned-header perma-proto layout. |
+| `SCL` | XIAO `D0` / chip `GPIO2` | `GPIO2` is an ESP32-C3 strapping pin; this is acceptable here because the SHT45 breakout only pulls I²C high. Do not add a pulldown on this net. |
 
 Library: `adafruit/Adafruit SHT4x Library` (pulls `Adafruit Unified Sensor` transitively). Class `Adafruit_SHT4x`; bring up with `sht.begin(&Wire)`, `sht.setPrecision(SHT4X_HIGH_PRECISION)`, `sht.setHeater(SHT4X_NO_HEATER)`. Read via `sht.getEvent(&humidity, &temp)`. Heater deliberately off by default; future work to pulse it once/hour if RH pins near 100 %.
 
-The rationale for colocating with the fan driver (rather than the separate `tent_node` ESP32 in the original plan) is in the Status section at the top. No pin contention: fan uses GPIO 6/7, SHT45 uses GPIO 4/5, GPIO 10 is reserved for a future tach revisit. The obsolete `firmware/tent_node/` PIO project still exists on disk at time of writing; slated for deletion once the combined firmware has soaked for a few days.
+The rationale for colocating with the fan driver (rather than the separate `tent_node` ESP32 in the original plan) is in the Status section at the top. No pin contention in the current XIAO build: fan uses XIAO `D1`/`D2`, SHT45 uses XIAO `D10`/`D0`. The obsolete `firmware/tent_node/` PIO project still exists on disk at time of writing; slated for deletion once the combined firmware has soaked for a few days.
 
 ## Reverse-engineering hardware (ordered 2026-04-18)
 
@@ -155,9 +155,9 @@ Three stages, executed 2026-04-20:
 
 ## Firmware
 
-Canonical source: [`firmware/fan_controller/`](../../firmware/fan_controller/). PlatformIO project with two envs: `fan` (USB flash over `/dev/ttyACM*`, required for initial flash) and `fan-ota` (WiFi flash via `fan-controller.local`, preferred after first USB flash). Consumes the shared libs in `firmware/common/{wifi_client, ota, ingest_client}/`. Dual-role: LEDC PWM for D+/B5 on GPIO 6/7, I²C SHT45 on GPIO 4/5.
+Canonical source: [`firmware/fan_controller/`](../../firmware/fan_controller/). PlatformIO project with two envs: `fan` (USB flash over `/dev/ttyACM*`, required for initial flash) and `fan-ota` (WiFi flash via `fan-controller.local`, preferred after first USB flash). Consumes the shared libs in `firmware/common/{wifi_client, ota, ingest_client}/`. Dual-role: LEDC PWM for D+/B5 on XIAO `D1`/`D2`, I²C SHT45 on XIAO `D10`/`D0`.
 
-Firmware `0.3.0` does six things: **(1)** fan driver — 2 s max-speed failsafe blast at boot, then settles to the **NVS-restored last-commanded duty** (falls back to `BOOT_SPEED_PCT=15 %` on first-flash or after an NVS erase); inversion math and 22–100 % wire-duty remap unchanged from bring-up. **(2)** SHT45 heater cycle — see below. **(3)** Ingest POST every 60 s with scoped identity `device_id="fan-controller"` and metrics `{temperature_c, humidity_pct, fan_duty_pct}`, `source=esp32`; rows are owned by canonical fan-controller capabilities. **(4)** HTTP control surface on :80 — `POST /fan {"duty_pct":0..100}` sets the fan AND persists the new value to NVS (with a diff-check to avoid flash wear); `GET /fan` returns `{"set_duty_pct":N,"reported_duty_pct":N}`. `reported_duty_pct` is MOCKED (echoes set value) until D− tach is wired; JSON shape stays stable across that transition. **(5)** Duty persistence — `Preferences` library writes to NVS namespace `fan` key `duty_pct` on every `POST /fan` that changes the value; restored on boot. Survives soft + power-cycle resets. The 2 s max-speed failsafe blast still happens before the restored value is applied — over-ventilation remains the safer failure mode during the boot window. **(6)** OTA — mDNS `fan-controller.local:3232`, fleet-wide `PLANT_OTA_PASSWORD`.
+Firmware `0.2.2-xiao` does six things: **(1)** fan driver — 2 s max-speed failsafe blast at boot, then settles to the **NVS-restored last-commanded duty** (falls back to `BOOT_SPEED_PCT=15 %` on first-flash or after an NVS erase); inversion math and 22–100 % wire-duty remap unchanged from bring-up. **(2)** SHT45 heater cycle — see below. **(3)** Ingest POST every 60 s with scoped identity `device_id="fan-controller"` with metrics `{temperature_c, humidity_pct, fan_duty_pct}`, `source=esp32`; rows are owned by canonical fan-controller capabilities. **(4)** HTTP control surface on :80 — `POST /fan {"duty_pct":0..100}` sets the fan AND persists the new value to NVS (with a diff-check to avoid flash wear); `GET /fan` returns `{"set_duty_pct":N,"reported_duty_pct":N}`. `reported_duty_pct` is MOCKED (echoes set value) until D− tach is wired; JSON shape stays stable across that transition. **(5)** Duty persistence — `Preferences` library writes to NVS namespace `fan` key `duty_pct` on every `POST /fan` that changes the value; restored on boot. Survives soft + power-cycle resets. The 2 s max-speed failsafe blast still happens before the restored value is applied — over-ventilation remains the safer failure mode during the boot window. **(6)** OTA — mDNS `fan-controller.local:3232`, fleet-wide `PLANT_OTA_PASSWORD`.
 
 Host-side client: `apps/shared/src/dirt_shared/services/fan_node.py` (`FanNodeClient`) — used by `apps/hwd/src/dirt_hwd/services/fan_controller.py` for the host-side fan trim loop.
 
@@ -169,10 +169,10 @@ Follows Sensirion's [Creep Mitigation SHT4x app note](https://sensirion.com/medi
 
 ## Permanent install
 
-- ESP32-C3 SuperMini on an ElectroCookie perma-proto board, socketed with appropriate female headers for the SuperMini footprint (not soldered directly; lets us swap if the board dies).
-- Fan interface via the Treedix vertical female USB-C breakout: plain USB-C M-M cable from fan lands in the Treedix receptacle; ESP32 GPIO 6 → Q1 gate → Q1 drain to D+ pad; ESP32 GPIO 7 → Q2 gate → Q2 drain to B5 pad.
+- Seeed Studio XIAO ESP32-C3 on the existing ElectroCookie perma-proto board, socketed in the same-width header footprint formerly used by the SuperMini.
+- Fan interface via the Treedix vertical female USB-C breakout: plain USB-C M-M cable from fan lands in the Treedix receptacle; XIAO `D1` / GPIO3 → Q1 gate → Q1 drain to D+ pad; XIAO `D2` / GPIO4 → Q2 gate → Q2 drain to B5 pad.
 - Fan GND and ESP32 GND tied together at the perma-proto GND rail.
-- **B5 driven from the start** (1.4% MCU duty → 98.6% wire duty, mimicking the stock remote's keep-alive). Open question: whether B5 is actually required — the bring-up sweep 2026-04-22 ran successfully with B5 driven; whether the fan would also accept D+ commands with B5 floating is untested. If we want to know definitively, cut power to Q2 (or command GPIO 7 static-low → B5 floats high continuously via the fan's internal pull-up) and see if the fan still responds. Not a priority.
+- **B5 driven from the start** (1.4% MCU duty → 98.6% wire duty, mimicking the stock remote's keep-alive). Open question: whether B5 is actually required — the bring-up sweep 2026-04-22 ran successfully with B5 driven; whether the fan would also accept D+ commands with B5 floating is untested. If we want to know definitively, cut power to Q2 (or command XIAO `D2` / GPIO4 static-low → B5 floats high continuously via the fan's internal pull-up) and see if the fan still responds. Not a priority.
 - D− (tach) is unconnected. Adding it later is cheap: VBUS → 10 kΩ → D−, plus D− → 4.7 kΩ → GND (divider brings the 9V swing down to ~2.88V which is safely inside the ESP32's input range), feed into a GPIO with interrupt support, count rising edges → RPM.
 
 ## Bring-up validation (2026-04-22)

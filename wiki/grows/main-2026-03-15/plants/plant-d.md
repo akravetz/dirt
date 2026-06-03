@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-05-30
+updated: 2026-06-02
 ---
 
 # Plant D
@@ -19,7 +19,7 @@ updated: 2026-05-30
 
 ## Current State
 
-Day 77 / Flower Day 27: Dedicated photo shows upright sativa-leaning purple flower tops, and rough moisture is low/flat near 44.72% now. Keep the media/tray/probe hand-check open because D recently showed large probe movement. See [2026-05-30](../../../daily/2026-05-30.md).
+Day 80 / Flower Day 30: No dedicated photo was available, and rough moisture is low/stale near 41.30%. Keep the media/tray/probe hand-check open before changing irrigation assumptions. See [2026-06-02](../../../daily/2026-06-02.md).
 
 ## Timeline
 
@@ -77,3 +77,5 @@ Day 77 / Flower Day 27: Dedicated photo shows upright sativa-leaning purple flow
 - 2026-05-27 — [Day 74 / Flower Day 24: upright sativa-leaning purple flower tops visible; moisture signal moved sharply wetter to ~48.8%, verify media/tray/probe by hand](../../../daily/2026-05-27.md)
 - 2026-05-28 — [Day 75 / Flower Day 25: upright sativa-leaning purple flower tops visible; moisture lower/slightly drier near 45.0%, verify media/tray/probe by hand](../../../daily/2026-05-28.md)
 - 2026-05-30 — [Day 77 / Flower Day 27: upright sativa-leaning purple flower tops visible; moisture low/flat near 44.7%, verify media/tray/probe by hand](../../../daily/2026-05-30.md)
+- 2026-06-01 — [Day 79 / Flower Day 29: dedicated photo missing; moisture low and drifting drier near 41.3%, verify media/tray/probe by hand](../../../daily/2026-06-01.md)
+- 2026-06-02 — [Day 80 / Flower Day 30: dedicated photo missing; moisture low/stale near 41.3%, verify media/tray/probe by hand](../../../daily/2026-06-02.md)

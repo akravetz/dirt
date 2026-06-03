@@ -26,11 +26,14 @@ The design goal is a direct cutover: use the XIAO board definition, keep the exi
 - [x] (2026-05-27) Differentiated the plugged-in XIAO from the already-flashed Dirt ESP32-C3 by reading flash contents: `/dev/ttyACM0` / MAC `e8:f6:0a:16:9f:fc` contained a XIAO Arduino/factory image; `/dev/ttyACM1` / MAC `ac:a7:04:d5:31:e0` contained Dirt reservoir firmware strings.
 - [x] (2026-05-27) Converted `firmware/reservoir_node` into a XIAO reservoir canary build using `board = seeed_xiao_esp32c3`, `FIRMWARE_VERSION="0.1.3-xiao-canary"`, device ID `reservoir-xiao`, hostname `dirt-reservoir-xiao`, and OTA target `dirt-reservoir-xiao.local`.
 - [x] (2026-05-27) Built and USB-flashed the XIAO reservoir canary to `/dev/ttyACM0`; read back flash from `0x10000` and confirmed `reservoir-xiao`, `dirt-reservoir-xiao`, and `0.1.3-xiao-canary` are present.
-- [ ] Implement XIAO board-target cutover in the remaining production firmware.
-- [ ] Validate a USB-connected XIAO canary.
+- [x] (2026-06-01) Cut `firmware/fan_controller` over to `board = seeed_xiao_esp32c3`, aligned-header XIAO pins, and firmware `0.2.2-xiao`; USB-flashed the main `fan-controller` board at MAC `80:f1:b2:62:53:c4`.
+- [x] (2026-06-01) Installed the XIAO main fan-controller on the existing perma-proto, confirmed `fan-controller.local` at `192.168.1.33`, HTTP `/fan` response, fresh `temperature_c` / `humidity_pct`, and RSSI around `-54 dBm` with zero reconnects.
+- [x] (2026-06-01) USB-flashed a second XIAO with the `breeding-env` profile at MAC `80:f1:b2:61:7c:00`; installed it on the breeding-env perma-proto and confirmed `breeding-env.local` at `192.168.1.13`, fresh temp/RH readings, and RSSI around `-44 dBm` with zero reconnects.
+- [x] (2026-06-01) Cut `firmware/plant_node` over to `board = seeed_xiao_esp32c3` and firmware `0.1.3-xiao`; USB-flashed a Plant A replacement XIAO at MAC `e8:f6:0a:14:a3:c8`.
+- [ ] Physically wire and install the Plant A XIAO replacement. Current instruction: sensor VCC to XIAO `3V3`, GND to `GND`, AOUT to XIAO `D1` / chip `GPIO3` / `ADC1_CH3`.
 - [ ] Wire the XIAO reservoir canary to ADS1115/SEN0262/probe hardware and confirm I2C detection plus live reservoir readings.
-- [ ] Migrate deployed nodes one at a time.
-- [ ] Update wiki hardware pages after rollout.
+- [ ] Migrate remaining deployed plant nodes one at a time.
+- [ ] Update remaining wiki hardware pages after full rollout.
 
 
 ## Surprises & Discoveries
@@ -58,6 +61,12 @@ The design goal is a direct cutover: use the XIAO board definition, keep the exi
 
 - Observation: The installed `pio run` command does not support an inline `--project-option` override in this environment.
   Evidence: `pio run -e plant-a --project-option=...` exited with `No such option: --project-option`. Implementers should edit `platformio.ini` directly or use a temporary `--project-conf` file in `debug/` for probes.
+
+- Observation: XIAO `D0` / chip `GPIO2` works as SHT45 SCL in the existing fan-controller perma-proto layout.
+  Evidence: After flashing `fan-controller` firmware `0.2.2-xiao`, the node posted fresh `temperature_c=24.63` and `humidity_pct=56.49` from `192.168.1.33`. The same aligned-header pinout worked for `breeding-env-node`, which posted `temperature_c=23.09` and `humidity_pct=52.24` from `192.168.1.13`.
+
+- Observation: XIAO `D10` is not valid for the plant-node analog soil-moisture input.
+  Evidence: Seeed's XIAO ESP32C3 pinout maps `D10` to chip `GPIO10`, while ESP32-C3 ADC inputs are on `GPIO0` through `GPIO5`. The plant-node firmware remains on XIAO `D1` / chip `GPIO3` / `ADC1_CH3`.
 
 
 ## Decision Log
@@ -90,6 +99,10 @@ The design goal is a direct cutover: use the XIAO board definition, keep the exi
   Rationale: The existing reservoir firmware is already board-agnostic at the controller level and uses explicit chip GPIOs for I2C. The canary needs a board target and temporary identity, not a forked firmware implementation.
   Date/Author: 2026-05-27 / Codex
 
+- Decision: Reuse the existing fan-controller and breeding-env perma-proto aligned-header wiring instead of rewiring to the original proposed XIAO labels.
+  Rationale: The XIAO and SuperMini are the same header width, and the shorter XIAO can sit in the existing socket. Preserving the left-side physical header nets avoids reworking known-good perma-proto boards. The resulting canonical XIAO contract for this firmware is SHT45 SDA on `D10` / `GPIO10`, SHT45 SCL on `D0` / `GPIO2`, fan D+ gate on `D1` / `GPIO3`, and fan B5 gate on `D2` / `GPIO4`.
+  Date/Author: 2026-06-01 / Codex
+
 
 ## Outcomes & Retrospective
 
@@ -111,12 +124,13 @@ Current firmware projects:
 
 - `firmware/plant_node/`: plant A/B/C/D firmware. `firmware/plant_node/src/main.cpp` reads one capacitive soil moisture sensor on chip GPIO3 / ADC1_CH3 and posts `soil_moisture_raw` through the shared ingest client. Per-node PlatformIO environments set only `PLANT_ID`.
 - `firmware/reservoir_node/`: reservoir pressure firmware. `firmware/reservoir_node/src/main.cpp` uses I2C on chip GPIO4/GPIO5 to read an ADS1115 and posts `reservoir_pressure_raw` plus `reservoir_in`.
-- `firmware/fan_controller/`: main fan/tent environment node and `breeding-env` environment-only profile. `firmware/fan_controller/src/main.cpp` uses I2C on chip GPIO4/GPIO5 for SHT45 and, when fan control is enabled, PWM on chip GPIO6/GPIO7 for MOSFET gates to the AC Infinity fan lines.
+- `firmware/fan_controller/`: main fan/tent environment node and `breeding-env` environment-only profile. After the 2026-06-01 XIAO perma-proto cutover, `firmware/fan_controller/src/main.cpp` uses I2C on XIAO `D10`/`D0` (chip `GPIO10`/`GPIO2`) for SHT45 and, when fan control is enabled, PWM on XIAO `D1`/`D2` (chip `GPIO3`/`GPIO4`) for MOSFET gates to the AC Infinity fan lines.
 - `firmware/common/`: shared WiFi, OTA, and ingest helpers. The board migration should not fork these helpers.
 
 Current board target:
 
-- All three PlatformIO projects use `board = esp32-c3-devkitm-1` under an `[esp32_c3_base]` section. This is a generic ESP32-C3 target used for the current SuperMini clone boards.
+- `firmware/fan_controller` and `firmware/plant_node` use `board = seeed_xiao_esp32c3` under an `[esp32_c3_base]` section.
+- `firmware/reservoir_node` has been exercised as a XIAO canary, but deployed reservoir hardware still needs ADS1115/SEN0262 validation before the live node is replaced.
 
 Target board:
 
@@ -132,15 +146,15 @@ Internet-grounded hardware facts used by this plan:
 - PlatformIO has a first-class `seeed_xiao_esp32c3` board definition, so no custom board JSON should be necessary unless canary flashing proves a local PlatformIO bug.
 - Existing SuperMini documentation and local wiki notes treat the current boards as ESP32-C3 clone/SuperMini devices with USB-C, 4 MB flash class, native USB-CDC, and exposed GPIOs including GPIO3 through GPIO7. Their board-level pin labels and physical footprint are not the same as XIAO.
 
-Proposed XIAO wiring label map for canary validation:
+XIAO wiring label map:
 
 - Plant moisture sensor AOUT: chip GPIO3, XIAO label D1.
 - Reservoir ADS1115 SDA/SCL: chip GPIO4/GPIO5, XIAO labels D2/D3.
-- SHT45 SDA/SCL: chip GPIO4/GPIO5, XIAO labels D2/D3.
-- Fan D+ MOSFET gate: chip GPIO6, XIAO label D4.
-- Fan B5 MOSFET gate: chip GPIO7, XIAO label D5.
+- Fan-controller and breeding-env SHT45 SDA/SCL: chip GPIO10/GPIO2, XIAO labels D10/D0, preserving the existing aligned-header perma-proto wiring.
+- Fan-controller D+ / B5 MOSFET gates: chip GPIO3/GPIO4, XIAO labels D1/D2, preserving the existing aligned-header perma-proto wiring.
+- Original fallback proposal, not used for fan-controller after 2026-06-01: SHT45 on chip GPIO4/GPIO5 (`D2`/`D3`) and fan gates on chip GPIO6/GPIO7 (`D4`/`D5`).
 
-If canary testing proves GPIO4/GPIO5 I2C is unreliable on XIAO, the fallback is to move I2C to Seeed's default XIAO I2C labels and then choose two non-strap, non-UART pins for fan MOSFET gates. Do not implement that fallback speculatively; record the failure evidence first.
+If reservoir canary testing proves GPIO4/GPIO5 I2C is unreliable on XIAO, stop the reservoir rollout and record the failure evidence before choosing a revised pin contract. Do not apply the fan-controller's aligned-header pinout to the reservoir blindly; the reservoir board has different wiring pressure.
 
 
 ## Plan of Work
@@ -425,11 +439,12 @@ Firmware behavior that must remain stable:
 
 Hardware pin contract after canary validation:
 
-- Chip GPIO3: plant soil moisture ADC.
-- Chip GPIO4/GPIO5: I2C bus for ADS1115 and SHT45 roles.
-- Chip GPIO6/GPIO7: fan-controller MOSFET gate outputs.
+- Plant nodes: XIAO `D1` / chip `GPIO3` / `ADC1_CH3` for soil moisture ADC. XIAO `D10` / chip `GPIO10` is not ADC-capable and must not be used for the analog soil probe.
+- Reservoir node: chip `GPIO4`/`GPIO5` I2C bus for ADS1115 remains the target until the reservoir XIAO canary is wired and validated.
+- Fan-controller and breeding-env nodes: XIAO `D10`/`D0` (`GPIO10`/`GPIO2`) for SHT45 I2C; fan-controller XIAO `D1`/`D2` (`GPIO3`/`GPIO4`) for D+ / B5 MOSFET gate outputs.
 
 
 ## Revision Notes
 
 - 2026-05-27: Initial plan created after internet research, local firmware inspection, PlatformIO board lookup, USB device enumeration, and baseline firmware builds.
+- 2026-06-01: Recorded partial rollout. Main fan-controller and breeding-env are live on XIAO hardware with aligned-header pinout; Plant A XIAO firmware is flashed but the moisture sensor is not wired or installed yet.

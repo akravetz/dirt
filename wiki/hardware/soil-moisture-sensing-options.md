@@ -4,12 +4,12 @@ type: hardware
 sources: []
 related: [wiki/concepts/capacitive-soil-moisture.md, wiki/hardware/esp32-plant-nodes.md, wiki/hardware/reservoir-level.md, wiki/hardware/sdi-12-substrate-sensors.md]
 created: 2026-05-31
-updated: 2026-05-31
+updated: 2026-06-03
 ---
 
 # Soil Moisture Sensing Options
 
-Snapshot date: 2026-05-31. Prices are rough list prices found during research and should be rechecked before buying.
+Snapshot date: 2026-06-03. Prices are rough list prices found during research and should be rechecked before buying.
 
 Goal: replace or supplement the current cheap capacitive probes with a more trustworthy root-zone signal for the current Autopot coco/perlite grow, while keeping a path toward a future 16-site drain-to-waste coco setup. The useful measurements are moisture trend/comparison first, and optional substrate EC second.
 
@@ -31,7 +31,7 @@ Server-side auto-calibration makes the readings more useful than raw ADC values,
 |---|---:|---|---|---|---|---|
 | Generic capacitive PCB probe v1.2/v2.0 | $2-10 | Relative moisture only | Analog voltage | Already live on per-pot ESP32 nodes | Cheapest and easy to replace | Poor repeatability, clone variance, fragile packaging, questionable salt behavior |
 | DFRobot SEN0308 IP65 capacitive probe | $14.90 | Relative moisture only | Analog voltage | Easy ESP32/ADC integration | Better packaging than bare PCB probes | Still basically the same class of capacitive signal; likely not enough improvement |
-| Generic RS-485 soil moisture probes | ~$20-60 | Usually moisture/temp, sometimes EC/pH/NPK claims | RS-485/Modbus | Needs RS-485 transceiver + firmware | Digital bus, cheap, long cable friendly | Sensor physics are usually opaque; many are likely cheap dielectric probes with unknown calibration |
+| ComWinTop / generic RS-485 soil probes | Already ordered: 2 ComWinTop THCPH-S-class probes | Moisture + temp + EC + pH for the ordered variant | RS-485/Modbus RTU | XIAO ESP32C3 + Seeed XIAO RS485 breakout | Digital bus, cheap, long cable friendly, no ESP32 ADC path | Sensor physics/calibration are opaque; pH-in-substrate behavior must be validated before trusting |
 | Vegetronix VH400 | Price not published on product page | Moisture/VWC | Analog voltage | ESP32 + good ADC | Rugged blade, waterproof, salinity-insensitivity claim, simple output | No EC/temp; price must be confirmed; still analog |
 | Truebner SMT50 | 69 EUR incl. VAT from OpenSprinklerShop | Moisture + temperature | Analog voltage | ESP32 + good ADC | Credible mid-tier FDR sensor; lower cost than TB-SMP03 | No EC; 0-50% VWC range; careful installation needed |
 | TekBox TBSMP03 | $99 | Moisture + temperature | SDI-12 | Needs SDI-12 master/interface | Digital bus, reusable multi-sensor wiring, calibrated output | No EC; less field reputation than METER TEROS |
@@ -41,6 +41,11 @@ Server-side auto-calibration makes the readings more useful than raw ADC values,
 Sources:
 
 - Current system notes: [Capacitive Soil Moisture Sensors](../concepts/capacitive-soil-moisture.md), [ESP32-C3 Per-Plant Nodes](esp32-plant-nodes.md)
+- ComWinTop CWT-Soil THCPH-S-class RS485 sensor: <https://store.comwintop.com/products/rs485-4-20ma-soil-temperature-humidity-moisture-conductivity-ec-ph-sensor>
+- CWT-Soil-THCPH-S manual mirror: <https://www.digitalconcepts.net.au/arduino/content/support/datasheets/rs485sensors/THCPH-S%20%285pin%20probe%29%20Manual%20V1.4.pdf>
+- Seeed XIAO ESP32C3 pinout: <https://wiki.seeedstudio.com/XIAO_ESP32C3_Getting_Started/>
+- Seeed RS485 Breakout Board for XIAO: <https://www.seeedstudio.com/RS485-Breakout-Board-for-XIAO-p-6306.html>
+- Seeed XIAO RS485 Expansion Board wiki: <https://wiki.seeedstudio.com/XIAO-RS485-Expansion-Board/>
 - DFRobot SEN0308: <https://www.dfrobot.com/search-sen0308.html>
 - Vegetronix VH400: <https://www.vegetronix.com/Products/VH400/>
 - Truebner SMT50: <https://opensprinklershop.de/en/product/smt50/>
@@ -60,6 +65,121 @@ For the current grow, the cleanest first experiment is:
 2. Keep the existing capacitive node running for side-by-side comparison.
 3. Compare moisture trend, irrigation events, pot hand-weight, visual stress, and runoff/root-zone checks.
 4. Use that result to decide the future 16-site sensor mix.
+
+## Current RS485 Plan: ComWinTop Sensors + XIAO
+
+Two ComWinTop RS485 soil probes have been ordered for moisture and pH exploration. The current plan is to bring them up with a Seeed Studio XIAO ESP32C3 and the Seeed RS485 Breakout Board for XIAO, then compare the signal against the existing capacitive probes, hand-weight/watering events, runoff checks, and visible plant response.
+
+This is a validation path, not a decision to trust these probes as the long-term source of truth. The attractive part is the interface: Modbus RTU over RS485 gives a digital, multi-drop bus and avoids the ESP32-C3 ADC issues that weakened the current capacitive-probe system. The risky part is sensor physics and calibration: cheap multi-parameter soil probes often expose clean-looking digital numbers without enough transparency about how moisture and pH are actually measured in coco/perlite.
+
+### Parts On Hand / Ordered
+
+| Qty | Item | Source | Notes |
+|---:|---|---|---|
+| 2 | ComWinTop CWT-Soil THCPH-S-class RS485 soil sensors | Already ordered from ComWinTop | Ordered for moisture + pH; expected to also expose temperature and EC registers |
+| 1 | Seeed Studio XIAO ESP32C3 | Already in the plant-node migration path | WiFi controller; existing firmware target already uses this board family |
+
+### Additional BOM To Buy
+
+| Qty | Item | Vendor | Purpose |
+|---:|---|---|---|
+| 1 | Seeed RS485 Breakout Board for XIAO, SKU 113991354 | Seeed Studio | XIAO-format UART-to-RS485 transceiver board |
+| 1 | Reliable 5 V USB supply, 1 A minimum; 2 A preferred | Adafruit, SparkFun, or DigiKey | Powers the XIAO and, for short cable tests, both sensors |
+| 1 | USB-C cable rated for power + data | Adafruit, SparkFun, or DigiKey | Flashing, serial logs, and runtime power |
+| 4 | WAGO 221-413 or 221-415 lever connectors | DigiKey | Small bus bars for 5 V, GND, RS485 A, and RS485 B |
+| 1 | Short Cat5e/Cat6 cable or 1-pair shielded twisted RS485 cable | DigiKey, SparkFun, or Adafruit | RS485 A/B twisted pair between controller and sensors |
+| 1 optional | 120 ohm through-hole resistor | DigiKey, SparkFun, or Adafruit | Far-end RS485 termination if the short tent run is flaky |
+| 1 optional | 12 V regulated supply + barrel-jack screw terminal | Adafruit, SparkFun, or DigiKey | Better sensor-power margin if 5 V over the cable proves marginal |
+| 1 optional | Multimeter | Adafruit, SparkFun, or DigiKey | Verify 5 V/GND and continuity before connecting sensors |
+
+The earlier SparkFun RS485 transceiver breakout and its screw terminal are no longer needed if using the Seeed XIAO RS485 breakout. A USB-to-RS485 adapter is also optional rather than required; the XIAO can program sensor addresses itself.
+
+### Wiring Plan
+
+The Seeed RS485 breakout plugs/solders directly to the XIAO. The breakout handles the UART-to-RS485 electrical conversion. The ESP32 does not drive the sensor bus directly.
+
+Use the received sensor manual/label as the authority before applying power. The THCPH-S manual mirror lists this common CWT wiring:
+
+```text
+Sensor brown  -> power +, DC 4.5-30 V
+Sensor black  -> power - / GND
+Sensor yellow -> RS485 A+
+Sensor blue   -> RS485 B-
+```
+
+For first bring-up from the same 5 V USB supply:
+
+```text
+USB/XIAO 5V or VBUS -> sensor 1 brown -> sensor 2 brown
+USB/XIAO GND        -> sensor 1 black -> sensor 2 black
+Seeed RS485 A       -> sensor 1 yellow -> sensor 2 yellow
+Seeed RS485 B       -> sensor 1 blue   -> sensor 2 blue
+```
+
+Ground must be common between the XIAO/RS485 board and the sensor power supply. Do not connect sensor power to the XIAO `3V3` pin. Do not connect 5 V or 12 V to any XIAO GPIO pin.
+
+For a short grow-tent run, start with a simple daisy-chain/bus shape and no long stubs:
+
+```text
+XIAO RS485 board ---- sensor 1 ---- sensor 2
+```
+
+The Seeed board has a 120 ohm termination switch. For short bench/tent tests, start with termination off unless communication is flaky. If the cable is longer or noisy, terminate only the two physical ends of the bus: enable the Seeed board's 120R switch if the controller is at one end, and add one 120 ohm resistor across A/B at the far sensor end. Do not add termination at every sensor.
+
+If Modbus requests time out, first verify power and ground. Then try swapping A/B at the RS485 terminal only. Do not swap power wires.
+
+### Address Programming Plan
+
+Both sensors will likely arrive at Modbus slave address `1`. They cannot both keep the same address on the same RS485 bus, so configure one sensor before installing both together.
+
+First-step procedure:
+
+1. Connect only one sensor to the XIAO RS485 breakout.
+2. Power the sensor from 5 V or 12 V and share ground with the XIAO.
+3. Flash a small temporary XIAO firmware/sketch that speaks Modbus RTU.
+4. Poll the sensor at the factory serial settings from the manual, expected default: address `1`, `4800` baud, `8N1`.
+5. Read measurement registers first to prove RX/TX/A/B wiring works.
+6. Write the documented Modbus address/config register to set the first sensor to address `2`.
+7. Power-cycle that sensor.
+8. Verify it responds at address `2` and no longer responds at address `1`.
+9. Label the cable/probe as `addr=2`.
+10. Connect the second sensor and leave it at address `1`.
+
+Important: do not guess the address-change register. Reading measurement registers is low risk; writing configuration registers should wait until the exact register and write command are confirmed from the received ComWinTop manual or vendor support material.
+
+### Expected Modbus Shape
+
+The manual mirror for the THCPH-S-class sensor describes Modbus RTU over RS485. The expected first read is function code `0x03` against holding registers. For the THCPH-S-class layout, measurement registers are expected to begin at `0x0000`, with moisture/humidity, temperature, EC, and pH in the first block. Confirm scale factors from the received manual before storing values in Dirt; pH and EC are usually transmitted as scaled integers rather than native floats.
+
+Candidate Dirt metrics after verification:
+
+| Sensor value | Candidate metric | Notes |
+|---|---|---|
+| Soil moisture / humidity | `substrate_moisture_pct` or `soil_moisture_pct` | Pick one canonical name before ingest; avoid mixing with existing raw ADC metric |
+| Soil temperature | `substrate_temp_c` | Convert to F only in UI/reporting if needed |
+| Conductivity | `substrate_ec_us_cm` or `substrate_ec_ds_m` | Choose units before ingest; avoid silent uS/cm vs dS/m confusion |
+| pH | `substrate_ph` | Treat as experimental until checked against runoff/slurry/manual meter readings |
+
+### Bring-Up Checklist For A Future Agent
+
+1. Re-read this section plus [ESP32-C3 Per-Plant Nodes](esp32-plant-nodes.md).
+2. Verify the received sensor model and wire colors against the included manual.
+3. Assemble XIAO + Seeed RS485 breakout.
+4. Bench-test one sensor only at address `1`.
+5. Confirm basic Modbus reads before any writes.
+6. Change one sensor to address `2`, power-cycle, and verify.
+7. Wire both sensors on the same A/B bus with shared ground and distinct addresses.
+8. Poll both sensors for at least 15-30 minutes on the bench and log raw register responses.
+9. Only then wire firmware ingest into Dirt metrics.
+10. Validate pH/moisture trends against manual measurements and plant/watering events before relying on automations.
+
+### Open Questions For Bring-Up
+
+- What exact model/variant arrives, and does its manual match the THCPH-S V1.4 register map?
+- Which Modbus register changes the slave address, and does the device require a power-cycle after writing it?
+- Are the default serial settings definitely `4800 8N1`, or did this batch ship at a different baud rate?
+- Does 5 V USB power remain stable with both sensors plus ESP32 WiFi active, or should sensor power move to 12 V?
+- Does the pH signal track any real substrate condition in coco/perlite, or is runoff/slurry/manual meter data still the practical pH truth?
 
 ## SDI-12 Path
 
