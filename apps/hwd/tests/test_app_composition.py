@@ -7,7 +7,6 @@ from dirt_hwd.services.climate_controller import ClimateControllerService
 from dirt_hwd.services.fan_controller import FanTrimLoopService
 from dirt_hwd.services.humidifier import HumidifierLoopService
 from dirt_hwd.services.kasa_schedule import ScheduledKasaActuatorService
-from dirt_hwd.services.thermoforge import ScheduledThermoForgeService
 from dirt_shared.config import Settings
 
 
@@ -26,5 +25,4 @@ def test_default_background_services_use_unified_climate_authority(
     assert ClimateControllerService in service_types
     assert HumidifierLoopService not in service_types
     assert FanTrimLoopService not in service_types
-    assert ScheduledThermoForgeService not in service_types
     assert ScheduledKasaActuatorService in service_types

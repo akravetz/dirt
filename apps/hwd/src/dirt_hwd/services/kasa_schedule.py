@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, time
 from typing import Protocol
@@ -39,12 +39,9 @@ from dirt_shared.services.grow_state import derive_lights_from_times
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_SCHEDULE_KINDS = ("lights",)
-
 
 @dataclass(frozen=True)
 class ScheduledKasaTarget:
-    kind: str
     site_id: str
     tent_id: str
     zone_id: str | None
@@ -88,7 +85,6 @@ class ScheduledKasaActuatorService:
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         target_loader: ScheduleTargetLoader | None = None,
         inventory: KasaResolver | None = None,
-        schedule_kinds: Sequence[str] = DEFAULT_SCHEDULE_KINDS,
         event_logger: EventLogger = log_event,
     ) -> None:
         if engine is None and target_loader is None:
@@ -98,7 +94,6 @@ class ScheduledKasaActuatorService:
         self._clock = clock
         self._target_loader = target_loader
         self._inventory = inventory
-        self._schedule_kinds = tuple(dict.fromkeys(schedule_kinds))
         self._log_event = event_logger
 
     async def run(self, stop_event: asyncio.Event) -> None:
@@ -117,9 +112,7 @@ class ScheduledKasaActuatorService:
         interval = cfg.poll_interval
 
         logger.info(
-            "scheduled Kasa actuator service starting: "
-            "kinds=%s discovery_target=%s interval=%ds",
-            ",".join(self._schedule_kinds),
+            "scheduled Kasa light service starting: discovery_target=%s interval=%ds",
             cfg.discovery_target,
             interval,
         )
@@ -174,8 +167,6 @@ class ScheduledKasaActuatorService:
             return await self._target_loader()
         if self._engine is None:
             raise RuntimeError("engine missing for DB target load")
-        if not self._schedule_kinds:
-            return []
 
         async with AsyncSession(self._engine) as session:
             rows = (
@@ -196,7 +187,7 @@ class ScheduledKasaActuatorService:
                     .join(DbDevice, DbDevice.id == Schedule.device_id)
                     .outerjoin(Zone, Zone.id == DbDevice.zone_id)
                     .join(Capability, Capability.id == Schedule.capability_id)
-                    .where(col(Schedule.kind).in_(self._schedule_kinds))
+                    .where(Schedule.kind == "lights")
                     .where(Schedule.enabled.is_(True))
                     .where(col(Schedule.starts_local).is_not(None))
                     .where(col(Schedule.ends_local).is_not(None))
@@ -205,7 +196,7 @@ class ScheduledKasaActuatorService:
                     .where(DbDevice.provider_uid_kind == "mac")
                     .where(col(DbDevice.provider_uid).is_not(None))
                     .where(Capability.enabled.is_(True))
-                    .order_by(Tent.tent_id, Schedule.kind, Schedule.schedule_id)
+                    .order_by(Tent.tent_id, Schedule.schedule_id)
                 )
             ).all()
 
@@ -230,7 +221,6 @@ class ScheduledKasaActuatorService:
                 continue
             targets.append(
                 ScheduledKasaTarget(
-                    kind=schedule.kind,
                     site_id=site_id,
                     tent_id=tent_id,
                     zone_id=zone_id,
@@ -268,7 +258,7 @@ class ScheduledKasaActuatorService:
             else:
                 await plug.turn_off()
             self._log_event(
-                target.kind,
+                "lights",
                 "state_change",
                 **self._scope_fields(target),
                 schedule_id=target.schedule_id,
@@ -278,8 +268,7 @@ class ScheduledKasaActuatorService:
                 minutes_until_on=round(desired.minutes_until_on, 1),
             )
             logger.info(
-                "%s %s -> %s (schedule=%s)",
-                target.kind,
+                "lights %s -> %s (schedule=%s)",
                 target.device_id,
                 "on" if desired.on else "off",
                 target.schedule_id,
@@ -343,13 +332,12 @@ class ScheduledKasaActuatorService:
 
     def _log_error(self, target: ScheduledKasaTarget, exc: Exception) -> None:
         logger.error(
-            "%s target error: device_id=%s error=%r",
-            target.kind,
+            "lights target error: device_id=%s error=%r",
             target.device_id,
             exc,
         )
         self._log_event(
-            target.kind,
+            "lights",
             "error",
             **self._scope_fields(target),
             schedule_id=target.schedule_id,

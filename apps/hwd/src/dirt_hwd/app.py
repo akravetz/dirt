@@ -196,7 +196,6 @@ def _build_climate_actuator_runtime(
 ) -> ClimateActuatorRuntime:
     humidifier_config = settings.humidifier()
     fan_trim_config = settings.fan_trim()
-    thermoforge_config = settings.thermoforge()
     http = httpx.AsyncClient(timeout=15.0)
 
     actuators = ClimateActuators(
@@ -219,7 +218,7 @@ def _build_climate_actuator_runtime(
             client_factory=lambda mac: ThermoForgeBleClient(
                 ThermoForgeBleConfig(
                     mac=mac,
-                    status_timeout_s=thermoforge_config.connect_timeout_s,
+                    status_timeout_s=settings.thermoforge_connect_timeout_s,
                 )
             ),
         ),
