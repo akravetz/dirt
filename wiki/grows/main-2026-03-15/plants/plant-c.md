@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/coco-coir.md, wiki/concepts/lst.md, wiki/environment/nutrients.md]
 created: 2026-04-06
-updated: 2026-06-02
+updated: 2026-06-08
 ---
 
 # Plant C
@@ -19,7 +19,7 @@ updated: 2026-06-02
 
 ## Current State
 
-Day 80 / Flower Day 30: No dedicated photo was available, and C remains high/flat near 90.08% with no useful dryback today. Keep root-zone and interior-airflow checks active before treating any future shaded leaf color as a feed-strength issue. See [2026-06-02](../../../daily/2026-06-02.md).
+Day 86 / Flower Day 36: Wall-side flower clusters remain upright with fresh pistils, but C is still high/flat near 92.01% with no useful dryback. Keep root-zone and interior-airflow checks active before treating shaded leaf color as a feed-strength issue. See [2026-06-08](../../../daily/2026-06-08.md).
 
 ## Timeline
 
@@ -79,3 +79,9 @@ Day 80 / Flower Day 30: No dedicated photo was available, and C remains high/fla
 - 2026-05-30 — [Day 77 / Flower Day 27: partly fan-obstructed purple-toned flower sites; moisture ~88.7% remains high but is drifting drier, keep root-zone/airflow watch](../../../daily/2026-05-30.md)
 - 2026-06-01 — [Day 79 / Flower Day 29: dedicated photo missing; moisture ~90.8% remains high with no useful dryback, keep root-zone/airflow watch](../../../daily/2026-06-01.md)
 - 2026-06-02 — [Day 80 / Flower Day 30: dedicated photo missing; moisture ~90.1% remains high/flat, keep root-zone/airflow watch](../../../daily/2026-06-02.md)
+- 2026-06-03 — [Day 81 / Flower Day 31: active flower sites visible; moisture ~90.0% remains saturated/flat, keep root-zone/airflow watch](../../../daily/2026-06-03.md)
+- 2026-06-04 — [Day 82 / Flower Day 32: active clustered flower sites; moisture ~91.7% remains saturated/flat, keep root-zone/airflow watch](../../../daily/2026-06-04.md)
+- 2026-06-05 — [Day 83 / Flower Day 33: active clustered flower sites; moisture ~91.5% remains saturated/flat, keep root-zone/airflow watch](../../../daily/2026-06-05.md)
+- 2026-06-06 — [Day 84 / Flower Day 34: upright wall-side flower clusters; moisture ~91.9% remains saturated/flat, keep root-zone/airflow watch](../../../daily/2026-06-06.md)
+- 2026-06-07 — [Day 85 / Flower Day 35: upright wall-side flower clusters; moisture ~91.9% remains saturated/flat, keep root-zone/airflow watch](../../../daily/2026-06-07.md)
+- 2026-06-08 — [Day 86 / Flower Day 36: upright wall-side flower clusters; moisture ~92.0% remains saturated/flat, keep root-zone/airflow watch](../../../daily/2026-06-08.md)

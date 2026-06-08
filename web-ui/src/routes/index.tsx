@@ -19,6 +19,7 @@ export const Route = createFileRoute("/")({
 
 const hostedApi = createHostedApiClient();
 const PLANT_DETAIL_ROUTE = "/tents/$tentId/plants/$plantId" as const;
+const LIVE_DASHBOARD_REFETCH_MS = 30_000;
 
 type SparklineAccent =
   | "temp"
@@ -142,6 +143,7 @@ function HostedDashboardPage() {
       return hostedData(data, "/api/tents/{tent_id}/metrics/current");
     },
     enabled: selectedTentId.length > 0,
+    refetchInterval: LIVE_DASHBOARD_REFETCH_MS,
   });
 
   const presentationQuery = useQuery({
@@ -184,6 +186,7 @@ function HostedDashboardPage() {
         return hostedData(data, "/api/tents/{tent_id}/metrics/history");
       },
       enabled: selectedTentId.length > 0 && presentationQuery.isSuccess,
+      refetchInterval: range === "1h" ? LIVE_DASHBOARD_REFETCH_MS : false,
     })),
   });
 

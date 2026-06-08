@@ -116,6 +116,54 @@ async def test_ingest_writes_readings_and_node(client: AsyncClient, app_engine):
         assert device.last_seen is not None
 
 
+async def test_ingest_stores_device_diagnostics(client: AsyncClient, app_engine):
+    r = await client.post(
+        "/api/ingest/sensors",
+        json=_current_payload(
+            zone_id="canopy",
+            device_id="fan-controller",
+            metrics={
+                "temperature_c": 20.6,
+                "humidity_pct": 49.0,
+                "fan_pct": 30.0,
+            },
+            diagnostics={
+                "boot_count": 12,
+                "reset_reason": 3,
+                "loop_gap_max_ms": 1118,
+                "http_get_fan_count": 44,
+                "http_post_fan_count": 7,
+                "ingest_ok_count": 120,
+                "ingest_fail_count": 2,
+                "last_ingest_code": 202,
+                "max_ingest_ms": 391,
+                "free_heap_bytes": 178320,
+            },
+        ),
+        headers=_auth_header(),
+    )
+
+    assert r.status_code == 202
+
+    async with AsyncSession(app_engine) as s:
+        device = (
+            await s.exec(select(Device).where(Device.device_id == "fan-controller"))
+        ).one()
+
+    assert device.metadata_json["diagnostics"] == {
+        "boot_count": 12,
+        "reset_reason": 3,
+        "loop_gap_max_ms": 1118,
+        "http_get_fan_count": 44,
+        "http_post_fan_count": 7,
+        "ingest_ok_count": 120,
+        "ingest_fail_count": 2,
+        "last_ingest_code": 202,
+        "max_ingest_ms": 391,
+        "free_heap_bytes": 178320,
+    }
+
+
 async def test_scoped_device_id_writes_capability(client: AsyncClient, app_engine):
     r = await client.post(
         "/api/ingest/sensors",

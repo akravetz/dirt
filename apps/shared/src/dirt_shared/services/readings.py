@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import text
@@ -239,6 +239,7 @@ async def _touch_device_heartbeat(  # noqa: PLR0913
     wifi_driver_reset_count: int | None,
     wifi_disconnect_reason: int | None,
     wifi_disconnected_for_ms: int | None,
+    diagnostics: Mapping[str, object] | None,
 ) -> None:
     if device_id is None:
         return
@@ -267,6 +268,10 @@ async def _touch_device_heartbeat(  # noqa: PLR0913
     device.wifi_driver_reset_count = wifi_driver_reset_count
     device.wifi_disconnect_reason = wifi_disconnect_reason
     device.wifi_disconnected_for_ms = wifi_disconnected_for_ms
+    if diagnostics is not None:
+        metadata = dict(device.metadata_json)
+        metadata["diagnostics"] = dict(diagnostics)
+        device.metadata_json = metadata
     device.last_seen = now
     device.updated_at = now
     session.add(device)
@@ -630,6 +635,7 @@ class ReadingsService:
         wifi_driver_reset_count: int | None = None,
         wifi_disconnect_reason: int | None = None,
         wifi_disconnected_for_ms: int | None = None,
+        diagnostics: Mapping[str, object] | None = None,
         site_id: str = DEFAULT_SITE_ID,
         tent_id: str | None = DEFAULT_TENT_ID,
         zone_id: str | None = None,
@@ -654,6 +660,7 @@ class ReadingsService:
                 wifi_driver_reset_count=wifi_driver_reset_count,
                 wifi_disconnect_reason=wifi_disconnect_reason,
                 wifi_disconnected_for_ms=wifi_disconnected_for_ms,
+                diagnostics=diagnostics,
             )
 
             capability_ids = await _resolve_capability_ids(
@@ -715,6 +722,7 @@ class ReadingsService:
         wifi_driver_reset_count: int | None = None,
         wifi_disconnect_reason: int | None = None,
         wifi_disconnected_for_ms: int | None = None,
+        diagnostics: Mapping[str, object] | None = None,
     ) -> None:
         """Update canonical device heartbeat."""
         now = self._clock()
@@ -734,6 +742,7 @@ class ReadingsService:
                 wifi_driver_reset_count=wifi_driver_reset_count,
                 wifi_disconnect_reason=wifi_disconnect_reason,
                 wifi_disconnected_for_ms=wifi_disconnected_for_ms,
+                diagnostics=diagnostics,
             )
             await session.commit()
 

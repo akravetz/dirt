@@ -24,7 +24,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 from pydantic import ValidationError
 
-from dirt_hwd.api.ingest import IngestPayload
+from dirt_hwd.api.ingest import DeviceDiagnostics, IngestPayload
 
 # Text in the 1..64-char range. Exclude control chars so hypothesis
 # doesn't waste effort on bytes that no ESP32 would ever send.
@@ -113,3 +113,11 @@ def test_empty_device_id_is_rejected() -> None:
     except ValidationError:
         return
     raise AssertionError("IngestPayload accepted an empty device_id — contract broken")
+
+
+def test_unknown_diagnostic_key_is_rejected() -> None:
+    try:
+        DeviceDiagnostics.model_validate({"boot_count": 1, "surprise": 2})
+    except ValidationError:
+        return
+    raise AssertionError("DeviceDiagnostics accepted an unknown key — contract broken")

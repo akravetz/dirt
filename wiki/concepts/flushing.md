@@ -4,7 +4,7 @@ type: concept
 sources: []
 related: [wiki/environment/nutrients.md, wiki/concepts/coco-coir.md, wiki/concepts/autopot.md]
 created: 2026-04-07
-updated: 2026-04-07
+updated: 2026-06-04
 ---
 
 # Flushing (Coco Coir)
@@ -40,27 +40,37 @@ Start flushing when you judge harvest is **5–7 days away** — i.e., when tric
 - If harvesting at ~20–30% amber: begin flush when you first see amber trichomes appearing (0–5%)
 - Monitor daily after flush begins — once trichomes hit target ratio, harvest promptly
 
-### Flush Procedure (Autopot)
+### End-of-Cycle Flush Procedure (Autopot)
 
-The Autopot system changes the flush procedure — you cannot simply hand-water because the float valve will keep refilling the tray.
+The Autopot system changes the flush procedure. Once the system is active, do not routinely pour water through the top of the pot; bottom feeding concentrates salts in the top 1-2 cm / top inch of coco, and top-down watering can move that layer into the active root zone. See [Autopot System](autopot.md).
 
-1. **Close the float valve** — revert to hand-watering mode for the flush period
-2. Empty the reservoir (or segregate it) — do not leave nutrient solution available during flush
-3. Hand-water with plain, pH-adjusted water (pH 5.8; EC 0.2–0.3 from Denver tap alone after pH correction)
-4. Water volume: 500–700ml per plant, enough to get runoff into the tray
-5. Remove tray runoff promptly (turkey baster/sponge) — same as the hand-watering phase
-6. Repeat every 1–2 days for the 5–7 day window
-7. Monitor runoff EC: target ≤0.3 by harvest day
+For a normal pre-harvest flush in active AutoPots:
+
+1. Empty or segregate the nutrient reservoir.
+2. Refill with plain, pH-adjusted water.
+3. Feed from the reservoir through the normal tray/AquaValve path.
+4. Keep trays clean and confirm normal cycling.
+5. Do not use runoff EC from top watering as the primary endpoint, because top-down runoff would disturb the surface salt layer.
+
+### Diagnostic Salt Flush Exception
+
+Top watering is still acceptable as a deliberate diagnostic/emergency action for suspected lockout or severe root-zone salt concentration. In that case:
+
+1. Close the float valve.
+2. Remove the pot from the tray or otherwise ensure true drain-to-waste.
+3. Use pH-adjusted light feed rather than zero-EC water; EC 0.4-0.6 is roughly 200-300 ppm on the 500 scale.
+4. Pour slowly and measure runoff pH/TDS or EC.
+5. Remove all runoff immediately and let the pot drain fully before returning it to Autopot service.
 
 ### EC Monitoring During Flush
 
 | Flush Day | Expected Runoff EC | Action |
 |-----------|-------------------|--------|
-| Day 1 | Likely 1.5–2.5 (releases built-up salts) | Normal; continue |
+| Day 1 | Likely 1.5–2.5 if doing a diagnostic top flush | Normal only for a drain-to-waste diagnostic; do not let runoff sit in tray |
 | Day 3 | Should be declining | Continue if > 0.5 |
 | Day 5–7 | Target ≤ 0.3 | Harvest when trichomes are ready |
 
-If runoff EC is stubbornly high (> 1.0) after day 3, increase water volume per session to drive more salt out.
+If runoff EC is stubbornly high (> 1.0) during a diagnostic flush, increase volume only if the pot can drain to waste and the plant is actively declining. Do not use repeated partial top flushes as routine Autopot maintenance.
 
 ---
 
@@ -85,3 +95,5 @@ If runoff EC is stubbornly high (> 1.0) after day 3, increase water volume per s
 - [Flushing Cannabis Before Harvest: What the Science Says — CannaCon](https://cannacon.org/flushing-cannabis/)
 - [The Definitive Guide to Flushing Coco Before Harvest — EatHealthy365](https://eathealthy365.com/the-definitive-guide-to-flushing-coco-before-harvest/)
 - [Weed Flushing — Grow Weed Easy](https://www.growweedeasy.com/flushing)
+- [AutoPot 2024 Grow Guide](https://autopot-usa.com/wp-content/uploads/2024_01_AutoPot-Grow-Guide-2024_WEB.pdf)
+- [Runoff EC Too High or Too Low — Photon Flux](https://photon-flux.de/knowledge/runoff-ec-too-high-too-low)
