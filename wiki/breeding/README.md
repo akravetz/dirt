@@ -4,7 +4,7 @@ type: breeding
 sources: []
 related: [wiki/concepts/oregon-breeding-group.md, wiki/concepts/anthocyanin.md, wiki/concepts/cannabis-genomics.md, wiki/breeding/veg-tent-layout.md, wiki/breeding/veg-tent-coco-dtw-layout.md, wiki/breeding/bill-of-materials.md, wiki/breeding/feminized-production.md, wiki/breeding/family-selection.md, wiki/decisions/2026-04-26-breeding-program-launch.md, wiki/decisions/2026-05-02-purple-stabilization-strategy.md, wiki/decisions/2026-05-31-kalash-valley-black-target.md]
 created: 2026-04-26
-updated: 2026-05-31
+updated: 2026-06-04
 ---
 
 # Breeding Program
@@ -25,7 +25,7 @@ What we are explicitly **not** doing: commercial-scale production or broad BS-li
 
 The program runs as two physically separated tracks because pollen contamination of the main flower tent would destroy the smokable harvest:
 
-- **Track A — pollen production.** Start all 10 SBxBS01 *regulars* now. Veg only long enough to make sturdy sex/pollen plants, then flip the batch to 12/12, cull females as soon as they declare, evaluate males (see [male-evaluation.md](male-evaluation.md)), collect separately labeled pollen, aliquot, and freeze. Total time germ → frozen pollen: ~7–8 weeks. Track A is the *speed track*. Current status: 10 regular seeds were started around 2026-04-28; 7 sprouted, 2 died during transplant to coco coir, and 5 active plants remain as R1-R5. Track A flipped to 12/12 on 2026-05-24. R1 and R4 have confirmed male pre-sex organs / male sex expression as of 2026-05-30; evaluate them against [male-evaluation.md](male-evaluation.md) before pollen collection. The grow-scoped plant record is [Track A pollen run](../grows/breeding-track-a-2026-04-28/README.md).
+- **Track A — pollen production.** Start all 10 SBxBS01 *regulars* now. Veg only long enough to make sturdy sex/pollen plants, then flip the batch to 12/12, cull females as soon as they declare, evaluate males (see [male-evaluation.md](male-evaluation.md)), collect separately labeled pollen, aliquot, and freeze. Total time germ → frozen pollen: ~7–8 weeks. Track A is the *speed track*. Current status: 10 regular seeds were started around 2026-04-28; 7 sprouted, 2 died during transplant to coco coir, and R3 was confirmed female and culled on 2026-06-04. Track A flipped to 12/12 on 2026-05-24. R1, R2, and R4 have confirmed male pre-sex organs / male sex expression; R5 remains on sex watch. Evaluate confirmed males against [male-evaluation.md](male-evaluation.md) before pollen collection. The grow-scoped plant record is [Track A pollen run](../grows/breeding-track-a-2026-04-28/README.md).
 - **Track B — phenotype hunt / stabilization selection.** Pop the next candidate population after the current grow harvests only if it still supports parent selection before Kalash Valley Black is available. Veg small, clone promising females before flip, flower out, score against the target, and preserve only plants/families that can support the black-line goal. Track B is the *selection track*.
 - **Track C — Kalash Valley Black acquisition and parent run.** Kalash Valley Black cannot be assumed available to the project before September 2026 because of the reported United States shipping pause. Once sourced, run it as a serious parent population: identify black-color donors, preserve useful females, evaluate males separately, and make known-family SBxBS01 × Kalash Valley Black crosses.
 

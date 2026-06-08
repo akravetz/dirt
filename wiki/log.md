@@ -2,7 +2,7 @@
 title: Activity Log
 type: log
 created: 2026-04-06
-updated: 2026-04-27
+updated: 2026-06-04
 order: chronological — oldest entries at top, newest appended at bottom. Do NOT insert entries out of date order.
 ---
 
@@ -1145,3 +1145,69 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - **Plant D moisture:** D is low/stale near 41.30%; verify media/tray/probe conditions by hand before changing irrigation assumptions.
 - **Breeding-tent watch:** Breeding is Flower Day 9 and less extreme than yesterday but still dry-side now at 74.17°F / 50.28% RH / 1.43 kPa. The overview still shows pale/lime foliage, lower yellowing, and droop, so check pot weight, fan exposure, watering timing, and sex sites.
 - Updated: `daily/2026-06-02.md`, `plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-06-03] daily | Day 81 / Flower Day 31 - full photos; lights-on dry edge, overnight wet
+- Photos captured across all 5 expected main presets plus the breeding overview. The main canopy is dense and flower-heavy with upright purple-toned tops and many fresh white pistils; breeding remains obstructed/soft-focused.
+- **Main-tent environment:** Morning/current VPD are 1.40/1.53 kPa, so lights-on is at the dry edge/slightly high, while overnight stayed wet/low at 1.09 kPa. Keep dark-cycle moisture clearing and airflow active without making lights-on hotter or drier.
+- **Plant A follow-up:** Visible tops are upright, and rough moisture continued post-rinse dryback to 41.71%. Avoid further rinsing; reopen Autopot only as a monitored test if tray/pot checks stay clean.
+- **Plant B/C moisture remains critical:** B is pinned/stale at 95.72%, and C remains high/flat at 90.04%; manual tray/float/media/probe checks remain urgent.
+- **Plant D moisture:** D has strong purple tops but remains low with little useful movement near 42.61%; verify media/tray/probe conditions by hand before changing irrigation assumptions.
+- **Breeding-tent watch:** Breeding is Flower Day 10 and lower-VPD now at 69.87°F / 57.57% RH / 1.06 kPa, but the obstructed overview still shows lime/yellow foliage and droop. R1/R2/R4 are confirmed male; R3/R5 still need direct sex-site checks.
+- Updated: `daily/2026-06-03.md`, `plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-06-04] query-filed | Plant A runoff TDS and Autopot reconnection
+- User reported Plant A looks fine after the diagnostic rinse/dryback sequence, with no heavy, sour, or stagnant pot/tray signs.
+- Additional runoff pH looked fine. TDS measured >1000 ppm on the 500 scale, equivalent to EC >2.0 mS/cm, so salts are still being mobilized through the coco after top rinsing.
+- Assessment filed: current evidence points to residual salt wash-through rather than active low-pH lockout or a need for another immediate flush.
+- Action filed: reconnect Plant A to the Autopot as a monitored test, remove runoff, watch tray cycling and leaf posture, and avoid further top flushing unless the plant declines or repeated checks show persistent high EC.
+- Updated: `daily/2026-06-04.md`, `plants/plant-a.md`, `environment/nutrients.md`, `concepts/autopot.md`, `concepts/flushing.md`, `overview.md`, `index.md`.
+
+## [2026-06-04] query-filed | Track A R3 female cull
+- User confirmed R3 is female and culled it on 2026-06-04.
+- Track A active pollen-run set is now R1/R2/R4 as confirmed male candidates plus R5 still on sex watch; R3 is removed from the active candidate pool.
+- Updated: `daily/2026-06-04.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r3.md`, `grows/breeding-track-a-2026-04-28/README.md`, `breeding/README.md`, `breeding/timeline.md`, `overview.md`, `index.md`.
+
+## [2026-06-04] daily | Day 82 / Flower Day 32 - full photos; main now dry/high, breeding wet spike
+- Photos captured across all 5 expected main presets plus the breeding overview. The main canopy is dense and flower-heavy with upright purple-toned tops and many fresh white pistils; breeding overview remains tent-level and partly obstructed.
+- **Main-tent environment:** Morning VPD averaged in range at 1.42 kPa, but current VPD overshot dry/high to 1.79 kPa with the fan at 80%; overnight stayed wet/low at 1.08 kPa. Keep correction focused on dark-cycle clearing and airflow without increasing lights-on dryness.
+- **Plant A follow-up:** Visible tops remain upright and rough moisture continued a controlled dry-side move to 37.05%. Manual inspection found no heavy/sour/stagnant signs; runoff pH looked fine but TDS was >1000 ppm / EC >2.0, so Autopot reconnection is a monitored test and no further top flush is recommended.
+- **Plant B/C moisture remains critical:** B is pinned/stale at 96.38%, and C remains high/flat at 91.73%; manual tray/float/media/probe checks remain urgent.
+- **Plant D moisture:** D has strong purple tops but remains low with little useful movement near 42.02%; verify media/tray/probe conditions by hand before changing irrigation assumptions.
+- **Breeding-tent watch:** Breeding is Flower Day 11 and now wet/low at 71.92°F / 83.28% RH / 0.45 kPa with 66.57°F dew point. R1/R2/R4 are confirmed male candidates, R3 is confirmed female and culled, and R5 remains on sex watch.
+- Updated: `daily/2026-06-04.md`, `plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-06-05] daily | Day 83 / Flower Day 33 - full photos; lights-on upper edge, overnight wet
+- Photos captured across all 5 expected main presets plus the breeding overview. The main canopy remains dense, upright, purple-toned, and flower-heavy with many fresh white pistils; breeding overview remains tent-level and does not resolve individual sex sites.
+- **Main-tent environment:** Morning/current VPD are 1.44/1.50 kPa, so lights-on is at the late-flower upper edge rather than yesterday's dry/high spike; overnight stayed wet/low at 1.09 kPa and current dew point rose to 63.47°F.
+- **Plant A follow-up:** Visible tops remain upright and rough moisture moved slightly wetter to 38.34% after watched Autopot reconnection; confirm tray cycling and leaf posture, with no additional top flush unless new evidence appears.
+- **Plant B/C moisture remains critical:** B is pinned/stale at 96.29%, and C remains high/flat at 91.49%; manual tray/float/media/probe checks remain urgent.
+- **Plant D moisture:** D has strong purple tops but remains low with little useful movement near 41.90%; verify media/tray/probe conditions by hand before changing irrigation assumptions.
+- **Breeding-tent watch:** Breeding is Flower Day 12. Only a current sensor reading is available and it exactly repeats yesterday's wet value, so verify sensor freshness/exposure while checking pot weight, airflow, watering timing, and R5 sex sites.
+- Updated: `daily/2026-06-05.md`, `plants/plant-{a,b,c,d}.md`, `grows/main-2026-03-15/README.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-06-06] daily | Day 84 / Flower Day 34 - full photos; lights-on in range, overnight still wet
+- Photos captured across all 5 expected main presets plus the breeding overview. The main canopy remains dense, upright, purple-toned, and flower-heavy with many fresh white pistils; Plant A's dedicated view is mostly fan-blocked, and breeding overview remains tent-level.
+- **Main-tent environment:** Morning/current VPD are 1.36/1.32 kPa, cleanly in the late-flower band, while overnight remains slightly wet/low at 1.13 kPa. Keep correction focused on dark-cycle clearing and canopy airflow.
+- **Plant A follow-up:** Visible tops remain upright and rough moisture continued slightly wetter to 44.59% after watched Autopot reconnection; confirm tray cycling and leaf posture, with no additional top flush unless new decline or repeated high-EC evidence appears.
+- **Plant B/C moisture remains critical:** B is pinned/stale at 96.62%, and C remains high/flat at 91.85%; manual tray/float/media/probe checks remain urgent.
+- **Plant D moisture:** D has strong purple tops but remains low with little useful movement near 42.53%; verify media/tray/probe conditions by hand before changing irrigation assumptions.
+- **Breeding-tent watch:** Breeding is Flower Day 13. Only a current sensor reading is available and it exactly repeats the same wet value again, so verify sensor freshness/exposure while checking pot weight, airflow, watering timing, and R5 sex sites.
+- Updated: `daily/2026-06-06.md`, `plants/plant-{a,b,c,d}.md`, `grows/main-2026-03-15/README.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-06-07] daily | Day 85 / Flower Day 35 - full photos; lights-on in range, overnight still wet
+- Photos captured across all 5 expected main presets plus the breeding overview. The main canopy remains dense, upright, purple-toned, and flower-heavy with many fresh white pistils; Plant A's dedicated view is mostly fan-blocked, and breeding overview remains tent-level.
+- **Main-tent environment:** Morning/current VPD are 1.30/1.39 kPa, cleanly in the late-flower band, while overnight remains slightly wet/low at 1.11 kPa. Current dew point improved to 57.15°F, but fan is already 80% now, so keep correction focused on dark-cycle clearing and canopy airflow.
+- **Plant A follow-up:** Visible tops remain upright and rough moisture continued slightly wetter to 47.59% after watched Autopot reconnection; confirm tray cycling and leaf posture, with no additional top flush unless new decline or repeated high-EC evidence appears.
+- **Plant B/C moisture remains critical:** B is pinned/stale at 96.66%, and C remains high/flat at 91.85%; manual tray/float/media/probe checks remain urgent.
+- **Plant D moisture:** D has strong purple tops but remains low and drifting drier near 42.02%; verify media/tray/probe conditions by hand before changing irrigation assumptions.
+- **Breeding-tent watch:** Breeding is Flower Day 14. Only a current sensor reading is available and it exactly repeats the same wet value again, so verify sensor freshness/exposure while checking pot weight, airflow, watering timing, and R5 sex sites.
+- Updated: `daily/2026-06-07.md`, `plants/plant-{a,b,c,d}.md`, `grows/main-2026-03-15/README.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-06-08] daily | Day 86 / Flower Day 36 - full photos; split VPD profile, overnight still wet
+- Photos captured across all 5 expected main presets plus the breeding overview. The main canopy remains dense, upright, purple-toned, and flower-heavy with many fresh white pistils; Plant A's dedicated view is mostly fan-blocked, and breeding overview remains tent-level.
+- **Main-tent environment:** Morning VPD is in range at 1.43 kPa, but now is slightly dry/high at 1.53 kPa while overnight remains wet/low at 1.10 kPa. Keep correction focused on dark-cycle clearing and canopy airflow, not more broad lights-on drying.
+- **Plant A follow-up:** Visible tops remain upright and rough moisture is stable near 49.13% after watched Autopot rewet; confirm tray cycling and leaf posture, with no additional top flush unless new decline or repeated high-EC evidence appears.
+- **Plant B/C moisture remains critical:** B is pinned/stale at 96.66%, and C remains high/flat at 92.01%; manual tray/float/media/probe checks remain urgent.
+- **Plant D moisture:** D has strong purple tops but remains low and drifting drier near 42.02%; verify media/tray/probe conditions by hand before changing irrigation assumptions.
+- **Breeding-tent watch:** Breeding is Flower Day 15. Only a current sensor reading is available and it exactly repeats the same wet value again, so verify sensor freshness/exposure while checking pot weight, airflow, watering timing, and R5 sex sites.
+- Updated: `daily/2026-06-08.md`, `plants/plant-{a,b,c,d}.md`, `grows/main-2026-03-15/README.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.

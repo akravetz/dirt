@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-06-02
+updated: 2026-06-08
 ---
 
 # Plant D
@@ -19,7 +19,7 @@ updated: 2026-06-02
 
 ## Current State
 
-Day 80 / Flower Day 30: No dedicated photo was available, and rough moisture is low/stale near 41.30%. Keep the media/tray/probe hand-check open before changing irrigation assumptions. See [2026-06-02](../../../daily/2026-06-02.md).
+Day 86 / Flower Day 36: Strong purple flower tops remain visible and upright, while rough moisture is still low and drifting drier near 42.02%. Keep the media/tray/probe hand-check open before changing irrigation assumptions. See [2026-06-08](../../../daily/2026-06-08.md).
 
 ## Timeline
 
@@ -79,3 +79,9 @@ Day 80 / Flower Day 30: No dedicated photo was available, and rough moisture is 
 - 2026-05-30 — [Day 77 / Flower Day 27: upright sativa-leaning purple flower tops visible; moisture low/flat near 44.7%, verify media/tray/probe by hand](../../../daily/2026-05-30.md)
 - 2026-06-01 — [Day 79 / Flower Day 29: dedicated photo missing; moisture low and drifting drier near 41.3%, verify media/tray/probe by hand](../../../daily/2026-06-01.md)
 - 2026-06-02 — [Day 80 / Flower Day 30: dedicated photo missing; moisture low/stale near 41.3%, verify media/tray/probe by hand](../../../daily/2026-06-02.md)
+- 2026-06-03 — [Day 81 / Flower Day 31: strong purple flower tops visible; moisture low near 42.6%, verify media/tray/probe by hand](../../../daily/2026-06-03.md)
+- 2026-06-04 — [Day 82 / Flower Day 32: strong purple flower tops visible; moisture low near 42.0%, verify media/tray/probe by hand](../../../daily/2026-06-04.md)
+- 2026-06-05 — [Day 83 / Flower Day 33: strong purple flower tops visible; moisture low near 41.9%, verify media/tray/probe by hand](../../../daily/2026-06-05.md)
+- 2026-06-06 — [Day 84 / Flower Day 34: strong purple flower tops visible; moisture low near 42.5%, verify media/tray/probe by hand](../../../daily/2026-06-06.md)
+- 2026-06-07 — [Day 85 / Flower Day 35: strong purple flower tops visible; moisture low near 42.0%, verify media/tray/probe by hand](../../../daily/2026-06-07.md)
+- 2026-06-08 — [Day 86 / Flower Day 36: strong purple flower tops visible; moisture low near 42.0%, verify media/tray/probe by hand](../../../daily/2026-06-08.md)

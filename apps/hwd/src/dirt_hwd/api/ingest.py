@@ -9,7 +9,7 @@ import logging
 import math
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from dirt_hwd.deps import get_readings, get_sensor_quality, get_settings
 from dirt_hwd.services.sensor_quality import SensorQualityService
@@ -30,6 +30,27 @@ _WIRE_METRIC_ALIASES: dict[str, dict[str, str]] = {
 }
 
 
+class DeviceDiagnostics(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    boot_count: int | None = None
+    reset_reason: int | None = None
+    loop_gap_max_ms: int | None = None
+    loop_gap_over_5s_count: int | None = None
+    http_get_fan_count: int | None = None
+    http_post_fan_count: int | None = None
+    http_not_found_count: int | None = None
+    ingest_ok_count: int | None = None
+    ingest_fail_count: int | None = None
+    last_ingest_code: int | None = None
+    last_ingest_ms: int | None = None
+    max_ingest_ms: int | None = None
+    sht_read_fail_count: int | None = None
+    free_heap_bytes: int | None = None
+    min_free_heap_bytes: int | None = None
+    max_alloc_heap_bytes: int | None = None
+
+
 class IngestPayload(BaseModel):
     metrics: dict[str, float]
     source: str = "esp32"
@@ -46,6 +67,7 @@ class IngestPayload(BaseModel):
     wifi_driver_reset_count: int | None = None
     wifi_disconnect_reason: int | None = None
     wifi_disconnected_for_ms: int | None = None
+    diagnostics: DeviceDiagnostics | None = None
 
 
 def _augment_temp_rh_metrics(metrics: dict[str, float]) -> dict[str, float]:
@@ -158,6 +180,9 @@ async def ingest_sensors(  # noqa: PLR0913 — FastAPI boundary bundles request,
             wifi_driver_reset_count=payload.wifi_driver_reset_count,
             wifi_disconnect_reason=payload.wifi_disconnect_reason,
             wifi_disconnected_for_ms=payload.wifi_disconnected_for_ms,
+            diagnostics=payload.diagnostics.model_dump(exclude_none=True)
+            if payload.diagnostics
+            else None,
         )
         return {
             "ok": True,
@@ -177,6 +202,9 @@ async def ingest_sensors(  # noqa: PLR0913 — FastAPI boundary bundles request,
         wifi_driver_reset_count=payload.wifi_driver_reset_count,
         wifi_disconnect_reason=payload.wifi_disconnect_reason,
         wifi_disconnected_for_ms=payload.wifi_disconnected_for_ms,
+        diagnostics=payload.diagnostics.model_dump(exclude_none=True)
+        if payload.diagnostics
+        else None,
         site_id=payload.site_id,
         tent_id=payload.tent_id,
         zone_id=payload.zone_id,

@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-06-02
+updated: 2026-06-08
 ---
 
 # Plant B
@@ -19,7 +19,7 @@ updated: 2026-06-02
 
 ## Current State
 
-Day 80 / Flower Day 30: No dedicated photo was available, and B remains effectively pinned wet near 95.88% by rough sensor context. Keep dryback verification urgent and do not restore normal feed assumptions until tray/media/probe checks support it. See [2026-06-02](../../../daily/2026-06-02.md).
+Day 86 / Flower Day 36: B has upright active flower clusters with fresh pistils and some older edge/tip wear, while rough moisture remains pinned/stale near 96.66%. Keep tray/media/probe dryback verification urgent before changing feed assumptions. See [2026-06-08](../../../daily/2026-06-08.md).
 
 ## Timeline
 
@@ -79,3 +79,9 @@ Day 80 / Flower Day 30: No dedicated photo was available, and B remains effectiv
 - 2026-05-30 — [Day 77 / Flower Day 27: dedicated view non-diagnostic behind fan; moisture ~95.4% remains pinned wet, dryback verification urgent](../../../daily/2026-05-30.md)
 - 2026-06-01 — [Day 79 / Flower Day 29: dedicated photo missing; moisture ~96.3% remains pinned wet, dryback verification urgent](../../../daily/2026-06-01.md)
 - 2026-06-02 — [Day 80 / Flower Day 30: dedicated photo missing; moisture ~95.9% remains pinned wet, dryback verification urgent](../../../daily/2026-06-02.md)
+- 2026-06-03 — [Day 81 / Flower Day 31: visible active flower sites; moisture ~95.7% remains pinned/stale, dryback verification urgent](../../../daily/2026-06-03.md)
+- 2026-06-04 — [Day 82 / Flower Day 32: active flower sites; moisture ~96.4% remains pinned/stale, dryback verification urgent](../../../daily/2026-06-04.md)
+- 2026-06-05 — [Day 83 / Flower Day 33: upright active flower sites; moisture ~96.3% remains pinned/stale, dryback verification urgent](../../../daily/2026-06-05.md)
+- 2026-06-06 — [Day 84 / Flower Day 34: upright active flower clusters; moisture ~96.6% remains pinned/stale, dryback verification urgent](../../../daily/2026-06-06.md)
+- 2026-06-07 — [Day 85 / Flower Day 35: upright active flower sites; moisture ~96.7% remains pinned/stale, dryback verification urgent](../../../daily/2026-06-07.md)
+- 2026-06-08 — [Day 86 / Flower Day 36: upright active flower clusters; moisture ~96.7% remains pinned/stale, dryback verification urgent](../../../daily/2026-06-08.md)

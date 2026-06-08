@@ -28,6 +28,7 @@
 #include <WebServer.h>
 #include <Wire.h>
 #include <Adafruit_SHT4x.h>
+#include <esp_system.h>
 
 #include "ingest_client.h"
 #include "ota.h"
@@ -102,6 +103,20 @@ Preferences prefs;
 
 uint8_t  g_set_duty_pct      = BOOT_SPEED_PCT;
 #endif
+uint32_t g_boot_count        = 0;
+uint32_t g_loop_last_ms      = 0;
+uint32_t g_loop_gap_max_ms   = 0;
+uint32_t g_loop_gap_over_5s_count = 0;
+uint32_t g_http_get_fan_count = 0;
+uint32_t g_http_post_fan_count = 0;
+uint32_t g_http_not_found_count = 0;
+uint32_t g_ingest_ok_count  = 0;
+uint32_t g_ingest_fail_count = 0;
+int      g_last_ingest_code = 0;
+uint32_t g_last_ingest_ms   = 0;
+uint32_t g_max_ingest_ms    = 0;
+uint32_t g_sht_read_fail_count = 0;
+esp_reset_reason_t g_reset_reason = ESP_RST_UNKNOWN;
 uint32_t g_equilibrate_start = 0;
 uint32_t g_last_sht_retry    = 0;
 
@@ -160,6 +175,59 @@ float compute_vpd_kpa(float temp_c, float rh_pct) {
     return svp * (1.0f - rh_pct / 100.0f);
 }
 
+void build_diagnostics(char* out, size_t out_len) {
+    snprintf(out, out_len,
+             "{\"boot_count\":%lu,"
+             "\"reset_reason\":%u,"
+             "\"loop_gap_max_ms\":%lu,"
+             "\"loop_gap_over_5s_count\":%lu,"
+             "\"http_get_fan_count\":%lu,"
+             "\"http_post_fan_count\":%lu,"
+             "\"http_not_found_count\":%lu,"
+             "\"ingest_ok_count\":%lu,"
+             "\"ingest_fail_count\":%lu,"
+             "\"last_ingest_code\":%d,"
+             "\"last_ingest_ms\":%lu,"
+             "\"max_ingest_ms\":%lu,"
+             "\"sht_read_fail_count\":%lu,"
+             "\"free_heap_bytes\":%lu,"
+             "\"min_free_heap_bytes\":%lu,"
+             "\"max_alloc_heap_bytes\":%lu}",
+             (unsigned long)g_boot_count,
+             (unsigned int)g_reset_reason,
+             (unsigned long)g_loop_gap_max_ms,
+             (unsigned long)g_loop_gap_over_5s_count,
+             (unsigned long)g_http_get_fan_count,
+             (unsigned long)g_http_post_fan_count,
+             (unsigned long)g_http_not_found_count,
+             (unsigned long)g_ingest_ok_count,
+             (unsigned long)g_ingest_fail_count,
+             g_last_ingest_code,
+             (unsigned long)g_last_ingest_ms,
+             (unsigned long)g_max_ingest_ms,
+             (unsigned long)g_sht_read_fail_count,
+             (unsigned long)ESP.getFreeHeap(),
+             (unsigned long)ESP.getMinFreeHeap(),
+             (unsigned long)ESP.getMaxAllocHeap());
+}
+
+void record_loop_gap() {
+    uint32_t now = millis();
+    if (g_loop_last_ms != 0) {
+        uint32_t gap = now - g_loop_last_ms;
+        if (gap > g_loop_gap_max_ms) {
+            g_loop_gap_max_ms = gap;
+        }
+        if (gap >= 5000) {
+            g_loop_gap_over_5s_count++;
+            Serial.printf("[loop] gap=%lums over_5s=%lu\n",
+                          (unsigned long)gap,
+                          (unsigned long)g_loop_gap_over_5s_count);
+        }
+    }
+    g_loop_last_ms = now;
+}
+
 // --- HTTP control endpoints ----------------------------------------------
 
 #if FAN_CONTROL_ENABLED
@@ -182,6 +250,7 @@ bool parse_duty_body(const String& body, int* out) {
 }
 
 void handle_post_fan() {
+    g_http_post_fan_count++;
     String body = http_server.arg("plain");
     int duty = 0;
     if (!parse_duty_body(body, &duty)) {
@@ -201,14 +270,19 @@ void handle_post_fan() {
 }
 
 void handle_get_fan() {
-    char resp[80];
+    g_http_get_fan_count++;
+    char diagnostics[512];
+    build_diagnostics(diagnostics, sizeof(diagnostics));
+    char resp[640];
     snprintf(resp, sizeof(resp),
-             "{\"set_duty_pct\":%u,\"reported_duty_pct\":%u}",
-             g_set_duty_pct, g_set_duty_pct);
+             "{\"set_duty_pct\":%u,\"reported_duty_pct\":%u,"
+             "\"diagnostics\":%s}",
+             g_set_duty_pct, g_set_duty_pct, diagnostics);
     http_server.send(200, "application/json", resp);
 }
 
 void handle_not_found() {
+    g_http_not_found_count++;
     http_server.send(404, "application/json", "{\"error\":\"not found\"}");
 }
 
@@ -222,6 +296,7 @@ void handle_not_found() {
 void complete_cycle() {
     sensors_event_t humidity, temp;
     if (!sht.getEvent(&humidity, &temp)) {
+        g_sht_read_fail_count++;
         Serial.println("[sht45] read FAILED — dropping sensor, will retry");
         sht_ready = false;
         return;
@@ -246,7 +321,23 @@ void complete_cycle() {
              "{\"temperature_c\":%.2f,\"humidity_pct\":%.2f}",
              temp.temperature, humidity.relative_humidity);
 #endif
-    int code = ingest.post(SITE_ID, TENT_ID, ZONE_ID, DEVICE_ID, metrics);
+    char diagnostics[512];
+    build_diagnostics(diagnostics, sizeof(diagnostics));
+    uint32_t post_start_ms = millis();
+    int code = ingest.post(
+        SITE_ID, TENT_ID, ZONE_ID, DEVICE_ID, metrics, diagnostics
+    );
+    uint32_t post_elapsed_ms = millis() - post_start_ms;
+    g_last_ingest_code = code;
+    g_last_ingest_ms = post_elapsed_ms;
+    if (post_elapsed_ms > g_max_ingest_ms) {
+        g_max_ingest_ms = post_elapsed_ms;
+    }
+    if (code > 0) {
+        g_ingest_ok_count++;
+    } else {
+        g_ingest_fail_count++;
+    }
     if (code > 0) Serial.printf("[ingest] http=%d\n", code);
 
     // Chain straight into the next pulse per Sensirion AN §3.
@@ -282,6 +373,13 @@ void setup() {
     Serial.begin(115200);
     delay(2000);
 
+    g_reset_reason = esp_reset_reason();
+    Preferences diag_prefs;
+    diag_prefs.begin("node_diag", /*readOnly=*/false);
+    g_boot_count = diag_prefs.getUInt("boot_count", 0) + 1;
+    diag_prefs.putUInt("boot_count", g_boot_count);
+    diag_prefs.end();
+
     Serial.println();
     Serial.println("# ========================================================");
     Serial.printf ("# env node fw=%s device=%s tent=%s host=%s fan=%s\n",
@@ -300,6 +398,10 @@ void setup() {
 #endif
     Serial.printf ("# Heater:   200mW/1s pulse every %lus (Sensirion AN §3)\n",
                    (unsigned long)((EQUILIBRATE_MS + 1000) / 1000));
+    Serial.printf ("# Boot:     count=%lu reset_reason=%u free_heap=%lu\n",
+                   (unsigned long)g_boot_count,
+                   (unsigned int)g_reset_reason,
+                   (unsigned long)ESP.getFreeHeap());
     Serial.println("# ========================================================");
     Serial.println();
 
@@ -362,6 +464,7 @@ void setup() {
 }
 
 void loop() {
+    record_loop_gap();
     ota::loop();
     wifi_client::maintain();
 #if FAN_CONTROL_ENABLED

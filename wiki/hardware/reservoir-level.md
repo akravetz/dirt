@@ -4,7 +4,7 @@ type: hardware
 sources: []
 related: [wiki/concepts/autopot.md, wiki/decisions/2026-04-18-reservoir-level-pressure-transducer.md, wiki/decisions/2026-04-11-reservoir-stand.md, wiki/hardware/esp32-plant-nodes.md, wiki/hardware/project-box-enclosures.md]
 created: 2026-04-18
-updated: 2026-05-25
+updated: 2026-06-03
 ---
 
 # Reservoir Level (Autopot 25-gal FlexiTank Pro)
@@ -21,8 +21,8 @@ Method: **submerged hydrostatic pressure transducer** at the bottom of the tank.
 | 4–20mA → 0–5V converter | ✅ Bench-tested | DFRobot SEN0262 (shipped in the KIT0139 box). **Note**: this rev's actual output mapping is **not** a clean 4 mA → 0 V; measured ~0.58 V at the 4 mA loop floor and ~0.81 V at 64.5 cm head, which back-extrapolates to roughly 0 mA → 0.12 V, 20 mA → 2.4 V. Doesn't match either the "0–3 V" or "0–5 V" datasheet variants — has a built-in offset. Doesn't matter for our depth math (we calibrate the line we measure), but worth flagging so the next person doesn't predict 0 V at 4 mA like the original BOM did. Discrete precision-shunt alternative still deferred to v2. |
 | ADS1115 16-bit I²C ADC | ✅ Bench-tested 2026-04-26 | Adafruit breakout, ADDR→GND → I²C address 0x48. Powered from ESP32-C3 5 V rail (no level shifters needed — the breakout handles 3.3V I²C from the C3). Reads cleanly at GAIN_FOUR (±1.024 V FS, 31.25 µV/count) — see "Bench bring-up" below. |
 | 12V DC supply for transmitter | ✅ In service 2026-04-26 | Security-01 12V/1A UL-listed regulated brick, 5.5×2.1 mm barrel center-positive. Dedicated to the loop + node — not shared with the LED rail. [Amazon B01DB91P46](https://www.amazon.com/100-240V-Supply-Adapter-Barrel-Camera/dp/B01DB91P46) |
-| ESP32-C3 SuperMini node | ✅ Live | Same board family as the plant nodes; dedicated scoped device `reservoir-node` on the main tent reservoir zone. |
-| Firmware | ✅ Live, OTA capable | `firmware/reservoir_node/` posts scoped identity every 30 s and publishes `reservoir_pressure_raw` plus canonical `reservoir_in`. Current live firmware is `0.1.2`. |
+| Seeed Studio XIAO ESP32-C3 node | ✅ Live | Upgraded from the original ESP32-C3 SuperMini as part of the fleet move to Seeed XIAO boards; dedicated scoped device `reservoir-node` on the main tent reservoir zone. |
+| Firmware | ✅ Live, OTA capable | `firmware/reservoir_node/` posts scoped identity every 30 s and publishes `reservoir_pressure_raw` plus canonical `reservoir_in`. Current source target is `seeed_xiao_esp32c3`. |
 | Server-side ingest | ✅ Scoped path works | `POST /api/ingest/sensors` requires `device_id='reservoir-node'`; rows land through the canonical `reservoir-node/reservoir_in` and `reservoir-node/reservoir_pressure_raw` capabilities. Historical `reservoir_depth_cm` rows were converted to `reservoir_in` during the 2026-05-04 cleanup migration. |
 
 ## Bill of Materials
@@ -32,9 +32,9 @@ Method: **submerged hydrostatic pressure transducer** at the bottom of the tank.
 | 1 | DFRobot KIT0139 submersible pressure transducer + SEN0262 4–20mA→V converter | Sensing element + signal conditioner | [dfrobot.com product-1863](https://www.dfrobot.com/product-1863.html) |
 | 1 | Security-01 12V/1A UL-listed power adapter, 5.5×2.1 mm barrel | Powers the 4–20mA loop and feeds the node's buck | [Amazon B01DB91P46](https://www.amazon.com/100-240V-Supply-Adapter-Barrel-Camera/dp/B01DB91P46) — **purchased 2026-04-25** |
 | 1 | 5.5×2.1 mm female barrel pigtail w/ screw terminals | Lands the brick's bare wires into the loop / buck without cutting the adapter cord | Amazon (any 5-pack, ~$6) |
-| 1 | 12V→5V buck converter (e.g. mini-360) | Feeds 5V to the ESP32-C3 SuperMini from the same brick | Amazon (any 3-pack, ~$8) |
+| 1 | 12V→5V buck converter (Pololu or equivalent) | Feeds 5V to the Seeed XIAO ESP32-C3 from the same brick, replacing the USB power feed | Purchased / on hand |
 | 1 | ADS1115 16-bit I²C ADC breakout | Clean ADC for the 0–5 V SEN0262 output (sidesteps the C3's native ADC) | Adafruit / Amazon |
-| 1 | ESP32-C3 SuperMini | WiFi MCU; new node `dirt-reservoir.local`, location label `reservoir` | On-hand (same family as plant nodes) |
+| 1 | Seeed Studio XIAO ESP32-C3 | WiFi MCU; node `dirt-reservoir.local`, location label `reservoir` | Upgraded fleet board |
 | 1 | M16 cable gland (or similar) | Tank-lid pass-through for the probe cable + atmospheric vent | Amazon |
 | — | Project box (small IP54 enclosure, ~80×60×40 mm) | Houses the SEN0262 + ADS1115 + ESP32 outside the tank, dry side of the cable vent | Any |
 | — | Hookup wire, 22 AWG, 4-conductor (red / black / SDA / SCL) | Probe-to-enclosure I²C and power | On-hand |
@@ -43,6 +43,8 @@ Project-box enclosure planning and the enclosure shopping list are tracked in
 [Project Box Enclosures](project-box-enclosures.md).
 
 Loop draw is ~20 mA + node ~150 mA peak ≈ 200 mA total — the 1 A brick has 5× headroom. Do **not** upsize to a 2 A brick; bigger supplies tend to ripple harder on a precision analog rail.
+
+Power topology for the project box: the 12 V brick feeds the 4-20 mA loop and the buck converter in parallel. Adjust and verify the buck at 5.0 V before connecting it to the XIAO, then feed the XIAO's 5V input and GND. Do not put 12 V on the XIAO, and do not feed the buck output into the XIAO's 3V3 pin.
 
 ## Hardware
 
@@ -84,7 +86,7 @@ The 25-gal FlexiTank Pro turns out to be **substantially taller than the 13" est
 [ADS1115 16-bit I²C ADC]
         │  I²C (SDA/SCL)
         ▼
-[ESP32-C3 SuperMini]  (dedicated `reservoir-node` scoped device)
+[Seeed XIAO ESP32-C3]  (dedicated `reservoir-node` scoped device)
         │  WiFi
         ▼
 [POST /api/ingest/sensors] → capability-owned sensorreading rows
@@ -112,6 +114,7 @@ Full bench validation notes (wiring, provisional cal, noise characterization, ca
 - **Location:** `firmware/reservoir_node/`, two PlatformIO envs:
   - `reservoir-bench` — USB-only, no WiFi/OTA, prints `ts_ms,raw_mean,volts` to serial. Used for bring-up + calibration captures. **In service.**
   - `reservoir` — full WiFi + OTA + ingest path. **Production target.**
+- **Board:** Seeed Studio XIAO ESP32-C3 (`platformio.ini` board id `seeed_xiao_esp32c3`). The earlier SuperMini wiring notes are historical; current installs should follow the XIAO pin labels.
 - **Behavior per cycle (every 30 s):** read 32 samples from the ADS1115 channel 0 (averaged), convert raw counts to water column above the probe via the compiled-in two-point calibration constants, divide by `DENSITY_REL = 1.007` to correct for nutrient solution density, add `PROBE_OFFSET_CM = 2.0` so the published value represents tank water depth from the floor (not column above the probe diaphragm), divide by `CM_PER_INCH = 2.54` to publish in inches, POST `{reservoir_pressure_raw: <mean_count>, reservoir_in: <converted>}` to the existing `/api/ingest/sensors` endpoint with `location="reservoir"`.
 
   Note: because the probe physically can't see the bottom 2 cm, the published depth bottoms out at `PROBE_OFFSET_CM / CM_PER_INCH ≈ 0.79 in` when the diaphragm is in air. Refill alerting should fire well above that floor.

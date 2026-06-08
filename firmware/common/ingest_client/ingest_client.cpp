@@ -20,7 +20,8 @@ int IngestClient::post(const char* site_id,
                        const char* tent_id,
                        const char* zone_id,
                        const char* device_id,
-                       const char* metrics_json) {
+                       const char* metrics_json,
+                       const char* diagnostics_json) {
     if (WiFi.status() != WL_CONNECTED) {
         Serial.println("[ingest] skipped — wifi not connected");
         return -1;
@@ -34,11 +35,11 @@ int IngestClient::post(const char* site_id,
 
     // Hand-build JSON — the shape is stable enough that pulling in
     // ArduinoJson for a handful of fields isn't worth the flash cost.
-    // Typical payload ~420 bytes with scoped identity and WiFi telemetry; reserve 512 to avoid
-    // realloc while keeping RAM use predictable.
+    // Typical payload ~420 bytes with scoped identity and WiFi telemetry;
+    // diagnostics can add ~400 bytes on instrumented nodes.
     wifi_client::Snapshot wifi = wifi_client::snapshot();
     String body;
-    body.reserve(512);
+    body.reserve(diagnostics_json == nullptr ? 512 : 960);
     body += "{\"site_id\":\"";
     body += site_id;
     body += "\",\"tent_id\":\"";
@@ -69,6 +70,10 @@ int IngestClient::post(const char* site_id,
     body += String(wifi.disconnected_for_ms);
     body += ",\"metrics\":";
     body += metrics_json;
+    if (diagnostics_json != nullptr) {
+        body += ",\"diagnostics\":";
+        body += diagnostics_json;
+    }
     body += "}";
 
     int code = http.POST(body);

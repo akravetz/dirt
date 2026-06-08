@@ -34,7 +34,8 @@ public:
              const char* tent_id,
              const char* zone_id,
              const char* device_id,
-             const char* metrics_json);
+             const char* metrics_json,
+             const char* diagnostics_json = nullptr);
 
 private:
     const char* _server_url;

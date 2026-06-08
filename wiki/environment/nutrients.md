@@ -4,7 +4,7 @@ type: environment
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/concepts/coco-coir.md, wiki/concepts/autopot.md, wiki/overview.md]
 created: 2026-04-06
-updated: 2026-05-31
+updated: 2026-06-04
 ---
 
 # Nutrients & pH
@@ -55,6 +55,7 @@ These targets are for the **autopot reservoir** (continuous feed). Hand-feed EC 
 | 2026-05-17 | ⚠️ Plant A local low-pH tray/runoff — pH 4.8 with rough lower-leaf chlorosis/necrosis and stunting concern; reservoir was normal at pH 5.8 / EC 1.4 | Working diagnosis: localized low-pH lockout/root-zone acidification, not hot reservoir feed. Plant A received 8 cups pH 5.8 / EC 1.2 top flush; post-flush runoff EC ~1.1. Recheck A tray/runoff pH+EC before disturbing and compare B/C/D trays → [2026-05-17 daily](../daily/2026-05-17.md) |
 | 2026-05-27 | ⚠️ Plant A comparison extraction — A pH 5.78 / EC 4.4 versus healthy D pH 5.97 / EC 3.0; A coco visibly wetter and drying back slowly after valve closure | Current diagnosis shifts away from active low-pH lockout and toward high root-zone EC/salt concentration plus wet/slower cycling in A. A valve remains closed after tray/stand cleaning; wait for dryback before any controlled weak pH 5.8 top rinse, and do not adjust the whole reservoir based on A alone → [2026-05-27 daily](../daily/2026-05-27.md) |
 | 2026-05-31 | ⚠️ Plant A post-dryback weak top rinse/feed — plant looked healthier with small dark-green growth tips; live rough moisture was stable near 35.7% after the large dryback | Runoff pH 6.2 and EC about 40% above input. This does not support active low-pH lockout or a severe salt dump; stop further rinsing, remove runoff, leave the valve closed 12-24h, then reopen Autopot only as a monitored test if tray/pot conditions stay clean → [2026-05-31 daily](../daily/2026-05-31.md) |
+| 2026-06-04 | ⚠️ Plant A additional runoff after diagnostic top rinse — plant looked fine; no heavy, sour, or stagnant pot/tray signs; runoff pH looked fine; TDS measured >1000 ppm on the 500 scale, equivalent to EC >2.0 | Interpreted as residual soluble salts still washing through after top rinse, not an active pH problem. Reconnect Plant A to the Autopot as a watched test, remove runoff, and do not perform another top flush unless the plant declines or repeated checks show persistent high EC; if needed, flush drain-to-waste with light feed EC 0.4-0.6 / 200-300 ppm on the 500 scale → [2026-06-04 daily](../daily/2026-06-04.md) |
 
 ## pH Correction History
 - **2026-03-28** — pH misconception corrected: Canna A+B buffering does NOT eliminate need for pH Down in Denver water. pH Down required every fill.

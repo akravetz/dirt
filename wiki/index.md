@@ -1,7 +1,7 @@
 ---
 title: Index
 type: index
-updated: 2026-06-02
+updated: 2026-06-08
 ---
 
 # Grow Wiki Index
@@ -21,15 +21,15 @@ updated: 2026-06-02
 - [Track A pollen run](grows/breeding-track-a-2026-04-28/README.md) — Current breeding tent male sexing and pollen-collection run; database `growrun.grow_run_id = breeding-track-a-2026-04-28`
 
 ## Current Plants
-- [Plant A](grows/main-2026-03-15/plants/plant-a.md) — 🔴 Primary keeper; Flower Day 30; dedicated photo missing; rough moisture continued controlled dry-side recovery, reopen Autopot only as monitored test
-- [Plant B](grows/main-2026-03-15/plants/plant-b.md) — 🟡 Secondary; Flower Day 30; dedicated photo missing; moisture 95.88% remains pinned wet — dryback verification urgent
-- [Plant C](grows/main-2026-03-15/plants/plant-c.md) — 🟡 Secondary; Flower Day 30; dedicated photo missing; moisture 90.08% remains high/flat — root-zone/airflow watch
-- [Plant D](grows/main-2026-03-15/plants/plant-d.md) — 🔴 Primary keeper; Flower Day 30; dedicated photo missing; moisture low/stale near 41.30% — verify by hand
-- [R1](grows/breeding-track-a-2026-04-28/plants/plant-r1.md) — Track A pollen run; confirmed male; dry-side breeding VPD keeps pot-weight and male-evaluation checks active
-- [R2](grows/breeding-track-a-2026-04-28/plants/plant-r2.md) — Track A pollen run; sex not confirmed in wiki; continue sex watch and small-pot checks
-- [R3](grows/breeding-track-a-2026-04-28/plants/plant-r3.md) — Track A pollen run; sex not confirmed in wiki; continue sex watch and small-pot checks
-- [R4](grows/breeding-track-a-2026-04-28/plants/plant-r4.md) — Track A pollen run; confirmed male; dry-side breeding VPD keeps pot-weight and male-evaluation checks active
-- [R5](grows/breeding-track-a-2026-04-28/plants/plant-r5.md) — Track A pollen run; sex not confirmed in wiki; continue sex watch and small-pot checks
+- [Plant A](grows/main-2026-03-15/plants/plant-a.md) — 🔴 Primary keeper; Flower Day 36; mostly fan-blocked view; visible tops upright; moisture stable near 49.13% after watched Autopot rewet — tray-cycling check active
+- [Plant B](grows/main-2026-03-15/plants/plant-b.md) — 🟡 Secondary; Flower Day 36; active flower clusters visible; moisture 96.66% remains pinned/stale — dryback verification urgent
+- [Plant C](grows/main-2026-03-15/plants/plant-c.md) — 🟡 Secondary; Flower Day 36; active wall-side flowers visible; moisture 92.01% remains high/flat — root-zone/airflow watch
+- [Plant D](grows/main-2026-03-15/plants/plant-d.md) — 🔴 Primary keeper; Flower Day 36; strong purple tops; moisture low near 42.02% — verify by hand
+- [R1](grows/breeding-track-a-2026-04-28/plants/plant-r1.md) — Track A pollen run; confirmed male; pot-weight, airflow, sensor, and male-evaluation checks active
+- [R2](grows/breeding-track-a-2026-04-28/plants/plant-r2.md) — Track A pollen run; confirmed male; pot-weight, fan-exposure, sensor, and male-evaluation checks active
+- [R3](grows/breeding-track-a-2026-04-28/plants/plant-r3.md) — Track A pollen run; confirmed female and culled 2026-06-04
+- [R4](grows/breeding-track-a-2026-04-28/plants/plant-r4.md) — Track A pollen run; confirmed male; pot-weight, airflow, sensor, and male-evaluation checks active
+- [R5](grows/breeding-track-a-2026-04-28/plants/plant-r5.md) — Track A pollen run; sex not confirmed in wiki; continue sex watch and current-only breeding sensor checks
 
 ## Daily Logs
 - [2026-03-27](daily/2026-03-27.md) — Day 13: Pre-transplant; 2–3 leaf sets
@@ -89,6 +89,12 @@ updated: 2026-06-02
 - [2026-05-31](daily/2026-05-31.md) — Day 78 / Flower Day 28: Plant A manual follow-up; healthier growth tips after dryback; weak top rinse/feed runoff pH 6.2 and EC ~40% above input; stop rinsing and monitor before reopening Autopot
 - [2026-06-01](daily/2026-06-01.md) — Day 79 / Flower Day 29: incomplete photo coverage (breeding overview only); main lights-on VPD in range but hot and overnight wet/low; B/C pinned wet; breeding dry/high with pale/droopy small-plant stress
 - [2026-06-02](daily/2026-06-02.md) — Day 80 / Flower Day 30: incomplete photo coverage (breeding overview only); main lights-on VPD in range but overnight wet/low; B/C pinned wet; breeding dry-side with pale/droopy small-plant stress
+- [2026-06-03](daily/2026-06-03.md) — Day 81 / Flower Day 31: full photo coverage; main canopy dense with active purple flowers; lights-on VPD slightly dry/high but overnight wet/low; B/C pinned wet; breeding lower-VPD but still a small-pot/sex-site watch
+- [2026-06-04](daily/2026-06-04.md) — Day 82 / Flower Day 32: full photo coverage; main canopy dense with upright purple flowers; current VPD dry/high at 1.79 kPa while overnight remains wet/low; B/C pinned wet; breeding wet spike at 83.28% RH / 0.45 kPa; Plant A reconnecting Autopot as monitored test; R3 confirmed female and culled
+- [2026-06-05](daily/2026-06-05.md) — Day 83 / Flower Day 33: full photo coverage; main canopy dense with upright purple flowers; lights-on VPD upper edge at 1.50 kPa while overnight remains wet/low; B/C pinned wet; Plant A watched Autopot rewet; breeding current-only wet sensor repeat
+- [2026-06-06](daily/2026-06-06.md) — Day 84 / Flower Day 34: full photo coverage; main canopy dense with upright purple flowers; lights-on VPD in range at 1.32 kPa while overnight remains wet/low; B/C pinned wet; Plant A watched Autopot rewet; breeding current-only wet sensor repeat
+- [2026-06-07](daily/2026-06-07.md) — Day 85 / Flower Day 35: full photo coverage; main canopy dense with upright purple flowers; lights-on VPD in range at 1.39 kPa while overnight remains wet/low; B/C pinned wet; Plant A watched Autopot rewet; breeding current-only wet sensor repeat
+- [2026-06-08](daily/2026-06-08.md) — Day 86 / Flower Day 36: full photo coverage; main canopy dense with upright purple flowers; current VPD slightly dry/high at 1.53 kPa while overnight remains wet/low; B/C pinned wet; Plant A stable after watched rewet; breeding current-only wet sensor repeat
 
 ## Environment
 - [Temperature](environment/temperature.md) — Trend log; targets by phase; notable events
@@ -104,7 +110,7 @@ updated: 2026-06-02
 - [Thermal Imaging](hardware/thermal-imaging.md) — Planned fixed PureThermal Mini Pro + FLIR Lepton 3.5 canopy sensor for leaf-air delta, leaf-temperature-aware VPD, and hotspot maps
 - [Jabra Speak 410](hardware/jabra.md) — USB speakerphone for voice I/O; ElevenLabs "Claudia" TTS + Nova-3 STT + openWakeWord ("hey claudia"). Device quirks, firmware, volume tuning.
 - [Voice Channel (Claudia)](hardware/voice-channel.md) — Production Pipecat pipeline on top of the Jabra; `dirt-voice.service`; agent tools; session logs. **Deployed 2026-04-18.**
-- [Reservoir Level (Autopot)](hardware/reservoir-level.md) — Submerged hydrostatic pressure transducer (DFRobot KIT0139) → ADS1115 → dedicated ESP32-C3 reservoir node → canonical `reservoir_in` ingest. Live as `reservoir-node`.
+- [Reservoir Level (Autopot)](hardware/reservoir-level.md) — Submerged hydrostatic pressure transducer (DFRobot KIT0139) → ADS1115 → dedicated Seeed XIAO ESP32-C3 reservoir node → canonical `reservoir_in` ingest. Live as `reservoir-node`.
 - [Reservoir Level — Bench Bring-up](hardware/reservoir-level-bringup.md) — Detailed bench validation notes: wiring, provisional cal captures, noise characterization, capacitor experiment (2026-04-26).
 - [Project Box Enclosures](hardware/project-box-enclosures.md) — BOM and build practices for moving reservoir and SHT45 electronics into gasketed ABS boxes with cable glands, strain relief, and sensor airflow.
 - [AC Infinity Fan Control + Tent Environmental Sensor](hardware/ac-infinity-fan-control.md) — Combined ESP32-C3 SuperMini node: drives the Cloudline LITE 6" fan via 2× 2N7000 MOSFETs on D+/B5 **and** reads an Adafruit SHT45 + PTFE cap over I²C (GPIO 4/5) for tent temp/RH/VPD. **Fan D+ bring-up + SHT45 read both validated 2026-04-22.** Combined firmware at `firmware/fan_controller/`. Tach (D−) deferred. WiFi/OTA/ingest integration next.

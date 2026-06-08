@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-06-02
+updated: 2026-06-08
 ---
 
 # Plant A
@@ -18,7 +18,7 @@ updated: 2026-06-02
 
 ## Current State
 
-Day 80 / Flower Day 30: No dedicated photo was available, but rough moisture continued a controlled dry-side move after the 2026-05-31 rinse. Keep A in monitored recovery with no further rinse; reopen Autopot only as a watched test if tray and pot conditions stay clean. See [2026-06-02](../../../daily/2026-06-02.md).
+Day 86 / Flower Day 36: The dedicated view remains mostly fan-blocked, but visible purple tops are upright and rough moisture is stable near 49.13% after the watched Autopot rewet. Confirm tray fill/drawdown and leaf posture while avoiding another top flush unless new decline or repeated high-EC evidence appears. See [2026-06-08](../../../daily/2026-06-08.md).
 
 ## Timeline
 
@@ -79,3 +79,9 @@ Day 80 / Flower Day 30: No dedicated photo was available, but rough moisture con
 - 2026-05-31 — [Day 78 / Flower Day 28: healthier growth tips reported; weak pH 5.8 top rinse/feed runoff pH 6.2 and EC ~40% above input; stop rinsing and reopen Autopot only as a monitored test](../../../daily/2026-05-31.md)
 - 2026-06-01 — [Day 79 / Flower Day 29: dedicated photo missing; rough moisture only slightly drier after rinse, keep monitored recovery before reopening Autopot](../../../daily/2026-06-01.md)
 - 2026-06-02 — [Day 80 / Flower Day 30: dedicated photo missing; rough moisture continued a controlled dry-side move, keep monitored recovery before any watched Autopot reopen](../../../daily/2026-06-02.md)
+- 2026-06-03 — [Day 81 / Flower Day 31: upright purple flower tops visible; rough moisture drifted drier to 41.71%, keep post-rinse recovery watched](../../../daily/2026-06-03.md)
+- 2026-06-04 — [Day 82 / Flower Day 32: upright purple tops; rough moisture still drifting drier, Autopot reconnection is a monitored test after clean manual check](../../../daily/2026-06-04.md)
+- 2026-06-05 — [Day 83 / Flower Day 33: upright purple tops; slight rough rewet after watched Autopot reconnection, confirm tray cycling and leaf posture](../../../daily/2026-06-05.md)
+- 2026-06-06 — [Day 84 / Flower Day 34: mostly fan-blocked view; visible tops upright, continued slight rough rewet after Autopot reconnection](../../../daily/2026-06-06.md)
+- 2026-06-07 — [Day 85 / Flower Day 35: mostly fan-blocked view; visible tops upright, slight further rough rewet after Autopot reconnection](../../../daily/2026-06-07.md)
+- 2026-06-08 — [Day 86 / Flower Day 36: mostly fan-blocked view; visible tops upright, rough moisture stable near 49.1% after watched Autopot rewet](../../../daily/2026-06-08.md)

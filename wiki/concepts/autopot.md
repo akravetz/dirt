@@ -4,7 +4,7 @@ type: concept
 sources: [raw/chat-history/bible.md, raw/chat-history/all-chat-summary.md]
 related: [wiki/concepts/coco-coir.md, wiki/environment/nutrients.md, wiki/decisions/2026-04-11-reservoir-stand.md, wiki/hardware/reservoir-level.md]
 created: 2026-04-06
-updated: 2026-04-18
+updated: 2026-06-04
 ---
 
 # Autopot System
@@ -77,7 +77,9 @@ The safest strategy is to activate the healthiest, most stable plant first, conf
 
 ### Coco-Specific Note
 
-The AquaValve works by letting all tray water be consumed before refilling. In coco, the medium wicks efficiently, so the cycle is **faster than in soil** — don't be alarmed if the tray empties and refills frequently. Monitor the top inch of coco for **salt buildup** (white crust on surface) — even with autopots, occasional top-water flush may be needed to prevent salt accumulation at the surface. See [Coco Coir](coco-coir.md).
+The AquaValve works by letting all tray water be consumed before refilling. In coco, the medium wicks efficiently, so the cycle is **faster than in soil** — don't be alarmed if the tray empties and refills frequently.
+
+Bottom feeding concentrates salts in the top 1-2 cm / top inch of the substrate. AutoPot guidance says this surface salt is expected and should not be washed down through the pot during normal operation. Do **not** use routine top-water flushing as maintenance once the system is active; reserve top-down watering for emergency diagnostics such as suspected lockout, then drain to waste and remove runoff promptly. See the [2026-06-04 Plant A follow-up](../daily/2026-06-04.md).
 
 ## Float Valve Activation (Ongoing Operation)
 
@@ -129,11 +131,13 @@ Topping off is not sufficient. Over days, the solution degrades:
 
 Canna's own recommendation is weekly. Do not reuse leftovers as starter.
 
-### 3. Top-water flush — every 2–4 weeks
+### 3. No routine top-water flush
 
-Unlike hand-watering, autopot delivers from below with **zero runoff**, so there is no flush cycle pushing accumulated salts out of the coco. Salts build up in the medium and can form a visible white crust on the coco surface.
+Unlike hand-watering, Autopot delivers from below with **zero runoff**, so salts can concentrate at the coco surface. That surface salt layer is expected in bottom-fed coco. Routine top-water flushing can wash that concentrated layer downward into the active root zone, so it is no longer part of the normal maintenance cadence for this grow.
 
-**Every 2–4 weeks, hand-water from the top** with plain pH 5.8 water (or very weak Canna at EC 0.4) — ~500ml per pot. Measure runoff EC from the tray: if significantly higher than the reservoir, buildup was real. Close valves afterward to let the (now full) tray dry back — this doubles as the weekly drydown.
+If a plant shows suspected lockout or another root-zone emergency, top watering can still be used as a diagnostic exception. In that case, take the action deliberately: close the valve, water with pH-adjusted light feed rather than zero-EC water, drain to waste, measure pH/TDS or EC, remove all runoff, and return to Autopot only after the pot/tray conditions are clean.
+
+References for this change: [AutoPot 2024 grow guide](https://autopot-usa.com/wp-content/uploads/2024_01_AutoPot-Grow-Guide-2024_WEB.pdf), [Ask Josh AutoPot forum](https://www.askjosh.autopot.co.uk/index/topic/high-frequency-fertigation-and-autopots/), [Happy Hydro AutoPot tips](https://happyhydro.com/blogs/growing-cannabis/autopot-usa-pros-and-cons-system-tips), and [Photon Flux runoff EC guide](https://photon-flux.de/knowledge/runoff-ec-too-high-too-low).
 
 ### Suggested weekly rhythm
 
@@ -144,7 +148,7 @@ Unlike hand-watering, autopot delivers from below with **zero runoff**, so there
 | Sun | Close valves → tray drydown (24–48h) |
 | Mon | Reopen valves + next reservoir change |
 
-Every 2–4 weeks, insert a top-water flush on any day. Log each drydown and reservoir change in the day's daily entry so drift over time is traceable.
+Do not insert routine top-water flushes. Log each drydown, reservoir change, and any emergency diagnostic top-water event in the day's daily entry so drift over time is traceable.
 
 ## pH/EC Targets
 - pH: 5.5–6.0 (target 5.8) — GH pH Down required every fill (Denver tap pH 8.5+)
