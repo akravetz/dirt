@@ -4,7 +4,7 @@ type: plant
 sources: []
 related: [wiki/grows/breeding-track-a-2026-04-28/README.md, wiki/breeding/male-evaluation.md]
 created: 2026-05-30
-updated: 2026-06-08
+updated: 2026-06-10
 ---
 
 # R5
@@ -17,7 +17,7 @@ updated: 2026-06-08
 
 ## Current State
 
-R5 remains the active Track A plant without confirmed sex expression filed in the wiki. Today's overview did not resolve individual sex sites, and the repeated current-only wet breeding sensor reading still needs freshness/exposure verification, so continue sex watch while checking pot weight, fan exposure, and airflow. See [2026-06-08](../../../daily/2026-06-08.md).
+R5 remains the active Track A plant without confirmed sex expression filed in the wiki. Today's overview stayed tent-level and did not resolve individual sex sites, and the repeated current-only wet breeding sensor reading still needs freshness/exposure verification, so continue sex watch while checking pot weight, fan exposure, and airflow. See [2026-06-10](../../../daily/2026-06-10.md).
 
 ## Timeline
 
@@ -33,3 +33,5 @@ R5 remains the active Track A plant without confirmed sex expression filed in th
 - 2026-06-06 — Breeding overview stayed tent-level only; no sex confirmation filed, and repeated current-only wet sensor data keeps sex watch plus small-pot checks active. See [2026-06-06](../../../daily/2026-06-06.md).
 - 2026-06-07 — Breeding overview stayed tent-level only; no sex confirmation filed, and repeated current-only wet sensor data keeps sex watch plus small-pot checks active. See [2026-06-07](../../../daily/2026-06-07.md).
 - 2026-06-08 — Breeding overview stayed tent-level only; no sex confirmation filed, and repeated current-only wet sensor data keeps sex watch plus small-pot checks active. See [2026-06-08](../../../daily/2026-06-08.md).
+- 2026-06-09 — Breeding overview stayed tent-level only; no sex confirmation filed, and repeated current-only wet sensor data keeps sex watch plus small-pot checks active. See [2026-06-09](../../../daily/2026-06-09.md).
+- 2026-06-10 — Breeding overview stayed tent-level only; no sex confirmation filed, and repeated current-only wet sensor data keeps sex watch plus small-pot checks active. See [2026-06-10](../../../daily/2026-06-10.md).

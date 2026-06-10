@@ -4,7 +4,7 @@ type: plant
 sources: []
 related: [wiki/grows/breeding-track-a-2026-04-28/README.md, wiki/breeding/male-evaluation.md, wiki/breeding/pollen-handling.md]
 created: 2026-05-30
-updated: 2026-06-08
+updated: 2026-06-10
 ---
 
 # R1
@@ -17,7 +17,7 @@ updated: 2026-06-08
 
 ## Current State
 
-R1 is a confirmed male candidate in the breeding tent Track A pollen run. Today's overview did not resolve individual sex sites, and the repeated current-only wet breeding sensor reading still needs freshness/exposure verification, so keep pot-weight, airflow, and [male evaluation](../../../breeding/male-evaluation.md) checks active before pollen collection. See [2026-06-08](../../../daily/2026-06-08.md).
+R1 is a confirmed male candidate in the breeding tent Track A pollen run. Today's overview stayed tent-level and did not resolve individual sex sites, and the repeated current-only wet breeding sensor reading still needs freshness/exposure verification, so keep pot-weight, airflow, and [male evaluation](../../../breeding/male-evaluation.md) checks active before pollen collection. See [2026-06-10](../../../daily/2026-06-10.md).
 
 ## Timeline
 
@@ -33,3 +33,5 @@ R1 is a confirmed male candidate in the breeding tent Track A pollen run. Today'
 - 2026-06-06 — Breeding overview stayed tent-level only; repeated current-only wet reading keeps pot-weight, airflow, sensor, and male-evaluation checks active. See [2026-06-06](../../../daily/2026-06-06.md).
 - 2026-06-07 — Breeding overview stayed tent-level only; repeated current-only wet reading keeps pot-weight, airflow, sensor, and male-evaluation checks active. See [2026-06-07](../../../daily/2026-06-07.md).
 - 2026-06-08 — Breeding overview stayed tent-level only; repeated current-only wet reading keeps pot-weight, airflow, sensor, and male-evaluation checks active. See [2026-06-08](../../../daily/2026-06-08.md).
+- 2026-06-09 — Breeding overview stayed tent-level only; repeated current-only wet reading keeps pot-weight, airflow, sensor, and male-evaluation checks active. See [2026-06-09](../../../daily/2026-06-09.md).
+- 2026-06-10 — Breeding overview stayed tent-level only; repeated current-only wet reading keeps pot-weight, airflow, sensor, and male-evaluation checks active. See [2026-06-10](../../../daily/2026-06-10.md).

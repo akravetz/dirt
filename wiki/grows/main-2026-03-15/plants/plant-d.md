@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-06-08
+updated: 2026-06-10
 ---
 
 # Plant D
@@ -19,7 +19,7 @@ updated: 2026-06-08
 
 ## Current State
 
-Day 86 / Flower Day 36: Strong purple flower tops remain visible and upright, while rough moisture is still low and drifting drier near 42.02%. Keep the media/tray/probe hand-check open before changing irrigation assumptions. See [2026-06-08](../../../daily/2026-06-08.md).
+Day 88 / Flower Day 38: Strong purple flower tops remain visible and upright with many fresh pistils, while rough moisture is still low and drifting drier near 41.74%. Keep the media/tray/probe hand-check open before changing irrigation assumptions. See [2026-06-10](../../../daily/2026-06-10.md).
 
 ## Timeline
 
@@ -85,3 +85,5 @@ Day 86 / Flower Day 36: Strong purple flower tops remain visible and upright, wh
 - 2026-06-06 — [Day 84 / Flower Day 34: strong purple flower tops visible; moisture low near 42.5%, verify media/tray/probe by hand](../../../daily/2026-06-06.md)
 - 2026-06-07 — [Day 85 / Flower Day 35: strong purple flower tops visible; moisture low near 42.0%, verify media/tray/probe by hand](../../../daily/2026-06-07.md)
 - 2026-06-08 — [Day 86 / Flower Day 36: strong purple flower tops visible; moisture low near 42.0%, verify media/tray/probe by hand](../../../daily/2026-06-08.md)
+- 2026-06-09 — [Day 87 / Flower Day 37: strong purple flower tops visible; moisture low and drifting drier near 41.8%, verify media/tray/probe by hand](../../../daily/2026-06-09.md)
+- 2026-06-10 — [Day 88 / Flower Day 38: strong purple flower tops visible; moisture low and drifting drier near 41.7%, verify media/tray/probe by hand](../../../daily/2026-06-10.md)

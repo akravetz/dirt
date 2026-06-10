@@ -2,7 +2,7 @@
 title: Activity Log
 type: log
 created: 2026-04-06
-updated: 2026-06-04
+updated: 2026-06-09
 order: chronological — oldest entries at top, newest appended at bottom. Do NOT insert entries out of date order.
 ---
 
@@ -1211,3 +1211,27 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - **Plant D moisture:** D has strong purple tops but remains low and drifting drier near 42.02%; verify media/tray/probe conditions by hand before changing irrigation assumptions.
 - **Breeding-tent watch:** Breeding is Flower Day 15. Only a current sensor reading is available and it exactly repeats the same wet value again, so verify sensor freshness/exposure while checking pot weight, airflow, watering timing, and R5 sex sites.
 - Updated: `daily/2026-06-08.md`, `plants/plant-{a,b,c,d}.md`, `grows/main-2026-03-15/README.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-06-09] query-filed | RS485 substrate probe bring-up documented
+- Added `hardware/rs485-substrate-sensors.md` with DFRobot SEN0604 + XIAO ESP32C3 + Seeed RS485 breakout wiring, 5 V/12 V power notes, Modbus assumptions, first live readings, M12 quick-disconnect enclosure plan, and proposed external calibration workflow for temperature, moisture, EC, and pH.
+- Updated `hardware/soil-moisture-sensing-options.md` and `index.md` to route future agents to the new RS485 operational page.
+- Key state: debug firmware at `debug/rs485_soil_probe/` successfully read SEN0604 register block `0x0000-0x0003` over Modbus (`9600 8N1`, address `0x01`). Plant A stabilized around 23.0-23.1% moisture, 19.7-19.8 deg C, 128-130 us/cm EC, pH 5.0-5.3; another plant stabilized around 36.3-36.4% moisture, 20.2 deg C, 279-283 us/cm EC, pH 5.5-5.7.
+- Calibration posture: do not write undocumented SEN0604 calibration registers yet; use software-side curves based on reference pH/EC probes, standards, and coco/perlite media calibration data.
+
+## [2026-06-09] daily | Day 87 / Flower Day 37 - full photos; lights-on VPD in range, overnight wetter
+- Photos captured across all 5 expected main presets plus the breeding overview. The main canopy remains dense, upright, purple-toned, and flower-heavy with many fresh white pistils; Plant A's dedicated view is mostly fan-blocked, and breeding overview remains tent-level.
+- **Main-tent environment:** Morning/current VPD are in range at 1.41/1.47 kPa, but overnight worsened wet/low to 1.01 kPa with 57.44% RH. Current dew point climbed to 62.30°F, so preserve lights-on VPD while improving dark-cycle clearing and airflow.
+- **Plant A follow-up:** Visible material remains upright and rough moisture is stable/slightly drier near 49.56% after watched Autopot rewet; confirm tray cycling and leaf posture, with no additional top flush unless new decline or repeated high-EC evidence appears.
+- **Plant B moisture movement:** B moved sharply drier to 88.51% from the recent pinned-high pattern; verify tray standing water, float behavior, media smell, and probe seating before treating dryback as solved.
+- **Plant C/D moisture checks:** C remains high/flat near 91.61%, and D remains low/drifting drier near 41.82%; manual tray/media/probe checks remain active.
+- **Breeding-tent watch:** Breeding is Flower Day 16. Only a current sensor reading is available and it exactly repeats the same wet value again, so verify sensor freshness/exposure while checking pot weight, airflow, watering timing, and R5 sex sites.
+- Updated: `daily/2026-06-09.md`, `plants/plant-{a,b,c,d}.md`, `grows/main-2026-03-15/README.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-06-10] daily | Day 88 / Flower Day 38 - full photos; current VPD dry/high, overnight still wet
+- Photos captured across all 5 expected main presets plus the breeding overview. The main canopy remains dense, upright, purple-toned, and flower-heavy with many fresh white pistils; Plant A's dedicated view is mostly fan-blocked, and breeding overview remains tent-level.
+- **Main-tent environment:** Morning VPD is in range at 1.41 kPa, but current VPD is dry/high at 1.62 kPa with fan at 80%, while overnight remains wet/low at 1.10 kPa. Improve dark-cycle clearing and flower-pocket airflow without adding broad lights-on dryness.
+- **Plant A follow-up:** Visible material remains upright and rough moisture is stable near 50.69% after watched Autopot rewet; confirm tray cycling and leaf posture, with no additional top flush unless new decline or repeated high-EC evidence appears.
+- **Plant B moisture movement:** B returned high near 96.00% after yesterday's sharp drier move; verify tray standing water, float behavior, media smell, and probe seating before treating either signal as representative.
+- **Plant C/D moisture checks:** C remains high/flat near 91.85%, and D remains low/drifting drier near 41.74%; manual tray/media/probe checks remain active.
+- **Breeding-tent watch:** Breeding is Flower Day 17. Only a current sensor reading is available and it exactly repeats the same wet value again, so verify sensor freshness/exposure while checking pot weight, airflow, watering timing, and R5 sex sites.
+- Updated: `daily/2026-06-10.md`, `plants/plant-{a,b,c,d}.md`, `grows/main-2026-03-15/README.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.

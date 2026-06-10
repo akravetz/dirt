@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-06-08
+updated: 2026-06-10
 ---
 
 # Plant A
@@ -18,7 +18,7 @@ updated: 2026-06-08
 
 ## Current State
 
-Day 86 / Flower Day 36: The dedicated view remains mostly fan-blocked, but visible purple tops are upright and rough moisture is stable near 49.13% after the watched Autopot rewet. Confirm tray fill/drawdown and leaf posture while avoiding another top flush unless new decline or repeated high-EC evidence appears. See [2026-06-08](../../../daily/2026-06-08.md).
+Day 88 / Flower Day 38: The dedicated view remains mostly fan-blocked, but visible right-side foliage and purple flower material are upright, and rough moisture is stable near 50.69% after the watched Autopot rewet. Keep confirming tray fill/drawdown and leaf posture; avoid another top flush unless new decline or repeated high-EC evidence appears. See [2026-06-10](../../../daily/2026-06-10.md).
 
 ## Timeline
 
@@ -85,3 +85,5 @@ Day 86 / Flower Day 36: The dedicated view remains mostly fan-blocked, but visib
 - 2026-06-06 — [Day 84 / Flower Day 34: mostly fan-blocked view; visible tops upright, continued slight rough rewet after Autopot reconnection](../../../daily/2026-06-06.md)
 - 2026-06-07 — [Day 85 / Flower Day 35: mostly fan-blocked view; visible tops upright, slight further rough rewet after Autopot reconnection](../../../daily/2026-06-07.md)
 - 2026-06-08 — [Day 86 / Flower Day 36: mostly fan-blocked view; visible tops upright, rough moisture stable near 49.1% after watched Autopot rewet](../../../daily/2026-06-08.md)
+- 2026-06-09 — [Day 87 / Flower Day 37: mostly fan-blocked view; visible cluster upright, rough moisture stable/slightly drier near 49.6% after watched Autopot rewet](../../../daily/2026-06-09.md)
+- 2026-06-10 — [Day 88 / Flower Day 38: mostly fan-blocked view; visible material upright, rough moisture stable near 50.7% after watched Autopot rewet](../../../daily/2026-06-10.md)

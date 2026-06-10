@@ -4,7 +4,7 @@ type: environment
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/environment/temperature.md, wiki/concepts/vpd.md, wiki/overview.md, wiki/hardware/humidifier-control.md, wiki/decisions/2026-04-17-humidifier-kasa-ep10.md]
 created: 2026-04-06
-updated: 2026-06-08
+updated: 2026-06-10
 ---
 
 
@@ -87,6 +87,8 @@ VPD is the control-loop setpoint; RH is informational (temperature determines wh
 | 2026-06-06 | Main: 58.54% now ⚠️ / 53.90% overnight avg ⚠️; VPD 1.32 kPa now ✅ / 1.13 kPa overnight ⚠️. Breeding: 83.28% now / 0.45 kPa VPD | Main lights-on VPD moved into the late-flower band while the 00-06 window remains slightly wet/low; preserve lights-on while tightening dark-cycle clearing. Breeding current-only wet data exactly repeats again, so verify sensor freshness/exposure while checking watering and airflow. → [2026-06-06](../daily/2026-06-06.md) |
 | 2026-06-07 | Main: 53.53% now ⚠️ / 54.47% overnight avg ⚠️; VPD 1.39 kPa now ✅ / 1.11 kPa overnight ⚠️. Breeding: 83.28% now / 0.45 kPa VPD | Main lights-on VPD remains in range with lower current dew point, but the 00-06 window is still wet/low and the fan is already 80% now. Breeding current-only wet data exactly repeats again, so verify sensor freshness/exposure while checking watering and airflow. → [2026-06-07](../daily/2026-06-07.md) |
 | 2026-06-08 | Main: 51.39% now ⚠️ / 54.61% overnight avg ⚠️; VPD 1.53 kPa now ⚠️ / 1.10 kPa overnight ⚠️. Breeding: 83.28% now / 0.45 kPa VPD | Main now is slightly dry/high while the 00-06 window remains wet/low, so avoid more broad lights-on drying and target dark-cycle clearing. Breeding current-only wet data exactly repeats again, so verify sensor freshness/exposure while checking watering and airflow. → [2026-06-08](../daily/2026-06-08.md) |
+| 2026-06-09 | Main: 56.54% now ⚠️ / 57.44% overnight avg ⚠️; VPD 1.47 kPa now ✅ / 1.01 kPa overnight ⚠️. Breeding: 83.28% now / 0.45 kPa VPD | Main lights-on VPD is in range, but the 00-06 window worsened wet/low and current dew point climbed to 62.30°F. Preserve lights-on stability while tightening dark-cycle clearing and canopy airflow. Breeding current-only wet data exactly repeats again, so verify sensor freshness/exposure while checking watering and airflow. → [2026-06-09](../daily/2026-06-09.md) |
+| 2026-06-10 | Main: 53.32% now ⚠️ / 55.86% overnight avg ⚠️; VPD 1.62 kPa now ⚠️ / 1.10 kPa overnight ⚠️. Breeding: 83.28% now / 0.45 kPa VPD | Main current VPD is dry/high with the fan at 80%, while the 00-06 window remains wet/low. Improve dark-cycle clearing and flower-pocket airflow without adding broad lights-on dryness. Breeding current-only wet data exactly repeats again, so verify sensor freshness/exposure while checking watering and airflow. → [2026-06-10](../daily/2026-06-10.md) |
 
 ## Notable Events
 - **2026-03-20** — Dome propped open, room humidifier added to tent after RH consistently below 50% → [2026-03-27 daily](../daily/2026-03-27.md)
@@ -143,6 +145,8 @@ VPD is the control-loop setpoint; RH is informational (temperature determines wh
 - **2026-06-06** — Main-tent lights-on VPD improved to a cleaner in-range profile (1.36 morning / 1.32 now), while overnight is still wet/low at 1.13 kPa. Breeding current-only data repeated the same wet value again, strengthening the sensor freshness/exposure check. → [2026-06-06](../daily/2026-06-06.md)
 - **2026-06-07** — Main-tent lights-on VPD stayed in range (1.30 morning / 1.39 now) while overnight stayed wet/low at 1.11 kPa. Current fan is already 80%, so focus on dark-cycle clearing and airflow paths rather than more broad lights-on drying; breeding current-only data repeated the same wet value again. → [2026-06-07](../daily/2026-06-07.md)
 - **2026-06-08** — Main-tent lights-on split widened: morning VPD was in range at 1.43 kPa, but now is slightly dry/high at 1.53 kPa while overnight stayed wet/low at 1.10 kPa. The correction remains dark-cycle clearing and flower-pocket airflow, not more lights-on exhaust; breeding current-only data repeated the same wet value again. → [2026-06-08](../daily/2026-06-08.md)
+- **2026-06-09** — Main-tent lights-on VPD recovered into range at 1.41 kPa morning / 1.47 kPa now, but overnight worsened wet/low to 1.01 kPa and current dew point rose to 62.30°F. Preserve lights-on VPD while improving dark-cycle clearing and flower-pocket airflow; breeding current-only data repeated the same wet value again. → [2026-06-09](../daily/2026-06-09.md)
+- **2026-06-10** — Main-tent profile split again: morning VPD was in range at 1.41 kPa, but current VPD is dry/high at 1.62 kPa with the fan at 80% while overnight remains wet/low at 1.10 kPa. Improve dark-cycle clearing and flower-pocket airflow without adding broad lights-on dryness; breeding current-only data repeated the same wet value again. → [2026-06-10](../daily/2026-06-10.md)
 
 ## Deployed Control System
 

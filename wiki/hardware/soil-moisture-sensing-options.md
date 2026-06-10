@@ -2,9 +2,9 @@
 title: "Hardware — Soil Moisture Sensing Options"
 type: hardware
 sources: []
-related: [wiki/concepts/capacitive-soil-moisture.md, wiki/hardware/esp32-plant-nodes.md, wiki/hardware/reservoir-level.md, wiki/hardware/sdi-12-substrate-sensors.md]
+related: [wiki/concepts/capacitive-soil-moisture.md, wiki/hardware/esp32-plant-nodes.md, wiki/hardware/reservoir-level.md, wiki/hardware/rs485-substrate-sensors.md, wiki/hardware/sdi-12-substrate-sensors.md]
 created: 2026-05-31
-updated: 2026-06-03
+updated: 2026-06-09
 ---
 
 # Soil Moisture Sensing Options
@@ -43,6 +43,7 @@ Sources:
 - Current system notes: [Capacitive Soil Moisture Sensors](../concepts/capacitive-soil-moisture.md), [ESP32-C3 Per-Plant Nodes](esp32-plant-nodes.md)
 - ComWinTop CWT-Soil THCPH-S-class RS485 sensor: <https://store.comwintop.com/products/rs485-4-20ma-soil-temperature-humidity-moisture-conductivity-ec-ph-sensor>
 - CWT-Soil-THCPH-S manual mirror: <https://www.digitalconcepts.net.au/arduino/content/support/datasheets/rs485sensors/THCPH-S%20%285pin%20probe%29%20Manual%20V1.4.pdf>
+- DFRobot SEN0604 RS485 4-in-1 soil moisture/temperature/pH/EC sensor: <https://www.dfrobot.com/product-2830.html>
 - Seeed XIAO ESP32C3 pinout: <https://wiki.seeedstudio.com/XIAO_ESP32C3_Getting_Started/>
 - Seeed RS485 Breakout Board for XIAO: <https://www.seeedstudio.com/RS485-Breakout-Board-for-XIAO-p-6306.html>
 - Seeed XIAO RS485 Expansion Board wiki: <https://wiki.seeedstudio.com/XIAO-RS485-Expansion-Board/>
@@ -71,6 +72,8 @@ For the current grow, the cleanest first experiment is:
 Two ComWinTop RS485 soil probes have been ordered for moisture and pH exploration. The current plan is to bring them up with a Seeed Studio XIAO ESP32C3 and the Seeed RS485 Breakout Board for XIAO, then compare the signal against the existing capacitive probes, hand-weight/watering events, runoff checks, and visible plant response.
 
 This is a validation path, not a decision to trust these probes as the long-term source of truth. The attractive part is the interface: Modbus RTU over RS485 gives a digital, multi-drop bus and avoids the ESP32-C3 ADC issues that weakened the current capacitive-probe system. The risky part is sensor physics and calibration: cheap multi-parameter soil probes often expose clean-looking digital numbers without enough transparency about how moisture and pH are actually measured in coco/perlite.
+
+Interim bring-up with a DFRobot SEN0604 on 2026-06-09 proved the XIAO + Seeed RS485 breakout path can read live substrate data over Modbus. Operational wiring, first readings, M12 enclosure notes, and the calibration proposal now live in [RS485 Substrate Sensors](rs485-substrate-sensors.md).
 
 ### Parts On Hand / Ordered
 

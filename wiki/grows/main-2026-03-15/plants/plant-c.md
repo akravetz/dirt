@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/coco-coir.md, wiki/concepts/lst.md, wiki/environment/nutrients.md]
 created: 2026-04-06
-updated: 2026-06-08
+updated: 2026-06-10
 ---
 
 # Plant C
@@ -19,7 +19,7 @@ updated: 2026-06-08
 
 ## Current State
 
-Day 86 / Flower Day 36: Wall-side flower clusters remain upright with fresh pistils, but C is still high/flat near 92.01% with no useful dryback. Keep root-zone and interior-airflow checks active before treating shaded leaf color as a feed-strength issue. See [2026-06-08](../../../daily/2026-06-08.md).
+Day 88 / Flower Day 38: Wall-side flower clusters remain upright with fresh pistils and dense surrounding foliage, but C is still high/flat near 91.85% with little useful dryback. Keep root-zone and interior-airflow checks active before treating shaded leaf color as a feed-strength issue. See [2026-06-10](../../../daily/2026-06-10.md).
 
 ## Timeline
 
@@ -85,3 +85,5 @@ Day 86 / Flower Day 36: Wall-side flower clusters remain upright with fresh pist
 - 2026-06-06 — [Day 84 / Flower Day 34: upright wall-side flower clusters; moisture ~91.9% remains saturated/flat, keep root-zone/airflow watch](../../../daily/2026-06-06.md)
 - 2026-06-07 — [Day 85 / Flower Day 35: upright wall-side flower clusters; moisture ~91.9% remains saturated/flat, keep root-zone/airflow watch](../../../daily/2026-06-07.md)
 - 2026-06-08 — [Day 86 / Flower Day 36: upright wall-side flower clusters; moisture ~92.0% remains saturated/flat, keep root-zone/airflow watch](../../../daily/2026-06-08.md)
+- 2026-06-09 — [Day 87 / Flower Day 37: upright wall-side flower clusters; moisture ~91.6% remains high/flat, keep root-zone/airflow watch](../../../daily/2026-06-09.md)
+- 2026-06-10 — [Day 88 / Flower Day 38: upright wall-side flower clusters; moisture ~91.9% remains high/flat, keep root-zone/airflow watch](../../../daily/2026-06-10.md)

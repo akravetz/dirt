@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-06-08
+updated: 2026-06-10
 ---
 
 # Plant B
@@ -19,7 +19,7 @@ updated: 2026-06-08
 
 ## Current State
 
-Day 86 / Flower Day 36: B has upright active flower clusters with fresh pistils and some older edge/tip wear, while rough moisture remains pinned/stale near 96.66%. Keep tray/media/probe dryback verification urgent before changing feed assumptions. See [2026-06-08](../../../daily/2026-06-08.md).
+Day 88 / Flower Day 38: B has upright active flower clusters with fresh pistils and older edge/tip wear, while rough moisture returned to the high/pinned zone near 96.00% after yesterday's drier move. Verify tray/media/probe conditions by hand before treating either signal as a solved dryback trend. See [2026-06-10](../../../daily/2026-06-10.md).
 
 ## Timeline
 
@@ -85,3 +85,5 @@ Day 86 / Flower Day 36: B has upright active flower clusters with fresh pistils 
 - 2026-06-06 — [Day 84 / Flower Day 34: upright active flower clusters; moisture ~96.6% remains pinned/stale, dryback verification urgent](../../../daily/2026-06-06.md)
 - 2026-06-07 — [Day 85 / Flower Day 35: upright active flower sites; moisture ~96.7% remains pinned/stale, dryback verification urgent](../../../daily/2026-06-07.md)
 - 2026-06-08 — [Day 86 / Flower Day 36: upright active flower clusters; moisture ~96.7% remains pinned/stale, dryback verification urgent](../../../daily/2026-06-08.md)
+- 2026-06-09 — [Day 87 / Flower Day 37: upright active flower clusters; rough moisture moved sharply drier to ~88.5%, verify tray/media/probe by hand](../../../daily/2026-06-09.md)
+- 2026-06-10 — [Day 88 / Flower Day 38: upright active flower clusters; rough moisture back high near 96.0%, verify tray/media/probe by hand](../../../daily/2026-06-10.md)

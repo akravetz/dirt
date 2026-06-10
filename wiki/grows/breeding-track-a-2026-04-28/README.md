@@ -2,9 +2,9 @@
 title: Track A Pollen Run
 type: grow
 sources: []
-related: [wiki/breeding/README.md, wiki/breeding/timeline.md, wiki/breeding/male-evaluation.md, wiki/daily/2026-06-08.md]
+related: [wiki/breeding/README.md, wiki/breeding/timeline.md, wiki/breeding/male-evaluation.md, wiki/daily/2026-06-10.md]
 created: 2026-05-30
-updated: 2026-06-08
+updated: 2026-06-10
 ---
 
 # Track A Pollen Run
@@ -36,7 +36,7 @@ on sex watch. Keep label integrity tight and evaluate male quality before
 pollen collection; do not treat first male expression alone as the selection
 decision.
 
-As of 2026-06-08, active Track A plants are R1, R2, R4, and R5. Today's
+As of 2026-06-10, active Track A plants are R1, R2, R4, and R5. Today's
 overview stayed tent-level only and did not resolve sex sites; the current-only
 breeding sensor reading repeated the same wet value again, so check pot weight,
 watering timing, fan exposure, sensor exposure, and R5 sex sites directly.
@@ -62,3 +62,5 @@ watering timing, fan exposure, sensor exposure, and R5 sex sites directly.
 - 2026-06-06 — Breeding overview stayed tent-level only; repeated current-only wet sensor data means pot-weight, airflow, sensor exposure, and R5 sex-site checks remain active. See [2026-06-06](../../daily/2026-06-06.md).
 - 2026-06-07 — Breeding overview stayed tent-level only; repeated current-only wet sensor data keeps pot-weight, airflow, sensor exposure, and R5 sex-site checks active. See [2026-06-07](../../daily/2026-06-07.md).
 - 2026-06-08 — Breeding overview stayed tent-level only; repeated current-only wet sensor data keeps pot-weight, airflow, sensor exposure, and R5 sex-site checks active. See [2026-06-08](../../daily/2026-06-08.md).
+- 2026-06-09 — Breeding overview stayed tent-level only; repeated current-only wet sensor data keeps pot-weight, airflow, sensor exposure, and R5 sex-site checks active. See [2026-06-09](../../daily/2026-06-09.md).
+- 2026-06-10 — Breeding overview stayed tent-level only; repeated current-only wet sensor data keeps pot-weight, airflow, sensor exposure, and R5 sex-site checks active. See [2026-06-10](../../daily/2026-06-10.md).
