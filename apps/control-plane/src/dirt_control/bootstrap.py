@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from dirt_control.db import create_sessionmaker
@@ -33,7 +34,13 @@ async def ensure_gateway_credential(
     timestamp = now or datetime.now(UTC)
     try:
         async with sessionmaker() as session:
-            credential = await session.get(GatewayCredential, seed.credential_id)
+            credential = (
+                await session.execute(
+                    select(GatewayCredential).where(
+                        GatewayCredential.credential_id == seed.credential_id
+                    )
+                )
+            ).scalar_one_or_none()
             if credential is None:
                 session.add(
                     GatewayCredential(

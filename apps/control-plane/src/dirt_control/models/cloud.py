@@ -22,8 +22,13 @@ from sqlmodel import Field, SQLModel
 
 class CloudSite(SQLModel, table=True):
     __tablename__ = "cloud_site"
+    __table_args__ = (UniqueConstraint("site_id", name="cloud_site_site_id_key"),)
 
-    site_id: str = Field(primary_key=True, max_length=80)
+    id: int | None = Field(
+        default=None,
+        sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
+    )
+    site_id: str = Field(max_length=80)
     name: str = Field(max_length=160)
     timezone: str = Field(default="America/Denver", max_length=80)
     is_active: bool = True
@@ -47,9 +52,14 @@ class CloudSite(SQLModel, table=True):
 
 class CloudTent(SQLModel, table=True):
     __tablename__ = "cloud_tent"
-    __table_args__ = (UniqueConstraint("site_id", "tent_id"),)
+    __table_args__ = (
+        UniqueConstraint("site_id", "tent_id", name="cloud_tent_site_id_tent_id_key"),
+    )
 
-    tent_key: str = Field(primary_key=True, max_length=180)
+    id: int | None = Field(
+        default=None,
+        sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
+    )
     site_id: str = Field(index=True, max_length=80)
     tent_id: str = Field(index=True, max_length=80)
     name: str = Field(max_length=160)
@@ -67,9 +77,19 @@ class CloudTent(SQLModel, table=True):
 
 class CloudZone(SQLModel, table=True):
     __tablename__ = "cloud_zone"
-    __table_args__ = (UniqueConstraint("site_id", "tent_id", "zone_id"),)
+    __table_args__ = (
+        UniqueConstraint(
+            "site_id",
+            "tent_id",
+            "zone_id",
+            name="cloud_zone_site_id_tent_id_zone_id_key",
+        ),
+    )
 
-    zone_key: str = Field(primary_key=True, max_length=260)
+    id: int | None = Field(
+        default=None,
+        sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
+    )
     site_id: str = Field(index=True, max_length=80)
     tent_id: str = Field(index=True, max_length=80)
     zone_id: str = Field(index=True, max_length=80)
@@ -89,9 +109,19 @@ class CloudZone(SQLModel, table=True):
 
 class CloudDevice(SQLModel, table=True):
     __tablename__ = "cloud_device"
-    __table_args__ = (UniqueConstraint("site_id", "tent_id", "device_id"),)
+    __table_args__ = (
+        UniqueConstraint(
+            "site_id",
+            "tent_id",
+            "device_id",
+            name="cloud_device_site_id_tent_id_device_id_key",
+        ),
+    )
 
-    device_key: str = Field(primary_key=True, max_length=260)
+    id: int | None = Field(
+        default=None,
+        sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
+    )
     site_id: str = Field(index=True, max_length=80)
     tent_id: str = Field(index=True, max_length=80)
     zone_id: str | None = Field(default=None, index=True, max_length=80)
@@ -117,10 +147,19 @@ class CloudDevice(SQLModel, table=True):
 class CloudCapability(SQLModel, table=True):
     __tablename__ = "cloud_capability"
     __table_args__ = (
-        UniqueConstraint("site_id", "tent_id", "device_id", "capability_id"),
+        UniqueConstraint(
+            "site_id",
+            "tent_id",
+            "device_id",
+            "capability_id",
+            name="cloud_capability_site_id_tent_id_device_id_capability_id_key",
+        ),
     )
 
-    capability_key: str = Field(primary_key=True, max_length=480)
+    id: int | None = Field(
+        default=None,
+        sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
+    )
     site_id: str = Field(index=True, max_length=80)
     tent_id: str = Field(index=True, max_length=80)
     device_id: str = Field(index=True, max_length=120)
@@ -142,9 +181,19 @@ class CloudCapability(SQLModel, table=True):
 
 class CloudSchedule(SQLModel, table=True):
     __tablename__ = "cloud_schedule"
-    __table_args__ = (UniqueConstraint("site_id", "tent_id", "schedule_id"),)
+    __table_args__ = (
+        UniqueConstraint(
+            "site_id",
+            "tent_id",
+            "schedule_id",
+            name="cloud_schedule_site_id_tent_id_schedule_id_key",
+        ),
+    )
 
-    schedule_key: str = Field(primary_key=True, max_length=320)
+    id: int | None = Field(
+        default=None,
+        sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
+    )
     site_id: str = Field(index=True, max_length=80)
     tent_id: str = Field(index=True, max_length=80)
     zone_id: str | None = Field(default=None, index=True, max_length=80)
@@ -170,10 +219,19 @@ class CloudSchedule(SQLModel, table=True):
 class CloudPlant(SQLModel, table=True):
     __tablename__ = "cloud_plant"
     __table_args__ = (
-        UniqueConstraint("site_id", "tent_id", "grow_run_id", "plant_id"),
+        UniqueConstraint(
+            "site_id",
+            "tent_id",
+            "grow_run_id",
+            "plant_id",
+            name="cloud_plant_site_id_tent_id_grow_run_id_plant_id_key",
+        ),
     )
 
-    plant_key: str = Field(primary_key=True, max_length=480)
+    id: int | None = Field(
+        default=None,
+        sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
+    )
     site_id: str = Field(index=True, max_length=80)
     tent_id: str = Field(index=True, max_length=80)
     grow_run_id: str = Field(index=True, max_length=160)
@@ -202,9 +260,14 @@ class CloudPlant(SQLModel, table=True):
 
 class CloudWikiPage(SQLModel, table=True):
     __tablename__ = "cloud_wiki_page"
-    __table_args__ = (UniqueConstraint("site_id", "path"),)
+    __table_args__ = (
+        UniqueConstraint("site_id", "path", name="cloud_wiki_page_site_id_path_key"),
+    )
 
-    wiki_key: str = Field(primary_key=True, max_length=600)
+    id: int | None = Field(
+        default=None,
+        sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
+    )
     site_id: str = Field(index=True, max_length=80)
     path: str = Field(index=True, max_length=500)
     title: str = Field(max_length=300)
@@ -230,10 +293,20 @@ class CloudWikiPage(SQLModel, table=True):
 class CloudLatestMetric(SQLModel, table=True):
     __tablename__ = "cloud_latest_metric"
     __table_args__ = (
-        UniqueConstraint("site_id", "tent_id", "device_id", "capability_id", "metric"),
+        UniqueConstraint(
+            "site_id",
+            "tent_id",
+            "device_id",
+            "capability_id",
+            "metric",
+            name="cloud_latest_metric_site_id_tent_id_device_id_capability_id_key",
+        ),
     )
 
-    metric_key: str = Field(primary_key=True, max_length=700)
+    id: int | None = Field(
+        default=None,
+        sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
+    )
     site_id: str = Field(index=True, max_length=80)
     tent_id: str = Field(index=True, max_length=80)
     zone_id: str | None = Field(default=None, index=True, max_length=80)
@@ -262,10 +335,14 @@ class CloudMetricRollup(SQLModel, table=True):
             "metric",
             "bucket",
             "bucket_start_at",
+            name="cloud_metric_rollup_site_id_tent_id_device_id_capability_id_key",
         ),
     )
 
-    rollup_key: str = Field(primary_key=True, max_length=700)
+    id: int | None = Field(
+        default=None,
+        sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
+    )
     site_id: str = Field(index=True, max_length=80)
     tent_id: str = Field(index=True, max_length=80)
     device_id: str = Field(index=True, max_length=120)
@@ -315,9 +392,21 @@ class CloudMetricPresentation(SQLModel, table=True):
 
 class CloudAsset(SQLModel, table=True):
     __tablename__ = "cloud_asset"
-    __table_args__ = (UniqueConstraint("site_id", "tent_id", "object_key"),)
+    __table_args__ = (
+        UniqueConstraint("asset_id", name="cloud_asset_asset_id_key"),
+        UniqueConstraint(
+            "site_id",
+            "tent_id",
+            "object_key",
+            name="cloud_asset_site_id_tent_id_object_key_key",
+        ),
+    )
 
-    asset_id: str = Field(primary_key=True, max_length=160)
+    id: int | None = Field(
+        default=None,
+        sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
+    )
+    asset_id: str = Field(max_length=160)
     site_id: str = Field(index=True, max_length=80)
     tent_id: str = Field(index=True, max_length=80)
     zone_id: str | None = Field(default=None, index=True, max_length=80)
@@ -341,11 +430,20 @@ class CloudAsset(SQLModel, table=True):
 class CloudCommand(SQLModel, table=True):
     __tablename__ = "cloud_command"
     __table_args__ = (
-        UniqueConstraint("requested_by", "idempotency_key"),
+        UniqueConstraint("command_id", name="cloud_command_command_id_key"),
+        UniqueConstraint(
+            "requested_by",
+            "idempotency_key",
+            name="cloud_command_requested_by_idempotency_key_key",
+        ),
         Index("ix_cloud_command_claimable", "site_id", "status", "expires_at"),
     )
 
-    command_id: str = Field(primary_key=True, max_length=80)
+    id: int | None = Field(
+        default=None,
+        sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
+    )
+    command_id: str = Field(max_length=80)
     idempotency_key: str = Field(index=True, max_length=160)
     site_id: str = Field(index=True, max_length=80)
     tent_id: str = Field(index=True, max_length=80)
@@ -385,8 +483,15 @@ class CloudCommand(SQLModel, table=True):
 
 class CloudAuditEvent(SQLModel, table=True):
     __tablename__ = "cloud_audit_event"
+    __table_args__ = (
+        UniqueConstraint("event_id", name="cloud_audit_event_event_id_key"),
+    )
 
-    event_id: str = Field(primary_key=True, max_length=80)
+    id: int | None = Field(
+        default=None,
+        sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
+    )
+    event_id: str = Field(max_length=80)
     site_id: str | None = Field(default=None, index=True, max_length=80)
     actor_type: str = Field(max_length=40)
     actor_id: str | None = Field(default=None, max_length=160)
@@ -403,8 +508,15 @@ class CloudAuditEvent(SQLModel, table=True):
 
 class GatewayCredential(SQLModel, table=True):
     __tablename__ = "gateway_credential"
+    __table_args__ = (
+        UniqueConstraint("credential_id", name="gateway_credential_credential_id_key"),
+    )
 
-    credential_id: str = Field(primary_key=True, max_length=120)
+    id: int | None = Field(
+        default=None,
+        sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
+    )
+    credential_id: str = Field(max_length=120)
     gateway_id: str = Field(index=True, max_length=120)
     token_sha256: str = Field(index=True, max_length=64)
     allowed_site_id: str = Field(index=True, max_length=80)

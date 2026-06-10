@@ -54,7 +54,6 @@ from dirt_shared.cloud_contract import (
     HeartbeatResponse,
     LatestMetricsRequest,
     PruneAssetsResponse,
-    RollupItem,
     RollupsRequest,
     SignUploadResponse,
     UpsertCountResponse,
@@ -83,11 +82,21 @@ async def heartbeat(
 ) -> HeartbeatResponse:
     require_gateway_scope(principal, body.site_id)
     now = clock()
-    credential = await session.get(GatewayCredential, principal.credential_id)
+    credential = (
+        await session.execute(
+            select(GatewayCredential).where(
+                GatewayCredential.credential_id == principal.credential_id
+            )
+        )
+    ).scalar_one_or_none()
     if credential is not None:
         credential.last_used_at = now
         credential.updated_at = now
-    site = await session.get(CloudSite, body.site_id)
+    site = (
+        await session.execute(
+            select(CloudSite).where(CloudSite.site_id == body.site_id)
+        )
+    ).scalar_one_or_none()
     if site is None:
         site = CloudSite(
             site_id=body.site_id,
@@ -122,10 +131,10 @@ async def catalog(
 ) -> CatalogResponse:
     require_gateway_scope(principal, body.site.site_id)
     now = clock()
-    await _upsert(
+    await _upsert_by_columns(
         session,
         CloudSite,
-        body.site.site_id,
+        {"site_id": body.site.site_id},
         {
             "site_id": body.site.site_id,
             "name": body.site.name,
@@ -138,12 +147,11 @@ async def catalog(
         now=now,
     )
     for tent in body.tents:
-        await _upsert(
+        await _upsert_by_columns(
             session,
             CloudTent,
-            _tent_key(body.site.site_id, tent.tent_id),
+            {"site_id": body.site.site_id, "tent_id": tent.tent_id},
             {
-                "tent_key": _tent_key(body.site.site_id, tent.tent_id),
                 "site_id": body.site.site_id,
                 "tent_id": tent.tent_id,
                 "name": tent.name,
@@ -155,12 +163,15 @@ async def catalog(
             now=now,
         )
     for zone in body.zones:
-        await _upsert(
+        await _upsert_by_columns(
             session,
             CloudZone,
-            _zone_key(body.site.site_id, zone.tent_id, zone.zone_id),
             {
-                "zone_key": _zone_key(body.site.site_id, zone.tent_id, zone.zone_id),
+                "site_id": body.site.site_id,
+                "tent_id": zone.tent_id,
+                "zone_id": zone.zone_id,
+            },
+            {
                 "site_id": body.site.site_id,
                 "tent_id": zone.tent_id,
                 "zone_id": zone.zone_id,
@@ -174,14 +185,15 @@ async def catalog(
             now=now,
         )
     for device in body.devices:
-        await _upsert(
+        await _upsert_by_columns(
             session,
             CloudDevice,
-            _device_key(body.site.site_id, device.tent_id, device.device_id),
             {
-                "device_key": _device_key(
-                    body.site.site_id, device.tent_id, device.device_id
-                ),
+                "site_id": body.site.site_id,
+                "tent_id": device.tent_id,
+                "device_id": device.device_id,
+            },
+            {
                 "site_id": body.site.site_id,
                 "tent_id": device.tent_id,
                 "zone_id": device.zone_id,
@@ -198,22 +210,16 @@ async def catalog(
             now=now,
         )
     for capability in body.capabilities:
-        await _upsert(
+        await _upsert_by_columns(
             session,
             CloudCapability,
-            _capability_key(
-                body.site.site_id,
-                capability.tent_id,
-                capability.device_id,
-                capability.capability_id,
-            ),
             {
-                "capability_key": _capability_key(
-                    body.site.site_id,
-                    capability.tent_id,
-                    capability.device_id,
-                    capability.capability_id,
-                ),
+                "site_id": body.site.site_id,
+                "tent_id": capability.tent_id,
+                "device_id": capability.device_id,
+                "capability_id": capability.capability_id,
+            },
+            {
                 "site_id": body.site.site_id,
                 "tent_id": capability.tent_id,
                 "device_id": capability.device_id,
@@ -230,13 +236,15 @@ async def catalog(
         )
     for schedule in body.schedules:
         require_gateway_scope(principal, schedule.site_id)
-        key = _schedule_key(schedule.site_id, schedule.tent_id, schedule.schedule_id)
-        await _upsert(
+        await _upsert_by_columns(
             session,
             CloudSchedule,
-            key,
             {
-                "schedule_key": key,
+                "site_id": schedule.site_id,
+                "tent_id": schedule.tent_id,
+                "schedule_id": schedule.schedule_id,
+            },
+            {
                 "site_id": schedule.site_id,
                 "tent_id": schedule.tent_id,
                 "zone_id": schedule.zone_id,
@@ -255,18 +263,16 @@ async def catalog(
             now=now,
         )
     for plant in body.plants:
-        key = _plant_key(
-            body.site.site_id,
-            plant.tent_id,
-            plant.grow_run_id,
-            plant.plant_id,
-        )
-        await _upsert(
+        await _upsert_by_columns(
             session,
             CloudPlant,
-            key,
             {
-                "plant_key": key,
+                "site_id": body.site.site_id,
+                "tent_id": plant.tent_id,
+                "grow_run_id": plant.grow_run_id,
+                "plant_id": plant.plant_id,
+            },
+            {
                 "site_id": body.site.site_id,
                 "tent_id": plant.tent_id,
                 "grow_run_id": plant.grow_run_id,
@@ -312,13 +318,11 @@ async def wiki_projection(
     incoming_paths = {page.path for page in body.pages}
     upserted = 0
     for page in body.pages:
-        key = _wiki_key(body.site_id, page.path)
-        await _upsert(
+        await _upsert_by_columns(
             session,
             CloudWikiPage,
-            key,
+            {"site_id": body.site_id, "path": page.path},
             {
-                "wiki_key": key,
                 "site_id": body.site_id,
                 "path": page.path,
                 "title": page.title,
@@ -360,19 +364,17 @@ async def metrics_latest(
     now = clock()
     for metric in body.metrics:
         require_gateway_scope(principal, metric.site_id)
-        key = _metric_key(
-            metric.site_id,
-            metric.tent_id,
-            metric.device_id,
-            metric.capability_id,
-            metric.metric,
-        )
-        await _upsert(
+        await _upsert_by_columns(
             session,
             CloudLatestMetric,
-            key,
             {
-                "metric_key": key,
+                "site_id": metric.site_id,
+                "tent_id": metric.tent_id,
+                "device_id": metric.device_id,
+                "capability_id": metric.capability_id,
+                "metric": metric.metric,
+            },
+            {
                 "site_id": metric.site_id,
                 "tent_id": metric.tent_id,
                 "zone_id": metric.zone_id,
@@ -484,13 +486,19 @@ async def metrics_rollups(
     now = clock()
     for rollup in body.rollups:
         require_gateway_scope(principal, rollup.site_id)
-        key = _rollup_key(rollup)
-        await _upsert(
+        await _upsert_by_columns(
             session,
             CloudMetricRollup,
-            key,
             {
-                "rollup_key": key,
+                "site_id": rollup.site_id,
+                "tent_id": rollup.tent_id,
+                "device_id": rollup.device_id,
+                "capability_id": rollup.capability_id,
+                "metric": rollup.metric,
+                "bucket": rollup.bucket,
+                "bucket_start_at": rollup.bucket_start_at,
+            },
+            {
                 "site_id": rollup.site_id,
                 "tent_id": rollup.tent_id,
                 "device_id": rollup.device_id,
@@ -729,7 +737,11 @@ async def command_result(
     clock: Callable[[], datetime] = Depends(get_clock),
 ) -> CommandResultResponse:
     require_gateway_scope(principal, body.site_id)
-    command = await session.get(CloudCommand, command_id)
+    command = (
+        await session.execute(
+            select(CloudCommand).where(CloudCommand.command_id == command_id)
+        )
+    ).scalar_one_or_none()
     if command is None or command.site_id != body.site_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "command not found")
     if command.status in {"succeeded", "failed", "rejected", "expired"}:
@@ -760,26 +772,27 @@ async def command_result(
     return _command_payload(command)
 
 
-async def _upsert(
+async def _upsert_by_columns(
     session: AsyncSession,
     model: type[ModelT],
-    primary_key: Any,
+    identity: dict[str, Any],
     values: dict[str, Any],
     *,
     now: datetime,
 ) -> ModelT:
-    row = await session.get(model, primary_key)
+    row = (
+        await session.execute(
+            select(model).where(
+                *(getattr(model, key) == value for key, value in identity.items())
+            )
+        )
+    ).scalar_one_or_none()
     if row is None:
         row = model(**values)
         session.add(row)
         return row
 
-    for key, value in values.items():
-        if key == "created_at":
-            continue
-        setattr(row, key, value)
-    if hasattr(row, "updated_at"):
-        row.updated_at = now
+    _apply_upsert_values(row, values, now=now)
     return row
 
 
@@ -812,7 +825,9 @@ async def _upsert_cloud_asset(
     now: datetime,
 ) -> CloudAsset:
     asset_id = values["asset_id"]
-    row = await session.get(CloudAsset, asset_id)
+    row = (
+        await session.execute(select(CloudAsset).where(CloudAsset.asset_id == asset_id))
+    ).scalar_one_or_none()
     if row is None:
         row = (
             await session.execute(
@@ -828,57 +843,17 @@ async def _upsert_cloud_asset(
         session.add(row)
         return row
 
+    _apply_upsert_values(row, values, now=now)
+    return row
+
+
+def _apply_upsert_values(row: ModelT, values: dict[str, Any], *, now: datetime) -> None:
     for key, value in values.items():
         if key == "created_at":
             continue
         setattr(row, key, value)
     if hasattr(row, "updated_at"):
         row.updated_at = now
-    return row
-
-
-def _tent_key(site_id: str, tent_id: str) -> str:
-    return f"{site_id}:{tent_id}"
-
-
-def _zone_key(site_id: str, tent_id: str, zone_id: str) -> str:
-    return f"{site_id}:{tent_id}:{zone_id}"
-
-
-def _device_key(site_id: str, tent_id: str, device_id: str) -> str:
-    return f"{site_id}:{tent_id}:{device_id}"
-
-
-def _capability_key(
-    site_id: str, tent_id: str, device_id: str, capability_id: str
-) -> str:
-    return f"{site_id}:{tent_id}:{device_id}:{capability_id}"
-
-
-def _schedule_key(site_id: str, tent_id: str, schedule_id: str) -> str:
-    return f"{site_id}:{tent_id}:{schedule_id}"
-
-
-def _plant_key(site_id: str, tent_id: str, grow_run_id: str, plant_id: str) -> str:
-    return f"{site_id}:{tent_id}:{grow_run_id}:{plant_id}"
-
-
-def _wiki_key(site_id: str, path: str) -> str:
-    return f"{site_id}:{path}"
-
-
-def _metric_key(
-    site_id: str, tent_id: str, device_id: str, capability_id: str, metric: str
-) -> str:
-    return f"{site_id}:{tent_id}:{device_id}:{capability_id}:{metric}"
-
-
-def _rollup_key(rollup: RollupItem) -> str:
-    return (
-        f"{rollup.site_id}:{rollup.tent_id}:{rollup.device_id}:"
-        f"{rollup.capability_id}:"
-        f"{rollup.metric}:{rollup.bucket}:{rollup.bucket_start_at.isoformat()}"
-    )
 
 
 def _command_payload(command: CloudCommand) -> CommandResultResponse:

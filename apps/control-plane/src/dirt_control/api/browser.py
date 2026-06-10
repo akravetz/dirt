@@ -406,7 +406,11 @@ async def health(
     clock: Callable[[], datetime] = Depends(get_clock),
 ) -> HealthResponse:
     now = clock()
-    site = await session.get(CloudSite, settings.default_site_id)
+    site = (
+        await session.execute(
+            select(CloudSite).where(CloudSite.site_id == settings.default_site_id)
+        )
+    ).scalar_one_or_none()
     command_backlog_depth = await _command_backlog_depth(
         session, site_id=settings.default_site_id
     )
@@ -559,7 +563,11 @@ async def tent_state(
     settings: CloudSettings = Depends(get_settings),
     session: AsyncSession = Depends(get_session),
 ) -> TentStateResponse:
-    site = await session.get(CloudSite, settings.default_site_id)
+    site = (
+        await session.execute(
+            select(CloudSite).where(CloudSite.site_id == settings.default_site_id)
+        )
+    ).scalar_one_or_none()
     tent = (
         await session.execute(
             select(CloudTent).where(
@@ -1041,7 +1049,9 @@ async def asset_signed_url(
     session: AsyncSession = Depends(get_session),
     clock: Callable[[], datetime] = Depends(get_clock),
 ) -> AssetResponse:
-    asset = await session.get(CloudAsset, asset_id)
+    asset = (
+        await session.execute(select(CloudAsset).where(CloudAsset.asset_id == asset_id))
+    ).scalar_one_or_none()
     if asset is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "asset not found")
     return _asset_response(
@@ -1059,7 +1069,11 @@ async def sync_status(
     session: AsyncSession = Depends(get_session),
     clock: Callable[[], datetime] = Depends(get_clock),
 ) -> SyncStatusResponse:
-    site = await session.get(CloudSite, settings.default_site_id)
+    site = (
+        await session.execute(
+            select(CloudSite).where(CloudSite.site_id == settings.default_site_id)
+        )
+    ).scalar_one_or_none()
     command_backlog_depth = await _command_backlog_depth(
         session, site_id=settings.default_site_id
     )
@@ -1161,7 +1175,13 @@ async def rotate_gateway_credential(
     session: AsyncSession = Depends(get_session),
     clock: Callable[[], datetime] = Depends(get_clock),
 ) -> GatewayCredentialRotateResponse:
-    credential = await session.get(GatewayCredential, credential_id)
+    credential = (
+        await session.execute(
+            select(GatewayCredential).where(
+                GatewayCredential.credential_id == credential_id
+            )
+        )
+    ).scalar_one_or_none()
     if credential is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "gateway credential not found")
     now = clock()
@@ -1218,7 +1238,11 @@ async def get_command(
     user: str = Depends(require_browser_user),
     session: AsyncSession = Depends(get_session),
 ) -> CommandResponse:
-    command = await session.get(CloudCommand, command_id)
+    command = (
+        await session.execute(
+            select(CloudCommand).where(CloudCommand.command_id == command_id)
+        )
+    ).scalar_one_or_none()
     if command is None or command.requested_by != user:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "command not found")
     return _command_response(command)
@@ -1267,7 +1291,7 @@ def _plant_recency_order() -> tuple[Any, ...]:
         desc(CloudPlant.updated_at),
         desc(CloudPlant.created_at),
         desc(CloudPlant.grow_run_id),
-        desc(CloudPlant.plant_key),
+        desc(CloudPlant.plant_id),
     )
 
 
@@ -1606,7 +1630,8 @@ async def _audit_missing_device_liveness(
     for device, metric in rows:
         if not _metric_is_current(metric, now=now):
             continue
-        _, metrics = current_by_device.setdefault(device.device_key, (device, []))
+        subject_id = _device_audit_subject_id(device)
+        _, metrics = current_by_device.setdefault(subject_id, (device, []))
         metrics.append(metric)
     if not current_by_device:
         return
@@ -1626,8 +1651,8 @@ async def _audit_missing_device_liveness(
         .all()
     )
     emitted = False
-    for device_key, (device, metrics) in current_by_device.items():
-        if device_key in recent_subject_ids:
+    for subject_id, (device, metrics) in current_by_device.items():
+        if subject_id in recent_subject_ids:
             continue
         emitted = True
         add_audit_event(
@@ -1637,7 +1662,7 @@ async def _audit_missing_device_liveness(
             actor_type="system",
             site_id=site_id,
             subject_type="cloud_device",
-            subject_id=device_key,
+            subject_id=subject_id,
             metadata={
                 "tent_id": device.tent_id,
                 "device_id": device.device_id,
@@ -1647,6 +1672,10 @@ async def _audit_missing_device_liveness(
         )
     if emitted:
         await session.commit()
+
+
+def _device_audit_subject_id(device: CloudDevice) -> str:
+    return f"site={device.site_id};tent={device.tent_id};device={device.device_id}"
 
 
 def _metric_is_current(metric: CloudLatestMetric, *, now: datetime) -> bool:

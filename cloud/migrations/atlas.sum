@@ -1,4 +1,4 @@
-h1:pR01C1VhG3/ct+/qm+chSXb6h4K1Oz3hEfGukv4uRck=
+h1:/lTBC6xE/G/JLbYSLEy7grQimfzW3TDtpOw8e14jprs=
 20260505033411_cloud_control_plane_initial.sql h1:xKFBil06DkN6sXUbx1vStXik3y7cho6yZOOW41OsjEE=
 20260505045254_cloud_operational_hardening.sql h1:I7wpFkAA1D5caKbXIV7M5J5rfTslnsgGK0aUMeyT2wU=
 20260509041000_cloud_light_schedules.sql h1:We0s0BhwCAxHmZ/pf75EM+7uPGsk0a9RcFGvjwU5YA8=
@@ -9,3 +9,6 @@ h1:pR01C1VhG3/ct+/qm+chSXb6h4K1Oz3hEfGukv4uRck=
 20260531233500_metric_presentation_registry.sql h1:FeJ0y6fKX1EiktrAkKADHIjmbMe6QzcuzqkbL06ixGg=
 20260531235500_dehumidifier_runtime_history.sql h1:I/qsnwHzV7lyeM83AKBOKD4w6BlDs9r4zLkXP1QWr9E=
 20260531235900_metric_presentation_identity_pk.sql h1:BqFK+jJXof2lOrzIasrXT9Wro3GoIH4EKMVYshAmKOU=
+20260610134609_hosted_projection_identity_pk.sql h1:avKWqZ3Dn1C9SeyORwp+t0MExQ5lOK+2+0OXbPr4GEY=
+20260610135530_hosted_metric_fact_identity_pk.sql h1:CTKN7lSyxSJn8dAK1xL6ljrzuQuBY8nwjG00X5G+kFo=
+20260610140356_hosted_external_identity_pk.sql h1:EuM0cxt/gmY9Ozl5MAXF+BK/tPOwDgsKtIK/WpggZHk=

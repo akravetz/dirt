@@ -26,6 +26,7 @@ from dirt_control.models import (
     CloudSite,
     CloudTent,
     CloudWikiPage,
+    CloudZone,
     GatewayCredential,
 )
 from dirt_control.settings import CloudSettings
@@ -149,7 +150,6 @@ def test_asset_store_defaults_to_s3_and_requires_credentials() -> None:
 
 
 def _rollup(
-    suffix: str,
     *,
     bucket: str,
     start: datetime,
@@ -162,9 +162,6 @@ def _rollup(
     unit: str = "f",
 ) -> CloudMetricRollup:
     return CloudMetricRollup(
-        rollup_key=(
-            f"homebox:main:{device_id}:{capability_id}:{metric}:{bucket}:{suffix}"
-        ),
         site_id="homebox",
         tent_id="main",
         device_id=device_id,
@@ -193,7 +190,6 @@ def _plant(
     synced_at: datetime = FIXED_NOW,
 ) -> CloudPlant:
     return CloudPlant(
-        plant_key=f"homebox:main:{grow_run_id}:{plant_id}",
         site_id="homebox",
         tent_id="main",
         grow_run_id=grow_run_id,
@@ -243,7 +239,13 @@ async def test_gateway_credential_bootstrap_upserts(
 
     sessionmaker = create_sessionmaker(cloud_engine)
     async with sessionmaker() as session:
-        credential = await session.get(GatewayCredential, "homebox-gateway")
+        credential = (
+            await session.execute(
+                select(GatewayCredential).where(
+                    GatewayCredential.credential_id == "homebox-gateway"
+                )
+            )
+        ).scalar_one_or_none()
 
     assert credential is not None
     assert credential.token_sha256 == "b" * 64
@@ -296,7 +298,13 @@ async def test_gateway_heartbeat_updates_credential_last_used(
 
     sessionmaker = create_sessionmaker(cloud_engine)
     async with sessionmaker() as session:
-        credential = await session.get(GatewayCredential, "gateway-main")
+        credential = (
+            await session.execute(
+                select(GatewayCredential).where(
+                    GatewayCredential.credential_id == "gateway-main"
+                )
+            )
+        ).scalar_one_or_none()
 
     assert credential is not None
     assert credential.last_used_at == FIXED_NOW
@@ -406,7 +414,11 @@ async def test_catalog_upsert_is_idempotent(
     assert first.json()["plants"] == 2
     sessionmaker = create_sessionmaker(cloud_engine)
     async with sessionmaker() as session:
-        count = await session.scalar(select(func.count()).select_from(CloudTent))
+        tent_count = await session.scalar(select(func.count()).select_from(CloudTent))
+        zone_count = await session.scalar(select(func.count()).select_from(CloudZone))
+        device_count = await session.scalar(
+            select(func.count()).select_from(CloudDevice)
+        )
         capability_count = await session.scalar(
             select(func.count()).select_from(CloudCapability)
         )
@@ -414,11 +426,19 @@ async def test_catalog_upsert_is_idempotent(
             select(func.count()).select_from(CloudSchedule)
         )
         plant_count = await session.scalar(select(func.count()).select_from(CloudPlant))
-        plant_a = await session.get(
-            CloudPlant,
-            "homebox:main:main-2026-03-15:a",
-        )
-    assert count == 1
+        plant_a = (
+            await session.execute(
+                select(CloudPlant).where(
+                    CloudPlant.site_id == "homebox",
+                    CloudPlant.tent_id == "main",
+                    CloudPlant.grow_run_id == "main-2026-03-15",
+                    CloudPlant.plant_id == "a",
+                )
+            )
+        ).scalar_one_or_none()
+    assert tent_count == 1
+    assert zone_count == 1
+    assert device_count == 2
     assert capability_count == 2
     assert schedule_count == 1
     assert plant_count == 2
@@ -579,7 +599,6 @@ async def test_gateway_camera_capture_policy_fails_open_when_missing_rows(
         )
         session.add(
             CloudDevice(
-                device_key="homebox:breeding:obsbot-breeding",
                 site_id="homebox",
                 tent_id="breeding",
                 zone_id="canopy",
@@ -595,7 +614,6 @@ async def test_gateway_camera_capture_policy_fails_open_when_missing_rows(
         )
         session.add(
             CloudDevice(
-                device_key="homebox:breeding:obsbot-disabled",
                 site_id="homebox",
                 tent_id="breeding",
                 zone_id="canopy",
@@ -779,6 +797,57 @@ async def test_rollup_upsert_keeps_device_scoped_streams_separate(
     assert [row.avg_value for row in rows] == [1800.0, 2200.0]
 
 
+async def test_rollup_upsert_is_idempotent(
+    client: AsyncClient,
+    gateway_headers: dict[str, str],
+    cloud_engine: AsyncEngine,
+) -> None:
+    payload = {
+        "site_id": "homebox",
+        "rollups": [
+            {
+                "site_id": "homebox",
+                "tent_id": "main",
+                "device_id": "env-main",
+                "capability_id": "env-main-temp",
+                "metric": "temperature_f",
+                "bucket": "1h",
+                "bucket_start_at": "2026-05-05T03:00:00Z",
+                "bucket_end_at": "2026-05-05T04:00:00Z",
+                "min_value": 70.0,
+                "avg_value": 75.0,
+                "max_value": 80.0,
+                "sample_count": 12,
+                "unit": "f",
+            }
+        ],
+    }
+    assert (
+        await client.post(
+            "/api/gateway/v1/metrics/rollups",
+            json=payload,
+            headers=gateway_headers,
+        )
+    ).status_code == 200
+    payload["rollups"][0]["avg_value"] = 76.0
+    payload["rollups"][0]["sample_count"] = 13
+    assert (
+        await client.post(
+            "/api/gateway/v1/metrics/rollups",
+            json=payload,
+            headers=gateway_headers,
+        )
+    ).status_code == 200
+
+    sessionmaker = create_sessionmaker(cloud_engine)
+    async with sessionmaker() as session:
+        rows = (await session.execute(select(CloudMetricRollup))).scalars().all()
+    assert len(rows) == 1
+    assert rows[0].avg_value == 76.0
+    assert rows[0].sample_count == 13
+    assert rows[0].device_id == "env-main"
+
+
 async def test_current_metrics_expose_canonical_metric_names(
     authed_client: AsyncClient,
     cloud_engine: AsyncEngine,
@@ -788,7 +857,6 @@ async def test_current_metrics_expose_canonical_metric_names(
         session.add_all(
             [
                 CloudLatestMetric(
-                    metric_key=("homebox:main:fan-controller:fan_pct:fan_pct"),
                     site_id="homebox",
                     tent_id="main",
                     zone_id="canopy",
@@ -802,10 +870,6 @@ async def test_current_metrics_expose_canonical_metric_names(
                     stale_after_s=120,
                 ),
                 CloudLatestMetric(
-                    metric_key=(
-                        "homebox:main:govee-h7142-main:"
-                        "humidifier_intensity_pct:humidifier_intensity_pct"
-                    ),
                     site_id="homebox",
                     tent_id="main",
                     zone_id="canopy",
@@ -819,10 +883,6 @@ async def test_current_metrics_expose_canonical_metric_names(
                     stale_after_s=120,
                 ),
                 CloudLatestMetric(
-                    metric_key=(
-                        "homebox:main:ac-infinity-thermoforge-main:"
-                        "heat_level:heater_intensity_pct"
-                    ),
                     site_id="homebox",
                     tent_id="main",
                     zone_id="heat",
@@ -836,9 +896,6 @@ async def test_current_metrics_expose_canonical_metric_names(
                     stale_after_s=120,
                 ),
                 CloudLatestMetric(
-                    metric_key=(
-                        "homebox:main:kasa-dehumidifier-main:power:dehumidifier_on"
-                    ),
                     site_id="homebox",
                     tent_id="main",
                     zone_id="canopy",
@@ -1045,9 +1102,6 @@ async def test_current_metrics_keep_device_scoped_streams_separate(
         session.add_all(
             [
                 CloudLatestMetric(
-                    metric_key=(
-                        "homebox:main:plant-a-node:soil_moisture_raw:soil_moisture_raw"
-                    ),
                     site_id="homebox",
                     tent_id="main",
                     zone_id="canopy",
@@ -1061,9 +1115,6 @@ async def test_current_metrics_keep_device_scoped_streams_separate(
                     stale_after_s=120,
                 ),
                 CloudLatestMetric(
-                    metric_key=(
-                        "homebox:main:plant-b-node:soil_moisture_raw:soil_moisture_raw"
-                    ),
                     site_id="homebox",
                     tent_id="main",
                     zone_id="canopy",
@@ -1094,28 +1145,27 @@ async def test_metric_history_filters_bucket_and_window_by_range(
 ) -> None:
     sessionmaker = create_sessionmaker(cloud_engine)
     rows = [
-        _rollup("old-5m", bucket="5m", start=FIXED_NOW - timedelta(hours=2), avg=1.0),
+        _rollup(bucket="5m", start=FIXED_NOW - timedelta(hours=2), avg=1.0),
         _rollup(
-            "fresh-5m", bucket="5m", start=FIXED_NOW - timedelta(minutes=30), avg=2.0
+            bucket="5m",
+            start=FIXED_NOW - timedelta(minutes=30),
+            avg=2.0,
         ),
-        _rollup("fresh-1h", bucket="1h", start=FIXED_NOW - timedelta(hours=2), avg=3.0),
-        _rollup("old-1h", bucket="1h", start=FIXED_NOW - timedelta(days=2), avg=4.0),
-        _rollup("fresh-4h", bucket="4h", start=FIXED_NOW - timedelta(days=2), avg=5.0),
-        _rollup("old-4h", bucket="4h", start=FIXED_NOW - timedelta(days=8), avg=6.0),
+        _rollup(bucket="1h", start=FIXED_NOW - timedelta(hours=2), avg=3.0),
+        _rollup(bucket="1h", start=FIXED_NOW - timedelta(days=2), avg=4.0),
+        _rollup(bucket="4h", start=FIXED_NOW - timedelta(days=2), avg=5.0),
+        _rollup(bucket="4h", start=FIXED_NOW - timedelta(days=8), avg=6.0),
         _rollup(
-            "fresh-30d-4h",
             bucket="4h",
             start=FIXED_NOW - timedelta(days=20),
             avg=7.0,
         ),
         _rollup(
-            "fresh-90d-1d",
             bucket="1d",
             start=FIXED_NOW - timedelta(days=60),
             avg=8.0,
         ),
         _rollup(
-            "old-90d-1d",
             bucket="1d",
             start=FIXED_NOW - timedelta(days=100),
             avg=9.0,
@@ -1173,7 +1223,6 @@ async def test_metric_history_can_filter_exact_device_stream(
     sessionmaker = create_sessionmaker(cloud_engine)
     rows = [
         _rollup(
-            "plant-a",
             bucket="1h",
             start=FIXED_NOW - timedelta(hours=2),
             avg=1800.0,
@@ -1183,7 +1232,6 @@ async def test_metric_history_can_filter_exact_device_stream(
             unit="raw",
         ),
         _rollup(
-            "plant-b",
             bucket="1h",
             start=FIXED_NOW - timedelta(hours=2),
             avg=2200.0,
@@ -1238,7 +1286,6 @@ async def test_browser_plant_list_orders_and_marks_moisture_streams(
         )
         session.add(
             CloudLatestMetric(
-                metric_key="homebox:main:plant-a-node:soil_moisture_raw:soil_moisture_pct",
                 site_id="homebox",
                 tent_id="main",
                 zone_id=None,
@@ -1277,7 +1324,6 @@ async def test_browser_plant_detail_returns_metadata_latest_and_freshness(
         session.add(_plant("a", display_order=1))
         session.add(
             CloudLatestMetric(
-                metric_key="homebox:main:plant-a-node:soil_moisture_raw:soil_moisture_pct",
                 site_id="homebox",
                 tent_id="main",
                 zone_id=None,
@@ -1293,7 +1339,6 @@ async def test_browser_plant_detail_returns_metadata_latest_and_freshness(
         )
         session.add(
             CloudWikiPage(
-                wiki_key="homebox:wiki/grows/main-2026-03-15/plants/plant-a.md",
                 site_id="homebox",
                 path="wiki/grows/main-2026-03-15/plants/plant-a.md",
                 title="Plant A Wiki",
@@ -1358,7 +1403,6 @@ async def test_browser_plants_use_latest_synced_row_per_public_plant_id(
         )
         session.add(
             CloudLatestMetric(
-                metric_key="homebox:main:new-plant-a-node:soil_moisture_raw:soil_moisture_pct",
                 site_id="homebox",
                 tent_id="main",
                 zone_id=None,
@@ -1428,7 +1472,6 @@ async def test_browser_plant_moisture_history_filters_exact_stream_and_range(
         session.add_all(
             [
                 _rollup(
-                    "plant-a-fresh",
                     bucket="1h",
                     start=FIXED_NOW - timedelta(hours=2),
                     avg=52.0,
@@ -1438,7 +1481,6 @@ async def test_browser_plant_moisture_history_filters_exact_stream_and_range(
                     unit="%",
                 ),
                 _rollup(
-                    "plant-a-old",
                     bucket="1h",
                     start=FIXED_NOW - timedelta(days=2),
                     avg=51.0,
@@ -1448,7 +1490,6 @@ async def test_browser_plant_moisture_history_filters_exact_stream_and_range(
                     unit="%",
                 ),
                 _rollup(
-                    "plant-b-fresh",
                     bucket="1h",
                     start=FIXED_NOW - timedelta(hours=2),
                     avg=47.0,
@@ -1458,7 +1499,6 @@ async def test_browser_plant_moisture_history_filters_exact_stream_and_range(
                     unit="%",
                 ),
                 _rollup(
-                    "plant-a-wrong-metric",
                     bucket="1h",
                     start=FIXED_NOW - timedelta(hours=2),
                     avg=1800.0,
@@ -1506,9 +1546,6 @@ async def test_browser_plant_moisture_comparison_history_returns_all_tent_stream
         session.add_all(
             [
                 CloudLatestMetric(
-                    metric_key=(
-                        "homebox:main:plant-a-node:soil_moisture_raw:soil_moisture_pct"
-                    ),
                     site_id="homebox",
                     tent_id="main",
                     zone_id=None,
@@ -1522,9 +1559,6 @@ async def test_browser_plant_moisture_comparison_history_returns_all_tent_stream
                     stale_after_s=120,
                 ),
                 CloudLatestMetric(
-                    metric_key=(
-                        "homebox:main:plant-b-node:soil_moisture_raw:soil_moisture_pct"
-                    ),
                     site_id="homebox",
                     tent_id="main",
                     zone_id=None,
@@ -1542,7 +1576,6 @@ async def test_browser_plant_moisture_comparison_history_returns_all_tent_stream
         session.add_all(
             [
                 _rollup(
-                    "plant-a-fresh",
                     bucket="1h",
                     start=FIXED_NOW - timedelta(hours=2),
                     avg=52.0,
@@ -1552,7 +1585,6 @@ async def test_browser_plant_moisture_comparison_history_returns_all_tent_stream
                     unit="%",
                 ),
                 _rollup(
-                    "plant-b-fresh",
                     bucket="1h",
                     start=FIXED_NOW - timedelta(hours=2),
                     avg=64.0,
@@ -1562,7 +1594,6 @@ async def test_browser_plant_moisture_comparison_history_returns_all_tent_stream
                     unit="%",
                 ),
                 _rollup(
-                    "plant-a-wrong-metric",
                     bucket="1h",
                     start=FIXED_NOW - timedelta(hours=2),
                     avg=1800.0,
@@ -1623,7 +1654,6 @@ async def test_browser_plant_history_uses_latest_synced_row_per_public_plant_id(
         session.add_all(
             [
                 _rollup(
-                    "old-grow",
                     bucket="1h",
                     start=FIXED_NOW - timedelta(hours=2),
                     avg=40.0,
@@ -1633,7 +1663,6 @@ async def test_browser_plant_history_uses_latest_synced_row_per_public_plant_id(
                     unit="%",
                 ),
                 _rollup(
-                    "new-grow",
                     bucket="1h",
                     start=FIXED_NOW - timedelta(hours=2),
                     avg=65.0,
@@ -1663,7 +1692,6 @@ async def test_metric_history_uses_canonical_metrics_and_dehumidifier_runtime(
         session.add_all(
             [
                 _rollup(
-                    "fan",
                     bucket="1h",
                     start=FIXED_NOW - timedelta(hours=2),
                     avg=44.0,
@@ -1672,7 +1700,6 @@ async def test_metric_history_uses_canonical_metrics_and_dehumidifier_runtime(
                     unit="%",
                 ),
                 _rollup(
-                    "humidifier",
                     bucket="1h",
                     start=FIXED_NOW - timedelta(hours=2),
                     avg=50.0,
@@ -1683,7 +1710,6 @@ async def test_metric_history_uses_canonical_metrics_and_dehumidifier_runtime(
                     unit="%",
                 ),
                 _rollup(
-                    "heater",
                     bucket="1h",
                     start=FIXED_NOW - timedelta(hours=2),
                     avg=70.0,
@@ -1692,7 +1718,6 @@ async def test_metric_history_uses_canonical_metrics_and_dehumidifier_runtime(
                     unit="%",
                 ),
                 _rollup(
-                    "dehumidifier",
                     bucket="1h",
                     start=FIXED_NOW - timedelta(hours=2),
                     min_value=0.0,
@@ -2069,7 +2094,6 @@ async def test_health_audits_current_metrics_without_device_liveness(
         )
         session.add(
             CloudDevice(
-                device_key="homebox:main:env-main",
                 site_id="homebox",
                 tent_id="main",
                 zone_id="canopy",
@@ -2085,7 +2109,6 @@ async def test_health_audits_current_metrics_without_device_liveness(
         )
         session.add(
             CloudLatestMetric(
-                metric_key="homebox:main:env-main:env-main-temp:temperature_f",
                 site_id="homebox",
                 tent_id="main",
                 zone_id="canopy",
@@ -2118,7 +2141,7 @@ async def test_health_audits_current_metrics_without_device_liveness(
     assert event.actor_type == "system"
     assert event.site_id == "homebox"
     assert event.subject_type == "cloud_device"
-    assert event.subject_id == "homebox:main:env-main"
+    assert event.subject_id == "site=homebox;tent=main;device=env-main"
     assert event.event_metadata == {
         "tent_id": "main",
         "device_id": "env-main",
@@ -2176,7 +2199,13 @@ async def test_audit_rows_cover_auth_command_claim_result_and_rotation(
             .scalars()
             .all()
         )
-        credential = await session.get(GatewayCredential, "gateway-main")
+        credential = (
+            await session.execute(
+                select(GatewayCredential).where(
+                    GatewayCredential.credential_id == "gateway-main"
+                )
+            )
+        ).scalar_one_or_none()
     assert "auth_login_succeeded" in events
     assert "command_created" in events
     assert "command_claimed" in events
@@ -2315,7 +2344,13 @@ async def test_gateway_claim_expires_stale_commands_and_reclaims_own_claim(
     assert fresh.status_code == 201
     sessionmaker = create_sessionmaker(cloud_engine)
     async with sessionmaker() as session:
-        stale_row = await session.get(CloudCommand, stale.json()["command_id"])
+        stale_row = (
+            await session.execute(
+                select(CloudCommand).where(
+                    CloudCommand.command_id == stale.json()["command_id"]
+                )
+            )
+        ).scalar_one_or_none()
         assert stale_row is not None
         stale_row.expires_at = FIXED_NOW - timedelta(seconds=1)
         await session.commit()

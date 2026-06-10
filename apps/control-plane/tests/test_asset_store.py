@@ -5,6 +5,7 @@ from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from dirt_control.app import create_app
@@ -87,7 +88,11 @@ async def test_local_asset_signed_url_serves_file_and_preserves_object_key(
     assert loaded.status_code == 200
     assert loaded.content == b"local jpeg bytes"
     async with sessionmaker() as session:
-        asset = await session.get(CloudAsset, "asset-1")
+        asset = (
+            await session.execute(
+                select(CloudAsset).where(CloudAsset.asset_id == "asset-1")
+            )
+        ).scalar_one_or_none()
     assert asset is not None
     assert asset.object_key == object_key
 
