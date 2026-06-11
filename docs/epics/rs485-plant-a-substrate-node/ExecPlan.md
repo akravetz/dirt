@@ -6,7 +6,7 @@ This plan follows `.agents/PLANS.md`.
 
 ## Purpose / Big Picture
 
-After this change, Plant A can use the embedded RS485 substrate probe as its canonical moisture stream instead of the old capacitive ADC probe. The new Seeed XIAO ESP32C3 + Seeed RS485 expansion board will run normal WiFi firmware, read the DFRobot SEN0604 at Modbus address `0x02`, and post Plant A substrate moisture, pH, electrical conductivity, and temperature into Dirt through the existing `/api/ingest/sensors` boundary. Runtime operation must not require USB serial, because the board is powered from the RS485 board's 12V-to-5V path and normal USB power should not be plugged in at the same time.
+After this change, Plant A can use the embedded RS485 substrate probe as its canonical moisture stream instead of the old capacitive ADC probe, and capacitive ADC moisture is retired as a current product feature. The new Seeed XIAO ESP32C3 + Seeed RS485 expansion board will run normal WiFi firmware, read the DFRobot SEN0604 at Modbus address `0x02`, and post Plant A substrate moisture, pH, electrical conductivity, and temperature into Dirt through the existing `/api/ingest/sensors` boundary. Runtime operation must not require USB serial, because the board is powered from the RS485 board's 12V-to-5V path and normal USB power should not be plugged in at the same time.
 
 The observable end state is:
 
@@ -15,6 +15,7 @@ The observable end state is:
 - `device.device_id='plant-a-substrate-node'` has a fresh heartbeat in Postgres.
 - `sensorreading` has fresh capability-owned rows for `soil_moisture_pct`, `substrate_ph`, `substrate_ec_us_cm`, and `substrate_temp_c`.
 - Plant A's `plant.moisture_capability_id` points at the RS485 node's `soil_moisture_pct` capability, so Plant A pages, hosted sync, and any retained status/reporting consumers no longer depend on the capacitive `plant-a-node` stream.
+- Plants B-D do not expose current moisture from capacitive ADC sensors; their `plant.moisture_capability_id` is null until trustworthy replacement probes exist.
 
 ## Progress
 
@@ -25,10 +26,10 @@ The observable end state is:
 - [x] (2026-06-10) Authored this ExecPlan.
 - [x] (2026-06-10) Corrected sensor power by providing 5V to the RS485 sensor path and confirmed live ID `0x02` Modbus data over the current debug firmware. The hardware communication blocker is cleared; implementation can proceed to flashing WiFi/OTA firmware and testing live ingest.
 - [ ] Implement Milestone 1: add the database/device contract for the RS485 substrate node.
-- [ ] Implement Milestone 2: teach plant moisture consumers to handle either calibrated raw ADC or direct percent moisture capabilities.
+- [ ] Implement Milestone 2: retire capacitive raw moisture as a current consumer path.
 - [ ] Implement Milestone 3: add dedicated RS485 substrate-node firmware with OTA and HTTP status.
 - [ ] Implement Milestone 4: flash, power from 12V, validate live data without USB serial, and cut Plant A over.
-- [ ] Implement Milestone 5: retire or disable the old Plant A capacitive node after stable RS485 operation.
+- [ ] Implement Milestone 5: retire or disable the old capacitive moisture nodes after stable RS485 operation.
 
 ## Surprises & Discoveries
 
@@ -40,6 +41,9 @@ The observable end state is:
 
 - Observation: Current Plant A moisture is capability-owned through `Plant.moisture_capability_id`, but existing consumers assume that the capability points to `soil_moisture_raw` and derive `soil_moisture_pct` through `SensorCalibration`.
   Evidence: `apps/shared/src/dirt_shared/services/daily_sensors.py` and `apps/voice/src/dirt_voice/tools/sensors.py` query `SensorReading.metric == "soil_moisture_raw"` and join `SensorCalibration` for the plant's moisture capability.
+
+- Observation: The capacitive ADC moisture sensors are not trustworthy enough to remain supported current plant-moisture sources.
+  Evidence: Operator decision on 2026-06-10: keeping the capacitive path would add dual-mode consumer logic for data we do not intend to trust. The truthful current model is direct `soil_moisture_pct` or no current moisture sensor.
 
 - Observation: After adding 5V power to the sensor path, the same serial-only debug firmware now reads stable Modbus frames from address `0x02`; the address diagnostic reports `value=2` and the old address check gets no response.
   Evidence: Live capture on 2026-06-10 showed repeated frames such as `02 03 08 01 0D 00 D6 00 93 00 2F 7F BC`, decoded as moisture `26.9%`, temperature `21.4C`, EC `147 us/cm`, pH `4.7`, plus `[address] value=2` and `[old-address-check] no response`.
@@ -56,7 +60,7 @@ The observable end state is:
 ## Decision Log
 
 - Decision: Use a new device identity, `plant-a-substrate-node`, instead of reusing `plant-a-node`.
-  Rationale: `plant-a-node` accurately describes the existing capacitive ADC node and its historical `soil_moisture_raw` stream. A new RS485 node has different hardware, units, health signals, and rollback behavior. Keeping a distinct device identity allows side-by-side validation and a clear Plant A moisture ownership switch through `plant.moisture_capability_id`.
+  Rationale: `plant-a-node` accurately describes the existing capacitive ADC node and its historical `soil_moisture_raw` stream. A new RS485 node has different hardware, units, health signals, and decommission behavior. Keeping a distinct device identity allows side-by-side validation and a clear Plant A moisture ownership switch through `plant.moisture_capability_id`.
   Date/Author: 2026-06-10 / Codex
 
 - Decision: Use `soil_moisture_pct` as the RS485 moisture metric and capability ID for Plant A, not `soil_moisture_raw` and not `substrate_moisture_pct`.
@@ -79,6 +83,10 @@ The observable end state is:
   Rationale: The durable operational fact is that enabled capabilities for `plant-a-substrate-node` should keep producing data. That belongs with the canonical `device`/`capability` catalog, preferably through typed capability metadata such as `expected_wire_metric` and `freshness_required`, and later real columns if the policy proves stable. Code should continue to own ingest derivation and transformation behavior. Consumer-specific policies for the voice agent or daily checkpoint agent should not be promoted into schema while those agents are candidates for deprecation; retained consumers should derive from capability relationships or keep narrowly owned code.
   Date/Author: 2026-06-10 / Codex
 
+- Decision: Retire capacitive `soil_moisture_raw` as a supported current plant-moisture path instead of preserving dual-mode raw/direct percent consumers.
+  Rationale: The capacitive sensors are not producing useful enough data to justify ongoing calibration branches, rollback paths, and consumer compatibility. The clean current contract is: a plant either points at a trustworthy `soil_moisture_pct` capability, or the plant has no current moisture capability. Historical `soil_moisture_raw` readings remain in the database for audit/history, but no current product surface should derive moisture from them.
+  Date/Author: 2026-06-10 / Codex
+
 ## Outcomes & Retrospective
 
 Not started. At completion, record the first stable no-USB runtime capture, the Plant A cutover timestamp, and whether pH/EC values are only stored for trend/reference or also shown in the dashboard.
@@ -91,7 +99,7 @@ The current hardware contract is split. Database identity is already scoped thro
 
 Current local scope is `site_id='homebox'`, `tent_id='main'`, `zone_id='plant-a'`. Device rows live in `apps/shared/src/dirt_shared/models/device.py`. The current Plant A capacitive sensor is `device.device_id='plant-a-node'`, capability `soil_moisture_raw`, and it is seeded by migrations such as `migrations/20260504000618_multi_tent_controller.sql`.
 
-Plant rows live in `apps/shared/src/dirt_shared/models/plant.py`. `Plant.moisture_capability_id` points at the canonical capability used for that plant's moisture stream. For the current A-D capacitive nodes, consumers expect the capability to be a `soil_moisture_raw` ADC stream and convert it to `soil_moisture_pct` with `SensorCalibration`. The RS485 probe's moisture register is already a percent value, so consumers must be updated to use direct percent when the plant's moisture capability has metric `soil_moisture_pct`, while preserving calibrated raw behavior for Plants B-D.
+Plant rows live in `apps/shared/src/dirt_shared/models/plant.py`. `Plant.moisture_capability_id` points at the canonical capability used for that plant's moisture stream. For the current A-D capacitive nodes, consumers expect the capability to be a `soil_moisture_raw` ADC stream and convert it to `soil_moisture_pct` with `SensorCalibration`. That current path should be retired rather than preserved. After this cutover, current plant moisture consumers should accept only direct `soil_moisture_pct`; a plant with no trustworthy direct percent probe should have `moisture_capability_id=NULL` and render/report moisture as unavailable.
 
 The RS485 debug firmware lives at `debug/rs485_soil_probe/`. It successfully read the SEN0604 during earlier calibration work and then was changed to address `0x02`. Relevant settings are:
 
@@ -141,21 +149,22 @@ Refactor the remaining `DEVICE_METRICS` consumers so DB-backed capability identi
 
 Add or extend HWD ingest tests so a post from `plant-a-substrate-node` writes four capability-owned rows and updates the device heartbeat. Add focused tests for the DB-backed expected-wire and freshness-required queries. Do not add wire aliases for the RS485 node unless actual firmware emits different names.
 
-Milestone 2: Make Plant A moisture consumers metric-aware.
+Milestone 2: Retire capacitive raw moisture as a current consumer path.
 
 Add a small shared helper in `apps/shared/src/dirt_shared/services/readings.py` or a narrowly named plant-moisture helper module that resolves a plant's `moisture_capability_id` to its `Capability.metric_name` and latest readings:
 
 - If the capability metric is `soil_moisture_pct`, read the latest direct percent value and return it as the product-facing moisture percentage.
-- If the capability metric is `soil_moisture_raw`, keep the existing calibrated path using `SensorCalibration` and `compute_calibrated_pct()`.
-- For any other metric, return no plant moisture and log or raise in tests depending on the consumer boundary.
+- If the plant has no moisture capability, return no current moisture reading.
+- If the capability metric is `soil_moisture_raw` or anything else, treat it as unsupported for current plant moisture and return no current moisture reading. Tests should fail if a current plant still points at `soil_moisture_raw` after the retirement migration.
 
-Update retained Plant A moisture consumers and gateway local sync code in `apps/gateway/src/dirt_gateway/local.py` so they use the same semantic rule rather than hard-coding `soil_moisture_raw`. If the daily checkpoint agent or voice agent is still retained at implementation time, update `apps/shared/src/dirt_shared/services/daily_sensors.py` and `apps/voice/src/dirt_voice/tools/sensors.py` to call the same helper. If either agent is being deprecated, delete its Plant A moisture dependency instead of promoting its consumer policy into the database. Preserve the existing hosted/browser product metric `soil_moisture_pct`; do not expose raw RS485 moisture as a new product metric.
+Update retained Plant A moisture consumers and gateway local sync code in `apps/gateway/src/dirt_gateway/local.py` so they use the same semantic rule rather than hard-coding `soil_moisture_raw`. If the daily checkpoint agent or voice agent is still retained at implementation time, update `apps/shared/src/dirt_shared/services/daily_sensors.py` and `apps/voice/src/dirt_voice/tools/sensors.py` to call the same helper. If either agent is being deprecated, delete its Plant A moisture dependency instead of promoting its consumer policy into the database. Preserve the existing hosted/browser product metric `soil_moisture_pct`; do not expose raw capacitive moisture as a current product metric.
 
-Add focused tests covering both paths:
+Add focused tests covering the simplified contract:
 
-- Plant B-D style: `Plant.moisture_capability_id` points at `soil_moisture_raw`, calibration exists, consumer returns computed `soil_moisture_pct`.
 - Plant A RS485 style: `Plant.moisture_capability_id` points at `soil_moisture_pct`, no calibration is required, consumer returns the direct value.
-- Hosted/gateway rollups still emit `soil_moisture_pct` for plant moisture and do not sync `soil_moisture_raw` as the product-facing metric.
+- Plant B-D retired style: `Plant.moisture_capability_id` is null and consumers render/report moisture as unavailable rather than deriving from capacitive raw values.
+- Guardrail style: a current plant pointing at `soil_moisture_raw` is treated as invalid/unsupported for current moisture, not silently calibrated.
+- Hosted/gateway rollups still emit product-facing `soil_moisture_pct` for plants that have direct percent moisture and omit current moisture for plants without a trustworthy source.
 
 Milestone 3: Add dedicated RS485 substrate-node firmware.
 
@@ -209,7 +218,7 @@ Then validate ingest through Postgres:
     ORDER BY sr.ts DESC
     LIMIT 12;"
 
-Let the new RS485 node run side-by-side with the old capacitive Plant A node for 30 minutes. Confirm the RS485 node keeps posting all four metrics, device heartbeat stays fresh, and values are plausible and moving/stable as expected. Then create and apply a second migration or SQL seed migration that updates the current main Plant A row:
+Let the new RS485 node run side-by-side with the old capacitive Plant A node for 30 minutes. Confirm the RS485 node keeps posting all four metrics, device heartbeat stays fresh, and values are plausible and moving/stable as expected. Then create and apply a second migration or SQL seed migration that updates the current main Plant A row and clears current moisture links for plants whose only source is capacitive raw:
 
     UPDATE plant AS p
     SET moisture_capability_id = c.id,
@@ -227,15 +236,17 @@ Let the new RS485 node run side-by-side with the old capacitive Plant A node for
       AND d.device_id = 'plant-a-substrate-node'
       AND c.capability_id = 'soil_moisture_pct';
 
-The real migration must include a guard that raises if the RS485 device or capability is missing. After applying, verify Plant A's moisture reads through local services, gateway dry-run sync, hosted dev UI if necessary, and any retained voice/daily consumers.
+The real migration must include a guard that raises if the RS485 device or capability is missing. It should then set `moisture_capability_id=NULL` for current main-tent plants B-D when their current moisture capability is one of the old capacitive `soil_moisture_raw` capabilities. After applying, verify Plant A's moisture reads through local services, gateway dry-run sync, hosted dev UI if necessary, and any retained voice/daily consumers. Verify Plants B-D show moisture unavailable rather than calibrated capacitive values.
 
-Milestone 5: Retire the old Plant A capacitive stream after a 30-minute stable ingest window.
+Milestone 5: Retire capacitive moisture streams after a 30-minute stable RS485 ingest window.
 
-After 30 minutes of stable RS485 ingest, continue directly with deprecation of the old Plant A capacitive node and associated cleanup. Stable means the RS485 node has a fresh heartbeat, is posting `soil_moisture_pct`, `substrate_temp_c`, `substrate_ec_us_cm`, and `substrate_ph` at the expected cadence, and `/status` reports no persistent Modbus or WiFi failure. Disable the old Plant A capacitive node from current operations by physical unplugging, OTA firmware that stops posting, or a DB-level `device.enabled=false` depending on the desired operational behavior. Prefer source-of-truth cleanup over compatibility glue:
+After 30 minutes of stable RS485 ingest, continue directly with deprecation of the old capacitive moisture nodes and associated cleanup. Stable means the RS485 node has a fresh heartbeat, is posting `soil_moisture_pct`, `substrate_temp_c`, `substrate_ec_us_cm`, and `substrate_ph` at the expected cadence, and `/status` reports no persistent Modbus or WiFi failure. Disable old capacitive moisture nodes from current operations by physical unplugging, OTA firmware that stops posting, or DB-level `device.enabled=false` depending on the desired operational behavior. Prefer source-of-truth cleanup over compatibility glue:
 
-- Keep historical `plant-a-node` rows for history and rollback.
+- Keep historical capacitive device and `sensorreading` rows for history/audit.
 - Do not delete historical `sensorreading` rows.
-- If the old device remains physically powered for a short side-by-side comparison, keep it distinct and do not point Plant A back to it unless RS485 validation fails.
+- If an old capacitive device remains physically powered for a short side-by-side comparison, keep it distinct and do not point any current plant back to it.
+- Disable or remove current freshness requirements for capacitive moisture capabilities so they do not alert after retirement.
+- Do not retain rollback code that derives product moisture from `soil_moisture_raw`; rollback for Plant A is another trustworthy direct-percent probe or an explicit `NULL` moisture state.
 - Update `wiki/hardware/rs485-substrate-sensors.md`, `wiki/hardware/rs485-substrate-sensor-calibration.md`, and the Plant A wiki page with the cutover timestamp and validation evidence.
 
 ## Concrete Steps
@@ -327,8 +338,8 @@ Software acceptance:
 - A focused ingest test posts a payload from `plant-a-substrate-node` and verifies four `sensorreading` rows linked to that device's capabilities.
 - Focused tests prove ingest drift detection and metric freshness derive their expected RS485 metrics from DB-backed capability policy.
 - A focused plant moisture test proves direct `soil_moisture_pct` capability ownership needs no `SensorCalibration`.
-- Existing calibrated raw moisture tests for `plant-a-node` or a test raw node still pass.
-- Gateway or hosted-sync tests still expose product-facing `soil_moisture_pct` for plant moisture.
+- Focused guardrail tests prove current `soil_moisture_raw` moisture capabilities are unsupported and do not silently produce calibrated product moisture.
+- Gateway or hosted-sync tests still expose product-facing `soil_moisture_pct` for Plant A and omit current moisture for plants without a trustworthy direct-percent source.
 - Invariants pass.
 - Firmware builds for `plant-a-substrate`.
 
@@ -348,13 +359,13 @@ Operational acceptance:
 
 - A normal USB cable is not required for runtime diagnostics.
 - OTA upload to `plant-a-substrate-node.local` succeeds after the initial flash.
-- The old capacitive Plant A stream remains available for rollback until the RS485 path has been stable long enough to retire it deliberately.
+- Historical capacitive readings remain available for audit/history, but current operations do not roll back to calibrated capacitive moisture.
 
 ## Idempotence and Recovery
 
 The device/capability seed migration must use `ON CONFLICT` and be safe to run once through Atlas. Re-running the SQL manually is not the normal workflow, but the upsert shape should not create duplicate devices or capabilities.
 
-The Plant A moisture cutover migration should be separated from initial device seeding. This gives a safe pause after the new node starts writing data. The cutover migration must fail loudly if the RS485 moisture capability is missing. If the RS485 node is bad after cutover, recover by applying a small rollback migration that points current Plant A back to `plant-a-node` / `soil_moisture_raw`.
+The Plant A moisture cutover migration should be separated from initial device seeding. This gives a safe pause after the new node starts writing data. The cutover migration must fail loudly if the RS485 moisture capability is missing. If the RS485 node is bad after cutover, recover by applying a small migration that sets Plant A `moisture_capability_id=NULL` or points it at another trustworthy direct-percent capability. Do not recover by pointing current Plant A back to `plant-a-node` / `soil_moisture_raw`.
 
 Firmware upload recovery:
 
@@ -376,7 +387,7 @@ Runtime sensor recovery:
 
 Data recovery:
 
-- Do not delete historical `plant-a-node` or `sensorreading` rows.
+- Do not delete historical capacitive device or `sensorreading` rows.
 - Before applying live schema or cutover migrations, take a compressed backup as described in `docs/database.md`.
 - If pH or EC values prove misleading, disable or hide their presentation; do not rewrite historical raw readings unless a clear unit bug is identified and documented.
 
@@ -465,7 +476,7 @@ Shared services:
 
 - Database-backed `device`/`capability` rows and typed capability metadata declare the RS485 expected wire metrics and freshness-required metrics.
 - Code-owned derivation rules remain in shared/HWD source; do not move formulas into database metadata.
-- Plant moisture consumers must support both `soil_moisture_raw` plus calibration and direct `soil_moisture_pct`.
+- Plant moisture consumers support direct `soil_moisture_pct` for current readings; `soil_moisture_raw` is historical-only and unsupported for current product moisture.
 
 External hardware:
 
@@ -482,3 +493,4 @@ External hardware:
 - 2026-06-10: Added official Seeed XIAO ESP32C3 and RS485 expansion board findings for WiFi stability: keep the external antenna installed and well placed, retain Seeed's RS485 pins, avoid USB-serial blocking in firmware, keep WiFi sleep disabled, and rely on WiFi telemetry before changing bus code.
 - 2026-06-10: Changed the old Plant A capacitive-node retirement gate from one full light/dark or irrigation-relevant interval to a more aggressive 30-minute stable RS485 ingest window.
 - 2026-06-10: Refined the architecture plan so DB-backed device/capability identity plus `expected_wire_metric`/`freshness_required` policy replaces `DEVICE_METRICS` as durable inventory; voice and daily checkpoint policy should be deleted with those agents or kept consumer-local, not promoted into schema.
+- 2026-06-10: Simplified the moisture architecture by retiring capacitive `soil_moisture_raw` as a current product path; current plant moisture is now direct `soil_moisture_pct` or unavailable.
