@@ -15,6 +15,7 @@ import logging
 import pytest
 
 from dirt_hwd.api.ingest import (
+    IngestPayload,
     _augment_temp_rh_metrics,
     _canonicalize_wire_metrics,
     _warn_on_emitted_drift,
@@ -24,6 +25,7 @@ from dirt_shared.sensor_contract import (
     emitted_metrics_for_device_id,
     persisted_metrics_for_device_id,
 )
+from dirt_shared.services.readings import ReadingsService
 
 # Plausible readings for every metric that could appear on any emitted set.
 # Populated once so adding a new raw metric forces a conscious test update.
@@ -59,36 +61,98 @@ def test_emitted_payload_yields_all_persisted_metrics(
     )
 
 
-def test_warn_on_emitted_drift_logs_when_metric_missing(
+async def test_expected_wire_metrics_come_from_capability_metadata(app_engine) -> None:
+    readings = ReadingsService(app_engine)
+
+    expected = await readings.get_expected_wire_metrics_for_device(
+        device_id="plant-a-substrate-node",
+        site_id="homebox",
+        tent_id="main",
+        zone_id="plant-a",
+    )
+
+    assert expected == frozenset(
+        {
+            "soil_moisture_pct",
+            "substrate_temp_c",
+            "substrate_ec_us_cm",
+            "substrate_ph",
+        }
+    )
+
+
+async def test_warn_on_emitted_drift_logs_when_metadata_metric_missing(
+    app_engine,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Firmware-contract drift surfaces as a structured warning at ingest time."""
     caplog.set_level(logging.WARNING, logger="dirt_hwd.api.ingest")
-    # Tent emits temperature_c + humidity_pct; drop one.
-    _warn_on_emitted_drift("fan-controller", {"humidity_pct": 55.0})
+    readings = ReadingsService(app_engine)
+
+    await _warn_on_emitted_drift(
+        readings,
+        payload=IngestPayload(
+            device_id="plant-a-substrate-node",
+            site_id="homebox",
+            tent_id="main",
+            zone_id="plant-a",
+            metrics={"soil_moisture_pct": 26.9},
+        ),
+        payload_metrics={"soil_moisture_pct": 26.9},
+    )
+
     assert any(
-        "missing expected metrics" in r.message and "temperature_c" in r.message
+        "missing expected metrics" in r.message and "substrate_temp_c" in r.message
         for r in caplog.records
     ), caplog.text
 
 
-def test_warn_on_emitted_drift_silent_when_complete(
+async def test_warn_on_emitted_drift_silent_when_metadata_payload_complete(
+    app_engine,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     caplog.set_level(logging.WARNING, logger="dirt_hwd.api.ingest")
-    _warn_on_emitted_drift(
-        "fan-controller",
-        {"temperature_c": 24.0, "humidity_pct": 55.0, "fan_pct": 30.0},
+    readings = ReadingsService(app_engine)
+
+    await _warn_on_emitted_drift(
+        readings,
+        payload=IngestPayload(
+            device_id="plant-a-substrate-node",
+            site_id="homebox",
+            tent_id="main",
+            zone_id="plant-a",
+            metrics={
+                "soil_moisture_pct": 26.9,
+                "substrate_temp_c": 21.4,
+                "substrate_ec_us_cm": 147.0,
+                "substrate_ph": 4.7,
+            },
+        ),
+        payload_metrics={
+            "soil_moisture_pct": 26.9,
+            "substrate_temp_c": 21.4,
+            "substrate_ec_us_cm": 147.0,
+            "substrate_ph": 4.7,
+        },
     )
+
     assert not caplog.records
 
 
-def test_warn_on_emitted_drift_silent_for_unknown_device(
+async def test_warn_on_emitted_drift_silent_for_unknown_device(
+    app_engine,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Unknown devices are not in the contract; treat as opaque, not broken."""
     caplog.set_level(logging.WARNING, logger="dirt_hwd.api.ingest")
-    _warn_on_emitted_drift("not-a-real-device", {})
+    readings = ReadingsService(app_engine)
+
+    await _warn_on_emitted_drift(
+        readings,
+        payload=IngestPayload(device_id="not-a-real-device", metrics={}),
+        payload_metrics={},
+    )
+
     assert not caplog.records
 
 

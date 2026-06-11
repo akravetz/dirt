@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-06-10
+updated: 2026-06-11
 ---
 
 # Plant A
@@ -18,7 +18,7 @@ updated: 2026-06-10
 
 ## Current State
 
-Day 88 / Flower Day 38: The dedicated view remains mostly fan-blocked, but visible right-side foliage and purple flower material are upright, and rough moisture is stable near 50.69% after the watched Autopot rewet. Keep confirming tray fill/drawdown and leaf posture; avoid another top flush unless new decline or repeated high-EC evidence appears. See [2026-06-10](../../../daily/2026-06-10.md).
+Day 88 / Flower Day 38: The dedicated view remains mostly fan-blocked, but visible right-side foliage and purple flower material are upright. Plant A was cut over to the RS485 substrate node on 2026-06-10 evening MDT; `plant-a-substrate-node` is now the canonical current moisture source, with post-cutover readings around 26.6% moisture, 21.5 deg C substrate temperature, 144 us/cm EC, and pH 4.5. Whole-reservoir EC was found high on 2026-06-10 evening and reset to pH 5.8 / EC ~0.3 plain water; keep confirming tray fill/drawdown and leaf posture through the ~24h plain-water correction. See [2026-06-10](../../../daily/2026-06-10.md).
 
 ## Timeline
 
@@ -87,3 +87,5 @@ Day 88 / Flower Day 38: The dedicated view remains mostly fan-blocked, but visib
 - 2026-06-08 — [Day 86 / Flower Day 36: mostly fan-blocked view; visible tops upright, rough moisture stable near 49.1% after watched Autopot rewet](../../../daily/2026-06-08.md)
 - 2026-06-09 — [Day 87 / Flower Day 37: mostly fan-blocked view; visible cluster upright, rough moisture stable/slightly drier near 49.6% after watched Autopot rewet](../../../daily/2026-06-09.md)
 - 2026-06-10 — [Day 88 / Flower Day 38: mostly fan-blocked view; visible material upright, rough moisture stable near 50.7% after watched Autopot rewet](../../../daily/2026-06-10.md)
+- 2026-06-10 evening — [Whole Autopot reservoir EC found >2.0; reservoir reset to pH 5.8 / EC ~0.3 plain water for ~24h correction](../../../daily/2026-06-10.md)
+- 2026-06-10 evening — Plant A current moisture cut over from the old capacitive `plant-a-node` raw stream to `plant-a-substrate-node` RS485 direct `soil_moisture_pct`; old capacitive A-D nodes retired from current operations 2026-06-11.

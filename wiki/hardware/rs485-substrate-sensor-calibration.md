@@ -4,7 +4,7 @@ type: hardware
 sources: []
 related: [wiki/hardware/rs485-substrate-sensors.md, wiki/hardware/soil-moisture-sensing-options.md]
 created: 2026-06-10
-updated: 2026-06-10
+updated: 2026-06-11
 ---
 
 # RS485 Substrate Sensor Calibration
@@ -15,6 +15,21 @@ Keep calibration read-only for now. Do not write the SEN0604 calibration registe
 
 ## Current Firmware And Serial Capture
 
+Production Plant A firmware now lives at:
+
+```text
+firmware/rs485_substrate_node/
+```
+
+Use the LAN status endpoints for normal operations:
+
+```bash
+curl -fsS http://plant-a-substrate-node.local/health
+curl -fsS http://plant-a-substrate-node.local/status | jq .
+```
+
+Do not plug in normal USB while the board is powered through the RS485 board's 12 V runtime path. USB serial capture is for bench/debug work only, with 12 V disconnected.
+
 Temporary debug firmware:
 
 ```text
@@ -23,7 +38,8 @@ debug/rs485_soil_probe/
 
 Current posture:
 
-- Serial-only firmware; WiFi/OTA/WebServer code removed after HTTP/WiFi testing interfered with calibration workflow.
+- Serial-only debug firmware remains useful for bench calibration captures.
+- Production WiFi/OTA/WebServer firmware is now live for Plant A runtime.
 - Read-only Modbus polling at address `0x02`.
 - Sensor serial settings: `9600 8N1`.
 - Read command: `02 03 00 00 00 04 44 3A`.

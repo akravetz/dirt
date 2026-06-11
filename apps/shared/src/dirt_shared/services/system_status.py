@@ -59,10 +59,7 @@ _THRESHOLDS = {
 
 _STATUS_DEVICE_ORDER = (
     "fan-controller",
-    "plant-a-node",
-    "plant-b-node",
-    "plant-c-node",
-    "plant-d-node",
+    "plant-a-substrate-node",
     "govee-h7142-main",
     "obsbot-main",
     "jabra-claudia",
@@ -240,6 +237,7 @@ class SystemStatusService:
                 .outerjoin(Zone, Zone.id == Device.zone_id)
                 .where(Site.site_id == DEFAULT_SITE_ID)
                 .where(Device.device_id.in_(_STATUS_DEVICE_ORDER))
+                .where(Device.enabled.is_(True))
             )
         ).all()
         by_id = {}

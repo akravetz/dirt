@@ -1,4 +1,4 @@
-h1:/+gFaWeWOyvLf63fj95kuqR2VQTShIchvFFP6bo9cAA=
+h1:Qpio66ygWsOxL2TWABcQmhSZlTc2qxD1wo9RIF/51AQ=
 20260420003127_init.sql h1:GzLCe8kSX0b0TzsHZJNidBWSoeYe83HgnHXdkhGi1Ko=
 20260423180901_add_growstate_timezone.sql h1:hwtimWMWdMD8iw7GuYOMazB5dHSq40fKOSbUFDFPg0s=
 20260428003304_add_govee_sensor_source.sql h1:l7vbhthRMWFQVcLwvX+yhzrzLD0Tcp33QrLpmU4F7jQ=
@@ -35,3 +35,6 @@ h1:/+gFaWeWOyvLf63fj95kuqR2VQTShIchvFFP6bo9cAA=
 20260531235500_dehumidifier_runtime_history.sql h1:J1CRpyDJ36nY6FBtFFtyJd0I2xColgN2wwFVA/VKM08=
 20260531235900_metric_presentation_identity_pk.sql h1:YmPSvGQDXP4Z6dwqZ5WaiuF8qPLOv92OPDzCVb3+PEI=
 20260603120000_delete_legacy_heater_schedules.sql h1:9uRMJgs12elHLmHZWR/EbJHPmGkdPQ4W+jvXzpPoPKg=
+20260610183000_seed_plant_a_substrate_node.sql h1:3POgOBUb0fTAEhCQU1gJHPtNzYG4DWg/SOmJeEoWhC0=
+20260611120000_plant_a_moisture_cutover.sql h1:Qj2zfixjHGJWGo9beg28kogSm36uqyt1y2BaX823Kjs=
+20260611143000_retire_capacitive_moisture_nodes.sql h1:MSkGfjv/QAA99hz/JvVoRT+9Dqswq4uW59SyAtgNS1U=

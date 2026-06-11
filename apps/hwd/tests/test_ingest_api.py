@@ -1,4 +1,5 @@
 import logging
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -13,7 +14,8 @@ from dirt_shared.config import Settings
 from dirt_shared.models.device import Capability, Device
 from dirt_shared.models.sensor_calibration import SensorCalibration
 from dirt_shared.models.sensor_reading import SensorReading
-from dirt_shared.services.readings import compute_calibrated_pct
+from dirt_shared.sensor_contract import capability_metadata_from_json
+from dirt_shared.services.readings import ReadingsService, compute_calibrated_pct
 
 
 @pytest.fixture
@@ -116,6 +118,146 @@ async def test_ingest_writes_readings_and_node(client: AsyncClient, app_engine):
         assert device.last_seen is not None
 
 
+async def test_substrate_node_seed_declares_four_metadata_marked_capabilities(
+    app_engine,
+):
+    async with AsyncSession(app_engine) as s:
+        row = (
+            await s.exec(
+                select(Device).where(Device.device_id == "plant-a-substrate-node")
+            )
+        ).one()
+        capabilities = (
+            await s.exec(
+                select(Capability)
+                .where(Capability.device_id == row.id)
+                .order_by(Capability.capability_id)
+            )
+        ).all()
+
+    assert row.metadata_json["sensor_model"] == "DFRobot SEN0604"
+    assert row.metadata_json["modbus_address"] == "0x02"
+    assert row.metadata_json["ph_ec_status"] == "experimental"
+
+    by_id = {capability.capability_id: capability for capability in capabilities}
+    assert set(by_id) == {
+        "soil_moisture_pct",
+        "substrate_ec_us_cm",
+        "substrate_ph",
+        "substrate_temp_c",
+    }
+
+    metadata = {
+        capability_id: capability_metadata_from_json(capability.metadata_json)
+        for capability_id, capability in by_id.items()
+    }
+    assert all(item.expected_wire_metric for item in metadata.values())
+    assert all(item.freshness_required for item in metadata.values())
+    assert all(item.sensor_model == "DFRobot SEN0604" for item in metadata.values())
+    assert all(item.modbus_address == "0x02" for item in metadata.values())
+    assert metadata["soil_moisture_pct"].experimental is False
+    assert metadata["substrate_temp_c"].experimental is False
+    assert metadata["substrate_ec_us_cm"].experimental is True
+    assert metadata["substrate_ph"].experimental is True
+
+
+async def test_substrate_node_ingest_writes_four_capability_rows(
+    client: AsyncClient, app_engine
+):
+    r = await client.post(
+        "/api/ingest/sensors",
+        json=_current_payload(
+            zone_id="plant-a",
+            device_id="plant-a-substrate-node",
+            metrics={
+                "soil_moisture_pct": 26.9,
+                "substrate_temp_c": 21.4,
+                "substrate_ec_us_cm": 147.0,
+                "substrate_ph": 4.7,
+            },
+            firmware_version="rs485-0.1.0",
+            ip="192.168.1.212",
+            uptime_ms=30000,
+        ),
+        headers=_auth_header(),
+    )
+
+    assert r.status_code == 202
+    assert r.json() == {
+        "ok": True,
+        "device_id": "plant-a-substrate-node",
+        "count": 4,
+    }
+
+    async with AsyncSession(app_engine) as s:
+        rows = (
+            await s.exec(
+                select(SensorReading, Device, Capability)
+                .join(Capability, Capability.id == SensorReading.capability_id)
+                .join(Device, Device.id == Capability.device_id)
+                .where(Device.device_id == "plant-a-substrate-node")
+                .order_by(Capability.capability_id)
+            )
+        ).all()
+        device = (
+            await s.exec(
+                select(Device).where(Device.device_id == "plant-a-substrate-node")
+            )
+        ).one()
+
+    assert {
+        capability.capability_id: (reading.metric, reading.value)
+        for reading, _, capability in rows
+    } == {
+        "soil_moisture_pct": ("soil_moisture_pct", 26.9),
+        "substrate_ec_us_cm": ("substrate_ec_us_cm", 147.0),
+        "substrate_ph": ("substrate_ph", 4.7),
+        "substrate_temp_c": ("substrate_temp_c", 21.4),
+    }
+    assert str(device.ip) == "192.168.1.212"
+    assert device.firmware_version == "rs485-0.1.0"
+    assert device.uptime_ms == 30000
+    assert device.last_seen is not None
+
+
+async def test_freshness_snapshot_uses_required_metadata_and_device_heartbeat(
+    client: AsyncClient, app_engine
+):
+    readings = ReadingsService(app_engine)
+    stale_cutoff = datetime.now(UTC) - timedelta(minutes=5)
+
+    before_heartbeat = await readings.get_capability_freshness_snapshot(stale_cutoff)
+    assert not any(
+        key.startswith("plant-a-substrate-node:") for key in before_heartbeat
+    )
+
+    r = await client.post(
+        "/api/ingest/sensors",
+        json=_current_payload(
+            zone_id="plant-a",
+            device_id="plant-a-substrate-node",
+            metrics={"soil_moisture_pct": 26.9},
+        ),
+        headers=_auth_header(),
+    )
+    assert r.status_code == 202
+
+    snapshot = await readings.get_capability_freshness_snapshot(stale_cutoff)
+
+    assert "fan-controller:humidity_pct" not in snapshot
+    statuses = {
+        key.removeprefix("plant-a-substrate-node:"): value[0]
+        for key, value in snapshot.items()
+        if key.startswith("plant-a-substrate-node:")
+    }
+    assert statuses == {
+        "soil_moisture_pct": "fresh",
+        "substrate_ec_us_cm": "stale",
+        "substrate_ph": "stale",
+        "substrate_temp_c": "stale",
+    }
+
+
 async def test_ingest_stores_device_diagnostics(client: AsyncClient, app_engine):
     r = await client.post(
         "/api/ingest/sensors",
@@ -161,6 +303,67 @@ async def test_ingest_stores_device_diagnostics(client: AsyncClient, app_engine)
         "last_ingest_code": 202,
         "max_ingest_ms": 391,
         "free_heap_bytes": 178320,
+    }
+
+
+async def test_ingest_stores_substrate_node_modbus_diagnostics(
+    client: AsyncClient, app_engine
+):
+    r = await client.post(
+        "/api/ingest/sensors",
+        json=_current_payload(
+            zone_id="plant-a",
+            device_id="plant-a-substrate-node",
+            metrics={
+                "soil_moisture_pct": 26.9,
+                "substrate_temp_c": 21.4,
+                "substrate_ec_us_cm": 147.0,
+                "substrate_ph": 4.7,
+            },
+            diagnostics={
+                "boot_count": 2,
+                "reset_reason": 1,
+                "modbus_success_count": 30,
+                "modbus_failure_count": 3,
+                "modbus_crc_mismatch_count": 1,
+                "modbus_short_response_count": 1,
+                "modbus_no_response_count": 1,
+                "last_modbus_response_len": 13,
+                "last_ingest_code": 202,
+                "ingest_ok_count": 29,
+                "ingest_fail_count": 1,
+                "free_heap_bytes": 176000,
+                "min_free_heap_bytes": 168000,
+                "loop_gap_max_ms": 704,
+            },
+        ),
+        headers=_auth_header(),
+    )
+
+    assert r.status_code == 202
+
+    async with AsyncSession(app_engine) as s:
+        device = (
+            await s.exec(
+                select(Device).where(Device.device_id == "plant-a-substrate-node")
+            )
+        ).one()
+
+    assert device.metadata_json["diagnostics"] == {
+        "boot_count": 2,
+        "reset_reason": 1,
+        "modbus_success_count": 30,
+        "modbus_failure_count": 3,
+        "modbus_crc_mismatch_count": 1,
+        "modbus_short_response_count": 1,
+        "modbus_no_response_count": 1,
+        "last_modbus_response_len": 13,
+        "last_ingest_code": 202,
+        "ingest_ok_count": 29,
+        "ingest_fail_count": 1,
+        "free_heap_bytes": 176000,
+        "min_free_heap_bytes": 168000,
+        "loop_gap_max_ms": 704,
     }
 
 

@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-06-10
+updated: 2026-06-11
 ---
 
 # Plant B
@@ -19,7 +19,7 @@ updated: 2026-06-10
 
 ## Current State
 
-Day 88 / Flower Day 38: B has upright active flower clusters with fresh pistils and older edge/tip wear, while rough moisture returned to the high/pinned zone near 96.00% after yesterday's drier move. Verify tray/media/probe conditions by hand before treating either signal as a solved dryback trend. See [2026-06-10](../../../daily/2026-06-10.md).
+Day 88 / Flower Day 38: B has upright active flower clusters with fresh pistils and older edge/tip wear. The old capacitive moisture stream is retired from current operations, so B has no trusted current moisture probe until a replacement is installed. Whole-reservoir EC was found high on 2026-06-10 evening and reset to pH 5.8 / EC ~0.3 plain water; verify tray/media conditions by hand during the ~24h plain-water correction. See [2026-06-10](../../../daily/2026-06-10.md).
 
 ## Timeline
 
@@ -87,3 +87,4 @@ Day 88 / Flower Day 38: B has upright active flower clusters with fresh pistils 
 - 2026-06-08 — [Day 86 / Flower Day 36: upright active flower clusters; moisture ~96.7% remains pinned/stale, dryback verification urgent](../../../daily/2026-06-08.md)
 - 2026-06-09 — [Day 87 / Flower Day 37: upright active flower clusters; rough moisture moved sharply drier to ~88.5%, verify tray/media/probe by hand](../../../daily/2026-06-09.md)
 - 2026-06-10 — [Day 88 / Flower Day 38: upright active flower clusters; rough moisture back high near 96.0%, verify tray/media/probe by hand](../../../daily/2026-06-10.md)
+- 2026-06-10 evening — [Whole Autopot reservoir EC found >2.0; reservoir reset to pH 5.8 / EC ~0.3 plain water for ~24h correction](../../../daily/2026-06-10.md)

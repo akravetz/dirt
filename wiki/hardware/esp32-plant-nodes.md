@@ -4,28 +4,36 @@ type: hardware
 sources: []
 related: [wiki/decisions/2026-04-12-distributed-sensor-architecture.md, wiki/decisions/2026-04-14-esp32-c3-gpio3-adc.md, wiki/decisions/2026-04-14-server-side-auto-calibration.md, wiki/concepts/capacitive-soil-moisture.md]
 created: 2026-04-14
-updated: 2026-06-01
+updated: 2026-06-11
 ---
 
 # ESP32-C3 Per-Plant Nodes
 
-One wireless sensor node per plant (A/B/C/D) inside the tent, each reading a capacitive soil moisture sensor and POSTing JSON to the dirt backend over WiFi.
+Original wireless capacitive soil-moisture nodes for Plants A/B/C/D. These nodes are retired from current operations as of the Plant A RS485 substrate-node cutover.
 
 ## Deployment Status
 
 | Node | Board | Sensor | IP | Status |
 |------|-------|--------|----|--------|
-| plant-a | ESP32-C3 SuperMini live; Seeed Studio XIAO ESP32-C3 replacement flashed | Capacitive v1.2 | 192.168.1.250 | ✅ **Live 2026-04-14**; XIAO firmware `0.1.3-xiao` flashed 2026-06-01, sensor not wired/installed yet |
-| plant-b | ESP32-C3 SuperMini | Capacitive v2.0 | 192.168.1.243 | ✅ **Live 2026-04-16** |
-| plant-c | ESP32-C3 SuperMini (reused dev unit) | Capacitive v2.0 | 192.168.1.117 | ✅ **Live 2026-04-16** |
-| plant-d | ESP32-C3 SuperMini | Capacitive v1.2 | 192.168.1.59 | ✅ **Live 2026-04-14** |
+| plant-a | ESP32-C3 SuperMini; Seeed Studio XIAO ESP32-C3 replacement was flashed | Capacitive v1.2 | 192.168.1.250 | Retired 2026-06-11; replaced by `plant-a-substrate-node` RS485 direct-percent moisture |
+| plant-b | ESP32-C3 SuperMini | Capacitive v2.0 | 192.168.1.243 | Retired 2026-06-11; no current moisture probe |
+| plant-c | ESP32-C3 SuperMini (reused dev unit) | Capacitive v2.0 | 192.168.1.117 | Retired 2026-06-11; no current moisture probe |
+| plant-d | ESP32-C3 SuperMini | Capacitive v1.2 | 192.168.1.59 | Retired 2026-06-11; no current moisture probe |
 
-**Mixed sensor generations:** plant-a and plant-d shipped with the first Amazon pack (v1.2, 40% DOA rate). plant-b and plant-c got a second pack of v2.0 sensors after the first pack ran out. See [v1.2 vs v2.0 differences](../concepts/capacitive-soil-moisture.md#v12-vs-v20) — it doesn't break cross-plant comparisons because the normalized wet% from auto-calibration abstracts over the raw-voltage differences, but it does mean raw ADC values aren't directly comparable across plants.
+**Mixed sensor generations:** plant-a and plant-d shipped with the first Amazon pack (v1.2, 40% DOA rate). plant-b and plant-c got a second pack of v2.0 sensors after the first pack ran out. See [v1.2 vs v2.0 differences](../concepts/capacitive-soil-moisture.md#v12-vs-v20). This is now historical context only; current product moisture no longer normalizes or compares these capacitive raw streams.
+
+Retirement state:
+
+- `plant-a-node`, `plant-b-node`, `plant-c-node`, and `plant-d-node` are disabled in active Dirt device inventory.
+- Their `soil_moisture_raw` capabilities are disabled.
+- Historical readings and calibration rows remain stored for audit/history.
+- Current product moisture no longer derives from capacitive `soil_moisture_raw`.
+- Physical disconnect is safe; disabled devices are filtered out of system status and should not create stale/offline device-watchdog noise.
 
 ## Hardware
 
-- **Board:** currently deployed plant nodes are ESP32-C3 SuperMini clones. The migration target is Seeed Studio XIAO ESP32-C3, starting with Plant A.
-- **Sensor:** Capacitive Analog Soil Moisture Sensor v1.2 (555-timer based). See [capacitive soil moisture concept](../concepts/capacitive-soil-moisture.md).
+- **Board:** retired plant nodes are ESP32-C3 SuperMini clones. The Plant A replacement is Seeed Studio XIAO ESP32C3 on a Seeed RS485 expansion board; see [RS485 Substrate Sensors](rs485-substrate-sensors.md).
+- **Sensor:** retired nodes used capacitive analog soil moisture sensors. See [capacitive soil moisture concept](../concepts/capacitive-soil-moisture.md).
 - **Power:** USB-C wall power (not battery — decision stands from the distributed sensor architecture; see also the 2026-04-14 discussion on why battery was re-evaluated and declined).
 
 ## Wiring
@@ -61,6 +69,7 @@ On Seeed XIAO ESP32-C3, use the Seeed `D` labels and confirm the chip GPIO:
 
 ## Firmware
 
+- **Status:** retired from current operations; keep this section for historical maintenance and rollback archaeology only.
 - **Location:** `firmware/plant_node/`
 - **Build tool:** PlatformIO with two envs per plant: `plant-{id}` for USB flash, `plant-{id}-ota` for subsequent wireless pushes. Current source target is `seeed_xiao_esp32c3`.
 - **Plant ID baked in at build time** via `-D PLANT_ID=\"a\"` build flag

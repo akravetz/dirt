@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-06-10
+updated: 2026-06-11
 ---
 
 # Plant D
@@ -19,7 +19,7 @@ updated: 2026-06-10
 
 ## Current State
 
-Day 88 / Flower Day 38: Strong purple flower tops remain visible and upright with many fresh pistils, while rough moisture is still low and drifting drier near 41.74%. Keep the media/tray/probe hand-check open before changing irrigation assumptions. See [2026-06-10](../../../daily/2026-06-10.md).
+Day 88 / Flower Day 38: Strong purple flower tops remain visible and upright with many fresh pistils. The old capacitive moisture stream is retired from current operations, so D has no trusted current moisture probe until a replacement is installed. Whole-reservoir EC was found high on 2026-06-10 evening and reset to pH 5.8 / EC ~0.3 plain water; keep the media/tray hand-check open through the ~24h correction. See [2026-06-10](../../../daily/2026-06-10.md).
 
 ## Timeline
 
@@ -87,3 +87,4 @@ Day 88 / Flower Day 38: Strong purple flower tops remain visible and upright wit
 - 2026-06-08 — [Day 86 / Flower Day 36: strong purple flower tops visible; moisture low near 42.0%, verify media/tray/probe by hand](../../../daily/2026-06-08.md)
 - 2026-06-09 — [Day 87 / Flower Day 37: strong purple flower tops visible; moisture low and drifting drier near 41.8%, verify media/tray/probe by hand](../../../daily/2026-06-09.md)
 - 2026-06-10 — [Day 88 / Flower Day 38: strong purple flower tops visible; moisture low and drifting drier near 41.7%, verify media/tray/probe by hand](../../../daily/2026-06-10.md)
+- 2026-06-10 evening — [Whole Autopot reservoir EC found >2.0; reservoir reset to pH 5.8 / EC ~0.3 plain water for ~24h correction](../../../daily/2026-06-10.md)

@@ -4,7 +4,7 @@ type: grow
 sources: []
 related: [wiki/overview.md, wiki/breeding/README.md, wiki/daily/2026-06-10.md]
 created: 2026-05-30
-updated: 2026-06-10
+updated: 2026-06-11
 ---
 
 # Main Grow 2026-03-15
@@ -42,4 +42,14 @@ dense, purple, and flower-heavy; Plant A is still a watched Autopot
 reconnection, Plant B returned to the high/pinned rough-moisture zone after
 yesterday's drier move, Plant C remains high/flat, Plant D remains a low/probe
 hand-check, and environment work is focused on dark-cycle clearing without
-pushing the current lights-on window drier.
+pushing the current lights-on window drier. At 20:00 MDT, the Autopot
+reservoir was reset from EC well over 2.0 to pH 5.8 / EC ~0.3 plain tap water;
+run plain water for about 24 hours, then rebuild feed to roughly EC 1.2 if
+plant posture and tray cycling remain acceptable.
+
+Moisture telemetry changed on 2026-06-10/11. Plant A now uses
+`plant-a-substrate-node` RS485 direct-percent substrate moisture as its
+canonical current moisture source. Plants B-D have no current trusted moisture
+probe after the old capacitive nodes were disabled/retired, so use direct hand
+checks, tray behavior, media condition, and plant posture for root-zone
+decisions until replacement probes exist.

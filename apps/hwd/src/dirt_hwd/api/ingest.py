@@ -14,9 +14,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from dirt_hwd.deps import get_readings, get_sensor_quality, get_settings
 from dirt_hwd.services.sensor_quality import SensorQualityService
 from dirt_shared.config import Settings
-from dirt_shared.sensor_contract import (
-    missing_emitted_for_device_id,
-)
 from dirt_shared.services.readings import ReadingsService
 
 logger = logging.getLogger(__name__)
@@ -40,6 +37,12 @@ class DeviceDiagnostics(BaseModel):
     http_get_fan_count: int | None = None
     http_post_fan_count: int | None = None
     http_not_found_count: int | None = None
+    modbus_success_count: int | None = None
+    modbus_failure_count: int | None = None
+    modbus_crc_mismatch_count: int | None = None
+    modbus_short_response_count: int | None = None
+    modbus_no_response_count: int | None = None
+    last_modbus_response_len: int | None = None
     ingest_ok_count: int | None = None
     ingest_fail_count: int | None = None
     last_ingest_code: int | None = None
@@ -107,21 +110,31 @@ def _canonicalize_wire_metrics(
     return canonical
 
 
-def _warn_on_emitted_drift(
-    device_id: str | None, payload_metrics: dict[str, float]
+async def _warn_on_emitted_drift(
+    readings: ReadingsService,
+    *,
+    payload: IngestPayload,
+    payload_metrics: dict[str, float],
 ) -> None:
-    """Log a warning when a known device's payload is missing a metric the
-    sensor contract says it emits — e.g. firmware was flashed but the
-    contract in dirt_shared.sensor_contract wasn't updated. Permissive by
-    design; never rejects ingest (would block legitimate rolling flashes).
+    """Log when a known device omits a DB-backed expected wire metric.
+
+    Permissive by design; never rejects ingest because that would block
+    legitimate rolling flashes.
     """
-    missing = missing_emitted_for_device_id(device_id, payload_metrics.keys())
+    if payload.device_id is None:
+        return
+    expected = await readings.get_expected_wire_metrics_for_device(
+        device_id=payload.device_id,
+        site_id=payload.site_id,
+        tent_id=payload.tent_id,
+        zone_id=payload.zone_id,
+    )
+    missing = expected - set(payload_metrics)
     if missing:
-        identity = device_id or "unknown"
         logger.warning(
             "ingest %s missing expected metrics %s (got %s) — "
-            "update sensor_contract.DEVICE_METRICS if this is intentional",
-            identity,
+            "update capability metadata if this is intentional",
+            payload.device_id,
             sorted(missing),
             sorted(payload_metrics.keys()),
         )
@@ -160,7 +173,11 @@ async def ingest_sensors(  # noqa: PLR0913 — FastAPI boundary bundles request,
     ip = payload.ip or (request.client.host if request.client else None)
 
     wire_metrics = _canonicalize_wire_metrics(payload.device_id, payload.metrics)
-    _warn_on_emitted_drift(payload.device_id, wire_metrics)
+    await _warn_on_emitted_drift(
+        readings,
+        payload=payload,
+        payload_metrics=wire_metrics,
+    )
 
     metrics = _augment_temp_rh_metrics(wire_metrics)
     assert payload.device_id is not None  # noqa: S101 (validated above)

@@ -15,16 +15,18 @@ async def test_system_status_uses_device_table_projection(
     app_engine,
 ) -> None:
     async with AsyncSession(app_engine) as session:
-        plant_a = (
-            await session.exec(select(Device).where(Device.device_id == "plant-a-node"))
+        substrate = (
+            await session.exec(
+                select(Device).where(Device.device_id == "plant-a-substrate-node")
+            )
         ).one()
-        plant_a.name = "Renamed Plant A Node"
-        plant_a.last_seen = T0
-        plant_a.wifi_rssi_dbm = -73
-        plant_a.wifi_reconnect_count = 5
-        plant_a.wifi_driver_reset_count = 1
-        plant_a.wifi_disconnect_reason = 200
-        plant_a.wifi_disconnected_for_ms = 0
+        substrate.name = "Renamed Plant A Substrate Node"
+        substrate.last_seen = T0
+        substrate.wifi_rssi_dbm = -73
+        substrate.wifi_reconnect_count = 5
+        substrate.wifi_driver_reset_count = 1
+        substrate.wifi_disconnect_reason = 200
+        substrate.wifi_disconnected_for_ms = 0
         humidifier = (
             await session.exec(
                 select(Device).where(Device.device_id == "govee-h7142-main")
@@ -43,18 +45,23 @@ async def test_system_status_uses_device_table_projection(
 
     assert [status.device_id for status in statuses] == [
         "fan-controller",
-        "plant-a-node",
-        "plant-b-node",
-        "plant-c-node",
-        "plant-d-node",
+        "plant-a-substrate-node",
         "govee-h7142-main",
         "obsbot-main",
         "jabra-claudia",
     ]
+    assert not {
+        "plant-a-node",
+        "plant-b-node",
+        "plant-c-node",
+        "plant-d-node",
+    } & {status.device_id for status in statuses}
     assert "reservoir-node" not in {status.device_id for status in statuses}
     assert "kasa-lights-main" not in {status.device_id for status in statuses}
-    renamed = next(status for status in statuses if status.device_id == "plant-a-node")
-    assert renamed.name == "Renamed Plant A Node"
+    renamed = next(
+        status for status in statuses if status.device_id == "plant-a-substrate-node"
+    )
+    assert renamed.name == "Renamed Plant A Substrate Node"
     assert renamed.site_id == "homebox"
     assert renamed.tent_id == "main"
     assert renamed.zone_id == "plant-a"

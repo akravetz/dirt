@@ -4,23 +4,25 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Iterable, Mapping
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import text
+from sqlalchemy import func, text
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.device import Capability, Device
 from dirt_shared.models.enums import SensorSource
+from dirt_shared.models.grow_run import GrowRun
+from dirt_shared.models.plant import Plant
 from dirt_shared.models.sensor_calibration import SensorCalibration
 from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.models.site import Site
 from dirt_shared.models.tent import Tent
 from dirt_shared.models.zone import Zone
 from dirt_shared.sensor_contract import (
-    DEVICE_METRICS,
-    persisted_capability_ids_for_device_id,
+    capability_metadata_from_json,
     persisted_metrics_for_device_id,
 )
 from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID
@@ -32,6 +34,24 @@ AUTO_CALIBRATED_METRICS = {"soil_moisture_raw"}
 # Plausible ADC range — values outside this are noise/spike and skipped.
 CAL_CLAMP_MIN = 100.0
 CAL_CLAMP_MAX = 3900.0
+PRODUCT_PLANT_MOISTURE_METRIC = "soil_moisture_pct"
+
+
+@dataclass(frozen=True)
+class ProductPlantMoistureCapability:
+    plant_id: str
+    tent_id: str
+    zone_id: str | None
+    device_id: str
+    capability_id: str
+    capability_pk: int
+
+
+@dataclass(frozen=True)
+class ProductPlantMoistureReading(ProductPlantMoistureCapability):
+    value: float
+    timestamp: datetime
+    age_s: float
 
 
 def compute_calibrated_pct(raw: float, raw_low: float, raw_high: float) -> float | None:
@@ -298,21 +318,6 @@ def _warn_on_unresolved_capabilities(
     )
 
 
-async def _devices_by_public_id(
-    session: AsyncSession,
-    *,
-    site_id: str,
-) -> dict[str, Device]:
-    devices = (
-        await session.exec(
-            select(Device)
-            .join(Site, Site.id == Device.site_id)
-            .where(Site.site_id == site_id)
-        )
-    ).all()
-    return {device.device_id: device for device in devices}
-
-
 def _history_params(  # noqa: PLR0913
     *,
     cutoff: datetime,
@@ -432,6 +437,113 @@ async def get_sensor_calibration(
     return result.first()
 
 
+async def get_supported_product_plant_moisture_capabilities(
+    session: AsyncSession,
+    *,
+    site_id: str = DEFAULT_SITE_ID,
+    tent_id: str | None = DEFAULT_TENT_ID,
+) -> list[ProductPlantMoistureCapability]:
+    """Return current plant moisture capabilities that are direct percent streams.
+
+    ``soil_moisture_raw`` and all non-percent capability metrics are unsupported
+    as current product moisture sources. Historical raw readings may still exist,
+    but this resolver intentionally does not calibrate them.
+    """
+    stmt = (
+        select(
+            Plant.plant_id,
+            Tent.tent_id,
+            Zone.zone_id,
+            Device.device_id,
+            Capability.capability_id,
+            Capability.id,
+        )
+        .join(GrowRun, GrowRun.id == Plant.growrun_id)
+        .join(Site, Site.id == Plant.site_id)
+        .join(Tent, Tent.id == Plant.tent_id)
+        .join(Capability, Capability.id == Plant.moisture_capability_id)
+        .join(Device, Device.id == Capability.device_id)
+        .outerjoin(Zone, Zone.id == Device.zone_id)
+        .where(Site.site_id == site_id)
+        .where(GrowRun.is_current.is_(True))
+        .where(Plant.moisture_capability_id.is_not(None))
+        .where(Device.enabled.is_(True))
+        .where(Capability.enabled.is_(True))
+        .where(Capability.metric_name == PRODUCT_PLANT_MOISTURE_METRIC)
+        .order_by(Tent.tent_id, Plant.display_order, Plant.plant_id)
+    )
+    if tent_id is not None:
+        stmt = stmt.where(Tent.tent_id == tent_id)
+
+    rows = (await session.exec(stmt)).all()
+    return [
+        ProductPlantMoistureCapability(
+            plant_id=plant_id,
+            tent_id=scope_tent_id,
+            zone_id=scope_zone_id,
+            device_id=device_id,
+            capability_id=capability_id,
+            capability_pk=capability_pk,
+        )
+        for (
+            plant_id,
+            scope_tent_id,
+            scope_zone_id,
+            device_id,
+            capability_id,
+            capability_pk,
+        ) in rows
+    ]
+
+
+async def get_latest_product_plant_moisture_readings(
+    session: AsyncSession,
+    *,
+    now: datetime,
+    site_id: str = DEFAULT_SITE_ID,
+    tent_id: str | None = DEFAULT_TENT_ID,
+) -> list[ProductPlantMoistureReading]:
+    """Return latest current plant moisture readings from direct percent probes."""
+    capabilities = await get_supported_product_plant_moisture_capabilities(
+        session,
+        site_id=site_id,
+        tent_id=tent_id,
+    )
+    if not capabilities:
+        return []
+
+    by_pk = {cap.capability_pk: cap for cap in capabilities}
+    result = await session.exec(
+        select(SensorReading.capability_id, SensorReading.value, SensorReading.ts)
+        .where(SensorReading.capability_id.in_(tuple(by_pk)))
+        .where(SensorReading.metric == PRODUCT_PLANT_MOISTURE_METRIC)
+        .order_by(SensorReading.capability_id, SensorReading.ts.desc())
+    )
+
+    readings: list[ProductPlantMoistureReading] = []
+    seen: set[int] = set()
+    for capability_pk, value, ts in result.all():
+        if capability_pk in seen:
+            continue
+        seen.add(capability_pk)
+        capability = by_pk[capability_pk]
+        timestamp = _as_utc(ts)
+        readings.append(
+            ProductPlantMoistureReading(
+                plant_id=capability.plant_id,
+                tent_id=capability.tent_id,
+                zone_id=capability.zone_id,
+                device_id=capability.device_id,
+                capability_id=capability.capability_id,
+                capability_pk=capability.capability_pk,
+                value=value,
+                timestamp=timestamp,
+                age_s=(now - timestamp).total_seconds(),
+            )
+        )
+    return readings
+
+
 async def _update_calibration(
     session: AsyncSession,
     metric: str,
@@ -535,67 +647,108 @@ class ReadingsService:
         site_id: str = DEFAULT_SITE_ID,
         tent_id: str | None = DEFAULT_TENT_ID,
     ) -> dict[str, tuple[str, datetime | None, dict[str, str | None]]]:
-        """Classify freshness keyed by device/capability identity."""
+        """Classify metadata-marked capabilities keyed by device/capability."""
         out: dict[str, tuple[str, datetime | None, dict[str, str | None]]] = {}
         async with AsyncSession(self._engine) as session:
-            devices_by_id = await _devices_by_public_id(session, site_id=site_id)
-            for device_public_id in sorted(DEVICE_METRICS):
-                device = devices_by_id.get(device_public_id)
-                if device is None or device.last_seen is None:
-                    continue
-                if _as_utc(device.last_seen) < stale_cutoff:
+            latest = (
+                select(
+                    SensorReading.capability_id,
+                    func.max(SensorReading.ts).label("last_seen"),
+                )
+                .group_by(SensorReading.capability_id)
+                .subquery()
+            )
+            stmt = (
+                select(
+                    Site.site_id,
+                    Tent.tent_id,
+                    Device.device_id,
+                    Capability.capability_id,
+                    Capability.metric_name,
+                    Capability.metadata_json,
+                    latest.c.last_seen,
+                )
+                .join(Device, Device.site_id == Site.id)
+                .join(Capability, Capability.device_id == Device.id)
+                .outerjoin(Tent, Tent.id == Device.tent_id)
+                .outerjoin(latest, latest.c.capability_id == Capability.id)
+                .where(Site.site_id == site_id)
+                .where(Device.enabled.is_(True))
+                .where(Device.last_seen.is_not(None))
+                .where(Device.last_seen >= stale_cutoff)
+                .where(Capability.enabled.is_(True))
+                .where(Capability.metric_name.is_not(None))
+                .order_by(Device.device_id, Capability.capability_id)
+            )
+            if tent_id is not None:
+                stmt = stmt.where(Tent.tent_id == tent_id)
+
+            for row in (await session.exec(stmt)).all():
+                (
+                    scope_site_id,
+                    scope_tent_id,
+                    device_public_id,
+                    capability_public_id,
+                    metric,
+                    metadata_json,
+                    last_seen_raw,
+                ) = row
+                metadata = capability_metadata_from_json(metadata_json)
+                if not metadata.freshness_required:
                     continue
 
-                for capability_public_id in sorted(
-                    persisted_capability_ids_for_device_id(device_public_id)
-                ):
-                    cap_row = (
-                        await session.exec(
-                            select(Capability.metric_name)
-                            .join(Device, Device.id == Capability.device_id)
-                            .join(Site, Site.id == Device.site_id)
-                            .where(Site.site_id == site_id)
-                            .where(Device.device_id == device_public_id)
-                            .where(Capability.capability_id == capability_public_id)
-                            .where(Capability.enabled.is_(True))
-                        )
-                    ).first()
-                    if cap_row is None:
-                        continue
-                    metric = cap_row
-                    if metric is None:
-                        continue
-                    row = (
-                        await session.exec(
-                            _scoped_readings_select(
-                                metric,
-                                site_id=site_id,
-                                tent_id=tent_id,
-                                device_id=device_public_id,
-                                capability_id=capability_public_id,
-                            )
-                            .order_by(SensorReading.ts.desc())
-                            .limit(1)
-                        )
-                    ).first()
-                    last_seen = None if row is None else _as_utc(row.ts)
-                    status = (
-                        "stale"
-                        if last_seen is None or last_seen < stale_cutoff
-                        else "fresh"
-                    )
-                    out[f"{device_public_id}:{capability_public_id}"] = (
-                        status,
-                        last_seen,
-                        {
-                            "site_id": site_id,
-                            "tent_id": tent_id,
-                            "device_id": device_public_id,
-                            "capability_id": capability_public_id,
-                            "metric": metric,
-                        },
-                    )
+                last_seen = None if last_seen_raw is None else _as_utc(last_seen_raw)
+                status = "fresh"
+                if last_seen is None or last_seen < stale_cutoff:
+                    status = "stale"
+                out[f"{device_public_id}:{capability_public_id}"] = (
+                    status,
+                    last_seen,
+                    {
+                        "site_id": scope_site_id,
+                        "tent_id": scope_tent_id,
+                        "device_id": device_public_id,
+                        "capability_id": capability_public_id,
+                        "metric": metric,
+                    },
+                )
         return out
+
+    async def get_expected_wire_metrics_for_device(
+        self,
+        *,
+        device_id: str,
+        site_id: str = DEFAULT_SITE_ID,
+        tent_id: str | None = DEFAULT_TENT_ID,
+        zone_id: str | None = None,
+    ) -> frozenset[str]:
+        """Return enabled metrics marked as expected in capability metadata."""
+        async with AsyncSession(self._engine) as session:
+            stmt = (
+                select(Capability.metric_name, Capability.metadata_json)
+                .join(Device, Device.id == Capability.device_id)
+                .join(Site, Site.id == Device.site_id)
+                .where(Site.site_id == site_id)
+                .where(Device.device_id == device_id)
+                .where(Device.enabled.is_(True))
+                .where(Capability.enabled.is_(True))
+                .where(Capability.metric_name.is_not(None))
+            )
+            if tent_id is not None:
+                stmt = stmt.join(Tent, Tent.id == Device.tent_id).where(
+                    Tent.tent_id == tent_id
+                )
+            if zone_id is not None:
+                stmt = stmt.join(Zone, Zone.id == Device.zone_id).where(
+                    Zone.zone_id == zone_id
+                )
+
+            metrics: set[str] = set()
+            for metric, metadata_json in (await session.exec(stmt)).all():
+                metadata = capability_metadata_from_json(metadata_json)
+                if metadata.expected_wire_metric and metric is not None:
+                    metrics.add(metric)
+            return frozenset(metrics)
 
     async def is_sensor_stale(
         self,

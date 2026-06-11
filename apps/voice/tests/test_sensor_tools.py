@@ -7,8 +7,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.device import Capability, Device
 from dirt_shared.models.enums import SensorSource
-from dirt_shared.models.sensor_calibration import SensorCalibration
+from dirt_shared.models.grow_run import GrowRun
+from dirt_shared.models.plant import Plant
 from dirt_shared.models.sensor_reading import SensorReading
+from dirt_shared.models.site import Site
 from dirt_shared.services.readings import ReadingsService
 from dirt_voice.tools.sensors import build_sensor_tools
 
@@ -36,6 +38,61 @@ async def _capability_id(
     return cap_id
 
 
+async def _set_plant_moisture_capability(
+    session: AsyncSession,
+    *,
+    plant_id: str,
+    device_id: str,
+    capability_id: str,
+    metric_name: str,
+    unit: str,
+) -> int:
+    site_pk = (
+        await session.exec(select(Site.id).where(Site.site_id == "homebox"))
+    ).one()
+    grow = (
+        await session.exec(
+            select(GrowRun)
+            .where(GrowRun.site_id == site_pk)
+            .where(GrowRun.is_current.is_(True))
+            .limit(1)
+        )
+    ).one()
+    device = Device(
+        site_id=site_pk,
+        tent_id=grow.tent_id,
+        device_id=device_id,
+        name=device_id,
+        kind="moisture_node",
+        controller="test",
+    )
+    session.add(device)
+    await session.flush()
+    capability = Capability(
+        device_id=device.id,
+        capability_id=capability_id,
+        name=capability_id,
+        kind="measurement",
+        metric_name=metric_name,
+        unit=unit,
+        source="test",
+    )
+    session.add(capability)
+    await session.flush()
+    plant = (
+        await session.exec(
+            select(Plant)
+            .where(Plant.growrun_id == grow.id)
+            .where(Plant.plant_id == plant_id)
+        )
+    ).one()
+    plant.moisture_capability_id = capability.id
+    session.add(plant)
+    await session.flush()
+    assert capability.id is not None
+    return capability.id
+
+
 async def test_current_status_reads_scoped_tent_and_plant_capabilities(
     app_engine,
 ) -> None:
@@ -47,8 +104,13 @@ async def test_current_status_reads_scoped_tent_and_plant_capabilities(
             )
             for metric in ("temperature_f", "humidity_pct", "vpd_kpa", "dew_point_f")
         }
-        plant_cap = await _capability_id(
-            session, device_id="plant-a-node", capability_id="soil_moisture_raw"
+        plant_cap = await _set_plant_moisture_capability(
+            session,
+            plant_id="a",
+            device_id="test-plant-a-direct-moisture",
+            capability_id="soil_moisture_pct",
+            metric_name="soil_moisture_pct",
+            unit="%",
         )
         for metric, value in {
             "temperature_f": 78.0,
@@ -66,19 +128,11 @@ async def test_current_status_reads_scoped_tent_and_plant_capabilities(
                 )
             )
         session.add(
-            SensorCalibration(
-                capability_id=plant_cap,
-                metric="soil_moisture_raw",
-                raw_low=0,
-                raw_high=1000,
-            )
-        )
-        session.add(
             SensorReading(
                 ts=now - timedelta(seconds=5),
                 capability_id=plant_cap,
-                metric="soil_moisture_raw",
-                value=400,
+                metric="soil_moisture_pct",
+                value=60.0,
                 source=SensorSource.MOCK,
             )
         )
@@ -98,3 +152,40 @@ async def test_current_status_reads_scoped_tent_and_plant_capabilities(
     assert result["readings"]["humidity_pct"] == 52.0
     assert result["soil_moisture_pct"]["a"] == 60.0
     assert result["out_of_range"] == []
+
+
+async def test_current_status_omits_raw_plant_moisture(
+    app_engine,
+) -> None:
+    now = datetime(2026, 5, 4, 20, 0, tzinfo=UTC)
+    async with AsyncSession(app_engine) as session:
+        plant_cap = await _set_plant_moisture_capability(
+            session,
+            plant_id="a",
+            device_id="test-plant-a-raw-moisture",
+            capability_id="soil_moisture_raw",
+            metric_name="soil_moisture_raw",
+            unit="raw",
+        )
+        session.add(
+            SensorReading(
+                ts=now - timedelta(seconds=5),
+                capability_id=plant_cap,
+                metric="soil_moisture_raw",
+                value=400.0,
+                source=SensorSource.MOCK,
+            )
+        )
+        await session.commit()
+
+    tools = build_sensor_tools(
+        engine=app_engine,
+        readings=ReadingsService(app_engine, clock=lambda: now),
+        grow=_FakeGrow(),
+        clock=lambda: now,
+    )
+    current_status = next(tool for tool in tools if tool.name == "get_current_status")
+
+    result = await current_status.handler()
+
+    assert result["soil_moisture_pct"] == {}

@@ -158,8 +158,6 @@ class Settings(BaseSettings):
     # Daily report.
     daily_report_photo_settle_s: float = 1.5
     daily_report_max_capture_age_ms: int = 400
-    daily_report_sensor_min_raw: float = 30.0
-    daily_report_sensor_max_raw: float = 4000.0
     daily_report_sensor_max_age_s: int = 300
     daily_report_synthesis_backend: str = Field(
         default="codex", validation_alias="DIRT_DAILY_REPORT_SYNTHESIS_BACKEND"

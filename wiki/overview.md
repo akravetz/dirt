@@ -4,7 +4,7 @@ type: overview
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/index.md, wiki/grows/main-2026-03-15/README.md, wiki/grows/main-2026-03-15/plants/plant-a.md, wiki/grows/main-2026-03-15/plants/plant-b.md, wiki/grows/main-2026-03-15/plants/plant-c.md, wiki/grows/main-2026-03-15/plants/plant-d.md, wiki/grows/breeding-track-a-2026-04-28/README.md, wiki/grows/breeding-track-a-2026-04-28/plants/plant-r1.md, wiki/grows/breeding-track-a-2026-04-28/plants/plant-r2.md, wiki/grows/breeding-track-a-2026-04-28/plants/plant-r3.md, wiki/grows/breeding-track-a-2026-04-28/plants/plant-r4.md, wiki/grows/breeding-track-a-2026-04-28/plants/plant-r5.md, wiki/decisions/2026-05-05-hosted-control-plane.md]
 created: 2026-04-06
-updated: 2026-06-10
+updated: 2026-06-11
 ---
 
 # Grow Overview
@@ -33,17 +33,17 @@ updated: 2026-06-10
 
 **Main tent has a split VPD profile** — morning VPD is in range at 1.41 kPa, but the current reading is dry/high at 1.62 kPa with the fan already at 80%, while the overnight window remains wet/low at 1.10 kPa. Corrections should target dark-cycle clearing and flower-pocket airflow without pushing lights-on drier.
 
-**Plant A is a watched Autopot reconnection** — the dedicated view is mostly fan-blocked, but visible material remains upright and rough moisture is stable near 50.69% after the watched rewet. Confirm tray fill/drawdown and leaf posture; do not top-flush again without new decline or repeated high-EC evidence.
+**Plant A is now on the RS485 substrate probe** — `plant-a-substrate-node` became the canonical current moisture source on 2026-06-10 evening MDT after no-USB 12 V runtime validation. Post-cutover readings were around 26.6% moisture, 21.5 deg C substrate temperature, 144 us/cm EC, and pH 4.5. Confirm tray fill/drawdown and leaf posture during the reservoir correction; do not top-flush again without new decline or repeated high-EC evidence.
 
-**Plant B returned to high/pinned while Plant C remains high/flat** — B is 96.00% now after yesterday's sharp drier move, and C is 91.85% now by rough context. Both dedicated photos show active flower sites; verify B's tray/media/probe behavior by hand and keep C root-zone/airflow checks active.
+**Plants B-D have no current moisture probe** — the old capacitive moisture nodes and raw capabilities are retired/disabled. Use hand checks, tray behavior, plant posture, media smell/weight, and runoff/slurry evidence instead of the old rough percentages until trustworthy replacement probes exist.
 
-**Plant D remains a probe/media hand-check** — D has upright purple flower tops, but the rough signal is still low and drifting drier at 41.74% now. Verify tray/media/probe conditions by hand before changing irrigation assumptions.
+**Old capacitive nodes are disconnect-safe** — `plant-a-node` through `plant-d-node` are disabled in active inventory and filtered out of system status. Physical disconnect should not create stale/offline device-watchdog noise; historical readings remain in the database.
 
 **Breeding tent is Flower Day 17 with incomplete sensor coverage** — breeding flower start date is 2026-05-24. Only a current reading is available and it exactly repeats the same wet value again: 71.92°F / 83.28% RH / 0.45 kPa with a 66.57°F dew point. The overview is tent-level only and does not resolve individual sex sites. Verify sensor freshness/exposure while checking watering timing, pot weight, fan exposure, air exchange, and R5 sex sites. Track A active plants are R1/R2/R4 confirmed male candidates plus R5 on sex watch; R3 was confirmed female and culled on 2026-06-04.
 
 **Breeding propagation is active** — clones from all four current plants were taken 2026-05-02 and are under a humidity dome; they were perking with 1 visible rooted clone as of 2026-05-05. Track A regulars flipped to 12/12 on 2026-05-24 for sexing and pollen production. Seven regular seeds germinated, two died during transplant to coco coir, and R3 was culled after female confirmation, leaving four active Track A plants. A 4-inch AC Infinity filtration kit has been selected for the breeding/male isolation tent, and Shelly Plus Plug US is the selected permanent controller for drip-assist pump safety. See [Track A pollen run](grows/breeding-track-a-2026-04-28/README.md), [breeding/cloning.md](breeding/cloning.md), [breeding/timeline.md](breeding/timeline.md), and [breeding/isolation.md](breeding/isolation.md).
 
-**Reservoir feed checked 2026-05-17 evening** — pH 5.8 / EC 1.4, which is in the early/mid-flower target. Reservoir-height telemetry shows active drawdown over the last several days; do not change the whole reservoir mix unless additional tray samples show a shared pH problem.
+**Reservoir reset 2026-06-10 20:00 MDT after high EC** — the Autopot reservoir EC was found well over 2.0 mS/cm, so the entire reservoir was flushed/replaced with plain Denver tap water adjusted to pH 5.8 and EC ~0.3. Let the plants drink plain water for roughly 24 hours, then rebuild feed to about EC 1.2 around 2026-06-11 20:00 MDT if posture and tray cycling remain acceptable.
 
 **Breeding program launched 2026-04-26; narrowed 2026-05-02** — Main goal is stabilizing a dark-purple, sativa-leaning SBxBS01 expression through F2 creation, progeny-tested F3/F4+ family selection, and eventual validated feminized seed production (>90% on-target females). See [breeding/README.md](breeding/README.md), [stabilization strategy](breeding/stabilization-strategy.md), [feminized production](breeding/feminized-production.md), and [decision 2026-05-02](decisions/2026-05-02-purple-stabilization-strategy.md).
 
@@ -54,10 +54,10 @@ updated: 2026-06-10
 
 | Plant | Flower | Purple | Priority | Status |
 |-------|--------|--------|----------|--------|
-| Plant A | Day 38 | ✅ Confirmed genetic | 🔴 Primary | Mostly fan-blocked view; visible material upright; rough moisture stable near 50.69% after watched Autopot rewet — confirm tray cycling and leaf posture |
-| Plant B | Day 38 | ❌ None | 🟡 Secondary | Active flower clusters visible; moisture back high near 96.00% after yesterday's drier move — verify tray/media/probe by hand |
-| Plant C | Day 38 | ⚠️ Stress-induced only | 🟡 Secondary | Active wall-side flower clusters visible; moisture 91.85% remains high/flat — root-zone/airflow watch |
-| Plant D | Day 38 | ✅ Confirmed genetic | 🔴 Primary | Strong purple flower tops visible; moisture low near 41.74% — verify media/tray/probe by hand |
+| Plant A | Day 38 | ✅ Confirmed genetic | 🔴 Primary | Mostly fan-blocked view; visible material upright; RS485 substrate moisture is canonical after cutover — confirm tray cycling and leaf posture |
+| Plant B | Day 38 | ❌ None | 🟡 Secondary | Active flower clusters visible; no current moisture probe after capacitive retirement — verify tray/media by hand |
+| Plant C | Day 38 | ⚠️ Stress-induced only | 🟡 Secondary | Active wall-side flower clusters visible; no current moisture probe after capacitive retirement — keep root-zone/airflow watch |
+| Plant D | Day 38 | ✅ Confirmed genetic | 🔴 Primary | Strong purple flower tops visible; no current moisture probe after capacitive retirement — verify media/tray by hand |
 
 ## Breeding Track A Plant Status
 
@@ -82,19 +82,19 @@ updated: 2026-06-10
 | VPD (morning avg) | 1.41 kPa | 1.2–1.5 kPa | ✅ In range |
 | VPD (overnight avg) | 1.10 kPa | 1.2–1.5 kPa | ⚠️ Wet/low |
 | Breeding temp/VPD (now) | 71.92°F / 0.45 kPa | Flower Day 17 small-plant watch | 🔴 Current-only wet repeat; verify sensor freshness/exposure |
-| pH (reservoir) | - | 5.5–6.0 | Not captured |
-| EC (reservoir) | - | 1.2–1.4 late-flower taper | Not captured |
+| pH (reservoir) | 5.8 at 2026-06-10 20:00 MDT replacement | 5.5–6.0 | ✅ Corrected |
+| EC (reservoir) | Prior >2.0; new ~0.3 at 2026-06-10 20:00 MDT | 1.2–1.4 late-flower taper | 🟡 Temporary plain-water reset; rebuild to ~1.2 after ~24h |
 
 ## Active Action Items
 
 1. **Fix the split VPD profile** 🔴 — Main VPD is in range at 1.41 kPa morning, but now is dry/high at 1.62 kPa with fan at 80% while overnight remains wet/low at 1.10 kPa. Target dark-cycle clearing, fan programming, and airflow paths without adding broad lights-on dryness.
 2. **Inspect dense flower sites and preserve airflow lanes** 🔴 — Full photos show a crowded, flower-heavy late canopy with overexposed/obstructed wall-side views and a mostly fan-blocked Plant A view. Check inner/lower flower sites manually for stagnant air or moisture pockets.
-3. **Monitor Plant A after Autopot reconnection** 🔴 — A is stable near 50.69% by rough context after the watched rewet. Confirm tray fill/drawdown/refill behavior and leaf posture; do not top-flush again without new decline or repeated high-EC evidence.
-4. **Verify Plant B's returned high signal and Plant C's continued high/flat state** 🔴 — B is back near 96.00% after yesterday's drier move, while C remains high/flat near 91.85%. Verify tray/float behavior, standing water, media smell, and probe placement before restoring normal feed assumptions.
-5. **Hand-check Plant D today** 🟡 — D is low and drifting drier near 41.74%. Verify tray/media/probe conditions before changing irrigation assumptions.
+3. **Monitor Plant A after RS485 cutover and Autopot reconnection** 🔴 — A is now on direct RS485 substrate moisture, with post-cutover readings around 26.6%. Confirm tray fill/drawdown/refill behavior and leaf posture; do not top-flush again without new decline or repeated high-EC evidence.
+4. **Hand-check Plants B/C/D without relying on old capacitive moisture** 🔴 — B-D have no current trusted moisture probe after capacitive retirement. Verify tray/float behavior, standing water, media smell/weight, and plant posture directly before restoring normal feed assumptions.
+5. **Disconnect retired capacitive nodes** 🟡 — Old `plant-a-node` through `plant-d-node` are disabled/retired in DB/code and can be physically disconnected. Historical readings remain available; device status should stay clean.
 6. **Verify breeding sensor freshness and conditions directly** 🔴 — Breeding only has a current reading today, and it exactly repeats the same wet value again: 71.92°F / 83.28% RH / 0.45 kPa. Check sensor exposure/freshness, watering timing, pot weight, fan exposure, air exchange, and R5 sex sites directly.
 7. **Manage breeding propagation** 🔴 — A/B/C/D clones still need rooted backup confirmation. Track A is in sexing/pollen mode with R1/R2/R4 confirmed male candidates and R5 still on sex watch; R3 was confirmed female and culled 2026-06-04. Keep labels secure and use the male-evaluation rubric before pollen collection. The 4-inch AC Infinity filtration kit is selected for containment, and Shelly Plus Plug US is selected for unattended drip-assist pump safety. See [Track A pollen run](grows/breeding-track-a-2026-04-28/README.md), [breeding/timeline.md](breeding/timeline.md), [breeding/cloning.md](breeding/cloning.md), and [breeding/isolation.md](breeding/isolation.md).
-8. **Keep reservoir feed steady until pH data says otherwise** 🟡 — No reservoir pH/EC was captured today; do not adjust the whole reservoir based on Plant A unless other trays show the same low-pH pattern.
+8. **Run the high-EC reservoir correction** 🔴 — Reservoir EC was found well over 2.0 on 2026-06-10 evening, so the entire Autopot reservoir was replaced at 20:00 MDT with pH 5.8 / EC ~0.3 tap water. Let plants drink plain water for about 24 hours, then rebuild feed to roughly EC 1.2 around 2026-06-11 20:00 MDT if posture and tray cycling remain acceptable.
 9. **Investigate ThermoForge T3 control deliberately** 🟡 — Heater control must fail OFF; follow the filed UIS/passive-tap investigation before any direct-control replay.
 
 _Resolved 2026-04-28: "Govee H7140 backup arrival" — arrived._
@@ -145,10 +145,8 @@ _Resolved 2026-05-05 / clarified 2026-05-30 and 2026-06-04: "Pot Track A regular
 | Component | Status | Notes |
 |-----------|--------|-------|
 | **ESP32-C3 · fan+tent** (SHT45) | Online (2026-04-23, fw 0.2.0) | Retired Arduino Nano + BME280 2026-04-23. Combined fan-controller node drives the Cloudline fan + reads tent T/RH + exposes HTTP `POST/GET /fan`. See [hardware/ac-infinity-fan-control.md](hardware/ac-infinity-fan-control.md). |
-| **Plant-A ESP32-C3 node** | Online (2026-04-18, v2.0) | Overnight dropout 2026-04-22 resolved — full overnight data nominal |
-| **Plant-B ESP32-C3 node** | Online (2026-04-16) | v2.0 sensor; 192.168.1.243 |
-| **Plant-C ESP32-C3 node** | Online (2026-04-16) | v2.0 sensor; 192.168.1.117 |
-| **Plant-D ESP32-C3 node** | Online (2026-04-18, v2.0) | GPIO3 capacitive |
+| **Plant A RS485 substrate node** | Online (2026-06-10, fw 0.1.0-rs485-substrate) | `plant-a-substrate-node.local` / 192.168.1.40; canonical Plant A moisture plus substrate temp/EC/pH. Runs on RS485 board 12 V power with USB unplugged. See [hardware/rs485-substrate-sensors.md](hardware/rs485-substrate-sensors.md). |
+| **A-D capacitive ESP32-C3 plant nodes** | Retired/disabled 2026-06-11 | `plant-a-node` through `plant-d-node` and their `soil_moisture_raw` capabilities are disabled in active inventory. Safe to physically disconnect; no current plant moisture derives from them. |
 | **CO2 sensor** (MH-Z19B) | Planned | Not yet deployed |
 | **Reservoir level** (XKC-Y25-T12V) | Planned | Not yet deployed |
 | **Humidifier** | **GoveeLife H7142** (6 L cool-mist, 9 Manual-mode levels via Govee Public API v2) — deployed 2026-04-27 evening; first full day 2026-04-28. H7140 (3 L backup) arrived 2026-04-28. See [decisions/2026-04-27-h7142-deployed.md](decisions/2026-04-27-h7142-deployed.md) and [hardware/humidifier-control.md](hardware/humidifier-control.md). |

@@ -25,11 +25,12 @@ The observable end state is:
 - [x] (2026-06-10) Confirmed from Seeed docs and schematic inspection that normal USB power should not be tied to an externally fed XIAO 5V/VBUS rail during runtime; use 12V runtime power plus OTA/HTTP/DB observability instead.
 - [x] (2026-06-10) Authored this ExecPlan.
 - [x] (2026-06-10) Corrected sensor power by providing 5V to the RS485 sensor path and confirmed live ID `0x02` Modbus data over the current debug firmware. The hardware communication blocker is cleared; implementation can proceed to flashing WiFi/OTA firmware and testing live ingest.
-- [ ] Implement Milestone 1: add the database/device contract for the RS485 substrate node.
-- [ ] Implement Milestone 2: retire capacitive raw moisture as a current consumer path.
-- [ ] Implement Milestone 3: add dedicated RS485 substrate-node firmware with OTA and HTTP status.
-- [ ] Implement Milestone 4: flash, power from 12V, validate live data without USB serial, and cut Plant A over.
-- [ ] Implement Milestone 5: retire or disable the old capacitive moisture nodes after stable RS485 operation.
+- [x] (2026-06-10) Confirmed the board is currently in a safe programming state: powered from USB 5V with 12V/external 5V disconnected. Keep this topology through initial flashing, then unplug USB and cut over to the RS485 board's 12V-to-5V runtime power path for final validation.
+- [x] (2026-06-11) Implement Milestone 1: added the database/device contract for the RS485 substrate node. Migration `20260610183000_seed_plant_a_substrate_node.sql` now seeds `plant-a-substrate-node` and its four RS485 capabilities with typed `expected_wire_metric` and `freshness_required` metadata; ingest drift checks and metric freshness now read that DB-backed policy instead of treating `DEVICE_METRICS` as durable inventory for the RS485 node.
+- [x] (2026-06-11) Implement Milestone 2: retired capacitive raw moisture as a current consumer path. Shared product plant-moisture helpers now return only direct `soil_moisture_pct` readings for current plants; retained daily-report, voice, and gateway current sync consumers use that helper, and gateway no longer derives hosted `soil_moisture_pct` latest metrics or rollups from `soil_moisture_raw` plus `SensorCalibration`.
+- [x] (2026-06-11) Implement Milestone 3: added dedicated RS485 substrate-node firmware with OTA and HTTP status. `firmware/rs485_substrate_node` now builds USB and OTA environments for `plant-a-substrate-node`, reuses shared WiFi/OTA/ingest libraries, polls the SEN0604 at Modbus address `0x02`, posts the four RS485 metrics, exposes `/health` and `/status`, and emits Modbus diagnostics accepted by HWD ingest.
+- [x] (2026-06-10 MDT) Implement Milestone 4: flashed the RS485 substrate-node firmware, powered the board from the RS485 board's 12V runtime path with USB unplugged, validated LAN status plus fresh Postgres rows, and cut current Plant A moisture over to `plant-a-substrate-node` via migration `20260611120000_plant_a_moisture_cutover.sql`. The planned 30-minute side-by-side window was shortened by operator decision after four clean 5-minute samples; actual OTA upload was not exercised, but the OTA build target passes.
+- [ ] Implement Milestone 5: retire or disable the old capacitive moisture nodes and update the wiki after choosing the physical/operational retirement method. DB/code retirement is complete: migration `20260611143000_retire_capacitive_moisture_nodes.sql` disables old A-D capacitive devices and raw capabilities, and system status now lists the RS485 substrate node while filtering disabled devices. Remaining: physically disconnect the capacitive nodes and update wiki/operator notes.
 
 ## Surprises & Discoveries
 
@@ -56,6 +57,12 @@ The observable end state is:
 
 - Observation: `DEVICE_METRICS` is carrying mixed responsibilities that now overlap the scoped database model.
   Evidence: `device` and `capability` rows already own hardware identity, metric names, units, sources, and enabled state. `DEVICE_METRICS` still declares emitted metrics and consumer-facing persisted metrics, and those flags are reused by ingest drift warnings, metric freshness, daily checkpoint code, and voice status code. This creates two editable sources for device/capability inventory.
+
+- Observation: Gateway latest moisture projection must preserve the linked device's public zone scope when direct plant moisture is appended outside the generic latest-metrics SQL.
+  Evidence: Milestone 2 review found the first helper-based gateway projection set `zone_id=NULL` for direct product moisture rows; the final implementation carries `Device.zone_id -> Zone.zone_id` through `ProductPlantMoistureReading`, and `apps/gateway/tests/test_sync.py` asserts Plant A direct moisture sync keeps `zone_id='plant-a'`.
+
+- Observation: The new firmware project needs an ignored local `src/secrets.h` before PlatformIO can compile, even though the committed contract is `src/secrets.h.example`.
+  Evidence: The first worker build failed until `firmware/rs485_substrate_node/src/secrets.h` was created from the existing local firmware secrets pattern; `.gitignore` already covers `firmware/*/*/secrets.h`.
 
 ## Decision Log
 
@@ -89,7 +96,15 @@ The observable end state is:
 
 ## Outcomes & Retrospective
 
-Not started. At completion, record the first stable no-USB runtime capture, the Plant A cutover timestamp, and whether pH/EC values are only stored for trend/reference or also shown in the dashboard.
+Milestone 1 is complete. The RS485 substrate node device/capability contract is present in Atlas migration `20260610183000_seed_plant_a_substrate_node.sql`, and focused HWD tests prove that `plant-a-substrate-node` ingest writes four capability-owned readings while updating the device heartbeat. The migration has been applied to the live local database after taking the required backup.
+
+Milestone 2 is complete. Current plant moisture has one source-owned semantic rule: direct `soil_moisture_pct` is product moisture, null or raw/non-percent capability links are unavailable, and historical `soil_moisture_raw` remains stored but is not calibrated into current product moisture. Daily-report snapshots, voice current status, and gateway latest metrics now share that rule. Gateway history rollups keep direct `soil_moisture_pct` through the canonical registry path and no longer retain the legacy raw-calibrated rollup adapter.
+
+Milestone 3 is complete. The dedicated RS485 substrate-node firmware builds for both USB and OTA targets and includes LAN runtime diagnostics so normal validation can proceed without USB serial after the initial flash. HWD ingest accepts the Modbus diagnostic fields the firmware emits.
+
+Milestone 4 is complete for live cutover. The board now runs from the RS485 board's 12V-to-5V runtime path with no USB serial attached, responds at `plant-a-substrate-node.local` / `192.168.1.40`, and posts all four RS485 metrics through HWD with HTTP 202. The final post-cutover `/status` capture showed firmware `0.1.0-rs485-substrate`, `last_modbus_status=ok`, raw frame `020308010A00D70090002D457D`, decoded values `soil_moisture_pct=26.6`, `substrate_temp_c=21.5`, `substrate_ec_us_cm=144`, `substrate_ph=4.5`, WiFi RSSI `-37 dBm`, reconnect count `0`, Modbus success count `44`, Modbus failure count `0`, and last Modbus response length `13`. Postgres showed all four metrics eight seconds old under `plant-a-substrate-node`. The cutover migration set current Plant A's moisture capability to the RS485 `soil_moisture_pct` capability and cleared current moisture capability links for Plants B-D. Pre-seed and pre-cutover backups are stored at `var/db-backups/dirt-2026-06-10-204406-pre-rs485-plant-a.dump` and `var/db-backups/dirt-2026-06-10-210934-pre-rs485-plant-a-cutover.dump`.
+
+Milestone 5 DB/code cleanup is complete. The old capacitive device history is preserved and no current plant points at those raw streams. Migration `20260611143000_retire_capacitive_moisture_nodes.sql` marks `plant-a-node`, `plant-b-node`, `plant-c-node`, and `plant-d-node` disabled and retired, and disables their `soil_moisture_raw` capabilities. `SystemStatusService` now shows `plant-a-substrate-node` in the dashboard hardware list and filters out disabled devices, so unplugging the capacitive nodes should not create stale/offline hardware noise. Physical disconnect and wiki updates remain pending.
 
 ## Context and Orientation
 
@@ -194,13 +209,13 @@ Firmware implementation notes:
 
 Milestone 4: Flash, validate no-USB runtime, and cut Plant A over.
 
-Before flashing, disconnect 12V/external 5V from the RS485 board. Use USB only as the temporary power/programming path:
+Current bench state is already the safe programming topology: the board is powered from USB 5V, and 12V/external 5V is disconnected. Keep it that way for the initial flash. Do not connect 12V while normal USB is plugged in.
 
     cd /home/akcom/code/dirt/firmware/rs485_substrate_node
     pio run -e plant-a-substrate
     pio run -e plant-a-substrate -t upload --upload-port /dev/ttyACM0
 
-After upload, unplug USB. Set the RS485 board for the correct 12V-to-5V runtime mode, connect 12V, and wait for WiFi. Validate without USB serial:
+After upload and initial firmware checks, unplug USB. Set the RS485 board for the correct 12V-to-5V runtime mode, connect 12V, and wait for WiFi. Validate without USB serial:
 
     ping -c 3 plant-a-substrate-node.local
     curl -fsS http://plant-a-substrate-node.local/health
@@ -432,14 +447,169 @@ Live capture after providing 5V sensor power on 2026-06-10:
     [address] value=2
     [old-address-check] no response
 
-This confirms the sensor is powered and responding at ID `0x02`. The next implementation pass can flash the WiFi/OTA firmware and test live HTTP status plus HWD ingest.
+This confirmed the sensor was powered and responding at ID `0x02` before the dedicated WiFi firmware was implemented.
 
-Record future evidence here as milestones complete:
+Milestone 1 validation on 2026-06-11:
 
-- First successful `/status` response:
-- First successful Postgres rows:
-- Plant A cutover migration filename:
-- OTA validation transcript:
+    uv run pytest apps/hwd/tests/test_ingest_derivation.py apps/hwd/tests/test_ingest_api.py -q
+    38 passed in 11.27s
+
+    uv run ruff check apps/shared/src/dirt_shared/services/readings.py apps/shared/src/dirt_shared/sensor_contract.py apps/hwd/src/dirt_hwd/api/ingest.py apps/hwd/tests/test_ingest_derivation.py apps/hwd/tests/test_ingest_api.py
+    All checks passed!
+
+    set -a; source .env; set +a; atlas migrate status --env local
+    Migration Status: PENDING
+      -- Current Version: 20260603120000
+      -- Next Version:    20260610183000
+      -- Executed Files:  36
+      -- Pending Files:   1
+
+    set -a; source .env; set +a; atlas migrate apply --env local --dry-run
+    1 migration, 2 sql statements
+
+    uv run pytest apps/tests/invariants/ -q
+    41 passed in 3.39s
+
+Milestone 2 validation on 2026-06-11:
+
+    uv run pytest apps/shared/tests/test_daily_sensors.py apps/voice/tests/test_sensor_tools.py apps/gateway/tests/test_sync.py apps/hwd/tests/test_ingest_derivation.py -q
+    52 passed in 26.57s
+
+    uv run ruff check apps/shared/src/dirt_shared/services/readings.py apps/shared/src/dirt_shared/services/daily_sensors.py apps/voice/src/dirt_voice/tools/sensors.py apps/gateway/src/dirt_gateway/local.py
+    All checks passed!
+
+    git diff --check
+
+    uv run pytest apps/tests/invariants/ -q
+    41 passed in 3.33s
+
+Milestone 3 validation on 2026-06-11:
+
+    cd firmware/rs485_substrate_node
+    pio run -e plant-a-substrate
+    plant-a-substrate SUCCESS
+
+    pio run -e plant-a-substrate-ota
+    plant-a-substrate-ota SUCCESS
+
+    uv run pytest apps/hwd/tests/test_ingest_api.py::test_ingest_stores_device_diagnostics apps/hwd/tests/test_ingest_api.py::test_ingest_stores_substrate_node_modbus_diagnostics apps/hwd/tests/test_ingest_properties.py -q
+    6 passed in 2.39s
+
+    uv run pytest apps/hwd/tests/test_ingest_derivation.py apps/hwd/tests/test_ingest_api.py -q
+    39 passed in 7.30s
+
+    uv run ruff check apps/hwd/src/dirt_hwd/api/ingest.py apps/hwd/tests/test_ingest_api.py apps/hwd/tests/test_ingest_properties.py
+    All checks passed!
+
+    git diff --check
+
+    uv run pytest apps/tests/invariants/ -q
+    41 passed in 3.42s
+
+Milestone 4 validation on 2026-06-10 evening MDT:
+
+    set -a; source .env; set +a
+    PGPASSWORD=$DIRT_PG_PASSWORD pg_dump -h 127.0.0.1 -U dirt -d dirt -Fc --compress=zstd:level=6 -f var/db-backups/dirt-2026-06-10-204406-pre-rs485-plant-a.dump
+
+    atlas migrate apply --env local
+    Current Version: 20260610183000
+
+    cd firmware/rs485_substrate_node
+    pio run -e plant-a-substrate -t upload --upload-port /dev/ttyACM0
+    plant-a-substrate SUCCESS
+
+    ping -c 3 plant-a-substrate-node.local
+    3 packets transmitted, 3 received, 0% packet loss
+
+    curl -fsS http://plant-a-substrate-node.local/status | jq '{last_modbus_status,last_ingest_status,latest_sample,diagnostics:.diagnostics}'
+    {
+      "last_modbus_status": "ok",
+      "last_ingest_status": {"code": 202, "ok_count": 3, "fail_count": 3},
+      "latest_sample": {"soil_moisture_pct": 26.5, "substrate_temp_c": 21.5, "substrate_ec_us_cm": 143, "substrate_ph": 4.3, "age_ms": 785},
+      "diagnostics": {"modbus_success_count": 6, "modbus_failure_count": 0, "last_modbus_response_len": 13, "last_ingest_code": 202}
+    }
+
+    SELECT d.device_id, d.ip, d.firmware_version, d.last_seen, c.capability_id, sr.metric, sr.value, sr.ts
+    FROM sensorreading sr
+    JOIN capability c ON c.id = sr.capability_id
+    JOIN device d ON d.id = c.device_id
+    WHERE d.device_id = 'plant-a-substrate-node'
+    ORDER BY sr.ts DESC
+    LIMIT 12;
+    -- Fresh rows observed for soil_moisture_pct=26.5, substrate_temp_c=21.5, substrate_ec_us_cm=143, substrate_ph=4.3 at 2026-06-10 20:48:45 MDT.
+
+12V runtime and cutover evidence:
+
+    # User moved the board to the 12V runtime path with USB unplugged.
+    ping -c 3 plant-a-substrate-node.local
+    3 packets transmitted, 3 received, 0% packet loss
+
+    curl -fsS http://plant-a-substrate-node.local/health
+    {"ok":true,"modbus":"ok","ingest_code":202}
+
+    # Shortened side-by-side monitor by operator decision after four clean 5-minute samples:
+    # sample 0 20:52:44 MDT: rows_35m=24, all four metrics, modbus_failure_count=0
+    # sample 1 20:57:44 MDT: rows_35m=64, ingest_ok_count=12, modbus_failure_count=0
+    # sample 2 21:02:45 MDT: rows_35m=104, ingest_ok_count=22, modbus_failure_count=0
+    # sample 3 21:07:45 MDT: rows_35m=144, ingest_ok_count=32, modbus_failure_count=0
+
+    PGPASSWORD=$DIRT_PG_PASSWORD pg_dump -h 127.0.0.1 -U dirt -d dirt -Fc --compress=zstd:level=6 -f var/db-backups/dirt-2026-06-10-210934-pre-rs485-plant-a-cutover.dump
+    atlas migrate apply --env local
+    Current Version: 20260611120000
+
+    atlas migrate status --env local
+    Migration Status: OK
+      -- Current Version: 20260611120000
+      -- Pending Files:   0
+
+    SELECT p.plant_id, c.capability_id, c.metric_name, d.device_id
+    FROM plant p ...
+    -- a -> soil_moisture_pct / soil_moisture_pct / plant-a-substrate-node
+    -- b, c, d -> NULL moisture capability
+
+    curl -fsS http://plant-a-substrate-node.local/status | jq .
+    {
+      "firmware_version": "0.1.0-rs485-substrate",
+      "latest_sample": {"soil_moisture_pct": 26.6, "substrate_temp_c": 21.5, "substrate_ec_us_cm": 144, "substrate_ph": 4.5, "age_ms": 8717},
+      "latest_raw_modbus_frame_hex": "020308010A00D70090002D457D",
+      "last_modbus_status": "ok",
+      "last_ingest_status": {"code": 202, "ok_count": 43, "fail_count": 1},
+      "wifi": {"connected": true, "ip": "192.168.1.40", "rssi_dbm": -37, "reconnect_count": 0, "driver_reset_count": 0},
+      "diagnostics": {"boot_count": 2, "modbus_success_count": 44, "modbus_failure_count": 0, "last_modbus_response_len": 13}
+    }
+
+    SELECT capability_id, metric, value, ts, round(extract(epoch from (now() - ts))) AS age_seconds
+    FROM latest_rs485_rows;
+    -- soil_moisture_pct=26.6, substrate_ec_us_cm=144, substrate_ph=4.5, substrate_temp_c=21.5; all four rows age_seconds=8.
+
+Final software validation:
+
+    uv run pytest apps/hwd/tests/test_ingest_derivation.py apps/hwd/tests/test_ingest_api.py apps/shared/tests/test_daily_sensors.py apps/voice/tests/test_sensor_tools.py apps/gateway/tests/test_sync.py -q
+    78 passed in 32.38s
+
+    uv run pytest apps/tests/invariants/ -q
+    41 passed in 3.66s
+
+    uv run ruff check apps/shared/src/dirt_shared/services/readings.py apps/shared/src/dirt_shared/services/daily_sensors.py apps/shared/src/dirt_shared/sensor_contract.py apps/shared/src/dirt_shared/config.py apps/hwd/src/dirt_hwd/api/ingest.py apps/hwd/tests/test_ingest_derivation.py apps/hwd/tests/test_ingest_api.py apps/shared/tests/test_daily_sensors.py apps/voice/src/dirt_voice/tools/sensors.py apps/voice/tests/test_sensor_tools.py apps/gateway/src/dirt_gateway/local.py apps/gateway/tests/test_sync.py
+    All checks passed!
+
+    cd firmware/rs485_substrate_node
+    pio run -e plant-a-substrate
+    plant-a-substrate SUCCESS
+
+    pio run -e plant-a-substrate-ota
+    plant-a-substrate-ota SUCCESS
+
+    cd firmware && pio test -e native
+    NotPlatformIOProjectError: `firmware/` is not a PlatformIO project, and no firmware project currently defines a native test environment.
+
+Recorded evidence:
+
+- First successful `/status` response: 2026-06-10 evening MDT over USB programming power; `last_modbus_status=ok`, frame `020308010900D7008F002BC7B9`, decoded moisture `26.5%`, temp `21.5C`, EC `143 us/cm`, pH `4.3`.
+- First successful Postgres rows: 2026-06-10 20:48:15 and 20:48:45 MDT, four rows per post for `soil_moisture_pct`, `substrate_temp_c`, `substrate_ec_us_cm`, and `substrate_ph` under `plant-a-substrate-node`.
+- First no-USB 12V runtime validation: 2026-06-10 evening MDT; `/health` returned `{"ok":true,"modbus":"ok","ingest_code":202}` and `/status` showed WiFi RSSI around `-37 dBm`, Modbus failures `0`, and HTTP ingest `202`.
+- Plant A cutover migration filename: `migrations/20260611120000_plant_a_moisture_cutover.sql`.
+- OTA validation transcript: OTA build target succeeds. Actual OTA upload was not run after the user accepted the shortened hardware validation window.
 
 ## Interfaces and Dependencies
 
@@ -494,3 +664,9 @@ External hardware:
 - 2026-06-10: Changed the old Plant A capacitive-node retirement gate from one full light/dark or irrigation-relevant interval to a more aggressive 30-minute stable RS485 ingest window.
 - 2026-06-10: Refined the architecture plan so DB-backed device/capability identity plus `expected_wire_metric`/`freshness_required` policy replaces `DEVICE_METRICS` as durable inventory; voice and daily checkpoint policy should be deleted with those agents or kept consumer-local, not promoted into schema.
 - 2026-06-10: Simplified the moisture architecture by retiring capacitive `soil_moisture_raw` as a current product path; current plant moisture is now direct `soil_moisture_pct` or unavailable.
+- 2026-06-10: Clarified flashing topology: the board is already USB-5V powered with 12V disconnected for programming; 12V runtime power is connected only after USB is unplugged.
+- 2026-06-11: Completed Milestone 1 software contract work. Added pending Atlas seed migration for `plant-a-substrate-node`, typed capability metadata helpers, DB-backed expected-wire and freshness-required queries, ingest/freshness tests, and observability wording for the new freshness source.
+- 2026-06-11: Completed Milestone 2 current-moisture cleanup. Added shared direct-percent plant moisture helpers, updated daily/voice/gateway consumers, removed the gateway raw-calibrated moisture rollup adapter, and preserved zone scope for direct moisture latest sync.
+- 2026-06-11: Completed Milestone 3 firmware implementation. Added `firmware/rs485_substrate_node` with USB/OTA PlatformIO environments, Modbus CRC/decode/posting, HTTP `/health` and `/status`, and HWD Modbus diagnostics DTO/test coverage.
+- 2026-06-10 evening MDT: Started Milestone 4. Applied the RS485 seed migration after backup, flashed the node over USB, confirmed WiFi/HTTP/Modbus/ingest/Postgres while still in the programming setup, and paused for the required physical no-USB 12V runtime power switch before continuing validation.
+- 2026-06-10 evening MDT: Completed Milestone 5 DB/code retirement cleanup. Applied `20260611143000_retire_capacitive_moisture_nodes.sql` after backup `var/db-backups/dirt-2026-06-10-220521-pre-capacitive-retirement.dump`; old A-D capacitive devices and raw capabilities are disabled/retired, and system status now filters disabled devices while showing `plant-a-substrate-node`.

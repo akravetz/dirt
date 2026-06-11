@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/coco-coir.md, wiki/concepts/lst.md, wiki/environment/nutrients.md]
 created: 2026-04-06
-updated: 2026-06-10
+updated: 2026-06-11
 ---
 
 # Plant C
@@ -19,7 +19,7 @@ updated: 2026-06-10
 
 ## Current State
 
-Day 88 / Flower Day 38: Wall-side flower clusters remain upright with fresh pistils and dense surrounding foliage, but C is still high/flat near 91.85% with little useful dryback. Keep root-zone and interior-airflow checks active before treating shaded leaf color as a feed-strength issue. See [2026-06-10](../../../daily/2026-06-10.md).
+Day 88 / Flower Day 38: Wall-side flower clusters remain upright with fresh pistils and dense surrounding foliage. The old capacitive moisture stream is retired from current operations, so C has no trusted current moisture probe until a replacement is installed. Whole-reservoir EC was found high on 2026-06-10 evening and reset to pH 5.8 / EC ~0.3 plain water; keep root-zone and interior-airflow checks active through the ~24h correction. See [2026-06-10](../../../daily/2026-06-10.md).
 
 ## Timeline
 
@@ -87,3 +87,4 @@ Day 88 / Flower Day 38: Wall-side flower clusters remain upright with fresh pist
 - 2026-06-08 — [Day 86 / Flower Day 36: upright wall-side flower clusters; moisture ~92.0% remains saturated/flat, keep root-zone/airflow watch](../../../daily/2026-06-08.md)
 - 2026-06-09 — [Day 87 / Flower Day 37: upright wall-side flower clusters; moisture ~91.6% remains high/flat, keep root-zone/airflow watch](../../../daily/2026-06-09.md)
 - 2026-06-10 — [Day 88 / Flower Day 38: upright wall-side flower clusters; moisture ~91.9% remains high/flat, keep root-zone/airflow watch](../../../daily/2026-06-10.md)
+- 2026-06-10 evening — [Whole Autopot reservoir EC found >2.0; reservoir reset to pH 5.8 / EC ~0.3 plain water for ~24h correction](../../../daily/2026-06-10.md)

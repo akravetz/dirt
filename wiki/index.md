@@ -1,7 +1,7 @@
 ---
 title: Index
 type: index
-updated: 2026-06-10
+updated: 2026-06-11
 ---
 
 # Grow Wiki Index
@@ -21,10 +21,10 @@ updated: 2026-06-10
 - [Track A pollen run](grows/breeding-track-a-2026-04-28/README.md) — Current breeding tent male sexing and pollen-collection run; database `growrun.grow_run_id = breeding-track-a-2026-04-28`
 
 ## Current Plants
-- [Plant A](grows/main-2026-03-15/plants/plant-a.md) — 🔴 Primary keeper; Flower Day 38; mostly fan-blocked view; visible material upright; moisture stable near 50.69% after watched Autopot rewet — tray-cycling check active
-- [Plant B](grows/main-2026-03-15/plants/plant-b.md) — 🟡 Secondary; Flower Day 38; active flower clusters visible; moisture back high near 96.00% after yesterday's drier move — verify tray/media/probe by hand
-- [Plant C](grows/main-2026-03-15/plants/plant-c.md) — 🟡 Secondary; Flower Day 38; active wall-side flowers visible; moisture 91.85% remains high/flat — root-zone/airflow watch
-- [Plant D](grows/main-2026-03-15/plants/plant-d.md) — 🔴 Primary keeper; Flower Day 38; strong purple tops; moisture low near 41.74% — verify by hand
+- [Plant A](grows/main-2026-03-15/plants/plant-a.md) — 🔴 Primary keeper; Flower Day 38; mostly fan-blocked view; visible material upright; RS485 substrate moisture is canonical after cutover
+- [Plant B](grows/main-2026-03-15/plants/plant-b.md) — 🟡 Secondary; Flower Day 38; active flower clusters visible; no current trusted moisture probe after capacitive retirement
+- [Plant C](grows/main-2026-03-15/plants/plant-c.md) — 🟡 Secondary; Flower Day 38; active wall-side flowers visible; no current trusted moisture probe after capacitive retirement
+- [Plant D](grows/main-2026-03-15/plants/plant-d.md) — 🔴 Primary keeper; Flower Day 38; strong purple tops; no current trusted moisture probe after capacitive retirement
 - [R1](grows/breeding-track-a-2026-04-28/plants/plant-r1.md) — Track A pollen run; confirmed male; repeated current-only wet sensor keeps pot-weight, airflow, sensor, and male-evaluation checks active
 - [R2](grows/breeding-track-a-2026-04-28/plants/plant-r2.md) — Track A pollen run; confirmed male; repeated current-only wet sensor keeps pot-weight, fan-exposure, sensor, and male-evaluation checks active
 - [R3](grows/breeding-track-a-2026-04-28/plants/plant-r3.md) — Track A pollen run; confirmed female and culled 2026-06-04
@@ -96,17 +96,17 @@ updated: 2026-06-10
 - [2026-06-07](daily/2026-06-07.md) — Day 85 / Flower Day 35: full photo coverage; main canopy dense with upright purple flowers; lights-on VPD in range at 1.39 kPa while overnight remains wet/low; B/C pinned wet; Plant A watched Autopot rewet; breeding current-only wet sensor repeat
 - [2026-06-08](daily/2026-06-08.md) — Day 86 / Flower Day 36: full photo coverage; main canopy dense with upright purple flowers; current VPD slightly dry/high at 1.53 kPa while overnight remains wet/low; B/C pinned wet; Plant A stable after watched rewet; breeding current-only wet sensor repeat
 - [2026-06-09](daily/2026-06-09.md) — Day 87 / Flower Day 37: full photo coverage; main canopy dense with upright purple flowers; lights-on VPD in range while overnight worsened wet/low; Plant B moved sharply drier from pinned-high pattern; breeding current-only wet sensor repeat
-- [2026-06-10](daily/2026-06-10.md) — Day 88 / Flower Day 38: full photo coverage; main canopy dense with upright purple flowers; current VPD dry/high while overnight remains wet/low; Plant B returned high/pinned; breeding current-only wet sensor repeat
+- [2026-06-10](daily/2026-06-10.md) — Day 88 / Flower Day 38: full photo coverage; main canopy dense with upright purple flowers; current VPD dry/high while overnight remains wet/low; Plant B returned high/pinned; evening high-EC reservoir reset to pH 5.8 / EC ~0.3 plain water; breeding current-only wet sensor repeat
 
 ## Environment
 - [Temperature](environment/temperature.md) — Trend log; targets by phase; notable events
 - [Humidity](environment/humidity.md) — Trend log; Denver humidification notes
-- [Nutrients & pH](environment/nutrients.md) — Canna A+B protocol; pH management; incident log
+- [Nutrients & pH](environment/nutrients.md) — Canna A+B protocol; pH management; incident log; 2026-06-10 high-EC reservoir reset
 
 ## Hardware
-- [ESP32-C3 Per-Plant Nodes](hardware/esp32-plant-nodes.md) — Wireless soil moisture nodes (A/B/C/D); **all four live as of 2026-04-16** (A/D on v1.2 sensors, B/C on v2.0)
+- [ESP32-C3 Per-Plant Nodes](hardware/esp32-plant-nodes.md) — Retired capacitive soil-moisture nodes (A/B/C/D); disabled 2026-06-11 after Plant A RS485 cutover
 - [Soil Moisture Sensing Options](hardware/soil-moisture-sensing-options.md) — Comparison of capacitive probes, mid-tier analog sensors, SDI-12 options, TEROS 10, TEROS 12, and starter BOM sketches for reusable SDI-12 integration.
-- [RS485 Substrate Sensors](hardware/rs485-substrate-sensors.md) — XIAO ESP32C3 + Seeed RS485 breakout bring-up for DFRobot/ComWinTop Modbus substrate probes; wiring, first SEN0604 readings, M12 box ports, and calibration plan.
+- [RS485 Substrate Sensors](hardware/rs485-substrate-sensors.md) — Live Plant A RS485 substrate node plus XIAO ESP32C3 + Seeed RS485 breakout wiring, runtime status, M12 box ports, and calibration plan.
 - [RS485 Substrate Sensor Calibration](hardware/rs485-substrate-sensor-calibration.md) — SEN0604 calibration log and serial capture procedure for pH/EC standards.
 - [SDI-12 Substrate Sensors](hardware/sdi-12-substrate-sensors.md) — Reusable SDI-12 bus setup notes, USB vs ESP32/WiFi BOM sketches, and TBSMP03/TEROS 12 deep dives.
 - [Humidifier Control](hardware/humidifier-control.md) — **GoveeLife H7142** (6 L cool-mist, 9 Manual-mode levels via Govee Public API v2) driven by a host-side PI controller + 9-bucket dispatch quantizer on tent SHT45-derived VPD. In service since 2026-04-27 (replaced Raydrop+Kasa).

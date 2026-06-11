@@ -4,16 +4,43 @@ type: hardware
 sources: []
 related: [wiki/hardware/soil-moisture-sensing-options.md, wiki/hardware/esp32-plant-nodes.md, wiki/hardware/project-box-enclosures.md]
 created: 2026-06-09
-updated: 2026-06-09
+updated: 2026-06-11
 ---
 
 # RS485 Substrate Sensors
 
-Status: DFRobot SEN0604 interim sensor validated over RS485/Modbus on 2026-06-09 while waiting for the ComWinTop probes. Treat moisture, EC, and pH as experimental until cross-checked against hand measurements and calibration data.
+Status: Plant A production interim substrate node is live as of 2026-06-10 evening MDT. DFRobot SEN0604 is reading over RS485/Modbus at address `0x02`, and `plant-a-substrate-node` is the canonical current Plant A moisture source in Dirt. Treat moisture as the operational direct-percent signal; treat EC and pH as experimental trend/reference values until cross-checked against hand measurements and calibration data.
+
+## Production Cutover
+
+Plant A now uses the dedicated RS485 substrate node:
+
+```text
+Device ID: plant-a-substrate-node
+Hostname: plant-a-substrate-node.local
+IP observed at cutover: 192.168.1.40
+Firmware: 0.1.0-rs485-substrate
+Runtime power: 12 V into the Seeed RS485 expansion board, USB unplugged
+Status endpoint: http://plant-a-substrate-node.local/status
+Health endpoint: http://plant-a-substrate-node.local/health
+```
+
+Post-cutover validation on 2026-06-10 evening MDT showed `/health` returning `{"ok":true,"modbus":"ok","ingest_code":202}` and `/status` reporting Modbus OK, WiFi RSSI about `-37 dBm`, zero Modbus failures, and latest sample around `26.6%`, `21.5 deg C`, `144 us/cm`, pH `4.5`.
+
+Dirt database state after the cutover:
+
+- Plant A `moisture_capability_id` points at `plant-a-substrate-node:soil_moisture_pct`.
+- Plants B-D have no current moisture capability until trustworthy replacement probes exist.
+- Old capacitive devices `plant-a-node` through `plant-d-node` and their `soil_moisture_raw` capabilities are disabled/retired in active inventory.
+- Historical capacitive readings and calibrations remain available for audit/history.
+
+Operator note: it is safe to physically disconnect the old capacitive moisture nodes. The dashboard/device watchdog should not report them as offline after the retirement migration because disabled devices are filtered from system status.
 
 ## Current Bench Setup
 
-Hardware: Seeed Studio XIAO ESP32C3 on the Seeed XIAO RS485 breakout board, DFRobot SEN0604 RS485 4-in-1 soil moisture/temperature/pH/EC sensor, XIAO powered by USB. Set the breakout `5V OUT/IN` switch to `OUT` when powering the sensor from the breakout 5 V terminal.
+Hardware: Seeed Studio XIAO ESP32C3 on the Seeed XIAO RS485 breakout board, DFRobot SEN0604 RS485 4-in-1 soil moisture/temperature/pH/EC sensor. Production runtime is 12 V into the RS485 expansion board's power path with normal USB unplugged. The earlier USB-powered bench/debug topology is retained here only for reference.
+
+Set the breakout `5V OUT/IN` switch according to the actual power topology. Do not connect normal USB at the same time as an externally supplied 5 V/VBUS path.
 
 Wiring for the DFRobot SEN0604:
 
@@ -45,9 +72,9 @@ Observed board: `/dev/ttyACM0`, USB VID:PID `303A:1001`, serial `E8:F6:0A:14:A3:
 Firmware assumptions for SEN0604:
 
 ```text
-Modbus address: 0x01
+Modbus address: 0x02
 Serial: 9600 8N1
-Read command: 01 03 00 00 00 04 44 09
+Read command: 02 03 00 00 00 04 44 3A
 Registers:
   0x0000 moisture, x10 percent
   0x0001 temperature, x10 deg C

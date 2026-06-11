@@ -60,10 +60,10 @@ from dirt_shared.models import (
     GrowRun,
     MetricPresentation,
     Plant,
-    SensorCalibration,
     SensorReading,
     Site,
     Tent,
+    Zone,
 )
 from dirt_shared.models.enums import PlantStatus, PlantSticker, SensorSource
 from dirt_shared.services.commands import CommandService
@@ -639,29 +639,21 @@ async def _seed_history_rollup_readings(engine: AsyncEngine) -> set[str]:
         await session.flush()
         moisture_capability = Capability(
             device_id=moisture_device.id,
-            capability_id="soil_moisture_raw",
-            name="Soil Moisture Raw",
+            capability_id="soil_moisture_pct",
+            name="Soil Moisture",
             kind="measurement",
-            metric_name="soil_moisture_raw",
-            unit="raw",
+            metric_name="soil_moisture_pct",
+            unit="%",
             source="test",
         )
         session.add(moisture_capability)
         await session.flush()
-        session.add(
-            SensorCalibration(
-                capability_id=moisture_capability.id,
-                metric="soil_moisture_raw",
-                raw_low=1000.0,
-                raw_high=3000.0,
-            )
-        )
-        for index, value in enumerate([1000.0, 2000.0, 3000.0], start=1):
+        for index, value in enumerate([30.0, 40.0, 50.0], start=1):
             session.add(
                 SensorReading(
                     ts=FIXED_NOW - timedelta(minutes=index),
                     capability_id=moisture_capability.id,
-                    metric="soil_moisture_raw",
+                    metric="soil_moisture_pct",
                     value=value,
                     source=SensorSource.ESP32,
                 )
@@ -724,7 +716,7 @@ async def test_collect_rollups_filters_history_from_metric_registry(
     assert "temperature_c" not in metrics
     moisture_rollups = [item for item in rollups if item.metric == "soil_moisture_pct"]
     assert moisture_rollups
-    assert {item.capability_id for item in moisture_rollups} == {"soil_moisture_raw"}
+    assert {item.capability_id for item in moisture_rollups} == {"soil_moisture_pct"}
     assert {item.unit for item in moisture_rollups} == {"%"}
     dehumidifier_rollups = [
         item for item in rollups if item.metric == "dehumidifier_runtime_pct"
@@ -780,20 +772,14 @@ def test_canonical_rollup_projection_has_no_legacy_moisture_path() -> None:
     canonical_source = inspect.getsource(
         gateway_local.collect_canonical_history_rollups
     )
-    legacy_source = inspect.getsource(
-        gateway_local.collect_legacy_calibrated_soil_moisture_rollups
-    )
 
     assert "sensorcalibration" not in canonical_source
     assert "UNION ALL" not in canonical_source.upper()
     assert "soil_moisture_raw" not in canonical_source
     assert "soil_moisture_pct" not in canonical_source
-    assert "sensorcalibration" in legacy_source
-    assert "soil_moisture_raw" in legacy_source
-    assert "soil_moisture_pct" in legacy_source
 
 
-async def test_collect_metrics_derives_calibrated_soil_moisture_pct(
+async def test_collect_metrics_syncs_only_direct_plant_moisture_pct(
     app_engine: AsyncEngine,
 ) -> None:
     async with AsyncSession(app_engine) as session:
@@ -805,18 +791,45 @@ async def test_collect_metrics_derives_calibrated_soil_moisture_pct(
                 select(Tent).where(Tent.site_id == site_pk, Tent.tent_id == "main")
             )
         ).one()
-        device = Device(
+        plant_a_zone = (
+            await session.exec(
+                select(Zone).where(Zone.tent_id == tent.id, Zone.zone_id == "plant-a")
+            )
+        ).one()
+        direct_device = Device(
             site_id=site_pk,
             tent_id=tent.id,
-            device_id="test-moisture-node",
-            name="Test Moisture Node",
+            zone_id=plant_a_zone.id,
+            device_id="test-direct-moisture-node",
+            name="Test Direct Moisture Node",
             kind="moisture_node",
             controller="test",
         )
-        session.add(device)
+        session.add(direct_device)
         await session.flush()
-        capability = Capability(
-            device_id=device.id,
+        direct_capability = Capability(
+            device_id=direct_device.id,
+            capability_id="soil_moisture_pct",
+            name="Soil Moisture",
+            kind="measurement",
+            metric_name="soil_moisture_pct",
+            unit="%",
+            source="test",
+        )
+        session.add(direct_capability)
+        await session.flush()
+        raw_device = Device(
+            site_id=site_pk,
+            tent_id=tent.id,
+            device_id="test-raw-moisture-node",
+            name="Test Raw Moisture Node",
+            kind="moisture_node",
+            controller="test",
+        )
+        session.add(raw_device)
+        await session.flush()
+        raw_capability = Capability(
+            device_id=raw_device.id,
             capability_id="soil_moisture_raw",
             name="Soil Moisture Raw",
             kind="measurement",
@@ -824,37 +837,61 @@ async def test_collect_metrics_derives_calibrated_soil_moisture_pct(
             unit="raw",
             source="test",
         )
-        session.add(capability)
+        session.add(raw_capability)
         await session.flush()
-        session.add(
-            SensorCalibration(
-                capability_id=capability.id,
-                metric="soil_moisture_raw",
-                raw_low=1000.0,
-                raw_high=3000.0,
+        grow = (
+            await session.exec(
+                select(GrowRun)
+                .where(GrowRun.tent_id == tent.id)
+                .where(GrowRun.is_current.is_(True))
             )
-        )
+        ).one()
+        plant_a = (
+            await session.exec(
+                select(Plant)
+                .where(Plant.growrun_id == grow.id)
+                .where(Plant.plant_id == "a")
+            )
+        ).one()
+        plant_b = (
+            await session.exec(
+                select(Plant)
+                .where(Plant.growrun_id == grow.id)
+                .where(Plant.plant_id == "b")
+            )
+        ).one()
+        plant_c = (
+            await session.exec(
+                select(Plant)
+                .where(Plant.growrun_id == grow.id)
+                .where(Plant.plant_id == "c")
+            )
+        ).one()
+        plant_a.moisture_capability_id = direct_capability.id
+        plant_b.moisture_capability_id = raw_capability.id
+        plant_c.moisture_capability_id = None
+        session.add_all([plant_a, plant_b, plant_c])
         session.add_all(
             [
                 SensorReading(
                     ts=FIXED_NOW - timedelta(minutes=10),
-                    capability_id=capability.id,
-                    metric="soil_moisture_raw",
-                    value=1000.0,
+                    capability_id=direct_capability.id,
+                    metric="soil_moisture_pct",
+                    value=30.0,
                     source=SensorSource.ESP32,
                 ),
                 SensorReading(
                     ts=FIXED_NOW - timedelta(minutes=5),
-                    capability_id=capability.id,
-                    metric="soil_moisture_raw",
-                    value=2000.0,
+                    capability_id=direct_capability.id,
+                    metric="soil_moisture_pct",
+                    value=45.0,
                     source=SensorSource.ESP32,
                 ),
                 SensorReading(
                     ts=FIXED_NOW - timedelta(minutes=1),
-                    capability_id=capability.id,
+                    capability_id=raw_capability.id,
                     metric="soil_moisture_raw",
-                    value=3000.0,
+                    value=1000.0,
                     source=SensorSource.ESP32,
                 ),
             ]
@@ -868,21 +905,25 @@ async def test_collect_metrics_derives_calibrated_soil_moisture_pct(
     latest_pct = [
         item
         for item in latest.metrics
-        if item.device_id == "test-moisture-node" and item.metric == "soil_moisture_pct"
+        if item.metric == "soil_moisture_pct"
+        and item.device_id in {"test-direct-moisture-node", "test-raw-moisture-node"}
     ]
     rollup_pct = [
         item
         for item in rollups.rollups
-        if item.device_id == "test-moisture-node" and item.metric == "soil_moisture_pct"
+        if item.metric == "soil_moisture_pct"
+        and item.device_id in {"test-direct-moisture-node", "test-raw-moisture-node"}
     ]
     assert len(latest_pct) == 1
-    assert latest_pct[0].capability_id == "soil_moisture_raw"
-    assert latest_pct[0].value == 0.0
+    assert latest_pct[0].device_id == "test-direct-moisture-node"
+    assert latest_pct[0].zone_id == "plant-a"
+    assert latest_pct[0].capability_id == "soil_moisture_pct"
+    assert latest_pct[0].value == 45.0
     assert latest_pct[0].unit == "%"
     assert rollup_pct
+    assert {item.device_id for item in rollup_pct} == {"test-direct-moisture-node"}
+    assert {item.capability_id for item in rollup_pct} == {"soil_moisture_pct"}
     assert {item.unit for item in rollup_pct} == {"%"}
-    assert any(item.min_value == 0.0 for item in rollup_pct)
-    assert any(item.max_value == 100.0 for item in rollup_pct)
 
 
 async def test_collect_catalog_projects_current_grow_plants(

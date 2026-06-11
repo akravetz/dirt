@@ -44,6 +44,10 @@ from dirt_shared.models import (
 )
 from dirt_shared.models.enums import PlantStatus
 from dirt_shared.services.light_schedules import LightScheduleService
+from dirt_shared.services.readings import (
+    PRODUCT_PLANT_MOISTURE_METRIC,
+    get_latest_product_plant_moisture_readings,
+)
 from dirt_shared.services.scope_catalog import ScopeCatalogService
 from dirt_shared.services.snapshots import SnapshotsService, get_snapshot_path
 
@@ -167,6 +171,26 @@ class GatewayLocalServiceBundle:
                         stale_after_s=self._stale_after_s,
                     )
                 )
+            for reading in await get_latest_product_plant_moisture_readings(
+                session,
+                now=self._clock(),
+                site_id=site_id,
+                tent_id=None,
+            ):
+                metrics.append(
+                    LatestMetricItem(
+                        site_id=site_id,
+                        tent_id=reading.tent_id,
+                        zone_id=reading.zone_id,
+                        device_id=reading.device_id,
+                        capability_id=reading.capability_id,
+                        metric=PRODUCT_PLANT_MOISTURE_METRIC,
+                        value=float(reading.value),
+                        unit="%",
+                        source_updated_at=reading.timestamp,
+                        stale_after_s=self._stale_after_s,
+                    )
+                )
         return LatestMetricsRequest(site_id=site_id, metrics=metrics)
 
     async def collect_rollups(
@@ -189,15 +213,6 @@ class GatewayLocalServiceBundle:
                 )
                 rollups.extend(
                     await collect_dehumidifier_runtime_rollups(
-                        session,
-                        site_id=site_id,
-                        since=now - window,
-                        bucket=bucket,
-                        bucket_s=bucket_s,
-                    )
-                )
-                rollups.extend(
-                    await collect_legacy_calibrated_soil_moisture_rollups(
                         session,
                         site_id=site_id,
                         since=now - window,
@@ -422,103 +437,6 @@ ORDER BY bucket_start_at, t.tent_id, d.device_id, c.capability_id, c.metric_name
     )
 
 
-async def collect_legacy_calibrated_soil_moisture_rollups(
-    session: AsyncSession,
-    *,
-    site_id: str,
-    since: datetime,
-    bucket: str,
-    bucket_s: int,
-) -> list[RollupItem]:
-    sql = """
-SELECT
-  t.tent_id,
-  d.device_id,
-  c.capability_id,
-  mp.metric AS metric,
-  mp.unit,
-  date_bin(
-    make_interval(secs => :bucket_s),
-    sr.ts,
-    TIMESTAMPTZ '1970-01-01'
-  ) AS bucket_start_at,
-  round(
-    (
-      LEAST(
-        100.0,
-        GREATEST(
-          0.0,
-          100.0 * (sc.raw_high - max(sr.value)) / (sc.raw_high - sc.raw_low)
-        )
-      )
-    )::numeric,
-    4
-  )::double precision AS min_value,
-  round(
-    (
-      LEAST(
-        100.0,
-        GREATEST(
-          0.0,
-          100.0 * (sc.raw_high - avg(sr.value)) / (sc.raw_high - sc.raw_low)
-        )
-      )
-    )::numeric,
-    4
-  )::double precision AS avg_value,
-  round(
-    (
-      LEAST(
-        100.0,
-        GREATEST(
-          0.0,
-          100.0 * (sc.raw_high - min(sr.value)) / (sc.raw_high - sc.raw_low)
-        )
-      )
-    )::numeric,
-    4
-  )::double precision AS max_value,
-  count(*) AS sample_count
-FROM sensorreading sr
-JOIN capability c ON c.id = sr.capability_id
-JOIN sensorcalibration sc
-  ON sc.capability_id = c.id
- AND sc.metric = 'soil_moisture_raw'
- AND sc.raw_high > sc.raw_low
-JOIN metric_presentation mp
-  ON mp.metric = 'soil_moisture_pct'
- AND mp.history_enabled = true
-JOIN device d ON d.id = c.device_id
-JOIN site s ON s.id = d.site_id
-JOIN tent t ON t.id = d.tent_id
-WHERE s.site_id = :site_id
-  AND sr.ts >= :since
-  AND c.enabled = true
-  AND c.metric_name = 'soil_moisture_raw'
-  AND sr.metric = 'soil_moisture_raw'
-GROUP BY
-  t.tent_id,
-  d.device_id,
-  c.capability_id,
-  mp.metric,
-  mp.unit,
-  sc.raw_low,
-  sc.raw_high,
-  bucket_start_at
-ORDER BY bucket_start_at, t.tent_id, d.device_id, c.capability_id, mp.metric
-"""
-    result = await session.exec(
-        text(sql),
-        params={"site_id": site_id, "since": since, "bucket_s": bucket_s},
-    )
-    return _rollup_items_from_rows(
-        result.mappings().all(),
-        site_id=site_id,
-        bucket=bucket,
-        bucket_s=bucket_s,
-    )
-
-
 async def collect_dehumidifier_runtime_rollups(
     session: AsyncSession,
     *,
@@ -606,6 +524,7 @@ base AS (
   WHERE s.site_id = :site_id
     AND c.enabled = true
     AND c.metric_name IS NOT NULL
+    AND c.metric_name NOT IN ('soil_moisture_raw', 'soil_moisture_pct')
 )
 SELECT
   tent_id,
@@ -617,33 +536,6 @@ SELECT
   unit,
   source_updated_at
 FROM base
-UNION ALL
-SELECT
-  base.tent_id,
-  base.zone_id,
-  base.device_id,
-  base.capability_id,
-  'soil_moisture_pct' AS metric,
-  round(
-    (
-      LEAST(
-        100.0,
-        GREATEST(
-          0.0,
-          100.0 * (sc.raw_high - base.value) / (sc.raw_high - sc.raw_low)
-        )
-      )
-    )::numeric,
-    4
-  )::double precision AS value,
-  '%' AS unit,
-  base.source_updated_at
-FROM base
-JOIN device d ON d.device_id = base.device_id
-JOIN capability c ON c.device_id = d.id AND c.capability_id = base.capability_id
-JOIN sensorcalibration sc ON sc.capability_id = c.id AND sc.metric = base.metric
-WHERE base.metric = 'soil_moisture_raw'
-  AND sc.raw_high > sc.raw_low
 ORDER BY device_id, capability_id, metric
 """
 

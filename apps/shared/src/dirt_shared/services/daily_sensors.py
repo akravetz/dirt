@@ -7,10 +7,9 @@ Three responsibilities:
 2. **Aggregate windowed averages** for the prompt that goes to the synthesis
    sub-agent — overnight (00-06 MDT), morning (07-14 MDT), and the now
    reading.
-3. **Per-plant soil-moisture trend context** for the same three windows,
-   including raw readings and calibrated % when available. The daily synthesis
-   treats calibrated absolute values as a rough reference only; relative
-   movement is the more useful signal until probes are calibrated in-place.
+3. **Per-plant soil-moisture trend context** for the same three windows from
+   direct percent probes. Plants without a trusted direct percent capability are
+   omitted from current moisture context.
 
 All three are exposed through a :class:`SensorReader` whose constructor takes
 the SQLAlchemy engine and a clock. Tests inject a test pg engine + a frozen
@@ -32,23 +31,20 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.device import Capability, Device
-from dirt_shared.models.plant import Plant
-from dirt_shared.models.sensor_calibration import SensorCalibration
 from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.models.site import Site
 from dirt_shared.models.tent import Tent
 from dirt_shared.sensor_contract import persisted_capability_ids_for_device_id
 from dirt_shared.services.readings import (
-    compute_calibrated_pct,
-    get_sensor_calibration,
+    PRODUCT_PLANT_MOISTURE_METRIC,
+    get_supported_product_plant_moisture_capabilities,
 )
-from dirt_shared.services.scope import current_grow_run
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_REPORT_TENT_IDS = ("main", "breeding")
 DEFAULT_REQUIRED_TENT_IDS = ("main",)
-SOIL_METRIC = "soil_moisture_raw"
+SOIL_METRIC = PRODUCT_PLANT_MOISTURE_METRIC
 MDT = ZoneInfo("America/Denver")
 
 
@@ -79,7 +75,7 @@ class ValidationFailure:
     metric: str
     value: float | None
     age_s: float | None
-    reason: str  # "zero" | "raw_pinned_low" | "raw_pinned_high" | "stale" | "missing"
+    reason: str  # "zero" | "stale" | "missing"
 
 
 @dataclass(frozen=True)
@@ -135,10 +131,8 @@ class DailySensorSnapshot:
             },
             "plants": render(self.plants),
             "soil_moisture_note": (
-                "Soil-moisture absolute calibration is not trusted. Use raw and "
-                "calibrated values as rough context only; emphasize relative "
-                "movement between overnight, morning, and now. Flag only stale, "
-                "missing, pinned, or large directional changes."
+                "Soil moisture is reported only for plants with a trusted direct "
+                "percent probe. Plants without a direct percent source are omitted."
             ),
         }
 
@@ -154,14 +148,12 @@ def mdt_window_to_utc(
 
 
 class SensorReader:
-    def __init__(  # noqa: PLR0913 - scope knobs are part of this boundary.
+    def __init__(
         self,
         engine: AsyncEngine,
         *,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         max_age_s: int = 300,
-        sensor_min_raw: float = 30.0,
-        sensor_max_raw: float = 4000.0,
         report_tent_ids: Sequence[str] = DEFAULT_REPORT_TENT_IDS,
         required_tent_ids: Sequence[str] = DEFAULT_REQUIRED_TENT_IDS,
     ) -> None:
@@ -171,16 +163,10 @@ class SensorReader:
             clock: returns "now" — defaults to ``datetime.now(UTC)``.
                 Override in tests for deterministic window math.
             max_age_s: any reading older than this is "stale" for validation.
-            sensor_min_raw: plant raw moisture readings below this fail (probe
-                likely out of soil / unpowered).
-            sensor_max_raw: plant raw moisture readings above this fail (ADC
-                pinned at the rail / disconnected sensor).
         """
         self._engine = engine
         self._clock = clock
         self._max_age_s = max_age_s
-        self._min_raw = sensor_min_raw
-        self._max_raw = sensor_max_raw
         self._report_tent_ids = tuple(dict.fromkeys(report_tent_ids))
         self._required_tent_ids = tuple(dict.fromkeys(required_tent_ids))
         self._plant_requirements: list[SensorRequirement] | None = None
@@ -234,38 +220,19 @@ class SensorReader:
     ) -> list[SensorRequirement]:
         if self._plant_requirements is not None:
             return self._plant_requirements
-        grow = await current_grow_run(session)
-        if grow is None:
-            self._plant_requirements = []
-            return []
-        rows = (
-            await session.exec(
-                select(
-                    Plant.plant_id,
-                    Device.device_id,
-                    Capability.capability_id,
-                    Capability.metric_name,
-                    Capability.id,
-                )
-                .join(Capability, Capability.id == Plant.moisture_capability_id)
-                .join(Device, Device.id == Capability.device_id)
-                .where(Plant.growrun_id == grow.id)
-                .where(Plant.moisture_capability_id.is_not(None))
-                .where(Capability.enabled.is_(True))
-                .where(Device.enabled.is_(True))
-                .order_by(Plant.display_order, Plant.plant_id)
-            )
-        ).all()
+        capabilities = await get_supported_product_plant_moisture_capabilities(
+            session,
+            tent_id="main",
+        )
         self._plant_requirements = [
             SensorRequirement(
-                device_id=device_id,
-                capability_id=capability_id,
-                metric=metric_name,
-                subject=f"plant-{plant_id}",
-                pk=pk,
+                device_id=capability.device_id,
+                capability_id=capability.capability_id,
+                metric=SOIL_METRIC,
+                subject=f"plant-{capability.plant_id}",
+                pk=capability.capability_pk,
             )
-            for plant_id, device_id, capability_id, metric_name, pk in rows
-            if metric_name == SOIL_METRIC
+            for capability in capabilities
         ]
         return self._plant_requirements
 
@@ -299,8 +266,6 @@ class SensorReader:
 
         Rules:
           - Tent metric reads exactly 0.0 → impossible, sensor disconnected.
-          - Plant raw < ``sensor_min_raw`` → probe out of soil.
-          - Plant raw > ``sensor_max_raw`` → ADC pinned (broken sensor).
           - Any reading older than ``max_age_s`` → stale node.
           - Any expected reading missing → node never reported.
         """
@@ -355,26 +320,6 @@ class SensorReader:
                     )
                 )
                 continue
-            if r.value < self._min_raw:
-                failures.append(
-                    ValidationFailure(
-                        requirement.subject,
-                        requirement.metric,
-                        r.value,
-                        r.age_s,
-                        "raw_pinned_low",
-                    )
-                )
-            if r.value > self._max_raw:
-                failures.append(
-                    ValidationFailure(
-                        requirement.subject,
-                        requirement.metric,
-                        r.value,
-                        r.age_s,
-                        "raw_pinned_high",
-                    )
-                )
             if r.age_s > self._max_age_s:
                 failures.append(
                     ValidationFailure(
@@ -405,46 +350,6 @@ class SensorReader:
         if not values:
             return WindowAvg(avg=None, n=0)
         return WindowAvg(avg=mean(values), n=len(values))
-
-    async def _calibration(
-        self, requirement: SensorRequirement
-    ) -> SensorCalibration | None:
-        async with AsyncSession(self._engine) as session:
-            return await get_sensor_calibration(
-                session,
-                metric=requirement.metric,
-                capability_id=requirement.pk,
-            )
-
-    async def _avg_pct_in_window(
-        self,
-        requirement: SensorRequirement,
-        start: datetime,
-        end: datetime,
-        cal: SensorCalibration | None,
-    ) -> WindowAvg:
-        """Average calibrated soil-moisture % across the window."""
-        if cal is None:
-            return WindowAvg(avg=None, n=0)
-        async with AsyncSession(self._engine) as session:
-            result = await session.exec(
-                select(SensorReading.value)
-                .where(SensorReading.capability_id == requirement.pk)
-                .where(SensorReading.metric == requirement.metric)
-                .where(SensorReading.ts >= start)
-                .where(SensorReading.ts < end)
-            )
-            raws = list(result.all())
-        pcts = [
-            p
-            for p in (
-                compute_calibrated_pct(r, cal.raw_low, cal.raw_high) for r in raws
-            )
-            if p is not None
-        ]
-        if not pcts:
-            return WindowAvg(avg=None, n=0)
-        return WindowAvg(avg=mean(pcts), n=len(pcts))
 
     async def snapshot(self, target_date: date) -> DailySensorSnapshot:
         """Build the windowed snapshot for the daily report.
@@ -478,39 +383,24 @@ class SensorReader:
 
         plants: dict[str, dict[str, WindowAvg | float | None]] = {}
         for requirement in plant_requirements:
-            cal = await self._calibration(requirement)
             now_r = await self._latest_for_requirement(requirement)
-            now_pct: float | None = None
-            if now_r is not None and cal is not None:
-                now_pct = compute_calibrated_pct(now_r.value, cal.raw_low, cal.raw_high)
-            overnight_raw = await self._avg_in_window(requirement, *overnight)
-            morning_raw = await self._avg_in_window(requirement, *morning)
+            overnight_pct = await self._avg_in_window(requirement, *overnight)
+            morning_pct = await self._avg_in_window(requirement, *morning)
             plant_id = requirement.subject.removeprefix("plant-")
             plants[plant_id] = {
-                "overnight_raw": overnight_raw,
-                "morning_raw": morning_raw,
-                "now_raw": None if now_r is None else now_r.value,
-                "raw_delta_morning_to_now": (
-                    None
-                    if now_r is None or morning_raw.avg is None
-                    else now_r.value - morning_raw.avg
-                ),
-                "overnight_pct": await self._avg_pct_in_window(
-                    requirement, *overnight, cal
-                ),
-                "morning_pct": await self._avg_pct_in_window(
-                    requirement, *morning, cal
-                ),
-                "now_pct": now_pct,
+                "overnight_pct": overnight_pct,
+                "morning_pct": morning_pct,
+                "now_pct": None if now_r is None else now_r.value,
                 "pct_delta_morning_to_now": None,
             }
-            morning_pct = plants[plant_id]["morning_pct"]
             if (
                 isinstance(morning_pct, WindowAvg)
                 and morning_pct.avg is not None
-                and now_pct is not None
+                and now_r is not None
             ):
-                plants[plant_id]["pct_delta_morning_to_now"] = now_pct - morning_pct.avg
+                plants[plant_id]["pct_delta_morning_to_now"] = (
+                    now_r.value - morning_pct.avg
+                )
 
         return DailySensorSnapshot(
             date_mdt=target_date,

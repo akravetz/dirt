@@ -1235,3 +1235,16 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - **Plant C/D moisture checks:** C remains high/flat near 91.85%, and D remains low/drifting drier near 41.74%; manual tray/media/probe checks remain active.
 - **Breeding-tent watch:** Breeding is Flower Day 17. Only a current sensor reading is available and it exactly repeats the same wet value again, so verify sensor freshness/exposure while checking pot weight, airflow, watering timing, and R5 sex sites.
 - Updated: `daily/2026-06-10.md`, `plants/plant-{a,b,c,d}.md`, `grows/main-2026-03-15/README.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/humidity.md`, `environment/temperature.md`, `overview.md`, `index.md`.
+
+## [2026-06-10] query-filed | High-EC Autopot reservoir reset
+- User reported the Autopot reservoir EC was too high, well over 2.0 mS/cm, during evening service.
+- At 20:00 MDT, the entire reservoir was flushed/replaced with plain Denver tap water adjusted to pH 5.8 and measuring roughly EC 0.3.
+- Plan filed: let the plants drink plain pH 5.8 / EC ~0.3 water for roughly 24 hours, then rebuild nutrients to roughly EC 1.2 around 2026-06-11 20:00 MDT if plant posture and tray cycling remain acceptable.
+- Updated: `daily/2026-06-10.md`, `environment/nutrients.md`, `overview.md`, `grows/main-2026-03-15/README.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `index.md`.
+
+## [2026-06-11] query-filed | RS485 Plant A cutover and capacitive-node retirement
+- Plant A current moisture is now `plant-a-substrate-node` RS485 direct `soil_moisture_pct`; post-cutover validation showed `/health` OK, Modbus OK, ingest HTTP 202, and fresh Postgres rows for moisture, substrate temperature, EC, and pH.
+- Old capacitive nodes `plant-a-node` through `plant-d-node` and their `soil_moisture_raw` capabilities are disabled/retired in active inventory. Historical readings/calibrations remain available.
+- Plants B-D have no trusted current moisture probe until replacement probes exist; use hand checks, tray behavior, plant posture, media condition, and runoff/slurry evidence.
+- Operator note: physically disconnecting the old capacitive nodes is safe and should not create stale/offline system-status noise.
+- Updated: `hardware/rs485-substrate-sensors.md`, `hardware/rs485-substrate-sensor-calibration.md`, `hardware/esp32-plant-nodes.md`, `overview.md`, `grows/main-2026-03-15/README.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`.

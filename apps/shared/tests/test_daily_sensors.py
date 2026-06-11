@@ -15,8 +15,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.device import Capability, Device
 from dirt_shared.models.enums import SensorSource
-from dirt_shared.models.sensor_calibration import SensorCalibration
+from dirt_shared.models.grow_run import GrowRun
+from dirt_shared.models.plant import Plant
 from dirt_shared.models.sensor_reading import SensorReading
+from dirt_shared.models.site import Site
 from dirt_shared.services.daily_sensors import (
     SOIL_METRIC,
     SensorReader,
@@ -26,12 +28,6 @@ from dirt_shared.services.daily_sensors import (
 # Apr 19 2026: MDT is UTC-6.
 TEST_NOW = datetime(2026, 4, 19, 20, 30, 0, tzinfo=UTC)  # 14:30 MDT
 TEST_DATE = date(2026, 4, 19)
-PLANT_DEVICES = (
-    "plant-a-node",
-    "plant-b-node",
-    "plant-c-node",
-    "plant-d-node",
-)
 TENT_DEVICE = "fan-controller"
 BREEDING_TENT_DEVICE = "breeding-env-node"
 
@@ -62,7 +58,6 @@ async def _capability_ids(engine) -> dict[tuple[str, str], int]:
 async def _seed_readings(
     engine,
     rows: list[tuple[str, str, float, datetime, SensorSource]],
-    cals: list[tuple[str, str, float, float]] = (),
 ) -> None:
     """rows: (device_id, metric, value, ts, source)."""
     cap_ids = await _capability_ids(engine)
@@ -77,15 +72,84 @@ async def _seed_readings(
                     source=source,
                 )
             )
-        for device_id, metric, raw_low, raw_high in cals:
-            s.add(
-                SensorCalibration(
-                    capability_id=cap_ids[(device_id, metric)],
-                    metric=metric,
-                    raw_low=raw_low,
-                    raw_high=raw_high,
-                )
+        await s.commit()
+
+
+async def _set_plant_moisture_capability(
+    engine,
+    *,
+    plant_id: str,
+    device_id: str,
+    capability_id: str,
+    metric_name: str,
+    unit: str,
+) -> int:
+    async with AsyncSession(engine) as s:
+        site_pk = (await s.exec(select(Site.id).where(Site.site_id == "homebox"))).one()
+        grow = (
+            await s.exec(
+                select(GrowRun)
+                .where(GrowRun.site_id == site_pk)
+                .where(GrowRun.is_current.is_(True))
+                .limit(1)
             )
+        ).one()
+        device = Device(
+            site_id=site_pk,
+            tent_id=grow.tent_id,
+            device_id=device_id,
+            name=device_id,
+            kind="moisture_node",
+            controller="test",
+        )
+        s.add(device)
+        await s.flush()
+        capability = Capability(
+            device_id=device.id,
+            capability_id=capability_id,
+            name=capability_id,
+            kind="measurement",
+            metric_name=metric_name,
+            unit=unit,
+            source="test",
+        )
+        s.add(capability)
+        await s.flush()
+        assert capability.id is not None
+        capability_pk = capability.id
+        plant = (
+            await s.exec(
+                select(Plant)
+                .where(Plant.growrun_id == grow.id)
+                .where(Plant.plant_id == plant_id)
+            )
+        ).one()
+        plant.moisture_capability_id = capability.id
+        s.add(plant)
+        await s.commit()
+        return capability_pk
+
+
+async def _clear_plant_moisture_capability(engine, *, plant_id: str) -> None:
+    async with AsyncSession(engine) as s:
+        site_pk = (await s.exec(select(Site.id).where(Site.site_id == "homebox"))).one()
+        grow = (
+            await s.exec(
+                select(GrowRun)
+                .where(GrowRun.site_id == site_pk)
+                .where(GrowRun.is_current.is_(True))
+                .limit(1)
+            )
+        ).one()
+        plant = (
+            await s.exec(
+                select(Plant)
+                .where(Plant.growrun_id == grow.id)
+                .where(Plant.plant_id == plant_id)
+            )
+        ).one()
+        plant.moisture_capability_id = None
+        s.add(plant)
         await s.commit()
 
 
@@ -101,16 +165,15 @@ def _all_tent_metrics_fresh() -> list[tuple]:
     ]
 
 
-def _all_plants_fresh(value: float = 2500.0) -> list[tuple]:
+def _plant_a_moisture_fresh() -> tuple:
     fresh_ts = TEST_NOW - timedelta(seconds=10)
-    return [
-        (device_id, SOIL_METRIC, value, fresh_ts, SensorSource.ESP32)
-        for device_id in PLANT_DEVICES
-    ]
-
-
-def _plant_calibrations() -> list[tuple]:
-    return [(device_id, SOIL_METRIC, 1370.0, 3880.0) for device_id in PLANT_DEVICES]
+    return (
+        "plant-a-substrate-node",
+        SOIL_METRIC,
+        26.6,
+        fresh_ts,
+        SensorSource.ESP32,
+    )
 
 
 def test_mdt_window_to_utc_handles_offset():
@@ -127,8 +190,7 @@ def test_mdt_window_to_utc_handles_offset():
 async def test_validate_passes_on_clean_data(pg_engine):
     await _seed_readings(
         pg_engine,
-        _all_tent_metrics_fresh() + _all_plants_fresh(value=2500.0),
-        _plant_calibrations(),
+        [*_all_tent_metrics_fresh(), _plant_a_moisture_fresh()],
     )
     r = SensorReader(pg_engine, clock=_clock, max_age_s=300)
     assert await r.validate() == []
@@ -137,44 +199,69 @@ async def test_validate_passes_on_clean_data(pg_engine):
 async def test_validate_flags_zero_tent_value(pg_engine):
     rows = _all_tent_metrics_fresh()
     rows[1] = (TENT_DEVICE, "humidity_pct", 0.0, rows[1][3], SensorSource.ARDUINO)
-    await _seed_readings(pg_engine, rows + _all_plants_fresh())
+    await _seed_readings(pg_engine, rows)
     r = SensorReader(pg_engine, clock=_clock, max_age_s=300)
     failures = await r.validate()
     assert any(f.reason == "zero" and f.metric == "humidity_pct" for f in failures)
 
 
-async def test_validate_flags_pinned_plant_high(pg_engine):
-    plants = _all_plants_fresh()
-    plants[1] = (
-        "plant-b-node",
-        SOIL_METRIC,
-        4095.0,
-        plants[1][3],
-        SensorSource.ESP32,
+async def test_validate_flags_stale_direct_plant_moisture(pg_engine):
+    device_id = "test-plant-b-direct-moisture"
+    await _set_plant_moisture_capability(
+        pg_engine,
+        plant_id="b",
+        device_id=device_id,
+        capability_id="soil_moisture_pct",
+        metric_name=SOIL_METRIC,
+        unit="%",
     )
-    await _seed_readings(pg_engine, _all_tent_metrics_fresh() + plants)
-    r = SensorReader(pg_engine, clock=_clock, max_age_s=300, sensor_max_raw=4000.0)
+    await _seed_readings(
+        pg_engine,
+        [
+            *_all_tent_metrics_fresh(),
+            (
+                device_id,
+                SOIL_METRIC,
+                41.0,
+                TEST_NOW - timedelta(minutes=10),
+                SensorSource.ESP32,
+            ),
+        ],
+    )
+    r = SensorReader(pg_engine, clock=_clock, max_age_s=300)
     failures = await r.validate()
     assert any(
-        f.reason == "raw_pinned_high" and f.subject == "plant-b" for f in failures
+        f.reason == "stale" and f.subject == "plant-b" and f.metric == SOIL_METRIC
+        for f in failures
     )
 
 
-async def test_validate_flags_pinned_plant_low(pg_engine):
-    plants = _all_plants_fresh()
-    plants[2] = (
-        "plant-c-node",
-        SOIL_METRIC,
-        5.0,
-        plants[2][3],
-        SensorSource.ESP32,
+async def test_validate_ignores_unsupported_raw_plant_moisture(pg_engine):
+    raw_device_id = "test-plant-c-raw-moisture"
+    await _set_plant_moisture_capability(
+        pg_engine,
+        plant_id="c",
+        device_id=raw_device_id,
+        capability_id="soil_moisture_raw",
+        metric_name="soil_moisture_raw",
+        unit="raw",
     )
-    await _seed_readings(pg_engine, _all_tent_metrics_fresh() + plants)
-    r = SensorReader(pg_engine, clock=_clock, max_age_s=300, sensor_min_raw=30.0)
-    failures = await r.validate()
-    assert any(
-        f.reason == "raw_pinned_low" and f.subject == "plant-c" for f in failures
+    await _seed_readings(
+        pg_engine,
+        [
+            *_all_tent_metrics_fresh(),
+            _plant_a_moisture_fresh(),
+            (
+                raw_device_id,
+                "soil_moisture_raw",
+                4095.0,
+                TEST_NOW - timedelta(seconds=10),
+                SensorSource.ESP32,
+            ),
+        ],
     )
+    r = SensorReader(pg_engine, clock=_clock, max_age_s=300)
+    assert await r.validate() == []
 
 
 async def test_validate_flags_stale(pg_engine):
@@ -187,7 +274,7 @@ async def test_validate_flags_stale(pg_engine):
     # other tent metrics fresh
     for m in ("humidity_pct", "vpd_kpa", "dew_point_f"):
         rows.append((TENT_DEVICE, m, 50.0, fresh_ts, SensorSource.ARDUINO))
-    await _seed_readings(pg_engine, rows + _all_plants_fresh())
+    await _seed_readings(pg_engine, rows)
     r = SensorReader(pg_engine, clock=_clock, max_age_s=300)
     failures = await r.validate()
     assert any(f.reason == "stale" and f.metric == "temperature_f" for f in failures)
@@ -204,7 +291,7 @@ async def test_validate_flags_missing(pg_engine):
             SensorSource.ARDUINO,
         ),
     ]
-    await _seed_readings(pg_engine, rows + _all_plants_fresh())
+    await _seed_readings(pg_engine, rows)
     r = SensorReader(pg_engine, clock=_clock, max_age_s=300)
     failures = await r.validate()
     missing_metrics = {f.metric for f in failures if f.reason == "missing"}
@@ -236,12 +323,11 @@ async def test_snapshot_aggregates_three_windows(pg_engine):
     # NOW reading at 14:30 MDT = 20:30 UTC; latest = 85
     now_ts = datetime(2026, 4, 19, 20, 25, tzinfo=UTC)
     rows.append((TENT_DEVICE, "temperature_f", 85.0, now_ts, SensorSource.ARDUINO))
-    # also add other tent metrics + plants so windows have *something*
+    # also add other tent metrics so windows have *something*
     fresh_ts = TEST_NOW - timedelta(seconds=10)
     for m in ("humidity_pct", "vpd_kpa", "dew_point_f"):
         rows.append((TENT_DEVICE, m, 50.0, fresh_ts, SensorSource.ARDUINO))
-    rows.extend(_all_plants_fresh(value=2500.0))
-    await _seed_readings(pg_engine, rows, _plant_calibrations())
+    await _seed_readings(pg_engine, rows)
 
     r = SensorReader(pg_engine, clock=_clock)
     snap = await r.snapshot(TEST_DATE)
@@ -261,9 +347,8 @@ async def test_snapshot_includes_scoped_breeding_tent(pg_engine):
     fresh_ts = TEST_NOW - timedelta(seconds=10)
     await _seed_readings(
         pg_engine,
-        _all_tent_metrics_fresh()
-        + _all_plants_fresh()
-        + [
+        [
+            *_all_tent_metrics_fresh(),
             (
                 BREEDING_TENT_DEVICE,
                 "temperature_f",
@@ -293,7 +378,6 @@ async def test_snapshot_includes_scoped_breeding_tent(pg_engine):
                 SensorSource.ESP32,
             ),
         ],
-        _plant_calibrations(),
     )
 
     r = SensorReader(pg_engine, clock=_clock)
@@ -305,20 +389,34 @@ async def test_snapshot_includes_scoped_breeding_tent(pg_engine):
     assert out["tents"]["main"]["temperature_f"]["now"] == 80.0
 
 
-async def test_snapshot_per_plant_pct_uses_calibration(pg_engine):
+async def test_snapshot_per_plant_pct_uses_direct_percent(pg_engine):
+    device_id = "test-plant-a-direct-moisture"
+    await _set_plant_moisture_capability(
+        pg_engine,
+        plant_id="a",
+        device_id=device_id,
+        capability_id="soil_moisture_pct",
+        metric_name=SOIL_METRIC,
+        unit="%",
+    )
     rows = _all_tent_metrics_fresh()
     fresh_ts = TEST_NOW - timedelta(seconds=10)
-    # plant-a raw=2500 cal 1370/3880 -> pct = 1380/2510 = 54.98%
-    rows.append(("plant-a-node", SOIL_METRIC, 2500.0, fresh_ts, SensorSource.ESP32))
-    for loc in ("plant-b-node", "plant-c-node", "plant-d-node"):
-        rows.append((loc, SOIL_METRIC, 2000.0, fresh_ts, SensorSource.ESP32))
-    await _seed_readings(pg_engine, rows, _plant_calibrations())
+    rows.append((device_id, SOIL_METRIC, 54.9, fresh_ts, SensorSource.ESP32))
+    await _seed_readings(pg_engine, rows)
 
     r = SensorReader(pg_engine, clock=_clock)
     snap = await r.snapshot(TEST_DATE)
-    pct_a = snap.plants["a"]["now_pct"]
-    assert pct_a == pytest.approx(54.98, abs=0.1)
-    assert snap.plants["a"]["now_raw"] == 2500.0
+    assert snap.plants["a"]["now_pct"] == 54.9
+
+
+async def test_snapshot_omits_null_plant_moisture_capability(pg_engine):
+    await _clear_plant_moisture_capability(pg_engine, plant_id="a")
+    await _seed_readings(pg_engine, _all_tent_metrics_fresh())
+
+    r = SensorReader(pg_engine, clock=_clock)
+    snap = await r.snapshot(TEST_DATE)
+
+    assert "a" not in snap.plants
 
 
 def test_to_prompt_dict_renders_window_avg():
@@ -338,10 +436,6 @@ def test_to_prompt_dict_renders_window_avg():
         },
         plants={
             "a": {
-                "overnight_raw": WindowAvg(avg=2000.0, n=10),
-                "morning_raw": WindowAvg(avg=2100.0, n=10),
-                "now_raw": 2200.0,
-                "raw_delta_morning_to_now": 100.0,
                 "overnight_pct": WindowAvg(avg=42.5, n=10),
                 "morning_pct": WindowAvg(avg=None, n=0),
                 "now_pct": 33.1,
@@ -367,6 +461,6 @@ def test_to_prompt_dict_renders_window_avg():
     assert out["plants"]["a"]["overnight_pct"] == {"avg": 42.5, "n": 10}
     assert out["plants"]["a"]["morning_pct"] is None
     assert out["plants"]["a"]["now_pct"] == 33.1
-    assert out["plants"]["a"]["raw_delta_morning_to_now"] == 100.0
-    assert out["soil_moisture_note"].startswith("Soil-moisture absolute")
+    assert "raw_delta_morning_to_now" not in out["plants"]["a"]
+    assert out["soil_moisture_note"].startswith("Soil moisture is reported")
     assert set(out["tents"]) == {"breeding", "main"}

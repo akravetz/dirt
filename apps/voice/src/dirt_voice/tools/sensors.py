@@ -16,17 +16,14 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.device import Capability, Device
-from dirt_shared.models.plant import Plant
-from dirt_shared.models.sensor_calibration import SensorCalibration
 from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.sensor_contract import persisted_metrics_for_device_id
 from dirt_shared.services.grow_state import GrowStateService, in_band
 from dirt_shared.services.readings import (
     ReadingsService,
-    compute_calibrated_pct,
+    get_latest_product_plant_moisture_readings,
     resolve_metric_capability_id,
 )
-from dirt_shared.services.scope import current_grow_run
 from dirt_voice.tools import ToolSpec
 
 DEFAULT_TENT_SENSOR_DEVICE_ID = "fan-controller"
@@ -48,51 +45,22 @@ async def _latest_soil_moisture_pct(
     engine: AsyncEngine,
     now: datetime,
 ) -> tuple[dict[str, float], list[float]]:
-    """Latest calibrated soil moisture % per plant.
+    """Latest direct soil moisture % per plant.
 
     Returns ``({plant_id: pct_rounded}, [reading_age_s, ...])`` —
     plant_id is the stable id in the current grow run, pct is 0-100.
-    Plants without a reading
-    or without a usable calibration row are silently omitted.
+    Plants without a direct percent moisture capability are silently omitted.
     """
     out: dict[str, float] = {}
     ages: list[float] = []
     async with AsyncSession(engine) as session:
-        grow = await current_grow_run(session)
-        if grow is None:
-            return out, ages
-        plant_rows = (
-            await session.exec(
-                select(Plant.plant_id, Plant.moisture_capability_id)
-                .where(Plant.growrun_id == grow.id)
-                .where(Plant.moisture_capability_id.is_not(None))
-                .order_by(Plant.display_order, Plant.plant_id)
-            )
-        ).all()
-        for plant_id, moisture_capability_id in plant_rows:
-            reading_res = await session.exec(
-                select(SensorReading)
-                .where(SensorReading.capability_id == moisture_capability_id)
-                .where(SensorReading.metric == "soil_moisture_raw")
-                .order_by(SensorReading.ts.desc())
-                .limit(1)
-            )
-            row = reading_res.first()
-            if row is None:
-                continue
-            cal_res = await session.exec(
-                select(SensorCalibration)
-                .where(SensorCalibration.capability_id == moisture_capability_id)
-                .where(SensorCalibration.metric == "soil_moisture_raw")
-            )
-            cal = cal_res.first()
-            if cal is None:
-                continue
-            pct = compute_calibrated_pct(row.value, cal.raw_low, cal.raw_high)
-            if pct is None:
-                continue
-            out[plant_id] = round(pct, 1)
-            ages.append((now - row.ts).total_seconds())
+        readings = await get_latest_product_plant_moisture_readings(
+            session,
+            now=now,
+        )
+    for reading in readings:
+        out[reading.plant_id] = round(reading.value, 1)
+        ages.append(reading.age_s)
     return out, ages
 
 
@@ -212,8 +180,8 @@ def build_sensor_tools(
             name="get_current_status",
             description=(
                 "Return the latest tent sensor readings (temperature, humidity, "
-                "VPD, dew point) plus per-plant calibrated soil moisture "
-                "percent for plants A through D, with in-range / out-of-range "
+                "VPD, dew point) plus per-plant direct soil moisture percent "
+                "where available, with in-range / out-of-range "
                 "flags on the tent metrics. Use for 'how are things looking "
                 "right now' questions."
             ),

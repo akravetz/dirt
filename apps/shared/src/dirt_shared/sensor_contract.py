@@ -1,20 +1,19 @@
-"""Declared contract for which metrics each scoped sensor device carries.
+"""Code-owned sensor derivation contract and typed capability metadata.
 
-Single source of truth, split into two concepts so hardware swaps and
-derivation changes can be reasoned about independently:
+``DEVICE_METRICS`` remains the code-owned derivation guard for legacy devices:
+given a set of emitted wire metrics, ingest tests prove that local derivation
+still yields the persisted metrics those code paths expect.
 
-- ``DEVICE_METRICS`` — the canonical scoped contract, keyed by public
-  ``device_id`` and then public ``capability_id``. Each capability declares
-  its persisted ``metric_name`` and whether the ESP32 emits it on the wire.
+Durable device/capability inventory and operational freshness policy belong in
+the database. Consumers that need those durable fields should read
+``capability.metadata`` through ``CapabilityMetadata`` rather than inspecting
+raw JSON dictionaries.
 
-Emitted metrics are what the device physically puts in the ``metrics`` dict
-at ``POST /api/ingest/sensors``. The ingest path logs a warning when a known
-device's payload is missing a key declared here. Persisted metrics are what
-downstream code (daily-report validation, metric-freshness watchdog, voice
-tools, charts) is guaranteed to find as queryable rows in the DB. Some
-persisted metrics are server-derived — ``_augment_temp_rh_metrics`` synthesises
-  ``temperature_f`` / ``vpd_kpa`` / ``dew_point_f`` from ``temperature_c`` +
-  ``humidity_pct``.
+For ``DEVICE_METRICS``, emitted metrics are what the device physically puts in
+the ``metrics`` dict at ``POST /api/ingest/sensors``. Persisted metrics are
+legacy consumer-facing rows that may be server-derived —
+``_augment_temp_rh_metrics`` synthesises ``temperature_f`` / ``vpd_kpa`` /
+``dew_point_f`` from ``temperature_c`` + ``humidity_pct``.
 
 The two sets are *not* required to be subsets of each other. Raw inputs
 (``temperature_c``) can be emitted without being a first-class consumer
@@ -27,7 +26,30 @@ metric for that device.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict
+
+
+class CapabilityMetadata(BaseModel):
+    """Typed fields in capability.metadata that production code reads."""
+
+    model_config = ConfigDict(extra="allow", strict=True)
+
+    expected_wire_metric: bool = False
+    freshness_required: bool = False
+    sensor_model: str | None = None
+    modbus_address: str | None = None
+    experimental: bool = False
+    experimental_note: str | None = None
+
+
+def capability_metadata_from_json(
+    metadata: Mapping[str, Any] | None,
+) -> CapabilityMetadata:
+    return CapabilityMetadata.model_validate(metadata or {})
+
 
 MetricContract = tuple[str, bool, bool]
 DeviceContract = dict[str, MetricContract]
