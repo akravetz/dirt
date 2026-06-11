@@ -14,7 +14,7 @@ The observable end state is:
 - `GET http://plant-a-substrate-node.local/status` returns the latest Modbus frame, decoded values, ingest counters, and last HTTP status.
 - `device.device_id='plant-a-substrate-node'` has a fresh heartbeat in Postgres.
 - `sensorreading` has fresh capability-owned rows for `soil_moisture_pct`, `substrate_ph`, `substrate_ec_us_cm`, and `substrate_temp_c`.
-- Plant A's `plant.moisture_capability_id` points at the RS485 node's `soil_moisture_pct` capability, so Plant A pages, hosted sync, voice status, and daily sensor summaries no longer depend on the capacitive `plant-a-node` stream.
+- Plant A's `plant.moisture_capability_id` points at the RS485 node's `soil_moisture_pct` capability, so Plant A pages, hosted sync, and any retained status/reporting consumers no longer depend on the capacitive `plant-a-node` stream.
 
 ## Progress
 
@@ -23,6 +23,7 @@ The observable end state is:
 - [x] (2026-06-10) Confirmed live USB serial from the debug firmware showed repeated `[read] no response` while the hardware was USB-powered only; the working hypothesis is that the RS485 board/sensor power topology was wrong for the current bench setup.
 - [x] (2026-06-10) Confirmed from Seeed docs and schematic inspection that normal USB power should not be tied to an externally fed XIAO 5V/VBUS rail during runtime; use 12V runtime power plus OTA/HTTP/DB observability instead.
 - [x] (2026-06-10) Authored this ExecPlan.
+- [x] (2026-06-10) Corrected sensor power by providing 5V to the RS485 sensor path and confirmed live ID `0x02` Modbus data over the current debug firmware. The hardware communication blocker is cleared; implementation can proceed to flashing WiFi/OTA firmware and testing live ingest.
 - [ ] Implement Milestone 1: add the database/device contract for the RS485 substrate node.
 - [ ] Implement Milestone 2: teach plant moisture consumers to handle either calibrated raw ADC or direct percent moisture capabilities.
 - [ ] Implement Milestone 3: add dedicated RS485 substrate-node firmware with OTA and HTTP status.
@@ -39,6 +40,18 @@ The observable end state is:
 
 - Observation: Current Plant A moisture is capability-owned through `Plant.moisture_capability_id`, but existing consumers assume that the capability points to `soil_moisture_raw` and derive `soil_moisture_pct` through `SensorCalibration`.
   Evidence: `apps/shared/src/dirt_shared/services/daily_sensors.py` and `apps/voice/src/dirt_voice/tools/sensors.py` query `SensorReading.metric == "soil_moisture_raw"` and join `SensorCalibration` for the plant's moisture capability.
+
+- Observation: After adding 5V power to the sensor path, the same serial-only debug firmware now reads stable Modbus frames from address `0x02`; the address diagnostic reports `value=2` and the old address check gets no response.
+  Evidence: Live capture on 2026-06-10 showed repeated frames such as `02 03 08 01 0D 00 D6 00 93 00 2F 7F BC`, decoded as moisture `26.9%`, temperature `21.4C`, EC `147 us/cm`, pH `4.7`, plus `[address] value=2` and `[old-address-check] no response`.
+
+- Observation: Official Seeed docs do not indicate a direct RS485 bus versus WiFi conflict. The RS485 expansion board documentation explicitly uses XIAO ESP32C3 `D4/GPIO6` and `D5/GPIO7` for the RS485 UART and `D2` for the enable pin, which matches this repo's debug firmware. The XIAO ESP32C3 pinout lists those pins as having JTAG alternate functions, but Seeed's own RS485 example still uses them for this expansion board.
+  Evidence: Seeed RS485 Expansion Board docs say the XIAO ESP32C3 communicates with the RS485 board using `D4 (GPIO6)` and `D5 (GPIO7)`, and the sample code uses `#define enable_pin D2` plus `mySerial.begin(..., 7, 6)`. The XIAO ESP32C3 docs list `D4/GPIO6` and `D5/GPIO7` as the board's I2C-labeled pins with JTAG alternate functions.
+
+- Observation: Intermittent WiFi is more likely to come from antenna placement, power stability, WiFi sleep behavior, or blocking firmware than from RS485 pin choice. The XIAO ESP32C3 relies on its included external antenna for stronger wireless signal, and the production firmware must not block on USB serial because runtime diagnostics are supposed to work with USB unplugged.
+  Evidence: Seeed's XIAO ESP32C3 docs describe IEEE 802.11 b/g/n WiFi and say the board includes an external antenna to increase signal strength. The RS485 example code includes `while(!Serial)` patterns for demo serial workflows, but that pattern would be wrong for this no-USB runtime firmware. Espressif's ESP32-C3 WiFi low-power docs describe WiFi power-save modes that trade timing/responsiveness for reduced power; this repo's shared `wifi_client` already calls `WiFi.setSleep(false)` for always-powered sensor nodes.
+
+- Observation: `DEVICE_METRICS` is carrying mixed responsibilities that now overlap the scoped database model.
+  Evidence: `device` and `capability` rows already own hardware identity, metric names, units, sources, and enabled state. `DEVICE_METRICS` still declares emitted metrics and consumer-facing persisted metrics, and those flags are reused by ingest drift warnings, metric freshness, daily checkpoint code, and voice status code. This creates two editable sources for device/capability inventory.
 
 ## Decision Log
 
@@ -62,6 +75,10 @@ The observable end state is:
   Rationale: The board currently runs serial-only debug firmware and may not have OTA enabled. USB is acceptable as a one-time programming power source if the 12V/external 5V path is disconnected. Once the WiFi firmware is installed, normal development should use `espota`.
   Date/Author: 2026-06-10 / Codex
 
+- Decision: Move the durable RS485 metric contract toward database-owned device/capability identity plus freshness expectation, not another permanent `DEVICE_METRICS` entry.
+  Rationale: The durable operational fact is that enabled capabilities for `plant-a-substrate-node` should keep producing data. That belongs with the canonical `device`/`capability` catalog, preferably through typed capability metadata such as `expected_wire_metric` and `freshness_required`, and later real columns if the policy proves stable. Code should continue to own ingest derivation and transformation behavior. Consumer-specific policies for the voice agent or daily checkpoint agent should not be promoted into schema while those agents are candidates for deprecation; retained consumers should derive from capability relationships or keep narrowly owned code.
+  Date/Author: 2026-06-10 / Codex
+
 ## Outcomes & Retrospective
 
 Not started. At completion, record the first stable no-USB runtime capture, the Plant A cutover timestamp, and whether pH/EC values are only stored for trend/reference or also shown in the dashboard.
@@ -70,9 +87,9 @@ Not started. At completion, record the first stable no-USB runtime capture, the 
 
 Dirt's local hardware service is `dirt-hwd`, a FastAPI app that exposes `POST /api/ingest/sensors` in `apps/hwd/src/dirt_hwd/api/ingest.py`. ESP32 firmware posts a Pydantic-validated JSON body with `site_id`, `tent_id`, `zone_id`, `device_id`, `metrics`, firmware version, IP, uptime, and WiFi diagnostics. The handler calls `ReadingsService.ingest_reading()` in `apps/shared/src/dirt_shared/services/readings.py`. That service updates the canonical `device.last_seen` heartbeat and inserts one `sensorreading` row per resolved `capability`.
 
-The canonical hardware contract lives in `apps/shared/src/dirt_shared/sensor_contract.py`. `DEVICE_METRICS` is keyed by public `device_id`, then by public `capability_id`; each capability declares the persisted metric name and whether firmware emits it directly. `apps/hwd/tests/test_ingest_derivation.py` proves that every declared device's emitted metrics can yield all of its persisted metrics.
+The current hardware contract is split. Database identity is already scoped through `site`, `tent`, `zone`, `device`, and `capability`, and capability rows carry the stable `capability_id`, `metric_name`, `unit`, `source`, and `enabled` fields. `apps/shared/src/dirt_shared/sensor_contract.py` still declares `DEVICE_METRICS`, keyed by public `device_id` and `capability_id`, to describe emitted metrics and consumer-facing persisted metrics. This plan should not deepen that split. It should use the RS485 node as the cleanup point for moving durable inventory and freshness policy into database-backed capability metadata while leaving derivation behavior in code.
 
-Database identity is scoped through `site`, `tent`, `zone`, `device`, and `capability`. Current local scope is `site_id='homebox'`, `tent_id='main'`, `zone_id='plant-a'`. Device rows live in `apps/shared/src/dirt_shared/models/device.py`. The current Plant A capacitive sensor is `device.device_id='plant-a-node'`, capability `soil_moisture_raw`, and it is seeded by migrations such as `migrations/20260504000618_multi_tent_controller.sql`.
+Current local scope is `site_id='homebox'`, `tent_id='main'`, `zone_id='plant-a'`. Device rows live in `apps/shared/src/dirt_shared/models/device.py`. The current Plant A capacitive sensor is `device.device_id='plant-a-node'`, capability `soil_moisture_raw`, and it is seeded by migrations such as `migrations/20260504000618_multi_tent_controller.sql`.
 
 Plant rows live in `apps/shared/src/dirt_shared/models/plant.py`. `Plant.moisture_capability_id` points at the canonical capability used for that plant's moisture stream. For the current A-D capacitive nodes, consumers expect the capability to be a `soil_moisture_raw` ADC stream and convert it to `soil_moisture_pct` with `SensorCalibration`. The RS485 probe's moisture register is already a percent value, so consumers must be updated to use direct percent when the plant's moisture capability has metric `soil_moisture_pct`, while preserving calibrated raw behavior for Plants B-D.
 
@@ -97,18 +114,32 @@ Power constraint: the RS485 board can convert 12V to 5V for the XIAO and sensor 
 
 ## Plan of Work
 
-Milestone 1: Add the canonical RS485 substrate node contract.
+Milestone 1: Add the DB-backed RS485 substrate node contract and retire `DEVICE_METRICS` as inventory.
 
-Add `plant-a-substrate-node` to `apps/shared/src/dirt_shared/sensor_contract.py` with four emitted and persisted capabilities:
+Create an Atlas migration that upserts the `plant-a-substrate-node` device under `homebox/main/plant-a`, upserts the four capabilities, and initially leaves `plant.moisture_capability_id` unchanged. This lets the new node run side-by-side with `plant-a-node` before Plant A's canonical moisture stream changes. The migration should be idempotent, use `ON CONFLICT`, and include metadata noting the sensor model, Modbus address `0x02`, and that pH/EC are experimental.
+
+The four capabilities are:
 
     soil_moisture_pct -> soil_moisture_pct
     substrate_temp_c -> substrate_temp_c
     substrate_ec_us_cm -> substrate_ec_us_cm
     substrate_ph -> substrate_ph
 
-Update `apps/hwd/tests/test_ingest_derivation.py` with plausible values for these new emitted metrics. Add or extend HWD ingest tests so a post from `plant-a-substrate-node` writes four capability-owned rows and updates the device heartbeat. Do not add wire aliases for the RS485 node unless actual firmware emits different names.
+Extend capability metadata through typed helpers rather than ad hoc JSON reads. The initial typed policy only needs durable operational fields:
 
-Create an Atlas migration that upserts the `plant-a-substrate-node` device under `homebox/main/plant-a`, upserts the four capabilities, and initially leaves `plant.moisture_capability_id` unchanged. This lets the new node run side-by-side with `plant-a-node` before Plant A's canonical moisture stream changes. The migration should be idempotent, use `ON CONFLICT`, and include metadata noting the sensor model, Modbus address `0x02`, and that pH/EC are experimental.
+- `expected_wire_metric=true` for capabilities the firmware is expected to emit.
+- `freshness_required=true` for capabilities that should alert/log when the device is online but the metric stops arriving.
+
+Do not add DB policy for voice status or daily checkpoint participation while those agents are candidates for deprecation. If either consumer remains, keep its presentation/reporting choices in that consumer or derive from existing relationships such as `Plant.moisture_capability_id`.
+
+Refactor the remaining `DEVICE_METRICS` consumers so DB-backed capability identity and typed metadata own the durable contract:
+
+- Ingest drift detection should query expected wire metrics for the posting device.
+- Metric freshness should query enabled capabilities with `freshness_required=true`, gated by canonical `device.last_seen`.
+- `apps/hwd/tests/test_ingest_derivation.py` should keep proving code-owned derivation behavior, but it should not be the canonical device inventory for directly emitted RS485 metrics.
+- Remove `plant-a-substrate-node` from any plan to add a permanent `DEVICE_METRICS` entry. If a temporary compatibility shim is needed during the refactor, delete it in the same milestone.
+
+Add or extend HWD ingest tests so a post from `plant-a-substrate-node` writes four capability-owned rows and updates the device heartbeat. Add focused tests for the DB-backed expected-wire and freshness-required queries. Do not add wire aliases for the RS485 node unless actual firmware emits different names.
 
 Milestone 2: Make Plant A moisture consumers metric-aware.
 
@@ -118,7 +149,7 @@ Add a small shared helper in `apps/shared/src/dirt_shared/services/readings.py` 
 - If the capability metric is `soil_moisture_raw`, keep the existing calibrated path using `SensorCalibration` and `compute_calibrated_pct()`.
 - For any other metric, return no plant moisture and log or raise in tests depending on the consumer boundary.
 
-Update `apps/shared/src/dirt_shared/services/daily_sensors.py`, `apps/voice/src/dirt_voice/tools/sensors.py`, and gateway local sync code in `apps/gateway/src/dirt_gateway/local.py` so they use the same semantic rule rather than hard-coding `soil_moisture_raw`. Preserve the existing hosted/browser product metric `soil_moisture_pct`; do not expose raw RS485 moisture as a new product metric.
+Update retained Plant A moisture consumers and gateway local sync code in `apps/gateway/src/dirt_gateway/local.py` so they use the same semantic rule rather than hard-coding `soil_moisture_raw`. If the daily checkpoint agent or voice agent is still retained at implementation time, update `apps/shared/src/dirt_shared/services/daily_sensors.py` and `apps/voice/src/dirt_voice/tools/sensors.py` to call the same helper. If either agent is being deprecated, delete its Plant A moisture dependency instead of promoting its consumer policy into the database. Preserve the existing hosted/browser product metric `soil_moisture_pct`; do not expose raw RS485 moisture as a new product metric.
 
 Add focused tests covering both paths:
 
@@ -142,12 +173,15 @@ Firmware requirements:
 - The firmware should include diagnostics in the ingest payload: boot count if feasible, reset reason, Modbus success/failure counts, CRC mismatch count, short response count, no-response count, last Modbus response length, last ingest code, ingest ok/fail counts, free heap, min free heap, and max loop gap. Extend `DeviceDiagnostics` in `apps/hwd/src/dirt_hwd/api/ingest.py` only for fields that will actually be emitted.
 - Add a read-only `GET /status` endpoint on port 80 returning JSON with current identity, firmware version, decoded latest sample, latest raw Modbus frame as a hex string, last Modbus status, last ingest status, WiFi snapshot, and diagnostics. Add `GET /health` returning a compact 200 response for scripts.
 - Keep `Serial.print` debug lines if useful, but do not rely on them for validation.
+- Keep WiFi sleep disabled through the shared `wifi_client` path. Do not introduce ESP-IDF/Arduino WiFi power-save modes for this mains-powered node until the node is stable; reduced-power modes can alter response timing and complicate OTA/status reliability.
+- Do not use `while(!Serial)` or any other USB-serial wait in setup. Seeed demo code uses this pattern for interactive USB examples, but this node must boot and report over WiFi when no USB host is attached.
 
 Firmware implementation notes:
 
 - Prefer a small internal CRC function copied from `debug/rs485_soil_probe/src/main.cpp` rather than adding a Modbus library unless the code becomes meaningfully simpler.
 - Keep status JSON hand-built with bounded buffers, following the existing firmware style. Avoid ArduinoJson unless hand-built status becomes unsafe or unreadable.
 - If the sensor does not respond after flashing, first inspect `/status`, device heartbeat, and WiFi diagnostics. Then power-cycle the 12V supply and verify RS485 A/B and common ground.
+- If WiFi is intermittent, inspect `/status` and device metadata for RSSI, reconnect count, last disconnect reason, and disconnected duration before changing RS485 code. Also physically verify that the U.FL antenna is snapped on and routed away from wet media, metal, the 12V wiring, and bundled RS485 cable.
 
 Milestone 4: Flash, validate no-USB runtime, and cut Plant A over.
 
@@ -175,7 +209,7 @@ Then validate ingest through Postgres:
     ORDER BY sr.ts DESC
     LIMIT 12;"
 
-Let the new RS485 node run side-by-side with the old capacitive Plant A node for at least 15-30 minutes. Confirm values are plausible and moving/stable as expected. Then create and apply a second migration or SQL seed migration that updates the current main Plant A row:
+Let the new RS485 node run side-by-side with the old capacitive Plant A node for 30 minutes. Confirm the RS485 node keeps posting all four metrics, device heartbeat stays fresh, and values are plausible and moving/stable as expected. Then create and apply a second migration or SQL seed migration that updates the current main Plant A row:
 
     UPDATE plant AS p
     SET moisture_capability_id = c.id,
@@ -193,11 +227,11 @@ Let the new RS485 node run side-by-side with the old capacitive Plant A node for
       AND d.device_id = 'plant-a-substrate-node'
       AND c.capability_id = 'soil_moisture_pct';
 
-The real migration must include a guard that raises if the RS485 device or capability is missing. After applying, verify Plant A's moisture reads through local services, voice tool tests, gateway dry-run sync, and hosted dev UI if necessary.
+The real migration must include a guard that raises if the RS485 device or capability is missing. After applying, verify Plant A's moisture reads through local services, gateway dry-run sync, hosted dev UI if necessary, and any retained voice/daily consumers.
 
-Milestone 5: Retire the old Plant A capacitive stream after stable operation.
+Milestone 5: Retire the old Plant A capacitive stream after a 30-minute stable ingest window.
 
-After at least one full light/dark or irrigation-relevant interval with stable RS485 ingest, disable the old Plant A capacitive node from current operations. This can be physical unplugging, OTA firmware that stops posting, or a DB-level `device.enabled=false` depending on the desired operational behavior. Prefer source-of-truth cleanup over compatibility glue:
+After 30 minutes of stable RS485 ingest, continue directly with deprecation of the old Plant A capacitive node and associated cleanup. Stable means the RS485 node has a fresh heartbeat, is posting `soil_moisture_pct`, `substrate_temp_c`, `substrate_ec_us_cm`, and `substrate_ph` at the expected cadence, and `/status` reports no persistent Modbus or WiFi failure. Disable the old Plant A capacitive node from current operations by physical unplugging, OTA firmware that stops posting, or a DB-level `device.enabled=false` depending on the desired operational behavior. Prefer source-of-truth cleanup over compatibility glue:
 
 - Keep historical `plant-a-node` rows for history and rollback.
 - Do not delete historical `sensorreading` rows.
@@ -215,6 +249,7 @@ Start every implementation session from the repo root:
 Read the relevant source before editing:
 
     sed -n '1,220p' apps/shared/src/dirt_shared/sensor_contract.py
+    sed -n '1,180p' apps/shared/src/dirt_shared/models/device.py
     sed -n '1,260p' apps/hwd/src/dirt_hwd/api/ingest.py
     sed -n '1,760p' apps/shared/src/dirt_shared/services/readings.py
     sed -n '1,260p' apps/shared/src/dirt_shared/services/daily_sensors.py
@@ -287,8 +322,10 @@ Do not use `--no-verify`.
 
 Software acceptance:
 
-- `DEVICE_METRICS["plant-a-substrate-node"]` declares exactly the four RS485 metrics and `apps/hwd/tests/test_ingest_derivation.py` has plausible emitted values for them.
+- The database seed declares exactly the four RS485 capabilities, with typed metadata marking them as expected wire metrics and freshness-required runtime metrics.
+- `DEVICE_METRICS` is no longer the durable source of device/capability inventory for the RS485 node; any temporary shim added during implementation is removed before milestone completion.
 - A focused ingest test posts a payload from `plant-a-substrate-node` and verifies four `sensorreading` rows linked to that device's capabilities.
+- Focused tests prove ingest drift detection and metric freshness derive their expected RS485 metrics from DB-backed capability policy.
 - A focused plant moisture test proves direct `soil_moisture_pct` capability ownership needs no `SensorCalibration`.
 - Existing calibrated raw moisture tests for `plant-a-node` or a test raw node still pass.
 - Gateway or hosted-sync tests still expose product-facing `soil_moisture_pct` for plant moisture.
@@ -328,12 +365,14 @@ Firmware upload recovery:
 Runtime sensor recovery:
 
 - If `/status` shows no Modbus response, verify 12V input, RS485 board 5V mode, sensor power, common ground, and A/B wiring. Try swapping RS485 A/B only after confirming power and ground.
+- If `/status` is intermittently unreachable or device heartbeats show WiFi dropouts, first check external antenna attachment and placement. The antenna should be snapped onto the U.FL connector and placed outside dense canopy/wet media and away from metal, power wiring, and long parallel RS485 runs where practical.
+- If WiFi dropouts persist with good antenna placement, use the firmware's RSSI, reconnect count, disconnect reason, disconnected duration, and reset reason fields to distinguish weak RF from power brownout/restart behavior. Keep `WiFi.setSleep(false)` enabled.
 - If Modbus works but ingest fails, check `dirt-hwd` status and logs:
 
     systemctl --user status dirt-hwd --no-pager
     journalctl --user -u dirt-hwd -n 100 --no-pager
 
-- If ingest writes only some metrics, check capability rows and `DEVICE_METRICS` for naming drift.
+- If ingest writes only some metrics, check capability rows and typed capability metadata for naming drift.
 
 Data recovery:
 
@@ -351,6 +390,12 @@ Relevant existing documentation:
 - `docs/database.md`
 - `docs/observability.md`
 
+External references checked on 2026-06-10:
+
+- Seeed XIAO ESP32C3 documentation: confirms 2.4 GHz WiFi support, included external antenna for stronger wireless signal, pinout, 5V/VBUS power warning, and strapping-pin notes.
+- Seeed XIAO RS485 Expansion Board documentation: confirms the expansion board's intended UART pins on XIAO ESP32C3 are `D4/GPIO6` and `D5/GPIO7`, with `D2` as the RS485 enable pin, plus the `5V OUT/IN` and `120R` switch guidance.
+- Espressif ESP32-C3 WiFi low-power documentation: confirms WiFi power-save modes trade timing/responsiveness for lower power; the always-powered Dirt node should keep WiFi sleep disabled for reliability unless future measurements justify changing it.
+
 Current debug firmware details:
 
     debug/rs485_soil_probe/src/main.cpp
@@ -365,6 +410,18 @@ Live capture before the power-topology correction:
     [read] no response
     [read] no response
     [read] no response
+
+Live capture after providing 5V sensor power on 2026-06-10:
+
+    [read] raw=02 03 08 01 0D 00 D6 00 93 00 2F 7F BC
+    [sensor] moisture=26.9% temperature=21.4C ec=147 us/cm ph=4.7
+    [read] raw=02 03 08 01 0E 00 D7 00 93 00 2F 71 7C
+    [sensor] moisture=27.0% temperature=21.5C ec=147 us/cm ph=4.7
+    [address] raw=02 03 02 00 02 7D 85
+    [address] value=2
+    [old-address-check] no response
+
+This confirms the sensor is powered and responding at ID `0x02`. The next implementation pass can flash the WiFi/OTA firmware and test live HTTP status plus HWD ingest.
 
 Record future evidence here as milestones complete:
 
@@ -406,7 +463,8 @@ HWD ingest:
 
 Shared services:
 
-- `apps/shared/src/dirt_shared/sensor_contract.py` declares the RS485 emitted/persisted metrics.
+- Database-backed `device`/`capability` rows and typed capability metadata declare the RS485 expected wire metrics and freshness-required metrics.
+- Code-owned derivation rules remain in shared/HWD source; do not move formulas into database metadata.
 - Plant moisture consumers must support both `soil_moisture_raw` plus calibration and direct `soil_moisture_pct`.
 
 External hardware:
@@ -415,7 +473,12 @@ External hardware:
 - Seeed XIAO RS485 expansion board, powered from 12V for runtime.
 - DFRobot SEN0604 RS485 4-in-1 substrate probe at Modbus address `0x02`.
 - RS485 wiring per `wiki/hardware/rs485-substrate-sensors.md`: sensor brown power, black ground, yellow A, blue B.
+- XIAO ESP32C3 external antenna must be installed and placed for RF exposure; do not bury it in the pot, press it against metal, or bundle it tightly with sensor/power wiring.
 
 ## Revision Notes
 
 - 2026-06-10: Initial ExecPlan created for Plant A RS485 substrate-node firmware, no-USB runtime diagnostics, database contract, and moisture ownership cutover.
+- 2026-06-10: Updated after corrected 5V sensor power restored live Modbus reads at address `0x02`; the plan is now ready for firmware flashing and live ingest validation.
+- 2026-06-10: Added official Seeed XIAO ESP32C3 and RS485 expansion board findings for WiFi stability: keep the external antenna installed and well placed, retain Seeed's RS485 pins, avoid USB-serial blocking in firmware, keep WiFi sleep disabled, and rely on WiFi telemetry before changing bus code.
+- 2026-06-10: Changed the old Plant A capacitive-node retirement gate from one full light/dark or irrigation-relevant interval to a more aggressive 30-minute stable RS485 ingest window.
+- 2026-06-10: Refined the architecture plan so DB-backed device/capability identity plus `expected_wire_metric`/`freshness_required` policy replaces `DEVICE_METRICS` as durable inventory; voice and daily checkpoint policy should be deleted with those agents or kept consumer-local, not promoted into schema.
