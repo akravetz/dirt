@@ -243,9 +243,46 @@ class CloudPlant(SQLModel, table=True):
     purple: bool = False
     moisture_target_low: float = Field(sa_column=Column(Float, nullable=False))
     moisture_target_high: float = Field(sa_column=Column(Float, nullable=False))
-    moisture_device_id: str | None = Field(default=None, index=True, max_length=120)
-    moisture_capability_id: str | None = Field(default=None, index=True, max_length=160)
     wiki_path: str | None = Field(default=None, max_length=500)
+    is_active: bool = True
+    synced_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    created_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    updated_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+
+
+class CloudPlantMetricStream(SQLModel, table=True):
+    __tablename__ = "cloud_plant_metric_stream"
+    __table_args__ = (
+        UniqueConstraint(
+            "site_id",
+            "tent_id",
+            "grow_run_id",
+            "plant_id",
+            "device_id",
+            "capability_id",
+            "metric",
+            name="uq_cloud_plant_metric_stream_identity",
+        ),
+    )
+
+    id: int | None = Field(
+        default=None,
+        sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
+    )
+    site_id: str = Field(index=True, max_length=80)
+    tent_id: str = Field(index=True, max_length=80)
+    grow_run_id: str = Field(index=True, max_length=160)
+    plant_id: str = Field(index=True, max_length=80)
+    device_id: str = Field(index=True, max_length=120)
+    capability_id: str = Field(index=True, max_length=160)
+    metric: str = Field(index=True, max_length=120)
+    display_order: int = Field(sa_column=Column(Integer, nullable=False))
     is_active: bool = True
     synced_at: datetime = Field(
         sa_column=Column(DateTime(timezone=True), nullable=False)

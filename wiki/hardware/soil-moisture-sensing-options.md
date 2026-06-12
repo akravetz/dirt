@@ -31,7 +31,7 @@ Server-side auto-calibration makes the readings more useful than raw ADC values,
 |---|---:|---|---|---|---|---|
 | Generic capacitive PCB probe v1.2/v2.0 | $2-10 | Relative moisture only | Analog voltage | Already live on per-pot ESP32 nodes | Cheapest and easy to replace | Poor repeatability, clone variance, fragile packaging, questionable salt behavior |
 | DFRobot SEN0308 IP65 capacitive probe | $14.90 | Relative moisture only | Analog voltage | Easy ESP32/ADC integration | Better packaging than bare PCB probes | Still basically the same class of capacitive signal; likely not enough improvement |
-| ComWinTop / generic RS-485 soil probes | Already ordered: 2 ComWinTop THCPH-S-class probes | Moisture + temp + EC + pH for the ordered variant | RS-485/Modbus RTU | XIAO ESP32C3 + Seeed XIAO RS485 breakout | Digital bus, cheap, long cable friendly, no ESP32 ADC path | Sensor physics/calibration are opaque; pH-in-substrate behavior must be validated before trusting |
+| ComWinTop / generic RS-485 soil probes | Already ordered: 2 ComWinTop THCPH-S-class probes | Moisture + temp + EC + pH for the ordered variant | RS-485/Modbus RTU | XIAO ESP32C3 + Seeed XIAO RS485 breakout | Digital bus, cheap, long cable friendly, no ESP32 ADC path | Sensor physics/calibration are opaque; pH-in-substrate behavior needs validation before production use |
 | Vegetronix VH400 | Price not published on product page | Moisture/VWC | Analog voltage | ESP32 + good ADC | Rugged blade, waterproof, salinity-insensitivity claim, simple output | No EC/temp; price must be confirmed; still analog |
 | Truebner SMT50 | 69 EUR incl. VAT from OpenSprinklerShop | Moisture + temperature | Analog voltage | ESP32 + good ADC | Credible mid-tier FDR sensor; lower cost than TB-SMP03 | No EC; 0-50% VWC range; careful installation needed |
 | TekBox TBSMP03 | $99 | Moisture + temperature | SDI-12 | Needs SDI-12 master/interface | Digital bus, reusable multi-sensor wiring, calibrated output | No EC; less field reputation than METER TEROS |
@@ -161,7 +161,7 @@ Candidate Dirt metrics after verification:
 | Soil moisture / humidity | `substrate_moisture_pct` or `soil_moisture_pct` | Pick one canonical name before ingest; avoid mixing with existing raw ADC metric |
 | Soil temperature | `substrate_temp_c` | Convert to F only in UI/reporting if needed |
 | Conductivity | `substrate_ec_us_cm` or `substrate_ec_ds_m` | Choose units before ingest; avoid silent uS/cm vs dS/m confusion |
-| pH | `substrate_ph` | Treat as experimental until checked against runoff/slurry/manual meter readings |
+| pH | `substrate_ph` | Plant A's current SEN0604 path is calibrated operationally; future probes still need runoff/slurry/manual-meter checks before production use |
 
 ### Bring-Up Checklist For A Future Agent
 

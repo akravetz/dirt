@@ -4,12 +4,12 @@ type: hardware
 sources: []
 related: [wiki/hardware/soil-moisture-sensing-options.md, wiki/hardware/esp32-plant-nodes.md, wiki/hardware/project-box-enclosures.md]
 created: 2026-06-09
-updated: 2026-06-11
+updated: 2026-06-12
 ---
 
 # RS485 Substrate Sensors
 
-Status: Plant A production interim substrate node is live as of 2026-06-10 evening MDT. DFRobot SEN0604 is reading over RS485/Modbus at address `0x02`, and `plant-a-substrate-node` is the canonical current Plant A moisture source in Dirt. Treat moisture as the operational direct-percent signal; treat EC and pH as experimental trend/reference values until cross-checked against hand measurements and calibration data.
+Status: Plant A production interim substrate node is live as of 2026-06-10 evening MDT. DFRobot SEN0604 is reading over RS485/Modbus at address `0x02`, and `plant-a-substrate-node` is the canonical current Plant A moisture source in Dirt. Moisture is the operational direct-percent signal, and EC/pH are current calibrated operational streams. Continue periodic cross-checks against hand measurements when troubleshooting.
 
 ## Production Cutover
 
@@ -29,7 +29,7 @@ Post-cutover validation on 2026-06-10 evening MDT showed `/health` returning `{"
 
 Dirt database state after the cutover:
 
-- Plant A `moisture_capability_id` points at `plant-a-substrate-node:soil_moisture_pct`.
+- Plant A's active telemetry mapping points at `plant-a-substrate-node:soil_moisture_pct`.
 - Plants B-D have no current moisture capability until trustworthy replacement probes exist.
 - Old capacitive devices `plant-a-node` through `plant-d-node` and their `soil_moisture_raw` capabilities are disabled/retired in active inventory.
 - Historical capacitive readings and calibrations remain available for audit/history.
@@ -133,9 +133,9 @@ DFRobot documents writable calibration registers but does not publish a complete
 
 Do not write these registers yet. A DFRobot forum report for SEN0604 indicates the pH calibration register behaves like a single-point offset: an offset that made pH 7 buffer read correctly made pH 4 buffer wrong. That is not enough for a real multi-point pH calibration.
 
-For now, store raw sensor values and apply calibration in Dirt/software. This preserves the factory state and lets us fit slope, offset, and curve behavior from reference data.
+Current operational status in Dirt is calibrated for moisture, EC, and pH. Store the raw sensor values and apply/maintain calibration in Dirt/software. This preserves the factory state and lets future reference checks refine slope, offset, and curve behavior without rewriting probe registers.
 
-## Proposed Calibration Plan
+## Ongoing Calibration QA Plan
 
 Use the high-precision pH/EC probe and standards as the reference instrument. Record raw SEN0604 values, reference values, temperature, media/sample description, probe depth, and stabilization time.
 
@@ -165,7 +165,7 @@ Do both a solution check and a substrate validation. For the solution check, use
 true_ec_us_cm = a * sensor_ec_us_cm + b
 ```
 
-For substrate validation, place the SEN0604 in coco and log moisture plus EC; take runoff, slurry, or saturated-paste extract from the same zone when practical; measure extract EC with the reference probe; and treat SEN0604 EC as a trend until the relationship is proven under coco moisture and packing conditions.
+For substrate validation, place the SEN0604 in coco and log moisture plus EC; take runoff, slurry, or saturated-paste extract from the same zone when practical; measure extract EC with the reference probe; and use the comparison as ongoing QA for drift or systematic offset under coco moisture and packing conditions.
 
 ### pH
 
@@ -176,7 +176,7 @@ pH 4-7 range:  true_ph = a_low * sensor_ph + b_low
 pH 7-10 range: true_ph = a_high * sensor_ph + b_high
 ```
 
-For cannabis/coco, pH 4 and pH 7 are the important anchors around the useful 5.5-6.5 range; pH 10 is a sanity check for slope/nonlinearity. Validate against runoff, slurry, or manual meter data before trusting in-pot pH as an absolute value.
+For cannabis/coco, pH 4 and pH 7 are the important anchors around the useful 5.5-6.5 range; pH 10 is a sanity check for slope/nonlinearity. Use runoff, slurry, or manual meter comparisons as ongoing QA when readings drive operational decisions or look inconsistent with plant behavior.
 
 ## Sources
 

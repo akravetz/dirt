@@ -22,6 +22,7 @@ from dirt_control.models import (
     CloudMetricPresentation,
     CloudMetricRollup,
     CloudPlant,
+    CloudPlantMetricStream,
     CloudSchedule,
     CloudSite,
     CloudTent,
@@ -184,8 +185,6 @@ def _plant(
     *,
     display_order: int,
     grow_run_id: str = "main-2026-03-15",
-    moisture_device_id: str | None = "plant-a-node",
-    moisture_capability_id: str | None = "soil_moisture_raw",
     is_active: bool = True,
     synced_at: datetime = FIXED_NOW,
 ) -> CloudPlant:
@@ -201,13 +200,63 @@ def _plant(
         purple=plant_id == "a",
         moisture_target_low=55.0,
         moisture_target_high=70.0,
-        moisture_device_id=moisture_device_id,
-        moisture_capability_id=moisture_capability_id,
         wiki_path=f"wiki/grows/{grow_run_id}/plants/plant-{plant_id}.md",
         is_active=is_active,
         synced_at=synced_at,
         created_at=FIXED_NOW,
         updated_at=synced_at,
+    )
+
+
+def _plant_stream(
+    plant_id: str,
+    *,
+    grow_run_id: str = "main-2026-03-15",
+    device_id: str = "plant-a-node",
+    capability_id: str = "soil_moisture_pct",
+    metric: str = "soil_moisture_pct",
+    display_order: int = 1,
+    is_active: bool = True,
+) -> CloudPlantMetricStream:
+    return CloudPlantMetricStream(
+        site_id="homebox",
+        tent_id="main",
+        grow_run_id=grow_run_id,
+        plant_id=plant_id,
+        device_id=device_id,
+        capability_id=capability_id,
+        metric=metric,
+        display_order=display_order,
+        is_active=is_active,
+        synced_at=FIXED_NOW,
+        created_at=FIXED_NOW,
+        updated_at=FIXED_NOW,
+    )
+
+
+def _latest_metric(
+    *,
+    device_id: str,
+    capability_id: str,
+    metric: str,
+    value: float,
+    unit: str,
+    source_updated_at: datetime = FIXED_NOW - timedelta(minutes=1),
+    received_at: datetime = FIXED_NOW,
+    stale_after_s: int = 300,
+) -> CloudLatestMetric:
+    return CloudLatestMetric(
+        site_id="homebox",
+        tent_id="main",
+        zone_id="ignored-for-plant-detail",
+        device_id=device_id,
+        capability_id=capability_id,
+        metric=metric,
+        value=value,
+        unit=unit,
+        source_updated_at=source_updated_at,
+        received_at=received_at,
+        stale_after_s=stale_after_s,
     )
 
 
@@ -378,8 +427,6 @@ async def test_catalog_upsert_is_idempotent(
                 "purple": True,
                 "moisture_target_low": 55.0,
                 "moisture_target_high": 70.0,
-                "moisture_device_id": "env-main",
-                "moisture_capability_id": "env-main-temp",
                 "wiki_path": "wiki/grows/main-2026-03-15/plants/plant-a.md",
                 "is_active": True,
             },
@@ -394,11 +441,21 @@ async def test_catalog_upsert_is_idempotent(
                 "purple": False,
                 "moisture_target_low": 50.0,
                 "moisture_target_high": 65.0,
-                "moisture_device_id": None,
-                "moisture_capability_id": None,
                 "wiki_path": None,
                 "is_active": False,
             },
+        ],
+        "plant_metric_streams": [
+            {
+                "tent_id": "main",
+                "grow_run_id": "main-2026-03-15",
+                "plant_id": "a",
+                "device_id": "env-main",
+                "capability_id": "env-main-temp",
+                "metric": "temperature_f",
+                "display_order": 1,
+                "is_active": True,
+            }
         ],
     }
 
@@ -412,6 +469,7 @@ async def test_catalog_upsert_is_idempotent(
     assert first.status_code == 200
     assert second.status_code == 200
     assert first.json()["plants"] == 2
+    assert first.json()["plant_metric_streams"] == 1
     sessionmaker = create_sessionmaker(cloud_engine)
     async with sessionmaker() as session:
         tent_count = await session.scalar(select(func.count()).select_from(CloudTent))
@@ -426,6 +484,9 @@ async def test_catalog_upsert_is_idempotent(
             select(func.count()).select_from(CloudSchedule)
         )
         plant_count = await session.scalar(select(func.count()).select_from(CloudPlant))
+        stream_count = await session.scalar(
+            select(func.count()).select_from(CloudPlantMetricStream)
+        )
         plant_a = (
             await session.execute(
                 select(CloudPlant).where(
@@ -436,15 +497,31 @@ async def test_catalog_upsert_is_idempotent(
                 )
             )
         ).scalar_one_or_none()
+        plant_a_stream = (
+            await session.execute(
+                select(CloudPlantMetricStream).where(
+                    CloudPlantMetricStream.site_id == "homebox",
+                    CloudPlantMetricStream.tent_id == "main",
+                    CloudPlantMetricStream.grow_run_id == "main-2026-03-15",
+                    CloudPlantMetricStream.plant_id == "a",
+                    CloudPlantMetricStream.device_id == "env-main",
+                    CloudPlantMetricStream.capability_id == "env-main-temp",
+                    CloudPlantMetricStream.metric == "temperature_f",
+                )
+            )
+        ).scalar_one_or_none()
     assert tent_count == 1
     assert zone_count == 1
     assert device_count == 2
     assert capability_count == 2
     assert schedule_count == 1
     assert plant_count == 2
+    assert stream_count == 1
     assert plant_a is not None
-    assert plant_a.moisture_device_id == "env-main"
     assert plant_a.wiki_path == "wiki/grows/main-2026-03-15/plants/plant-a.md"
+    assert plant_a_stream is not None
+    assert plant_a_stream.display_order == 1
+    assert plant_a_stream.is_active is True
 
 
 async def test_gateway_wiki_projection_upserts_deletes_and_checks_scope(
@@ -1266,7 +1343,7 @@ async def test_browser_plants_require_auth(client: AsyncClient) -> None:
     assert response.status_code == 401
 
 
-async def test_browser_plant_list_orders_and_marks_moisture_streams(
+async def test_browser_plant_list_orders_and_counts_telemetry_streams(
     authed_client: AsyncClient,
     cloud_engine: AsyncEngine,
 ) -> None:
@@ -1274,31 +1351,11 @@ async def test_browser_plant_list_orders_and_marks_moisture_streams(
     async with sessionmaker() as session:
         session.add_all(
             [
-                _plant(
-                    "b",
-                    display_order=2,
-                    moisture_device_id=None,
-                    moisture_capability_id=None,
-                    is_active=False,
-                ),
+                _plant("b", display_order=2, is_active=False),
                 _plant("a", display_order=1),
             ]
         )
-        session.add(
-            CloudLatestMetric(
-                site_id="homebox",
-                tent_id="main",
-                zone_id=None,
-                device_id="plant-a-node",
-                capability_id="soil_moisture_raw",
-                metric="soil_moisture_pct",
-                value=57.0,
-                unit="%",
-                source_updated_at=FIXED_NOW - timedelta(seconds=30),
-                received_at=FIXED_NOW,
-                stale_after_s=120,
-            )
-        )
+        session.add(_plant_stream("a"))
         await session.commit()
 
     response = await authed_client.get("/api/tents/main/plants")
@@ -1306,37 +1363,19 @@ async def test_browser_plant_list_orders_and_marks_moisture_streams(
     assert response.status_code == 200
     rows = response.json()
     assert [row["plant_id"] for row in rows] == ["a", "b"]
-    assert rows[0]["has_moisture_stream"] is True
-    assert rows[0]["moisture_device_id"] == "plant-a-node"
-    assert rows[0]["latest_moisture"]["metric"] == "soil_moisture_pct"
-    assert rows[0]["latest_moisture"]["value"] == 57.0
+    assert rows[0]["telemetry_stream_count"] == 1
     assert rows[0]["wiki_path"] == "wiki/grows/main-2026-03-15/plants/plant-a.md"
-    assert rows[1]["has_moisture_stream"] is False
-    assert rows[1]["latest_moisture"] is None
+    assert rows[1]["telemetry_stream_count"] == 0
 
 
-async def test_browser_plant_detail_returns_metadata_latest_and_freshness(
+async def test_browser_plant_detail_returns_metadata_wiki_and_telemetry_count(
     authed_client: AsyncClient,
     cloud_engine: AsyncEngine,
 ) -> None:
     sessionmaker = create_sessionmaker(cloud_engine)
     async with sessionmaker() as session:
         session.add(_plant("a", display_order=1))
-        session.add(
-            CloudLatestMetric(
-                site_id="homebox",
-                tent_id="main",
-                zone_id=None,
-                device_id="plant-a-node",
-                capability_id="soil_moisture_raw",
-                metric="soil_moisture_pct",
-                value=58.5,
-                unit="%",
-                source_updated_at=FIXED_NOW - timedelta(seconds=45),
-                received_at=FIXED_NOW,
-                stale_after_s=120,
-            )
-        )
+        session.add(_plant_stream("a"))
         session.add(
             CloudWikiPage(
                 site_id="homebox",
@@ -1359,12 +1398,25 @@ async def test_browser_plant_detail_returns_metadata_latest_and_freshness(
     body = response.json()
     assert body["plant_id"] == "a"
     assert body["name"] == "Plant A"
-    assert body["moisture_device_id"] == "plant-a-node"
-    assert body["moisture_capability_id"] == "soil_moisture_raw"
     assert body["target_bounds"] == {"low": 55.0, "high": 70.0}
-    assert body["latest_moisture"]["metric"] == "soil_moisture_pct"
-    assert body["latest_moisture"]["value"] == 58.5
-    assert body["freshness"] == {"source_age_s": 45, "is_current": True}
+    assert body["telemetry_stream_count"] == 1
+    assert body["telemetry"] == [
+        {
+            "metric": "soil_moisture_pct",
+            "display_name": "Soil Moisture",
+            "display_unit": "%",
+            "source_unit": "%",
+            "value_precision": 0,
+            "accent": "moisture",
+            "y_min": 0.0,
+            "y_max": 100.0,
+            "display_order": 1,
+            "history_enabled": True,
+            "device_id": "plant-a-node",
+            "capability_id": "soil_moisture_pct",
+            "latest_reading": None,
+        }
+    ]
     assert body["wiki_path"] == "wiki/grows/main-2026-03-15/plants/plant-a.md"
     assert body["wiki_content"] == {
         "path": "wiki/grows/main-2026-03-15/plants/plant-a.md",
@@ -1388,7 +1440,6 @@ async def test_browser_plants_use_latest_synced_row_per_public_plant_id(
                     "a",
                     display_order=9,
                     grow_run_id="main-2025-01-01",
-                    moisture_device_id="old-plant-a-node",
                     synced_at=FIXED_NOW - timedelta(days=30),
                     is_active=False,
                 ),
@@ -1396,24 +1447,15 @@ async def test_browser_plants_use_latest_synced_row_per_public_plant_id(
                     "a",
                     display_order=1,
                     grow_run_id="main-2026-03-15",
-                    moisture_device_id="new-plant-a-node",
                     synced_at=FIXED_NOW,
                 ),
             ]
         )
         session.add(
-            CloudLatestMetric(
-                site_id="homebox",
-                tent_id="main",
-                zone_id=None,
+            _plant_stream(
+                "a",
+                grow_run_id="main-2026-03-15",
                 device_id="new-plant-a-node",
-                capability_id="soil_moisture_raw",
-                metric="soil_moisture_pct",
-                value=61.0,
-                unit="%",
-                source_updated_at=FIXED_NOW - timedelta(seconds=30),
-                received_at=FIXED_NOW,
-                stale_after_s=120,
             )
         )
         await session.commit()
@@ -1426,43 +1468,32 @@ async def test_browser_plants_use_latest_synced_row_per_public_plant_id(
     assert len(listed_rows) == 1
     assert listed_rows[0]["plant_id"] == "a"
     assert listed_rows[0]["grow_run_id"] == "main-2026-03-15"
-    assert listed_rows[0]["moisture_device_id"] == "new-plant-a-node"
+    assert listed_rows[0]["telemetry_stream_count"] == 1
     assert detail.status_code == 200
     assert detail.json()["grow_run_id"] == "main-2026-03-15"
-    assert detail.json()["moisture_device_id"] == "new-plant-a-node"
-    assert detail.json()["latest_moisture"]["value"] == 61.0
+    assert detail.json()["telemetry_stream_count"] == 1
     assert detail.json()["wiki_content"] is None
 
 
-async def test_browser_plant_detail_and_history_404_without_moisture_stream(
+async def test_browser_plant_detail_returns_plants_without_telemetry(
     authed_client: AsyncClient,
     cloud_engine: AsyncEngine,
 ) -> None:
     sessionmaker = create_sessionmaker(cloud_engine)
     async with sessionmaker() as session:
-        session.add(
-            _plant(
-                "b",
-                display_order=2,
-                moisture_device_id=None,
-                moisture_capability_id=None,
-                is_active=False,
-            )
-        )
+        session.add(_plant("b", display_order=2, is_active=False))
         await session.commit()
 
     missing = await authed_client.get("/api/tents/main/plants/missing")
-    no_stream_detail = await authed_client.get("/api/tents/main/plants/b")
-    no_stream_history = await authed_client.get(
-        "/api/tents/main/plants/b/moisture/history?range=24h"
-    )
+    detail = await authed_client.get("/api/tents/main/plants/b")
 
     assert missing.status_code == 404
-    assert no_stream_detail.status_code == 404
-    assert no_stream_history.status_code == 404
+    assert detail.status_code == 200
+    assert detail.json()["telemetry_stream_count"] == 0
+    assert detail.json()["telemetry"] == []
 
 
-async def test_browser_plant_moisture_history_filters_exact_stream_and_range(
+async def test_browser_plant_detail_exposes_mapped_latest_with_display_conversions(
     authed_client: AsyncClient,
     cloud_engine: AsyncEngine,
 ) -> None:
@@ -1471,61 +1502,99 @@ async def test_browser_plant_moisture_history_filters_exact_stream_and_range(
         session.add(_plant("a", display_order=1))
         session.add_all(
             [
-                _rollup(
-                    bucket="1h",
-                    start=FIXED_NOW - timedelta(hours=2),
-                    avg=52.0,
-                    device_id="plant-a-node",
-                    metric="soil_moisture_pct",
-                    capability_id="soil_moisture_raw",
-                    unit="%",
+                _plant_stream(
+                    "a",
+                    device_id="plant-a-substrate-node",
+                    capability_id="substrate-temp",
+                    metric="substrate_temp_c",
+                    display_order=1,
                 ),
-                _rollup(
-                    bucket="1h",
-                    start=FIXED_NOW - timedelta(days=2),
-                    avg=51.0,
-                    device_id="plant-a-node",
-                    metric="soil_moisture_pct",
-                    capability_id="soil_moisture_raw",
-                    unit="%",
+                _plant_stream(
+                    "a",
+                    device_id="plant-a-substrate-node",
+                    capability_id="substrate-ec",
+                    metric="substrate_ec_us_cm",
+                    display_order=2,
                 ),
-                _rollup(
-                    bucket="1h",
-                    start=FIXED_NOW - timedelta(hours=2),
-                    avg=47.0,
-                    device_id="plant-b-node",
-                    metric="soil_moisture_pct",
-                    capability_id="soil_moisture_raw",
-                    unit="%",
+                _plant_stream(
+                    "a",
+                    device_id="plant-a-substrate-node",
+                    capability_id="substrate-ph",
+                    metric="substrate_ph",
+                    display_order=3,
                 ),
-                _rollup(
-                    bucket="1h",
-                    start=FIXED_NOW - timedelta(hours=2),
-                    avg=1800.0,
-                    device_id="plant-a-node",
-                    metric="soil_moisture_raw",
-                    capability_id="soil_moisture_raw",
-                    unit="raw",
+                _plant_stream(
+                    "a",
+                    device_id="plant-a-substrate-node",
+                    capability_id="disabled-moisture",
+                    metric="soil_moisture_pct",
+                    display_order=4,
+                    is_active=False,
+                ),
+            ]
+        )
+        session.add_all(
+            [
+                _latest_metric(
+                    device_id="plant-a-substrate-node",
+                    capability_id="substrate-temp",
+                    metric="substrate_temp_c",
+                    value=21.0,
+                    unit="degC",
+                    stale_after_s=600,
+                ),
+                _latest_metric(
+                    device_id="plant-a-substrate-node",
+                    capability_id="substrate-ec",
+                    metric="substrate_ec_us_cm",
+                    value=1234.0,
+                    unit="us/cm",
+                ),
+                _latest_metric(
+                    device_id="plant-a-substrate-node",
+                    capability_id="substrate-ph",
+                    metric="substrate_ph",
+                    value=6.4,
+                    unit="pH",
+                ),
+                _latest_metric(
+                    device_id="other-node",
+                    capability_id="substrate-temp",
+                    metric="substrate_temp_c",
+                    value=1.0,
+                    unit="degC",
                 ),
             ]
         )
         await session.commit()
 
-    response = await authed_client.get(
-        "/api/tents/main/plants/a/moisture/history?range=24h"
-    )
-    invalid = await authed_client.get(
-        "/api/tents/main/plants/a/moisture/history?range=180d"
-    )
+    response = await authed_client.get("/api/tents/main/plants/a")
 
     assert response.status_code == 200
-    assert response.json()["metric"] == "soil_moisture_pct"
-    assert response.json()["range"] == "24h"
-    assert [point["avg"] for point in response.json()["points"]] == [52.0]
-    assert invalid.status_code == 400
+    telemetry = {stream["metric"]: stream for stream in response.json()["telemetry"]}
+    assert list(telemetry) == ["substrate_temp_c", "substrate_ec_us_cm", "substrate_ph"]
+    assert telemetry["substrate_temp_c"]["display_name"] == "Substrate Temp"
+    assert telemetry["substrate_temp_c"]["display_unit"] == "°F"
+    assert telemetry["substrate_temp_c"]["source_unit"] == "degC"
+    assert telemetry["substrate_temp_c"]["latest_reading"] == {
+        "value": 69.8,
+        "source_value": 21.0,
+        "source_unit": "degC",
+        "display_unit": "°F",
+        "device_id": "plant-a-substrate-node",
+        "capability_id": "substrate-temp",
+        "source_updated_at": "2026-05-05T03:44:00Z",
+        "received_at": "2026-05-05T03:45:00Z",
+        "stale_after_s": 600,
+    }
+    assert telemetry["substrate_ec_us_cm"]["display_unit"] == "mS/cm"
+    assert telemetry["substrate_ec_us_cm"]["source_unit"] == "us/cm"
+    assert telemetry["substrate_ec_us_cm"]["latest_reading"]["value"] == 1.234
+    assert telemetry["substrate_ec_us_cm"]["latest_reading"]["source_value"] == 1234.0
+    assert telemetry["substrate_ph"]["latest_reading"]["value"] == 6.4
 
 
-async def test_browser_plant_moisture_comparison_history_returns_all_tent_streams(
+async def test_browser_plant_metric_history_uses_mapped_streams_and_conversions(
     authed_client: AsyncClient,
     cloud_engine: AsyncEngine,
 ) -> None:
@@ -1533,154 +1602,143 @@ async def test_browser_plant_moisture_comparison_history_returns_all_tent_stream
     async with sessionmaker() as session:
         session.add_all(
             [
-                _plant("b", display_order=2, moisture_device_id="plant-b-node"),
                 _plant("a", display_order=1),
-                _plant(
-                    "c",
-                    display_order=3,
-                    moisture_device_id=None,
-                    moisture_capability_id=None,
-                ),
+                _plant("b", display_order=2),
+                _plant("c", display_order=3),
             ]
         )
         session.add_all(
             [
-                CloudLatestMetric(
-                    site_id="homebox",
-                    tent_id="main",
-                    zone_id=None,
-                    device_id="plant-a-node",
-                    capability_id="soil_moisture_raw",
-                    metric="soil_moisture_pct",
-                    value=52.0,
-                    unit="%",
-                    source_updated_at=FIXED_NOW - timedelta(seconds=30),
-                    received_at=FIXED_NOW,
-                    stale_after_s=120,
+                _plant_stream(
+                    "a",
+                    device_id="plant-a-substrate-node",
+                    capability_id="substrate-temp",
+                    metric="substrate_temp_c",
+                    display_order=1,
                 ),
-                CloudLatestMetric(
-                    site_id="homebox",
-                    tent_id="main",
-                    zone_id=None,
-                    device_id="plant-b-node",
-                    capability_id="soil_moisture_raw",
-                    metric="soil_moisture_pct",
-                    value=64.0,
-                    unit="%",
-                    source_updated_at=FIXED_NOW - timedelta(seconds=45),
-                    received_at=FIXED_NOW,
-                    stale_after_s=120,
+                _plant_stream(
+                    "a",
+                    device_id="plant-a-substrate-node",
+                    capability_id="substrate-ec",
+                    metric="substrate_ec_us_cm",
+                    display_order=2,
                 ),
-            ]
-        )
-        session.add_all(
-            [
-                _rollup(
-                    bucket="1h",
-                    start=FIXED_NOW - timedelta(hours=2),
-                    avg=52.0,
-                    device_id="plant-a-node",
-                    metric="soil_moisture_pct",
+                _plant_stream(
+                    "a",
+                    device_id="plant-a-raw-node",
                     capability_id="soil_moisture_raw",
-                    unit="%",
-                ),
-                _rollup(
-                    bucket="1h",
-                    start=FIXED_NOW - timedelta(hours=2),
-                    avg=64.0,
-                    device_id="plant-b-node",
-                    metric="soil_moisture_pct",
-                    capability_id="soil_moisture_raw",
-                    unit="%",
-                ),
-                _rollup(
-                    bucket="1h",
-                    start=FIXED_NOW - timedelta(hours=2),
-                    avg=1800.0,
-                    device_id="plant-a-node",
                     metric="soil_moisture_raw",
-                    capability_id="soil_moisture_raw",
-                    unit="raw",
+                    display_order=3,
+                ),
+                _plant_stream(
+                    "b",
+                    device_id="plant-b-substrate-node",
+                    capability_id="substrate-temp",
+                    metric="substrate_temp_c",
+                    display_order=1,
+                ),
+            ]
+        )
+        session.add_all(
+            [
+                _rollup(
+                    bucket="1h",
+                    start=FIXED_NOW - timedelta(hours=2),
+                    min_value=20.0,
+                    avg=21.0,
+                    max_value=22.0,
+                    device_id="plant-a-substrate-node",
+                    capability_id="substrate-temp",
+                    metric="substrate_temp_c",
+                    unit="degC",
+                ),
+                _rollup(
+                    bucket="1h",
+                    start=FIXED_NOW - timedelta(hours=3),
+                    min_value=1100.0,
+                    avg=1200.0,
+                    max_value=1300.0,
+                    device_id="plant-a-substrate-node",
+                    capability_id="substrate-ec",
+                    metric="substrate_ec_us_cm",
+                    unit="us/cm",
+                ),
+                _rollup(
+                    bucket="1h",
+                    start=FIXED_NOW - timedelta(hours=2),
+                    avg=1.0,
+                    device_id="plant-b-substrate-node",
+                    capability_id="substrate-temp",
+                    metric="substrate_temp_c",
+                    unit="degC",
+                ),
+                _rollup(
+                    bucket="4h",
+                    start=FIXED_NOW - timedelta(hours=2),
+                    avg=99.0,
+                    device_id="plant-a-substrate-node",
+                    capability_id="substrate-temp",
+                    metric="substrate_temp_c",
+                    unit="degC",
                 ),
             ]
         )
         await session.commit()
 
     response = await authed_client.get(
-        "/api/tents/main/plants/moisture/history?range=24h"
+        "/api/tents/main/plants/a/metrics/history?range=24h"
+    )
+    empty = await authed_client.get(
+        "/api/tents/main/plants/c/metrics/history?range=24h"
     )
     invalid = await authed_client.get(
-        "/api/tents/main/plants/moisture/history?range=180d"
+        "/api/tents/main/plants/a/metrics/history?range=180d"
     )
 
     assert response.status_code == 200
     body = response.json()
-    assert body["metric"] == "soil_moisture_pct"
     assert body["range"] == "24h"
-    assert [plant["plant_id"] for plant in body["plants"]] == ["a", "b"]
-    assert [plant["latest_moisture"]["value"] for plant in body["plants"]] == [
-        52.0,
-        64.0,
+    assert body["bucket"] == "1h"
+    streams = {stream["metric"]: stream for stream in body["streams"]}
+    assert list(streams) == ["substrate_temp_c", "substrate_ec_us_cm"]
+    assert streams["substrate_temp_c"]["points"] == [
+        {
+            "bucket": "1h",
+            "bucket_start_at": "2026-05-05T01:45:00Z",
+            "bucket_end_at": "2026-05-05T01:50:00Z",
+            "min": 68.0,
+            "avg": 69.8,
+            "max": 71.6,
+            "source_min": 20.0,
+            "source_avg": 21.0,
+            "source_max": 22.0,
+            "sample_count": 1,
+            "source_unit": "degC",
+            "display_unit": "°F",
+        }
     ]
-    assert [plant["points"][0]["avg"] for plant in body["plants"]] == [52.0, 64.0]
+    assert streams["substrate_ec_us_cm"]["points"][0]["min"] == 1.1
+    assert streams["substrate_ec_us_cm"]["points"][0]["avg"] == 1.2
+    assert streams["substrate_ec_us_cm"]["points"][0]["max"] == 1.3
+    assert streams["substrate_ec_us_cm"]["points"][0]["source_avg"] == 1200.0
+    assert streams["substrate_ec_us_cm"]["points"][0]["display_unit"] == "mS/cm"
+    assert empty.status_code == 200
+    assert empty.json()["streams"] == []
     assert invalid.status_code == 400
 
 
-async def test_browser_plant_history_uses_latest_synced_row_per_public_plant_id(
+async def test_browser_plant_moisture_history_routes_are_removed(
     authed_client: AsyncClient,
-    cloud_engine: AsyncEngine,
 ) -> None:
-    sessionmaker = create_sessionmaker(cloud_engine)
-    async with sessionmaker() as session:
-        session.add_all(
-            [
-                _plant(
-                    "a",
-                    display_order=9,
-                    grow_run_id="main-2025-01-01",
-                    moisture_device_id="old-plant-a-node",
-                    synced_at=FIXED_NOW - timedelta(days=30),
-                    is_active=False,
-                ),
-                _plant(
-                    "a",
-                    display_order=1,
-                    grow_run_id="main-2026-03-15",
-                    moisture_device_id="new-plant-a-node",
-                    synced_at=FIXED_NOW,
-                ),
-            ]
-        )
-        session.add_all(
-            [
-                _rollup(
-                    bucket="1h",
-                    start=FIXED_NOW - timedelta(hours=2),
-                    avg=40.0,
-                    device_id="old-plant-a-node",
-                    metric="soil_moisture_pct",
-                    capability_id="soil_moisture_raw",
-                    unit="%",
-                ),
-                _rollup(
-                    bucket="1h",
-                    start=FIXED_NOW - timedelta(hours=2),
-                    avg=65.0,
-                    device_id="new-plant-a-node",
-                    metric="soil_moisture_pct",
-                    capability_id="soil_moisture_raw",
-                    unit="%",
-                ),
-            ]
-        )
-        await session.commit()
-
-    response = await authed_client.get(
+    detail_history = await authed_client.get(
         "/api/tents/main/plants/a/moisture/history?range=24h"
     )
+    comparison_history = await authed_client.get(
+        "/api/tents/main/plants/moisture/history?range=24h"
+    )
 
-    assert response.status_code == 200
-    assert [point["avg"] for point in response.json()["points"]] == [65.0]
+    assert detail_history.status_code == 404
+    assert comparison_history.status_code == 404
 
 
 async def test_metric_history_uses_canonical_metrics_and_dehumidifier_runtime(

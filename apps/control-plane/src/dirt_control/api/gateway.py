@@ -19,6 +19,7 @@ from dirt_control.models import (
     CloudLatestMetric,
     CloudMetricRollup,
     CloudPlant,
+    CloudPlantMetricStream,
     CloudSchedule,
     CloudSite,
     CloudTent,
@@ -284,10 +285,37 @@ async def catalog(
                 "purple": plant.purple,
                 "moisture_target_low": plant.moisture_target_low,
                 "moisture_target_high": plant.moisture_target_high,
-                "moisture_device_id": plant.moisture_device_id,
-                "moisture_capability_id": plant.moisture_capability_id,
                 "wiki_path": plant.wiki_path,
                 "is_active": plant.is_active,
+                "synced_at": now,
+                "created_at": now,
+                "updated_at": now,
+            },
+            now=now,
+        )
+    for stream in body.plant_metric_streams:
+        await _upsert_by_columns(
+            session,
+            CloudPlantMetricStream,
+            {
+                "site_id": body.site.site_id,
+                "tent_id": stream.tent_id,
+                "grow_run_id": stream.grow_run_id,
+                "plant_id": stream.plant_id,
+                "device_id": stream.device_id,
+                "capability_id": stream.capability_id,
+                "metric": stream.metric,
+            },
+            {
+                "site_id": body.site.site_id,
+                "tent_id": stream.tent_id,
+                "grow_run_id": stream.grow_run_id,
+                "plant_id": stream.plant_id,
+                "device_id": stream.device_id,
+                "capability_id": stream.capability_id,
+                "metric": stream.metric,
+                "display_order": stream.display_order,
+                "is_active": stream.is_active,
                 "synced_at": now,
                 "created_at": now,
                 "updated_at": now,
@@ -303,6 +331,7 @@ async def catalog(
         capabilities=len(body.capabilities),
         schedules=len(body.schedules),
         plants=len(body.plants),
+        plant_metric_streams=len(body.plant_metric_streams),
     )
 
 

@@ -4,14 +4,14 @@ type: hardware
 sources: []
 related: [wiki/hardware/rs485-substrate-sensors.md, wiki/hardware/soil-moisture-sensing-options.md]
 created: 2026-06-10
-updated: 2026-06-11
+updated: 2026-06-12
 ---
 
 # RS485 Substrate Sensor Calibration
 
 Calibration log for the DFRobot SEN0604 RS485 substrate probe on the Seeed Studio XIAO ESP32C3 + Seeed XIAO RS485 breakout. The probe has been changed to Modbus address `0x02`.
 
-Keep calibration read-only for now. Do not write the SEN0604 calibration registers until the raw behavior is characterized against standards and reference instruments.
+Keep probe-register calibration read-only for now. Current Dirt operational status for Plant A EC/pH is calibrated; maintain that calibration in Dirt/software and use new standards/reference captures as QA evidence before changing correction behavior.
 
 ## Current Firmware And Serial Capture
 
@@ -140,7 +140,7 @@ The probe was inserted into an `84 us/cm` EC calibration solution. Capture used 
 | EC | 106 us/cm |
 | pH | 6.1-6.5, avg 6.28 |
 
-Interpretation: against an `84 us/cm` standard, this unit reported `106 us/cm`, about `1.26x` high. EC was perfectly stable across the 22-sample window; pH drifted downward from `6.5` to `6.1` and should not be interpreted as calibrated pH behavior in EC standard solution.
+Interpretation: against an `84 us/cm` standard, this unit reported `106 us/cm`, about `1.26x` high. EC was perfectly stable across the 22-sample window; pH drifted downward from `6.5` to `6.1` in the EC standard solution, so pH QA should use pH buffers or substrate/reference comparisons.
 
 ### 12.88 mS/cm EC Standard
 
@@ -158,7 +158,7 @@ The probe was inserted into a `12.88 mS/cm` (`12880 us/cm`) EC calibration solut
 
 Interpretation: the sensor saturated at `20000 us/cm` for every sample. This point is useful as an upper-range failure/saturation check, but it cannot be used as a normal calibration anchor for the `12.88 mS/cm` standard.
 
-## Next Calibration Points
+## Next QA Points
 
 - Repeat pH 4 with the serial-only firmware and capture at least 30 complete samples after stabilization.
 - Capture pH 7 buffer, then pH 10 buffer if available.

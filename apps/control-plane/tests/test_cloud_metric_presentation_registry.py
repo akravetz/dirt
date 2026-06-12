@@ -16,6 +16,14 @@ PRODUCT_HISTORY_METRICS = {
     "reservoir_in",
     "reservoir_ph",
     "soil_moisture_pct",
+    "substrate_temp_c",
+    "substrate_ec_us_cm",
+    "substrate_ph",
+}
+SUBSTRATE_PRESENTATION_ROWS = {
+    "substrate_temp_c": ("Substrate Temp", "°F", 1),
+    "substrate_ec_us_cm": ("Substrate EC", "mS/cm", 2),
+    "substrate_ph": ("Substrate pH", "pH", 1),
 }
 RAW_OR_INTERNAL_METRICS = {
     "soil_moisture_raw",
@@ -44,6 +52,13 @@ async def test_cloud_metric_presentation_seed_marks_product_history(cloud_engine
     assert by_metric["soil_moisture_pct"].unit == "%"
     assert by_metric["soil_moisture_pct"].history_enabled is True
     assert by_metric["soil_moisture_pct"].current_enabled is False
+    for metric, (display_name, unit, precision) in SUBSTRATE_PRESENTATION_ROWS.items():
+        row = by_metric[metric]
+        assert row.display_name == display_name
+        assert row.unit == unit
+        assert row.value_precision == precision
+        assert row.history_enabled is True
+        assert row.current_enabled is False
     assert RAW_OR_INTERNAL_METRICS.isdisjoint(history_metrics)
     assert "soil_moisture_raw" not in by_metric
 

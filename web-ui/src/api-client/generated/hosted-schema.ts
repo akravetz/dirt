@@ -346,23 +346,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/tents/{tent_id}/plants/moisture/history": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Plant Moisture Comparison History */
-    get: operations["plant_moisture_comparison_history_api_tents__tent_id__plants_moisture_history_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/api/tents/{tent_id}/plants/{plant_id}": {
     parameters: {
       query?: never;
@@ -380,15 +363,15 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/tents/{tent_id}/plants/{plant_id}/moisture/history": {
+  "/api/tents/{tent_id}/plants/{plant_id}/metrics/history": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** Plant Moisture History */
-    get: operations["plant_moisture_history_api_tents__tent_id__plants__plant_id__moisture_history_get"];
+    /** Plant Metric History */
+    get: operations["plant_metric_history_api_tents__tent_id__plants__plant_id__metrics_history_get"];
     put?: never;
     post?: never;
     delete?: never;
@@ -646,10 +629,6 @@ export interface components {
       grow_run_id: string;
       /** Is Active */
       is_active: boolean;
-      /** Moisture Capability Id */
-      moisture_capability_id: string | null;
-      /** Moisture Device Id */
-      moisture_device_id: string | null;
       /** Moisture Target High */
       moisture_target_high: number;
       /** Moisture Target Low */
@@ -669,12 +648,33 @@ export interface components {
       /** Wiki Path */
       wiki_path: string | null;
     };
+    /** CatalogPlantMetricStream */
+    CatalogPlantMetricStream: {
+      /** Capability Id */
+      capability_id: string;
+      /** Device Id */
+      device_id: string;
+      /** Display Order */
+      display_order: number;
+      /** Grow Run Id */
+      grow_run_id: string;
+      /** Is Active */
+      is_active: boolean;
+      /** Metric */
+      metric: string;
+      /** Plant Id */
+      plant_id: string;
+      /** Tent Id */
+      tent_id: string;
+    };
     /** CatalogRequest */
     CatalogRequest: {
       /** Capabilities */
       capabilities?: components["schemas"]["CatalogCapability"][];
       /** Devices */
       devices?: components["schemas"]["CatalogDevice"][];
+      /** Plant Metric Streams */
+      plant_metric_streams?: components["schemas"]["CatalogPlantMetricStream"][];
       /** Plants */
       plants?: components["schemas"]["CatalogPlant"][];
       /** Schedules */
@@ -691,6 +691,8 @@ export interface components {
       capabilities: number;
       /** Devices */
       devices: number;
+      /** Plant Metric Streams */
+      plant_metric_streams: number;
       /** Plants */
       plants: number;
       /** Schedules */
@@ -1306,16 +1308,10 @@ export interface components {
     PlantDetailResponse: {
       /** Display Order */
       display_order: number;
-      freshness: components["schemas"]["PlantMoistureFreshnessResponse"] | null;
       /** Grow Run Id */
       grow_run_id: string;
       /** Is Active */
       is_active: boolean;
-      latest_moisture: components["schemas"]["PlantLatestMoistureResponse"] | null;
-      /** Moisture Capability Id */
-      moisture_capability_id: string;
-      /** Moisture Device Id */
-      moisture_device_id: string;
       /** Name */
       name: string;
       /** Plant Id */
@@ -1329,79 +1325,139 @@ export interface components {
       /** Sticker Color */
       sticker_color: string | null;
       target_bounds: components["schemas"]["PlantTargetBoundsResponse"];
+      /** Telemetry */
+      telemetry: components["schemas"]["PlantMetricStreamResponse"][];
+      /** Telemetry Stream Count */
+      telemetry_stream_count: number;
       /** Tent Id */
       tent_id: string;
       wiki_content: components["schemas"]["PlantWikiContentResponse"] | null;
       /** Wiki Path */
       wiki_path: string | null;
     };
-    /** PlantLatestMoistureResponse */
-    PlantLatestMoistureResponse: {
+    /** PlantMetricHistoryPointResponse */
+    PlantMetricHistoryPointResponse: {
+      /** Avg */
+      avg: number | null;
+      /** Bucket */
+      bucket: string;
+      /**
+       * Bucket End At
+       * Format: date-time
+       */
+      bucket_end_at: string;
+      /**
+       * Bucket Start At
+       * Format: date-time
+       */
+      bucket_start_at: string;
+      /** Display Unit */
+      display_unit: string;
+      /** Max */
+      max: number | null;
+      /** Min */
+      min: number | null;
+      /** Sample Count */
+      sample_count: number;
+      /** Source Avg */
+      source_avg: number | null;
+      /** Source Max */
+      source_max: number | null;
+      /** Source Min */
+      source_min: number | null;
+      /** Source Unit */
+      source_unit: string | null;
+    };
+    /** PlantMetricHistoryResponse */
+    PlantMetricHistoryResponse: {
+      /** Bucket */
+      bucket: string;
+      /** Range */
+      range: string;
+      /** Streams */
+      streams: components["schemas"]["PlantMetricHistoryStreamResponse"][];
+    };
+    /** PlantMetricHistoryStreamResponse */
+    PlantMetricHistoryStreamResponse: {
+      /** Accent */
+      accent: string;
       /** Capability Id */
       capability_id: string;
       /** Device Id */
       device_id: string;
-      /**
-       * Metric
-       * @constant
-       */
-      metric: "soil_moisture_pct";
+      /** Display Name */
+      display_name: string;
+      /** Display Order */
+      display_order: number;
+      /** Display Unit */
+      display_unit: string;
+      /** Metric */
+      metric: string;
+      /** Points */
+      points: components["schemas"]["PlantMetricHistoryPointResponse"][];
+      /** Source Unit */
+      source_unit: string | null;
+      /** Value Precision */
+      value_precision: number;
+      /** Y Max */
+      y_max: number | null;
+      /** Y Min */
+      y_min: number | null;
+    };
+    /** PlantMetricReadingResponse */
+    PlantMetricReadingResponse: {
+      /** Capability Id */
+      capability_id: string;
+      /** Device Id */
+      device_id: string;
+      /** Display Unit */
+      display_unit: string;
       /**
        * Received At
        * Format: date-time
        */
       received_at: string;
+      /** Source Unit */
+      source_unit: string | null;
       /**
        * Source Updated At
        * Format: date-time
        */
       source_updated_at: string;
+      /** Source Value */
+      source_value: number;
       /** Stale After S */
       stale_after_s: number;
-      /** Unit */
-      unit: string | null;
       /** Value */
       value: number;
     };
-    /** PlantMoistureComparisonResponse */
-    PlantMoistureComparisonResponse: {
-      /**
-       * Metric
-       * @constant
-       */
-      metric: "soil_moisture_pct";
-      /** Plants */
-      plants: components["schemas"]["PlantMoistureSeriesResponse"][];
-      /** Range */
-      range: string;
-    };
-    /** PlantMoistureFreshnessResponse */
-    PlantMoistureFreshnessResponse: {
-      /** Is Current */
-      is_current: boolean;
-      /** Source Age S */
-      source_age_s: number;
-    };
-    /** PlantMoistureSeriesResponse */
-    PlantMoistureSeriesResponse: {
+    /** PlantMetricStreamResponse */
+    PlantMetricStreamResponse: {
+      /** Accent */
+      accent: string;
+      /** Capability Id */
+      capability_id: string;
+      /** Device Id */
+      device_id: string;
+      /** Display Name */
+      display_name: string;
       /** Display Order */
       display_order: number;
-      /** Grow Run Id */
-      grow_run_id: string;
-      latest_moisture: components["schemas"]["PlantLatestMoistureResponse"] | null;
-      /** Name */
-      name: string;
-      /** Plant Id */
-      plant_id: string;
-      /** Points */
-      points: components["schemas"]["MetricHistoryPointResponse"][];
-      /** Site Id */
-      site_id: string;
-      /** Sticker Color */
-      sticker_color: string | null;
-      target_bounds: components["schemas"]["PlantTargetBoundsResponse"];
-      /** Tent Id */
-      tent_id: string;
+      /** Display Unit */
+      display_unit: string;
+      /** History Enabled */
+      history_enabled: boolean;
+      latest_reading: components["schemas"]["PlantMetricReadingResponse"] | null;
+      /** Metric */
+      metric: string;
+      /** Source Unit */
+      source_unit: string | null;
+      /** Value Precision */
+      value_precision: number;
+      /** Y Max */
+      y_max: number | null;
+      /** Y Min */
+      y_min: number | null;
     };
     /** PlantSummaryResponse */
     PlantSummaryResponse: {
@@ -1409,15 +1465,8 @@ export interface components {
       display_order: number;
       /** Grow Run Id */
       grow_run_id: string;
-      /** Has Moisture Stream */
-      has_moisture_stream: boolean;
       /** Is Active */
       is_active: boolean;
-      latest_moisture: components["schemas"]["PlantLatestMoistureResponse"] | null;
-      /** Moisture Capability Id */
-      moisture_capability_id: string | null;
-      /** Moisture Device Id */
-      moisture_device_id: string | null;
       /** Moisture Target High */
       moisture_target_high: number;
       /** Moisture Target Low */
@@ -1434,6 +1483,8 @@ export interface components {
       status: string;
       /** Sticker Color */
       sticker_color: string | null;
+      /** Telemetry Stream Count */
+      telemetry_stream_count: number;
       /** Tent Id */
       tent_id: string;
       /** Wiki Path */
@@ -2347,39 +2398,6 @@ export interface operations {
       };
     };
   };
-  plant_moisture_comparison_history_api_tents__tent_id__plants_moisture_history_get: {
-    parameters: {
-      query?: {
-        range?: string;
-      };
-      header?: never;
-      path: {
-        tent_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["PlantMoistureComparisonResponse"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
   plant_detail_api_tents__tent_id__plants__plant_id__get: {
     parameters: {
       query?: never;
@@ -2412,7 +2430,7 @@ export interface operations {
       };
     };
   };
-  plant_moisture_history_api_tents__tent_id__plants__plant_id__moisture_history_get: {
+  plant_metric_history_api_tents__tent_id__plants__plant_id__metrics_history_get: {
     parameters: {
       query?: {
         range?: string;
@@ -2432,7 +2450,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["MetricHistoryResponse"];
+          "application/json": components["schemas"]["PlantMetricHistoryResponse"];
         };
       };
       /** @description Validation Error */

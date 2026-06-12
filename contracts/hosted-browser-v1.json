@@ -582,28 +582,6 @@
             "title": "Is Active",
             "type": "boolean"
           },
-          "moisture_capability_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Moisture Capability Id"
-          },
-          "moisture_device_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Moisture Device Id"
-          },
           "moisture_target_high": {
             "title": "Moisture Target High",
             "type": "number"
@@ -666,12 +644,59 @@
           "purple",
           "moisture_target_low",
           "moisture_target_high",
-          "moisture_device_id",
-          "moisture_capability_id",
           "wiki_path",
           "is_active"
         ],
         "title": "CatalogPlant",
+        "type": "object"
+      },
+      "CatalogPlantMetricStream": {
+        "additionalProperties": false,
+        "properties": {
+          "capability_id": {
+            "title": "Capability Id",
+            "type": "string"
+          },
+          "device_id": {
+            "title": "Device Id",
+            "type": "string"
+          },
+          "display_order": {
+            "title": "Display Order",
+            "type": "integer"
+          },
+          "grow_run_id": {
+            "title": "Grow Run Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "plant_id": {
+            "title": "Plant Id",
+            "type": "string"
+          },
+          "tent_id": {
+            "title": "Tent Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tent_id",
+          "grow_run_id",
+          "plant_id",
+          "device_id",
+          "capability_id",
+          "metric",
+          "display_order",
+          "is_active"
+        ],
+        "title": "CatalogPlantMetricStream",
         "type": "object"
       },
       "CatalogRequest": {
@@ -689,6 +714,13 @@
               "$ref": "#/components/schemas/CatalogDevice"
             },
             "title": "Devices",
+            "type": "array"
+          },
+          "plant_metric_streams": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogPlantMetricStream"
+            },
+            "title": "Plant Metric Streams",
             "type": "array"
           },
           "plants": {
@@ -740,6 +772,10 @@
             "title": "Devices",
             "type": "integer"
           },
+          "plant_metric_streams": {
+            "title": "Plant Metric Streams",
+            "type": "integer"
+          },
           "plants": {
             "title": "Plants",
             "type": "integer"
@@ -768,7 +804,8 @@
           "devices",
           "capabilities",
           "schedules",
-          "plants"
+          "plants",
+          "plant_metric_streams"
         ],
         "title": "CatalogResponse",
         "type": "object"
@@ -2427,16 +2464,6 @@
             "title": "Display Order",
             "type": "integer"
           },
-          "freshness": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PlantMoistureFreshnessResponse"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "grow_run_id": {
             "title": "Grow Run Id",
             "type": "string"
@@ -2444,24 +2471,6 @@
           "is_active": {
             "title": "Is Active",
             "type": "boolean"
-          },
-          "latest_moisture": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PlantLatestMoistureResponse"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "moisture_capability_id": {
-            "title": "Moisture Capability Id",
-            "type": "string"
-          },
-          "moisture_device_id": {
-            "title": "Moisture Device Id",
-            "type": "string"
           },
           "name": {
             "title": "Name",
@@ -2496,6 +2505,17 @@
           },
           "target_bounds": {
             "$ref": "#/components/schemas/PlantTargetBoundsResponse"
+          },
+          "telemetry": {
+            "items": {
+              "$ref": "#/components/schemas/PlantMetricStreamResponse"
+            },
+            "title": "Telemetry",
+            "type": "array"
+          },
+          "telemetry_stream_count": {
+            "title": "Telemetry Stream Count",
+            "type": "integer"
           },
           "tent_id": {
             "title": "Tent Id",
@@ -2534,18 +2554,256 @@
           "status",
           "purple",
           "is_active",
-          "moisture_device_id",
-          "moisture_capability_id",
           "target_bounds",
-          "latest_moisture",
-          "freshness",
+          "telemetry_stream_count",
+          "telemetry",
           "wiki_path",
           "wiki_content"
         ],
         "title": "PlantDetailResponse",
         "type": "object"
       },
-      "PlantLatestMoistureResponse": {
+      "PlantMetricHistoryPointResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "avg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg"
+          },
+          "bucket": {
+            "title": "Bucket",
+            "type": "string"
+          },
+          "bucket_end_at": {
+            "format": "date-time",
+            "title": "Bucket End At",
+            "type": "string"
+          },
+          "bucket_start_at": {
+            "format": "date-time",
+            "title": "Bucket Start At",
+            "type": "string"
+          },
+          "display_unit": {
+            "title": "Display Unit",
+            "type": "string"
+          },
+          "max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max"
+          },
+          "min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min"
+          },
+          "sample_count": {
+            "title": "Sample Count",
+            "type": "integer"
+          },
+          "source_avg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Avg"
+          },
+          "source_max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Max"
+          },
+          "source_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Min"
+          },
+          "source_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Unit"
+          }
+        },
+        "required": [
+          "bucket",
+          "bucket_start_at",
+          "bucket_end_at",
+          "min",
+          "avg",
+          "max",
+          "source_min",
+          "source_avg",
+          "source_max",
+          "sample_count",
+          "source_unit",
+          "display_unit"
+        ],
+        "title": "PlantMetricHistoryPointResponse",
+        "type": "object"
+      },
+      "PlantMetricHistoryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "bucket": {
+            "title": "Bucket",
+            "type": "string"
+          },
+          "range": {
+            "title": "Range",
+            "type": "string"
+          },
+          "streams": {
+            "items": {
+              "$ref": "#/components/schemas/PlantMetricHistoryStreamResponse"
+            },
+            "title": "Streams",
+            "type": "array"
+          }
+        },
+        "required": [
+          "range",
+          "bucket",
+          "streams"
+        ],
+        "title": "PlantMetricHistoryResponse",
+        "type": "object"
+      },
+      "PlantMetricHistoryStreamResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "accent": {
+            "title": "Accent",
+            "type": "string"
+          },
+          "capability_id": {
+            "title": "Capability Id",
+            "type": "string"
+          },
+          "device_id": {
+            "title": "Device Id",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "display_order": {
+            "title": "Display Order",
+            "type": "integer"
+          },
+          "display_unit": {
+            "title": "Display Unit",
+            "type": "string"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/PlantMetricHistoryPointResponse"
+            },
+            "title": "Points",
+            "type": "array"
+          },
+          "source_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Unit"
+          },
+          "value_precision": {
+            "title": "Value Precision",
+            "type": "integer"
+          },
+          "y_max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y Max"
+          },
+          "y_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y Min"
+          }
+        },
+        "required": [
+          "metric",
+          "display_name",
+          "display_unit",
+          "source_unit",
+          "value_precision",
+          "accent",
+          "y_min",
+          "y_max",
+          "display_order",
+          "device_id",
+          "capability_id",
+          "points"
+        ],
+        "title": "PlantMetricHistoryStreamResponse",
+        "type": "object"
+      },
+      "PlantMetricReadingResponse": {
         "additionalProperties": false,
         "properties": {
           "capability_id": {
@@ -2556,9 +2814,8 @@
             "title": "Device Id",
             "type": "string"
           },
-          "metric": {
-            "const": "soil_moisture_pct",
-            "title": "Metric",
+          "display_unit": {
+            "title": "Display Unit",
             "type": "string"
           },
           "received_at": {
@@ -2566,16 +2823,7 @@
             "title": "Received At",
             "type": "string"
           },
-          "source_updated_at": {
-            "format": "date-time",
-            "title": "Source Updated At",
-            "type": "string"
-          },
-          "stale_after_s": {
-            "title": "Stale After S",
-            "type": "integer"
-          },
-          "unit": {
+          "source_unit": {
             "anyOf": [
               {
                 "type": "string"
@@ -2584,7 +2832,20 @@
                 "type": "null"
               }
             ],
-            "title": "Unit"
+            "title": "Source Unit"
+          },
+          "source_updated_at": {
+            "format": "date-time",
+            "title": "Source Updated At",
+            "type": "string"
+          },
+          "source_value": {
+            "title": "Source Value",
+            "type": "number"
+          },
+          "stale_after_s": {
+            "title": "Stale After S",
+            "type": "integer"
           },
           "value": {
             "title": "Value",
@@ -2592,106 +2853,65 @@
           }
         },
         "required": [
-          "metric",
           "value",
-          "unit",
+          "source_value",
+          "source_unit",
+          "display_unit",
           "device_id",
           "capability_id",
           "source_updated_at",
           "received_at",
           "stale_after_s"
         ],
-        "title": "PlantLatestMoistureResponse",
+        "title": "PlantMetricReadingResponse",
         "type": "object"
       },
-      "PlantMoistureComparisonResponse": {
+      "PlantMetricStreamResponse": {
         "additionalProperties": false,
         "properties": {
-          "metric": {
-            "const": "soil_moisture_pct",
-            "title": "Metric",
+          "accent": {
+            "title": "Accent",
             "type": "string"
           },
-          "plants": {
-            "items": {
-              "$ref": "#/components/schemas/PlantMoistureSeriesResponse"
-            },
-            "title": "Plants",
-            "type": "array"
-          },
-          "range": {
-            "title": "Range",
+          "capability_id": {
+            "title": "Capability Id",
             "type": "string"
-          }
-        },
-        "required": [
-          "metric",
-          "range",
-          "plants"
-        ],
-        "title": "PlantMoistureComparisonResponse",
-        "type": "object"
-      },
-      "PlantMoistureFreshnessResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "is_current": {
-            "title": "Is Current",
-            "type": "boolean"
           },
-          "source_age_s": {
-            "title": "Source Age S",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "source_age_s",
-          "is_current"
-        ],
-        "title": "PlantMoistureFreshnessResponse",
-        "type": "object"
-      },
-      "PlantMoistureSeriesResponse": {
-        "additionalProperties": false,
-        "properties": {
+          "device_id": {
+            "title": "Device Id",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
           "display_order": {
             "title": "Display Order",
             "type": "integer"
           },
-          "grow_run_id": {
-            "title": "Grow Run Id",
+          "display_unit": {
+            "title": "Display Unit",
             "type": "string"
           },
-          "latest_moisture": {
+          "history_enabled": {
+            "title": "History Enabled",
+            "type": "boolean"
+          },
+          "latest_reading": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/PlantLatestMoistureResponse"
+                "$ref": "#/components/schemas/PlantMetricReadingResponse"
               },
               {
                 "type": "null"
               }
             ]
           },
-          "name": {
-            "title": "Name",
+          "metric": {
+            "title": "Metric",
             "type": "string"
           },
-          "plant_id": {
-            "title": "Plant Id",
-            "type": "string"
-          },
-          "points": {
-            "items": {
-              "$ref": "#/components/schemas/MetricHistoryPointResponse"
-            },
-            "title": "Points",
-            "type": "array"
-          },
-          "site_id": {
-            "title": "Site Id",
-            "type": "string"
-          },
-          "sticker_color": {
+          "source_unit": {
             "anyOf": [
               {
                 "type": "string"
@@ -2700,29 +2920,51 @@
                 "type": "null"
               }
             ],
-            "title": "Sticker Color"
+            "title": "Source Unit"
           },
-          "target_bounds": {
-            "$ref": "#/components/schemas/PlantTargetBoundsResponse"
+          "value_precision": {
+            "title": "Value Precision",
+            "type": "integer"
           },
-          "tent_id": {
-            "title": "Tent Id",
-            "type": "string"
+          "y_max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y Max"
+          },
+          "y_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y Min"
           }
         },
         "required": [
-          "site_id",
-          "tent_id",
-          "grow_run_id",
-          "plant_id",
-          "name",
+          "metric",
+          "display_name",
+          "display_unit",
+          "source_unit",
+          "value_precision",
+          "accent",
+          "y_min",
+          "y_max",
           "display_order",
-          "sticker_color",
-          "target_bounds",
-          "latest_moisture",
-          "points"
+          "history_enabled",
+          "device_id",
+          "capability_id",
+          "latest_reading"
         ],
-        "title": "PlantMoistureSeriesResponse",
+        "title": "PlantMetricStreamResponse",
         "type": "object"
       },
       "PlantSummaryResponse": {
@@ -2736,45 +2978,9 @@
             "title": "Grow Run Id",
             "type": "string"
           },
-          "has_moisture_stream": {
-            "title": "Has Moisture Stream",
-            "type": "boolean"
-          },
           "is_active": {
             "title": "Is Active",
             "type": "boolean"
-          },
-          "latest_moisture": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PlantLatestMoistureResponse"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "moisture_capability_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Moisture Capability Id"
-          },
-          "moisture_device_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Moisture Device Id"
           },
           "moisture_target_high": {
             "title": "Moisture Target High",
@@ -2815,6 +3021,10 @@
             ],
             "title": "Sticker Color"
           },
+          "telemetry_stream_count": {
+            "title": "Telemetry Stream Count",
+            "type": "integer"
+          },
           "tent_id": {
             "title": "Tent Id",
             "type": "string"
@@ -2843,12 +3053,9 @@
           "purple",
           "moisture_target_low",
           "moisture_target_high",
-          "moisture_device_id",
-          "moisture_capability_id",
           "wiki_path",
           "is_active",
-          "has_moisture_stream",
-          "latest_moisture"
+          "telemetry_stream_count"
         ],
         "title": "PlantSummaryResponse",
         "type": "object"
@@ -4483,55 +4690,6 @@
         "summary": "Plants"
       }
     },
-    "/api/tents/{tent_id}/plants/moisture/history": {
-      "get": {
-        "operationId": "plant_moisture_comparison_history_api_tents__tent_id__plants_moisture_history_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "tent_id",
-            "required": true,
-            "schema": {
-              "title": "Tent Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "range",
-            "required": false,
-            "schema": {
-              "default": "24h",
-              "title": "Range",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PlantMoistureComparisonResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Plant Moisture Comparison History"
-      }
-    },
     "/api/tents/{tent_id}/plants/{plant_id}": {
       "get": {
         "operationId": "plant_detail_api_tents__tent_id__plants__plant_id__get",
@@ -4580,9 +4738,9 @@
         "summary": "Plant Detail"
       }
     },
-    "/api/tents/{tent_id}/plants/{plant_id}/moisture/history": {
+    "/api/tents/{tent_id}/plants/{plant_id}/metrics/history": {
       "get": {
-        "operationId": "plant_moisture_history_api_tents__tent_id__plants__plant_id__moisture_history_get",
+        "operationId": "plant_metric_history_api_tents__tent_id__plants__plant_id__metrics_history_get",
         "parameters": [
           {
             "in": "path",
@@ -4618,7 +4776,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MetricHistoryResponse"
+                  "$ref": "#/components/schemas/PlantMetricHistoryResponse"
                 }
               }
             },
@@ -4635,7 +4793,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Plant Moisture History"
+        "summary": "Plant Metric History"
       }
     },
     "/api/tents/{tent_id}/state": {

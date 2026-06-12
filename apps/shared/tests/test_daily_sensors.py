@@ -16,7 +16,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from dirt_shared.models.device import Capability, Device
 from dirt_shared.models.enums import SensorSource
 from dirt_shared.models.grow_run import GrowRun
-from dirt_shared.models.plant import Plant
+from dirt_shared.models.plant import Plant, PlantMetricStream
 from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.models.site import Site
 from dirt_shared.services.daily_sensors import (
@@ -75,7 +75,7 @@ async def _seed_readings(
         await s.commit()
 
 
-async def _set_plant_moisture_capability(
+async def _map_plant_moisture_stream(
     engine,
     *,
     plant_id: str,
@@ -124,13 +124,12 @@ async def _set_plant_moisture_capability(
                 .where(Plant.plant_id == plant_id)
             )
         ).one()
-        plant.moisture_capability_id = capability.id
-        s.add(plant)
+        s.add(PlantMetricStream(plant_id=plant.id, capability_id=capability.id))
         await s.commit()
         return capability_pk
 
 
-async def _clear_plant_moisture_capability(engine, *, plant_id: str) -> None:
+async def _deactivate_plant_moisture_stream(engine, *, plant_id: str) -> None:
     async with AsyncSession(engine) as s:
         site_pk = (await s.exec(select(Site.id).where(Site.site_id == "homebox"))).one()
         grow = (
@@ -148,8 +147,16 @@ async def _clear_plant_moisture_capability(engine, *, plant_id: str) -> None:
                 .where(Plant.plant_id == plant_id)
             )
         ).one()
-        plant.moisture_capability_id = None
-        s.add(plant)
+        streams = (
+            await s.exec(
+                select(PlantMetricStream)
+                .where(PlantMetricStream.plant_id == plant.id)
+                .where(PlantMetricStream.is_active.is_(True))
+            )
+        ).all()
+        for stream in streams:
+            stream.is_active = False
+            s.add(stream)
         await s.commit()
 
 
@@ -207,7 +214,7 @@ async def test_validate_flags_zero_tent_value(pg_engine):
 
 async def test_validate_flags_stale_direct_plant_moisture(pg_engine):
     device_id = "test-plant-b-direct-moisture"
-    await _set_plant_moisture_capability(
+    await _map_plant_moisture_stream(
         pg_engine,
         plant_id="b",
         device_id=device_id,
@@ -238,7 +245,7 @@ async def test_validate_flags_stale_direct_plant_moisture(pg_engine):
 
 async def test_validate_ignores_unsupported_raw_plant_moisture(pg_engine):
     raw_device_id = "test-plant-c-raw-moisture"
-    await _set_plant_moisture_capability(
+    await _map_plant_moisture_stream(
         pg_engine,
         plant_id="c",
         device_id=raw_device_id,
@@ -391,7 +398,7 @@ async def test_snapshot_includes_scoped_breeding_tent(pg_engine):
 
 async def test_snapshot_per_plant_pct_uses_direct_percent(pg_engine):
     device_id = "test-plant-a-direct-moisture"
-    await _set_plant_moisture_capability(
+    await _map_plant_moisture_stream(
         pg_engine,
         plant_id="a",
         device_id=device_id,
@@ -409,8 +416,8 @@ async def test_snapshot_per_plant_pct_uses_direct_percent(pg_engine):
     assert snap.plants["a"]["now_pct"] == 54.9
 
 
-async def test_snapshot_omits_null_plant_moisture_capability(pg_engine):
-    await _clear_plant_moisture_capability(pg_engine, plant_id="a")
+async def test_snapshot_omits_inactive_plant_moisture_stream(pg_engine):
+    await _deactivate_plant_moisture_stream(pg_engine, plant_id="a")
     await _seed_readings(pg_engine, _all_tent_metrics_fresh())
 
     r = SensorReader(pg_engine, clock=_clock)

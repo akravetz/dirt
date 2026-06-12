@@ -8,7 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from dirt_shared.models.device import Capability, Device
 from dirt_shared.models.enums import SensorSource
 from dirt_shared.models.grow_run import GrowRun
-from dirt_shared.models.plant import Plant
+from dirt_shared.models.plant import Plant, PlantMetricStream
 from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.models.site import Site
 from dirt_shared.services.readings import ReadingsService
@@ -38,7 +38,7 @@ async def _capability_id(
     return cap_id
 
 
-async def _set_plant_moisture_capability(
+async def _map_plant_moisture_stream(
     session: AsyncSession,
     *,
     plant_id: str,
@@ -86,8 +86,7 @@ async def _set_plant_moisture_capability(
             .where(Plant.plant_id == plant_id)
         )
     ).one()
-    plant.moisture_capability_id = capability.id
-    session.add(plant)
+    session.add(PlantMetricStream(plant_id=plant.id, capability_id=capability.id))
     await session.flush()
     assert capability.id is not None
     return capability.id
@@ -104,7 +103,7 @@ async def test_current_status_reads_scoped_tent_and_plant_capabilities(
             )
             for metric in ("temperature_f", "humidity_pct", "vpd_kpa", "dew_point_f")
         }
-        plant_cap = await _set_plant_moisture_capability(
+        plant_cap = await _map_plant_moisture_stream(
             session,
             plant_id="a",
             device_id="test-plant-a-direct-moisture",
@@ -159,7 +158,7 @@ async def test_current_status_omits_raw_plant_moisture(
 ) -> None:
     now = datetime(2026, 5, 4, 20, 0, tzinfo=UTC)
     async with AsyncSession(app_engine) as session:
-        plant_cap = await _set_plant_moisture_capability(
+        plant_cap = await _map_plant_moisture_stream(
             session,
             plant_id="a",
             device_id="test-plant-a-raw-moisture",

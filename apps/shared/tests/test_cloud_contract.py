@@ -9,6 +9,7 @@ from dirt_shared.cloud_contract import (
     AssetRetentionRequest,
     CatalogDevice,
     CatalogPlant,
+    CatalogPlantMetricStream,
     CommandClaimResponse,
     LatestMetricItem,
     PtzLookPayload,
@@ -83,21 +84,43 @@ def test_catalog_plant_requires_nullable_wire_fields() -> None:
         "purple": True,
         "moisture_target_low": 55.0,
         "moisture_target_high": 70.0,
-        "moisture_device_id": None,
-        "moisture_capability_id": None,
         "wiki_path": None,
         "is_active": True,
     }
 
     plant = CatalogPlant.model_validate(plant_payload)
-    assert plant.moisture_device_id is None
     assert plant.wiki_path is None
 
-    for field_name in ("sticker_color", "moisture_device_id", "wiki_path"):
+    for field_name in ("sticker_color", "wiki_path"):
         invalid = dict(plant_payload)
         del invalid[field_name]
         with pytest.raises(ValidationError) as exc_info:
             CatalogPlant.model_validate(invalid)
+        assert exc_info.value.errors()[0]["loc"] == (field_name,)
+        assert exc_info.value.errors()[0]["type"] == "missing"
+
+
+def test_catalog_plant_metric_stream_requires_public_stream_identity() -> None:
+    stream_payload = {
+        "tent_id": "main",
+        "grow_run_id": "main-2026-03-15",
+        "plant_id": "a",
+        "device_id": "plant-a-substrate-node",
+        "capability_id": "substrate_ph",
+        "metric": "substrate_ph",
+        "display_order": 4,
+        "is_active": True,
+    }
+
+    stream = CatalogPlantMetricStream.model_validate(stream_payload)
+    assert stream.device_id == "plant-a-substrate-node"
+    assert stream.metric == "substrate_ph"
+
+    for field_name in ("device_id", "capability_id", "metric"):
+        invalid = dict(stream_payload)
+        del invalid[field_name]
+        with pytest.raises(ValidationError) as exc_info:
+            CatalogPlantMetricStream.model_validate(invalid)
         assert exc_info.value.errors()[0]["loc"] == (field_name,)
         assert exc_info.value.errors()[0]["type"] == "missing"
 

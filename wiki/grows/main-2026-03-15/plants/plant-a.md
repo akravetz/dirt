@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-06-11
+updated: 2026-06-12
 ---
 
 # Plant A
@@ -18,7 +18,7 @@ updated: 2026-06-11
 
 ## Current State
 
-Day 88 / Flower Day 38: The dedicated view remains mostly fan-blocked, but visible right-side foliage and purple flower material are upright. Plant A was cut over to the RS485 substrate node on 2026-06-10 evening MDT; `plant-a-substrate-node` is now the canonical current moisture source, with post-cutover readings around 26.6% moisture, 21.5 deg C substrate temperature, 144 us/cm EC, and pH 4.5. Whole-reservoir EC was found high on 2026-06-10 evening and reset to pH 5.8 / EC ~0.3 plain water; keep confirming tray fill/drawdown and leaf posture through the ~24h plain-water correction. See [2026-06-10](../../../daily/2026-06-10.md).
+Day 88 / Flower Day 38: The dedicated view remains mostly fan-blocked, but visible right-side foliage and purple flower material are upright. Plant A was cut over to the RS485 substrate node on 2026-06-10 evening MDT; `plant-a-substrate-node` is now the canonical current moisture source, with calibrated operational readings around 26.6% moisture, 21.5 deg C substrate temperature, 144 us/cm EC, and pH 4.5. Whole-reservoir EC was found high on 2026-06-10 evening and reset to pH 5.8 / EC ~0.3 plain water; keep confirming tray fill/drawdown and leaf posture through the ~24h plain-water correction. See [2026-06-10](../../../daily/2026-06-10.md).
 
 ## Timeline
 

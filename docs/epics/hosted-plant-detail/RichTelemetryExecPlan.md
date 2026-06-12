@@ -11,7 +11,7 @@ After this change, the hosted plant detail page is a general plant profile inste
 
 This matters because Plant A now has rich substrate data from `plant-a-substrate-node`, and the old page model is too tightly coupled to `plant.moisture_capability_id`. The durable model is a plant-to-metric-stream mapping. The mapping replaces the one-off moisture FK, supports future per-plant sensors without adding new plant columns, and lets the browser API render plant detail from explicit source-owned data.
 
-The work is complete when `plant.moisture_capability_id`, `cloud_plant.moisture_device_id`, `cloud_plant.moisture_capability_id`, and the moisture-only plant detail/comparison paths are removed; Plant A's four substrate streams are mapped through a canonical `plant_metric_stream` source table and projected to cloud; the hosted plant detail page renders latest readings and history charts using metric presentation rows; temperature is displayed in deg F; EC is displayed in mS/cm; pH and EC are no longer marked experimental in DB/wiki content; and the obsolete moisture comparison chart/component is deleted if no longer used.
+The work is complete when `plant.moisture_capability_id`, `cloud_plant.moisture_device_id`, `cloud_plant.moisture_capability_id`, moisture-specific browser fields such as `has_moisture_stream` and `latest_moisture`, and the moisture-only plant detail/comparison paths are removed; Plant A's four substrate streams are mapped through a canonical `plant_metric_stream` source table and projected to cloud; the hosted plant detail page renders latest readings and history charts using metric presentation rows; temperature is displayed in deg F; EC is displayed in mS/cm; pH and EC are no longer marked experimental in DB/wiki content; and the obsolete moisture comparison chart/component is deleted if no longer used.
 
 
 ## Progress
@@ -19,13 +19,15 @@ The work is complete when `plant.moisture_capability_id`, `cloud_plant.moisture_
 - [x] (2026-06-11) Reviewed current hosted plant detail frontend, browser API, gateway projection, cloud contracts, metric presentation seeds, and Plant A RS485 substrate-node seed data.
 - [x] (2026-06-11) Resolved product decisions with the operator: all plants get detail pages, mapped telemetry gets readings plus history, temperature displays as deg F, EC displays as mS/cm, pH/EC are considered calibrated, `moisture_capability_id` should be deprecated and removed, and the moisture comparison chart should be deleted.
 - [x] (2026-06-11) Wrote this ExecPlan for the direct cutover.
-- [ ] Implement Milestone 1: add canonical local/cloud plant metric stream mapping and seed Plant A streams.
-- [ ] Implement Milestone 2: remove `moisture_capability_id` from local/cloud models, migrations, contracts, API responses, tests, and consumers.
-- [ ] Implement Milestone 3: add substrate metric presentation rows and rollup sync coverage for Plant A metrics.
-- [ ] Implement Milestone 4: expose generalized plant detail telemetry APIs.
-- [ ] Implement Milestone 5: rebuild the hosted plant detail UI around mapped metrics and remove moisture comparison code.
-- [ ] Implement Milestone 6: clean pH/EC experimental metadata/wiki notes and validate locally.
-- [ ] Deploy through the supported hosted deploy script and capture hosted acceptance evidence.
+- [x] (2026-06-11) Revised the plan to explicitly deprecate `has_moisture_stream`, `latest_moisture`, and all other moisture-specific plant API/UI affordances after `plant_metric_stream` becomes canonical.
+- [x] (2026-06-12) Implement Milestone 1: add canonical local/cloud plant metric stream mapping and seed Plant A streams.
+- [x] (2026-06-12) Implement Milestone 2: remove `moisture_capability_id` from local/cloud models, migrations, contracts, API responses, tests, and consumers.
+- [x] (2026-06-12) Implement Milestone 3: add substrate metric presentation rows and rollup sync coverage for Plant A metrics.
+- [x] (2026-06-12) Implement Milestone 4: expose generalized plant detail telemetry APIs.
+- [x] (2026-06-12) Implement Milestone 5: rebuild the hosted plant detail UI around mapped metrics and remove moisture comparison code.
+- [x] (2026-06-12) Implement Milestone 6: clean pH/EC experimental metadata/wiki notes and validate locally.
+- [x] (2026-06-12) Run Milestone 7 local backend/frontend/migration/browser validation.
+- [x] (2026-06-12) Deploy through the supported hosted deploy script and capture hosted acceptance evidence.
 
 
 ## Surprises & Discoveries
@@ -51,6 +53,9 @@ The work is complete when `plant.moisture_capability_id`, `cloud_plant.moisture_
 - Observation: Plant A's pH/EC capability metadata and wiki content still say pH/EC are experimental.
   Evidence: `migrations/20260610183000_seed_plant_a_substrate_node.sql` seeds `substrate_ec_us_cm` and `substrate_ph` with `experimental=true` and an experimental note. Wiki pages under `wiki/hardware/rs485-substrate-sensors.md` and `wiki/grows/main-2026-03-15/plants/plant-a.md` mention pH/EC as experimental or trend/reference data.
 
+- Observation: After Milestone 2 and before Milestone 4/5, hosted plant detail was temporarily an identity/wiki page with a neutral active stream count, not a telemetry reading/history page.
+  Evidence: `PlantDetailResponse` exposed `telemetry_stream_count` and no `latest_moisture`/freshness fields; the old moisture history endpoints were removed. Milestones 4 and 5 replaced that temporary state with mapped telemetry latest/history API responses and UI.
+
 
 ## Decision Log
 
@@ -61,6 +66,10 @@ The work is complete when `plant.moisture_capability_id`, `cloud_plant.moisture_
 - Decision: Remove `plant.moisture_capability_id` and cloud moisture stream columns in the same direct cutover.
   Rationale: The operator explicitly wants `moisture_capability_id` deprecated and removed. Keeping it as a compatibility path would preserve parallel sources of truth for plant telemetry.
   Date/Author: 2026-06-11 / Operator
+
+- Decision: Remove moisture-specific browser affordances such as `has_moisture_stream`, `latest_moisture`, `moisture_device_id`, and `moisture_capability_id`.
+  Rationale: Once `plant_metric_stream` is canonical, moisture is one mapped metric stream, not plant identity. The browser list may expose a telemetry-neutral derived field such as `has_telemetry` or `telemetry_stream_count`, but it must not preserve a metric-specific boolean or latest-reading field.
+  Date/Author: 2026-06-11 / Operator + Codex
 
 - Decision: All plants should have hosted detail pages, regardless of telemetry.
   Rationale: Plant detail is also an identity and wiki/history page. Telemetry availability should affect the telemetry section, not route existence.
@@ -85,7 +94,211 @@ The work is complete when `plant.moisture_capability_id`, `cloud_plant.moisture_
 
 ## Outcomes & Retrospective
 
-No implementation has started. Fill this section after each milestone with what changed, what passed, what failed, and any residual gaps.
+Milestone 1 added the canonical mapping foundation. Local `PlantMetricStream`
+and cloud `CloudPlantMetricStream` SQLModel tables now exist, with Atlas
+migrations `migrations/20260612020505_add_plant_metric_stream.sql` and
+`cloud/migrations/20260612020519_add_cloud_plant_metric_stream.sql`. The local
+migration seeds Plant A's four active substrate streams from
+`plant-a-substrate-node` and raises if the expected current Plant A row or
+required capabilities are missing. The gateway catalog contract now carries
+`CatalogPlantMetricStream`, local catalog collection emits public stream
+identifiers, and the control-plane catalog route upserts cloud stream rows by
+their natural identity.
+
+Validation passed for Milestone 1:
+
+- `uv run pytest apps/shared/tests/test_cloud_contract.py -q` — 13 passed.
+- `uv run pytest apps/gateway/tests/test_sync.py apps/gateway/tests/test_gateway_boundary_guardrails.py -q` — 28 passed.
+- `uv run pytest apps/control-plane/tests/test_api.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py -q` — 46 passed.
+- `uv run ruff check` on touched Python files — passed.
+- `atlas migrate hash --env local` and `atlas migrate hash --env cloud` — passed.
+- `git diff --check` — passed.
+
+`atlas migrate lint --env local --latest 1` and
+`atlas migrate lint --env cloud --latest 1` were attempted but are unavailable
+in the installed Atlas community CLI because migrate lint is gated behind Atlas
+Pro login.
+
+Milestone 2 completed the direct moisture-FK cutover. Local `Plant` no longer
+has `moisture_capability_id`, and cloud `CloudPlant` no longer has
+`moisture_device_id` or `moisture_capability_id`. Atlas migrations
+`migrations/20260612022035_remove_plant_moisture_capability.sql` and
+`cloud/migrations/20260612022044_remove_cloud_plant_moisture_columns.sql`
+remove those columns. `CatalogPlant` now carries plant identity/targets/wiki
+only; mapped streams remain in `CatalogPlantMetricStream`.
+
+Local plant moisture consumers now resolve active `PlantMetricStream` rows
+whose capability metric is `soil_moisture_pct`. Browser plant list/detail
+responses no longer include `has_moisture_stream`, `latest_moisture`,
+`moisture_device_id`, or `moisture_capability_id`; they expose
+`telemetry_stream_count` derived from active cloud stream rows. The hosted
+dashboard links every plant row, and plant detail returns 200 for plants without
+telemetry. The moisture-specific browser history endpoints were removed because
+they cannot be coherent once the cloud plant moisture columns are gone; the
+general mapped telemetry API remains Milestone 4 scope. The old
+`MoistureComparisonChart` file remains for Milestone 5 cleanup, but its unused
+exported types were made internal so invariants do not report dead exports.
+
+Validation passed for Milestone 2:
+
+- `uv run pytest apps/shared/tests/test_cloud_contract.py -q` — 13 passed.
+- `uv run pytest apps/shared/tests/test_daily_sensors.py -q` — 12 passed.
+- `uv run pytest apps/gateway/tests/test_sync.py apps/gateway/tests/test_gateway_boundary_guardrails.py -q` — 28 passed on rerun; the first attempt passed assertions but hit a transient PostgreSQL test database teardown privilege error.
+- `uv run pytest apps/control-plane/tests/test_api.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py -q` — 44 passed.
+- `uv run pytest apps/voice/tests/test_sensor_tools.py -q` — 2 passed.
+- `uv run pytest apps/tests/invariants -q` — 41 passed.
+- `scripts/gen-hosted-contract` — regenerated `contracts/hosted-browser-v1.json` and `web-ui/src/api-client/generated/hosted-schema.ts`.
+- `pnpm --dir web-ui typecheck` — passed.
+- `pnpm --dir web-ui lint` — passed.
+- `pnpm --dir web-ui test` — 3 files / 4 tests passed.
+- `uv run ruff check` on touched Python files — passed.
+- `atlas migrate hash --env local` and `atlas migrate hash --env cloud` — passed.
+- `git diff --check` — passed.
+
+`atlas migrate lint --env local --latest 1` and
+`atlas migrate lint --env cloud --latest 1` were attempted again for Milestone 2
+and remain unavailable in the installed Atlas community CLI because migrate lint
+is gated behind Atlas Pro login.
+
+Milestone 3 added idempotent local/cloud metric presentation seed migrations:
+`migrations/20260612024000_seed_substrate_metric_presentation.sql` and
+`cloud/migrations/20260612024000_seed_substrate_metric_presentation.sql`.
+The rows enable history for soil moisture, substrate temperature, substrate EC,
+and substrate pH while leaving `current_enabled=false` for plant-detail-only
+substrate telemetry. The presentation registry exposes display units `%`, `°F`,
+`mS/cm`, and `pH`; gateway rollup payloads continue to carry the source
+capability units such as `degC` and `us/cm`.
+
+Validation passed for Milestone 3:
+
+- `uv run pytest apps/shared/tests/test_metric_presentation_registry.py -q` — 2 passed.
+- `uv run pytest apps/control-plane/tests/test_cloud_metric_presentation_registry.py -q` — 2 passed.
+- `uv run pytest apps/gateway/tests/test_sync.py apps/gateway/tests/test_gateway_boundary_guardrails.py -q` — 29 passed.
+- `uv run ruff check` on touched Milestone 3 Python test files — passed.
+- `atlas migrate hash --env local` and `atlas migrate hash --env cloud` — passed.
+- `git diff --check` — passed.
+
+Milestone 4 added generalized mapped plant telemetry to the hosted browser API.
+Plant detail now includes active mapped stream metadata plus latest readings,
+and plants without streams still return 200 with `telemetry=[]`. The new
+`GET /api/tents/{tent_id}/plants/{plant_id}/metrics/history` endpoint returns
+history for mapped, `history_enabled` streams only. Latest and history queries
+are scoped by mapped `(device_id, capability_id, metric)` and do not infer from
+`zone_id`. Display conversion happens at the browser API boundary:
+`substrate_temp_c` is returned in degrees F and `substrate_ec_us_cm` in
+`mS/cm`, while source values and units remain visible in the response.
+
+Validation passed for Milestone 4:
+
+- `uv run pytest apps/control-plane/tests/test_api.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py -q` — 46 passed.
+- `scripts/gen-hosted-contract` — regenerated `contracts/hosted-browser-v1.json` and `web-ui/src/api-client/generated/hosted-schema.ts`.
+- `pnpm --dir web-ui typecheck` — passed after contract regeneration.
+- `uv run ruff check` on touched Milestone 4 Python files — passed.
+- `git diff --check` — passed.
+
+Milestone 5 rebuilt the hosted plant detail route around mapped telemetry.
+`web-ui/src/routes/tents.$tentId.plants.$plantId.tsx` now renders identity/wiki
+content independently of telemetry, current metric cards from `detail.telemetry`,
+and per-metric history charts from
+`GET /api/tents/{tent_id}/plants/{plant_id}/metrics/history`. Dashboard plant
+rows remain linked for every plant and use telemetry-neutral labels. The unused
+`MoistureComparisonChart` component and test were deleted.
+
+Validation passed for Milestone 5:
+
+- `pnpm --dir web-ui typecheck` — passed.
+- `pnpm --dir web-ui lint` — passed.
+- `pnpm --dir web-ui test` — 2 files / 3 tests passed.
+- `pnpm --dir web-ui build` — passed.
+- `git diff --check` — passed.
+- A stale-reference scan found no old moisture comparison/history/API UI terms under `web-ui/src`.
+
+Milestone 6 cleaned Plant A pH/EC calibration metadata and operator notes.
+`migrations/20260612033000_calibrate_plant_a_ph_ec_metadata.sql` updates the
+Plant A substrate-node `substrate_ec_us_cm` and `substrate_ph` capability
+metadata by removing `experimental` / `experimental_note`, setting
+`calibration_status=calibrated`, and raising if the expected capability rows
+are missing. It also updates the device-level `ph_ec_status` marker to
+`calibrated` so DB metadata no longer labels pH/EC experimental. Wiki/operator
+notes in the RS485 substrate sensor pages, Plant A page, overview, and soil
+moisture sensing notes now state current pH/EC operational status as calibrated
+without inventing an exact calibration date.
+
+Validation passed for Milestone 6:
+
+- `atlas migrate hash --env local` — passed.
+- `uv run pytest apps/hwd/tests/test_ingest_api.py -q` — 26 passed.
+- `uv run pytest apps/tests/invariants/test_schema_managed_by_atlas.py -q` — 4 passed.
+- `uv run scripts/lint.py` — passed with existing file-length warnings only.
+- `git diff --check` — passed.
+- A stale-reference scan found only expected historical ExecPlan context and old migrations.
+
+Milestone 7 local validation passed before hosted deployment. The local
+hosted stack started with `make dev-up` at API `http://192.168.1.79:8021` and
+Web `http://192.168.1.79:5171`. `agent-browser` logged in through the real
+local auth form as `dev-admin`, captured the dashboard, Plant A detail, and
+Plant B detail, and confirmed:
+
+- Dashboard plant rows render as links for all four plants; Plant A shows
+  `4 streams`, while B-D show `No telemetry`.
+- Plant A detail renders the `Telemetry` section with Soil Moisture,
+  Substrate Temp, Substrate EC, and Substrate pH history charts.
+- Plant B detail returns 200 and renders identity/wiki content plus a
+  professional `No telemetry` state.
+- Browser-facing API calls for plant list, Plant A detail, Plant A history,
+  and Plant B detail returned 200.
+- Agent-browser console output contained Vite/React dev informational logs and
+  no application errors.
+
+Local browser evidence:
+
+- `debug/screenshots/rich-telemetry-local-dashboard.png`
+- `debug/screenshots/rich-telemetry-local-plant-a.png`
+- `debug/screenshots/rich-telemetry-local-plant-b.png`
+
+Validation passed for Milestone 7 local checks:
+
+- `uv run pytest apps/shared/tests/test_metric_presentation_registry.py -q` — 2 passed.
+- `uv run pytest apps/gateway/tests/test_sync.py apps/gateway/tests/test_gateway_boundary_guardrails.py -q` — 29 passed.
+- `uv run pytest apps/control-plane/tests/test_api.py apps/control-plane/tests/test_cloud_metric_presentation_registry.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py -q` — 48 passed.
+- `uv run pytest apps/hwd/tests/test_ingest_api.py -q` — 26 passed.
+- `uv run pytest apps/voice/tests/test_sensor_tools.py apps/shared/tests/test_daily_sensors.py -q` — 14 passed on sequential rerun after a parallel test-database race.
+- `uv run pytest apps/tests/invariants -q` — 41 passed.
+- `atlas migrate hash --env local` and `atlas migrate hash --env cloud` — passed.
+- `scripts/gen-hosted-contract` — regenerated hosted browser OpenAPI and TypeScript schema.
+- `pnpm --dir web-ui typecheck` — passed.
+- `pnpm --dir web-ui lint` — passed.
+- `pnpm --dir web-ui test` — 2 files / 3 tests passed.
+- `pnpm --dir web-ui build` — passed.
+- `uv run ruff check` — passed.
+- `uv run scripts/lint.py` — passed with existing file-length warnings only.
+- `git diff --check` — passed.
+
+Hosted deployment completed after operator authorization. The first
+`scripts/deploy-control-plane` run applied cloud migrations, deployed
+control-plane API deployment `9708c210-408c-4edd-93ce-36ecd8c3e8c4`, deployed
+web UI deployment `eec9d4c6-0e08-45bd-8e06-ce7364c45661`, and passed the
+script's cloud API and hosted UI smoke checks. After deployment, the local
+gateway was restarted and cloud health reported `status=live`; the gateway
+backlog drained to 0 after subsequent sync cycles.
+
+After hosted review, the plant detail telemetry card UI was simplified to show
+only converted/display values and received time; the duplicate `Source` row was
+removed entirely. Focused validation for that UI cleanup passed:
+
+- `pnpm --dir web-ui typecheck` — passed.
+- `pnpm --dir web-ui lint` — passed.
+- `pnpm --dir web-ui test` — 2 files / 3 tests passed.
+- `pnpm --dir web-ui build` — passed.
+- Authenticated local `agent-browser` text check on Plant A detail showed the
+  four telemetry labels and no `Source` text.
+
+The second `scripts/deploy-control-plane` run found no pending cloud
+migrations, redeployed control-plane API deployment
+`013aa516-4b58-4f71-bd61-6fb71805f60c`, deployed web UI deployment
+`88842506-28e8-41e3-9dae-f67532b422cb`, and passed the script's cloud API and
+hosted UI smoke checks. A hosted bundle check against `https://sirius-forge.com/`
+found no remaining `Source` label in deployed JavaScript.
 
 
 ## Context and Orientation
@@ -127,9 +340,9 @@ Add the cloud counterpart, likely `CloudPlantMetricStream`, with `site_id`, `ten
 
 Extend `apps/shared/src/dirt_shared/cloud_contract.py` with a `CatalogPlantMetricStream` DTO and add `plant_metric_streams` to `CatalogRequest` and `CatalogResponse`. Extend `GatewayLocalServiceBundle.collect_catalog()` and `apps/control-plane/src/dirt_control/api/gateway.py` to project/upsert mapped streams. Use joins through `PlantMetricStream -> Plant -> GrowRun -> Tent` and `Capability -> Device` so the cloud table stores public stream identifiers, not local numeric ids.
 
-Milestone 2 removes the old moisture FK. Remove `Plant.moisture_capability_id` and associated index/FK from local models and migrations through a direct Atlas migration. Remove `moisture_device_id` and `moisture_capability_id` from `CatalogPlant`, `CloudPlant`, gateway plant projection, browser plant summary/detail response models, and frontend generated-type consumers. Update local consumers that currently join `Plant.moisture_capability_id`, including `apps/shared/src/dirt_shared/services/readings.py`, `apps/shared/src/dirt_shared/services/daily_sensors.py`, `apps/gateway/src/dirt_gateway/local.py`, `apps/voice/src/dirt_voice/tools/sensors.py`, and any tests. These consumers should query the mapped stream for metric `soil_moisture_pct` when they need canonical plant moisture.
+Milestone 2 removes the old moisture FK and moisture-specific plant API shape. Remove `Plant.moisture_capability_id` and associated index/FK from local models and migrations through a direct Atlas migration. Remove `moisture_device_id` and `moisture_capability_id` from `CatalogPlant`, `CloudPlant`, gateway plant projection, browser plant summary/detail response models, and frontend generated-type consumers. Remove browser fields and frontend model assumptions named around moisture, including `has_moisture_stream` and `latest_moisture`. If the plant list needs a compact affordance, replace `has_moisture_stream` with telemetry-neutral derived data such as `has_telemetry` or `telemetry_stream_count`, computed from active mapped streams. Update local consumers that currently join `Plant.moisture_capability_id`, including `apps/shared/src/dirt_shared/services/readings.py`, `apps/shared/src/dirt_shared/services/daily_sensors.py`, `apps/gateway/src/dirt_gateway/local.py`, `apps/voice/src/dirt_voice/tools/sensors.py`, and any tests. These consumers should query the mapped stream for metric `soil_moisture_pct` when they need canonical plant moisture.
 
-This is a direct cutover. Do not leave helper wrappers named around `moisture_capability_id`, cloud compatibility columns, or fallback branches that preserve the removed FK. If a service needs plant moisture, give it a plainly named query over `PlantMetricStream` such as `get_latest_product_plant_moisture_readings()`, backed by the mapping table.
+This is a direct cutover. Do not leave helper wrappers named around `moisture_capability_id`, cloud compatibility columns, moisture-specific browser fields, or fallback branches that preserve the removed FK. If a service needs plant moisture, give it a plainly named query over `PlantMetricStream` such as `get_latest_product_plant_moisture_readings()`, backed by the mapping table.
 
 Milestone 3 enables substrate histories. Add idempotent local and cloud migrations that insert/update metric presentation rows for Plant A substrate detail:
 
@@ -161,7 +374,7 @@ Remove the moisture comparison browser endpoint if no remaining consumer uses it
 
 Milestone 5 rebuilds the frontend route. Update `web-ui/src/routes/tents.$tentId.plants.$plantId.tsx` to render plant identity/wiki content independent of telemetry. Replace the moisture fact row with a metric card grid driven by mapped telemetry. Render per-metric history charts with reusable chart primitives. If `Sparkline` is sufficient for individual metric histories, reuse it. If a richer multi-metric panel is needed, make a generic metric chart component with y-axis bounds from presentation metadata; do not adapt `MoistureComparisonChart`.
 
-Update `web-ui/src/routes/index.tsx` so every plant row links to detail. Replace moisture-specific headings/labels in the plant panel with plant or telemetry-neutral text. Rows without telemetry should render a neutral "No telemetry" status but still navigate.
+Update `web-ui/src/routes/index.tsx` so every plant row links to detail. Replace moisture-specific headings/labels in the plant panel with plant or telemetry-neutral text. Rows without telemetry should render a neutral "No telemetry" status but still navigate. Do not carry over `has_moisture_stream` naming into the route model; use generated telemetry-neutral fields from the API.
 
 Delete `web-ui/src/ui/MoistureComparisonChart.tsx` and associated tests/imports if no route uses it after the redesign. Regenerate TanStack route tree and hosted OpenAPI client types through the normal toolchain.
 
@@ -249,6 +462,8 @@ Database acceptance:
 - Local `plant.moisture_capability_id` no longer exists.
 - Cloud `cloud_plant_metric_stream` exists and receives mapped stream rows from catalog sync.
 - Cloud `cloud_plant.moisture_device_id` and `cloud_plant.moisture_capability_id` no longer exist.
+- Browser plant list/detail responses no longer include `has_moisture_stream`, `latest_moisture`, `moisture_device_id`, or `moisture_capability_id`.
+- Any plant-list telemetry affordance is telemetry-neutral and derived from active mapped streams, such as `has_telemetry` or `telemetry_stream_count`.
 - Metric presentation rows exist locally and in cloud for `substrate_temp_c`, `substrate_ec_us_cm`, and `substrate_ph` with `history_enabled=true`.
 - Plant A pH/EC capability metadata no longer says experimental.
 
@@ -266,6 +481,7 @@ Frontend acceptance:
 - The dashboard plant panel links every plant, not only moisture-backed plants.
 - Plant A detail shows current cards and history charts for moisture, temp, EC, and pH.
 - B-D detail pages show identity/wiki and a professional empty telemetry state.
+- UI labels say "Plants", "Telemetry", or "No telemetry" rather than "Plant Moisture" or "No moisture stream".
 - `MoistureComparisonChart` is deleted if no longer used.
 - No generated hosted schema files are hand-edited.
 
@@ -315,6 +531,8 @@ New or changed persistence interfaces:
 - Cloud table/model: `cloud_plant_metric_stream`.
 - Removed local column/model field: `plant.moisture_capability_id`.
 - Removed cloud columns/model fields: `cloud_plant.moisture_device_id`, `cloud_plant.moisture_capability_id`.
+- Removed browser response fields: `has_moisture_stream`, `latest_moisture`, `moisture_device_id`, `moisture_capability_id`.
+- Optional replacement browser response fields, if needed: `has_telemetry` or `telemetry_stream_count`, derived from active mapped streams.
 - Local/cloud metric presentation rows for `substrate_temp_c`, `substrate_ec_us_cm`, `substrate_ph`.
 
 New or changed gateway contract interfaces:
@@ -349,3 +567,4 @@ External dependencies:
 ## Revision Notes
 
 - 2026-06-11: Initial ExecPlan written after code review and operator clarification. This plan supersedes the moisture-only assumptions in `docs/epics/hosted-plant-detail/ExecPlan.md` but does not overwrite that file's historical implementation record.
+- 2026-06-11: Added explicit deprecation of `has_moisture_stream`, `latest_moisture`, and other moisture-specific browser API/UI fields. Plant list affordances must be telemetry-neutral and derived from mapped streams.

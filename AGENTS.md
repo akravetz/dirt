@@ -31,8 +31,13 @@ Use this when working on `web-ui/`, `apps/control-plane/`, hosted dashboard beha
    make dev-status
    ```
 
-4. Use `agent-browser` for browser work. Do not use raw Playwright for agentic browser interaction.
-5. Open the Web URL reported by `make dev-status`.
+4. Use the `agent-browser` CLI from the shell for browser work. Do not use raw Playwright or a Playwright MCP for agentic browser interaction.
+5. Open the Web URL reported by `make dev-status`:
+
+   ```bash
+   agent-browser open <Web URL>
+   ```
+
 6. Log in with local dev credentials:
    - Username: `dev-admin`
    - Password: `dev-password`

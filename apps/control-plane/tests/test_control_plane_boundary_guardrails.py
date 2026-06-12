@@ -16,6 +16,9 @@ from dirt_control.api.browser import (
     MetricHistoryResponse,
     MetricPresentationMetricResponse,
     MetricPresentationResponse,
+    PlantDetailResponse,
+    PlantMetricHistoryResponse,
+    PlantSummaryResponse,
     SiteResponse,
     SyncStatusResponse,
     TentResponse,
@@ -58,6 +61,14 @@ def test_hosted_browser_routes_keep_response_models() -> None:
     )
     assert routes[("GET", "/api/tents/{tent_id}/metrics/presentation")] is (
         MetricPresentationResponse
+    )
+    assert routes[("GET", "/api/tents/{tent_id}/plants")] == list[PlantSummaryResponse]
+    assert (
+        routes[("GET", "/api/tents/{tent_id}/plants/{plant_id}")] is PlantDetailResponse
+    )
+    assert (
+        routes[("GET", "/api/tents/{tent_id}/plants/{plant_id}/metrics/history")]
+        is PlantMetricHistoryResponse
     )
     assert routes[("GET", "/api/tents/{tent_id}/devices")] == list[DeviceResponse]
     assert routes[("GET", "/api/tents/{tent_id}/lights/schedules")] is (

@@ -595,13 +595,10 @@ function HostedPlantsPanel({
   tentId: string;
 }): ReactNode {
   return (
-    <section
-      aria-label="Plant moisture"
-      className="border border-rule bg-paper-2 px-4 py-3"
-    >
+    <section aria-label="Plants" className="border border-rule bg-paper-2 px-4 py-3">
       <header className="mb-3 flex items-baseline justify-between gap-3">
         <h2 className="font-sans text-fs-10 font-semibold uppercase tracking-cap-med text-ink-3">
-          Plant Moisture
+          Plants
         </h2>
         <span className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
           {formatPlantCount(plants.length)}
@@ -617,41 +614,23 @@ function HostedPlantsPanel({
         </p>
       ) : (
         <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-          {plants.map((plant) =>
-            plant.has_moisture_stream ? (
-              <Link
-                key={plant.plant_id}
-                to={PLANT_DETAIL_ROUTE}
-                params={{ tentId, plantId: plant.plant_id }}
-                className="group min-w-0 border border-rule bg-paper px-3.5 py-3 transition hover:border-rule-strong"
-              >
-                <PlantRowContent plant={plant} linked />
-              </Link>
-            ) : (
-              <div
-                key={plant.plant_id}
-                className="min-w-0 border border-rule bg-paper px-3.5 py-3 opacity-75"
-              >
-                <PlantRowContent plant={plant} linked={false} />
-              </div>
-            ),
-          )}
+          {plants.map((plant) => (
+            <Link
+              key={plant.plant_id}
+              to={PLANT_DETAIL_ROUTE}
+              params={{ tentId, plantId: plant.plant_id }}
+              className="group min-w-0 border border-rule bg-paper px-3.5 py-3 transition hover:border-rule-strong"
+            >
+              <PlantRowContent plant={plant} />
+            </Link>
+          ))}
         </div>
       )}
     </section>
   );
 }
 
-function PlantRowContent({
-  linked,
-  plant,
-}: {
-  linked: boolean;
-  plant: HostedPlant;
-}): ReactNode {
-  const moistureValue = plant.latest_moisture?.value ?? null;
-  const moisturePercent =
-    moistureValue === null ? null : Math.max(0, Math.min(100, moistureValue));
+function PlantRowContent({ plant }: { plant: HostedPlant }): ReactNode {
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <div className="flex min-w-0 items-start justify-between gap-3">
@@ -667,25 +646,12 @@ function PlantRowContent({
           </p>
         </div>
         <span className="shrink-0 font-mono text-fs-12 tabular-nums text-ink">
-          {moistureValue === null ? "No reading" : formatMoistureValue(moistureValue)}
+          {formatTelemetryStreamCount(plant.telemetry_stream_count)}
         </span>
       </div>
-      <div className="h-2 border border-rule bg-paper-2">
-        {moisturePercent === null ? (
-          <div className="h-full bg-[repeating-linear-gradient(90deg,var(--color-rule)_0,var(--color-rule)_2px,transparent_2px,transparent_6px)]" />
-        ) : (
-          <div
-            // eslint-disable-next-line no-restricted-syntax -- data-driven bar width is not expressible in build-time Tailwind classes
-            style={{ width: `${moisturePercent}%` }}
-            className="h-full bg-sensor-moisture"
-          />
-        )}
-      </div>
-      {linked ? null : (
-        <span className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
-          No moisture stream
-        </span>
-      )}
+      <span className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+        {plant.telemetry_stream_count === 0 ? "No telemetry" : "Telemetry"}
+      </span>
     </div>
   );
 }
@@ -857,6 +823,11 @@ function formatPlantCount(count: number): string {
   return `${count} plant${count === 1 ? "" : "s"}`;
 }
 
+function formatTelemetryStreamCount(count: number): string {
+  if (count === 0) return "No telemetry";
+  return `${count} stream${count === 1 ? "" : "s"}`;
+}
+
 function formatHourCount(value: number): string {
   return `${Number.isInteger(value) ? value : value.toFixed(1)}h`;
 }
@@ -881,10 +852,6 @@ function formatMoistureTarget(plant: HostedPlant): string {
   return `${formatInteger(plant.moisture_target_low)}-${formatInteger(
     plant.moisture_target_high,
   )}%`;
-}
-
-function formatMoistureValue(value: number): string {
-  return `${formatInteger(value)}%`;
 }
 
 function formatTimestamp(value: string | null): string {

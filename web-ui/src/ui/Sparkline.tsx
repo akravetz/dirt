@@ -74,6 +74,10 @@ interface SparklineProps {
    */
   yMin?: number;
   yMax?: number;
+  /** Optional metric metadata rendered between the heading and chart. */
+  summary?: ReactNode;
+  /** Full-card chrome for standalone metric tiles; grid keeps dashboard borders. */
+  chrome?: "grid" | "card";
 }
 
 const ACCENT_STROKE: Record<SparklineAccent, string> = {
@@ -110,6 +114,7 @@ function formatValue(value: number, unit: string, precision: number): string {
 }
 
 export function Sparkline({
+  chrome = "grid",
   name,
   points,
   unit,
@@ -121,24 +126,27 @@ export function Sparkline({
   onHoverPoint,
   yMin,
   yMax,
+  summary,
 }: SparklineProps): ReactNode {
   const lineStroke = ACCENT_STROKE[accent];
   const areaFill = ACCENT_FILL[accent];
   const diamondColor = ACCENT_TEXT[accent];
   const tooltipColor = ACCENT_TEXT[accent];
+  const articleClass =
+    chrome === "card"
+      ? "flex flex-col gap-2 border border-rule-strong bg-paper-2 px-3.5 py-3"
+      : "flex flex-col gap-2 border-b border-r border-rule bg-paper-2 px-3.5 py-3";
 
   if (points.length === 0) {
     return (
-      <article
-        aria-label={`${name} sparkline`}
-        className="flex flex-col gap-2 border-b border-r border-rule bg-paper-2 px-3.5 py-3"
-      >
+      <article aria-label={`${name} sparkline`} className={articleClass}>
         <header className="flex items-center gap-2 font-sans text-fs-11 font-medium text-ink-2">
           <span aria-hidden="true" className={diamondColor}>
             ◆
           </span>
           <span>{name}</span>
         </header>
+        {summary}
         <div className="flex h-10 items-center border border-dashed border-rule px-2">
           <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
             {emptyLabel}
@@ -151,16 +159,14 @@ export function Sparkline({
   const values = points.flatMap((p) => (p.value === null ? [] : [p.value]));
   if (values.length === 0) {
     return (
-      <article
-        aria-label={`${name} sparkline`}
-        className="flex flex-col gap-2 border-b border-r border-rule bg-paper-2 px-3.5 py-3"
-      >
+      <article aria-label={`${name} sparkline`} className={articleClass}>
         <header className="flex items-center gap-2 font-sans text-fs-11 font-medium text-ink-2">
           <span aria-hidden="true" className={diamondColor}>
             ◆
           </span>
           <span>{name}</span>
         </header>
+        {summary}
         <div className="flex h-10 items-center border border-dashed border-rule px-2">
           <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
             {emptyLabel}
@@ -232,16 +238,14 @@ export function Sparkline({
     clampedHover === null ? null : clampedHover / (points.length - 1 || 1);
 
   return (
-    <article
-      aria-label={`${name} sparkline`}
-      className="flex flex-col gap-2 border-b border-r border-rule bg-paper-2 px-3.5 py-3"
-    >
+    <article aria-label={`${name} sparkline`} className={articleClass}>
       <header className="flex items-center gap-2 font-sans text-fs-11 font-medium text-ink-2">
         <span aria-hidden="true" className={diamondColor}>
           ◆
         </span>
         <span>{name}</span>
       </header>
+      {summary}
       <div className="relative cursor-crosshair">
         <svg
           aria-label="sparkline"

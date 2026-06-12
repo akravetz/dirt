@@ -1,4 +1,4 @@
-h1:/lTBC6xE/G/JLbYSLEy7grQimfzW3TDtpOw8e14jprs=
+h1:m81t4unPc13EnHasWzoXKIyHVjuEzWpRHbLd5ZUj8vk=
 20260505033411_cloud_control_plane_initial.sql h1:xKFBil06DkN6sXUbx1vStXik3y7cho6yZOOW41OsjEE=
 20260505045254_cloud_operational_hardening.sql h1:I7wpFkAA1D5caKbXIV7M5J5rfTslnsgGK0aUMeyT2wU=
 20260509041000_cloud_light_schedules.sql h1:We0s0BhwCAxHmZ/pf75EM+7uPGsk0a9RcFGvjwU5YA8=
@@ -12,3 +12,6 @@ h1:/lTBC6xE/G/JLbYSLEy7grQimfzW3TDtpOw8e14jprs=
 20260610134609_hosted_projection_identity_pk.sql h1:avKWqZ3Dn1C9SeyORwp+t0MExQ5lOK+2+0OXbPr4GEY=
 20260610135530_hosted_metric_fact_identity_pk.sql h1:CTKN7lSyxSJn8dAK1xL6ljrzuQuBY8nwjG00X5G+kFo=
 20260610140356_hosted_external_identity_pk.sql h1:EuM0cxt/gmY9Ozl5MAXF+BK/tPOwDgsKtIK/WpggZHk=
+20260612020519_add_cloud_plant_metric_stream.sql h1:BTO9YcWTJ4hMbSpeoEBJOOMGtWW7xbDVRky9MWvNVdE=
+20260612022044_remove_cloud_plant_moisture_columns.sql h1:tzyYSeZjcU/YaXVf8fRlfyekK2TDJr6viAr4wDTNCVo=
+20260612024000_seed_substrate_metric_presentation.sql h1:iT8C9MBGKOtn1Q+JHSfQPKNnop9/qipqZJikCx7Oa2U=

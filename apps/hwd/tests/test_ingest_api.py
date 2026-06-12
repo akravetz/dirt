@@ -137,7 +137,7 @@ async def test_substrate_node_seed_declares_four_metadata_marked_capabilities(
 
     assert row.metadata_json["sensor_model"] == "DFRobot SEN0604"
     assert row.metadata_json["modbus_address"] == "0x02"
-    assert row.metadata_json["ph_ec_status"] == "experimental"
+    assert row.metadata_json["ph_ec_status"] == "calibrated"
 
     by_id = {capability.capability_id: capability for capability in capabilities}
     assert set(by_id) == {
@@ -157,8 +157,10 @@ async def test_substrate_node_seed_declares_four_metadata_marked_capabilities(
     assert all(item.modbus_address == "0x02" for item in metadata.values())
     assert metadata["soil_moisture_pct"].experimental is False
     assert metadata["substrate_temp_c"].experimental is False
-    assert metadata["substrate_ec_us_cm"].experimental is True
-    assert metadata["substrate_ph"].experimental is True
+    assert metadata["substrate_ec_us_cm"].experimental is False
+    assert metadata["substrate_ph"].experimental is False
+    assert metadata["substrate_ec_us_cm"].experimental_note is None
+    assert metadata["substrate_ph"].experimental_note is None
 
 
 async def test_substrate_node_ingest_writes_four_capability_rows(

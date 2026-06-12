@@ -20,6 +20,7 @@ from dirt_shared.cloud_contract import (
     CatalogCapability,
     CatalogDevice,
     CatalogPlant,
+    CatalogPlantMetricStream,
     CatalogRequest,
     CatalogSchedule,
     CatalogSite,
@@ -37,6 +38,7 @@ from dirt_shared.models import (
     Device,
     GrowRun,
     Plant,
+    PlantMetricStream,
     Site,
     Snapshot,
     Tent,
@@ -147,6 +149,7 @@ class GatewayLocalServiceBundle:
                 )
             ],
             plants=await self._collect_plants(site_id),
+            plant_metric_streams=await self._collect_plant_metric_streams(site_id),
         )
 
     async def collect_latest_metrics(self, site_id: str) -> LatestMetricsRequest:
@@ -329,16 +332,10 @@ class GatewayLocalServiceBundle:
                         Plant,
                         GrowRun.grow_run_id,
                         Tent.tent_id,
-                        Device.device_id,
-                        Capability.capability_id,
                     )
                     .join(GrowRun, GrowRun.id == Plant.growrun_id)
                     .join(Site, Site.id == Plant.site_id)
                     .join(Tent, Tent.id == Plant.tent_id)
-                    .outerjoin(
-                        Capability, Capability.id == Plant.moisture_capability_id
-                    )
-                    .outerjoin(Device, Device.id == Capability.device_id)
                     .where(Site.site_id == site_id)
                     .where(GrowRun.is_current.is_(True))
                     .order_by(Tent.tent_id, Plant.display_order, Plant.plant_id)
@@ -356,13 +353,70 @@ class GatewayLocalServiceBundle:
                 purple=plant.purple,
                 moisture_target_low=plant.moisture_target_low,
                 moisture_target_high=plant.moisture_target_high,
-                moisture_device_id=device_id,
-                moisture_capability_id=capability_id,
                 wiki_path=_plant_wiki_path(grow_run_id, plant.plant_id),
                 is_active=plant.status != PlantStatus.RETIRED,
             )
-            for plant, grow_run_id, tent_id, device_id, capability_id in rows
+            for plant, grow_run_id, tent_id in rows
         ]
+
+    async def _collect_plant_metric_streams(
+        self, site_id: str
+    ) -> list[CatalogPlantMetricStream]:
+        async with AsyncSession(self._engine) as session:
+            rows = (
+                await session.exec(
+                    select(
+                        PlantMetricStream,
+                        Tent.tent_id,
+                        GrowRun.grow_run_id,
+                        Plant.plant_id,
+                        Device.device_id,
+                        Capability.capability_id,
+                        Capability.metric_name,
+                    )
+                    .join(Plant, Plant.id == PlantMetricStream.plant_id)
+                    .join(GrowRun, GrowRun.id == Plant.growrun_id)
+                    .join(Site, Site.id == Plant.site_id)
+                    .join(Tent, Tent.id == Plant.tent_id)
+                    .join(Capability, Capability.id == PlantMetricStream.capability_id)
+                    .join(Device, Device.id == Capability.device_id)
+                    .where(Site.site_id == site_id)
+                    .where(GrowRun.is_current.is_(True))
+                    .where(Capability.metric_name.is_not(None))
+                    .order_by(
+                        Tent.tent_id,
+                        Plant.display_order,
+                        Plant.plant_id,
+                        PlantMetricStream.display_order,
+                        Capability.capability_id,
+                    )
+                )
+            ).all()
+        streams: list[CatalogPlantMetricStream] = []
+        for (
+            stream,
+            tent_id,
+            grow_run_id,
+            plant_id,
+            device_id,
+            capability_id,
+            metric_name,
+        ) in rows:
+            if metric_name is None:
+                continue
+            streams.append(
+                CatalogPlantMetricStream(
+                    tent_id=tent_id,
+                    grow_run_id=grow_run_id,
+                    plant_id=plant_id,
+                    device_id=device_id,
+                    capability_id=capability_id,
+                    metric=metric_name,
+                    display_order=stream.display_order,
+                    is_active=stream.is_active,
+                )
+            )
+        return streams
 
     async def _public_zone_id(self, snapshot: Snapshot) -> str | None:
         if snapshot.zone_id is None:

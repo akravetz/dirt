@@ -15,7 +15,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from dirt_shared.models.device import Capability, Device
 from dirt_shared.models.enums import SensorSource
 from dirt_shared.models.grow_run import GrowRun
-from dirt_shared.models.plant import Plant
+from dirt_shared.models.plant import Plant, PlantMetricStream
 from dirt_shared.models.sensor_calibration import SensorCalibration
 from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.models.site import Site
@@ -461,12 +461,13 @@ async def get_supported_product_plant_moisture_capabilities(
         .join(GrowRun, GrowRun.id == Plant.growrun_id)
         .join(Site, Site.id == Plant.site_id)
         .join(Tent, Tent.id == Plant.tent_id)
-        .join(Capability, Capability.id == Plant.moisture_capability_id)
+        .join(PlantMetricStream, PlantMetricStream.plant_id == Plant.id)
+        .join(Capability, Capability.id == PlantMetricStream.capability_id)
         .join(Device, Device.id == Capability.device_id)
         .outerjoin(Zone, Zone.id == Device.zone_id)
         .where(Site.site_id == site_id)
         .where(GrowRun.is_current.is_(True))
-        .where(Plant.moisture_capability_id.is_not(None))
+        .where(PlantMetricStream.is_active.is_(True))
         .where(Device.enabled.is_(True))
         .where(Capability.enabled.is_(True))
         .where(Capability.metric_name == PRODUCT_PLANT_MOISTURE_METRIC)

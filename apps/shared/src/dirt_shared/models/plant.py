@@ -3,7 +3,7 @@
 FKs:
 - ``growrun_id`` — which scoped grow run this plant belongs to.
 - ``site_id`` / ``tent_id`` — denormalized scope for fast default-tent reads.
-- ``moisture_capability_id`` — canonical soil-moisture stream for current reads.
+- ``plant_metric_stream`` — canonical plant-to-capability telemetry mapping.
 
 Uniqueness: ``(growrun_id, plant_id)`` — the stable plant identifier is unique
 per scoped grow run, not globally. Future grows can reuse ids with different
@@ -59,7 +59,6 @@ class Plant(SQLModel, table=True):
         Index("ix_plant_site_id", "site_id"),
         Index("ix_plant_tent_id", "tent_id"),
         Index("ix_plant_growrun_id", "growrun_id"),
-        Index("ix_plant_moisture_capability_id", "moisture_capability_id"),
     )
 
     id: int | None = Field(
@@ -86,14 +85,6 @@ class Plant(SQLModel, table=True):
             ForeignKey("growrun.id", ondelete="RESTRICT"),
             nullable=False,
         )
-    )
-    moisture_capability_id: int | None = Field(
-        default=None,
-        sa_column=Column(
-            BigInteger,
-            ForeignKey("capability.id", ondelete="RESTRICT"),
-            nullable=True,
-        ),
     )
     plant_id: str = Field(sa_column=Column(Text, nullable=False))
     name: str = Field(sa_column=Column(Text, nullable=False))
@@ -124,6 +115,63 @@ class Plant(SQLModel, table=True):
     moisture_target_high: float = Field(
         default=70.0,
         sa_column=Column(Double, nullable=False, server_default=text("70")),
+    )
+    created_at: datetime = Field(
+        default_factory=_utcnow,
+        sa_column=Column(
+            TIMESTAMP(timezone=True),
+            nullable=False,
+            server_default=text("now()"),
+        ),
+    )
+    updated_at: datetime = Field(
+        default_factory=_utcnow,
+        sa_column=Column(
+            TIMESTAMP(timezone=True),
+            nullable=False,
+            server_default=text("now()"),
+        ),
+    )
+
+
+class PlantMetricStream(SQLModel, table=True):
+    __tablename__ = "plant_metric_stream"
+    __table_args__ = (
+        UniqueConstraint(
+            "plant_id",
+            "capability_id",
+            name="uq_plant_metric_stream_plant_capability",
+        ),
+        Index("ix_plant_metric_stream_plant_id", "plant_id"),
+        Index("ix_plant_metric_stream_capability_id", "capability_id"),
+        Index("ix_plant_metric_stream_is_active", "is_active"),
+    )
+
+    id: int | None = Field(
+        default=None,
+        sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
+    )
+    plant_id: int = Field(
+        sa_column=Column(
+            BigInteger,
+            ForeignKey("plant.id", ondelete="RESTRICT"),
+            nullable=False,
+        )
+    )
+    capability_id: int = Field(
+        sa_column=Column(
+            BigInteger,
+            ForeignKey("capability.id", ondelete="RESTRICT"),
+            nullable=False,
+        )
+    )
+    display_order: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False, server_default=text("0")),
+    )
+    is_active: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default=text("true")),
     )
     created_at: datetime = Field(
         default_factory=_utcnow,

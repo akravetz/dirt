@@ -4,7 +4,7 @@ type: overview
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/index.md, wiki/grows/main-2026-03-15/README.md, wiki/grows/main-2026-03-15/plants/plant-a.md, wiki/grows/main-2026-03-15/plants/plant-b.md, wiki/grows/main-2026-03-15/plants/plant-c.md, wiki/grows/main-2026-03-15/plants/plant-d.md, wiki/grows/breeding-track-a-2026-04-28/README.md, wiki/grows/breeding-track-a-2026-04-28/plants/plant-r1.md, wiki/grows/breeding-track-a-2026-04-28/plants/plant-r2.md, wiki/grows/breeding-track-a-2026-04-28/plants/plant-r3.md, wiki/grows/breeding-track-a-2026-04-28/plants/plant-r4.md, wiki/grows/breeding-track-a-2026-04-28/plants/plant-r5.md, wiki/decisions/2026-05-05-hosted-control-plane.md]
 created: 2026-04-06
-updated: 2026-06-11
+updated: 2026-06-12
 ---
 
 # Grow Overview
@@ -33,7 +33,7 @@ updated: 2026-06-11
 
 **Main tent has a split VPD profile** — morning VPD is in range at 1.41 kPa, but the current reading is dry/high at 1.62 kPa with the fan already at 80%, while the overnight window remains wet/low at 1.10 kPa. Corrections should target dark-cycle clearing and flower-pocket airflow without pushing lights-on drier.
 
-**Plant A is now on the RS485 substrate probe** — `plant-a-substrate-node` became the canonical current moisture source on 2026-06-10 evening MDT after no-USB 12 V runtime validation. Post-cutover readings were around 26.6% moisture, 21.5 deg C substrate temperature, 144 us/cm EC, and pH 4.5. Confirm tray fill/drawdown and leaf posture during the reservoir correction; do not top-flush again without new decline or repeated high-EC evidence.
+**Plant A is now on the RS485 substrate probe** — `plant-a-substrate-node` became the canonical current moisture source on 2026-06-10 evening MDT after no-USB 12 V runtime validation. Post-cutover calibrated operational readings were around 26.6% moisture, 21.5 deg C substrate temperature, 144 us/cm EC, and pH 4.5. Confirm tray fill/drawdown and leaf posture during the reservoir correction; do not top-flush again without new decline or repeated high-EC evidence.
 
 **Plants B-D have no current moisture probe** — the old capacitive moisture nodes and raw capabilities are retired/disabled. Use hand checks, tray behavior, plant posture, media smell/weight, and runoff/slurry evidence instead of the old rough percentages until trustworthy replacement probes exist.
 
@@ -145,7 +145,7 @@ _Resolved 2026-05-05 / clarified 2026-05-30 and 2026-06-04: "Pot Track A regular
 | Component | Status | Notes |
 |-----------|--------|-------|
 | **ESP32-C3 · fan+tent** (SHT45) | Online (2026-04-23, fw 0.2.0) | Retired Arduino Nano + BME280 2026-04-23. Combined fan-controller node drives the Cloudline fan + reads tent T/RH + exposes HTTP `POST/GET /fan`. See [hardware/ac-infinity-fan-control.md](hardware/ac-infinity-fan-control.md). |
-| **Plant A RS485 substrate node** | Online (2026-06-10, fw 0.1.0-rs485-substrate) | `plant-a-substrate-node.local` / 192.168.1.40; canonical Plant A moisture plus substrate temp/EC/pH. Runs on RS485 board 12 V power with USB unplugged. See [hardware/rs485-substrate-sensors.md](hardware/rs485-substrate-sensors.md). |
+| **Plant A RS485 substrate node** | Online (2026-06-10, fw 0.1.0-rs485-substrate) | `plant-a-substrate-node.local` / 192.168.1.40; canonical Plant A moisture plus calibrated substrate temp/EC/pH. Runs on RS485 board 12 V power with USB unplugged. See [hardware/rs485-substrate-sensors.md](hardware/rs485-substrate-sensors.md). |
 | **A-D capacitive ESP32-C3 plant nodes** | Retired/disabled 2026-06-11 | `plant-a-node` through `plant-d-node` and their `soil_moisture_raw` capabilities are disabled in active inventory. Safe to physically disconnect; no current plant moisture derives from them. |
 | **CO2 sensor** (MH-Z19B) | Planned | Not yet deployed |
 | **Reservoir level** (XKC-Y25-T12V) | Planned | Not yet deployed |

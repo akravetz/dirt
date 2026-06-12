@@ -34,6 +34,7 @@ from dirt_shared.cloud_contract import (
     AssetRetentionRequest,
     AssetSignUploadRequest,
     CatalogPlant,
+    CatalogPlantMetricStream,
     CatalogRequest,
     CatalogResponse,
     CatalogSite,
@@ -60,6 +61,7 @@ from dirt_shared.models import (
     GrowRun,
     MetricPresentation,
     Plant,
+    PlantMetricStream,
     SensorReading,
     Site,
     Tent,
@@ -69,6 +71,11 @@ from dirt_shared.models.enums import PlantStatus, PlantSticker, SensorSource
 from dirt_shared.services.commands import CommandService
 
 FIXED_NOW = datetime(2026, 5, 5, 12, 0, tzinfo=UTC)
+SUBSTRATE_HISTORY_METRICS = {
+    "substrate_temp_c",
+    "substrate_ec_us_cm",
+    "substrate_ph",
+}
 
 
 class ImmediateBackoff:
@@ -126,6 +133,7 @@ class RecordingCloudClient:
             capabilities=len(payload["capabilities"]),
             schedules=len(payload["schedules"]),
             plants=len(payload["plants"]),
+            plant_metric_streams=len(payload["plant_metric_streams"]),
         )
 
     async def put_latest_metrics(
@@ -580,6 +588,9 @@ async def _seed_history_rollup_readings(engine: AsyncEngine) -> set[str]:
         "vpd_kpa": ("kPa", [1.1, 1.3]),
         "reservoir_in": ("in", [7.0, 7.5]),
         "reservoir_ph": ("pH", [6.1, 6.3]),
+        "substrate_temp_c": ("degC", [21.1, 21.4]),
+        "substrate_ec_us_cm": ("us/cm", [1400.0, 1500.0]),
+        "substrate_ph": ("pH", [5.8, 6.0]),
         "dehumidifier_on": ("bool", [0.0, 1.0, 1.0]),
         "reservoir_ph_voltage": ("V", [1.2, 1.3]),
         "temperature_c": ("C", [22.2, 23.3]),
@@ -709,6 +720,7 @@ async def test_collect_rollups_filters_history_from_metric_registry(
         "reservoir_ph",
         "dehumidifier_runtime_pct",
         "soil_moisture_pct",
+        *SUBSTRATE_HISTORY_METRICS,
     } <= metrics
     assert "dehumidifier_on" not in metrics
     assert "soil_moisture_raw" not in metrics
@@ -725,6 +737,42 @@ async def test_collect_rollups_filters_history_from_metric_registry(
     assert {item.capability_id for item in dehumidifier_rollups} == {"dehumidifier_on"}
     assert {item.unit for item in dehumidifier_rollups} == {"%"}
     assert {item.avg_value for item in dehumidifier_rollups} == {66.6667}
+    substrate_rollups = [
+        item for item in rollups if item.metric in SUBSTRATE_HISTORY_METRICS
+    ]
+    assert {item.metric for item in substrate_rollups} == SUBSTRATE_HISTORY_METRICS
+    assert {(item.metric, item.unit) for item in substrate_rollups} == {
+        ("substrate_temp_c", "degC"),
+        ("substrate_ec_us_cm", "us/cm"),
+        ("substrate_ph", "pH"),
+    }
+
+
+async def test_collect_rollups_disables_substrate_from_registry(
+    app_engine: AsyncEngine,
+) -> None:
+    device_ids = await _seed_history_rollup_readings(app_engine)
+    async with AsyncSession(app_engine) as session:
+        substrate_rows = (
+            await session.exec(
+                select(MetricPresentation).where(
+                    MetricPresentation.metric.in_(SUBSTRATE_HISTORY_METRICS)
+                )
+            )
+        ).all()
+        assert {row.metric for row in substrate_rows} == SUBSTRATE_HISTORY_METRICS
+        for row in substrate_rows:
+            row.history_enabled = False
+            session.add(row)
+        await session.commit()
+
+    payload = await GatewayLocalServiceBundle(
+        app_engine, clock=lambda: FIXED_NOW
+    ).collect_rollups("homebox", bucket_names={"5m"})
+
+    metrics = {item.metric for item in payload.rollups if item.device_id in device_ids}
+    assert "soil_moisture_pct" in metrics
+    assert SUBSTRATE_HISTORY_METRICS.isdisjoint(metrics)
 
 
 async def test_collect_rollups_disables_legacy_moisture_from_registry(
@@ -860,17 +908,20 @@ async def test_collect_metrics_syncs_only_direct_plant_moisture_pct(
                 .where(Plant.plant_id == "b")
             )
         ).one()
-        plant_c = (
-            await session.exec(
-                select(Plant)
-                .where(Plant.growrun_id == grow.id)
-                .where(Plant.plant_id == "c")
-            )
-        ).one()
-        plant_a.moisture_capability_id = direct_capability.id
-        plant_b.moisture_capability_id = raw_capability.id
-        plant_c.moisture_capability_id = None
-        session.add_all([plant_a, plant_b, plant_c])
+        session.add_all(
+            [
+                PlantMetricStream(
+                    plant_id=plant_a.id,
+                    capability_id=direct_capability.id,
+                    is_active=True,
+                ),
+                PlantMetricStream(
+                    plant_id=plant_b.id,
+                    capability_id=raw_capability.id,
+                    is_active=True,
+                ),
+            ]
+        )
         session.add_all(
             [
                 SensorReading(
@@ -981,32 +1032,37 @@ async def test_collect_catalog_projects_current_grow_plants(
         )
         session.add(grow_run)
         await session.flush()
-        session.add_all(
-            [
-                Plant(
-                    site_id=site_pk,
-                    tent_id=tent.id,
-                    growrun_id=grow_run.id,
-                    moisture_capability_id=capability.id,
-                    plant_id="x1",
-                    name="Test X1",
-                    display_order=1,
-                    sticker_color=PlantSticker.BLUE,
-                    status=PlantStatus.PRIMARY,
-                    purple=True,
-                    moisture_target_low=42.0,
-                    moisture_target_high=58.0,
-                ),
-                Plant(
-                    site_id=site_pk,
-                    tent_id=tent.id,
-                    growrun_id=grow_run.id,
-                    plant_id="x2",
-                    name="Test X2",
-                    display_order=2,
-                    status=PlantStatus.RETIRED,
-                ),
-            ]
+        plant_x1 = Plant(
+            site_id=site_pk,
+            tent_id=tent.id,
+            growrun_id=grow_run.id,
+            plant_id="x1",
+            name="Test X1",
+            display_order=1,
+            sticker_color=PlantSticker.BLUE,
+            status=PlantStatus.PRIMARY,
+            purple=True,
+            moisture_target_low=42.0,
+            moisture_target_high=58.0,
+        )
+        plant_x2 = Plant(
+            site_id=site_pk,
+            tent_id=tent.id,
+            growrun_id=grow_run.id,
+            plant_id="x2",
+            name="Test X2",
+            display_order=2,
+            status=PlantStatus.RETIRED,
+        )
+        session.add_all([plant_x1, plant_x2])
+        await session.flush()
+        session.add(
+            PlantMetricStream(
+                plant_id=plant_x1.id,
+                capability_id=capability.id,
+                display_order=7,
+                is_active=True,
+            )
         )
         await session.commit()
 
@@ -1027,8 +1083,6 @@ async def test_collect_catalog_projects_current_grow_plants(
             purple=True,
             moisture_target_low=42.0,
             moisture_target_high=58.0,
-            moisture_device_id="test-plant-node",
-            moisture_capability_id="soil_moisture_raw",
             wiki_path="wiki/grows/test-grow/plants/plant-x1.md",
             is_active=True,
         ),
@@ -1043,11 +1097,26 @@ async def test_collect_catalog_projects_current_grow_plants(
             purple=False,
             moisture_target_low=55.0,
             moisture_target_high=70.0,
-            moisture_device_id=None,
-            moisture_capability_id=None,
             wiki_path=None,
             is_active=False,
         ),
+    ]
+    plant_metric_streams = [
+        stream
+        for stream in payload.plant_metric_streams
+        if stream.tent_id == "test-plants"
+    ]
+    assert plant_metric_streams == [
+        CatalogPlantMetricStream(
+            tent_id="test-plants",
+            grow_run_id="test-grow",
+            plant_id="x1",
+            device_id="test-plant-node",
+            capability_id="soil_moisture_raw",
+            metric="soil_moisture_raw",
+            display_order=7,
+            is_active=True,
+        )
     ]
 
 

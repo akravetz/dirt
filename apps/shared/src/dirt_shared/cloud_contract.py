@@ -110,9 +110,18 @@ class CatalogPlant(CloudContractModel):
     purple: bool
     moisture_target_low: float
     moisture_target_high: float
-    moisture_device_id: str | None = Field(...)
-    moisture_capability_id: str | None = Field(...)
     wiki_path: str | None = Field(...)
+    is_active: bool
+
+
+class CatalogPlantMetricStream(CloudContractModel):
+    tent_id: str
+    grow_run_id: str
+    plant_id: str
+    device_id: str
+    capability_id: str
+    metric: str
+    display_order: int
     is_active: bool
 
 
@@ -124,6 +133,7 @@ class CatalogRequest(CloudContractModel):
     capabilities: list[CatalogCapability] = Field(default_factory=list)
     schedules: list[CatalogSchedule] = Field(default_factory=list)
     plants: list[CatalogPlant] = Field(default_factory=list)
+    plant_metric_streams: list[CatalogPlantMetricStream] = Field(default_factory=list)
 
 
 class CatalogResponse(CloudContractModel):
@@ -134,6 +144,7 @@ class CatalogResponse(CloudContractModel):
     capabilities: int
     schedules: int
     plants: int
+    plant_metric_streams: int
 
 
 class LatestMetricItem(CloudContractModel):
