@@ -20,7 +20,7 @@ The work is complete when a developer can query current plants in a tent with `p
 
 - [x] (2026-06-14T00:00Z) Drafted the data-model-first ExecPlan from the user's breeding-program requirements and the repo's current `growrun`/`plant` model.
 - [x] (2026-06-14T00:00Z) Revised the plan into a broader data-model cleanup plan: integer `id` is canonical Dirt identity, parallel text `*_id` columns are not allowed for human convenience, and plant tag values use `breeding_key`.
-- [ ] Implement local SQLModel tables, enums/checks, and Atlas migration.
+- [ ] Implement local SQLModel tables, constraints, generated columns, and Atlas migration.
 - [ ] Cut over services, gateway/cloud sync, hosted browser API, and generated frontend contracts.
 - [ ] Retire `growrun` from source-owned code and database schema.
 - [ ] Validate locally and record implementation evidence.
@@ -83,6 +83,10 @@ The work is complete when a developer can query current plants in a tent with `p
   Rationale: A produced seed lot is durable source material for future plants. A `seeds_produced` event can still be recorded as a note-like event, but the seed lot is the queryable artifact used by propagation.
   Date/Author: 2026-06-14 / Codex
 
+- Decision: Do not model breeding business state as string enum/check-list columns.
+  Rationale: At the database/application boundary those values are still string contracts. Concrete facts, generated columns, lookup tables, and constraints make drift harder and keep the model closer to the domain.
+  Date/Author: 2026-06-14 / User + Codex
+
 
 ## Outcomes & Retrospective
 
@@ -120,6 +124,8 @@ Use these repository rules while implementing:
 The SQL below is the target shape. Implementation should migrate existing tables with `ALTER TABLE` where practical, but these `CREATE TABLE` statements define the final model and constraints.
 
 Use `timestamptz` for timestamps. Application code must write UTC-aware datetimes; PostgreSQL stores the moment in time and renders it in the session timezone.
+
+Some target FKs form a real cycle: plants can come from seed lots, produced seed lots can come from crosses, and crosses reference parent plants. The migration may create tables first and add those FKs with `ALTER TABLE` after all referenced tables exist. The final constraints must still match the target model below.
 
 ### `plant_line`
 
@@ -178,7 +184,7 @@ CREATE TABLE cross_event (
     seed_parent_plant_id bigint NOT NULL,
     pollen_parent_plant_id bigint NOT NULL,
     pollinated_at timestamptz NOT NULL,
-    pollen_source_type text NOT NULL,
+    pollen_parent_is_reversed boolean NULL,
     notes text NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
@@ -192,9 +198,6 @@ CREATE TABLE cross_event (
     CONSTRAINT ck_cross_event_distinct_parents CHECK (
         seed_parent_plant_id <> pollen_parent_plant_id
     ),
-    CONSTRAINT ck_cross_event_pollen_source_type CHECK (
-        pollen_source_type IN ('regular_male', 'reversed_female', 'unknown')
-    ),
     CONSTRAINT ck_cross_event_notes_not_blank CHECK (
         notes IS NULL OR btrim(notes) <> ''
     )
@@ -207,7 +210,7 @@ Constraints to implement:
 - Required FK to the resulting `plant_line`.
 - Required FKs to seed parent and pollen parent `plant` rows.
 - Parents must be two different plant rows.
-- `pollen_source_type` is a closed text check for v1, not a Postgres enum, so adding a new source type later is a simple check-constraint migration.
+- `pollen_parent_is_reversed` is a nullable fact: `true` means reversed female pollen, `false` means regular male pollen, and `NULL` means not recorded.
 
 ### `seed_lot`
 
@@ -217,11 +220,12 @@ Constraints to implement:
 CREATE TABLE seed_lot (
     id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     line_id bigint NOT NULL,
-    source_type text NOT NULL,
+    is_purchased boolean NOT NULL DEFAULT false,
     vendor_name text NULL,
     vendor_lot_key text NULL,
     acquired_at timestamptz NULL,
     produced_by_cross_event_id bigint NULL,
+    is_produced boolean GENERATED ALWAYS AS (produced_by_cross_event_id IS NOT NULL) STORED,
     seed_count integer NULL,
     notes text NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
@@ -231,20 +235,17 @@ CREATE TABLE seed_lot (
         FOREIGN KEY (line_id) REFERENCES plant_line(id) ON DELETE RESTRICT,
     CONSTRAINT fk_seed_lot_cross_event
         FOREIGN KEY (produced_by_cross_event_id) REFERENCES cross_event(id) ON DELETE RESTRICT,
-    CONSTRAINT ck_seed_lot_source_type CHECK (
-        source_type IN ('purchased', 'produced', 'unknown')
+    CONSTRAINT ck_seed_lot_not_purchased_and_produced CHECK (
+        NOT (is_purchased AND produced_by_cross_event_id IS NOT NULL)
     ),
     CONSTRAINT ck_seed_lot_vendor_for_purchased CHECK (
-        source_type <> 'purchased' OR (vendor_name IS NOT NULL AND btrim(vendor_name) <> '')
+        NOT is_purchased OR (vendor_name IS NOT NULL AND btrim(vendor_name) <> '')
+    ),
+    CONSTRAINT ck_seed_lot_vendor_only_when_purchased CHECK (
+        is_purchased OR (vendor_name IS NULL AND vendor_lot_key IS NULL)
     ),
     CONSTRAINT ck_seed_lot_vendor_lot_key_not_blank CHECK (
         vendor_lot_key IS NULL OR btrim(vendor_lot_key) <> ''
-    ),
-    CONSTRAINT ck_seed_lot_cross_for_produced CHECK (
-        source_type <> 'produced' OR produced_by_cross_event_id IS NOT NULL
-    ),
-    CONSTRAINT ck_seed_lot_no_cross_for_purchased CHECK (
-        source_type <> 'purchased' OR produced_by_cross_event_id IS NULL
     ),
     CONSTRAINT ck_seed_lot_seed_count_positive CHECK (
         seed_count IS NULL OR seed_count >= 0
@@ -265,8 +266,12 @@ Constraints to implement:
 - Required FK to `plant_line`.
 - Optional `vendor_lot_key` only when the vendor packet has a real lot key worth preserving.
 - Vendor lot keys are unique per vendor when present.
-- Produced seed lots must reference a `cross_event`.
-- Purchased seed lots must have a non-blank vendor and must not reference an internal cross.
+- `is_purchased` is a stored fact.
+- `is_produced` is generated from `produced_by_cross_event_id IS NOT NULL`.
+- A seed lot cannot be both purchased and produced.
+- Purchased seed lots must have a non-blank vendor and no internal cross.
+- Produced seed lots reference a `cross_event`.
+- Unknown source is represented as `is_purchased = false` and `produced_by_cross_event_id IS NULL`.
 - `seed_count` cannot be negative.
 
 ### `plant`
@@ -280,7 +285,8 @@ CREATE TABLE plant (
     line_id bigint NOT NULL,
     source_seed_lot_id bigint NULL,
     clone_source_plant_id bigint NULL,
-    propagation_type text NOT NULL,
+    is_seed_grown boolean GENERATED ALWAYS AS (source_seed_lot_id IS NOT NULL) STORED,
+    is_clone boolean GENERATED ALWAYS AS (clone_source_plant_id IS NOT NULL) STORED,
     name text NOT NULL,
     germinated_at timestamptz NULL,
     rooted_at timestamptz NULL,
@@ -305,23 +311,17 @@ CREATE TABLE plant (
         FOREIGN KEY (clone_source_plant_id) REFERENCES plant(id) ON DELETE RESTRICT,
     CONSTRAINT ck_plant_breeding_key_not_blank CHECK (btrim(breeding_key) <> ''),
     CONSTRAINT ck_plant_name_not_blank CHECK (btrim(name) <> ''),
-    CONSTRAINT ck_plant_propagation_type CHECK (
-        propagation_type IN ('seed', 'clone', 'unknown')
-    ),
-    CONSTRAINT ck_plant_seed_source_shape CHECK (
-        propagation_type <> 'seed'
-        OR (source_seed_lot_id IS NOT NULL AND clone_source_plant_id IS NULL AND rooted_at IS NULL)
-    ),
-    CONSTRAINT ck_plant_clone_source_shape CHECK (
-        propagation_type <> 'clone'
-        OR (clone_source_plant_id IS NOT NULL AND source_seed_lot_id IS NULL AND germinated_at IS NULL)
-    ),
-    CONSTRAINT ck_plant_unknown_source_shape CHECK (
-        propagation_type <> 'unknown'
-        OR (source_seed_lot_id IS NULL AND clone_source_plant_id IS NULL)
+    CONSTRAINT ck_plant_seed_or_clone_not_both CHECK (
+        source_seed_lot_id IS NULL OR clone_source_plant_id IS NULL
     ),
     CONSTRAINT ck_plant_not_self_clone CHECK (
         clone_source_plant_id IS NULL OR clone_source_plant_id <> id
+    ),
+    CONSTRAINT ck_plant_seed_not_rooted_as_clone CHECK (
+        source_seed_lot_id IS NULL OR rooted_at IS NULL
+    ),
+    CONSTRAINT ck_plant_clone_not_germinated CHECK (
+        clone_source_plant_id IS NULL OR germinated_at IS NULL
     ),
     CONSTRAINT ck_plant_culled_reason_required CHECK (
         (culled_at IS NULL AND culled_reason IS NULL)
@@ -349,7 +349,9 @@ Constraints to implement:
 - Required FK to `plant_line`.
 - Optional FK to `seed_lot` for seed-grown plants.
 - Optional self-FK to clone source plant for clones.
-- Propagation-shape checks prevent mixing seed and clone provenance.
+- `is_seed_grown` and `is_clone` are generated from provenance FKs.
+- Unknown propagation is represented as both provenance FKs null.
+- A plant cannot be both seed-grown and clone-propagated.
 - Culling requires a non-blank reason.
 - A plant cannot be both culled and harvested.
 - `selected_for_breeding_at` means approved parent used or planned for breeding, not merely "keep for now".
@@ -470,7 +472,13 @@ Constraints to implement:
 CREATE TABLE plant_event (
     id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     plant_id bigint NOT NULL,
-    event_type text NOT NULL,
+    is_pollen_collection boolean NOT NULL DEFAULT false,
+    is_seed_production boolean NOT NULL DEFAULT false,
+    is_clone_taken boolean NOT NULL DEFAULT false,
+    is_sex_observation boolean NOT NULL DEFAULT false,
+    is_reversal boolean NOT NULL DEFAULT false,
+    is_transplant boolean NOT NULL DEFAULT false,
+    is_selection_for_breeding boolean NOT NULL DEFAULT false,
     occurred_at timestamptz NOT NULL,
     reason text NULL,
     notes text NULL,
@@ -480,16 +488,14 @@ CREATE TABLE plant_event (
 
     CONSTRAINT fk_plant_event_plant
         FOREIGN KEY (plant_id) REFERENCES plant(id) ON DELETE RESTRICT,
-    CONSTRAINT ck_plant_event_type CHECK (
-        event_type IN (
-            'pollen_collected',
-            'seeds_produced',
-            'clone_taken',
-            'sex_observed',
-            'reversed',
-            'transplanted',
-            'selected_for_breeding'
-        )
+    CONSTRAINT ck_plant_event_one_kind CHECK (
+        (CASE WHEN is_pollen_collection THEN 1 ELSE 0 END) +
+        (CASE WHEN is_seed_production THEN 1 ELSE 0 END) +
+        (CASE WHEN is_clone_taken THEN 1 ELSE 0 END) +
+        (CASE WHEN is_sex_observation THEN 1 ELSE 0 END) +
+        (CASE WHEN is_reversal THEN 1 ELSE 0 END) +
+        (CASE WHEN is_transplant THEN 1 ELSE 0 END) +
+        (CASE WHEN is_selection_for_breeding THEN 1 ELSE 0 END) = 1
     ),
     CONSTRAINT ck_plant_event_reason_not_blank CHECK (
         reason IS NULL OR btrim(reason) <> ''
@@ -504,18 +510,16 @@ CREATE TABLE plant_event (
 
 CREATE INDEX ix_plant_event_plant_occurred_at
     ON plant_event (plant_id, occurred_at DESC);
-
-CREATE INDEX ix_plant_event_type_occurred_at
-    ON plant_event (event_type, occurred_at DESC);
 ```
 
 Constraints to implement:
 
 - Primary key on `id`.
 - Required FK to `plant`.
-- `event_type` is a text check, not a Postgres enum, because this list will likely grow.
+- Event kind is represented by explicit boolean facts with an exactly-one constraint, not a string type column.
+- Add partial indexes for individual event-kind booleans only when query volume requires them.
 - `metadata` is reserved for opaque event details; if application logic begins depending on a structured metadata shape, define a Pydantic DTO at that boundary before writing/reading it.
-- Indexed by plant timeline and event type.
+- Indexed by plant timeline.
 
 
 ## GrowRun Retirement
@@ -620,6 +624,7 @@ Database acceptance:
 
 - `plant.id` is the canonical Dirt identity for relationships, sync, and configuration references.
 - `plant.breeding_key` is globally unique and no longer scoped by `growrun_id`; it is the physical/domain plant tag, not the database identity.
+- Business state is not represented by string enum/check-list columns such as `source_type`, `propagation_type`, `event_type`, or `pollen_source_type`.
 - `plant_line` has required non-blank `strain` and `cultivar`.
 - Current purchased material is represented by `plant_line` plus `seed_lot`, even if parent plants are unknown.
 - Current plants have explicit breeding keys, lifecycle timestamps migrated from old grow-run dates where appropriate, and current `plant_location_history` rows.
@@ -648,9 +653,14 @@ SELECT table_name, column_name
 FROM information_schema.columns
 WHERE column_name IN ('growrun_id', 'grow_run_id')
 ORDER BY table_name, column_name;
+
+SELECT table_name, column_name
+FROM information_schema.columns
+WHERE column_name IN ('source_type', 'propagation_type', 'event_type', 'pollen_source_type')
+ORDER BY table_name, column_name;
 ```
 
-Expected result: current plants list with integer ids and breeding keys; current tent positions list without duplicates; no source-owned current tables expose `growrun_id` or `grow_run_id`.
+Expected result: current plants list with integer ids and breeding keys; current tent positions list without duplicates; no source-owned current tables expose `growrun_id`, `grow_run_id`, `source_type`, `propagation_type`, `event_type`, or `pollen_source_type`.
 
 API and UI acceptance:
 
@@ -693,6 +703,7 @@ Current user decisions captured in this draft:
 - Every table should use integer `id` as the canonical Dirt identity.
 - Do not add text `*_id` columns merely for human convenience or Dirt-owned sync/config readability.
 - Use `name`/`*_name` for human display text and `*_key` only for a real external, hardware, vendor, protocol, file, or domain-native key.
+- Avoid string enum/check-list columns for business state; prefer concrete facts, generated columns, lookup tables, and constraints.
 - Plant tag values such as `SBBS-R1-001` should be modeled as `plant.breeding_key`, not `plant.plant_id`.
 - Do not maintain backwards compatibility shims for old plant identity.
 - Plants may move between tents.
