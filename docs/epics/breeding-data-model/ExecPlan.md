@@ -287,8 +287,6 @@ CREATE TABLE plant (
     harvested_at timestamptz NULL,
     selected_for_breeding_at timestamptz NULL,
     selected_for_breeding_reason text NULL,
-    moisture_target_low double precision NOT NULL DEFAULT 55,
-    moisture_target_high double precision NOT NULL DEFAULT 70,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
 
@@ -322,12 +320,6 @@ CREATE TABLE plant (
     ),
     CONSTRAINT ck_plant_selection_reason_not_blank CHECK (
         selected_for_breeding_reason IS NULL OR btrim(selected_for_breeding_reason) <> ''
-    ),
-    CONSTRAINT ck_plant_moisture_low_bounds CHECK (
-        moisture_target_low >= 0 AND moisture_target_low < moisture_target_high
-    ),
-    CONSTRAINT ck_plant_moisture_high_bounds CHECK (
-        moisture_target_high <= 100
     )
 );
 ```
@@ -345,7 +337,6 @@ Constraints to implement:
 - Culling requires a non-blank reason.
 - A plant cannot be both culled and harvested.
 - `selected_for_breeding_at` means approved parent used or planned for breeding, not merely "keep for now".
-- Keep moisture target bounds because existing plant telemetry and watering surfaces depend on them.
 
 ### `plant_location_history`
 
@@ -525,6 +516,7 @@ Target changes:
 - Replace `growrun.plant_count` with count queries over current plant locations.
 - Replace `GrowStateService` with a plant/tent context service that derives plant stage from plant lifecycle timestamps and derives tent context from current plants.
 - Remove `growrun_id` from local cloud catalog DTOs, gateway outbox payloads, hosted `CloudPlant`, hosted `CloudPlantMetricStream`, browser responses, and generated frontend types. Dirt-owned sync should carry integer row identity and `breeding_key` only as a displayed/tagged domain key.
+- Remove `moisture_target_low` and `moisture_target_high` from local `Plant`, hosted `CloudPlant`, gateway DTOs, browser API responses, generated frontend types, and plant UI. Delete the UI target display instead of replacing it with another target source.
 - Remove `Snapshot.growrun_id` or stop writing it, then drop it once no query or projection depends on it. Snapshots should remain scoped by site/tent/view and can gain direct plant association later if plant-specific snapshot identity becomes necessary.
 - Drop the `growrun` table only after source code, tests, cloud schema, and generated contracts no longer reference it.
 
@@ -541,9 +533,9 @@ Milestone 3 creates and reviews the Atlas migration. The migration must create n
 
 Milestone 4 updates local services. Replace `GrowStateService` callers with a plant/tent context service. Update plant listing/detail/moisture services to query current plants through `plant_location_history`; order by grid `position` and then `breeding_key`. Use integer `plant.id` for internal lookups and sync identity. Update daily reports, camera publisher, sensor summaries, and any voice tools that still use grow-run plant scope.
 
-Milestone 5 updates gateway and hosted cloud projection. Extend `dirt_shared.cloud_contract` with DTOs for plant lines, seed lots, plant locations, plant notes if needed by the browser, and plant rows without `grow_run_id`. Update gateway local projection and outbox validation before changing control-plane routes. Update `CloudPlant` uniqueness to the Dirt-owned integer source plant identity, carry `breeding_key` as a displayed/tagged domain key, add cloud mirror tables for line/location data needed by the browser, and remove `grow_run_id` from hosted plant metric stream identity.
+Milestone 5 updates gateway and hosted cloud projection. Extend `dirt_shared.cloud_contract` with DTOs for plant lines, seed lots, plant locations, plant notes if needed by the browser, and plant rows without `grow_run_id` or moisture target fields. Update gateway local projection and outbox validation before changing control-plane routes. Update `CloudPlant` uniqueness to the Dirt-owned integer source plant identity, carry `breeding_key` as a displayed/tagged domain key, add cloud mirror tables for line/location data needed by the browser, and remove `grow_run_id` from hosted plant metric stream identity.
 
-Milestone 6 updates browser API and frontend. Regenerate the hosted OpenAPI client with `scripts/gen-hosted-contract` after FastAPI response models change. Update the tent plant list to query current location rows and show `position`. Update plant detail to show line identity, lifecycle timestamps, current location, notes, and events. Keep the first UI pass workmanlike and data-dense; do not build a marketing or landing page.
+Milestone 6 updates browser API and frontend. Regenerate the hosted OpenAPI client with `scripts/gen-hosted-contract` after FastAPI response models change. Update the tent plant list to query current location rows and show `position`. Delete the plant-card moisture target text; the current app only displays the target and does not use it for control. Update plant detail to show line identity, lifecycle timestamps, current location, notes, and events. Keep the first UI pass workmanlike and data-dense; do not build a marketing or landing page.
 
 Milestone 7 removes dead code and validates. Delete source-owned grow-run code, route fields, tests, and docs that only preserve the old model. Do not edit human-owned invariants. Run focused backend tests, control-plane tests, gateway tests, web-ui typecheck/lint/tests, invariants, and `make fix`. Record exact evidence in this ExecPlan.
 
@@ -615,6 +607,7 @@ Database acceptance:
 - `plant.id` is the canonical Dirt identity for relationships, sync, and configuration references.
 - `plant.breeding_key` is globally unique and no longer scoped by `growrun_id`; it is the physical/domain plant tag, not the database identity.
 - Business state is not represented by string enum/check-list columns such as `source_type`, `propagation_type`, `event_type`, or `pollen_source_type`.
+- Plant moisture target fields are removed from the plant model and hosted plant contracts because they are only display metadata today.
 - `plant_line` has required non-blank `strain` and `cultivar`.
 - Current purchased material is represented by `plant_line` plus `seed_lot`, even if parent plants are unknown.
 - Current plants have explicit breeding keys, lifecycle timestamps migrated from old grow-run dates where appropriate, and current `plant_location_history` rows.
@@ -648,15 +641,21 @@ SELECT table_name, column_name
 FROM information_schema.columns
 WHERE column_name IN ('source_type', 'propagation_type', 'event_type', 'pollen_source_type')
 ORDER BY table_name, column_name;
+
+SELECT table_name, column_name
+FROM information_schema.columns
+WHERE column_name IN ('moisture_target_low', 'moisture_target_high')
+ORDER BY table_name, column_name;
 ```
 
-Expected result: current plants list with integer ids and breeding keys; current tent positions list without duplicates; no source-owned current tables expose `growrun_id`, `grow_run_id`, `source_type`, `propagation_type`, `event_type`, or `pollen_source_type`.
+Expected result: current plants list with integer ids and breeding keys; current tent positions list without duplicates; no source-owned current tables expose `growrun_id`, `grow_run_id`, `source_type`, `propagation_type`, `event_type`, `pollen_source_type`, `moisture_target_low`, or `moisture_target_high`.
 
 API and UI acceptance:
 
 - Hosted browser API returns current tent plants from location history with integer `id`, `breeding_key`, line identity, current `position`, lifecycle timestamps, and no `grow_run_id`.
 - Plant detail can show notes and events for one globally identified plant.
 - Moving a plant to another tent closes the old location row and opens a new row without changing `plant.id` or `plant.breeding_key`.
+- Plant cards no longer render moisture target text.
 - The frontend uses generated hosted types and contains no hand-written hosted plant response interfaces.
 
 Test acceptance:
@@ -694,6 +693,7 @@ Current user decisions captured in this draft:
 - Do not add text `*_id` columns merely for human convenience or Dirt-owned sync/config readability.
 - Use `name`/`*_name` for human display text and `*_key` only for a real external, hardware, vendor, protocol, file, or domain-native key.
 - Avoid string enum/check-list columns for business state; prefer concrete facts, generated columns, lookup tables, and constraints.
+- Delete plant moisture targets and UI target display; do not replace them until a real watering workflow needs target configuration.
 - Plant tag values such as `SBBS-R1-001` should be modeled as `plant.breeding_key`, not `plant.plant_id`.
 - Do not maintain backwards compatibility shims for old plant identity.
 - Plants may move between tents.
