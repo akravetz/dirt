@@ -75,8 +75,12 @@ The work is complete when a developer can query current plants in a tent with `p
   Rationale: Event rows are a good fit for facts such as pollen collected, sex observed, reversed, clone taken, and transplant notes. They avoid widening `plant` for every future breeding action.
   Date/Author: 2026-06-14 / User + Codex
 
-- Decision: Use `plant_location_history` with `position` as free text and current occupancy derived from `end_at IS NULL`.
-  Rationale: The grid system is not finalized, but the UI needs current tent occupancy now. A text `position` supports values like `A1` or `D5`; partial unique indexes and exclusion constraints keep current and overlapping locations coherent.
+- Decision: Use `plant_location_history` with `grid_position` as free text and current occupancy derived from `end_at IS NULL`.
+  Rationale: The grid system is not finalized, but the UI needs current tent occupancy now. A text `grid_position` supports values like `A1` or `D5`; partial unique indexes and exclusion constraints keep current and overlapping locations coherent.
+  Date/Author: 2026-06-14 / User + Codex
+
+- Decision: Do not link plant location history to `zone`.
+  Rationale: Current `zone` usage is for devices, schedules, snapshots, commands, and readings. Plants exist in tents and have grid/tray positions; no app behavior needs a plant-zone relationship.
   Date/Author: 2026-06-14 / User + Codex
 
 - Decision: Model seed production canonically as `seed_lot` rows, not only as plant events.
@@ -340,7 +344,7 @@ Constraints to implement:
 
 ### `plant_location_history`
 
-`plant_location_history` tracks current and past tent occupancy. `position` is free text for v1 and can hold grid coordinates such as `A1`, `B1`, or `D5`.
+`plant_location_history` tracks current and past tent occupancy. `grid_position` is free text for v1 and can hold grid coordinates such as `A1`, `B1`, or `D5`.
 
 ```sql
 CREATE TABLE plant_location_history (
@@ -348,8 +352,7 @@ CREATE TABLE plant_location_history (
     plant_id bigint NOT NULL,
     site_id bigint NOT NULL,
     tent_id bigint NOT NULL,
-    zone_id bigint NULL,
-    position text NOT NULL,
+    grid_position text NOT NULL,
     start_at timestamptz NOT NULL,
     end_at timestamptz NULL,
     is_current boolean GENERATED ALWAYS AS (end_at IS NULL) STORED,
@@ -362,9 +365,7 @@ CREATE TABLE plant_location_history (
         FOREIGN KEY (site_id) REFERENCES site(id) ON DELETE RESTRICT,
     CONSTRAINT fk_plant_location_tent
         FOREIGN KEY (tent_id) REFERENCES tent(id) ON DELETE RESTRICT,
-    CONSTRAINT fk_plant_location_zone
-        FOREIGN KEY (zone_id) REFERENCES zone(id) ON DELETE RESTRICT,
-    CONSTRAINT ck_plant_location_position_not_blank CHECK (btrim(position) <> ''),
+    CONSTRAINT ck_plant_location_grid_position_not_blank CHECK (btrim(grid_position) <> ''),
     CONSTRAINT ck_plant_location_time_order CHECK (
         end_at IS NULL OR end_at > start_at
     )
@@ -374,12 +375,12 @@ CREATE UNIQUE INDEX ux_plant_location_current_per_plant
     ON plant_location_history (plant_id)
     WHERE end_at IS NULL;
 
-CREATE UNIQUE INDEX ux_plant_location_current_position_per_tent
-    ON plant_location_history (tent_id, position)
+CREATE UNIQUE INDEX ux_plant_location_current_grid_position_per_tent
+    ON plant_location_history (tent_id, grid_position)
     WHERE end_at IS NULL;
 
 CREATE INDEX ix_plant_location_current_tent
-    ON plant_location_history (tent_id, position, plant_id)
+    ON plant_location_history (tent_id, grid_position, plant_id)
     WHERE end_at IS NULL;
 
 CREATE INDEX ix_plant_location_plant_start
@@ -393,10 +394,10 @@ ALTER TABLE plant_location_history
     );
 
 ALTER TABLE plant_location_history
-    ADD CONSTRAINT ex_plant_location_no_overlap_per_tent_position
+    ADD CONSTRAINT ex_plant_location_no_overlap_per_tent_grid_position
     EXCLUDE USING gist (
         tent_id WITH =,
-        position WITH =,
+        grid_position WITH =,
         tstzrange(start_at, COALESCE(end_at, 'infinity'::timestamptz), '[)') WITH &&
     );
 ```
@@ -404,8 +405,8 @@ ALTER TABLE plant_location_history
 Constraints to implement:
 
 - Primary key on `id`.
-- Required FK to `plant`, `site`, and `tent`; optional FK to `zone`.
-- `position` must be non-blank text.
+- Required FK to `plant`, `site`, and `tent`. There is no plant `zone_id`.
+- `grid_position` must be non-blank text.
 - `end_at` must be after `start_at` when present.
 - Generated `is_current` field equals `end_at IS NULL`; application code should treat `end_at` as the source of truth.
 - A plant can have only one current location.
@@ -531,11 +532,11 @@ Milestone 2 implements local SQLModel target tables. Add `PlantLine`, `SeedLot`,
 
 Milestone 3 creates and reviews the Atlas migration. The migration must create new tables, backfill one `plant_line` and `seed_lot` for current purchased `Sirius Black x BS01` material, rename the old text plant identifiers to `breeding_key` values using the explicit mapping, create current `plant_location_history` rows for each active plant, move grow-run dates to plant lifecycle timestamps, preserve `plant_metric_stream` relationships, remove `plant.growrun_id`, remove obsolete grow-run constraints, and eventually drop `growrun`. Use a compressed custom-format backup before local apply as described in `docs/database.md`.
 
-Milestone 4 updates local services. Replace `GrowStateService` callers with a plant/tent context service. Update plant listing/detail/moisture services to query current plants through `plant_location_history`; order by grid `position` and then `breeding_key`. Use integer `plant.id` for internal lookups and sync identity. Update daily reports, camera publisher, sensor summaries, and any voice tools that still use grow-run plant scope.
+Milestone 4 updates local services. Replace `GrowStateService` callers with a plant/tent context service. Update plant listing/detail/moisture services to query current plants through `plant_location_history`; order by `grid_position` and then `breeding_key`. Use integer `plant.id` for internal lookups and sync identity. Update daily reports, camera publisher, sensor summaries, and any voice tools that still use grow-run plant scope.
 
 Milestone 5 updates gateway and hosted cloud projection. Extend `dirt_shared.cloud_contract` with DTOs for plant lines, seed lots, plant locations, plant notes if needed by the browser, and plant rows without `grow_run_id` or moisture target fields. Update gateway local projection and outbox validation before changing control-plane routes. Update `CloudPlant` uniqueness to the Dirt-owned integer source plant identity, carry `breeding_key` as a displayed/tagged domain key, add cloud mirror tables for line/location data needed by the browser, and remove `grow_run_id` from hosted plant metric stream identity.
 
-Milestone 6 updates browser API and frontend. Regenerate the hosted OpenAPI client with `scripts/gen-hosted-contract` after FastAPI response models change. Update the tent plant list to query current location rows and show `position`. Delete the plant-card moisture target text; the current app only displays the target and does not use it for control. Update plant detail to show line identity, lifecycle timestamps, current location, notes, and events. Keep the first UI pass workmanlike and data-dense; do not build a marketing or landing page.
+Milestone 6 updates browser API and frontend. Regenerate the hosted OpenAPI client with `scripts/gen-hosted-contract` after FastAPI response models change. Update the tent plant list to query current location rows and show `grid_position`. Delete the plant-card moisture target text; the current app only displays the target and does not use it for control. Update plant detail to show line identity, lifecycle timestamps, current location, notes, and events. Keep the first UI pass workmanlike and data-dense; do not build a marketing or landing page.
 
 Milestone 7 removes dead code and validates. Delete source-owned grow-run code, route fields, tests, and docs that only preserve the old model. Do not edit human-owned invariants. Run focused backend tests, control-plane tests, gateway tests, web-ui typecheck/lint/tests, invariants, and `make fix`. Record exact evidence in this ExecPlan.
 
@@ -614,6 +615,7 @@ Database acceptance:
 - The query for current tent plants uses `plant_location_history.end_at IS NULL`.
 - A plant cannot have two current locations.
 - A tent position cannot have two current plants.
+- Plant locations do not reference `zone_id`.
 - Culling cannot be recorded without a non-blank `culled_reason`.
 - `growrun` is absent from the final schema, or the only remaining references are explicitly documented external historical artifacts scheduled for deletion in the same plan.
 
@@ -625,12 +627,12 @@ FROM plant p
 JOIN plant_line pl ON pl.id = p.line_id
 ORDER BY p.breeding_key;
 
-SELECT t.tent_id, l.position, p.id, p.breeding_key, l.start_at
+SELECT t.tent_id, l.grid_position, p.id, p.breeding_key, l.start_at
 FROM plant_location_history l
 JOIN plant p ON p.id = l.plant_id
 JOIN tent t ON t.id = l.tent_id
 WHERE l.end_at IS NULL
-ORDER BY t.tent_id, l.position, p.breeding_key;
+ORDER BY t.tent_id, l.grid_position, p.breeding_key;
 
 SELECT table_name, column_name
 FROM information_schema.columns
@@ -646,13 +648,18 @@ SELECT table_name, column_name
 FROM information_schema.columns
 WHERE column_name IN ('moisture_target_low', 'moisture_target_high')
 ORDER BY table_name, column_name;
+
+SELECT column_name
+FROM information_schema.columns
+WHERE table_name = 'plant_location_history'
+  AND column_name IN ('zone_id', 'position');
 ```
 
-Expected result: current plants list with integer ids and breeding keys; current tent positions list without duplicates; no source-owned current tables expose `growrun_id`, `grow_run_id`, `source_type`, `propagation_type`, `event_type`, `pollen_source_type`, `moisture_target_low`, or `moisture_target_high`.
+Expected result: current plants list with integer ids and breeding keys; current tent positions list without duplicates; `plant_location_history` uses `grid_position` and has no `zone_id` or `position`; no source-owned current tables expose `growrun_id`, `grow_run_id`, `source_type`, `propagation_type`, `event_type`, `pollen_source_type`, `moisture_target_low`, or `moisture_target_high`.
 
 API and UI acceptance:
 
-- Hosted browser API returns current tent plants from location history with integer `id`, `breeding_key`, line identity, current `position`, lifecycle timestamps, and no `grow_run_id`.
+- Hosted browser API returns current tent plants from location history with integer `id`, `breeding_key`, line identity, current `grid_position`, lifecycle timestamps, and no `grow_run_id`.
 - Plant detail can show notes and events for one globally identified plant.
 - Moving a plant to another tent closes the old location row and opens a new row without changing `plant.id` or `plant.breeding_key`.
 - Plant cards no longer render moisture target text.
@@ -701,7 +708,7 @@ Current user decisions captured in this draft:
 - Both `strain` and `cultivar` are required on `plant_line`.
 - Clones should get their own integer `plant.id` rows and their own `breeding_key` values.
 - `selected_for_breeding` means approved parent used or planned for breeding.
-- `plant_location_history.position` is free text for v1.
+- `plant_location_history.grid_position` is free text for v1.
 - Culling requires both `culled_at` and `culled_reason`.
 
 
