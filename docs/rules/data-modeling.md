@@ -63,7 +63,6 @@ Good:
 
 - `device.id` as the Dirt identity; `device.firmware_key` only if firmware reports a stable hardware identifier that exists before or outside the database row.
 - `plant.id` as the Dirt identity; `plant.breeding_key` only if the value is printed on plant tags, used in handwritten notes/photos, and must remain stable across exports.
-- `seed_lot.id` as the Dirt identity; `seed_lot.vendor_lot_key` only if the vendor packet has a lot code worth preserving.
 - `seed_lot.is_purchased` plus generated `seed_lot.is_produced` from `produced_by_cross_event_id`, with a constraint preventing both from being true.
 - `plant.is_clone` generated from `clone_source_plant_id IS NOT NULL`.
 - `name` for human-readable labels such as tent name, cultivar name, or device name.

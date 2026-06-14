@@ -222,7 +222,6 @@ CREATE TABLE seed_lot (
     line_id bigint NOT NULL,
     is_purchased boolean NOT NULL DEFAULT false,
     vendor_name text NULL,
-    vendor_lot_key text NULL,
     acquired_at timestamptz NULL,
     produced_by_cross_event_id bigint NULL,
     is_produced boolean GENERATED ALWAYS AS (produced_by_cross_event_id IS NOT NULL) STORED,
@@ -242,10 +241,7 @@ CREATE TABLE seed_lot (
         NOT is_purchased OR (vendor_name IS NOT NULL AND btrim(vendor_name) <> '')
     ),
     CONSTRAINT ck_seed_lot_vendor_only_when_purchased CHECK (
-        is_purchased OR (vendor_name IS NULL AND vendor_lot_key IS NULL)
-    ),
-    CONSTRAINT ck_seed_lot_vendor_lot_key_not_blank CHECK (
-        vendor_lot_key IS NULL OR btrim(vendor_lot_key) <> ''
+        is_purchased OR vendor_name IS NULL
     ),
     CONSTRAINT ck_seed_lot_seed_count_positive CHECK (
         seed_count IS NULL OR seed_count >= 0
@@ -254,18 +250,12 @@ CREATE TABLE seed_lot (
         notes IS NULL OR btrim(notes) <> ''
     )
 );
-
-CREATE UNIQUE INDEX ux_seed_lot_vendor_lot_key
-    ON seed_lot (vendor_name, vendor_lot_key)
-    WHERE vendor_lot_key IS NOT NULL;
 ```
 
 Constraints to implement:
 
 - Primary key on `id`.
 - Required FK to `plant_line`.
-- Optional `vendor_lot_key` only when the vendor packet has a real lot key worth preserving.
-- Vendor lot keys are unique per vendor when present.
 - `is_purchased` is a stored fact.
 - `is_produced` is generated from `produced_by_cross_event_id IS NOT NULL`.
 - A seed lot cannot be both purchased and produced.
