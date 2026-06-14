@@ -7,7 +7,6 @@ import { formatMetricValue } from "@/shared/metricFormat";
 import { HoverTimestamp } from "@/ui/HoverTimestamp";
 import { formatEmptyHistoryLabel } from "@/ui/historyRangeLabels";
 import { MarkdownDocument } from "@/ui/MarkdownDocument";
-import { PlantSticker } from "@/ui/PlantSticker";
 import { RangeSwitch, type SparklineRange } from "@/ui/RangeSwitch";
 import { Sparkline } from "@/ui/Sparkline";
 
@@ -35,6 +34,9 @@ type HistoryPoint = {
 type PlantMetricStream = hostedComponents["schemas"]["PlantMetricStreamResponse"];
 type PlantMetricHistoryStream =
   hostedComponents["schemas"]["PlantMetricHistoryStreamResponse"];
+type PlantDetail = hostedComponents["schemas"]["PlantDetailResponse"];
+type PlantEvent = hostedComponents["schemas"]["PlantEventResponse"];
+type PlantNote = hostedComponents["schemas"]["PlantNoteResponse"];
 
 const KNOWN_ACCENTS: ReadonlySet<SparklineAccent> = new Set([
   "temp",
@@ -135,10 +137,9 @@ function HostedPlantDetailPage() {
               <h1 className="min-w-0 break-words font-sans text-fs-24 font-semibold tracking-tight text-ink">
                 {detail.name}
               </h1>
-              <PlantSticker color={detail.sticker_color} />
             </div>
             <p className="mt-1 font-mono text-fs-10 uppercase tracking-caps text-ink-3">
-              {detail.tent_id} · {detail.grow_run_id} · plant {detail.plant_id}
+              {detail.key} · source #{detail.id} · {formatCurrentLocation(detail)}
             </p>
           </div>
           <div className="flex flex-wrap gap-2 lg:justify-end">
@@ -148,19 +149,29 @@ function HostedPlantDetailPage() {
             <PlantPill tone={detail.telemetry_stream_count > 0 ? "ok" : "neutral"}>
               {formatTelemetryStreamCount(detail.telemetry_stream_count)}
             </PlantPill>
-            <PlantPill tone={detail.purple ? "purple" : "neutral"}>
-              {detail.status}
-            </PlantPill>
+            <PlantPill tone="neutral">{formatLineIdentity(detail)}</PlantPill>
           </div>
         </header>
 
-        <section className="grid grid-cols-1 gap-px border border-rule-strong bg-rule sm:grid-cols-3">
+        <section className="grid grid-cols-1 gap-px border border-rule-strong bg-rule sm:grid-cols-2 lg:grid-cols-4">
+          <PlantFact label="Line" value={formatLineIdentity(detail)} />
+          <PlantFact label="Current Location" value={formatCurrentLocation(detail)} />
           <PlantFact
-            label="Target Band"
-            value={formatTargetBounds(
-              detail.target_bounds.low,
-              detail.target_bounds.high,
-            )}
+            label="Germinated"
+            value={formatNullableTimestamp(detail.germinated_at)}
+          />
+          <PlantFact
+            label="Flower Started"
+            value={formatNullableTimestamp(detail.flower_started_at)}
+          />
+          <PlantFact
+            label="Veg Started"
+            value={formatNullableTimestamp(detail.veg_started_at)}
+          />
+          <PlantFact label="Rooted" value={formatNullableTimestamp(detail.rooted_at)} />
+          <PlantFact
+            label="Selected"
+            value={formatNullableTimestamp(detail.selected_for_breeding_at)}
           />
           <PlantFact
             label="Telemetry"
@@ -230,6 +241,11 @@ function HostedPlantDetailPage() {
               Telemetry history unavailable
             </p>
           ) : null}
+        </section>
+
+        <section className="grid gap-4 lg:grid-cols-2">
+          <PlantNotesPanel notes={detail.notes} />
+          <PlantEventsPanel events={detail.events} />
         </section>
 
         {detail.wiki_content === null ? (
@@ -338,10 +354,87 @@ function EmptyTelemetryState(): ReactNode {
       <div className="max-w-160">
         <h3 className="font-sans text-fs-13 font-semibold text-ink">No telemetry</h3>
         <p className="mt-2 text-fs-12 leading-relaxed text-ink-2">
-          This plant has no active mapped telemetry streams. Identity, targets, and
+          This plant has no active mapped telemetry streams. Identity, location, and
           projected wiki content are still available.
         </p>
       </div>
+    </section>
+  );
+}
+
+function PlantNotesPanel({ notes }: { notes: readonly PlantNote[] }): ReactNode {
+  return (
+    <section className="border border-rule-strong bg-paper-2 p-4">
+      <header className="mb-3 flex items-baseline justify-between gap-3 border-b border-rule pb-2">
+        <h2 className="font-sans text-fs-10 font-semibold uppercase tracking-cap-med text-ink-3">
+          Notes
+        </h2>
+        <span className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+          {notes.length}
+        </span>
+      </header>
+      {notes.length === 0 ? (
+        <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+          No projected notes.
+        </p>
+      ) : (
+        <ol className="flex flex-col gap-3">
+          {notes.map((note) => (
+            <li key={note.id} className="border-b border-rule pb-3 last:border-b-0">
+              <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+                {formatTimestamp(note.observed_at)}
+                {note.created_by === null ? "" : ` · ${note.created_by}`}
+              </p>
+              <p className="mt-1 text-fs-12 leading-relaxed text-ink">{note.body}</p>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
+  );
+}
+
+function PlantEventsPanel({ events }: { events: readonly PlantEvent[] }): ReactNode {
+  return (
+    <section className="border border-rule-strong bg-paper-2 p-4">
+      <header className="mb-3 flex items-baseline justify-between gap-3 border-b border-rule pb-2">
+        <h2 className="font-sans text-fs-10 font-semibold uppercase tracking-cap-med text-ink-3">
+          Events
+        </h2>
+        <span className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+          {events.length}
+        </span>
+      </header>
+      {events.length === 0 ? (
+        <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+          No projected events.
+        </p>
+      ) : (
+        <ol className="flex flex-col gap-3">
+          {events.map((event) => (
+            <li key={event.id} className="border-b border-rule pb-3 last:border-b-0">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+                  {formatEventKinds(event.kinds)}
+                </p>
+                <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+                  {formatTimestamp(event.occurred_at)}
+                </p>
+              </div>
+              {event.reason === null ? null : (
+                <p className="mt-1 text-fs-12 leading-relaxed text-ink">
+                  {event.reason}
+                </p>
+              )}
+              {event.notes === null ? null : (
+                <p className="mt-1 text-fs-12 leading-relaxed text-ink-2">
+                  {event.notes}
+                </p>
+              )}
+            </li>
+          ))}
+        </ol>
+      )}
     </section>
   );
 }
@@ -382,16 +475,14 @@ function PlantPill({
   tone,
 }: {
   children: ReactNode;
-  tone: "ok" | "warn" | "purple" | "neutral";
+  tone: "ok" | "warn" | "neutral";
 }): ReactNode {
   const toneClass =
     tone === "ok"
       ? "border-status-ok text-status-ok"
       : tone === "warn"
         ? "border-status-warn text-status-warn"
-        : tone === "purple"
-          ? "border-accent-purple text-accent-purple"
-          : "border-rule text-ink-3";
+        : "border-rule text-ink-3";
   return (
     <span
       className={`inline-flex border bg-paper-2 px-2.5 py-1.5 font-mono text-fs-10 uppercase tracking-caps ${toneClass}`}
@@ -399,16 +490,6 @@ function PlantPill({
       {children}
     </span>
   );
-}
-
-function formatTargetBounds(low: number, high: number): string {
-  return `${formatPercent(low)}-${formatPercent(high)}`;
-}
-
-function formatPercent(value: number): string {
-  const rounded = Math.round(value * 10) / 10;
-  const text = Number.isInteger(rounded) ? `${rounded}` : rounded.toFixed(1);
-  return `${text}%`;
 }
 
 function formatTelemetryStreamCount(count: number): string {
@@ -429,6 +510,28 @@ function formatTimestamp(value: string): string {
     dateStyle: "short",
     timeStyle: "short",
   }).format(date);
+}
+
+function formatNullableTimestamp(value: string | null): string {
+  return value === null ? "Not set" : formatTimestamp(value);
+}
+
+function formatCurrentLocation(detail: PlantDetail): string {
+  return `${detail.current_location.tent_id} · ${detail.current_location.grid_position}`;
+}
+
+function formatLineIdentity(detail: PlantDetail): string {
+  if (detail.line === null) return `line #${detail.line_source_id}`;
+  const project = [detail.line.project_code, detail.line.generation_label]
+    .filter((part) => part !== null && part.length > 0)
+    .join(" ");
+  const prefix = project.length > 0 ? `${project} · ` : "";
+  return `${prefix}${detail.line.strain} · ${detail.line.cultivar}`;
+}
+
+function formatEventKinds(kinds: readonly string[]): string {
+  if (kinds.length === 0) return "event";
+  return kinds.join(", ");
 }
 
 function metricStreamKey(stream: {

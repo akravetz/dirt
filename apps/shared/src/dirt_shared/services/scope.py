@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from dirt_shared.models.grow_run import GrowRun
 from dirt_shared.models.site import Site
 from dirt_shared.models.tent import Tent
 
@@ -47,23 +46,3 @@ async def resolve_scope(
         site_id=resolved_site_id,
         tent_id=resolved_tent_id,
     )
-
-
-async def current_grow_run(
-    session: AsyncSession,
-    *,
-    site_id: str = DEFAULT_SITE_ID,
-    tent_id: str = DEFAULT_TENT_ID,
-) -> GrowRun | None:
-    """Return the current grow run for a resolved site/tent scope."""
-    scope = await resolve_scope(session, site_id=site_id, tent_id=tent_id)
-    if scope is None:
-        return None
-    result = await session.exec(
-        select(GrowRun)
-        .where(GrowRun.site_id == scope.site_pk)
-        .where(GrowRun.tent_id == scope.tent_pk)
-        .where(GrowRun.is_current.is_(True))
-        .limit(1)
-    )
-    return result.first()

@@ -7,12 +7,13 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.device import Capability, Device
 from dirt_shared.models.enums import SensorSource
-from dirt_shared.models.grow_run import GrowRun
-from dirt_shared.models.plant import Plant, PlantMetricStream
+from dirt_shared.models.plant import Plant, PlantLocationHistory, PlantMetricStream
 from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.models.site import Site
 from dirt_shared.services.readings import ReadingsService
 from dirt_voice.tools.sensors import build_sensor_tools
+
+PLANT_A_KEY = "SBBS-R1-001"
 
 
 class _FakeGrow:
@@ -41,7 +42,7 @@ async def _capability_id(
 async def _map_plant_moisture_stream(
     session: AsyncSession,
     *,
-    plant_id: str,
+    plant_key: str,
     device_id: str,
     capability_id: str,
     metric_name: str,
@@ -50,17 +51,18 @@ async def _map_plant_moisture_stream(
     site_pk = (
         await session.exec(select(Site.id).where(Site.site_id == "homebox"))
     ).one()
-    grow = (
+    plant, location = (
         await session.exec(
-            select(GrowRun)
-            .where(GrowRun.site_id == site_pk)
-            .where(GrowRun.is_current.is_(True))
-            .limit(1)
+            select(Plant, PlantLocationHistory)
+            .join(PlantLocationHistory, PlantLocationHistory.plant_id == Plant.id)
+            .where(Plant.key == plant_key)
+            .where(PlantLocationHistory.site_id == site_pk)
+            .where(PlantLocationHistory.end_at.is_(None))
         )
     ).one()
     device = Device(
         site_id=site_pk,
-        tent_id=grow.tent_id,
+        tent_id=location.tent_id,
         device_id=device_id,
         name=device_id,
         kind="moisture_node",
@@ -79,13 +81,6 @@ async def _map_plant_moisture_stream(
     )
     session.add(capability)
     await session.flush()
-    plant = (
-        await session.exec(
-            select(Plant)
-            .where(Plant.growrun_id == grow.id)
-            .where(Plant.plant_id == plant_id)
-        )
-    ).one()
     session.add(PlantMetricStream(plant_id=plant.id, capability_id=capability.id))
     await session.flush()
     assert capability.id is not None
@@ -105,7 +100,7 @@ async def test_current_status_reads_scoped_tent_and_plant_capabilities(
         }
         plant_cap = await _map_plant_moisture_stream(
             session,
-            plant_id="a",
+            plant_key=PLANT_A_KEY,
             device_id="test-plant-a-direct-moisture",
             capability_id="soil_moisture_pct",
             metric_name="soil_moisture_pct",
@@ -149,7 +144,7 @@ async def test_current_status_reads_scoped_tent_and_plant_capabilities(
 
     assert result["readings"]["temperature_f"] == 78.0
     assert result["readings"]["humidity_pct"] == 52.0
-    assert result["soil_moisture_pct"]["a"] == 60.0
+    assert result["soil_moisture_pct"][PLANT_A_KEY] == 60.0
     assert result["out_of_range"] == []
 
 
@@ -160,7 +155,7 @@ async def test_current_status_omits_raw_plant_moisture(
     async with AsyncSession(app_engine) as session:
         plant_cap = await _map_plant_moisture_stream(
             session,
-            plant_id="a",
+            plant_key=PLANT_A_KEY,
             device_id="test-plant-a-raw-moisture",
             capability_id="soil_moisture_raw",
             metric_name="soil_moisture_raw",

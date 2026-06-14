@@ -15,8 +15,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.device import Capability, Device
 from dirt_shared.models.enums import SensorSource
-from dirt_shared.models.grow_run import GrowRun
-from dirt_shared.models.plant import Plant, PlantMetricStream
+from dirt_shared.models.plant import Plant, PlantLocationHistory, PlantMetricStream
 from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.models.site import Site
 from dirt_shared.services.daily_sensors import (
@@ -31,6 +30,10 @@ TEST_NOW = datetime(2026, 4, 19, 20, 30, 0, tzinfo=UTC)  # 14:30 MDT
 TEST_DATE = date(2026, 4, 19)
 TENT_DEVICE = "fan-controller"
 BREEDING_TENT_DEVICE = "breeding-env-node"
+PLANT_A_KEY = "SBBS-R1-001"
+PLANT_B_KEY = "SBBS-R1-002"
+PLANT_C_KEY = "SBBS-R1-003"
+PLANT_D_KEY = "SBBS-R1-004"
 
 
 def _clock():
@@ -79,7 +82,7 @@ async def _seed_readings(
 async def _map_plant_moisture_stream(
     engine,
     *,
-    plant_id: str,
+    plant_key: str,
     device_id: str,
     capability_id: str,
     metric_name: str,
@@ -87,17 +90,18 @@ async def _map_plant_moisture_stream(
 ) -> int:
     async with AsyncSession(engine) as s:
         site_pk = (await s.exec(select(Site.id).where(Site.site_id == "homebox"))).one()
-        grow = (
+        plant, location = (
             await s.exec(
-                select(GrowRun)
-                .where(GrowRun.site_id == site_pk)
-                .where(GrowRun.is_current.is_(True))
-                .limit(1)
+                select(Plant, PlantLocationHistory)
+                .join(PlantLocationHistory, PlantLocationHistory.plant_id == Plant.id)
+                .where(Plant.key == plant_key)
+                .where(PlantLocationHistory.site_id == site_pk)
+                .where(PlantLocationHistory.end_at.is_(None))
             )
         ).one()
         device = Device(
             site_id=site_pk,
-            tent_id=grow.tent_id,
+            tent_id=location.tent_id,
             device_id=device_id,
             name=device_id,
             kind="moisture_node",
@@ -118,34 +122,21 @@ async def _map_plant_moisture_stream(
         await s.flush()
         assert capability.id is not None
         capability_pk = capability.id
-        plant = (
-            await s.exec(
-                select(Plant)
-                .where(Plant.growrun_id == grow.id)
-                .where(Plant.plant_id == plant_id)
-            )
-        ).one()
         s.add(PlantMetricStream(plant_id=plant.id, capability_id=capability.id))
         await s.commit()
         return capability_pk
 
 
-async def _deactivate_plant_moisture_stream(engine, *, plant_id: str) -> None:
+async def _deactivate_plant_moisture_stream(engine, *, plant_key: str) -> None:
     async with AsyncSession(engine) as s:
         site_pk = (await s.exec(select(Site.id).where(Site.site_id == "homebox"))).one()
-        grow = (
-            await s.exec(
-                select(GrowRun)
-                .where(GrowRun.site_id == site_pk)
-                .where(GrowRun.is_current.is_(True))
-                .limit(1)
-            )
-        ).one()
         plant = (
             await s.exec(
                 select(Plant)
-                .where(Plant.growrun_id == grow.id)
-                .where(Plant.plant_id == plant_id)
+                .join(PlantLocationHistory, PlantLocationHistory.plant_id == Plant.id)
+                .where(Plant.key == plant_key)
+                .where(PlantLocationHistory.site_id == site_pk)
+                .where(PlantLocationHistory.end_at.is_(None))
             )
         ).one()
         streams = (
@@ -229,7 +220,7 @@ async def test_validate_flags_stale_direct_plant_moisture(pg_engine):
     device_id = "test-plant-b-direct-moisture"
     await _map_plant_moisture_stream(
         pg_engine,
-        plant_id="b",
+        plant_key=PLANT_B_KEY,
         device_id=device_id,
         capability_id="soil_moisture_pct",
         metric_name=SOIL_METRIC,
@@ -251,7 +242,9 @@ async def test_validate_flags_stale_direct_plant_moisture(pg_engine):
     r = SensorReader(pg_engine, clock=_clock, max_age_s=300)
     failures = await r.validate()
     assert any(
-        f.reason == "stale" and f.subject == "plant-b" and f.metric == SOIL_METRIC
+        f.reason == "stale"
+        and f.subject == f"plant-{PLANT_B_KEY}"
+        and f.metric == SOIL_METRIC
         for f in failures
     )
 
@@ -260,7 +253,7 @@ async def test_validate_ignores_unsupported_raw_plant_moisture(pg_engine):
     raw_device_id = "test-plant-c-raw-moisture"
     await _map_plant_moisture_stream(
         pg_engine,
-        plant_id="c",
+        plant_key=PLANT_C_KEY,
         device_id=raw_device_id,
         capability_id="soil_moisture_raw",
         metric_name="soil_moisture_raw",
@@ -304,11 +297,11 @@ async def test_current_product_plant_moisture_uses_active_direct_streams_only(
     async with AsyncSession(pg_engine) as s:
         readings = await get_latest_product_plant_moisture_readings(s, now=TEST_NOW)
 
-    by_plant = {reading.plant_id: reading for reading in readings}
-    assert set(by_plant) == {"a", "c", "d"}
-    assert by_plant["a"].device_id == "plant-a-substrate-node"
-    assert by_plant["c"].device_id == "plant-c-substrate-node"
-    assert by_plant["d"].device_id == "plant-d-substrate-node"
+    by_plant = {reading.plant_key: reading for reading in readings}
+    assert set(by_plant) == {PLANT_A_KEY, PLANT_C_KEY, PLANT_D_KEY}
+    assert by_plant[PLANT_A_KEY].device_id == "plant-a-substrate-node"
+    assert by_plant[PLANT_C_KEY].device_id == "plant-c-substrate-node"
+    assert by_plant[PLANT_D_KEY].device_id == "plant-d-substrate-node"
     assert {reading.capability_id for reading in readings} == {"soil_moisture_pct"}
 
 
@@ -441,7 +434,7 @@ async def test_snapshot_per_plant_pct_uses_direct_percent(pg_engine):
     device_id = "test-plant-a-direct-moisture"
     await _map_plant_moisture_stream(
         pg_engine,
-        plant_id="a",
+        plant_key=PLANT_A_KEY,
         device_id=device_id,
         capability_id="soil_moisture_pct",
         metric_name=SOIL_METRIC,
@@ -454,17 +447,17 @@ async def test_snapshot_per_plant_pct_uses_direct_percent(pg_engine):
 
     r = SensorReader(pg_engine, clock=_clock)
     snap = await r.snapshot(TEST_DATE)
-    assert snap.plants["a"]["now_pct"] == 54.9
+    assert snap.plants[PLANT_A_KEY]["now_pct"] == 54.9
 
 
 async def test_snapshot_omits_inactive_plant_moisture_stream(pg_engine):
-    await _deactivate_plant_moisture_stream(pg_engine, plant_id="a")
+    await _deactivate_plant_moisture_stream(pg_engine, plant_key=PLANT_A_KEY)
     await _seed_readings(pg_engine, _all_tent_metrics_fresh())
 
     r = SensorReader(pg_engine, clock=_clock)
     snap = await r.snapshot(TEST_DATE)
 
-    assert "a" not in snap.plants
+    assert PLANT_A_KEY not in snap.plants
 
 
 def test_to_prompt_dict_renders_window_avg():
@@ -483,7 +476,7 @@ def test_to_prompt_dict_renders_window_avg():
             }
         },
         plants={
-            "a": {
+            PLANT_A_KEY: {
                 "overnight_pct": WindowAvg(avg=42.5, n=10),
                 "morning_pct": WindowAvg(avg=None, n=0),
                 "now_pct": 33.1,
@@ -506,9 +499,9 @@ def test_to_prompt_dict_renders_window_avg():
     assert out["tent"]["temperature_f"]["overnight"] == {"avg": 75.12, "n": 2}
     assert out["tent"]["temperature_f"]["morning"] is None
     assert out["tent"]["temperature_f"]["now"] == 85.0
-    assert out["plants"]["a"]["overnight_pct"] == {"avg": 42.5, "n": 10}
-    assert out["plants"]["a"]["morning_pct"] is None
-    assert out["plants"]["a"]["now_pct"] == 33.1
-    assert "raw_delta_morning_to_now" not in out["plants"]["a"]
+    assert out["plants"][PLANT_A_KEY]["overnight_pct"] == {"avg": 42.5, "n": 10}
+    assert out["plants"][PLANT_A_KEY]["morning_pct"] is None
+    assert out["plants"][PLANT_A_KEY]["now_pct"] == 33.1
+    assert "raw_delta_morning_to_now" not in out["plants"][PLANT_A_KEY]
     assert out["soil_moisture_note"].startswith("Soil moisture is reported")
     assert set(out["tents"]) == {"breeding", "main"}

@@ -9,7 +9,10 @@ from dirt_shared.cloud_contract import (
     AssetRetentionRequest,
     CatalogDevice,
     CatalogPlant,
+    CatalogPlantLine,
+    CatalogPlantLocation,
     CatalogPlantMetricStream,
+    CatalogSeedLot,
     CommandClaimResponse,
     LatestMetricItem,
     PtzLookPayload,
@@ -74,24 +77,34 @@ def test_gateway_contract_models_forbid_extra_fields() -> None:
 
 def test_catalog_plant_requires_nullable_wire_fields() -> None:
     plant_payload = {
-        "tent_id": "main",
-        "grow_run_id": "main-2026-03-15",
-        "plant_id": "a",
+        "source_plant_id": 1,
+        "line_source_id": 1,
+        "source_seed_lot_id": None,
+        "clone_source_plant_id": None,
+        "key": "SBBS-R1-001",
         "name": "Plant A",
-        "display_order": 1,
-        "sticker_color": None,
-        "status": "primary",
-        "purple": True,
-        "moisture_target_low": 55.0,
-        "moisture_target_high": 70.0,
-        "wiki_path": None,
+        "germinated_at": "2026-03-15T12:00:00Z",
+        "rooted_at": None,
+        "veg_started_at": None,
+        "flower_started_at": None,
+        "culled_at": None,
+        "culled_reason": None,
+        "harvested_at": None,
+        "selected_for_breeding_at": None,
+        "selected_for_breeding_reason": None,
         "is_active": True,
     }
 
     plant = CatalogPlant.model_validate(plant_payload)
-    assert plant.wiki_path is None
+    assert plant.source_plant_id == 1
+    assert plant.key == "SBBS-R1-001"
 
-    for field_name in ("sticker_color", "wiki_path"):
+    for field_name in (
+        "source_seed_lot_id",
+        "clone_source_plant_id",
+        "rooted_at",
+        "culled_reason",
+    ):
         invalid = dict(plant_payload)
         del invalid[field_name]
         with pytest.raises(ValidationError) as exc_info:
@@ -100,11 +113,59 @@ def test_catalog_plant_requires_nullable_wire_fields() -> None:
         assert exc_info.value.errors()[0]["type"] == "missing"
 
 
+def test_catalog_line_seed_lot_and_location_require_source_identity() -> None:
+    line = CatalogPlantLine.model_validate(
+        {
+            "source_line_id": 1,
+            "project_code": "SBBS",
+            "generation_label": "R1",
+            "strain": "Sirius Black x BS01",
+            "cultivar": "SBBS R1",
+            "description": None,
+            "source_name": "Unknown vendor",
+        }
+    )
+    seed_lot = CatalogSeedLot.model_validate(
+        {
+            "source_seed_lot_id": 1,
+            "line_source_id": line.source_line_id,
+            "is_purchased": True,
+            "vendor_name": "Unknown vendor",
+            "acquired_at": None,
+            "produced_by_cross_event_source_id": None,
+            "seed_count": None,
+            "notes": None,
+        }
+    )
+    location = CatalogPlantLocation.model_validate(
+        {
+            "source_location_id": 1,
+            "source_plant_id": 1,
+            "tent_id": "main",
+            "grid_position": "A1",
+            "start_at": "2026-03-15T12:00:00Z",
+            "end_at": None,
+        }
+    )
+
+    assert seed_lot.line_source_id == 1
+    assert location.source_plant_id == 1
+
+    for model, payload, field_name in (
+        (CatalogPlantLine, line.model_dump(mode="json"), "source_line_id"),
+        (CatalogSeedLot, seed_lot.model_dump(mode="json"), "source_seed_lot_id"),
+        (CatalogPlantLocation, location.model_dump(mode="json"), "source_location_id"),
+    ):
+        del payload[field_name]
+        with pytest.raises(ValidationError) as exc_info:
+            model.model_validate(payload)
+        assert exc_info.value.errors()[0]["loc"] == (field_name,)
+        assert exc_info.value.errors()[0]["type"] == "missing"
+
+
 def test_catalog_plant_metric_stream_requires_public_stream_identity() -> None:
     stream_payload = {
-        "tent_id": "main",
-        "grow_run_id": "main-2026-03-15",
-        "plant_id": "a",
+        "source_plant_id": 1,
         "device_id": "plant-a-substrate-node",
         "capability_id": "substrate_ph",
         "metric": "substrate_ph",
@@ -113,6 +174,7 @@ def test_catalog_plant_metric_stream_requires_public_stream_identity() -> None:
     }
 
     stream = CatalogPlantMetricStream.model_validate(stream_payload)
+    assert stream.source_plant_id == 1
     assert stream.device_id == "plant-a-substrate-node"
     assert stream.metric == "substrate_ph"
 

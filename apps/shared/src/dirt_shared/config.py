@@ -18,9 +18,8 @@ load_dotenv()
 #   parents[4] = <repo root>
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 
-# Germination date per wiki/overview.md. Day 1 = 2026-03-15. Seeded into
-# growrun via Atlas migrations; runtime reads go through
-# dirt_shared.services.grow_state so a future UI can edit the date in one place.
+# Fallback germination date per wiki/overview.md. Runtime reads current plant
+# lifecycle rows through dirt_shared.services.grow_state.
 GROW_START = date(2026, 3, 15)
 DEFAULT_CAMERA_SOCKET_PATH = Path("/tmp/dirt-camera.sock")  # noqa: S108
 

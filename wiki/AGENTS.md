@@ -16,7 +16,7 @@ Answer from the smallest relevant file first. The table below tells you where to
 | Question shape | File(s) |
 |---|---|
 | "what's next" / "what should I do" / "current plan" / "upcoming" | `overview.md` (Active Action Items + Upcoming Milestones) — **usually sufficient alone** |
-| "how are the plants" / "current status" / per-plant status | `overview.md` (Plant Status table), then `grows/<grow_run_id>/plants/plant-<plant_id>.md` (Current State at top; Timeline below) |
+| "how are the plants" / "current status" / per-plant status | `overview.md` (Plant Status table), then the matching file under `grows/*/plants/` (Current State at top; Timeline below) |
 | "how did X happen" / past observations | `daily/YYYY-MM-DD.md` (most recent first) |
 | "why did we decide Y" / decision rationale | `decisions/YYYY-MM-DD-<slug>.md` |
 | "what is VPD / LST / DLI / flushing / …" | `concepts/<topic>.md` |
@@ -45,14 +45,17 @@ Most "quick answer" questions resolve from these sections alone:
 
 ## Grow and Plant Labeling
 
-Plant identity is scoped by grow run, matching the database: `growrun.grow_run_id`
-owns a set of `plant.plant_id` values. Do not treat plant labels as globally
-unique.
+Database plant identity is the integer `plant.id`; the durable human label is
+the globally unique `plant.key` printed on tags and used in notes/photos. The
+wiki still keeps historical plant pages under `wiki/grows/.../plants/` paths,
+but those directories are documentation organization, not database identity.
 
 - Grow index: `wiki/grows/README.md`
 - Main grow files: `wiki/grows/main-2026-03-15/plants/plant-a.md`, `wiki/grows/main-2026-03-15/plants/plant-b.md`, `wiki/grows/main-2026-03-15/plants/plant-c.md`, `wiki/grows/main-2026-03-15/plants/plant-d.md`
 - Breeding Track A files: `wiki/grows/breeding-track-a-2026-04-28/plants/plant-r1.md` through `plant-r5.md`
-- Early documentation (before 2026-04-06) used numeric labels (Plant 1/2/3/4). The mapping was: 1→A, 2→B, 3→C, 4→D. Do NOT use the numeric labels; use A/B/C/D exclusively.
+- Current plant tag keys: main `SBBS-R1-001` through `SBBS-R1-004`; breeding
+  `SBBS-R1-005` through `SBBS-R1-009`.
+- Early documentation (before 2026-04-06) used numeric labels (Plant 1/2/3/4). The mapping was: 1→A, 2→B, 3→C, 4→D. Do NOT use the numeric labels; use the current tag key when available and A/B/C/D only when referring to the historical page names.
 
 ## Commands
 

@@ -121,14 +121,6 @@
   --color-status-warn: var(--status-warn);
   --color-status-err: var(--status-err);
 
-  /* Sticker tokens kept under their canonical yellow/orange/pink/blue
-   * names (the PlantStickerColor contract enum) but sourced from the
-   * plant-a..d vars so dark mode flips them in lockstep. */
-  --color-sticker-yellow: var(--plant-a);
-  --color-sticker-orange: var(--plant-b);
-  --color-sticker-pink: var(--plant-c);
-  --color-sticker-blue: var(--plant-d);
-
   --font-sans: "Inter", system-ui, sans-serif;
   --font-serif: "Fraunces", Georgia, serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;

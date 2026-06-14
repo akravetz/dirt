@@ -9,20 +9,18 @@ updated: 2026-06-14
 
 # Track A Pollen Run
 
-## Database Identity
+## Database Identity And Wiki Folder
 
 | Field | Value |
 |---|---|
-| `growrun.id` | `2` |
-| `growrun.grow_run_id` | `breeding-track-a-2026-04-28` |
+| Wiki folder | `wiki/grows/breeding-track-a-2026-04-28/` |
+| Folder role | Historical/documentation organization; not database identity |
 | `site.site_id` | `homebox` |
 | `tent.tent_id` | `breeding` |
-| `name` | Track A pollen run |
-| `purpose` | pollen |
-| `strain` | SBxBS01 regular |
-| `germination_date` | 2026-04-28 |
-| `flower_start_date` | 2026-05-24 |
-| `plant_count` | 5 |
+| Current/historical occupancy source | `plant_location_history` |
+| Current lifecycle source | `plant.germinated_at`, `plant.flower_started_at` |
+| Line | Sirius Black x BS01 / SBxBS01 regular |
+| Original plant count | 5 |
 
 ## Current State
 
@@ -38,11 +36,11 @@ collection, drying, aliquoting, and freezer storage.
 
 ## Plants
 
-- [R1](plants/plant-r1.md) — database `plant.id = 5`, `plant.plant_id = r1`; confirmed male expression 2026-05-30; culled/not retained for pollen 2026-06-14
-- [R2](plants/plant-r2.md) — database `plant.id = 6`, `plant.plant_id = r2`; selected pollen donor after showing purple pollen sacs
-- [R3](plants/plant-r3.md) — database `plant.id = 7`, `plant.plant_id = r3`; confirmed female and culled 2026-06-04
-- [R4](plants/plant-r4.md) — database `plant.id = 8`, `plant.plant_id = r4`; confirmed male expression 2026-05-30; culled/not retained for pollen 2026-06-14
-- [R5](plants/plant-r5.md) — database `plant.id = 9`, `plant.plant_id = r5`; culled/not retained for pollen 2026-06-14
+- [R1](plants/plant-r1.md) — database `plant.id = 5`, `plant.key = SBBS-R1-005`; confirmed male expression 2026-05-30; culled/not retained for pollen 2026-06-14
+- [R2](plants/plant-r2.md) — database `plant.id = 6`, `plant.key = SBBS-R1-006`; selected pollen donor after showing purple pollen sacs
+- [R3](plants/plant-r3.md) — database `plant.id = 7`, `plant.key = SBBS-R1-007`; confirmed female and culled 2026-06-04
+- [R4](plants/plant-r4.md) — database `plant.id = 8`, `plant.key = SBBS-R1-008`; confirmed male expression 2026-05-30; culled/not retained for pollen 2026-06-14
+- [R5](plants/plant-r5.md) — database `plant.id = 9`, `plant.key = SBBS-R1-009`; culled/not retained for pollen 2026-06-14
 
 ## Timeline
 

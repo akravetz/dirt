@@ -623,30 +623,73 @@ export interface components {
     };
     /** CatalogPlant */
     CatalogPlant: {
-      /** Display Order */
-      display_order: number;
-      /** Grow Run Id */
-      grow_run_id: string;
+      /** Clone Source Plant Id */
+      clone_source_plant_id: number | null;
+      /** Culled At */
+      culled_at: string | null;
+      /** Culled Reason */
+      culled_reason: string | null;
+      /** Flower Started At */
+      flower_started_at: string | null;
+      /** Germinated At */
+      germinated_at: string | null;
+      /** Harvested At */
+      harvested_at: string | null;
       /** Is Active */
       is_active: boolean;
-      /** Moisture Target High */
-      moisture_target_high: number;
-      /** Moisture Target Low */
-      moisture_target_low: number;
+      /** Key */
+      key: string;
+      /** Line Source Id */
+      line_source_id: number;
       /** Name */
       name: string;
-      /** Plant Id */
-      plant_id: string;
-      /** Purple */
-      purple: boolean;
-      /** Status */
-      status: string;
-      /** Sticker Color */
-      sticker_color: string | null;
+      /** Rooted At */
+      rooted_at: string | null;
+      /** Selected For Breeding At */
+      selected_for_breeding_at: string | null;
+      /** Selected For Breeding Reason */
+      selected_for_breeding_reason: string | null;
+      /** Source Plant Id */
+      source_plant_id: number;
+      /** Source Seed Lot Id */
+      source_seed_lot_id: number | null;
+      /** Veg Started At */
+      veg_started_at: string | null;
+    };
+    /** CatalogPlantLine */
+    CatalogPlantLine: {
+      /** Cultivar */
+      cultivar: string;
+      /** Description */
+      description: string | null;
+      /** Generation Label */
+      generation_label: string | null;
+      /** Project Code */
+      project_code: string | null;
+      /** Source Line Id */
+      source_line_id: number;
+      /** Source Name */
+      source_name: string | null;
+      /** Strain */
+      strain: string;
+    };
+    /** CatalogPlantLocation */
+    CatalogPlantLocation: {
+      /** End At */
+      end_at: string | null;
+      /** Grid Position */
+      grid_position: string;
+      /** Source Location Id */
+      source_location_id: number;
+      /** Source Plant Id */
+      source_plant_id: number;
+      /**
+       * Start At
+       * Format: date-time
+       */
+      start_at: string;
       /** Tent Id */
       tent_id: string;
-      /** Wiki Path */
-      wiki_path: string | null;
     };
     /** CatalogPlantMetricStream */
     CatalogPlantMetricStream: {
@@ -656,16 +699,12 @@ export interface components {
       device_id: string;
       /** Display Order */
       display_order: number;
-      /** Grow Run Id */
-      grow_run_id: string;
       /** Is Active */
       is_active: boolean;
       /** Metric */
       metric: string;
-      /** Plant Id */
-      plant_id: string;
-      /** Tent Id */
-      tent_id: string;
+      /** Source Plant Id */
+      source_plant_id: number;
     };
     /** CatalogRequest */
     CatalogRequest: {
@@ -673,12 +712,18 @@ export interface components {
       capabilities?: components["schemas"]["CatalogCapability"][];
       /** Devices */
       devices?: components["schemas"]["CatalogDevice"][];
+      /** Plant Lines */
+      plant_lines?: components["schemas"]["CatalogPlantLine"][];
+      /** Plant Locations */
+      plant_locations?: components["schemas"]["CatalogPlantLocation"][];
       /** Plant Metric Streams */
       plant_metric_streams?: components["schemas"]["CatalogPlantMetricStream"][];
       /** Plants */
       plants?: components["schemas"]["CatalogPlant"][];
       /** Schedules */
       schedules?: components["schemas"]["CatalogSchedule"][];
+      /** Seed Lots */
+      seed_lots?: components["schemas"]["CatalogSeedLot"][];
       site: components["schemas"]["CatalogSite"];
       /** Tents */
       tents?: components["schemas"]["CatalogTent"][];
@@ -691,12 +736,18 @@ export interface components {
       capabilities: number;
       /** Devices */
       devices: number;
+      /** Plant Lines */
+      plant_lines: number;
+      /** Plant Locations */
+      plant_locations: number;
       /** Plant Metric Streams */
       plant_metric_streams: number;
       /** Plants */
       plants: number;
       /** Schedules */
       schedules: number;
+      /** Seed Lots */
+      seed_lots: number;
       /** Sites */
       sites: number;
       /** Tents */
@@ -743,6 +794,25 @@ export interface components {
       timezone: string;
       /** Zone Id */
       zone_id?: string | null;
+    };
+    /** CatalogSeedLot */
+    CatalogSeedLot: {
+      /** Acquired At */
+      acquired_at: string | null;
+      /** Is Purchased */
+      is_purchased: boolean;
+      /** Line Source Id */
+      line_source_id: number;
+      /** Notes */
+      notes: string | null;
+      /** Produced By Cross Event Source Id */
+      produced_by_cross_event_source_id: number | null;
+      /** Seed Count */
+      seed_count: number | null;
+      /** Source Seed Lot Id */
+      source_seed_lot_id: number;
+      /** Vendor Name */
+      vendor_name: string | null;
     };
     /** CatalogSite */
     CatalogSite: {
@@ -1304,36 +1374,104 @@ export interface components {
       /** Supported Ranges */
       supported_ranges: components["schemas"]["MetricPresentationRangeResponse"][];
     };
+    /** PlantCurrentLocationResponse */
+    PlantCurrentLocationResponse: {
+      /** End At */
+      end_at: string | null;
+      /** Grid Position */
+      grid_position: string;
+      /** Id */
+      id: number;
+      /**
+       * Start At
+       * Format: date-time
+       */
+      start_at: string;
+      /** Tent Id */
+      tent_id: string;
+    };
     /** PlantDetailResponse */
     PlantDetailResponse: {
-      /** Display Order */
-      display_order: number;
-      /** Grow Run Id */
-      grow_run_id: string;
+      /** Culled At */
+      culled_at: string | null;
+      /** Culled Reason */
+      culled_reason: string | null;
+      current_location: components["schemas"]["PlantCurrentLocationResponse"];
+      /** Events */
+      events: components["schemas"]["PlantEventResponse"][];
+      /** Flower Started At */
+      flower_started_at: string | null;
+      /** Germinated At */
+      germinated_at: string | null;
+      /** Grid Position */
+      grid_position: string;
+      /** Harvested At */
+      harvested_at: string | null;
+      /** Id */
+      id: number;
       /** Is Active */
       is_active: boolean;
+      /** Key */
+      key: string;
+      line: components["schemas"]["PlantLineResponse"] | null;
+      /** Line Source Id */
+      line_source_id: number;
       /** Name */
       name: string;
-      /** Plant Id */
-      plant_id: string;
-      /** Purple */
-      purple: boolean;
+      /** Notes */
+      notes: components["schemas"]["PlantNoteResponse"][];
+      /** Rooted At */
+      rooted_at: string | null;
+      /** Selected For Breeding At */
+      selected_for_breeding_at: string | null;
+      /** Selected For Breeding Reason */
+      selected_for_breeding_reason: string | null;
       /** Site Id */
       site_id: string;
-      /** Status */
-      status: string;
-      /** Sticker Color */
-      sticker_color: string | null;
-      target_bounds: components["schemas"]["PlantTargetBoundsResponse"];
       /** Telemetry */
       telemetry: components["schemas"]["PlantMetricStreamResponse"][];
       /** Telemetry Stream Count */
       telemetry_stream_count: number;
       /** Tent Id */
       tent_id: string;
+      /** Veg Started At */
+      veg_started_at: string | null;
       wiki_content: components["schemas"]["PlantWikiContentResponse"] | null;
-      /** Wiki Path */
-      wiki_path: string | null;
+    };
+    /** PlantEventResponse */
+    PlantEventResponse: {
+      /** Id */
+      id: number;
+      /** Kinds */
+      kinds: string[];
+      /** Metadata */
+      metadata: {
+        [key: string]: unknown;
+      };
+      /** Notes */
+      notes: string | null;
+      /**
+       * Occurred At
+       * Format: date-time
+       */
+      occurred_at: string;
+      /** Reason */
+      reason: string | null;
+    };
+    /** PlantLineResponse */
+    PlantLineResponse: {
+      /** Cultivar */
+      cultivar: string;
+      /** Generation Label */
+      generation_label: string | null;
+      /** Id */
+      id: number;
+      /** Project Code */
+      project_code: string | null;
+      /** Source Name */
+      source_name: string | null;
+      /** Strain */
+      strain: string;
     };
     /** PlantMetricHistoryPointResponse */
     PlantMetricHistoryPointResponse: {
@@ -1459,43 +1597,53 @@ export interface components {
       /** Y Min */
       y_min: number | null;
     };
+    /** PlantNoteResponse */
+    PlantNoteResponse: {
+      /** Body */
+      body: string;
+      /** Created By */
+      created_by: string | null;
+      /** Id */
+      id: number;
+      /**
+       * Observed At
+       * Format: date-time
+       */
+      observed_at: string;
+    };
     /** PlantSummaryResponse */
     PlantSummaryResponse: {
-      /** Display Order */
-      display_order: number;
-      /** Grow Run Id */
-      grow_run_id: string;
+      /** Culled At */
+      culled_at: string | null;
+      /** Flower Started At */
+      flower_started_at: string | null;
+      /** Germinated At */
+      germinated_at: string | null;
+      /** Grid Position */
+      grid_position: string;
+      /** Harvested At */
+      harvested_at: string | null;
+      /** Id */
+      id: number;
       /** Is Active */
       is_active: boolean;
-      /** Moisture Target High */
-      moisture_target_high: number;
-      /** Moisture Target Low */
-      moisture_target_low: number;
+      /** Key */
+      key: string;
+      line: components["schemas"]["PlantLineResponse"] | null;
+      /** Line Source Id */
+      line_source_id: number;
       /** Name */
       name: string;
-      /** Plant Id */
-      plant_id: string;
-      /** Purple */
-      purple: boolean;
+      /** Rooted At */
+      rooted_at: string | null;
       /** Site Id */
       site_id: string;
-      /** Status */
-      status: string;
-      /** Sticker Color */
-      sticker_color: string | null;
       /** Telemetry Stream Count */
       telemetry_stream_count: number;
       /** Tent Id */
       tent_id: string;
-      /** Wiki Path */
-      wiki_path: string | null;
-    };
-    /** PlantTargetBoundsResponse */
-    PlantTargetBoundsResponse: {
-      /** High */
-      high: number;
-      /** Low */
-      low: number;
+      /** Veg Started At */
+      veg_started_at: string | null;
     };
     /** PlantWikiContentResponse */
     PlantWikiContentResponse: {

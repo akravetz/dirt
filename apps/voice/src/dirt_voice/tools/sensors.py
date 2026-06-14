@@ -47,8 +47,8 @@ async def _latest_soil_moisture_pct(
 ) -> tuple[dict[str, float], list[float]]:
     """Latest direct soil moisture % per plant.
 
-    Returns ``({plant_id: pct_rounded}, [reading_age_s, ...])`` —
-    plant_id is the stable id in the current grow run, pct is 0-100.
+    Returns ``({plant_key: pct_rounded}, [reading_age_s, ...])`` —
+    plant_key is the tagged plant key, pct is 0-100.
     Plants without a direct percent moisture capability are silently omitted.
     """
     out: dict[str, float] = {}
@@ -59,7 +59,7 @@ async def _latest_soil_moisture_pct(
             now=now,
         )
     for reading in readings:
-        out[reading.plant_id] = round(reading.value, 1)
+        out[reading.plant_key] = round(reading.value, 1)
         ages.append(reading.age_s)
     return out, ages
 

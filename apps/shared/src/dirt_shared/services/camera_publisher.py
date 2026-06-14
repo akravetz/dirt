@@ -21,7 +21,6 @@ from dirt_shared.cloud_contract import (
     CapturePolicyResponse,
 )
 from dirt_shared.models.device import Device
-from dirt_shared.models.grow_run import GrowRun
 from dirt_shared.models.schedule import Schedule
 from dirt_shared.models.site import Site
 from dirt_shared.models.snapshot import Snapshot
@@ -136,15 +135,6 @@ class LocalSnapshotSink:
                         select(Device.id)
                         .where(Device.site_id == scope.site_pk)
                         .where(Device.device_id == metadata.camera_device_id)
-                        .limit(1)
-                    )
-                ).first()
-                snapshot.growrun_id = (
-                    await session.exec(
-                        select(GrowRun.id)
-                        .where(GrowRun.site_id == scope.site_pk)
-                        .where(GrowRun.tent_id == scope.tent_pk)
-                        .where(GrowRun.is_current.is_(True))
                         .limit(1)
                     )
                 ).first()

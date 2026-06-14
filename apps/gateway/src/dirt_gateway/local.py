@@ -20,9 +20,12 @@ from dirt_shared.cloud_contract import (
     CatalogCapability,
     CatalogDevice,
     CatalogPlant,
+    CatalogPlantLine,
+    CatalogPlantLocation,
     CatalogPlantMetricStream,
     CatalogRequest,
     CatalogSchedule,
+    CatalogSeedLot,
     CatalogSite,
     CatalogTent,
     CatalogZone,
@@ -36,15 +39,16 @@ from dirt_shared.cloud_contract import (
 from dirt_shared.models import (
     Capability,
     Device,
-    GrowRun,
     Plant,
+    PlantLine,
+    PlantLocationHistory,
     PlantMetricStream,
+    SeedLot,
     Site,
     Snapshot,
     Tent,
     Zone,
 )
-from dirt_shared.models.enums import PlantStatus
 from dirt_shared.services.light_schedules import LightScheduleService
 from dirt_shared.services.readings import (
     PRODUCT_PLANT_MOISTURE_METRIC,
@@ -148,7 +152,10 @@ class GatewayLocalServiceBundle:
                     site_id=site_id
                 )
             ],
+            plant_lines=await self._collect_plant_lines(site_id),
+            seed_lots=await self._collect_seed_lots(site_id),
             plants=await self._collect_plants(site_id),
+            plant_locations=await self._collect_plant_locations(site_id),
             plant_metric_streams=await self._collect_plant_metric_streams(site_id),
         )
 
@@ -324,39 +331,142 @@ class GatewayLocalServiceBundle:
             if tent_id is not None
         ]
 
+    async def _collect_plant_lines(self, site_id: str) -> list[CatalogPlantLine]:
+        async with AsyncSession(self._engine) as session:
+            rows = (
+                await session.exec(
+                    select(PlantLine)
+                    .join(Plant, Plant.line_id == PlantLine.id)
+                    .join(
+                        PlantLocationHistory,
+                        PlantLocationHistory.plant_id == Plant.id,
+                    )
+                    .join(Site, Site.id == PlantLocationHistory.site_id)
+                    .where(Site.site_id == site_id)
+                    .where(PlantLocationHistory.end_at.is_(None))
+                    .distinct()
+                    .order_by(PlantLine.strain, PlantLine.cultivar, PlantLine.id)
+                )
+            ).all()
+        return [
+            CatalogPlantLine(
+                source_line_id=line.id,
+                project_code=line.project_code,
+                generation_label=line.generation_label,
+                strain=line.strain,
+                cultivar=line.cultivar,
+                description=line.description,
+                source_name=line.source_name,
+            )
+            for line in rows
+            if line.id is not None
+        ]
+
+    async def _collect_seed_lots(self, site_id: str) -> list[CatalogSeedLot]:
+        async with AsyncSession(self._engine) as session:
+            rows = (
+                await session.exec(
+                    select(SeedLot)
+                    .join(Plant, Plant.source_seed_lot_id == SeedLot.id)
+                    .join(
+                        PlantLocationHistory,
+                        PlantLocationHistory.plant_id == Plant.id,
+                    )
+                    .join(Site, Site.id == PlantLocationHistory.site_id)
+                    .where(Site.site_id == site_id)
+                    .where(PlantLocationHistory.end_at.is_(None))
+                    .distinct()
+                    .order_by(SeedLot.id)
+                )
+            ).all()
+        return [
+            CatalogSeedLot(
+                source_seed_lot_id=seed_lot.id,
+                line_source_id=seed_lot.line_id,
+                is_purchased=seed_lot.is_purchased,
+                vendor_name=seed_lot.vendor_name,
+                acquired_at=seed_lot.acquired_at,
+                produced_by_cross_event_source_id=seed_lot.produced_by_cross_event_id,
+                seed_count=seed_lot.seed_count,
+                notes=seed_lot.notes,
+            )
+            for seed_lot in rows
+            if seed_lot.id is not None
+        ]
+
     async def _collect_plants(self, site_id: str) -> list[CatalogPlant]:
         async with AsyncSession(self._engine) as session:
             rows = (
                 await session.exec(
-                    select(
-                        Plant,
-                        GrowRun.grow_run_id,
-                        Tent.tent_id,
+                    select(Plant, PlantLocationHistory, Tent.tent_id)
+                    .join(
+                        PlantLocationHistory,
+                        PlantLocationHistory.plant_id == Plant.id,
                     )
-                    .join(GrowRun, GrowRun.id == Plant.growrun_id)
-                    .join(Site, Site.id == Plant.site_id)
-                    .join(Tent, Tent.id == Plant.tent_id)
+                    .join(Site, Site.id == PlantLocationHistory.site_id)
+                    .join(Tent, Tent.id == PlantLocationHistory.tent_id)
                     .where(Site.site_id == site_id)
-                    .where(GrowRun.is_current.is_(True))
-                    .order_by(Tent.tent_id, Plant.display_order, Plant.plant_id)
+                    .where(PlantLocationHistory.end_at.is_(None))
+                    .order_by(
+                        Tent.tent_id,
+                        PlantLocationHistory.grid_position,
+                        Plant.key,
+                    )
                 )
             ).all()
         return [
             CatalogPlant(
-                tent_id=tent_id,
-                grow_run_id=grow_run_id,
-                plant_id=plant.plant_id,
+                source_plant_id=plant.id,
+                line_source_id=plant.line_id,
+                source_seed_lot_id=plant.source_seed_lot_id,
+                clone_source_plant_id=plant.clone_source_plant_id,
+                key=plant.key,
                 name=plant.name,
-                display_order=plant.display_order,
-                sticker_color=plant.sticker_color,
-                status=plant.status,
-                purple=plant.purple,
-                moisture_target_low=plant.moisture_target_low,
-                moisture_target_high=plant.moisture_target_high,
-                wiki_path=_plant_wiki_path(grow_run_id, plant.plant_id),
-                is_active=plant.status != PlantStatus.RETIRED,
+                germinated_at=plant.germinated_at,
+                rooted_at=plant.rooted_at,
+                veg_started_at=plant.veg_started_at,
+                flower_started_at=plant.flower_started_at,
+                culled_at=plant.culled_at,
+                culled_reason=plant.culled_reason,
+                harvested_at=plant.harvested_at,
+                selected_for_breeding_at=plant.selected_for_breeding_at,
+                selected_for_breeding_reason=plant.selected_for_breeding_reason,
+                is_active=plant.culled_at is None and plant.harvested_at is None,
             )
-            for plant, grow_run_id, tent_id in rows
+            for plant, _location, _tent_id in rows
+            if plant.id is not None
+        ]
+
+    async def _collect_plant_locations(
+        self, site_id: str
+    ) -> list[CatalogPlantLocation]:
+        async with AsyncSession(self._engine) as session:
+            rows = (
+                await session.exec(
+                    select(PlantLocationHistory, Plant, Tent.tent_id)
+                    .join(Plant, Plant.id == PlantLocationHistory.plant_id)
+                    .join(Site, Site.id == PlantLocationHistory.site_id)
+                    .join(Tent, Tent.id == PlantLocationHistory.tent_id)
+                    .where(Site.site_id == site_id)
+                    .where(PlantLocationHistory.end_at.is_(None))
+                    .order_by(
+                        Tent.tent_id,
+                        PlantLocationHistory.grid_position,
+                        Plant.key,
+                    )
+                )
+            ).all()
+        return [
+            CatalogPlantLocation(
+                source_location_id=location.id,
+                source_plant_id=plant.id,
+                tent_id=tent_id,
+                grid_position=location.grid_position,
+                start_at=location.start_at,
+                end_at=location.end_at,
+            )
+            for location, plant, tent_id in rows
+            if location.id is not None and plant.id is not None
         ]
 
     async def _collect_plant_metric_streams(
@@ -367,26 +477,30 @@ class GatewayLocalServiceBundle:
                 await session.exec(
                     select(
                         PlantMetricStream,
+                        Plant.id,
+                        Plant.key,
+                        PlantLocationHistory.grid_position,
                         Tent.tent_id,
-                        GrowRun.grow_run_id,
-                        Plant.plant_id,
                         Device.device_id,
                         Capability.capability_id,
                         Capability.metric_name,
                     )
                     .join(Plant, Plant.id == PlantMetricStream.plant_id)
-                    .join(GrowRun, GrowRun.id == Plant.growrun_id)
-                    .join(Site, Site.id == Plant.site_id)
-                    .join(Tent, Tent.id == Plant.tent_id)
+                    .join(
+                        PlantLocationHistory,
+                        PlantLocationHistory.plant_id == Plant.id,
+                    )
+                    .join(Site, Site.id == PlantLocationHistory.site_id)
+                    .join(Tent, Tent.id == PlantLocationHistory.tent_id)
                     .join(Capability, Capability.id == PlantMetricStream.capability_id)
                     .join(Device, Device.id == Capability.device_id)
                     .where(Site.site_id == site_id)
-                    .where(GrowRun.is_current.is_(True))
+                    .where(PlantLocationHistory.end_at.is_(None))
                     .where(Capability.metric_name.is_not(None))
                     .order_by(
                         Tent.tent_id,
-                        Plant.display_order,
-                        Plant.plant_id,
+                        PlantLocationHistory.grid_position,
+                        Plant.key,
                         PlantMetricStream.display_order,
                         Capability.capability_id,
                     )
@@ -395,9 +509,10 @@ class GatewayLocalServiceBundle:
         streams: list[CatalogPlantMetricStream] = []
         for (
             stream,
-            tent_id,
-            grow_run_id,
-            plant_id,
+            source_plant_id,
+            _plant_key,
+            _grid_position,
+            _tent_id,
             device_id,
             capability_id,
             metric_name,
@@ -406,9 +521,7 @@ class GatewayLocalServiceBundle:
                 continue
             streams.append(
                 CatalogPlantMetricStream(
-                    tent_id=tent_id,
-                    grow_run_id=grow_run_id,
-                    plant_id=plant_id,
+                    source_plant_id=source_plant_id,
                     device_id=device_id,
                     capability_id=capability_id,
                     metric=metric_name,
@@ -630,11 +743,6 @@ def _as_utc(ts: datetime) -> datetime:
 
 def _maybe_float(value: Any) -> float | None:
     return None if value is None else round(float(value), 4)
-
-
-def _plant_wiki_path(grow_run_id: str, plant_id: str) -> str | None:
-    wiki_path = f"grows/{grow_run_id}/plants/plant-{plant_id}.md"
-    return f"wiki/{wiki_path}" if (WIKI_ROOT / wiki_path).exists() else None
 
 
 def _wiki_projection_page(path: Path) -> WikiProjectionPage:

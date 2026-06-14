@@ -570,43 +570,117 @@
       "CatalogPlant": {
         "additionalProperties": false,
         "properties": {
-          "display_order": {
-            "title": "Display Order",
-            "type": "integer"
+          "clone_source_plant_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clone Source Plant Id"
           },
-          "grow_run_id": {
-            "title": "Grow Run Id",
-            "type": "string"
+          "culled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Culled At"
+          },
+          "culled_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Culled Reason"
+          },
+          "flower_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flower Started At"
+          },
+          "germinated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Germinated At"
+          },
+          "harvested_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Harvested At"
           },
           "is_active": {
             "title": "Is Active",
             "type": "boolean"
           },
-          "moisture_target_high": {
-            "title": "Moisture Target High",
-            "type": "number"
+          "key": {
+            "title": "Key",
+            "type": "string"
           },
-          "moisture_target_low": {
-            "title": "Moisture Target Low",
-            "type": "number"
+          "line_source_id": {
+            "title": "Line Source Id",
+            "type": "integer"
           },
           "name": {
             "title": "Name",
             "type": "string"
           },
-          "plant_id": {
-            "title": "Plant Id",
-            "type": "string"
+          "rooted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rooted At"
           },
-          "purple": {
-            "title": "Purple",
-            "type": "boolean"
+          "selected_for_breeding_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected For Breeding At"
           },
-          "status": {
-            "title": "Status",
-            "type": "string"
-          },
-          "sticker_color": {
+          "selected_for_breeding_reason": {
             "anyOf": [
               {
                 "type": "string"
@@ -615,39 +689,175 @@
                 "type": "null"
               }
             ],
-            "title": "Sticker Color"
+            "title": "Selected For Breeding Reason"
+          },
+          "source_plant_id": {
+            "title": "Source Plant Id",
+            "type": "integer"
+          },
+          "source_seed_lot_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Seed Lot Id"
+          },
+          "veg_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Veg Started At"
+          }
+        },
+        "required": [
+          "source_plant_id",
+          "line_source_id",
+          "source_seed_lot_id",
+          "clone_source_plant_id",
+          "key",
+          "name",
+          "germinated_at",
+          "rooted_at",
+          "veg_started_at",
+          "flower_started_at",
+          "culled_at",
+          "culled_reason",
+          "harvested_at",
+          "selected_for_breeding_at",
+          "selected_for_breeding_reason",
+          "is_active"
+        ],
+        "title": "CatalogPlant",
+        "type": "object"
+      },
+      "CatalogPlantLine": {
+        "additionalProperties": false,
+        "properties": {
+          "cultivar": {
+            "title": "Cultivar",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "generation_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generation Label"
+          },
+          "project_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Code"
+          },
+          "source_line_id": {
+            "title": "Source Line Id",
+            "type": "integer"
+          },
+          "source_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Name"
+          },
+          "strain": {
+            "title": "Strain",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_line_id",
+          "project_code",
+          "generation_label",
+          "strain",
+          "cultivar",
+          "description",
+          "source_name"
+        ],
+        "title": "CatalogPlantLine",
+        "type": "object"
+      },
+      "CatalogPlantLocation": {
+        "additionalProperties": false,
+        "properties": {
+          "end_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End At"
+          },
+          "grid_position": {
+            "title": "Grid Position",
+            "type": "string"
+          },
+          "source_location_id": {
+            "title": "Source Location Id",
+            "type": "integer"
+          },
+          "source_plant_id": {
+            "title": "Source Plant Id",
+            "type": "integer"
+          },
+          "start_at": {
+            "format": "date-time",
+            "title": "Start At",
+            "type": "string"
           },
           "tent_id": {
             "title": "Tent Id",
             "type": "string"
-          },
-          "wiki_path": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Wiki Path"
           }
         },
         "required": [
+          "source_location_id",
+          "source_plant_id",
           "tent_id",
-          "grow_run_id",
-          "plant_id",
-          "name",
-          "display_order",
-          "sticker_color",
-          "status",
-          "purple",
-          "moisture_target_low",
-          "moisture_target_high",
-          "wiki_path",
-          "is_active"
+          "grid_position",
+          "start_at",
+          "end_at"
         ],
-        "title": "CatalogPlant",
+        "title": "CatalogPlantLocation",
         "type": "object"
       },
       "CatalogPlantMetricStream": {
@@ -665,10 +875,6 @@
             "title": "Display Order",
             "type": "integer"
           },
-          "grow_run_id": {
-            "title": "Grow Run Id",
-            "type": "string"
-          },
           "is_active": {
             "title": "Is Active",
             "type": "boolean"
@@ -677,19 +883,13 @@
             "title": "Metric",
             "type": "string"
           },
-          "plant_id": {
-            "title": "Plant Id",
-            "type": "string"
-          },
-          "tent_id": {
-            "title": "Tent Id",
-            "type": "string"
+          "source_plant_id": {
+            "title": "Source Plant Id",
+            "type": "integer"
           }
         },
         "required": [
-          "tent_id",
-          "grow_run_id",
-          "plant_id",
+          "source_plant_id",
           "device_id",
           "capability_id",
           "metric",
@@ -716,6 +916,20 @@
             "title": "Devices",
             "type": "array"
           },
+          "plant_lines": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogPlantLine"
+            },
+            "title": "Plant Lines",
+            "type": "array"
+          },
+          "plant_locations": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogPlantLocation"
+            },
+            "title": "Plant Locations",
+            "type": "array"
+          },
           "plant_metric_streams": {
             "items": {
               "$ref": "#/components/schemas/CatalogPlantMetricStream"
@@ -735,6 +949,13 @@
               "$ref": "#/components/schemas/CatalogSchedule"
             },
             "title": "Schedules",
+            "type": "array"
+          },
+          "seed_lots": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogSeedLot"
+            },
+            "title": "Seed Lots",
             "type": "array"
           },
           "site": {
@@ -772,6 +993,14 @@
             "title": "Devices",
             "type": "integer"
           },
+          "plant_lines": {
+            "title": "Plant Lines",
+            "type": "integer"
+          },
+          "plant_locations": {
+            "title": "Plant Locations",
+            "type": "integer"
+          },
           "plant_metric_streams": {
             "title": "Plant Metric Streams",
             "type": "integer"
@@ -782,6 +1011,10 @@
           },
           "schedules": {
             "title": "Schedules",
+            "type": "integer"
+          },
+          "seed_lots": {
+            "title": "Seed Lots",
             "type": "integer"
           },
           "sites": {
@@ -804,7 +1037,10 @@
           "devices",
           "capabilities",
           "schedules",
+          "plant_lines",
+          "seed_lots",
           "plants",
+          "plant_locations",
           "plant_metric_streams"
         ],
         "title": "CatalogResponse",
@@ -892,6 +1128,91 @@
           "ends_local"
         ],
         "title": "CatalogSchedule",
+        "type": "object"
+      },
+      "CatalogSeedLot": {
+        "additionalProperties": false,
+        "properties": {
+          "acquired_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acquired At"
+          },
+          "is_purchased": {
+            "title": "Is Purchased",
+            "type": "boolean"
+          },
+          "line_source_id": {
+            "title": "Line Source Id",
+            "type": "integer"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "produced_by_cross_event_source_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Produced By Cross Event Source Id"
+          },
+          "seed_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed Count"
+          },
+          "source_seed_lot_id": {
+            "title": "Source Seed Lot Id",
+            "type": "integer"
+          },
+          "vendor_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor Name"
+          }
+        },
+        "required": [
+          "source_seed_lot_id",
+          "line_source_id",
+          "is_purchased",
+          "vendor_name",
+          "acquired_at",
+          "produced_by_cross_event_source_id",
+          "seed_count",
+          "notes"
+        ],
+        "title": "CatalogSeedLot",
         "type": "object"
       },
       "CatalogSite": {
@@ -2457,42 +2778,65 @@
         "title": "MetricPresentationResponse",
         "type": "object"
       },
+      "PlantCurrentLocationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "end_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End At"
+          },
+          "grid_position": {
+            "title": "Grid Position",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "start_at": {
+            "format": "date-time",
+            "title": "Start At",
+            "type": "string"
+          },
+          "tent_id": {
+            "title": "Tent Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tent_id",
+          "grid_position",
+          "start_at",
+          "end_at"
+        ],
+        "title": "PlantCurrentLocationResponse",
+        "type": "object"
+      },
       "PlantDetailResponse": {
         "additionalProperties": false,
         "properties": {
-          "display_order": {
-            "title": "Display Order",
-            "type": "integer"
+          "culled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Culled At"
           },
-          "grow_run_id": {
-            "title": "Grow Run Id",
-            "type": "string"
-          },
-          "is_active": {
-            "title": "Is Active",
-            "type": "boolean"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "plant_id": {
-            "title": "Plant Id",
-            "type": "string"
-          },
-          "purple": {
-            "title": "Purple",
-            "type": "boolean"
-          },
-          "site_id": {
-            "title": "Site Id",
-            "type": "string"
-          },
-          "status": {
-            "title": "Status",
-            "type": "string"
-          },
-          "sticker_color": {
+          "culled_reason": {
             "anyOf": [
               {
                 "type": "string"
@@ -2501,10 +2845,133 @@
                 "type": "null"
               }
             ],
-            "title": "Sticker Color"
+            "title": "Culled Reason"
           },
-          "target_bounds": {
-            "$ref": "#/components/schemas/PlantTargetBoundsResponse"
+          "current_location": {
+            "$ref": "#/components/schemas/PlantCurrentLocationResponse"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/PlantEventResponse"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "flower_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flower Started At"
+          },
+          "germinated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Germinated At"
+          },
+          "grid_position": {
+            "title": "Grid Position",
+            "type": "string"
+          },
+          "harvested_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Harvested At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "line": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlantLineResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "line_source_id": {
+            "title": "Line Source Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "$ref": "#/components/schemas/PlantNoteResponse"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "rooted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rooted At"
+          },
+          "selected_for_breeding_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected For Breeding At"
+          },
+          "selected_for_breeding_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected For Breeding Reason"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
           },
           "telemetry": {
             "items": {
@@ -2521,6 +2988,18 @@
             "title": "Tent Id",
             "type": "string"
           },
+          "veg_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Veg Started At"
+          },
           "wiki_content": {
             "anyOf": [
               {
@@ -2530,8 +3009,57 @@
                 "type": "null"
               }
             ]
+          }
+        },
+        "required": [
+          "site_id",
+          "tent_id",
+          "id",
+          "key",
+          "line_source_id",
+          "line",
+          "name",
+          "grid_position",
+          "current_location",
+          "germinated_at",
+          "rooted_at",
+          "veg_started_at",
+          "flower_started_at",
+          "culled_at",
+          "culled_reason",
+          "harvested_at",
+          "selected_for_breeding_at",
+          "selected_for_breeding_reason",
+          "is_active",
+          "telemetry_stream_count",
+          "telemetry",
+          "notes",
+          "events",
+          "wiki_content"
+        ],
+        "title": "PlantDetailResponse",
+        "type": "object"
+      },
+      "PlantEventResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
           },
-          "wiki_path": {
+          "kinds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Kinds",
+            "type": "array"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "notes": {
             "anyOf": [
               {
                 "type": "string"
@@ -2540,27 +3068,94 @@
                 "type": "null"
               }
             ],
-            "title": "Wiki Path"
+            "title": "Notes"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
           }
         },
         "required": [
-          "site_id",
-          "tent_id",
-          "grow_run_id",
-          "plant_id",
-          "name",
-          "display_order",
-          "sticker_color",
-          "status",
-          "purple",
-          "is_active",
-          "target_bounds",
-          "telemetry_stream_count",
-          "telemetry",
-          "wiki_path",
-          "wiki_content"
+          "id",
+          "occurred_at",
+          "kinds",
+          "reason",
+          "notes",
+          "metadata"
         ],
-        "title": "PlantDetailResponse",
+        "title": "PlantEventResponse",
+        "type": "object"
+      },
+      "PlantLineResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "cultivar": {
+            "title": "Cultivar",
+            "type": "string"
+          },
+          "generation_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generation Label"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "project_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Code"
+          },
+          "source_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Name"
+          },
+          "strain": {
+            "title": "Strain",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "project_code",
+          "generation_label",
+          "strain",
+          "cultivar",
+          "source_name"
+        ],
+        "title": "PlantLineResponse",
         "type": "object"
       },
       "PlantMetricHistoryPointResponse": {
@@ -2967,50 +3562,14 @@
         "title": "PlantMetricStreamResponse",
         "type": "object"
       },
-      "PlantSummaryResponse": {
+      "PlantNoteResponse": {
         "additionalProperties": false,
         "properties": {
-          "display_order": {
-            "title": "Display Order",
-            "type": "integer"
-          },
-          "grow_run_id": {
-            "title": "Grow Run Id",
+          "body": {
+            "title": "Body",
             "type": "string"
           },
-          "is_active": {
-            "title": "Is Active",
-            "type": "boolean"
-          },
-          "moisture_target_high": {
-            "title": "Moisture Target High",
-            "type": "number"
-          },
-          "moisture_target_low": {
-            "title": "Moisture Target Low",
-            "type": "number"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "plant_id": {
-            "title": "Plant Id",
-            "type": "string"
-          },
-          "purple": {
-            "title": "Purple",
-            "type": "boolean"
-          },
-          "site_id": {
-            "title": "Site Id",
-            "type": "string"
-          },
-          "status": {
-            "title": "Status",
-            "type": "string"
-          },
-          "sticker_color": {
+          "created_by": {
             "anyOf": [
               {
                 "type": "string"
@@ -3019,7 +3578,127 @@
                 "type": "null"
               }
             ],
-            "title": "Sticker Color"
+            "title": "Created By"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "observed_at",
+          "body",
+          "created_by"
+        ],
+        "title": "PlantNoteResponse",
+        "type": "object"
+      },
+      "PlantSummaryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "culled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Culled At"
+          },
+          "flower_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flower Started At"
+          },
+          "germinated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Germinated At"
+          },
+          "grid_position": {
+            "title": "Grid Position",
+            "type": "string"
+          },
+          "harvested_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Harvested At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "line": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlantLineResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "line_source_id": {
+            "title": "Line Source Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "rooted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rooted At"
+          },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
           },
           "telemetry_stream_count": {
             "title": "Telemetry Stream Count",
@@ -3029,54 +3708,38 @@
             "title": "Tent Id",
             "type": "string"
           },
-          "wiki_path": {
+          "veg_started_at": {
             "anyOf": [
               {
+                "format": "date-time",
                 "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Wiki Path"
+            "title": "Veg Started At"
           }
         },
         "required": [
           "site_id",
           "tent_id",
-          "grow_run_id",
-          "plant_id",
+          "id",
+          "key",
+          "line_source_id",
+          "line",
           "name",
-          "display_order",
-          "sticker_color",
-          "status",
-          "purple",
-          "moisture_target_low",
-          "moisture_target_high",
-          "wiki_path",
+          "grid_position",
+          "germinated_at",
+          "rooted_at",
+          "veg_started_at",
+          "flower_started_at",
+          "culled_at",
+          "harvested_at",
           "is_active",
           "telemetry_stream_count"
         ],
         "title": "PlantSummaryResponse",
-        "type": "object"
-      },
-      "PlantTargetBoundsResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "high": {
-            "title": "High",
-            "type": "number"
-          },
-          "low": {
-            "title": "Low",
-            "type": "number"
-          }
-        },
-        "required": [
-          "low",
-          "high"
-        ],
-        "title": "PlantTargetBoundsResponse",
         "type": "object"
       },
       "PlantWikiContentResponse": {

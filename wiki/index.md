@@ -16,8 +16,8 @@ updated: 2026-06-14
 - [Kalash Valley Black Target](decisions/2026-05-31-kalash-valley-black-target.md) — Breeding pivot: Kalash Valley Black is now the priority black-color donor for a future SBxBS01 × Kalash Valley Black line, pending September 2026 sourcing
 
 ## Grow Runs
-- [Grow Runs](grows/README.md) — Database-scoped growrun index; folders are keyed by `growrun.grow_run_id`
-- [Main grow 2026-03-15](grows/main-2026-03-15/README.md) — Current main tent flower run; database `growrun.grow_run_id = main-2026-03-15`
+- [Grow Runs](grows/README.md) — Historical grow folders; current plant identity is `plant.id` plus durable `plant.key`
+- [Main grow 2026-03-15](grows/main-2026-03-15/README.md) — Current main tent flower run; plants `SBBS-R1-001` through `SBBS-R1-004`
 - [Track A pollen run](grows/breeding-track-a-2026-04-28/README.md) — Current breeding tent pollen-collection run; R2 is the selected donor after purple pollen-sac expression
 
 ## Current Plants

@@ -99,25 +99,57 @@ class CatalogSchedule(CloudContractModel):
     is_enabled: bool = True
 
 
+class CatalogPlantLine(CloudContractModel):
+    source_line_id: int
+    project_code: str | None = Field(...)
+    generation_label: str | None = Field(...)
+    strain: str
+    cultivar: str
+    description: str | None = Field(...)
+    source_name: str | None = Field(...)
+
+
+class CatalogSeedLot(CloudContractModel):
+    source_seed_lot_id: int
+    line_source_id: int
+    is_purchased: bool
+    vendor_name: str | None = Field(...)
+    acquired_at: datetime | None = Field(...)
+    produced_by_cross_event_source_id: int | None = Field(...)
+    seed_count: int | None = Field(...)
+    notes: str | None = Field(...)
+
+
 class CatalogPlant(CloudContractModel):
-    tent_id: str
-    grow_run_id: str
-    plant_id: str
+    source_plant_id: int
+    line_source_id: int
+    source_seed_lot_id: int | None = Field(...)
+    clone_source_plant_id: int | None = Field(...)
+    key: str
     name: str
-    display_order: int
-    sticker_color: str | None = Field(...)
-    status: str
-    purple: bool
-    moisture_target_low: float
-    moisture_target_high: float
-    wiki_path: str | None = Field(...)
+    germinated_at: datetime | None = Field(...)
+    rooted_at: datetime | None = Field(...)
+    veg_started_at: datetime | None = Field(...)
+    flower_started_at: datetime | None = Field(...)
+    culled_at: datetime | None = Field(...)
+    culled_reason: str | None = Field(...)
+    harvested_at: datetime | None = Field(...)
+    selected_for_breeding_at: datetime | None = Field(...)
+    selected_for_breeding_reason: str | None = Field(...)
     is_active: bool
 
 
-class CatalogPlantMetricStream(CloudContractModel):
+class CatalogPlantLocation(CloudContractModel):
+    source_location_id: int
+    source_plant_id: int
     tent_id: str
-    grow_run_id: str
-    plant_id: str
+    grid_position: str
+    start_at: datetime
+    end_at: datetime | None = Field(...)
+
+
+class CatalogPlantMetricStream(CloudContractModel):
+    source_plant_id: int
     device_id: str
     capability_id: str
     metric: str
@@ -132,7 +164,10 @@ class CatalogRequest(CloudContractModel):
     devices: list[CatalogDevice] = Field(default_factory=list)
     capabilities: list[CatalogCapability] = Field(default_factory=list)
     schedules: list[CatalogSchedule] = Field(default_factory=list)
+    plant_lines: list[CatalogPlantLine] = Field(default_factory=list)
+    seed_lots: list[CatalogSeedLot] = Field(default_factory=list)
     plants: list[CatalogPlant] = Field(default_factory=list)
+    plant_locations: list[CatalogPlantLocation] = Field(default_factory=list)
     plant_metric_streams: list[CatalogPlantMetricStream] = Field(default_factory=list)
 
 
@@ -143,7 +178,10 @@ class CatalogResponse(CloudContractModel):
     devices: int
     capabilities: int
     schedules: int
+    plant_lines: int
+    seed_lots: int
     plants: int
+    plant_locations: int
     plant_metric_streams: int
 
 

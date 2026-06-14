@@ -6,8 +6,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.device import Capability, Device
-from dirt_shared.models.grow_run import GrowRun
-from dirt_shared.models.plant import Plant
+from dirt_shared.models.plant import Plant, PlantLocationHistory
 from dirt_shared.models.site import Site
 from dirt_shared.models.tent import Tent
 from dirt_shared.models.zone import Zone
@@ -86,17 +85,22 @@ async def test_default_site_tents_zones_and_capabilities_are_seeded(app_engine):
     assert {"temperature_f", "humidity_pct", "vpd_kpa", "fan_pct"} <= fan_caps
 
 
-async def test_current_main_growrun_and_plants_are_seeded(app_engine):
+async def test_current_main_plant_locations_are_seeded(app_engine):
     async with AsyncSession(app_engine) as session:
         result = await session.exec(
-            select(GrowRun, Plant)
-            .join(Plant, Plant.growrun_id == GrowRun.id)
-            .where(GrowRun.grow_run_id == "main-2026-03-15")
-            .where(GrowRun.is_current.is_(True))
-            .order_by(Plant.display_order, Plant.plant_id)
+            select(Plant, PlantLocationHistory)
+            .join(PlantLocationHistory, PlantLocationHistory.plant_id == Plant.id)
+            .join(Tent, Tent.id == PlantLocationHistory.tent_id)
+            .where(Tent.tent_id == "main")
+            .where(PlantLocationHistory.end_at.is_(None))
+            .order_by(PlantLocationHistory.grid_position, Plant.key)
         )
         rows = result.all()
 
-    assert [plant.plant_id for _, plant in rows] == ["a", "b", "c", "d"]
-    assert [plant.display_order for _, plant in rows] == [1, 2, 3, 4]
-    assert {grow.grow_run_id for grow, _ in rows} == {"main-2026-03-15"}
+    assert [plant.key for plant, _ in rows] == [
+        "SBBS-R1-001",
+        "SBBS-R1-002",
+        "SBBS-R1-003",
+        "SBBS-R1-004",
+    ]
+    assert [location.grid_position for _, location in rows] == ["A1", "B1", "C1", "D1"]

@@ -17,7 +17,7 @@ For manual / interactive runs, the user sends: photo(s) + sensor readings (and o
    - Soil-moisture trend notes should emphasize relative movement; absolute calibrated percentages are rough context until probes are calibrated in-place
    - Stage-appropriate recommendations and action items
    - Any user questions answered in context
-2. **Update each current grow plant page** (`wiki/grows/<grow_run_id>/plants/plant-<plant_id>.md`):
+2. **Update each current plant page** (historical files under `wiki/grows/*/plants/`; use the durable plant tag key from `plant.key`/sensor JSON when identifying plants):
    - Append one-line entry to Timeline
    - Rewrite Current State (1–2 sentences max, link to today's daily)
 3. **Update relevant environment pages** with trend data.

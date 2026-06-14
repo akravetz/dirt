@@ -95,7 +95,7 @@ class DailySensorSnapshot:
     tent: dict[str, dict[str, WindowAvg | float | None]]
     """Legacy alias for ``tents["main"]``."""
     plants: dict[str, dict[str, WindowAvg | float | None]]
-    """{plant_id: moisture trend context for main-tent plants}"""
+    """{plant_key: moisture trend context for main-tent plants}"""
     tents: dict[str, dict[str, dict[str, WindowAvg | float | None]]] = field(
         default_factory=dict
     )
@@ -229,7 +229,7 @@ class SensorReader:
                 device_id=capability.device_id,
                 capability_id=capability.capability_id,
                 metric=SOIL_METRIC,
-                subject=f"plant-{capability.plant_id}",
+                subject=f"plant-{capability.plant_key}",
                 pk=capability.capability_pk,
             )
             for capability in capabilities
@@ -386,8 +386,8 @@ class SensorReader:
             now_r = await self._latest_for_requirement(requirement)
             overnight_pct = await self._avg_in_window(requirement, *overnight)
             morning_pct = await self._avg_in_window(requirement, *morning)
-            plant_id = requirement.subject.removeprefix("plant-")
-            plants[plant_id] = {
+            plant_key = requirement.subject.removeprefix("plant-")
+            plants[plant_key] = {
                 "overnight_pct": overnight_pct,
                 "morning_pct": morning_pct,
                 "now_pct": None if now_r is None else now_r.value,
@@ -398,7 +398,7 @@ class SensorReader:
                 and morning_pct.avg is not None
                 and now_r is not None
             ):
-                plants[plant_id]["pct_delta_morning_to_now"] = (
+                plants[plant_key]["pct_delta_morning_to_now"] = (
                     now_r.value - morning_pct.avg
                 )
 

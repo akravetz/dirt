@@ -22,8 +22,11 @@ from dirt_control.models import (
     CloudMetricPresentation,
     CloudMetricRollup,
     CloudPlant,
+    CloudPlantLine,
+    CloudPlantLocation,
     CloudPlantMetricStream,
     CloudSchedule,
+    CloudSeedLot,
     CloudSite,
     CloudTent,
     CloudWikiPage,
@@ -184,24 +187,59 @@ def _plant(
     plant_id: str,
     *,
     display_order: int,
-    grow_run_id: str = "main-2026-03-15",
     is_active: bool = True,
     synced_at: datetime = FIXED_NOW,
 ) -> CloudPlant:
+    _ = display_order
+    source_plant_id = _source_plant_id(plant_id)
     return CloudPlant(
         site_id="homebox",
-        tent_id="main",
-        grow_run_id=grow_run_id,
-        plant_id=plant_id,
+        source_plant_id=source_plant_id,
+        line_source_id=1,
+        source_seed_lot_id=1,
+        clone_source_plant_id=None,
+        key=_plant_key(plant_id),
         name=f"Plant {plant_id.upper()}",
-        display_order=display_order,
-        sticker_color="yellow" if plant_id == "a" else None,
-        status="primary" if is_active else "retired",
-        purple=plant_id == "a",
-        moisture_target_low=55.0,
-        moisture_target_high=70.0,
-        wiki_path=f"wiki/grows/{grow_run_id}/plants/plant-{plant_id}.md",
+        germinated_at=FIXED_NOW - timedelta(days=51),
+        culled_at=None if is_active else FIXED_NOW - timedelta(days=1),
+        culled_reason=None if is_active else "test fixture",
         is_active=is_active,
+        synced_at=synced_at,
+        created_at=FIXED_NOW,
+        updated_at=synced_at,
+    )
+
+
+def _plant_line() -> CloudPlantLine:
+    return CloudPlantLine(
+        site_id="homebox",
+        source_line_id=1,
+        project_code="SBBS",
+        generation_label="R1",
+        strain="Sirius Black x BS01",
+        cultivar="R1",
+        description=None,
+        source_name="Unknown vendor",
+        synced_at=FIXED_NOW,
+        created_at=FIXED_NOW,
+        updated_at=FIXED_NOW,
+    )
+
+
+def _plant_location(
+    plant_id: str,
+    *,
+    grid_position: str,
+    synced_at: datetime = FIXED_NOW,
+) -> CloudPlantLocation:
+    return CloudPlantLocation(
+        site_id="homebox",
+        source_location_id=_source_plant_id(plant_id),
+        source_plant_id=_source_plant_id(plant_id),
+        tent_id="main",
+        grid_position=grid_position,
+        start_at=FIXED_NOW - timedelta(days=51),
+        end_at=None,
         synced_at=synced_at,
         created_at=FIXED_NOW,
         updated_at=synced_at,
@@ -211,7 +249,6 @@ def _plant(
 def _plant_stream(
     plant_id: str,
     *,
-    grow_run_id: str = "main-2026-03-15",
     device_id: str = "plant-a-node",
     capability_id: str = "soil_moisture_pct",
     metric: str = "soil_moisture_pct",
@@ -220,9 +257,7 @@ def _plant_stream(
 ) -> CloudPlantMetricStream:
     return CloudPlantMetricStream(
         site_id="homebox",
-        tent_id="main",
-        grow_run_id=grow_run_id,
-        plant_id=plant_id,
+        source_plant_id=_source_plant_id(plant_id),
         device_id=device_id,
         capability_id=capability_id,
         metric=metric,
@@ -232,6 +267,14 @@ def _plant_stream(
         created_at=FIXED_NOW,
         updated_at=FIXED_NOW,
     )
+
+
+def _plant_key(plant_id: str) -> str:
+    return f"SBBS-R1-00{_source_plant_id(plant_id)}"
+
+
+def _source_plant_id(plant_id: str) -> int:
+    return ord(plant_id) - ord("a") + 1
 
 
 def _latest_metric(
@@ -415,41 +458,88 @@ async def test_catalog_upsert_is_idempotent(
                 "is_enabled": True,
             }
         ],
+        "plant_lines": [
+            {
+                "source_line_id": 1,
+                "project_code": "SBBS",
+                "generation_label": "R1",
+                "strain": "Sirius Black x BS01",
+                "cultivar": "SBBS R1",
+                "description": None,
+                "source_name": "Unknown vendor",
+            }
+        ],
+        "seed_lots": [
+            {
+                "source_seed_lot_id": 1,
+                "line_source_id": 1,
+                "is_purchased": True,
+                "vendor_name": "Unknown vendor",
+                "acquired_at": None,
+                "produced_by_cross_event_source_id": None,
+                "seed_count": None,
+                "notes": None,
+            }
+        ],
         "plants": [
             {
-                "tent_id": "main",
-                "grow_run_id": "main-2026-03-15",
-                "plant_id": "a",
+                "source_plant_id": 1,
+                "line_source_id": 1,
+                "source_seed_lot_id": 1,
+                "clone_source_plant_id": None,
+                "key": "SBBS-R1-001",
                 "name": "Plant A",
-                "display_order": 1,
-                "sticker_color": "yellow",
-                "status": "primary",
-                "purple": True,
-                "moisture_target_low": 55.0,
-                "moisture_target_high": 70.0,
-                "wiki_path": "wiki/grows/main-2026-03-15/plants/plant-a.md",
+                "germinated_at": "2026-03-15T12:00:00Z",
+                "rooted_at": None,
+                "veg_started_at": None,
+                "flower_started_at": None,
+                "culled_at": None,
+                "culled_reason": None,
+                "harvested_at": None,
+                "selected_for_breeding_at": None,
+                "selected_for_breeding_reason": None,
                 "is_active": True,
             },
             {
-                "tent_id": "main",
-                "grow_run_id": "main-2026-03-15",
-                "plant_id": "b",
+                "source_plant_id": 2,
+                "line_source_id": 1,
+                "source_seed_lot_id": 1,
+                "clone_source_plant_id": None,
+                "key": "SBBS-R1-002",
                 "name": "Plant B",
-                "display_order": 2,
-                "sticker_color": None,
-                "status": "retired",
-                "purple": False,
-                "moisture_target_low": 50.0,
-                "moisture_target_high": 65.0,
-                "wiki_path": None,
+                "germinated_at": "2026-03-15T12:00:00Z",
+                "rooted_at": None,
+                "veg_started_at": None,
+                "flower_started_at": None,
+                "culled_at": "2026-05-01T12:00:00Z",
+                "culled_reason": "test fixture",
+                "harvested_at": None,
+                "selected_for_breeding_at": None,
+                "selected_for_breeding_reason": None,
                 "is_active": False,
+            },
+        ],
+        "plant_locations": [
+            {
+                "source_location_id": 1,
+                "source_plant_id": 1,
+                "tent_id": "main",
+                "grid_position": "A1",
+                "start_at": "2026-03-15T12:00:00Z",
+                "end_at": None,
+            },
+            {
+                "source_location_id": 2,
+                "source_plant_id": 2,
+                "tent_id": "main",
+                "grid_position": "B1",
+                "start_at": "2026-03-15T12:00:00Z",
+                "end_at": None,
             },
         ],
         "plant_metric_streams": [
             {
-                "tent_id": "main",
-                "grow_run_id": "main-2026-03-15",
-                "plant_id": "a",
+                "source_plant_id": 1,
                 "device_id": "env-main",
                 "capability_id": "env-main-temp",
                 "metric": "temperature_f",
@@ -468,7 +558,10 @@ async def test_catalog_upsert_is_idempotent(
 
     assert first.status_code == 200
     assert second.status_code == 200
+    assert first.json()["plant_lines"] == 1
+    assert first.json()["seed_lots"] == 1
     assert first.json()["plants"] == 2
+    assert first.json()["plant_locations"] == 2
     assert first.json()["plant_metric_streams"] == 1
     sessionmaker = create_sessionmaker(cloud_engine)
     async with sessionmaker() as session:
@@ -483,7 +576,16 @@ async def test_catalog_upsert_is_idempotent(
         schedule_count = await session.scalar(
             select(func.count()).select_from(CloudSchedule)
         )
+        line_count = await session.scalar(
+            select(func.count()).select_from(CloudPlantLine)
+        )
+        seed_lot_count = await session.scalar(
+            select(func.count()).select_from(CloudSeedLot)
+        )
         plant_count = await session.scalar(select(func.count()).select_from(CloudPlant))
+        location_count = await session.scalar(
+            select(func.count()).select_from(CloudPlantLocation)
+        )
         stream_count = await session.scalar(
             select(func.count()).select_from(CloudPlantMetricStream)
         )
@@ -491,9 +593,17 @@ async def test_catalog_upsert_is_idempotent(
             await session.execute(
                 select(CloudPlant).where(
                     CloudPlant.site_id == "homebox",
-                    CloudPlant.tent_id == "main",
-                    CloudPlant.grow_run_id == "main-2026-03-15",
-                    CloudPlant.plant_id == "a",
+                    CloudPlant.source_plant_id == 1,
+                )
+            )
+        ).scalar_one_or_none()
+        plant_a_location = (
+            await session.execute(
+                select(CloudPlantLocation).where(
+                    CloudPlantLocation.site_id == "homebox",
+                    CloudPlantLocation.source_plant_id == 1,
+                    CloudPlantLocation.tent_id == "main",
+                    CloudPlantLocation.grid_position == "A1",
                 )
             )
         ).scalar_one_or_none()
@@ -501,9 +611,7 @@ async def test_catalog_upsert_is_idempotent(
             await session.execute(
                 select(CloudPlantMetricStream).where(
                     CloudPlantMetricStream.site_id == "homebox",
-                    CloudPlantMetricStream.tent_id == "main",
-                    CloudPlantMetricStream.grow_run_id == "main-2026-03-15",
-                    CloudPlantMetricStream.plant_id == "a",
+                    CloudPlantMetricStream.source_plant_id == 1,
                     CloudPlantMetricStream.device_id == "env-main",
                     CloudPlantMetricStream.capability_id == "env-main-temp",
                     CloudPlantMetricStream.metric == "temperature_f",
@@ -515,10 +623,15 @@ async def test_catalog_upsert_is_idempotent(
     assert device_count == 2
     assert capability_count == 2
     assert schedule_count == 1
+    assert line_count == 1
+    assert seed_lot_count == 1
     assert plant_count == 2
+    assert location_count == 2
     assert stream_count == 1
     assert plant_a is not None
-    assert plant_a.wiki_path == "wiki/grows/main-2026-03-15/plants/plant-a.md"
+    assert plant_a.key == "SBBS-R1-001"
+    assert plant_a.line_source_id == 1
+    assert plant_a_location is not None
     assert plant_a_stream is not None
     assert plant_a_stream.display_order == 1
     assert plant_a_stream.is_active is True
@@ -1351,8 +1464,11 @@ async def test_browser_plant_list_orders_and_counts_telemetry_streams(
     async with sessionmaker() as session:
         session.add_all(
             [
+                _plant_line(),
                 _plant("b", display_order=2, is_active=False),
                 _plant("a", display_order=1),
+                _plant_location("b", grid_position="B1"),
+                _plant_location("a", grid_position="A1"),
             ]
         )
         session.add(_plant_stream("a"))
@@ -1362,10 +1478,22 @@ async def test_browser_plant_list_orders_and_counts_telemetry_streams(
 
     assert response.status_code == 200
     rows = response.json()
-    assert [row["plant_id"] for row in rows] == ["a", "b"]
+    assert [row["key"] for row in rows] == ["SBBS-R1-001", "SBBS-R1-002"]
+    assert [row["grid_position"] for row in rows] == ["A1", "B1"]
+    assert rows[0]["id"] == 1
+    assert rows[0]["line"] == {
+        "id": 1,
+        "project_code": "SBBS",
+        "generation_label": "R1",
+        "strain": "Sirius Black x BS01",
+        "cultivar": "R1",
+        "source_name": "Unknown vendor",
+    }
     assert rows[0]["telemetry_stream_count"] == 1
-    assert rows[0]["wiki_path"] == "wiki/grows/main-2026-03-15/plants/plant-a.md"
     assert rows[1]["telemetry_stream_count"] == 0
+    assert "grow_run_id" not in rows[0]
+    assert "moisture_target_low" not in rows[0]
+    assert "moisture_target_high" not in rows[0]
 
 
 async def test_browser_plant_detail_returns_metadata_wiki_and_telemetry_count(
@@ -1374,31 +1502,35 @@ async def test_browser_plant_detail_returns_metadata_wiki_and_telemetry_count(
 ) -> None:
     sessionmaker = create_sessionmaker(cloud_engine)
     async with sessionmaker() as session:
+        session.add(_plant_line())
         session.add(_plant("a", display_order=1))
+        session.add(_plant_location("a", grid_position="A1"))
         session.add(_plant_stream("a"))
-        session.add(
-            CloudWikiPage(
-                site_id="homebox",
-                path="wiki/grows/main-2026-03-15/plants/plant-a.md",
-                title="Plant A Wiki",
-                frontmatter={"title": "Plant A Wiki", "type": "plant"},
-                body_markdown="# Plant A Wiki\n\nProjected body.\n",
-                sha256="f" * 64,
-                source_updated_at=FIXED_NOW - timedelta(hours=1),
-                synced_at=FIXED_NOW,
-                created_at=FIXED_NOW,
-                updated_at=FIXED_NOW,
-            )
-        )
         await session.commit()
 
-    response = await authed_client.get("/api/tents/main/plants/a")
+    response = await authed_client.get("/api/tents/main/plants/SBBS-R1-001")
 
     assert response.status_code == 200
     body = response.json()
-    assert body["plant_id"] == "a"
+    assert body["id"] == 1
+    assert body["key"] == "SBBS-R1-001"
+    assert body["grid_position"] == "A1"
+    assert body["current_location"] == {
+        "id": 1,
+        "tent_id": "main",
+        "grid_position": "A1",
+        "start_at": (FIXED_NOW - timedelta(days=51)).isoformat().replace("+00:00", "Z"),
+        "end_at": None,
+    }
+    assert body["line"] == {
+        "id": 1,
+        "project_code": "SBBS",
+        "generation_label": "R1",
+        "strain": "Sirius Black x BS01",
+        "cultivar": "R1",
+        "source_name": "Unknown vendor",
+    }
     assert body["name"] == "Plant A"
-    assert body["target_bounds"] == {"low": 55.0, "high": 70.0}
     assert body["telemetry_stream_count"] == 1
     assert body["telemetry"] == [
         {
@@ -1417,18 +1549,14 @@ async def test_browser_plant_detail_returns_metadata_wiki_and_telemetry_count(
             "latest_reading": None,
         }
     ]
-    assert body["wiki_path"] == "wiki/grows/main-2026-03-15/plants/plant-a.md"
-    assert body["wiki_content"] == {
-        "path": "wiki/grows/main-2026-03-15/plants/plant-a.md",
-        "title": "Plant A Wiki",
-        "frontmatter": {"title": "Plant A Wiki", "type": "plant"},
-        "body_markdown": "# Plant A Wiki\n\nProjected body.\n",
-        "sha256": "f" * 64,
-        "source_updated_at": "2026-05-05T02:45:00Z",
-    }
+    assert body["notes"] == []
+    assert body["events"] == []
+    assert body["wiki_content"] is None
+    assert "grow_run_id" not in body
+    assert "target_bounds" not in body
 
 
-async def test_browser_plants_use_latest_synced_row_per_public_plant_id(
+async def test_browser_plants_use_current_location_and_source_plant_stream_identity(
     authed_client: AsyncClient,
     cloud_engine: AsyncEngine,
 ) -> None:
@@ -1436,41 +1564,29 @@ async def test_browser_plants_use_latest_synced_row_per_public_plant_id(
     async with sessionmaker() as session:
         session.add_all(
             [
-                _plant(
-                    "a",
-                    display_order=9,
-                    grow_run_id="main-2025-01-01",
-                    synced_at=FIXED_NOW - timedelta(days=30),
-                    is_active=False,
-                ),
-                _plant(
-                    "a",
-                    display_order=1,
-                    grow_run_id="main-2026-03-15",
-                    synced_at=FIXED_NOW,
-                ),
+                _plant("a", display_order=1, synced_at=FIXED_NOW),
+                _plant_location("a", grid_position="A1", synced_at=FIXED_NOW),
             ]
         )
         session.add(
             _plant_stream(
                 "a",
-                grow_run_id="main-2026-03-15",
                 device_id="new-plant-a-node",
             )
         )
         await session.commit()
 
     listed = await authed_client.get("/api/tents/main/plants")
-    detail = await authed_client.get("/api/tents/main/plants/a")
+    detail = await authed_client.get("/api/tents/main/plants/SBBS-R1-001")
 
     assert listed.status_code == 200
     listed_rows = listed.json()
     assert len(listed_rows) == 1
-    assert listed_rows[0]["plant_id"] == "a"
-    assert listed_rows[0]["grow_run_id"] == "main-2026-03-15"
+    assert listed_rows[0]["id"] == 1
+    assert listed_rows[0]["key"] == "SBBS-R1-001"
     assert listed_rows[0]["telemetry_stream_count"] == 1
     assert detail.status_code == 200
-    assert detail.json()["grow_run_id"] == "main-2026-03-15"
+    assert detail.json()["id"] == 1
     assert detail.json()["telemetry_stream_count"] == 1
     assert detail.json()["wiki_content"] is None
 
@@ -1482,10 +1598,11 @@ async def test_browser_plant_detail_returns_plants_without_telemetry(
     sessionmaker = create_sessionmaker(cloud_engine)
     async with sessionmaker() as session:
         session.add(_plant("b", display_order=2, is_active=False))
+        session.add(_plant_location("b", grid_position="B1"))
         await session.commit()
 
     missing = await authed_client.get("/api/tents/main/plants/missing")
-    detail = await authed_client.get("/api/tents/main/plants/b")
+    detail = await authed_client.get("/api/tents/main/plants/SBBS-R1-002")
 
     assert missing.status_code == 404
     assert detail.status_code == 200
@@ -1500,6 +1617,7 @@ async def test_browser_plant_detail_exposes_mapped_latest_with_display_conversio
     sessionmaker = create_sessionmaker(cloud_engine)
     async with sessionmaker() as session:
         session.add(_plant("a", display_order=1))
+        session.add(_plant_location("a", grid_position="A1"))
         session.add_all(
             [
                 _plant_stream(
@@ -1568,7 +1686,7 @@ async def test_browser_plant_detail_exposes_mapped_latest_with_display_conversio
         )
         await session.commit()
 
-    response = await authed_client.get("/api/tents/main/plants/a")
+    response = await authed_client.get("/api/tents/main/plants/SBBS-R1-001")
 
     assert response.status_code == 200
     telemetry = {stream["metric"]: stream for stream in response.json()["telemetry"]}
@@ -1605,6 +1723,9 @@ async def test_browser_plant_metric_history_uses_mapped_streams_and_conversions(
                 _plant("a", display_order=1),
                 _plant("b", display_order=2),
                 _plant("c", display_order=3),
+                _plant_location("a", grid_position="A1"),
+                _plant_location("b", grid_position="B1"),
+                _plant_location("c", grid_position="C1"),
             ]
         )
         session.add_all(
@@ -1686,13 +1807,13 @@ async def test_browser_plant_metric_history_uses_mapped_streams_and_conversions(
         await session.commit()
 
     response = await authed_client.get(
-        "/api/tents/main/plants/a/metrics/history?range=24h"
+        "/api/tents/main/plants/SBBS-R1-001/metrics/history?range=24h"
     )
     empty = await authed_client.get(
-        "/api/tents/main/plants/c/metrics/history?range=24h"
+        "/api/tents/main/plants/SBBS-R1-003/metrics/history?range=24h"
     )
     invalid = await authed_client.get(
-        "/api/tents/main/plants/a/metrics/history?range=180d"
+        "/api/tents/main/plants/SBBS-R1-001/metrics/history?range=180d"
     )
 
     assert response.status_code == 200
@@ -1731,7 +1852,7 @@ async def test_browser_plant_moisture_history_routes_are_removed(
     authed_client: AsyncClient,
 ) -> None:
     detail_history = await authed_client.get(
-        "/api/tents/main/plants/a/moisture/history?range=24h"
+        "/api/tents/main/plants/SBBS-R1-001/moisture/history?range=24h"
     )
     comparison_history = await authed_client.get(
         "/api/tents/main/plants/moisture/history?range=24h"

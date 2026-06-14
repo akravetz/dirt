@@ -14,8 +14,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.device import Capability, Device
 from dirt_shared.models.enums import SensorSource
-from dirt_shared.models.grow_run import GrowRun
-from dirt_shared.models.plant import Plant, PlantMetricStream
+from dirt_shared.models.plant import Plant, PlantLocationHistory, PlantMetricStream
 from dirt_shared.models.sensor_calibration import SensorCalibration
 from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.models.site import Site
@@ -39,7 +38,7 @@ PRODUCT_PLANT_MOISTURE_METRIC = "soil_moisture_pct"
 
 @dataclass(frozen=True)
 class ProductPlantMoistureCapability:
-    plant_id: str
+    plant_key: str
     tent_id: str
     zone_id: str | None
     device_id: str
@@ -451,27 +450,27 @@ async def get_supported_product_plant_moisture_capabilities(
     """
     stmt = (
         select(
-            Plant.plant_id,
+            Plant.key,
             Tent.tent_id,
             Zone.zone_id,
             Device.device_id,
             Capability.capability_id,
             Capability.id,
         )
-        .join(GrowRun, GrowRun.id == Plant.growrun_id)
-        .join(Site, Site.id == Plant.site_id)
-        .join(Tent, Tent.id == Plant.tent_id)
+        .join(PlantLocationHistory, PlantLocationHistory.plant_id == Plant.id)
+        .join(Site, Site.id == PlantLocationHistory.site_id)
+        .join(Tent, Tent.id == PlantLocationHistory.tent_id)
         .join(PlantMetricStream, PlantMetricStream.plant_id == Plant.id)
         .join(Capability, Capability.id == PlantMetricStream.capability_id)
         .join(Device, Device.id == Capability.device_id)
         .outerjoin(Zone, Zone.id == Device.zone_id)
         .where(Site.site_id == site_id)
-        .where(GrowRun.is_current.is_(True))
+        .where(PlantLocationHistory.end_at.is_(None))
         .where(PlantMetricStream.is_active.is_(True))
         .where(Device.enabled.is_(True))
         .where(Capability.enabled.is_(True))
         .where(Capability.metric_name == PRODUCT_PLANT_MOISTURE_METRIC)
-        .order_by(Tent.tent_id, Plant.display_order, Plant.plant_id)
+        .order_by(Tent.tent_id, PlantLocationHistory.grid_position, Plant.key)
     )
     if tent_id is not None:
         stmt = stmt.where(Tent.tent_id == tent_id)
@@ -479,7 +478,7 @@ async def get_supported_product_plant_moisture_capabilities(
     rows = (await session.exec(stmt)).all()
     return [
         ProductPlantMoistureCapability(
-            plant_id=plant_id,
+            plant_key=plant_key,
             tent_id=scope_tent_id,
             zone_id=scope_zone_id,
             device_id=device_id,
@@ -487,7 +486,7 @@ async def get_supported_product_plant_moisture_capabilities(
             capability_pk=capability_pk,
         )
         for (
-            plant_id,
+            plant_key,
             scope_tent_id,
             scope_zone_id,
             device_id,
@@ -531,7 +530,7 @@ async def get_latest_product_plant_moisture_readings(
         timestamp = _as_utc(ts)
         readings.append(
             ProductPlantMoistureReading(
-                plant_id=capability.plant_id,
+                plant_key=capability.plant_key,
                 tent_id=capability.tent_id,
                 zone_id=capability.zone_id,
                 device_id=capability.device_id,

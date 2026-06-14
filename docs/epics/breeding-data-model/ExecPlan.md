@@ -20,10 +20,16 @@ The work is complete when a developer can query current plants in a tent with `p
 
 - [x] (2026-06-14T00:00Z) Drafted the data-model-first ExecPlan from the user's breeding-program requirements and the repo's current `growrun`/`plant` model.
 - [x] (2026-06-14T00:00Z) Revised the plan into a broader data-model cleanup plan: integer `id` is canonical Dirt identity, parallel text `*_id` columns are not allowed for human convenience, and plant tag values use `key`.
-- [ ] Implement local SQLModel tables, constraints, generated columns, and Atlas migration.
-- [ ] Cut over services, gateway/cloud sync, hosted browser API, and generated frontend contracts.
-- [ ] Retire `growrun` from source-owned code and database schema.
-- [ ] Validate locally and record implementation evidence.
+- [x] (2026-06-14T02:33Z) Milestone 1 complete: inspected local source rows and active local control-plane dev projection, and finalized explicit plant key mapping for all current plants.
+- [x] (2026-06-14T02:54Z) Milestone 2 complete: added local SQLModel breeding tables and cut `Plant` over to durable integer identity plus required `key`, line/provenance FKs, generated provenance booleans, lifecycle timestamps, and breeding selection fields.
+- [x] (2026-06-14T03:42Z) Milestone 3 complete: backed up the live local database, applied migration `20260614024621_breeding_data_model.sql`, and ran acceptance SQL.
+- [x] Implement local SQLModel tables, constraints, generated columns, and Atlas migration.
+- [x] (2026-06-14T03:58Z) Milestone 4 complete: local shared/voice services and tests now use integer `Plant.id`, displayed `Plant.key`, and current occupancy from `plant_location_history.end_at IS NULL`.
+- [x] (2026-06-14T04:18Z) Milestone 5 complete: gateway catalog DTOs, hosted cloud projection tables, and control-plane sync/API internals now use source integer plant identity, plant keys, line/seed-lot/location projections, and no grow-run plant scope.
+- [x] (2026-06-14T04:20Z) Milestone 6 complete: hosted browser plant list/detail contracts, generated frontend schema, and dashboard/detail UI now use source integer plant identity, plant keys, line identity, current grid positions, lifecycle timestamps, and no moisture target or grow-run plant fields.
+- [x] Cut over services, gateway/cloud sync, hosted browser API, and generated frontend contracts.
+- [x] (2026-06-14T04:36Z) Milestone 7 complete: retired source-owned `growrun` code/schema, removed `snapshot.growrun_id`, added the final local Atlas migration, deleted dead plant sticker UI, updated current docs, and validated.
+- [x] (2026-06-14T04:36Z) Validate locally and record implementation evidence.
 
 
 ## Surprises & Discoveries
@@ -39,6 +45,27 @@ The work is complete when a developer can query current plants in a tent with `p
 
 - Observation: Plant-breeding standards and tools separate germplasm identity, seed or accession provenance, crosses/pedigree, individual plants, and observations.
   Evidence: BrAPI, Breedbase, MCPD, and MIAPPE all model these as separate concepts rather than overloading one "plant" row. Relevant references: `https://brapi.org/`, `https://plant-breeding-api.readthedocs.io/`, `https://solgenomics.github.io/sgn/`, `https://www.genesys-pgr.org/descriptorlists/0cd31350-234b-4ebf-80bc-fc65f14f7541`, and `https://www.miappe.org/`.
+
+- Observation: The local source database currently has 9 plant rows across two current grow runs.
+  Evidence: `psql` on `dirt` found main plants `a`-`d` in grow run `main-2026-03-15` and breeding plants `r1`-`r5` in grow run `breeding-track-a-2026-04-28`; both grow runs are current and their `plant_count` values match actual plant rows.
+
+- Observation: The active local control-plane dev database is `dirt_cloud_dev_7ff9482e8f`, and it mirrors the same grow-run-scoped plant identities.
+  Evidence: `var/dev/control-plane/state.json` points at `dirt_cloud_dev_7ff9482e8f`; `cloud_plant` has 9 rows keyed by `site_id`, `tent_id`, `grow_run_id`, and `plant_id`; `cloud_plant_metric_stream` has 4 rows for main plant `a`.
+
+- Observation: Local source snapshots are entirely grow-run scoped to the main tent today.
+  Evidence: `snapshot` has 14,642 rows, all with `growrun_id` set; grouped inspection found only `main/main-2026-03-15`, from `2026-03-23 13:05:43.89886-06` through `2026-06-13 20:32:06.77961-06`.
+
+- Observation: Local plant metric stream ownership is already through `plant_metric_stream`, not a plant column.
+  Evidence: `plant.moisture_capability_id` does not exist; `plant_metric_stream` has 12 local rows: four streams each for plant row ids 1, 3, and 4, and none for row ids 2 or 5-9. The active cloud dev projection currently has only the four streams for main plant `a`.
+
+- Observation: This installed Atlas canary gates every clean desired-state extension bootstrap path behind `atlas login`.
+  Evidence: `composite_schema`, an Atlas `docker "postgres"` dev block, and loader-emitted `CREATE EXTENSION IF NOT EXISTS btree_gist` each failed with `requires 'atlas login'` or `extensions are available to logged-in users only`. The migration itself dry-runs because it creates `btree_gist` before location exclusion constraints. A synced diff check passed only when Atlas was pointed at an externally preinitialized disposable Postgres dev URL with `btree_gist` already installed.
+
+- Observation: `growrun` cannot be dropped by the Milestone 3 migration while current desired SQLModel metadata still contains `GrowRun` and `Snapshot.growrun_id`.
+  Evidence: `apps/shared/src/dirt_shared/models/snapshot.py` still defines `growrun_id` with a FK to `growrun.id`, and `apps/shared/src/dirt_shared/models/__init__.py` still imports `GrowRun`.
+
+- Observation: Running shared and voice pytest suites concurrently can race on shared Postgres test-template setup.
+  Evidence: A worker-reported parallel run hit `driver: bad connection`; sequential `uv run pytest apps/shared/tests -q` and `uv run pytest apps/voice/tests -q` both passed.
 
 
 ## Decision Log
@@ -98,24 +125,254 @@ The work is complete when a developer can query current plants in a tent with `p
 
 ## Outcomes & Retrospective
 
-No implementation has been performed yet. Fill this section after each milestone with the actual migration file names, commands run, API contract changes, and validation evidence.
+Milestone 1 validation completed on 2026-06-14T02:33Z. Commands run:
+
+- `rg -n "growrun|grow_run_id|GrowRun|germination_date|flower_start_date|plant_count|is_current" apps web-ui contracts migrations docs -g '*'`
+- `rg -n "class Plant|CloudPlant|CatalogPlant|PlantMetricStream|plant_location|plant_note|plant_event" apps web-ui contracts -g '*'`
+- `psql` schema inspection for local `growrun` and `plant`
+- `psql` row inspection for local `growrun`, `plant`, `plant_metric_stream`, and `snapshot`
+- `psql` row inspection for active local control-plane dev `cloud_plant` and `cloud_plant_metric_stream`
+
+Explicit migration key mapping:
+
+| Plant row id | Tent | Old plant text id | New `plant.key` |
+|---:|---|---|---|
+| 1 | main | `a` | `SBBS-R1-001` |
+| 2 | main | `b` | `SBBS-R1-002` |
+| 3 | main | `c` | `SBBS-R1-003` |
+| 4 | main | `d` | `SBBS-R1-004` |
+| 5 | breeding | `r1` | `SBBS-R1-005` |
+| 6 | breeding | `r2` | `SBBS-R1-006` |
+| 7 | breeding | `r3` | `SBBS-R1-007` |
+| 8 | breeding | `r4` | `SBBS-R1-008` |
+| 9 | breeding | `r5` | `SBBS-R1-009` |
+
+No implementation migration has been generated yet. Later migration work must preserve these integer row ids and preserve `plant_metric_stream.plant_id` ownership.
+
+Milestone 2 implementation completed on 2026-06-14T02:54Z. Changed files:
+
+- `apps/shared/src/dirt_shared/models/plant.py`
+- `apps/shared/src/dirt_shared/models/__init__.py`
+
+Validation evidence:
+
+- `uv run --package dirt-shared python scripts/atlas-load-sqlmodel.py postgresql` passed and emitted the new target DDL, including `plant_line`, `cross_event`, `seed_lot`, updated `plant`, `plant_location_history`, `plant_note`, `plant_event`, `COMMENT ON COLUMN plant.key`, generated columns, partial current-location indexes, and location exclusion constraints.
+- `uv run ruff check apps/shared/src/dirt_shared/models/plant.py apps/shared/src/dirt_shared/models/__init__.py` passed.
+- `git diff --check` passed.
+- `uv run pytest apps/shared/tests -q` produced 186 passed and 12 failed. The failures are expected at this milestone because Milestone 4 has not yet cut shared services and tests from removed `Plant.plant_id`, `Plant.growrun_id`, and `Plant.display_order` to `Plant.key`, `plant_location_history`, and integer `plant.id`.
+
+Cleanup note: the implementation simplify pass removed extra FK indexes that were not in the target DDL so the model stays close to the ExecPlan schema.
+
+Milestone 3 migration review reached the pre-apply gate on 2026-06-14T03:31Z. Changed files:
+
+- `migrations/20260614024621_breeding_data_model.sql`
+- `migrations/atlas.sum`
+
+Migration summary:
+
+- Creates `btree_gist`, `plant_line`, `cross_event`, `seed_lot`, `plant_location_history`, `plant_note`, and `plant_event`.
+- Backfills one purchased SBBS R1 plant line and seed lot for the current Sirius Black x BS01 material. The migration records unknown vendor as `Unknown vendor` because no vendor exists in current grow-run rows.
+- Maps existing plant row ids 1-9 to `SBBS-R1-001` through `SBBS-R1-009`, preserving integer `plant.id` and `plant_metric_stream.plant_id` ownership.
+- Creates current location rows with main positions `A1`-`D1` and breeding positions `A1`-`E1`.
+- Backfills `germinated_at` and `flower_started_at` from existing current grow-run dates.
+- Removes obsolete local `plant` grow-run scope, display, sticker/status/purple, and moisture target columns.
+- Leaves `growrun` and `snapshot.growrun_id` for later retirement because current desired source still depends on them.
+
+Validation evidence:
+
+- `uv run --package dirt-shared python scripts/atlas-load-sqlmodel.py postgresql` passed.
+- `atlas migrate hash --env local` passed and updated `migrations/atlas.sum`.
+- `atlas migrate apply --env local --dry-run` passed.
+- `atlas migrate apply --url "docker://postgres/17/dev?search_path=public" --dir "file://migrations"` applied all 45 local migrations to an ephemeral Postgres dev database successfully.
+- `git diff --check` passed.
+- `atlas migrate diff breeding_data_model_check --env local` fails in the default repo config because the desired dev DB lacks `btree_gist` before evaluating SQLModel exclusion constraints.
+- The same diff check passed with an externally preinitialized disposable dev URL: `atlas migrate diff breeding_data_model_check --env local --dev-url "postgres://postgres:dev@127.0.0.1:55433/dev?sslmode=disable&search_path=public"` after `CREATE EXTENSION IF NOT EXISTS btree_gist;` in that disposable database.
+
+Pre-apply gate: before mutating the live local `dirt` database, take the compressed custom-format backup from `docs/database.md`, run `atlas migrate apply --env local`, and then run the acceptance SQL in this ExecPlan.
+
+Milestone 3 live local apply completed on 2026-06-14T03:42Z after user confirmation. Backup:
+
+- `var/db-backups/dirt-2026-06-13-213926-pre-breeding-data-model.dump`
+
+Apply and acceptance evidence:
+
+- `atlas migrate apply --env local` applied `20260614024621_breeding_data_model.sql` successfully.
+- `atlas migrate status --env local` reports current version `20260614024621`, 45 executed files, and 0 pending files.
+- Plant acceptance SQL returned 9 plants with keys `SBBS-R1-001` through `SBBS-R1-009`, one `plant_line`, one `seed_lot`, expected germination timestamps, and expected flower timestamps.
+- Current location acceptance SQL returned 9 current `plant_location_history` rows: main `A1`-`D1` and breeding `A1`-`E1`.
+- `btree_gist` is installed, `plant.key` has the required SQL column comment, both plant-location exclusion constraints exist, and `plant_metric_stream` still has 12 rows across 3 plants.
+- `moisture_target_low` and `moisture_target_high` no longer exist in local information schema.
+- `plant_location_history` has no `zone_id` or `position` column.
+- `growrun.grow_run_id` and `snapshot.growrun_id` still exist and are intentionally deferred to later grow-run retirement milestones.
+- The generic `cloud_outbox.event_type` column still exists; this is not the new `plant_event` kind model and is not a plant business-state enum.
+- `uv run pytest apps/shared/tests -q` still reports 186 passed and 12 failed because Milestone 4 has not yet cut shared services/tests from removed `Plant.plant_id`, `Plant.growrun_id`, and `Plant.display_order`.
+
+Milestone 4 completed on 2026-06-14T03:58Z. Changed files:
+
+- `apps/shared/src/dirt_shared/services/readings.py`
+- `apps/shared/src/dirt_shared/services/daily_sensors.py`
+- `apps/shared/src/dirt_shared/services/grow_state.py`
+- `apps/shared/tests/test_daily_sensors.py`
+- `apps/shared/tests/test_grow_state.py`
+- `apps/shared/tests/test_scoped_identity_models.py`
+- `apps/voice/src/dirt_voice/tools/sensors.py`
+- `apps/voice/tests/test_sensor_tools.py`
+
+Outcome:
+
+- Plant moisture capability/read queries use current `PlantLocationHistory.end_at IS NULL`, return/display `Plant.key`, and order by `PlantLocationHistory.grid_position` then `Plant.key`.
+- Daily sensor snapshots and voice current-status soil moisture maps are keyed by plant tag keys such as `SBBS-R1-001`.
+- `GrowStateService` now derives stage, week, plant count, and current payload from current plant lifecycle timestamps and current tent occupancy while keeping legacy grow-run accessors only until grow-run retirement.
+- Agent-owned local tests now use `Plant.key` and `PlantLocationHistory` instead of removed `Plant.plant_id`, `Plant.growrun_id`, and `Plant.display_order`.
+
+Validation evidence:
+
+- `uv run pytest apps/shared/tests -q` passed with 198 tests.
+- `uv run pytest apps/voice/tests -q` passed with 2 tests.
+- `uv run ruff check` on touched local-service/test files passed.
+- `git diff --check` passed.
+
+Known gap:
+
+- Snapshot `growrun_id` write paths in daily report and camera publisher remain intentionally deferred with the remaining `growrun` table/model retirement.
+
+Milestone 5 completed on 2026-06-14T04:18Z. Changed files:
+
+- `apps/shared/src/dirt_shared/cloud_contract.py`
+- `apps/shared/tests/test_cloud_contract.py`
+- `apps/gateway/src/dirt_gateway/local.py`
+- `apps/gateway/tests/test_sync.py`
+- `apps/control-plane/src/dirt_control/models/cloud.py`
+- `apps/control-plane/src/dirt_control/models/__init__.py`
+- `apps/control-plane/src/dirt_control/api/gateway.py`
+- `apps/control-plane/src/dirt_control/api/browser.py`
+- `apps/control-plane/tests/test_api.py`
+- `cloud/migrations/20260614040640_breeding_cloud_projection.sql`
+- `cloud/migrations/atlas.sum`
+
+Outcome:
+
+- Gateway-to-cloud catalog DTOs now project plant lines, seed lots, current plant locations, plants keyed by source integer `Plant.id`, and plant metric streams keyed by source integer plant id plus device/capability/metric.
+- Hosted cloud mirror tables now use `source_plant_id` for Dirt-owned plant identity, carry `key` as the plant tag, and mirror line, seed-lot, and current location data needed by the browser.
+- Hosted control-plane gateway upsert logic no longer depends on `grow_run_id` for plant or plant metric stream identity.
+- The cloud migration drops and recreates the old grow-run-scoped hosted projection tables because old cloud projection rows cannot be truthfully backfilled into the new local integer plant IDs without a source catalog refresh.
+- Browser API internals were minimally updated to read the new cloud projection while route shape and frontend contract regeneration remain in Milestone 6.
+
+Validation evidence:
+
+- `uv run pytest apps/shared/tests/test_cloud_contract.py -q` passed with 14 tests.
+- `uv run pytest apps/gateway/tests -q` passed with 31 tests.
+- `uv run pytest apps/control-plane/tests -q` passed with 53 tests.
+- `uv run ruff check` on touched Milestone 5 files passed.
+- `atlas migrate apply --url "docker://postgres/17/dev?search_path=public" --dir "file://cloud/migrations"` applied the cloud migration series to an ephemeral PostgreSQL 17 database successfully.
+- `atlas migrate diff breeding_cloud_projection_check --env cloud` reported the migration directory synced with desired state.
+- `git diff --check` passed.
+
+Milestone 6 completed on 2026-06-14T04:20Z. Changed files:
+
+- `apps/control-plane/src/dirt_control/api/browser.py`
+- `apps/control-plane/tests/test_api.py`
+- `contracts/hosted-browser-v1.json`
+- `web-ui/src/api-client/generated/hosted-schema.ts`
+- `web-ui/src/routes/index.tsx`
+- `web-ui/src/routes/tents.$tentId.plants.$plantId.tsx`
+
+Outcome:
+
+- Hosted browser plant list/detail responses now return current plants through `CloudPlantLocation.end_at IS NULL`, include integer source plant `id`, `key`, line identity, `grid_position`, current location, lifecycle timestamps, and omit old `grow_run_id` and moisture target fields.
+- The hosted OpenAPI browser contract and generated TypeScript schema were regenerated with `scripts/gen-hosted-contract`.
+- The dashboard plant cards link by plant `key`, show current grid position and line identity, and no longer render moisture target text.
+- The plant detail page shows line identity, current location, lifecycle timestamps, telemetry, projected wiki content, and note/event panels. Note/event arrays are currently empty because Milestone 5 did not add cloud note/event projection tables or gateway sync.
+
+Validation evidence:
+
+- `uv run pytest apps/control-plane/tests/test_api.py -q` passed with 42 tests.
+- `uv run pytest apps/control-plane/tests -q` passed with 53 tests.
+- `scripts/gen-hosted-contract` passed.
+- `uv run ruff check apps/control-plane/src/dirt_control/api/browser.py apps/control-plane/tests/test_api.py` passed.
+- `pnpm --dir web-ui typecheck` passed.
+- `pnpm --dir web-ui lint` passed.
+- `pnpm --dir web-ui test` passed with 2 files and 3 tests.
+- `git diff --check` passed.
+
+Milestone 7 completed on 2026-06-14T04:36Z. Changed files:
+
+- `apps/shared/src/dirt_shared/models/grow_run.py`
+- `apps/shared/src/dirt_shared/models/snapshot.py`
+- `apps/shared/src/dirt_shared/models/__init__.py`
+- `apps/shared/src/dirt_shared/models/enums.py`
+- `apps/shared/src/dirt_shared/services/{scope,grow_state,camera_publisher,daily_report,daily_synthesis}.py`
+- `apps/shared/src/dirt_shared/config.py`
+- `apps/shared/tests/{test_capture,test_daily_report,test_grow_state}.py`
+- `migrations/20260614042851_retire_growrun.sql`
+- `migrations/atlas.sum`
+- `web-ui/src/ui/PlantSticker.tsx`
+- `web-ui/src/styles.css`
+- `docs/database.md`
+- `docs/grow-state.md`
+- `docs/wiki/{conventions,data-architecture,workflows/daily-update}.md`
+- `wiki/AGENTS.md`
+
+Outcome:
+
+- Removed the source-owned `GrowRun` SQLModel and all current source imports of `dirt_shared.models.grow_run`.
+- Removed `Snapshot.growrun_id` from SQLModel and stopped camera publisher and daily-report snapshot write paths from looking up or writing grow-run scope.
+- Removed unused grow-stage/plant-status/plant-sticker enum exports from source; `plant_status` and `plant_sticker` were already dropped by `20260614024621_breeding_data_model.sql`, and no local `grow_stage` type exists in the migration series.
+- Added local migration `20260614042851_retire_growrun.sql`, which drops `snapshot.growrun_id` and `growrun`. The migration was generated with a disposable Postgres dev DB preinitialized with `btree_gist` because default Atlas desired-state loading still cannot create the exclusion-constraint operator classes before loading SQLModel DDL.
+- Moved remaining grow-state tests to plant lifecycle/current-location context and removed grow-run compatibility assertions.
+- Deleted unused `web-ui/src/ui/PlantSticker.tsx` and the now-unused sticker CSS tokens after invariants flagged dead UI code.
+- Updated current database, grow-state, wiki workflow, and wiki routing docs so they no longer describe grow-run-scoped plant identity.
+
+Validation evidence:
+
+- `uv run --package dirt-shared python scripts/atlas-load-sqlmodel.py postgresql` passed and emitted desired DDL without `growrun` or `snapshot.growrun_id`.
+- `atlas migrate diff retire_growrun --env local` failed in the default repo config with the known `btree_gist` desired-state loader issue.
+- `atlas migrate diff retire_growrun --env local --dev-url "postgres://postgres:dev@127.0.0.1:55433/dev?sslmode=disable&search_path=public"` passed after creating `btree_gist` in a disposable Postgres 17 container.
+- `atlas migrate hash --env local` passed.
+- `atlas migrate apply --env local --dry-run` passed and reported one pending migration, `20260614042851`, with two SQL statements. This did not apply the migration to the live local `dirt` database.
+- `atlas migrate apply --url "docker://postgres/17/dev?search_path=public" --dir "file://migrations"` applied all 46 local migrations to an ephemeral PostgreSQL 17 database successfully.
+- `uv run pytest apps/shared/tests -q` passed with 199 tests.
+- `uv run pytest apps/gateway/tests -q` passed with 31 tests.
+- `uv run pytest apps/control-plane/tests -q` passed with 53 tests.
+- `uv run pytest apps/camera-agent/tests -q` passed with 7 tests.
+- `uv run pytest apps/tests/invariants/ -q` passed with 41 tests; invariants were not edited.
+- `pnpm --dir web-ui typecheck` passed.
+- `pnpm --dir web-ui lint` passed.
+- `pnpm --dir web-ui test` passed with 2 files and 3 tests.
+- `make fix` passed; it reformatted two Python files and found no lint errors after fixes.
+- `git diff --check` passed.
+- Main-agent re-verification passed after review feedback: SQLModel DDL generation, live dry-run of pending migration, disposable PostgreSQL full migration replay, shared/gateway/control-plane/camera-agent tests, invariants, web-ui typecheck/lint/test, `make fix`, and `git diff --check` all passed. The only active-source grep hits for retired plant fields are negative API assertions and unrelated PTZ preset sticker metadata.
+
+Known gap:
+
+Milestone 7 live local apply completed on 2026-06-14 after user confirmation. Backup:
+
+- `var/db-backups/dirt-2026-06-13-230155-pre-retire-growrun.dump`
+
+Apply and acceptance evidence:
+
+- `atlas migrate apply --env local` applied `20260614042851_retire_growrun.sql` successfully.
+- `atlas migrate status --env local` reports current version `20260614042851`, 46 executed files, and 0 pending files.
+- Acceptance SQL found no `growrun_id` or `grow_run_id` columns in the live local database.
+- `to_regclass('public.growrun')` returned null, confirming the `growrun` table is absent.
+- Plant acceptance SQL still returns 9 plants with keys `SBBS-R1-001` through `SBBS-R1-009`, expected line identity, and expected lifecycle timestamps.
+- Current location acceptance SQL still returns 9 current `plant_location_history` rows: breeding `A1`-`E1` and main `A1`-`D1`.
 
 
 ## Context and Orientation
 
 Dirt uses SQLModel table classes under `apps/shared/src/dirt_shared/models/` for local PostgreSQL state, Atlas migrations under `migrations/`, and a hosted control-plane projection under `apps/control-plane/src/dirt_control/models/cloud.py`. Browser-facing hosted API response types are generated from FastAPI OpenAPI into `web-ui/src/api-client/generated/hosted-schema.ts`; do not hand-write hosted response interfaces in `web-ui/src/api-client/cloud.ts`.
 
-The current relevant source files are:
+The relevant implemented source files are:
 
-- `apps/shared/src/dirt_shared/models/grow_run.py`: current grow-cycle table that must be retired from plant identity and lifecycle ownership.
-- `apps/shared/src/dirt_shared/models/plant.py`: current plant table, still scoped by `growrun_id`.
-- `apps/shared/src/dirt_shared/models/enums.py`: current Postgres enum definitions for grow stage, plant status, and sticker color.
-- `apps/shared/src/dirt_shared/services/grow_state.py`: currently derives stage and environmental target context from `growrun.germination_date` and `growrun.flower_start_date`.
-- `apps/shared/src/dirt_shared/cloud_contract.py`: gateway-to-control-plane catalog DTOs that currently include `grow_run_id` on plant payloads.
+- `apps/shared/src/dirt_shared/models/plant.py`: durable local plant, line, provenance, location, note, event, cross, seed-lot, and metric-stream tables.
+- `apps/shared/src/dirt_shared/models/snapshot.py`: scoped snapshot metadata without grow-run ownership.
+- `apps/shared/src/dirt_shared/services/grow_state.py`: plant/tent lifecycle context and stage-derived environmental targets based on current plant locations and lifecycle timestamps.
+- `apps/shared/src/dirt_shared/cloud_contract.py`: gateway-to-control-plane catalog DTOs with integer source identities and plant tag keys.
 - `apps/gateway/src/dirt_gateway/local.py` and `apps/gateway/src/dirt_gateway/sync.py`: local-to-cloud projection and outbox code.
-- `apps/control-plane/src/dirt_control/models/cloud.py`: hosted mirror tables that currently scope plants by `grow_run_id`.
+- `apps/control-plane/src/dirt_control/models/cloud.py`: hosted mirror tables for plant lines, seed lots, plants, current locations, and metric streams.
 - `apps/control-plane/src/dirt_control/api/browser.py`: hosted browser API responses consumed by the React dashboard.
-- `web-ui/src/routes/tents.$tentId.plants.$plantId.tsx` and related UI files: browser plant listing/detail surfaces.
+- `web-ui/src/routes/index.tsx` and `web-ui/src/routes/tents.$tentId.plants.$plantId.tsx`: browser plant listing/detail surfaces using generated hosted types.
 
 Use these repository rules while implementing:
 

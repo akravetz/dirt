@@ -29,7 +29,6 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.device import Device
-from dirt_shared.models.grow_run import GrowRun
 from dirt_shared.models.snapshot import Snapshot
 from dirt_shared.models.zone import Zone
 from dirt_shared.observability import log_event
@@ -233,16 +232,6 @@ class DailyReportSnapshotRecorder:
                     )
                 ).first()
 
-            growrun_id = (
-                await session.exec(
-                    select(GrowRun.id)
-                    .where(GrowRun.site_id == scope.site_pk)
-                    .where(GrowRun.tent_id == scope.tent_pk)
-                    .where(GrowRun.is_current.is_(True))
-                    .limit(1)
-                )
-            ).first()
-
             path_str = str(file_path)
             snapshot = (
                 await session.exec(
@@ -257,7 +246,6 @@ class DailyReportSnapshotRecorder:
             snapshot.tent_id = scope.tent_pk
             snapshot.zone_id = zone_id
             snapshot.device_id = device.id
-            snapshot.growrun_id = growrun_id
             snapshot.view_id = preset
             snapshot.kind = "daily_report"
             session.add(snapshot)

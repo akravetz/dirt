@@ -4,32 +4,30 @@ type: grow
 sources: []
 related: [wiki/overview.md, wiki/breeding/README.md, wiki/daily/2026-06-10.md, wiki/environment/nutrients.md]
 created: 2026-05-30
-updated: 2026-06-12
+updated: 2026-06-14
 ---
 
 # Main Grow 2026-03-15
 
-## Database Identity
+## Database Identity And Wiki Folder
 
 | Field | Value |
 |---|---|
-| `growrun.id` | `1` |
-| `growrun.grow_run_id` | `main-2026-03-15` |
+| Wiki folder | `wiki/grows/main-2026-03-15/` |
+| Folder role | Historical/documentation organization; not database identity |
 | `site.site_id` | `homebox` |
 | `tent.tent_id` | `main` |
-| `name` | Main grow 2026-03-15 |
-| `purpose` | flower |
-| `strain` | Sirius Black x BS01 |
-| `germination_date` | 2026-03-15 |
-| `flower_start_date` | 2026-05-03 |
-| `plant_count` | 4 |
+| Current occupancy source | `plant_location_history.end_at IS NULL` |
+| Current lifecycle source | `plant.germinated_at`, `plant.flower_started_at` |
+| Line | Sirius Black x BS01 / SBxBS01 regular |
+| Current plant count | 4 |
 
 ## Plants
 
-- [Plant A](plants/plant-a.md) — database `plant.id = 1`, `plant.plant_id = a`
-- [Plant B](plants/plant-b.md) — database `plant.id = 2`, `plant.plant_id = b`
-- [Plant C](plants/plant-c.md) — database `plant.id = 3`, `plant.plant_id = c`
-- [Plant D](plants/plant-d.md) — database `plant.id = 4`, `plant.plant_id = d`
+- [Plant A](plants/plant-a.md) — database `plant.id = 1`, `plant.key = SBBS-R1-001`
+- [Plant B](plants/plant-b.md) — database `plant.id = 2`, `plant.key = SBBS-R1-002`
+- [Plant C](plants/plant-c.md) — database `plant.id = 3`, `plant.key = SBBS-R1-003`
+- [Plant D](plants/plant-d.md) — database `plant.id = 4`, `plant.key = SBBS-R1-004`
 
 ## Current Role
 

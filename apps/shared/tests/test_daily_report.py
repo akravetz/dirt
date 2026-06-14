@@ -337,7 +337,6 @@ async def test_run_records_scoped_daily_report_snapshot_rows(tmp_path, app_engin
     assert by_view["plant_b"][3].zone_id == "plant-b"
     assert by_view["plant_c"][3].zone_id == "plant-c"
     assert by_view["plant_d"][3].zone_id == "plant-d"
-    assert all(item[0].growrun_id is not None for item in by_view.values())
     assert all(Path(item[0].file_path).exists() for item in by_view.values())
 
 

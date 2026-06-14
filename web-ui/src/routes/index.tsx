@@ -9,7 +9,6 @@ import { formatMetricValue } from "@/shared/metricFormat";
 import { Gauge } from "@/ui/Gauge";
 import { HoverTimestamp } from "@/ui/HoverTimestamp";
 import { formatEmptyHistoryLabel } from "@/ui/historyRangeLabels";
-import { PlantSticker } from "@/ui/PlantSticker";
 import { RangeSwitch, type SparklineRange } from "@/ui/RangeSwitch";
 import { Sparkline } from "@/ui/Sparkline";
 
@@ -91,10 +90,6 @@ function hostedData<T>(data: T | undefined, path: string): T {
     throw new Error(`GET ${path} returned no data`);
   }
   return data;
-}
-
-function formatInteger(value: number): string {
-  return `${Math.round(value)}`;
 }
 
 function HostedDashboardPage() {
@@ -616,9 +611,9 @@ function HostedPlantsPanel({
         <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
           {plants.map((plant) => (
             <Link
-              key={plant.plant_id}
+              key={plant.id}
               to={PLANT_DETAIL_ROUTE}
-              params={{ tentId, plantId: plant.plant_id }}
+              params={{ tentId, plantId: plant.key }}
               className="group min-w-0 border border-rule bg-paper px-3.5 py-3 transition hover:border-rule-strong"
             >
               <PlantRowContent plant={plant} />
@@ -635,14 +630,11 @@ function PlantRowContent({ plant }: { plant: HostedPlant }): ReactNode {
     <div className="flex min-w-0 flex-col gap-2">
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex min-w-0 items-center gap-2">
-            <PlantSticker color={plant.sticker_color} size="sm" />
-            <p className="truncate font-sans text-fs-13 font-semibold text-ink">
-              {plant.name}
-            </p>
-          </div>
+          <p className="truncate font-sans text-fs-13 font-semibold text-ink">
+            {plant.name}
+          </p>
           <p className="mt-1 font-mono text-fs-10 uppercase tracking-caps text-ink-3">
-            {plant.status} · target {formatMoistureTarget(plant)}
+            {plant.key} · {plant.grid_position} · {formatLineIdentity(plant.line)}
           </p>
         </div>
         <span className="shrink-0 font-mono text-fs-12 tabular-nums text-ink">
@@ -650,7 +642,9 @@ function PlantRowContent({ plant }: { plant: HostedPlant }): ReactNode {
         </span>
       </div>
       <span className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
-        {plant.telemetry_stream_count === 0 ? "No telemetry" : "Telemetry"}
+        {plant.flower_started_at === null
+          ? `Germinated ${formatTimestamp(plant.germinated_at)}`
+          : `Flower ${formatTimestamp(plant.flower_started_at)}`}
       </span>
     </div>
   );
@@ -848,12 +842,6 @@ function formatMinutes(value: number): string {
   return `${hours}h ${minutes}m`;
 }
 
-function formatMoistureTarget(plant: HostedPlant): string {
-  return `${formatInteger(plant.moisture_target_low)}-${formatInteger(
-    plant.moisture_target_high,
-  )}%`;
-}
-
 function formatTimestamp(value: string | null): string {
   if (value === null) return "never";
   const date = new Date(value);
@@ -862,6 +850,15 @@ function formatTimestamp(value: string | null): string {
     dateStyle: "short",
     timeStyle: "short",
   }).format(date);
+}
+
+function formatLineIdentity(line: HostedPlant["line"]): string {
+  if (line === null) return "line unknown";
+  const project = [line.project_code, line.generation_label]
+    .filter((part) => part !== null && part.length > 0)
+    .join(" ");
+  const prefix = project.length > 0 ? `${project} · ` : "";
+  return `${prefix}${line.strain} · ${line.cultivar}`;
 }
 
 function formatAge(value: string | null): string {

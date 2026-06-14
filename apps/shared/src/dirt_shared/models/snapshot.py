@@ -33,7 +33,6 @@ class Snapshot(SQLModel, table=True):
             postgresql_ops={"ts": "DESC"},
         ),
         Index("ix_snapshot_device_id", "device_id"),
-        Index("ix_snapshot_growrun_id", "growrun_id"),
     )
 
     id: int | None = Field(
@@ -78,14 +77,6 @@ class Snapshot(SQLModel, table=True):
         sa_column=Column(
             BigInteger,
             ForeignKey("device.id", ondelete="RESTRICT"),
-            nullable=True,
-        ),
-    )
-    growrun_id: int | None = Field(
-        default=None,
-        sa_column=Column(
-            BigInteger,
-            ForeignKey("growrun.id", ondelete="RESTRICT"),
             nullable=True,
         ),
     )

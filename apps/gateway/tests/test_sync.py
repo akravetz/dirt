@@ -58,16 +58,18 @@ from dirt_shared.models import (
     CloudOutbox,
     Command,
     Device,
-    GrowRun,
     MetricPresentation,
     Plant,
+    PlantLine,
+    PlantLocationHistory,
     PlantMetricStream,
+    SeedLot,
     SensorReading,
     Site,
     Tent,
     Zone,
 )
-from dirt_shared.models.enums import PlantStatus, PlantSticker, SensorSource
+from dirt_shared.models.enums import SensorSource
 from dirt_shared.services.commands import CommandService
 
 FIXED_NOW = datetime(2026, 5, 5, 12, 0, tzinfo=UTC)
@@ -132,7 +134,10 @@ class RecordingCloudClient:
             devices=len(payload["devices"]),
             capabilities=len(payload["capabilities"]),
             schedules=len(payload["schedules"]),
+            plant_lines=len(payload["plant_lines"]),
+            seed_lots=len(payload["seed_lots"]),
             plants=len(payload["plants"]),
+            plant_locations=len(payload["plant_locations"]),
             plant_metric_streams=len(payload["plant_metric_streams"]),
         )
 
@@ -887,26 +892,11 @@ async def test_collect_metrics_syncs_only_direct_plant_moisture_pct(
         )
         session.add(raw_capability)
         await session.flush()
-        grow = (
-            await session.exec(
-                select(GrowRun)
-                .where(GrowRun.tent_id == tent.id)
-                .where(GrowRun.is_current.is_(True))
-            )
-        ).one()
         plant_a = (
-            await session.exec(
-                select(Plant)
-                .where(Plant.growrun_id == grow.id)
-                .where(Plant.plant_id == "a")
-            )
+            await session.exec(select(Plant).where(Plant.key == "SBBS-R1-001"))
         ).one()
         plant_b = (
-            await session.exec(
-                select(Plant)
-                .where(Plant.growrun_id == grow.id)
-                .where(Plant.plant_id == "b")
-            )
+            await session.exec(select(Plant).where(Plant.key == "SBBS-R1-002"))
         ).one()
         session.add_all(
             [
@@ -1021,48 +1011,65 @@ async def test_collect_catalog_projects_current_grow_plants(
         )
         session.add(capability)
         await session.flush()
-        grow_run = GrowRun(
-            site_id=site_pk,
-            tent_id=tent.id,
-            grow_run_id="test-grow",
-            name="Test Grow",
-            purpose="test",
-            plant_count=2,
-            is_current=True,
+        line = PlantLine(
+            project_code="TEST",
+            generation_label="R1",
+            strain="Test Strain",
+            cultivar="Test Cultivar",
+            source_name="Test source",
         )
-        session.add(grow_run)
+        session.add(line)
+        await session.flush()
+        seed_lot = SeedLot(
+            line_id=line.id,
+            is_purchased=True,
+            vendor_name="Test vendor",
+        )
+        session.add(seed_lot)
         await session.flush()
         plant_x1 = Plant(
-            site_id=site_pk,
-            tent_id=tent.id,
-            growrun_id=grow_run.id,
-            plant_id="x1",
+            key="TEST-R1-001",
+            line_id=line.id,
+            source_seed_lot_id=seed_lot.id,
             name="Test X1",
-            display_order=1,
-            sticker_color=PlantSticker.BLUE,
-            status=PlantStatus.PRIMARY,
-            purple=True,
-            moisture_target_low=42.0,
-            moisture_target_high=58.0,
         )
         plant_x2 = Plant(
-            site_id=site_pk,
-            tent_id=tent.id,
-            growrun_id=grow_run.id,
-            plant_id="x2",
+            key="TEST-R1-002",
+            line_id=line.id,
+            source_seed_lot_id=seed_lot.id,
             name="Test X2",
-            display_order=2,
-            status=PlantStatus.RETIRED,
+            culled_at=FIXED_NOW,
+            culled_reason="test fixture culled",
         )
         session.add_all([plant_x1, plant_x2])
         await session.flush()
-        session.add(
-            PlantMetricStream(
-                plant_id=plant_x1.id,
-                capability_id=capability.id,
-                display_order=7,
-                is_active=True,
-            )
+        line_source_id = line.id
+        seed_lot_source_id = seed_lot.id
+        plant_x1_source_id = plant_x1.id
+        plant_x2_source_id = plant_x2.id
+        session.add_all(
+            [
+                PlantLocationHistory(
+                    plant_id=plant_x1.id,
+                    site_id=site_pk,
+                    tent_id=tent.id,
+                    grid_position="A1",
+                    start_at=FIXED_NOW,
+                ),
+                PlantLocationHistory(
+                    plant_id=plant_x2.id,
+                    site_id=site_pk,
+                    tent_id=tent.id,
+                    grid_position="B1",
+                    start_at=FIXED_NOW,
+                ),
+                PlantMetricStream(
+                    plant_id=plant_x1.id,
+                    capability_id=capability.id,
+                    display_order=7,
+                    is_active=True,
+                ),
+            ]
         )
         await session.commit()
 
@@ -1070,47 +1077,77 @@ async def test_collect_catalog_projects_current_grow_plants(
         app_engine, clock=lambda: FIXED_NOW
     ).collect_catalog("homebox")
 
-    plants = [plant for plant in payload.plants if plant.tent_id == "test-plants"]
+    test_locations = [
+        location
+        for location in payload.plant_locations
+        if location.tent_id == "test-plants"
+    ]
+    test_source_ids = {location.source_plant_id for location in test_locations}
+    plant_lines = [
+        line for line in payload.plant_lines if line.source_line_id == line_source_id
+    ]
+    seed_lots = [
+        seed_lot
+        for seed_lot in payload.seed_lots
+        if seed_lot.source_seed_lot_id == seed_lot_source_id
+    ]
+    plants = [
+        plant for plant in payload.plants if plant.source_plant_id in test_source_ids
+    ]
     assert plants == [
         CatalogPlant(
-            tent_id="test-plants",
-            grow_run_id="test-grow",
-            plant_id="x1",
+            source_plant_id=plant_x1_source_id,
+            line_source_id=line_source_id,
+            source_seed_lot_id=seed_lot_source_id,
+            clone_source_plant_id=None,
+            key="TEST-R1-001",
             name="Test X1",
-            display_order=1,
-            sticker_color="blue",
-            status="primary",
-            purple=True,
-            moisture_target_low=42.0,
-            moisture_target_high=58.0,
-            wiki_path="wiki/grows/test-grow/plants/plant-x1.md",
+            germinated_at=None,
+            rooted_at=None,
+            veg_started_at=None,
+            flower_started_at=None,
+            culled_at=None,
+            culled_reason=None,
+            harvested_at=None,
+            selected_for_breeding_at=None,
+            selected_for_breeding_reason=None,
             is_active=True,
         ),
         CatalogPlant(
-            tent_id="test-plants",
-            grow_run_id="test-grow",
-            plant_id="x2",
+            source_plant_id=plant_x2_source_id,
+            line_source_id=line_source_id,
+            source_seed_lot_id=seed_lot_source_id,
+            clone_source_plant_id=None,
+            key="TEST-R1-002",
             name="Test X2",
-            display_order=2,
-            sticker_color=None,
-            status="retired",
-            purple=False,
-            moisture_target_low=55.0,
-            moisture_target_high=70.0,
-            wiki_path=None,
+            germinated_at=None,
+            rooted_at=None,
+            veg_started_at=None,
+            flower_started_at=None,
+            culled_at=FIXED_NOW,
+            culled_reason="test fixture culled",
+            harvested_at=None,
+            selected_for_breeding_at=None,
+            selected_for_breeding_reason=None,
             is_active=False,
         ),
     ]
+    assert len(plant_lines) == 1
+    assert plant_lines[0].strain == "Test Strain"
+    assert len(seed_lots) == 1
+    assert seed_lots[0].line_source_id == line_source_id
+    assert [
+        (location.source_plant_id, location.grid_position)
+        for location in test_locations
+    ] == [(plant_x1_source_id, "A1"), (plant_x2_source_id, "B1")]
     plant_metric_streams = [
         stream
         for stream in payload.plant_metric_streams
-        if stream.tent_id == "test-plants"
+        if stream.source_plant_id in test_source_ids
     ]
     assert plant_metric_streams == [
         CatalogPlantMetricStream(
-            tent_id="test-plants",
-            grow_run_id="test-grow",
-            plant_id="x1",
+            source_plant_id=plant_x1_source_id,
             device_id="test-plant-node",
             capability_id="soil_moisture_raw",
             metric="soil_moisture_raw",

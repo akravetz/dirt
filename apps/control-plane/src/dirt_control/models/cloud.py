@@ -216,15 +216,13 @@ class CloudSchedule(SQLModel, table=True):
     )
 
 
-class CloudPlant(SQLModel, table=True):
-    __tablename__ = "cloud_plant"
+class CloudPlantLine(SQLModel, table=True):
+    __tablename__ = "cloud_plant_line"
     __table_args__ = (
         UniqueConstraint(
             "site_id",
-            "tent_id",
-            "grow_run_id",
-            "plant_id",
-            name="cloud_plant_site_id_tent_id_grow_run_id_plant_id_key",
+            "source_line_id",
+            name="uq_cloud_plant_line_site_source_line",
         ),
     )
 
@@ -233,18 +231,160 @@ class CloudPlant(SQLModel, table=True):
         sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
     )
     site_id: str = Field(index=True, max_length=80)
-    tent_id: str = Field(index=True, max_length=80)
-    grow_run_id: str = Field(index=True, max_length=160)
-    plant_id: str = Field(index=True, max_length=80)
+    source_line_id: int = Field(sa_column=Column(BigInteger, nullable=False))
+    project_code: str | None = Field(default=None, max_length=80)
+    generation_label: str | None = Field(default=None, max_length=80)
+    strain: str = Field(max_length=160)
+    cultivar: str = Field(max_length=160)
+    description: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    source_name: str | None = Field(default=None, max_length=160)
+    synced_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    created_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    updated_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+
+
+class CloudSeedLot(SQLModel, table=True):
+    __tablename__ = "cloud_seed_lot"
+    __table_args__ = (
+        UniqueConstraint(
+            "site_id",
+            "source_seed_lot_id",
+            name="uq_cloud_seed_lot_site_source_seed_lot",
+        ),
+    )
+
+    id: int | None = Field(
+        default=None,
+        sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
+    )
+    site_id: str = Field(index=True, max_length=80)
+    source_seed_lot_id: int = Field(sa_column=Column(BigInteger, nullable=False))
+    line_source_id: int = Field(sa_column=Column(BigInteger, nullable=False))
+    is_purchased: bool = False
+    vendor_name: str | None = Field(default=None, max_length=160)
+    acquired_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    produced_by_cross_event_source_id: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    seed_count: int | None = Field(
+        default=None, sa_column=Column(Integer, nullable=True)
+    )
+    notes: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    synced_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    created_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    updated_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+
+
+class CloudPlant(SQLModel, table=True):
+    __tablename__ = "cloud_plant"
+    __table_args__ = (
+        UniqueConstraint(
+            "site_id",
+            "source_plant_id",
+            name="uq_cloud_plant_site_source_plant",
+        ),
+    )
+
+    id: int | None = Field(
+        default=None,
+        sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
+    )
+    site_id: str = Field(index=True, max_length=80)
+    source_plant_id: int = Field(sa_column=Column(BigInteger, nullable=False))
+    line_source_id: int = Field(sa_column=Column(BigInteger, nullable=False))
+    source_seed_lot_id: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    clone_source_plant_id: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    key: str = Field(index=True, max_length=120)
     name: str = Field(max_length=160)
-    display_order: int = Field(sa_column=Column(Integer, nullable=False))
-    sticker_color: str | None = Field(default=None, max_length=40)
-    status: str = Field(max_length=40)
-    purple: bool = False
-    moisture_target_low: float = Field(sa_column=Column(Float, nullable=False))
-    moisture_target_high: float = Field(sa_column=Column(Float, nullable=False))
-    wiki_path: str | None = Field(default=None, max_length=500)
+    germinated_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    rooted_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    veg_started_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    flower_started_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    culled_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    culled_reason: str | None = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
+    harvested_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    selected_for_breeding_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    selected_for_breeding_reason: str | None = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
     is_active: bool = True
+    synced_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    created_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    updated_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+
+
+class CloudPlantLocation(SQLModel, table=True):
+    __tablename__ = "cloud_plant_location"
+    __table_args__ = (
+        UniqueConstraint(
+            "site_id",
+            "source_location_id",
+            name="uq_cloud_plant_location_site_source_location",
+        ),
+        Index(
+            "ix_cloud_plant_location_current_tent",
+            "site_id",
+            "tent_id",
+            "grid_position",
+            "source_plant_id",
+        ),
+    )
+
+    id: int | None = Field(
+        default=None,
+        sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
+    )
+    site_id: str = Field(index=True, max_length=80)
+    source_location_id: int = Field(sa_column=Column(BigInteger, nullable=False))
+    source_plant_id: int = Field(sa_column=Column(BigInteger, nullable=False))
+    tent_id: str = Field(index=True, max_length=80)
+    grid_position: str = Field(max_length=80)
+    start_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    end_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
     synced_at: datetime = Field(
         sa_column=Column(DateTime(timezone=True), nullable=False)
     )
@@ -261,9 +401,7 @@ class CloudPlantMetricStream(SQLModel, table=True):
     __table_args__ = (
         UniqueConstraint(
             "site_id",
-            "tent_id",
-            "grow_run_id",
-            "plant_id",
+            "source_plant_id",
             "device_id",
             "capability_id",
             "metric",
@@ -276,9 +414,7 @@ class CloudPlantMetricStream(SQLModel, table=True):
         sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
     )
     site_id: str = Field(index=True, max_length=80)
-    tent_id: str = Field(index=True, max_length=80)
-    grow_run_id: str = Field(index=True, max_length=160)
-    plant_id: str = Field(index=True, max_length=80)
+    source_plant_id: int = Field(sa_column=Column(BigInteger, nullable=False))
     device_id: str = Field(index=True, max_length=120)
     capability_id: str = Field(index=True, max_length=160)
     metric: str = Field(index=True, max_length=120)

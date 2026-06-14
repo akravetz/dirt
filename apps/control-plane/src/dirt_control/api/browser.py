@@ -22,6 +22,8 @@ from dirt_control.models import (
     CloudMetricPresentation,
     CloudMetricRollup,
     CloudPlant,
+    CloudPlantLine,
+    CloudPlantLocation,
     CloudPlantMetricStream,
     CloudSchedule,
     CloudSite,
@@ -191,23 +193,53 @@ class MetricPresentationResponse(BrowserResponse):
 class PlantSummaryResponse(BrowserResponse):
     site_id: str
     tent_id: str
-    grow_run_id: str
-    plant_id: str
+    id: int
+    key: str
+    line_source_id: int
+    line: PlantLineResponse | None
     name: str
-    display_order: int
-    sticker_color: str | None
-    status: str
-    purple: bool
-    moisture_target_low: float
-    moisture_target_high: float
-    wiki_path: str | None
+    grid_position: str
+    germinated_at: datetime | None
+    rooted_at: datetime | None
+    veg_started_at: datetime | None
+    flower_started_at: datetime | None
+    culled_at: datetime | None
+    harvested_at: datetime | None
     is_active: bool
     telemetry_stream_count: int
 
 
-class PlantTargetBoundsResponse(BrowserResponse):
-    low: float
-    high: float
+class PlantLineResponse(BrowserResponse):
+    id: int
+    project_code: str | None
+    generation_label: str | None
+    strain: str
+    cultivar: str
+    source_name: str | None
+
+
+class PlantCurrentLocationResponse(BrowserResponse):
+    id: int
+    tent_id: str
+    grid_position: str
+    start_at: datetime
+    end_at: datetime | None
+
+
+class PlantNoteResponse(BrowserResponse):
+    id: int
+    observed_at: datetime
+    body: str
+    created_by: str | None
+
+
+class PlantEventResponse(BrowserResponse):
+    id: int
+    occurred_at: datetime
+    kinds: list[str]
+    reason: str | None
+    notes: str | None
+    metadata: dict[str, Any]
 
 
 class PlantWikiContentResponse(BrowserResponse):
@@ -250,18 +282,27 @@ class PlantMetricStreamResponse(BrowserResponse):
 class PlantDetailResponse(BrowserResponse):
     site_id: str
     tent_id: str
-    grow_run_id: str
-    plant_id: str
+    id: int
+    key: str
+    line_source_id: int
+    line: PlantLineResponse | None
     name: str
-    display_order: int
-    sticker_color: str | None
-    status: str
-    purple: bool
+    grid_position: str
+    current_location: PlantCurrentLocationResponse
+    germinated_at: datetime | None
+    rooted_at: datetime | None
+    veg_started_at: datetime | None
+    flower_started_at: datetime | None
+    culled_at: datetime | None
+    culled_reason: str | None
+    harvested_at: datetime | None
+    selected_for_breeding_at: datetime | None
+    selected_for_breeding_reason: str | None
     is_active: bool
-    target_bounds: PlantTargetBoundsResponse
     telemetry_stream_count: int
     telemetry: list[PlantMetricStreamResponse]
-    wiki_path: str | None
+    notes: list[PlantNoteResponse]
+    events: list[PlantEventResponse]
     wiki_content: PlantWikiContentResponse | None
 
 
@@ -321,6 +362,13 @@ class LightState:
 class PlantMetricStreamProjection:
     stream: CloudPlantMetricStream
     presentation: CloudMetricPresentation | None
+
+
+@dataclass(frozen=True)
+class PlantProjection:
+    plant: CloudPlant
+    location: CloudPlantLocation
+    line: CloudPlantLine | None
 
 
 class LightScheduleResponse(BrowserResponse):
@@ -790,15 +838,12 @@ async def plants(
     stream_counts = await _active_plant_stream_counts(
         session,
         site_id=settings.default_site_id,
-        tent_id=tent_id,
         plants=latest_rows,
     )
     return [
         _plant_summary_response(
             row,
-            telemetry_stream_count=stream_counts.get(
-                (row.grow_run_id, row.plant_id), 0
-            ),
+            telemetry_stream_count=stream_counts.get(row.plant.source_plant_id, 0),
         )
         for row in latest_rows
     ]
@@ -821,7 +866,6 @@ async def plant_detail(
     stream_rows = await _active_plant_metric_streams(
         session,
         site_id=settings.default_site_id,
-        tent_id=tent_id,
         plant=plant,
     )
     latest_by_stream = await _latest_metrics_by_stream(
@@ -830,15 +874,10 @@ async def plant_detail(
         tent_id=tent_id,
         streams=[row.stream for row in stream_rows],
     )
-    wiki_page = await _plant_wiki_page(
-        session,
-        site_id=settings.default_site_id,
-        plant=plant,
-    )
     return _plant_detail_response(
         plant,
         telemetry=_plant_metric_stream_responses(stream_rows, latest_by_stream),
-        wiki_page=wiki_page,
+        wiki_page=None,
     )
 
 
@@ -869,7 +908,6 @@ async def plant_metric_history(  # noqa: PLR0913
         for row in await _active_plant_metric_streams(
             session,
             site_id=settings.default_site_id,
-            tent_id=tent_id,
             plant=plant,
         )
         if row.presentation is not None and row.presentation.history_enabled
@@ -1241,59 +1279,66 @@ async def list_commands(
     return [_command_response(command) for command in rows]
 
 
-def _plant_recency_order() -> tuple[Any, ...]:
-    return (
-        desc(CloudPlant.synced_at),
-        desc(CloudPlant.updated_at),
-        desc(CloudPlant.created_at),
-        desc(CloudPlant.grow_run_id),
-        desc(CloudPlant.plant_id),
-    )
-
-
 async def _latest_plants(
     session: AsyncSession,
     *,
     site_id: str,
     tent_id: str,
-) -> list[CloudPlant]:
+) -> list[PlantProjection]:
     rows = (
         await session.execute(
-            select(CloudPlant)
+            select(CloudPlant, CloudPlantLocation, CloudPlantLine)
+            .join(
+                CloudPlantLocation,
+                and_(
+                    CloudPlantLocation.site_id == CloudPlant.site_id,
+                    CloudPlantLocation.source_plant_id == CloudPlant.source_plant_id,
+                ),
+            )
+            .outerjoin(
+                CloudPlantLine,
+                and_(
+                    CloudPlantLine.site_id == CloudPlant.site_id,
+                    CloudPlantLine.source_line_id == CloudPlant.line_source_id,
+                ),
+            )
             .where(
                 CloudPlant.site_id == site_id,
-                CloudPlant.tent_id == tent_id,
+                CloudPlantLocation.site_id == site_id,
+                CloudPlantLocation.tent_id == tent_id,
+                CloudPlantLocation.end_at.is_(None),
             )
-            .order_by(CloudPlant.plant_id, *_plant_recency_order())
+            .order_by(CloudPlantLocation.grid_position, CloudPlant.key)
         )
-    ).scalars()
-    latest_by_plant_id: dict[str, CloudPlant] = {}
-    for row in rows:
-        latest_by_plant_id.setdefault(row.plant_id, row)
-    return sorted(
-        latest_by_plant_id.values(),
-        key=lambda plant: (plant.display_order, plant.plant_id),
-    )
+    ).all()
+    return [
+        PlantProjection(plant=plant, location=location, line=line)
+        for plant, location, line in rows
+    ]
 
 
 def _plant_summary_response(
-    plant: CloudPlant,
+    projection: PlantProjection,
     *,
     telemetry_stream_count: int,
 ) -> PlantSummaryResponse:
+    plant = projection.plant
+    location = projection.location
     return PlantSummaryResponse(
         site_id=plant.site_id,
-        tent_id=plant.tent_id,
-        grow_run_id=plant.grow_run_id,
-        plant_id=plant.plant_id,
+        tent_id=location.tent_id,
+        id=plant.source_plant_id,
+        key=plant.key,
+        line_source_id=plant.line_source_id,
+        line=_plant_line_response(projection.line),
         name=plant.name,
-        display_order=plant.display_order,
-        sticker_color=plant.sticker_color,
-        status=plant.status,
-        purple=plant.purple,
-        moisture_target_low=plant.moisture_target_low,
-        moisture_target_high=plant.moisture_target_high,
-        wiki_path=plant.wiki_path,
+        grid_position=location.grid_position,
+        germinated_at=plant.germinated_at,
+        rooted_at=plant.rooted_at,
+        veg_started_at=plant.veg_started_at,
+        flower_started_at=plant.flower_started_at,
+        culled_at=plant.culled_at,
+        harvested_at=plant.harvested_at,
         is_active=plant.is_active,
         telemetry_stream_count=telemetry_stream_count,
     )
@@ -1305,60 +1350,67 @@ async def _get_plant(
     site_id: str,
     tent_id: str,
     plant_id: str,
-) -> CloudPlant:
-    plant = (
+) -> PlantProjection:
+    row = (
         await session.execute(
-            select(CloudPlant)
+            select(CloudPlant, CloudPlantLocation, CloudPlantLine)
+            .join(
+                CloudPlantLocation,
+                and_(
+                    CloudPlantLocation.site_id == CloudPlant.site_id,
+                    CloudPlantLocation.source_plant_id == CloudPlant.source_plant_id,
+                ),
+            )
+            .outerjoin(
+                CloudPlantLine,
+                and_(
+                    CloudPlantLine.site_id == CloudPlant.site_id,
+                    CloudPlantLine.source_line_id == CloudPlant.line_source_id,
+                ),
+            )
             .where(
                 CloudPlant.site_id == site_id,
-                CloudPlant.tent_id == tent_id,
-                CloudPlant.plant_id == plant_id,
+                CloudPlant.key == plant_id,
+                CloudPlantLocation.site_id == site_id,
+                CloudPlantLocation.tent_id == tent_id,
+                CloudPlantLocation.end_at.is_(None),
             )
-            .order_by(*_plant_recency_order())
             .limit(1)
         )
-    ).scalar_one_or_none()
-    if plant is None:
+    ).one_or_none()
+    if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "plant not found")
-    return plant
+    plant, location, line = row
+    return PlantProjection(plant=plant, location=location, line=line)
 
 
 async def _active_plant_stream_counts(
     session: AsyncSession,
     *,
     site_id: str,
-    tent_id: str,
-    plants: list[CloudPlant],
-) -> dict[tuple[str, str], int]:
-    plant_keys = {(plant.grow_run_id, plant.plant_id) for plant in plants}
-    if not plant_keys:
+    plants: list[PlantProjection],
+) -> dict[int, int]:
+    source_plant_ids = {plant.plant.source_plant_id for plant in plants}
+    if not source_plant_ids:
         return {}
-    grow_run_ids = {grow_run_id for grow_run_id, _ in plant_keys}
-    plant_ids = {plant_id for _, plant_id in plant_keys}
     rows = (
         await session.execute(
             select(
-                CloudPlantMetricStream.grow_run_id,
-                CloudPlantMetricStream.plant_id,
+                CloudPlantMetricStream.source_plant_id,
                 func.count(CloudPlantMetricStream.id),
             )
             .where(
                 CloudPlantMetricStream.site_id == site_id,
-                CloudPlantMetricStream.tent_id == tent_id,
                 CloudPlantMetricStream.is_active.is_(True),
-                CloudPlantMetricStream.grow_run_id.in_(tuple(grow_run_ids)),
-                CloudPlantMetricStream.plant_id.in_(tuple(plant_ids)),
+                CloudPlantMetricStream.source_plant_id.in_(tuple(source_plant_ids)),
             )
-            .group_by(
-                CloudPlantMetricStream.grow_run_id,
-                CloudPlantMetricStream.plant_id,
-            )
+            .group_by(CloudPlantMetricStream.source_plant_id)
         )
     ).all()
     return {
-        (grow_run_id, plant_id): count
-        for grow_run_id, plant_id, count in rows
-        if (grow_run_id, plant_id) in plant_keys
+        source_plant_id: count
+        for source_plant_id, count in rows
+        if source_plant_id in source_plant_ids
     }
 
 
@@ -1366,8 +1418,7 @@ async def _active_plant_metric_streams(
     session: AsyncSession,
     *,
     site_id: str,
-    tent_id: str,
-    plant: CloudPlant,
+    plant: PlantProjection,
 ) -> list[PlantMetricStreamProjection]:
     rows = (
         await session.execute(
@@ -1378,9 +1429,7 @@ async def _active_plant_metric_streams(
             )
             .where(
                 CloudPlantMetricStream.site_id == site_id,
-                CloudPlantMetricStream.tent_id == tent_id,
-                CloudPlantMetricStream.grow_run_id == plant.grow_run_id,
-                CloudPlantMetricStream.plant_id == plant.plant_id,
+                CloudPlantMetricStream.source_plant_id == plant.plant.source_plant_id,
                 CloudPlantMetricStream.is_active.is_(True),
             )
             .order_by(
@@ -1468,48 +1517,38 @@ async def _metric_rollups_by_stream(  # noqa: PLR0913
     return by_stream
 
 
-async def _plant_wiki_page(
-    session: AsyncSession,
-    *,
-    site_id: str,
-    plant: CloudPlant,
-) -> CloudWikiPage | None:
-    if plant.wiki_path is None:
-        return None
-    return (
-        await session.execute(
-            select(CloudWikiPage).where(
-                CloudWikiPage.site_id == site_id,
-                CloudWikiPage.path == plant.wiki_path,
-            )
-        )
-    ).scalar_one_or_none()
-
-
 def _plant_detail_response(
-    plant: CloudPlant,
+    plant: PlantProjection,
     *,
     telemetry: list[PlantMetricStreamResponse],
     wiki_page: CloudWikiPage | None,
 ) -> PlantDetailResponse:
+    cloud_plant = plant.plant
+    location = plant.location
     return PlantDetailResponse(
-        site_id=plant.site_id,
-        tent_id=plant.tent_id,
-        grow_run_id=plant.grow_run_id,
-        plant_id=plant.plant_id,
-        name=plant.name,
-        display_order=plant.display_order,
-        sticker_color=plant.sticker_color,
-        status=plant.status,
-        purple=plant.purple,
-        is_active=plant.is_active,
-        target_bounds=PlantTargetBoundsResponse(
-            low=plant.moisture_target_low,
-            high=plant.moisture_target_high,
-        ),
+        site_id=cloud_plant.site_id,
+        tent_id=location.tent_id,
+        id=cloud_plant.source_plant_id,
+        key=cloud_plant.key,
+        line_source_id=cloud_plant.line_source_id,
+        line=_plant_line_response(plant.line),
+        name=cloud_plant.name,
+        grid_position=location.grid_position,
+        current_location=_plant_current_location_response(location),
+        germinated_at=cloud_plant.germinated_at,
+        rooted_at=cloud_plant.rooted_at,
+        veg_started_at=cloud_plant.veg_started_at,
+        flower_started_at=cloud_plant.flower_started_at,
+        culled_at=cloud_plant.culled_at,
+        culled_reason=cloud_plant.culled_reason,
+        harvested_at=cloud_plant.harvested_at,
+        selected_for_breeding_at=cloud_plant.selected_for_breeding_at,
+        selected_for_breeding_reason=cloud_plant.selected_for_breeding_reason,
+        is_active=cloud_plant.is_active,
         telemetry_stream_count=len(telemetry),
         telemetry=telemetry,
-        wiki_path=plant.wiki_path,
+        notes=[],
+        events=[],
         wiki_content=(
             None
             if wiki_page is None
@@ -1522,6 +1561,31 @@ def _plant_detail_response(
                 source_updated_at=wiki_page.source_updated_at,
             )
         ),
+    )
+
+
+def _plant_line_response(line: CloudPlantLine | None) -> PlantLineResponse | None:
+    if line is None:
+        return None
+    return PlantLineResponse(
+        id=line.source_line_id,
+        project_code=line.project_code,
+        generation_label=line.generation_label,
+        strain=line.strain,
+        cultivar=line.cultivar,
+        source_name=line.source_name,
+    )
+
+
+def _plant_current_location_response(
+    location: CloudPlantLocation,
+) -> PlantCurrentLocationResponse:
+    return PlantCurrentLocationResponse(
+        id=location.source_location_id,
+        tent_id=location.tent_id,
+        grid_position=location.grid_position,
+        start_at=location.start_at,
+        end_at=location.end_at,
     )
 
 

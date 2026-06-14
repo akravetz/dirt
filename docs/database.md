@@ -15,11 +15,10 @@ Most-queried tables. **Always confirm with `\d <table>` before guessing**; this 
 
 - **`sensorreading`** — append-only capability-owned fact table, ~20 rows / 20s. Columns: `id, ts, capability_id, metric, value, source`. Current reads join through `capability -> device -> tent`. Common `metric` values: `temperature_c`, `temperature_f`, `humidity_pct`, `vpd_kpa`, `dew_point_f`, `fan_pct`, `humidifier_on`, `humidifier_intensity_pct`, `reservoir_in`, plus per-plant `soil_moisture_raw` / `soil_moisture_pct`.
 - **`site` / `tent` / `zone` / `device` / `capability`** — scoped local identity model. The current physical box is `site.site_id='homebox'`; the default grow tent is `tent.tent_id='main'`; `tent.tent_id='breeding'` exists but has no hardware loops unless explicitly wired.
-- **`growrun`** — scoped grow cycle table holding `germination_date`, `flower_start_date`, `timezone`, `strain`, `plant_count`, and per-tent `is_current`. Source of truth for grow stage (see `apps/shared/src/dirt_shared/services/grow_state.py`). The recurring lights photoperiod lives in `schedule`, not on `growrun`.
 - **`schedule`** — scoped local schedules. The main lights photoperiod is materialized as `schedule_id='main-lights-photoperiod'` for `homebox/main`; lights-loop and grow-current responses compose local on/off times from the enabled lights schedule.
-- **`plant`** — one row per plant in a `growrun`, with `plant_id` / `code` (`a`-`d` for the current main grow), scope FKs, and `moisture_capability_id` as the canonical moisture stream owner.
+- **`plant` / `plant_line` / `seed_lot` / `plant_location_history`** — durable breeding records. `plant.id` is the database identity; `plant.key` is the unique human-readable tag printed on plants and used in notes/photos. Current tent occupancy is `plant_location_history.end_at IS NULL`; grow stage comes from current plants' lifecycle timestamps (`germinated_at`, `flower_started_at`) plus the scoped lights `schedule`.
 - **`sensorcalibration`** — two-point raw sensor calibration. `capability_id` is the canonical scoped owner; legacy `sensornode_id` ownership has been retired from the current schema.
-- **`snapshot`** — timestamped JPEG metadata with nullable scoped ownership fields: `site_id`, `tent_id`, `zone_id`, `device_id`, `growrun_id`, `view_id`, and `kind`.
+- **`snapshot`** — timestamped JPEG metadata with nullable scoped ownership fields: `site_id`, `tent_id`, `zone_id`, `device_id`, `view_id`, and `kind`.
 
 ## Common query patterns
 
@@ -48,6 +47,16 @@ JOIN tent t ON t.id = snap.tent_id
 WHERE t.tent_id = 'main'
 ORDER BY snap.ts DESC
 LIMIT 1;
+
+-- current plants in a tent
+SELECT l.grid_position, p.id, p.key, pl.strain, pl.cultivar
+FROM plant_location_history l
+JOIN plant p ON p.id = l.plant_id
+JOIN plant_line pl ON pl.id = p.line_id
+JOIN tent t ON t.id = l.tent_id
+WHERE t.tent_id = 'main'
+  AND l.end_at IS NULL
+ORDER BY l.grid_position, p.key;
 ```
 
 ## Schema changes (Atlas workflow)
