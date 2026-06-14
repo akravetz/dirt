@@ -4,7 +4,7 @@ type: plant
 sources: []
 related: [wiki/grows/breeding-track-a-2026-04-28/README.md, wiki/breeding/male-evaluation.md]
 created: 2026-05-30
-updated: 2026-06-10
+updated: 2026-06-14
 ---
 
 # R3
@@ -17,7 +17,7 @@ updated: 2026-06-10
 
 ## Current State
 
-R3 remains a confirmed female culled from the Track A pollen run on 2026-06-04. It is not active; keep remaining pollen focus on confirmed males R1/R2/R4 and continue sex watch on R5. See [2026-06-10](../../../daily/2026-06-10.md).
+R3 remains a confirmed female culled from the Track A pollen run on 2026-06-04. Track A is now narrowed to R2 only for pollen collection because R2 showed purple coloration on the pollen sacs. Filed in [activity log](../../../log.md).
 
 ## Timeline
 
@@ -35,3 +35,4 @@ R3 remains a confirmed female culled from the Track A pollen run on 2026-06-04. 
 - 2026-06-08 — Culled status carried forward; remaining Track A pollen focus is R1/R2/R4, with R5 still on sex watch. See [2026-06-08](../../../daily/2026-06-08.md).
 - 2026-06-09 — Culled status carried forward; remaining Track A pollen focus is R1/R2/R4, with R5 still on sex watch. See [2026-06-09](../../../daily/2026-06-09.md).
 - 2026-06-10 — Culled status carried forward; remaining Track A pollen focus is R1/R2/R4, with R5 still on sex watch. See [2026-06-10](../../../daily/2026-06-10.md).
+- 2026-06-14 — Track A narrowed to R2 only for purple pollen-sac expression; R3 remains culled. Filed in [activity log](../../../log.md).

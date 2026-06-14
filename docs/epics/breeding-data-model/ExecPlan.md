@@ -1,4 +1,4 @@
-# Breeding Data Model and GrowRun Retirement
+# Data Model Cleanup and Breeding Records
 
 This ExecPlan is a living document. Keep `Progress`, `Surprises & Discoveries`, `Decision Log`, and `Outcomes & Retrospective` current as work proceeds.
 
@@ -7,16 +7,19 @@ This plan follows `.agents/PLANS.md`.
 
 ## Purpose / Big Picture
 
-After this change, Dirt can track a real breeding program instead of treating plants as four labels inside a grow run. Each plant has a globally unique breeding identifier, a required strain and cultivar through its plant line, optional seed-lot or clone provenance, durable lifecycle timestamps, current and historical tent position, daily notes, and breeding events such as pollen collection or sex observation. The hosted UI can answer "which plants are currently in this tent and where are they?" directly from plant location history instead of inferring that from `growrun`.
+After this change, Dirt can track a real breeding program while also cleaning up the broader data-model habit of adding parallel text identifiers to Dirt-owned tables. Every table uses integer `id` as its canonical identity across local relationships, sync payloads, configuration references, and hosted projections. Breeding records add only the extra keys that are real domain artifacts, such as a plant `breeding_key` printed on tags and used in notes/photos.
+
+Each plant has a required strain and cultivar through its plant line, optional seed-lot or clone provenance, durable lifecycle timestamps, current and historical tent position, daily notes, and breeding events such as pollen collection or sex observation. The hosted UI can answer "which plants are currently in this tent and where are they?" directly from plant location history instead of inferring that from `growrun`.
 
 This matters because breeding records must survive tent moves, culling, flowering runs, future clone/mother workflows, and parent selection. `growrun` currently owns plant identity, strain, germination date, and flower date in ways that are no longer truthful. The target architecture makes the individual plant the durable record, makes `plant_location_history` the occupancy model for tents and grid positions, and removes grow-run-centered compatibility shims rather than preserving stale A-D assumptions.
 
-The work is complete when a developer can query current plants in a tent with `plant_location_history.end_at IS NULL`, see globally unique plant ids such as `SBBS-R1-001`, record free-text notes and breeding events per plant, record internal crosses and resulting seed lots, move plants between tents without changing identity, and run the hosted dashboard against generated API contracts that no longer expose `grow_run_id` as plant identity scope.
+The work is complete when a developer can query current plants in a tent with `plant_location_history.end_at IS NULL`, see plant tag keys such as `SBBS-R1-001` without confusing those keys for database identity, record free-text notes and breeding events per plant, record internal crosses and resulting seed lots, move plants between tents without changing identity, and run the hosted dashboard against generated API contracts that no longer expose `grow_run_id` as plant identity scope.
 
 
 ## Progress
 
 - [x] (2026-06-14T00:00Z) Drafted the data-model-first ExecPlan from the user's breeding-program requirements and the repo's current `growrun`/`plant` model.
+- [x] (2026-06-14T00:00Z) Revised the plan into a broader data-model cleanup plan: integer `id` is canonical Dirt identity, parallel text `*_id` columns are not allowed for human convenience, and plant tag values use `breeding_key`.
 - [ ] Implement local SQLModel tables, enums/checks, and Atlas migration.
 - [ ] Cut over services, gateway/cloud sync, hosted browser API, and generated frontend contracts.
 - [ ] Retire `growrun` from source-owned code and database schema.
@@ -31,6 +34,9 @@ The work is complete when a developer can query current plants in a tent with `p
 - Observation: Hosted cloud plant projection repeats the grow-run scope.
   Evidence: `apps/control-plane/src/dirt_control/models/cloud.py` defines `CloudPlant` with unique key `(site_id, tent_id, grow_run_id, plant_id)` and `CloudPlantMetricStream` includes `grow_run_id`.
 
+- Observation: Several existing Dirt tables use integer `id` plus text `*_id` as a parallel identity.
+  Evidence: `site.site_id`, `tent.tent_id`, `device.device_id`, and `growrun.grow_run_id` follow this pattern. This plan must not copy that pattern into new breeding tables unless the text key is owned by a real external, hardware, vendor, protocol, file, or domain workflow.
+
 - Observation: Plant-breeding standards and tools separate germplasm identity, seed or accession provenance, crosses/pedigree, individual plants, and observations.
   Evidence: BrAPI, Breedbase, MCPD, and MIAPPE all model these as separate concepts rather than overloading one "plant" row. Relevant references: `https://brapi.org/`, `https://plant-breeding-api.readthedocs.io/`, `https://solgenomics.github.io/sgn/`, `https://www.genesys-pgr.org/descriptorlists/0cd31350-234b-4ebf-80bc-fc65f14f7541`, and `https://www.miappe.org/`.
 
@@ -41,8 +47,12 @@ The work is complete when a developer can query current plants in a tent with `p
   Rationale: Plant identity must survive tent moves and future flowering tents. A grow run is an operational cohort concept, but Dirt's current `growrun` table has become the canonical owner of plant facts that belong to individual plants or plant lines.
   Date/Author: 2026-06-14 / User + Codex
 
-- Decision: Use globally unique `plant.plant_id` values such as `SBBS-R1-001`, and remove the A-D scoped identity model directly.
-  Rationale: The user explicitly prefers a clean source cutover over compatibility shims. `plant_id` should identify the plant everywhere, not only within one grow run.
+- Decision: Use integer `id` as Dirt's canonical identity, including Dirt-owned sync and configuration boundaries.
+  Rationale: Parallel text `*_id` columns make the data model harder to reason about when Dirt owns both sides. Readability alone is not a reason to create a second identity.
+  Date/Author: 2026-06-14 / User + Codex
+
+- Decision: Replace the old A-D scoped plant text identity with `plant.breeding_key`, not `plant.plant_id`.
+  Rationale: Values such as `SBBS-R1-001` are real breeding tags that people will write on labels, notes, and photos, but they are not the database identity. The database identity remains `plant.id`.
   Date/Author: 2026-06-14 / User + Codex
 
 - Decision: Represent purchased seed lines and internally bred lines with the same `plant_line` table.
@@ -98,6 +108,7 @@ The current relevant source files are:
 Use these repository rules while implementing:
 
 - Read `docs/database.md` before editing SQLModel classes or Atlas migrations.
+- Read `docs/rules/data-modeling.md` before adding or preserving persisted identifiers.
 - Read `docs/rules/simple-clean-architecture.md` before making compatibility decisions.
 - Read `docs/rules/boundary-contracts.md` before changing gateway, control-plane, outbox, or generated browser payloads.
 - Read `docs/references/atlas/INDEX.md` before running Atlas commands or editing migration files.
@@ -117,7 +128,6 @@ Use `timestamptz` for timestamps. Application code must write UTC-aware datetime
 ```sql
 CREATE TABLE plant_line (
     id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    line_id text NOT NULL,
     project_code text NULL,
     generation_label text NULL,
     strain text NOT NULL,
@@ -127,14 +137,12 @@ CREATE TABLE plant_line (
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
 
-    CONSTRAINT uq_plant_line_line_id UNIQUE (line_id),
     CONSTRAINT uq_plant_line_identity UNIQUE NULLS NOT DISTINCT (
         project_code,
         generation_label,
         strain,
         cultivar
     ),
-    CONSTRAINT ck_plant_line_line_id_not_blank CHECK (btrim(line_id) <> ''),
     CONSTRAINT ck_plant_line_project_code_not_blank CHECK (
         project_code IS NULL OR btrim(project_code) <> ''
     ),
@@ -155,7 +163,6 @@ CREATE TABLE plant_line (
 Constraints to implement:
 
 - Primary key on `id`.
-- Stable unique public key on `line_id`.
 - Unique identity across `project_code`, `generation_label`, `strain`, and `cultivar` with `NULLS NOT DISTINCT` so duplicate external lines cannot be inserted by leaving nullable fields null.
 - Required non-empty `strain` and `cultivar`.
 - Nullable text fields must be either null or non-blank.
@@ -167,7 +174,6 @@ Constraints to implement:
 ```sql
 CREATE TABLE cross_event (
     id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    cross_event_id text NOT NULL,
     resulting_line_id bigint NOT NULL,
     seed_parent_plant_id bigint NOT NULL,
     pollen_parent_plant_id bigint NOT NULL,
@@ -177,14 +183,12 @@ CREATE TABLE cross_event (
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
 
-    CONSTRAINT uq_cross_event_cross_event_id UNIQUE (cross_event_id),
     CONSTRAINT fk_cross_event_resulting_line
         FOREIGN KEY (resulting_line_id) REFERENCES plant_line(id) ON DELETE RESTRICT,
     CONSTRAINT fk_cross_event_seed_parent
         FOREIGN KEY (seed_parent_plant_id) REFERENCES plant(id) ON DELETE RESTRICT,
     CONSTRAINT fk_cross_event_pollen_parent
         FOREIGN KEY (pollen_parent_plant_id) REFERENCES plant(id) ON DELETE RESTRICT,
-    CONSTRAINT ck_cross_event_id_not_blank CHECK (btrim(cross_event_id) <> ''),
     CONSTRAINT ck_cross_event_distinct_parents CHECK (
         seed_parent_plant_id <> pollen_parent_plant_id
     ),
@@ -200,7 +204,6 @@ CREATE TABLE cross_event (
 Constraints to implement:
 
 - Primary key on `id`.
-- Stable unique public key on `cross_event_id`.
 - Required FK to the resulting `plant_line`.
 - Required FKs to seed parent and pollen parent `plant` rows.
 - Parents must be two different plant rows.
@@ -213,10 +216,10 @@ Constraints to implement:
 ```sql
 CREATE TABLE seed_lot (
     id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    seed_lot_id text NOT NULL,
     line_id bigint NOT NULL,
     source_type text NOT NULL,
     vendor_name text NULL,
+    vendor_lot_key text NULL,
     acquired_at timestamptz NULL,
     produced_by_cross_event_id bigint NULL,
     seed_count integer NULL,
@@ -224,17 +227,18 @@ CREATE TABLE seed_lot (
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
 
-    CONSTRAINT uq_seed_lot_seed_lot_id UNIQUE (seed_lot_id),
     CONSTRAINT fk_seed_lot_line
         FOREIGN KEY (line_id) REFERENCES plant_line(id) ON DELETE RESTRICT,
     CONSTRAINT fk_seed_lot_cross_event
         FOREIGN KEY (produced_by_cross_event_id) REFERENCES cross_event(id) ON DELETE RESTRICT,
-    CONSTRAINT ck_seed_lot_id_not_blank CHECK (btrim(seed_lot_id) <> ''),
     CONSTRAINT ck_seed_lot_source_type CHECK (
         source_type IN ('purchased', 'produced', 'unknown')
     ),
     CONSTRAINT ck_seed_lot_vendor_for_purchased CHECK (
         source_type <> 'purchased' OR (vendor_name IS NOT NULL AND btrim(vendor_name) <> '')
+    ),
+    CONSTRAINT ck_seed_lot_vendor_lot_key_not_blank CHECK (
+        vendor_lot_key IS NULL OR btrim(vendor_lot_key) <> ''
     ),
     CONSTRAINT ck_seed_lot_cross_for_produced CHECK (
         source_type <> 'produced' OR produced_by_cross_event_id IS NOT NULL
@@ -249,25 +253,30 @@ CREATE TABLE seed_lot (
         notes IS NULL OR btrim(notes) <> ''
     )
 );
+
+CREATE UNIQUE INDEX ux_seed_lot_vendor_lot_key
+    ON seed_lot (vendor_name, vendor_lot_key)
+    WHERE vendor_lot_key IS NOT NULL;
 ```
 
 Constraints to implement:
 
 - Primary key on `id`.
-- Stable unique public key on `seed_lot_id`.
 - Required FK to `plant_line`.
+- Optional `vendor_lot_key` only when the vendor packet has a real lot key worth preserving.
+- Vendor lot keys are unique per vendor when present.
 - Produced seed lots must reference a `cross_event`.
 - Purchased seed lots must have a non-blank vendor and must not reference an internal cross.
 - `seed_count` cannot be negative.
 
 ### `plant`
 
-`plant` is the durable individual plant record. A clone gets its own `plant_id` even when genetically identical to its source plant.
+`plant` is the durable individual plant record. A clone gets its own integer `id` and its own `breeding_key` even when genetically identical to its source plant.
 
 ```sql
 CREATE TABLE plant (
     id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    plant_id text NOT NULL,
+    breeding_key text NOT NULL,
     line_id bigint NOT NULL,
     source_seed_lot_id bigint NULL,
     clone_source_plant_id bigint NULL,
@@ -287,14 +296,14 @@ CREATE TABLE plant (
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
 
-    CONSTRAINT uq_plant_plant_id UNIQUE (plant_id),
+    CONSTRAINT uq_plant_breeding_key UNIQUE (breeding_key),
     CONSTRAINT fk_plant_line
         FOREIGN KEY (line_id) REFERENCES plant_line(id) ON DELETE RESTRICT,
     CONSTRAINT fk_plant_source_seed_lot
         FOREIGN KEY (source_seed_lot_id) REFERENCES seed_lot(id) ON DELETE RESTRICT,
     CONSTRAINT fk_plant_clone_source
         FOREIGN KEY (clone_source_plant_id) REFERENCES plant(id) ON DELETE RESTRICT,
-    CONSTRAINT ck_plant_id_not_blank CHECK (btrim(plant_id) <> ''),
+    CONSTRAINT ck_plant_breeding_key_not_blank CHECK (btrim(breeding_key) <> ''),
     CONSTRAINT ck_plant_name_not_blank CHECK (btrim(name) <> ''),
     CONSTRAINT ck_plant_propagation_type CHECK (
         propagation_type IN ('seed', 'clone', 'unknown')
@@ -336,7 +345,7 @@ CREATE TABLE plant (
 Constraints to implement:
 
 - Primary key on `id`.
-- Globally unique `plant_id`, no grow-run scope.
+- Globally unique `breeding_key`, no grow-run scope. This is the physical/domain plant tag, not the database identity.
 - Required FK to `plant_line`.
 - Optional FK to `seed_lot` for seed-grown plants.
 - Optional self-FK to clone source plant for clones.
@@ -515,13 +524,13 @@ Constraints to implement:
 
 Target changes:
 
-- Remove `Plant.growrun_id` and replace `UniqueConstraint("growrun_id", "plant_id")` with global `UniqueConstraint("plant_id")`.
+- Remove `Plant.growrun_id`, replace `UniqueConstraint("growrun_id", "plant_id")` with canonical integer `plant.id`, and rename the old text plant tag to `plant.breeding_key`.
 - Move current `growrun.strain` to `plant_line.strain` and `plant_line.cultivar`.
 - Move current `growrun.germination_date` and `growrun.flower_start_date` to plant-level `germinated_at` and `flower_started_at` timestamps for each existing plant.
 - Replace `growrun.is_current` tent membership with `plant_location_history.end_at IS NULL`.
 - Replace `growrun.plant_count` with count queries over current plant locations.
 - Replace `GrowStateService` with a plant/tent context service that derives plant stage from plant lifecycle timestamps and derives tent context from current plants.
-- Remove `growrun_id` from local cloud catalog DTOs, gateway outbox payloads, hosted `CloudPlant`, hosted `CloudPlantMetricStream`, browser responses, and generated frontend types.
+- Remove `growrun_id` from local cloud catalog DTOs, gateway outbox payloads, hosted `CloudPlant`, hosted `CloudPlantMetricStream`, browser responses, and generated frontend types. Dirt-owned sync should carry integer row identity and `breeding_key` only as a displayed/tagged domain key.
 - Remove `Snapshot.growrun_id` or stop writing it, then drop it once no query or projection depends on it. Snapshots should remain scoped by site/tent/view and can gain direct plant association later if plant-specific snapshot identity becomes necessary.
 - Drop the `growrun` table only after source code, tests, cloud schema, and generated contracts no longer reference it.
 
@@ -530,15 +539,15 @@ The direct cutover is intentional. If a deploy-order bridge is required between 
 
 ## Plan of Work
 
-Milestone 1 validates current data and finalizes seed mapping. Inspect all existing `growrun`, `plant`, `plant_metric_stream`, `snapshot`, `cloud_plant`, and `cloud_plant_metric_stream` rows. Create a migration mapping for every existing plant. The expected main-tent mapping is `a -> SBBS-R1-001`, `b -> SBBS-R1-002`, `c -> SBBS-R1-003`, and `d -> SBBS-R1-004`, preserving row ids and moisture metric stream ownership. If existing breeding-tent rows such as `r1` through `r5` exist, add explicit mappings for those rows before applying the migration; do not derive new ids implicitly.
+Milestone 1 validates current data and finalizes breeding-key mapping. Inspect all existing `growrun`, `plant`, `plant_metric_stream`, `snapshot`, `cloud_plant`, and `cloud_plant_metric_stream` rows. Create a migration mapping for every existing plant. The expected main-tent tag mapping is old text `a -> SBBS-R1-001`, `b -> SBBS-R1-002`, `c -> SBBS-R1-003`, and `d -> SBBS-R1-004`, preserving integer row ids and moisture metric stream ownership. If existing breeding-tent rows such as `r1` through `r5` exist, add explicit `breeding_key` mappings for those rows before applying the migration; do not derive new keys implicitly.
 
-Milestone 2 implements local SQLModel target tables. Add `PlantLine`, `SeedLot`, `CrossEvent`, `PlantLocationHistory`, `PlantNote`, and `PlantEvent` models under `apps/shared/src/dirt_shared/models/`. Modify `Plant` to match the target schema: global `plant_id`, plant-line/provenance FKs, lifecycle timestamps, breeding selection fields, and no `growrun_id`. Update `apps/shared/src/dirt_shared/models/__init__.py`.
+Milestone 2 implements local SQLModel target tables. Add `PlantLine`, `SeedLot`, `CrossEvent`, `PlantLocationHistory`, `PlantNote`, and `PlantEvent` models under `apps/shared/src/dirt_shared/models/`. Modify `Plant` to match the target schema: canonical integer `id`, required `breeding_key`, plant-line/provenance FKs, lifecycle timestamps, breeding selection fields, and no `growrun_id`. Update `apps/shared/src/dirt_shared/models/__init__.py`.
 
-Milestone 3 creates and reviews the Atlas migration. The migration must create new tables, backfill one `plant_line` and `seed_lot` for current purchased `Sirius Black x BS01` material, rename existing plant ids using the explicit mapping, create current `plant_location_history` rows for each active plant, move grow-run dates to plant lifecycle timestamps, preserve `plant_metric_stream` relationships, remove `plant.growrun_id`, remove obsolete grow-run constraints, and eventually drop `growrun`. Use a compressed custom-format backup before local apply as described in `docs/database.md`.
+Milestone 3 creates and reviews the Atlas migration. The migration must create new tables, backfill one `plant_line` and `seed_lot` for current purchased `Sirius Black x BS01` material, rename the old text plant identifiers to `breeding_key` values using the explicit mapping, create current `plant_location_history` rows for each active plant, move grow-run dates to plant lifecycle timestamps, preserve `plant_metric_stream` relationships, remove `plant.growrun_id`, remove obsolete grow-run constraints, and eventually drop `growrun`. Use a compressed custom-format backup before local apply as described in `docs/database.md`.
 
-Milestone 4 updates local services. Replace `GrowStateService` callers with a plant/tent context service. Update plant listing/detail/moisture services to query current plants through `plant_location_history`; order by grid `position` and then `plant_id`. Update daily reports, camera publisher, sensor summaries, and any voice tools that still use grow-run plant scope.
+Milestone 4 updates local services. Replace `GrowStateService` callers with a plant/tent context service. Update plant listing/detail/moisture services to query current plants through `plant_location_history`; order by grid `position` and then `breeding_key`. Use integer `plant.id` for internal lookups and sync identity. Update daily reports, camera publisher, sensor summaries, and any voice tools that still use grow-run plant scope.
 
-Milestone 5 updates gateway and hosted cloud projection. Extend `dirt_shared.cloud_contract` with DTOs for plant lines, seed lots, plant locations, plant notes if needed by the browser, and plant rows without `grow_run_id`. Update gateway local projection and outbox validation before changing control-plane routes. Update `CloudPlant` uniqueness to `(site_id, plant_id)` or equivalent global plant identity, add cloud mirror tables for line/location data needed by the browser, and remove `grow_run_id` from hosted plant metric stream identity.
+Milestone 5 updates gateway and hosted cloud projection. Extend `dirt_shared.cloud_contract` with DTOs for plant lines, seed lots, plant locations, plant notes if needed by the browser, and plant rows without `grow_run_id`. Update gateway local projection and outbox validation before changing control-plane routes. Update `CloudPlant` uniqueness to the Dirt-owned integer source plant identity, carry `breeding_key` as a displayed/tagged domain key, add cloud mirror tables for line/location data needed by the browser, and remove `grow_run_id` from hosted plant metric stream identity.
 
 Milestone 6 updates browser API and frontend. Regenerate the hosted OpenAPI client with `scripts/gen-hosted-contract` after FastAPI response models change. Update the tent plant list to query current location rows and show `position`. Update plant detail to show line identity, lifecycle timestamps, current location, notes, and events. Keep the first UI pass workmanlike and data-dense; do not build a marketing or landing page.
 
@@ -609,10 +618,11 @@ Before committing implementation work:
 
 Database acceptance:
 
-- `plant.plant_id` is globally unique and no longer scoped by `growrun_id`.
+- `plant.id` is the canonical Dirt identity for relationships, sync, and configuration references.
+- `plant.breeding_key` is globally unique and no longer scoped by `growrun_id`; it is the physical/domain plant tag, not the database identity.
 - `plant_line` has required non-blank `strain` and `cultivar`.
 - Current purchased material is represented by `plant_line` plus `seed_lot`, even if parent plants are unknown.
-- Current plants have explicit global IDs, lifecycle timestamps migrated from old grow-run dates where appropriate, and current `plant_location_history` rows.
+- Current plants have explicit breeding keys, lifecycle timestamps migrated from old grow-run dates where appropriate, and current `plant_location_history` rows.
 - The query for current tent plants uses `plant_location_history.end_at IS NULL`.
 - A plant cannot have two current locations.
 - A tent position cannot have two current plants.
@@ -622,17 +632,17 @@ Database acceptance:
 Run acceptance SQL after local apply:
 
 ```sql
-SELECT p.plant_id, pl.strain, pl.cultivar, p.germinated_at, p.flower_started_at
+SELECT p.id, p.breeding_key, pl.strain, pl.cultivar, p.germinated_at, p.flower_started_at
 FROM plant p
 JOIN plant_line pl ON pl.id = p.line_id
-ORDER BY p.plant_id;
+ORDER BY p.breeding_key;
 
-SELECT t.tent_id, l.position, p.plant_id, l.start_at
+SELECT t.tent_id, l.position, p.id, p.breeding_key, l.start_at
 FROM plant_location_history l
 JOIN plant p ON p.id = l.plant_id
 JOIN tent t ON t.id = l.tent_id
 WHERE l.end_at IS NULL
-ORDER BY t.tent_id, l.position, p.plant_id;
+ORDER BY t.tent_id, l.position, p.breeding_key;
 
 SELECT table_name, column_name
 FROM information_schema.columns
@@ -640,13 +650,13 @@ WHERE column_name IN ('growrun_id', 'grow_run_id')
 ORDER BY table_name, column_name;
 ```
 
-Expected result: current plants list with global IDs; current tent positions list without duplicates; no source-owned current tables expose `growrun_id` or `grow_run_id`.
+Expected result: current plants list with integer ids and breeding keys; current tent positions list without duplicates; no source-owned current tables expose `growrun_id` or `grow_run_id`.
 
 API and UI acceptance:
 
-- Hosted browser API returns current tent plants from location history with `plant_id`, line identity, current `position`, lifecycle timestamps, and no `grow_run_id`.
+- Hosted browser API returns current tent plants from location history with integer `id`, `breeding_key`, line identity, current `position`, lifecycle timestamps, and no `grow_run_id`.
 - Plant detail can show notes and events for one globally identified plant.
-- Moving a plant to another tent closes the old location row and opens a new row without changing `plant_id`.
+- Moving a plant to another tent closes the old location row and opens a new row without changing `plant.id` or `plant.breeding_key`.
 - The frontend uses generated hosted types and contains no hand-written hosted plant response interfaces.
 
 Test acceptance:
@@ -680,12 +690,15 @@ Internet research sources used for the data-model split:
 
 Current user decisions captured in this draft:
 
-- Plant IDs should be globally stable breeding IDs, not A-D labels.
+- Every table should use integer `id` as the canonical Dirt identity.
+- Do not add text `*_id` columns merely for human convenience or Dirt-owned sync/config readability.
+- Use `name`/`*_name` for human display text and `*_key` only for a real external, hardware, vendor, protocol, file, or domain-native key.
+- Plant tag values such as `SBBS-R1-001` should be modeled as `plant.breeding_key`, not `plant.plant_id`.
 - Do not maintain backwards compatibility shims for old plant identity.
 - Plants may move between tents.
 - Purchased seed lines use the same `plant_line` table, with nullable `project_code` and nullable `generation_label`.
 - Both `strain` and `cultivar` are required on `plant_line`.
-- Clones should get their own global plant IDs.
+- Clones should get their own integer `plant.id` rows and their own `breeding_key` values.
 - `selected_for_breeding` means approved parent used or planned for breeding.
 - `plant_location_history.position` is free text for v1.
 - Culling requires both `culled_at` and `culled_reason`.
@@ -723,3 +736,4 @@ External dependencies:
 ## Revision Notes
 
 - 2026-06-14 / Codex: Initial draft with target SQL schemas, constraints, grow-run retirement path, migration strategy, and validation plan.
+- 2026-06-14 / Codex: Added the data-modeling rule preference and revised the plan to remove duplicative text identifiers from `plant_line`, `cross_event`, and `seed_lot`; `plant.breeding_key` now represents the physical/domain plant tag while integer `plant.id` remains canonical identity.

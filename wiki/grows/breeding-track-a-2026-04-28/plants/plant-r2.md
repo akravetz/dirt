@@ -4,7 +4,7 @@ type: plant
 sources: []
 related: [wiki/grows/breeding-track-a-2026-04-28/README.md, wiki/breeding/male-evaluation.md, wiki/breeding/pollen-handling.md]
 created: 2026-05-30
-updated: 2026-06-10
+updated: 2026-06-14
 ---
 
 # R2
@@ -12,12 +12,12 @@ updated: 2026-06-10
 **Grow run:** [Track A pollen run](../README.md)  
 **Database plant:** `plant.id = 6`, `plant.plant_id = r2`  
 **Sticker:** yellow  
-**Role:** male candidate for pollen evaluation  
+**Role:** selected Track A pollen donor
 **Sex status:** confirmed male pre-sex organs / male sex expression on 2026-06-03
 
 ## Current State
 
-R2 is a confirmed male candidate in the breeding tent Track A pollen run. Today's overview stayed tent-level and did not resolve individual sex sites, and the repeated current-only wet breeding sensor reading still needs freshness/exposure verification, so keep pot-weight, fan-exposure, and [male evaluation](../../../breeding/male-evaluation.md) checks active before pollen collection. See [2026-06-10](../../../daily/2026-06-10.md).
+R2 is the selected Track A pollen donor as of 2026-06-14. It was retained because it showed purple coloration on the pollen sacs; collect and store R2-derived pollen under explicit R2 labels per the [pollen handling](../../../breeding/pollen-handling.md) protocol. Filed in [activity log](../../../log.md).
 
 ## Timeline
 
@@ -35,3 +35,4 @@ R2 is a confirmed male candidate in the breeding tent Track A pollen run. Today'
 - 2026-06-08 — Breeding overview stayed tent-level only; repeated current-only wet reading keeps pot-weight, fan-exposure, sensor, and male-evaluation checks active. See [2026-06-08](../../../daily/2026-06-08.md).
 - 2026-06-09 — Breeding overview stayed tent-level only; repeated current-only wet reading keeps pot-weight, fan-exposure, sensor, and male-evaluation checks active. See [2026-06-09](../../../daily/2026-06-09.md).
 - 2026-06-10 — Breeding overview stayed tent-level only; repeated current-only wet reading keeps pot-weight, fan-exposure, sensor, and male-evaluation checks active. See [2026-06-10](../../../daily/2026-06-10.md).
+- 2026-06-14 — Retained as the only Track A pollen donor because it showed purple coloration on the pollen sacs; current plan is to collect pollen from R2. Filed in [activity log](../../../log.md).

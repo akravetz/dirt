@@ -25,10 +25,10 @@ The observable end state is:
 - [x] (2026-06-12) Reviewed the RS485 wiki pages and the completed Plant A RS485 ExecPlan.
 - [x] (2026-06-12) Reviewed current firmware, ingest, scoped device/capability models, direct-percent plant moisture helpers, and existing RS485 tests.
 - [x] (2026-06-12) Authored this ExecPlan.
-- [ ] Implement Milestone 1: seed logical Plant C and Plant D substrate devices/capabilities and active plant metric streams.
-- [ ] Implement Milestone 2: refactor firmware from one hard-coded sensor to a fixed slot table, still read-only and no address writes.
-- [ ] Implement Milestone 3: add guarded one-at-a-time address provisioning from factory default address `0x01`.
-- [ ] Implement Milestone 4: flash, commission Plant D then Plant C, and validate HTTP status, ingest, Postgres, freshness, and plant telemetry.
+- [x] (2026-06-12 21:11Z) Implemented Milestone 1: seeded logical Plant C and Plant D substrate devices/capabilities and active plant metric streams.
+- [x] (2026-06-12 21:18Z) Implemented Milestone 2: refactored firmware from one hard-coded sensor to a fixed slot table, still read-only and no address writes.
+- [x] (2026-06-12 21:26Z) Implemented Milestone 3: added guarded one-at-a-time address provisioning from factory default address `0x01`.
+- [ ] Implement Milestone 4: flash, commission Plant D then Plant C, and validate HTTP status, ingest, Postgres, freshness, and plant telemetry. Completed: local DB backup, local Atlas migration apply, OTA flash, new multi-slot `/status`, fresh Plant A ingest validation, and temporary read-only scanning firmware. Remaining: make Plant D physically visible on the RS485 bus or replace the suspect probe, commission Plant D at `0x03`, then commission Plant C at `0x04`, and validate C/D Postgres/freshness/plant telemetry.
 - [ ] Implement Milestone 5: update wiki/operator docs after live validation.
 
 ## Surprises & Discoveries
@@ -44,6 +44,18 @@ The observable end state is:
 
 - Observation: Dirt already has the plant-to-capability mapping needed for C/D without adding a new schema table.
   Evidence: `apps/shared/src/dirt_shared/models/plant.py` defines `PlantMetricStream`, and `get_supported_product_plant_moisture_capabilities()` returns active direct `soil_moisture_pct` streams joined through `PlantMetricStream`, `Capability`, and `Device`.
+
+- Observation: After OTA flashing the provisioning firmware, the controller did not see the already-plugged Plant D probe at factory default `0x01` or target `0x03`, including after the operator adjusted wiring once.
+  Evidence: `/status` at 2026-06-12 21:42Z reported Plant A `ok`, Plant D `last_modbus_status='no_response'`, Plant C `last_modbus_status='no_response'`, and provisioning `last_result='no_default_response'` for target Plant D with a cooldown active. A later retry at 2026-06-12 21:54Z still reported provisioning `attempt_count=3`, `last_result='no_default_response'`, Plant D `assigned=false`, and Plant D `last_modbus_status='no_response'`.
+
+- Observation: A temporary read-only scan build saw only the known Plant A probe on the bus.
+  Evidence: `/scan` on 2026-06-12 after flashing `plant-a-substrate-scan-ota` scanned `0x01` through `0x10` with provisioning disabled and found one valid responder at `0x02` with Plant A-like readings. The scan reported no response at `0x01`, `0x03`, `0x04`, or any other scanned address.
+
+- Observation: With Plant A unplugged and only the new probe connected, the temporary read-only scan still saw no RS485 responses.
+  Evidence: `/scan` on 2026-06-12 with only the new probe attached returned no valid responders and no non-empty responses from `0x01` through `0x10`. `/status` remained reachable with `scan_debug_enabled=true`; the Plant A slot changed to `last_modbus_status='no_response'`, proving the controller saw the unplug.
+
+- Observation: A full-range read-only scan with only the new probe connected saw no Modbus responder at any valid SEN0604 address.
+  Evidence: After the operator swapped the A/B pair on the new probe and left the known-good Plant A probe unplugged, `/scan` on 2026-06-12 scanned `0x01` through `0xFE` and reported `ok_count=0`, `no_response_count=254`, all error counters `0`, and an empty `results` array.
 
 ## Decision Log
 
@@ -69,7 +81,13 @@ The observable end state is:
 
 ## Outcomes & Retrospective
 
-Not started. Fill this section after each milestone with what changed, what was validated, and any gaps against the original purpose.
+- Milestone 1 added an idempotent local Atlas seed migration for `plant-d-substrate-node` at Modbus `0x03` and `plant-c-substrate-node` at Modbus `0x04`, plus their four substrate capabilities and active current-grow `plant_metric_stream` rows. Focused tests now cover logical C/D ingest, metadata-driven expected wire metrics, independent freshness per logical device/capability, and direct-percent product moisture for A/C/D without synthesizing Plant B. Validation passed on 2026-06-12: `atlas migrate hash --env local`, `uv run pytest apps/hwd/tests/test_ingest_api.py apps/hwd/tests/test_ingest_derivation.py apps/shared/tests/test_daily_sensors.py apps/gateway/tests/test_sync.py -q` (`83 passed in 33.60s`), and `git diff --check` for the Milestone 1 files. The migration has not been applied to the live local database yet.
+
+- Milestone 2 refactored `firmware/rs485_substrate_node/src/main.cpp` to poll a fixed read-only slot table for Plant A `0x02`, Plant D `0x03`, and Plant C `0x04`, posting one ingest payload per valid logical probe sample. `/status` now reports controller diagnostics plus per-slot latest sample, raw frame, Modbus status/counters, and ingest counters. `/health` reports whether any enabled slot is failing. HWD ingest diagnostics remain aggregate-only and use only existing `DeviceDiagnostics` fields. Validation passed on 2026-06-12: `cd firmware/rs485_substrate_node && pio run -e plant-a-substrate`; `git diff --check -- firmware/rs485_substrate_node/src/main.cpp firmware/rs485_substrate_node/platformio.ini`; and `rg -n "NODE_ZONE_ID|MODBUS_ADDRESS|0x06|07D0|factory|provision|putBool|putUInt|Preferences" firmware/rs485_substrate_node/src/main.cpp firmware/rs485_substrate_node/platformio.ini`, which matched only the existing boot-count `Preferences` / `putUInt("boot_count")` lines. No flash, OTA upload, or live HTTP validation was performed.
+
+- Milestone 3 added guarded factory-default provisioning to the RS485 substrate firmware. Provisioning runs only after a normal due poll cycle, targets unassigned/non-responding slots in fixed Plant D then Plant C order, probes factory address `0x01`, writes address register `0x07D0` with function `0x06`, verifies factory default no longer responds, verifies the target address returns a valid measurement frame, and persists assignment state/address/schema with `Preferences`. `/status` now reports bounded provisioning state, last target, cooldown, counters, verification statuses, and per-slot assignment. HWD ingest diagnostics remain unchanged. Validation passed on 2026-06-12: `cd firmware/rs485_substrate_node && pio run -e plant-a-substrate`; `git diff --check -- firmware/rs485_substrate_node/src/main.cpp firmware/rs485_substrate_node/platformio.ini`; and the requested provisioning source search. No flash, OTA upload, live HTTP validation, or hardware commissioning was performed.
+
+- Milestone 4 is partially complete. A compressed local backup was written to `var/db-backups/dirt-2026-06-12-153952-pre-rs485-cd-substrate.dump`, then `atlas migrate apply --env local` applied `20260612043000_seed_plant_c_d_substrate_nodes.sql`. OTA upload to `plant-a-substrate-node.local` succeeded. The new `/status` shape is live, and Postgres shows fresh Plant A substrate rows from the flashed firmware. Plant D commissioning is blocked because the controller did not receive any response from the already-plugged Plant D probe at `0x01` or `0x03`, including after one wiring adjustment; firmware correctly backed off instead of retrying every loop. No Plant D/C fresh rows exist yet.
 
 ## Context and Orientation
 
@@ -258,6 +276,37 @@ Initial code review notes from 2026-06-12:
 - Existing Plant A RS485 seed/cutover migrations are `migrations/20260610183000_seed_plant_a_substrate_node.sql`, `migrations/20260611120000_plant_a_moisture_cutover.sql`, `migrations/20260612020505_add_plant_metric_stream.sql`, and `migrations/20260611143000_retire_capacitive_moisture_nodes.sql`.
 
 Live validation artifacts should be appended here with short excerpts from `/status`, SQL fresh-row queries, and test output.
+
+Milestone 1 artifacts from 2026-06-12:
+
+- Added `migrations/20260612043000_seed_plant_c_d_substrate_nodes.sql` and regenerated `migrations/atlas.sum` with `atlas migrate hash --env local`.
+- Updated `apps/hwd/tests/test_ingest_api.py`, `apps/hwd/tests/test_ingest_derivation.py`, and `apps/shared/tests/test_daily_sensors.py` for C/D logical substrate probes.
+- Focused validation: `uv run pytest apps/hwd/tests/test_ingest_api.py apps/hwd/tests/test_ingest_derivation.py apps/shared/tests/test_daily_sensors.py apps/gateway/tests/test_sync.py -q` passed with `83 passed in 33.60s`.
+
+Milestone 2 artifacts from 2026-06-12:
+
+- Updated `firmware/rs485_substrate_node/src/main.cpp` and `firmware/rs485_substrate_node/platformio.ini`.
+- Firmware validation: `cd firmware/rs485_substrate_node && pio run -e plant-a-substrate` succeeded; PlatformIO reported RAM `15.0%` and flash `75.3%`.
+- Source guard confirmed no Milestone 3 address-write/provisioning behavior was added; only the existing boot-count `Preferences` usage matched the guard search.
+
+Milestone 3 artifacts from 2026-06-12:
+
+- Updated `firmware/rs485_substrate_node/src/main.cpp` and `firmware/rs485_substrate_node/platformio.ini`.
+- Firmware validation: `cd firmware/rs485_substrate_node && pio run -e plant-a-substrate` succeeded; PlatformIO reported RAM `15.3%` and flash `75.5%`.
+- Source guard confirmed bounded provisioning implementation with `0x06`, `0x07D0`, factory-default probing, cooldown/state reporting, and `Preferences` `getUInt`/`getBool`/`putUInt`/`putBool` assignment persistence.
+
+Milestone 4 partial artifacts from 2026-06-12:
+
+- Backup before live local apply: `var/db-backups/dirt-2026-06-12-153952-pre-rs485-cd-substrate.dump`.
+- `atlas migrate apply --env local` applied `20260612043000_seed_plant_c_d_substrate_nodes.sql`.
+- OTA upload: `cd firmware/rs485_substrate_node && pio run -e plant-a-substrate-ota -t upload` succeeded.
+- `/status` after OTA showed controller slot map live with Plant A `0x02` assigned/ok, Plant D `0x03` unassigned/no_response, Plant C `0x04` unassigned/no_response, and provisioning `last_result='no_default_response'` for target Plant D.
+- SQL fresh-row query showed Plant A substrate rows about 6 seconds old after OTA; no Plant D/C rows yet.
+- After the operator adjusted Plant D wiring, a retry still showed Plant D invisible: provisioning `attempt_count=3`, `last_result='no_default_response'`, `last_default_probe_status='no_response'`, Plant D `assigned=false`, and Plant D `last_modbus_status='no_response'`.
+- Temporary read-only scanner: added and OTA-flashed `plant-a-substrate-scan-ota`, with `scan_debug_enabled=true` and provisioning disabled. `/scan` result found only address `0x02` responding; `0x01` through `0x10` otherwise reported `no_response`.
+- After unplugging Plant A and leaving only the new probe connected, `/scan` found no valid or partial responses from `0x01` through `0x10`; `/status` showed all configured slots at `last_modbus_status='no_response'`.
+- The scan endpoint was compacted for full-range sweeps and `plant-a-substrate-scan-ota` was re-flashed. With only the new probe connected after an A/B swap, `/scan` across `0x01` through `0xFE` returned `ok_count=0`, `no_response_count=254`, all other counters `0`, and no result entries.
+- Cleanup after scanning: removed all temporary scan firmware code and the `plant-a-substrate-scan-ota` PlatformIO env, rebuilt `plant-a-substrate`, and OTA-flashed `plant-a-substrate-ota`. Live `/status` showed Plant A at `0x02` reading successfully again; `/scan` returned `404`.
 
 ## Interfaces and Dependencies
 

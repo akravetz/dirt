@@ -261,6 +261,7 @@ KNOWN_MISSING_PHOTOS = {
     "2026-05-02",  # manual breeding propagation check-in; no photo taken
     "2026-05-05",  # manual Track A seedling up-pot check-in; no photo taken
     "2026-06-04",  # manual Plant A runoff/TDS diagnostic; no photo taken
+    "2026-06-12",  # manual reservoir burn-recovery plan; no photo taken
 }
 
 
@@ -280,6 +281,7 @@ KNOWN_TIMELINE_GAPS = {
     date(2026, 4, 15),   # No photo/chat data
     date(2026, 4, 16),   # No photo/chat data
     date(2026, 4, 17),   # No photo/chat data
+    date(2026, 6, 11),   # No photo/chat data
 }
 
 

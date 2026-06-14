@@ -4,7 +4,7 @@ type: overview
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/index.md, wiki/grows/main-2026-03-15/README.md, wiki/grows/main-2026-03-15/plants/plant-a.md, wiki/grows/main-2026-03-15/plants/plant-b.md, wiki/grows/main-2026-03-15/plants/plant-c.md, wiki/grows/main-2026-03-15/plants/plant-d.md, wiki/grows/breeding-track-a-2026-04-28/README.md, wiki/grows/breeding-track-a-2026-04-28/plants/plant-r1.md, wiki/grows/breeding-track-a-2026-04-28/plants/plant-r2.md, wiki/grows/breeding-track-a-2026-04-28/plants/plant-r3.md, wiki/grows/breeding-track-a-2026-04-28/plants/plant-r4.md, wiki/grows/breeding-track-a-2026-04-28/plants/plant-r5.md, wiki/decisions/2026-05-05-hosted-control-plane.md]
 created: 2026-04-06
-updated: 2026-06-12
+updated: 2026-06-14
 ---
 
 # Grow Overview
@@ -23,11 +23,11 @@ updated: 2026-06-12
 | **Water system** | Autopot 4-Pot XL + 25-gal FlexiTank (active since Apr 15) |
 | **Training** | Single top at node 4–5 → LST → SCROG |
 | **Start date** | 2026-03-15 (germination) |
-| **Grow day** | Day 88 (as of 2026-06-10) |
+| **Grow day** | Day 92 (as of 2026-06-14) |
 
 ## Current Stage
 
-**Late Flower — Day 38 of 12/12**. Flower start date is 2026-05-03; lights run 09:00–21:00 local tent time. Autopot has been active since Apr 15, all four plants are topped, and the SCROG net is installed; airflow, dark-cycle humidity reduction, flower-site inspection, and root-zone checks now outrank stretch training.
+**Late Flower — Day 42 of 12/12**. Flower start date is 2026-05-03; lights run 09:00–21:00 local tent time. Autopot has been active since Apr 15, all four plants are topped, and the SCROG net is installed; airflow, dark-cycle humidity reduction, flower-site inspection, and root-zone checks now outrank stretch training.
 
 **Latest full photo coverage was 2026-06-10** — main overview plus Plant A/B/C/D dedicated views and the breeding overview were captured. Main-tent photos show a dense, upright, flower-heavy canopy with widespread purple-toned tops and many fresh white pistils; the wall/fan areas remain partly overexposed or obstructed, and Plant A's dedicated view is mostly fan-blocked.
 
@@ -39,11 +39,11 @@ updated: 2026-06-12
 
 **Old capacitive nodes are disconnect-safe** — `plant-a-node` through `plant-d-node` are disabled in active inventory and filtered out of system status. Physical disconnect should not create stale/offline device-watchdog noise; historical readings remain in the database.
 
-**Breeding tent is Flower Day 17 with incomplete sensor coverage** — breeding flower start date is 2026-05-24. Only a current reading is available and it exactly repeats the same wet value again: 71.92°F / 83.28% RH / 0.45 kPa with a 66.57°F dew point. The overview is tent-level only and does not resolve individual sex sites. Verify sensor freshness/exposure while checking watering timing, pot weight, fan exposure, air exchange, and R5 sex sites. Track A active plants are R1/R2/R4 confirmed male candidates plus R5 on sex watch; R3 was confirmed female and culled on 2026-06-04.
+**Breeding tent is Flower Day 21 and Track A is narrowed to R2** — breeding flower start date is 2026-05-24. The latest sensor/photo data is still the 2026-06-10 tent-level reading, which repeated wet at 71.92°F / 83.28% RH / 0.45 kPa with a 66.57°F dew point, so verify sensor freshness/exposure during the next physical check. User update on 2026-06-14: R1, R3, R4, and R5 are culled/not retained for pollen; R2 was kept because it showed purple coloration on the pollen sacs, and the current plan is to collect pollen from R2.
 
-**Breeding propagation is active** — clones from all four current plants were taken 2026-05-02 and are under a humidity dome; they were perking with 1 visible rooted clone as of 2026-05-05. Track A regulars flipped to 12/12 on 2026-05-24 for sexing and pollen production. Seven regular seeds germinated, two died during transplant to coco coir, and R3 was culled after female confirmation, leaving four active Track A plants. A 4-inch AC Infinity filtration kit has been selected for the breeding/male isolation tent, and Shelly Plus Plug US is the selected permanent controller for drip-assist pump safety. See [Track A pollen run](grows/breeding-track-a-2026-04-28/README.md), [breeding/cloning.md](breeding/cloning.md), [breeding/timeline.md](breeding/timeline.md), and [breeding/isolation.md](breeding/isolation.md).
+**Breeding propagation is active** — clones from all four current plants were taken 2026-05-02 and are under a humidity dome; they were perking with 1 visible rooted clone as of 2026-05-05. Track A regulars flipped to 12/12 on 2026-05-24 for sexing and pollen production. Seven regular seeds germinated, two died during transplant to coco coir, and the R1-R5 survivor pool has now been narrowed to R2 as the selected pollen donor. A 4-inch AC Infinity filtration kit has been selected for the breeding/male isolation tent, and Shelly Plus Plug US is the selected permanent controller for drip-assist pump safety. See [Track A pollen run](grows/breeding-track-a-2026-04-28/README.md), [breeding/cloning.md](breeding/cloning.md), [breeding/timeline.md](breeding/timeline.md), and [breeding/isolation.md](breeding/isolation.md).
 
-**Reservoir reset 2026-06-10 20:00 MDT after high EC** — the Autopot reservoir EC was found well over 2.0 mS/cm, so the entire reservoir was flushed/replaced with plain Denver tap water adjusted to pH 5.8 and EC ~0.3. Let the plants drink plain water for roughly 24 hours, then rebuild feed to about EC 1.2 around 2026-06-11 20:00 MDT if posture and tray cycling remain acceptable.
+**Reservoir recovery feed diluted to EC 1.0 on 2026-06-12 after high-EC reset** — the Autopot reservoir EC was found well over 2.0 mS/cm on 2026-06-10 evening, so the entire reservoir was flushed/replaced with pH 5.8 / EC ~0.3 Denver tap water for roughly 24 hours. Nutrients were reintroduced and measured 1300 uS/cm (1.3 mS/cm) on the new Apera EC60, then diluted to 1.0 mS/cm as a conservative recovery-strength feed after the burn/high-EC concern. Hold roughly EC 0.8-1.0 for 48-72 hours and judge only fresh damage/new growth before increasing. Treat this as temporary recovery feeding, not a final harvest flush; do a drain-to-waste root-zone reset only if fresh burn/fade advances or root-zone EC evidence stays high.
 
 **Breeding program launched 2026-04-26; narrowed 2026-05-02** — Main goal is stabilizing a dark-purple, sativa-leaning SBxBS01 expression through F2 creation, progeny-tested F3/F4+ family selection, and eventual validated feminized seed production (>90% on-target females). See [breeding/README.md](breeding/README.md), [stabilization strategy](breeding/stabilization-strategy.md), [feminized production](breeding/feminized-production.md), and [decision 2026-05-02](decisions/2026-05-02-purple-stabilization-strategy.md).
 
@@ -54,20 +54,20 @@ updated: 2026-06-12
 
 | Plant | Flower | Purple | Priority | Status |
 |-------|--------|--------|----------|--------|
-| Plant A | Day 38 | ✅ Confirmed genetic | 🔴 Primary | Mostly fan-blocked view; visible material upright; RS485 substrate moisture is canonical after cutover — confirm tray cycling and leaf posture |
-| Plant B | Day 38 | ❌ None | 🟡 Secondary | Active flower clusters visible; no current moisture probe after capacitive retirement — verify tray/media by hand |
-| Plant C | Day 38 | ⚠️ Stress-induced only | 🟡 Secondary | Active wall-side flower clusters visible; no current moisture probe after capacitive retirement — keep root-zone/airflow watch |
-| Plant D | Day 38 | ✅ Confirmed genetic | 🔴 Primary | Strong purple flower tops visible; no current moisture probe after capacitive retirement — verify media/tray by hand |
+| Plant A | Day 42 | ✅ Confirmed genetic | 🔴 Primary | RS485 substrate moisture is canonical; confirm tray cycling and leaf posture while reservoir runs EC 1.0 recovery feed |
+| Plant B | Day 42 | ❌ None | 🟡 Secondary | No current moisture probe after capacitive retirement — verify tray/media by hand while reservoir runs EC 1.0 recovery feed |
+| Plant C | Day 42 | ⚠️ Stress-induced only | 🟡 Secondary | No current moisture probe after capacitive retirement — keep root-zone/airflow watch while reservoir runs EC 1.0 recovery feed |
+| Plant D | Day 42 | ✅ Confirmed genetic | 🔴 Primary | No current moisture probe after capacitive retirement — verify media/tray by hand while reservoir runs EC 1.0 recovery feed |
 
 ## Breeding Track A Plant Status
 
 | Plant | Flower | Sex status | Current action |
 |-------|--------|------------|----------------|
-| R1 | Day 17 | Confirmed male expression | Evaluate male quality; check pot weight, airflow, sensor freshness, and sex sites |
-| R2 | Day 17 | Confirmed male expression | Evaluate male quality; check pot weight, fan exposure, sensor freshness, and sex sites |
-| R3 | Day 17 | Confirmed female; culled 2026-06-04 | Removed from active Track A pollen run |
-| R4 | Day 17 | Confirmed male expression | Evaluate male quality; check pot weight, airflow, sensor freshness, and sex sites |
-| R5 | Day 17 | Not confirmed in wiki | Continue sex watch; check pot weight, fan exposure, sensor freshness, and airflow |
+| R1 | Day 21 | Confirmed male expression; culled/not retained 2026-06-14 | Removed from active Track A pollen run |
+| R2 | Day 21 | Selected pollen donor | Retained for purple coloration on pollen sacs; collect and label R2 pollen |
+| R3 | Day 21 | Confirmed female; culled 2026-06-04 | Removed from active Track A pollen run |
+| R4 | Day 21 | Confirmed male expression; culled/not retained 2026-06-14 | Removed from active Track A pollen run |
+| R5 | Day 21 | Culled/not retained 2026-06-14 | Removed from active Track A pollen run |
 
 ## Environment (Last Reading: Jun 10 14:00 MDT)
 
@@ -83,7 +83,7 @@ updated: 2026-06-12
 | VPD (overnight avg) | 1.10 kPa | 1.2–1.5 kPa | ⚠️ Wet/low |
 | Breeding temp/VPD (now) | 71.92°F / 0.45 kPa | Flower Day 17 small-plant watch | 🔴 Current-only wet repeat; verify sensor freshness/exposure |
 | pH (reservoir) | 5.8 at 2026-06-10 20:00 MDT replacement | 5.5–6.0 | ✅ Corrected |
-| EC (reservoir) | Prior >2.0; new ~0.3 at 2026-06-10 20:00 MDT | 1.2–1.4 late-flower taper | 🟡 Temporary plain-water reset; rebuild to ~1.2 after ~24h |
+| EC (reservoir) | 1.0 mS/cm after 2026-06-12 dilution; rebuilt feed was 1300 uS/cm / 1.3 mS/cm before dilution | 1.2–1.4 late-flower taper | 🟡 Conservative recovery feed below normal band after high-EC/burn concern |
 
 ## Active Action Items
 
@@ -92,16 +92,16 @@ updated: 2026-06-12
 3. **Monitor Plant A after RS485 cutover and Autopot reconnection** 🔴 — A is now on direct RS485 substrate moisture, with post-cutover readings around 26.6%. Confirm tray fill/drawdown/refill behavior and leaf posture; do not top-flush again without new decline or repeated high-EC evidence.
 4. **Hand-check Plants B/C/D without relying on old capacitive moisture** 🔴 — B-D have no current trusted moisture probe after capacitive retirement. Verify tray/float behavior, standing water, media smell/weight, and plant posture directly before restoring normal feed assumptions.
 5. **Disconnect retired capacitive nodes** 🟡 — Old `plant-a-node` through `plant-d-node` are disabled/retired in DB/code and can be physically disconnected. Historical readings remain available; device status should stay clean.
-6. **Verify breeding sensor freshness and conditions directly** 🔴 — Breeding only has a current reading today, and it exactly repeats the same wet value again: 71.92°F / 83.28% RH / 0.45 kPa. Check sensor exposure/freshness, watering timing, pot weight, fan exposure, air exchange, and R5 sex sites directly.
-7. **Manage breeding propagation** 🔴 — A/B/C/D clones still need rooted backup confirmation. Track A is in sexing/pollen mode with R1/R2/R4 confirmed male candidates and R5 still on sex watch; R3 was confirmed female and culled 2026-06-04. Keep labels secure and use the male-evaluation rubric before pollen collection. The 4-inch AC Infinity filtration kit is selected for containment, and Shelly Plus Plug US is selected for unattended drip-assist pump safety. See [Track A pollen run](grows/breeding-track-a-2026-04-28/README.md), [breeding/timeline.md](breeding/timeline.md), [breeding/cloning.md](breeding/cloning.md), and [breeding/isolation.md](breeding/isolation.md).
-8. **Run the high-EC reservoir correction** 🔴 — Reservoir EC was found well over 2.0 on 2026-06-10 evening, so the entire Autopot reservoir was replaced at 20:00 MDT with pH 5.8 / EC ~0.3 tap water. Let plants drink plain water for about 24 hours, then rebuild feed to roughly EC 1.2 around 2026-06-11 20:00 MDT if posture and tray cycling remain acceptable.
+6. **Verify breeding sensor freshness and conditions directly** 🔴 — The latest breeding reading on file is the repeated wet 2026-06-10 value: 71.92°F / 83.28% RH / 0.45 kPa. Check sensor exposure/freshness, watering timing, pot weight, fan exposure, and air exchange directly during the next R2 pollen check.
+7. **Collect and bank R2 pollen** 🔴 — A/B/C/D clones still need rooted backup confirmation. Track A is narrowed to R2 only: R2 was retained for purple coloration on pollen sacs, while R1/R3/R4/R5 are culled/not retained for pollen. Keep R2 isolated, label all pollen explicitly as R2-derived, and follow collection/drying/aliquot/freezer protocol. The 4-inch AC Infinity filtration kit is selected for containment, and Shelly Plus Plug US is selected for unattended drip-assist pump safety. See [Track A pollen run](grows/breeding-track-a-2026-04-28/README.md), [breeding/timeline.md](breeding/timeline.md), [breeding/pollen-handling.md](breeding/pollen-handling.md), [breeding/cloning.md](breeding/cloning.md), and [breeding/isolation.md](breeding/isolation.md).
+8. **Monitor the high-EC recovery feed** 🔴 — Reservoir EC was found well over 2.0 on 2026-06-10 evening and reset with pH 5.8 / EC ~0.3 tap water for roughly 24 hours. Feed was rebuilt to 1300 uS/cm / 1.3 mS/cm, then diluted to EC 1.0 on 2026-06-12 as a conservative recovery-strength reservoir after burn/high-EC concern. Hold roughly EC 0.8-1.0 for 48-72 hours; monitor leaf posture, tray cycling, and any expanding new tip/edge burn before moving back toward the low end of the 1.2-1.4 late-flower band. Do not extend a plain-water reservoir flush by default; if fresh damage advances or root-zone EC evidence stays high, do a drain-to-waste pot flush/reset and restart around EC 0.6-0.8. See [2026-06-12 daily](daily/2026-06-12.md).
 9. **Investigate ThermoForge T3 control deliberately** 🟡 — Heater control must fail OFF; follow the filed UIS/passive-tap investigation before any direct-control replay.
 
 _Resolved 2026-04-28: "Govee H7140 backup arrival" — arrived._
 _Resolved 2026-04-28: "Clone gear + Govee H7142 arrival" — clone gear arrived; H7142 deployed 2026-04-27._
 _Resolved 2026-04-26: "Perform reservoir change" — refilled 2026-04-26 afternoon; next change window ~2026-05-03–06._
 _Resolved 2026-05-02: "Confirm clones + SBxBS01 regular germination" — clones taken 2026-05-02; regular seeds germinated ~2026-04-28._
-_Resolved 2026-05-05 / clarified 2026-05-30 and 2026-06-04: "Pot Track A regular seedlings into coco/perlite" — 7 total sprouted from 10 started seeds; 2 died during transplant to coco coir; R3 later confirmed female and was culled, leaving 4 active Track A plants._
+_Resolved 2026-05-05 / clarified 2026-05-30, 2026-06-04, and 2026-06-14: "Pot Track A regular seedlings into coco/perlite" — 7 total sprouted from 10 started seeds; 2 died during transplant to coco coir; the R1-R5 survivor pool is now narrowed to R2 for purple pollen-sac expression._
 
 ## Upcoming Milestones
 
@@ -121,12 +121,12 @@ _Resolved 2026-05-05 / clarified 2026-05-30 and 2026-06-04: "Pot Track A regular
 | ~~Start 10 SBxBS01 regulars (Track A)~~ | ✅ Started ~2026-04-28; 7 total sprouted, 5 healthy/vigorous as of 2026-05-05 |
 | ~~Pot Track A sprouted regulars into coco/perlite~~ | ✅ Done 2026-05-05; all 7 sprouted seedlings potted for sexing/pollen production |
 | ~~12/12 flip~~ | ✅ Done 2026-05-03; Flower Day 0 |
-| Track A seedling sex watch | Active from ~2026-05-19 → 2026-05-26 from approximate 2026-04-28 germination |
+| ~~Track A seedling sex watch~~ | ✅ Narrowed to R2 as selected pollen donor 2026-06-14 |
 | Main-tent late-flower humidity tightening | Active from Flower Day 21 onward |
 | ThermoForge T3 direct-control investigation | Planned revisit 2026-05-17; fail-OFF requirements filed |
 | Clone selection | Flower weeks 3–4 |
 | Final pheno evaluation | Flower weeks 5–6 |
-| Breeding — F2 cross | After pheno evaluation; selected purple/sativa male × A or D |
+| Breeding — F2 cross | After pheno evaluation; selected R2 pollen × A or D if R2 pollen is successfully banked |
 | Breeding — F3 progeny test | After F2 seed harvest; accelerated small-plant cycle per [stabilization strategy](breeding/stabilization-strategy.md) |
 | Breeding — feminized production validation | After a progeny-tested family repeatedly passes target gates; reverse elite female donor and require >90% on-target female offspring |
 
@@ -138,7 +138,7 @@ _Resolved 2026-05-05 / clarified 2026-05-30 and 2026-06-04: "Pot Track A regular
 
 **Plant C purple note:** Stress-induced purple (stems/petioles, Day 25) concurrent with worsening leaf symptoms — pH/deficiency stress, not genetic. Does not change secondary status.
 
-**Strategy:** Run all 4 to flower weeks 5–6. Evaluate purple calyx depth, aroma, bud structure, stretch, health. Clones from all four current plants were taken 2026-05-02 and remain under a humidity dome; only 1 visible root is present as of 2026-05-05, so clone preservation is not complete yet. **Breeding program**: pollen bank selected purple/sativa SBxBS01 male(s) → F2 cross with A/D or another winner → accelerated F2/F3+ progeny testing for dark-purple, trellis-friendly consistency → validated feminized production lot once a family reliably clears the target gates. See [breeding/README.md](breeding/README.md), [stabilization strategy](breeding/stabilization-strategy.md), and [feminized production](breeding/feminized-production.md).
+**Strategy:** Run all 4 to flower weeks 5–6. Evaluate purple calyx depth, aroma, bud structure, stretch, health. Clones from all four current plants were taken 2026-05-02 and remain under a humidity dome; only 1 visible root is present as of 2026-05-05, so clone preservation is not complete yet. **Breeding program**: bank R2 pollen selected for purple pollen-sac expression → F2 cross with A/D or another winner → accelerated F2/F3+ progeny testing for dark-purple, trellis-friendly consistency → validated feminized production lot once a family reliably clears the target gates. See [breeding/README.md](breeding/README.md), [stabilization strategy](breeding/stabilization-strategy.md), and [feminized production](breeding/feminized-production.md).
 
 ## System Status
 

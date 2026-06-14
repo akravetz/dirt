@@ -38,6 +38,7 @@ Index for the progressive-disclosure docs tree. The root `AGENTS.md` points here
 | Doc | Read before |
 |---|---|
 | [rules/boundary-contracts.md](rules/boundary-contracts.md) | changing FastAPI request/response bodies, gateway/control-plane sync payloads, cloud outbox JSON, command claim/result payloads, generated API contracts, or any other process/network/persistence boundary. |
+| [rules/data-modeling.md](rules/data-modeling.md) | creating or changing SQLModel table models, SQL migrations, primary keys, foreign keys, natural keys, uniqueness constraints, table names, or persisted identifiers. |
 
 ## Wiki (the grow knowledge base)
 

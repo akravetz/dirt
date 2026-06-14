@@ -61,14 +61,26 @@ def test_emitted_payload_yields_all_persisted_metrics(
     )
 
 
-async def test_expected_wire_metrics_come_from_capability_metadata(app_engine) -> None:
+@pytest.mark.parametrize(
+    ("device_id", "zone_id"),
+    [
+        ("plant-a-substrate-node", "plant-a"),
+        ("plant-d-substrate-node", "plant-d"),
+        ("plant-c-substrate-node", "plant-c"),
+    ],
+)
+async def test_expected_wire_metrics_come_from_capability_metadata(
+    app_engine,
+    device_id: str,
+    zone_id: str,
+) -> None:
     readings = ReadingsService(app_engine)
 
     expected = await readings.get_expected_wire_metrics_for_device(
-        device_id="plant-a-substrate-node",
+        device_id=device_id,
         site_id="homebox",
         tent_id="main",
-        zone_id="plant-a",
+        zone_id=zone_id,
     )
 
     assert expected == frozenset(

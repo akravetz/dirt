@@ -4,7 +4,7 @@ type: plant
 sources: []
 related: [wiki/grows/breeding-track-a-2026-04-28/README.md, wiki/breeding/male-evaluation.md, wiki/breeding/pollen-handling.md]
 created: 2026-05-30
-updated: 2026-06-10
+updated: 2026-06-14
 ---
 
 # R4
@@ -12,12 +12,12 @@ updated: 2026-06-10
 **Grow run:** [Track A pollen run](../README.md)  
 **Database plant:** `plant.id = 8`, `plant.plant_id = r4`  
 **Sticker:** blue  
-**Role:** male candidate for pollen evaluation  
+**Role:** culled male candidate from pollen-run pool
 **Sex status:** confirmed male pre-sex organs / male sex expression on 2026-05-30
 
 ## Current State
 
-R4 is a confirmed male candidate in the breeding tent Track A pollen run. Today's overview stayed tent-level and did not resolve individual sex sites, and the repeated current-only wet breeding sensor reading still needs freshness/exposure verification, so keep pot-weight, airflow, and [male evaluation](../../../breeding/male-evaluation.md) checks active before pollen collection. See [2026-06-10](../../../daily/2026-06-10.md).
+R4 was culled/not retained for pollen on 2026-06-14 when Track A was narrowed to R2. The current pollen-collection focus is R2 because it showed purple coloration on the pollen sacs. Filed in [activity log](../../../log.md).
 
 ## Timeline
 
@@ -36,3 +36,4 @@ R4 is a confirmed male candidate in the breeding tent Track A pollen run. Today'
 - 2026-06-08 — Breeding overview stayed tent-level only; repeated current-only wet reading keeps pot-weight, airflow, sensor, and male-evaluation checks active. See [2026-06-08](../../../daily/2026-06-08.md).
 - 2026-06-09 — Breeding overview stayed tent-level only; repeated current-only wet reading keeps pot-weight, airflow, sensor, and male-evaluation checks active. See [2026-06-09](../../../daily/2026-06-09.md).
 - 2026-06-10 — Breeding overview stayed tent-level only; repeated current-only wet reading keeps pot-weight, airflow, sensor, and male-evaluation checks active. See [2026-06-10](../../../daily/2026-06-10.md).
+- 2026-06-14 — Culled/not retained for pollen when Track A narrowed to R2 for purple pollen-sac expression. Filed in [activity log](../../../log.md).

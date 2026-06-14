@@ -18,7 +18,7 @@ updated: 2026-06-12
 
 ## Current State
 
-Day 88 / Flower Day 38: The dedicated view remains mostly fan-blocked, but visible right-side foliage and purple flower material are upright. Plant A was cut over to the RS485 substrate node on 2026-06-10 evening MDT; `plant-a-substrate-node` is now the canonical current moisture source, with calibrated operational readings around 26.6% moisture, 21.5 deg C substrate temperature, 144 us/cm EC, and pH 4.5. Whole-reservoir EC was found high on 2026-06-10 evening and reset to pH 5.8 / EC ~0.3 plain water; keep confirming tray fill/drawdown and leaf posture through the ~24h plain-water correction. See [2026-06-10](../../../daily/2026-06-10.md).
+Day 90 / Flower Day 40: The latest full dedicated view remains the 2026-06-10 mostly fan-blocked view, but visible right-side foliage and purple flower material were upright. Plant A was cut over to the RS485 substrate node on 2026-06-10 evening MDT; `plant-a-substrate-node` is now the canonical current moisture source. After the high-EC reservoir reset and 24-hour pH-adjusted tap-water correction, rebuilt feed measured 1300 uS/cm / 1.3 mS/cm and was diluted to EC 1.0 as a conservative recovery-strength reservoir on 2026-06-12. Hold EC 0.8-1.0 for 48-72h and keep confirming tray fill/drawdown, leaf posture, and fresh tip damage. See [2026-06-12 daily](../../../daily/2026-06-12.md).
 
 ## Timeline
 
@@ -89,3 +89,4 @@ Day 88 / Flower Day 38: The dedicated view remains mostly fan-blocked, but visib
 - 2026-06-10 — [Day 88 / Flower Day 38: mostly fan-blocked view; visible material upright, rough moisture stable near 50.7% after watched Autopot rewet](../../../daily/2026-06-10.md)
 - 2026-06-10 evening — [Whole Autopot reservoir EC found >2.0; reservoir reset to pH 5.8 / EC ~0.3 plain water for ~24h correction](../../../daily/2026-06-10.md)
 - 2026-06-10 evening — Plant A current moisture cut over from the old capacitive `plant-a-node` raw stream to `plant-a-substrate-node` RS485 direct `soil_moisture_pct`; old capacitive A-D nodes retired from current operations 2026-06-11.
+- 2026-06-12 — [Day 90 / Flower Day 40: post-flush recovery plan filed; hold EC 0.8-1.0 for 48-72h and only root-zone flush if fresh damage advances](../../../daily/2026-06-12.md)

@@ -4,7 +4,7 @@ type: plant
 sources: []
 related: [wiki/grows/breeding-track-a-2026-04-28/README.md, wiki/breeding/male-evaluation.md]
 created: 2026-05-30
-updated: 2026-06-10
+updated: 2026-06-14
 ---
 
 # R5
@@ -12,12 +12,12 @@ updated: 2026-06-10
 **Grow run:** [Track A pollen run](../README.md)  
 **Database plant:** `plant.id = 9`, `plant.plant_id = r5`  
 **Sticker:** orange  
-**Role:** sexing / pollen-run candidate  
-**Sex status:** not confirmed in the wiki as of 2026-05-30
+**Role:** culled pollen-run candidate
+**Sex status:** not confirmed in the wiki before cull
 
 ## Current State
 
-R5 remains the active Track A plant without confirmed sex expression filed in the wiki. Today's overview stayed tent-level and did not resolve individual sex sites, and the repeated current-only wet breeding sensor reading still needs freshness/exposure verification, so continue sex watch while checking pot weight, fan exposure, and airflow. See [2026-06-10](../../../daily/2026-06-10.md).
+R5 was culled/not retained for pollen on 2026-06-14 when Track A was narrowed to R2. The current pollen-collection focus is R2 because it showed purple coloration on the pollen sacs. Filed in [activity log](../../../log.md).
 
 ## Timeline
 
@@ -35,3 +35,4 @@ R5 remains the active Track A plant without confirmed sex expression filed in th
 - 2026-06-08 — Breeding overview stayed tent-level only; no sex confirmation filed, and repeated current-only wet sensor data keeps sex watch plus small-pot checks active. See [2026-06-08](../../../daily/2026-06-08.md).
 - 2026-06-09 — Breeding overview stayed tent-level only; no sex confirmation filed, and repeated current-only wet sensor data keeps sex watch plus small-pot checks active. See [2026-06-09](../../../daily/2026-06-09.md).
 - 2026-06-10 — Breeding overview stayed tent-level only; no sex confirmation filed, and repeated current-only wet sensor data keeps sex watch plus small-pot checks active. See [2026-06-10](../../../daily/2026-06-10.md).
+- 2026-06-14 — Culled/not retained for pollen when Track A narrowed to R2 for purple pollen-sac expression. Filed in [activity log](../../../log.md).

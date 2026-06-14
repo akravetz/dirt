@@ -1248,3 +1248,21 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - Plants B-D have no trusted current moisture probe until replacement probes exist; use hand checks, tray behavior, plant posture, media condition, and runoff/slurry evidence.
 - Operator note: physically disconnecting the old capacitive nodes is safe and should not create stale/offline system-status noise.
 - Updated: `hardware/rs485-substrate-sensors.md`, `hardware/rs485-substrate-sensor-calibration.md`, `hardware/esp32-plant-nodes.md`, `overview.md`, `grows/main-2026-03-15/README.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`.
+
+## [2026-06-12] query-filed | Post-flush reservoir diluted to EC 1.0
+- User reported the new EC meter is an Apera Instruments AI314 Premium Series EC60.
+- After the 2026-06-10 high-EC reservoir reset and roughly 24 hours on pH-adjusted tap water, rebuilt nutrient solution measured 1300 uS/cm / 1.3 mS/cm, which is inside the late-flower Autopot reservoir band.
+- The reservoir was then diluted to EC 1.0 mS/cm as a conservative recovery-strength feed after the nutrient-burn/high-EC concern.
+- Updated: `environment/nutrients.md`, `concepts/ec.md`, `overview.md`, `grows/main-2026-03-15/README.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `index.md`.
+
+## [2026-06-12] query-filed | Post-flush burn recovery plan
+- User reported the plants still look lighter green and the tips still look burned after the 24-hour pH-adjusted tap-water flush and nutrient restart.
+- Plan filed from AutoPot/grower EC guidance: hold reservoir at about EC 0.8-1.0 total for 48-72 hours, keep pH around 5.8, judge recovery by new growth/fresh burn/posture/tray cycling, and do not extend plain-water reservoir flushing by default.
+- Escalation condition: if fresh tip/edge burn keeps advancing, leaves keep fading rapidly, posture declines, or root-zone/runoff/slurry EC evidence remains high, turn off the valve, remove pots from trays, top-flush drain-to-waste, let pots drain, clean trays/valves, and restart around EC 0.6-0.8.
+- Updated: `daily/2026-06-12.md`, `environment/nutrients.md`, `overview.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `index.md`.
+
+## [2026-06-14] query-filed | Track A narrowed to R2 pollen donor
+- User reported all Track A R1-R5 pollen-run plants have been culled except R2.
+- R2 was retained because it showed purple coloration on the pollen sacs, and the current plan is to collect pollen from R2.
+- Track A is now a single-donor pollen collection: label all pollen explicitly as R2-derived and follow collection, drying, aliquot, and freezer protocol.
+- Updated: `overview.md`, `breeding/README.md`, `breeding/timeline.md`, `breeding/isolation.md`, `grows/README.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `index.md`.

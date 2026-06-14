@@ -1,14 +1,16 @@
 // Seeed XIAO ESP32-C3 RS485 substrate node.
 //
-// Reads a DFRobot SEN0604 substrate sensor over the Seeed RS485 expansion
-// board and posts direct Plant A substrate metrics. Runtime observability is
-// LAN-first: OTA, GET /health, and GET /status must work without USB serial.
+// Reads DFRobot SEN0604 substrate sensors over the Seeed RS485 expansion
+// board and posts one logical probe payload per responding plant. Runtime
+// observability is LAN-first: OTA, GET /health, and GET /status must work
+// without USB serial.
 
 #include <Arduino.h>
 #include <Preferences.h>
 #include <WebServer.h>
 #include <WiFi.h>
 #include <esp_system.h>
+#include <stdarg.h>
 
 #include "ingest_client.h"
 #include "ota.h"
@@ -23,17 +25,11 @@
 #ifndef NODE_TENT_ID
 #define NODE_TENT_ID "main"
 #endif
-#ifndef NODE_ZONE_ID
-#define NODE_ZONE_ID "plant-a"
-#endif
 #ifndef NODE_DEVICE_ID
 #define NODE_DEVICE_ID "plant-a-substrate-node"
 #endif
 #ifndef NODE_HOSTNAME
 #define NODE_HOSTNAME "plant-a-substrate-node"
-#endif
-#ifndef MODBUS_ADDRESS
-#define MODBUS_ADDRESS 0x02
 #endif
 #ifndef POST_INTERVAL_MS
 #define POST_INTERVAL_MS 30000
@@ -46,14 +42,20 @@ constexpr uint32_t SENSOR_BAUD = 9600;
 constexpr uint32_t RESPONSE_TIMEOUT_MS = 700;
 constexpr size_t MODBUS_RESPONSE_MAX = 32;
 constexpr size_t MODBUS_MEASUREMENT_LEN = 13;
+constexpr size_t MODBUS_WRITE_RESPONSE_LEN = 8;
+constexpr uint8_t FACTORY_DEFAULT_ADDRESS = 0x01;
+constexpr uint16_t ADDRESS_REGISTER = 0x07D0;
+constexpr uint32_t PROVISION_SETTLE_MS = 500;
+constexpr uint32_t PROVISION_FAILURE_COOLDOWN_MS = 300000;
+constexpr uint32_t PROVISION_SUCCESS_COOLDOWN_MS = 60000;
+constexpr uint32_t PROVISION_PREF_SCHEMA_VERSION = 1;
 
 constexpr const char* SITE_ID = NODE_SITE_ID;
 constexpr const char* TENT_ID = NODE_TENT_ID;
-constexpr const char* ZONE_ID = NODE_ZONE_ID;
-constexpr const char* DEVICE_ID = NODE_DEVICE_ID;
+constexpr const char* CONTROLLER_DEVICE_ID = NODE_DEVICE_ID;
 constexpr const char* HOSTNAME = NODE_HOSTNAME;
-constexpr uint8_t SENSOR_ADDRESS = MODBUS_ADDRESS;
 constexpr uint32_t POLL_INTERVAL_MS = POST_INTERVAL_MS;
+constexpr const char* PROVISION_PREF_NAMESPACE = "rs485_bus";
 
 // --- State ----------------------------------------------------------------
 
@@ -64,6 +66,28 @@ enum class ModbusStatus {
     ShortResponse,
     CrcMismatch,
     BadHeader,
+    ExtraResponse,
+};
+
+enum class ProvisioningResult {
+    Never,
+    NoTarget,
+    NoDefaultResponse,
+    InvalidDefaultResponse,
+    WriteNoResponse,
+    WriteInvalidEcho,
+    DefaultStillResponding,
+    TargetVerifyFailed,
+    Assigned,
+};
+
+enum class ProvisioningPhase {
+    Idle,
+    ProbingDefault,
+    WritingAddress,
+    Settling,
+    VerifyingDefault,
+    VerifyingTarget,
 };
 
 struct SubstrateSample {
@@ -75,14 +99,72 @@ struct SubstrateSample {
     uint32_t read_ms = 0;
 };
 
+struct ProbeSlot {
+    ProbeSlot(const char* label,
+              const char* zone,
+              const char* device,
+              uint8_t address,
+              bool slot_enabled,
+              bool target,
+              bool initial_assigned)
+        : plant_label(label),
+          zone_id(zone),
+          device_id(device),
+          modbus_address(address),
+          enabled(slot_enabled),
+          provisioning_target(target),
+          assigned(initial_assigned) {}
+
+    const char* plant_label;
+    const char* zone_id;
+    const char* device_id;
+    uint8_t modbus_address;
+    bool enabled;
+    bool provisioning_target;
+    bool assigned;
+
+    SubstrateSample latest_sample;
+    uint8_t last_frame[MODBUS_RESPONSE_MAX] = {};
+    size_t last_frame_len = 0;
+    ModbusStatus last_modbus_status = ModbusStatus::Never;
+
+    uint32_t modbus_success_count = 0;
+    uint32_t modbus_failure_count = 0;
+    uint32_t modbus_crc_mismatch_count = 0;
+    uint32_t modbus_short_response_count = 0;
+    uint32_t modbus_no_response_count = 0;
+    uint32_t modbus_bad_header_count = 0;
+
+    uint32_t ingest_ok_count = 0;
+    uint32_t ingest_fail_count = 0;
+    int last_ingest_code = 0;
+};
+
+struct ProvisioningState {
+    ProvisioningPhase phase = ProvisioningPhase::Idle;
+    ProvisioningResult last_result = ProvisioningResult::Never;
+    ModbusStatus last_default_probe_status = ModbusStatus::Never;
+    ModbusStatus last_target_verify_status = ModbusStatus::Never;
+    int last_target_slot = -1;
+    uint8_t last_target_address = 0;
+    uint32_t attempt_count = 0;
+    uint32_t success_count = 0;
+    uint32_t failure_count = 0;
+    uint32_t cooldown_skip_count = 0;
+    uint32_t last_attempt_ms = 0;
+    uint32_t cooldown_until_ms = 0;
+};
+
 HardwareSerial rs485(1);
 WebServer http_server(80);
 IngestClient ingest(SERVER_URL, SENSOR_INGEST_TOKEN, FIRMWARE_VERSION);
 
-SubstrateSample g_latest_sample;
-uint8_t g_last_frame[MODBUS_RESPONSE_MAX] = {};
-size_t g_last_frame_len = 0;
-ModbusStatus g_last_modbus_status = ModbusStatus::Never;
+ProbeSlot g_slots[] = {
+    {"Plant A", "plant-a", "plant-a-substrate-node", 0x02, true, false, true},
+    {"Plant D", "plant-d", "plant-d-substrate-node", 0x03, true, true, false},
+    {"Plant C", "plant-c", "plant-c-substrate-node", 0x04, true, true, false},
+};
+constexpr size_t SLOT_COUNT = sizeof(g_slots) / sizeof(g_slots[0]);
 
 uint32_t g_last_poll_ms = 0;
 uint32_t g_loop_last_ms = 0;
@@ -90,15 +172,9 @@ uint32_t g_loop_gap_max_ms = 0;
 uint32_t g_boot_count = 0;
 esp_reset_reason_t g_reset_reason = ESP_RST_UNKNOWN;
 
-uint32_t g_modbus_success_count = 0;
-uint32_t g_modbus_failure_count = 0;
-uint32_t g_modbus_crc_mismatch_count = 0;
-uint32_t g_modbus_short_response_count = 0;
-uint32_t g_modbus_no_response_count = 0;
-
-uint32_t g_ingest_ok_count = 0;
-uint32_t g_ingest_fail_count = 0;
+size_t g_last_modbus_response_len = 0;
 int g_last_ingest_code = 0;
+ProvisioningState g_provisioning;
 
 // --- Modbus ---------------------------------------------------------------
 
@@ -118,9 +194,9 @@ uint16_t crc16_modbus(const uint8_t* data, size_t len) {
     return crc;
 }
 
-void build_read_command(uint8_t* command, size_t len) {
+void build_read_command(uint8_t address, uint8_t* command, size_t len) {
     if (len < 8) return;
-    command[0] = SENSOR_ADDRESS;
+    command[0] = address;
     command[1] = 0x03;
     command[2] = 0x00;
     command[3] = 0x00;
@@ -131,9 +207,27 @@ void build_read_command(uint8_t* command, size_t len) {
     command[7] = crc >> 8;
 }
 
-void remember_frame(const uint8_t* data, size_t len) {
-    g_last_frame_len = min(len, MODBUS_RESPONSE_MAX);
-    memcpy(g_last_frame, data, g_last_frame_len);
+void build_write_register_command(uint8_t address,
+                                  uint16_t reg,
+                                  uint16_t value,
+                                  uint8_t* command,
+                                  size_t len) {
+    if (len < MODBUS_WRITE_RESPONSE_LEN) return;
+    command[0] = address;
+    command[1] = 0x06;
+    command[2] = reg >> 8;
+    command[3] = reg & 0xFF;
+    command[4] = value >> 8;
+    command[5] = value & 0xFF;
+    uint16_t crc = crc16_modbus(command, 6);
+    command[6] = crc & 0xFF;
+    command[7] = crc >> 8;
+}
+
+void remember_frame(ProbeSlot& slot, const uint8_t* data, size_t len) {
+    slot.last_frame_len = min(len, MODBUS_RESPONSE_MAX);
+    memcpy(slot.last_frame, data, slot.last_frame_len);
+    g_last_modbus_response_len = slot.last_frame_len;
 }
 
 void send_command(const uint8_t* command, size_t len) {
@@ -149,7 +243,7 @@ void send_command(const uint8_t* command, size_t len) {
     digitalWrite(RS485_ENABLE_PIN, LOW);
 }
 
-size_t read_response(uint8_t* response, size_t max_len) {
+size_t read_response(uint8_t* response, size_t max_len, bool service_http = true) {
     size_t len = 0;
     uint32_t start_ms = millis();
     while (millis() - start_ms < RESPONSE_TIMEOUT_MS && len < max_len) {
@@ -159,7 +253,9 @@ size_t read_response(uint8_t* response, size_t max_len) {
         }
         ota::loop();
         wifi_client::maintain();
-        http_server.handleClient();
+        if (service_http) {
+            http_server.handleClient();
+        }
         delay(1);
     }
     return len;
@@ -181,85 +277,384 @@ const char* modbus_status_name(ModbusStatus status) {
             return "crc_mismatch";
         case ModbusStatus::BadHeader:
             return "bad_header";
+        case ModbusStatus::ExtraResponse:
+            return "extra_response";
         case ModbusStatus::Never:
         default:
             return "never";
     }
 }
 
-bool read_substrate_sample() {
-    uint8_t command[8] = {};
-    build_read_command(command, sizeof(command));
-    send_command(command, sizeof(command));
-
-    uint8_t response[MODBUS_RESPONSE_MAX] = {};
-    size_t len = read_response(response, sizeof(response));
-    remember_frame(response, len);
-
-    if (len == 0) {
-        g_last_modbus_status = ModbusStatus::NoResponse;
-        g_modbus_no_response_count++;
-        g_modbus_failure_count++;
-        Serial.println("[modbus] no response");
-        return false;
+const char* provisioning_result_name(ProvisioningResult result) {
+    switch (result) {
+        case ProvisioningResult::NoTarget:
+            return "no_target";
+        case ProvisioningResult::NoDefaultResponse:
+            return "no_default_response";
+        case ProvisioningResult::InvalidDefaultResponse:
+            return "invalid_default_response";
+        case ProvisioningResult::WriteNoResponse:
+            return "write_no_response";
+        case ProvisioningResult::WriteInvalidEcho:
+            return "write_invalid_echo";
+        case ProvisioningResult::DefaultStillResponding:
+            return "default_still_responding";
+        case ProvisioningResult::TargetVerifyFailed:
+            return "target_verify_failed";
+        case ProvisioningResult::Assigned:
+            return "assigned";
+        case ProvisioningResult::Never:
+        default:
+            return "never";
     }
+}
 
-    if (len < MODBUS_MEASUREMENT_LEN) {
-        g_last_modbus_status = ModbusStatus::ShortResponse;
-        g_modbus_short_response_count++;
-        g_modbus_failure_count++;
-        Serial.printf("[modbus] short response len=%u\n", static_cast<unsigned>(len));
-        return false;
+const char* provisioning_phase_name(ProvisioningPhase phase) {
+    switch (phase) {
+        case ProvisioningPhase::ProbingDefault:
+            return "probing_default";
+        case ProvisioningPhase::WritingAddress:
+            return "writing_address";
+        case ProvisioningPhase::Settling:
+            return "settling";
+        case ProvisioningPhase::VerifyingDefault:
+            return "verifying_default";
+        case ProvisioningPhase::VerifyingTarget:
+            return "verifying_target";
+        case ProvisioningPhase::Idle:
+        default:
+            return "idle";
     }
+}
 
-    if (response[0] != SENSOR_ADDRESS || response[1] != 0x03 || response[2] != 0x08) {
-        g_last_modbus_status = ModbusStatus::BadHeader;
-        g_modbus_failure_count++;
-        Serial.printf("[modbus] bad header addr=0x%02X fn=0x%02X bytes=%u\n",
-                      response[0], response[1], response[2]);
-        return false;
+
+ModbusStatus parse_measurement_response(uint8_t address,
+                                        const uint8_t* response,
+                                        size_t len,
+                                        bool require_single_frame,
+                                        SubstrateSample& sample) {
+    if (len == 0) return ModbusStatus::NoResponse;
+    if (len < MODBUS_MEASUREMENT_LEN) return ModbusStatus::ShortResponse;
+    if (require_single_frame && len != MODBUS_MEASUREMENT_LEN) return ModbusStatus::ExtraResponse;
+
+    if (response[0] != address || response[1] != 0x03 || response[2] != 0x08) {
+        return ModbusStatus::BadHeader;
     }
 
     uint16_t expected_crc = crc16_modbus(response, MODBUS_MEASUREMENT_LEN - 2);
     uint16_t received_crc = static_cast<uint16_t>(response[11]) |
                             (static_cast<uint16_t>(response[12]) << 8);
-    if (expected_crc != received_crc) {
-        g_last_modbus_status = ModbusStatus::CrcMismatch;
-        g_modbus_crc_mismatch_count++;
-        g_modbus_failure_count++;
-        Serial.printf("[modbus] crc mismatch expected=%04X received=%04X\n",
-                      expected_crc, received_crc);
-        return false;
-    }
+    if (expected_crc != received_crc) return ModbusStatus::CrcMismatch;
 
     uint16_t moisture_raw = read_u16_be(response + 3);
     int16_t temp_raw = static_cast<int16_t>(read_u16_be(response + 5));
     uint16_t ec_raw = read_u16_be(response + 7);
     uint16_t ph_raw = read_u16_be(response + 9);
 
-    g_latest_sample.valid = true;
-    g_latest_sample.moisture_pct = moisture_raw / 10.0f;
-    g_latest_sample.temp_c = temp_raw / 10.0f;
-    g_latest_sample.ec_us_cm = ec_raw;
-    g_latest_sample.ph = ph_raw / 10.0f;
-    g_latest_sample.read_ms = millis();
+    sample.valid = true;
+    sample.moisture_pct = moisture_raw / 10.0f;
+    sample.temp_c = temp_raw / 10.0f;
+    sample.ec_us_cm = ec_raw;
+    sample.ph = ph_raw / 10.0f;
+    sample.read_ms = millis();
+    return ModbusStatus::Ok;
+}
 
-    g_last_modbus_status = ModbusStatus::Ok;
-    g_modbus_success_count++;
-    Serial.printf("[modbus] moisture=%.1f%% temp=%.1fC ec=%u ph=%.1f\n",
-                  g_latest_sample.moisture_pct,
-                  g_latest_sample.temp_c,
-                  g_latest_sample.ec_us_cm,
-                  g_latest_sample.ph);
+ModbusStatus read_measurement(uint8_t address,
+                              bool require_single_frame,
+                              SubstrateSample& sample,
+                              uint8_t* response,
+                              size_t max_len,
+                              size_t& len,
+                              bool service_http = true) {
+    uint8_t command[8] = {};
+    build_read_command(address, command, sizeof(command));
+    send_command(command, sizeof(command));
+    len = read_response(response, max_len, service_http);
+    return parse_measurement_response(address, response, len, require_single_frame, sample);
+}
+
+void record_slot_modbus_failure(ProbeSlot& slot, ModbusStatus status) {
+    slot.last_modbus_status = status;
+    slot.modbus_failure_count++;
+    switch (status) {
+        case ModbusStatus::NoResponse:
+            slot.modbus_no_response_count++;
+            break;
+        case ModbusStatus::ShortResponse:
+            slot.modbus_short_response_count++;
+            break;
+        case ModbusStatus::CrcMismatch:
+            slot.modbus_crc_mismatch_count++;
+            break;
+        case ModbusStatus::BadHeader:
+        case ModbusStatus::ExtraResponse:
+            slot.modbus_bad_header_count++;
+            break;
+        case ModbusStatus::Never:
+        case ModbusStatus::Ok:
+        default:
+            break;
+    }
+}
+
+bool read_substrate_sample(ProbeSlot& slot) {
+    uint8_t response[MODBUS_RESPONSE_MAX] = {};
+    size_t len = 0;
+    SubstrateSample sample;
+    ModbusStatus status =
+        read_measurement(slot.modbus_address, false, sample, response, sizeof(response), len);
+    remember_frame(slot, response, len);
+
+    if (status != ModbusStatus::Ok) {
+        record_slot_modbus_failure(slot, status);
+        Serial.printf("[modbus] %s addr=0x%02X status=%s len=%u\n",
+                      slot.device_id,
+                      slot.modbus_address,
+                      modbus_status_name(status),
+                      static_cast<unsigned>(len));
+        return false;
+    }
+
+    slot.latest_sample = sample;
+    slot.last_modbus_status = ModbusStatus::Ok;
+    slot.modbus_success_count++;
+    Serial.printf("[modbus] %s addr=0x%02X moisture=%.1f%% temp=%.1fC ec=%u ph=%.1f\n",
+                  slot.device_id,
+                  slot.modbus_address,
+                  slot.latest_sample.moisture_pct,
+                  slot.latest_sample.temp_c,
+                  slot.latest_sample.ec_us_cm,
+                  slot.latest_sample.ph);
     return true;
+}
+
+// --- Provisioning ---------------------------------------------------------
+
+void slot_pref_keys(size_t slot_index,
+                    char* assigned_key,
+                    size_t assigned_len,
+                    char* addr_key,
+                    size_t addr_len) {
+    snprintf(assigned_key, assigned_len, "slot%u_assigned", static_cast<unsigned>(slot_index));
+    snprintf(addr_key, addr_len, "slot%u_addr", static_cast<unsigned>(slot_index));
+}
+
+void load_slot_assignments() {
+    Preferences prefs;
+    prefs.begin(PROVISION_PREF_NAMESPACE, /*readOnly=*/false);
+    uint32_t schema = prefs.getUInt("schema", 0);
+    if (schema != PROVISION_PREF_SCHEMA_VERSION) {
+        prefs.putUInt("schema", PROVISION_PREF_SCHEMA_VERSION);
+    }
+
+    for (size_t i = 0; i < SLOT_COUNT; i++) {
+        ProbeSlot& slot = g_slots[i];
+        if (!slot.provisioning_target) {
+            slot.assigned = true;
+            continue;
+        }
+
+        char assigned_key[16];
+        char addr_key[16];
+        slot_pref_keys(i, assigned_key, sizeof(assigned_key), addr_key, sizeof(addr_key));
+        uint32_t stored_addr = prefs.getUInt(addr_key, slot.modbus_address);
+        bool stored_assigned = prefs.getBool(assigned_key, false);
+        slot.assigned = stored_assigned && stored_addr == slot.modbus_address;
+    }
+    prefs.end();
+}
+
+void mark_slot_assigned(size_t slot_index) {
+    if (slot_index >= SLOT_COUNT) return;
+    ProbeSlot& slot = g_slots[slot_index];
+    Preferences prefs;
+    prefs.begin(PROVISION_PREF_NAMESPACE, /*readOnly=*/false);
+    char assigned_key[16];
+    char addr_key[16];
+    slot_pref_keys(slot_index, assigned_key, sizeof(assigned_key), addr_key, sizeof(addr_key));
+    prefs.putUInt("schema", PROVISION_PREF_SCHEMA_VERSION);
+    prefs.putUInt(addr_key, slot.modbus_address);
+    prefs.putBool(assigned_key, true);
+    prefs.end();
+    slot.assigned = true;
+}
+
+bool cooldown_active(uint32_t now, uint32_t until_ms) {
+    return until_ms != 0 && static_cast<int32_t>(until_ms - now) > 0;
+}
+
+uint32_t provisioning_cooldown_remaining_ms() {
+    uint32_t now = millis();
+    if (!cooldown_active(now, g_provisioning.cooldown_until_ms)) return 0;
+    return g_provisioning.cooldown_until_ms - now;
+}
+
+int next_provisioning_target_index() {
+    for (size_t i = 0; i < SLOT_COUNT; i++) {
+        ProbeSlot& slot = g_slots[i];
+        if (!slot.enabled || !slot.provisioning_target) continue;
+        if (!slot.assigned && slot.modbus_success_count == 0) return static_cast<int>(i);
+    }
+    return -1;
+}
+
+bool validate_write_register_echo(const uint8_t* response,
+                                  size_t len,
+                                  uint8_t address,
+                                  uint16_t reg,
+                                  uint16_t value) {
+    if (len != MODBUS_WRITE_RESPONSE_LEN) return false;
+    if (response[0] != address || response[1] != 0x06) return false;
+    if (read_u16_be(response + 2) != reg || read_u16_be(response + 4) != value) return false;
+    uint16_t expected_crc = crc16_modbus(response, MODBUS_WRITE_RESPONSE_LEN - 2);
+    uint16_t received_crc = static_cast<uint16_t>(response[6]) |
+                            (static_cast<uint16_t>(response[7]) << 8);
+    return expected_crc == received_crc;
+}
+
+bool write_factory_address(uint8_t target_address, size_t& len) {
+    uint8_t command[MODBUS_WRITE_RESPONSE_LEN] = {};
+    uint8_t response[MODBUS_RESPONSE_MAX] = {};
+    build_write_register_command(
+        FACTORY_DEFAULT_ADDRESS, ADDRESS_REGISTER, target_address, command, sizeof(command));
+    send_command(command, sizeof(command));
+    len = read_response(response, sizeof(response));
+    return validate_write_register_echo(
+        response, len, FACTORY_DEFAULT_ADDRESS, ADDRESS_REGISTER, target_address);
+}
+
+void service_delay(uint32_t delay_ms) {
+    uint32_t start_ms = millis();
+    while (millis() - start_ms < delay_ms) {
+        ota::loop();
+        wifi_client::maintain();
+        http_server.handleClient();
+        delay(5);
+    }
+}
+
+void record_provisioning_failure(ProvisioningResult result) {
+    g_provisioning.phase = ProvisioningPhase::Idle;
+    g_provisioning.last_result = result;
+    g_provisioning.failure_count++;
+    g_provisioning.cooldown_until_ms = millis() + PROVISION_FAILURE_COOLDOWN_MS;
+    Serial.printf("[provision] failed result=%s target=0x%02X cooldown_ms=%lu\n",
+                  provisioning_result_name(result),
+                  g_provisioning.last_target_address,
+                  (unsigned long)PROVISION_FAILURE_COOLDOWN_MS);
+}
+
+void record_provisioning_success(size_t slot_index) {
+    mark_slot_assigned(slot_index);
+    g_provisioning.phase = ProvisioningPhase::Idle;
+    g_provisioning.last_result = ProvisioningResult::Assigned;
+    g_provisioning.success_count++;
+    g_provisioning.cooldown_until_ms = millis() + PROVISION_SUCCESS_COOLDOWN_MS;
+    Serial.printf("[provision] assigned %s addr=0x%02X\n",
+                  g_slots[slot_index].device_id,
+                  g_slots[slot_index].modbus_address);
+}
+
+void attempt_factory_provisioning() {
+    uint32_t now = millis();
+    if (cooldown_active(now, g_provisioning.cooldown_until_ms)) {
+        g_provisioning.cooldown_skip_count++;
+        return;
+    }
+
+    int target_index = next_provisioning_target_index();
+    if (target_index < 0) {
+        g_provisioning.last_result = ProvisioningResult::NoTarget;
+        return;
+    }
+
+    ProbeSlot& target = g_slots[target_index];
+    g_provisioning.attempt_count++;
+    g_provisioning.last_attempt_ms = now;
+    g_provisioning.last_target_slot = target_index;
+    g_provisioning.last_target_address = target.modbus_address;
+    g_provisioning.last_default_probe_status = ModbusStatus::Never;
+    g_provisioning.last_target_verify_status = ModbusStatus::Never;
+
+    uint8_t response[MODBUS_RESPONSE_MAX] = {};
+    size_t len = 0;
+    SubstrateSample default_sample;
+    g_provisioning.phase = ProvisioningPhase::ProbingDefault;
+    ModbusStatus default_status = read_measurement(
+        FACTORY_DEFAULT_ADDRESS, true, default_sample, response, sizeof(response), len);
+    g_provisioning.last_default_probe_status = default_status;
+    if (default_status == ModbusStatus::NoResponse) {
+        record_provisioning_failure(ProvisioningResult::NoDefaultResponse);
+        return;
+    }
+    if (default_status != ModbusStatus::Ok) {
+        record_provisioning_failure(ProvisioningResult::InvalidDefaultResponse);
+        return;
+    }
+
+    size_t write_len = 0;
+    g_provisioning.phase = ProvisioningPhase::WritingAddress;
+    if (!write_factory_address(target.modbus_address, write_len)) {
+        record_provisioning_failure(write_len == 0 ? ProvisioningResult::WriteNoResponse
+                                                  : ProvisioningResult::WriteInvalidEcho);
+        return;
+    }
+
+    g_provisioning.phase = ProvisioningPhase::Settling;
+    service_delay(PROVISION_SETTLE_MS);
+
+    SubstrateSample after_write_default_sample;
+    g_provisioning.phase = ProvisioningPhase::VerifyingDefault;
+    default_status = read_measurement(
+        FACTORY_DEFAULT_ADDRESS, true, after_write_default_sample, response, sizeof(response), len);
+    g_provisioning.last_default_probe_status = default_status;
+    if (default_status == ModbusStatus::Ok) {
+        record_provisioning_failure(ProvisioningResult::DefaultStillResponding);
+        return;
+    }
+
+    SubstrateSample target_sample;
+    g_provisioning.phase = ProvisioningPhase::VerifyingTarget;
+    ModbusStatus target_status =
+        read_measurement(target.modbus_address, true, target_sample, response, sizeof(response), len);
+    remember_frame(target, response, len);
+    g_provisioning.last_target_verify_status = target_status;
+    if (target_status != ModbusStatus::Ok) {
+        record_slot_modbus_failure(target, target_status);
+        record_provisioning_failure(ProvisioningResult::TargetVerifyFailed);
+        return;
+    }
+
+    target.latest_sample = target_sample;
+    target.last_modbus_status = ModbusStatus::Ok;
+    target.modbus_success_count++;
+    record_provisioning_success(static_cast<size_t>(target_index));
 }
 
 // --- JSON helpers ---------------------------------------------------------
 
-void append_frame_hex(char* out, size_t out_len) {
+bool appendf(char* out, size_t out_len, size_t& pos, const char* fmt, ...) {
+    if (pos >= out_len) return false;
+
+    va_list args;
+    va_start(args, fmt);
+    int written = vsnprintf(out + pos, out_len - pos, fmt, args);
+    va_end(args);
+
+    if (written < 0) return false;
+    if (static_cast<size_t>(written) >= out_len - pos) {
+        pos = out_len;
+        return false;
+    }
+    pos += static_cast<size_t>(written);
+    return true;
+}
+
+void append_frame_hex(const ProbeSlot& slot, char* out, size_t out_len) {
     size_t pos = 0;
-    for (size_t i = 0; i < g_last_frame_len && pos + 3 <= out_len; i++) {
-        int written = snprintf(out + pos, out_len - pos, "%02X", g_last_frame[i]);
+    for (size_t i = 0; i < slot.last_frame_len && pos + 3 <= out_len; i++) {
+        int written = snprintf(out + pos, out_len - pos, "%02X", slot.last_frame[i]);
         if (written <= 0) break;
         pos += static_cast<size_t>(written);
     }
@@ -269,6 +664,25 @@ void append_frame_hex(char* out, size_t out_len) {
 }
 
 void build_diagnostics(char* out, size_t out_len) {
+    uint32_t modbus_success_count = 0;
+    uint32_t modbus_failure_count = 0;
+    uint32_t modbus_crc_mismatch_count = 0;
+    uint32_t modbus_short_response_count = 0;
+    uint32_t modbus_no_response_count = 0;
+    uint32_t ingest_ok_count = 0;
+    uint32_t ingest_fail_count = 0;
+
+    for (size_t i = 0; i < SLOT_COUNT; i++) {
+        const ProbeSlot& slot = g_slots[i];
+        modbus_success_count += slot.modbus_success_count;
+        modbus_failure_count += slot.modbus_failure_count;
+        modbus_crc_mismatch_count += slot.modbus_crc_mismatch_count;
+        modbus_short_response_count += slot.modbus_short_response_count;
+        modbus_no_response_count += slot.modbus_no_response_count;
+        ingest_ok_count += slot.ingest_ok_count;
+        ingest_fail_count += slot.ingest_fail_count;
+    }
+
     snprintf(out, out_len,
              "{\"boot_count\":%lu,"
              "\"reset_reason\":%u,"
@@ -286,22 +700,22 @@ void build_diagnostics(char* out, size_t out_len) {
              "\"loop_gap_max_ms\":%lu}",
              (unsigned long)g_boot_count,
              (unsigned int)g_reset_reason,
-             (unsigned long)g_modbus_success_count,
-             (unsigned long)g_modbus_failure_count,
-             (unsigned long)g_modbus_crc_mismatch_count,
-             (unsigned long)g_modbus_short_response_count,
-             (unsigned long)g_modbus_no_response_count,
-             static_cast<unsigned>(g_last_frame_len),
+             (unsigned long)modbus_success_count,
+             (unsigned long)modbus_failure_count,
+             (unsigned long)modbus_crc_mismatch_count,
+             (unsigned long)modbus_short_response_count,
+             (unsigned long)modbus_no_response_count,
+             static_cast<unsigned>(g_last_modbus_response_len),
              g_last_ingest_code,
-             (unsigned long)g_ingest_ok_count,
-             (unsigned long)g_ingest_fail_count,
+             (unsigned long)ingest_ok_count,
+             (unsigned long)ingest_fail_count,
              (unsigned long)ESP.getFreeHeap(),
              (unsigned long)ESP.getMinFreeHeap(),
              (unsigned long)g_loop_gap_max_ms);
 }
 
-void build_sample_json(char* out, size_t out_len) {
-    if (!g_latest_sample.valid) {
+void build_sample_json(const ProbeSlot& slot, char* out, size_t out_len) {
+    if (!slot.latest_sample.valid) {
         snprintf(out, out_len, "null");
         return;
     }
@@ -311,86 +725,222 @@ void build_sample_json(char* out, size_t out_len) {
              "\"substrate_ec_us_cm\":%u,"
              "\"substrate_ph\":%.1f,"
              "\"age_ms\":%lu}",
-             g_latest_sample.moisture_pct,
-             g_latest_sample.temp_c,
-             g_latest_sample.ec_us_cm,
-             g_latest_sample.ph,
-             (unsigned long)(millis() - g_latest_sample.read_ms));
+             slot.latest_sample.moisture_pct,
+             slot.latest_sample.temp_c,
+             slot.latest_sample.ec_us_cm,
+             slot.latest_sample.ph,
+             (unsigned long)(millis() - slot.latest_sample.read_ms));
+}
+
+const char* provisioning_state_name() {
+    if (provisioning_cooldown_remaining_ms() > 0) return "cooldown";
+    return provisioning_phase_name(g_provisioning.phase);
+}
+
+bool build_provisioning_json(char* out, size_t out_len) {
+    uint32_t cooldown_ms = provisioning_cooldown_remaining_ms();
+    size_t pos = 0;
+    if (!appendf(
+            out, out_len, pos,
+            "{\"state\":\"%s\","
+            "\"schema_version\":%lu,"
+            "\"factory_default_address\":\"0x%02X\","
+            "\"address_register\":\"0x%04X\","
+            "\"last_result\":\"%s\","
+            "\"cooldown_ms_remaining\":%lu,"
+            "\"attempt_count\":%lu,"
+            "\"success_count\":%lu,"
+            "\"failure_count\":%lu,"
+            "\"cooldown_skip_count\":%lu,"
+            "\"last_default_probe_status\":\"%s\","
+            "\"last_target_verify_status\":\"%s\","
+            "\"last_target\":",
+            provisioning_state_name(),
+            (unsigned long)PROVISION_PREF_SCHEMA_VERSION,
+            FACTORY_DEFAULT_ADDRESS,
+            ADDRESS_REGISTER,
+            provisioning_result_name(g_provisioning.last_result),
+            (unsigned long)cooldown_ms,
+            (unsigned long)g_provisioning.attempt_count,
+            (unsigned long)g_provisioning.success_count,
+            (unsigned long)g_provisioning.failure_count,
+            (unsigned long)g_provisioning.cooldown_skip_count,
+            modbus_status_name(g_provisioning.last_default_probe_status),
+            modbus_status_name(g_provisioning.last_target_verify_status))) {
+        return false;
+    }
+
+    if (g_provisioning.last_target_slot >= 0 &&
+        static_cast<size_t>(g_provisioning.last_target_slot) < SLOT_COUNT) {
+        const ProbeSlot& target = g_slots[g_provisioning.last_target_slot];
+        if (!appendf(out, out_len, pos,
+                     "{\"plant_label\":\"%s\","
+                     "\"zone_id\":\"%s\","
+                     "\"device_id\":\"%s\","
+                     "\"address\":\"0x%02X\"}",
+                     target.plant_label,
+                     target.zone_id,
+                     target.device_id,
+                     target.modbus_address)) {
+            return false;
+        }
+    } else {
+        if (!appendf(out, out_len, pos, "null")) return false;
+    }
+    return appendf(out, out_len, pos, "}");
+}
+
+bool is_slot_failing(const ProbeSlot& slot) {
+    if (!slot.enabled) return false;
+    return slot.last_modbus_status != ModbusStatus::Never &&
+           slot.last_modbus_status != ModbusStatus::Ok;
+}
+
+bool any_enabled_slot_failing() {
+    for (size_t i = 0; i < SLOT_COUNT; i++) {
+        if (is_slot_failing(g_slots[i])) return true;
+    }
+    return false;
+}
+
+size_t enabled_slot_count() {
+    size_t count = 0;
+    for (size_t i = 0; i < SLOT_COUNT; i++) {
+        if (g_slots[i].enabled) count++;
+    }
+    return count;
+}
+
+bool append_slots_json(char* out, size_t out_len, size_t& pos) {
+    if (!appendf(out, out_len, pos, "[")) return false;
+    for (size_t i = 0; i < SLOT_COUNT; i++) {
+        const ProbeSlot& slot = g_slots[i];
+        char sample[192];
+        char frame_hex[MODBUS_RESPONSE_MAX * 2 + 1];
+        build_sample_json(slot, sample, sizeof(sample));
+        append_frame_hex(slot, frame_hex, sizeof(frame_hex));
+
+        if (i > 0 && !appendf(out, out_len, pos, ",")) return false;
+        if (!appendf(
+                out, out_len, pos,
+                "{\"plant_label\":\"%s\","
+                "\"zone_id\":\"%s\","
+                "\"device_id\":\"%s\","
+                "\"modbus_address\":\"0x%02X\","
+                "\"enabled\":%s,"
+                "\"assigned\":%s,"
+                "\"provisioning_target\":%s,"
+                "\"latest_sample\":%s,"
+                "\"latest_raw_modbus_frame_hex\":\"%s\","
+                "\"last_modbus_status\":\"%s\","
+                "\"last_ingest_status\":{"
+                "\"code\":%d,"
+                "\"ok_count\":%lu,"
+                "\"fail_count\":%lu"
+                "},"
+                "\"modbus_counters\":{"
+                "\"success_count\":%lu,"
+                "\"failure_count\":%lu,"
+                "\"crc_mismatch_count\":%lu,"
+                "\"short_response_count\":%lu,"
+                "\"no_response_count\":%lu,"
+                "\"bad_header_count\":%lu"
+                "}}",
+                slot.plant_label,
+                slot.zone_id,
+                slot.device_id,
+                slot.modbus_address,
+                slot.enabled ? "true" : "false",
+                slot.assigned ? "true" : "false",
+                slot.provisioning_target ? "true" : "false",
+                sample,
+                frame_hex,
+                modbus_status_name(slot.last_modbus_status),
+                slot.last_ingest_code,
+                (unsigned long)slot.ingest_ok_count,
+                (unsigned long)slot.ingest_fail_count,
+                (unsigned long)slot.modbus_success_count,
+                (unsigned long)slot.modbus_failure_count,
+                (unsigned long)slot.modbus_crc_mismatch_count,
+                (unsigned long)slot.modbus_short_response_count,
+                (unsigned long)slot.modbus_no_response_count,
+                (unsigned long)slot.modbus_bad_header_count)) {
+            return false;
+        }
+    }
+    return appendf(out, out_len, pos, "]");
 }
 
 bool build_status_json(char* out, size_t out_len) {
     wifi_client::Snapshot wifi = wifi_client::snapshot();
     char diagnostics[512];
-    char sample[192];
-    char frame_hex[MODBUS_RESPONSE_MAX * 2 + 1];
+    char provisioning[768];
     build_diagnostics(diagnostics, sizeof(diagnostics));
-    build_sample_json(sample, sizeof(sample));
-    append_frame_hex(frame_hex, sizeof(frame_hex));
+    if (!build_provisioning_json(provisioning, sizeof(provisioning))) return false;
 
-    int written = snprintf(
-        out, out_len,
-        "{\"identity\":{"
-        "\"site_id\":\"%s\","
-        "\"tent_id\":\"%s\","
-        "\"zone_id\":\"%s\","
-        "\"device_id\":\"%s\","
-        "\"hostname\":\"%s\""
-        "},"
-        "\"firmware_version\":\"%s\","
-        "\"latest_sample\":%s,"
-        "\"latest_raw_modbus_frame_hex\":\"%s\","
-        "\"last_modbus_status\":\"%s\","
-        "\"last_ingest_status\":{"
-        "\"code\":%d,"
-        "\"ok_count\":%lu,"
-        "\"fail_count\":%lu"
-        "},"
-        "\"wifi\":{"
-        "\"connected\":%s,"
-        "\"ip\":\"%s\","
-        "\"rssi_dbm\":%d,"
-        "\"reconnect_count\":%lu,"
-        "\"driver_reset_count\":%lu,"
-        "\"last_disconnect_reason\":%u,"
-        "\"disconnected_for_ms\":%lu"
-        "},"
-        "\"diagnostics\":%s}",
-        SITE_ID,
-        TENT_ID,
-        ZONE_ID,
-        DEVICE_ID,
-        HOSTNAME,
-        FIRMWARE_VERSION,
-        sample,
-        frame_hex,
-        modbus_status_name(g_last_modbus_status),
-        g_last_ingest_code,
-        (unsigned long)g_ingest_ok_count,
-        (unsigned long)g_ingest_fail_count,
-        wifi.connected ? "true" : "false",
-        WiFi.localIP().toString().c_str(),
-        wifi.rssi_dbm,
-        (unsigned long)wifi.reconnect_count,
-        (unsigned long)wifi.driver_reset_count,
-        wifi.last_disconnect_reason,
-        (unsigned long)wifi.disconnected_for_ms,
-        diagnostics);
-    return written > 0 && static_cast<size_t>(written) < out_len;
+    size_t pos = 0;
+    if (!appendf(
+            out, out_len, pos,
+            "{\"controller\":{"
+            "\"site_id\":\"%s\","
+            "\"tent_id\":\"%s\","
+            "\"device_id\":\"%s\","
+            "\"hostname\":\"%s\","
+            "\"slot_count\":%u,"
+            "\"enabled_slot_count\":%u,"
+            "\"any_enabled_slot_failing\":%s"
+            "},"
+            "\"firmware_version\":\"%s\","
+            "\"wifi\":{"
+            "\"connected\":%s,"
+            "\"ip\":\"%s\","
+            "\"rssi_dbm\":%d,"
+            "\"reconnect_count\":%lu,"
+            "\"driver_reset_count\":%lu,"
+            "\"last_disconnect_reason\":%u,"
+            "\"disconnected_for_ms\":%lu"
+            "},"
+            "\"diagnostics\":%s,"
+            "\"provisioning\":%s,"
+            "\"slots\":",
+            SITE_ID,
+            TENT_ID,
+            CONTROLLER_DEVICE_ID,
+            HOSTNAME,
+            static_cast<unsigned>(SLOT_COUNT),
+            static_cast<unsigned>(enabled_slot_count()),
+            any_enabled_slot_failing() ? "true" : "false",
+            FIRMWARE_VERSION,
+            wifi.connected ? "true" : "false",
+            WiFi.localIP().toString().c_str(),
+            wifi.rssi_dbm,
+            (unsigned long)wifi.reconnect_count,
+            (unsigned long)wifi.driver_reset_count,
+            wifi.last_disconnect_reason,
+            (unsigned long)wifi.disconnected_for_ms,
+            diagnostics,
+            provisioning)) {
+        return false;
+    }
+    if (!append_slots_json(out, out_len, pos)) return false;
+    return appendf(out, out_len, pos, "}");
 }
 
 // --- HTTP -----------------------------------------------------------------
 
 void handle_health() {
-    char resp[96];
+    bool failing = any_enabled_slot_failing();
+    char resp[128];
     snprintf(resp, sizeof(resp),
-             "{\"ok\":true,\"modbus\":\"%s\",\"ingest_code\":%d}",
-             modbus_status_name(g_last_modbus_status),
+             "{\"ok\":%s,\"any_enabled_slot_failing\":%s,\"last_ingest_code\":%d}",
+             failing ? "false" : "true",
+             failing ? "true" : "false",
              g_last_ingest_code);
     http_server.send(200, "application/json", resp);
 }
 
 void handle_status() {
-    char resp[1536];
+    static char resp[5120];
     if (!build_status_json(resp, sizeof(resp))) {
         http_server.send(500, "application/json", "{\"error\":\"status too large\"}");
         return;
@@ -404,31 +954,33 @@ void handle_not_found() {
 
 // --- Sensor cycle ---------------------------------------------------------
 
-void post_latest_sample() {
+void post_latest_sample(ProbeSlot& slot) {
     char metrics[160];
     snprintf(metrics, sizeof(metrics),
              "{\"soil_moisture_pct\":%.1f,"
              "\"substrate_temp_c\":%.1f,"
              "\"substrate_ec_us_cm\":%u,"
              "\"substrate_ph\":%.1f}",
-             g_latest_sample.moisture_pct,
-             g_latest_sample.temp_c,
-             g_latest_sample.ec_us_cm,
-             g_latest_sample.ph);
+             slot.latest_sample.moisture_pct,
+             slot.latest_sample.temp_c,
+             slot.latest_sample.ec_us_cm,
+             slot.latest_sample.ph);
 
     char diagnostics[512];
     build_diagnostics(diagnostics, sizeof(diagnostics));
-    int code = ingest.post(SITE_ID, TENT_ID, ZONE_ID, DEVICE_ID, metrics, diagnostics);
+    int code = ingest.post(SITE_ID, TENT_ID, slot.zone_id, slot.device_id, metrics, diagnostics);
+    slot.last_ingest_code = code;
     g_last_ingest_code = code;
     if (code > 0) {
-        g_ingest_ok_count++;
+        slot.ingest_ok_count++;
     } else {
-        g_ingest_fail_count++;
+        slot.ingest_fail_count++;
     }
-    Serial.printf("[ingest] http=%d ok=%lu fail=%lu\n",
+    Serial.printf("[ingest] %s http=%d ok=%lu fail=%lu\n",
+                  slot.device_id,
                   code,
-                  (unsigned long)g_ingest_ok_count,
-                  (unsigned long)g_ingest_fail_count);
+                  (unsigned long)slot.ingest_ok_count,
+                  (unsigned long)slot.ingest_fail_count);
 }
 
 void poll_sensor_if_due() {
@@ -438,9 +990,17 @@ void poll_sensor_if_due() {
     }
     g_last_poll_ms = now;
 
-    if (read_substrate_sample()) {
-        post_latest_sample();
+    for (size_t i = 0; i < SLOT_COUNT; i++) {
+        ProbeSlot& slot = g_slots[i];
+        if (!slot.enabled) continue;
+        if (read_substrate_sample(slot)) {
+            if (slot.provisioning_target && !slot.assigned) {
+                mark_slot_assigned(i);
+            }
+            post_latest_sample(slot);
+        }
     }
+    attempt_factory_provisioning();
 }
 
 void record_loop_gap() {
@@ -466,6 +1026,7 @@ void setup() {
     g_boot_count = diag_prefs.getUInt("boot_count", 0) + 1;
     diag_prefs.putUInt("boot_count", g_boot_count);
     diag_prefs.end();
+    load_slot_assignments();
 
     pinMode(RS485_ENABLE_PIN, OUTPUT);
     digitalWrite(RS485_ENABLE_PIN, LOW);
@@ -473,12 +1034,23 @@ void setup() {
 
     Serial.println();
     Serial.println("# rs485-substrate-node");
-    Serial.printf("# fw=%s device=%s host=%s address=0x%02X interval=%lums\n",
+    Serial.printf("# fw=%s controller=%s host=%s slots=%u interval=%lums\n",
                   FIRMWARE_VERSION,
-                  DEVICE_ID,
+                  CONTROLLER_DEVICE_ID,
                   HOSTNAME,
-                  SENSOR_ADDRESS,
+                  static_cast<unsigned>(SLOT_COUNT),
                   (unsigned long)POLL_INTERVAL_MS);
+    for (size_t i = 0; i < SLOT_COUNT; i++) {
+        const ProbeSlot& slot = g_slots[i];
+        Serial.printf("# slot %s zone=%s device=%s address=0x%02X enabled=%s assigned=%s target=%s\n",
+                      slot.plant_label,
+                      slot.zone_id,
+                      slot.device_id,
+                      slot.modbus_address,
+                      slot.enabled ? "true" : "false",
+                      slot.assigned ? "true" : "false",
+                      slot.provisioning_target ? "true" : "false");
+    }
     Serial.printf("# uart=%lu 8N1 rx_gpio=%d tx_gpio=%d enable_pin=D2\n",
                   (unsigned long)SENSOR_BAUD,
                   RS485_RX_PIN,

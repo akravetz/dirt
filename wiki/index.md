@@ -1,7 +1,7 @@
 ---
 title: Index
 type: index
-updated: 2026-06-11
+updated: 2026-06-14
 ---
 
 # Grow Wiki Index
@@ -18,18 +18,18 @@ updated: 2026-06-11
 ## Grow Runs
 - [Grow Runs](grows/README.md) — Database-scoped growrun index; folders are keyed by `growrun.grow_run_id`
 - [Main grow 2026-03-15](grows/main-2026-03-15/README.md) — Current main tent flower run; database `growrun.grow_run_id = main-2026-03-15`
-- [Track A pollen run](grows/breeding-track-a-2026-04-28/README.md) — Current breeding tent male sexing and pollen-collection run; database `growrun.grow_run_id = breeding-track-a-2026-04-28`
+- [Track A pollen run](grows/breeding-track-a-2026-04-28/README.md) — Current breeding tent pollen-collection run; R2 is the selected donor after purple pollen-sac expression
 
 ## Current Plants
-- [Plant A](grows/main-2026-03-15/plants/plant-a.md) — 🔴 Primary keeper; Flower Day 38; mostly fan-blocked view; visible material upright; RS485 substrate moisture is canonical after cutover
-- [Plant B](grows/main-2026-03-15/plants/plant-b.md) — 🟡 Secondary; Flower Day 38; active flower clusters visible; no current trusted moisture probe after capacitive retirement
-- [Plant C](grows/main-2026-03-15/plants/plant-c.md) — 🟡 Secondary; Flower Day 38; active wall-side flowers visible; no current trusted moisture probe after capacitive retirement
-- [Plant D](grows/main-2026-03-15/plants/plant-d.md) — 🔴 Primary keeper; Flower Day 38; strong purple tops; no current trusted moisture probe after capacitive retirement
-- [R1](grows/breeding-track-a-2026-04-28/plants/plant-r1.md) — Track A pollen run; confirmed male; repeated current-only wet sensor keeps pot-weight, airflow, sensor, and male-evaluation checks active
-- [R2](grows/breeding-track-a-2026-04-28/plants/plant-r2.md) — Track A pollen run; confirmed male; repeated current-only wet sensor keeps pot-weight, fan-exposure, sensor, and male-evaluation checks active
+- [Plant A](grows/main-2026-03-15/plants/plant-a.md) — 🔴 Primary keeper; Flower Day 40; RS485 substrate moisture is canonical; reservoir diluted to EC 1.0 recovery feed after high-EC reset
+- [Plant B](grows/main-2026-03-15/plants/plant-b.md) — 🟡 Secondary; Flower Day 40; no current trusted moisture probe; reservoir diluted to EC 1.0 recovery feed after high-EC reset
+- [Plant C](grows/main-2026-03-15/plants/plant-c.md) — 🟡 Secondary; Flower Day 40; no current trusted moisture probe; reservoir diluted to EC 1.0 recovery feed after high-EC reset
+- [Plant D](grows/main-2026-03-15/plants/plant-d.md) — 🔴 Primary keeper; Flower Day 40; no current trusted moisture probe; reservoir diluted to EC 1.0 recovery feed after high-EC reset
+- [R1](grows/breeding-track-a-2026-04-28/plants/plant-r1.md) — Track A pollen run; confirmed male; culled/not retained for pollen 2026-06-14
+- [R2](grows/breeding-track-a-2026-04-28/plants/plant-r2.md) — Track A pollen run; selected pollen donor after purple pollen-sac expression
 - [R3](grows/breeding-track-a-2026-04-28/plants/plant-r3.md) — Track A pollen run; confirmed female and culled 2026-06-04
-- [R4](grows/breeding-track-a-2026-04-28/plants/plant-r4.md) — Track A pollen run; confirmed male; repeated current-only wet sensor keeps pot-weight, airflow, sensor, and male-evaluation checks active
-- [R5](grows/breeding-track-a-2026-04-28/plants/plant-r5.md) — Track A pollen run; sex not confirmed in wiki; continue sex watch and repeated current-only breeding sensor checks
+- [R4](grows/breeding-track-a-2026-04-28/plants/plant-r4.md) — Track A pollen run; confirmed male; culled/not retained for pollen 2026-06-14
+- [R5](grows/breeding-track-a-2026-04-28/plants/plant-r5.md) — Track A pollen run; culled/not retained for pollen 2026-06-14
 
 ## Daily Logs
 - [2026-03-27](daily/2026-03-27.md) — Day 13: Pre-transplant; 2–3 leaf sets
@@ -97,11 +97,12 @@ updated: 2026-06-11
 - [2026-06-08](daily/2026-06-08.md) — Day 86 / Flower Day 36: full photo coverage; main canopy dense with upright purple flowers; current VPD slightly dry/high at 1.53 kPa while overnight remains wet/low; B/C pinned wet; Plant A stable after watched rewet; breeding current-only wet sensor repeat
 - [2026-06-09](daily/2026-06-09.md) — Day 87 / Flower Day 37: full photo coverage; main canopy dense with upright purple flowers; lights-on VPD in range while overnight worsened wet/low; Plant B moved sharply drier from pinned-high pattern; breeding current-only wet sensor repeat
 - [2026-06-10](daily/2026-06-10.md) — Day 88 / Flower Day 38: full photo coverage; main canopy dense with upright purple flowers; current VPD dry/high while overnight remains wet/low; Plant B returned high/pinned; evening high-EC reservoir reset to pH 5.8 / EC ~0.3 plain water; breeding current-only wet sensor repeat
+- [2026-06-12](daily/2026-06-12.md) — Day 90 / Flower Day 40: post-flush reservoir recovery plan; hold EC 0.8-1.0 for 48-72h, watch fresh growth/tip burn, and only do drain-to-waste root-zone reset if fresh damage advances or root-zone EC evidence stays high
 
 ## Environment
 - [Temperature](environment/temperature.md) — Trend log; targets by phase; notable events
 - [Humidity](environment/humidity.md) — Trend log; Denver humidification notes
-- [Nutrients & pH](environment/nutrients.md) — Canna A+B protocol; pH management; incident log; 2026-06-10 high-EC reservoir reset
+- [Nutrients & pH](environment/nutrients.md) — Canna A+B protocol; pH management; incident log; 2026-06-12 EC 1.0 conservative recovery feed after high-EC reservoir reset
 
 ## Hardware
 - [ESP32-C3 Per-Plant Nodes](hardware/esp32-plant-nodes.md) — Retired capacitive soil-moisture nodes (A/B/C/D); disabled 2026-06-11 after Plant A RS485 cutover
@@ -143,19 +144,19 @@ updated: 2026-06-11
 - [Topping](concepts/topping.md) — HST technique: cut apical meristem at node 4–5 to create two main stems; imminent for Plant A
 - [pH Lockout](concepts/ph-lockout.md) — Nutrient unavailability from root zone pH drift; active diagnosis for Plant C
 - [Nutrient Burn](concepts/nutrient-burn.md) — Excess salt damage from high EC; symptoms, diagnosis, correction
-- [EC (Electrical Conductivity)](concepts/ec.md) — Measuring nutrient concentration; targets by stage; TDS-3 meter usage
+- [EC (Electrical Conductivity)](concepts/ec.md) — Measuring nutrient concentration; targets by stage; Apera EC60 current readings plus historical TDS-3 conversion
 - [Capacitive Soil Moisture Sensors](concepts/capacitive-soil-moisture.md) — How v1.2 sensors work; voltage ranges; failure modes; multimeter diagnostic
 - [Wake-Word Detection](concepts/wake-word-detection.md) — openWakeWord architecture, training data, FRR diagnostics, threshold tuning, custom verifier models
 - [Wake-Word Augmentation](concepts/wake-word-augmentation.md) — Current realmic vs synthetic augmentation behavior and ranked experiment backlog for improving real-mic coverage
 - [Room Impulse Response (RIR)](concepts/room-impulse-response.md) — What an IR is; exponential sine sweep capture (Farina method); using IRs as training augmentation
 
 ## Breeding
-- [Breeding Section README](breeding/README.md) — SBxBS01 stabilization program: pollen banking + phenotype selection → F2, progeny-tested F3/F4 families, then feminized production validation
+- [Breeding Section README](breeding/README.md) — SBxBS01 stabilization program: R2 pollen banking + phenotype selection → F2, progeny-tested F3/F4 families, then feminized production validation
 - [Nomenclature](breeding/nomenclature.md) — F1/F2/feminized/BX/S1/IBL vocabulary tied to our SBxBS01 program
 - [Stabilization Strategy](breeding/stabilization-strategy.md) — black-line target through Kalash Valley Black, introgression path, accelerated generation cycle, male/female clone space model
 - [Progeny-Tested Family Selection](breeding/family-selection.md) — F3/F4/F5 family-lot sizing: 2x2 max, 4-family screens, 2-family comparisons, 1-family validation
 - [Feminized Seed Production Endpoint](breeding/feminized-production.md) — final clone roles, reversed-female pollen model, batch scaling, and >90% progeny-test threshold
-- [Timeline](breeding/timeline.md) — dated calendar from launch through F2 seed harvest and stabilization cycles; Track A flipped to 12/12 on 2026-05-24 for sexing/pollen production
+- [Timeline](breeding/timeline.md) — dated calendar from launch through F2 seed harvest and stabilization cycles; Track A narrowed to R2 for pollen collection on 2026-06-14
 - [Isolation](breeding/isolation.md) — separate-room contamination protocol; gating for everything else
 - [Isolation Tent Culture](breeding/isolation-tent-culture.md) — 2x2 pot sizes, coco/perlite, runoff handling, and optional drip-assist plumbing
 - [Cloning](breeding/cloning.md) — procedure, equipment, mother management; safety net for the entire program

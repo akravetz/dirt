@@ -24,6 +24,7 @@ from dirt_shared.services.daily_sensors import (
     SensorReader,
     mdt_window_to_utc,
 )
+from dirt_shared.services.readings import get_latest_product_plant_moisture_readings
 
 # Apr 19 2026: MDT is UTC-6.
 TEST_NOW = datetime(2026, 4, 19, 20, 30, 0, tzinfo=UTC)  # 14:30 MDT
@@ -172,15 +173,27 @@ def _all_tent_metrics_fresh() -> list[tuple]:
     ]
 
 
-def _plant_a_moisture_fresh() -> tuple:
-    fresh_ts = TEST_NOW - timedelta(seconds=10)
+def _plant_moisture_fresh(
+    device_id: str,
+    value: float,
+    *,
+    ts: datetime | None = None,
+) -> tuple:
     return (
-        "plant-a-substrate-node",
+        device_id,
         SOIL_METRIC,
-        26.6,
-        fresh_ts,
+        value,
+        ts or TEST_NOW - timedelta(seconds=10),
         SensorSource.ESP32,
     )
+
+
+def _current_seeded_plant_moisture_fresh() -> list[tuple]:
+    return [
+        _plant_moisture_fresh("plant-a-substrate-node", 26.6),
+        _plant_moisture_fresh("plant-c-substrate-node", 35.1),
+        _plant_moisture_fresh("plant-d-substrate-node", 31.4),
+    ]
 
 
 def test_mdt_window_to_utc_handles_offset():
@@ -197,7 +210,7 @@ def test_mdt_window_to_utc_handles_offset():
 async def test_validate_passes_on_clean_data(pg_engine):
     await _seed_readings(
         pg_engine,
-        [*_all_tent_metrics_fresh(), _plant_a_moisture_fresh()],
+        [*_all_tent_metrics_fresh(), *_current_seeded_plant_moisture_fresh()],
     )
     r = SensorReader(pg_engine, clock=_clock, max_age_s=300)
     assert await r.validate() == []
@@ -257,7 +270,7 @@ async def test_validate_ignores_unsupported_raw_plant_moisture(pg_engine):
         pg_engine,
         [
             *_all_tent_metrics_fresh(),
-            _plant_a_moisture_fresh(),
+            *_current_seeded_plant_moisture_fresh(),
             (
                 raw_device_id,
                 "soil_moisture_raw",
@@ -269,6 +282,34 @@ async def test_validate_ignores_unsupported_raw_plant_moisture(pg_engine):
     )
     r = SensorReader(pg_engine, clock=_clock, max_age_s=300)
     assert await r.validate() == []
+
+
+async def test_current_product_plant_moisture_uses_active_direct_streams_only(
+    pg_engine,
+):
+    await _seed_readings(
+        pg_engine,
+        [
+            *_current_seeded_plant_moisture_fresh(),
+            (
+                "plant-b-node",
+                "soil_moisture_raw",
+                1500.0,
+                TEST_NOW - timedelta(seconds=10),
+                SensorSource.ESP32,
+            ),
+        ],
+    )
+
+    async with AsyncSession(pg_engine) as s:
+        readings = await get_latest_product_plant_moisture_readings(s, now=TEST_NOW)
+
+    by_plant = {reading.plant_id: reading for reading in readings}
+    assert set(by_plant) == {"a", "c", "d"}
+    assert by_plant["a"].device_id == "plant-a-substrate-node"
+    assert by_plant["c"].device_id == "plant-c-substrate-node"
+    assert by_plant["d"].device_id == "plant-d-substrate-node"
+    assert {reading.capability_id for reading in readings} == {"soil_moisture_pct"}
 
 
 async def test_validate_flags_stale(pg_engine):
