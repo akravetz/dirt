@@ -18,6 +18,13 @@ Use `*_key` only for a real external, hardware, vendor, protocol, file, or domai
 
 Do not add names, keys, slugs, codes, or public identifiers by default. Add them only when a current workflow needs that specific value.
 
+When a field's semantics are not obvious from its name and constraints, document it at both storage and source levels:
+
+- Add a SQL `COMMENT ON COLUMN` in the Atlas migration.
+- Add a source-code comment or SQLAlchemy `Column(comment=...)` on the SQLModel field.
+
+This is required for generic-but-domain-specific fields such as `plant.key`, where "key" means the unique human-readable plant identifier printed on tags and used in notes/photos.
+
 ## Domain Values and State
 
 Do not model business state as a string enum or text `CHECK (... IN (...))` by default. At the database/application boundary that is still a string contract, which makes spelling drift and application/database disagreement show up late.
@@ -62,7 +69,7 @@ Before adding a string enum/check-list column, answer:
 Good:
 
 - `device.id` as the Dirt identity; `device.firmware_key` only if firmware reports a stable hardware identifier that exists before or outside the database row.
-- `plant.id` as the Dirt identity; `plant.breeding_key` only if the value is printed on plant tags, used in handwritten notes/photos, and must remain stable across exports.
+- `plant.id` as the Dirt identity; `plant.key` only if the value is printed on plant tags, used in handwritten notes/photos, must remain stable across exports, and has SQL/source comments explaining that meaning.
 - `seed_lot.is_purchased` plus generated `seed_lot.is_produced` from `produced_by_cross_event_id`, with a constraint preventing both from being true.
 - `plant.is_clone` generated from `clone_source_plant_id IS NOT NULL`.
 - `name` for human-readable labels such as tent name, cultivar name, or device name.
