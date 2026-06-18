@@ -19,12 +19,12 @@ This plan covers both read APIs and write APIs. It deliberately defers plant wik
 - [x] (2026-06-18) Reviewed `docs/epics/breeding-logbook-ui/api-audit.md`, current Breeding Logbook frontend mock queries and mock write helpers, hosted browser read DTOs/routes, gateway sync contracts, local breeding models, command claim/result flow, `.agents/PLANS.md`, and the relevant repository rules.
 - [x] (2026-06-18) Resolved product decisions with the operator: close read projection gaps except wiki content, implement lineage/offspring summaries, use breeding-specific browser endpoints, make bulk sex first-class, make grid position nullable and send null from the UI, generate plant labels locally, require cull reason, defer photo attachments, and use conservative hybrid pending-write UX.
 - [x] (2026-06-18) Drafted this ExecPlan.
-- [ ] Implement Milestone 1: repair and extend read projection contracts for seed lots, cross events, notes, plant events, nullable grid positions, and lineage.
-- [ ] Implement Milestone 2: expose completed read endpoints and switch frontend query hooks from mock data to generated hosted API calls.
-- [ ] Implement Milestone 3: add typed breeding command DTOs and breeding-specific browser write endpoints.
-- [ ] Implement Milestone 4: teach the gateway to execute breeding commands against the local database and report command results.
-- [ ] Implement Milestone 5: wire frontend mutations, pending markers, command polling, and projection refresh.
-- [ ] Implement Milestone 6: validate end to end with tests, generated contracts, and local hosted browser flows.
+- [x] (2026-06-18) Implemented Milestone 1: repaired and extended read projection contracts for all seed lots, cross events, plant notes, plant events, nullable grid positions, and cloud projection ingestion.
+- [x] (2026-06-18) Implemented Milestone 2: exposed completed read endpoints and switched frontend query hooks from mock data to generated hosted API calls.
+- [x] (2026-06-18) Implemented Milestone 3: added typed breeding command DTOs and breeding-specific browser write endpoints.
+- [x] (2026-06-18) Implemented Milestone 4: taught the gateway to execute breeding commands against the local database and report command results.
+- [x] (2026-06-18) Implemented Milestone 5: wired frontend mutations, pending markers, command polling, and projection refresh.
+- [x] (2026-06-18) Implemented Milestone 6: validated end to end with tests, generated contracts, and local hosted browser flows.
 
 
 ## Surprises & Discoveries
@@ -55,6 +55,9 @@ This plan covers both read APIs and write APIs. It deliberately defers plant wik
 
 - Observation: The working tree had unrelated modified wiki and grow-state files before this plan was written.
   Evidence: `git status --short` showed modified files under `docs/grow-state.md` and `wiki/`. This plan does not depend on or alter those files.
+
+- Observation: Local Atlas migration generation still needs the known `btree_gist` workaround for SQLModel exclusion constraints.
+  Evidence: `atlas migrate diff breeding_logbook_nullable_grid_and_timeline --env local` failed because the default desired-state dev database lacked the `btree_gist` operator class. The migration was generated with the documented disposable Postgres dev URL after `CREATE EXTENSION IF NOT EXISTS btree_gist;`.
 
 
 ## Decision Log
@@ -98,7 +101,86 @@ This plan covers both read APIs and write APIs. It deliberately defers plant wik
 
 ## Outcomes & Retrospective
 
-Not started. Update this section after each milestone with what changed, what was validated, and any gaps that remain.
+Milestone 1 completed on 2026-06-18. The shared gateway catalog DTO now carries required nullable plant location grid positions plus cross-event, plant-note, and plant-event lists/counts. Local plant locations allow null grid positions while preserving current/non-overlapping non-null slot safety. The gateway now projects all local seed lots, cross events, plant notes, and plant events, and hosted gateway ingestion upserts matching cloud projection rows with stable `(site_id, source_*_id)` uniqueness.
+
+Validation passed:
+
+- `uv run pytest apps/shared/tests/test_cloud_contract.py -q`
+- `uv run pytest apps/gateway/tests/test_sync.py apps/gateway/tests/test_gateway_boundary_guardrails.py -q`
+- `uv run pytest apps/control-plane/tests/test_api.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py -q`
+- `uv run ruff check apps/shared/src/dirt_shared/cloud_contract.py apps/shared/src/dirt_shared/models/plant.py apps/gateway/src/dirt_gateway/local.py apps/control-plane/src/dirt_control/models/cloud.py apps/control-plane/src/dirt_control/models/__init__.py apps/control-plane/src/dirt_control/api/gateway.py apps/shared/tests/test_cloud_contract.py apps/gateway/tests/test_sync.py apps/control-plane/tests/test_api.py`
+- `atlas migrate hash --env local`
+- `atlas migrate hash --env cloud`
+- `set -a; source .env; set +a; atlas migrate apply --env local --dry-run`
+
+The local migration diff used the documented external disposable dev database workaround for `btree_gist`: `atlas migrate diff breeding_logbook_nullable_grid_and_timeline --env local --dev-url "postgres://postgres:dev@127.0.0.1:55433/dev?sslmode=disable&search_path=public"` after creating the extension in that disposable database. The default bare local diff command still hits the known Atlas desired-state extension limitation.
+
+Milestone 2 completed on 2026-06-18. Hosted breeding logbook read routes now render nullable grid locations without `None`/`null`, derive plant row `last_note` from projected notes/events/reasons, return merged note/event timelines, keep `wiki_content` deferred/null, and build cross-backed parent and offspring summaries from projected cross/seed-lot/plant rows. Hosted plant/current-location browser DTOs were also made nullable for `grid_position` so Milestone 1 projection rows do not break non-logbook plant reads.
+
+The frontend Breeding Logbook read hooks now call the generated hosted API client for bootstrap, plants, seed lots, plant detail by `plant.key`, and plant metric history. Snake_case hosted responses are mapped locally in `breedingLogbookQueries.ts` to the existing camelCase view model. Runtime read queries no longer import `breedingLogbook.mockData.ts`; temporary mock write helpers remain cache-local until write milestones replace them.
+
+Validation passed:
+
+- `uv run pytest apps/control-plane/tests/test_api.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py -q`
+- `DIRT_CLOUD_ASSET_STORE=local scripts/gen-hosted-contract`
+- `pnpm --dir web-ui typecheck`
+- `pnpm --dir web-ui lint`
+- `pnpm --dir web-ui test`
+- `uv run ruff check apps/control-plane/src/dirt_control/api/browser.py apps/control-plane/tests/test_api.py`
+
+Simplify pass used the sequential fallback because this runtime did not expose a subagent-spawn tool. The pass kept the read cutover direct and changed metric-history mapping to omit null-only buckets instead of inventing zero values.
+
+Milestone 3 completed on 2026-06-18. The shared cloud contract now includes typed breeding command payload DTOs, breeding command types, and command-claim validation that rejects mismatched command type/payload pairs. Hosted browser write routes now exist for seed-lot creation, germination, cloning, bulk sex, bulk move, bulk cull, and plant note creation. Each route requires browser auth, accepts an `idempotency_key`, validates obvious cloud projection inputs, enqueues a typed `CloudCommand` with nullable device/capability fields, and returns the existing pollable `CommandResponse`. Generic `/api/commands` remains PTZ-only.
+
+Validation passed:
+
+- `uv run pytest apps/shared/tests/test_cloud_contract.py -q`
+- `uv run pytest apps/control-plane/tests/test_api.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py -q`
+- `DIRT_CLOUD_ASSET_STORE=local scripts/gen-hosted-contract`
+- `uv run ruff check apps/shared/src/dirt_shared/cloud_contract.py apps/control-plane/src/dirt_control/api/browser.py apps/shared/tests/test_cloud_contract.py apps/control-plane/tests/test_api.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py`
+
+No cloud migration was added for Milestone 3. `CloudCommand.device_id` and `CloudCommand.capability_id` were already nullable; `CloudCommand.tent_id` remains non-null, with `"breeding-logbook"` used only as a command-target label for site-wide breeding commands.
+
+Milestone 4 completed on 2026-06-18. The gateway command orchestrator now branches validation and execution by command family: PTZ commands retain existing device/capability/preset validation and PTZ execution, while breeding commands reject PTZ hardware targets and execute through `BreedingCommandExecutor`. Local `CommandService` ledger rows still use `cloud-command:{command_id}` idempotency keys and now store local breeding command types such as `breeding.seed_lot.create`, `breeding.plants.germinate`, and `breeding.plant_note.create`.
+
+The breeding executor applies each claimed command in a single local DB transaction. It resolves local site/tent identities before writing location rows, creates/reuses plant lines for purchased and cross seed lots, creates cross events and seed lots, generates deterministic local plant/clone keys from line or mother prefixes while skipping occupied suffixes, writes nullable-grid current locations, updates sex/move/cull facts, closes current locations on move/cull, and creates plant notes/events. Clone-taken events are attached to the mother plant with clone keys in event metadata. Move-to-flower lifecycle handling is explicit: moving into a flower tent sets `flower_started_at` only when it was previously null.
+
+Validation passed:
+
+- `uv run pytest apps/gateway/tests/test_sync.py -q`
+- `uv run pytest apps/gateway/tests/test_sync.py apps/gateway/tests/test_gateway_boundary_guardrails.py -q`
+- `uv run pytest apps/gateway/tests/test_gateway_boundary_guardrails.py -q`
+- `uv run pytest apps/shared/tests/test_cloud_contract.py -q`
+- `uv run ruff format apps/gateway/src/dirt_gateway/breeding_commands.py apps/gateway/src/dirt_gateway/commands.py apps/gateway/src/dirt_gateway/main.py apps/gateway/tests/test_sync.py`
+- `uv run ruff check apps/gateway/src/dirt_gateway/breeding_commands.py apps/gateway/src/dirt_gateway/commands.py apps/gateway/src/dirt_gateway/main.py apps/gateway/tests/test_sync.py`
+- `git diff --check -- apps/gateway/src/dirt_gateway/breeding_commands.py apps/gateway/src/dirt_gateway/commands.py apps/gateway/src/dirt_gateway/main.py apps/gateway/tests/test_sync.py docs/epics/breeding-logbook-ui/api-wireup-ExecPlan.md`
+
+Simplify pass used the sequential fallback because this runtime did not expose a subagent-spawn tool. The pass kept the executor direct, made tent stage-role checks tolerant of labels such as `flowering`, and replaced test-only `type: ignore` query calls with SQLModel `col()` helpers.
+
+Milestone 5 completed on 2026-06-18. The frontend now submits breeding-logbook writes through generated hosted API types instead of cache-local mock helpers. Add Seeds, Germinate, Clone, Bulk Sex, Bulk Move, Bulk Cull, and Log Note all build typed request bodies with per-action idempotency keys. Germinate, Clone, and Bulk Move send explicit `grid_position: null` at the generated-schema boundary while using an `openapi-fetch` body serializer workaround so the actual JSON preserves required null fields.
+
+Pending commands live in React Query cache, are polled through `GET /api/commands/{command_id}`, and schedule bounded projection refreshes after terminal success. Affected plant rows show pending/failed markers, destructive actions are blocked while active commands affect selected plants, canonical plant facts remain unchanged until projection refresh, and note commands render distinct pending timeline entries until the synced note appears or an error is shown. The obsolete runtime mock data file was deleted during invariant cleanup.
+
+Validation passed:
+
+- `DIRT_CLOUD_ASSET_STORE=local scripts/gen-hosted-contract`
+- `uv run pytest apps/control-plane/tests/test_api.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py -q`
+- `pnpm --dir web-ui typecheck`
+- `pnpm --dir web-ui lint`
+- `pnpm --dir web-ui test`
+- `uv run pytest apps/tests/invariants -q`
+- `git diff --check`
+
+Milestone 6 completed on 2026-06-18. Full relevant automated validation passed, including shared cloud-contract tests, gateway sync/guardrail tests, control-plane API/guardrail tests, TypeScript typecheck/lint/tests, and human-owned invariants.
+
+Local browser validation used `agent-browser` against `http://192.168.1.79:5171/breeding-logbook` with `dev-admin` / `dev-password`. The normal `make dev-up` harness intentionally sets `DIRT_CLOUD_GATEWAY_COMMAND_CLAIM_ENABLED=false`, so the write-path validation restarted the local control-plane API with command claiming enabled, ran Vite with `VITE_DIRT_API_BASE_URL=http://192.168.1.79:8021`, and ran a local gateway pointed at the same API. The source data for the browser run came from an isolated temporary Postgres database, `dirt_e2e_breeding_logbook`, migrated with local Atlas migrations and seeded with projected breeding rows.
+
+Browser evidence:
+
+- Plants table rendered real projected rows, including a seed lot with no current plants and nullable-grid labels that render as tent/location names instead of fake slots.
+- Plant detail for `DBG-F1-001` showed real projected notes/events, lineage parents, offspring fallback, disabled photo attachment, and plant metric stream UI.
+- A browser-submitted text note showed as a distinct pending timeline note, then gateway execution succeeded and the synced plant row `last_note` updated to `E2E note from browser validation`.
+- A browser-submitted Bulk Sex command showed queued command summary plus a row pending marker without optimistic fact changes, then gateway execution and projection refresh updated `DBG-F1-001` to female.
 
 
 ## Context and Orientation

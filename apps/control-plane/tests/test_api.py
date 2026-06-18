@@ -17,14 +17,17 @@ from dirt_control.models import (
     CloudAuditEvent,
     CloudCapability,
     CloudCommand,
+    CloudCrossEvent,
     CloudDevice,
     CloudLatestMetric,
     CloudMetricPresentation,
     CloudMetricRollup,
     CloudPlant,
+    CloudPlantEvent,
     CloudPlantLine,
     CloudPlantLocation,
     CloudPlantMetricStream,
+    CloudPlantNote,
     CloudSchedule,
     CloudSeedLot,
     CloudSite,
@@ -188,6 +191,8 @@ def _plant(
     *,
     display_order: int,
     is_active: bool = True,
+    source_seed_lot_id: int | None = 1,
+    line_source_id: int = 1,
     synced_at: datetime = FIXED_NOW,
 ) -> CloudPlant:
     _ = display_order
@@ -195,9 +200,9 @@ def _plant(
     return CloudPlant(
         site_id="homebox",
         source_plant_id=source_plant_id,
-        line_source_id=1,
+        line_source_id=line_source_id,
         sex_key="unknown",
-        source_seed_lot_id=1,
+        source_seed_lot_id=source_seed_lot_id,
         clone_source_plant_id=None,
         key=_plant_key(plant_id),
         name=f"Plant {plant_id.upper()}",
@@ -234,6 +239,7 @@ def _seed_lot(
     sex_type_key: str = "feminized",
     is_purchased: bool = True,
     seed_count: int | None = 12,
+    produced_by_cross_event_source_id: int | None = None,
 ) -> CloudSeedLot:
     return CloudSeedLot(
         site_id="homebox",
@@ -243,7 +249,9 @@ def _seed_lot(
         is_purchased=is_purchased,
         vendor_name="Unknown vendor" if is_purchased else None,
         acquired_at=FIXED_NOW - timedelta(days=60) if is_purchased else None,
-        produced_by_cross_event_source_id=None if is_purchased else 42,
+        produced_by_cross_event_source_id=(
+            None if is_purchased else produced_by_cross_event_source_id or 42
+        ),
         seed_count=seed_count,
         notes=None,
         synced_at=FIXED_NOW,
@@ -255,20 +263,98 @@ def _seed_lot(
 def _plant_location(
     plant_id: str,
     *,
-    grid_position: str,
+    grid_position: str | None,
+    end_at: datetime | None = None,
+    tent_id: str = "main",
     synced_at: datetime = FIXED_NOW,
 ) -> CloudPlantLocation:
     return CloudPlantLocation(
         site_id="homebox",
         source_location_id=_source_plant_id(plant_id),
         source_plant_id=_source_plant_id(plant_id),
-        tent_id="main",
+        tent_id=tent_id,
         grid_position=grid_position,
         start_at=FIXED_NOW - timedelta(days=51),
-        end_at=None,
+        end_at=end_at,
         synced_at=synced_at,
         created_at=FIXED_NOW,
         updated_at=synced_at,
+    )
+
+
+def _cross_event(
+    source_cross_event_id: int,
+    *,
+    seed_parent: str,
+    pollen_parent: str,
+    pollen_parent_is_reversed: bool | None = None,
+) -> CloudCrossEvent:
+    return CloudCrossEvent(
+        site_id="homebox",
+        source_cross_event_id=source_cross_event_id,
+        resulting_line_source_id=1,
+        seed_parent_source_plant_id=_source_plant_id(seed_parent),
+        pollen_parent_source_plant_id=_source_plant_id(pollen_parent),
+        pollinated_at=FIXED_NOW - timedelta(days=10),
+        pollen_parent_is_reversed=pollen_parent_is_reversed,
+        notes=None,
+        synced_at=FIXED_NOW,
+        created_at=FIXED_NOW,
+        updated_at=FIXED_NOW,
+    )
+
+
+def _plant_note(
+    source_note_id: int,
+    *,
+    plant_id: str,
+    body: str,
+    observed_at: datetime,
+) -> CloudPlantNote:
+    return CloudPlantNote(
+        site_id="homebox",
+        source_note_id=source_note_id,
+        source_plant_id=_source_plant_id(plant_id),
+        observed_at=observed_at,
+        body=body,
+        created_by="test",
+        synced_at=FIXED_NOW,
+        created_at=FIXED_NOW,
+        updated_at=FIXED_NOW,
+    )
+
+
+def _plant_event(
+    source_event_id: int,
+    *,
+    plant_id: str,
+    occurred_at: datetime,
+    is_seed_production: bool = False,
+    is_clone_taken: bool = False,
+    is_sex_observation: bool = False,
+    is_transplant: bool = False,
+    is_selection_for_breeding: bool = False,
+    reason: str | None = None,
+    notes: str | None = None,
+) -> CloudPlantEvent:
+    return CloudPlantEvent(
+        site_id="homebox",
+        source_event_id=source_event_id,
+        source_plant_id=_source_plant_id(plant_id),
+        is_pollen_collection=False,
+        is_seed_production=is_seed_production,
+        is_clone_taken=is_clone_taken,
+        is_sex_observation=is_sex_observation,
+        is_reversal=False,
+        is_transplant=is_transplant,
+        is_selection_for_breeding=is_selection_for_breeding,
+        occurred_at=occurred_at,
+        reason=reason,
+        notes=notes,
+        metadata_json={},
+        synced_at=FIXED_NOW,
+        created_at=FIXED_NOW,
+        updated_at=FIXED_NOW,
     )
 
 
@@ -573,10 +659,47 @@ async def test_catalog_upsert_is_idempotent(
                 "source_location_id": 2,
                 "source_plant_id": 2,
                 "tent_id": "main",
-                "grid_position": "B1",
+                "grid_position": None,
                 "start_at": "2026-03-15T12:00:00Z",
                 "end_at": None,
             },
+        ],
+        "cross_events": [
+            {
+                "source_cross_event_id": 10,
+                "resulting_line_source_id": 1,
+                "seed_parent_source_plant_id": 1,
+                "pollen_parent_source_plant_id": 2,
+                "pollinated_at": "2026-04-20T12:00:00Z",
+                "pollen_parent_is_reversed": None,
+                "notes": None,
+            }
+        ],
+        "plant_notes": [
+            {
+                "source_note_id": 20,
+                "source_plant_id": 1,
+                "observed_at": "2026-04-21T12:00:00Z",
+                "body": "Branching improved.",
+                "created_by": None,
+            }
+        ],
+        "plant_events": [
+            {
+                "source_event_id": 30,
+                "source_plant_id": 1,
+                "is_pollen_collection": False,
+                "is_seed_production": False,
+                "is_clone_taken": False,
+                "is_sex_observation": True,
+                "is_reversal": False,
+                "is_transplant": False,
+                "is_selection_for_breeding": False,
+                "occurred_at": "2026-04-22T12:00:00Z",
+                "reason": None,
+                "notes": None,
+                "metadata": {"sex_key": "female"},
+            }
         ],
         "plant_metric_streams": [
             {
@@ -603,6 +726,9 @@ async def test_catalog_upsert_is_idempotent(
     assert first.json()["seed_lots"] == 1
     assert first.json()["plants"] == 2
     assert first.json()["plant_locations"] == 2
+    assert first.json()["cross_events"] == 1
+    assert first.json()["plant_notes"] == 1
+    assert first.json()["plant_events"] == 1
     assert first.json()["plant_metric_streams"] == 1
     sessionmaker = create_sessionmaker(cloud_engine)
     async with sessionmaker() as session:
@@ -626,6 +752,15 @@ async def test_catalog_upsert_is_idempotent(
         plant_count = await session.scalar(select(func.count()).select_from(CloudPlant))
         location_count = await session.scalar(
             select(func.count()).select_from(CloudPlantLocation)
+        )
+        cross_event_count = await session.scalar(
+            select(func.count()).select_from(CloudCrossEvent)
+        )
+        note_count = await session.scalar(
+            select(func.count()).select_from(CloudPlantNote)
+        )
+        event_count = await session.scalar(
+            select(func.count()).select_from(CloudPlantEvent)
         )
         stream_count = await session.scalar(
             select(func.count()).select_from(CloudPlantMetricStream)
@@ -656,6 +791,40 @@ async def test_catalog_upsert_is_idempotent(
                 )
             )
         ).scalar_one_or_none()
+        plant_b_location = (
+            await session.execute(
+                select(CloudPlantLocation).where(
+                    CloudPlantLocation.site_id == "homebox",
+                    CloudPlantLocation.source_plant_id == 2,
+                    CloudPlantLocation.tent_id == "main",
+                    CloudPlantLocation.grid_position.is_(None),
+                )
+            )
+        ).scalar_one_or_none()
+        cross_event = (
+            await session.execute(
+                select(CloudCrossEvent).where(
+                    CloudCrossEvent.site_id == "homebox",
+                    CloudCrossEvent.source_cross_event_id == 10,
+                )
+            )
+        ).scalar_one_or_none()
+        note = (
+            await session.execute(
+                select(CloudPlantNote).where(
+                    CloudPlantNote.site_id == "homebox",
+                    CloudPlantNote.source_note_id == 20,
+                )
+            )
+        ).scalar_one_or_none()
+        event = (
+            await session.execute(
+                select(CloudPlantEvent).where(
+                    CloudPlantEvent.site_id == "homebox",
+                    CloudPlantEvent.source_event_id == 30,
+                )
+            )
+        ).scalar_one_or_none()
         plant_a_stream = (
             await session.execute(
                 select(CloudPlantMetricStream).where(
@@ -676,6 +845,9 @@ async def test_catalog_upsert_is_idempotent(
     assert seed_lot_count == 1
     assert plant_count == 2
     assert location_count == 2
+    assert cross_event_count == 1
+    assert note_count == 1
+    assert event_count == 1
     assert stream_count == 1
     assert plant_a is not None
     assert plant_a.key == "SBBS-R1-001"
@@ -684,6 +856,19 @@ async def test_catalog_upsert_is_idempotent(
     assert seed_lot is not None
     assert seed_lot.sex_type_key == "feminized"
     assert plant_a_location is not None
+    assert plant_b_location is not None
+    assert plant_b_location.grid_position is None
+    assert cross_event is not None
+    assert cross_event.pollen_parent_is_reversed is None
+    assert cross_event.notes is None
+    assert note is not None
+    assert note.body == "Branching improved."
+    assert note.created_by is None
+    assert event is not None
+    assert event.is_sex_observation is True
+    assert event.reason is None
+    assert event.notes is None
+    assert event.metadata_json == {"sex_key": "female"}
     assert plant_a_stream is not None
     assert plant_a_stream.display_order == 1
     assert plant_a_stream.is_active is True
@@ -1575,7 +1760,11 @@ async def test_breeding_logbook_plant_list_is_site_wide_and_screen_shaped(
                 _seed_lot(),
                 _plant("b", display_order=2, is_active=False),
                 _plant("a", display_order=1),
-                _plant_location("b", grid_position="B1"),
+                _plant_location(
+                    "b",
+                    grid_position="B1",
+                    end_at=FIXED_NOW - timedelta(days=1),
+                ),
                 _plant_location("a", grid_position="A1"),
             ]
         )
@@ -1620,6 +1809,58 @@ async def test_breeding_logbook_plant_list_is_site_wide_and_screen_shaped(
         "SBBS-R1-001",
         "SBBS-R1-002",
     ]
+
+
+async def test_breeding_logbook_plant_list_handles_timeline_note_fallbacks(
+    authed_client: AsyncClient,
+    cloud_engine: AsyncEngine,
+) -> None:
+    sessionmaker = create_sessionmaker(cloud_engine)
+    async with sessionmaker() as session:
+        session.add_all(
+            [
+                _plant_line(),
+                _seed_lot(),
+                _plant("a", display_order=1),
+                _plant("b", display_order=2),
+                _plant("c", display_order=3, is_active=False),
+                _plant_location("a", grid_position=None),
+                _plant_location("b", grid_position="B1"),
+                _plant_location("c", grid_position="C1"),
+                _plant_event(
+                    10,
+                    plant_id="a",
+                    occurred_at=FIXED_NOW - timedelta(hours=1),
+                    is_sex_observation=True,
+                    reason="Confirmed female",
+                ),
+                _plant_note(
+                    11,
+                    plant_id="a",
+                    observed_at=FIXED_NOW - timedelta(hours=2),
+                    body="Latest canopy note",
+                ),
+                _plant_event(
+                    12,
+                    plant_id="b",
+                    occurred_at=FIXED_NOW - timedelta(hours=1),
+                    is_transplant=True,
+                    notes="Moved into flower",
+                ),
+            ]
+        )
+        await session.commit()
+
+    response = await authed_client.get(
+        "/api/breeding-logbook/plants?include_culled=true&group_by=stage"
+    )
+
+    assert response.status_code == 200
+    plants = {plant["key"]: plant for plant in response.json()["plants"]}
+    assert plants["SBBS-R1-001"]["location_label"] == "main"
+    assert plants["SBBS-R1-001"]["last_note"] == "Latest canopy note"
+    assert plants["SBBS-R1-002"]["last_note"] == "Moved into flower"
+    assert plants["SBBS-R1-003"]["last_note"] == "test fixture"
 
 
 async def test_breeding_logbook_seed_lots_include_lots_without_current_plants(
@@ -1681,8 +1922,48 @@ async def test_breeding_logbook_plant_detail_and_history_reuse_cloud_projection(
             [
                 _plant_line(),
                 _seed_lot(),
-                _plant("a", display_order=1),
+                _seed_lot(
+                    2,
+                    is_purchased=False,
+                    produced_by_cross_event_source_id=42,
+                ),
+                _seed_lot(
+                    3,
+                    is_purchased=False,
+                    produced_by_cross_event_source_id=43,
+                ),
+                _plant("a", display_order=1, source_seed_lot_id=2),
+                _plant("b", display_order=2),
+                _plant("c", display_order=3),
+                _plant("d", display_order=4, source_seed_lot_id=3),
                 _plant_location("a", grid_position="A1"),
+                _cross_event(
+                    42,
+                    seed_parent="b",
+                    pollen_parent="c",
+                    pollen_parent_is_reversed=True,
+                ),
+                _cross_event(43, seed_parent="a", pollen_parent="b"),
+                _plant_note(
+                    101,
+                    plant_id="a",
+                    observed_at=FIXED_NOW - timedelta(hours=2),
+                    body="Trichomes stacking",
+                ),
+                _plant_event(
+                    201,
+                    plant_id="a",
+                    occurred_at=FIXED_NOW - timedelta(hours=1),
+                    is_sex_observation=True,
+                    reason="Confirmed female",
+                ),
+                _plant_event(
+                    202,
+                    plant_id="a",
+                    occurred_at=FIXED_NOW - timedelta(hours=3),
+                    is_seed_production=True,
+                    notes="Pollinated lower branch",
+                ),
                 _plant_stream(
                     "a",
                     device_id="plant-a-substrate-node",
@@ -1720,19 +2001,339 @@ async def test_breeding_logbook_plant_detail_and_history_reuse_cloud_projection(
     assert detail.status_code == 200
     detail_body = detail.json()
     assert detail_body["plant"]["key"] == "SBBS-R1-001"
+    assert detail_body["plant"]["last_note"] == "Trichomes stacking"
     assert detail_body["lineage"] == {
-        "parents": "Sirius Black x BS01 x R1",
-        "offspring": "No offspring projected",
+        "parents": ("Plant B (SBBS-R1-002) x Plant C (SBBS-R1-003) (reversed)"),
+        "offspring": "Cross #43: SBBS R1 #3 (1 plant)",
     }
     assert detail_body["metrics"] == [
         {"label": "Substrate Temp", "value": "69.8°F", "tone": "ok"}
     ]
-    assert detail_body["events"] == []
+    assert [
+        (event["id"], event["tag"], event["body"]) for event in detail_body["events"]
+    ] == [
+        ("event-201", "sex", "Confirmed female"),
+        ("note-101", "note", "Trichomes stacking"),
+        ("event-202", "cross", "Pollinated lower branch"),
+    ]
     assert detail_body["wiki_content"] is None
     assert history.status_code == 200
     assert history.json()["streams"][0]["metric"] == "substrate_temp_c"
     assert history.json()["streams"][0]["points"][0]["avg"] == 69.8
     assert missing.status_code == 404
+
+
+def _breeding_write_cases() -> list[tuple[str, dict[str, object], dict[str, object]]]:
+    return [
+        (
+            "/api/breeding-logbook/seed-lots",
+            {
+                "idempotency_key": "create-seed-lot",
+                "source": "purchased",
+                "generation": "R2",
+                "prefix": "SBBS",
+                "strain": "Sirius Black x BS01",
+                "cultivar": "R2",
+                "source_name": "Archive pack",
+                "vendor_name": "Archive",
+                "acquired_at": None,
+                "seed_count": 10,
+                "sex_type_key": "feminized",
+                "notes": None,
+            },
+            {
+                "source": "purchased",
+                "generation": "R2",
+                "prefix": "SBBS",
+                "strain": "Sirius Black x BS01",
+                "cultivar": "R2",
+                "source_name": "Archive pack",
+                "vendor_name": "Archive",
+                "acquired_at": None,
+                "seed_parent_plant_key": None,
+                "pollen_parent_plant_key": None,
+                "pollinated_at": None,
+                "pollen_parent_is_reversed": None,
+                "seed_count": 10,
+                "sex_type_key": "feminized",
+                "notes": None,
+            },
+        ),
+        (
+            "/api/breeding-logbook/plants:germinate",
+            {
+                "idempotency_key": "germinate-plants",
+                "seed_lot_id": "1",
+                "count": 2,
+                "tent_id": "breeding",
+                "grid_position": None,
+                "germinated_at": None,
+            },
+            {
+                "seed_lot_source_id": 1,
+                "count": 2,
+                "tent_id": "breeding",
+                "grid_position": None,
+                "germinated_at": None,
+            },
+        ),
+        (
+            "/api/breeding-logbook/plants:clone",
+            {
+                "idempotency_key": "clone-plants",
+                "mother_plant_key": "SBBS-R1-001",
+                "count": 2,
+                "tent_id": "breeding",
+                "grid_position": None,
+                "taken_at": None,
+            },
+            {
+                "mother_plant_key": "SBBS-R1-001",
+                "count": 2,
+                "tent_id": "breeding",
+                "grid_position": None,
+                "taken_at": None,
+            },
+        ),
+        (
+            "/api/breeding-logbook/plants:bulk-sex",
+            {
+                "idempotency_key": "bulk-sex",
+                "plant_keys": ["SBBS-R1-001", "SBBS-R1-002"],
+                "sex_key": "female",
+            },
+            {"plant_keys": ["SBBS-R1-001", "SBBS-R1-002"], "sex_key": "female"},
+        ),
+        (
+            "/api/breeding-logbook/plants:bulk-move",
+            {
+                "idempotency_key": "bulk-move",
+                "plant_keys": ["SBBS-R1-001", "SBBS-R1-002"],
+                "tent_id": "breeding",
+                "grid_position": None,
+            },
+            {
+                "plant_keys": ["SBBS-R1-001", "SBBS-R1-002"],
+                "tent_id": "breeding",
+                "grid_position": None,
+            },
+        ),
+        (
+            "/api/breeding-logbook/plants:bulk-cull",
+            {
+                "idempotency_key": "bulk-cull",
+                "plant_keys": ["SBBS-R1-002"],
+                "reason": "selected male",
+            },
+            {"plant_keys": ["SBBS-R1-002"], "reason": "selected male"},
+        ),
+        (
+            "/api/breeding-logbook/plants/SBBS-R1-001/notes",
+            {
+                "idempotency_key": "plant-note",
+                "body": "Stem rub improved.",
+                "observed_at": None,
+            },
+            {
+                "plant_key": "SBBS-R1-001",
+                "body": "Stem rub improved.",
+                "observed_at": None,
+            },
+        ),
+    ]
+
+
+async def _seed_breeding_write_projection(cloud_engine: AsyncEngine) -> None:
+    sessionmaker = create_sessionmaker(cloud_engine)
+    async with sessionmaker() as session:
+        session.add_all(
+            [
+                _tent("breeding", "Breeding tent"),
+                _plant_line(),
+                _seed_lot(),
+                _plant("a", display_order=1),
+                _plant("b", display_order=2),
+            ]
+        )
+        await session.commit()
+
+
+async def test_breeding_logbook_write_routes_require_auth(client: AsyncClient) -> None:
+    for path, body, _ in _breeding_write_cases():
+        response = await client.post(path, json=body)
+        assert response.status_code == 401
+
+
+async def test_breeding_logbook_write_routes_enqueue_typed_commands_idempotently(
+    authed_client: AsyncClient,
+    cloud_engine: AsyncEngine,
+) -> None:
+    await _seed_breeding_write_projection(cloud_engine)
+
+    for path, body, expected_payload in _breeding_write_cases():
+        first = await authed_client.post(path, json=body)
+        second = await authed_client.post(path, json=body)
+
+        assert first.status_code == 201
+        assert second.status_code == 201
+        assert second.json()["command_id"] == first.json()["command_id"]
+        assert first.json()["device_id"] is None
+        assert first.json()["capability_id"] is None
+        assert first.json()["payload"] == expected_payload
+        assert datetime.fromisoformat(first.json()["expires_at"]) == (
+            FIXED_NOW + timedelta(seconds=3600)
+        )
+
+    sessionmaker = create_sessionmaker(cloud_engine)
+    async with sessionmaker() as session:
+        rows = (
+            (
+                await session.execute(
+                    select(CloudCommand).order_by(CloudCommand.queued_at)
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert len(rows) == len(_breeding_write_cases())
+    assert {row.command_type for row in rows} == {
+        "breeding_seed_lot_create",
+        "breeding_plants_germinate",
+        "breeding_plants_clone",
+        "breeding_plants_bulk_sex",
+        "breeding_plants_bulk_move",
+        "breeding_plants_bulk_cull",
+        "breeding_plant_note_create",
+    }
+
+
+async def test_breeding_logbook_write_routes_return_503_when_commands_disabled(
+    cloud_engine: AsyncEngine,
+    settings,
+) -> None:
+    from dirt_control.app import create_app
+
+    await _seed_breeding_write_projection(cloud_engine)
+    disabled = settings.model_copy(update={"command_creation_enabled": False})
+    app = create_app(settings=disabled, engine=cloud_engine, clock=lambda: FIXED_NOW)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        follow_redirects=False,
+    ) as client:
+        login = await client.post(
+            "/api/auth/login", json={"username": "admin", "password": "test-password"}
+        )
+        assert login.status_code == 200
+        client.cookies = login.cookies
+        for path, body, _ in _breeding_write_cases():
+            response = await client.post(path, json=body)
+            assert response.status_code == 503
+    await transport.aclose()
+
+
+async def test_breeding_logbook_write_routes_reject_obvious_bad_inputs(
+    authed_client: AsyncClient,
+    cloud_engine: AsyncEngine,
+) -> None:
+    await _seed_breeding_write_projection(cloud_engine)
+    invalid_cases = [
+        (
+            "/api/breeding-logbook/seed-lots",
+            {
+                "idempotency_key": "bad-cross",
+                "source": "cross",
+                "generation": "F1",
+                "prefix": "SBX",
+                "seed_parent_plant_key": "SBBS-R1-001",
+                "pollen_parent_plant_key": "missing",
+                "sex_type_key": "regular",
+            },
+        ),
+        (
+            "/api/breeding-logbook/plants:germinate",
+            {
+                "idempotency_key": "bad-germ",
+                "seed_lot_id": "missing",
+                "count": 1,
+                "tent_id": "breeding",
+                "grid_position": None,
+            },
+        ),
+        (
+            "/api/breeding-logbook/plants:germinate",
+            {
+                "idempotency_key": "bad-germ-grid",
+                "seed_lot_id": "1",
+                "count": 1,
+                "tent_id": "breeding",
+                "grid_position": "A1",
+            },
+        ),
+        (
+            "/api/breeding-logbook/plants:clone",
+            {
+                "idempotency_key": "bad-clone",
+                "mother_plant_key": "missing",
+                "count": 1,
+                "tent_id": "breeding",
+                "grid_position": None,
+            },
+        ),
+        (
+            "/api/breeding-logbook/plants:clone",
+            {
+                "idempotency_key": "bad-clone-grid",
+                "mother_plant_key": "SBBS-R1-001",
+                "count": 1,
+                "tent_id": "breeding",
+                "grid_position": "A1",
+            },
+        ),
+        (
+            "/api/breeding-logbook/plants:bulk-sex",
+            {
+                "idempotency_key": "bad-sex",
+                "plant_keys": ["missing"],
+                "sex_key": "female",
+            },
+        ),
+        (
+            "/api/breeding-logbook/plants:bulk-move",
+            {
+                "idempotency_key": "bad-move",
+                "plant_keys": ["SBBS-R1-001"],
+                "tent_id": "missing",
+                "grid_position": None,
+            },
+        ),
+        (
+            "/api/breeding-logbook/plants:bulk-move",
+            {
+                "idempotency_key": "bad-move-grid",
+                "plant_keys": ["SBBS-R1-001"],
+                "tent_id": "breeding",
+                "grid_position": "A1",
+            },
+        ),
+        (
+            "/api/breeding-logbook/plants:bulk-cull",
+            {
+                "idempotency_key": "bad-cull",
+                "plant_keys": ["SBBS-R1-001"],
+                "reason": "   ",
+            },
+        ),
+        (
+            "/api/breeding-logbook/plants/missing/notes",
+            {"idempotency_key": "bad-note", "body": "Looks better."},
+        ),
+    ]
+
+    for path, body in invalid_cases:
+        response = await authed_client.post(path, json=body)
+        assert 400 <= response.status_code < 500
 
 
 async def test_browser_plant_list_orders_and_counts_telemetry_streams(

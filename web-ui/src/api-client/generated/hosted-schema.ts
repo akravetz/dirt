@@ -174,6 +174,108 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/breeding-logbook/plants/{plant_key}/notes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Create Breeding Plant Note */
+    post: operations["create_breeding_plant_note_api_breeding_logbook_plants__plant_key__notes_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/breeding-logbook/plants:bulk-cull": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Bulk Cull Breeding Plants */
+    post: operations["bulk_cull_breeding_plants_api_breeding_logbook_plants_bulk_cull_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/breeding-logbook/plants:bulk-move": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Bulk Move Breeding Plants */
+    post: operations["bulk_move_breeding_plants_api_breeding_logbook_plants_bulk_move_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/breeding-logbook/plants:bulk-sex": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Bulk Sex Breeding Plants */
+    post: operations["bulk_sex_breeding_plants_api_breeding_logbook_plants_bulk_sex_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/breeding-logbook/plants:clone": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Clone Breeding Plants */
+    post: operations["clone_breeding_plants_api_breeding_logbook_plants_clone_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/breeding-logbook/plants:germinate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Germinate Breeding Plants */
+    post: operations["germinate_breeding_plants_api_breeding_logbook_plants_germinate_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/breeding-logbook/seed-lots": {
     parameters: {
       query?: never;
@@ -184,7 +286,8 @@ export interface paths {
     /** Breeding Logbook Seed Lots */
     get: operations["breeding_logbook_seed_lots_api_breeding_logbook_seed_lots_get"];
     put?: never;
-    post?: never;
+    /** Create Breeding Seed Lot */
+    post: operations["create_breeding_seed_lot_api_breeding_logbook_seed_lots_post"];
     delete?: never;
     options?: never;
     head?: never;
@@ -633,6 +736,218 @@ export interface components {
       /** Tent Id */
       tent_id: string;
     };
+    /** BreedingBulkCullPayload */
+    BreedingBulkCullPayload: {
+      /** Plant Keys */
+      plant_keys: string[];
+      /** Reason */
+      reason: string;
+    };
+    /** BreedingBulkCullRequest */
+    BreedingBulkCullRequest: {
+      /** Idempotency Key */
+      idempotency_key: string;
+      /** Plant Keys */
+      plant_keys: string[];
+      /** Reason */
+      reason: string;
+    };
+    /** BreedingBulkMovePayload */
+    BreedingBulkMovePayload: {
+      /** Grid Position */
+      grid_position: null;
+      /** Plant Keys */
+      plant_keys: string[];
+      /** Tent Id */
+      tent_id: string;
+    };
+    /** BreedingBulkMoveRequest */
+    BreedingBulkMoveRequest: {
+      /** Grid Position */
+      grid_position: null;
+      /** Idempotency Key */
+      idempotency_key: string;
+      /** Plant Keys */
+      plant_keys: string[];
+      /** Tent Id */
+      tent_id: string;
+    };
+    /** BreedingBulkSexPayload */
+    BreedingBulkSexPayload: {
+      /** Plant Keys */
+      plant_keys: string[];
+      /**
+       * Sex Key
+       * @enum {string}
+       */
+      sex_key: "unknown" | "male" | "female" | "herm" | "reversed";
+    };
+    /** BreedingBulkSexRequest */
+    BreedingBulkSexRequest: {
+      /** Idempotency Key */
+      idempotency_key: string;
+      /** Plant Keys */
+      plant_keys: string[];
+      /**
+       * Sex Key
+       * @enum {string}
+       */
+      sex_key: "unknown" | "male" | "female" | "herm" | "reversed";
+    };
+    /** BreedingClonePlantsPayload */
+    BreedingClonePlantsPayload: {
+      /** Count */
+      count: number;
+      /** Grid Position */
+      grid_position: null;
+      /** Mother Plant Key */
+      mother_plant_key: string;
+      /** Taken At */
+      taken_at?: string | null;
+      /** Tent Id */
+      tent_id: string;
+    };
+    /** BreedingClonePlantsRequest */
+    BreedingClonePlantsRequest: {
+      /** Count */
+      count: number;
+      /** Grid Position */
+      grid_position: null;
+      /** Idempotency Key */
+      idempotency_key: string;
+      /** Mother Plant Key */
+      mother_plant_key: string;
+      /** Taken At */
+      taken_at?: string | null;
+      /** Tent Id */
+      tent_id: string;
+    };
+    /** BreedingCreatePlantNotePayload */
+    BreedingCreatePlantNotePayload: {
+      /** Body */
+      body: string;
+      /** Observed At */
+      observed_at?: string | null;
+      /** Plant Key */
+      plant_key: string;
+    };
+    /** BreedingCreatePlantNoteRequest */
+    BreedingCreatePlantNoteRequest: {
+      /** Body */
+      body: string;
+      /** Idempotency Key */
+      idempotency_key: string;
+      /** Observed At */
+      observed_at?: string | null;
+    };
+    /** BreedingCreateSeedLotPayload */
+    BreedingCreateSeedLotPayload: {
+      /** Acquired At */
+      acquired_at?: string | null;
+      /** Cultivar */
+      cultivar?: string | null;
+      /** Generation */
+      generation: string;
+      /** Notes */
+      notes?: string | null;
+      /** Pollen Parent Is Reversed */
+      pollen_parent_is_reversed?: boolean | null;
+      /** Pollen Parent Plant Key */
+      pollen_parent_plant_key?: string | null;
+      /** Pollinated At */
+      pollinated_at?: string | null;
+      /** Prefix */
+      prefix: string;
+      /** Seed Count */
+      seed_count?: number | null;
+      /** Seed Parent Plant Key */
+      seed_parent_plant_key?: string | null;
+      /**
+       * Sex Type Key
+       * @enum {string}
+       */
+      sex_type_key: "unknown" | "feminized" | "regular";
+      /**
+       * Source
+       * @enum {string}
+       */
+      source: "purchased" | "cross";
+      /** Source Name */
+      source_name?: string | null;
+      /** Strain */
+      strain?: string | null;
+      /** Vendor Name */
+      vendor_name?: string | null;
+    };
+    /** BreedingCreateSeedLotRequest */
+    BreedingCreateSeedLotRequest: {
+      /** Acquired At */
+      acquired_at?: string | null;
+      /** Cultivar */
+      cultivar?: string | null;
+      /** Generation */
+      generation: string;
+      /** Idempotency Key */
+      idempotency_key: string;
+      /** Notes */
+      notes?: string | null;
+      /** Pollen Parent Is Reversed */
+      pollen_parent_is_reversed?: boolean | null;
+      /** Pollen Parent Plant Key */
+      pollen_parent_plant_key?: string | null;
+      /** Pollinated At */
+      pollinated_at?: string | null;
+      /** Prefix */
+      prefix: string;
+      /** Seed Count */
+      seed_count?: number | null;
+      /** Seed Parent Plant Key */
+      seed_parent_plant_key?: string | null;
+      /**
+       * Sex Type Key
+       * @enum {string}
+       */
+      sex_type_key: "unknown" | "feminized" | "regular";
+      /**
+       * Source
+       * @enum {string}
+       */
+      source: "purchased" | "cross";
+      /** Source Name */
+      source_name?: string | null;
+      /** Strain */
+      strain?: string | null;
+      /** Vendor Name */
+      vendor_name?: string | null;
+    };
+    /** BreedingGerminatePlantsPayload */
+    BreedingGerminatePlantsPayload: {
+      /** Count */
+      count: number;
+      /** Germinated At */
+      germinated_at?: string | null;
+      /** Grid Position */
+      grid_position: null;
+      /** Seed Lot Source Id */
+      seed_lot_source_id: number;
+      /** Tent Id */
+      tent_id: string;
+    };
+    /** BreedingGerminatePlantsRequest */
+    BreedingGerminatePlantsRequest: {
+      /** Count */
+      count: number;
+      /** Germinated At */
+      germinated_at?: string | null;
+      /** Grid Position */
+      grid_position: null;
+      /** Idempotency Key */
+      idempotency_key: string;
+      /** Seed Lot Id */
+      seed_lot_id: string;
+      /** Tent Id */
+      tent_id: string;
+    };
     /** BreedingLogbookBootstrapResponse */
     BreedingLogbookBootstrapResponse: {
       /** Locations */
@@ -862,6 +1177,26 @@ export interface components {
       /** Unit */
       unit?: string | null;
     };
+    /** CatalogCrossEvent */
+    CatalogCrossEvent: {
+      /** Notes */
+      notes: string | null;
+      /** Pollen Parent Is Reversed */
+      pollen_parent_is_reversed: boolean | null;
+      /** Pollen Parent Source Plant Id */
+      pollen_parent_source_plant_id: number;
+      /**
+       * Pollinated At
+       * Format: date-time
+       */
+      pollinated_at: string;
+      /** Resulting Line Source Id */
+      resulting_line_source_id: number;
+      /** Seed Parent Source Plant Id */
+      seed_parent_source_plant_id: number;
+      /** Source Cross Event Id */
+      source_cross_event_id: number;
+    };
     /** CatalogDevice */
     CatalogDevice: {
       /** Controller */
@@ -927,6 +1262,40 @@ export interface components {
       /** Veg Started At */
       veg_started_at: string | null;
     };
+    /** CatalogPlantEvent */
+    CatalogPlantEvent: {
+      /** Is Clone Taken */
+      is_clone_taken: boolean;
+      /** Is Pollen Collection */
+      is_pollen_collection: boolean;
+      /** Is Reversal */
+      is_reversal: boolean;
+      /** Is Seed Production */
+      is_seed_production: boolean;
+      /** Is Selection For Breeding */
+      is_selection_for_breeding: boolean;
+      /** Is Sex Observation */
+      is_sex_observation: boolean;
+      /** Is Transplant */
+      is_transplant: boolean;
+      /** Metadata */
+      metadata: {
+        [key: string]: unknown;
+      };
+      /** Notes */
+      notes: string | null;
+      /**
+       * Occurred At
+       * Format: date-time
+       */
+      occurred_at: string;
+      /** Reason */
+      reason: string | null;
+      /** Source Event Id */
+      source_event_id: number;
+      /** Source Plant Id */
+      source_plant_id: number;
+    };
     /** CatalogPlantLine */
     CatalogPlantLine: {
       /** Cultivar */
@@ -949,7 +1318,7 @@ export interface components {
       /** End At */
       end_at: string | null;
       /** Grid Position */
-      grid_position: string;
+      grid_position: string | null;
       /** Source Location Id */
       source_location_id: number;
       /** Source Plant Id */
@@ -977,18 +1346,40 @@ export interface components {
       /** Source Plant Id */
       source_plant_id: number;
     };
+    /** CatalogPlantNote */
+    CatalogPlantNote: {
+      /** Body */
+      body: string;
+      /** Created By */
+      created_by: string | null;
+      /**
+       * Observed At
+       * Format: date-time
+       */
+      observed_at: string;
+      /** Source Note Id */
+      source_note_id: number;
+      /** Source Plant Id */
+      source_plant_id: number;
+    };
     /** CatalogRequest */
     CatalogRequest: {
       /** Capabilities */
       capabilities?: components["schemas"]["CatalogCapability"][];
+      /** Cross Events */
+      cross_events?: components["schemas"]["CatalogCrossEvent"][];
       /** Devices */
       devices?: components["schemas"]["CatalogDevice"][];
+      /** Plant Events */
+      plant_events?: components["schemas"]["CatalogPlantEvent"][];
       /** Plant Lines */
       plant_lines?: components["schemas"]["CatalogPlantLine"][];
       /** Plant Locations */
       plant_locations?: components["schemas"]["CatalogPlantLocation"][];
       /** Plant Metric Streams */
       plant_metric_streams?: components["schemas"]["CatalogPlantMetricStream"][];
+      /** Plant Notes */
+      plant_notes?: components["schemas"]["CatalogPlantNote"][];
       /** Plants */
       plants?: components["schemas"]["CatalogPlant"][];
       /** Schedules */
@@ -1005,14 +1396,20 @@ export interface components {
     CatalogResponse: {
       /** Capabilities */
       capabilities: number;
+      /** Cross Events */
+      cross_events: number;
       /** Devices */
       devices: number;
+      /** Plant Events */
+      plant_events: number;
       /** Plant Lines */
       plant_lines: number;
       /** Plant Locations */
       plant_locations: number;
       /** Plant Metric Streams */
       plant_metric_streams: number;
+      /** Plant Notes */
+      plant_notes: number;
       /** Plants */
       plants: number;
       /** Schedules */
@@ -1147,7 +1544,17 @@ export interface components {
        * Command Type
        * @enum {string}
        */
-      command_type: "ptz_preset" | "ptz_look" | "ptz_zoom";
+      command_type:
+        | "ptz_preset"
+        | "ptz_look"
+        | "ptz_zoom"
+        | "breeding_seed_lot_create"
+        | "breeding_plants_germinate"
+        | "breeding_plants_clone"
+        | "breeding_plants_bulk_sex"
+        | "breeding_plants_bulk_move"
+        | "breeding_plants_bulk_cull"
+        | "breeding_plant_note_create";
       /** Device Id */
       device_id: string | null;
       /** Error */
@@ -1164,7 +1571,14 @@ export interface components {
         | components["schemas"]["PtzPresetPayload"]
         | components["schemas"]["PtzLookPayload"]
         | components["schemas"]["PtzZoomAbsolutePayload"]
-        | components["schemas"]["PtzZoomRelativePayload"];
+        | components["schemas"]["PtzZoomRelativePayload"]
+        | components["schemas"]["BreedingCreateSeedLotPayload"]
+        | components["schemas"]["BreedingGerminatePlantsPayload"]
+        | components["schemas"]["BreedingClonePlantsPayload"]
+        | components["schemas"]["BreedingBulkSexPayload"]
+        | components["schemas"]["BreedingBulkMovePayload"]
+        | components["schemas"]["BreedingBulkCullPayload"]
+        | components["schemas"]["BreedingCreatePlantNotePayload"];
       /**
        * Queued At
        * Format: date-time
@@ -1241,7 +1655,7 @@ export interface components {
     /** CommandResponse */
     CommandResponse: {
       /** Capability Id */
-      capability_id: string;
+      capability_id: string | null;
       /** Claimed At */
       claimed_at: string | null;
       /** Claimed By */
@@ -1251,7 +1665,7 @@ export interface components {
       /** Command Type */
       command_type: string;
       /** Device Id */
-      device_id: string;
+      device_id: string | null;
       /** Error */
       error: string | null;
       /**
@@ -1315,7 +1729,17 @@ export interface components {
        * Command Type
        * @enum {string}
        */
-      command_type: "ptz_preset" | "ptz_look" | "ptz_zoom";
+      command_type:
+        | "ptz_preset"
+        | "ptz_look"
+        | "ptz_zoom"
+        | "breeding_seed_lot_create"
+        | "breeding_plants_germinate"
+        | "breeding_plants_clone"
+        | "breeding_plants_bulk_sex"
+        | "breeding_plants_bulk_move"
+        | "breeding_plants_bulk_cull"
+        | "breeding_plant_note_create";
       /** Device Id */
       device_id: string | null;
       /** Error */
@@ -1332,7 +1756,14 @@ export interface components {
         | components["schemas"]["PtzPresetPayload"]
         | components["schemas"]["PtzLookPayload"]
         | components["schemas"]["PtzZoomAbsolutePayload"]
-        | components["schemas"]["PtzZoomRelativePayload"];
+        | components["schemas"]["PtzZoomRelativePayload"]
+        | components["schemas"]["BreedingCreateSeedLotPayload"]
+        | components["schemas"]["BreedingGerminatePlantsPayload"]
+        | components["schemas"]["BreedingClonePlantsPayload"]
+        | components["schemas"]["BreedingBulkSexPayload"]
+        | components["schemas"]["BreedingBulkMovePayload"]
+        | components["schemas"]["BreedingBulkCullPayload"]
+        | components["schemas"]["BreedingCreatePlantNotePayload"];
       /**
        * Queued At
        * Format: date-time
@@ -1655,7 +2086,7 @@ export interface components {
       /** End At */
       end_at: string | null;
       /** Grid Position */
-      grid_position: string;
+      grid_position: string | null;
       /** Id */
       id: number;
       /**
@@ -1680,7 +2111,7 @@ export interface components {
       /** Germinated At */
       germinated_at: string | null;
       /** Grid Position */
-      grid_position: string;
+      grid_position: string | null;
       /** Harvested At */
       harvested_at: string | null;
       /** Id */
@@ -1901,7 +2332,7 @@ export interface components {
       /** Germinated At */
       germinated_at: string | null;
       /** Grid Position */
-      grid_position: string;
+      grid_position: string | null;
       /** Harvested At */
       harvested_at: string | null;
       /** Id */
@@ -2472,6 +2903,206 @@ export interface operations {
       };
     };
   };
+  create_breeding_plant_note_api_breeding_logbook_plants__plant_key__notes_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        plant_key: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BreedingCreatePlantNoteRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CommandResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  bulk_cull_breeding_plants_api_breeding_logbook_plants_bulk_cull_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BreedingBulkCullRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CommandResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  bulk_move_breeding_plants_api_breeding_logbook_plants_bulk_move_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BreedingBulkMoveRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CommandResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  bulk_sex_breeding_plants_api_breeding_logbook_plants_bulk_sex_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BreedingBulkSexRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CommandResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  clone_breeding_plants_api_breeding_logbook_plants_clone_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BreedingClonePlantsRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CommandResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  germinate_breeding_plants_api_breeding_logbook_plants_germinate_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BreedingGerminatePlantsRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CommandResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   breeding_logbook_seed_lots_api_breeding_logbook_seed_lots_get: {
     parameters: {
       query?: never;
@@ -2488,6 +3119,39 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["BreedingLogbookSeedLotListResponse"];
+        };
+      };
+    };
+  };
+  create_breeding_seed_lot_api_breeding_logbook_seed_lots_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BreedingCreateSeedLotRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CommandResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
         };
       };
     };

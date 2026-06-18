@@ -1,4 +1,4 @@
-"""PTZ-only cloud command execution for the local gateway."""
+"""Cloud command execution for the local gateway."""
 
 from __future__ import annotations
 
@@ -7,11 +7,19 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
+from dirt_gateway.breeding_commands import BreedingCommandExecutor
 from dirt_gateway.cloud import CloudDeliveryError
 from dirt_gateway.outbox import OutboxRepository
 from dirt_gateway.protocols import BackoffPolicy, CloudGatewayClient, Sleeper
 from dirt_gateway.sync import ExponentialBackoff
 from dirt_shared.cloud_contract import (
+    BreedingBulkCullPayload,
+    BreedingBulkMovePayload,
+    BreedingBulkSexPayload,
+    BreedingClonePlantsPayload,
+    BreedingCreatePlantNotePayload,
+    BreedingCreateSeedLotPayload,
+    BreedingGerminatePlantsPayload,
     ClaimedCommand,
     CommandRequestStatus,
     CommandResultOutboxPayload,
@@ -63,6 +71,7 @@ class GatewayCommandService:
         command_ledger: CommandService,
         outbox: OutboxRepository,
         ptz: PTZExecutor | None = None,
+        breeding: BreedingCommandExecutor | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         backoff: BackoffPolicy | None = None,
         claim_limit: int = 5,
@@ -72,6 +81,7 @@ class GatewayCommandService:
         self._ledger = command_ledger
         self._outbox = outbox
         self._ptz = ptz or PTZService()
+        self._breeding = breeding
         self._clock = clock
         self._backoff = backoff or ExponentialBackoff()
         self._claim_limit = claim_limit
@@ -176,9 +186,9 @@ class GatewayCommandService:
             requested_by=f"cloud:{item.requested_by}",
             source="cloud_gateway",
             site_id=self._config.site_id,
-            tent_id=item.tent_id,
-            device_id=LOCAL_PTZ_DEVICE_ID,
-            capability_id=LOCAL_PTZ_CAPABILITY_ID,
+            tent_id=_local_tent_id(item),
+            device_id=_local_device_id(item),
+            capability_id=_local_capability_id(item),
             zone_id=_zone_for_command(item),
         )
         if local_command.status == "queued":
@@ -192,7 +202,7 @@ class GatewayCommandService:
         await self._ledger.start(local_command.command_id)
         await self._try_report_running(command_id)
         try:
-            result = await self._execute_ptz(item)
+            result = await self._execute_command(item)
         except Exception as exc:
             error = {"error_type": type(exc).__name__, "error": str(exc)}
             await self._ledger.fail(local_command.command_id, error)
@@ -203,7 +213,7 @@ class GatewayCommandService:
             )
             return _CommandOutcome(executed=True, reported=reported)
 
-        if result.get("ok") is False:
+        if _is_ptz_command(item) and result.get("ok") is False:
             await self._ledger.fail(local_command.command_id, {"result": result})
             reported = await self._enqueue_and_try_report(
                 command_id=command_id,
@@ -228,6 +238,13 @@ class GatewayCommandService:
             command_type=item.command_type,
         )
         return _CommandOutcome(executed=True, reported=reported)
+
+    async def _execute_command(self, item: ClaimedCommand) -> dict[str, Any]:
+        if _is_ptz_command(item):
+            return await self._execute_ptz(item)
+        if self._breeding is None:
+            raise ValueError("breeding command executor is not configured")
+        return await self._breeding.execute(item)
 
     async def _report_existing_local_terminal(
         self, cloud_command_id: str, local_command: Command
@@ -358,6 +375,10 @@ class GatewayCommandService:
     def _validate_claimed_command(self, item: ClaimedCommand) -> str | None:
         if item.site_id != self._config.site_id:
             return "command site scope does not match this gateway"
+        if _is_breeding_command(item):
+            if item.device_id is not None or item.capability_id is not None:
+                return "breeding commands must not include PTZ device targets"
+            return None
         if item.device_id != LOCAL_PTZ_DEVICE_ID:
             return "unsupported PTZ device target"
         if item.capability_id != LOCAL_PTZ_CAPABILITY_ID:
@@ -385,6 +406,13 @@ def _local_command_type(cloud_type: str) -> str:
         "ptz_preset": "ptz.preset",
         "ptz_look": "ptz.look",
         "ptz_zoom": "ptz.zoom",
+        "breeding_seed_lot_create": "breeding.seed_lot.create",
+        "breeding_plants_germinate": "breeding.plants.germinate",
+        "breeding_plants_clone": "breeding.plants.clone",
+        "breeding_plants_bulk_sex": "breeding.plants.bulk_sex",
+        "breeding_plants_bulk_move": "breeding.plants.bulk_move",
+        "breeding_plants_bulk_cull": "breeding.plants.bulk_cull",
+        "breeding_plant_note_create": "breeding.plant_note.create",
     }[cloud_type]
 
 
@@ -396,16 +424,69 @@ def _local_payload(item: ClaimedCommand) -> dict[str, Any]:
         return {"x": payload.x, "y": payload.y}
     if isinstance(payload, PtzZoomAbsolutePayload):
         return {"zoom": payload.zoom}
-    return {"delta": payload.delta}
+    if isinstance(payload, PtzZoomRelativePayload):
+        return {"delta": payload.delta}
+    return payload.model_dump(mode="json")
+
+
+def _local_tent_id(item: ClaimedCommand) -> str | None:
+    payload = item.payload
+    if _is_ptz_command(item):
+        return item.tent_id
+    if isinstance(
+        payload,
+        BreedingGerminatePlantsPayload
+        | BreedingClonePlantsPayload
+        | BreedingBulkMovePayload,
+    ):
+        return payload.tent_id
+    return None
+
+
+def _local_device_id(item: ClaimedCommand) -> str | None:
+    if _is_ptz_command(item):
+        return LOCAL_PTZ_DEVICE_ID
+    return None
+
+
+def _local_capability_id(item: ClaimedCommand) -> str | None:
+    if _is_ptz_command(item):
+        return LOCAL_PTZ_CAPABILITY_ID
+    return None
 
 
 def _zone_for_command(item: ClaimedCommand) -> str | None:
+    if not _is_ptz_command(item):
+        return None
     if not isinstance(item.payload, PtzPresetPayload):
         return "canopy"
     preset_id = item.payload.preset_id
     if preset_id.startswith("plant_") and len(preset_id) == len("plant_a"):
         return preset_id.replace("_", "-")
     return "canopy"
+
+
+def _is_ptz_command(item: ClaimedCommand) -> bool:
+    return isinstance(
+        item.payload,
+        PtzPresetPayload
+        | PtzLookPayload
+        | PtzZoomAbsolutePayload
+        | PtzZoomRelativePayload,
+    )
+
+
+def _is_breeding_command(item: ClaimedCommand) -> bool:
+    return isinstance(
+        item.payload,
+        BreedingCreateSeedLotPayload
+        | BreedingGerminatePlantsPayload
+        | BreedingClonePlantsPayload
+        | BreedingBulkSexPayload
+        | BreedingBulkMovePayload
+        | BreedingBulkCullPayload
+        | BreedingCreatePlantNotePayload,
+    )
 
 
 def _error_text(error: dict[str, Any] | None) -> str:

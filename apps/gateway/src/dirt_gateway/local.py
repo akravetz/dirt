@@ -10,7 +10,7 @@ from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_gateway.protocols import AssetUploadProjection
@@ -18,11 +18,14 @@ from dirt_shared.cloud_contract import (
     AssetCompleteRequest,
     AssetSignUploadRequest,
     CatalogCapability,
+    CatalogCrossEvent,
     CatalogDevice,
     CatalogPlant,
+    CatalogPlantEvent,
     CatalogPlantLine,
     CatalogPlantLocation,
     CatalogPlantMetricStream,
+    CatalogPlantNote,
     CatalogRequest,
     CatalogSchedule,
     CatalogSeedLot,
@@ -38,11 +41,14 @@ from dirt_shared.cloud_contract import (
 )
 from dirt_shared.models import (
     Capability,
+    CrossEvent,
     Device,
     Plant,
+    PlantEvent,
     PlantLine,
     PlantLocationHistory,
     PlantMetricStream,
+    PlantNote,
     SeedLot,
     Site,
     Snapshot,
@@ -156,6 +162,9 @@ class GatewayLocalServiceBundle:
             seed_lots=await self._collect_seed_lots(site_id),
             plants=await self._collect_plants(site_id),
             plant_locations=await self._collect_plant_locations(site_id),
+            cross_events=await self._collect_cross_events(site_id),
+            plant_notes=await self._collect_plant_notes(site_id),
+            plant_events=await self._collect_plant_events(site_id),
             plant_metric_streams=await self._collect_plant_metric_streams(site_id),
         )
 
@@ -332,18 +341,11 @@ class GatewayLocalServiceBundle:
         ]
 
     async def _collect_plant_lines(self, site_id: str) -> list[CatalogPlantLine]:
+        del site_id
         async with AsyncSession(self._engine) as session:
             rows = (
                 await session.exec(
                     select(PlantLine)
-                    .join(Plant, Plant.line_id == PlantLine.id)
-                    .join(
-                        PlantLocationHistory,
-                        PlantLocationHistory.plant_id == Plant.id,
-                    )
-                    .join(Site, Site.id == PlantLocationHistory.site_id)
-                    .where(Site.site_id == site_id)
-                    .where(PlantLocationHistory.end_at.is_(None))
                     .distinct()
                     .order_by(PlantLine.strain, PlantLine.cultivar, PlantLine.id)
                 )
@@ -363,21 +365,10 @@ class GatewayLocalServiceBundle:
         ]
 
     async def _collect_seed_lots(self, site_id: str) -> list[CatalogSeedLot]:
+        del site_id
         async with AsyncSession(self._engine) as session:
             rows = (
-                await session.exec(
-                    select(SeedLot)
-                    .join(Plant, Plant.source_seed_lot_id == SeedLot.id)
-                    .join(
-                        PlantLocationHistory,
-                        PlantLocationHistory.plant_id == Plant.id,
-                    )
-                    .join(Site, Site.id == PlantLocationHistory.site_id)
-                    .where(Site.site_id == site_id)
-                    .where(PlantLocationHistory.end_at.is_(None))
-                    .distinct()
-                    .order_by(SeedLot.id)
-                )
+                await session.exec(select(SeedLot).distinct().order_by(SeedLot.id))
             ).all()
         return [
             CatalogSeedLot(
@@ -397,22 +388,16 @@ class GatewayLocalServiceBundle:
 
     async def _collect_plants(self, site_id: str) -> list[CatalogPlant]:
         async with AsyncSession(self._engine) as session:
+            site_plant_ids = (
+                select(PlantLocationHistory.plant_id)
+                .join(Site, Site.id == PlantLocationHistory.site_id)
+                .where(Site.site_id == site_id)
+            )
             rows = (
                 await session.exec(
-                    select(Plant, PlantLocationHistory, Tent.tent_id)
-                    .join(
-                        PlantLocationHistory,
-                        PlantLocationHistory.plant_id == Plant.id,
-                    )
-                    .join(Site, Site.id == PlantLocationHistory.site_id)
-                    .join(Tent, Tent.id == PlantLocationHistory.tent_id)
-                    .where(Site.site_id == site_id)
-                    .where(PlantLocationHistory.end_at.is_(None))
-                    .order_by(
-                        Tent.tent_id,
-                        PlantLocationHistory.grid_position,
-                        Plant.key,
-                    )
+                    select(Plant)
+                    .where(col(Plant.id).in_(site_plant_ids))
+                    .order_by(Plant.key)
                 )
             ).all()
         return [
@@ -435,7 +420,7 @@ class GatewayLocalServiceBundle:
                 selected_for_breeding_reason=plant.selected_for_breeding_reason,
                 is_active=plant.culled_at is None and plant.harvested_at is None,
             )
-            for plant, _location, _tent_id in rows
+            for plant in rows
             if plant.id is not None
         ]
 
@@ -450,10 +435,10 @@ class GatewayLocalServiceBundle:
                     .join(Site, Site.id == PlantLocationHistory.site_id)
                     .join(Tent, Tent.id == PlantLocationHistory.tent_id)
                     .where(Site.site_id == site_id)
-                    .where(PlantLocationHistory.end_at.is_(None))
                     .order_by(
                         Tent.tent_id,
                         PlantLocationHistory.grid_position,
+                        PlantLocationHistory.start_at,
                         Plant.key,
                     )
                 )
@@ -469,6 +454,92 @@ class GatewayLocalServiceBundle:
             )
             for location, plant, tent_id in rows
             if location.id is not None and plant.id is not None
+        ]
+
+    async def _collect_cross_events(self, site_id: str) -> list[CatalogCrossEvent]:
+        del site_id
+        async with AsyncSession(self._engine) as session:
+            rows = (
+                await session.exec(
+                    select(CrossEvent).order_by(CrossEvent.pollinated_at, CrossEvent.id)
+                )
+            ).all()
+        return [
+            CatalogCrossEvent(
+                source_cross_event_id=cross_event.id,
+                resulting_line_source_id=cross_event.resulting_line_id,
+                seed_parent_source_plant_id=cross_event.seed_parent_plant_id,
+                pollen_parent_source_plant_id=cross_event.pollen_parent_plant_id,
+                pollinated_at=cross_event.pollinated_at,
+                pollen_parent_is_reversed=cross_event.pollen_parent_is_reversed,
+                notes=cross_event.notes,
+            )
+            for cross_event in rows
+            if cross_event.id is not None
+        ]
+
+    async def _collect_plant_notes(self, site_id: str) -> list[CatalogPlantNote]:
+        async with AsyncSession(self._engine) as session:
+            rows = (
+                await session.exec(
+                    select(PlantNote)
+                    .join(Plant, Plant.id == PlantNote.plant_id)
+                    .join(
+                        PlantLocationHistory,
+                        PlantLocationHistory.plant_id == Plant.id,
+                    )
+                    .join(Site, Site.id == PlantLocationHistory.site_id)
+                    .where(Site.site_id == site_id)
+                    .distinct()
+                    .order_by(PlantNote.observed_at, PlantNote.id)
+                )
+            ).all()
+        return [
+            CatalogPlantNote(
+                source_note_id=note.id,
+                source_plant_id=note.plant_id,
+                observed_at=note.observed_at,
+                body=note.body,
+                created_by=note.created_by,
+            )
+            for note in rows
+            if note.id is not None
+        ]
+
+    async def _collect_plant_events(self, site_id: str) -> list[CatalogPlantEvent]:
+        async with AsyncSession(self._engine) as session:
+            rows = (
+                await session.exec(
+                    select(PlantEvent)
+                    .join(Plant, Plant.id == PlantEvent.plant_id)
+                    .join(
+                        PlantLocationHistory,
+                        PlantLocationHistory.plant_id == Plant.id,
+                    )
+                    .join(Site, Site.id == PlantLocationHistory.site_id)
+                    .where(Site.site_id == site_id)
+                    .distinct()
+                    .order_by(PlantEvent.occurred_at, PlantEvent.id)
+                )
+            ).all()
+        return [
+            CatalogPlantEvent(
+                source_event_id=event.id,
+                source_plant_id=event.plant_id,
+                is_pollen_collection=event.is_pollen_collection,
+                is_seed_production=event.is_seed_production,
+                is_clone_taken=event.is_clone_taken,
+                is_sex_observation=event.is_sex_observation,
+                is_reversal=event.is_reversal,
+                is_transplant=event.is_transplant,
+                is_selection_for_breeding=event.is_selection_for_breeding,
+                occurred_at=event.occurred_at,
+                reason=event.reason,
+                notes=event.notes,
+                metadata=event.metadata_json,
+            )
+            for event in rows
+            if event.id is not None
         ]
 
     async def _collect_plant_metric_streams(

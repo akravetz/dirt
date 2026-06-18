@@ -87,6 +87,16 @@ def test_hosted_browser_routes_keep_response_models() -> None:
         routes[("GET", "/api/breeding-logbook/plants/{plant_key}")]
         is BreedingLogbookPlantDetailResponse
     )
+    assert routes[("POST", "/api/breeding-logbook/seed-lots")] is CommandResponse
+    assert routes[("POST", "/api/breeding-logbook/plants:germinate")] is CommandResponse
+    assert routes[("POST", "/api/breeding-logbook/plants:clone")] is CommandResponse
+    assert routes[("POST", "/api/breeding-logbook/plants:bulk-sex")] is CommandResponse
+    assert routes[("POST", "/api/breeding-logbook/plants:bulk-move")] is CommandResponse
+    assert routes[("POST", "/api/breeding-logbook/plants:bulk-cull")] is CommandResponse
+    assert (
+        routes[("POST", "/api/breeding-logbook/plants/{plant_key}/notes")]
+        is CommandResponse
+    )
     assert routes[("GET", "/api/tents/{tent_id}/plants")] == list[PlantSummaryResponse]
     assert (
         routes[("GET", "/api/tents/{tent_id}/plants/{plant_id}")] is PlantDetailResponse

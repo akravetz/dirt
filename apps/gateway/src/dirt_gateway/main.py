@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 
+from dirt_gateway.breeding_commands import BreedingCommandExecutor
 from dirt_gateway.cloud import HttpCloudGatewayClient
 from dirt_gateway.commands import GatewayCommandService
 from dirt_gateway.local import GatewayLocalServiceBundle
@@ -58,6 +59,7 @@ async def run_gateway(settings: Settings | None = None) -> None:
             command_ledger=CommandService(engine, clock=clock),
             outbox=outbox,
             ptz=_gateway_ptz_service(settings),
+            breeding=BreedingCommandExecutor(engine, clock=clock),
             clock=clock,
         )
         await asyncio.gather(

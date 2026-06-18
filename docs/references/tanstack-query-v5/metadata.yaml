@@ -1,0 +1,26 @@
+concept: tanstack-query-v5
+display_name: TanStack Query v5
+mode: framework
+version: v5.99.2
+generated_at: 2026-06-18
+sources:
+  - https://tanstack.com/query/v5/docs/framework/react/overview
+  - https://tanstack.com/query/v5/docs/framework/react/guides/important-defaults
+  - https://tanstack.com/query/v5/docs/framework/react/guides/query-keys
+  - https://tanstack.com/query/v5/docs/framework/react/guides/query-options
+  - https://tanstack.com/query/v5/docs/framework/react/guides/query-invalidation
+  - https://tanstack.com/query/v5/docs/framework/react/guides/mutations
+  - https://tanstack.com/query/v5/docs/framework/react/guides/invalidations-from-mutations
+  - https://tanstack.com/query/v5/docs/framework/react/guides/updates-from-mutation-responses
+  - https://tanstack.com/query/v5/docs/framework/react/guides/optimistic-updates
+  - https://tanstack.com/query/v5/docs/reference/QueryClient
+topics:
+  - server-state-mental-model.md
+  - query-keys-and-options.md
+  - mutations-and-invalidation.md
+  - optimistic-updates-and-cache-writes.md
+  - queryclient-cache-apis.md
+  - common-mistakes.md
+agents_md_pointer:
+  path: docs/references/tanstack-query-v5/INDEX.md
+  consult_when: writing or modifying TanStack Query hooks/imports, query keys/options, useQuery/useSuspenseQueries/useMutation/useQueries, optimistic/cache writes, invalidation/refetch, QueryClient usage, or command-backed browser state in web-ui/src/

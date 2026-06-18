@@ -55,7 +55,7 @@ export type PlantRow = {
   sexKey: PlantSexKey;
   stageKey: PlantStageKey;
   stageDay: number;
-  germinatedOn: string;
+  germinatedOn: string | null;
   vegStartedOn: string | null;
   flowerStartedOn: string | null;
   culledOn: string | null;

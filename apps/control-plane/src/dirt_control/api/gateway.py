@@ -15,13 +15,16 @@ from dirt_control.models import (
     CloudAsset,
     CloudCapability,
     CloudCommand,
+    CloudCrossEvent,
     CloudDevice,
     CloudLatestMetric,
     CloudMetricRollup,
     CloudPlant,
+    CloudPlantEvent,
     CloudPlantLine,
     CloudPlantLocation,
     CloudPlantMetricStream,
+    CloudPlantNote,
     CloudSchedule,
     CloudSeedLot,
     CloudSite,
@@ -371,6 +374,83 @@ async def catalog(
             },
             now=now,
         )
+    for cross_event in body.cross_events:
+        await _upsert_by_columns(
+            session,
+            CloudCrossEvent,
+            {
+                "site_id": body.site.site_id,
+                "source_cross_event_id": cross_event.source_cross_event_id,
+            },
+            {
+                "site_id": body.site.site_id,
+                "source_cross_event_id": cross_event.source_cross_event_id,
+                "resulting_line_source_id": cross_event.resulting_line_source_id,
+                "seed_parent_source_plant_id": (
+                    cross_event.seed_parent_source_plant_id
+                ),
+                "pollen_parent_source_plant_id": (
+                    cross_event.pollen_parent_source_plant_id
+                ),
+                "pollinated_at": cross_event.pollinated_at,
+                "pollen_parent_is_reversed": cross_event.pollen_parent_is_reversed,
+                "notes": cross_event.notes,
+                "synced_at": now,
+                "created_at": now,
+                "updated_at": now,
+            },
+            now=now,
+        )
+    for note in body.plant_notes:
+        await _upsert_by_columns(
+            session,
+            CloudPlantNote,
+            {
+                "site_id": body.site.site_id,
+                "source_note_id": note.source_note_id,
+            },
+            {
+                "site_id": body.site.site_id,
+                "source_note_id": note.source_note_id,
+                "source_plant_id": note.source_plant_id,
+                "observed_at": note.observed_at,
+                "body": note.body,
+                "created_by": note.created_by,
+                "synced_at": now,
+                "created_at": now,
+                "updated_at": now,
+            },
+            now=now,
+        )
+    for event in body.plant_events:
+        await _upsert_by_columns(
+            session,
+            CloudPlantEvent,
+            {
+                "site_id": body.site.site_id,
+                "source_event_id": event.source_event_id,
+            },
+            {
+                "site_id": body.site.site_id,
+                "source_event_id": event.source_event_id,
+                "source_plant_id": event.source_plant_id,
+                "is_pollen_collection": event.is_pollen_collection,
+                "is_seed_production": event.is_seed_production,
+                "is_clone_taken": event.is_clone_taken,
+                "is_sex_observation": event.is_sex_observation,
+                "is_reversal": event.is_reversal,
+                "is_transplant": event.is_transplant,
+                "is_selection_for_breeding": event.is_selection_for_breeding,
+                "occurred_at": event.occurred_at,
+                "reason": event.reason,
+                "notes": event.notes,
+                "metadata_json": event.metadata,
+                "synced_at": now,
+                "created_at": now,
+                "updated_at": now,
+            },
+            now=now,
+        )
     for stream in body.plant_metric_streams:
         await _upsert_by_columns(
             session,
@@ -408,6 +488,9 @@ async def catalog(
         seed_lots=len(body.seed_lots),
         plants=len(body.plants),
         plant_locations=len(body.plant_locations),
+        cross_events=len(body.cross_events),
+        plant_notes=len(body.plant_notes),
+        plant_events=len(body.plant_events),
         plant_metric_streams=len(body.plant_metric_streams),
     )
 

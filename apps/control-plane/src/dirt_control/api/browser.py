@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import and_, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,14 +17,17 @@ from dirt_control.models import (
     CloudAsset,
     CloudAuditEvent,
     CloudCommand,
+    CloudCrossEvent,
     CloudDevice,
     CloudLatestMetric,
     CloudMetricPresentation,
     CloudMetricRollup,
     CloudPlant,
+    CloudPlantEvent,
     CloudPlantLine,
     CloudPlantLocation,
     CloudPlantMetricStream,
+    CloudPlantNote,
     CloudSchedule,
     CloudSeedLot,
     CloudSite,
@@ -36,10 +39,24 @@ from dirt_control.retention import prune_expired_assets
 from dirt_control.security import expires_from, require_browser_user, verify_password
 from dirt_control.settings import CloudSettings
 from dirt_control.storage import AssetStore
-from dirt_shared.cloud_contract import PlantSexKey, PruneAssetsResponse
+from dirt_shared.cloud_contract import (
+    BreedingBulkCullPayload,
+    BreedingBulkMovePayload,
+    BreedingBulkSexPayload,
+    BreedingClonePlantsPayload,
+    BreedingCommandPayload,
+    BreedingCreatePlantNotePayload,
+    BreedingCreateSeedLotPayload,
+    BreedingGerminatePlantsPayload,
+    CommandType,
+    PlantSexKey,
+    PruneAssetsResponse,
+)
 
 router = APIRouter(prefix="/api")
 COMMAND_EXPIRY_SECONDS = 60
+BREEDING_COMMAND_EXPIRY_SECONDS = 3600
+BREEDING_SITE_WIDE_TENT_ID = "breeding-logbook"
 PTZ_COMMAND_TYPES = Literal["ptz_preset", "ptz_look", "ptz_zoom"]
 METRIC_HISTORY_RANGES: dict[str, tuple[str, timedelta]] = {
     "1h": ("5m", timedelta(hours=1)),
@@ -76,6 +93,80 @@ class CommandCreateRequest(BaseModel):
     capability_id: Literal["ptz_move"]
     command_type: PTZ_COMMAND_TYPES
     payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class BrowserRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class BreedingCommandRequest(BrowserRequest):
+    idempotency_key: str = Field(min_length=1, max_length=160)
+
+
+class BreedingCreateSeedLotRequest(BreedingCreateSeedLotPayload):
+    idempotency_key: str = Field(min_length=1, max_length=160)
+
+
+class BreedingGerminatePlantsRequest(BreedingCommandRequest):
+    seed_lot_id: str = Field(min_length=1)
+    count: int = Field(gt=0)
+    tent_id: str = Field(min_length=1, max_length=80)
+    grid_position: Literal[None] = Field(...)
+    germinated_at: datetime | None = None
+
+
+class BreedingClonePlantsRequest(BreedingCommandRequest):
+    mother_plant_key: str = Field(min_length=1, max_length=120)
+    count: int = Field(gt=0)
+    tent_id: str = Field(min_length=1, max_length=80)
+    grid_position: Literal[None] = Field(...)
+    taken_at: datetime | None = None
+
+
+class BreedingBulkSexRequest(BreedingCommandRequest):
+    plant_keys: list[str] = Field(min_length=1)
+    sex_key: PlantSexKey
+
+    @field_validator("plant_keys")
+    @classmethod
+    def _clean_plant_keys(cls, value: list[str]) -> list[str]:
+        return _clean_nonblank_list(value, field_name="plant_keys")
+
+
+class BreedingBulkMoveRequest(BreedingCommandRequest):
+    plant_keys: list[str] = Field(min_length=1)
+    tent_id: str = Field(min_length=1, max_length=80)
+    grid_position: Literal[None] = Field(...)
+
+    @field_validator("plant_keys")
+    @classmethod
+    def _clean_plant_keys(cls, value: list[str]) -> list[str]:
+        return _clean_nonblank_list(value, field_name="plant_keys")
+
+
+class BreedingBulkCullRequest(BreedingCommandRequest):
+    plant_keys: list[str] = Field(min_length=1)
+    reason: str = Field(min_length=1)
+
+    @field_validator("plant_keys")
+    @classmethod
+    def _clean_plant_keys(cls, value: list[str]) -> list[str]:
+        return _clean_nonblank_list(value, field_name="plant_keys")
+
+    @field_validator("reason")
+    @classmethod
+    def _clean_reason(cls, value: str) -> str:
+        return _clean_nonblank(value, field_name="reason")
+
+
+class BreedingCreatePlantNoteRequest(BreedingCommandRequest):
+    body: str = Field(min_length=1)
+    observed_at: datetime | None = None
+
+    @field_validator("body")
+    @classmethod
+    def _clean_body(cls, value: str) -> str:
+        return _clean_nonblank(value, field_name="body")
 
 
 class GatewayCredentialRotateRequest(BaseModel):
@@ -306,7 +397,7 @@ class PlantSummaryResponse(BrowserResponse):
     line: PlantLineResponse | None
     sex_key: PlantSexKey
     name: str
-    grid_position: str
+    grid_position: str | None
     germinated_at: datetime | None
     rooted_at: datetime | None
     veg_started_at: datetime | None
@@ -329,7 +420,7 @@ class PlantLineResponse(BrowserResponse):
 class PlantCurrentLocationResponse(BrowserResponse):
     id: int
     tent_id: str
-    grid_position: str
+    grid_position: str | None
     start_at: datetime
     end_at: datetime | None
 
@@ -396,7 +487,7 @@ class PlantDetailResponse(BrowserResponse):
     line: PlantLineResponse | None
     sex_key: PlantSexKey
     name: str
-    grid_position: str
+    grid_position: str | None
     current_location: PlantCurrentLocationResponse
     germinated_at: datetime | None
     rooted_at: datetime | None
@@ -587,8 +678,8 @@ class CommandResponse(BrowserResponse):
     idempotency_key: str
     site_id: str
     tent_id: str
-    device_id: str
-    capability_id: str
+    device_id: str | None
+    capability_id: str | None
     command_type: str
     payload: dict[str, Any]
     status: str
@@ -1041,11 +1132,24 @@ async def breeding_logbook_plants(
         site_id=settings.default_site_id,
         plants=plant_rows,
     )
+    plant_ids = [row.plant.source_plant_id for row in plant_rows]
+    latest_notes = await _breeding_logbook_latest_notes(
+        session,
+        site_id=settings.default_site_id,
+        plant_ids=plant_ids,
+    )
+    latest_events = await _breeding_logbook_latest_events(
+        session,
+        site_id=settings.default_site_id,
+        plant_ids=plant_ids,
+    )
     today = clock().date()
     rows = [
         _breeding_logbook_plant_row_response(
             row,
             telemetry_stream_count=stream_counts.get(row.plant.source_plant_id, 0),
+            latest_note=latest_notes.get(row.plant.source_plant_id),
+            latest_event=latest_events.get(row.plant.source_plant_id),
             today=today,
         )
         for row in plant_rows
@@ -1171,19 +1275,33 @@ async def breeding_logbook_plant_detail(
         tent_id=plant.location.tent_id,
         streams=[row.stream for row in stream_rows],
     )
+    notes = await _breeding_logbook_plant_notes(
+        session,
+        site_id=settings.default_site_id,
+        source_plant_id=plant.plant.source_plant_id,
+    )
+    events = await _breeding_logbook_plant_events(
+        session,
+        site_id=settings.default_site_id,
+        source_plant_id=plant.plant.source_plant_id,
+    )
+    lineage = await _breeding_logbook_lineage(
+        session,
+        site_id=settings.default_site_id,
+        plant=plant,
+    )
     telemetry = _plant_metric_stream_responses(stream_rows, latest_by_stream)
     return BreedingLogbookPlantDetailResponse(
         plant=_breeding_logbook_plant_row_response(
             plant,
             telemetry_stream_count=len(telemetry),
+            latest_note=notes[0] if notes else None,
+            latest_event=events[0] if events else None,
             today=clock().date(),
         ),
-        lineage=BreedingLogbookLineageResponse(
-            parents=_lineage_label(plant.line),
-            offspring="No offspring projected",
-        ),
+        lineage=lineage,
         metrics=_breeding_logbook_metric_summaries(telemetry),
-        events=[],
+        events=_breeding_logbook_journal_events(notes=notes, events=events),
         telemetry=telemetry,
         wiki_content=None,
     )
@@ -1480,6 +1598,252 @@ async def sync_status(
 
 
 @router.post(
+    "/breeding-logbook/seed-lots",
+    status_code=status.HTTP_201_CREATED,
+    response_model=CommandResponse,
+)
+async def create_breeding_seed_lot(
+    body: BreedingCreateSeedLotRequest,
+    user: str = Depends(require_browser_user),
+    settings: CloudSettings = Depends(get_settings),
+    session: AsyncSession = Depends(get_session),
+    clock: Callable[[], datetime] = Depends(get_clock),
+) -> CommandResponse:
+    payload = BreedingCreateSeedLotPayload(
+        **body.model_dump(exclude={"idempotency_key"})
+    )
+    if payload.source == "cross":
+        seed_parent_key = payload.seed_parent_plant_key
+        pollen_parent_key = payload.pollen_parent_plant_key
+        if seed_parent_key is None or pollen_parent_key is None:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                "cross seed lots require seed and pollen parent plant keys",
+            )
+        await _require_cloud_plant_key(
+            session,
+            site_id=settings.default_site_id,
+            plant_key=seed_parent_key,
+        )
+        await _require_cloud_plant_key(
+            session,
+            site_id=settings.default_site_id,
+            plant_key=pollen_parent_key,
+        )
+    return await _enqueue_breeding_command(
+        body.idempotency_key,
+        user=user,
+        settings=settings,
+        session=session,
+        clock=clock,
+        command_type="breeding_seed_lot_create",
+        target_tent_id=BREEDING_SITE_WIDE_TENT_ID,
+        payload=payload,
+    )
+
+
+@router.post(
+    "/breeding-logbook/plants:germinate",
+    status_code=status.HTTP_201_CREATED,
+    response_model=CommandResponse,
+)
+async def germinate_breeding_plants(
+    body: BreedingGerminatePlantsRequest,
+    user: str = Depends(require_browser_user),
+    settings: CloudSettings = Depends(get_settings),
+    session: AsyncSession = Depends(get_session),
+    clock: Callable[[], datetime] = Depends(get_clock),
+) -> CommandResponse:
+    await _require_cloud_tent(
+        session, site_id=settings.default_site_id, tent_id=body.tent_id
+    )
+    seed_lot_source_id = _seed_lot_source_id_from_request(body.seed_lot_id)
+    await _require_cloud_seed_lot_source_id(
+        session,
+        site_id=settings.default_site_id,
+        seed_lot_source_id=seed_lot_source_id,
+    )
+    payload = BreedingGerminatePlantsPayload(
+        seed_lot_source_id=seed_lot_source_id,
+        count=body.count,
+        tent_id=body.tent_id,
+        grid_position=None,
+        germinated_at=body.germinated_at,
+    )
+    return await _enqueue_breeding_command(
+        body.idempotency_key,
+        user=user,
+        settings=settings,
+        session=session,
+        clock=clock,
+        command_type="breeding_plants_germinate",
+        target_tent_id=body.tent_id,
+        payload=payload,
+    )
+
+
+@router.post(
+    "/breeding-logbook/plants:clone",
+    status_code=status.HTTP_201_CREATED,
+    response_model=CommandResponse,
+)
+async def clone_breeding_plants(
+    body: BreedingClonePlantsRequest,
+    user: str = Depends(require_browser_user),
+    settings: CloudSettings = Depends(get_settings),
+    session: AsyncSession = Depends(get_session),
+    clock: Callable[[], datetime] = Depends(get_clock),
+) -> CommandResponse:
+    await _require_cloud_tent(
+        session, site_id=settings.default_site_id, tent_id=body.tent_id
+    )
+    mother = await _require_cloud_plant_key(
+        session, site_id=settings.default_site_id, plant_key=body.mother_plant_key
+    )
+    payload = BreedingClonePlantsPayload(
+        mother_plant_key=mother.key,
+        count=body.count,
+        tent_id=body.tent_id,
+        grid_position=None,
+        taken_at=body.taken_at,
+    )
+    return await _enqueue_breeding_command(
+        body.idempotency_key,
+        user=user,
+        settings=settings,
+        session=session,
+        clock=clock,
+        command_type="breeding_plants_clone",
+        target_tent_id=body.tent_id,
+        payload=payload,
+    )
+
+
+@router.post(
+    "/breeding-logbook/plants:bulk-sex",
+    status_code=status.HTTP_201_CREATED,
+    response_model=CommandResponse,
+)
+async def bulk_sex_breeding_plants(
+    body: BreedingBulkSexRequest,
+    user: str = Depends(require_browser_user),
+    settings: CloudSettings = Depends(get_settings),
+    session: AsyncSession = Depends(get_session),
+    clock: Callable[[], datetime] = Depends(get_clock),
+) -> CommandResponse:
+    await _require_cloud_plant_keys(
+        session, site_id=settings.default_site_id, plant_keys=body.plant_keys
+    )
+    payload = BreedingBulkSexPayload(plant_keys=body.plant_keys, sex_key=body.sex_key)
+    return await _enqueue_breeding_command(
+        body.idempotency_key,
+        user=user,
+        settings=settings,
+        session=session,
+        clock=clock,
+        command_type="breeding_plants_bulk_sex",
+        target_tent_id=BREEDING_SITE_WIDE_TENT_ID,
+        payload=payload,
+    )
+
+
+@router.post(
+    "/breeding-logbook/plants:bulk-move",
+    status_code=status.HTTP_201_CREATED,
+    response_model=CommandResponse,
+)
+async def bulk_move_breeding_plants(
+    body: BreedingBulkMoveRequest,
+    user: str = Depends(require_browser_user),
+    settings: CloudSettings = Depends(get_settings),
+    session: AsyncSession = Depends(get_session),
+    clock: Callable[[], datetime] = Depends(get_clock),
+) -> CommandResponse:
+    await _require_cloud_tent(
+        session, site_id=settings.default_site_id, tent_id=body.tent_id
+    )
+    await _require_cloud_plant_keys(
+        session, site_id=settings.default_site_id, plant_keys=body.plant_keys
+    )
+    payload = BreedingBulkMovePayload(
+        plant_keys=body.plant_keys,
+        tent_id=body.tent_id,
+        grid_position=None,
+    )
+    return await _enqueue_breeding_command(
+        body.idempotency_key,
+        user=user,
+        settings=settings,
+        session=session,
+        clock=clock,
+        command_type="breeding_plants_bulk_move",
+        target_tent_id=body.tent_id,
+        payload=payload,
+    )
+
+
+@router.post(
+    "/breeding-logbook/plants:bulk-cull",
+    status_code=status.HTTP_201_CREATED,
+    response_model=CommandResponse,
+)
+async def bulk_cull_breeding_plants(
+    body: BreedingBulkCullRequest,
+    user: str = Depends(require_browser_user),
+    settings: CloudSettings = Depends(get_settings),
+    session: AsyncSession = Depends(get_session),
+    clock: Callable[[], datetime] = Depends(get_clock),
+) -> CommandResponse:
+    await _require_cloud_plant_keys(
+        session, site_id=settings.default_site_id, plant_keys=body.plant_keys
+    )
+    payload = BreedingBulkCullPayload(plant_keys=body.plant_keys, reason=body.reason)
+    return await _enqueue_breeding_command(
+        body.idempotency_key,
+        user=user,
+        settings=settings,
+        session=session,
+        clock=clock,
+        command_type="breeding_plants_bulk_cull",
+        target_tent_id=BREEDING_SITE_WIDE_TENT_ID,
+        payload=payload,
+    )
+
+
+@router.post(
+    "/breeding-logbook/plants/{plant_key}/notes",
+    status_code=status.HTTP_201_CREATED,
+    response_model=CommandResponse,
+)
+async def create_breeding_plant_note(  # noqa: PLR0913
+    plant_key: str,
+    body: BreedingCreatePlantNoteRequest,
+    user: str = Depends(require_browser_user),
+    settings: CloudSettings = Depends(get_settings),
+    session: AsyncSession = Depends(get_session),
+    clock: Callable[[], datetime] = Depends(get_clock),
+) -> CommandResponse:
+    plant = await _require_cloud_plant_key(
+        session, site_id=settings.default_site_id, plant_key=plant_key
+    )
+    payload = BreedingCreatePlantNotePayload(
+        plant_key=plant.key,
+        body=body.body,
+        observed_at=body.observed_at,
+    )
+    return await _enqueue_breeding_command(
+        body.idempotency_key,
+        user=user,
+        settings=settings,
+        session=session,
+        clock=clock,
+        command_type="breeding_plant_note_create",
+        target_tent_id=BREEDING_SITE_WIDE_TENT_ID,
+        payload=payload,
+    )
+
+
+@router.post(
     "/commands",
     status_code=status.HTTP_201_CREATED,
     response_model=CommandResponse,
@@ -1658,20 +2022,12 @@ async def _breeding_logbook_plants(
         else (CloudPlant.is_active.is_(True), CloudPlant.culled_at.is_(None))
     )
     key_filters = () if plant_key is None else (CloudPlant.key == plant_key,)
-    rows = (
+    plant_rows = (
         await session.execute(
             select(
                 CloudPlant,
-                CloudPlantLocation,
                 CloudPlantLine,
                 CloudSeedLot,
-            )
-            .join(
-                CloudPlantLocation,
-                and_(
-                    CloudPlantLocation.site_id == CloudPlant.site_id,
-                    CloudPlantLocation.source_plant_id == CloudPlant.source_plant_id,
-                ),
             )
             .outerjoin(
                 CloudPlantLine,
@@ -1689,19 +2045,30 @@ async def _breeding_logbook_plants(
             )
             .where(
                 CloudPlant.site_id == site_id,
-                CloudPlantLocation.site_id == site_id,
-                CloudPlantLocation.end_at.is_(None),
                 *active_filters,
                 *key_filters,
             )
-            .order_by(
-                CloudPlantLocation.tent_id,
-                CloudPlantLocation.grid_position,
-                CloudPlant.key,
-            )
+            .order_by(CloudPlant.key)
         )
     ).all()
-    return [
+    plant_ids = [plant.source_plant_id for plant, _line, _seed_lot in plant_rows]
+    if not plant_ids:
+        return []
+    location_rows = (
+        await session.execute(
+            select(CloudPlantLocation)
+            .where(
+                CloudPlantLocation.site_id == site_id,
+                CloudPlantLocation.source_plant_id.in_(plant_ids),
+            )
+            .order_by(
+                CloudPlantLocation.source_plant_id,
+                CloudPlantLocation.start_at,
+            )
+        )
+    ).scalars()
+    locations = _breeding_logbook_locations_by_plant(location_rows)
+    projections = [
         BreedingLogbookPlantProjection(
             plant=plant,
             location=location,
@@ -1709,8 +2076,42 @@ async def _breeding_logbook_plants(
             seed_lot=seed_lot,
             seed_lot_line=line,
         )
-        for plant, location, line, seed_lot in rows
+        for plant, line, seed_lot in plant_rows
+        if (location := locations.get(plant.source_plant_id)) is not None
     ]
+    return sorted(
+        projections,
+        key=lambda row: (
+            row.location.tent_id,
+            row.location.grid_position or "",
+            row.plant.key,
+        ),
+    )
+
+
+def _breeding_logbook_locations_by_plant(
+    locations: Iterable[CloudPlantLocation],
+) -> dict[int, CloudPlantLocation]:
+    selected: dict[int, CloudPlantLocation] = {}
+    for location in locations:
+        current = selected.get(location.source_plant_id)
+        if current is None or _is_preferred_breeding_logbook_location(
+            location,
+            current,
+        ):
+            selected[location.source_plant_id] = location
+    return selected
+
+
+def _is_preferred_breeding_logbook_location(
+    candidate: CloudPlantLocation,
+    current: CloudPlantLocation,
+) -> bool:
+    if candidate.end_at is None and current.end_at is not None:
+        return True
+    if candidate.end_at is not None and current.end_at is None:
+        return False
+    return candidate.start_at > current.start_at
 
 
 async def _get_breeding_logbook_plant(
@@ -1740,6 +2141,108 @@ def _plant_projection_from_breeding_logbook(
     )
 
 
+async def _breeding_logbook_latest_notes(
+    session: AsyncSession,
+    *,
+    site_id: str,
+    plant_ids: list[int],
+) -> dict[int, CloudPlantNote]:
+    if not plant_ids:
+        return {}
+    rows = (
+        await session.execute(
+            select(CloudPlantNote)
+            .where(
+                CloudPlantNote.site_id == site_id,
+                CloudPlantNote.source_plant_id.in_(plant_ids),
+            )
+            .order_by(
+                CloudPlantNote.source_plant_id,
+                desc(CloudPlantNote.observed_at),
+                desc(CloudPlantNote.source_note_id),
+            )
+        )
+    ).scalars()
+    latest: dict[int, CloudPlantNote] = {}
+    for note in rows:
+        latest.setdefault(note.source_plant_id, note)
+    return latest
+
+
+async def _breeding_logbook_latest_events(
+    session: AsyncSession,
+    *,
+    site_id: str,
+    plant_ids: list[int],
+) -> dict[int, CloudPlantEvent]:
+    if not plant_ids:
+        return {}
+    rows = (
+        await session.execute(
+            select(CloudPlantEvent)
+            .where(
+                CloudPlantEvent.site_id == site_id,
+                CloudPlantEvent.source_plant_id.in_(plant_ids),
+            )
+            .order_by(
+                CloudPlantEvent.source_plant_id,
+                desc(CloudPlantEvent.occurred_at),
+                desc(CloudPlantEvent.source_event_id),
+            )
+        )
+    ).scalars()
+    latest: dict[int, CloudPlantEvent] = {}
+    for event in rows:
+        latest.setdefault(event.source_plant_id, event)
+    return latest
+
+
+async def _breeding_logbook_plant_notes(
+    session: AsyncSession,
+    *,
+    site_id: str,
+    source_plant_id: int,
+) -> list[CloudPlantNote]:
+    return list(
+        (
+            await session.execute(
+                select(CloudPlantNote)
+                .where(
+                    CloudPlantNote.site_id == site_id,
+                    CloudPlantNote.source_plant_id == source_plant_id,
+                )
+                .order_by(
+                    desc(CloudPlantNote.observed_at),
+                    desc(CloudPlantNote.source_note_id),
+                )
+            )
+        ).scalars()
+    )
+
+
+async def _breeding_logbook_plant_events(
+    session: AsyncSession,
+    *,
+    site_id: str,
+    source_plant_id: int,
+) -> list[CloudPlantEvent]:
+    return list(
+        (
+            await session.execute(
+                select(CloudPlantEvent)
+                .where(
+                    CloudPlantEvent.site_id == site_id,
+                    CloudPlantEvent.source_plant_id == source_plant_id,
+                )
+                .order_by(
+                    desc(CloudPlantEvent.occurred_at),
+                    desc(CloudPlantEvent.source_event_id),
+                )
+            )
+        ).scalars()
+    )
+
+
 async def _breeding_logbook_stream_counts(
     session: AsyncSession,
     *,
@@ -1753,11 +2256,181 @@ async def _breeding_logbook_stream_counts(
     )
 
 
+async def _breeding_logbook_lineage(
+    session: AsyncSession,
+    *,
+    site_id: str,
+    plant: BreedingLogbookPlantProjection,
+) -> BreedingLogbookLineageResponse:
+    return BreedingLogbookLineageResponse(
+        parents=await _breeding_logbook_parent_label(
+            session,
+            site_id=site_id,
+            plant=plant,
+        ),
+        offspring=await _breeding_logbook_offspring_label(
+            session,
+            site_id=site_id,
+            source_plant_id=plant.plant.source_plant_id,
+        ),
+    )
+
+
+async def _breeding_logbook_parent_label(
+    session: AsyncSession,
+    *,
+    site_id: str,
+    plant: BreedingLogbookPlantProjection,
+) -> str:
+    cross_event_id = (
+        None
+        if plant.seed_lot is None
+        else plant.seed_lot.produced_by_cross_event_source_id
+    )
+    if cross_event_id is None:
+        return _lineage_label(plant.line)
+
+    cross = (
+        await session.execute(
+            select(CloudCrossEvent).where(
+                CloudCrossEvent.site_id == site_id,
+                CloudCrossEvent.source_cross_event_id == cross_event_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if cross is None:
+        return _lineage_label(plant.line)
+
+    seed_parent_id = cross.seed_parent_source_plant_id
+    pollen_parent_id = cross.pollen_parent_source_plant_id
+    parents = {
+        row.source_plant_id: row
+        for row in (
+            await session.execute(
+                select(CloudPlant).where(
+                    CloudPlant.site_id == site_id,
+                    CloudPlant.source_plant_id.in_([seed_parent_id, pollen_parent_id]),
+                )
+            )
+        ).scalars()
+    }
+    seed_parent = _breeding_logbook_parent_plant_label(
+        parents.get(seed_parent_id),
+        fallback=f"plant #{seed_parent_id}",
+    )
+    pollen_parent = _breeding_logbook_parent_plant_label(
+        parents.get(pollen_parent_id),
+        fallback=f"plant #{pollen_parent_id}",
+    )
+    if cross.pollen_parent_is_reversed:
+        pollen_parent = f"{pollen_parent} (reversed)"
+    return f"{seed_parent} x {pollen_parent}"
+
+
+async def _breeding_logbook_offspring_label(
+    session: AsyncSession,
+    *,
+    site_id: str,
+    source_plant_id: int,
+) -> str:
+    cross_events = list(
+        (
+            await session.execute(
+                select(CloudCrossEvent)
+                .where(
+                    CloudCrossEvent.site_id == site_id,
+                    (
+                        (CloudCrossEvent.seed_parent_source_plant_id == source_plant_id)
+                        | (
+                            CloudCrossEvent.pollen_parent_source_plant_id
+                            == source_plant_id
+                        )
+                    ),
+                )
+                .order_by(
+                    desc(CloudCrossEvent.pollinated_at),
+                    desc(CloudCrossEvent.source_cross_event_id),
+                )
+            )
+        ).scalars()
+    )
+    if not cross_events:
+        return "No offspring logged"
+
+    cross_event_ids = [event.source_cross_event_id for event in cross_events]
+    seed_lot_rows = (
+        await session.execute(
+            select(CloudSeedLot, CloudPlantLine)
+            .outerjoin(
+                CloudPlantLine,
+                and_(
+                    CloudPlantLine.site_id == CloudSeedLot.site_id,
+                    CloudPlantLine.source_line_id == CloudSeedLot.line_source_id,
+                ),
+            )
+            .where(
+                CloudSeedLot.site_id == site_id,
+                CloudSeedLot.produced_by_cross_event_source_id.in_(cross_event_ids),
+            )
+            .order_by(CloudSeedLot.source_seed_lot_id)
+        )
+    ).all()
+    seed_lots_by_cross: dict[int, list[tuple[CloudSeedLot, CloudPlantLine | None]]] = {}
+    seed_lot_ids: list[int] = []
+    for seed_lot, line in seed_lot_rows:
+        if seed_lot.produced_by_cross_event_source_id is None:
+            continue
+        seed_lots_by_cross.setdefault(
+            seed_lot.produced_by_cross_event_source_id,
+            [],
+        ).append((seed_lot, line))
+        seed_lot_ids.append(seed_lot.source_seed_lot_id)
+
+    plant_counts: dict[int, int] = {}
+    if seed_lot_ids:
+        count_rows = (
+            await session.execute(
+                select(CloudPlant.source_seed_lot_id, func.count())
+                .where(
+                    CloudPlant.site_id == site_id,
+                    CloudPlant.source_seed_lot_id.in_(seed_lot_ids),
+                )
+                .group_by(CloudPlant.source_seed_lot_id)
+            )
+        ).all()
+        plant_counts = {
+            seed_lot_id: int(count)
+            for seed_lot_id, count in count_rows
+            if seed_lot_id is not None
+        }
+
+    summaries: list[str] = []
+    for cross_event in cross_events:
+        seed_lots = seed_lots_by_cross.get(cross_event.source_cross_event_id, [])
+        if not seed_lots:
+            summaries.append(
+                f"Cross #{cross_event.source_cross_event_id}: no seed lots projected"
+            )
+            continue
+        lot_summaries: list[str] = []
+        for seed_lot, line in seed_lots:
+            count_label = _plant_count_label(
+                plant_counts.get(seed_lot.source_seed_lot_id, 0)
+            )
+            lot_summaries.append(f"{_seed_lot_label(seed_lot, line)} ({count_label})")
+        summaries.append(
+            f"Cross #{cross_event.source_cross_event_id}: {', '.join(lot_summaries)}"
+        )
+    return "; ".join(summaries)
+
+
 def _breeding_logbook_plant_row_response(
     projection: BreedingLogbookPlantProjection,
     *,
     telemetry_stream_count: int,
     today: date,
+    latest_note: CloudPlantNote | None = None,
+    latest_event: CloudPlantEvent | None = None,
 ) -> BreedingLogbookPlantRowResponse:
     plant = projection.plant
     stage_key = _breeding_logbook_stage_key(projection)
@@ -1775,11 +2448,13 @@ def _breeding_logbook_plant_row_response(
         flower_started_on=_date_or_none(plant.flower_started_at),
         culled_on=_date_or_none(plant.culled_at),
         location_key=projection.location.tent_id,
-        location_label=(
-            f"{projection.location.tent_id} / {projection.location.grid_position}"
-        ),
+        location_label=_breeding_logbook_location_label(projection.location),
         seed_lot_label=_seed_lot_label(projection.seed_lot, projection.seed_lot_line),
-        last_note=plant.culled_reason or plant.selected_for_breeding_reason or "",
+        last_note=_breeding_logbook_last_note(
+            plant,
+            latest_note=latest_note,
+            latest_event=latest_event,
+        ),
         telemetry_summary=_telemetry_summary(telemetry_stream_count),
     )
 
@@ -1799,6 +2474,132 @@ def _breeding_logbook_seed_lot_summary_response(
         sex_type_key=seed_lot.sex_type_key,
         seed_count=seed_lot.seed_count,
     )
+
+
+def _breeding_logbook_location_label(location: CloudPlantLocation) -> str:
+    if location.grid_position is None:
+        return location.tent_id
+    return f"{location.tent_id} / {location.grid_position}"
+
+
+def _breeding_logbook_last_note(
+    plant: CloudPlant,
+    *,
+    latest_note: CloudPlantNote | None,
+    latest_event: CloudPlantEvent | None,
+) -> str:
+    if latest_note is not None:
+        return latest_note.body
+    if latest_event is not None:
+        event_body = _breeding_logbook_event_body(latest_event)
+        if event_body:
+            return event_body
+    return plant.culled_reason or plant.selected_for_breeding_reason or ""
+
+
+def _breeding_logbook_journal_events(
+    *,
+    notes: list[CloudPlantNote],
+    events: list[CloudPlantEvent],
+) -> list[BreedingLogbookPlantJournalEventResponse]:
+    journal_events = [
+        *_breeding_logbook_note_journal_events(notes),
+        *_breeding_logbook_plant_journal_events(events),
+    ]
+    return sorted(
+        journal_events,
+        key=lambda event: (
+            event.occurred_at or datetime.min,
+            event.id,
+        ),
+        reverse=True,
+    )
+
+
+def _breeding_logbook_note_journal_events(
+    notes: list[CloudPlantNote],
+) -> list[BreedingLogbookPlantJournalEventResponse]:
+    return [
+        BreedingLogbookPlantJournalEventResponse(
+            id=f"note-{note.source_note_id}",
+            occurred_at=note.observed_at,
+            date_label=_journal_date_label(note.observed_at),
+            tag="note",
+            body=note.body,
+            has_photo=False,
+        )
+        for note in notes
+    ]
+
+
+def _breeding_logbook_plant_journal_events(
+    events: list[CloudPlantEvent],
+) -> list[BreedingLogbookPlantJournalEventResponse]:
+    return [
+        BreedingLogbookPlantJournalEventResponse(
+            id=f"event-{event.source_event_id}",
+            occurred_at=event.occurred_at,
+            date_label=_journal_date_label(event.occurred_at),
+            tag=_breeding_logbook_event_tag(event),
+            body=_breeding_logbook_event_body(event),
+            has_photo=False,
+        )
+        for event in events
+    ]
+
+
+def _breeding_logbook_event_tag(
+    event: CloudPlantEvent,
+) -> Literal["cross", "note", "stage", "sex", "germ"]:
+    if event.is_seed_production or event.is_pollen_collection:
+        return "cross"
+    if event.is_sex_observation or event.is_reversal:
+        return "sex"
+    if event.is_transplant or event.is_selection_for_breeding:
+        return "stage"
+    if event.is_clone_taken:
+        return "germ"
+    return "note"
+
+
+def _breeding_logbook_event_body(event: CloudPlantEvent) -> str:
+    for value in (event.notes, event.reason):
+        if value is not None and value.strip():
+            return value.strip()
+    labels = [
+        label
+        for is_present, label in (
+            (event.is_pollen_collection, "Pollen collected"),
+            (event.is_seed_production, "Seed production logged"),
+            (event.is_clone_taken, "Clone taken"),
+            (event.is_sex_observation, "Sex observation logged"),
+            (event.is_reversal, "Reversal logged"),
+            (event.is_transplant, "Transplant logged"),
+            (event.is_selection_for_breeding, "Selected for breeding"),
+        )
+        if is_present
+    ]
+    return "; ".join(labels)
+
+
+def _journal_date_label(value: datetime) -> str:
+    return f"{value.strftime('%b')} {value.day}"
+
+
+def _breeding_logbook_parent_plant_label(
+    plant: CloudPlant | None,
+    *,
+    fallback: str,
+) -> str:
+    if plant is None:
+        return fallback
+    return f"{plant.name} ({plant.key})"
+
+
+def _plant_count_label(count: int) -> str:
+    if count == 1:
+        return "1 plant"
+    return f"{count} plants"
 
 
 def _breeding_logbook_stage_key(
@@ -2442,6 +3243,182 @@ def _command_response(command: CloudCommand) -> CommandResponse:
         result=command.result,
         error=command.error,
     )
+
+
+def _clean_nonblank(value: str, *, field_name: str) -> str:
+    stripped = value.strip()
+    if stripped == "":
+        raise ValueError(f"{field_name} must not be blank")
+    return stripped
+
+
+def _clean_nonblank_list(values: list[str], *, field_name: str) -> list[str]:
+    cleaned = [_clean_nonblank(value, field_name=field_name) for value in values]
+    if len(set(cleaned)) != len(cleaned):
+        raise ValueError(f"{field_name} must not contain duplicates")
+    return cleaned
+
+
+def _seed_lot_source_id_from_request(seed_lot_id: str) -> int:
+    try:
+        value = int(seed_lot_id)
+    except ValueError as exc:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "seed_lot_id must be a source seed lot id",
+        ) from exc
+    if value <= 0:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "seed_lot_id must be positive",
+        )
+    return value
+
+
+async def _require_cloud_tent(
+    session: AsyncSession, *, site_id: str, tent_id: str
+) -> CloudTent:
+    tent = (
+        await session.execute(
+            select(CloudTent).where(
+                CloudTent.site_id == site_id,
+                CloudTent.tent_id == tent_id,
+                CloudTent.is_active.is_(True),
+            )
+        )
+    ).scalar_one_or_none()
+    if tent is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "unknown target tent",
+        )
+    return tent
+
+
+async def _require_cloud_seed_lot_source_id(
+    session: AsyncSession, *, site_id: str, seed_lot_source_id: int
+) -> CloudSeedLot:
+    seed_lot = (
+        await session.execute(
+            select(CloudSeedLot).where(
+                CloudSeedLot.site_id == site_id,
+                CloudSeedLot.source_seed_lot_id == seed_lot_source_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if seed_lot is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "unknown seed lot",
+        )
+    return seed_lot
+
+
+async def _require_cloud_plant_key(
+    session: AsyncSession, *, site_id: str, plant_key: str
+) -> CloudPlant:
+    plant = (
+        await session.execute(
+            select(CloudPlant).where(
+                CloudPlant.site_id == site_id,
+                CloudPlant.key == plant_key,
+            )
+        )
+    ).scalar_one_or_none()
+    if plant is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "unknown plant key",
+        )
+    return plant
+
+
+async def _require_cloud_plant_keys(
+    session: AsyncSession, *, site_id: str, plant_keys: list[str]
+) -> list[CloudPlant]:
+    rows = (
+        (
+            await session.execute(
+                select(CloudPlant).where(
+                    CloudPlant.site_id == site_id,
+                    CloudPlant.key.in_(plant_keys),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    found = {plant.key for plant in rows}
+    missing = [plant_key for plant_key in plant_keys if plant_key not in found]
+    if missing:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            f"unknown plant key: {missing[0]}",
+        )
+    return rows
+
+
+async def _enqueue_breeding_command(  # noqa: PLR0913
+    idempotency_key: str,
+    *,
+    user: str,
+    settings: CloudSettings,
+    session: AsyncSession,
+    clock: Callable[[], datetime],
+    command_type: CommandType,
+    target_tent_id: str,
+    payload: BreedingCommandPayload,
+) -> CommandResponse:
+    if not settings.command_creation_enabled:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "commands disabled")
+    existing = (
+        await session.execute(
+            select(CloudCommand).where(
+                CloudCommand.requested_by == user,
+                CloudCommand.idempotency_key == idempotency_key,
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        return _command_response(existing)
+
+    now = clock()
+    command = CloudCommand(
+        command_id=str(uuid.uuid4()),
+        idempotency_key=idempotency_key,
+        site_id=settings.default_site_id,
+        tent_id=target_tent_id,
+        device_id=None,
+        capability_id=None,
+        command_type=command_type,
+        payload=payload.model_dump(mode="json"),
+        requested_by=user,
+        status="queued",
+        queued_at=now,
+        expires_at=now + timedelta(seconds=BREEDING_COMMAND_EXPIRY_SECONDS),
+        created_at=now,
+        updated_at=now,
+    )
+    session.add(command)
+    add_audit_event(
+        session,
+        now=now,
+        event_type="command_created",
+        actor_type="browser",
+        actor_id=user,
+        site_id=settings.default_site_id,
+        subject_type="cloud_command",
+        subject_id=command.command_id,
+        metadata={
+            "command_type": command.command_type,
+            "tent_id": command.tent_id,
+            "device_id": command.device_id,
+            "capability_id": command.capability_id,
+        },
+    )
+    await session.commit()
+    await session.refresh(command)
+    return _command_response(command)
 
 
 def _sync_status_label(

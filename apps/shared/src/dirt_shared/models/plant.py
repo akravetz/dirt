@@ -516,7 +516,7 @@ class PlantLocationHistory(SQLModel, table=True):
     __tablename__ = "plant_location_history"
     __table_args__ = (
         CheckConstraint(
-            "btrim(grid_position) <> ''",
+            "grid_position IS NULL OR btrim(grid_position) <> ''",
             name="ck_plant_location_grid_position_not_blank",
         ),
         CheckConstraint(
@@ -534,7 +534,7 @@ class PlantLocationHistory(SQLModel, table=True):
             "tent_id",
             "grid_position",
             unique=True,
-            postgresql_where=text("end_at IS NULL"),
+            postgresql_where=text("end_at IS NULL AND grid_position IS NOT NULL"),
         ),
         Index(
             "ix_plant_location_current_tent",
@@ -573,6 +573,7 @@ class PlantLocationHistory(SQLModel, table=True):
             ),
             name="ex_plant_location_no_overlap_per_tent_grid_position",
             using="gist",
+            where=text("grid_position IS NOT NULL"),
         ),
     )
 
@@ -601,7 +602,9 @@ class PlantLocationHistory(SQLModel, table=True):
             nullable=False,
         )
     )
-    grid_position: str = Field(sa_column=Column(Text, nullable=False))
+    grid_position: str | None = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
     start_at: datetime = Field(
         sa_column=Column(TIMESTAMP(timezone=True), nullable=False)
     )

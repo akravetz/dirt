@@ -386,12 +386,139 @@ class CloudPlantLocation(SQLModel, table=True):
     source_location_id: int = Field(sa_column=Column(BigInteger, nullable=False))
     source_plant_id: int = Field(sa_column=Column(BigInteger, nullable=False))
     tent_id: str = Field(index=True, max_length=80)
-    grid_position: str = Field(max_length=80)
+    grid_position: str | None = Field(default=None, max_length=80)
     start_at: datetime = Field(
         sa_column=Column(DateTime(timezone=True), nullable=False)
     )
     end_at: datetime | None = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    synced_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    created_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    updated_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+
+
+class CloudCrossEvent(SQLModel, table=True):
+    __tablename__ = "cloud_cross_event"
+    __table_args__ = (
+        UniqueConstraint(
+            "site_id",
+            "source_cross_event_id",
+            name="uq_cloud_cross_event_site_source_cross_event",
+        ),
+    )
+
+    id: int | None = Field(
+        default=None,
+        sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
+    )
+    site_id: str = Field(index=True, max_length=80)
+    source_cross_event_id: int = Field(sa_column=Column(BigInteger, nullable=False))
+    resulting_line_source_id: int = Field(sa_column=Column(BigInteger, nullable=False))
+    seed_parent_source_plant_id: int = Field(
+        sa_column=Column(BigInteger, nullable=False)
+    )
+    pollen_parent_source_plant_id: int = Field(
+        sa_column=Column(BigInteger, nullable=False)
+    )
+    pollinated_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    pollen_parent_is_reversed: bool | None = None
+    notes: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    synced_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    created_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    updated_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+
+
+class CloudPlantNote(SQLModel, table=True):
+    __tablename__ = "cloud_plant_note"
+    __table_args__ = (
+        UniqueConstraint(
+            "site_id",
+            "source_note_id",
+            name="uq_cloud_plant_note_site_source_note",
+        ),
+        Index(
+            "ix_cloud_plant_note_plant_observed_at",
+            "site_id",
+            "source_plant_id",
+            "observed_at",
+        ),
+    )
+
+    id: int | None = Field(
+        default=None,
+        sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
+    )
+    site_id: str = Field(index=True, max_length=80)
+    source_note_id: int = Field(sa_column=Column(BigInteger, nullable=False))
+    source_plant_id: int = Field(sa_column=Column(BigInteger, nullable=False))
+    observed_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    body: str = Field(sa_column=Column(Text, nullable=False))
+    created_by: str | None = Field(default=None, max_length=160)
+    synced_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    created_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    updated_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+
+
+class CloudPlantEvent(SQLModel, table=True):
+    __tablename__ = "cloud_plant_event"
+    __table_args__ = (
+        UniqueConstraint(
+            "site_id",
+            "source_event_id",
+            name="uq_cloud_plant_event_site_source_event",
+        ),
+        Index(
+            "ix_cloud_plant_event_plant_occurred_at",
+            "site_id",
+            "source_plant_id",
+            "occurred_at",
+        ),
+    )
+
+    id: int | None = Field(
+        default=None,
+        sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
+    )
+    site_id: str = Field(index=True, max_length=80)
+    source_event_id: int = Field(sa_column=Column(BigInteger, nullable=False))
+    source_plant_id: int = Field(sa_column=Column(BigInteger, nullable=False))
+    is_pollen_collection: bool = False
+    is_seed_production: bool = False
+    is_clone_taken: bool = False
+    is_sex_observation: bool = False
+    is_reversal: bool = False
+    is_transplant: bool = False
+    is_selection_for_breeding: bool = False
+    occurred_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    reason: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    notes: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    metadata_json: dict[str, Any] = Field(
+        default_factory=dict, sa_column=Column("metadata", JSON, nullable=False)
     )
     synced_at: datetime = Field(
         sa_column=Column(DateTime(timezone=True), nullable=False)

@@ -7,11 +7,21 @@ from pydantic import ValidationError
 
 from dirt_shared.cloud_contract import (
     AssetRetentionRequest,
+    BreedingBulkCullPayload,
+    BreedingBulkMovePayload,
+    BreedingBulkSexPayload,
+    BreedingClonePlantsPayload,
+    BreedingCreatePlantNotePayload,
+    BreedingCreateSeedLotPayload,
+    BreedingGerminatePlantsPayload,
+    CatalogCrossEvent,
     CatalogDevice,
     CatalogPlant,
+    CatalogPlantEvent,
     CatalogPlantLine,
     CatalogPlantLocation,
     CatalogPlantMetricStream,
+    CatalogPlantNote,
     CatalogSeedLot,
     CommandClaimResponse,
     LatestMetricItem,
@@ -146,7 +156,7 @@ def test_catalog_line_seed_lot_and_location_require_source_identity() -> None:
             "source_location_id": 1,
             "source_plant_id": 1,
             "tent_id": "main",
-            "grid_position": "A1",
+            "grid_position": None,
             "start_at": "2026-03-15T12:00:00Z",
             "end_at": None,
         }
@@ -155,6 +165,7 @@ def test_catalog_line_seed_lot_and_location_require_source_identity() -> None:
     assert seed_lot.line_source_id == 1
     assert seed_lot.sex_type_key == "regular"
     assert location.source_plant_id == 1
+    assert location.grid_position is None
 
     for model, payload, field_name in (
         (CatalogPlantLine, line.model_dump(mode="json"), "source_line_id"),
@@ -164,6 +175,75 @@ def test_catalog_line_seed_lot_and_location_require_source_identity() -> None:
         del payload[field_name]
         with pytest.raises(ValidationError) as exc_info:
             model.model_validate(payload)
+        assert exc_info.value.errors()[0]["loc"] == (field_name,)
+        assert exc_info.value.errors()[0]["type"] == "missing"
+
+
+def test_catalog_location_requires_nullable_grid_position() -> None:
+    payload = {
+        "source_location_id": 1,
+        "source_plant_id": 1,
+        "tent_id": "main",
+        "start_at": "2026-03-15T12:00:00Z",
+        "end_at": None,
+    }
+
+    with pytest.raises(ValidationError) as exc_info:
+        CatalogPlantLocation.model_validate(payload)
+
+    assert exc_info.value.errors()[0]["loc"] == ("grid_position",)
+    assert exc_info.value.errors()[0]["type"] == "missing"
+
+
+def test_catalog_timeline_dtos_require_nullable_fields() -> None:
+    cross_payload = {
+        "source_cross_event_id": 10,
+        "resulting_line_source_id": 2,
+        "seed_parent_source_plant_id": 1,
+        "pollen_parent_source_plant_id": 2,
+        "pollinated_at": "2026-04-20T12:00:00Z",
+        "pollen_parent_is_reversed": None,
+        "notes": None,
+    }
+    note_payload = {
+        "source_note_id": 20,
+        "source_plant_id": 1,
+        "observed_at": "2026-04-21T12:00:00Z",
+        "body": "Branching improved.",
+        "created_by": None,
+    }
+    event_payload = {
+        "source_event_id": 30,
+        "source_plant_id": 1,
+        "is_pollen_collection": False,
+        "is_seed_production": False,
+        "is_clone_taken": False,
+        "is_sex_observation": True,
+        "is_reversal": False,
+        "is_transplant": False,
+        "is_selection_for_breeding": False,
+        "occurred_at": "2026-04-22T12:00:00Z",
+        "reason": None,
+        "notes": None,
+        "metadata": {},
+    }
+
+    assert CatalogCrossEvent.model_validate(cross_payload).notes is None
+    assert CatalogPlantNote.model_validate(note_payload).created_by is None
+    assert CatalogPlantEvent.model_validate(event_payload).metadata == {}
+
+    for model, payload, field_name in (
+        (CatalogCrossEvent, cross_payload, "pollen_parent_is_reversed"),
+        (CatalogCrossEvent, cross_payload, "notes"),
+        (CatalogPlantNote, note_payload, "created_by"),
+        (CatalogPlantEvent, event_payload, "reason"),
+        (CatalogPlantEvent, event_payload, "notes"),
+        (CatalogPlantEvent, event_payload, "metadata"),
+    ):
+        invalid = dict(payload)
+        del invalid[field_name]
+        with pytest.raises(ValidationError) as exc_info:
+            model.model_validate(invalid)
         assert exc_info.value.errors()[0]["loc"] == (field_name,)
         assert exc_info.value.errors()[0]["type"] == "missing"
 
@@ -341,6 +421,189 @@ def test_command_claim_response_rejects_mismatched_ptz_payload() -> None:
         )
 
     assert exc_info.value.errors()[0]["type"] == "value_error"
+
+
+def test_command_claim_response_uses_explicit_breeding_payload_models() -> None:
+    commands = [
+        _command_payload(
+            command_type="breeding_seed_lot_create",
+            payload={
+                "source": "purchased",
+                "generation": "R1",
+                "prefix": "SBBS",
+                "strain": "Sirius Black",
+                "cultivar": "BS01",
+                "source_name": "pack label",
+                "vendor_name": "Archive",
+                "acquired_at": None,
+                "seed_count": 12,
+                "sex_type_key": "feminized",
+                "notes": None,
+            },
+        ),
+        _command_payload(
+            command_type="breeding_plants_germinate",
+            payload={
+                "seed_lot_source_id": 1,
+                "count": 2,
+                "tent_id": "breeding",
+                "grid_position": None,
+                "germinated_at": None,
+            },
+        ),
+        _command_payload(
+            command_type="breeding_plants_clone",
+            payload={
+                "mother_plant_key": "SBBS-R1-001",
+                "count": 2,
+                "tent_id": "breeding",
+                "grid_position": None,
+                "taken_at": None,
+            },
+        ),
+        _command_payload(
+            command_type="breeding_plants_bulk_sex",
+            payload={"plant_keys": ["SBBS-R1-001"], "sex_key": "female"},
+        ),
+        _command_payload(
+            command_type="breeding_plants_bulk_move",
+            payload={
+                "plant_keys": ["SBBS-R1-001"],
+                "tent_id": "main",
+                "grid_position": None,
+            },
+        ),
+        _command_payload(
+            command_type="breeding_plants_bulk_cull",
+            payload={"plant_keys": ["SBBS-R1-001"], "reason": "selected male"},
+        ),
+        _command_payload(
+            command_type="breeding_plant_note_create",
+            payload={
+                "plant_key": "SBBS-R1-001",
+                "body": "Stem rub improved.",
+                "observed_at": None,
+            },
+        ),
+    ]
+
+    response = CommandClaimResponse(commands=commands)
+
+    assert isinstance(response.commands[0].payload, BreedingCreateSeedLotPayload)
+    assert isinstance(response.commands[1].payload, BreedingGerminatePlantsPayload)
+    assert isinstance(response.commands[2].payload, BreedingClonePlantsPayload)
+    assert isinstance(response.commands[3].payload, BreedingBulkSexPayload)
+    assert isinstance(response.commands[4].payload, BreedingBulkMovePayload)
+    assert isinstance(response.commands[5].payload, BreedingBulkCullPayload)
+    assert isinstance(response.commands[6].payload, BreedingCreatePlantNotePayload)
+    assert response.commands[1].payload.grid_position is None
+
+
+def test_breeding_command_payloads_reject_bad_shapes() -> None:
+    with pytest.raises(ValidationError) as mismatch_exc:
+        CommandClaimResponse(
+            commands=[
+                _command_payload(
+                    command_type="breeding_plants_bulk_cull",
+                    payload={"plant_keys": ["SBBS-R1-001"], "sex_key": "female"},
+                )
+            ]
+        )
+    assert mismatch_exc.value.errors()[0]["type"] == "value_error"
+
+    with pytest.raises(ValidationError) as extra_exc:
+        BreedingBulkMovePayload.model_validate(
+            {
+                "plant_keys": ["SBBS-R1-001"],
+                "tent_id": "main",
+                "grid_position": None,
+                "plant_names": ["Plant A"],
+            }
+        )
+    assert extra_exc.value.errors()[0]["type"] == "extra_forbidden"
+
+    with pytest.raises(ValidationError):
+        BreedingBulkCullPayload(plant_keys=[], reason="culled")
+    with pytest.raises(ValidationError):
+        BreedingBulkCullPayload(plant_keys=["SBBS-R1-001"], reason="   ")
+    with pytest.raises(ValidationError):
+        BreedingCreatePlantNotePayload(plant_key="SBBS-R1-001", body="   ")
+
+
+def test_breeding_grid_position_payloads_require_explicit_null() -> None:
+    payloads = [
+        (
+            BreedingGerminatePlantsPayload,
+            {
+                "seed_lot_source_id": 1,
+                "count": 2,
+                "tent_id": "breeding",
+                "grid_position": None,
+            },
+        ),
+        (
+            BreedingClonePlantsPayload,
+            {
+                "mother_plant_key": "SBBS-R1-001",
+                "count": 2,
+                "tent_id": "breeding",
+                "grid_position": None,
+            },
+        ),
+        (
+            BreedingBulkMovePayload,
+            {
+                "plant_keys": ["SBBS-R1-001"],
+                "tent_id": "main",
+                "grid_position": None,
+            },
+        ),
+    ]
+
+    for model, payload in payloads:
+        assert model.model_validate(payload).grid_position is None
+
+        missing = dict(payload)
+        del missing["grid_position"]
+        with pytest.raises(ValidationError) as missing_exc:
+            model.model_validate(missing)
+        assert missing_exc.value.errors()[0]["loc"] == ("grid_position",)
+        assert missing_exc.value.errors()[0]["type"] == "missing"
+
+        with pytest.raises(ValidationError) as non_null_exc:
+            model.model_validate({**payload, "grid_position": "A1"})
+        assert non_null_exc.value.errors()[0]["loc"] == ("grid_position",)
+
+
+def test_breeding_seed_lot_payload_validates_source_specific_fields() -> None:
+    cross = BreedingCreateSeedLotPayload(
+        source="cross",
+        generation="F1",
+        prefix="SBX",
+        seed_parent_plant_key="SBBS-R1-001",
+        pollen_parent_plant_key="SBBS-R1-002",
+        sex_type_key="regular",
+    )
+
+    assert cross.source == "cross"
+    assert cross.seed_parent_plant_key == "SBBS-R1-001"
+
+    with pytest.raises(ValidationError):
+        BreedingCreateSeedLotPayload(
+            source="purchased",
+            generation="R1",
+            prefix="SBBS",
+            sex_type_key="feminized",
+        )
+    with pytest.raises(ValidationError):
+        BreedingCreateSeedLotPayload(
+            source="cross",
+            generation="F1",
+            prefix="SBX",
+            seed_parent_plant_key="SBBS-R1-001",
+            pollen_parent_plant_key="SBBS-R1-001",
+            sex_type_key="regular",
+        )
 
 
 def _command_payload(

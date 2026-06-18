@@ -15,11 +15,12 @@ from typing import Any
 import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 import dirt_gateway
 import dirt_gateway.local as gateway_local
+from dirt_gateway.breeding_commands import BreedingCommandExecutor
 from dirt_gateway.cloud import CloudDeliveryError
 from dirt_gateway.commands import GatewayCommandService
 from dirt_gateway.local import GatewayLocalServiceBundle
@@ -57,12 +58,15 @@ from dirt_shared.models import (
     Capability,
     CloudOutbox,
     Command,
+    CrossEvent,
     Device,
     MetricPresentation,
     Plant,
+    PlantEvent,
     PlantLine,
     PlantLocationHistory,
     PlantMetricStream,
+    PlantNote,
     SeedLot,
     SensorReading,
     Site,
@@ -138,6 +142,9 @@ class RecordingCloudClient:
             seed_lots=len(payload["seed_lots"]),
             plants=len(payload["plants"]),
             plant_locations=len(payload["plant_locations"]),
+            cross_events=len(payload["cross_events"]),
+            plant_notes=len(payload["plant_notes"]),
+            plant_events=len(payload["plant_events"]),
             plant_metric_streams=len(payload["plant_metric_streams"]),
         )
 
@@ -520,6 +527,7 @@ def _command_service(
         command_ledger=CommandService(engine, clock=lambda: FIXED_NOW),
         outbox=OutboxRepository(engine),
         ptz=ptz,
+        breeding=BreedingCommandExecutor(engine, clock=lambda: FIXED_NOW),
         clock=lambda: FIXED_NOW,
         backoff=ImmediateBackoff(),
     )
@@ -530,6 +538,7 @@ def _cloud_command(
     *,
     command_type: str = "ptz_preset",
     payload: dict[str, Any] | None = None,
+    tent_id: str = "main",
     device_id: str | None = "obsbot-main",
     capability_id: str | None = "ptz_move",
     expires_at: datetime | None = None,
@@ -537,7 +546,7 @@ def _cloud_command(
     return {
         "command_id": command_id,
         "site_id": "homebox",
-        "tent_id": "main",
+        "tent_id": tent_id,
         "device_id": device_id,
         "capability_id": capability_id,
         "command_type": command_type,
@@ -553,6 +562,173 @@ def _cloud_command(
         "result": None,
         "error": None,
     }
+
+
+async def _site_and_tent_pks(
+    session: AsyncSession,
+    *,
+    tent_id: str,
+) -> tuple[int, int]:
+    site_pk = (
+        await session.exec(select(Site.id).where(Site.site_id == "homebox"))
+    ).one()
+    tent_pk = (
+        await session.exec(
+            select(Tent.id)
+            .where(Tent.site_id == site_pk)
+            .where(Tent.tent_id == tent_id)
+        )
+    ).one()
+    return site_pk, tent_pk
+
+
+async def _seed_seed_lot_for_commands(
+    engine: AsyncEngine,
+    *,
+    project_code: str,
+    generation_label: str,
+    existing_keys: list[str] | None = None,
+) -> int:
+    async with AsyncSession(engine) as session:
+        line = PlantLine(
+            project_code=project_code,
+            generation_label=generation_label,
+            strain=f"{project_code} Strain",
+            cultivar=f"{project_code} Cultivar",
+            source_name=f"{project_code} source",
+        )
+        session.add(line)
+        await session.flush()
+        seed_lot = SeedLot(
+            line_id=line.id,
+            sex_type_key="regular",
+            is_purchased=True,
+            vendor_name="Fixture vendor",
+        )
+        session.add(seed_lot)
+        await session.flush()
+        for key in existing_keys or []:
+            session.add(
+                Plant(
+                    key=key,
+                    line_id=line.id,
+                    sex_key="unknown",
+                    source_seed_lot_id=seed_lot.id,
+                    name=key,
+                )
+            )
+        seed_lot_id = seed_lot.id
+        await session.commit()
+        return seed_lot_id
+
+
+async def _seed_command_plants(
+    engine: AsyncEngine,
+    *,
+    prefix: str,
+    count: int,
+    tent_id: str = "main",
+    current_start: datetime | None = None,
+) -> list[str]:
+    async with AsyncSession(engine) as session:
+        site_pk, tent_pk = await _site_and_tent_pks(session, tent_id=tent_id)
+        line = PlantLine(
+            project_code=prefix,
+            generation_label="T1",
+            strain=f"{prefix} Strain",
+            cultivar=f"{prefix} Cultivar",
+            source_name=f"{prefix} source",
+        )
+        session.add(line)
+        await session.flush()
+        seed_lot = SeedLot(
+            line_id=line.id,
+            sex_type_key="regular",
+            is_purchased=True,
+            vendor_name="Fixture vendor",
+        )
+        session.add(seed_lot)
+        await session.flush()
+        plant_keys: list[str] = []
+        for index in range(1, count + 1):
+            key = f"{prefix}-T1-{index:03d}"
+            plant = Plant(
+                key=key,
+                line_id=line.id,
+                sex_key="unknown",
+                source_seed_lot_id=seed_lot.id,
+                name=key,
+                germinated_at=FIXED_NOW - timedelta(days=7),
+                veg_started_at=FIXED_NOW - timedelta(days=7),
+            )
+            session.add(plant)
+            await session.flush()
+            if current_start is not None:
+                session.add(
+                    PlantLocationHistory(
+                        plant_id=plant.id,
+                        site_id=site_pk,
+                        tent_id=tent_pk,
+                        grid_position=f"{prefix}{index}",
+                        start_at=current_start,
+                    )
+                )
+            plant_keys.append(key)
+        await session.commit()
+        return plant_keys
+
+
+async def _seed_parent_plants(engine: AsyncEngine) -> tuple[str, str]:
+    async with AsyncSession(engine) as session:
+        line = PlantLine(
+            project_code="PAR",
+            generation_label="P1",
+            strain="Parent Strain",
+            cultivar="Parent Cultivar",
+            source_name="Parent fixture",
+        )
+        session.add(line)
+        await session.flush()
+        seed_parent = Plant(
+            key="PAR-P1-SEED",
+            line_id=line.id,
+            sex_key="female",
+            name="Seed Parent",
+        )
+        pollen_parent = Plant(
+            key="PAR-P1-POLLEN",
+            line_id=line.id,
+            sex_key="reversed",
+            name="Pollen Parent",
+        )
+        session.add_all([seed_parent, pollen_parent])
+        seed_key = seed_parent.key
+        pollen_key = pollen_parent.key
+        await session.commit()
+        return seed_key, pollen_key
+
+
+async def _seed_mother_for_clone(engine: AsyncEngine) -> str:
+    async with AsyncSession(engine) as session:
+        line = PlantLine(
+            project_code="MOM",
+            generation_label="T1",
+            strain="Mother Strain",
+            cultivar="Mother Cultivar",
+            source_name="Mother fixture",
+        )
+        session.add(line)
+        await session.flush()
+        mother = Plant(
+            key="MOM-001",
+            line_id=line.id,
+            sex_key="female",
+            name="Mother Plant",
+        )
+        session.add(mother)
+        mother_key = mother.key
+        await session.commit()
+        return mother_key
 
 
 async def _seed_temperature_readings(engine: AsyncEngine) -> None:
@@ -1018,7 +1194,14 @@ async def test_collect_catalog_projects_current_grow_plants(
             cultivar="Test Cultivar",
             source_name="Test source",
         )
-        session.add(line)
+        unused_line = PlantLine(
+            project_code="IDLE",
+            generation_label="F1",
+            strain="Idle Strain",
+            cultivar="Idle Cultivar",
+            source_name="Idle source",
+        )
+        session.add_all([line, unused_line])
         await session.flush()
         seed_lot = SeedLot(
             line_id=line.id,
@@ -1026,7 +1209,15 @@ async def test_collect_catalog_projects_current_grow_plants(
             is_purchased=True,
             vendor_name="Test vendor",
         )
-        session.add(seed_lot)
+        unused_seed_lot = SeedLot(
+            line_id=unused_line.id,
+            sex_type_key="feminized",
+            is_purchased=True,
+            vendor_name="Unused vendor",
+            seed_count=5,
+            notes="No current plants yet.",
+        )
+        session.add_all([seed_lot, unused_seed_lot])
         await session.flush()
         plant_x1 = Plant(
             key="TEST-R1-001",
@@ -1044,12 +1235,69 @@ async def test_collect_catalog_projects_current_grow_plants(
             culled_at=FIXED_NOW,
             culled_reason="test fixture culled",
         )
-        session.add_all([plant_x1, plant_x2])
+        plant_x3 = Plant(
+            key="TEST-R1-003",
+            line_id=line.id,
+            sex_key="unknown",
+            source_seed_lot_id=seed_lot.id,
+            name="Test X3",
+            culled_at=FIXED_NOW - timedelta(days=1),
+            culled_reason="moved out of active test",
+        )
+        session.add_all([plant_x1, plant_x2, plant_x3])
         await session.flush()
         line_source_id = line.id
         seed_lot_source_id = seed_lot.id
+        unused_line_source_id = unused_line.id
+        unused_seed_lot_source_id = unused_seed_lot.id
         plant_x1_source_id = plant_x1.id
         plant_x2_source_id = plant_x2.id
+        plant_x3_source_id = plant_x3.id
+        cross_event = CrossEvent(
+            resulting_line_id=line.id,
+            seed_parent_plant_id=plant_x1.id,
+            pollen_parent_plant_id=plant_x2.id,
+            pollinated_at=FIXED_NOW,
+            pollen_parent_is_reversed=None,
+            notes=None,
+        )
+        note = PlantNote(
+            plant_id=plant_x1.id,
+            observed_at=FIXED_NOW + timedelta(hours=1),
+            body="Strong lateral branching.",
+            created_by=None,
+        )
+        event = PlantEvent(
+            plant_id=plant_x1.id,
+            is_sex_observation=True,
+            occurred_at=FIXED_NOW + timedelta(hours=2),
+            reason=None,
+            notes=None,
+            metadata_json={"sex_key": "female"},
+        )
+        closed_location_note = PlantNote(
+            plant_id=plant_x3.id,
+            observed_at=FIXED_NOW + timedelta(hours=3),
+            body="Archived plant still has timeline notes.",
+            created_by=None,
+        )
+        closed_location_event = PlantEvent(
+            plant_id=plant_x3.id,
+            is_selection_for_breeding=True,
+            occurred_at=FIXED_NOW + timedelta(hours=4),
+            reason="archival review",
+            notes=None,
+            metadata_json={},
+        )
+        session.add_all(
+            [cross_event, note, event, closed_location_note, closed_location_event]
+        )
+        await session.flush()
+        cross_event_source_id = cross_event.id
+        note_source_id = note.id
+        event_source_id = event.id
+        closed_location_note_source_id = closed_location_note.id
+        closed_location_event_source_id = closed_location_event.id
         session.add_all(
             [
                 PlantLocationHistory(
@@ -1065,6 +1313,22 @@ async def test_collect_catalog_projects_current_grow_plants(
                     tent_id=tent.id,
                     grid_position="B1",
                     start_at=FIXED_NOW,
+                ),
+                PlantLocationHistory(
+                    plant_id=plant_x3.id,
+                    site_id=site_pk,
+                    tent_id=tent.id,
+                    grid_position="C1",
+                    start_at=FIXED_NOW - timedelta(days=10),
+                    end_at=FIXED_NOW - timedelta(days=9),
+                ),
+                PlantLocationHistory(
+                    plant_id=plant_x3.id,
+                    site_id=site_pk,
+                    tent_id=tent.id,
+                    grid_position="C1",
+                    start_at=FIXED_NOW - timedelta(days=8),
+                    end_at=FIXED_NOW - timedelta(days=7),
                 ),
                 PlantMetricStream(
                     plant_id=plant_x1.id,
@@ -1087,12 +1351,15 @@ async def test_collect_catalog_projects_current_grow_plants(
     ]
     test_source_ids = {location.source_plant_id for location in test_locations}
     plant_lines = [
-        line for line in payload.plant_lines if line.source_line_id == line_source_id
+        line
+        for line in payload.plant_lines
+        if line.source_line_id in {line_source_id, unused_line_source_id}
     ]
     seed_lots = [
         seed_lot
         for seed_lot in payload.seed_lots
-        if seed_lot.source_seed_lot_id == seed_lot_source_id
+        if seed_lot.source_seed_lot_id
+        in {seed_lot_source_id, unused_seed_lot_source_id}
     ]
     plants = [
         plant for plant in payload.plants if plant.source_plant_id in test_source_ids
@@ -1136,16 +1403,101 @@ async def test_collect_catalog_projects_current_grow_plants(
             selected_for_breeding_reason=None,
             is_active=False,
         ),
+        CatalogPlant(
+            source_plant_id=plant_x3_source_id,
+            line_source_id=line_source_id,
+            sex_key="unknown",
+            source_seed_lot_id=seed_lot_source_id,
+            clone_source_plant_id=None,
+            key="TEST-R1-003",
+            name="Test X3",
+            germinated_at=None,
+            rooted_at=None,
+            veg_started_at=None,
+            flower_started_at=None,
+            culled_at=FIXED_NOW - timedelta(days=1),
+            culled_reason="moved out of active test",
+            harvested_at=None,
+            selected_for_breeding_at=None,
+            selected_for_breeding_reason=None,
+            is_active=False,
+        ),
     ]
-    assert len(plant_lines) == 1
-    assert plant_lines[0].strain == "Test Strain"
-    assert len(seed_lots) == 1
-    assert seed_lots[0].line_source_id == line_source_id
-    assert seed_lots[0].sex_type_key == "regular"
+    assert {line.source_line_id: line.strain for line in plant_lines} == {
+        line_source_id: "Test Strain",
+        unused_line_source_id: "Idle Strain",
+    }
+    assert {
+        seed_lot.source_seed_lot_id: (
+            seed_lot.line_source_id,
+            seed_lot.sex_type_key,
+            seed_lot.seed_count,
+            seed_lot.notes,
+        )
+        for seed_lot in seed_lots
+    } == {
+        seed_lot_source_id: (line_source_id, "regular", None, None),
+        unused_seed_lot_source_id: (
+            unused_line_source_id,
+            "feminized",
+            5,
+            "No current plants yet.",
+        ),
+    }
     assert [
-        (location.source_plant_id, location.grid_position)
+        (location.source_plant_id, location.grid_position, location.end_at)
         for location in test_locations
-    ] == [(plant_x1_source_id, "A1"), (plant_x2_source_id, "B1")]
+    ] == [
+        (plant_x1_source_id, "A1", None),
+        (plant_x2_source_id, "B1", None),
+        (plant_x3_source_id, "C1", FIXED_NOW - timedelta(days=9)),
+        (plant_x3_source_id, "C1", FIXED_NOW - timedelta(days=7)),
+    ]
+    cross_events = [
+        cross_event
+        for cross_event in payload.cross_events
+        if cross_event.source_cross_event_id == cross_event_source_id
+    ]
+    plant_notes = [
+        note for note in payload.plant_notes if note.source_note_id == note_source_id
+    ]
+    closed_location_notes = [
+        note
+        for note in payload.plant_notes
+        if note.source_note_id == closed_location_note_source_id
+    ]
+    plant_events = [
+        event
+        for event in payload.plant_events
+        if event.source_event_id == event_source_id
+    ]
+    closed_location_events = [
+        event
+        for event in payload.plant_events
+        if event.source_event_id == closed_location_event_source_id
+    ]
+    assert len(cross_events) == 1
+    assert cross_events[0].seed_parent_source_plant_id == plant_x1_source_id
+    assert cross_events[0].pollen_parent_source_plant_id == plant_x2_source_id
+    assert cross_events[0].pollen_parent_is_reversed is None
+    assert cross_events[0].notes is None
+    assert len(plant_notes) == 1
+    assert plant_notes[0].source_plant_id == plant_x1_source_id
+    assert plant_notes[0].body == "Strong lateral branching."
+    assert plant_notes[0].created_by is None
+    assert len(closed_location_notes) == 1
+    assert closed_location_notes[0].source_plant_id == plant_x3_source_id
+    assert closed_location_notes[0].body == "Archived plant still has timeline notes."
+    assert len(plant_events) == 1
+    assert plant_events[0].source_plant_id == plant_x1_source_id
+    assert plant_events[0].is_sex_observation is True
+    assert plant_events[0].reason is None
+    assert plant_events[0].notes is None
+    assert plant_events[0].metadata == {"sex_key": "female"}
+    assert len(closed_location_events) == 1
+    assert closed_location_events[0].source_plant_id == plant_x3_source_id
+    assert closed_location_events[0].is_selection_for_breeding is True
+    assert closed_location_events[0].reason == "archival review"
     plant_metric_streams = [
         stream
         for stream in payload.plant_metric_streams
@@ -1642,6 +1994,487 @@ async def test_command_loop_executes_ptz_and_records_local_ledger(
     assert command.status == "succeeded"
     assert command.command_type == "ptz.preset"
     assert command.result["preset"] == "overview"
+
+
+async def test_command_loop_executes_purchased_seed_lot_create(
+    app_engine: AsyncEngine,
+):
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command(
+            "cloud-seed-purchased",
+            command_type="breeding_seed_lot_create",
+            tent_id="breeding-logbook",
+            device_id=None,
+            capability_id=None,
+            payload={
+                "source": "purchased",
+                "generation": "F4",
+                "prefix": "PUR",
+                "sex_type_key": "regular",
+                "strain": "Purchased Strain",
+                "cultivar": "Purchased Cultivar",
+                "source_name": "Pack 12",
+                "vendor_name": "Seed Vendor",
+                "seed_count": 12,
+                "notes": "Kept refrigerated.",
+            },
+        )
+    ]
+
+    result = await _command_service(app_engine, cloud, RecordingPTZ()).run_once()
+
+    assert result.executed == 1
+    assert [payload.status for _, payload, _ in cloud.command_results] == [
+        "running",
+        "succeeded",
+    ]
+    async with AsyncSession(app_engine) as session:
+        command = (
+            await session.exec(
+                select(Command).where(
+                    Command.idempotency_key == "cloud-command:cloud-seed-purchased"
+                )
+            )
+        ).one()
+        seed_lot = await session.get(SeedLot, command.result["source_seed_lot_id"])
+        line = await session.get(PlantLine, command.result["line_id"])
+
+    assert command.command_type == "breeding.seed_lot.create"
+    assert command.tent_id is None
+    assert seed_lot is not None
+    assert seed_lot.is_purchased is True
+    assert seed_lot.vendor_name == "Seed Vendor"
+    assert seed_lot.seed_count == 12
+    assert line is not None
+    assert line.project_code == "PUR"
+    assert line.generation_label == "F4"
+
+
+async def test_command_loop_executes_cross_seed_lot_create(
+    app_engine: AsyncEngine,
+):
+    seed_key, pollen_key = await _seed_parent_plants(app_engine)
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command(
+            "cloud-seed-cross",
+            command_type="breeding_seed_lot_create",
+            tent_id="breeding-logbook",
+            device_id=None,
+            capability_id=None,
+            payload={
+                "source": "cross",
+                "generation": "F1",
+                "prefix": "XCR",
+                "sex_type_key": "feminized",
+                "seed_parent_plant_key": seed_key,
+                "pollen_parent_plant_key": pollen_key,
+                "pollinated_at": FIXED_NOW.isoformat(),
+                "pollen_parent_is_reversed": True,
+                "seed_count": 24,
+                "notes": "Controlled branch pollination.",
+            },
+        )
+    ]
+
+    result = await _command_service(app_engine, cloud, RecordingPTZ()).run_once()
+
+    assert result.executed == 1
+    async with AsyncSession(app_engine) as session:
+        command = (
+            await session.exec(
+                select(Command).where(
+                    Command.idempotency_key == "cloud-command:cloud-seed-cross"
+                )
+            )
+        ).one()
+        seed_lot = await session.get(SeedLot, command.result["source_seed_lot_id"])
+        cross = await session.get(CrossEvent, command.result["source_cross_event_id"])
+
+    assert command.status == "succeeded"
+    assert seed_lot is not None
+    assert seed_lot.is_purchased is False
+    assert (
+        seed_lot.produced_by_cross_event_id == command.result["source_cross_event_id"]
+    )
+    assert cross is not None
+    assert cross.pollen_parent_is_reversed is True
+
+
+async def test_command_loop_germinates_plants_with_local_key_suffixes(
+    app_engine: AsyncEngine,
+):
+    seed_lot_id = await _seed_seed_lot_for_commands(
+        app_engine,
+        project_code="GERM",
+        generation_label="R1",
+        existing_keys=["GERM-R1-001"],
+    )
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command(
+            "cloud-germinate",
+            command_type="breeding_plants_germinate",
+            tent_id="breeding-logbook",
+            device_id=None,
+            capability_id=None,
+            payload={
+                "seed_lot_source_id": seed_lot_id,
+                "count": 2,
+                "tent_id": "main",
+                "grid_position": None,
+                "germinated_at": FIXED_NOW.isoformat(),
+            },
+        )
+    ]
+
+    result = await _command_service(app_engine, cloud, RecordingPTZ()).run_once()
+
+    assert result.executed == 1
+    async with AsyncSession(app_engine) as session:
+        plants = (
+            await session.exec(
+                select(Plant).where(col(Plant.key).in_(["GERM-R1-002", "GERM-R1-003"]))
+            )
+        ).all()
+        locations = (
+            await session.exec(
+                select(PlantLocationHistory).where(
+                    col(PlantLocationHistory.plant_id).in_(
+                        [plant.id for plant in plants]
+                    )
+                )
+            )
+        ).all()
+        command = (
+            await session.exec(
+                select(Command).where(
+                    Command.idempotency_key == "cloud-command:cloud-germinate"
+                )
+            )
+        ).one()
+
+    assert command.result["created_plant_keys"] == ["GERM-R1-002", "GERM-R1-003"]
+    assert {plant.sex_key for plant in plants} == {"unknown"}
+    assert {plant.germinated_at for plant in plants} == {FIXED_NOW}
+    assert {plant.veg_started_at for plant in plants} == {FIXED_NOW}
+    assert {plant.flower_started_at for plant in plants} == {FIXED_NOW}
+    assert {location.grid_position for location in locations} == {None}
+
+
+async def test_command_loop_clones_plants_and_records_mother_event(
+    app_engine: AsyncEngine,
+):
+    mother_key = await _seed_mother_for_clone(app_engine)
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command(
+            "cloud-clone",
+            command_type="breeding_plants_clone",
+            tent_id="breeding-logbook",
+            device_id=None,
+            capability_id=None,
+            payload={
+                "mother_plant_key": mother_key,
+                "count": 2,
+                "tent_id": "breeding",
+                "grid_position": None,
+                "taken_at": FIXED_NOW.isoformat(),
+            },
+        )
+    ]
+
+    result = await _command_service(app_engine, cloud, RecordingPTZ()).run_once()
+
+    assert result.executed == 1
+    async with AsyncSession(app_engine) as session:
+        clones = (
+            await session.exec(
+                select(Plant).where(
+                    col(Plant.key).in_(["MOM-001-C-001", "MOM-001-C-002"])
+                )
+            )
+        ).all()
+        mother = (
+            await session.exec(select(Plant).where(Plant.key == mother_key))
+        ).one()
+        event = (
+            await session.exec(
+                select(PlantEvent)
+                .where(PlantEvent.plant_id == mother.id)
+                .where(PlantEvent.is_clone_taken.is_(True))
+            )
+        ).one()
+
+    assert {clone.clone_source_plant_id for clone in clones} == {mother.id}
+    assert {clone.sex_key for clone in clones} == {"female"}
+    assert {clone.rooted_at for clone in clones} == {FIXED_NOW}
+    assert event.metadata_json == {"clone_keys": ["MOM-001-C-001", "MOM-001-C-002"]}
+
+
+async def test_command_loop_bulk_sex_updates_plants_and_events(
+    app_engine: AsyncEngine,
+):
+    plant_keys = await _seed_command_plants(app_engine, prefix="SEX", count=2)
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command(
+            "cloud-sex",
+            command_type="breeding_plants_bulk_sex",
+            tent_id="breeding-logbook",
+            device_id=None,
+            capability_id=None,
+            payload={"plant_keys": plant_keys, "sex_key": "female"},
+        )
+    ]
+
+    result = await _command_service(app_engine, cloud, RecordingPTZ()).run_once()
+
+    assert result.executed == 1
+    async with AsyncSession(app_engine) as session:
+        plants = (
+            await session.exec(select(Plant).where(col(Plant.key).in_(plant_keys)))
+        ).all()
+        events = (
+            await session.exec(
+                select(PlantEvent).where(PlantEvent.is_sex_observation.is_(True))
+            )
+        ).all()
+
+    assert {plant.sex_key for plant in plants} == {"female"}
+    assert {event.metadata_json["sex_key"] for event in events} >= {"female"}
+
+
+async def test_command_loop_bulk_move_closes_current_location_and_starts_flower(
+    app_engine: AsyncEngine,
+):
+    [plant_key] = await _seed_command_plants(
+        app_engine,
+        prefix="MOVE",
+        count=1,
+        tent_id="breeding",
+        current_start=FIXED_NOW - timedelta(days=2),
+    )
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command(
+            "cloud-move",
+            command_type="breeding_plants_bulk_move",
+            tent_id="breeding-logbook",
+            device_id=None,
+            capability_id=None,
+            payload={
+                "plant_keys": [plant_key],
+                "tent_id": "main",
+                "grid_position": None,
+            },
+        )
+    ]
+
+    result = await _command_service(app_engine, cloud, RecordingPTZ()).run_once()
+
+    assert result.executed == 1
+    async with AsyncSession(app_engine) as session:
+        plant = (await session.exec(select(Plant).where(Plant.key == plant_key))).one()
+        locations = (
+            await session.exec(
+                select(PlantLocationHistory)
+                .where(PlantLocationHistory.plant_id == plant.id)
+                .order_by(PlantLocationHistory.start_at)
+            )
+        ).all()
+        event = (
+            await session.exec(
+                select(PlantEvent)
+                .where(PlantEvent.plant_id == plant.id)
+                .where(PlantEvent.is_transplant.is_(True))
+            )
+        ).one()
+
+    assert plant.flower_started_at == FIXED_NOW
+    assert locations[0].end_at == FIXED_NOW
+    assert locations[1].end_at is None
+    assert locations[1].grid_position is None
+    assert event.metadata_json == {"from_tent_id": "breeding", "to_tent_id": "main"}
+
+
+async def test_command_loop_bulk_cull_closes_current_location(
+    app_engine: AsyncEngine,
+):
+    [plant_key] = await _seed_command_plants(
+        app_engine,
+        prefix="CULL",
+        count=1,
+        current_start=FIXED_NOW - timedelta(days=2),
+    )
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command(
+            "cloud-cull",
+            command_type="breeding_plants_bulk_cull",
+            tent_id="breeding-logbook",
+            device_id=None,
+            capability_id=None,
+            payload={"plant_keys": [plant_key], "reason": "failed vigor check"},
+        )
+    ]
+
+    result = await _command_service(app_engine, cloud, RecordingPTZ()).run_once()
+
+    assert result.executed == 1
+    async with AsyncSession(app_engine) as session:
+        plant = (await session.exec(select(Plant).where(Plant.key == plant_key))).one()
+        current_locations = (
+            await session.exec(
+                select(PlantLocationHistory)
+                .where(PlantLocationHistory.plant_id == plant.id)
+                .where(PlantLocationHistory.end_at.is_(None))
+            )
+        ).all()
+
+    assert plant.culled_at == FIXED_NOW
+    assert plant.culled_reason == "failed vigor check"
+    assert current_locations == []
+
+
+async def test_command_loop_creates_plant_note_with_cloud_requester(
+    app_engine: AsyncEngine,
+):
+    [plant_key] = await _seed_command_plants(app_engine, prefix="NOTE", count=1)
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command(
+            "cloud-note",
+            command_type="breeding_plant_note_create",
+            tent_id="breeding-logbook",
+            device_id=None,
+            capability_id=None,
+            payload={
+                "plant_key": plant_key,
+                "body": "Stem rub is citrus-heavy.",
+                "observed_at": FIXED_NOW.isoformat(),
+            },
+        )
+    ]
+
+    result = await _command_service(app_engine, cloud, RecordingPTZ()).run_once()
+
+    assert result.executed == 1
+    async with AsyncSession(app_engine) as session:
+        note = (
+            await session.exec(
+                select(PlantNote)
+                .join(Plant, Plant.id == PlantNote.plant_id)
+                .where(Plant.key == plant_key)
+            )
+        ).one()
+        command = (
+            await session.exec(
+                select(Command).where(
+                    Command.idempotency_key == "cloud-command:cloud-note"
+                )
+            )
+        ).one()
+
+    assert note.body == "Stem rub is citrus-heavy."
+    assert note.created_by == "admin"
+    assert command.result["source_note_id"] == note.id
+
+
+async def test_command_loop_rejects_breeding_with_ptz_target_before_ledger(
+    app_engine: AsyncEngine,
+):
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command(
+            "cloud-breeding-bad-target",
+            command_type="breeding_plants_bulk_cull",
+            payload={"plant_keys": ["missing"], "reason": "bad target"},
+            device_id="obsbot-main",
+            capability_id="ptz_move",
+        )
+    ]
+
+    result = await _command_service(app_engine, cloud, RecordingPTZ()).run_once()
+
+    assert result.executed == 0
+    assert [payload.status for _, payload, _ in cloud.command_results] == ["rejected"]
+    async with AsyncSession(app_engine) as session:
+        commands = (await session.exec(select(Command))).all()
+    assert commands == []
+
+
+async def test_command_loop_reports_failed_for_invalid_breeding_state(
+    app_engine: AsyncEngine,
+):
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command(
+            "cloud-missing-plant",
+            command_type="breeding_plant_note_create",
+            tent_id="breeding-logbook",
+            device_id=None,
+            capability_id=None,
+            payload={"plant_key": "NOPE-001", "body": "Missing plant."},
+        )
+    ]
+
+    result = await _command_service(app_engine, cloud, RecordingPTZ()).run_once()
+
+    assert result.executed == 1
+    statuses = [payload.status for _, payload, _ in cloud.command_results]
+    assert statuses == ["running", "failed"]
+    assert "unknown plant key" in cloud.command_results[-1][1].error
+    async with AsyncSession(app_engine) as session:
+        command = (
+            await session.exec(
+                select(Command).where(
+                    Command.idempotency_key == "cloud-command:cloud-missing-plant"
+                )
+            )
+        ).one()
+    assert command.status == "failed"
+
+
+async def test_command_loop_does_not_duplicate_breeding_terminal_local_command(
+    app_engine: AsyncEngine,
+):
+    [plant_key] = await _seed_command_plants(app_engine, prefix="IDEMP", count=1)
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command(
+            "cloud-note-repeat",
+            command_type="breeding_plant_note_create",
+            tent_id="breeding-logbook",
+            device_id=None,
+            capability_id=None,
+            payload={"plant_key": plant_key, "body": "One note only."},
+        )
+    ]
+    service = _command_service(app_engine, cloud, RecordingPTZ())
+
+    first = await service.run_once()
+    second = await service.run_once()
+
+    assert first.executed == 1
+    assert second.executed == 0
+    async with AsyncSession(app_engine) as session:
+        notes = (
+            await session.exec(
+                select(PlantNote)
+                .join(Plant, Plant.id == PlantNote.plant_id)
+                .where(Plant.key == plant_key)
+            )
+        ).all()
+
+    assert len(notes) == 1
+    terminal_reports = [
+        payload.status
+        for _, payload, _ in cloud.command_results
+        if payload.status == "succeeded"
+    ]
+    assert terminal_reports == ["succeeded", "succeeded"]
 
 
 async def test_command_loop_rejects_expired_and_invalid_without_ptz(

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime, time
 from typing import Any, Literal, TypeAlias
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class CloudContractModel(BaseModel):
@@ -22,7 +22,18 @@ CommandResponseStatus = Literal[
     "rejected",
     "expired",
 ]
-CommandType = Literal["ptz_preset", "ptz_look", "ptz_zoom"]
+CommandType = Literal[
+    "ptz_preset",
+    "ptz_look",
+    "ptz_zoom",
+    "breeding_seed_lot_create",
+    "breeding_plants_germinate",
+    "breeding_plants_clone",
+    "breeding_plants_bulk_sex",
+    "breeding_plants_bulk_move",
+    "breeding_plants_bulk_cull",
+    "breeding_plant_note_create",
+]
 CapturePolicyReason = Literal[
     "camera_not_found",
     "camera_disabled",
@@ -147,9 +158,43 @@ class CatalogPlantLocation(CloudContractModel):
     source_location_id: int
     source_plant_id: int
     tent_id: str
-    grid_position: str
+    grid_position: str | None = Field(...)
     start_at: datetime
     end_at: datetime | None = Field(...)
+
+
+class CatalogCrossEvent(CloudContractModel):
+    source_cross_event_id: int
+    resulting_line_source_id: int
+    seed_parent_source_plant_id: int
+    pollen_parent_source_plant_id: int
+    pollinated_at: datetime
+    pollen_parent_is_reversed: bool | None = Field(...)
+    notes: str | None = Field(...)
+
+
+class CatalogPlantNote(CloudContractModel):
+    source_note_id: int
+    source_plant_id: int
+    observed_at: datetime
+    body: str
+    created_by: str | None = Field(...)
+
+
+class CatalogPlantEvent(CloudContractModel):
+    source_event_id: int
+    source_plant_id: int
+    is_pollen_collection: bool
+    is_seed_production: bool
+    is_clone_taken: bool
+    is_sex_observation: bool
+    is_reversal: bool
+    is_transplant: bool
+    is_selection_for_breeding: bool
+    occurred_at: datetime
+    reason: str | None = Field(...)
+    notes: str | None = Field(...)
+    metadata: dict[str, Any]
 
 
 class CatalogPlantMetricStream(CloudContractModel):
@@ -172,6 +217,9 @@ class CatalogRequest(CloudContractModel):
     seed_lots: list[CatalogSeedLot] = Field(default_factory=list)
     plants: list[CatalogPlant] = Field(default_factory=list)
     plant_locations: list[CatalogPlantLocation] = Field(default_factory=list)
+    cross_events: list[CatalogCrossEvent] = Field(default_factory=list)
+    plant_notes: list[CatalogPlantNote] = Field(default_factory=list)
+    plant_events: list[CatalogPlantEvent] = Field(default_factory=list)
     plant_metric_streams: list[CatalogPlantMetricStream] = Field(default_factory=list)
 
 
@@ -186,6 +234,9 @@ class CatalogResponse(CloudContractModel):
     seed_lots: int
     plants: int
     plant_locations: int
+    cross_events: int
+    plant_notes: int
+    plant_events: int
     plant_metric_streams: int
 
 
@@ -348,8 +399,180 @@ class PtzZoomRelativePayload(CloudContractModel):
     delta: float = Field(ge=-1.0, le=1.0)
 
 
+def _strip_required_text(value: str) -> str:
+    stripped = value.strip()
+    if stripped == "":
+        raise ValueError("must not be blank")
+    return stripped
+
+
+def _strip_optional_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+    return _strip_required_text(value)
+
+
+def _strip_required_text_list(values: list[str]) -> list[str]:
+    stripped = [_strip_required_text(value) for value in values]
+    if len(set(stripped)) != len(stripped):
+        raise ValueError("must not contain duplicates")
+    return stripped
+
+
+class BreedingCreateSeedLotPayload(CloudContractModel):
+    source: Literal["purchased", "cross"]
+    generation: str = Field(min_length=1)
+    prefix: str = Field(min_length=1)
+    sex_type_key: SeedLotSexTypeKey
+    strain: str | None = None
+    cultivar: str | None = None
+    source_name: str | None = None
+    vendor_name: str | None = None
+    acquired_at: datetime | None = None
+    seed_parent_plant_key: str | None = None
+    pollen_parent_plant_key: str | None = None
+    pollinated_at: datetime | None = None
+    pollen_parent_is_reversed: bool | None = None
+    seed_count: int | None = Field(default=None, ge=0)
+    notes: str | None = None
+
+    @field_validator(
+        "generation",
+        "prefix",
+        "strain",
+        "cultivar",
+        "source_name",
+        "vendor_name",
+        "seed_parent_plant_key",
+        "pollen_parent_plant_key",
+        "notes",
+    )
+    @classmethod
+    def _strip_optional_text(cls, value: str | None) -> str | None:
+        return _strip_optional_text(value)
+
+    @model_validator(mode="after")
+    def _source_fields_match(self) -> BreedingCreateSeedLotPayload:
+        if self.source == "purchased":
+            missing = [
+                field_name
+                for field_name in ("strain", "cultivar", "source_name")
+                if getattr(self, field_name) is None
+            ]
+            if missing:
+                raise ValueError(
+                    "purchased seed lots require strain, cultivar, and source_name"
+                )
+            if self.seed_parent_plant_key is not None:
+                raise ValueError(
+                    "purchased seed lots must not include seed_parent_plant_key"
+                )
+            if self.pollen_parent_plant_key is not None:
+                raise ValueError(
+                    "purchased seed lots must not include pollen_parent_plant_key"
+                )
+        else:
+            if (
+                self.seed_parent_plant_key is None
+                or self.pollen_parent_plant_key is None
+            ):
+                raise ValueError(
+                    "cross seed lots require seed and pollen parent plant keys"
+                )
+            if self.seed_parent_plant_key == self.pollen_parent_plant_key:
+                raise ValueError("cross parents must be distinct plants")
+        return self
+
+
+class BreedingGerminatePlantsPayload(CloudContractModel):
+    seed_lot_source_id: int = Field(gt=0)
+    count: int = Field(gt=0)
+    tent_id: str = Field(min_length=1)
+    grid_position: None = Field(...)
+    germinated_at: datetime | None = None
+
+    @field_validator("tent_id")
+    @classmethod
+    def _strip_tent_id(cls, value: str) -> str:
+        return _strip_required_text(value)
+
+
+class BreedingClonePlantsPayload(CloudContractModel):
+    mother_plant_key: str = Field(min_length=1)
+    count: int = Field(gt=0)
+    tent_id: str = Field(min_length=1)
+    grid_position: None = Field(...)
+    taken_at: datetime | None = None
+
+    @field_validator("mother_plant_key", "tent_id")
+    @classmethod
+    def _strip_text(cls, value: str) -> str:
+        return _strip_required_text(value)
+
+
+class BreedingBulkSexPayload(CloudContractModel):
+    plant_keys: list[str] = Field(min_length=1)
+    sex_key: PlantSexKey
+
+    @field_validator("plant_keys")
+    @classmethod
+    def _strip_plant_keys(cls, value: list[str]) -> list[str]:
+        return _strip_required_text_list(value)
+
+
+class BreedingBulkMovePayload(CloudContractModel):
+    plant_keys: list[str] = Field(min_length=1)
+    tent_id: str = Field(min_length=1)
+    grid_position: None = Field(...)
+
+    @field_validator("plant_keys")
+    @classmethod
+    def _strip_plant_keys(cls, value: list[str]) -> list[str]:
+        return _strip_required_text_list(value)
+
+    @field_validator("tent_id")
+    @classmethod
+    def _strip_tent_id(cls, value: str) -> str:
+        return _strip_required_text(value)
+
+
+class BreedingBulkCullPayload(CloudContractModel):
+    plant_keys: list[str] = Field(min_length=1)
+    reason: str = Field(min_length=1)
+
+    @field_validator("reason")
+    @classmethod
+    def _strip_reason(cls, value: str) -> str:
+        return _strip_required_text(value)
+
+    @field_validator("plant_keys")
+    @classmethod
+    def _strip_plant_keys(cls, value: list[str]) -> list[str]:
+        return _strip_required_text_list(value)
+
+
+class BreedingCreatePlantNotePayload(CloudContractModel):
+    plant_key: str = Field(min_length=1)
+    body: str = Field(min_length=1)
+    observed_at: datetime | None = None
+
+    @field_validator("plant_key", "body")
+    @classmethod
+    def _strip_text(cls, value: str) -> str:
+        return _strip_required_text(value)
+
+
 PtzZoomPayload: TypeAlias = PtzZoomAbsolutePayload | PtzZoomRelativePayload
 PtzCommandPayload: TypeAlias = PtzPresetPayload | PtzLookPayload | PtzZoomPayload
+BreedingCommandPayload: TypeAlias = (
+    BreedingCreateSeedLotPayload
+    | BreedingGerminatePlantsPayload
+    | BreedingClonePlantsPayload
+    | BreedingBulkSexPayload
+    | BreedingBulkMovePayload
+    | BreedingBulkCullPayload
+    | BreedingCreatePlantNotePayload
+)
 
 
 class ClaimedCommand(CloudContractModel):
@@ -359,7 +582,7 @@ class ClaimedCommand(CloudContractModel):
     device_id: str | None
     capability_id: str | None
     command_type: CommandType
-    payload: PtzCommandPayload
+    payload: PtzCommandPayload | BreedingCommandPayload
     status: CommandResponseStatus
     queued_at: datetime
     expires_at: datetime
@@ -385,6 +608,18 @@ class ClaimedCommand(CloudContractModel):
             self.payload, PtzZoomAbsolutePayload | PtzZoomRelativePayload
         ):
             raise ValueError("ptz_zoom requires a zoom payload")
+        expected_payloads: dict[CommandType, type[CloudContractModel]] = {
+            "breeding_seed_lot_create": BreedingCreateSeedLotPayload,
+            "breeding_plants_germinate": BreedingGerminatePlantsPayload,
+            "breeding_plants_clone": BreedingClonePlantsPayload,
+            "breeding_plants_bulk_sex": BreedingBulkSexPayload,
+            "breeding_plants_bulk_move": BreedingBulkMovePayload,
+            "breeding_plants_bulk_cull": BreedingBulkCullPayload,
+            "breeding_plant_note_create": BreedingCreatePlantNotePayload,
+        }
+        expected = expected_payloads.get(self.command_type)
+        if expected is not None and not isinstance(self.payload, expected):
+            raise ValueError(f"{self.command_type} requires {expected.__name__}")
         return self
 
 

@@ -1,16 +1,34 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { platform } from "@/shared/platform";
 import { storage } from "@/shared/storage";
 import { Sparkline } from "@/ui/Sparkline";
 import {
-  applyMockAddSeedLot,
-  applyMockBulkCull,
-  applyMockBulkMove,
-  applyMockBulkSex,
-  applyMockLogNote,
-  applyMockSowPlants,
-  applyMockTakeClones,
+  type AddSeedLotMutationInput,
+  activePendingCommandsForPlant,
+  applyPendingPlantCommands,
+  type BreedingLogbookPendingCommand,
+  canSubmitBulkCull,
+  commandErrorText,
+  createBreedingLogbookIdempotencyKey,
+  failedCommandsForPlant,
+  hasActivePendingForAnyPlant,
+  isPendingCommandProjected,
+  type PendingTimelineNote,
+  pendingTimelineNotes,
+  readonlyPlantPrefixPreview,
+  useAddSeedLotMutation,
+  useBreedingLogbookPendingCommands,
+  useBulkCullMutation,
+  useBulkMoveMutation,
+  useBulkSexMutation,
+  useClonePlantsMutation,
+  useGerminatePlantsMutation,
+  useLogPlantNoteMutation,
+} from "./breedingLogbookMutations";
+import {
+  invalidateBreedingLogbookReads,
   useBreedingLogbookQueries,
 } from "./breedingLogbookQueries";
 import type {
@@ -26,6 +44,7 @@ import type {
   PlantRow,
   PlantSexKey,
   PlantStageKey,
+  SeedLotSexTypeKey,
   SeedLotSource,
   SeedLotSummary,
 } from "./breedingLogbookTypes";
@@ -39,6 +58,7 @@ type AddSeedLotDraft = {
   motherId: string;
   fatherId: string;
   generation: string;
+  sexTypeKey: SeedLotSexTypeKey;
   prefix: string;
   strain: string;
   breeder: string;
@@ -60,7 +80,7 @@ const VIEW_TABS = [
   label: string;
 }[];
 
-const GENERATION_OPTIONS = ["F1", "F2", "F3", "F4", "S1", "BX1"] as const;
+const GENERATION_OPTIONS = ["R1", "F1", "F2", "F3", "F4", "F5", "S1", "BX1"] as const;
 const EMPTY_SELECTION = new Set<string>();
 const FALLBACK_LOCATION: LocationOption = {
   key: "veg",
@@ -77,6 +97,7 @@ const initialSeedLotDraft: AddSeedLotDraft = {
   motherId: "plant-d",
   fatherId: "r2",
   generation: "F2",
+  sexTypeKey: "regular",
   prefix: "",
   strain: "",
   breeder: "",
@@ -97,6 +118,7 @@ export function BreedingLogbookPage(): ReactNode {
     useState<ReadonlySet<string>>(EMPTY_SELECTION);
   const [bulkPanel, setBulkPanel] = useState<BulkPanel>(null);
   const [bulkSex, setBulkSex] = useState<PlantSexKey>("female");
+  const [bulkCullReason, setBulkCullReason] = useState("");
   const [moveLocationKey, setMoveLocationKey] = useState("veg");
   const [seedLotDraft, setSeedLotDraft] =
     useState<AddSeedLotDraft>(initialSeedLotDraft);
@@ -107,7 +129,7 @@ export function BreedingLogbookPage(): ReactNode {
   const [cloneMotherId, setCloneMotherId] = useState("plant-a");
   const [cloneCount, setCloneCount] = useState(4);
   const [cloneLocationKey, setCloneLocationKey] = useState("veg");
-  const [detailPlantId, setDetailPlantId] = useState("plant-a");
+  const [detailPlantKey, setDetailPlantKey] = useState("");
   const [noteText, setNoteText] = useState("");
   const [draggingPlantId, setDraggingPlantId] = useState<string | null>(null);
   const [theme, setTheme] = useState<Theme>(readStoredTheme);
@@ -117,19 +139,74 @@ export function BreedingLogbookPage(): ReactNode {
     storage.set(THEME_STORAGE_KEY, theme);
   }, [theme]);
 
-  const logbook = useBreedingLogbookQueries(detailPlantId);
-  const plants = logbook.plants.plants;
+  const logbook = useBreedingLogbookQueries(detailPlantKey);
+  const pendingCommands = useBreedingLogbookPendingCommands();
+  const addSeedLotMutation = useAddSeedLotMutation();
+  const germinateMutation = useGerminatePlantsMutation();
+  const cloneMutation = useClonePlantsMutation();
+  const bulkSexMutation = useBulkSexMutation();
+  const bulkMoveMutation = useBulkMoveMutation();
+  const bulkCullMutation = useBulkCullMutation();
+  const logNoteMutation = useLogPlantNoteMutation();
+  const serverPlants = logbook.plants.plants;
+  const plants = useMemo(
+    () => applyPendingPlantCommands(serverPlants, pendingCommands),
+    [serverPlants, pendingCommands],
+  );
+  const activeCount = plants.filter((plant) => plant.stageKey !== "culled").length;
+  const culledCount = plants.length - activeCount;
   const seedLots = logbook.seedLots.seedLots;
   const visiblePlants = plants.filter(
     (plant) => showCulled || plant.stageKey !== "culled",
   );
   const selectedPlants = plants.filter((plant) => selectedPlantIds.has(plant.id));
+  const selectedPlantKeys = selectedPlants.map((plant) => plant.key);
+  const selectedPlantsHavePendingCommand = hasActivePendingForAnyPlant(
+    pendingCommands,
+    selectedPlantKeys,
+  );
   const detailPlant =
-    plants.find((plant) => plant.id === detailPlantId) ?? logbook.detail.plant;
+    plants.find(
+      (plant) => plant.key === (detailPlantKey || logbook.detail.plant.key),
+    ) ?? logbook.detail.plant;
   const detail = { ...logbook.detail, plant: detailPlant };
+  const unprojectedSucceededCommands = useMemo(
+    () =>
+      pendingCommands.filter(
+        (pending) =>
+          pending.command.status === "succeeded" &&
+          !isPendingCommandProjected(
+            pending,
+            serverPlants,
+            logbook.detail.events,
+            logbook.detail.plant.key,
+          ),
+      ),
+    [pendingCommands, serverPlants, logbook.detail.events, logbook.detail.plant.key],
+  );
 
-  const openDetail = (plantId: string) => {
-    setDetailPlantId(plantId);
+  useEffect(() => {
+    if (unprojectedSucceededCommands.length === 0) return;
+    let timeoutId: number | null = null;
+    const refreshUntilProjected = () => {
+      invalidateBreedingLogbookReads(
+        queryClient,
+        unprojectedSucceededCommands.flatMap((pending) => pending.affectedPlantKeys),
+      );
+      timeoutId = platform.setTimeout(refreshUntilProjected, 5_000);
+    };
+
+    refreshUntilProjected();
+
+    return () => {
+      if (timeoutId !== null) {
+        platform.clearTimeout(timeoutId);
+      }
+    };
+  }, [queryClient, unprojectedSucceededCommands]);
+
+  const openDetail = (plantKey: string) => {
+    setDetailPlantKey(plantKey);
     setView("detail");
   };
   const clearSelection = () => {
@@ -155,11 +232,11 @@ export function BreedingLogbookPage(): ReactNode {
       <div className="mx-auto flex max-w-330 flex-col gap-4 px-4 pb-14 pt-4 sm:px-6">
         {view === "plants" ? (
           <PlantsSurface
-            activeCount={logbook.plants.activeCount}
+            activeCount={activeCount}
             bootstrap={logbook.bootstrap}
             bulkPanel={bulkPanel}
             bulkSex={bulkSex}
-            culledCount={logbook.plants.culledCount}
+            culledCount={culledCount}
             draggingPlantId={draggingPlantId}
             groupBy={groupBy}
             layout={layout}
@@ -169,6 +246,12 @@ export function BreedingLogbookPage(): ReactNode {
             selectedPlantIds={selectedPlantIds}
             selectedPlants={selectedPlants}
             showCulled={showCulled}
+            pendingCommands={pendingCommands}
+            bulkCullReason={bulkCullReason}
+            mutationError={mutationErrorText(
+              bulkSexMutation.error ?? bulkMoveMutation.error ?? bulkCullMutation.error,
+            )}
+            destructiveActionsDisabled={selectedPlantsHavePendingCommand}
             onAddPlants={() => {
               setView("add-plants");
             }}
@@ -176,19 +259,62 @@ export function BreedingLogbookPage(): ReactNode {
               setView("add-seeds");
             }}
             onApplyCull={() => {
-              applyMockBulkCull(queryClient, selectedPlantIds);
-              clearSelection();
+              if (
+                selectedPlantKeys.length === 0 ||
+                selectedPlantsHavePendingCommand ||
+                !canSubmitBulkCull(bulkCullReason)
+              ) {
+                return;
+              }
+              bulkCullMutation.mutate(
+                {
+                  idempotencyKey: createBreedingLogbookIdempotencyKey("bulk-cull"),
+                  plantKeys: selectedPlantKeys,
+                  reason: bulkCullReason,
+                },
+                {
+                  onSuccess: () => {
+                    setBulkCullReason("");
+                    clearSelection();
+                  },
+                },
+              );
             }}
             onApplyMove={() => {
-              applyMockBulkMove(queryClient, selectedPlantIds, selectedLocation);
-              clearSelection();
+              if (selectedPlantKeys.length === 0 || selectedPlantsHavePendingCommand) {
+                return;
+              }
+              bulkMoveMutation.mutate(
+                {
+                  idempotencyKey: createBreedingLogbookIdempotencyKey("bulk-move"),
+                  plantKeys: selectedPlantKeys,
+                  tentId: selectedLocation.key,
+                  locationLabel: selectedLocation.displayName,
+                  locationStageKey: selectedLocation.stageKey,
+                },
+                {
+                  onSuccess: clearSelection,
+                },
+              );
             }}
             onApplySex={() => {
-              applyMockBulkSex(queryClient, selectedPlantIds, bulkSex);
-              clearSelection();
+              if (selectedPlantKeys.length === 0 || selectedPlantsHavePendingCommand) {
+                return;
+              }
+              bulkSexMutation.mutate(
+                {
+                  idempotencyKey: createBreedingLogbookIdempotencyKey("bulk-sex"),
+                  plantKeys: selectedPlantKeys,
+                  sexKey: bulkSex,
+                },
+                {
+                  onSuccess: clearSelection,
+                },
+              );
             }}
             onBulkPanelChange={setBulkPanel}
             onBulkSexChange={setBulkSex}
+            onBulkCullReasonChange={setBulkCullReason}
             onClearSelection={clearSelection}
             onDragEnd={() => {
               setDraggingPlantId(null);
@@ -199,16 +325,38 @@ export function BreedingLogbookPage(): ReactNode {
               const moveIds = selectedPlantIds.has(draggingPlantId)
                 ? selectedPlantIds
                 : new Set([draggingPlantId]);
-              applyMockBulkMove(queryClient, moveIds, location);
-              clearSelection();
-              setDraggingPlantId(null);
+              const movePlantKeys = plants
+                .filter((plant) => moveIds.has(plant.id))
+                .map((plant) => plant.key);
+              if (
+                movePlantKeys.length === 0 ||
+                hasActivePendingForAnyPlant(pendingCommands, movePlantKeys)
+              ) {
+                setDraggingPlantId(null);
+                return;
+              }
+              bulkMoveMutation.mutate(
+                {
+                  idempotencyKey: createBreedingLogbookIdempotencyKey("board-move"),
+                  plantKeys: movePlantKeys,
+                  tentId: location.key,
+                  locationLabel: location.displayName,
+                  locationStageKey: location.stageKey,
+                },
+                {
+                  onSuccess: () => {
+                    clearSelection();
+                    setDraggingPlantId(null);
+                  },
+                },
+              );
             }}
             onGroupByChange={setGroupBy}
             onLayoutChange={setLayout}
             onMoveLocationChange={setMoveLocationKey}
             onOpenBulkNote={() => {
               const firstSelected = selectedPlants[0];
-              if (firstSelected) openDetail(firstSelected.id);
+              if (firstSelected) openDetail(firstSelected.key);
             }}
             onOpenDetail={openDetail}
             onSelectedPlantIdsChange={setSelectedPlantIds}
@@ -216,7 +364,11 @@ export function BreedingLogbookPage(): ReactNode {
           />
         ) : view === "add-seeds" ? (
           <AddSeedsSurface
+            bootstrap={logbook.bootstrap}
             draft={seedLotDraft}
+            mutationError={mutationErrorText(addSeedLotMutation.error)}
+            mutationPending={addSeedLotMutation.isPending}
+            pendingCommands={pendingCommands}
             plants={plants}
             seedLots={seedLots}
             onDraftChange={setSeedLotDraft}
@@ -226,13 +378,15 @@ export function BreedingLogbookPage(): ReactNode {
               setView("add-plants");
             }}
             onSubmit={() => {
-              const created = createSeedLotFromDraft(seedLotDraft, plants);
-              if (created === null) return;
-              const seedLot = applyMockAddSeedLot(queryClient, created);
-              setSelectedSeedLotId(seedLot.id);
-              setSeedLotDraft({
-                ...initialSeedLotDraft,
-                source: seedLotDraft.source,
+              const input = createSeedLotInputFromDraft(seedLotDraft, plants);
+              if (input === null) return;
+              addSeedLotMutation.mutate(input, {
+                onSuccess: () => {
+                  setSeedLotDraft({
+                    ...initialSeedLotDraft,
+                    source: seedLotDraft.source,
+                  });
+                },
               });
             }}
             onViewChange={setView}
@@ -249,6 +403,11 @@ export function BreedingLogbookPage(): ReactNode {
             seedLots={seedLots}
             selectedSeedLotId={selectedSeedLotId}
             bootstrap={logbook.bootstrap}
+            pendingCommands={pendingCommands}
+            mutationError={mutationErrorText(
+              germinateMutation.error ?? cloneMutation.error,
+            )}
+            mutationPending={germinateMutation.isPending || cloneMutation.isPending}
             onAddSeeds={() => {
               setView("add-seeds");
             }}
@@ -260,23 +419,37 @@ export function BreedingLogbookPage(): ReactNode {
             onModeChange={setAddPlantMode}
             onSeedLotChange={setSelectedSeedLotId}
             onSow={(seedLot, location) => {
-              applyMockSowPlants(queryClient, {
-                seedLot,
-                count: germinateCount,
-                location,
-              });
-              setView("plants");
-              clearSelection();
+              germinateMutation.mutate(
+                {
+                  idempotencyKey: createBreedingLogbookIdempotencyKey("germinate"),
+                  seedLotId: seedLot.id,
+                  count: germinateCount,
+                  tentId: location.key,
+                  affectedLabel: seedLot.label,
+                },
+                {
+                  onSuccess: () => {
+                    setView("plants");
+                    clearSelection();
+                  },
+                },
+              );
             }}
-            onTakeClones={(mother, location, prefix) => {
-              applyMockTakeClones(queryClient, {
-                mother,
-                count: cloneCount,
-                location,
-                prefix,
-              });
-              setView("plants");
-              clearSelection();
+            onTakeClones={(mother, location) => {
+              cloneMutation.mutate(
+                {
+                  idempotencyKey: createBreedingLogbookIdempotencyKey("clone"),
+                  motherPlantKey: mother.key,
+                  count: cloneCount,
+                  tentId: location.key,
+                },
+                {
+                  onSuccess: () => {
+                    setView("plants");
+                    clearSelection();
+                  },
+                },
+              );
             }}
             onViewChange={setView}
           />
@@ -284,12 +457,31 @@ export function BreedingLogbookPage(): ReactNode {
           <PlantJournalDetail
             detail={detail}
             noteText={noteText}
+            mutationError={mutationErrorText(logNoteMutation.error)}
+            mutationPending={logNoteMutation.isPending}
+            pendingNotes={pendingTimelineNotes(
+              detail.events,
+              pendingCommands,
+              detail.plant.key,
+            )}
             onBack={() => {
               setView("plants");
             }}
             onLogNote={() => {
-              applyMockLogNote(queryClient, detail.plant, noteText);
-              setNoteText("");
+              const body = noteText.trim();
+              if (body.length === 0) return;
+              logNoteMutation.mutate(
+                {
+                  idempotencyKey: createBreedingLogbookIdempotencyKey("plant-note"),
+                  plantKey: detail.plant.key,
+                  body,
+                },
+                {
+                  onSuccess: () => {
+                    setNoteText("");
+                  },
+                },
+              );
             }}
             onNoteTextChange={setNoteText}
           />
@@ -398,12 +590,15 @@ function BreedingLogbookTopBar({
 function PlantsSurface({
   activeCount,
   bootstrap,
+  bulkCullReason,
   bulkPanel,
   bulkSex,
   culledCount,
+  destructiveActionsDisabled,
   draggingPlantId,
   groupBy,
   layout,
+  mutationError,
   moveLocationKey,
   onAddPlants,
   onAddSeeds,
@@ -411,6 +606,7 @@ function PlantsSurface({
   onApplyMove,
   onApplySex,
   onBulkPanelChange,
+  onBulkCullReasonChange,
   onBulkSexChange,
   onClearSelection,
   onDragEnd,
@@ -424,6 +620,7 @@ function PlantsSurface({
   onSelectedPlantIdsChange,
   onShowCulledChange,
   plants,
+  pendingCommands,
   selectedLocation,
   selectedPlantIds,
   selectedPlants,
@@ -431,14 +628,18 @@ function PlantsSurface({
 }: {
   activeCount: number;
   bootstrap: BreedingLogbookBootstrap;
+  bulkCullReason: string;
   bulkPanel: BulkPanel;
   bulkSex: PlantSexKey;
   culledCount: number;
+  destructiveActionsDisabled: boolean;
   draggingPlantId: string | null;
   groupBy: PlantGroupBy;
   layout: PlantListLayout;
+  mutationError: string | null;
   moveLocationKey: string;
   plants: readonly PlantRow[];
+  pendingCommands: readonly BreedingLogbookPendingCommand[];
   selectedLocation: LocationOption;
   selectedPlantIds: ReadonlySet<string>;
   selectedPlants: readonly PlantRow[];
@@ -449,6 +650,7 @@ function PlantsSurface({
   onApplyMove: () => void;
   onApplySex: () => void;
   onBulkPanelChange: (panel: BulkPanel) => void;
+  onBulkCullReasonChange: (reason: string) => void;
   onBulkSexChange: (sex: PlantSexKey) => void;
   onClearSelection: () => void;
   onDragEnd: () => void;
@@ -517,8 +719,10 @@ function PlantsSurface({
       />
       {selectedCount > 0 ? (
         <BulkActionToolbar
+          bulkCullReason={bulkCullReason}
           bulkPanel={bulkPanel}
           bulkSex={bulkSex}
+          destructiveActionsDisabled={destructiveActionsDisabled}
           locations={bootstrap.locations.filter(
             (location) => location.stageKey !== "culled",
           )}
@@ -529,18 +733,21 @@ function PlantsSurface({
           onApplyMove={onApplyMove}
           onApplySex={onApplySex}
           onBulkPanelChange={onBulkPanelChange}
+          onBulkCullReasonChange={onBulkCullReasonChange}
           onBulkSexChange={onBulkSexChange}
           onClear={onClearSelection}
           onMoveLocationChange={onMoveLocationChange}
           onOpenNote={onOpenBulkNote}
         />
       ) : null}
+      <PendingCommandSummary commands={pendingCommands} mutationError={mutationError} />
       {layout === "table" ? (
         <PlantTable
           allChecked={allVisibleSelected}
           bootstrap={bootstrap}
           groupBy={groupBy}
           plants={plants}
+          pendingCommands={pendingCommands}
           selectedPlantIds={selectedPlantIds}
           someChecked={someVisibleSelected}
           onOpenDetail={onOpenDetail}
@@ -552,6 +759,7 @@ function PlantsSurface({
           bootstrap={bootstrap}
           draggingPlantId={draggingPlantId}
           plants={plants}
+          pendingCommands={pendingCommands}
           selectedPlantIds={selectedPlantIds}
           showCulled={showCulled}
           onDragEnd={onDragEnd}
@@ -564,7 +772,7 @@ function PlantsSurface({
       <p className="font-mono text-fs-9 uppercase tracking-caps text-ink-3">
         {listFooter}
         {selectedPlants.length > 0
-          ? ` / ${selectedPlants.length} selected for mock-local actions`
+          ? ` / ${selectedPlants.length} selected for command actions`
           : ""}
       </p>
     </>
@@ -635,14 +843,17 @@ function PlantChrome({
 }
 
 function BulkActionToolbar({
+  bulkCullReason,
   bulkPanel,
   bulkSex,
+  destructiveActionsDisabled,
   locations,
   moveLocationKey,
   onApplyCull,
   onApplyMove,
   onApplySex,
   onBulkPanelChange,
+  onBulkCullReasonChange,
   onBulkSexChange,
   onClear,
   onMoveLocationChange,
@@ -650,8 +861,10 @@ function BulkActionToolbar({
   selectedCount,
   selectedLocation,
 }: {
+  bulkCullReason: string;
   bulkPanel: BulkPanel;
   bulkSex: PlantSexKey;
+  destructiveActionsDisabled: boolean;
   locations: readonly LocationOption[];
   moveLocationKey: string;
   selectedCount: number;
@@ -660,6 +873,7 @@ function BulkActionToolbar({
   onApplyMove: () => void;
   onApplySex: () => void;
   onBulkPanelChange: (panel: BulkPanel) => void;
+  onBulkCullReasonChange: (reason: string) => void;
   onBulkSexChange: (sex: PlantSexKey) => void;
   onClear: () => void;
   onMoveLocationChange: (locationKey: string) => void;
@@ -726,9 +940,14 @@ function BulkActionToolbar({
             value={bulkSex}
             onChange={onBulkSexChange}
           />
-          <Button variant="primary" onClick={onApplySex}>
+          <Button
+            variant="primary"
+            disabled={destructiveActionsDisabled}
+            onClick={onApplySex}
+          >
             Apply
           </Button>
+          {destructiveActionsDisabled ? <PendingBlockMessage /> : null}
         </div>
       ) : null}
       {bulkPanel === "move" ? (
@@ -742,27 +961,133 @@ function BulkActionToolbar({
             }))}
             onChange={onMoveLocationChange}
           />
-          <Button variant="primary" onClick={onApplyMove}>
+          <Button
+            variant="primary"
+            disabled={destructiveActionsDisabled}
+            onClick={onApplyMove}
+          >
             Move {selectedCount} →
           </Button>
           <p className="font-mono text-fs-9 uppercase tracking-caps text-ink-3">
-            logs a mock move event to {selectedLocation.displayName}
+            queues a move command to {selectedLocation.displayName}
           </p>
+          {destructiveActionsDisabled ? <PendingBlockMessage /> : null}
         </div>
       ) : null}
       {bulkPanel === "cull" ? (
         <div className="flex flex-wrap items-center gap-3 border-t border-rule bg-paper px-3 py-3">
-          <p className="font-mono text-fs-10 uppercase tracking-caps text-status-err">
-            Marks selected plants culled in mock cache. Reversible once real writes
-            exist.
-          </p>
-          <Button variant="danger" onClick={onApplyCull}>
+          <TextField
+            label="Reason"
+            value={bulkCullReason}
+            placeholder="selected male"
+            onChange={onBulkCullReasonChange}
+          />
+          <Button
+            variant="danger"
+            disabled={destructiveActionsDisabled || !canSubmitBulkCull(bulkCullReason)}
+            onClick={onApplyCull}
+          >
             x Confirm cull
           </Button>
+          {destructiveActionsDisabled ? <PendingBlockMessage /> : null}
         </div>
       ) : null}
     </section>
   );
+}
+
+function PendingBlockMessage(): ReactNode {
+  return (
+    <p className="font-mono text-fs-9 uppercase tracking-caps text-status-warn">
+      affected plant command pending
+    </p>
+  );
+}
+
+function PendingCommandSummary({
+  commands,
+  mutationError,
+}: {
+  commands: readonly BreedingLogbookPendingCommand[];
+  mutationError: string | null;
+}): ReactNode {
+  const visibleCommands = commands.filter((command) => {
+    const error = commandErrorText(command);
+    return error !== null || command.command.status !== "succeeded";
+  });
+  if (visibleCommands.length === 0 && mutationError === null) return null;
+  return (
+    <section className="border border-status-warn bg-paper-2 px-3 py-2.5">
+      <div className="grid gap-1">
+        {mutationError ? <InlineError text={mutationError} /> : null}
+        {visibleCommands.map((command) => {
+          const error = commandErrorText(command);
+          return (
+            <p
+              key={command.commandId}
+              className={
+                error
+                  ? "font-mono text-fs-10 uppercase tracking-caps text-status-err"
+                  : "font-mono text-fs-10 uppercase tracking-caps text-status-warn"
+              }
+            >
+              {command.label} / {error ?? command.command.status}
+            </p>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function PendingPlantMarker({
+  pendingCommands,
+  plantKey,
+}: {
+  pendingCommands: readonly BreedingLogbookPendingCommand[];
+  plantKey: string;
+}): ReactNode {
+  const activeCommands = activePendingCommandsForPlant(pendingCommands, plantKey);
+  const failedCommands = failedCommandsForPlant(pendingCommands, plantKey);
+  if (failedCommands.length > 0) {
+    return (
+      <span className="shrink-0 border border-status-err px-1.5 py-0.5 font-mono text-fs-9 uppercase tracking-caps text-status-err">
+        failed
+      </span>
+    );
+  }
+  if (activeCommands.length === 0) return null;
+  return (
+    <span className="shrink-0 border border-status-warn px-1.5 py-0.5 font-mono text-fs-9 uppercase tracking-caps text-status-warn">
+      pending
+    </span>
+  );
+}
+
+function PlantInlineError({
+  pendingCommands,
+  plantKey,
+}: {
+  pendingCommands: readonly BreedingLogbookPendingCommand[];
+  plantKey: string;
+}): ReactNode {
+  const failedCommand = failedCommandsForPlant(pendingCommands, plantKey)[0];
+  const error = failedCommand ? commandErrorText(failedCommand) : null;
+  if (error === null) return null;
+  return <span className="mr-2 text-status-err">{error}</span>;
+}
+
+function InlineError({ text }: { text: string }): ReactNode {
+  return (
+    <p className="font-mono text-fs-10 uppercase tracking-caps text-status-err">
+      {text}
+    </p>
+  );
+}
+
+function mutationErrorText(error: Error | null): string | null {
+  if (error === null) return null;
+  return error.message;
 }
 
 function ToolbarButton({
@@ -798,6 +1123,7 @@ function PlantTable({
   onOpenDetail,
   onToggleAll,
   onTogglePlant,
+  pendingCommands,
   plants,
   selectedPlantIds,
   someChecked,
@@ -805,6 +1131,7 @@ function PlantTable({
   allChecked: boolean;
   bootstrap: BreedingLogbookBootstrap;
   groupBy: PlantGroupBy;
+  pendingCommands: readonly BreedingLogbookPendingCommand[];
   plants: readonly PlantRow[];
   selectedPlantIds: ReadonlySet<string>;
   someChecked: boolean;
@@ -849,6 +1176,7 @@ function PlantTable({
               <PlantTableRow
                 key={plant.id}
                 plant={plant}
+                pendingCommands={pendingCommands}
                 selected={selectedPlantIds.has(plant.id)}
                 onOpenDetail={onOpenDetail}
                 onTogglePlant={onTogglePlant}
@@ -864,10 +1192,12 @@ function PlantTable({
 function PlantTableRow({
   onOpenDetail,
   onTogglePlant,
+  pendingCommands,
   plant,
   selected,
 }: {
   plant: PlantRow;
+  pendingCommands: readonly BreedingLogbookPendingCommand[];
   selected: boolean;
   onOpenDetail: (plantId: string) => void;
   onTogglePlant: (plantId: string) => void;
@@ -888,15 +1218,18 @@ function PlantTableRow({
         }}
       />
       <div className="min-w-0">
-        <button
-          type="button"
-          onClick={() => {
-            onOpenDetail(plant.id);
-          }}
-          className="max-w-full truncate font-semibold text-ink underline-offset-2 hover:underline"
-        >
-          {plant.name}
-        </button>
+        <div className="flex min-w-0 items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => {
+              onOpenDetail(plant.key);
+            }}
+            className="max-w-full truncate font-semibold text-ink underline-offset-2 hover:underline"
+          >
+            {plant.name}
+          </button>
+          <PendingPlantMarker pendingCommands={pendingCommands} plantKey={plant.key} />
+        </div>
         <p className="mt-0.5 truncate font-mono text-fs-9 uppercase tracking-caps text-ink-3">
           {plant.key} / {plant.locationLabel}
         </p>
@@ -920,7 +1253,10 @@ function PlantTableRow({
       <DateCell value={plant.germinatedOn} />
       <DateCell value={plant.vegStartedOn} />
       <DateCell value={plant.flowerStartedOn} />
-      <span className="truncate text-ink-3">{plant.lastNote}</span>
+      <span className="truncate text-ink-3">
+        <PlantInlineError pendingCommands={pendingCommands} plantKey={plant.key} />
+        {plant.lastNote}
+      </span>
     </div>
   );
 }
@@ -933,6 +1269,7 @@ function PlantBoard({
   onDropPlant,
   onOpenDetail,
   onTogglePlant,
+  pendingCommands,
   plants,
   selectedPlantIds,
   showCulled,
@@ -947,6 +1284,7 @@ function PlantBoard({
   onDropPlant: (location: LocationOption) => void;
   onOpenDetail: (plantId: string) => void;
   onTogglePlant: (plantId: string) => void;
+  pendingCommands: readonly BreedingLogbookPendingCommand[];
 }): ReactNode {
   const dropLocations = bootstrap.locations.filter((location) =>
     showCulled ? true : location.stageKey !== "culled",
@@ -1016,6 +1354,7 @@ function PlantBoard({
                   onDragEnd={onDragEnd}
                   onDragStart={onDragStart}
                   onOpenDetail={onOpenDetail}
+                  pendingCommands={pendingCommands}
                   onTogglePlant={onTogglePlant}
                 />
               ))}
@@ -1033,8 +1372,7 @@ function PlantBoard({
         ))}
       </div>
       <p className="mt-2 font-mono text-fs-9 uppercase tracking-caps text-ink-3">
-        drag a chip, or a selected set, across a column boundary to log a mock-local
-        move
+        drag a chip, or a selected set, across a column boundary to queue a move command
       </p>
     </section>
   );
@@ -1045,6 +1383,7 @@ function PlantBoardChip({
   onDragStart,
   onOpenDetail,
   onTogglePlant,
+  pendingCommands,
   plant,
   selected,
 }: {
@@ -1054,6 +1393,7 @@ function PlantBoardChip({
   onDragStart: (plantId: string) => void;
   onOpenDetail: (plantId: string) => void;
   onTogglePlant: (plantId: string) => void;
+  pendingCommands: readonly BreedingLogbookPendingCommand[];
 }): ReactNode {
   return (
     <li
@@ -1082,12 +1422,13 @@ function PlantBoardChip({
           <button
             type="button"
             onClick={() => {
-              onOpenDetail(plant.id);
+              onOpenDetail(plant.key);
             }}
             className="max-w-full truncate font-sans text-fs-12 font-semibold text-ink underline-offset-2 hover:underline"
           >
             {plant.name}
           </button>
+          <PendingPlantMarker pendingCommands={pendingCommands} plantKey={plant.key} />
           <p className="mt-1 truncate font-mono text-fs-9 uppercase tracking-caps text-ink-3">
             {plant.generation} /{" "}
             {plant.culledOn
@@ -1104,17 +1445,25 @@ function PlantBoardChip({
 }
 
 function AddSeedsSurface({
+  bootstrap,
   draft,
+  mutationError,
+  mutationPending,
   onDraftChange,
   onGerminate,
   onSubmit,
   onViewChange,
+  pendingCommands,
   plants,
   seedLots,
 }: {
+  bootstrap: BreedingLogbookBootstrap;
   draft: AddSeedLotDraft;
+  mutationError: string | null;
+  mutationPending: boolean;
   plants: readonly PlantRow[];
   seedLots: readonly SeedLotSummary[];
+  pendingCommands: readonly BreedingLogbookPendingCommand[];
   onDraftChange: (draft: AddSeedLotDraft) => void;
   onGerminate: (seedLotId: string) => void;
   onSubmit: () => void;
@@ -1134,16 +1483,35 @@ function AddSeedsSurface({
       label: `${plant.name} ${plant.sexKey === "male" ? "♂" : "?"}`,
     }));
   const preview = seedLotPreview(draft, plants);
-  const canSubmit = draft.source === "cross" || draft.strain.trim().length > 0;
+  const hasSelectedCrossParents =
+    motherOptions.some((option) => option.value === draft.motherId) &&
+    fatherOptions.some((option) => option.value === draft.fatherId);
+  const canSubmit =
+    draft.source === "cross" ? hasSelectedCrossParents : draft.strain.trim().length > 0;
+  const seedLotSexTypeOptions = bootstrap.seedLotSexTypes.map((sexType) => ({
+    value: sexType.key,
+    label: sexType.displayName,
+  }));
+  const selectedSexType = seedLotSexTypeOptions.some(
+    (option) => option.value === draft.sexTypeKey,
+  )
+    ? draft.sexTypeKey
+    : "regular";
 
   return (
     <>
       <SurfaceHeader
-        description="Record a deterministic mock seed lot without creating plant rows."
+        description="Queue a seed-lot command without creating plant rows."
         title="Add seeds"
         onBack={() => {
           onViewChange("plants");
         }}
+      />
+      <PendingCommandSummary
+        commands={pendingCommands.filter(
+          (command) => command.operation === "add-seeds",
+        )}
+        mutationError={mutationError}
       />
       <section className="grid gap-px border border-rule-strong bg-rule md:grid-cols-[minmax(360px,1fr)_minmax(280px,360px)]">
         <div className="bg-paper-2 p-5">
@@ -1188,6 +1556,14 @@ function AddSeedsSurface({
                     onDraftChange({ ...draft, generation });
                   }}
                 />
+                <SelectField
+                  label="Seed type"
+                  value={selectedSexType}
+                  options={seedLotSexTypeOptions}
+                  onChange={(sexTypeKey) => {
+                    onDraftChange({ ...draft, sexTypeKey });
+                  }}
+                />
                 <TextField
                   label="Prefix"
                   value={draft.prefix}
@@ -1226,6 +1602,14 @@ function AddSeedsSurface({
                     onDraftChange({ ...draft, generation });
                   }}
                 />
+                <SelectField
+                  label="Seed type"
+                  value={selectedSexType}
+                  options={seedLotSexTypeOptions}
+                  onChange={(sexTypeKey) => {
+                    onDraftChange({ ...draft, sexTypeKey });
+                  }}
+                />
                 <TextField
                   label="Prefix"
                   value={draft.prefix}
@@ -1239,9 +1623,14 @@ function AddSeedsSurface({
           </div>
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-rule pt-3">
             <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
-              {preview.label} / labels {preview.prefix}-01...
+              {preview.label} / plant label prefix{" "}
+              {readonlyPlantPrefixPreview(preview.prefix)}
             </p>
-            <Button variant="primary" disabled={!canSubmit} onClick={onSubmit}>
+            <Button
+              variant="primary"
+              disabled={!canSubmit || mutationPending}
+              onClick={onSubmit}
+            >
               Record seed lot
             </Button>
           </div>
@@ -1286,6 +1675,8 @@ function AddPlantsSurface({
   germinateCount,
   germinateLocationKey,
   mode,
+  mutationError,
+  mutationPending,
   onAddSeeds,
   onCloneCountChange,
   onCloneLocationChange,
@@ -1297,6 +1688,7 @@ function AddPlantsSurface({
   onSow,
   onTakeClones,
   onViewChange,
+  pendingCommands,
   plants,
   seedLots,
   selectedSeedLotId,
@@ -1308,9 +1700,12 @@ function AddPlantsSurface({
   germinateCount: number;
   germinateLocationKey: string;
   mode: AddPlantMode;
+  mutationError: string | null;
+  mutationPending: boolean;
   plants: readonly PlantRow[];
   seedLots: readonly SeedLotSummary[];
   selectedSeedLotId: string;
+  pendingCommands: readonly BreedingLogbookPendingCommand[];
   onAddSeeds: () => void;
   onCloneCountChange: (count: number) => void;
   onCloneLocationChange: (locationKey: string) => void;
@@ -1320,7 +1715,7 @@ function AddPlantsSurface({
   onModeChange: (mode: AddPlantMode) => void;
   onSeedLotChange: (seedLotId: string) => void;
   onSow: (seedLot: SeedLotSummary, location: LocationOption) => void;
-  onTakeClones: (mother: PlantRow, location: LocationOption, prefix: string) => void;
+  onTakeClones: (mother: PlantRow, location: LocationOption) => void;
   onViewChange: (view: BreedingLogbookView) => void;
 }): ReactNode {
   const selectedSeedLot =
@@ -1343,15 +1738,11 @@ function AddPlantsSurface({
   const mother =
     cloneMothers.find((plant) => plant.id === cloneMotherId) ?? cloneMothers[0];
   const clonePrefix = clonePrefixFor(mother?.name ?? "mother");
-  const germPreview = selectedSeedLot
-    ? previewLabels(selectedSeedLot.prefix, germinateCount)
-    : [];
-  const clonePreview = previewLabels(clonePrefix, cloneCount);
 
   return (
     <>
       <SurfaceHeader
-        description="Create mock plant rows by germinating a seed lot or taking clones."
+        description="Queue germination or clone commands; local Dirt assigns plant keys."
         title="Add plants"
         onBack={() => {
           onViewChange("plants");
@@ -1368,6 +1759,13 @@ function AddPlantsSurface({
           onChange={onModeChange}
         />
       </div>
+      <PendingCommandSummary
+        commands={pendingCommands.filter(
+          (command) =>
+            command.operation === "germinate" || command.operation === "clone",
+        )}
+        mutationError={mutationError}
+      />
       <section className="grid gap-px border border-rule-strong bg-rule md:grid-cols-[minmax(360px,1fr)_minmax(280px,360px)]">
         <div className="bg-paper-2 p-5">
           {mode === "germinate" ? (
@@ -1403,9 +1801,13 @@ function AddPlantsSurface({
                   }))}
                 onChange={onGerminateLocationChange}
               />
-              <MockFact
+              <ReadOnlyFact
                 label="Label prefix"
-                value={selectedSeedLot ? `${selectedSeedLot.prefix}-` : "NEW-"}
+                value={
+                  selectedSeedLot
+                    ? readonlyPlantPrefixPreview(selectedSeedLot.prefix)
+                    : readonlyPlantPrefixPreview("NEW")
+                }
               />
             </div>
           ) : (
@@ -1435,32 +1837,23 @@ function AddPlantsSurface({
                 }))}
                 onChange={onCloneLocationChange}
               />
-              <MockFact label="Label prefix" value={`${clonePrefix}-`} />
+              <ReadOnlyFact
+                label="Label prefix"
+                value={readonlyPlantPrefixPreview(clonePrefix)}
+              />
             </div>
           )}
         </div>
         <div className="bg-paper p-4">
           <h3 className="font-sans text-fs-13 font-semibold text-ink">Preview</h3>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {(mode === "germinate" ? germPreview : clonePreview)
-              .slice(0, 18)
-              .map((label) => (
-                <span
-                  key={label}
-                  className="inline-flex items-center gap-2 border border-rule bg-paper-2 px-2.5 py-1.5 font-mono text-fs-10 uppercase tracking-caps text-ink"
-                >
-                  <span
-                    aria-hidden="true"
-                    className={
-                      mode === "germinate"
-                        ? "h-1.5 w-1.5 bg-leaf"
-                        : "h-1.5 w-1.5 bg-sensor-vpd"
-                    }
-                  />
-                  {label}
-                </span>
-              ))}
-          </div>
+          <ReadOnlyPrefixPreview
+            count={mode === "germinate" ? germinateCount : cloneCount}
+            prefix={
+              mode === "germinate"
+                ? readonlyPlantPrefixPreview(selectedSeedLot?.prefix ?? "NEW")
+                : readonlyPlantPrefixPreview(clonePrefix)
+            }
+          />
           <p className="mt-4 font-mono text-fs-10 uppercase tracking-caps text-ink-3">
             {mode === "germinate"
               ? `${selectedSeedLot?.parentsLabel ?? "No seed lot"} / gen ${selectedSeedLot?.generation ?? "?"} / ${germLocation.displayName}`
@@ -1470,7 +1863,7 @@ function AddPlantsSurface({
             {mode === "germinate" ? (
               <Button
                 variant="primary"
-                disabled={!selectedSeedLot}
+                disabled={!selectedSeedLot || mutationPending}
                 onClick={() => {
                   if (selectedSeedLot) onSow(selectedSeedLot, germLocation);
                 }}
@@ -1480,9 +1873,9 @@ function AddPlantsSurface({
             ) : (
               <Button
                 variant="primary"
-                disabled={!mother}
+                disabled={!mother || mutationPending}
                 onClick={() => {
-                  if (mother) onTakeClones(mother, cloneLocation, clonePrefix);
+                  if (mother) onTakeClones(mother, cloneLocation);
                 }}
               >
                 Take {cloneCount} clones →
@@ -1497,16 +1890,22 @@ function AddPlantsSurface({
 
 function PlantJournalDetail({
   detail,
+  mutationError,
+  mutationPending,
   noteText,
   onBack,
   onLogNote,
   onNoteTextChange,
+  pendingNotes,
 }: {
   detail: PlantDetail;
+  mutationError: string | null;
+  mutationPending: boolean;
   noteText: string;
   onBack: () => void;
   onLogNote: () => void;
   onNoteTextChange: (text: string) => void;
+  pendingNotes: readonly PendingTimelineNote[];
 }): ReactNode {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
@@ -1533,7 +1932,12 @@ function PlantJournalDetail({
           <div className="grid grid-cols-2 gap-px bg-rule">
             <Fact label="Generation" value={detail.plant.generation} />
             <Fact label="Sex" value={sexLabel(detail.plant.sexKey)} />
-            <Fact label="Germinated" value={shortDate(detail.plant.germinatedOn)} />
+            <Fact
+              label="Germinated"
+              value={
+                detail.plant.germinatedOn ? shortDate(detail.plant.germinatedOn) : "-"
+              }
+            />
             <Fact
               label="Vegged"
               value={
@@ -1576,10 +1980,13 @@ function PlantJournalDetail({
               className="min-h-20 w-full resize-y border border-rule bg-paper p-3 font-sans text-fs-12 text-ink placeholder:text-ink-3"
             />
             <div className="mt-2 flex flex-wrap justify-end gap-2">
-              <Button variant="secondary">+ Attach photo</Button>
+              {mutationError ? <InlineError text={mutationError} /> : null}
+              <Button variant="secondary" disabled>
+                + Attach photo
+              </Button>
               <Button
                 variant="primary"
-                disabled={noteText.trim().length === 0}
+                disabled={noteText.trim().length === 0 || mutationPending}
                 onClick={onLogNote}
               >
                 Log note
@@ -1587,6 +1994,9 @@ function PlantJournalDetail({
             </div>
           </div>
           <ol className="mt-4 grid gap-3">
+            {pendingNotes.map((note) => (
+              <PendingTimelineEvent key={note.id} note={note} />
+            ))}
             {detail.events.map((event) => (
               <TimelineEvent key={event.id} event={event} />
             ))}
@@ -1633,6 +2043,24 @@ function PlantJournalDetail({
         </aside>
       </section>
     </>
+  );
+}
+
+function PendingTimelineEvent({ note }: { note: PendingTimelineNote }): ReactNode {
+  return (
+    <li className="grid grid-cols-[78px_1fr] gap-3">
+      <span className="font-mono text-fs-10 uppercase tracking-caps text-status-warn">
+        {note.dateLabel}
+      </span>
+      <div className="border-b border-dashed border-status-warn pb-3">
+        <p className="flex items-center gap-2 font-mono text-fs-10 uppercase tracking-caps text-status-warn">
+          <EventSquare tag="note" />
+          note / {note.statusLabel}
+        </p>
+        <p className="mt-1 text-fs-12 leading-ui text-ink">{note.body}</p>
+        {note.error ? <InlineError text={note.error} /> : null}
+      </div>
+    </li>
   );
 }
 
@@ -1913,13 +2341,32 @@ function Checkbox({
   );
 }
 
-function MockFact({ label, value }: { label: string; value: string }): ReactNode {
+function ReadOnlyFact({ label, value }: { label: string; value: string }): ReactNode {
   return (
     <div className="grid gap-1">
       <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">{label}</p>
       <span className="border border-rule bg-paper px-3 py-2 font-mono text-fs-12 uppercase tracking-caps text-ink">
         {value}
       </span>
+    </div>
+  );
+}
+
+function ReadOnlyPrefixPreview({
+  count,
+  prefix,
+}: {
+  count: number;
+  prefix: string;
+}): ReactNode {
+  return (
+    <div className="mt-3 border border-rule bg-paper-2 px-3 py-2.5">
+      <p className="font-mono text-fs-10 uppercase tracking-caps text-ink">
+        {count} local plant labels will use prefix {prefix}
+      </p>
+      <p className="mt-1 font-mono text-fs-9 uppercase tracking-caps text-ink-3">
+        suffixes and durable plant keys are assigned by the local gateway
+      </p>
     </div>
   );
 }
@@ -2060,26 +2507,33 @@ function groupPlants(
     .filter((group) => group.plants.length > 0);
 }
 
-function createSeedLotFromDraft(
+function createSeedLotInputFromDraft(
   draft: AddSeedLotDraft,
   plants: readonly PlantRow[],
-): Omit<SeedLotSummary, "id"> | null {
+): AddSeedLotMutationInput | null {
   const preview = seedLotPreview(draft, plants);
   if (draft.source === "purchased" && draft.strain.trim().length === 0) {
     return null;
   }
+  const mother = plants.find((plant) => plant.id === draft.motherId);
+  const father = plants.find((plant) => plant.id === draft.fatherId);
+  if (draft.source === "cross" && (mother === undefined || father === undefined)) {
+    return null;
+  }
   return {
-    label: preview.label,
+    idempotencyKey: createBreedingLogbookIdempotencyKey("add-seeds"),
+    source: draft.source,
     prefix: preview.prefix,
     generation: draft.generation,
-    source: draft.source,
-    sourceLabel:
-      draft.source === "purchased"
-        ? draft.breeder.trim() || "purchased source"
-        : "in-house cross",
-    parentsLabel: preview.parents,
-    sexTypeKey: draft.source === "purchased" ? "unknown" : "regular",
+    sexTypeKey: draft.sexTypeKey,
+    strain: draft.source === "purchased" ? draft.strain.trim() : null,
+    cultivar: draft.source === "purchased" ? draft.generation : null,
+    sourceName: draft.source === "purchased" ? draft.breeder.trim() || null : null,
+    vendorName: draft.source === "purchased" ? draft.breeder.trim() || null : null,
+    seedParentPlantKey: draft.source === "cross" ? (mother?.key ?? null) : null,
+    pollenParentPlantKey: draft.source === "cross" ? (father?.key ?? null) : null,
     seedCount: null,
+    notes: null,
   };
 }
 
@@ -2132,11 +2586,4 @@ function normalizePrefix(prefix: string): string {
 function clonePrefixFor(name: string): string {
   const tail = name.trim().split(/\s+/).at(-1) ?? "M";
   return `C${tail.replace(/[^A-Za-z0-9]/g, "")}`.toUpperCase();
-}
-
-function previewLabels(prefix: string, count: number): readonly string[] {
-  return Array.from(
-    { length: count },
-    (_, index) => `${prefix}-${String(index + 1).padStart(2, "0")}`,
-  );
 }

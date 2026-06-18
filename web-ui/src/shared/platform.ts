@@ -19,4 +19,10 @@ export const platform = {
   getOrigin(): string {
     return window.location.origin;
   },
+  setTimeout(callback: () => void, delayMs: number): number {
+    return window.setTimeout(callback, delayMs);
+  },
+  clearTimeout(timeoutId: number): void {
+    window.clearTimeout(timeoutId);
+  },
 } as const;

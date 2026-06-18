@@ -88,6 +88,7 @@ Read the linked doc *before* doing the activity in the trigger column.
 |---|---|
 | `pipecat/` | importing `pipecat.*`, building Pipeline/PipelineTask, Pipecat services, transports, VAD |
 | `tanstack-router-v1/` | `web-ui/src/routes/`, `createFileRoute`/`createRouter`, route loaders, search params |
+| `tanstack-query-v5/` | `web-ui/src/` TanStack Query hooks/imports, query keys/options, `useQuery`/`useSuspenseQueries`/`useMutation`/`useQueries`, optimistic/cache writes, invalidation/refetch, command-backed browser state |
 | `tailwind-v4/` | utility classes in `web-ui/src/`, `web-ui/src/styles.css`, vite tailwind config |
 | `govee-api/` | `openapi.api.govee.com/router/api/v1/...`, humidifier loop edits |
 | `atlas/` | Atlas HCL schema, `atlas.hcl`, `atlas migrate diff/apply/lint`, files under `migrations/` |
@@ -104,7 +105,7 @@ Read the linked doc *before* doing the activity in the trigger column.
 - [`docs/adrs/`](docs/adrs/) — settled decisions; read before proposing alternatives
 - [`docs/epics/`](docs/epics/) — in-flight epic context
 - [`docs/progress/`](docs/progress/) — feature progress between PRs
-- [`docs/rules/`](docs/rules/) — codebase rules and conventions. Read [`docs/rules/simple-clean-architecture.md`](docs/rules/simple-clean-architecture.md) before planning architecture, adding abstractions, preserving compatibility, or choosing between direct/simple and flexible/clever designs. Read [`docs/rules/boundary-contracts.md`](docs/rules/boundary-contracts.md) before changing FastAPI request/response models, gateway/control-plane payloads, outbox JSON, command payloads/results, generated API contracts, or any other process/network/persistence boundary. Read [`docs/rules/data-modeling.md`](docs/rules/data-modeling.md) before creating or changing SQLModel table models, SQL migrations, primary keys, foreign keys, natural keys, uniqueness constraints, table names, or persisted identifiers.
+- [`docs/rules/`](docs/rules/) — codebase rules and conventions. Read [`docs/rules/simple-clean-architecture.md`](docs/rules/simple-clean-architecture.md) before planning architecture, adding abstractions, preserving compatibility, or choosing between direct/simple and flexible/clever designs. Read [`docs/rules/boundary-contracts.md`](docs/rules/boundary-contracts.md) before changing FastAPI request/response models, gateway/control-plane payloads, outbox JSON, command payloads/results, generated API contracts, or any other process/network/persistence boundary. Read [`docs/rules/data-modeling.md`](docs/rules/data-modeling.md) before creating or changing SQLModel table models, SQL migrations, primary keys, foreign keys, natural keys, uniqueness constraints, table names, or persisted identifiers. Read [`docs/rules/frontend-server-state.md`](docs/rules/frontend-server-state.md) before changing TanStack Query mutations, optimistic UI, pending command UX, cache invalidation, or hosted command-backed browser flows.
 
 ## How agents work here
 
