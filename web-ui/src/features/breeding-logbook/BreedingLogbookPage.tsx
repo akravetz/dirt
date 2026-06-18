@@ -11,10 +11,7 @@ import {
   applyMockLogNote,
   applyMockSowPlants,
   applyMockTakeClones,
-  useBreedingLogbookBootstrapQuery,
-  useBreedingLogbookPlantDetailQuery,
-  useBreedingLogbookPlantsQuery,
-  useBreedingLogbookSeedLotsQuery,
+  useBreedingLogbookQueries,
 } from "./breedingLogbookQueries";
 import type {
   BreedingLogbookBootstrap,
@@ -120,42 +117,16 @@ export function BreedingLogbookPage(): ReactNode {
     storage.set(THEME_STORAGE_KEY, theme);
   }, [theme]);
 
-  const bootstrapQuery = useBreedingLogbookBootstrapQuery();
-  const plantsQuery = useBreedingLogbookPlantsQuery();
-  const seedLotsQuery = useBreedingLogbookSeedLotsQuery();
-  const detailQuery = useBreedingLogbookPlantDetailQuery(detailPlantId);
-
-  if (
-    bootstrapQuery.isLoading ||
-    plantsQuery.isLoading ||
-    seedLotsQuery.isLoading ||
-    detailQuery.isLoading
-  ) {
-    return <StatusScreen message="Loading breeding logbook..." />;
-  }
-
-  if (
-    bootstrapQuery.error ||
-    plantsQuery.error ||
-    seedLotsQuery.error ||
-    detailQuery.error ||
-    !bootstrapQuery.data ||
-    !plantsQuery.data ||
-    !seedLotsQuery.data ||
-    !detailQuery.data
-  ) {
-    return <StatusScreen message="Failed to load breeding logbook." tone="danger" />;
-  }
-
-  const plants = plantsQuery.data.plants;
-  const seedLots = seedLotsQuery.data.seedLots;
+  const logbook = useBreedingLogbookQueries(detailPlantId);
+  const plants = logbook.plants.plants;
+  const seedLots = logbook.seedLots.seedLots;
   const visiblePlants = plants.filter(
     (plant) => showCulled || plant.stageKey !== "culled",
   );
   const selectedPlants = plants.filter((plant) => selectedPlantIds.has(plant.id));
   const detailPlant =
-    plants.find((plant) => plant.id === detailPlantId) ?? detailQuery.data.plant;
-  const detail = { ...detailQuery.data, plant: detailPlant };
+    plants.find((plant) => plant.id === detailPlantId) ?? logbook.detail.plant;
+  const detail = { ...logbook.detail, plant: detailPlant };
 
   const openDetail = (plantId: string) => {
     setDetailPlantId(plantId);
@@ -166,16 +137,14 @@ export function BreedingLogbookPage(): ReactNode {
     setBulkPanel(null);
   };
   const selectedLocation =
-    bootstrapQuery.data.locations.find(
-      (location) => location.key === moveLocationKey,
-    ) ??
-    bootstrapQuery.data.locations[0] ??
+    logbook.bootstrap.locations.find((location) => location.key === moveLocationKey) ??
+    logbook.bootstrap.locations[0] ??
     FALLBACK_LOCATION;
 
   return (
     <main className="flex-1 overflow-auto bg-paper text-ink">
       <BreedingLogbookTopBar
-        todayLabel={bootstrapQuery.data.todayLabel}
+        todayLabel={logbook.bootstrap.todayLabel}
         theme={theme}
         view={view}
         onThemeChange={setTheme}
@@ -186,11 +155,11 @@ export function BreedingLogbookPage(): ReactNode {
       <div className="mx-auto flex max-w-330 flex-col gap-4 px-4 pb-14 pt-4 sm:px-6">
         {view === "plants" ? (
           <PlantsSurface
-            activeCount={plantsQuery.data.activeCount}
-            bootstrap={bootstrapQuery.data}
+            activeCount={logbook.plants.activeCount}
+            bootstrap={logbook.bootstrap}
             bulkPanel={bulkPanel}
             bulkSex={bulkSex}
-            culledCount={plantsQuery.data.culledCount}
+            culledCount={logbook.plants.culledCount}
             draggingPlantId={draggingPlantId}
             groupBy={groupBy}
             layout={layout}
@@ -279,7 +248,7 @@ export function BreedingLogbookPage(): ReactNode {
             plants={plants}
             seedLots={seedLots}
             selectedSeedLotId={selectedSeedLotId}
-            bootstrap={bootstrapQuery.data}
+            bootstrap={logbook.bootstrap}
             onAddSeeds={() => {
               setView("add-seeds");
             }}
@@ -330,7 +299,7 @@ export function BreedingLogbookPage(): ReactNode {
   );
 }
 
-function StatusScreen({
+export function StatusScreen({
   message,
   tone = "neutral",
 }: {

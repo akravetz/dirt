@@ -1,7 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { createHostedApiClient, type hostedComponents } from "@/api-client";
 import { formatMetricValue } from "@/shared/metricFormat";
 import { HoverTimestamp } from "@/ui/HoverTimestamp";
@@ -11,7 +11,8 @@ import { RangeSwitch, type SparklineRange } from "@/ui/RangeSwitch";
 import { Sparkline } from "@/ui/Sparkline";
 
 export const Route = createFileRoute("/tents/$tentId/plants/$plantId")({
-  component: HostedPlantDetailPage,
+  component: HostedPlantDetailRoute,
+  errorComponent: PlantDetailUnavailableScreen,
 });
 
 const hostedApi = createHostedApiClient();
@@ -47,19 +48,22 @@ const KNOWN_ACCENTS: ReadonlySet<SparklineAccent> = new Set([
   "neutral",
 ]);
 
+function HostedPlantDetailRoute() {
+  return (
+    <Suspense fallback={<PlantDetailLoadingScreen />}>
+      <HostedPlantDetailPage />
+    </Suspense>
+  );
+}
+
 function asAccent(raw: string): SparklineAccent {
   return KNOWN_ACCENTS.has(raw as SparklineAccent)
     ? (raw as SparklineAccent)
     : "neutral";
 }
 
-function HostedPlantDetailPage() {
-  const { tentId, plantId } = Route.useParams();
-  const [range, setRange] = useState<SparklineRange>("24h");
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  const [hoverTimestamp, setHoverTimestamp] = useState<string | null>(null);
-
-  const detailQuery = useQuery({
+function plantDetailOptions(tentId: string, plantId: string) {
+  return queryOptions({
     queryKey: ["cloud.plants.detail", tentId, plantId],
     queryFn: async () => {
       const { data } = await hostedApi.GET(PLANT_DETAIL_PATH, {
@@ -69,8 +73,15 @@ function HostedPlantDetailPage() {
     },
     retry: false,
   });
+}
 
-  const detail = detailQuery.data ?? null;
+function HostedPlantDetailPage() {
+  const { tentId, plantId } = Route.useParams();
+  const [range, setRange] = useState<SparklineRange>("24h");
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const [hoverTimestamp, setHoverTimestamp] = useState<string | null>(null);
+
+  const { data: detail } = useSuspenseQuery(plantDetailOptions(tentId, plantId));
   const historyQuery = useQuery({
     queryKey: ["cloud.plants.metrics.history", tentId, plantId, range],
     queryFn: async () => {
@@ -82,7 +93,7 @@ function HostedPlantDetailPage() {
       });
       return hostedData(data, PLANT_METRIC_HISTORY_PATH);
     },
-    enabled: detail !== null && detail.telemetry.length > 0,
+    enabled: detail.telemetry.length > 0,
     retry: false,
   });
 
@@ -91,36 +102,6 @@ function HostedPlantDetailPage() {
   const historyByStream = new Map(
     history?.streams.map((stream) => [metricStreamKey(stream), stream]) ?? [],
   );
-
-  if (detailQuery.isLoading) {
-    return (
-      <main className="flex-1 overflow-auto p-6">
-        <p className="font-mono text-xs uppercase tracking-caps text-ink-3">
-          Loading plant detail…
-        </p>
-      </main>
-    );
-  }
-
-  if (detailQuery.error || detail === null) {
-    return (
-      <main className="flex-1 overflow-auto">
-        <div className="mx-auto flex max-w-320 flex-col gap-4 px-5 py-6 sm:px-8">
-          <Link
-            to={DASHBOARD_ROUTE}
-            className="w-fit border border-rule px-3 py-1.5 font-mono text-fs-10 uppercase tracking-caps text-ink-3 hover:border-rule-strong hover:text-ink"
-          >
-            Dashboard
-          </Link>
-          <section className="border border-rule-strong bg-paper-2 p-5">
-            <p className="font-mono text-fs-10 uppercase tracking-caps text-accent-magenta">
-              Plant detail unavailable
-            </p>
-          </section>
-        </div>
-      </main>
-    );
-  }
 
   return (
     <main className="flex-1 overflow-auto">
@@ -270,6 +251,36 @@ function HostedPlantDetailPage() {
             <MarkdownDocument bodyMarkdown={detail.wiki_content.body_markdown} />
           </section>
         )}
+      </div>
+    </main>
+  );
+}
+
+function PlantDetailLoadingScreen(): ReactNode {
+  return (
+    <main className="flex-1 overflow-auto p-6">
+      <p className="font-mono text-xs uppercase tracking-caps text-ink-3">
+        Loading plant detail…
+      </p>
+    </main>
+  );
+}
+
+function PlantDetailUnavailableScreen(): ReactNode {
+  return (
+    <main className="flex-1 overflow-auto">
+      <div className="mx-auto flex max-w-320 flex-col gap-4 px-5 py-6 sm:px-8">
+        <Link
+          to={DASHBOARD_ROUTE}
+          className="w-fit border border-rule px-3 py-1.5 font-mono text-fs-10 uppercase tracking-caps text-ink-3 hover:border-rule-strong hover:text-ink"
+        >
+          Dashboard
+        </Link>
+        <section className="border border-rule-strong bg-paper-2 p-5">
+          <p className="font-mono text-fs-10 uppercase tracking-caps text-accent-magenta">
+            Plant detail unavailable
+          </p>
+        </section>
       </div>
     </main>
   );

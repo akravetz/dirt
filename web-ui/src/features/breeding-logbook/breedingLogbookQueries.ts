@@ -1,5 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
-import { useQuery } from "@tanstack/react-query";
+import { queryOptions, useSuspenseQueries } from "@tanstack/react-query";
 import {
   BREEDING_LOGBOOK_BOOTSTRAP,
   BREEDING_LOGBOOK_PLANTS,
@@ -55,35 +55,52 @@ async function fetchBreedingLogbookPlantDetail(plantId: string): Promise<PlantDe
   return buildMockPlantDetail(plant);
 }
 
-export function useBreedingLogbookBootstrapQuery() {
-  return useQuery({
+function breedingLogbookBootstrapOptions() {
+  return queryOptions({
     queryKey: breedingLogbookQueryKeys.bootstrap,
     queryFn: fetchBreedingLogbookBootstrap,
     staleTime: Infinity,
   });
 }
 
-export function useBreedingLogbookPlantsQuery() {
-  return useQuery({
+function breedingLogbookPlantsOptions() {
+  return queryOptions({
     queryKey: breedingLogbookQueryKeys.plants,
     queryFn: fetchBreedingLogbookPlants,
     staleTime: Infinity,
   });
 }
 
-export function useBreedingLogbookSeedLotsQuery() {
-  return useQuery({
+function breedingLogbookSeedLotsOptions() {
+  return queryOptions({
     queryKey: breedingLogbookQueryKeys.seedLots,
     queryFn: fetchBreedingLogbookSeedLots,
     staleTime: Infinity,
   });
 }
 
-export function useBreedingLogbookPlantDetailQuery(plantId: string) {
-  return useQuery({
+function breedingLogbookPlantDetailOptions(plantId: string) {
+  return queryOptions({
     queryKey: breedingLogbookQueryKeys.plantDetail(plantId),
     queryFn: () => fetchBreedingLogbookPlantDetail(plantId),
     staleTime: Infinity,
+  });
+}
+
+export function useBreedingLogbookQueries(plantId: string) {
+  return useSuspenseQueries({
+    queries: [
+      breedingLogbookBootstrapOptions(),
+      breedingLogbookPlantsOptions(),
+      breedingLogbookSeedLotsOptions(),
+      breedingLogbookPlantDetailOptions(plantId),
+    ],
+    combine: ([bootstrap, plants, seedLots, detail]) => ({
+      bootstrap: bootstrap.data,
+      plants: plants.data,
+      seedLots: seedLots.data,
+      detail: detail.data,
+    }),
   });
 }
 
