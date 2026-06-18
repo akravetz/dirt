@@ -28,6 +28,73 @@ def _utcnow() -> datetime:
     return datetime.now(UTC)
 
 
+class PlantLkuSex(SQLModel, table=True):
+    """Controlled plant sex values with display and semantic metadata."""
+
+    __tablename__ = "plant_lku_sex"
+    __table_args__ = {
+        "comment": "Controlled plant sex values with display and semantic metadata."
+    }
+
+    key: str = Field(
+        sa_column=Column(
+            Text,
+            primary_key=True,
+            comment="Controlled plant sex lookup key referenced by plant.sex_key.",
+        )
+    )
+    display_name: str = Field(sa_column=Column(Text, nullable=False))
+    display_order: int = Field(sa_column=Column(Integer, nullable=False))
+    is_male: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default=text("false")),
+    )
+    is_female: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default=text("false")),
+    )
+    is_intersex: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default=text("false")),
+    )
+    is_reversed: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default=text("false")),
+    )
+
+
+class SeedLotLkuSexType(SQLModel, table=True):
+    """Controlled seed-lot sex type values with display and semantic metadata."""
+
+    __tablename__ = "seed_lot_lku_sex_type"
+    __table_args__ = {
+        "comment": (
+            "Controlled seed-lot sex type values with display and semantic metadata."
+        )
+    }
+
+    key: str = Field(
+        sa_column=Column(
+            Text,
+            primary_key=True,
+            comment=(
+                "Controlled seed-lot sex type lookup key referenced by "
+                "seed_lot.sex_type_key."
+            ),
+        )
+    )
+    display_name: str = Field(sa_column=Column(Text, nullable=False))
+    display_order: int = Field(sa_column=Column(Integer, nullable=False))
+    is_feminized: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default=text("false")),
+    )
+    is_regular: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default=text("false")),
+    )
+
+
 class PlantLine(SQLModel, table=True):
     __tablename__ = "plant_line"
     __table_args__ = (
@@ -207,6 +274,23 @@ class SeedLot(SQLModel, table=True):
             nullable=False,
         )
     )
+    sex_type_key: str = Field(
+        default="unknown",
+        sa_column=Column(
+            Text,
+            ForeignKey(
+                "seed_lot_lku_sex_type.key",
+                name="fk_seed_lot_sex_type",
+                ondelete="RESTRICT",
+            ),
+            nullable=False,
+            server_default=text("'unknown'"),
+            comment=(
+                "Lookup-backed controlled seed-lot sex type used for display and "
+                "semantic branching metadata."
+            ),
+        ),
+    )
     is_purchased: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default=text("false")),
@@ -322,6 +406,23 @@ class Plant(SQLModel, table=True):
             ForeignKey("plant_line.id", name="fk_plant_line", ondelete="RESTRICT"),
             nullable=False,
         )
+    )
+    sex_key: str = Field(
+        default="unknown",
+        sa_column=Column(
+            Text,
+            ForeignKey(
+                "plant_lku_sex.key",
+                name="fk_plant_sex",
+                ondelete="RESTRICT",
+            ),
+            nullable=False,
+            server_default=text("'unknown'"),
+            comment=(
+                "Lookup-backed controlled plant sex value used for display and "
+                "semantic branching metadata."
+            ),
+        ),
     )
     source_seed_lot_id: int | None = Field(
         default=None,

@@ -196,6 +196,7 @@ def _plant(
         site_id="homebox",
         source_plant_id=source_plant_id,
         line_source_id=1,
+        sex_key="unknown",
         source_seed_lot_id=1,
         clone_source_plant_id=None,
         key=_plant_key(plant_id),
@@ -220,6 +221,31 @@ def _plant_line() -> CloudPlantLine:
         cultivar="R1",
         description=None,
         source_name="Unknown vendor",
+        synced_at=FIXED_NOW,
+        created_at=FIXED_NOW,
+        updated_at=FIXED_NOW,
+    )
+
+
+def _seed_lot(
+    source_seed_lot_id: int = 1,
+    *,
+    line_source_id: int = 1,
+    sex_type_key: str = "feminized",
+    is_purchased: bool = True,
+    seed_count: int | None = 12,
+) -> CloudSeedLot:
+    return CloudSeedLot(
+        site_id="homebox",
+        source_seed_lot_id=source_seed_lot_id,
+        line_source_id=line_source_id,
+        sex_type_key=sex_type_key,
+        is_purchased=is_purchased,
+        vendor_name="Unknown vendor" if is_purchased else None,
+        acquired_at=FIXED_NOW - timedelta(days=60) if is_purchased else None,
+        produced_by_cross_event_source_id=None if is_purchased else 42,
+        seed_count=seed_count,
+        notes=None,
         synced_at=FIXED_NOW,
         created_at=FIXED_NOW,
         updated_at=FIXED_NOW,
@@ -275,6 +301,18 @@ def _plant_key(plant_id: str) -> str:
 
 def _source_plant_id(plant_id: str) -> int:
     return ord(plant_id) - ord("a") + 1
+
+
+def _tent(tent_id: str, name: str) -> CloudTent:
+    return CloudTent(
+        site_id="homebox",
+        tent_id=tent_id,
+        name=name,
+        is_active=True,
+        synced_at=FIXED_NOW,
+        created_at=FIXED_NOW,
+        updated_at=FIXED_NOW,
+    )
 
 
 def _latest_metric(
@@ -473,6 +511,7 @@ async def test_catalog_upsert_is_idempotent(
             {
                 "source_seed_lot_id": 1,
                 "line_source_id": 1,
+                "sex_type_key": "feminized",
                 "is_purchased": True,
                 "vendor_name": "Unknown vendor",
                 "acquired_at": None,
@@ -485,6 +524,7 @@ async def test_catalog_upsert_is_idempotent(
             {
                 "source_plant_id": 1,
                 "line_source_id": 1,
+                "sex_key": "female",
                 "source_seed_lot_id": 1,
                 "clone_source_plant_id": None,
                 "key": "SBBS-R1-001",
@@ -503,6 +543,7 @@ async def test_catalog_upsert_is_idempotent(
             {
                 "source_plant_id": 2,
                 "line_source_id": 1,
+                "sex_key": "male",
                 "source_seed_lot_id": 1,
                 "clone_source_plant_id": None,
                 "key": "SBBS-R1-002",
@@ -597,6 +638,14 @@ async def test_catalog_upsert_is_idempotent(
                 )
             )
         ).scalar_one_or_none()
+        seed_lot = (
+            await session.execute(
+                select(CloudSeedLot).where(
+                    CloudSeedLot.site_id == "homebox",
+                    CloudSeedLot.source_seed_lot_id == 1,
+                )
+            )
+        ).scalar_one_or_none()
         plant_a_location = (
             await session.execute(
                 select(CloudPlantLocation).where(
@@ -631,6 +680,9 @@ async def test_catalog_upsert_is_idempotent(
     assert plant_a is not None
     assert plant_a.key == "SBBS-R1-001"
     assert plant_a.line_source_id == 1
+    assert plant_a.sex_key == "female"
+    assert seed_lot is not None
+    assert seed_lot.sex_type_key == "feminized"
     assert plant_a_location is not None
     assert plant_a_stream is not None
     assert plant_a_stream.display_order == 1
@@ -1456,6 +1508,233 @@ async def test_browser_plants_require_auth(client: AsyncClient) -> None:
     assert response.status_code == 401
 
 
+async def test_breeding_logbook_routes_require_auth(client: AsyncClient) -> None:
+    response = await client.get("/api/breeding-logbook/bootstrap")
+
+    assert response.status_code == 401
+
+
+async def test_breeding_logbook_bootstrap_returns_lookups_and_locations(
+    authed_client: AsyncClient,
+    cloud_engine: AsyncEngine,
+) -> None:
+    sessionmaker = create_sessionmaker(cloud_engine)
+    async with sessionmaker() as session:
+        session.add_all(
+            [
+                _tent("main", "Main flower"),
+                _tent("breeding", "Breeding tent"),
+            ]
+        )
+        await session.commit()
+
+    response = await authed_client.get("/api/breeding-logbook/bootstrap")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["today"] == "2026-05-05"
+    assert [row["key"] for row in body["plant_sexes"]] == [
+        "unknown",
+        "male",
+        "female",
+        "herm",
+        "reversed",
+    ]
+    assert [row["key"] for row in body["seed_lot_sex_types"]] == [
+        "unknown",
+        "feminized",
+        "regular",
+    ]
+    assert body["locations"] == [
+        {
+            "key": "breeding",
+            "display_name": "Breeding tent",
+            "stage_key": "breeding",
+            "tent_id": "breeding",
+            "grid_position": None,
+        },
+        {
+            "key": "main",
+            "display_name": "Main flower",
+            "stage_key": "flower",
+            "tent_id": "main",
+            "grid_position": None,
+        },
+    ]
+
+
+async def test_breeding_logbook_plant_list_is_site_wide_and_screen_shaped(
+    authed_client: AsyncClient,
+    cloud_engine: AsyncEngine,
+) -> None:
+    sessionmaker = create_sessionmaker(cloud_engine)
+    async with sessionmaker() as session:
+        session.add_all(
+            [
+                _plant_line(),
+                _seed_lot(),
+                _plant("b", display_order=2, is_active=False),
+                _plant("a", display_order=1),
+                _plant_location("b", grid_position="B1"),
+                _plant_location("a", grid_position="A1"),
+            ]
+        )
+        session.add(_plant_stream("a"))
+        await session.commit()
+
+    response = await authed_client.get(
+        "/api/breeding-logbook/plants?include_culled=false&group_by=stage"
+    )
+    with_culled = await authed_client.get(
+        "/api/breeding-logbook/plants?include_culled=true&group_by=stage"
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["group_by"] == "stage"
+    assert body["active_count"] == 1
+    assert body["culled_count"] == 0
+    assert [row["key"] for row in body["plants"]] == ["SBBS-R1-001"]
+    assert body["plants"][0] == {
+        "id": "1",
+        "key": "SBBS-R1-001",
+        "name": "Plant A",
+        "generation": "R1",
+        "parents_label": "Sirius Black x BS01 x R1",
+        "sex_key": "unknown",
+        "stage_key": "germinating",
+        "stage_day": 51,
+        "germinated_on": "2026-03-15",
+        "veg_started_on": None,
+        "flower_started_on": None,
+        "culled_on": None,
+        "location_key": "main",
+        "location_label": "main / A1",
+        "seed_lot_label": "SBBS R1 #1",
+        "last_note": "",
+        "telemetry_summary": "1 plant stream",
+    }
+    assert with_culled.status_code == 200
+    assert with_culled.json()["culled_count"] == 1
+    assert [row["key"] for row in with_culled.json()["plants"]] == [
+        "SBBS-R1-001",
+        "SBBS-R1-002",
+    ]
+
+
+async def test_breeding_logbook_seed_lots_include_lots_without_current_plants(
+    authed_client: AsyncClient,
+    cloud_engine: AsyncEngine,
+) -> None:
+    sessionmaker = create_sessionmaker(cloud_engine)
+    async with sessionmaker() as session:
+        session.add(_plant_line())
+        session.add_all(
+            [
+                _seed_lot(),
+                _seed_lot(
+                    2,
+                    sex_type_key="regular",
+                    is_purchased=False,
+                    seed_count=None,
+                ),
+            ]
+        )
+        await session.commit()
+
+    response = await authed_client.get("/api/breeding-logbook/seed-lots")
+
+    assert response.status_code == 200
+    assert response.json()["seed_lots"] == [
+        {
+            "id": "1",
+            "label": "SBBS R1 #1",
+            "prefix": "SBBS",
+            "generation": "R1",
+            "source": "purchased",
+            "source_label": "Unknown vendor",
+            "parents_label": "Sirius Black x BS01 x R1",
+            "sex_type_key": "feminized",
+            "seed_count": 12,
+        },
+        {
+            "id": "2",
+            "label": "SBBS R1 #2",
+            "prefix": "SBBS",
+            "generation": "R1",
+            "source": "cross",
+            "source_label": "in-house cross",
+            "parents_label": "Sirius Black x BS01 x R1",
+            "sex_type_key": "regular",
+            "seed_count": None,
+        },
+    ]
+
+
+async def test_breeding_logbook_plant_detail_and_history_reuse_cloud_projection(
+    authed_client: AsyncClient,
+    cloud_engine: AsyncEngine,
+) -> None:
+    sessionmaker = create_sessionmaker(cloud_engine)
+    async with sessionmaker() as session:
+        session.add_all(
+            [
+                _plant_line(),
+                _seed_lot(),
+                _plant("a", display_order=1),
+                _plant_location("a", grid_position="A1"),
+                _plant_stream(
+                    "a",
+                    device_id="plant-a-substrate-node",
+                    capability_id="substrate-temp",
+                    metric="substrate_temp_c",
+                ),
+                _latest_metric(
+                    device_id="plant-a-substrate-node",
+                    capability_id="substrate-temp",
+                    metric="substrate_temp_c",
+                    value=21.0,
+                    unit="degC",
+                ),
+                _rollup(
+                    bucket="1h",
+                    start=FIXED_NOW - timedelta(hours=2),
+                    min_value=20.0,
+                    avg=21.0,
+                    max_value=22.0,
+                    device_id="plant-a-substrate-node",
+                    capability_id="substrate-temp",
+                    metric="substrate_temp_c",
+                    unit="degC",
+                ),
+            ]
+        )
+        await session.commit()
+
+    detail = await authed_client.get("/api/breeding-logbook/plants/SBBS-R1-001")
+    history = await authed_client.get(
+        "/api/breeding-logbook/plants/SBBS-R1-001/metrics/history?range=24h"
+    )
+    missing = await authed_client.get("/api/breeding-logbook/plants/missing")
+
+    assert detail.status_code == 200
+    detail_body = detail.json()
+    assert detail_body["plant"]["key"] == "SBBS-R1-001"
+    assert detail_body["lineage"] == {
+        "parents": "Sirius Black x BS01 x R1",
+        "offspring": "No offspring projected",
+    }
+    assert detail_body["metrics"] == [
+        {"label": "Substrate Temp", "value": "69.8°F", "tone": "ok"}
+    ]
+    assert detail_body["events"] == []
+    assert detail_body["wiki_content"] is None
+    assert history.status_code == 200
+    assert history.json()["streams"][0]["metric"] == "substrate_temp_c"
+    assert history.json()["streams"][0]["points"][0]["avg"] == 69.8
+    assert missing.status_code == 404
+
+
 async def test_browser_plant_list_orders_and_counts_telemetry_streams(
     authed_client: AsyncClient,
     cloud_engine: AsyncEngine,
@@ -1481,6 +1760,7 @@ async def test_browser_plant_list_orders_and_counts_telemetry_streams(
     assert [row["key"] for row in rows] == ["SBBS-R1-001", "SBBS-R1-002"]
     assert [row["grid_position"] for row in rows] == ["A1", "B1"]
     assert rows[0]["id"] == 1
+    assert rows[0]["sex_key"] == "unknown"
     assert rows[0]["line"] == {
         "id": 1,
         "project_code": "SBBS",
@@ -1514,6 +1794,7 @@ async def test_browser_plant_detail_returns_metadata_wiki_and_telemetry_count(
     body = response.json()
     assert body["id"] == 1
     assert body["key"] == "SBBS-R1-001"
+    assert body["sex_key"] == "unknown"
     assert body["grid_position"] == "A1"
     assert body["current_location"] == {
         "id": 1,
@@ -1584,6 +1865,7 @@ async def test_browser_plants_use_current_location_and_source_plant_stream_ident
     assert len(listed_rows) == 1
     assert listed_rows[0]["id"] == 1
     assert listed_rows[0]["key"] == "SBBS-R1-001"
+    assert listed_rows[0]["sex_key"] == "unknown"
     assert listed_rows[0]["telemetry_stream_count"] == 1
     assert detail.status_code == 200
     assert detail.json()["id"] == 1

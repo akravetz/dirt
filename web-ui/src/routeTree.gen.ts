@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as WikiRouteImport } from './routes/wiki'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LiveRouteImport } from './routes/live'
+import { Route as BreedingLogbookRouteImport } from './routes/breeding-logbook'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TentsTentIdPlantsPlantIdRouteImport } from './routes/tents.$tentId.plants.$plantId'
 
@@ -30,6 +31,11 @@ const LiveRoute = LiveRouteImport.update({
   path: '/live',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BreedingLogbookRoute = BreedingLogbookRouteImport.update({
+  id: '/breeding-logbook',
+  path: '/breeding-logbook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -44,6 +50,7 @@ const TentsTentIdPlantsPlantIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/breeding-logbook': typeof BreedingLogbookRoute
   '/live': typeof LiveRoute
   '/login': typeof LoginRoute
   '/wiki': typeof WikiRoute
@@ -51,6 +58,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/breeding-logbook': typeof BreedingLogbookRoute
   '/live': typeof LiveRoute
   '/login': typeof LoginRoute
   '/wiki': typeof WikiRoute
@@ -59,6 +67,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/breeding-logbook': typeof BreedingLogbookRoute
   '/live': typeof LiveRoute
   '/login': typeof LoginRoute
   '/wiki': typeof WikiRoute
@@ -68,15 +77,23 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/breeding-logbook'
     | '/live'
     | '/login'
     | '/wiki'
     | '/tents/$tentId/plants/$plantId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/live' | '/login' | '/wiki' | '/tents/$tentId/plants/$plantId'
+  to:
+    | '/'
+    | '/breeding-logbook'
+    | '/live'
+    | '/login'
+    | '/wiki'
+    | '/tents/$tentId/plants/$plantId'
   id:
     | '__root__'
     | '/'
+    | '/breeding-logbook'
     | '/live'
     | '/login'
     | '/wiki'
@@ -85,6 +102,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BreedingLogbookRoute: typeof BreedingLogbookRoute
   LiveRoute: typeof LiveRoute
   LoginRoute: typeof LoginRoute
   WikiRoute: typeof WikiRoute
@@ -114,6 +132,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LiveRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/breeding-logbook': {
+      id: '/breeding-logbook'
+      path: '/breeding-logbook'
+      fullPath: '/breeding-logbook'
+      preLoaderRoute: typeof BreedingLogbookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -133,6 +158,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BreedingLogbookRoute: BreedingLogbookRoute,
   LiveRoute: LiveRoute,
   LoginRoute: LoginRoute,
   WikiRoute: WikiRoute,

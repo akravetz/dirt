@@ -28,6 +28,8 @@ CapturePolicyReason = Literal[
     "camera_disabled",
     "lights_schedule_not_found",
 ]
+PlantSexKey = Literal["unknown", "male", "female", "herm", "reversed"]
+SeedLotSexTypeKey = Literal["unknown", "feminized", "regular"]
 
 
 class HeartbeatRequest(CloudContractModel):
@@ -112,6 +114,7 @@ class CatalogPlantLine(CloudContractModel):
 class CatalogSeedLot(CloudContractModel):
     source_seed_lot_id: int
     line_source_id: int
+    sex_type_key: SeedLotSexTypeKey
     is_purchased: bool
     vendor_name: str | None = Field(...)
     acquired_at: datetime | None = Field(...)
@@ -123,6 +126,7 @@ class CatalogSeedLot(CloudContractModel):
 class CatalogPlant(CloudContractModel):
     source_plant_id: int
     line_source_id: int
+    sex_key: PlantSexKey
     source_seed_lot_id: int | None = Field(...)
     clone_source_plant_id: int | None = Field(...)
     key: str

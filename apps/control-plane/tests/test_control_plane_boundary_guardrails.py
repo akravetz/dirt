@@ -7,6 +7,11 @@ from pydantic import ValidationError
 from dirt_control.api import browser, gateway
 from dirt_control.api.browser import (
     AssetResponse,
+    BreedingLogbookBootstrapResponse,
+    BreedingLogbookPlantDetailResponse,
+    BreedingLogbookPlantListResponse,
+    BreedingLogbookPlantRowResponse,
+    BreedingLogbookSeedLotListResponse,
     CommandResponse,
     CurrentMetricResponse,
     DeviceResponse,
@@ -61,6 +66,26 @@ def test_hosted_browser_routes_keep_response_models() -> None:
     )
     assert routes[("GET", "/api/tents/{tent_id}/metrics/presentation")] is (
         MetricPresentationResponse
+    )
+    assert (
+        routes[("GET", "/api/breeding-logbook/bootstrap")]
+        is BreedingLogbookBootstrapResponse
+    )
+    assert (
+        routes[("GET", "/api/breeding-logbook/plants")]
+        is BreedingLogbookPlantListResponse
+    )
+    assert (
+        routes[("GET", "/api/breeding-logbook/seed-lots")]
+        is BreedingLogbookSeedLotListResponse
+    )
+    assert (
+        routes[("GET", "/api/breeding-logbook/plants/{plant_key}/metrics/history")]
+        is PlantMetricHistoryResponse
+    )
+    assert (
+        routes[("GET", "/api/breeding-logbook/plants/{plant_key}")]
+        is BreedingLogbookPlantDetailResponse
     )
     assert routes[("GET", "/api/tents/{tent_id}/plants")] == list[PlantSummaryResponse]
     assert (
@@ -168,6 +193,40 @@ def test_metric_presentation_metric_response_requires_owned_contract_shape() -> 
 
     with pytest.raises(ValidationError):
         MetricPresentationMetricResponse.model_validate(
+            {**payload, "unexpected_unit": "%"}
+        )
+
+
+def test_breeding_logbook_plant_row_requires_owned_contract_shape() -> None:
+    payload = {
+        "id": "1",
+        "key": "SBBS-R1-001",
+        "name": "Plant A",
+        "generation": "R1",
+        "parents_label": "Sugar Black Rose x Black Sugar",
+        "sex_key": "female",
+        "stage_key": "flower",
+        "stage_day": 44,
+        "germinated_on": "2026-03-17",
+        "veg_started_on": "2026-04-02",
+        "flower_started_on": "2026-05-04",
+        "culled_on": None,
+        "location_key": "main",
+        "location_label": "main / A1",
+        "seed_lot_label": "SBBS R1 #1",
+        "last_note": "",
+        "telemetry_summary": "1 plant stream",
+    }
+
+    assert BreedingLogbookPlantRowResponse.model_validate(payload).culled_on is None
+
+    missing_required_nullable = dict(payload)
+    del missing_required_nullable["culled_on"]
+    with pytest.raises(ValidationError):
+        BreedingLogbookPlantRowResponse.model_validate(missing_required_nullable)
+
+    with pytest.raises(ValidationError):
+        BreedingLogbookPlantRowResponse.model_validate(
             {**payload, "unexpected_unit": "%"}
         )
 

@@ -15,13 +15,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 const api = createHostedApiClient();
 
-// The pre-auth /login screen owns the full viewport (botanical
-// split-screen) and has no app chrome — suppress the TopBar when the
-// router is sitting on it. Dashboard / Live / Wiki all keep the TopBar.
+// Pre-auth /login and the standalone Breeding Logbook route own their full
+// viewport chrome. Dashboard / Live / Wiki keep the shared TopBar.
 function RootComponent() {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isLogin = pathname === "/login";
+  const routeOwnsChrome = isLogin || pathname === "/breeding-logbook";
   const { queryClient } = Route.useRouteContext();
 
   // Cached query: one fetch shared by every non-login route. Disabled
@@ -63,7 +63,7 @@ function RootComponent() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-paper font-sans text-ink">
-      {isLogin ? null : <TopBar growContext={null} onLogout={logout} />}
+      {routeOwnsChrome ? null : <TopBar growContext={null} onLogout={logout} />}
       <Outlet />
     </div>
   );

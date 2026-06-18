@@ -21,11 +21,11 @@ The work is complete when the recent `Plant Workbench` and `Generation Notebook`
 - [x] (2026-06-18) Confirmed the current data model has no canonical current plant sex field and no canonical seed-lot sex type field.
 - [x] (2026-06-18) Resolved product decisions with the operator: replace the dashboard prototype selector, keep frontend queries mock-backed first, include DB migration and API audit, model plant sex and seed-lot sex type as lookup tables with plain `key` primary keys and semantic branching columns, implement pointer drag-and-drop, and use an LLM-assisted screenshot review loop.
 - [x] (2026-06-18) Drafted this ExecPlan.
-- [ ] Implement Milestone 1: remove recent frontend prototype selector/code and add the production-shaped Breeding Logbook feature shell with mock-backed TanStack Query.
-- [ ] Implement Milestone 2: add plant sex and seed-lot sex type lookup tables, fields, migrations, seeds, and local/cloud projection contracts.
-- [ ] Implement Milestone 3: complete the mock-backed Breeding Logbook views and pointer drag-and-drop behavior.
-- [ ] Implement Milestone 4: audit and propose ergonomic real browser API endpoints and DTOs, backed by tests and generated contract expectations.
-- [ ] Implement Milestone 5: run local browser verification and the LLM/human screenshot review cycle.
+- [x] (2026-06-18) Implemented Milestone 1: removed the recent frontend prototype selector/code and added the production-shaped Breeding Logbook feature shell with mock-backed TanStack Query.
+- [x] (2026-06-18) Implemented Milestone 2: added plant sex and seed-lot sex type lookup tables, fields, migrations, seeds, and local/cloud projection contracts.
+- [x] (2026-06-18) Implemented Milestone 3: completed the mock-backed Breeding Logbook views and pointer drag-and-drop behavior.
+- [x] (2026-06-18) Implemented Milestone 4: audited and proposed ergonomic real browser API endpoints and DTOs, backed by tests and generated contract expectations.
+- [x] (2026-06-18) Implemented Milestone 5: ran local browser verification and completed the LLM/human screenshot review cycle with operator acceptance.
 
 
 ## Surprises & Discoveries
@@ -56,6 +56,30 @@ The work is complete when the recent `Plant Workbench` and `Generation Notebook`
 
 - Observation: Human/LLM visual review should be run as a structured rubric loop rather than a one-off "looks close" judgment.
   Evidence: Braintrust describes human-in-the-loop evaluation as reviewer scoring against a defined rubric and using feedback to calibrate future evaluation; Phoenix documents aligning LLM evals to human annotations by iterating evaluator prompts against human ground truth; iRULER studies iterative rubric refinement for LLM evaluation; Anthropic's Constitutional AI work is an adjacent critique/revision loop pattern. Sources: `https://www.braintrust.dev/articles/human-in-the-loop-evals-for-llm-apps`, `https://arize.com/docs/phoenix/cookbook/human-in-the-loop-workflows-annotations/aligning-llm-evals-with-human-annotations-typescript`, `https://arxiv.org/html/2602.12779v1`, and `https://www.anthropic.com/research/constitutional-ai-harmlessness-from-ai-feedback`.
+
+- Observation: The removed prototype mock file was untracked, so its deletion does not appear as a tracked deletion in `git diff`.
+  Evidence: `find web-ui/src/prototypes -maxdepth 2 -type f -print` returns no files, and `rg -n "PlantWorkbench|GenerationNotebook|PlantManagementPrototype|PLANT_MANAGEMENT_PROTOTYPE|prototypes" web-ui/src` returns no matches.
+
+- Observation: The existing seed-lot correction migration had already been applied in the local database before Milestone 2.
+  Evidence: `atlas migrate status --env local` reports current version `20260614213709`, with next pending version `20260618054702`.
+
+- Observation: The main-thread invariant verification caught unused exported mock query functions from Milestone 1.
+  Evidence: `uv run pytest apps/tests/invariants -q` failed on `test_no_unused_files_exports_or_deps` until `fetchBreedingLogbookBootstrap`, `fetchBreedingLogbookPlants`, `fetchBreedingLogbookSeedLots`, and `fetchBreedingLogbookSelectedPlantDetail` were made module-private in `web-ui/src/features/breeding-logbook/breedingLogbookQueries.ts`.
+
+- Observation: The Milestone 3 simplify pass replaced a local chart implementation with the existing `Sparkline` primitive.
+  Evidence: `web-ui/src/features/breeding-logbook/BreedingLogbookPage.tsx` imports `Sparkline` from `@/ui/Sparkline` and uses it for the detail environment panel.
+
+- Observation: The board needs an explicit non-droppable Removed column when culled plants are visible.
+  Evidence: `PlantBoard` appends `CULLED_LOCATION` when `showCulled` is enabled and skips `onDropPlant` for `stageKey === "culled"`.
+
+- Observation: The first real Breeding Logbook read routes are intentionally lossy because the cloud projection does not yet sync journal notes/events, lookup rows, offspring summaries, or plant wiki mapping.
+  Evidence: `docs/epics/breeding-logbook-ui/api-audit.md` records static lookup rows, inferred location stage, empty `events`, placeholder offspring summary, `wiki_content=null`, and missing plants without a current projected location as current implementation limits.
+
+- Observation: The first 912x540 board capture revealed a real lane-layout issue: board columns were location-derived, omitted the empty Harvested lane, and sticky lane headers overlapped cards.
+  Evidence: Milestone 5 browser screenshots showed the overlap in `debug/screenshots/breeding-logbook-02-plants-board.png`; `PlantBoard` was updated to render stage-derived lanes and non-sticky lane headers.
+
+- Observation: The Add Seeds, Add Plants, and Plant Detail views needed their multi-column layouts at the reference viewport width.
+  Evidence: Milestone 5 browser screenshots at 912x540 initially stacked sections that the reference showed side-by-side; the grid breakpoints were changed from `lg:` to `md:` for those surfaces.
 
 
 ## Decision Log
@@ -104,10 +128,84 @@ The work is complete when the recent `Plant Workbench` and `Generation Notebook`
   Rationale: Pixel-perfect automation is likely brittle for this high-fidelity port. A structured rubric plus human corrections can encode operator preferences over successive reviews and catch visual issues that simple screenshot diffing misses.
   Date/Author: 2026-06-18 / Operator + Codex
 
+- Decision: Let `/breeding-logbook` own its own route chrome instead of rendering inside the global hosted dashboard TopBar.
+  Rationale: The standalone design reference owns a sticky Breeding Logbook top bar and visual shell. Suppressing the global TopBar on this route keeps the later screenshot comparison meaningful and avoids adding extra chrome not present in the reference.
+  Date/Author: 2026-06-18 / Codex
+
 
 ## Outcomes & Retrospective
 
-No implementation milestones have been completed yet. Fill this section after each milestone with changed files, validation commands, screenshots, API audit artifacts, and any tradeoffs accepted during the human review loop.
+Milestone 1 completed. The dashboard route no longer contains the temporary `Plant Workbench` / `Generation Notebook` selector, `web-ui/src/prototypes/` no longer contains the old prototype mock file, and `/breeding-logbook` now renders a route-owned Breeding Logbook shell from `web-ui/src/features/breeding-logbook/`. The shell uses typed deterministic mock data from `breedingLogbook.mockData.ts` through TanStack Query hooks in `breedingLogbookQueries.ts`; no MSW or generated hosted response interfaces were introduced. The route suppresses the global TopBar for visual parity with the standalone prototype.
+
+Validation for Milestone 1:
+
+    rg -n "PlantWorkbench|GenerationNotebook|PlantManagementPrototype|PLANT_MANAGEMENT_PROTOTYPE|prototypes" web-ui/src
+    pnpm --dir web-ui typecheck
+    pnpm --dir web-ui lint
+    pnpm --dir web-ui test
+
+All validation commands passed on 2026-06-18. The test run reported 2 files and 3 tests passing.
+
+Milestone 2 completed. Local SQLModel now has `plant_lku_sex`, `seed_lot_lku_sex_type`, `plant.sex_key`, and `seed_lot.sex_type_key`; gateway catalog DTOs project `CatalogPlant.sex_key` and `CatalogSeedLot.sex_type_key`; cloud storage stores those projected string facts on `CloudPlant` and `CloudSeedLot`; hosted browser plant summary/detail responses include `sex_key`; and the hosted OpenAPI/TypeScript contract was regenerated. The local migration is `migrations/20260618054702_plant_sex_seed_lot_type.sql`; the cloud migration is `cloud/migrations/20260618054843_plant_sex_seed_lot_type.sql`. The live local database was not mutated and remains pending at local migration `20260618054702`.
+
+Validation for Milestone 2:
+
+    atlas migrate status --env local
+    uv run --package dirt-shared python scripts/atlas-load-sqlmodel.py postgresql
+    atlas migrate apply --env local --dry-run
+    atlas migrate hash --env local
+    atlas migrate hash --env cloud
+    DIRT_CLOUD_ASSET_STORE=local scripts/gen-hosted-contract
+    uv run ruff check apps/shared/src/dirt_shared/models/plant.py apps/shared/src/dirt_shared/models/__init__.py apps/shared/src/dirt_shared/cloud_contract.py apps/gateway/src/dirt_gateway/local.py apps/control-plane/src/dirt_control/models/cloud.py apps/control-plane/src/dirt_control/api/gateway.py apps/control-plane/src/dirt_control/api/browser.py apps/shared/tests/test_cloud_contract.py apps/gateway/tests/test_sync.py apps/control-plane/tests/test_api.py
+    uv run pytest apps/shared/tests/test_cloud_contract.py -q
+    uv run pytest apps/gateway/tests/test_sync.py apps/gateway/tests/test_gateway_boundary_guardrails.py -q
+    uv run pytest apps/control-plane/tests/test_api.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py -q
+    uv run pytest apps/tests/invariants -q
+    pnpm --dir web-ui typecheck
+    pnpm --dir web-ui lint
+    pnpm --dir web-ui test
+    git diff --check
+
+All validation commands above passed on 2026-06-18. `atlas migrate status --env local` reported `PENDING`, current version `20260614213709`, next version `20260618054702`, executed files `47`, and pending files `1`.
+
+Milestone 3 completed. The Breeding Logbook now supports the plants table and board, row/chip selection, select-all for visible plants, bulk sex/move/cull, Add seeds, Add plants germinate/clone, plant detail journal, note logging, mock move/note events, metric summaries/history, dark theme, and native board drag/drop. Mock writes are explicitly cache-local through helper functions named `applyMockBulkSex`, `applyMockBulkMove`, `applyMockBulkCull`, `applyMockAddSeedLot`, `applyMockSowPlants`, `applyMockTakeClones`, and `applyMockLogNote`.
+
+Validation for Milestone 3:
+
+    rg -n "PlantWorkbench|GenerationNotebook|PlantManagementPrototype|PLANT_MANAGEMENT_PROTOTYPE|prototypes" web-ui/src
+    rg -n "msw|setupWorker|cloud_fixture|Date\\.now\\(" web-ui/src/features/breeding-logbook web-ui/src/routes/breeding-logbook.tsx
+    pnpm --dir web-ui typecheck
+    pnpm --dir web-ui lint
+    pnpm --dir web-ui test
+    uv run pytest apps/tests/invariants -q
+    git diff --check
+
+All validation commands passed on 2026-06-18. The frontend test run reported 2 files and 3 tests passing; the invariant run reported 41 tests passing.
+
+Milestone 4 completed. The API audit at `docs/epics/breeding-logbook-ui/api-audit.md` maps every Breeding Logbook frontend query hook to a proposed browser endpoint and DTO. The hosted control plane now exposes read-only browser routes for bootstrap, plants, seed lots, plant detail, and plant metric history, using Pydantic `BrowserResponse` DTOs with `extra="forbid"`. No mutation endpoints were implemented; hosted writes remain deferred to a later command/sync design because the hosted control plane is not the local source of truth. The hosted OpenAPI and TypeScript schema were regenerated and include the new `/api/breeding-logbook/...` read endpoints.
+
+Validation for Milestone 4:
+
+    uv run pytest apps/control-plane/tests/test_api.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py -q
+    DIRT_CLOUD_ASSET_STORE=local scripts/gen-hosted-contract
+    pnpm --dir web-ui typecheck
+    uv run pytest apps/tests/invariants -q
+    uv run ruff check apps/control-plane/src/dirt_control/api/browser.py apps/control-plane/tests/test_api.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py
+    git diff --check
+
+All validation commands passed on 2026-06-18. The focused control-plane run reported 52 tests passing; the invariant run reported 41 tests passing.
+
+Milestone 5 completed. The local hosted dev stack was already running and reachable at `http://192.168.1.79:5171`; the browser session used the real login flow with `dev-admin` / `dev-password`, navigated to `/breeding-logbook`, and captured all eight reference states under `debug/screenshots/`. The screenshots were compared against the design handoff references in `debug/design_handoff_breeding_logbook/screenshots/`. During review, the board was corrected to render stage-derived lanes including empty Harvested and to avoid sticky lane-header overlap; Add Seeds, Add Plants, and Plant Detail were adjusted to use their multi-column reference layouts at the medium/reference viewport. Operator feedback was recorded in `docs/epics/breeding-logbook-ui/visual-review-notes.md`; the operator accepted the remaining differences and marked the visual set complete.
+
+Validation for Milestone 5:
+
+    make dev-status
+    pnpm --dir web-ui typecheck
+    pnpm --dir web-ui lint
+    pnpm --dir web-ui test
+    git diff --check
+
+All validation commands passed on 2026-06-18. The frontend test run reported 2 files and 3 tests passing.
 
 
 ## Context and Orientation
@@ -533,3 +631,8 @@ Out-of-scope future mutation interfaces:
 ## Revision Notes
 
 - 2026-06-18 / Codex: Initial plan drafted after reviewing the handoff prototype, current web UI, current plant data model, hosted browser APIs, existing breeding data-model plans, and operator clarifications.
+- 2026-06-18 / Codex: Marked Milestone 1 complete after removing the temporary frontend prototypes, adding the mock-backed Breeding Logbook route shell, and recording validation results.
+- 2026-06-18 / Codex: Marked Milestone 2 complete after adding local/cloud sex fields, migrations, projection contracts, generated hosted schema updates, and validation results.
+- 2026-06-18 / Codex: Marked Milestone 3 complete after adding mock-local UI interactions, cache-update helpers, drag/drop, and validation results.
+- 2026-06-18 / Codex: Marked Milestone 4 complete after adding the API audit, read-only Breeding Logbook browser DTO/routes, generated hosted contract updates, and validation results.
+- 2026-06-18 / Codex: Marked Milestone 5 complete after local browser screenshot capture, visual comparison, operator acceptance, and final frontend validation.

@@ -383,6 +383,7 @@ class GatewayLocalServiceBundle:
             CatalogSeedLot(
                 source_seed_lot_id=seed_lot.id,
                 line_source_id=seed_lot.line_id,
+                sex_type_key=seed_lot.sex_type_key,
                 is_purchased=seed_lot.is_purchased,
                 vendor_name=seed_lot.vendor_name,
                 acquired_at=seed_lot.acquired_at,
@@ -418,6 +419,7 @@ class GatewayLocalServiceBundle:
             CatalogPlant(
                 source_plant_id=plant.id,
                 line_source_id=plant.line_id,
+                sex_key=plant.sex_key,
                 source_seed_lot_id=plant.source_seed_lot_id,
                 clone_source_plant_id=plant.clone_source_plant_id,
                 key=plant.key,

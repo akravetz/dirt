@@ -164,6 +164,7 @@ function HostedDashboardPage() {
       return hostedData(data, "/api/tents/{tent_id}/plants");
     },
     enabled: selectedTentId.length > 0,
+    refetchInterval: LIVE_DASHBOARD_REFETCH_MS,
   });
 
   const historyGroups = presentationQuery.data?.history_groups ?? [];

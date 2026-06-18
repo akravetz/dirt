@@ -341,6 +341,552 @@
         "title": "AssetSignUploadRequest",
         "type": "object"
       },
+      "BreedingLogbookBootstrapResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "locations": {
+            "items": {
+              "$ref": "#/components/schemas/BreedingLogbookLocationOptionResponse"
+            },
+            "title": "Locations",
+            "type": "array"
+          },
+          "plant_sexes": {
+            "items": {
+              "$ref": "#/components/schemas/BreedingLogbookLookupResponse"
+            },
+            "title": "Plant Sexes",
+            "type": "array"
+          },
+          "seed_lot_sex_types": {
+            "items": {
+              "$ref": "#/components/schemas/BreedingLogbookLookupResponse"
+            },
+            "title": "Seed Lot Sex Types",
+            "type": "array"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/BreedingLogbookLookupResponse"
+            },
+            "title": "Stages",
+            "type": "array"
+          },
+          "today": {
+            "format": "date",
+            "title": "Today",
+            "type": "string"
+          },
+          "today_label": {
+            "title": "Today Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "today",
+          "today_label",
+          "plant_sexes",
+          "seed_lot_sex_types",
+          "stages",
+          "locations"
+        ],
+        "title": "BreedingLogbookBootstrapResponse",
+        "type": "object"
+      },
+      "BreedingLogbookLineageResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "offspring": {
+            "title": "Offspring",
+            "type": "string"
+          },
+          "parents": {
+            "title": "Parents",
+            "type": "string"
+          }
+        },
+        "required": [
+          "parents",
+          "offspring"
+        ],
+        "title": "BreedingLogbookLineageResponse",
+        "type": "object"
+      },
+      "BreedingLogbookLocationOptionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "grid_position": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grid Position"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "stage_key": {
+            "enum": [
+              "germinating",
+              "veg",
+              "flower",
+              "breeding",
+              "harvested",
+              "culled"
+            ],
+            "title": "Stage Key",
+            "type": "string"
+          },
+          "tent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tent Id"
+          }
+        },
+        "required": [
+          "key",
+          "display_name",
+          "stage_key",
+          "tent_id",
+          "grid_position"
+        ],
+        "title": "BreedingLogbookLocationOptionResponse",
+        "type": "object"
+      },
+      "BreedingLogbookLookupResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "display_order": {
+            "title": "Display Order",
+            "type": "integer"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "display_name",
+          "display_order"
+        ],
+        "title": "BreedingLogbookLookupResponse",
+        "type": "object"
+      },
+      "BreedingLogbookPlantDetailResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/BreedingLogbookPlantJournalEventResponse"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "lineage": {
+            "$ref": "#/components/schemas/BreedingLogbookLineageResponse"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/BreedingLogbookPlantMetricSummaryResponse"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "plant": {
+            "$ref": "#/components/schemas/BreedingLogbookPlantRowResponse"
+          },
+          "telemetry": {
+            "items": {
+              "$ref": "#/components/schemas/PlantMetricStreamResponse"
+            },
+            "title": "Telemetry",
+            "type": "array"
+          },
+          "wiki_content": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlantWikiContentResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "plant",
+          "lineage",
+          "metrics",
+          "events",
+          "telemetry",
+          "wiki_content"
+        ],
+        "title": "BreedingLogbookPlantDetailResponse",
+        "type": "object"
+      },
+      "BreedingLogbookPlantJournalEventResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "date_label": {
+            "title": "Date Label",
+            "type": "string"
+          },
+          "has_photo": {
+            "title": "Has Photo",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "occurred_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Occurred At"
+          },
+          "tag": {
+            "enum": [
+              "cross",
+              "note",
+              "stage",
+              "sex",
+              "germ"
+            ],
+            "title": "Tag",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "occurred_at",
+          "date_label",
+          "tag",
+          "body",
+          "has_photo"
+        ],
+        "title": "BreedingLogbookPlantJournalEventResponse",
+        "type": "object"
+      },
+      "BreedingLogbookPlantListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "active_count": {
+            "title": "Active Count",
+            "type": "integer"
+          },
+          "culled_count": {
+            "title": "Culled Count",
+            "type": "integer"
+          },
+          "group_by": {
+            "const": "stage",
+            "title": "Group By",
+            "type": "string"
+          },
+          "plants": {
+            "items": {
+              "$ref": "#/components/schemas/BreedingLogbookPlantRowResponse"
+            },
+            "title": "Plants",
+            "type": "array"
+          }
+        },
+        "required": [
+          "active_count",
+          "culled_count",
+          "group_by",
+          "plants"
+        ],
+        "title": "BreedingLogbookPlantListResponse",
+        "type": "object"
+      },
+      "BreedingLogbookPlantMetricSummaryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "tone": {
+            "enum": [
+              "ok",
+              "warn"
+            ],
+            "title": "Tone",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "value",
+          "tone"
+        ],
+        "title": "BreedingLogbookPlantMetricSummaryResponse",
+        "type": "object"
+      },
+      "BreedingLogbookPlantRowResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "culled_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Culled On"
+          },
+          "flower_started_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flower Started On"
+          },
+          "generation": {
+            "title": "Generation",
+            "type": "string"
+          },
+          "germinated_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Germinated On"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "last_note": {
+            "title": "Last Note",
+            "type": "string"
+          },
+          "location_key": {
+            "title": "Location Key",
+            "type": "string"
+          },
+          "location_label": {
+            "title": "Location Label",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "parents_label": {
+            "title": "Parents Label",
+            "type": "string"
+          },
+          "seed_lot_label": {
+            "title": "Seed Lot Label",
+            "type": "string"
+          },
+          "sex_key": {
+            "enum": [
+              "unknown",
+              "male",
+              "female",
+              "herm",
+              "reversed"
+            ],
+            "title": "Sex Key",
+            "type": "string"
+          },
+          "stage_day": {
+            "title": "Stage Day",
+            "type": "integer"
+          },
+          "stage_key": {
+            "enum": [
+              "germinating",
+              "veg",
+              "flower",
+              "breeding",
+              "harvested",
+              "culled"
+            ],
+            "title": "Stage Key",
+            "type": "string"
+          },
+          "telemetry_summary": {
+            "title": "Telemetry Summary",
+            "type": "string"
+          },
+          "veg_started_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Veg Started On"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name",
+          "generation",
+          "parents_label",
+          "sex_key",
+          "stage_key",
+          "stage_day",
+          "germinated_on",
+          "veg_started_on",
+          "flower_started_on",
+          "culled_on",
+          "location_key",
+          "location_label",
+          "seed_lot_label",
+          "last_note",
+          "telemetry_summary"
+        ],
+        "title": "BreedingLogbookPlantRowResponse",
+        "type": "object"
+      },
+      "BreedingLogbookSeedLotListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "seed_lots": {
+            "items": {
+              "$ref": "#/components/schemas/BreedingLogbookSeedLotSummaryResponse"
+            },
+            "title": "Seed Lots",
+            "type": "array"
+          }
+        },
+        "required": [
+          "seed_lots"
+        ],
+        "title": "BreedingLogbookSeedLotListResponse",
+        "type": "object"
+      },
+      "BreedingLogbookSeedLotSummaryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "generation": {
+            "title": "Generation",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "parents_label": {
+            "title": "Parents Label",
+            "type": "string"
+          },
+          "prefix": {
+            "title": "Prefix",
+            "type": "string"
+          },
+          "seed_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed Count"
+          },
+          "sex_type_key": {
+            "enum": [
+              "unknown",
+              "feminized",
+              "regular"
+            ],
+            "title": "Sex Type Key",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "cross",
+              "purchased"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "source_label": {
+            "title": "Source Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "prefix",
+          "generation",
+          "source",
+          "source_label",
+          "parents_label",
+          "sex_type_key",
+          "seed_count"
+        ],
+        "title": "BreedingLogbookSeedLotSummaryResponse",
+        "type": "object"
+      },
       "CapturePolicyResponse": {
         "additionalProperties": false,
         "properties": {
@@ -691,6 +1237,17 @@
             ],
             "title": "Selected For Breeding Reason"
           },
+          "sex_key": {
+            "enum": [
+              "unknown",
+              "male",
+              "female",
+              "herm",
+              "reversed"
+            ],
+            "title": "Sex Key",
+            "type": "string"
+          },
           "source_plant_id": {
             "title": "Source Plant Id",
             "type": "integer"
@@ -722,6 +1279,7 @@
         "required": [
           "source_plant_id",
           "line_source_id",
+          "sex_key",
           "source_seed_lot_id",
           "clone_source_plant_id",
           "key",
@@ -1186,6 +1744,15 @@
             ],
             "title": "Seed Count"
           },
+          "sex_type_key": {
+            "enum": [
+              "unknown",
+              "feminized",
+              "regular"
+            ],
+            "title": "Sex Type Key",
+            "type": "string"
+          },
           "source_seed_lot_id": {
             "title": "Source Seed Lot Id",
             "type": "integer"
@@ -1205,6 +1772,7 @@
         "required": [
           "source_seed_lot_id",
           "line_source_id",
+          "sex_type_key",
           "is_purchased",
           "vendor_name",
           "acquired_at",
@@ -2969,6 +3537,17 @@
             ],
             "title": "Selected For Breeding Reason"
           },
+          "sex_key": {
+            "enum": [
+              "unknown",
+              "male",
+              "female",
+              "herm",
+              "reversed"
+            ],
+            "title": "Sex Key",
+            "type": "string"
+          },
           "site_id": {
             "title": "Site Id",
             "type": "string"
@@ -3018,6 +3597,7 @@
           "key",
           "line_source_id",
           "line",
+          "sex_key",
           "name",
           "grid_position",
           "current_location",
@@ -3696,6 +4276,17 @@
             ],
             "title": "Rooted At"
           },
+          "sex_key": {
+            "enum": [
+              "unknown",
+              "male",
+              "female",
+              "herm",
+              "reversed"
+            ],
+            "title": "Sex Key",
+            "type": "string"
+          },
           "site_id": {
             "title": "Site Id",
             "type": "string"
@@ -3728,6 +4319,7 @@
           "key",
           "line_source_id",
           "line",
+          "sex_key",
           "name",
           "grid_position",
           "germinated_at",
@@ -4615,6 +5207,181 @@
           }
         },
         "summary": "Me"
+      }
+    },
+    "/api/breeding-logbook/bootstrap": {
+      "get": {
+        "operationId": "breeding_logbook_bootstrap_api_breeding_logbook_bootstrap_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BreedingLogbookBootstrapResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Breeding Logbook Bootstrap"
+      }
+    },
+    "/api/breeding-logbook/plants": {
+      "get": {
+        "operationId": "breeding_logbook_plants_api_breeding_logbook_plants_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "include_culled",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Culled",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "group_by",
+            "required": false,
+            "schema": {
+              "const": "stage",
+              "default": "stage",
+              "title": "Group By",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BreedingLogbookPlantListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Breeding Logbook Plants"
+      }
+    },
+    "/api/breeding-logbook/plants/{plant_key}": {
+      "get": {
+        "operationId": "breeding_logbook_plant_detail_api_breeding_logbook_plants__plant_key__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plant_key",
+            "required": true,
+            "schema": {
+              "title": "Plant Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BreedingLogbookPlantDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Breeding Logbook Plant Detail"
+      }
+    },
+    "/api/breeding-logbook/plants/{plant_key}/metrics/history": {
+      "get": {
+        "operationId": "breeding_logbook_plant_metric_history_api_breeding_logbook_plants__plant_key__metrics_history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plant_key",
+            "required": true,
+            "schema": {
+              "title": "Plant Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "range",
+            "required": false,
+            "schema": {
+              "default": "24h",
+              "title": "Range",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlantMetricHistoryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Breeding Logbook Plant Metric History"
+      }
+    },
+    "/api/breeding-logbook/seed-lots": {
+      "get": {
+        "operationId": "breeding_logbook_seed_lots_api_breeding_logbook_seed_lots_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BreedingLogbookSeedLotListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Breeding Logbook Seed Lots"
       }
     },
     "/api/commands": {

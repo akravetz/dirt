@@ -79,6 +79,7 @@ def test_catalog_plant_requires_nullable_wire_fields() -> None:
     plant_payload = {
         "source_plant_id": 1,
         "line_source_id": 1,
+        "sex_key": "female",
         "source_seed_lot_id": None,
         "clone_source_plant_id": None,
         "key": "SBBS-R1-001",
@@ -98,8 +99,10 @@ def test_catalog_plant_requires_nullable_wire_fields() -> None:
     plant = CatalogPlant.model_validate(plant_payload)
     assert plant.source_plant_id == 1
     assert plant.key == "SBBS-R1-001"
+    assert plant.sex_key == "female"
 
     for field_name in (
+        "sex_key",
         "source_seed_lot_id",
         "clone_source_plant_id",
         "rooted_at",
@@ -129,6 +132,7 @@ def test_catalog_line_seed_lot_and_location_require_source_identity() -> None:
         {
             "source_seed_lot_id": 1,
             "line_source_id": line.source_line_id,
+            "sex_type_key": "regular",
             "is_purchased": True,
             "vendor_name": "Unknown vendor",
             "acquired_at": None,
@@ -149,6 +153,7 @@ def test_catalog_line_seed_lot_and_location_require_source_identity() -> None:
     )
 
     assert seed_lot.line_source_id == 1
+    assert seed_lot.sex_type_key == "regular"
     assert location.source_plant_id == 1
 
     for model, payload, field_name in (

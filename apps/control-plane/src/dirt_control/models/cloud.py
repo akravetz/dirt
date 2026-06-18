@@ -266,6 +266,10 @@ class CloudSeedLot(SQLModel, table=True):
     site_id: str = Field(index=True, max_length=80)
     source_seed_lot_id: int = Field(sa_column=Column(BigInteger, nullable=False))
     line_source_id: int = Field(sa_column=Column(BigInteger, nullable=False))
+    sex_type_key: str = Field(
+        default="unknown",
+        sa_column=Column(String(40), nullable=False, server_default="unknown"),
+    )
     is_purchased: bool = False
     vendor_name: str | None = Field(default=None, max_length=160)
     acquired_at: datetime | None = Field(
@@ -306,6 +310,10 @@ class CloudPlant(SQLModel, table=True):
     site_id: str = Field(index=True, max_length=80)
     source_plant_id: int = Field(sa_column=Column(BigInteger, nullable=False))
     line_source_id: int = Field(sa_column=Column(BigInteger, nullable=False))
+    sex_key: str = Field(
+        default="unknown",
+        sa_column=Column(String(40), nullable=False, server_default="unknown"),
+    )
     source_seed_lot_id: int | None = Field(
         default=None, sa_column=Column(BigInteger, nullable=True)
     )

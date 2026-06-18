@@ -21,10 +21,12 @@ from dirt_shared.models.plant import (
     Plant,
     PlantEvent,
     PlantLine,
+    PlantLkuSex,
     PlantLocationHistory,
     PlantMetricStream,
     PlantNote,
     SeedLot,
+    SeedLotLkuSexType,
 )
 from dirt_shared.models.schedule import Schedule
 from dirt_shared.models.sensor_calibration import SensorCalibration
@@ -48,11 +50,13 @@ __all__ = [
     "Plant",
     "PlantEvent",
     "PlantLine",
+    "PlantLkuSex",
     "PlantLocationHistory",
     "PlantMetricStream",
     "PlantNote",
     "Schedule",
     "SeedLot",
+    "SeedLotLkuSexType",
     "SensorCalibration",
     "SensorReading",
     "SensorSource",

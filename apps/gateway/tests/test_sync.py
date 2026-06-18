@@ -1022,6 +1022,7 @@ async def test_collect_catalog_projects_current_grow_plants(
         await session.flush()
         seed_lot = SeedLot(
             line_id=line.id,
+            sex_type_key="regular",
             is_purchased=True,
             vendor_name="Test vendor",
         )
@@ -1030,12 +1031,14 @@ async def test_collect_catalog_projects_current_grow_plants(
         plant_x1 = Plant(
             key="TEST-R1-001",
             line_id=line.id,
+            sex_key="female",
             source_seed_lot_id=seed_lot.id,
             name="Test X1",
         )
         plant_x2 = Plant(
             key="TEST-R1-002",
             line_id=line.id,
+            sex_key="male",
             source_seed_lot_id=seed_lot.id,
             name="Test X2",
             culled_at=FIXED_NOW,
@@ -1098,6 +1101,7 @@ async def test_collect_catalog_projects_current_grow_plants(
         CatalogPlant(
             source_plant_id=plant_x1_source_id,
             line_source_id=line_source_id,
+            sex_key="female",
             source_seed_lot_id=seed_lot_source_id,
             clone_source_plant_id=None,
             key="TEST-R1-001",
@@ -1116,6 +1120,7 @@ async def test_collect_catalog_projects_current_grow_plants(
         CatalogPlant(
             source_plant_id=plant_x2_source_id,
             line_source_id=line_source_id,
+            sex_key="male",
             source_seed_lot_id=seed_lot_source_id,
             clone_source_plant_id=None,
             key="TEST-R1-002",
@@ -1136,6 +1141,7 @@ async def test_collect_catalog_projects_current_grow_plants(
     assert plant_lines[0].strain == "Test Strain"
     assert len(seed_lots) == 1
     assert seed_lots[0].line_source_id == line_source_id
+    assert seed_lots[0].sex_type_key == "regular"
     assert [
         (location.source_plant_id, location.grid_position)
         for location in test_locations
