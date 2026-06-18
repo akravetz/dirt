@@ -1603,6 +1603,10 @@
       "BreedingLogbookSeedLotSummaryResponse": {
         "additionalProperties": false,
         "properties": {
+          "cultivar": {
+            "title": "Cultivar",
+            "type": "string"
+          },
           "generation": {
             "title": "Generation",
             "type": "string"
@@ -1654,12 +1658,18 @@
           "source_label": {
             "title": "Source Label",
             "type": "string"
+          },
+          "strain": {
+            "title": "Strain",
+            "type": "string"
           }
         },
         "required": [
           "id",
           "label",
           "prefix",
+          "strain",
+          "cultivar",
           "generation",
           "source",
           "source_label",

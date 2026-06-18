@@ -12,7 +12,7 @@ Read before writing any code that branches on stage (veg / flower_early / flower
 
 - **Germination date:** 2026-04-28 (authoritative: earliest `plant.germinated_at` among current `homebox/breeding` plant locations).
 - **Flower start date:** 2026-05-24 (authoritative: earliest non-null `plant.flower_started_at` among current `homebox/breeding` plant locations).
-- **Light schedule:** 12/12, lights on 09:00-21:00 local tent time (`America/Denver`; authoritative: enabled current breeding `schedule` row with `kind='lights'`).
+- **Light schedule:** 18/6, lights on 06:00-00:00 local tent time (`America/Denver`; authoritative: enabled current breeding `schedule` row with `kind='lights'`).
 
 ## Deriving stage without the DB
 

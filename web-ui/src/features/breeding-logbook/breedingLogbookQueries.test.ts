@@ -92,6 +92,8 @@ describe("breeding logbook hosted response mapping", () => {
           id: "2",
           label: "SBBS R1 #2",
           prefix: "SBBS",
+          strain: "Sirius Black x BS01",
+          cultivar: "R1",
           generation: "R1",
           source: "cross",
           source_label: "in-house cross",
@@ -161,6 +163,12 @@ describe("breeding logbook hosted response mapping", () => {
     expect(mapSeedLotList(seedLots).seedLots[0]?.parentsLabel).toBe(
       "Plant B x Plant C",
     );
+    expect(mapSeedLotList(seedLots).seedLots[0]).toMatchObject({
+      prefix: "SBBS",
+      strain: "Sirius Black x BS01",
+      cultivar: "R1",
+      sexTypeKey: "regular",
+    });
     expect(mapPlantDetail(detail, history)).toMatchObject({
       plant: { key: "SBBS-R1-001", lastNote: "Trichomes stacking" },
       lineage: { offspring: "Cross #43: SBBS R1 #3 (1 plant)" },
@@ -220,6 +228,7 @@ describe("breeding logbook mutation request mapping", () => {
         count: 6,
         tentId: "veg",
         affectedLabel: "MF F2",
+        germinatedAt: "2026-06-17T15:30:00.000Z",
       }),
     ).toEqual({
       idempotency_key: "germ-click",
@@ -227,7 +236,7 @@ describe("breeding logbook mutation request mapping", () => {
       count: 6,
       tent_id: "veg",
       grid_position: null,
-      germinated_at: null,
+      germinated_at: "2026-06-17T15:30:00.000Z",
     });
 
     expect(
@@ -236,6 +245,7 @@ describe("breeding logbook mutation request mapping", () => {
         motherPlantKey: "MF-001",
         count: 2,
         tentId: "clone",
+        takenAt: "2026-06-17T16:45:00.000Z",
       }),
     ).toEqual({
       idempotency_key: "clone-click",
@@ -243,7 +253,7 @@ describe("breeding logbook mutation request mapping", () => {
       count: 2,
       tent_id: "clone",
       grid_position: null,
-      taken_at: null,
+      taken_at: "2026-06-17T16:45:00.000Z",
     });
 
     expect(
@@ -305,6 +315,7 @@ describe("breeding logbook mutation request mapping", () => {
           count: 6,
           tentId: "veg",
           affectedLabel: "MF F2",
+          germinatedAt: "2026-06-17T15:30:00.000Z",
         }),
       ),
     ).not.toContain("plant_keys");
@@ -315,6 +326,7 @@ describe("breeding logbook mutation request mapping", () => {
           motherPlantKey: "MF-001",
           count: 2,
           tentId: "clone",
+          takenAt: "2026-06-17T16:45:00.000Z",
         }),
       ),
     ).not.toContain("clone_keys");

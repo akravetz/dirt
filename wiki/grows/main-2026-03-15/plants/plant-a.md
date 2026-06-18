@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-06-12
+updated: 2026-06-17
 ---
 
 # Plant A
@@ -18,7 +18,7 @@ updated: 2026-06-12
 
 ## Current State
 
-Day 90 / Flower Day 40: The latest full dedicated view remains the 2026-06-10 mostly fan-blocked view, but visible right-side foliage and purple flower material were upright. Plant A was cut over to the RS485 substrate node on 2026-06-10 evening MDT; `plant-a-substrate-node` is now the canonical current moisture source. After the high-EC reservoir reset and 24-hour pH-adjusted tap-water correction, rebuilt feed measured 1300 uS/cm / 1.3 mS/cm and was diluted to EC 1.0 as a conservative recovery-strength reservoir on 2026-06-12. Hold EC 0.8-1.0 for 48-72h and keep confirming tray fill/drawdown, leaf posture, and fresh tip damage. See [2026-06-12 daily](../../../daily/2026-06-12.md).
+Day 95 / Flower Day 45: Plant A is on an upper-canopy light-stress watch after the highest fan leaves stayed yellow while lower/protected foliage remained dark green. Reservoir pH/EC and tray cycling were acceptable by user report, so the 2026-06-16 correction was to raise the light about 5 inches and set the lung-room AC to 72°F; watch for fresh spread or bud/sugar-leaf bleaching rather than trying to green damaged fan leaves back up. See [2026-06-16 log](../../../log.md#2026-06-16-query-filed--plant-a-upper-canopy-lighttemperature-correction).
 
 ## Timeline
 
@@ -90,3 +90,4 @@ Day 90 / Flower Day 40: The latest full dedicated view remains the 2026-06-10 mo
 - 2026-06-10 evening — [Whole Autopot reservoir EC found >2.0; reservoir reset to pH 5.8 / EC ~0.3 plain water for ~24h correction](../../../daily/2026-06-10.md)
 - 2026-06-10 evening — Plant A current moisture cut over from the old capacitive `plant-a-node` raw stream to `plant-a-substrate-node` RS485 direct `soil_moisture_pct`; old capacitive A-D nodes retired from current operations 2026-06-11.
 - 2026-06-12 — [Day 90 / Flower Day 40: post-flush recovery plan filed; hold EC 0.8-1.0 for 48-72h and only root-zone flush if fresh damage advances](../../../daily/2026-06-12.md)
+- 2026-06-16 — [Day 94 / Flower Day 44: upper fan leaves yellow at the closest light distance; reservoir pH 5.8 / EC 1.1 and tray cycling acceptable; light raised ~5 inches and lung-room AC set to 72°F](../../../log.md#2026-06-16-query-filed--plant-a-upper-canopy-lighttemperature-correction)

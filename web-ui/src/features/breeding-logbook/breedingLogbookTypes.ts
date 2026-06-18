@@ -38,6 +38,8 @@ export type SeedLotSummary = {
   id: string;
   label: string;
   prefix: string;
+  strain: string;
+  cultivar: string;
   generation: string;
   source: SeedLotSource;
   sourceLabel: string;

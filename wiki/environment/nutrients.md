@@ -4,7 +4,7 @@ type: environment
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/concepts/coco-coir.md, wiki/concepts/autopot.md, wiki/overview.md]
 created: 2026-04-06
-updated: 2026-06-12
+updated: 2026-06-17
 ---
 
 # Nutrients & pH
@@ -43,6 +43,8 @@ Plan filed at reset: leave the plants on plain pH 5.8 / EC ~0.3 water for about 
 
 **2026-06-12 update:** after the 24-hour pH-adjusted tap-water correction, nutrients were reintroduced and the reservoir measured 1300 uS/cm (1.3 mS/cm) on the Apera EC60, which is inside the late-flower reservoir band. The reservoir was then diluted to EC 1.0 mS/cm as a conservative recovery-strength feed after the recent burn/high-EC concern. Hold about EC 0.8-1.0 total for the next 48-72 hours and judge recovery by new growth, fresh tip/edge burn, posture, tray cycling, and root-zone evidence. Do not extend plain-water reservoir flushing by default; if fresh damage keeps advancing or root-zone EC is still high, do a real drain-to-waste root-zone reset and restart around EC 0.6-0.8. Keep this as a short recovery step, not a final flush, and move back toward the low end of the late-flower band only after posture, tray cycling, and new growth remain stable. See [2026-06-12 daily](../daily/2026-06-12.md).
 
+**2026-06-16 update:** during Plant A upper-fan yellowing follow-up, handheld reservoir checks were pH 5.8 and EC 1.1 mS/cm, with tray cycling reported normal. No reservoir correction was filed; the intervention was light/temperature reduction instead. See [2026-06-16 log](../log.md#2026-06-16-query-filed--plant-a-upper-canopy-lighttemperature-correction).
+
 ## pH Management
 
 **Target pH:** 5.8 (after nutrients added)
@@ -66,6 +68,7 @@ Plan filed at reset: leave the plants on plain pH 5.8 / EC ~0.3 water for about 
 | 2026-06-04 | ⚠️ Plant A additional runoff after diagnostic top rinse — plant looked fine; no heavy, sour, or stagnant pot/tray signs; runoff pH looked fine; TDS measured >1000 ppm on the 500 scale, equivalent to EC >2.0 | Interpreted as residual soluble salts still washing through after top rinse, not an active pH problem. Reconnect Plant A to the Autopot as a watched test, remove runoff, and do not perform another top flush unless the plant declines or repeated checks show persistent high EC; if needed, flush drain-to-waste with light feed EC 0.4-0.6 / 200-300 ppm on the 500 scale → [2026-06-04 daily](../daily/2026-06-04.md) |
 | 2026-06-10 | ⚠️ Whole Autopot reservoir EC found too high, well over 2.0 mS/cm, during evening service | Entire reservoir flushed/replaced at 20:00 MDT with plain tap water adjusted to pH 5.8 and EC ~0.3. Let plants drink plain water for ~24h, then rebuild nutrient solution to roughly EC 1.2 if posture and tray cycling remain acceptable → [2026-06-10 daily](../daily/2026-06-10.md) |
 | 2026-06-12 | ⚠️ Post-flush feed rebuilt, then diluted lower for recovery | New Apera EC60 measured the rebuilt reservoir at 1300 uS/cm / 1.3 mS/cm, inside the late-flower band; reservoir was then diluted to EC 1.0 mS/cm as a conservative recovery-strength feed. Hold EC 0.8-1.0 for 48-72h; only do a drain-to-waste root-zone reset if fresh burn/fade advances or root-zone EC evidence stays high -> [2026-06-12 daily](../daily/2026-06-12.md) |
+| 2026-06-16 | Plant A upper-fan yellowing checked against reservoir/tray status | Handheld reservoir pH 5.8 and EC 1.1 mS/cm were acceptable, and tray cycling appeared normal. Yellowing was treated as upper-canopy light/heat pressure on already-stressed fan leaves, not a reason to change feed strength → [2026-06-16 log](../log.md#2026-06-16-query-filed--plant-a-upper-canopy-lighttemperature-correction) |
 
 ## pH Correction History
 - **2026-03-28** — pH misconception corrected: Canna A+B buffering does NOT eliminate need for pH Down in Denver water. pH Down required every fill.

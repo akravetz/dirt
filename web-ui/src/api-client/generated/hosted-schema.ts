@@ -1104,6 +1104,8 @@ export interface components {
     };
     /** BreedingLogbookSeedLotSummaryResponse */
     BreedingLogbookSeedLotSummaryResponse: {
+      /** Cultivar */
+      cultivar: string;
       /** Generation */
       generation: string;
       /** Id */
@@ -1128,6 +1130,8 @@ export interface components {
       source: "cross" | "purchased";
       /** Source Label */
       source_label: string;
+      /** Strain */
+      strain: string;
     };
     /** CapturePolicyResponse */
     CapturePolicyResponse: {

@@ -103,6 +103,7 @@ type GerminatePlantsMutationInput = {
   count: number;
   tentId: string;
   affectedLabel: string;
+  germinatedAt: string;
 };
 
 type ClonePlantsMutationInput = {
@@ -110,6 +111,7 @@ type ClonePlantsMutationInput = {
   motherPlantKey: string;
   count: number;
   tentId: string;
+  takenAt: string;
 };
 
 type BulkSexMutationInput = {
@@ -186,7 +188,7 @@ export function buildGerminatePlantsRequest(
     count: input.count,
     tent_id: input.tentId,
     grid_position: null,
-    germinated_at: null,
+    germinated_at: input.germinatedAt,
   };
 }
 
@@ -199,7 +201,7 @@ export function buildClonePlantsRequest(
     count: input.count,
     tent_id: input.tentId,
     grid_position: null,
-    taken_at: null,
+    taken_at: input.takenAt,
   };
 }
 

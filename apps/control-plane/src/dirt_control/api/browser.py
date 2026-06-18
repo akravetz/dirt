@@ -320,6 +320,8 @@ class BreedingLogbookSeedLotSummaryResponse(BrowserResponse):
     id: str
     label: str
     prefix: str
+    strain: str
+    cultivar: str
     generation: str
     source: BreedingLogbookSeedLotSource
     source_label: str
@@ -2467,6 +2469,8 @@ def _breeding_logbook_seed_lot_summary_response(
         id=str(seed_lot.source_seed_lot_id),
         label=_seed_lot_label(seed_lot, line),
         prefix=line.project_code if line is not None and line.project_code else "",
+        strain=line.strain if line is not None else "Unknown strain",
+        cultivar=line.cultivar if line is not None else "Unknown cultivar",
         generation=_generation_label(line),
         source="purchased" if seed_lot.is_purchased else "cross",
         source_label=_seed_lot_source_label(seed_lot),

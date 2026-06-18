@@ -214,6 +214,8 @@ export function mapSeedLotList(
       id: seedLot.id,
       label: seedLot.label,
       prefix: seedLot.prefix,
+      strain: seedLot.strain,
+      cultivar: seedLot.cultivar,
       generation: seedLot.generation,
       source: seedLot.source,
       sourceLabel: seedLot.source_label,

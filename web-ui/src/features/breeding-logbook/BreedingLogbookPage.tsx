@@ -92,6 +92,7 @@ const CULLED_LOCATION: LocationOption = {
   displayName: "Removed",
   stageKey: "culled",
 };
+const DATETIME_LOCAL_LENGTH = 16;
 const initialSeedLotDraft: AddSeedLotDraft = {
   source: "cross",
   motherId: "plant-d",
@@ -126,9 +127,11 @@ export function BreedingLogbookPage(): ReactNode {
   const [selectedSeedLotId, setSelectedSeedLotId] = useState("lot-maruf-black");
   const [germinateCount, setGerminateCount] = useState(10);
   const [germinateLocationKey, setGerminateLocationKey] = useState("clone");
+  const [germinatedAt, setGerminatedAt] = useState(datetimeLocalNow);
   const [cloneMotherId, setCloneMotherId] = useState("plant-a");
   const [cloneCount, setCloneCount] = useState(4);
   const [cloneLocationKey, setCloneLocationKey] = useState("veg");
+  const [cloneTakenAt, setCloneTakenAt] = useState(datetimeLocalNow);
   const [detailPlantKey, setDetailPlantKey] = useState("");
   const [noteText, setNoteText] = useState("");
   const [draggingPlantId, setDraggingPlantId] = useState<string | null>(null);
@@ -217,6 +220,7 @@ export function BreedingLogbookPage(): ReactNode {
     logbook.bootstrap.locations.find((location) => location.key === moveLocationKey) ??
     logbook.bootstrap.locations[0] ??
     FALLBACK_LOCATION;
+  const maxEventDateTime = datetimeLocalNow();
 
   return (
     <main className="flex-1 overflow-auto bg-paper text-ink">
@@ -396,8 +400,11 @@ export function BreedingLogbookPage(): ReactNode {
             cloneCount={cloneCount}
             cloneLocationKey={cloneLocationKey}
             cloneMotherId={cloneMotherId}
+            cloneTakenAt={cloneTakenAt}
             germinateCount={germinateCount}
+            germinatedAt={germinatedAt}
             germinateLocationKey={germinateLocationKey}
+            maxEventDateTime={maxEventDateTime}
             mode={addPlantMode}
             plants={plants}
             seedLots={seedLots}
@@ -414,11 +421,15 @@ export function BreedingLogbookPage(): ReactNode {
             onCloneCountChange={setCloneCount}
             onCloneLocationChange={setCloneLocationKey}
             onCloneMotherChange={setCloneMotherId}
+            onCloneTakenAtChange={setCloneTakenAt}
             onGerminateCountChange={setGerminateCount}
+            onGerminatedAtChange={setGerminatedAt}
             onGerminateLocationChange={setGerminateLocationKey}
             onModeChange={setAddPlantMode}
             onSeedLotChange={setSelectedSeedLotId}
             onSow={(seedLot, location) => {
+              const germinatedAtUtc = datetimeLocalToUtcIso(germinatedAt);
+              if (germinatedAtUtc === null) return;
               germinateMutation.mutate(
                 {
                   idempotencyKey: createBreedingLogbookIdempotencyKey("germinate"),
@@ -426,6 +437,7 @@ export function BreedingLogbookPage(): ReactNode {
                   count: germinateCount,
                   tentId: location.key,
                   affectedLabel: seedLot.label,
+                  germinatedAt: germinatedAtUtc,
                 },
                 {
                   onSuccess: () => {
@@ -436,12 +448,15 @@ export function BreedingLogbookPage(): ReactNode {
               );
             }}
             onTakeClones={(mother, location) => {
+              const cloneTakenAtUtc = datetimeLocalToUtcIso(cloneTakenAt);
+              if (cloneTakenAtUtc === null) return;
               cloneMutation.mutate(
                 {
                   idempotencyKey: createBreedingLogbookIdempotencyKey("clone"),
                   motherPlantKey: mother.key,
                   count: cloneCount,
                   tentId: location.key,
+                  takenAt: cloneTakenAtUtc,
                 },
                 {
                   onSuccess: () => {
@@ -1640,26 +1655,28 @@ function AddSeedsSurface({
             Seed lots on file / {seedLots.length} lots
           </h3>
           <div className="mt-3 grid gap-2">
-            {seedLots.map((lot) => (
-              <div key={lot.id} className="border border-rule bg-paper-2 px-3 py-2.5">
-                <p className="font-sans text-fs-12 font-semibold text-ink">
-                  {lot.label}
-                </p>
-                <p className="mt-1 font-mono text-fs-9 uppercase tracking-caps text-ink-3">
-                  {lot.source === "purchased" ? "purchased" : "in-house cross"} /{" "}
-                  {lot.prefix}-... / {lot.generation}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onGerminate(lot.id);
-                  }}
-                  className="mt-2 border border-rule px-2 py-1 font-mono text-fs-9 uppercase tracking-caps text-ink-3 transition hover:border-rule-strong hover:text-ink"
-                >
-                  Germinate →
-                </button>
-              </div>
-            ))}
+            {seedLots.map((lot) => {
+              const seedType = seedLotSexTypeDisplayName(bootstrap, lot.sexTypeKey);
+              return (
+                <div key={lot.id} className="border border-rule bg-paper-2 px-3 py-2.5">
+                  <p className="font-sans text-fs-12 font-semibold text-ink">
+                    {seedLotPrimaryLabel(lot)}
+                  </p>
+                  <p className="mt-1 font-mono text-fs-9 uppercase tracking-caps text-ink-3">
+                    {lot.cultivar} / {seedType}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onGerminate(lot.id);
+                    }}
+                    className="mt-2 border border-rule px-2 py-1 font-mono text-fs-9 uppercase tracking-caps text-ink-3 transition hover:border-rule-strong hover:text-ink"
+                  >
+                    Germinate →
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -1672,8 +1689,11 @@ function AddPlantsSurface({
   cloneCount,
   cloneLocationKey,
   cloneMotherId,
+  cloneTakenAt,
   germinateCount,
+  germinatedAt,
   germinateLocationKey,
+  maxEventDateTime,
   mode,
   mutationError,
   mutationPending,
@@ -1681,7 +1701,9 @@ function AddPlantsSurface({
   onCloneCountChange,
   onCloneLocationChange,
   onCloneMotherChange,
+  onCloneTakenAtChange,
   onGerminateCountChange,
+  onGerminatedAtChange,
   onGerminateLocationChange,
   onModeChange,
   onSeedLotChange,
@@ -1697,8 +1719,11 @@ function AddPlantsSurface({
   cloneCount: number;
   cloneLocationKey: string;
   cloneMotherId: string;
+  cloneTakenAt: string;
   germinateCount: number;
+  germinatedAt: string;
   germinateLocationKey: string;
+  maxEventDateTime: string;
   mode: AddPlantMode;
   mutationError: string | null;
   mutationPending: boolean;
@@ -1710,7 +1735,9 @@ function AddPlantsSurface({
   onCloneCountChange: (count: number) => void;
   onCloneLocationChange: (locationKey: string) => void;
   onCloneMotherChange: (plantId: string) => void;
+  onCloneTakenAtChange: (value: string) => void;
   onGerminateCountChange: (count: number) => void;
+  onGerminatedAtChange: (value: string) => void;
   onGerminateLocationChange: (locationKey: string) => void;
   onModeChange: (mode: AddPlantMode) => void;
   onSeedLotChange: (seedLotId: string) => void;
@@ -1788,6 +1815,12 @@ function AddPlantsSurface({
                 value={germinateCount}
                 onChange={onGerminateCountChange}
               />
+              <DateTimeField
+                label="Germinated at"
+                max={maxEventDateTime}
+                value={germinatedAt}
+                onChange={onGerminatedAtChange}
+              />
               <SelectField
                 label="Into tent"
                 value={germinateLocationKey}
@@ -1828,6 +1861,12 @@ function AddPlantsSurface({
                 value={cloneCount}
                 onChange={onCloneCountChange}
               />
+              <DateTimeField
+                label="Taken at"
+                max={maxEventDateTime}
+                value={cloneTakenAt}
+                onChange={onCloneTakenAtChange}
+              />
               <SelectField
                 label="Into tent"
                 value={cloneLocation.key}
@@ -1863,7 +1902,11 @@ function AddPlantsSurface({
             {mode === "germinate" ? (
               <Button
                 variant="primary"
-                disabled={!selectedSeedLot || mutationPending}
+                disabled={
+                  !selectedSeedLot ||
+                  mutationPending ||
+                  !canSubmitEventDateTime(germinatedAt, maxEventDateTime)
+                }
                 onClick={() => {
                   if (selectedSeedLot) onSow(selectedSeedLot, germLocation);
                 }}
@@ -1873,7 +1916,11 @@ function AddPlantsSurface({
             ) : (
               <Button
                 variant="primary"
-                disabled={!mother || mutationPending}
+                disabled={
+                  !mother ||
+                  mutationPending ||
+                  !canSubmitEventDateTime(cloneTakenAt, maxEventDateTime)
+                }
                 onClick={() => {
                   if (mother) onTakeClones(mother, cloneLocation);
                 }}
@@ -2271,6 +2318,36 @@ function TextField({
   );
 }
 
+function DateTimeField({
+  label,
+  max,
+  onChange,
+  value,
+}: {
+  label: string;
+  max: string;
+  onChange: (value: string) => void;
+  value: string;
+}): ReactNode {
+  return (
+    <label className="grid gap-1">
+      <span className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+        {label}
+      </span>
+      <input
+        type="datetime-local"
+        required
+        max={max}
+        value={value}
+        onChange={(event) => {
+          onChange(event.target.value);
+        }}
+        className="h-9 border border-rule bg-paper px-3 font-sans text-fs-12 text-ink"
+      />
+    </label>
+  );
+}
+
 function NumberStepper({
   label,
   max,
@@ -2471,6 +2548,32 @@ function shortDate(value: string): string {
   return value.slice(5);
 }
 
+function datetimeLocalNow(): string {
+  return dateToDatetimeLocal(new Date());
+}
+
+function dateToDatetimeLocal(value: Date): string {
+  const offsetMs = value.getTimezoneOffset() * 60_000;
+  return new Date(value.getTime() - offsetMs)
+    .toISOString()
+    .slice(0, DATETIME_LOCAL_LENGTH);
+}
+
+function datetimeLocalToUtcIso(value: string): string | null {
+  if (!isValidDatetimeLocal(value)) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
+}
+
+function canSubmitEventDateTime(value: string, max: string): boolean {
+  return isValidDatetimeLocal(value) && value <= max;
+}
+
+function isValidDatetimeLocal(value: string): boolean {
+  return value.length === DATETIME_LOCAL_LENGTH;
+}
+
 function stageLabel(plant: PlantRow): string {
   if (plant.stageKey === "culled")
     return `Culled ${plant.culledOn ? shortDate(plant.culledOn) : ""}`;
@@ -2563,6 +2666,21 @@ function seedLotPreview(
     parents: `${motherName} x ${fatherName}`,
     prefix,
   };
+}
+
+function seedLotPrimaryLabel(lot: SeedLotSummary): string {
+  const prefix = lot.prefix.trim() || "Seed lot";
+  return `${prefix} / ${lot.strain}`;
+}
+
+function seedLotSexTypeDisplayName(
+  bootstrap: BreedingLogbookBootstrap,
+  sexTypeKey: SeedLotSexTypeKey,
+): string {
+  return (
+    bootstrap.seedLotSexTypes.find((sexType) => sexType.key === sexTypeKey)
+      ?.displayName ?? sexTypeKey
+  );
 }
 
 function strainPrefix(strain: string): string {

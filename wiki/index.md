@@ -1,7 +1,7 @@
 ---
 title: Index
 type: index
-updated: 2026-06-14
+updated: 2026-06-17
 ---
 
 # Grow Wiki Index
@@ -21,10 +21,10 @@ updated: 2026-06-14
 - [Track A pollen run](grows/breeding-track-a-2026-04-28/README.md) — Current breeding tent pollen-collection run; R2 is the selected donor after purple pollen-sac expression
 
 ## Current Plants
-- [Plant A](grows/main-2026-03-15/plants/plant-a.md) — 🔴 Primary keeper; Flower Day 40; RS485 substrate moisture is canonical; reservoir diluted to EC 1.0 recovery feed after high-EC reset
-- [Plant B](grows/main-2026-03-15/plants/plant-b.md) — 🟡 Secondary; Flower Day 40; no current trusted moisture probe; reservoir diluted to EC 1.0 recovery feed after high-EC reset
-- [Plant C](grows/main-2026-03-15/plants/plant-c.md) — 🟡 Secondary; Flower Day 40; no current trusted moisture probe; reservoir diluted to EC 1.0 recovery feed after high-EC reset
-- [Plant D](grows/main-2026-03-15/plants/plant-d.md) — 🔴 Primary keeper; Flower Day 40; no current trusted moisture probe; reservoir diluted to EC 1.0 recovery feed after high-EC reset
+- [Plant A](grows/main-2026-03-15/plants/plant-a.md) — 🔴 Primary keeper; Flower Day 45; upper-canopy light-stress watch after 2026-06-16 light raise + lung-room AC correction
+- [Plant B](grows/main-2026-03-15/plants/plant-b.md) — 🟡 Secondary; Flower Day 45; no current trusted moisture probe; conservative recovery feed after high-EC reset
+- [Plant C](grows/main-2026-03-15/plants/plant-c.md) — 🟡 Secondary; Flower Day 45; no current trusted moisture probe; conservative recovery feed after high-EC reset
+- [Plant D](grows/main-2026-03-15/plants/plant-d.md) — 🔴 Primary keeper; Flower Day 45; no current trusted moisture probe; conservative recovery feed after high-EC reset
 - [R1](grows/breeding-track-a-2026-04-28/plants/plant-r1.md) — Track A pollen run; confirmed male; culled/not retained for pollen 2026-06-14
 - [R2](grows/breeding-track-a-2026-04-28/plants/plant-r2.md) — Track A pollen run; selected pollen donor after purple pollen-sac expression
 - [R3](grows/breeding-track-a-2026-04-28/plants/plant-r3.md) — Track A pollen run; confirmed female and culled 2026-06-04
@@ -100,9 +100,9 @@ updated: 2026-06-14
 - [2026-06-12](daily/2026-06-12.md) — Day 90 / Flower Day 40: post-flush reservoir recovery plan; hold EC 0.8-1.0 for 48-72h, watch fresh growth/tip burn, and only do drain-to-waste root-zone reset if fresh damage advances or root-zone EC evidence stays high
 
 ## Environment
-- [Temperature](environment/temperature.md) — Trend log; targets by phase; notable events
+- [Temperature](environment/temperature.md) — Trend log; targets by phase; 2026-06-16 light raise + lung-room AC correction for Plant A upper-canopy stress
 - [Humidity](environment/humidity.md) — Trend log; Denver humidification notes
-- [Nutrients & pH](environment/nutrients.md) — Canna A+B protocol; pH management; incident log; 2026-06-12 EC 1.0 conservative recovery feed after high-EC reservoir reset
+- [Nutrients & pH](environment/nutrients.md) — Canna A+B protocol; pH management; incident log; 2026-06-16 pH 5.8 / EC 1.1 stable after high-EC recovery
 
 ## Hardware
 - [ESP32-C3 Per-Plant Nodes](hardware/esp32-plant-nodes.md) — Retired capacitive soil-moisture nodes (A/B/C/D); disabled 2026-06-11 after Plant A RS485 cutover

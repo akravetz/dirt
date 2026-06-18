@@ -1266,3 +1266,9 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - R2 was retained because it showed purple coloration on the pollen sacs, and the current plan is to collect pollen from R2.
 - Track A is now a single-donor pollen collection: label all pollen explicitly as R2-derived and follow collection, drying, aliquot, and freezer protocol.
 - Updated: `overview.md`, `breeding/README.md`, `breeding/timeline.md`, `breeding/isolation.md`, `grows/README.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `index.md`.
+
+## [2026-06-16] query-filed | Plant A upper-canopy light/temperature correction
+- User reported Plant A's highest large fan leaves were yellow while lower/protected leaves stayed dark green; the affected leaves were closest to the light at roughly 5 inches.
+- Reservoir status was acceptable by handheld check: pH 5.8 / EC 1.1 mS/cm, with tray cycling normal. Buds and sugar leaves were not bleaching or crisping, and trichomes were still largely clear.
+- At 20:50 MDT, the light was raised about 5 inches and lung-room AC was adjusted to hold 72°F to reduce lights-on heat/VPD pressure.
+- Updated: `grows/main-2026-03-15/plants/plant-a.md`, `environment/temperature.md`, `environment/nutrients.md`, `overview.md`, `index.md`.
