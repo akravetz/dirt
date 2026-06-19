@@ -239,9 +239,8 @@ class ClimateControllerService:
         )
         assert runtime.actuators is not None  # noqa: S101 - constructor invariant.
         logger.info(
-            "climate controller starting: site=%s tent=%s interval=%.1fs",
-            self._site_id,
-            self._tent_id,
+            "climate controller starting: canopy_device=%s interval=%.1fs",
+            self._canopy_device_id,
             self._poll_interval_s,
         )
         try:

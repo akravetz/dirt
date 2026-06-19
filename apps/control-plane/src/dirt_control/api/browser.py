@@ -854,6 +854,7 @@ async def tents(
         await session.execute(
             select(CloudTent)
             .where(CloudTent.site_id == scoped_site_id)
+            .where(CloudTent.source_tent_id.is_not(None))
             .order_by(CloudTent.source_tent_id, CloudTent.name)
         )
     ).scalars()

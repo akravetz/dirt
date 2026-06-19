@@ -483,6 +483,49 @@ async def test_browser_state_requires_auth(client: AsyncClient) -> None:
     assert response.status_code == 401
 
 
+async def test_browser_tents_ignore_legacy_rows_without_source_tent_id(
+    authed_client: AsyncClient,
+    cloud_engine: AsyncEngine,
+) -> None:
+    sessionmaker = create_sessionmaker(cloud_engine)
+    async with sessionmaker() as session:
+        session.add(
+            CloudTent(
+                site_id="homebox",
+                source_tent_id=None,
+                tent_id="main",
+                name="Legacy Main Tent",
+                is_active=True,
+                synced_at=FIXED_NOW,
+                created_at=FIXED_NOW,
+                updated_at=FIXED_NOW,
+            )
+        )
+        session.add(
+            CloudTent(
+                site_id="homebox",
+                source_site_id=1,
+                source_tent_id=1,
+                tent_id="1",
+                name="Main Tent",
+                role="flower",
+                is_active=True,
+                synced_at=FIXED_NOW,
+                created_at=FIXED_NOW,
+                updated_at=FIXED_NOW,
+            )
+        )
+        await session.commit()
+
+    response = await authed_client.get("/api/tents")
+
+    assert response.status_code == 200
+    rows = response.json()
+    assert len(rows) == 1
+    assert rows[0]["source_tent_id"] == 1
+    assert rows[0]["name"] == "Main Tent"
+
+
 async def test_gateway_auth_rejects_missing_invalid_and_overscoped_credentials(
     client: AsyncClient,
     gateway_headers: dict[str, str],
