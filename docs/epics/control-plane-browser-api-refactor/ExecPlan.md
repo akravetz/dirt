@@ -9,7 +9,7 @@ This plan follows `.agents/PLANS.md`.
 
 After this change, the hosted control-plane browser API is organized by feature instead of being concentrated in one transport-audience module. A developer or coding agent can add or debug a browser route by opening a focused router, schema, and service module instead of scanning `apps/control-plane/src/dirt_control/api/browser.py`, which is currently 3,593 lines and mixes request DTOs, response DTOs, FastAPI route handlers, SQLAlchemy query construction, command queueing, asset signing, metric presentation, plant projection, breeding logbook projection, admin operations, and formatting helpers.
 
-This matters because the hosted control plane is now a real operator interface. The current structure makes small product fixes, such as the germination "Into tent" dropdown, trace through unrelated helper code and hidden string heuristics like `_stage_for_tent_id()`. That investigation also exposed a deeper data-model smell: Dirt-owned objects such as tents currently carry an internal integer `id`, a parallel Dirt-owned text `tent_id`, and a human `name`. Per `docs/rules/data-modeling.md`, that is confusing unless the text id is a real external/domain-owned identifier. The desired end state is similar in spirit to `dirt_hwd`: FastAPI route modules are HTTP boundary adapters; service/query modules own data access and application decisions; Pydantic schemas live in explicit contract modules; durable objects use one internal identity plus clear display fields; and architectural invariants prevent the browser API from regressing into another mega-module.
+This matters because the hosted control plane is now a real operator interface. The current structure makes small product fixes, such as the germination "Into tent" dropdown, trace through unrelated helper code and, before the scoped identity cleanup, hidden string heuristics like `_stage_for_tent_id()`. That investigation also exposed a deeper data-model smell: Dirt-owned objects such as tents carried an internal integer `id`, a parallel Dirt-owned text `tent_id`, and a human `name`. The scoped identity cleanup has since retired the local text `tent_id`; the browser refactor must preserve that simpler model instead of reintroducing text identity through route names, DTOs, or helper abstractions. The desired end state is similar in spirit to `dirt_hwd`: FastAPI route modules are HTTP boundary adapters; service/query modules own data access and application decisions; Pydantic schemas live in explicit contract modules; durable objects use one internal identity plus clear display fields; and architectural invariants prevent the browser API from regressing into another mega-module.
 
 The work is complete when `apps/control-plane/src/dirt_control/api/browser.py` is retired or reduced to a thin compatibility-free aggregate, the browser API is split into feature routers with stable existing paths and OpenAPI output, direct DB/model access no longer lives in browser route modules, and invariant checks cover `dirt_control` with staged rules that preserve the new architecture.
 
@@ -21,7 +21,7 @@ The work is complete when `apps/control-plane/src/dirt_control/api/browser.py` i
 - [ ] Milestone 2: split browser schemas out of `browser.py` without changing route behavior or generated OpenAPI shape.
 - [ ] Milestone 3: split browser routes by feature while keeping existing paths and route response models stable.
 - [ ] Milestone 4: extract data access and application decisions from browser route modules into focused control-plane services/query modules.
-- [ ] Milestone 5: remove the tent/location identity smell and make breeding logbook grouping explicitly tent-based.
+- [x] (2026-06-19) Milestone 5: removed the tent/location identity smell and made breeding logbook grouping explicitly tent-based as part of `docs/epics/scoped-identity-cleanup/ExecPlan.md`; future browser API refactor milestones must preserve that completed boundary.
 - [ ] Milestone 6: add Stage 1 generic invariants for `dirt_control`.
 - [ ] Milestone 7: add Stage 2 control-plane import-boundary invariants.
 - [ ] Milestone 8: add Stage 3 browser-specific shape invariants and remove obsolete compatibility structure.
@@ -46,16 +46,16 @@ The work is complete when `apps/control-plane/src/dirt_control/api/browser.py` i
   Evidence: `apps/control-plane/src/dirt_control/api/browser.py` imports `select`, `and_`, `desc`, and `func` from SQLAlchemy near the top and contains dozens of `select(...)` calls throughout route handlers and private helpers.
 
 - Observation: The germination dropdown bug surfaced a domain smell, not merely a UI filter.
-  Evidence: Browser bootstrap computes `stage_key` for locations through `_stage_for_tent_id(tent_id)`, which infers plant stage from substrings such as `"veg"`, `"clone"`, `"germ"`, and defaults to `"flower"`.
+  Evidence: Before the scoped identity cleanup, browser bootstrap computed `stage_key` for locations through `_stage_for_tent_id(tent_id)`, which inferred plant stage from substrings such as `"veg"`, `"clone"`, `"germ"`, and defaulted to `"flower"`.
 
 - Observation: The Breeding Logbook board is really grouped by current tent, not by lifecycle stage.
-  Evidence: The UI's location options are produced from `CloudTent` rows, and plant row `location_key` / `location_label` are derived from `CloudPlantLocation.tent_id` and optional `grid_position`. The stage field on location options exists mainly to support board grouping and move/germinate labels.
+  Evidence: Before the scoped identity cleanup, the UI's location options were produced from `CloudTent` rows, and plant row `location_key` / `location_label` were derived from `CloudPlantLocation.tent_id` and optional `grid_position`. The cleanup replaced those browser DTO fields with explicit tent/grid fields while keeping lifecycle stage separate.
 
-- Observation: `location_key` and `location_label` are not intuitive browser contracts for the Breeding Logbook.
-  Evidence: The values are currently tent-derived. A reader cannot tell from `location_key` whether the field is a tent id, grid slot, full location history row, or UI bucket. The operator expects explicit fields such as current tent name and grid position.
+- Observation: `location_key` and `location_label` were not intuitive browser contracts for the Breeding Logbook.
+  Evidence: The old values were tent-derived. A reader could not tell from `location_key` whether the field was a tent id, grid slot, full location history row, or UI bucket. The cleanup replaced them with explicit fields such as current tent name and grid position.
 
-- Observation: Tents currently have three identity/display-like fields locally.
-  Evidence: `apps/shared/src/dirt_shared/models/tent.py` defines `id`, `tent_id`, and `name`; `id` is the internal database identity, `tent_id` is a parallel Dirt-owned text identifier, and `name` is the human-readable label. Unless `tent_id` is proven to be external/domain-owned, this conflicts with the data-modeling rule against parallel Dirt-owned text ids.
+- Observation: The tentative `id + tent_id + name` cleanup target has already been resolved locally.
+  Evidence: `docs/epics/scoped-identity-cleanup/ExecPlan.md` records Milestone 7 removing `site.site_id`, `tent.tent_id`, `zone.zone_id`, and `schedule.schedule_id`; its post-cleanup interface says local `Tent` has `id`, display `name`, semantic `role`, active/default fields, and no text `tent_id`.
 
 
 ## Decision Log
@@ -88,9 +88,9 @@ The work is complete when `apps/control-plane/src/dirt_control/api/browser.py` i
   Rationale: The current names hide the actual concept. Plant rows should expose current tent identity/display and nullable `grid_position` separately, for example `current_tent_id` or `current_tent_source_id`, `current_tent_name`, and `grid_position`. Bootstrap move/germinate targets should be named as tents, not generic locations.
   Date/Author: 2026-06-18 / Operator
 
-- Decision: Treat `id + tent_id + name` on Dirt-owned tent objects as a data-model cleanup target.
-  Rationale: `docs/rules/data-modeling.md` says Dirt-owned objects should not carry parallel text ids merely because they are convenient or readable. `Tent.id` should be the durable internal identity and FK target. `Tent.name` should be the human-readable display value. A separate `tent_id` should survive only if implementation proves it is a real external/domain-owned key with current workflows that type, scan, import, or export it.
-  Date/Author: 2026-06-18 / Operator
+- Decision: Preserve the scoped-identity cleanup result for tents.
+  Rationale: `docs/rules/data-modeling.md` says Dirt-owned objects should not carry parallel text ids merely because they are convenient or readable. `Tent.id` is now the durable internal identity and FK target. `Tent.name` is the human-readable display value. Hosted/cloud boundaries may expose `source_tent_id` for cross-process sync, and temporary legacy bridge fields may exist where explicitly documented, but the browser API refactor must not recreate `/api/tents/{tent_id}` routes or generic tent aliases.
+  Date/Author: 2026-06-19 / Operator and Codex
 
 
 ## Outcomes & Retrospective
@@ -169,18 +169,16 @@ Milestone 4 extracts services and query/projection modules. Move direct SQLAlche
 
 Do not create abstract repository interfaces unless there is more than one implementation. Direct functions or small service classes are acceptable. Route handlers should parse request state, receive dependencies, call a service/query function, and return a Pydantic response. Services may import `dirt_control.models`, `sqlalchemy`, and `AsyncSession`. Browser route modules should not.
 
-Milestone 5 fixes the tent/location identity smell found during the germination dropdown investigation. Do not replace `_stage_for_tent_id()` with explicit stage metadata just to keep the current board abstraction alive. Instead, make the Breeding Logbook speak in tent terms:
+Milestone 5 was completed by the scoped identity cleanup before this structural browser refactor began. The completed boundary is now an input to the remaining work, not an open design question:
 
-- Remove `_stage_for_tent_id()` and all substring-based stage inference.
-- Change breeding logbook board grouping to current tent, not lifecycle stage.
-- Replace browser response fields such as `location_key` and `location_label` with explicit tent and grid fields. Prefer names that reveal the concept at the call site, such as `current_tent_id` or `current_tent_source_id`, `current_tent_name`, and `grid_position`.
-- Rename bootstrap "locations" for this feature to "tents" or "tent options" if the response shape can change cleanly with generated-client/frontend updates.
-- Keep plant lifecycle `stage_key` as a derived plant fact used for badges, filters, and detail panels. Do not use a tent bucket as the source of plant stage truth.
-- Update germinate, clone, and move browser requests and command payloads to target the canonical tent identity chosen by this milestone, not an ambiguous location key.
-- Inspect local `Tent`, cloud `CloudTent`, gateway catalog contracts, command payloads, browser routes, generated OpenAPI, and frontend uses before choosing the final boundary shape.
-- Apply the data-modeling rule to `Tent`: if `tent_id` is only a Dirt-owned readable identifier, retire it in favor of integer `id` at local relationships and a clearly named source id in cloud/browser boundaries. The scoped identity cleanup has already chosen `source_tent_id` for hosted browser route identity, so follow `/api/tents/{source_tent_id}` and do not reintroduce `/api/tents/{tent_id}` compatibility.
+- `_stage_for_tent_id()` and substring-based stage inference are gone.
+- Hosted browser tent routes use `/api/tents/{source_tent_id}/...`, not `/api/tents/{tent_id}/...`.
+- Breeding Logbook browser DTOs expose explicit tent fields such as `current_tent_id`, `current_tent_name`, and `grid_position`, not `location_key` / `location_label`.
+- Frontend route/query keys use `sourceTentId` where the UI needs a hosted source identity.
+- Plant lifecycle `stage_key` remains a plant fact used for badges, filters, and detail panels; it is not derived from tent names.
+- Local `Tent` uses `id`, `name`, semantic fields such as `role`, active/default flags, and FKs. There is no local text `tent_id`.
 
-The intended end state is one durable identity and one human display name: `id` for linkage, `name` for people. Cloud/browser projections may carry a source identity for cross-process sync, but it must be named as such and must not pretend to be a second canonical object identity.
+The remaining browser refactor must preserve those choices while moving code. When route modules, schemas, services, or tests are split out of `browser.py`, carry forward the explicit `source_tent_id` / `current_tent_*` contract and keep temporary cloud command/storage bridge fields named as legacy bridges. Do not introduce compatibility wrappers that revive text tent aliases just to make the refactor easier.
 
 Milestone 6 adds Stage 1 generic invariants for `dirt_control`. Update the invariant app registry so checks can resolve non-standard app source paths such as `dirt_control -> apps/control-plane/src/dirt_control`. Apply generic rules to `dirt_control` with deliberate allowlists for true composition roots and CLI/bootstrap files:
 
@@ -275,7 +273,7 @@ The refactor is accepted only if behavior remains observable through tests and t
 
 For the tent/location identity milestone, acceptance requires tests that fail under the old substring inference and vague location contract. At minimum, create or project tents whose names/ids do not imply lifecycle stage and assert that breeding logbook bootstrap and plant rows expose explicit tent fields, not inferred location stage buckets. Add a contract or frontend mapping test that proves board grouping uses current tent identity/name and that plant lifecycle `stage_key` remains a separate derived plant fact.
 
-If Milestone 5 retires `Tent.tent_id` as a canonical identity, acceptance also requires a migration and API-boundary audit: local FKs should use `Tent.id`, cloud/browser DTOs should name any projected source identity explicitly, and generated OpenAPI/frontend types should no longer expose ambiguous `location_key` / `location_label` fields for Breeding Logbook rows.
+Because Milestone 5 is already complete via the scoped identity cleanup, acceptance for this plan requires the structural refactor to keep those contracts intact: local code should not refer to `Tent.tent_id`; hosted browser routes should remain `{source_tent_id}`-based; cloud/browser DTOs should name projected source identity explicitly; and generated OpenAPI/frontend types should continue to omit ambiguous `location_key` / `location_label` fields for Breeding Logbook rows.
 
 For invariant milestones, acceptance requires a deliberate negative check before finalizing the rule when practical. For example, temporarily add a forbidden `from dirt_control.models import CloudTent` import to a browser route module and confirm the invariant fails with a clear message, then remove the temporary change before committing.
 
@@ -288,7 +286,7 @@ Generated hosted contract files are safe to regenerate with `scripts/gen-hosted-
 
 The invariant milestones are intentionally last. If an invariant fails on existing control-plane code, either finish the refactor that the invariant is meant to protect or narrow the rule to the intended package slice with a documented rationale. Do not add broad allowlists that preserve the smell. Because invariant files are human-owned, update this plan and ask for human approval before changing them.
 
-No production database changes are expected for Milestones 1 through 4. Milestone 5 may require local and cloud schema changes if it retires parallel tent text identity or changes cloud tent projection storage. If so, follow `docs/database.md`, `docs/rules/data-modeling.md`, and `docs/references/atlas/INDEX.md`: edit SQLModel models, run the appropriate local/cloud `atlas migrate diff <name> --env ...`, review the migration, and deploy only through `scripts/deploy-control-plane`.
+No production database changes are expected for the remaining browser API refactor milestones. The schema work that retired parallel local tent text identity lives in `docs/epics/scoped-identity-cleanup/ExecPlan.md` and its migrations. If future browser refactor work unexpectedly requires schema changes, follow `docs/database.md`, `docs/rules/data-modeling.md`, and `docs/references/atlas/INDEX.md`: edit SQLModel models, run the appropriate local/cloud `atlas migrate diff <name> --env ...`, review the migration, and deploy only through `scripts/deploy-control-plane`.
 
 Deployment is retryable through `scripts/deploy-control-plane`. If a deploy fails, fix the code or migration and rerun the same script. Do not use ad hoc Railway commands.
 
@@ -333,7 +331,7 @@ At the end of this plan, these interfaces should exist:
 - `dirt_control.services.browser_metrics`: metric presentation/history query and response projection helpers.
 - `dirt_control.services.browser_plants`: hosted plant list/detail/history query helpers.
 - `dirt_control.services.browser_assets`: browser asset lookup/signing helpers.
-- Breeding Logbook browser contracts that name tent concepts directly, such as current tent identity/name and nullable grid position, instead of generic location key/label fields or stage-by-tent metadata.
+- Breeding Logbook browser contracts that name tent concepts directly, such as `source_tent_id`, `current_tent_id`, `current_tent_name`, and nullable `grid_position`, instead of generic location key/label fields or stage-by-tent metadata.
 - Invariants that include `dirt_control` in the app registry or equivalent source mapping.
 - Import-boundary rules that prevent browser route modules from importing DB/models/SQLAlchemy directly.
 - Browser-specific invariant rules that keep DTOs in schema modules, routes thin, and response models explicit.
@@ -346,3 +344,4 @@ External dependencies already present in the repo include FastAPI, Pydantic, SQL
 - 2026-06-18: Initial ExecPlan created from the browser API architecture review and invariant discussion.
 - 2026-06-18: Updated Milestone 5 after operator review: the Breeding Logbook board should group by current tent, not inferred lifecycle stage; `location_key` / `location_label` should be replaced with explicit tent fields; and `id + tent_id + name` on Dirt-owned tent objects is a data-model cleanup target unless `tent_id` is proven external/domain-owned.
 - 2026-06-19: Recorded scoped-identity cleanup dependency: hosted browser tent routes now use `{source_tent_id}` and source integer identity; future browser API refactor work must not assume text `/api/tents/{tent_id}` paths.
+- 2026-06-19: Reconciled this plan after the scoped-identity cleanup completed. Milestone 5 is now marked complete/absorbed by that cleanup; the remaining browser refactor is structural and must preserve the post-cleanup `source_tent_id`, `current_tent_id`, `current_tent_name`, and `grid_position` contracts.
