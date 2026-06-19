@@ -189,9 +189,9 @@ export function mapBootstrap(
       displayOrder: row.display_order,
     })),
     locations: response.locations.map((row) => ({
-      key: row.key,
+      sourceTentId: row.source_tent_id,
       displayName: row.display_name,
-      stageKey: row.stage_key,
+      role: row.role,
     })),
   };
 }
@@ -268,8 +268,9 @@ function mapPlantRow(
     vegStartedOn: plant.veg_started_on,
     flowerStartedOn: plant.flower_started_on,
     culledOn: plant.culled_on,
-    locationKey: plant.location_key,
-    locationLabel: plant.location_label,
+    currentTentId: plant.current_tent_id,
+    currentTentName: plant.current_tent_name,
+    gridPosition: plant.grid_position,
     seedLotLabel: plant.seed_lot_label,
     lastNote: plant.last_note,
     telemetrySummary: plant.telemetry_summary,

@@ -32,12 +32,11 @@ from dirt_hwd.services.kasa_inventory import (
 from dirt_hwd.services.thermoforge_ble import ThermoForgeTarget
 from dirt_hwd.services.thermoforge_protocol import ThermoForgeStatus
 from dirt_shared.config import HumidifierConfig, ScheduledKasaConfig
-from dirt_shared.models import Capability, Site, Tent, Zone
+from dirt_shared.models import Capability
 from dirt_shared.models import Device as DbDevice
 from dirt_shared.models.enums import SensorSource
 from dirt_shared.services.fan_node import FanNodeClient, FanState
 from dirt_shared.services.govee import WORKMODE_MANUAL, DeviceInfo, StateSnapshot
-from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID
 
 DEFAULT_DEHUMIDIFIER_DEVICE_ID = "kasa-dehumidifier-main"
 DEHUMIDIFIER_METRIC = "dehumidifier_on"
@@ -110,9 +109,6 @@ class H7142HumidifierActuator:
         dispatch_config: DispatchConfig | None = None,
         dispatch_state: DispatchState | None = None,
         readings: ClimateReadingsRecorder | None = None,
-        site_id: str = DEFAULT_SITE_ID,
-        tent_id: str = DEFAULT_TENT_ID,
-        zone_id: str = "canopy",
         device_id: str = DEFAULT_HUMIDIFIER_DEVICE_ID,
         interleave_s: float = H7142_BOOT_TICK_INTERLEAVE_S,
     ) -> None:
@@ -124,9 +120,6 @@ class H7142HumidifierActuator:
         )
         self._dispatch_state = dispatch_state or DispatchState()
         self._readings = readings
-        self._site_id = site_id
-        self._tent_id = tent_id
-        self._zone_id = zone_id
         self._device_id = device_id
         self._interleave_s = interleave_s
 
@@ -188,18 +181,15 @@ class H7142HumidifierActuator:
                 "humidifier_intensity_pct": intensity_pct,
             },
             source=SensorSource.GOVEE,
-            site_id=self._site_id,
-            tent_id=self._tent_id,
-            zone_id=self._zone_id,
             device_id=self._device_id,
         )
 
 
 @dataclass(frozen=True, slots=True)
 class ClimateKasaPlugTarget:
-    site_id: str
-    tent_id: str
-    zone_id: str | None
+    source_site_id: int
+    source_tent_id: int | None
+    source_zone_id: int | None
     device_id: str
     capability_id: str
     host: str | None
@@ -266,9 +256,6 @@ class KasaDehumidifierActuator:
                 {DEHUMIDIFIER_METRIC: 1.0 if on else 0.0},
                 device_id=target.device_id,
                 source=SensorSource.KASA,
-                site_id=target.site_id,
-                tent_id=target.tent_id,
-                zone_id=target.zone_id,
                 capability_id=target.capability_id,
             )
             return on
@@ -319,18 +306,15 @@ async def load_dehumidifier_target(
         row = (
             await session.exec(
                 select(
-                    Site.site_id,
-                    Tent.tent_id,
-                    Zone.zone_id,
+                    DbDevice.site_id,
+                    DbDevice.tent_id,
+                    DbDevice.zone_id,
                     DbDevice.device_id,
                     DbDevice.ip,
                     DbDevice.provider_uid,
                     Capability.capability_id,
                 )
                 .select_from(DbDevice)
-                .join(Site, Site.id == DbDevice.site_id)
-                .join(Tent, Tent.id == DbDevice.tent_id)
-                .outerjoin(Zone, Zone.id == DbDevice.zone_id)
                 .join(Capability, Capability.device_id == DbDevice.id)
                 .where(DbDevice.device_id == device_id)
                 .where(DbDevice.enabled.is_(True))
@@ -349,9 +333,9 @@ async def load_dehumidifier_target(
     if provider_uid is None:
         return None
     return ClimateKasaPlugTarget(
-        site_id=site_id,
-        tent_id=tent_id,
-        zone_id=zone_id,
+        source_site_id=site_id,
+        source_tent_id=tent_id,
+        source_zone_id=zone_id,
         device_id=public_device_id,
         capability_id=capability_id,
         host=str(host) if host is not None else None,
@@ -361,9 +345,9 @@ async def load_dehumidifier_target(
 
 @dataclass(frozen=True, slots=True)
 class ThermoForgeActuatorDevice:
-    site_id: str
-    tent_id: str
-    zone_id: str | None
+    source_site_id: int
+    source_tent_id: int | None
+    source_zone_id: int | None
     device_id: str
     capability_id: str
     provider_uid: str
@@ -443,9 +427,6 @@ class ThermoForgeHeaterActuator:
             },
             device_id=self._device.device_id,
             source=SensorSource.AC_INFINITY,
-            site_id=self._device.site_id,
-            tent_id=self._device.tent_id,
-            zone_id=self._device.zone_id,
             capability_id=self._device.capability_id,
         )
 
@@ -459,17 +440,14 @@ async def load_thermoforge_actuator_device(
         row = (
             await session.exec(
                 select(
-                    Site.site_id,
-                    Tent.tent_id,
-                    Zone.zone_id,
+                    DbDevice.site_id,
+                    DbDevice.tent_id,
+                    DbDevice.zone_id,
                     DbDevice.device_id,
                     DbDevice.provider_uid,
                     Capability.capability_id,
                 )
                 .select_from(DbDevice)
-                .join(Site, Site.id == DbDevice.site_id)
-                .join(Tent, Tent.id == DbDevice.tent_id)
-                .outerjoin(Zone, Zone.id == DbDevice.zone_id)
                 .join(Capability, Capability.device_id == DbDevice.id)
                 .where(DbDevice.device_id == device_id)
                 .where(DbDevice.enabled.is_(True))
@@ -488,9 +466,9 @@ async def load_thermoforge_actuator_device(
     if provider_uid is None:
         return None
     return ThermoForgeActuatorDevice(
-        site_id=site_id,
-        tent_id=tent_id,
-        zone_id=zone_id,
+        source_site_id=site_id,
+        source_tent_id=tent_id,
+        source_zone_id=zone_id,
         device_id=public_device_id,
         capability_id=capability_id,
         provider_uid=provider_uid,

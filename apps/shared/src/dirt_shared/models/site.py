@@ -36,7 +36,6 @@ class Site(SQLModel, table=True):
         default=None,
         sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
     )
-    site_id: str = Field(sa_column=Column(Text, nullable=False, unique=True))
     name: str = Field(sa_column=Column(Text, nullable=False))
     location: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
     timezone: str = Field(

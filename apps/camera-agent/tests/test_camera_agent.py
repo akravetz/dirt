@@ -114,7 +114,10 @@ class FakePolicyClient:
     async def capture_policy(self, camera_device_id: str) -> CapturePolicyResponse:
         return CapturePolicyResponse(
             site_id="homebox",
+            source_site_id=1,
+            source_tent_id=2,
             tent_id="breeding",
+            tent_name="Breeding Tent",
             camera_device_id=camera_device_id,
             enabled=True,
             require_lights_on=False,
@@ -128,8 +131,6 @@ class FakePolicyClient:
 
 def _settings(tmp_path: Path, **overrides: Any) -> CameraAgentSettings:
     values = {
-        "site_id": "homebox",
-        "tent_id": "breeding",
         "camera_device_id": "obsbot-breeding",
         "camera_view_id": "canopy",
         "camera_kind": "periodic",
@@ -147,8 +148,6 @@ def test_config_defaults_spool_under_data_dir_and_uses_scoped_env(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("DIRT_SITE_ID", "homebox")
-    monkeypatch.setenv("DIRT_TENT_ID", "breeding")
     monkeypatch.setenv("DIRT_CAMERA_DEVICE_ID", "obsbot-breeding")
     monkeypatch.setenv("DIRT_DATA_DIR", str(tmp_path / "var"))
     monkeypatch.setenv("DIRT_CAMERA_CAPTURE_INTERVAL_S", "42.5")
@@ -159,11 +158,11 @@ def test_config_defaults_spool_under_data_dir_and_uses_scoped_env(
     settings = CameraAgentSettings()
 
     assert settings.source == "obsbot-daemon"
-    assert settings.site_id == "homebox"
-    assert settings.tent_id == "breeding"
     assert settings.camera_device_id == "obsbot-breeding"
     assert settings.capture_interval_s == 42.5
-    assert settings.spool_dir == tmp_path / "var/camera-agent/breeding/snapshots"
+    assert settings.spool_dir == (
+        tmp_path / "var/camera-agent/obsbot-breeding/snapshots"
+    )
     assert settings.cloud_gateway_id == "gateway-dirt2-camera"
 
 
@@ -195,10 +194,12 @@ async def test_single_capture_spools_and_uploads_breeding_payload(
     result = await service.run_once()
 
     digest = hashlib.sha256(JPEG_BYTES).hexdigest()
-    expected_object_key = "homebox/breeding/snapshots/snapshot_20260511_123045.jpg"
+    expected_object_key = (
+        "cameras/obsbot-breeding/snapshots/2026/05/snapshot_20260511_123045.jpg"
+    )
     assert result.artifact.path.read_bytes() == JPEG_BYTES
     assert result.payload.file_path == result.artifact.path
-    assert result.idempotency_key == f"homebox:breeding:obsbot-breeding:{digest}"
+    assert result.idempotency_key == f"camera:obsbot-breeding:{digest}"
     assert client.calls == [
         ("sign", f"{result.idempotency_key}:sign"),
         ("upload", ""),
@@ -207,7 +208,7 @@ async def test_single_capture_spools_and_uploads_breeding_payload(
     assert client.sign_requests == [
         AssetSignUploadRequest(
             site_id="homebox",
-            tent_id="breeding",
+            source_tent_id=None,
             content_type="image/jpeg",
             byte_size=len(JPEG_BYTES),
             object_key=expected_object_key,
@@ -220,13 +221,34 @@ async def test_single_capture_spools_and_uploads_breeding_payload(
         AssetCompleteRequest(
             **client.sign_requests[0].model_dump(),
             captured_at=FIXED_NOW,
-            zone_id="canopy",
+            source_zone_id=None,
             device_id="obsbot-breeding",
         )
     ]
 
 
-def test_payload_builder_uses_homebox_breeding_scope(tmp_path: Path) -> None:
+async def test_capture_upload_uses_source_tent_from_hosted_policy(
+    tmp_path: Path,
+) -> None:
+    settings = _settings(tmp_path, spool_dir=tmp_path / "spool")
+    client = RecordingAssetClient()
+    service = CameraAgentService(
+        settings=settings,
+        source=FakeCameraSource(CapturedFrame(JPEG_BYTES, FIXED_NOW)),
+        spool=SnapshotSpool(settings.spool_dir),
+        uploader=AssetUploader(client),
+        capture_gate=build_capture_gate(settings, policy_client=FakePolicyClient()),
+    )
+
+    result = await service.run_once()
+
+    assert result is not None
+    assert client.sign_requests[0].source_tent_id == 2
+    assert client.sign_requests[0].tent_id is None
+    assert client.complete_requests[0].source_tent_id == 2
+
+
+def test_payload_builder_uses_camera_device_identity(tmp_path: Path) -> None:
     settings = _settings(tmp_path)
     artifact = SnapshotSpool(tmp_path).write_sync(CapturedFrame(JPEG_BYTES, FIXED_NOW))
 
@@ -235,13 +257,14 @@ def test_payload_builder_uses_homebox_breeding_scope(tmp_path: Path) -> None:
 
     digest = hashlib.sha256(JPEG_BYTES).hexdigest()
     assert payload.sign_request.site_id == "homebox"
-    assert payload.sign_request.tent_id == "breeding"
+    assert payload.sign_request.source_tent_id is None
+    assert payload.sign_request.tent_id is None
     assert payload.sign_request.object_key.endswith(
-        "/breeding/snapshots/snapshot_20260511_123045.jpg"
+        "/obsbot-breeding/snapshots/2026/05/snapshot_20260511_123045.jpg"
     )
     assert payload.sign_request.asset_id == digest
     assert payload.complete_request.device_id == "obsbot-breeding"
-    assert idempotency_key == f"homebox:breeding:obsbot-breeding:{digest}"
+    assert idempotency_key == f"camera:obsbot-breeding:{digest}"
 
 
 async def test_upload_failure_is_reported_and_leaves_spool_file(
@@ -267,9 +290,11 @@ async def test_upload_failure_is_reported_and_leaves_spool_file(
     assert client.failure_requests == [
         AssetFailureRequest(
             site_id="homebox",
-            tent_id="breeding",
+            source_tent_id=None,
             asset_id=digest,
-            object_key="homebox/breeding/snapshots/snapshot_20260511_123045.jpg",
+            object_key=(
+                "cameras/obsbot-breeding/snapshots/2026/05/snapshot_20260511_123045.jpg"
+            ),
             stage="upload_or_complete",
             error="asset byte upload failed",
         )

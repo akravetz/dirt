@@ -4,7 +4,7 @@ type: grow
 sources: []
 related: [wiki/overview.md, wiki/breeding/README.md, wiki/daily/2026-06-10.md, wiki/environment/nutrients.md]
 created: 2026-05-30
-updated: 2026-06-14
+updated: 2026-06-19
 ---
 
 # Main Grow 2026-03-15
@@ -15,8 +15,8 @@ updated: 2026-06-14
 |---|---|
 | Wiki folder | `wiki/grows/main-2026-03-15/` |
 | Folder role | Historical/documentation organization; not database identity |
-| `site.site_id` | `homebox` |
-| `tent.tent_id` | `main` |
+| Site | `site.id = 1`, `site.name = Homebox` |
+| Tent | `tent.id = 1`, `tent.name = Main Tent`, `tent.role = flower` |
 | Current occupancy source | `plant_location_history.end_at IS NULL` |
 | Current lifecycle source | `plant.germinated_at`, `plant.flower_started_at` |
 | Line | Sirius Black x BS01 / SBxBS01 regular |

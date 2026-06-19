@@ -16,10 +16,11 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.device import Device
-from dirt_shared.models.site import Site
 from dirt_shared.models.tent import Tent
 from dirt_shared.models.zone import Zone
-from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID
+from dirt_shared.services.scope import (
+    require_default_site_pk,
+)
 
 DeviceKind = Literal["env_sensor", "moisture_node", "camera", "voice", "actuator"]
 DeviceStatus_t = Literal["ok", "warn", "offline", "listening"]
@@ -42,9 +43,9 @@ class DeviceStatus:
     last_seen: datetime | None
     note: str | None = None
     device_id: str | None = None
-    site_id: str = DEFAULT_SITE_ID
-    tent_id: str | None = DEFAULT_TENT_ID
-    zone_id: str | None = None
+    source_site_id: int | None = None
+    source_tent_id: int | None = None
+    source_zone_id: int | None = None
     wifi: WifiTelemetry | None = None
 
 
@@ -79,9 +80,9 @@ class _ScopedDevice:
     device_id: str
     name: str
     kind: DeviceKind
-    site_id: str
-    tent_id: str | None
-    zone_id: str | None
+    source_site_id: int
+    source_tent_id: int | None
+    source_zone_id: int | None
     last_seen: datetime | None
     wifi: WifiTelemetry | None
 
@@ -229,19 +230,19 @@ class SystemStatusService:
         return out
 
     async def _status_devices(self, session: AsyncSession) -> list[_ScopedDevice]:
+        site_pk = await require_default_site_pk(session)
         rows = (
             await session.exec(
-                select(Device, Site.site_id, Tent.tent_id, Zone.zone_id)
-                .join(Site, Site.id == Device.site_id)
+                select(Device, Tent.id, Zone.id)
                 .outerjoin(Tent, Tent.id == Device.tent_id)
                 .outerjoin(Zone, Zone.id == Device.zone_id)
-                .where(Site.site_id == DEFAULT_SITE_ID)
+                .where(Device.site_id == site_pk)
                 .where(Device.device_id.in_(_STATUS_DEVICE_ORDER))
                 .where(Device.enabled.is_(True))
             )
         ).all()
         by_id = {}
-        for device, site_id, tent_id, zone_id in rows:
+        for device, tent_id, zone_id in rows:
             kind = _DEVICE_KIND_MAP.get(device.kind)
             if kind is None:
                 continue
@@ -249,9 +250,9 @@ class SystemStatusService:
                 device_id=device.device_id,
                 name=device.name,
                 kind=kind,
-                site_id=site_id,
-                tent_id=tent_id,
-                zone_id=zone_id,
+                source_site_id=device.site_id,
+                source_tent_id=tent_id,
+                source_zone_id=zone_id,
                 last_seen=device.last_seen,
                 wifi=_wifi_telemetry(device),
             )
@@ -270,9 +271,9 @@ class SystemStatusService:
             status=_status_from_age(now, device.last_seen, device.kind),
             last_seen=device.last_seen,
             device_id=device.device_id,
-            site_id=device.site_id,
-            tent_id=device.tent_id,
-            zone_id=device.zone_id,
+            source_site_id=device.source_site_id,
+            source_tent_id=device.source_tent_id,
+            source_zone_id=device.source_zone_id,
             wifi=device.wifi,
         )
 
@@ -289,9 +290,9 @@ class SystemStatusService:
                 last_seen=None,
                 note="daemon unreachable",
                 device_id=device.device_id,
-                site_id=device.site_id,
-                tent_id=device.tent_id,
-                zone_id=device.zone_id,
+                source_site_id=device.source_site_id,
+                source_tent_id=device.source_tent_id,
+                source_zone_id=device.source_zone_id,
             )
         if resp.get("_status") != "ok":
             return DeviceStatus(
@@ -301,9 +302,9 @@ class SystemStatusService:
                 last_seen=None,
                 note=resp.get("msg") or str(resp.get("_status")),
                 device_id=device.device_id,
-                site_id=device.site_id,
-                tent_id=device.tent_id,
-                zone_id=device.zone_id,
+                source_site_id=device.source_site_id,
+                source_tent_id=device.source_tent_id,
+                source_zone_id=device.source_zone_id,
             )
         connected = resp.get("camera_connected", False)
         return DeviceStatus(
@@ -313,9 +314,9 @@ class SystemStatusService:
             last_seen=now,
             note=None if connected else "camera reported disconnected",
             device_id=device.device_id,
-            site_id=device.site_id,
-            tent_id=device.tent_id,
-            zone_id=device.zone_id,
+            source_site_id=device.source_site_id,
+            source_tent_id=device.source_tent_id,
+            source_zone_id=device.source_zone_id,
         )
 
     def _voice_status(self, now: datetime, device: _ScopedDevice) -> DeviceStatus:
@@ -328,9 +329,9 @@ class SystemStatusService:
                 status="listening",
                 last_seen=now,
                 device_id=device.device_id,
-                site_id=device.site_id,
-                tent_id=device.tent_id,
-                zone_id=device.zone_id,
+                source_site_id=device.source_site_id,
+                source_tent_id=device.source_tent_id,
+                source_zone_id=device.source_zone_id,
             )
         return DeviceStatus(
             name=device.name,
@@ -338,7 +339,7 @@ class SystemStatusService:
             status="offline",
             last_seen=None,
             device_id=device.device_id,
-            site_id=device.site_id,
-            tent_id=device.tent_id,
-            zone_id=device.zone_id,
+            source_site_id=device.source_site_id,
+            source_tent_id=device.source_tent_id,
+            source_zone_id=device.source_zone_id,
         )

@@ -49,8 +49,8 @@ from dirt_shared.models import (
     PlantLocationHistory,
     PlantMetricStream,
     PlantNote,
+    Schedule,
     SeedLot,
-    Site,
     Snapshot,
     Tent,
     Zone,
@@ -60,6 +60,7 @@ from dirt_shared.services.readings import (
     PRODUCT_PLANT_MOISTURE_METRIC,
     get_latest_product_plant_moisture_readings,
 )
+from dirt_shared.services.scope import require_default_site, require_default_site_pk
 from dirt_shared.services.scope_catalog import ScopeCatalogService
 from dirt_shared.services.snapshots import SnapshotsService, get_snapshot_path
 
@@ -90,97 +91,68 @@ class GatewayLocalServiceBundle:
         self._snapshots = SnapshotsService(engine)
 
     async def collect_catalog(self, site_id: str) -> CatalogRequest:
-        sites = [
-            site for site in await self._catalog.list_sites() if site.site_id == site_id
-        ]
-        if not sites:
+        async with AsyncSession(self._engine) as session:
+            site = await require_default_site(session)
+            site_pk = site.id
+        if site_pk is None:
             return CatalogRequest(
+                site_id=site_id,
                 site=CatalogSite(
-                    site_id=site_id,
+                    source_site_id=0,
                     name=site_id,
                     timezone="America/Denver",
-                )
+                ),
             )
-        site = sites[0]
-        tents = await self._catalog.list_tents(site_id=site_id)
-        devices = []
-        for tent in tents:
-            tent_devices = await self._catalog.list_tent_devices(
-                site_id=site_id, tent_id=tent.tent_id
-            )
-            devices.extend(tent_devices or [])
+        tents = await self._catalog.list_tents(site_pk=site_pk)
 
         return CatalogRequest(
+            site_id=site_id,
             site=CatalogSite(
-                site_id=site.site_id,
+                source_site_id=site_pk,
                 name=site.name,
                 timezone=site.timezone,
             ),
             tents=[
                 CatalogTent(
-                    tent_id=tent.tent_id,
+                    source_tent_id=tent.tent_pk,
                     name=tent.name,
+                    role=tent.role,
+                    legacy_tent_id=str(tent.tent_pk),
                     is_active=tent.active,
                 )
                 for tent in tents
             ],
-            zones=await self._collect_zones(site_id),
-            devices=[
-                CatalogDevice(
-                    tent_id=device.tent_id,
-                    zone_id=device.zone_id,
-                    device_id=device.device_id,
-                    name=device.name,
-                    kind=device.kind,
-                    controller=device.controller,
-                    is_active=device.enabled,
-                    last_seen_at=device.last_seen,
-                )
-                for device in devices
-                if device.tent_id is not None
-            ],
-            capabilities=await self._collect_capabilities(site_id),
-            schedules=[
-                CatalogSchedule(
-                    site_id=schedule.site_id,
-                    tent_id=schedule.tent_id,
-                    zone_id=schedule.zone_id,
-                    device_id=schedule.device_id,
-                    capability_id=schedule.capability_id,
-                    schedule_id=schedule.schedule_id,
-                    kind=schedule.kind,
-                    starts_local=schedule.starts_local,
-                    ends_local=schedule.ends_local,
-                    timezone=schedule.timezone,
-                    is_enabled=schedule.enabled,
-                )
-                for schedule in await self._light_schedules.list_light_schedules(
-                    site_id=site_id
-                )
-            ],
-            plant_lines=await self._collect_plant_lines(site_id),
-            seed_lots=await self._collect_seed_lots(site_id),
-            plants=await self._collect_plants(site_id),
-            plant_locations=await self._collect_plant_locations(site_id),
-            cross_events=await self._collect_cross_events(site_id),
-            plant_notes=await self._collect_plant_notes(site_id),
-            plant_events=await self._collect_plant_events(site_id),
-            plant_metric_streams=await self._collect_plant_metric_streams(site_id),
+            zones=await self._collect_zones(site_pk=site_pk),
+            devices=await self._collect_devices(site_pk=site_pk),
+            capabilities=await self._collect_capabilities(site_pk=site_pk),
+            schedules=await self._collect_schedules(site_pk=site_pk),
+            plant_lines=await self._collect_plant_lines(),
+            seed_lots=await self._collect_seed_lots(),
+            plants=await self._collect_plants(site_pk=site_pk),
+            plant_locations=await self._collect_plant_locations(site_pk=site_pk),
+            cross_events=await self._collect_cross_events(),
+            plant_notes=await self._collect_plant_notes(site_pk=site_pk),
+            plant_events=await self._collect_plant_events(site_pk=site_pk),
+            plant_metric_streams=await self._collect_plant_metric_streams(
+                site_pk=site_pk
+            ),
         )
 
     async def collect_latest_metrics(self, site_id: str) -> LatestMetricsRequest:
         metrics: list[LatestMetricItem] = []
         async with AsyncSession(self._engine) as session:
+            site_pk = await require_default_site_pk(session)
             result = await session.exec(
                 text(_latest_metrics_sql()),
-                params={"site_id": site_id},
+                params={"site_pk": site_pk},
             )
             for row in result.mappings().all():
                 metrics.append(
                     LatestMetricItem(
                         site_id=site_id,
-                        tent_id=row["tent_id"],
-                        zone_id=row["zone_id"],
+                        source_site_id=site_pk,
+                        source_tent_id=row["source_tent_id"],
+                        source_zone_id=row["source_zone_id"],
                         device_id=row["device_id"],
                         capability_id=row["capability_id"],
                         metric=row["metric"],
@@ -193,14 +165,15 @@ class GatewayLocalServiceBundle:
             for reading in await get_latest_product_plant_moisture_readings(
                 session,
                 now=self._clock(),
-                site_id=site_id,
-                tent_id=None,
+                site_pk=site_pk,
+                use_default_tent=False,
             ):
                 metrics.append(
                     LatestMetricItem(
                         site_id=site_id,
-                        tent_id=reading.tent_id,
-                        zone_id=reading.zone_id,
+                        source_site_id=site_pk,
+                        source_tent_id=reading.source_tent_id,
+                        source_zone_id=reading.source_zone_id,
                         device_id=reading.device_id,
                         capability_id=reading.capability_id,
                         metric=PRODUCT_PLANT_MOISTURE_METRIC,
@@ -218,6 +191,7 @@ class GatewayLocalServiceBundle:
         now = self._clock()
         rollups: list[RollupItem] = []
         async with AsyncSession(self._engine) as session:
+            site_pk = await require_default_site_pk(session)
             for bucket, window, bucket_s in ROLLUP_SPECS:
                 if bucket_names is not None and bucket not in bucket_names:
                     continue
@@ -225,6 +199,7 @@ class GatewayLocalServiceBundle:
                     await collect_canonical_history_rollups(
                         session,
                         site_id=site_id,
+                        site_pk=site_pk,
                         since=now - window,
                         bucket=bucket,
                         bucket_s=bucket_s,
@@ -234,6 +209,7 @@ class GatewayLocalServiceBundle:
                     await collect_dehumidifier_runtime_rollups(
                         session,
                         site_id=site_id,
+                        site_pk=site_pk,
                         since=now - window,
                         bucket=bucket,
                         bucket_s=bucket_s,
@@ -256,11 +232,13 @@ class GatewayLocalServiceBundle:
         )
 
     async def latest_snapshot_asset(self, site_id: str) -> AssetUploadProjection | None:
-        tents = await self._catalog.list_tents(site_id=site_id)
-        for tent in sorted(tents, key=lambda item: (not item.is_default, item.tent_id)):
+        async with AsyncSession(self._engine) as session:
+            site_pk = await require_default_site_pk(session)
+        tents = await self._catalog.list_tents(site_pk=site_pk)
+        for tent in sorted(tents, key=lambda item: (not item.is_default, item.name)):
             snapshot = await self._snapshots.latest(
-                site_id=site_id,
-                tent_id=tent.tent_id,
+                site_pk=site_pk,
+                tent_pk=tent.tent_pk,
             )
             if snapshot is None:
                 continue
@@ -268,10 +246,11 @@ class GatewayLocalServiceBundle:
             if path is None:
                 continue
             digest = _file_sha256(path)
-            object_key = f"{site_id}/{tent.tent_id}/snapshots/{path.name}"
+            object_key = f"tents/{tent.tent_pk}/snapshots/{path.name}"
             sign_request = AssetSignUploadRequest(
                 site_id=site_id,
-                tent_id=tent.tent_id,
+                source_tent_id=tent.tent_pk,
+                tent_id=str(tent.tent_pk),
                 content_type="image/jpeg",
                 byte_size=path.stat().st_size,
                 object_key=object_key,
@@ -282,6 +261,7 @@ class GatewayLocalServiceBundle:
             complete_request = AssetCompleteRequest(
                 **sign_request.model_dump(),
                 captured_at=_as_utc(snapshot.ts),
+                source_zone_id=snapshot.zone_id,
                 zone_id=await self._public_zone_id(snapshot),
                 device_id=await self._public_device_id(snapshot),
             )
@@ -292,43 +272,69 @@ class GatewayLocalServiceBundle:
             )
         return None
 
-    async def _collect_zones(self, site_id: str) -> list[CatalogZone]:
+    async def _collect_zones(self, *, site_pk: int) -> list[CatalogZone]:
         async with AsyncSession(self._engine) as session:
             rows = (
                 await session.exec(
-                    select(Zone, Tent.tent_id)
-                    .join(Site, Site.id == Zone.site_id)
+                    select(Zone, Tent.id)
                     .join(Tent, Tent.id == Zone.tent_id)
-                    .where(Site.site_id == site_id)
-                    .order_by(Tent.tent_id, Zone.zone_id)
+                    .where(Zone.site_id == site_pk)
+                    .order_by(Tent.name, Zone.name)
                 )
             ).all()
         return [
             CatalogZone(
-                tent_id=tent_id,
-                zone_id=zone.zone_id,
+                source_tent_id=source_tent_id,
+                source_zone_id=zone.id,
                 name=zone.name,
                 kind=zone.zone_type,
+                legacy_zone_id=str(zone.id),
                 is_active=zone.active,
             )
-            for zone, tent_id in rows
+            for zone, source_tent_id in rows
+            if zone.id is not None and source_tent_id is not None
         ]
 
-    async def _collect_capabilities(self, site_id: str) -> list[CatalogCapability]:
+    async def _collect_devices(self, *, site_pk: int) -> list[CatalogDevice]:
         async with AsyncSession(self._engine) as session:
             rows = (
                 await session.exec(
-                    select(Capability, Device.device_id, Tent.tent_id)
-                    .join(Device, Device.id == Capability.device_id)
-                    .join(Site, Site.id == Device.site_id)
+                    select(Device, Tent.id, Zone.id)
                     .outerjoin(Tent, Tent.id == Device.tent_id)
-                    .where(Site.site_id == site_id)
-                    .order_by(Tent.tent_id, Device.device_id, Capability.capability_id)
+                    .outerjoin(Zone, Zone.id == Device.zone_id)
+                    .where(Device.site_id == site_pk)
+                    .order_by(Tent.name, Device.device_id)
+                )
+            ).all()
+        return [
+            CatalogDevice(
+                source_tent_id=source_tent_id,
+                source_zone_id=source_zone_id,
+                device_id=device.device_id,
+                name=device.name,
+                kind=device.kind,
+                controller=device.controller,
+                is_active=device.enabled,
+                last_seen_at=device.last_seen,
+            )
+            for device, source_tent_id, source_zone_id in rows
+            if source_tent_id is not None
+        ]
+
+    async def _collect_capabilities(self, *, site_pk: int) -> list[CatalogCapability]:
+        async with AsyncSession(self._engine) as session:
+            rows = (
+                await session.exec(
+                    select(Capability, Device.device_id, Tent.id)
+                    .join(Device, Device.id == Capability.device_id)
+                    .outerjoin(Tent, Tent.id == Device.tent_id)
+                    .where(Device.site_id == site_pk)
+                    .order_by(Tent.name, Device.device_id, Capability.capability_id)
                 )
             ).all()
         return [
             CatalogCapability(
-                tent_id=tent_id,
+                source_tent_id=source_tent_id,
                 device_id=device_id,
                 capability_id=capability.capability_id,
                 metric_name=capability.metric_name,
@@ -336,12 +342,53 @@ class GatewayLocalServiceBundle:
                 unit=capability.unit,
                 is_enabled=capability.enabled,
             )
-            for capability, device_id, tent_id in rows
-            if tent_id is not None
+            for capability, device_id, source_tent_id in rows
+            if source_tent_id is not None
         ]
 
-    async def _collect_plant_lines(self, site_id: str) -> list[CatalogPlantLine]:
-        del site_id
+    async def _collect_schedules(self, *, site_pk: int) -> list[CatalogSchedule]:
+        async with AsyncSession(self._engine) as session:
+            rows = (
+                await session.exec(
+                    select(
+                        Schedule,
+                        Device.device_id,
+                        Device.zone_id,
+                        Capability.capability_id,
+                    )
+                    .outerjoin(Device, Device.id == Schedule.device_id)
+                    .outerjoin(Capability, Capability.id == Schedule.capability_id)
+                    .where(Schedule.site_id == site_pk)
+                    .where(Schedule.kind == "lights")
+                    .where(col(Schedule.starts_local).is_not(None))
+                    .where(col(Schedule.ends_local).is_not(None))
+                    .order_by(Schedule.tent_id, Schedule.id)
+                )
+            ).all()
+        return [
+            CatalogSchedule(
+                source_site_id=schedule.site_id,
+                source_tent_id=schedule.tent_id,
+                source_zone_id=source_zone_id,
+                source_schedule_id=schedule.id,
+                device_id=device_id,
+                capability_id=capability_id,
+                legacy_schedule_id=str(schedule.id),
+                kind=schedule.kind,
+                starts_local=schedule.starts_local,
+                ends_local=schedule.ends_local,
+                timezone=schedule.timezone,
+                is_enabled=schedule.enabled,
+            )
+            for schedule, device_id, source_zone_id, capability_id in rows
+            if (
+                schedule.id is not None
+                and schedule.starts_local is not None
+                and schedule.ends_local is not None
+            )
+        ]
+
+    async def _collect_plant_lines(self) -> list[CatalogPlantLine]:
         async with AsyncSession(self._engine) as session:
             rows = (
                 await session.exec(
@@ -364,8 +411,7 @@ class GatewayLocalServiceBundle:
             if line.id is not None
         ]
 
-    async def _collect_seed_lots(self, site_id: str) -> list[CatalogSeedLot]:
-        del site_id
+    async def _collect_seed_lots(self) -> list[CatalogSeedLot]:
         async with AsyncSession(self._engine) as session:
             rows = (
                 await session.exec(select(SeedLot).distinct().order_by(SeedLot.id))
@@ -386,12 +432,10 @@ class GatewayLocalServiceBundle:
             if seed_lot.id is not None
         ]
 
-    async def _collect_plants(self, site_id: str) -> list[CatalogPlant]:
+    async def _collect_plants(self, *, site_pk: int) -> list[CatalogPlant]:
         async with AsyncSession(self._engine) as session:
-            site_plant_ids = (
-                select(PlantLocationHistory.plant_id)
-                .join(Site, Site.id == PlantLocationHistory.site_id)
-                .where(Site.site_id == site_id)
+            site_plant_ids = select(PlantLocationHistory.plant_id).where(
+                PlantLocationHistory.site_id == site_pk
             )
             rows = (
                 await session.exec(
@@ -425,18 +469,17 @@ class GatewayLocalServiceBundle:
         ]
 
     async def _collect_plant_locations(
-        self, site_id: str
+        self, *, site_pk: int
     ) -> list[CatalogPlantLocation]:
         async with AsyncSession(self._engine) as session:
             rows = (
                 await session.exec(
-                    select(PlantLocationHistory, Plant, Tent.tent_id)
+                    select(PlantLocationHistory, Plant, Tent.id)
                     .join(Plant, Plant.id == PlantLocationHistory.plant_id)
-                    .join(Site, Site.id == PlantLocationHistory.site_id)
                     .join(Tent, Tent.id == PlantLocationHistory.tent_id)
-                    .where(Site.site_id == site_id)
+                    .where(PlantLocationHistory.site_id == site_pk)
                     .order_by(
-                        Tent.tent_id,
+                        Tent.name,
                         PlantLocationHistory.grid_position,
                         PlantLocationHistory.start_at,
                         Plant.key,
@@ -447,17 +490,16 @@ class GatewayLocalServiceBundle:
             CatalogPlantLocation(
                 source_location_id=location.id,
                 source_plant_id=plant.id,
-                tent_id=tent_id,
+                source_tent_id=source_tent_id,
                 grid_position=location.grid_position,
                 start_at=location.start_at,
                 end_at=location.end_at,
             )
-            for location, plant, tent_id in rows
+            for location, plant, source_tent_id in rows
             if location.id is not None and plant.id is not None
         ]
 
-    async def _collect_cross_events(self, site_id: str) -> list[CatalogCrossEvent]:
-        del site_id
+    async def _collect_cross_events(self) -> list[CatalogCrossEvent]:
         async with AsyncSession(self._engine) as session:
             rows = (
                 await session.exec(
@@ -478,7 +520,7 @@ class GatewayLocalServiceBundle:
             if cross_event.id is not None
         ]
 
-    async def _collect_plant_notes(self, site_id: str) -> list[CatalogPlantNote]:
+    async def _collect_plant_notes(self, *, site_pk: int) -> list[CatalogPlantNote]:
         async with AsyncSession(self._engine) as session:
             rows = (
                 await session.exec(
@@ -488,8 +530,7 @@ class GatewayLocalServiceBundle:
                         PlantLocationHistory,
                         PlantLocationHistory.plant_id == Plant.id,
                     )
-                    .join(Site, Site.id == PlantLocationHistory.site_id)
-                    .where(Site.site_id == site_id)
+                    .where(PlantLocationHistory.site_id == site_pk)
                     .distinct()
                     .order_by(PlantNote.observed_at, PlantNote.id)
                 )
@@ -506,7 +547,7 @@ class GatewayLocalServiceBundle:
             if note.id is not None
         ]
 
-    async def _collect_plant_events(self, site_id: str) -> list[CatalogPlantEvent]:
+    async def _collect_plant_events(self, *, site_pk: int) -> list[CatalogPlantEvent]:
         async with AsyncSession(self._engine) as session:
             rows = (
                 await session.exec(
@@ -516,8 +557,7 @@ class GatewayLocalServiceBundle:
                         PlantLocationHistory,
                         PlantLocationHistory.plant_id == Plant.id,
                     )
-                    .join(Site, Site.id == PlantLocationHistory.site_id)
-                    .where(Site.site_id == site_id)
+                    .where(PlantLocationHistory.site_id == site_pk)
                     .distinct()
                     .order_by(PlantEvent.occurred_at, PlantEvent.id)
                 )
@@ -543,7 +583,7 @@ class GatewayLocalServiceBundle:
         ]
 
     async def _collect_plant_metric_streams(
-        self, site_id: str
+        self, *, site_pk: int
     ) -> list[CatalogPlantMetricStream]:
         async with AsyncSession(self._engine) as session:
             rows = (
@@ -553,7 +593,7 @@ class GatewayLocalServiceBundle:
                         Plant.id,
                         Plant.key,
                         PlantLocationHistory.grid_position,
-                        Tent.tent_id,
+                        Tent.name,
                         Device.device_id,
                         Capability.capability_id,
                         Capability.metric_name,
@@ -563,15 +603,14 @@ class GatewayLocalServiceBundle:
                         PlantLocationHistory,
                         PlantLocationHistory.plant_id == Plant.id,
                     )
-                    .join(Site, Site.id == PlantLocationHistory.site_id)
                     .join(Tent, Tent.id == PlantLocationHistory.tent_id)
                     .join(Capability, Capability.id == PlantMetricStream.capability_id)
                     .join(Device, Device.id == Capability.device_id)
-                    .where(Site.site_id == site_id)
+                    .where(PlantLocationHistory.site_id == site_pk)
                     .where(PlantLocationHistory.end_at.is_(None))
                     .where(Capability.metric_name.is_not(None))
                     .order_by(
-                        Tent.tent_id,
+                        Tent.name,
                         PlantLocationHistory.grid_position,
                         Plant.key,
                         PlantMetricStream.display_order,
@@ -607,9 +646,7 @@ class GatewayLocalServiceBundle:
     async def _public_zone_id(self, snapshot: Snapshot) -> str | None:
         if snapshot.zone_id is None:
             return None
-        async with AsyncSession(self._engine) as session:
-            zone = await session.get(Zone, snapshot.zone_id)
-            return None if zone is None else zone.zone_id
+        return str(snapshot.zone_id)
 
     async def _public_device_id(self, snapshot: Snapshot) -> str | None:
         if snapshot.device_id is None:
@@ -619,17 +656,19 @@ class GatewayLocalServiceBundle:
             return None if device is None else device.device_id
 
 
-async def collect_canonical_history_rollups(
+async def collect_canonical_history_rollups(  # noqa: PLR0913
     session: AsyncSession,
     *,
     site_id: str,
+    site_pk: int,
     since: datetime,
     bucket: str,
     bucket_s: int,
 ) -> list[RollupItem]:
     sql = """
 SELECT
-  t.tent_id,
+  d.site_id AS source_site_id,
+  t.id AS source_tent_id,
   d.device_id,
   c.capability_id,
   c.metric_name AS metric,
@@ -649,25 +688,25 @@ JOIN metric_presentation mp
   ON mp.metric = c.metric_name
  AND mp.history_enabled = true
 JOIN device d ON d.id = c.device_id
-JOIN site s ON s.id = d.site_id
 JOIN tent t ON t.id = d.tent_id
-WHERE s.site_id = :site_id
+WHERE d.site_id = :site_pk
   AND sr.ts >= :since
   AND c.enabled = true
   AND c.metric_name IS NOT NULL
   AND sr.metric = c.metric_name
 GROUP BY
-  t.tent_id,
+  d.site_id,
+  t.id,
   d.device_id,
   c.capability_id,
   c.metric_name,
   c.unit,
   bucket_start_at
-ORDER BY bucket_start_at, t.tent_id, d.device_id, c.capability_id, c.metric_name
+ORDER BY bucket_start_at, t.id, d.device_id, c.capability_id, c.metric_name
 """
     result = await session.exec(
         text(sql),
-        params={"site_id": site_id, "since": since, "bucket_s": bucket_s},
+        params={"site_pk": site_pk, "since": since, "bucket_s": bucket_s},
     )
     return _rollup_items_from_rows(
         result.mappings().all(),
@@ -677,17 +716,19 @@ ORDER BY bucket_start_at, t.tent_id, d.device_id, c.capability_id, c.metric_name
     )
 
 
-async def collect_dehumidifier_runtime_rollups(
+async def collect_dehumidifier_runtime_rollups(  # noqa: PLR0913
     session: AsyncSession,
     *,
     site_id: str,
+    site_pk: int,
     since: datetime,
     bucket: str,
     bucket_s: int,
 ) -> list[RollupItem]:
     sql = """
 SELECT
-  t.tent_id,
+  d.site_id AS source_site_id,
+  t.id AS source_tent_id,
   d.device_id,
   c.capability_id,
   mp.metric AS metric,
@@ -707,25 +748,25 @@ JOIN metric_presentation mp
   ON mp.metric = 'dehumidifier_runtime_pct'
  AND mp.history_enabled = true
 JOIN device d ON d.id = c.device_id
-JOIN site s ON s.id = d.site_id
 JOIN tent t ON t.id = d.tent_id
-WHERE s.site_id = :site_id
+WHERE d.site_id = :site_pk
   AND sr.ts >= :since
   AND c.enabled = true
   AND c.metric_name = 'dehumidifier_on'
   AND sr.metric = 'dehumidifier_on'
 GROUP BY
-  t.tent_id,
+  d.site_id,
+  t.id,
   d.device_id,
   c.capability_id,
   mp.metric,
   mp.unit,
   bucket_start_at
-ORDER BY bucket_start_at, t.tent_id, d.device_id, c.capability_id, mp.metric
+ORDER BY bucket_start_at, t.id, d.device_id, c.capability_id, mp.metric
 """
     result = await session.exec(
         text(sql),
-        params={"site_id": site_id, "since": since, "bucket_s": bucket_s},
+        params={"site_pk": site_pk, "since": since, "bucket_s": bucket_s},
     )
     return _rollup_items_from_rows(
         result.mappings().all(),
@@ -747,8 +788,9 @@ WITH latest AS (
 ),
 base AS (
   SELECT
-    t.tent_id,
-    z.zone_id,
+    d.site_id AS source_site_id,
+    t.id AS source_tent_id,
+    z.id AS source_zone_id,
     d.device_id,
     c.capability_id,
     c.metric_name AS metric,
@@ -758,17 +800,17 @@ base AS (
   FROM capability c
   JOIN latest ON latest.capability_id = c.id
   JOIN device d ON d.id = c.device_id
-  JOIN site s ON s.id = d.site_id
   JOIN tent t ON t.id = d.tent_id
   LEFT JOIN zone z ON z.id = d.zone_id
-  WHERE s.site_id = :site_id
+  WHERE d.site_id = :site_pk
     AND c.enabled = true
     AND c.metric_name IS NOT NULL
     AND c.metric_name NOT IN ('soil_moisture_raw', 'soil_moisture_pct')
 )
 SELECT
-  tent_id,
-  zone_id,
+  source_site_id,
+  source_tent_id,
+  source_zone_id,
   device_id,
   capability_id,
   metric,
@@ -793,7 +835,8 @@ def _rollup_items_from_rows(
         rollups.append(
             RollupItem(
                 site_id=site_id,
-                tent_id=row["tent_id"],
+                source_site_id=row["source_site_id"],
+                source_tent_id=row["source_tent_id"],
                 device_id=row["device_id"],
                 capability_id=row["capability_id"],
                 metric=row["metric"],

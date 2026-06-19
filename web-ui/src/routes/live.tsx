@@ -12,7 +12,7 @@ export const Route = createFileRoute("/live")({
 });
 
 const hostedApi = createHostedApiClient();
-const HOSTED_TENT_ID = "main";
+const HOSTED_TENT_ID = 1;
 const HOSTED_DEVICE_ID = "obsbot-main" as const;
 const HOSTED_CAPABILITY_ID = "ptz_move" as const;
 const HOSTED_ASSETS_KEY = ["cloud.assets.latest", HOSTED_TENT_ID] as const;
@@ -63,10 +63,13 @@ function HostedLivePage() {
   const assetsQuery = useQuery({
     queryKey: HOSTED_ASSETS_KEY,
     queryFn: async () => {
-      const { data } = await hostedApi.GET("/api/tents/{tent_id}/assets/latest", {
-        params: { path: { tent_id: HOSTED_TENT_ID } },
-      });
-      return hostedData(data, "GET /api/tents/{tent_id}/assets/latest");
+      const { data } = await hostedApi.GET(
+        "/api/tents/{source_tent_id}/assets/latest",
+        {
+          params: { path: { source_tent_id: HOSTED_TENT_ID } },
+        },
+      );
+      return hostedData(data, "GET /api/tents/{source_tent_id}/assets/latest");
     },
     refetchInterval: 10_000,
     retry: false,
@@ -115,7 +118,7 @@ function HostedLivePage() {
     payload: Record<string, unknown>,
   ) => {
     commandMutation.mutate({
-      tent_id: HOSTED_TENT_ID,
+      source_tent_id: HOSTED_TENT_ID,
       device_id: HOSTED_DEVICE_ID,
       capability_id: HOSTED_CAPABILITY_ID,
       command_type,

@@ -4,7 +4,7 @@ type: grow
 sources: []
 related: [wiki/breeding/README.md, wiki/breeding/timeline.md, wiki/breeding/male-evaluation.md, wiki/breeding/pollen-handling.md]
 created: 2026-05-30
-updated: 2026-06-14
+updated: 2026-06-19
 ---
 
 # Track A Pollen Run
@@ -15,8 +15,8 @@ updated: 2026-06-14
 |---|---|
 | Wiki folder | `wiki/grows/breeding-track-a-2026-04-28/` |
 | Folder role | Historical/documentation organization; not database identity |
-| `site.site_id` | `homebox` |
-| `tent.tent_id` | `breeding` |
+| Site | `site.id = 1`, `site.name = Homebox` |
+| Tent | `tent.id = 2`, `tent.name = Breeding Tent`, `tent.role = breeding` |
 | Current/historical occupancy source | `plant_location_history` |
 | Current lifecycle source | `plant.germinated_at`, `plant.flower_started_at` |
 | Line | Sirius Black x BS01 / SBxBS01 regular |

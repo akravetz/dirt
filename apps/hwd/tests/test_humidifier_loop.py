@@ -299,19 +299,13 @@ async def test_loop_boot_tick_powers_on_and_sets_level_with_interleave():
     assert metrics["humidifier_intensity_pct"] == pytest.approx(100.0 / 3.0)
     assert source == "govee"
     assert ingest_kwargs == {
-        "site_id": "homebox",
-        "tent_id": "main",
-        "zone_id": "canopy",
         "device_id": "govee-h7142-main",
     }
-    assert grow.context_calls == [{"site_id": "homebox", "tent_id": "main"}]
+    assert grow.context_calls == [{}]
     assert readings.latest_calls == [
         (
             "vpd_kpa",
             {
-                "site_id": "homebox",
-                "tent_id": "main",
-                "zone_id": "canopy",
                 "device_id": "fan-controller",
                 "capability_id": "vpd_kpa",
             },
@@ -319,9 +313,6 @@ async def test_loop_boot_tick_powers_on_and_sets_level_with_interleave():
         (
             "humidity_pct",
             {
-                "site_id": "homebox",
-                "tent_id": "main",
-                "zone_id": "canopy",
                 "device_id": "fan-controller",
                 "capability_id": "humidity_pct",
             },
@@ -455,9 +446,6 @@ async def test_loop_allocator_turns_off_humidifier_when_fan_relief_first():
     assert readings.latest_calls[-1] == (
         "fan_pct",
         {
-            "site_id": "homebox",
-            "tent_id": "main",
-            "zone_id": "canopy",
             "device_id": "fan-controller",
             "capability_id": "fan_pct",
         },

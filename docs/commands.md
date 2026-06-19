@@ -109,13 +109,13 @@ make dev-up
 
 ## Camera agent
 
-Periodic PTZ capture on both mainbox and camera-only hosts uses the shared `CameraCapturePublisher`. On mainbox, `dirt-hwd` wires the publisher to `LocalSnapshotSink`, which writes local `snapshot` rows for the feed and gateway. On camera-only hosts such as `dirt2`, `dirt-camera-agent` wires the same publisher to `CloudAssetSink`, reads shared repo config from `.env` if present plus required host-local camera/cloud identity config from ignored `.env.dirt2-camera-agent`, fetches the camera capture policy from the hosted control plane, and uploads directly to hosted assets.
+Periodic PTZ capture on both mainbox and camera-only hosts uses the shared `CameraCapturePublisher`. On mainbox, `dirt-hwd` wires the publisher to `LocalSnapshotSink`, which writes local `snapshot` rows for the feed and gateway by deriving placement from the camera device row. On camera-only hosts such as `dirt2`, `dirt-camera-agent` wires the same publisher to `CloudAssetSink`, reads shared repo config from `.env` if present plus required host-local camera/cloud config from ignored `.env.dirt2-camera-agent`, identifies itself with `DIRT_CAMERA_DEVICE_ID`, fetches the camera capture policy from the hosted control plane, and uploads directly to hosted assets.
 
 - **Service status (read-only)**: `systemctl --user status dirt-camera-agent --no-pager`
 - **Recent logs (read-only)**: `journalctl --user -u dirt-camera-agent -n 100 --no-pager`
 - **Follow logs (read-only)**: `journalctl --user -u dirt-camera-agent -f`
 - **Manual foreground run (dev)**: `systemctl --user stop dirt-camera-agent && set -a; source .env; [ ! -f .env.dirt2-camera-agent ] || source .env.dirt2-camera-agent; set +a; uv run --package dirt-camera-agent python -m dirt_camera_agent.main --once`
-- **Lights-off skip policy**: the agent calls `GET /api/gateway/v1/cameras/{camera_device_id}/capture-policy`; the hosted control plane derives the schedule from synced camera and lights rows with the same site/tent. Skipped cycles log `capture_skipped` and do not call the camera or upload a JPEG.
+- **Lights-off skip policy**: the agent calls `GET /api/gateway/v1/cameras/{camera_device_id}/capture-policy`; the hosted control plane derives placement and schedule from synced camera and lights rows for that device's source tent. Skipped cycles log `capture_skipped` and do not call the camera or upload a JPEG.
 
 ## Voice channel (Claudia)
 
@@ -131,7 +131,7 @@ Periodic PTZ capture on both mainbox and camera-only hosts uses the shared `Came
 
 - **Manual run**: `scripts/daily_report` (today, skip if marker exists) or `scripts/daily_report --force` (re-run today) or `scripts/daily_report --date 2026-04-19 --force`.
 - **Service / timer status**: `systemctl --user status dirt-daily-report.timer` and `journalctl --user -u dirt-daily-report.service -n 100`.
-- **Scoped inputs**: `DIRT_DAILY_REPORT_TENT_IDS` controls sensor sections, `DIRT_DAILY_REPORT_REQUIRED_TENT_IDS` controls validation-critical tents, and `DIRT_DAILY_REPORT_PHOTO_TENT_IDS` controls hosted tent overview photos. The systemd unit loads optional `.env.prod` so hosted signed-asset reads can use `DIRT_CLOUD_SESSION_SECRET` without printing it.
+- **Scoped inputs**: `DIRT_DAILY_REPORT_SOURCE_TENT_IDS` controls sensor sections, `DIRT_DAILY_REPORT_REQUIRED_SOURCE_TENT_IDS` controls validation-critical tents, and `DIRT_DAILY_REPORT_PHOTO_SOURCE_TENT_IDS` controls hosted tent overview photos by source tent ID. The systemd unit loads optional `.env.prod` so hosted signed-asset reads can use `DIRT_CLOUD_SESSION_SECRET` without printing it.
 - **Marker files**: `var/logs/daily_report/<DATE>.completed` and `var/logs/daily_report/<DATE>.failed`. The `.completed` marker is what makes the next run skip — delete it (or pass `--force`) to re-run.
 - **Synthesis trace**: `var/logs/daily_report/<DATE>.synthesis.json` — full sub-agent tool trace, usage, cost. Produced even on failure.
 - **Failure → Telegram alert**: Phases 1–4 (capture, validate, snapshot, synthesize) all bail-on-fail and post a `<b>⚠ Daily report failed</b>` message to the configured chat. Phase 5 (Telegram delivery) is non-fatal — wiki is the durable record; failed deliveries log to journal only.

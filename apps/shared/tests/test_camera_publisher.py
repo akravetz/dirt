@@ -35,10 +35,12 @@ class DenyGate:
 class RecordingSink:
     def __init__(self) -> None:
         self.calls = 0
+        self.metadata: list[CameraCaptureMetadata] = []
 
     async def handle(self, artifact: object, metadata: CameraCaptureMetadata) -> str:
-        del artifact, metadata
+        del artifact
         self.calls += 1
+        self.metadata.append(metadata)
         return "ok"
 
 
@@ -62,7 +64,6 @@ async def test_publisher_skips_before_capture_write_and_sink(tmp_path) -> None:
     publisher = CameraCapturePublisher(
         metadata=CameraCaptureMetadata(
             site_id="homebox",
-            tent_id="breeding",
             camera_device_id="obsbot-breeding",
         ),
         source=source,
@@ -80,17 +81,55 @@ async def test_publisher_skips_before_capture_write_and_sink(tmp_path) -> None:
     assert not (tmp_path / "snapshots").exists()
 
 
+async def test_publisher_passes_scoped_capture_metadata_to_sink(tmp_path) -> None:
+    sink = RecordingSink()
+    publisher = CameraCapturePublisher(
+        metadata=CameraCaptureMetadata(
+            site_id="homebox",
+            camera_device_id="obsbot-breeding",
+            camera_view_id="canopy",
+            camera_kind="periodic",
+            source_tent_id=2,
+            tent_name="Breeding Tent",
+            gateway_id="gateway-dirt2-camera",
+        ),
+        source=FakeCameraSource(),
+        writer=SnapshotSpool(tmp_path / "snapshots"),
+        sinks=(sink,),
+        capture_interval_s=300,
+    )
+
+    result = await publisher.run_once()
+
+    assert result is not None
+    assert sink.calls == 1
+    assert sink.metadata == [
+        CameraCaptureMetadata(
+            site_id="homebox",
+            camera_device_id="obsbot-breeding",
+            camera_view_id="canopy",
+            camera_kind="periodic",
+            source_tent_id=2,
+            tent_name="Breeding Tent",
+            gateway_id="gateway-dirt2-camera",
+        )
+    ]
+
+
 async def test_capture_policy_evaluation_uses_local_window() -> None:
     policy = CapturePolicyResponse(
         site_id="homebox",
+        source_site_id=1,
+        source_tent_id=2,
         tent_id="breeding",
+        tent_name="Breeding Tent",
         camera_device_id="obsbot-breeding",
         enabled=True,
         require_lights_on=True,
         lights_on_local=time(6, 0),
         lights_off_local=time(18, 0),
         timezone="America/Denver",
-        source_schedule_id="breeding-lights-photoperiod",
+        source_schedule_id=3,
         reason=None,
     )
 
@@ -111,14 +150,17 @@ async def test_capture_policy_evaluation_uses_local_window() -> None:
 async def test_hosted_capture_policy_gate_uses_cached_policy_on_fetch_failure() -> None:
     policy = CapturePolicyResponse(
         site_id="homebox",
+        source_site_id=1,
+        source_tent_id=2,
         tent_id="breeding",
+        tent_name="Breeding Tent",
         camera_device_id="obsbot-breeding",
         enabled=True,
         require_lights_on=True,
         lights_on_local=time(6, 0),
         lights_off_local=time(18, 0),
         timezone="America/Denver",
-        source_schedule_id="breeding-lights-photoperiod",
+        source_schedule_id=3,
         reason=None,
     )
     client = FakePolicyClient([policy])
@@ -129,7 +171,6 @@ async def test_hosted_capture_policy_gate_uses_cached_policy_on_fetch_failure() 
     )
     metadata = CameraCaptureMetadata(
         site_id="homebox",
-        tent_id="breeding",
         camera_device_id="obsbot-breeding",
     )
 

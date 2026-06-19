@@ -415,7 +415,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/tents/{tent_id}/assets/latest": {
+  "/api/tents/{source_tent_id}/assets/latest": {
     parameters: {
       query?: never;
       header?: never;
@@ -423,7 +423,7 @@ export interface paths {
       cookie?: never;
     };
     /** Latest Assets */
-    get: operations["latest_assets_api_tents__tent_id__assets_latest_get"];
+    get: operations["latest_assets_api_tents__source_tent_id__assets_latest_get"];
     put?: never;
     post?: never;
     delete?: never;
@@ -432,7 +432,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/tents/{tent_id}/devices": {
+  "/api/tents/{source_tent_id}/devices": {
     parameters: {
       query?: never;
       header?: never;
@@ -440,7 +440,7 @@ export interface paths {
       cookie?: never;
     };
     /** Devices */
-    get: operations["devices_api_tents__tent_id__devices_get"];
+    get: operations["devices_api_tents__source_tent_id__devices_get"];
     put?: never;
     post?: never;
     delete?: never;
@@ -449,7 +449,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/tents/{tent_id}/lights/schedules": {
+  "/api/tents/{source_tent_id}/lights/schedules": {
     parameters: {
       query?: never;
       header?: never;
@@ -457,7 +457,7 @@ export interface paths {
       cookie?: never;
     };
     /** Light Schedules */
-    get: operations["light_schedules_api_tents__tent_id__lights_schedules_get"];
+    get: operations["light_schedules_api_tents__source_tent_id__lights_schedules_get"];
     put?: never;
     post?: never;
     delete?: never;
@@ -466,7 +466,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/tents/{tent_id}/metrics/current": {
+  "/api/tents/{source_tent_id}/metrics/current": {
     parameters: {
       query?: never;
       header?: never;
@@ -474,7 +474,7 @@ export interface paths {
       cookie?: never;
     };
     /** Current Metrics */
-    get: operations["current_metrics_api_tents__tent_id__metrics_current_get"];
+    get: operations["current_metrics_api_tents__source_tent_id__metrics_current_get"];
     put?: never;
     post?: never;
     delete?: never;
@@ -483,7 +483,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/tents/{tent_id}/metrics/history": {
+  "/api/tents/{source_tent_id}/metrics/history": {
     parameters: {
       query?: never;
       header?: never;
@@ -491,7 +491,7 @@ export interface paths {
       cookie?: never;
     };
     /** Metric History */
-    get: operations["metric_history_api_tents__tent_id__metrics_history_get"];
+    get: operations["metric_history_api_tents__source_tent_id__metrics_history_get"];
     put?: never;
     post?: never;
     delete?: never;
@@ -500,7 +500,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/tents/{tent_id}/metrics/presentation": {
+  "/api/tents/{source_tent_id}/metrics/presentation": {
     parameters: {
       query?: never;
       header?: never;
@@ -508,7 +508,7 @@ export interface paths {
       cookie?: never;
     };
     /** Metric Presentation */
-    get: operations["metric_presentation_api_tents__tent_id__metrics_presentation_get"];
+    get: operations["metric_presentation_api_tents__source_tent_id__metrics_presentation_get"];
     put?: never;
     post?: never;
     delete?: never;
@@ -517,7 +517,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/tents/{tent_id}/plants": {
+  "/api/tents/{source_tent_id}/plants": {
     parameters: {
       query?: never;
       header?: never;
@@ -525,7 +525,7 @@ export interface paths {
       cookie?: never;
     };
     /** Plants */
-    get: operations["plants_api_tents__tent_id__plants_get"];
+    get: operations["plants_api_tents__source_tent_id__plants_get"];
     put?: never;
     post?: never;
     delete?: never;
@@ -534,7 +534,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/tents/{tent_id}/plants/{plant_id}": {
+  "/api/tents/{source_tent_id}/plants/{plant_id}": {
     parameters: {
       query?: never;
       header?: never;
@@ -542,7 +542,7 @@ export interface paths {
       cookie?: never;
     };
     /** Plant Detail */
-    get: operations["plant_detail_api_tents__tent_id__plants__plant_id__get"];
+    get: operations["plant_detail_api_tents__source_tent_id__plants__plant_id__get"];
     put?: never;
     post?: never;
     delete?: never;
@@ -551,7 +551,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/tents/{tent_id}/plants/{plant_id}/metrics/history": {
+  "/api/tents/{source_tent_id}/plants/{plant_id}/metrics/history": {
     parameters: {
       query?: never;
       header?: never;
@@ -559,7 +559,7 @@ export interface paths {
       cookie?: never;
     };
     /** Plant Metric History */
-    get: operations["plant_metric_history_api_tents__tent_id__plants__plant_id__metrics_history_get"];
+    get: operations["plant_metric_history_api_tents__source_tent_id__plants__plant_id__metrics_history_get"];
     put?: never;
     post?: never;
     delete?: never;
@@ -568,7 +568,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/tents/{tent_id}/state": {
+  "/api/tents/{source_tent_id}/state": {
     parameters: {
       query?: never;
       header?: never;
@@ -576,7 +576,7 @@ export interface paths {
       cookie?: never;
     };
     /** Tent State */
-    get: operations["tent_state_api_tents__tent_id__state_get"];
+    get: operations["tent_state_api_tents__source_tent_id__state_get"];
     put?: never;
     post?: never;
     delete?: never;
@@ -632,8 +632,12 @@ export interface components {
       sha256?: string | null;
       /** Site Id */
       site_id: string;
+      /** Source Tent Id */
+      source_tent_id: number | null;
+      /** Source Zone Id */
+      source_zone_id: number | null;
       /** Tent Id */
-      tent_id: string;
+      tent_id?: string | null;
       /** Zone Id */
       zone_id?: string | null;
     };
@@ -659,6 +663,8 @@ export interface components {
       object_key?: string | null;
       /** Site Id */
       site_id: string;
+      /** Source Tent Id */
+      source_tent_id?: number | null;
       /** Stage */
       stage: string;
       /** Tent Id */
@@ -733,8 +739,10 @@ export interface components {
       sha256?: string | null;
       /** Site Id */
       site_id: string;
+      /** Source Tent Id */
+      source_tent_id: number | null;
       /** Tent Id */
-      tent_id: string;
+      tent_id?: string | null;
     };
     /** BreedingBulkCullPayload */
     BreedingBulkCullPayload: {
@@ -758,8 +766,8 @@ export interface components {
       grid_position: null;
       /** Plant Keys */
       plant_keys: string[];
-      /** Tent Id */
-      tent_id: string;
+      /** Source Tent Id */
+      source_tent_id: number;
     };
     /** BreedingBulkMoveRequest */
     BreedingBulkMoveRequest: {
@@ -769,8 +777,8 @@ export interface components {
       idempotency_key: string;
       /** Plant Keys */
       plant_keys: string[];
-      /** Tent Id */
-      tent_id: string;
+      /** Source Tent Id */
+      source_tent_id: number;
     };
     /** BreedingBulkSexPayload */
     BreedingBulkSexPayload: {
@@ -802,10 +810,10 @@ export interface components {
       grid_position: null;
       /** Mother Plant Key */
       mother_plant_key: string;
+      /** Source Tent Id */
+      source_tent_id: number;
       /** Taken At */
       taken_at?: string | null;
-      /** Tent Id */
-      tent_id: string;
     };
     /** BreedingClonePlantsRequest */
     BreedingClonePlantsRequest: {
@@ -817,10 +825,10 @@ export interface components {
       idempotency_key: string;
       /** Mother Plant Key */
       mother_plant_key: string;
+      /** Source Tent Id */
+      source_tent_id: number;
       /** Taken At */
       taken_at?: string | null;
-      /** Tent Id */
-      tent_id: string;
     };
     /** BreedingCreatePlantNotePayload */
     BreedingCreatePlantNotePayload: {
@@ -930,8 +938,8 @@ export interface components {
       grid_position: null;
       /** Seed Lot Source Id */
       seed_lot_source_id: number;
-      /** Tent Id */
-      tent_id: string;
+      /** Source Tent Id */
+      source_tent_id: number;
     };
     /** BreedingGerminatePlantsRequest */
     BreedingGerminatePlantsRequest: {
@@ -945,8 +953,8 @@ export interface components {
       idempotency_key: string;
       /** Seed Lot Id */
       seed_lot_id: string;
-      /** Tent Id */
-      tent_id: string;
+      /** Source Tent Id */
+      source_tent_id: number;
     };
     /** BreedingLogbookBootstrapResponse */
     BreedingLogbookBootstrapResponse: {
@@ -979,15 +987,10 @@ export interface components {
       display_name: string;
       /** Grid Position */
       grid_position: string | null;
-      /** Key */
-      key: string;
-      /**
-       * Stage Key
-       * @enum {string}
-       */
-      stage_key: "germinating" | "veg" | "flower" | "breeding" | "harvested" | "culled";
-      /** Tent Id */
-      tent_id: string | null;
+      /** Role */
+      role: string | null;
+      /** Source Tent Id */
+      source_tent_id: number;
     };
     /** BreedingLogbookLookupResponse */
     BreedingLogbookLookupResponse: {
@@ -1058,22 +1061,24 @@ export interface components {
     BreedingLogbookPlantRowResponse: {
       /** Culled On */
       culled_on: string | null;
+      /** Current Tent Id */
+      current_tent_id: number;
+      /** Current Tent Name */
+      current_tent_name: string;
       /** Flower Started On */
       flower_started_on: string | null;
       /** Generation */
       generation: string;
       /** Germinated On */
       germinated_on: string | null;
+      /** Grid Position */
+      grid_position: string | null;
       /** Id */
       id: string;
       /** Key */
       key: string;
       /** Last Note */
       last_note: string;
-      /** Location Key */
-      location_key: string;
-      /** Location Label */
-      location_label: string;
       /** Name */
       name: string;
       /** Parents Label */
@@ -1152,9 +1157,15 @@ export interface components {
       /** Site Id */
       site_id: string;
       /** Source Schedule Id */
-      source_schedule_id: string | null;
+      source_schedule_id: number | null;
+      /** Source Site Id */
+      source_site_id: number | null;
+      /** Source Tent Id */
+      source_tent_id: number | null;
       /** Tent Id */
       tent_id: string | null;
+      /** Tent Name */
+      tent_name: string | null;
       /** Timezone */
       timezone: string;
     };
@@ -1176,8 +1187,8 @@ export interface components {
       kind: string;
       /** Metric Name */
       metric_name?: string | null;
-      /** Tent Id */
-      tent_id: string;
+      /** Source Tent Id */
+      source_tent_id: number;
       /** Unit */
       unit?: string | null;
     };
@@ -1221,10 +1232,10 @@ export interface components {
       last_seen_at: string | null;
       /** Name */
       name: string;
-      /** Tent Id */
-      tent_id: string;
-      /** Zone Id */
-      zone_id?: string | null;
+      /** Source Tent Id */
+      source_tent_id: number;
+      /** Source Zone Id */
+      source_zone_id: number | null;
     };
     /** CatalogPlant */
     CatalogPlant: {
@@ -1327,13 +1338,13 @@ export interface components {
       source_location_id: number;
       /** Source Plant Id */
       source_plant_id: number;
+      /** Source Tent Id */
+      source_tent_id: number;
       /**
        * Start At
        * Format: date-time
        */
       start_at: string;
-      /** Tent Id */
-      tent_id: string;
     };
     /** CatalogPlantMetricStream */
     CatalogPlantMetricStream: {
@@ -1391,6 +1402,8 @@ export interface components {
       /** Seed Lots */
       seed_lots?: components["schemas"]["CatalogSeedLot"][];
       site: components["schemas"]["CatalogSite"];
+      /** Site Id */
+      site_id: string;
       /** Tents */
       tents?: components["schemas"]["CatalogTent"][];
       /** Zones */
@@ -1448,24 +1461,26 @@ export interface components {
        * @default lights
        */
       kind: string;
-      /** Schedule Id */
-      schedule_id: string;
-      /** Site Id */
-      site_id: string;
+      /** Legacy Schedule Id */
+      legacy_schedule_id: string;
+      /** Source Schedule Id */
+      source_schedule_id: number;
+      /** Source Site Id */
+      source_site_id: number;
+      /** Source Tent Id */
+      source_tent_id: number;
+      /** Source Zone Id */
+      source_zone_id: number | null;
       /**
        * Starts Local
        * Format: time
        */
       starts_local: string;
-      /** Tent Id */
-      tent_id: string;
       /**
        * Timezone
        * @default America/Denver
        */
       timezone: string;
-      /** Zone Id */
-      zone_id?: string | null;
     };
     /** CatalogSeedLot */
     CatalogSeedLot: {
@@ -1495,8 +1510,8 @@ export interface components {
     CatalogSite: {
       /** Name */
       name: string;
-      /** Site Id */
-      site_id: string;
+      /** Source Site Id */
+      source_site_id: number;
       /**
        * Timezone
        * @default America/Denver
@@ -1510,10 +1525,14 @@ export interface components {
        * @default true
        */
       is_active: boolean;
+      /** Legacy Tent Id */
+      legacy_tent_id: string;
       /** Name */
       name: string;
-      /** Tent Id */
-      tent_id: string;
+      /** Role */
+      role: string;
+      /** Source Tent Id */
+      source_tent_id: number;
     };
     /** CatalogZone */
     CatalogZone: {
@@ -1527,12 +1546,14 @@ export interface components {
        * @default environment
        */
       kind: string;
+      /** Legacy Zone Id */
+      legacy_zone_id: string;
       /** Name */
       name: string;
-      /** Tent Id */
-      tent_id: string;
-      /** Zone Id */
-      zone_id: string;
+      /** Source Tent Id */
+      source_tent_id: number;
+      /** Source Zone Id */
+      source_zone_id: number;
     };
     /** ClaimedCommand */
     ClaimedCommand: {
@@ -1596,6 +1617,8 @@ export interface components {
       } | null;
       /** Site Id */
       site_id: string;
+      /** Source Tent Id */
+      source_tent_id: number | null;
       /** Started At */
       started_at: string | null;
       /**
@@ -1653,8 +1676,8 @@ export interface components {
       };
       /** Site Id */
       site_id?: string | null;
-      /** Tent Id */
-      tent_id: string;
+      /** Source Tent Id */
+      source_tent_id: number;
     };
     /** CommandResponse */
     CommandResponse: {
@@ -1681,6 +1704,8 @@ export interface components {
       finished_at: string | null;
       /** Idempotency Key */
       idempotency_key: string;
+      /** Legacy Target Tent Id */
+      legacy_target_tent_id: string;
       /** Payload */
       payload: {
         [key: string]: unknown;
@@ -1696,12 +1721,12 @@ export interface components {
       } | null;
       /** Site Id */
       site_id: string;
+      /** Source Tent Id */
+      source_tent_id: number | null;
       /** Started At */
       started_at: string | null;
       /** Status */
       status: string;
-      /** Tent Id */
-      tent_id: string;
     };
     /** CommandResultRequest */
     CommandResultRequest: {
@@ -1781,6 +1806,8 @@ export interface components {
       } | null;
       /** Site Id */
       site_id: string;
+      /** Source Tent Id */
+      source_tent_id: number | null;
       /** Started At */
       started_at: string | null;
       /**
@@ -1930,24 +1957,26 @@ export interface components {
       metric: string;
       /** Site Id */
       site_id: string;
+      /** Source Site Id */
+      source_site_id: number;
+      /** Source Tent Id */
+      source_tent_id: number;
       /**
        * Source Updated At
        * Format: date-time
        */
       source_updated_at: string;
+      /** Source Zone Id */
+      source_zone_id: number | null;
       /**
        * Stale After S
        * @default 120
        */
       stale_after_s: number;
-      /** Tent Id */
-      tent_id: string;
       /** Unit */
       unit?: string | null;
       /** Value */
       value: number;
-      /** Zone Id */
-      zone_id?: string | null;
     };
     /** LatestMetricsRequest */
     LatestMetricsRequest: {
@@ -1976,18 +2005,20 @@ export interface components {
       minutes_until_off: number;
       /** Minutes Until On */
       minutes_until_on: number;
-      /** Schedule Id */
-      schedule_id: string;
       /** Site Id */
       site_id: string;
+      /** Source Schedule Id */
+      source_schedule_id: number;
+      /** Source Tent Id */
+      source_tent_id: number;
+      /** Source Zone Id */
+      source_zone_id: number | null;
       /** Starts Local */
       starts_local: string;
-      /** Tent Id */
-      tent_id: string;
+      /** Tent Name */
+      tent_name: string;
       /** Timezone */
       timezone: string;
-      /** Zone Id */
-      zone_id: string | null;
     };
     /** LightSchedulesResponse */
     LightSchedulesResponse: {
@@ -1995,8 +2026,10 @@ export interface components {
       schedules: components["schemas"]["LightScheduleResponse"][];
       /** Site Id */
       site_id: string;
-      /** Tent Id */
-      tent_id: string;
+      /** Source Tent Id */
+      source_tent_id: number;
+      /** Tent Name */
+      tent_name: string;
     };
     /** LoginRequest */
     LoginRequest: {
@@ -2087,6 +2120,10 @@ export interface components {
     };
     /** PlantCurrentLocationResponse */
     PlantCurrentLocationResponse: {
+      /** Current Tent Id */
+      current_tent_id: number;
+      /** Current Tent Name */
+      current_tent_name: string;
       /** End At */
       end_at: string | null;
       /** Grid Position */
@@ -2098,8 +2135,6 @@ export interface components {
        * Format: date-time
        */
       start_at: string;
-      /** Tent Id */
-      tent_id: string;
     };
     /** PlantDetailResponse */
     PlantDetailResponse: {
@@ -2108,6 +2143,10 @@ export interface components {
       /** Culled Reason */
       culled_reason: string | null;
       current_location: components["schemas"]["PlantCurrentLocationResponse"];
+      /** Current Tent Id */
+      current_tent_id: number;
+      /** Current Tent Name */
+      current_tent_name: string;
       /** Events */
       events: components["schemas"]["PlantEventResponse"][];
       /** Flower Started At */
@@ -2148,8 +2187,6 @@ export interface components {
       telemetry: components["schemas"]["PlantMetricStreamResponse"][];
       /** Telemetry Stream Count */
       telemetry_stream_count: number;
-      /** Tent Id */
-      tent_id: string;
       /** Veg Started At */
       veg_started_at: string | null;
       wiki_content: components["schemas"]["PlantWikiContentResponse"] | null;
@@ -2331,6 +2368,10 @@ export interface components {
     PlantSummaryResponse: {
       /** Culled At */
       culled_at: string | null;
+      /** Current Tent Id */
+      current_tent_id: number;
+      /** Current Tent Name */
+      current_tent_name: string;
       /** Flower Started At */
       flower_started_at: string | null;
       /** Germinated At */
@@ -2361,8 +2402,6 @@ export interface components {
       site_id: string;
       /** Telemetry Stream Count */
       telemetry_stream_count: number;
-      /** Tent Id */
-      tent_id: string;
       /** Veg Started At */
       veg_started_at: string | null;
     };
@@ -2453,8 +2492,10 @@ export interface components {
       sample_count: number;
       /** Site Id */
       site_id: string;
-      /** Tent Id */
-      tent_id: string;
+      /** Source Site Id */
+      source_site_id: number;
+      /** Source Tent Id */
+      source_tent_id: number;
       /** Unit */
       unit?: string | null;
     };
@@ -2529,15 +2570,17 @@ export interface components {
       is_active: boolean;
       /** Name */
       name: string;
+      /** Role */
+      role: string | null;
       /** Site Id */
       site_id: string;
+      /** Source Tent Id */
+      source_tent_id: number;
       /**
        * Synced At
        * Format: date-time
        */
       synced_at: string;
-      /** Tent Id */
-      tent_id: string;
     };
     /** TentStateResponse */
     TentStateResponse: {
@@ -2549,10 +2592,12 @@ export interface components {
       last_catalog_sync_at: string | null;
       /** Name */
       name: string;
+      /** Role */
+      role: string | null;
       /** Site Id */
       site_id: string;
-      /** Tent Id */
-      tent_id: string;
+      /** Source Tent Id */
+      source_tent_id: number;
     };
     /** UpsertCountResponse */
     UpsertCountResponse: {
@@ -3414,12 +3459,12 @@ export interface operations {
       };
     };
   };
-  latest_assets_api_tents__tent_id__assets_latest_get: {
+  latest_assets_api_tents__source_tent_id__assets_latest_get: {
     parameters: {
       query?: never;
       header?: never;
       path: {
-        tent_id: string;
+        source_tent_id: number;
       };
       cookie?: never;
     };
@@ -3445,12 +3490,12 @@ export interface operations {
       };
     };
   };
-  devices_api_tents__tent_id__devices_get: {
+  devices_api_tents__source_tent_id__devices_get: {
     parameters: {
       query?: never;
       header?: never;
       path: {
-        tent_id: string;
+        source_tent_id: number;
       };
       cookie?: never;
     };
@@ -3476,12 +3521,12 @@ export interface operations {
       };
     };
   };
-  light_schedules_api_tents__tent_id__lights_schedules_get: {
+  light_schedules_api_tents__source_tent_id__lights_schedules_get: {
     parameters: {
       query?: never;
       header?: never;
       path: {
-        tent_id: string;
+        source_tent_id: number;
       };
       cookie?: never;
     };
@@ -3507,12 +3552,12 @@ export interface operations {
       };
     };
   };
-  current_metrics_api_tents__tent_id__metrics_current_get: {
+  current_metrics_api_tents__source_tent_id__metrics_current_get: {
     parameters: {
       query?: never;
       header?: never;
       path: {
-        tent_id: string;
+        source_tent_id: number;
       };
       cookie?: never;
     };
@@ -3538,7 +3583,7 @@ export interface operations {
       };
     };
   };
-  metric_history_api_tents__tent_id__metrics_history_get: {
+  metric_history_api_tents__source_tent_id__metrics_history_get: {
     parameters: {
       query: {
         metric: string;
@@ -3548,7 +3593,7 @@ export interface operations {
       };
       header?: never;
       path: {
-        tent_id: string;
+        source_tent_id: number;
       };
       cookie?: never;
     };
@@ -3574,12 +3619,12 @@ export interface operations {
       };
     };
   };
-  metric_presentation_api_tents__tent_id__metrics_presentation_get: {
+  metric_presentation_api_tents__source_tent_id__metrics_presentation_get: {
     parameters: {
       query?: never;
       header?: never;
       path: {
-        tent_id: string;
+        source_tent_id: number;
       };
       cookie?: never;
     };
@@ -3605,12 +3650,12 @@ export interface operations {
       };
     };
   };
-  plants_api_tents__tent_id__plants_get: {
+  plants_api_tents__source_tent_id__plants_get: {
     parameters: {
       query?: never;
       header?: never;
       path: {
-        tent_id: string;
+        source_tent_id: number;
       };
       cookie?: never;
     };
@@ -3636,12 +3681,12 @@ export interface operations {
       };
     };
   };
-  plant_detail_api_tents__tent_id__plants__plant_id__get: {
+  plant_detail_api_tents__source_tent_id__plants__plant_id__get: {
     parameters: {
       query?: never;
       header?: never;
       path: {
-        tent_id: string;
+        source_tent_id: number;
         plant_id: string;
       };
       cookie?: never;
@@ -3668,14 +3713,14 @@ export interface operations {
       };
     };
   };
-  plant_metric_history_api_tents__tent_id__plants__plant_id__metrics_history_get: {
+  plant_metric_history_api_tents__source_tent_id__plants__plant_id__metrics_history_get: {
     parameters: {
       query?: {
         range?: string;
       };
       header?: never;
       path: {
-        tent_id: string;
+        source_tent_id: number;
         plant_id: string;
       };
       cookie?: never;
@@ -3702,12 +3747,12 @@ export interface operations {
       };
     };
   };
-  tent_state_api_tents__tent_id__state_get: {
+  tent_state_api_tents__source_tent_id__state_get: {
     parameters: {
       query?: never;
       header?: never;
       path: {
-        tent_id: string;
+        source_tent_id: number;
       };
       cookie?: never;
     };

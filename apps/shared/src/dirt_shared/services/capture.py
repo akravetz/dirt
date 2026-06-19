@@ -26,7 +26,6 @@ from dirt_shared.services.camera_publisher import (
     CaptureGate,
     LocalSnapshotSink,
 )
-from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID
 
 logger = logging.getLogger(__name__)
 
@@ -60,8 +59,7 @@ class CaptureService:
         )
         self._publisher = CameraCapturePublisher(
             metadata=CameraCaptureMetadata(
-                site_id=DEFAULT_SITE_ID,
-                tent_id=DEFAULT_TENT_ID,
+                site_id="homebox",
                 camera_device_id="obsbot-main",
                 camera_view_id="periodic",
                 camera_kind="periodic",

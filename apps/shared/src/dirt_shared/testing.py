@@ -39,10 +39,10 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.device import Capability, Device
-from dirt_shared.models.site import Site
 from dirt_shared.models.tent import Tent
 from dirt_shared.models.zone import Zone
 from dirt_shared.observability import LOGS_DIR_ENV
+from dirt_shared.services.scope import require_default_site_pk
 
 # ============================================================
 # Observability log isolation (autouse)
@@ -264,13 +264,57 @@ async def pg_engine(app_engine):
 # ============================================================
 
 
+async def resolve_test_tent_pk(
+    session: AsyncSession,
+    label: int | str | None,
+    *,
+    site_pk: int | None = None,
+) -> int | None:
+    if label is None or isinstance(label, int):
+        return label
+    if site_pk is None:
+        site_pk = await require_default_site_pk(session)
+    rows = (await session.exec(select(Tent).where(Tent.site_id == site_pk))).all()
+    normalized = label.strip().lower()
+    for tent in rows:
+        if normalized == "main" and tent.is_default:
+            return tent.id
+        if tent.role.lower() == normalized:
+            return tent.id
+        if tent.name.lower().replace(" tent", "").replace(" ", "-") == normalized:
+            return tent.id
+    raise AssertionError(f"unknown test tent label: {label}")
+
+
+async def resolve_test_zone_pk(
+    session: AsyncSession,
+    label: int | str | None,
+    *,
+    site_pk: int,
+    tent_pk: int | None,
+) -> int | None:
+    if label is None or isinstance(label, int):
+        return label
+    rows = (
+        await session.exec(
+            select(Zone).where(Zone.site_id == site_pk).where(Zone.tent_id == tent_pk)
+        )
+    ).all()
+    normalized = label.strip().lower()
+    for zone in rows:
+        name_key = zone.name.lower().replace(" ", "-")
+        if name_key == normalized or zone.zone_type.lower() == normalized:
+            return zone.id
+    raise AssertionError(f"unknown test zone label: {label}")
+
+
 async def create_test_device(  # noqa: PLR0913
     session: AsyncSession,
     *,
     device_id: str,
-    tent_id: str | None,
-    site_id: str = "homebox",
-    zone_id: str | None = None,
+    tent_id: int | str | None,
+    site_id: int | None = None,
+    zone_id: int | str | None = None,
     name: str | None = None,
     kind: str = "env_sensor",
     controller: str = "test",
@@ -282,27 +326,11 @@ async def create_test_device(  # noqa: PLR0913
     migration seed inventory. Seed topology tests should still query the
     canonical migrated rows directly.
     """
-    site_pk = (await session.exec(select(Site.id).where(Site.site_id == site_id))).one()
-    tent_pk = None
-    if tent_id is not None:
-        tent_pk = (
-            await session.exec(
-                select(Tent.id)
-                .where(Tent.site_id == site_pk)
-                .where(Tent.tent_id == tent_id)
-            )
-        ).one()
-
-    zone_pk = None
-    if zone_id is not None:
-        zone_pk = (
-            await session.exec(
-                select(Zone.id)
-                .where(Zone.site_id == site_pk)
-                .where(Zone.tent_id == tent_pk)
-                .where(Zone.zone_id == zone_id)
-            )
-        ).one()
+    site_pk = site_id if site_id is not None else await require_default_site_pk(session)
+    tent_pk = await resolve_test_tent_pk(session, tent_id, site_pk=site_pk)
+    zone_pk = await resolve_test_zone_pk(
+        session, zone_id, site_pk=site_pk, tent_pk=tent_pk
+    )
 
     device = Device(
         site_id=site_pk,

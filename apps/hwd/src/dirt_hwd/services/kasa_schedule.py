@@ -27,7 +27,6 @@ from dirt_shared.config import ScheduledKasaConfig
 from dirt_shared.models import (
     Capability,
     Schedule,
-    Site,
     Tent,
     Zone,
 )
@@ -42,13 +41,14 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class ScheduledKasaTarget:
-    site_id: str
-    tent_id: str
-    zone_id: str | None
+    source_site_id: int
+    source_tent_id: int
+    source_zone_id: int | None
+    tent_name: str
     device_pk: int
     device_id: str
     capability_id: str
-    schedule_id: str
+    source_schedule_id: int
     host: str | None
     provider_uid: str
     starts_local: time
@@ -173,16 +173,14 @@ class ScheduledKasaActuatorService:
                 await session.exec(
                     select(
                         Schedule,
-                        Site.site_id,
-                        Tent.tent_id,
-                        Zone.zone_id,
+                        Tent.name,
+                        Zone.id,
                         DbDevice.id,
                         DbDevice.device_id,
                         DbDevice.ip,
                         DbDevice.provider_uid,
                         Capability.capability_id,
                     )
-                    .join(Site, Site.id == Schedule.site_id)
                     .join(Tent, Tent.id == Schedule.tent_id)
                     .join(DbDevice, DbDevice.id == Schedule.device_id)
                     .outerjoin(Zone, Zone.id == DbDevice.zone_id)
@@ -196,16 +194,15 @@ class ScheduledKasaActuatorService:
                     .where(DbDevice.provider_uid_kind == "mac")
                     .where(col(DbDevice.provider_uid).is_not(None))
                     .where(Capability.enabled.is_(True))
-                    .order_by(Tent.tent_id, Schedule.schedule_id)
+                    .order_by(Tent.name, Schedule.id)
                 )
             ).all()
 
         targets: list[ScheduledKasaTarget] = []
         for (
             schedule,
-            site_id,
-            tent_id,
-            zone_id,
+            tent_name,
+            source_zone_id,
             device_pk,
             device_id,
             host,
@@ -217,17 +214,19 @@ class ScheduledKasaActuatorService:
                 or schedule.ends_local is None
                 or provider_uid is None
                 or device_pk is None
+                or schedule.id is None
             ):
                 continue
             targets.append(
                 ScheduledKasaTarget(
-                    site_id=site_id,
-                    tent_id=tent_id,
-                    zone_id=zone_id,
+                    source_site_id=schedule.site_id,
+                    source_tent_id=schedule.tent_id,
+                    source_zone_id=source_zone_id,
+                    tent_name=tent_name,
                     device_pk=device_pk,
                     device_id=device_id,
                     capability_id=capability_id,
-                    schedule_id=schedule.schedule_id,
+                    source_schedule_id=schedule.id,
                     host=str(host) if host is not None else None,
                     provider_uid=provider_uid,
                     starts_local=schedule.starts_local,
@@ -261,7 +260,7 @@ class ScheduledKasaActuatorService:
                 "lights",
                 "state_change",
                 **self._scope_fields(target),
-                schedule_id=target.schedule_id,
+                source_schedule_id=target.source_schedule_id,
                 new_state="on" if desired.on else "off",
                 reason="scheduled_on" if desired.on else "scheduled_off",
                 minutes_until_off=round(desired.minutes_until_off, 1),
@@ -271,7 +270,7 @@ class ScheduledKasaActuatorService:
                 "lights %s -> %s (schedule=%s)",
                 target.device_id,
                 "on" if desired.on else "off",
-                target.schedule_id,
+                target.source_schedule_id,
             )
         except Exception as exc:
             self._log_error(target, exc)
@@ -321,11 +320,12 @@ class ScheduledKasaActuatorService:
             session.add(device)
             await session.commit()
 
-    def _scope_fields(self, target: ScheduledKasaTarget) -> dict[str, str | None]:
+    def _scope_fields(self, target: ScheduledKasaTarget) -> dict[str, object]:
         return {
-            "site_id": target.site_id,
-            "tent_id": target.tent_id,
-            "zone_id": target.zone_id,
+            "source_site_id": target.source_site_id,
+            "source_tent_id": target.source_tent_id,
+            "source_zone_id": target.source_zone_id,
+            "tent_name": target.tent_name,
             "device_id": target.device_id,
             "capability_id": target.capability_id,
         }
@@ -340,7 +340,7 @@ class ScheduledKasaActuatorService:
             "lights",
             "error",
             **self._scope_fields(target),
-            schedule_id=target.schedule_id,
+            source_schedule_id=target.source_schedule_id,
             error_type=type(exc).__name__,
             error=repr(exc),
         )

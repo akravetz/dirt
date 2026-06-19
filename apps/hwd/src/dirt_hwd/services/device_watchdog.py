@@ -123,9 +123,9 @@ class DeviceWatchdogService:
             name=t.name,
             kind=t.kind,
             device_id=t.device_id,
-            site_id=t.site_id,
-            tent_id=t.tent_id,
-            zone_id=t.zone_id,
+            source_site_id=t.source_site_id,
+            source_tent_id=t.source_tent_id,
+            source_zone_id=t.source_zone_id,
             old=t.old,
             new=t.new,
             last_seen=t.last_seen.isoformat() if t.last_seen else None,
@@ -148,9 +148,9 @@ class _Transition:
     name: str
     kind: DeviceKind
     device_id: str | None
-    site_id: str
-    tent_id: str | None
-    zone_id: str | None
+    source_site_id: int | None
+    source_tent_id: int | None
+    source_zone_id: int | None
     old: DeviceStatus_t
     new: DeviceStatus_t
     last_seen: datetime | None
@@ -184,9 +184,9 @@ def _diff(
                     name=d.name,
                     kind=d.kind,
                     device_id=d.device_id,
-                    site_id=d.site_id,
-                    tent_id=d.tent_id,
-                    zone_id=d.zone_id,
+                    source_site_id=d.source_site_id,
+                    source_tent_id=d.source_tent_id,
+                    source_zone_id=d.source_zone_id,
                     old=old,
                     new=d.status,
                     last_seen=d.last_seen,

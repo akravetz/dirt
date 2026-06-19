@@ -64,9 +64,38 @@
             "title": "Site Id",
             "type": "string"
           },
+          "source_tent_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Tent Id"
+          },
+          "source_zone_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Zone Id"
+          },
           "tent_id": {
-            "title": "Tent Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tent Id"
           },
           "zone_id": {
             "anyOf": [
@@ -82,11 +111,12 @@
         },
         "required": [
           "site_id",
-          "tent_id",
+          "source_tent_id",
           "content_type",
           "byte_size",
           "object_key",
-          "captured_at"
+          "captured_at",
+          "source_zone_id"
         ],
         "title": "AssetCompleteRequest",
         "type": "object"
@@ -149,6 +179,17 @@
           "site_id": {
             "title": "Site Id",
             "type": "string"
+          },
+          "source_tent_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Tent Id"
           },
           "stage": {
             "maxLength": 80,
@@ -326,14 +367,32 @@
             "title": "Site Id",
             "type": "string"
           },
+          "source_tent_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Tent Id"
+          },
           "tent_id": {
-            "title": "Tent Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tent Id"
           }
         },
         "required": [
           "site_id",
-          "tent_id",
+          "source_tent_id",
           "content_type",
           "byte_size",
           "object_key"
@@ -411,15 +470,15 @@
             "title": "Plant Keys",
             "type": "array"
           },
-          "tent_id": {
-            "minLength": 1,
-            "title": "Tent Id",
-            "type": "string"
+          "source_tent_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Source Tent Id",
+            "type": "integer"
           }
         },
         "required": [
           "plant_keys",
-          "tent_id",
+          "source_tent_id",
           "grid_position"
         ],
         "title": "BreedingBulkMovePayload",
@@ -446,17 +505,16 @@
             "title": "Plant Keys",
             "type": "array"
           },
-          "tent_id": {
-            "maxLength": 80,
-            "minLength": 1,
-            "title": "Tent Id",
-            "type": "string"
+          "source_tent_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Source Tent Id",
+            "type": "integer"
           }
         },
         "required": [
           "idempotency_key",
           "plant_keys",
-          "tent_id",
+          "source_tent_id",
           "grid_position"
         ],
         "title": "BreedingBulkMoveRequest",
@@ -546,6 +604,11 @@
             "title": "Mother Plant Key",
             "type": "string"
           },
+          "source_tent_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Source Tent Id",
+            "type": "integer"
+          },
           "taken_at": {
             "anyOf": [
               {
@@ -557,17 +620,12 @@
               }
             ],
             "title": "Taken At"
-          },
-          "tent_id": {
-            "minLength": 1,
-            "title": "Tent Id",
-            "type": "string"
           }
         },
         "required": [
           "mother_plant_key",
           "count",
-          "tent_id",
+          "source_tent_id",
           "grid_position"
         ],
         "title": "BreedingClonePlantsPayload",
@@ -597,6 +655,11 @@
             "title": "Mother Plant Key",
             "type": "string"
           },
+          "source_tent_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Source Tent Id",
+            "type": "integer"
+          },
           "taken_at": {
             "anyOf": [
               {
@@ -608,19 +671,13 @@
               }
             ],
             "title": "Taken At"
-          },
-          "tent_id": {
-            "maxLength": 80,
-            "minLength": 1,
-            "title": "Tent Id",
-            "type": "string"
           }
         },
         "required": [
           "idempotency_key",
           "mother_plant_key",
           "count",
-          "tent_id",
+          "source_tent_id",
           "grid_position"
         ],
         "title": "BreedingClonePlantsRequest",
@@ -1057,16 +1114,16 @@
             "title": "Seed Lot Source Id",
             "type": "integer"
           },
-          "tent_id": {
-            "minLength": 1,
-            "title": "Tent Id",
-            "type": "string"
+          "source_tent_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Source Tent Id",
+            "type": "integer"
           }
         },
         "required": [
           "seed_lot_source_id",
           "count",
-          "tent_id",
+          "source_tent_id",
           "grid_position"
         ],
         "title": "BreedingGerminatePlantsPayload",
@@ -1107,18 +1164,17 @@
             "title": "Seed Lot Id",
             "type": "string"
           },
-          "tent_id": {
-            "maxLength": 80,
-            "minLength": 1,
-            "title": "Tent Id",
-            "type": "string"
+          "source_tent_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Source Tent Id",
+            "type": "integer"
           }
         },
         "required": [
           "idempotency_key",
           "seed_lot_id",
           "count",
-          "tent_id",
+          "source_tent_id",
           "grid_position"
         ],
         "title": "BreedingGerminatePlantsRequest",
@@ -1213,23 +1269,7 @@
             ],
             "title": "Grid Position"
           },
-          "key": {
-            "title": "Key",
-            "type": "string"
-          },
-          "stage_key": {
-            "enum": [
-              "germinating",
-              "veg",
-              "flower",
-              "breeding",
-              "harvested",
-              "culled"
-            ],
-            "title": "Stage Key",
-            "type": "string"
-          },
-          "tent_id": {
+          "role": {
             "anyOf": [
               {
                 "type": "string"
@@ -1238,14 +1278,17 @@
                 "type": "null"
               }
             ],
-            "title": "Tent Id"
+            "title": "Role"
+          },
+          "source_tent_id": {
+            "title": "Source Tent Id",
+            "type": "integer"
           }
         },
         "required": [
-          "key",
+          "source_tent_id",
           "display_name",
-          "stage_key",
-          "tent_id",
+          "role",
           "grid_position"
         ],
         "title": "BreedingLogbookLocationOptionResponse",
@@ -1457,6 +1500,14 @@
             ],
             "title": "Culled On"
           },
+          "current_tent_id": {
+            "title": "Current Tent Id",
+            "type": "integer"
+          },
+          "current_tent_name": {
+            "title": "Current Tent Name",
+            "type": "string"
+          },
           "flower_started_on": {
             "anyOf": [
               {
@@ -1485,6 +1536,17 @@
             ],
             "title": "Germinated On"
           },
+          "grid_position": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grid Position"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -1495,14 +1557,6 @@
           },
           "last_note": {
             "title": "Last Note",
-            "type": "string"
-          },
-          "location_key": {
-            "title": "Location Key",
-            "type": "string"
-          },
-          "location_label": {
-            "title": "Location Label",
             "type": "string"
           },
           "name": {
@@ -1574,8 +1628,9 @@
           "veg_started_on",
           "flower_started_on",
           "culled_on",
-          "location_key",
-          "location_label",
+          "current_tent_id",
+          "current_tent_name",
+          "grid_position",
           "seed_lot_label",
           "last_note",
           "telemetry_summary"
@@ -1742,13 +1797,35 @@
           "source_schedule_id": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
             "title": "Source Schedule Id"
+          },
+          "source_site_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Site Id"
+          },
+          "source_tent_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Tent Id"
           },
           "tent_id": {
             "anyOf": [
@@ -1761,6 +1838,17 @@
             ],
             "title": "Tent Id"
           },
+          "tent_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tent Name"
+          },
           "timezone": {
             "title": "Timezone",
             "type": "string"
@@ -1768,7 +1856,10 @@
         },
         "required": [
           "site_id",
+          "source_site_id",
+          "source_tent_id",
           "tent_id",
+          "tent_name",
           "camera_device_id",
           "enabled",
           "require_lights_on",
@@ -1813,9 +1904,9 @@
             ],
             "title": "Metric Name"
           },
-          "tent_id": {
-            "title": "Tent Id",
-            "type": "string"
+          "source_tent_id": {
+            "title": "Source Tent Id",
+            "type": "integer"
           },
           "unit": {
             "anyOf": [
@@ -1830,7 +1921,7 @@
           }
         },
         "required": [
-          "tent_id",
+          "source_tent_id",
           "device_id",
           "capability_id"
         ],
@@ -1940,27 +2031,28 @@
             "title": "Name",
             "type": "string"
           },
-          "tent_id": {
-            "title": "Tent Id",
-            "type": "string"
+          "source_tent_id": {
+            "title": "Source Tent Id",
+            "type": "integer"
           },
-          "zone_id": {
+          "source_zone_id": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Zone Id"
+            "title": "Source Zone Id"
           }
         },
         "required": [
-          "tent_id",
+          "source_tent_id",
           "device_id",
           "name",
-          "last_seen_at"
+          "last_seen_at",
+          "source_zone_id"
         ],
         "title": "CatalogDevice",
         "type": "object"
@@ -2346,20 +2438,20 @@
             "title": "Source Plant Id",
             "type": "integer"
           },
+          "source_tent_id": {
+            "title": "Source Tent Id",
+            "type": "integer"
+          },
           "start_at": {
             "format": "date-time",
             "title": "Start At",
-            "type": "string"
-          },
-          "tent_id": {
-            "title": "Tent Id",
             "type": "string"
           }
         },
         "required": [
           "source_location_id",
           "source_plant_id",
-          "tent_id",
+          "source_tent_id",
           "grid_position",
           "start_at",
           "end_at"
@@ -2531,6 +2623,10 @@
           "site": {
             "$ref": "#/components/schemas/CatalogSite"
           },
+          "site_id": {
+            "title": "Site Id",
+            "type": "string"
+          },
           "tents": {
             "items": {
               "$ref": "#/components/schemas/CatalogTent"
@@ -2547,6 +2643,7 @@
           }
         },
         "required": [
+          "site_id",
           "site"
         ],
         "title": "CatalogRequest",
@@ -2671,46 +2768,52 @@
             "title": "Kind",
             "type": "string"
           },
-          "schedule_id": {
-            "title": "Schedule Id",
+          "legacy_schedule_id": {
+            "title": "Legacy Schedule Id",
             "type": "string"
           },
-          "site_id": {
-            "title": "Site Id",
-            "type": "string"
+          "source_schedule_id": {
+            "title": "Source Schedule Id",
+            "type": "integer"
+          },
+          "source_site_id": {
+            "title": "Source Site Id",
+            "type": "integer"
+          },
+          "source_tent_id": {
+            "title": "Source Tent Id",
+            "type": "integer"
+          },
+          "source_zone_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Zone Id"
           },
           "starts_local": {
             "format": "time",
             "title": "Starts Local",
             "type": "string"
           },
-          "tent_id": {
-            "title": "Tent Id",
-            "type": "string"
-          },
           "timezone": {
             "default": "America/Denver",
             "title": "Timezone",
             "type": "string"
-          },
-          "zone_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Zone Id"
           }
         },
         "required": [
-          "site_id",
-          "tent_id",
-          "schedule_id",
+          "source_site_id",
+          "source_tent_id",
+          "source_schedule_id",
           "starts_local",
-          "ends_local"
+          "ends_local",
+          "source_zone_id",
+          "legacy_schedule_id"
         ],
         "title": "CatalogSchedule",
         "type": "object"
@@ -2817,9 +2920,9 @@
             "title": "Name",
             "type": "string"
           },
-          "site_id": {
-            "title": "Site Id",
-            "type": "string"
+          "source_site_id": {
+            "title": "Source Site Id",
+            "type": "integer"
           },
           "timezone": {
             "default": "America/Denver",
@@ -2828,7 +2931,7 @@
           }
         },
         "required": [
-          "site_id",
+          "source_site_id",
           "name"
         ],
         "title": "CatalogSite",
@@ -2842,18 +2945,28 @@
             "title": "Is Active",
             "type": "boolean"
           },
+          "legacy_tent_id": {
+            "title": "Legacy Tent Id",
+            "type": "string"
+          },
           "name": {
             "title": "Name",
             "type": "string"
           },
-          "tent_id": {
-            "title": "Tent Id",
+          "role": {
+            "title": "Role",
             "type": "string"
+          },
+          "source_tent_id": {
+            "title": "Source Tent Id",
+            "type": "integer"
           }
         },
         "required": [
-          "tent_id",
-          "name"
+          "source_tent_id",
+          "name",
+          "role",
+          "legacy_tent_id"
         ],
         "title": "CatalogTent",
         "type": "object"
@@ -2871,23 +2984,28 @@
             "title": "Kind",
             "type": "string"
           },
+          "legacy_zone_id": {
+            "title": "Legacy Zone Id",
+            "type": "string"
+          },
           "name": {
             "title": "Name",
             "type": "string"
           },
-          "tent_id": {
-            "title": "Tent Id",
-            "type": "string"
+          "source_tent_id": {
+            "title": "Source Tent Id",
+            "type": "integer"
           },
-          "zone_id": {
-            "title": "Zone Id",
-            "type": "string"
+          "source_zone_id": {
+            "title": "Source Zone Id",
+            "type": "integer"
           }
         },
         "required": [
-          "tent_id",
-          "zone_id",
-          "name"
+          "source_tent_id",
+          "source_zone_id",
+          "name",
+          "legacy_zone_id"
         ],
         "title": "CatalogZone",
         "type": "object"
@@ -3051,6 +3169,17 @@
             "title": "Site Id",
             "type": "string"
           },
+          "source_tent_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Tent Id"
+          },
           "started_at": {
             "anyOf": [
               {
@@ -3085,6 +3214,7 @@
           "command_id",
           "site_id",
           "tent_id",
+          "source_tent_id",
           "device_id",
           "capability_id",
           "command_type",
@@ -3184,16 +3314,15 @@
             ],
             "title": "Site Id"
           },
-          "tent_id": {
-            "maxLength": 80,
-            "minLength": 1,
-            "title": "Tent Id",
-            "type": "string"
+          "source_tent_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Source Tent Id",
+            "type": "integer"
           }
         },
         "required": [
           "idempotency_key",
-          "tent_id",
+          "source_tent_id",
           "device_id",
           "capability_id",
           "command_type"
@@ -3289,6 +3418,10 @@
             "title": "Idempotency Key",
             "type": "string"
           },
+          "legacy_target_tent_id": {
+            "title": "Legacy Target Tent Id",
+            "type": "string"
+          },
           "payload": {
             "additionalProperties": true,
             "title": "Payload",
@@ -3315,6 +3448,17 @@
             "title": "Site Id",
             "type": "string"
           },
+          "source_tent_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Tent Id"
+          },
           "started_at": {
             "anyOf": [
               {
@@ -3330,17 +3474,14 @@
           "status": {
             "title": "Status",
             "type": "string"
-          },
-          "tent_id": {
-            "title": "Tent Id",
-            "type": "string"
           }
         },
         "required": [
           "command_id",
           "idempotency_key",
           "site_id",
-          "tent_id",
+          "source_tent_id",
+          "legacy_target_tent_id",
           "device_id",
           "capability_id",
           "command_type",
@@ -3566,6 +3707,17 @@
             "title": "Site Id",
             "type": "string"
           },
+          "source_tent_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Tent Id"
+          },
           "started_at": {
             "anyOf": [
               {
@@ -3600,6 +3752,7 @@
           "command_id",
           "site_id",
           "tent_id",
+          "source_tent_id",
           "device_id",
           "capability_id",
           "command_type",
@@ -3963,19 +4116,34 @@
             "title": "Site Id",
             "type": "string"
           },
+          "source_site_id": {
+            "title": "Source Site Id",
+            "type": "integer"
+          },
+          "source_tent_id": {
+            "title": "Source Tent Id",
+            "type": "integer"
+          },
           "source_updated_at": {
             "format": "date-time",
             "title": "Source Updated At",
             "type": "string"
           },
+          "source_zone_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Zone Id"
+          },
           "stale_after_s": {
             "default": 120,
             "title": "Stale After S",
             "type": "integer"
-          },
-          "tent_id": {
-            "title": "Tent Id",
-            "type": "string"
           },
           "unit": {
             "anyOf": [
@@ -3991,27 +4159,18 @@
           "value": {
             "title": "Value",
             "type": "number"
-          },
-          "zone_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Zone Id"
           }
         },
         "required": [
           "site_id",
-          "tent_id",
+          "source_site_id",
+          "source_tent_id",
           "device_id",
           "capability_id",
           "metric",
           "value",
-          "source_updated_at"
+          "source_updated_at",
+          "source_zone_id"
         ],
         "title": "LatestMetricItem",
         "type": "object"
@@ -4091,45 +4250,50 @@
             "title": "Minutes Until On",
             "type": "number"
           },
-          "schedule_id": {
-            "title": "Schedule Id",
-            "type": "string"
-          },
           "site_id": {
             "title": "Site Id",
             "type": "string"
           },
-          "starts_local": {
-            "title": "Starts Local",
-            "type": "string"
+          "source_schedule_id": {
+            "title": "Source Schedule Id",
+            "type": "integer"
           },
-          "tent_id": {
-            "title": "Tent Id",
-            "type": "string"
+          "source_tent_id": {
+            "title": "Source Tent Id",
+            "type": "integer"
           },
-          "timezone": {
-            "title": "Timezone",
-            "type": "string"
-          },
-          "zone_id": {
+          "source_zone_id": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Zone Id"
+            "title": "Source Zone Id"
+          },
+          "starts_local": {
+            "title": "Starts Local",
+            "type": "string"
+          },
+          "tent_name": {
+            "title": "Tent Name",
+            "type": "string"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
           }
         },
         "required": [
           "site_id",
-          "tent_id",
-          "zone_id",
+          "source_tent_id",
+          "tent_name",
+          "source_zone_id",
           "device_id",
           "capability_id",
-          "schedule_id",
+          "source_schedule_id",
           "kind",
           "enabled",
           "timezone",
@@ -4157,14 +4321,19 @@
             "title": "Site Id",
             "type": "string"
           },
-          "tent_id": {
-            "title": "Tent Id",
+          "source_tent_id": {
+            "title": "Source Tent Id",
+            "type": "integer"
+          },
+          "tent_name": {
+            "title": "Tent Name",
             "type": "string"
           }
         },
         "required": [
           "site_id",
-          "tent_id",
+          "source_tent_id",
+          "tent_name",
           "schedules"
         ],
         "title": "LightSchedulesResponse",
@@ -4446,6 +4615,14 @@
       "PlantCurrentLocationResponse": {
         "additionalProperties": false,
         "properties": {
+          "current_tent_id": {
+            "title": "Current Tent Id",
+            "type": "integer"
+          },
+          "current_tent_name": {
+            "title": "Current Tent Name",
+            "type": "string"
+          },
           "end_at": {
             "anyOf": [
               {
@@ -4477,15 +4654,12 @@
             "format": "date-time",
             "title": "Start At",
             "type": "string"
-          },
-          "tent_id": {
-            "title": "Tent Id",
-            "type": "string"
           }
         },
         "required": [
           "id",
-          "tent_id",
+          "current_tent_id",
+          "current_tent_name",
           "grid_position",
           "start_at",
           "end_at"
@@ -4521,6 +4695,14 @@
           },
           "current_location": {
             "$ref": "#/components/schemas/PlantCurrentLocationResponse"
+          },
+          "current_tent_id": {
+            "title": "Current Tent Id",
+            "type": "integer"
+          },
+          "current_tent_name": {
+            "title": "Current Tent Name",
+            "type": "string"
           },
           "events": {
             "items": {
@@ -4674,10 +4856,6 @@
             "title": "Telemetry Stream Count",
             "type": "integer"
           },
-          "tent_id": {
-            "title": "Tent Id",
-            "type": "string"
-          },
           "veg_started_at": {
             "anyOf": [
               {
@@ -4703,7 +4881,8 @@
         },
         "required": [
           "site_id",
-          "tent_id",
+          "current_tent_id",
+          "current_tent_name",
           "id",
           "key",
           "line_source_id",
@@ -5305,6 +5484,14 @@
             ],
             "title": "Culled At"
           },
+          "current_tent_id": {
+            "title": "Current Tent Id",
+            "type": "integer"
+          },
+          "current_tent_name": {
+            "title": "Current Tent Name",
+            "type": "string"
+          },
           "flower_started_at": {
             "anyOf": [
               {
@@ -5413,10 +5600,6 @@
             "title": "Telemetry Stream Count",
             "type": "integer"
           },
-          "tent_id": {
-            "title": "Tent Id",
-            "type": "string"
-          },
           "veg_started_at": {
             "anyOf": [
               {
@@ -5432,7 +5615,8 @@
         },
         "required": [
           "site_id",
-          "tent_id",
+          "current_tent_id",
+          "current_tent_name",
           "id",
           "key",
           "line_source_id",
@@ -5659,9 +5843,13 @@
             "title": "Site Id",
             "type": "string"
           },
-          "tent_id": {
-            "title": "Tent Id",
-            "type": "string"
+          "source_site_id": {
+            "title": "Source Site Id",
+            "type": "integer"
+          },
+          "source_tent_id": {
+            "title": "Source Tent Id",
+            "type": "integer"
           },
           "unit": {
             "anyOf": [
@@ -5677,7 +5865,8 @@
         },
         "required": [
           "site_id",
-          "tent_id",
+          "source_site_id",
+          "source_tent_id",
           "device_id",
           "capability_id",
           "metric",
@@ -5892,24 +6081,36 @@
             "title": "Name",
             "type": "string"
           },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
           "site_id": {
             "title": "Site Id",
             "type": "string"
+          },
+          "source_tent_id": {
+            "title": "Source Tent Id",
+            "type": "integer"
           },
           "synced_at": {
             "format": "date-time",
             "title": "Synced At",
             "type": "string"
-          },
-          "tent_id": {
-            "title": "Tent Id",
-            "type": "string"
           }
         },
         "required": [
           "site_id",
-          "tent_id",
+          "source_tent_id",
           "name",
+          "role",
           "is_active",
           "synced_at"
         ],
@@ -5951,19 +6152,31 @@
             "title": "Name",
             "type": "string"
           },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
           "site_id": {
             "title": "Site Id",
             "type": "string"
           },
-          "tent_id": {
-            "title": "Tent Id",
-            "type": "string"
+          "source_tent_id": {
+            "title": "Source Tent Id",
+            "type": "integer"
           }
         },
         "required": [
           "site_id",
-          "tent_id",
+          "source_tent_id",
           "name",
+          "role",
           "is_active",
           "gateway_last_seen_at",
           "last_catalog_sync_at"
@@ -7173,17 +7386,17 @@
         "summary": "Tents"
       }
     },
-    "/api/tents/{tent_id}/assets/latest": {
+    "/api/tents/{source_tent_id}/assets/latest": {
       "get": {
-        "operationId": "latest_assets_api_tents__tent_id__assets_latest_get",
+        "operationId": "latest_assets_api_tents__source_tent_id__assets_latest_get",
         "parameters": [
           {
             "in": "path",
-            "name": "tent_id",
+            "name": "source_tent_id",
             "required": true,
             "schema": {
-              "title": "Tent Id",
-              "type": "string"
+              "title": "Source Tent Id",
+              "type": "integer"
             }
           }
         ],
@@ -7195,7 +7408,7 @@
                   "items": {
                     "$ref": "#/components/schemas/AssetResponse"
                   },
-                  "title": "Response Latest Assets Api Tents  Tent Id  Assets Latest Get",
+                  "title": "Response Latest Assets Api Tents  Source Tent Id  Assets Latest Get",
                   "type": "array"
                 }
               }
@@ -7216,17 +7429,17 @@
         "summary": "Latest Assets"
       }
     },
-    "/api/tents/{tent_id}/devices": {
+    "/api/tents/{source_tent_id}/devices": {
       "get": {
-        "operationId": "devices_api_tents__tent_id__devices_get",
+        "operationId": "devices_api_tents__source_tent_id__devices_get",
         "parameters": [
           {
             "in": "path",
-            "name": "tent_id",
+            "name": "source_tent_id",
             "required": true,
             "schema": {
-              "title": "Tent Id",
-              "type": "string"
+              "title": "Source Tent Id",
+              "type": "integer"
             }
           }
         ],
@@ -7238,7 +7451,7 @@
                   "items": {
                     "$ref": "#/components/schemas/DeviceResponse"
                   },
-                  "title": "Response Devices Api Tents  Tent Id  Devices Get",
+                  "title": "Response Devices Api Tents  Source Tent Id  Devices Get",
                   "type": "array"
                 }
               }
@@ -7259,17 +7472,17 @@
         "summary": "Devices"
       }
     },
-    "/api/tents/{tent_id}/lights/schedules": {
+    "/api/tents/{source_tent_id}/lights/schedules": {
       "get": {
-        "operationId": "light_schedules_api_tents__tent_id__lights_schedules_get",
+        "operationId": "light_schedules_api_tents__source_tent_id__lights_schedules_get",
         "parameters": [
           {
             "in": "path",
-            "name": "tent_id",
+            "name": "source_tent_id",
             "required": true,
             "schema": {
-              "title": "Tent Id",
-              "type": "string"
+              "title": "Source Tent Id",
+              "type": "integer"
             }
           }
         ],
@@ -7298,17 +7511,17 @@
         "summary": "Light Schedules"
       }
     },
-    "/api/tents/{tent_id}/metrics/current": {
+    "/api/tents/{source_tent_id}/metrics/current": {
       "get": {
-        "operationId": "current_metrics_api_tents__tent_id__metrics_current_get",
+        "operationId": "current_metrics_api_tents__source_tent_id__metrics_current_get",
         "parameters": [
           {
             "in": "path",
-            "name": "tent_id",
+            "name": "source_tent_id",
             "required": true,
             "schema": {
-              "title": "Tent Id",
-              "type": "string"
+              "title": "Source Tent Id",
+              "type": "integer"
             }
           }
         ],
@@ -7320,7 +7533,7 @@
                   "items": {
                     "$ref": "#/components/schemas/CurrentMetricResponse"
                   },
-                  "title": "Response Current Metrics Api Tents  Tent Id  Metrics Current Get",
+                  "title": "Response Current Metrics Api Tents  Source Tent Id  Metrics Current Get",
                   "type": "array"
                 }
               }
@@ -7341,17 +7554,17 @@
         "summary": "Current Metrics"
       }
     },
-    "/api/tents/{tent_id}/metrics/history": {
+    "/api/tents/{source_tent_id}/metrics/history": {
       "get": {
-        "operationId": "metric_history_api_tents__tent_id__metrics_history_get",
+        "operationId": "metric_history_api_tents__source_tent_id__metrics_history_get",
         "parameters": [
           {
             "in": "path",
-            "name": "tent_id",
+            "name": "source_tent_id",
             "required": true,
             "schema": {
-              "title": "Tent Id",
-              "type": "string"
+              "title": "Source Tent Id",
+              "type": "integer"
             }
           },
           {
@@ -7431,17 +7644,17 @@
         "summary": "Metric History"
       }
     },
-    "/api/tents/{tent_id}/metrics/presentation": {
+    "/api/tents/{source_tent_id}/metrics/presentation": {
       "get": {
-        "operationId": "metric_presentation_api_tents__tent_id__metrics_presentation_get",
+        "operationId": "metric_presentation_api_tents__source_tent_id__metrics_presentation_get",
         "parameters": [
           {
             "in": "path",
-            "name": "tent_id",
+            "name": "source_tent_id",
             "required": true,
             "schema": {
-              "title": "Tent Id",
-              "type": "string"
+              "title": "Source Tent Id",
+              "type": "integer"
             }
           }
         ],
@@ -7470,17 +7683,17 @@
         "summary": "Metric Presentation"
       }
     },
-    "/api/tents/{tent_id}/plants": {
+    "/api/tents/{source_tent_id}/plants": {
       "get": {
-        "operationId": "plants_api_tents__tent_id__plants_get",
+        "operationId": "plants_api_tents__source_tent_id__plants_get",
         "parameters": [
           {
             "in": "path",
-            "name": "tent_id",
+            "name": "source_tent_id",
             "required": true,
             "schema": {
-              "title": "Tent Id",
-              "type": "string"
+              "title": "Source Tent Id",
+              "type": "integer"
             }
           }
         ],
@@ -7492,7 +7705,7 @@
                   "items": {
                     "$ref": "#/components/schemas/PlantSummaryResponse"
                   },
-                  "title": "Response Plants Api Tents  Tent Id  Plants Get",
+                  "title": "Response Plants Api Tents  Source Tent Id  Plants Get",
                   "type": "array"
                 }
               }
@@ -7513,17 +7726,17 @@
         "summary": "Plants"
       }
     },
-    "/api/tents/{tent_id}/plants/{plant_id}": {
+    "/api/tents/{source_tent_id}/plants/{plant_id}": {
       "get": {
-        "operationId": "plant_detail_api_tents__tent_id__plants__plant_id__get",
+        "operationId": "plant_detail_api_tents__source_tent_id__plants__plant_id__get",
         "parameters": [
           {
             "in": "path",
-            "name": "tent_id",
+            "name": "source_tent_id",
             "required": true,
             "schema": {
-              "title": "Tent Id",
-              "type": "string"
+              "title": "Source Tent Id",
+              "type": "integer"
             }
           },
           {
@@ -7561,17 +7774,17 @@
         "summary": "Plant Detail"
       }
     },
-    "/api/tents/{tent_id}/plants/{plant_id}/metrics/history": {
+    "/api/tents/{source_tent_id}/plants/{plant_id}/metrics/history": {
       "get": {
-        "operationId": "plant_metric_history_api_tents__tent_id__plants__plant_id__metrics_history_get",
+        "operationId": "plant_metric_history_api_tents__source_tent_id__plants__plant_id__metrics_history_get",
         "parameters": [
           {
             "in": "path",
-            "name": "tent_id",
+            "name": "source_tent_id",
             "required": true,
             "schema": {
-              "title": "Tent Id",
-              "type": "string"
+              "title": "Source Tent Id",
+              "type": "integer"
             }
           },
           {
@@ -7619,17 +7832,17 @@
         "summary": "Plant Metric History"
       }
     },
-    "/api/tents/{tent_id}/state": {
+    "/api/tents/{source_tent_id}/state": {
       "get": {
-        "operationId": "tent_state_api_tents__tent_id__state_get",
+        "operationId": "tent_state_api_tents__source_tent_id__state_get",
         "parameters": [
           {
             "in": "path",
-            "name": "tent_id",
+            "name": "source_tent_id",
             "required": true,
             "schema": {
-              "title": "Tent Id",
-              "type": "string"
+              "title": "Source Tent Id",
+              "type": "integer"
             }
           }
         ],

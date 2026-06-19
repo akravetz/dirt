@@ -17,6 +17,7 @@ from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.models.zone import Zone
 from dirt_shared.sensor_contract import capability_metadata_from_json
 from dirt_shared.services.readings import ReadingsService, compute_calibrated_pct
+from dirt_shared.testing import create_test_capability, create_test_device
 
 
 @pytest.fixture
@@ -37,15 +38,11 @@ def _auth_header() -> dict[str, str]:
 
 def _current_payload(
     *,
-    zone_id: str,
     device_id: str,
     metrics: dict[str, float],
     **extra: Any,
 ) -> dict[str, Any]:
     return {
-        "site_id": "homebox",
-        "tent_id": "main",
-        "zone_id": zone_id,
         "device_id": device_id,
         "metrics": metrics,
         **extra,
@@ -81,9 +78,8 @@ async def test_ingest_writes_readings_and_node(client: AsyncClient, app_engine):
     r = await client.post(
         "/api/ingest/sensors",
         json=_current_payload(
-            zone_id="plant-a",
-            device_id="plant-a-node",
-            metrics={"soil_moisture_pct": 42.0, "soil_moisture_raw": 1600},
+            device_id="plant-a-substrate-node",
+            metrics=SUBSTRATE_METRICS,
             firmware_version="0.1.0",
             ip="192.168.1.103",
             uptime_ms=60000,
@@ -97,7 +93,7 @@ async def test_ingest_writes_readings_and_node(client: AsyncClient, app_engine):
     )
     assert r.status_code == 202
     body = r.json()
-    assert body == {"ok": True, "device_id": "plant-a-node", "count": 2}
+    assert body == {"ok": True, "device_id": "plant-a-substrate-node", "count": 4}
 
     async with AsyncSession(app_engine) as s:
         readings = (
@@ -105,16 +101,18 @@ async def test_ingest_writes_readings_and_node(client: AsyncClient, app_engine):
                 select(SensorReading, Device, Capability)
                 .join(Capability, Capability.id == SensorReading.capability_id)
                 .join(Device, Device.id == Capability.device_id)
-                .where(Device.device_id == "plant-a-node")
+                .where(Device.device_id == "plant-a-substrate-node")
             )
         ).all()
         metrics = {r.metric: r.value for r, _, _ in readings}
-        assert metrics == {"soil_moisture_pct": 42.0, "soil_moisture_raw": 1600.0}
+        assert metrics == SUBSTRATE_METRICS
         for r, _, _ in readings:
             assert r.source == "esp32"
 
         device = (
-            await s.exec(select(Device).where(Device.device_id == "plant-a-node"))
+            await s.exec(
+                select(Device).where(Device.device_id == "plant-a-substrate-node")
+            )
         ).one()
         assert str(device.ip) == "192.168.1.103"
         assert device.firmware_version == "0.1.0"
@@ -188,7 +186,7 @@ async def test_logical_substrate_node_seed_declares_capabilities_for_c_and_d(
     async with AsyncSession(app_engine) as s:
         row = (
             await s.exec(
-                select(Device, Zone.zone_id)
+                select(Device, Zone.name)
                 .join(Zone, Zone.id == Device.zone_id)
                 .where(Device.device_id == device_id)
             )
@@ -202,7 +200,7 @@ async def test_logical_substrate_node_seed_declares_capabilities_for_c_and_d(
             )
         ).all()
 
-    assert seeded_zone_id == zone_id
+    assert seeded_zone_id.lower().replace(" ", "-") == zone_id
     assert device.hostname == "plant-a-substrate-node.local"
     assert device.metadata_json["sensor_model"] == "DFRobot SEN0604"
     assert device.metadata_json["bus_controller_device_id"] == "plant-a-substrate-node"
@@ -245,7 +243,6 @@ async def test_logical_substrate_node_ingest_writes_four_capability_rows(
     r = await client.post(
         "/api/ingest/sensors",
         json=_current_payload(
-            zone_id=zone_id,
             device_id=device_id,
             metrics=SUBSTRATE_METRICS,
             firmware_version="rs485-0.1.0",
@@ -306,7 +303,6 @@ async def test_freshness_snapshot_uses_required_metadata_and_device_heartbeat(
     d_response = await client.post(
         "/api/ingest/sensors",
         json=_current_payload(
-            zone_id="plant-d",
             device_id="plant-d-substrate-node",
             metrics={"soil_moisture_pct": 26.9},
         ),
@@ -317,7 +313,6 @@ async def test_freshness_snapshot_uses_required_metadata_and_device_heartbeat(
     c_response = await client.post(
         "/api/ingest/sensors",
         json=_current_payload(
-            zone_id="plant-c",
             device_id="plant-c-substrate-node",
             metrics={"substrate_ph": 5.9},
         ),
@@ -356,7 +351,6 @@ async def test_ingest_stores_device_diagnostics(client: AsyncClient, app_engine)
     r = await client.post(
         "/api/ingest/sensors",
         json=_current_payload(
-            zone_id="canopy",
             device_id="fan-controller",
             metrics={
                 "temperature_c": 20.6,
@@ -406,7 +400,6 @@ async def test_ingest_stores_substrate_node_modbus_diagnostics(
     r = await client.post(
         "/api/ingest/sensors",
         json=_current_payload(
-            zone_id="plant-a",
             device_id="plant-a-substrate-node",
             metrics={
                 "soil_moisture_pct": 26.9,
@@ -461,21 +454,22 @@ async def test_ingest_stores_substrate_node_modbus_diagnostics(
     }
 
 
-async def test_scoped_device_id_writes_capability(client: AsyncClient, app_engine):
+async def test_device_id_writes_capability(client: AsyncClient, app_engine):
     r = await client.post(
         "/api/ingest/sensors",
         json={
-            "site_id": "homebox",
-            "tent_id": "main",
-            "zone_id": "plant-a",
-            "device_id": "plant-a-node",
-            "metrics": {"soil_moisture_raw": 1600},
+            "device_id": "plant-a-substrate-node",
+            "metrics": {"soil_moisture_pct": 26.9},
         },
         headers=_auth_header(),
     )
 
     assert r.status_code == 202
-    assert r.json() == {"ok": True, "device_id": "plant-a-node", "count": 1}
+    assert r.json() == {
+        "ok": True,
+        "device_id": "plant-a-substrate-node",
+        "count": 1,
+    }
 
     async with AsyncSession(app_engine) as s:
         row = (
@@ -483,15 +477,56 @@ async def test_scoped_device_id_writes_capability(client: AsyncClient, app_engin
                 select(SensorReading, Device, Capability)
                 .join(Capability, Capability.id == SensorReading.capability_id)
                 .join(Device, Device.id == Capability.device_id)
-                .where(SensorReading.metric == "soil_moisture_raw")
+                .where(SensorReading.metric == "soil_moisture_pct")
             )
         ).one()
 
     reading, device, capability = row
     assert reading.capability_id is not None
-    assert device.device_id == "plant-a-node"
+    assert device.device_id == "plant-a-substrate-node"
     assert device.last_seen is not None
-    assert capability.capability_id == "soil_moisture_raw"
+    assert capability.capability_id == "soil_moisture_pct"
+
+
+async def test_firmware_scope_fields_are_rejected(
+    client: AsyncClient,
+    app_engine,
+):
+    response = await client.post(
+        "/api/ingest/sensors",
+        json={
+            "site_id": "homebox",
+            "tent_id": "main",
+            "zone_id": "plant-b",
+            "device_id": "plant-a-substrate-node",
+            "metrics": {"soil_moisture_pct": 26.9},
+        },
+        headers=_auth_header(),
+    )
+
+    assert response.status_code == 422
+    assert {
+        tuple(error["loc"])
+        for error in response.json()["detail"]
+        if error["type"] == "extra_forbidden"
+    } == {
+        ("body", "site_id"),
+        ("body", "tent_id"),
+        ("body", "zone_id"),
+    }
+
+    async with AsyncSession(app_engine) as s:
+        rows = (
+            await s.exec(
+                select(SensorReading)
+                .join(Capability, Capability.id == SensorReading.capability_id)
+                .join(Device, Device.id == Capability.device_id)
+                .where(Device.device_id == "plant-a-substrate-node")
+                .where(SensorReading.metric == "soil_moisture_pct")
+            )
+        ).all()
+
+    assert rows == []
 
 
 async def test_scoped_device_id_ingest_does_not_require_location(
@@ -500,17 +535,14 @@ async def test_scoped_device_id_ingest_does_not_require_location(
     r = await client.post(
         "/api/ingest/sensors",
         json={
-            "site_id": "homebox",
-            "tent_id": "main",
-            "zone_id": "plant-a",
-            "device_id": "plant-a-node",
-            "metrics": {"soil_moisture_raw": 1600},
+            "device_id": "reservoir-node",
+            "metrics": {"reservoir_in": 12.0},
         },
         headers=_auth_header(),
     )
 
     assert r.status_code == 202
-    assert r.json() == {"ok": True, "device_id": "plant-a-node", "count": 1}
+    assert r.json() == {"ok": True, "device_id": "reservoir-node", "count": 1}
 
     async with AsyncSession(app_engine) as s:
         row = (
@@ -518,15 +550,15 @@ async def test_scoped_device_id_ingest_does_not_require_location(
                 select(SensorReading, Device, Capability)
                 .join(Capability, Capability.id == SensorReading.capability_id)
                 .join(Device, Device.id == Capability.device_id)
-                .where(SensorReading.metric == "soil_moisture_raw")
+                .where(SensorReading.metric == "reservoir_in")
             )
         ).one()
 
     reading, device, capability = row
     assert reading.capability_id is not None
-    assert device.device_id == "plant-a-node"
+    assert device.device_id == "reservoir-node"
     assert device.last_seen is not None
-    assert capability.capability_id == "soil_moisture_raw"
+    assert capability.capability_id == "reservoir_in"
 
 
 async def test_unknown_device_id_logs_unresolved_capability(
@@ -536,9 +568,6 @@ async def test_unknown_device_id_logs_unresolved_capability(
     r = await client.post(
         "/api/ingest/sensors",
         json={
-            "site_id": "homebox",
-            "tent_id": "main",
-            "zone_id": "plant-a",
             "device_id": "unknown-node",
             "metrics": {"soil_moisture_raw": 1600},
         },
@@ -560,7 +589,7 @@ async def test_ingest_requires_location_or_device_id(client: AsyncClient):
     )
 
     assert r.status_code == 422
-    assert "device_id is required for sensor ingest" in r.text
+    assert "device_id" in r.text
 
 
 async def test_location_only_known_board_is_rejected(client: AsyncClient):
@@ -571,7 +600,7 @@ async def test_location_only_known_board_is_rejected(client: AsyncClient):
     )
 
     assert r.status_code == 422
-    assert "device_id is required for sensor ingest" in r.text
+    assert "device_id" in r.text
 
 
 async def test_known_device_unresolved_metric_logs_warning(
@@ -582,7 +611,6 @@ async def test_known_device_unresolved_metric_logs_warning(
     r = await client.post(
         "/api/ingest/sensors",
         json=_current_payload(
-            zone_id="canopy",
             device_id="fan-controller",
             metrics={"pressure_hpa": 843.0},
         ),
@@ -602,8 +630,7 @@ async def test_known_device_unresolved_metric_logs_warning(
 
 async def test_ingest_updates_device_on_second_post(client: AsyncClient, app_engine):
     payload = _current_payload(
-        zone_id="plant-a",
-        device_id="plant-a-node",
+        device_id="plant-a-substrate-node",
         metrics={"soil_moisture_pct": 10.0},
         firmware_version="0.1.0",
         uptime_ms=1000,
@@ -618,22 +645,44 @@ async def test_ingest_updates_device_on_second_post(client: AsyncClient, app_eng
 
     async with AsyncSession(app_engine) as s:
         device = (
-            await s.exec(select(Device).where(Device.device_id == "plant-a-node"))
+            await s.exec(
+                select(Device).where(Device.device_id == "plant-a-substrate-node")
+            )
         ).one()
         assert device.uptime_ms == 2000
+
+
+async def _create_enabled_raw_node(app_engine, device_id: str = "test-raw-node"):
+    async with AsyncSession(app_engine) as session:
+        device = await create_test_device(
+            session,
+            tent_id="main",
+            zone_id="plant-a",
+            device_id=device_id,
+            name="Test raw moisture node",
+            kind="moisture_node",
+            controller="test",
+        )
+        await create_test_capability(
+            session,
+            device=device,
+            capability_id="soil_moisture_raw",
+            name="Soil Moisture Raw",
+            unit="raw",
+            source="test",
+        )
+        await session.commit()
 
 
 async def _post_raw(
     client: AsyncClient,
     value: float,
     *,
-    device_id: str = "plant-a-node",
-    zone_id: str = "plant-a",
+    device_id: str = "test-raw-node",
 ):
     return await client.post(
         "/api/ingest/sensors",
         json=_current_payload(
-            zone_id=zone_id,
             device_id=device_id,
             metrics={"soil_moisture_raw": value},
         ),
@@ -665,24 +714,27 @@ async def _get_cal(engine, device_id: str, metric: str) -> SensorCalibration | N
 async def test_first_raw_reading_creates_calibration_row(
     client: AsyncClient, app_engine
 ):
+    await _create_enabled_raw_node(app_engine)
     assert (await _post_raw(client, 2700)).status_code == 202
-    cal = await _get_cal(app_engine, "plant-a-node", "soil_moisture_raw")
+    cal = await _get_cal(app_engine, "test-raw-node", "soil_moisture_raw")
     assert cal is not None
     assert cal.raw_low == 2700
     assert cal.raw_high == 2700
 
 
 async def test_calibration_widens_range_on_new_extrema(client: AsyncClient, app_engine):
+    await _create_enabled_raw_node(app_engine)
     for v in [2750, 2700, 620, 1500, 640, 3000]:
         assert (await _post_raw(client, v)).status_code == 202
 
-    cal = await _get_cal(app_engine, "plant-a-node", "soil_moisture_raw")
+    cal = await _get_cal(app_engine, "test-raw-node", "soil_moisture_raw")
     assert cal is not None
     assert cal.raw_low == 620
     assert cal.raw_high == 3000
 
 
 async def test_calibration_ignores_out_of_clamp_values(client: AsyncClient, app_engine):
+    await _create_enabled_raw_node(app_engine)
     for v in [2500, 800]:
         assert (await _post_raw(client, v)).status_code == 202
 
@@ -690,7 +742,7 @@ async def test_calibration_ignores_out_of_clamp_values(client: AsyncClient, app_
     assert (await _post_raw(client, 50)).status_code == 202  # impossibly wet
     assert (await _post_raw(client, 4000)).status_code == 202  # impossibly dry
 
-    cal = await _get_cal(app_engine, "plant-a-node", "soil_moisture_raw")
+    cal = await _get_cal(app_engine, "test-raw-node", "soil_moisture_raw")
     assert cal is not None
     assert cal.raw_low == 800
     assert cal.raw_high == 2500
@@ -703,14 +755,13 @@ async def test_calibration_not_triggered_for_other_metrics(
     r = await client.post(
         "/api/ingest/sensors",
         json=_current_payload(
-            zone_id="plant-a",
-            device_id="plant-a-node",
+            device_id="fan-controller",
             metrics={"humidity_pct": 55.0},
         ),
         headers=_auth_header(),
     )
     assert r.status_code == 202
-    cal = await _get_cal(app_engine, "plant-a-node", "humidity_pct")
+    cal = await _get_cal(app_engine, "fan-controller", "humidity_pct")
     assert cal is None
 
 
@@ -738,7 +789,6 @@ async def test_tent_ingest_derives_temperature_f_vpd_dew_point(
     r = await client.post(
         "/api/ingest/sensors",
         json=_current_payload(
-            zone_id="canopy",
             device_id="fan-controller",
             metrics={
                 "temperature_c": 20.6,
@@ -775,14 +825,12 @@ async def test_tent_ingest_derives_temperature_f_vpd_dew_point(
 async def test_plant_node_ingest_passthrough_without_temp_rh(
     client: AsyncClient, app_engine
 ):
-    """Plant-node moisture posts lack the temperature_c + humidity_pct
-    pair — tent-metric derivation must leave them alone."""
+    """Single moisture metrics lack the temperature_c + humidity_pct pair."""
     r = await client.post(
         "/api/ingest/sensors",
         json=_current_payload(
-            zone_id="plant-a",
-            device_id="plant-a-node",
-            metrics={"soil_moisture_raw": 1500.0},
+            device_id="plant-a-substrate-node",
+            metrics={"soil_moisture_pct": 26.9},
         ),
         headers=_auth_header(),
     )
@@ -808,7 +856,6 @@ async def test_reservoir_fault_payload_is_rejected_but_device_touched(
         response = await ac.post(
             "/api/ingest/sensors",
             json=_current_payload(
-                zone_id="reservoir",
                 device_id="reservoir-node",
                 metrics={
                     "reservoir_pressure_raw": 8300.0,
@@ -879,9 +926,6 @@ async def test_scoped_fault_payload_is_rejected_but_device_heartbeat_updates(
         response = await ac.post(
             "/api/ingest/sensors",
             json={
-                "site_id": "homebox",
-                "tent_id": "main",
-                "zone_id": "reservoir",
                 "device_id": "reservoir-node",
                 "metrics": {
                     "reservoir_pressure_raw": 8300.0,

@@ -57,6 +57,10 @@ def _split_csv(value: str) -> tuple[str, ...]:
     return tuple(part.strip() for part in value.split(",") if part.strip())
 
 
+def _split_csv_ints(value: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in _split_csv(value))
+
+
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Run the daily report.")
     p.add_argument(
@@ -113,14 +117,18 @@ async def _amain() -> int:
         reader = SensorReader(
             engine,
             max_age_s=settings.daily_report_sensor_max_age_s,
-            sensor_min_raw=settings.daily_report_sensor_min_raw,
-            sensor_max_raw=settings.daily_report_sensor_max_raw,
-            report_tent_ids=_split_csv(settings.daily_report_tent_ids),
-            required_tent_ids=_split_csv(settings.daily_report_required_tent_ids),
+            report_source_tent_ids=_split_csv_ints(
+                settings.daily_report_source_tent_ids
+            ),
+            required_source_tent_ids=_split_csv_ints(
+                settings.daily_report_required_source_tent_ids
+            ),
         )
         extra_photo_sources = []
-        photo_tent_ids = _split_csv(settings.daily_report_photo_tent_ids)
-        if photo_tent_ids and settings.cloud_session_secret:
+        photo_source_tent_ids = _split_csv_ints(
+            settings.daily_report_photo_source_tent_ids
+        )
+        if photo_source_tent_ids and settings.cloud_session_secret:
             session_cookie = build_hosted_browser_session_cookie(
                 session_secret=settings.cloud_session_secret,
                 username=settings.cloud_admin_username,
@@ -130,9 +138,9 @@ async def _amain() -> int:
                     http=http,
                     base_url=settings.cloud_api_base_url,
                     session_cookie=session_cookie,
-                    tent_id=tent_id,
+                    source_tent_id=source_tent_id,
                 )
-                for tent_id in photo_tent_ids
+                for source_tent_id in photo_source_tent_ids
             ]
         if settings.daily_report_synthesis_backend == "claude":
             synthesis = ClaudeSynthesisRunner(

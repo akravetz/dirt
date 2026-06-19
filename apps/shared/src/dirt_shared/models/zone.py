@@ -13,7 +13,6 @@ from sqlalchemy import (
     Identity,
     Index,
     Text,
-    UniqueConstraint,
     text,
 )
 from sqlmodel import Field, SQLModel
@@ -26,7 +25,6 @@ def _utcnow() -> datetime:
 class Zone(SQLModel, table=True):
     __tablename__ = "zone"
     __table_args__ = (
-        UniqueConstraint("site_id", "tent_id", "zone_id", name="uq_zone_scope_zone_id"),
         Index("ix_zone_site_id", "site_id"),
         Index("ix_zone_tent_id", "tent_id"),
     )
@@ -50,7 +48,6 @@ class Zone(SQLModel, table=True):
             nullable=True,
         ),
     )
-    zone_id: str = Field(sa_column=Column(Text, nullable=False))
     name: str = Field(sa_column=Column(Text, nullable=False))
     zone_type: str = Field(sa_column=Column(Text, nullable=False))
     active: bool = Field(

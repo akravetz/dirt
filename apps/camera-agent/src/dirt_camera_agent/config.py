@@ -21,8 +21,6 @@ class CameraAgentSettings(BaseSettings):
         default=SUPPORTED_CAMERA_AGENT_SOURCE,
         validation_alias="DIRT_CAMERA_AGENT_SOURCE",
     )
-    site_id: str = Field(validation_alias="DIRT_SITE_ID")
-    tent_id: str = Field(validation_alias="DIRT_TENT_ID")
     camera_device_id: str = Field(validation_alias="DIRT_CAMERA_DEVICE_ID")
     camera_view_id: str | None = Field(
         default=None, validation_alias="DIRT_CAMERA_VIEW_ID"
@@ -44,6 +42,7 @@ class CameraAgentSettings(BaseSettings):
     cloud_api_base_url: str = Field(
         default="http://127.0.0.1:8002", validation_alias="DIRT_CLOUD_API_BASE_URL"
     )
+    cloud_site_id: str = Field(default="homebox", validation_alias="DIRT_CLOUD_SITE_ID")
     cloud_gateway_id: str = Field(
         default="gateway-camera-agent", validation_alias="DIRT_CLOUD_GATEWAY_ID"
     )
@@ -54,7 +53,9 @@ class CameraAgentSettings(BaseSettings):
     @model_validator(mode="after")
     def _derive_paths(self) -> CameraAgentSettings:
         if self.spool_dir is None:
-            self.spool_dir = self.data_dir / "camera-agent" / self.tent_id / "snapshots"
+            self.spool_dir = (
+                self.data_dir / "camera-agent" / self.camera_device_id / "snapshots"
+            )
         if self.camera_socket_path is None:
             self.camera_socket_path = (
                 self.xdg_runtime_dir / "dirt-camera.sock"

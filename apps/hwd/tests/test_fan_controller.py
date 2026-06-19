@@ -245,14 +245,11 @@ async def test_fan_loop_reads_main_canopy_scope() -> None:
 
     await asyncio.wait_for(service.run(stop_event), timeout=2.0)
 
-    assert grow.calls == [{"site_id": "homebox", "tent_id": "main"}]
+    assert grow.calls == [{}]
     assert readings.calls == [
         (
             "vpd_kpa",
             {
-                "site_id": "homebox",
-                "tent_id": "main",
-                "zone_id": "canopy",
                 "device_id": "fan-controller",
                 "capability_id": "vpd_kpa",
             },
@@ -260,9 +257,6 @@ async def test_fan_loop_reads_main_canopy_scope() -> None:
         (
             "humidity_pct",
             {
-                "site_id": "homebox",
-                "tent_id": "main",
-                "zone_id": "canopy",
                 "device_id": "fan-controller",
                 "capability_id": "humidity_pct",
             },

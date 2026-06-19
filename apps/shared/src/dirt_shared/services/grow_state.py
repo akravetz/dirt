@@ -24,9 +24,8 @@ from dirt_shared.config import GROW_START
 from dirt_shared.models.plant import Plant, PlantLine, PlantLocationHistory
 from dirt_shared.models.schedule import Schedule
 from dirt_shared.services.scope import (
-    DEFAULT_SITE_ID,
-    DEFAULT_TENT_ID,
-    resolve_scope,
+    require_default_site_pk,
+    require_default_tent_pk,
 )
 
 Stage = Literal["veg", "flower_early", "flower_late"]
@@ -137,8 +136,8 @@ class GrowCurrentPayload:
 
 @dataclass(frozen=True)
 class LightSchedule:
-    site_id: str
-    tent_id: str
+    site_pk: int
+    tent_pk: int
     starts_local: time
     ends_local: time
     timezone: str
@@ -254,30 +253,25 @@ class GrowStateService:
     async def today(
         self,
         *,
-        site_id: str = DEFAULT_SITE_ID,
-        tent_id: str = DEFAULT_TENT_ID,
+        site_pk: int | None = None,
+        tent_pk: int | None = None,
     ) -> date:
         """The tent's current date in its wall-clock timezone."""
-        context = await self.get_tent_context(site_id=site_id, tent_id=tent_id)
+        context = await self.get_tent_context(site_pk=site_pk, tent_pk=tent_pk)
         return self._clock().astimezone(ZoneInfo(context.timezone)).date()
 
     async def get_tent_context(
         self,
         *,
-        site_id: str = DEFAULT_SITE_ID,
-        tent_id: str = DEFAULT_TENT_ID,
+        site_pk: int | None = None,
+        tent_pk: int | None = None,
     ) -> TentPlantContext:
         """Return lifecycle context for current plants in a site/tent scope."""
-        schedule = await self.current_light_schedule(site_id=site_id, tent_id=tent_id)
+        schedule = await self.current_light_schedule(site_pk=site_pk, tent_pk=tent_pk)
         tz = ZoneInfo(schedule.timezone)
         async with AsyncSession(self._engine) as session:
-            scope = await resolve_scope(session, site_id=site_id, tent_id=tent_id)
-            if scope is None:
-                return _fallback_tent_context(
-                    site_id=site_id,
-                    tent_id=tent_id,
-                    timezone=schedule.timezone,
-                )
+            site_pk = schedule.site_pk
+            tent_pk = schedule.tent_pk
             result = await session.exec(
                 select(
                     Plant.germinated_at,
@@ -287,16 +281,14 @@ class GrowStateService:
                 )
                 .join(PlantLocationHistory, PlantLocationHistory.plant_id == Plant.id)
                 .join(PlantLine, PlantLine.id == Plant.line_id)
-                .where(PlantLocationHistory.site_id == scope.site_pk)
-                .where(PlantLocationHistory.tent_id == scope.tent_pk)
+                .where(PlantLocationHistory.site_id == site_pk)
+                .where(PlantLocationHistory.tent_id == tent_pk)
                 .where(PlantLocationHistory.end_at.is_(None))
                 .order_by(PlantLocationHistory.grid_position, Plant.key)
             )
             rows = result.all()
         if not rows:
             return _fallback_tent_context(
-                site_id=site_id,
-                tent_id=tent_id,
                 timezone=schedule.timezone,
             )
 
@@ -361,42 +353,42 @@ class GrowStateService:
     async def current_stage(
         self,
         *,
-        site_id: str = DEFAULT_SITE_ID,
-        tent_id: str = DEFAULT_TENT_ID,
+        site_pk: int | None = None,
+        tent_pk: int | None = None,
     ) -> Stage:
         """Veg vs early vs late flower, derived from flower_start_date."""
-        context = await self.get_tent_context(site_id=site_id, tent_id=tent_id)
+        context = await self.get_tent_context(site_pk=site_pk, tent_pk=tent_pk)
         today = self._clock().astimezone(ZoneInfo(context.timezone)).date()
         return self._derive_stage(context, today)
 
     async def grow_week(
         self,
         *,
-        site_id: str = DEFAULT_SITE_ID,
-        tent_id: str = DEFAULT_TENT_ID,
+        site_pk: int | None = None,
+        tent_pk: int | None = None,
     ) -> int:
         """1-indexed week since germination. Day 1-7 = week 1."""
-        context = await self.get_tent_context(site_id=site_id, tent_id=tent_id)
+        context = await self.get_tent_context(site_pk=site_pk, tent_pk=tent_pk)
         today = self._clock().astimezone(ZoneInfo(context.timezone)).date()
         return (today - context.germination_date).days // 7 + 1
 
     async def current_targets(
         self,
         *,
-        site_id: str = DEFAULT_SITE_ID,
-        tent_id: str = DEFAULT_TENT_ID,
+        site_pk: int | None = None,
+        tent_pk: int | None = None,
     ) -> dict[str, tuple[float, float]]:
         """Temp / RH / VPD band for the current stage."""
-        return STAGE_TARGETS[await self.current_stage(site_id=site_id, tent_id=tent_id)]
+        return STAGE_TARGETS[await self.current_stage(site_pk=site_pk, tent_pk=tent_pk)]
 
     async def lights_state(
         self,
         *,
-        site_id: str = DEFAULT_SITE_ID,
-        tent_id: str = DEFAULT_TENT_ID,
+        site_pk: int | None = None,
+        tent_pk: int | None = None,
     ) -> LightsState:
         """Are lights on right now, and how long until the next on/off transition?"""
-        schedule = await self.current_light_schedule(site_id=site_id, tent_id=tent_id)
+        schedule = await self.current_light_schedule(site_pk=site_pk, tent_pk=tent_pk)
         now_local = self._clock().astimezone(ZoneInfo(schedule.timezone))
         return self._derive_lights_from_times(
             schedule.starts_local,
@@ -407,15 +399,18 @@ class GrowStateService:
     async def current_context(
         self,
         *,
-        site_id: str = DEFAULT_SITE_ID,
-        tent_id: str = DEFAULT_TENT_ID,
+        site_pk: int | None = None,
+        tent_pk: int | None = None,
     ) -> GrowContext:
         """Stage + lights + target bands from one plant/tent context fetch.
 
         Hot-path helper for control loops — avoids three DB round-trips per tick.
         """
-        context = await self.get_tent_context(site_id=site_id, tent_id=tent_id)
-        schedule = await self.current_light_schedule(site_id=site_id, tent_id=tent_id)
+        schedule = await self.current_light_schedule(site_pk=site_pk, tent_pk=tent_pk)
+        context = await self.get_tent_context(
+            site_pk=schedule.site_pk,
+            tent_pk=schedule.tent_pk,
+        )
         now_local = self._clock().astimezone(ZoneInfo(schedule.timezone))
         stage = self._derive_stage(context, now_local.date())
         lights = self._derive_lights_from_times(
@@ -428,41 +423,43 @@ class GrowStateService:
     async def current_light_schedule(
         self,
         *,
-        site_id: str = DEFAULT_SITE_ID,
-        tent_id: str = DEFAULT_TENT_ID,
+        site_pk: int | None = None,
+        tent_pk: int | None = None,
     ) -> LightSchedule:
         """Return the scoped lights schedule, projected from ``schedule``."""
         async with AsyncSession(self._engine) as session:
-            scope = await resolve_scope(session, site_id=site_id, tent_id=tent_id)
-            if scope is not None:
-                schedule = (
-                    await session.exec(
-                        select(Schedule)
-                        .where(Schedule.site_id == scope.site_pk)
-                        .where(Schedule.tent_id == scope.tent_pk)
-                        .where(Schedule.kind == "lights")
-                        .where(Schedule.enabled.is_(True))
-                        .order_by(Schedule.id.desc())
-                        .limit(1)
-                    )
-                ).first()
-                if (
-                    schedule is not None
-                    and schedule.starts_local is not None
-                    and schedule.ends_local is not None
-                ):
-                    return LightSchedule(
-                        site_id=site_id,
-                        tent_id=tent_id,
-                        starts_local=schedule.starts_local,
-                        ends_local=schedule.ends_local,
-                        timezone=schedule.timezone,
-                        enabled=schedule.enabled,
-                        source="schedule",
-                    )
+            if site_pk is None:
+                site_pk = await require_default_site_pk(session)
+            if tent_pk is None:
+                tent_pk = await require_default_tent_pk(session, site_pk=site_pk)
+            schedule = (
+                await session.exec(
+                    select(Schedule)
+                    .where(Schedule.site_id == site_pk)
+                    .where(Schedule.tent_id == tent_pk)
+                    .where(Schedule.kind == "lights")
+                    .where(Schedule.enabled.is_(True))
+                    .order_by(Schedule.id.desc())
+                    .limit(1)
+                )
+            ).first()
+            if (
+                schedule is not None
+                and schedule.starts_local is not None
+                and schedule.ends_local is not None
+            ):
+                return LightSchedule(
+                    site_pk=site_pk,
+                    tent_pk=tent_pk,
+                    starts_local=schedule.starts_local,
+                    ends_local=schedule.ends_local,
+                    timezone=schedule.timezone,
+                    enabled=schedule.enabled,
+                    source="schedule",
+                )
         return LightSchedule(
-            site_id=site_id,
-            tent_id=tent_id,
+            site_pk=site_pk,
+            tent_pk=tent_pk,
             starts_local=time(5, 0),
             ends_local=time(23, 0),
             timezone="America/Denver",
@@ -473,12 +470,15 @@ class GrowStateService:
     async def get_grow_current_payload(
         self,
         *,
-        site_id: str = DEFAULT_SITE_ID,
-        tent_id: str = DEFAULT_TENT_ID,
+        site_pk: int | None = None,
+        tent_pk: int | None = None,
     ) -> GrowCurrentPayload:
         """One-shot assembler for ``GET /api/grow/current``."""
-        context = await self.get_tent_context(site_id=site_id, tent_id=tent_id)
-        schedule = await self.current_light_schedule(site_id=site_id, tent_id=tent_id)
+        schedule = await self.current_light_schedule(site_pk=site_pk, tent_pk=tent_pk)
+        context = await self.get_tent_context(
+            site_pk=schedule.site_pk,
+            tent_pk=schedule.tent_pk,
+        )
         now_local = self._clock().astimezone(ZoneInfo(schedule.timezone))
         today = now_local.date()
 
@@ -528,11 +528,8 @@ class GrowStateService:
             raise ValueError("flower light schedule must be exactly 12 hours on")
 
         async with AsyncSession(self._engine) as session:
-            scope = await resolve_scope(
-                session, site_id=DEFAULT_SITE_ID, tent_id=DEFAULT_TENT_ID
-            )
-            if scope is None:
-                raise ValueError("default site/tent scope is missing")
+            site_pk = await require_default_site_pk(session)
+            tent_pk = await require_default_tent_pk(session, site_pk=site_pk)
 
             context = await self.get_tent_context()
             if flower_start_date < context.germination_date:
@@ -547,17 +544,17 @@ class GrowStateService:
             schedule = (
                 await session.exec(
                     select(Schedule)
-                    .where(Schedule.site_id == scope.site_pk)
-                    .where(Schedule.tent_id == scope.tent_pk)
+                    .where(Schedule.site_id == site_pk)
+                    .where(Schedule.tent_id == tent_pk)
                     .where(Schedule.kind == "lights")
                     .limit(1)
                 )
             ).first()
             if schedule is None:
                 schedule = Schedule(
-                    site_id=scope.site_pk,
-                    tent_id=scope.tent_pk,
-                    schedule_id=f"{scope.tent_id}-lights-photoperiod",
+                    site_id=site_pk,
+                    tent_id=tent_pk,
+                    schedule_id=f"tent-{tent_pk}-lights-photoperiod",
                     kind="lights",
                 )
             schedule.starts_local = lights_on_local
@@ -576,8 +573,8 @@ class GrowStateService:
                         PlantLocationHistory,
                         PlantLocationHistory.plant_id == Plant.id,
                     )
-                    .where(PlantLocationHistory.site_id == scope.site_pk)
-                    .where(PlantLocationHistory.tent_id == scope.tent_pk)
+                    .where(PlantLocationHistory.site_id == site_pk)
+                    .where(PlantLocationHistory.tent_id == tent_pk)
                     .where(PlantLocationHistory.end_at.is_(None))
                 )
             ).all()
@@ -591,11 +588,8 @@ class GrowStateService:
 
 def _fallback_tent_context(
     *,
-    site_id: str = DEFAULT_SITE_ID,
-    tent_id: str = DEFAULT_TENT_ID,
     timezone: str = "America/Denver",
 ) -> TentPlantContext:
-    _ = (site_id, tent_id)
     return TentPlantContext(
         germination_date=GROW_START,
         flower_start_date=None,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Protocol
 from zoneinfo import ZoneInfo
@@ -27,7 +27,6 @@ from dirt_shared.models.snapshot import Snapshot
 from dirt_shared.models.tent import Tent
 from dirt_shared.observability import log_event
 from dirt_shared.services.grow_state import derive_lights_from_times
-from dirt_shared.services.scope import resolve_scope
 
 
 class Sleeper(Protocol):
@@ -42,10 +41,12 @@ class AsyncioSleeper:
 @dataclass(frozen=True)
 class CameraCaptureMetadata:
     site_id: str
-    tent_id: str
     camera_device_id: str
     camera_view_id: str | None = None
     camera_kind: str = "snapshot"
+    source_site_id: int | None = None
+    source_tent_id: int | None = None
+    tent_name: str | None = None
     gateway_id: str | None = None
     event_stream: str = "camera_capture"
 
@@ -60,6 +61,7 @@ class CameraCaptureResult:
 class CaptureDecision:
     allowed: bool
     reason: str | None = None
+    policy: CapturePolicyResponse | None = None
 
 
 class CapturePolicyFetchError(RuntimeError):
@@ -124,20 +126,20 @@ class LocalSnapshotSink:
             kind=metadata.camera_kind,
         )
         async with AsyncSession(self._engine) as session:
-            scope = await resolve_scope(
-                session, site_id=metadata.site_id, tent_id=metadata.tent_id
-            )
-            if scope is not None:
-                snapshot.site_id = scope.site_pk
-                snapshot.tent_id = scope.tent_pk
-                snapshot.device_id = (
-                    await session.exec(
-                        select(Device.id)
-                        .where(Device.site_id == scope.site_pk)
-                        .where(Device.device_id == metadata.camera_device_id)
-                        .limit(1)
-                    )
-                ).first()
+            camera = (
+                await session.exec(
+                    select(Device)
+                    .where(Device.device_id == metadata.camera_device_id)
+                    .where(Device.kind == "camera")
+                    .order_by(Device.enabled.desc(), Device.id.desc())
+                    .limit(1)
+                )
+            ).first()
+            if camera is not None:
+                snapshot.site_id = camera.site_id
+                snapshot.tent_id = camera.tent_id
+                snapshot.zone_id = camera.zone_id
+                snapshot.device_id = camera.id
             session.add(snapshot)
             await session.commit()
             await session.refresh(snapshot)
@@ -172,21 +174,23 @@ class CameraCapturePublisher:
         self._sleeper = sleeper or AsyncioSleeper()
 
     async def run_once(self) -> CameraCaptureResult | None:
+        metadata = self._metadata
         if self._gate is not None:
-            decision = await self._gate.evaluate(self._metadata)
+            decision = await self._gate.evaluate(metadata)
             if not decision.allowed:
                 _log_event(
-                    self._metadata,
+                    _metadata_from_policy(metadata, decision.policy),
                     "capture_skipped",
                     reason=decision.reason or "not_allowed",
                 )
                 return None
-        _log_event(self._metadata, "capture_started")
+            metadata = _metadata_from_policy(metadata, decision.policy)
+        _log_event(metadata, "capture_started")
         frame = await self._source.capture()
         artifact = await self._writer.write(frame)
         sink_results = []
         for sink in self._sinks:
-            sink_results.append(await sink.handle(artifact, self._metadata))
+            sink_results.append(await sink.handle(artifact, metadata))
         return CameraCaptureResult(
             artifact=artifact,
             sink_results=tuple(sink_results),
@@ -218,10 +222,13 @@ def build_asset_upload_request(
     metadata: CameraCaptureMetadata,
     artifact: SnapshotArtifact,
 ) -> AssetUploadRequest:
-    object_key = f"{metadata.site_id}/{metadata.tent_id}/snapshots/{artifact.filename}"
+    object_key = (
+        f"cameras/{_object_key_part(metadata.camera_device_id)}/"
+        f"snapshots/{artifact.captured_at:%Y/%m}/{artifact.filename}"
+    )
     sign_request = AssetSignUploadRequest(
         site_id=metadata.site_id,
-        tent_id=metadata.tent_id,
+        source_tent_id=metadata.source_tent_id,
         content_type=artifact.content_type,
         byte_size=artifact.size_bytes,
         object_key=object_key,
@@ -234,7 +241,7 @@ def build_asset_upload_request(
         complete_request=AssetCompleteRequest(
             **sign_request.model_dump(),
             captured_at=artifact.captured_at,
-            zone_id=metadata.camera_view_id,
+            source_zone_id=None,
             device_id=metadata.camera_device_id,
         ),
         file_path=artifact.path,
@@ -245,10 +252,7 @@ def build_asset_idempotency_key(
     metadata: CameraCaptureMetadata,
     payload: AssetUploadRequest,
 ) -> str:
-    return (
-        f"{metadata.site_id}:{metadata.tent_id}:{metadata.camera_device_id}:"
-        f"{payload.sign_request.sha256}"
-    )
+    return f"camera:{metadata.camera_device_id}:{payload.sign_request.sha256}"
 
 
 def failure_backoff_s(
@@ -260,17 +264,23 @@ def failure_backoff_s(
     return min(max_s, base_s * (2 ** max(0, attempt_count - 1)))
 
 
-def open_capture_policy(
+def open_capture_policy(  # noqa: PLR0913
     *,
     site_id: str,
+    source_site_id: int | None = None,
+    source_tent_id: int | None,
     tent_id: str | None,
+    tent_name: str | None = None,
     camera_device_id: str,
     timezone: str = "America/Denver",
     reason: CapturePolicyReason | None,
 ) -> CapturePolicyResponse:
     return CapturePolicyResponse(
         site_id=site_id,
+        source_site_id=source_site_id,
+        source_tent_id=source_tent_id,
         tent_id=tent_id,
+        tent_name=tent_name,
         camera_device_id=camera_device_id,
         enabled=True,
         require_lights_on=False,
@@ -282,16 +292,22 @@ def open_capture_policy(
     )
 
 
-def disabled_capture_policy(
+def disabled_capture_policy(  # noqa: PLR0913
     *,
     site_id: str,
+    source_site_id: int | None = None,
+    source_tent_id: int | None,
     tent_id: str | None,
+    tent_name: str | None = None,
     camera_device_id: str,
     timezone: str = "America/Denver",
 ) -> CapturePolicyResponse:
     return CapturePolicyResponse(
         site_id=site_id,
+        source_site_id=source_site_id,
+        source_tent_id=source_tent_id,
         tent_id=tent_id,
+        tent_name=tent_name,
         camera_device_id=camera_device_id,
         enabled=False,
         require_lights_on=False,
@@ -309,11 +325,11 @@ def evaluate_capture_policy(
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
 ) -> CaptureDecision:
     if not policy.enabled:
-        return CaptureDecision(allowed=False, reason="policy_disabled")
+        return CaptureDecision(allowed=False, reason="policy_disabled", policy=policy)
     if not policy.require_lights_on:
-        return CaptureDecision(allowed=True)
+        return CaptureDecision(allowed=True, policy=policy)
     if policy.lights_on_local is None or policy.lights_off_local is None:
-        return CaptureDecision(allowed=True)
+        return CaptureDecision(allowed=True, policy=policy)
 
     now = clock().astimezone(ZoneInfo(policy.timezone))
     lights = derive_lights_from_times(
@@ -322,8 +338,8 @@ def evaluate_capture_policy(
         now,
     )
     if lights.on:
-        return CaptureDecision(allowed=True)
-    return CaptureDecision(allowed=False, reason="lights_off")
+        return CaptureDecision(allowed=True, policy=policy)
+    return CaptureDecision(allowed=False, reason="lights_off", policy=policy)
 
 
 class CameraLightScheduleResolver:
@@ -333,21 +349,14 @@ class CameraLightScheduleResolver:
     async def resolve(
         self,
         *,
-        site_id: str,
         camera_device_id: str,
     ) -> CapturePolicyResponse:
         async with AsyncSession(self._engine) as session:
-            site_timezone = (
-                await session.exec(
-                    select(Site.timezone).where(Site.site_id == site_id).limit(1)
-                )
-            ).first() or "America/Denver"
             row = (
                 await session.exec(
-                    select(Device, Tent.tent_id)
+                    select(Device, Site, Tent)
                     .join(Site, Site.id == Device.site_id)
                     .outerjoin(Tent, Tent.id == Device.tent_id)
-                    .where(Site.site_id == site_id)
                     .where(Device.device_id == camera_device_id)
                     .where(Device.kind == "camera")
                     .order_by(Device.enabled.desc(), Device.id.desc())
@@ -356,27 +365,38 @@ class CameraLightScheduleResolver:
             ).first()
             if row is None:
                 return open_capture_policy(
-                    site_id=site_id,
+                    site_id="",
+                    source_tent_id=None,
                     tent_id=None,
                     camera_device_id=camera_device_id,
-                    timezone=site_timezone,
+                    timezone="America/Denver",
                     reason="camera_not_found",
                 )
 
-            camera, tent_id = row
+            camera, site, tent = row
+            source_site_id = site.id
+            source_tent_id = None if tent is None else tent.id
+            legacy_tent_id = None if tent is None else str(tent.id)
+            tent_name = None if tent is None else tent.name
             if not camera.enabled:
                 return disabled_capture_policy(
-                    site_id=site_id,
-                    tent_id=tent_id,
+                    site_id="homebox",
+                    source_site_id=source_site_id,
+                    source_tent_id=source_tent_id,
+                    tent_id=legacy_tent_id,
+                    tent_name=tent_name,
                     camera_device_id=camera_device_id,
-                    timezone=site_timezone,
+                    timezone=site.timezone,
                 )
-            if camera.tent_id is None or tent_id is None:
+            if camera.tent_id is None or tent is None:
                 return open_capture_policy(
-                    site_id=site_id,
-                    tent_id=tent_id,
+                    site_id="homebox",
+                    source_site_id=source_site_id,
+                    source_tent_id=source_tent_id,
+                    tent_id=legacy_tent_id,
+                    tent_name=tent_name,
                     camera_device_id=camera_device_id,
-                    timezone=site_timezone,
+                    timezone=site.timezone,
                     reason="lights_schedule_not_found",
                 )
 
@@ -395,23 +415,29 @@ class CameraLightScheduleResolver:
             ).first()
             if schedule is None:
                 return open_capture_policy(
-                    site_id=site_id,
-                    tent_id=tent_id,
+                    site_id="homebox",
+                    source_site_id=source_site_id,
+                    source_tent_id=source_tent_id,
+                    tent_id=legacy_tent_id,
+                    tent_name=tent_name,
                     camera_device_id=camera_device_id,
-                    timezone=site_timezone,
+                    timezone=site.timezone,
                     reason="lights_schedule_not_found",
                 )
 
             return CapturePolicyResponse(
-                site_id=site_id,
-                tent_id=tent_id,
+                site_id="homebox",
+                source_site_id=source_site_id,
+                source_tent_id=source_tent_id,
+                tent_id=legacy_tent_id,
+                tent_name=tent_name,
                 camera_device_id=camera_device_id,
                 enabled=True,
                 require_lights_on=True,
                 lights_on_local=schedule.starts_local,
                 lights_off_local=schedule.ends_local,
                 timezone=schedule.timezone,
-                source_schedule_id=schedule.schedule_id,
+                source_schedule_id=schedule.id,
                 reason=None,
             )
 
@@ -428,7 +454,6 @@ class DatabaseCameraLightScheduleGate:
 
     async def evaluate(self, metadata: CameraCaptureMetadata) -> CaptureDecision:
         policy = await self._resolver.resolve(
-            site_id=metadata.site_id,
             camera_device_id=metadata.camera_device_id,
         )
         if policy.reason is not None and policy.enabled:
@@ -513,9 +538,33 @@ def _log_event(
 ) -> None:
     base = {
         "site_id": metadata.site_id,
-        "tent_id": metadata.tent_id,
         "device_id": metadata.camera_device_id,
     }
+    if metadata.source_site_id is not None:
+        base["source_site_id"] = metadata.source_site_id
+    if metadata.source_tent_id is not None:
+        base["source_tent_id"] = metadata.source_tent_id
+    if metadata.tent_name is not None:
+        base["tent_name"] = metadata.tent_name
     if metadata.gateway_id is not None:
         base["gateway_id"] = metadata.gateway_id
     log_event(metadata.event_stream, event, **base, **fields)
+
+
+def _metadata_from_policy(
+    metadata: CameraCaptureMetadata,
+    policy: CapturePolicyResponse | None,
+) -> CameraCaptureMetadata:
+    if policy is None:
+        return metadata
+    return replace(
+        metadata,
+        site_id=policy.site_id or metadata.site_id,
+        source_site_id=policy.source_site_id,
+        source_tent_id=policy.source_tent_id,
+        tent_name=policy.tent_name,
+    )
+
+
+def _object_key_part(value: str) -> str:
+    return value.replace("/", "_").replace(":", "_")

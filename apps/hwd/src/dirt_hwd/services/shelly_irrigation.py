@@ -23,9 +23,6 @@ from dirt_shared.models import (
     IrrigationRun,
     IrrigationScheduleItem,
     Schedule,
-    Site,
-    Tent,
-    Zone,
 )
 from dirt_shared.models import Device as DbDevice
 
@@ -41,7 +38,7 @@ class ShellyPulseClient(Protocol):
 
 @dataclass(frozen=True)
 class IrrigationDispatchResult:
-    schedule_id: str
+    source_schedule_id: int
     schedule_item_pk: int
     intended_start_at: datetime
     status: str
@@ -52,7 +49,7 @@ class IrrigationDispatchResult:
 @dataclass(frozen=True)
 class _DuePulse:
     schedule_pk: int
-    schedule_id: str
+    source_schedule_id: int
     schedule_item_pk: int
     target: ShellyPlugTarget
     intended_start_at: datetime
@@ -92,9 +89,6 @@ class ShellyIrrigationScheduleService:
                     select(
                         Schedule,
                         IrrigationScheduleItem,
-                        Site.site_id,
-                        Tent.tent_id,
-                        Zone.zone_id,
                         DbDevice,
                         Capability,
                     )
@@ -102,10 +96,7 @@ class ShellyIrrigationScheduleService:
                         IrrigationScheduleItem,
                         IrrigationScheduleItem.schedule_id == Schedule.id,
                     )
-                    .join(Site, Site.id == Schedule.site_id)
-                    .join(Tent, Tent.id == Schedule.tent_id)
                     .join(DbDevice, DbDevice.id == Schedule.device_id)
-                    .outerjoin(Zone, Zone.id == DbDevice.zone_id)
                     .join(Capability, Capability.id == Schedule.capability_id)
                     .where(Schedule.kind == "irrigation")
                     .where(Schedule.enabled.is_(True))
@@ -116,12 +107,12 @@ class ShellyIrrigationScheduleService:
                     .where(col(DbDevice.provider_uid).is_not(None))
                     .where(Capability.enabled.is_(True))
                     .where(Capability.device_id == DbDevice.id)
-                    .order_by(Tent.tent_id, Schedule.schedule_id)
+                    .order_by(Schedule.tent_id, Schedule.id)
                 )
             ).all()
 
         due: list[_DuePulse] = []
-        for schedule, item, site_id, tent_id, zone_id, device, capability in rows:
+        for schedule, item, device, capability in rows:
             if schedule.id is None or item.id is None:
                 continue
             intended_start_at = _intended_start_at(
@@ -134,15 +125,9 @@ class ShellyIrrigationScheduleService:
             due.append(
                 _DuePulse(
                     schedule_pk=schedule.id,
-                    schedule_id=schedule.schedule_id,
+                    source_schedule_id=schedule.id,
                     schedule_item_pk=item.id,
-                    target=shelly_target_from_db_rows(
-                        site_id,
-                        tent_id,
-                        zone_id,
-                        device,
-                        capability,
-                    ),
+                    target=shelly_target_from_db_rows(device, capability),
                     intended_start_at=intended_start_at,
                     duration_s=item.duration_s,
                 )
@@ -173,7 +158,7 @@ class ShellyIrrigationScheduleService:
                 error=repr(exc),
             )
             return IrrigationDispatchResult(
-                schedule_id=pulse.schedule_id,
+                source_schedule_id=pulse.source_schedule_id,
                 schedule_item_pk=pulse.schedule_item_pk,
                 intended_start_at=pulse.intended_start_at,
                 status="failed",
@@ -189,7 +174,7 @@ class ShellyIrrigationScheduleService:
             error=None,
         )
         return IrrigationDispatchResult(
-            schedule_id=pulse.schedule_id,
+            source_schedule_id=pulse.source_schedule_id,
             schedule_item_pk=pulse.schedule_item_pk,
             intended_start_at=pulse.intended_start_at,
             status="dispatched",

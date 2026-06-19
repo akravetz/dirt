@@ -67,8 +67,9 @@ type PendingPlantPatch = {
   plantKey: string;
   sexKey?: PlantSexKey;
   stageKey?: PlantStageKey;
-  locationKey?: string;
-  locationLabel?: string;
+  currentTentId?: number;
+  currentTentName?: string;
+  gridPosition?: string | null;
   culledOn?: string | null;
   lastNote?: string;
 };
@@ -101,7 +102,7 @@ type GerminatePlantsMutationInput = {
   idempotencyKey: string;
   seedLotId: string;
   count: number;
-  tentId: string;
+  sourceTentId: number;
   affectedLabel: string;
   germinatedAt: string;
 };
@@ -110,7 +111,7 @@ type ClonePlantsMutationInput = {
   idempotencyKey: string;
   motherPlantKey: string;
   count: number;
-  tentId: string;
+  sourceTentId: number;
   takenAt: string;
 };
 
@@ -123,9 +124,8 @@ type BulkSexMutationInput = {
 type BulkMoveMutationInput = {
   idempotencyKey: string;
   plantKeys: readonly string[];
-  tentId: string;
+  sourceTentId: number;
   locationLabel: string;
-  locationStageKey: PlantStageKey;
 };
 
 type BulkCullMutationInput = {
@@ -186,7 +186,7 @@ export function buildGerminatePlantsRequest(
     idempotency_key: input.idempotencyKey,
     seed_lot_id: input.seedLotId,
     count: input.count,
-    tent_id: input.tentId,
+    source_tent_id: input.sourceTentId,
     grid_position: null,
     germinated_at: input.germinatedAt,
   };
@@ -199,7 +199,7 @@ export function buildClonePlantsRequest(
     idempotency_key: input.idempotencyKey,
     mother_plant_key: input.motherPlantKey,
     count: input.count,
-    tent_id: input.tentId,
+    source_tent_id: input.sourceTentId,
     grid_position: null,
     taken_at: input.takenAt,
   };
@@ -221,7 +221,7 @@ export function buildBulkMoveRequest(
   return {
     idempotency_key: input.idempotencyKey,
     plant_keys: [...input.plantKeys],
-    tent_id: input.tentId,
+    source_tent_id: input.sourceTentId,
     grid_position: null,
   };
 }
@@ -386,9 +386,9 @@ export function useBulkMoveMutation() {
         affectedPlantKeys: input.plantKeys,
         optimisticPlantPatches: input.plantKeys.map((plantKey) => ({
           plantKey,
-          locationKey: input.tentId,
-          locationLabel: input.locationLabel,
-          stageKey: input.locationStageKey,
+          currentTentId: input.sourceTentId,
+          currentTentName: input.locationLabel,
+          gridPosition: null,
         })),
         pendingNote: null,
       });
@@ -411,8 +411,6 @@ export function useBulkCullMutation() {
         affectedPlantKeys: input.plantKeys,
         optimisticPlantPatches: input.plantKeys.map((plantKey) => ({
           plantKey,
-          locationKey: "removed",
-          locationLabel: "Removed",
           stageKey: "culled",
         })),
         pendingNote: null,
@@ -700,8 +698,10 @@ function applyPlantPatch(plant: PlantRow, patch: PendingPlantPatch): PlantRow {
     ...plant,
     sexKey: patch.sexKey ?? plant.sexKey,
     stageKey: patch.stageKey ?? plant.stageKey,
-    locationKey: patch.locationKey ?? plant.locationKey,
-    locationLabel: patch.locationLabel ?? plant.locationLabel,
+    currentTentId: patch.currentTentId ?? plant.currentTentId,
+    currentTentName: patch.currentTentName ?? plant.currentTentName,
+    gridPosition:
+      patch.gridPosition !== undefined ? patch.gridPosition : plant.gridPosition,
     culledOn: patch.culledOn !== undefined ? patch.culledOn : plant.culledOn,
     lastNote: patch.lastNote ?? plant.lastNote,
   };
@@ -710,13 +710,19 @@ function applyPlantPatch(plant: PlantRow, patch: PendingPlantPatch): PlantRow {
 function isPlantPatchProjected(plant: PlantRow, patch: PendingPlantPatch): boolean {
   if (patch.sexKey !== undefined && plant.sexKey !== patch.sexKey) return false;
   if (patch.stageKey !== undefined && plant.stageKey !== patch.stageKey) return false;
-  if (patch.locationKey !== undefined && plant.locationKey !== patch.locationKey) {
+  if (
+    patch.currentTentId !== undefined &&
+    plant.currentTentId !== patch.currentTentId
+  ) {
     return false;
   }
   if (
-    patch.locationLabel !== undefined &&
-    plant.locationLabel !== patch.locationLabel
+    patch.currentTentName !== undefined &&
+    plant.currentTentName !== patch.currentTentName
   ) {
+    return false;
+  }
+  if (patch.gridPosition !== undefined && plant.gridPosition !== patch.gridPosition) {
     return false;
   }
   if (patch.culledOn !== undefined && plant.culledOn !== patch.culledOn) {

@@ -62,15 +62,6 @@ constexpr uint32_t SENSOR_RETRY_MS  = 5000;
 #ifndef FAN_CONTROL_ENABLED
 #define FAN_CONTROL_ENABLED 1
 #endif
-#ifndef NODE_SITE_ID
-#define NODE_SITE_ID "homebox"
-#endif
-#ifndef NODE_TENT_ID
-#define NODE_TENT_ID "main"
-#endif
-#ifndef NODE_ZONE_ID
-#define NODE_ZONE_ID "canopy"
-#endif
 #ifndef NODE_DEVICE_ID
 #define NODE_DEVICE_ID "fan-controller"
 #endif
@@ -79,9 +70,6 @@ constexpr uint32_t SENSOR_RETRY_MS  = 5000;
 #endif
 
 constexpr bool FAN_ENABLED = FAN_CONTROL_ENABLED != 0;
-constexpr const char* SITE_ID = NODE_SITE_ID;
-constexpr const char* TENT_ID = NODE_TENT_ID;
-constexpr const char* ZONE_ID = NODE_ZONE_ID;
 constexpr const char* DEVICE_ID = NODE_DEVICE_ID;
 constexpr const char* HOSTNAME = NODE_HOSTNAME;
 
@@ -324,9 +312,7 @@ void complete_cycle() {
     char diagnostics[512];
     build_diagnostics(diagnostics, sizeof(diagnostics));
     uint32_t post_start_ms = millis();
-    int code = ingest.post(
-        SITE_ID, TENT_ID, ZONE_ID, DEVICE_ID, metrics, diagnostics
-    );
+    int code = ingest.post(DEVICE_ID, metrics, diagnostics);
     uint32_t post_elapsed_ms = millis() - post_start_ms;
     g_last_ingest_code = code;
     g_last_ingest_ms = post_elapsed_ms;
@@ -382,8 +368,8 @@ void setup() {
 
     Serial.println();
     Serial.println("# ========================================================");
-    Serial.printf ("# env node fw=%s device=%s tent=%s host=%s fan=%s\n",
-                   FIRMWARE_VERSION, DEVICE_ID, TENT_ID, HOSTNAME,
+    Serial.printf ("# env node fw=%s device=%s host=%s fan=%s\n",
+                   FIRMWARE_VERSION, DEVICE_ID, HOSTNAME,
                    FAN_ENABLED ? "enabled" : "disabled");
     Serial.println("# ========================================================");
 #if FAN_CONTROL_ENABLED

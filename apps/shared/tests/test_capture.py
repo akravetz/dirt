@@ -13,7 +13,6 @@ from dirt_shared.services.camera_publisher import (
     CaptureDecision,
     LocalSnapshotSink,
 )
-from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID
 
 JPEG_BYTES = b"\xff\xd8\xff\xd9"
 
@@ -46,8 +45,7 @@ class DenyGate:
 
 def _mainbox_metadata() -> CameraCaptureMetadata:
     return CameraCaptureMetadata(
-        site_id=DEFAULT_SITE_ID,
-        tent_id=DEFAULT_TENT_ID,
+        site_id="homebox",
         camera_device_id="obsbot-main",
         camera_view_id="periodic",
         camera_kind="periodic",

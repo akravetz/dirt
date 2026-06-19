@@ -55,12 +55,11 @@ class DeviceDiagnostics(BaseModel):
 
 
 class IngestPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     metrics: dict[str, float]
     source: str = "esp32"
-    site_id: str = "homebox"
-    tent_id: str | None = "main"
-    zone_id: str | None = None
-    device_id: str | None = Field(default=None, min_length=1, max_length=64)
+    device_id: str = Field(min_length=1, max_length=64)
     capability_id: str | None = None
     ip: str | None = None
     firmware_version: str | None = None
@@ -121,13 +120,8 @@ async def _warn_on_emitted_drift(
     Permissive by design; never rejects ingest because that would block
     legitimate rolling flashes.
     """
-    if payload.device_id is None:
-        return
     expected = await readings.get_expected_wire_metrics_for_device(
         device_id=payload.device_id,
-        site_id=payload.site_id,
-        tent_id=payload.tent_id,
-        zone_id=payload.zone_id,
     )
     missing = expected - set(payload_metrics)
     if missing:
@@ -148,27 +142,24 @@ def _check_token(authorization: str | None, expected_token: str) -> None:
         )
 
 
-def _reject_missing_device_id(payload: IngestPayload) -> None:
-    if payload.device_id is not None:
-        return
-    raise HTTPException(
-        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-        detail="device_id is required for sensor ingest",
-    )
+async def require_sensor_ingest_auth(
+    authorization: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    _check_token(authorization, settings.sensor_ingest_token)
 
 
-@router.post("/api/ingest/sensors", status_code=status.HTTP_202_ACCEPTED)
-async def ingest_sensors(  # noqa: PLR0913 — FastAPI boundary bundles request, auth, services, and settings.
+@router.post(
+    "/api/ingest/sensors",
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(require_sensor_ingest_auth)],
+)
+async def ingest_sensors(
     payload: IngestPayload,
     request: Request,
-    authorization: str | None = Header(default=None),
     readings: ReadingsService = Depends(get_readings),
     sensor_quality: SensorQualityService = Depends(get_sensor_quality),
-    settings: Settings = Depends(get_settings),
 ) -> dict[str, object]:
-    _check_token(authorization, settings.sensor_ingest_token)
-    _reject_missing_device_id(payload)
-
     # If caller didn't self-report IP, use the connection's remote address.
     ip = payload.ip or (request.client.host if request.client else None)
 
@@ -180,15 +171,11 @@ async def ingest_sensors(  # noqa: PLR0913 — FastAPI boundary bundles request,
     )
 
     metrics = _augment_temp_rh_metrics(wire_metrics)
-    assert payload.device_id is not None  # noqa: S101 (validated above)
     quality = await sensor_quality.filter_metrics(payload.device_id, metrics)
 
     if not quality.metrics:
         await readings.touch_device(
             device_id=payload.device_id,
-            site_id=payload.site_id,
-            tent_id=payload.tent_id,
-            zone_id=payload.zone_id,
             ip=ip,
             firmware_version=payload.firmware_version,
             uptime_ms=payload.uptime_ms,
@@ -222,9 +209,6 @@ async def ingest_sensors(  # noqa: PLR0913 — FastAPI boundary bundles request,
         diagnostics=payload.diagnostics.model_dump(exclude_none=True)
         if payload.diagnostics
         else None,
-        site_id=payload.site_id,
-        tent_id=payload.tent_id,
-        zone_id=payload.zone_id,
         device_id=payload.device_id,
         capability_id=payload.capability_id,
     )

@@ -34,7 +34,6 @@ from uuid import uuid4
 
 from dirt_shared.camera import daemon_rpc_for_socket
 from dirt_shared.services.commands import CommandService
-from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID
 
 # Camera motor limits — mirror the daemon's clamp. Empirically the
 # OBSBOT Tiny 2 Lite yaw ranges ±150°, pitch ranges approximately
@@ -115,15 +114,13 @@ def clamp(value: float, lo: float, hi: float) -> float:
 class PTZService:
     """Facade over the daemon RPC + camera.json preset list."""
 
-    def __init__(  # noqa: PLR0913 - PTZ composition accepts RPC/config/ledger scope.
+    def __init__(
         self,
         *,
         rpc: Rpc | None = None,
         config_path: Path | None = None,
         sticker_colors: dict[str, StickerColor] | None = None,
         commands: CommandService | None = None,
-        site_id: str = DEFAULT_SITE_ID,
-        tent_id: str = DEFAULT_TENT_ID,
         device_id: str = "obsbot-main",
     ) -> None:
         self._rpc = rpc or daemon_rpc_for_socket()
@@ -132,8 +129,6 @@ class PTZService:
             DEFAULT_STICKER_COLORS if sticker_colors is None else sticker_colors
         )
         self._commands = commands
-        self._site_id = site_id
-        self._tent_id = tent_id
         self._device_id = device_id
 
     # ---- config ----
@@ -361,7 +356,6 @@ class PTZService:
         *,
         command_type: str,
         payload: dict,
-        zone_id: str | None = "canopy",
     ):
         if self._commands is None:
             return None
@@ -371,9 +365,6 @@ class PTZService:
             idempotency_key=f"{command_type}:{uuid4().hex}",
             requested_by="web-api",
             source="local_api",
-            site_id=self._site_id,
-            tent_id=self._tent_id,
-            zone_id=zone_id,
             device_id=self._device_id,
             capability_id="ptz_move",
         )

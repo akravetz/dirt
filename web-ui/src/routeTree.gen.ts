@@ -14,7 +14,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as LiveRouteImport } from './routes/live'
 import { Route as BreedingLogbookRouteImport } from './routes/breeding-logbook'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as TentsTentIdPlantsPlantIdRouteImport } from './routes/tents.$tentId.plants.$plantId'
+import { Route as TentsSourceTentIdPlantsPlantIdRouteImport } from './routes/tents.$sourceTentId.plants.$plantId'
 
 const WikiRoute = WikiRouteImport.update({
   id: '/wiki',
@@ -41,10 +41,10 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TentsTentIdPlantsPlantIdRoute =
-  TentsTentIdPlantsPlantIdRouteImport.update({
-    id: '/tents/$tentId/plants/$plantId',
-    path: '/tents/$tentId/plants/$plantId',
+const TentsSourceTentIdPlantsPlantIdRoute =
+  TentsSourceTentIdPlantsPlantIdRouteImport.update({
+    id: '/tents/$sourceTentId/plants/$plantId',
+    path: '/tents/$sourceTentId/plants/$plantId',
     getParentRoute: () => rootRouteImport,
   } as any)
 
@@ -54,7 +54,7 @@ export interface FileRoutesByFullPath {
   '/live': typeof LiveRoute
   '/login': typeof LoginRoute
   '/wiki': typeof WikiRoute
-  '/tents/$tentId/plants/$plantId': typeof TentsTentIdPlantsPlantIdRoute
+  '/tents/$sourceTentId/plants/$plantId': typeof TentsSourceTentIdPlantsPlantIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -62,7 +62,7 @@ export interface FileRoutesByTo {
   '/live': typeof LiveRoute
   '/login': typeof LoginRoute
   '/wiki': typeof WikiRoute
-  '/tents/$tentId/plants/$plantId': typeof TentsTentIdPlantsPlantIdRoute
+  '/tents/$sourceTentId/plants/$plantId': typeof TentsSourceTentIdPlantsPlantIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -71,7 +71,7 @@ export interface FileRoutesById {
   '/live': typeof LiveRoute
   '/login': typeof LoginRoute
   '/wiki': typeof WikiRoute
-  '/tents/$tentId/plants/$plantId': typeof TentsTentIdPlantsPlantIdRoute
+  '/tents/$sourceTentId/plants/$plantId': typeof TentsSourceTentIdPlantsPlantIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -81,7 +81,7 @@ export interface FileRouteTypes {
     | '/live'
     | '/login'
     | '/wiki'
-    | '/tents/$tentId/plants/$plantId'
+    | '/tents/$sourceTentId/plants/$plantId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -89,7 +89,7 @@ export interface FileRouteTypes {
     | '/live'
     | '/login'
     | '/wiki'
-    | '/tents/$tentId/plants/$plantId'
+    | '/tents/$sourceTentId/plants/$plantId'
   id:
     | '__root__'
     | '/'
@@ -97,7 +97,7 @@ export interface FileRouteTypes {
     | '/live'
     | '/login'
     | '/wiki'
-    | '/tents/$tentId/plants/$plantId'
+    | '/tents/$sourceTentId/plants/$plantId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -106,7 +106,7 @@ export interface RootRouteChildren {
   LiveRoute: typeof LiveRoute
   LoginRoute: typeof LoginRoute
   WikiRoute: typeof WikiRoute
-  TentsTentIdPlantsPlantIdRoute: typeof TentsTentIdPlantsPlantIdRoute
+  TentsSourceTentIdPlantsPlantIdRoute: typeof TentsSourceTentIdPlantsPlantIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -146,11 +146,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/tents/$tentId/plants/$plantId': {
-      id: '/tents/$tentId/plants/$plantId'
-      path: '/tents/$tentId/plants/$plantId'
-      fullPath: '/tents/$tentId/plants/$plantId'
-      preLoaderRoute: typeof TentsTentIdPlantsPlantIdRouteImport
+    '/tents/$sourceTentId/plants/$plantId': {
+      id: '/tents/$sourceTentId/plants/$plantId'
+      path: '/tents/$sourceTentId/plants/$plantId'
+      fullPath: '/tents/$sourceTentId/plants/$plantId'
+      preLoaderRoute: typeof TentsSourceTentIdPlantsPlantIdRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -162,7 +162,7 @@ const rootRouteChildren: RootRouteChildren = {
   LiveRoute: LiveRoute,
   LoginRoute: LoginRoute,
   WikiRoute: WikiRoute,
-  TentsTentIdPlantsPlantIdRoute: TentsTentIdPlantsPlantIdRoute,
+  TentsSourceTentIdPlantsPlantIdRoute: TentsSourceTentIdPlantsPlantIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

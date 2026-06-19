@@ -19,12 +19,6 @@
 
 // --- Config ---------------------------------------------------------------
 
-#ifndef NODE_SITE_ID
-#define NODE_SITE_ID "homebox"
-#endif
-#ifndef NODE_TENT_ID
-#define NODE_TENT_ID "main"
-#endif
 #ifndef NODE_DEVICE_ID
 #define NODE_DEVICE_ID "plant-a-substrate-node"
 #endif
@@ -50,8 +44,6 @@ constexpr uint32_t PROVISION_FAILURE_COOLDOWN_MS = 300000;
 constexpr uint32_t PROVISION_SUCCESS_COOLDOWN_MS = 60000;
 constexpr uint32_t PROVISION_PREF_SCHEMA_VERSION = 1;
 
-constexpr const char* SITE_ID = NODE_SITE_ID;
-constexpr const char* TENT_ID = NODE_TENT_ID;
 constexpr const char* CONTROLLER_DEVICE_ID = NODE_DEVICE_ID;
 constexpr const char* HOSTNAME = NODE_HOSTNAME;
 constexpr uint32_t POLL_INTERVAL_MS = POST_INTERVAL_MS;
@@ -775,11 +767,9 @@ bool build_provisioning_json(char* out, size_t out_len) {
         const ProbeSlot& target = g_slots[g_provisioning.last_target_slot];
         if (!appendf(out, out_len, pos,
                      "{\"plant_label\":\"%s\","
-                     "\"zone_id\":\"%s\","
                      "\"device_id\":\"%s\","
                      "\"address\":\"0x%02X\"}",
                      target.plant_label,
-                     target.zone_id,
                      target.device_id,
                      target.modbus_address)) {
             return false;
@@ -824,7 +814,6 @@ bool append_slots_json(char* out, size_t out_len, size_t& pos) {
         if (!appendf(
                 out, out_len, pos,
                 "{\"plant_label\":\"%s\","
-                "\"zone_id\":\"%s\","
                 "\"device_id\":\"%s\","
                 "\"modbus_address\":\"0x%02X\","
                 "\"enabled\":%s,"
@@ -847,7 +836,6 @@ bool append_slots_json(char* out, size_t out_len, size_t& pos) {
                 "\"bad_header_count\":%lu"
                 "}}",
                 slot.plant_label,
-                slot.zone_id,
                 slot.device_id,
                 slot.modbus_address,
                 slot.enabled ? "true" : "false",
@@ -882,8 +870,6 @@ bool build_status_json(char* out, size_t out_len) {
     if (!appendf(
             out, out_len, pos,
             "{\"controller\":{"
-            "\"site_id\":\"%s\","
-            "\"tent_id\":\"%s\","
             "\"device_id\":\"%s\","
             "\"hostname\":\"%s\","
             "\"slot_count\":%u,"
@@ -903,8 +889,6 @@ bool build_status_json(char* out, size_t out_len) {
             "\"diagnostics\":%s,"
             "\"provisioning\":%s,"
             "\"slots\":",
-            SITE_ID,
-            TENT_ID,
             CONTROLLER_DEVICE_ID,
             HOSTNAME,
             static_cast<unsigned>(SLOT_COUNT),
@@ -968,7 +952,7 @@ void post_latest_sample(ProbeSlot& slot) {
 
     char diagnostics[512];
     build_diagnostics(diagnostics, sizeof(diagnostics));
-    int code = ingest.post(SITE_ID, TENT_ID, slot.zone_id, slot.device_id, metrics, diagnostics);
+    int code = ingest.post(slot.device_id, metrics, diagnostics);
     slot.last_ingest_code = code;
     g_last_ingest_code = code;
     if (code > 0) {

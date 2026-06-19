@@ -32,10 +32,9 @@ from dirt_shared.models import (
     PlantNote,
     SeedLot,
     SeedLotLkuSexType,
-    Site,
     Tent,
 )
-from dirt_shared.services.scope import resolve_scope
+from dirt_shared.services.scope import require_default_site_pk
 
 
 class BreedingCommandError(ValueError):
@@ -46,7 +45,7 @@ class BreedingCommandError(ValueError):
 class _ResolvedTent:
     site_pk: int
     tent_pk: int
-    tent_id: str
+    name: str
     role: str
 
 
@@ -159,7 +158,7 @@ class BreedingCommandExecutor:
         site_id: str,
         payload: BreedingGerminatePlantsPayload,
     ) -> dict[str, Any]:
-        tent = await _require_tent(session, site_id, payload.tent_id)
+        tent = await _require_tent(session, site_id, payload.source_tent_id)
         seed_lot = await _require_seed_lot(session, payload.seed_lot_source_id)
         line = await _require_line(session, seed_lot.line_id)
         occurred_at = payload.germinated_at or self._clock()
@@ -203,7 +202,7 @@ class BreedingCommandExecutor:
         site_id: str,
         payload: BreedingClonePlantsPayload,
     ) -> dict[str, Any]:
-        tent = await _require_tent(session, site_id, payload.tent_id)
+        tent = await _require_tent(session, site_id, payload.source_tent_id)
         mother = await _require_plant(session, payload.mother_plant_key)
         occurred_at = payload.taken_at or self._clock()
         keys = await _allocate_keys(session, f"{mother.key}-C", payload.count)
@@ -281,16 +280,14 @@ class BreedingCommandExecutor:
         site_id: str,
         payload: BreedingBulkMovePayload,
     ) -> dict[str, Any]:
-        tent = await _require_tent(session, site_id, payload.tent_id)
+        tent = await _require_tent(session, site_id, payload.source_tent_id)
         plants = await _require_plants(session, payload.plant_keys)
         occurred_at = self._clock()
-        from_tent_ids: dict[str, str | None] = {}
+        from_tent_ids: dict[str, int | None] = {}
         for plant in plants:
             current = await _current_location(session, _pk(plant))
             if current is not None:
-                from_tent_ids[plant.key] = await _tent_public_id(
-                    session, current.tent_id
-                )
+                from_tent_ids[plant.key] = current.tent_id
                 current.end_at = occurred_at
                 session.add(current)
             else:
@@ -317,7 +314,7 @@ class BreedingCommandExecutor:
                     occurred_at=occurred_at,
                     metadata_json={
                         "from_tent_id": from_tent_ids[plant.key],
-                        "to_tent_id": tent.tent_id,
+                        "to_tent_id": tent.tent_pk,
                     },
                 )
             )
@@ -325,7 +322,7 @@ class BreedingCommandExecutor:
         return {
             "moved_plant_ids": [_pk(plant) for plant in plants],
             "moved_plant_keys": [plant.key for plant in plants],
-            "target_tent_id": tent.tent_id,
+            "target_tent_id": tent.tent_pk,
             "grid_position": None,
         }
 
@@ -379,29 +376,23 @@ class BreedingCommandExecutor:
 
 
 async def _require_site_pk(session: AsyncSession, site_id: str) -> int:
-    site_pk = (
-        await session.exec(select(Site.id).where(Site.site_id == site_id))
-    ).first()
-    if site_pk is None:
-        raise BreedingCommandError(f"unknown site_id: {site_id}")
-    return site_pk
+    del site_id
+    return await require_default_site_pk(session)
 
 
 async def _require_tent(
     session: AsyncSession,
     site_id: str,
-    tent_id: str,
+    source_tent_id: int,
 ) -> _ResolvedTent:
-    scope = await resolve_scope(session, site_id=site_id, tent_id=tent_id)
-    if scope is None:
-        raise BreedingCommandError(f"unknown scope: {site_id}/{tent_id}")
-    tent = await session.get(Tent, scope.tent_pk)
-    if tent is None:
-        raise BreedingCommandError(f"unknown tent_id: {tent_id}")
+    site_pk = await _require_site_pk(session, site_id)
+    tent = await session.get(Tent, source_tent_id)
+    if tent is None or tent.site_id != site_pk:
+        raise BreedingCommandError(f"unknown source_tent_id: {source_tent_id}")
     return _ResolvedTent(
-        site_pk=scope.site_pk,
-        tent_pk=scope.tent_pk,
-        tent_id=scope.tent_id,
+        site_pk=site_pk,
+        tent_pk=source_tent_id,
+        name=tent.name,
         role=tent.role,
     )
 
@@ -527,10 +518,6 @@ async def _current_location(
     ).first()
 
 
-async def _tent_public_id(session: AsyncSession, tent_pk: int) -> str | None:
-    return (await session.exec(select(Tent.tent_id).where(Tent.id == tent_pk))).first()
-
-
 def _plant_prefix(line: PlantLine) -> str:
     parts = [line.project_code, line.generation_label]
     prefix = "-".join(part for part in parts if part)
@@ -541,21 +528,12 @@ def _plant_prefix(line: PlantLine) -> str:
 
 def _is_flower_tent(tent: _ResolvedTent) -> bool:
     role = tent.role.lower()
-    tent_id = tent.tent_id.lower()
-    return "flower" in role or "flower" in tent_id
+    return "flower" in role
 
 
 def _is_veg_tent(tent: _ResolvedTent) -> bool:
     role = tent.role.lower()
-    tent_id = tent.tent_id.lower()
-    return (
-        "veg" in role
-        or "vegetative" in role
-        or "breeding" in role
-        or "veg" in tent_id
-        or "vegetative" in tent_id
-        or "breeding" in tent_id
-    )
+    return "veg" in role or "vegetative" in role or "breeding" in role
 
 
 def _combined_label(left: str, right: str) -> str:

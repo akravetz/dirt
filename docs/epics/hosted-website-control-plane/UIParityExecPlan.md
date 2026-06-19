@@ -38,7 +38,7 @@ The final observable result is a hosted multi-tent dashboard comparison plus bou
   Evidence: `agent-browser` network output showed `GET https://api.sirius-forge.com/api/wiki/tree` returning `404`, while `GET http://192.168.1.79:8001/api/wiki/tree` returned `200` and rendered the wiki sidebar.
 
 - Observation: The hosted dashboard is not a renderer of the local dashboard contract; it is a separate cloud-specific dashboard.
-  Evidence: `web-ui/src/routes/index.tsx` chooses `HostedDashboardPage` when `isHostedApiMode` is true. The hosted path reads `/api/tents/{tent_id}/metrics/current`, `/api/tents/{tent_id}/devices`, and cloud-specific TypeScript interfaces from `web-ui/src/api-client/cloud.ts`, while the local path reads `/api/grow/current`, `/api/sensors/current`, `/api/sensors/metadata`, `/api/plants`, and `/api/system/devices`.
+  Evidence: `web-ui/src/routes/index.tsx` chooses `HostedDashboardPage` when `isHostedApiMode` is true. The hosted path reads `/api/tents/{source_tent_id}/metrics/current`, `/api/tents/{source_tent_id}/devices`, and cloud-specific TypeScript interfaces from `web-ui/src/api-client/cloud.ts`, while the local path reads `/api/grow/current`, `/api/sensors/current`, `/api/sensors/metadata`, `/api/plants`, and `/api/system/devices`.
 
 - Observation: The hosted dashboard and sync APIs are not currently described by the OpenAPI contract used by the SPA.
   Evidence: Local SPA routes use `contracts/webapp-v1.yaml`, generated schema files under `web-ui/src/api-client/generated/`, and `createDirtApiClient()`. Hosted dashboard code imports hand-written interfaces from `web-ui/src/api-client/cloud.ts` instead of generated OpenAPI types.
@@ -59,10 +59,10 @@ The final observable result is a hosted multi-tent dashboard comparison plus bou
   Evidence: `docs/epics/multi-tent-controller/ExecPlan.md` records scoped `site`, `tent`, `device`, `capability`, `growrun`, `schedule`, `snapshot`, and `command` records. `docs/epics/multi-tent-controller/LegacyCompatibilityRetirementExecPlan.md` records that current sensor, plant, snapshot, and schedule reads accept explicit `site_id` / `tent_id` scope and guard against cross-tent leakage.
 
 - Observation: The hosted UI already contains a tent selector and cloud-specific tent-scoped routes.
-  Evidence: `web-ui/src/routes/index.tsx` initializes `selectedSiteId` and `selectedTentId`, calls `/api/sites`, `/api/tents?site_id=...`, `/api/tents/{tent_id}/metrics/current`, `/api/tents/{tent_id}/devices`, `/api/tents/{tent_id}/lights/schedules`, and `/api/tents/{tent_id}/assets/latest`, and renders a hosted-only dashboard when `isHostedApiMode` is true.
+  Evidence: `web-ui/src/routes/index.tsx` initializes selected source tent state, calls `/api/sites`, `/api/tents`, `/api/tents/{source_tent_id}/metrics/current`, `/api/tents/{source_tent_id}/devices`, `/api/tents/{source_tent_id}/lights/schedules`, and `/api/tents/{source_tent_id}/assets/latest`, and renders a hosted-only dashboard when `isHostedApiMode` is true.
 
 - Observation: Breeding-tent imagery now arrives through a camera-edge path, not the main gateway's default-tent asset projection.
-  Evidence: `docs/epics/camera-edge/ExecPlan.md` records that `dirt2` runs `dirt-camera-agent`, uploads private assets under `homebox/breeding`, and verified `/api/tents/breeding/assets/latest` with a signed hosted asset. `docs/epics/unified-ptz-capture-execplan.md` records that both mainbox and camera-only hosts use `CameraCapturePublisher` and that `dirt2` capture policy is derived from hosted camera/schedule catalog.
+  Evidence: `docs/epics/camera-edge/ExecPlan.md` records that `dirt2` runs `dirt-camera-agent`, uploads private assets with camera/source-tent placement, and verifies the breeding tent's latest-asset route with a signed hosted asset. `docs/epics/unified-ptz-capture-execplan.md` records that both mainbox and camera-only hosts use `CameraCapturePublisher` and that `dirt2` capture policy is derived from hosted camera/schedule catalog.
 
 - Observation: Typed boundary work partially superseded the old "add everything to `contracts/webapp-v1.yaml` first" milestone.
   Evidence: `docs/epics/typed-boundary-contracts/ExecPlan.md` added shared Pydantic DTOs for gateway/control-plane protocols and local Pydantic response models for hosted browser API routes, while also recording the decision that hosted browser response DTOs may stay local to `apps/control-plane` unless the shape is also a shared gateway/control-plane wire contract.
@@ -115,7 +115,7 @@ The final observable result is a hosted multi-tent dashboard comparison plus bou
   Date/Author: 2026-05-13 / Codex
 
 - Decision: Make tent-scoped hosted routes the primary implementation direction unless the contract design checkpoint proves a better shape.
-  Rationale: The hosted control plane and frontend already expose `/api/tents/{tent_id}/...` routes, which map naturally to the scoped catalog and avoid singleton local route assumptions. The contract discussion should decide how to type these routes, not whether hosted should regress to default-main singleton URLs.
+  Rationale: The hosted control plane and frontend expose `/api/tents/{source_tent_id}/...` routes, which map naturally to the scoped catalog and avoid singleton local route assumptions. The contract discussion should decide how to type these routes, not whether hosted should regress to default-main singleton URLs.
   Date/Author: 2026-05-13 / Codex
 
 - Decision: Add UI projection storage only for display envelopes that cannot be derived cleanly from the existing cloud tables and typed gateway sync.
@@ -138,7 +138,7 @@ Not yet implemented. Update this section after each milestone with what changed,
   Current thesis: Decide this before implementation. The old thesis, "put every hosted route into `contracts/webapp-v1.yaml` and mimic local singleton routes," is no longer obviously correct after typed-boundary work and the hosted tent-scoped route shape.
 
 - Question: Which hosted dashboard routes should be canonical for multi-tent operation?
-  Current thesis: Prefer explicit tent-scoped hosted routes such as `/api/tents/{tent_id}/metrics/current`, `/api/tents/{tent_id}/devices`, `/api/tents/{tent_id}/lights/schedules`, and `/api/tents/{tent_id}/assets/latest`. Add or adapt routes for missing UI envelopes instead of forcing every hosted view through default-main local paths such as `/api/sensors/current`.
+  Current thesis: Prefer explicit tent-scoped hosted routes such as `/api/tents/{source_tent_id}/metrics/current`, `/api/tents/{source_tent_id}/devices`, `/api/tents/{source_tent_id}/lights/schedules`, and `/api/tents/{source_tent_id}/assets/latest`. Add or adapt routes for missing UI envelopes instead of forcing every hosted view through default-main local paths such as `/api/sensors/current`.
 
 - Question: How much plant detail parity belongs in the first pass?
   Current thesis: Plant A-D dashboard cards and plant detail/moisture history are mandatory for `homebox/main` if the local data has synced. Non-main tents should render plants only when scoped plant/run data exists; a breeding or clones tent must not be forced into the A-D shape.
@@ -191,7 +191,7 @@ The React frontend lives in `web-ui/`:
 Recent epics changed the baseline:
 
 - `docs/epics/multi-tent-controller/ExecPlan.md` and `docs/epics/multi-tent-controller/LegacyCompatibilityRetirementExecPlan.md`: scoped site/tent/device/capability/schedule/growrun ownership exists, and current read paths have explicit scope guardrails.
-- `docs/epics/camera-edge/ExecPlan.md`: `dirt2` captures and uploads breeding-tent camera assets directly to hosted storage as `homebox/breeding`.
+- `docs/epics/camera-edge/ExecPlan.md`: `dirt2` captures and uploads breeding-tent camera assets directly to hosted storage with camera/source-tent placement.
 - `docs/epics/unified-ptz-capture-execplan.md`: mainbox and `dirt2` capture use shared publisher infrastructure, and camera capture policy is derived from synced camera and lights catalog.
 - `docs/epics/typed-boundary-contracts/ExecPlan.md`: hosted gateway/control-plane protocols and hosted browser API responses now have Pydantic DTO coverage and guardrails. This does not yet give the React app generated hosted browser types.
 
@@ -358,7 +358,7 @@ Frontend acceptance:
 - Hosted gauge cards use target bands and status labels from synced or derived display envelopes when available, not default `OK` for every metric.
 - Hosted main-tent dashboard shows Plant A-D cards with current soil moisture. This is a must-pass criterion for the main-tent parity fixture. Non-main tents show scoped plant data when present or a clear empty/not-applicable state.
 - Hosted dashboard shows scoped device health with useful status/freshness semantics, not a catalog-only `LAST SEEN NEVER` table.
-- Hosted breeding dashboard shows recent private breeding-tent imagery from `/api/tents/breeding/assets/latest` when available.
+- Hosted breeding dashboard shows recent private breeding-tent imagery from `/api/tents/{source_tent_id}/assets/latest` when available.
 - Hosted wiki sidebar loads non-empty folders/files, file selection loads markdown, and search returns matches.
 - Dark theme applies on login, dashboard, live, and wiki. The visible theme control no longer says `Auto` unless a real system-auto mode exists.
 - Hosted assets remain private: unauthenticated signed-URL routes fail, authenticated routes return signed URLs.
@@ -425,13 +425,13 @@ New or changed hosted browser interfaces:
 - Add browser-authenticated cloud routes in `apps/control-plane/src/dirt_control/api/browser.py` for contract-backed read-only endpoints:
   - `GET /api/sites`
   - `GET /api/tents`
-  - `GET /api/tents/{tent_id}/state` or the chosen grow/state replacement
-  - `GET /api/tents/{tent_id}/metrics/current`
-  - `GET /api/tents/{tent_id}/metrics/history`
-  - `GET /api/tents/{tent_id}/metrics/metadata` or equivalent display metadata route if needed
-  - `GET /api/tents/{tent_id}/lights/schedules`
-  - `GET /api/tents/{tent_id}/devices`
-  - `GET /api/tents/{tent_id}/assets/latest`
+  - `GET /api/tents/{source_tent_id}/state` or the chosen grow/state replacement
+  - `GET /api/tents/{source_tent_id}/metrics/current`
+  - `GET /api/tents/{source_tent_id}/metrics/history`
+  - `GET /api/tents/{source_tent_id}/metrics/metadata` or equivalent display metadata route if needed
+  - `GET /api/tents/{source_tent_id}/lights/schedules`
+  - `GET /api/tents/{source_tent_id}/devices`
+  - `GET /api/tents/{source_tent_id}/assets/latest`
   - main-tent or scoped plant routes if preserving plant strip/drawer parity
   - `GET /api/wiki/tree`
   - `GET /api/wiki/file`

@@ -67,7 +67,6 @@ async def _add_irrigation_schedule(
         tent_id=device.tent_id,
         device_id=device.id,
         capability_id=capability.id,
-        schedule_id=f"test-irrigation-{suffix}",
         kind="irrigation",
         timezone="America/Denver",
         enabled=schedule_enabled,

@@ -16,10 +16,7 @@ IngestClient::IngestClient(const char* server_url,
       _firmware_version(firmware_version),
       _auth_header(String("Bearer ") + token) {}
 
-int IngestClient::post(const char* site_id,
-                       const char* tent_id,
-                       const char* zone_id,
-                       const char* device_id,
+int IngestClient::post(const char* device_id,
                        const char* metrics_json,
                        const char* diagnostics_json) {
     if (WiFi.status() != WL_CONNECTED) {
@@ -35,22 +32,12 @@ int IngestClient::post(const char* site_id,
 
     // Hand-build JSON — the shape is stable enough that pulling in
     // ArduinoJson for a handful of fields isn't worth the flash cost.
-    // Typical payload ~420 bytes with scoped identity and WiFi telemetry;
+    // Typical payload ~360 bytes with device identity and WiFi telemetry;
     // diagnostics can add ~400 bytes on instrumented nodes.
     wifi_client::Snapshot wifi = wifi_client::snapshot();
     String body;
     body.reserve(diagnostics_json == nullptr ? 512 : 960);
-    body += "{\"site_id\":\"";
-    body += site_id;
-    body += "\",\"tent_id\":\"";
-    body += tent_id;
-    body += "\"";
-    if (zone_id != nullptr) {
-        body += ",\"zone_id\":\"";
-        body += zone_id;
-        body += "\"";
-    }
-    body += ",\"device_id\":\"";
+    body += "{\"device_id\":\"";
     body += device_id;
     body += "\",\"source\":\"esp32\",\"firmware_version\":\"";
     body += _firmware_version;

@@ -155,9 +155,10 @@ async def test_local_asset_store_is_used_for_gateway_sign_upload(
             headers=gateway_headers,
             json={
                 "site_id": "homebox",
+                "source_tent_id": 1,
                 "tent_id": "main",
                 "asset_id": "asset-1",
-                "object_key": "homebox/main/asset-1.jpg",
+                "object_key": "tents/1/asset-1.jpg",
                 "content_type": "image/jpeg",
                 "byte_size": 25_000_000,
                 "sha256": "a" * 64,
@@ -171,17 +172,17 @@ async def test_local_asset_store_is_used_for_gateway_sign_upload(
             headers={"Content-Type": "image/jpeg"},
         )
         get_url = app.state.asset_store.presign_get(
-            object_key="homebox/main/asset-1.jpg",
+            object_key="tents/1/asset-1.jpg",
             expires_in_s=300,
         )
         loaded = await client.get(get_url)
     await transport.aclose()
 
-    assert upload_url.startswith("http://test/api/dev-assets/homebox/main/asset-1.jpg?")
+    assert upload_url.startswith("http://test/api/dev-assets/tents/1/asset-1.jpg?")
     assert uploaded.status_code == 204
     assert loaded.status_code == 200
     assert loaded.content == b"uploaded through local store"
-    assert (asset_root / "homebox" / "main" / "asset-1.jpg").read_bytes() == (
+    assert (asset_root / "tents" / "1" / "asset-1.jpg").read_bytes() == (
         b"uploaded through local store"
     )
 

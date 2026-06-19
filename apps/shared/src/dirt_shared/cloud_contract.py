@@ -58,38 +58,41 @@ class HeartbeatResponse(CloudContractModel):
 
 
 class CatalogSite(CloudContractModel):
-    site_id: str
+    source_site_id: int
     name: str
     timezone: str = "America/Denver"
 
 
 class CatalogTent(CloudContractModel):
-    tent_id: str
+    source_tent_id: int
     name: str
+    role: str
+    legacy_tent_id: str
     is_active: bool = True
 
 
 class CatalogZone(CloudContractModel):
-    tent_id: str
-    zone_id: str
+    source_tent_id: int
+    source_zone_id: int
     name: str
     kind: str = "environment"
+    legacy_zone_id: str
     is_active: bool = True
 
 
 class CatalogDevice(CloudContractModel):
-    tent_id: str
+    source_tent_id: int
     device_id: str
     name: str
     last_seen_at: datetime | None = Field(...)
-    zone_id: str | None = None
+    source_zone_id: int | None = Field(...)
     kind: str = "sensor"
     controller: str | None = None
     is_active: bool = True
 
 
 class CatalogCapability(CloudContractModel):
-    tent_id: str
+    source_tent_id: int
     device_id: str
     capability_id: str
     metric_name: str | None = None
@@ -99,15 +102,16 @@ class CatalogCapability(CloudContractModel):
 
 
 class CatalogSchedule(CloudContractModel):
-    site_id: str
-    tent_id: str
-    schedule_id: str
+    source_site_id: int
+    source_tent_id: int
+    source_schedule_id: int
     starts_local: time
     ends_local: time
-    zone_id: str | None = None
+    source_zone_id: int | None = Field(...)
     device_id: str | None = None
     capability_id: str | None = None
     kind: str = "lights"
+    legacy_schedule_id: str
     timezone: str = "America/Denver"
     is_enabled: bool = True
 
@@ -157,7 +161,7 @@ class CatalogPlant(CloudContractModel):
 class CatalogPlantLocation(CloudContractModel):
     source_location_id: int
     source_plant_id: int
-    tent_id: str
+    source_tent_id: int
     grid_position: str | None = Field(...)
     start_at: datetime
     end_at: datetime | None = Field(...)
@@ -207,6 +211,7 @@ class CatalogPlantMetricStream(CloudContractModel):
 
 
 class CatalogRequest(CloudContractModel):
+    site_id: str
     site: CatalogSite
     tents: list[CatalogTent] = Field(default_factory=list)
     zones: list[CatalogZone] = Field(default_factory=list)
@@ -242,14 +247,15 @@ class CatalogResponse(CloudContractModel):
 
 class LatestMetricItem(CloudContractModel):
     site_id: str
-    tent_id: str
+    source_site_id: int
+    source_tent_id: int
     device_id: str
     capability_id: str
     metric: str
     value: float
     source_updated_at: datetime
     unit: str | None = None
-    zone_id: str | None = None
+    source_zone_id: int | None = Field(...)
     stale_after_s: int = 120
 
 
@@ -264,7 +270,8 @@ class UpsertCountResponse(CloudContractModel):
 
 class RollupItem(CloudContractModel):
     site_id: str
-    tent_id: str
+    source_site_id: int
+    source_tent_id: int
     device_id: str
     capability_id: str
     metric: str
@@ -308,7 +315,9 @@ class WikiProjectionResponse(CloudContractModel):
 
 class AssetSignUploadRequest(CloudContractModel):
     site_id: str
-    tent_id: str
+    source_tent_id: int | None = Field(...)
+    # Temporary cloud asset bridge for object paths/browser compatibility.
+    tent_id: str | None = None
     content_type: str
     byte_size: int = Field(gt=0)
     object_key: str
@@ -329,6 +338,8 @@ class SignUploadResponse(CloudContractModel):
 
 class AssetCompleteRequest(AssetSignUploadRequest):
     captured_at: datetime
+    source_zone_id: int | None = Field(...)
+    # Temporary cloud asset bridge for object paths/browser compatibility.
     zone_id: str | None = None
     device_id: str | None = None
 
@@ -343,6 +354,7 @@ class AssetFailureRequest(CloudContractModel):
     site_id: str
     stage: str = Field(max_length=80)
     error: str = Field(max_length=500)
+    source_tent_id: int | None = Field(default=None)
     tent_id: str | None = None
     asset_id: str | None = None
     object_key: str | None = None
@@ -355,14 +367,17 @@ class AssetFailureResponse(CloudContractModel):
 
 class CapturePolicyResponse(CloudContractModel):
     site_id: str
+    source_site_id: int | None = Field(...)
+    source_tent_id: int | None = Field(...)
     tent_id: str | None
+    tent_name: str | None = Field(...)
     camera_device_id: str
     enabled: bool
     require_lights_on: bool
     lights_on_local: time | None
     lights_off_local: time | None
     timezone: str
-    source_schedule_id: str | None
+    source_schedule_id: int | None
     reason: CapturePolicyReason | None = Field(...)
 
 
@@ -487,24 +502,19 @@ class BreedingCreateSeedLotPayload(CloudContractModel):
 class BreedingGerminatePlantsPayload(CloudContractModel):
     seed_lot_source_id: int = Field(gt=0)
     count: int = Field(gt=0)
-    tent_id: str = Field(min_length=1)
+    source_tent_id: int = Field(gt=0)
     grid_position: None = Field(...)
     germinated_at: datetime | None = None
-
-    @field_validator("tent_id")
-    @classmethod
-    def _strip_tent_id(cls, value: str) -> str:
-        return _strip_required_text(value)
 
 
 class BreedingClonePlantsPayload(CloudContractModel):
     mother_plant_key: str = Field(min_length=1)
     count: int = Field(gt=0)
-    tent_id: str = Field(min_length=1)
+    source_tent_id: int = Field(gt=0)
     grid_position: None = Field(...)
     taken_at: datetime | None = None
 
-    @field_validator("mother_plant_key", "tent_id")
+    @field_validator("mother_plant_key")
     @classmethod
     def _strip_text(cls, value: str) -> str:
         return _strip_required_text(value)
@@ -522,18 +532,13 @@ class BreedingBulkSexPayload(CloudContractModel):
 
 class BreedingBulkMovePayload(CloudContractModel):
     plant_keys: list[str] = Field(min_length=1)
-    tent_id: str = Field(min_length=1)
+    source_tent_id: int = Field(gt=0)
     grid_position: None = Field(...)
 
     @field_validator("plant_keys")
     @classmethod
     def _strip_plant_keys(cls, value: list[str]) -> list[str]:
         return _strip_required_text_list(value)
-
-    @field_validator("tent_id")
-    @classmethod
-    def _strip_tent_id(cls, value: str) -> str:
-        return _strip_required_text(value)
 
 
 class BreedingBulkCullPayload(CloudContractModel):
@@ -578,7 +583,9 @@ BreedingCommandPayload: TypeAlias = (
 class ClaimedCommand(CloudContractModel):
     command_id: str
     site_id: str
+    # Temporary cloud command bridge; source_tent_id is the local identity.
     tent_id: str
+    source_tent_id: int | None = Field(...)
     device_id: str | None
     capability_id: str | None
     command_type: CommandType

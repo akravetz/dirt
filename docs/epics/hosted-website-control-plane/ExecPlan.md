@@ -276,7 +276,7 @@ Milestone 6 is complete in production through the supported deploy flow. The rep
 
 Dirt is currently a local-first system. `dirt-hwd` runs hardware ingest and background automation on port 8000. `dirt-web` runs the local API, SPA static serving, cookie auth, and MCP mount on port 8001. The React/Vite frontend lives in `web-ui/` and consumes the OpenAPI contract in `contracts/webapp-v1.yaml` through generated TypeScript types in `web-ui/src/api-client/generated/schema.ts`.
 
-The completed multi-tent phase created the local identity model that this hosted plan depends on. `site.site_id='homebox'` is the physical installation. `tent.tent_id='main'` is the current production tent. `tent.tent_id='breeding'` exists as the future second tent. The canonical telemetry path is `site -> tent -> zone/device -> capability -> sensorreading`. The current physical box is still the only hardware controller.
+The completed multi-tent phase created the local identity model that this hosted plan depends on. After scoped identity cleanup, Dirt-owned local sites, tents, zones, and schedules use integer source IDs plus display names and semantic fields such as `tent.role`; hosted browser routes refer to local tent rows with `source_tent_id`. The canonical telemetry path is `site -> tent -> zone/device -> capability -> sensorreading`. The current physical box is still the only hardware controller.
 
 Important current local files:
 
@@ -358,12 +358,12 @@ Cloud asset bytes must live in the private Railway `dirt-assets` bucket. Browser
 Expose browser-facing API routes for read-only state first:
 
 - `GET /api/sites`
-- `GET /api/tents?site_id=homebox`
-- `GET /api/tents/{tent_id}/state`
-- `GET /api/tents/{tent_id}/metrics/current`
-- `GET /api/tents/{tent_id}/metrics/history?metric=...&range=...`
-- `GET /api/tents/{tent_id}/devices`
-- `GET /api/tents/{tent_id}/assets/latest`
+- `GET /api/tents`
+- `GET /api/tents/{source_tent_id}/state`
+- `GET /api/tents/{source_tent_id}/metrics/current`
+- `GET /api/tents/{source_tent_id}/metrics/history?metric=...&range=...`
+- `GET /api/tents/{source_tent_id}/devices`
+- `GET /api/tents/{source_tent_id}/assets/latest`
 - `GET /api/sync/status`
 
 Expose gateway-facing routes under a clear prefix such as `/api/gateway/v1/*`:

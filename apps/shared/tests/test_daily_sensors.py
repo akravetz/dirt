@@ -17,13 +17,13 @@ from dirt_shared.models.device import Capability, Device
 from dirt_shared.models.enums import SensorSource
 from dirt_shared.models.plant import Plant, PlantLocationHistory, PlantMetricStream
 from dirt_shared.models.sensor_reading import SensorReading
-from dirt_shared.models.site import Site
 from dirt_shared.services.daily_sensors import (
     SOIL_METRIC,
     SensorReader,
     mdt_window_to_utc,
 )
 from dirt_shared.services.readings import get_latest_product_plant_moisture_readings
+from dirt_shared.services.scope import require_default_site_pk
 
 # Apr 19 2026: MDT is UTC-6.
 TEST_NOW = datetime(2026, 4, 19, 20, 30, 0, tzinfo=UTC)  # 14:30 MDT
@@ -89,7 +89,7 @@ async def _map_plant_moisture_stream(
     unit: str,
 ) -> int:
     async with AsyncSession(engine) as s:
-        site_pk = (await s.exec(select(Site.id).where(Site.site_id == "homebox"))).one()
+        site_pk = await require_default_site_pk(s)
         plant, location = (
             await s.exec(
                 select(Plant, PlantLocationHistory)
@@ -129,7 +129,7 @@ async def _map_plant_moisture_stream(
 
 async def _deactivate_plant_moisture_stream(engine, *, plant_key: str) -> None:
     async with AsyncSession(engine) as s:
-        site_pk = (await s.exec(select(Site.id).where(Site.site_id == "homebox"))).one()
+        site_pk = await require_default_site_pk(s)
         plant = (
             await s.exec(
                 select(Plant)
@@ -425,9 +425,9 @@ async def test_snapshot_includes_scoped_breeding_tent(pg_engine):
     snap = await r.snapshot(TEST_DATE)
     out = snap.to_prompt_dict()
 
-    assert set(out["tents"]) == {"breeding", "main"}
-    assert out["tents"]["breeding"]["temperature_f"]["now"] == 79.0
-    assert out["tents"]["main"]["temperature_f"]["now"] == 80.0
+    assert set(out["tents"]) == {1, 2}
+    assert out["tents"][2]["temperature_f"]["now"] == 79.0
+    assert out["tents"][1]["temperature_f"]["now"] == 80.0
 
 
 async def test_snapshot_per_plant_pct_uses_direct_percent(pg_engine):
@@ -484,14 +484,14 @@ def test_to_prompt_dict_renders_window_avg():
             }
         },
         tents={
-            "main": {
+            1: {
                 "temperature_f": {
                     "overnight": WindowAvg(avg=75.123, n=2),
                     "morning": WindowAvg(avg=None, n=0),
                     "now": 85.0,
                 }
             },
-            "breeding": {},
+            2: {},
         },
     )
     out = snap.to_prompt_dict()
@@ -504,4 +504,4 @@ def test_to_prompt_dict_renders_window_avg():
     assert out["plants"][PLANT_A_KEY]["now_pct"] == 33.1
     assert "raw_delta_morning_to_now" not in out["plants"][PLANT_A_KEY]
     assert out["soil_moisture_note"].startswith("Soil moisture is reported")
-    assert set(out["tents"]) == {"breeding", "main"}
+    assert set(out["tents"]) == {1, 2}

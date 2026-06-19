@@ -17,7 +17,7 @@ export const Route = createFileRoute("/")({
 });
 
 const hostedApi = createHostedApiClient();
-const PLANT_DETAIL_ROUTE = "/tents/$tentId/plants/$plantId" as const;
+const PLANT_DETAIL_ROUTE = "/tents/$sourceTentId/plants/$plantId" as const;
 const LIVE_DASHBOARD_REFETCH_MS = 30_000;
 
 type SparklineAccent =
@@ -95,7 +95,7 @@ function hostedData<T>(data: T | undefined, path: string): T {
 function HostedDashboardPage() {
   const [range, setRange] = useState<SparklineRange>("24h");
   const [selectedSiteId, setSelectedSiteId] = useState("homebox");
-  const [selectedTentId, setSelectedTentId] = useState("main");
+  const [selectedTentId, setSelectedTentId] = useState(1);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [hoverTimestamp, setHoverTimestamp] = useState<string | null>(null);
 
@@ -121,23 +121,26 @@ function HostedDashboardPage() {
   const stateQuery = useQuery({
     queryKey: ["cloud.tent.state", selectedTentId],
     queryFn: async () => {
-      const { data } = await hostedApi.GET("/api/tents/{tent_id}/state", {
-        params: { path: { tent_id: selectedTentId } },
+      const { data } = await hostedApi.GET("/api/tents/{source_tent_id}/state", {
+        params: { path: { source_tent_id: selectedTentId } },
       });
-      return hostedData(data, "/api/tents/{tent_id}/state");
+      return hostedData(data, "/api/tents/{source_tent_id}/state");
     },
-    enabled: selectedTentId.length > 0,
+    enabled: selectedTentId > 0,
   });
 
   const metricsQuery = useQuery({
     queryKey: ["cloud.metrics.current", selectedTentId],
     queryFn: async () => {
-      const { data } = await hostedApi.GET("/api/tents/{tent_id}/metrics/current", {
-        params: { path: { tent_id: selectedTentId } },
-      });
-      return hostedData(data, "/api/tents/{tent_id}/metrics/current");
+      const { data } = await hostedApi.GET(
+        "/api/tents/{source_tent_id}/metrics/current",
+        {
+          params: { path: { source_tent_id: selectedTentId } },
+        },
+      );
+      return hostedData(data, "/api/tents/{source_tent_id}/metrics/current");
     },
-    enabled: selectedTentId.length > 0,
+    enabled: selectedTentId > 0,
     refetchInterval: LIVE_DASHBOARD_REFETCH_MS,
   });
 
@@ -145,25 +148,25 @@ function HostedDashboardPage() {
     queryKey: ["cloud.metrics.presentation", selectedTentId],
     queryFn: async () => {
       const { data } = await hostedApi.GET(
-        "/api/tents/{tent_id}/metrics/presentation",
+        "/api/tents/{source_tent_id}/metrics/presentation",
         {
-          params: { path: { tent_id: selectedTentId } },
+          params: { path: { source_tent_id: selectedTentId } },
         },
       );
-      return hostedData(data, "/api/tents/{tent_id}/metrics/presentation");
+      return hostedData(data, "/api/tents/{source_tent_id}/metrics/presentation");
     },
-    enabled: selectedTentId.length > 0,
+    enabled: selectedTentId > 0,
   });
 
   const plantsQuery = useQuery({
     queryKey: ["cloud.plants", selectedTentId],
     queryFn: async () => {
-      const { data } = await hostedApi.GET("/api/tents/{tent_id}/plants", {
-        params: { path: { tent_id: selectedTentId } },
+      const { data } = await hostedApi.GET("/api/tents/{source_tent_id}/plants", {
+        params: { path: { source_tent_id: selectedTentId } },
       });
-      return hostedData(data, "/api/tents/{tent_id}/plants");
+      return hostedData(data, "/api/tents/{source_tent_id}/plants");
     },
-    enabled: selectedTentId.length > 0,
+    enabled: selectedTentId > 0,
     refetchInterval: LIVE_DASHBOARD_REFETCH_MS,
   });
 
@@ -173,15 +176,18 @@ function HostedDashboardPage() {
     queries: historyMetrics.map((m) => ({
       queryKey: ["cloud.metrics.history", selectedTentId, range, m.metric] as const,
       queryFn: async () => {
-        const { data } = await hostedApi.GET("/api/tents/{tent_id}/metrics/history", {
-          params: {
-            path: { tent_id: selectedTentId },
-            query: { range, metric: m.metric },
+        const { data } = await hostedApi.GET(
+          "/api/tents/{source_tent_id}/metrics/history",
+          {
+            params: {
+              path: { source_tent_id: selectedTentId },
+              query: { range, metric: m.metric },
+            },
           },
-        });
-        return hostedData(data, "/api/tents/{tent_id}/metrics/history");
+        );
+        return hostedData(data, "/api/tents/{source_tent_id}/metrics/history");
       },
-      enabled: selectedTentId.length > 0 && presentationQuery.isSuccess,
+      enabled: selectedTentId > 0 && presentationQuery.isSuccess,
       refetchInterval: range === "1h" ? LIVE_DASHBOARD_REFETCH_MS : false,
     })),
   });
@@ -189,34 +195,40 @@ function HostedDashboardPage() {
   const devicesQuery = useQuery({
     queryKey: ["cloud.devices", selectedTentId],
     queryFn: async () => {
-      const { data } = await hostedApi.GET("/api/tents/{tent_id}/devices", {
-        params: { path: { tent_id: selectedTentId } },
+      const { data } = await hostedApi.GET("/api/tents/{source_tent_id}/devices", {
+        params: { path: { source_tent_id: selectedTentId } },
       });
-      return hostedData(data, "/api/tents/{tent_id}/devices");
+      return hostedData(data, "/api/tents/{source_tent_id}/devices");
     },
-    enabled: selectedTentId.length > 0,
+    enabled: selectedTentId > 0,
   });
 
   const lightSchedulesQuery = useQuery({
     queryKey: ["cloud.lights.schedules", selectedTentId],
     queryFn: async () => {
-      const { data } = await hostedApi.GET("/api/tents/{tent_id}/lights/schedules", {
-        params: { path: { tent_id: selectedTentId } },
-      });
-      return hostedData(data, "/api/tents/{tent_id}/lights/schedules");
+      const { data } = await hostedApi.GET(
+        "/api/tents/{source_tent_id}/lights/schedules",
+        {
+          params: { path: { source_tent_id: selectedTentId } },
+        },
+      );
+      return hostedData(data, "/api/tents/{source_tent_id}/lights/schedules");
     },
-    enabled: selectedTentId.length > 0,
+    enabled: selectedTentId > 0,
   });
 
   const assetsQuery = useQuery({
     queryKey: ["cloud.assets.latest", selectedTentId],
     queryFn: async () => {
-      const { data } = await hostedApi.GET("/api/tents/{tent_id}/assets/latest", {
-        params: { path: { tent_id: selectedTentId } },
-      });
-      return hostedData(data, "/api/tents/{tent_id}/assets/latest");
+      const { data } = await hostedApi.GET(
+        "/api/tents/{source_tent_id}/assets/latest",
+        {
+          params: { path: { source_tent_id: selectedTentId } },
+        },
+      );
+      return hostedData(data, "/api/tents/{source_tent_id}/assets/latest");
     },
-    enabled: selectedTentId.length > 0,
+    enabled: selectedTentId > 0,
     retry: false,
   });
 
@@ -231,7 +243,7 @@ function HostedDashboardPage() {
 
   const sites = sitesQuery.data ?? [];
   const tents = tentsQuery.data ?? [];
-  const selectedTent = tents.find((tent) => tent.tent_id === selectedTentId);
+  const selectedTent = tents.find((tent) => tent.source_tent_id === selectedTentId);
   const metrics = metricsQuery.data ?? [];
   const plants = plantsQuery.data ?? [];
   const syncStatus = syncQuery.data ?? null;
@@ -254,11 +266,11 @@ function HostedDashboardPage() {
   const onSiteChange = (event: ChangeEvent<HTMLSelectElement>) => {
     const nextSite = event.currentTarget.value;
     setSelectedSiteId(nextSite);
-    setSelectedTentId("main");
+    setSelectedTentId(1);
   };
 
   const onTentChange = (event: ChangeEvent<HTMLSelectElement>) => {
-    setSelectedTentId(event.currentTarget.value);
+    setSelectedTentId(Number(event.currentTarget.value));
   };
 
   if (sitesQuery.isLoading || tentsQuery.isLoading) {
@@ -308,7 +320,7 @@ function HostedDashboardPage() {
                 className="min-w-32 border border-rule-strong bg-paper px-3 py-2 font-sans text-fs-12 normal-case tracking-normal text-ink"
               >
                 {tents.map((tent) => (
-                  <option key={tent.tent_id} value={tent.tent_id}>
+                  <option key={tent.source_tent_id} value={tent.source_tent_id}>
                     {tent.name}
                     {tent.is_active ? "" : " (inactive)"}
                   </option>
@@ -334,7 +346,10 @@ function HostedDashboardPage() {
         </section>
 
         <section className="grid grid-cols-1 gap-px border border-rule-strong bg-rule sm:grid-cols-3">
-          <HostedFact label="Tent" value={selectedTent?.name ?? selectedTentId} />
+          <HostedFact
+            label="Tent"
+            value={selectedTent?.name ?? String(selectedTentId)}
+          />
           <HostedFact
             label="Catalog"
             value={formatTimestamp(stateQuery.data?.last_catalog_sync_at ?? null)}
@@ -387,7 +402,7 @@ function HostedDashboardPage() {
 
         <HostedPlantsPanel
           plants={plants}
-          tentId={selectedTentId}
+          sourceTentId={String(selectedTentId)}
           loading={plantsQuery.isLoading}
         />
 
@@ -534,7 +549,7 @@ function LightSchedulePanel({
         <div className="grid gap-2">
           {schedules.map((schedule) => (
             <div
-              key={schedule.schedule_id}
+              key={schedule.source_schedule_id}
               className="grid gap-3 border border-rule bg-paper px-3.5 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:gap-5"
             >
               <div className="min-w-0 space-y-1">
@@ -584,11 +599,11 @@ function LightStatePill({ isOn }: { isOn: boolean }): ReactNode {
 function HostedPlantsPanel({
   loading,
   plants,
-  tentId,
+  sourceTentId,
 }: {
   loading: boolean;
   plants: readonly HostedPlant[];
-  tentId: string;
+  sourceTentId: string;
 }): ReactNode {
   return (
     <section aria-label="Plants" className="border border-rule bg-paper-2 px-4 py-3">
@@ -614,7 +629,7 @@ function HostedPlantsPanel({
             <Link
               key={plant.id}
               to={PLANT_DETAIL_ROUTE}
-              params={{ tentId, plantId: plant.key }}
+              params={{ sourceTentId, plantId: plant.key }}
               className="group min-w-0 border border-rule bg-paper px-3.5 py-3 transition hover:border-rule-strong"
             >
               <PlantRowContent plant={plant} />
@@ -793,7 +808,7 @@ function hostedGatewayStatus(lastSeenAt: string | null): HostedSyncStatus["statu
 }
 
 function lightScheduleLabel(schedule: DashboardLightSchedule): string {
-  if (schedule.device_id === null) return schedule.schedule_id;
+  if (schedule.device_id === null) return `schedule #${schedule.source_schedule_id}`;
   return schedule.device_id
     .replace(/^kasa-lights-/, "")
     .replaceAll("-", " ")

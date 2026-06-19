@@ -13,12 +13,12 @@ from dirt_shared.models.device import Device
 from dirt_shared.models.site import Site
 from dirt_shared.models.tent import Tent
 from dirt_shared.models.zone import Zone
-from dirt_shared.services.scope import DEFAULT_SITE_ID, resolve_scope
+from dirt_shared.services.scope import require_default_site_pk
 
 
 @dataclass(frozen=True)
 class SiteSummary:
-    site_id: str
+    site_pk: int
     name: str
     location: str | None
     timezone: str
@@ -27,8 +27,8 @@ class SiteSummary:
 
 @dataclass(frozen=True)
 class TentSummary:
-    site_id: str
-    tent_id: str
+    tent_pk: int
+    site_pk: int
     name: str
     role: str
     is_default: bool
@@ -37,9 +37,9 @@ class TentSummary:
 
 @dataclass(frozen=True)
 class ScopedDeviceSummary:
-    site_id: str
-    tent_id: str | None
-    zone_id: str | None
+    site_pk: int
+    tent_pk: int | None
+    zone_pk: int | None
     device_id: str
     name: str
     kind: str
@@ -58,12 +58,12 @@ class ScopeCatalogService:
         async with AsyncSession(self._engine) as session:
             rows = (
                 await session.exec(
-                    select(Site).order_by(Site.is_default.desc(), Site.site_id)
+                    select(Site).order_by(Site.is_default.desc(), Site.id)
                 )
             ).all()
         return [
             SiteSummary(
-                site_id=row.site_id,
+                site_pk=row.id,
                 name=row.name,
                 location=row.location,
                 timezone=row.timezone,
@@ -75,55 +75,56 @@ class ScopeCatalogService:
     async def list_tents(
         self,
         *,
-        site_id: str = DEFAULT_SITE_ID,
+        site_pk: int | None = None,
     ) -> list[TentSummary]:
         async with AsyncSession(self._engine) as session:
+            if site_pk is None:
+                site_pk = await require_default_site_pk(session)
             rows = (
                 await session.exec(
-                    select(Tent, Site.site_id)
+                    select(Tent)
                     .join(Site, Site.id == Tent.site_id)
-                    .where(Site.site_id == site_id)
-                    .order_by(Tent.is_default.desc(), Tent.tent_id)
+                    .where(Tent.site_id == site_pk)
+                    .order_by(Tent.is_default.desc(), Tent.name)
                 )
             ).all()
         return [
             TentSummary(
-                site_id=resolved_site_id,
-                tent_id=tent.tent_id,
+                tent_pk=tent.id,
+                site_pk=tent.site_id,
                 name=tent.name,
                 role=tent.role,
                 is_default=tent.is_default,
                 active=tent.active,
             )
-            for tent, resolved_site_id in rows
+            for tent in rows
         ]
 
     async def list_tent_devices(
         self,
         *,
-        tent_id: str,
-        site_id: str = DEFAULT_SITE_ID,
+        tent_pk: int,
+        site_pk: int | None = None,
     ) -> list[ScopedDeviceSummary] | None:
         async with AsyncSession(self._engine) as session:
-            scope = await resolve_scope(session, site_id=site_id, tent_id=tent_id)
-            if scope is None:
-                return None
+            if site_pk is None:
+                site_pk = await require_default_site_pk(session)
             rows = (
                 await session.exec(
-                    select(Device, Site.site_id, Tent.tent_id, Zone.zone_id)
+                    select(Device, Tent.id, Zone.id)
                     .join(Site, Site.id == Device.site_id)
                     .outerjoin(Tent, Tent.id == Device.tent_id)
                     .outerjoin(Zone, Zone.id == Device.zone_id)
-                    .where(Site.id == scope.site_pk)
-                    .where(Device.tent_id == scope.tent_pk)
+                    .where(Device.site_id == site_pk)
+                    .where(Device.tent_id == tent_pk)
                     .order_by(Device.device_id)
                 )
             ).all()
         return [
             ScopedDeviceSummary(
-                site_id=resolved_site_id,
-                tent_id=resolved_tent_id,
-                zone_id=zone_id,
+                site_pk=device.site_id,
+                tent_pk=resolved_tent_pk,
+                zone_pk=zone_pk,
                 device_id=device.device_id,
                 name=device.name,
                 kind=device.kind,
@@ -131,5 +132,5 @@ class ScopeCatalogService:
                 enabled=device.enabled,
                 last_seen=device.last_seen,
             )
-            for device, resolved_site_id, resolved_tent_id, zone_id in rows
+            for device, resolved_tent_pk, zone_pk in rows
         ]

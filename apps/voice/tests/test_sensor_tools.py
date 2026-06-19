@@ -9,8 +9,8 @@ from dirt_shared.models.device import Capability, Device
 from dirt_shared.models.enums import SensorSource
 from dirt_shared.models.plant import Plant, PlantLocationHistory, PlantMetricStream
 from dirt_shared.models.sensor_reading import SensorReading
-from dirt_shared.models.site import Site
 from dirt_shared.services.readings import ReadingsService
+from dirt_shared.services.scope import require_default_site_pk
 from dirt_voice.tools.sensors import build_sensor_tools
 
 PLANT_A_KEY = "SBBS-R1-001"
@@ -48,9 +48,7 @@ async def _map_plant_moisture_stream(
     metric_name: str,
     unit: str,
 ) -> int:
-    site_pk = (
-        await session.exec(select(Site.id).where(Site.site_id == "homebox"))
-    ).one()
+    site_pk = await require_default_site_pk(session)
     plant, location = (
         await session.exec(
             select(Plant, PlantLocationHistory)

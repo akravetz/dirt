@@ -32,7 +32,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.device import Capability, Device
 from dirt_shared.models.sensor_reading import SensorReading
-from dirt_shared.models.site import Site
 from dirt_shared.models.tent import Tent
 from dirt_shared.sensor_contract import persisted_capability_ids_for_device_id
 from dirt_shared.services.readings import (
@@ -42,8 +41,8 @@ from dirt_shared.services.readings import (
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_REPORT_TENT_IDS = ("main", "breeding")
-DEFAULT_REQUIRED_TENT_IDS = ("main",)
+DEFAULT_REPORT_SOURCE_TENT_IDS = (1, 2)
+DEFAULT_REQUIRED_SOURCE_TENT_IDS = (1,)
 SOIL_METRIC = PRODUCT_PLANT_MOISTURE_METRIC
 MDT = ZoneInfo("America/Denver")
 
@@ -93,13 +92,13 @@ class DailySensorSnapshot:
 
     date_mdt: date
     tent: dict[str, dict[str, WindowAvg | float | None]]
-    """Legacy alias for ``tents["main"]``."""
+    """Legacy alias for the default/report-primary tent."""
     plants: dict[str, dict[str, WindowAvg | float | None]]
     """{plant_key: moisture trend context for main-tent plants}"""
-    tents: dict[str, dict[str, dict[str, WindowAvg | float | None]]] = field(
+    tents: dict[int, dict[str, dict[str, WindowAvg | float | None]]] = field(
         default_factory=dict
     )
-    """{tent_id: {metric: {"overnight": WindowAvg, "morning": WindowAvg, "now": v}}}"""
+    """{source_tent_id: {metric: windowed daily values}}"""
 
     def to_prompt_dict(self) -> dict[str, Any]:
         """Render to a JSON-serializable dict for the LLM prompt."""
@@ -122,12 +121,13 @@ class DailySensorSnapshot:
                 out[k] = row
             return out
 
-        tents = self.tents or {"main": self.tent}
+        tents = self.tents or {1: self.tent}
         return {
             "date_mdt": self.date_mdt.isoformat(),
             "tent": render(self.tent),
             "tents": {
-                tent_id: render(metrics) for tent_id, metrics in sorted(tents.items())
+                source_tent_id: render(metrics)
+                for source_tent_id, metrics in sorted(tents.items())
             },
             "plants": render(self.plants),
             "soil_moisture_note": (
@@ -154,8 +154,8 @@ class SensorReader:
         *,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         max_age_s: int = 300,
-        report_tent_ids: Sequence[str] = DEFAULT_REPORT_TENT_IDS,
-        required_tent_ids: Sequence[str] = DEFAULT_REQUIRED_TENT_IDS,
+        report_source_tent_ids: Sequence[int] = DEFAULT_REPORT_SOURCE_TENT_IDS,
+        required_source_tent_ids: Sequence[int] = DEFAULT_REQUIRED_SOURCE_TENT_IDS,
     ) -> None:
         """
         Args:
@@ -167,19 +167,24 @@ class SensorReader:
         self._engine = engine
         self._clock = clock
         self._max_age_s = max_age_s
-        self._report_tent_ids = tuple(dict.fromkeys(report_tent_ids))
-        self._required_tent_ids = tuple(dict.fromkeys(required_tent_ids))
+        self._report_source_tent_ids = tuple(dict.fromkeys(report_source_tent_ids))
+        self._required_source_tent_ids = tuple(dict.fromkeys(required_source_tent_ids))
+        self._default_source_tent_id = (
+            self._required_source_tent_ids[0]
+            if self._required_source_tent_ids
+            else DEFAULT_REQUIRED_SOURCE_TENT_IDS[0]
+        )
         self._plant_requirements: list[SensorRequirement] | None = None
-        self._tent_requirements_by_tent: dict[str, list[SensorRequirement]] = {}
+        self._tent_requirements_by_tent: dict[int, list[SensorRequirement]] = {}
 
     async def _tent_metric_requirements(
         self,
         session: AsyncSession,
         *,
-        tent_id: str,
+        source_tent_id: int,
     ) -> list[SensorRequirement]:
-        if tent_id in self._tent_requirements_by_tent:
-            return self._tent_requirements_by_tent[tent_id]
+        if source_tent_id in self._tent_requirements_by_tent:
+            return self._tent_requirements_by_tent[source_tent_id]
         rows = (
             await session.exec(
                 select(
@@ -189,10 +194,8 @@ class SensorReader:
                     Capability.metric_name,
                 )
                 .join(Device, Device.id == Capability.device_id)
-                .join(Site, Site.id == Device.site_id)
                 .join(Tent, Tent.id == Device.tent_id)
-                .where(Site.site_id == "homebox")
-                .where(Tent.tent_id == tent_id)
+                .where(Tent.id == source_tent_id)
                 .where(Device.kind == "env_sensor")
                 .where(Device.enabled.is_(True))
                 .where(Capability.enabled.is_(True))
@@ -211,7 +214,7 @@ class SensorReader:
             if metric_name is not None
             and capability_id in persisted_capability_ids_for_device_id(device_id)
         ]
-        self._tent_requirements_by_tent[tent_id] = requirements
+        self._tent_requirements_by_tent[source_tent_id] = requirements
         return requirements
 
     async def _plant_metric_requirements(
@@ -222,7 +225,6 @@ class SensorReader:
             return self._plant_requirements
         capabilities = await get_supported_product_plant_moisture_capabilities(
             session,
-            tent_id="main",
         )
         self._plant_requirements = [
             SensorRequirement(
@@ -274,9 +276,9 @@ class SensorReader:
         async with AsyncSession(self._engine) as session:
             tent_requirements = [
                 requirement
-                for tent_id in self._required_tent_ids
+                for source_tent_id in self._required_source_tent_ids
                 for requirement in await self._tent_metric_requirements(
-                    session, tent_id=tent_id
+                    session, source_tent_id=source_tent_id
                 )
             ]
             plant_requirements = await self._plant_metric_requirements(session)
@@ -364,13 +366,15 @@ class SensorReader:
 
         async with AsyncSession(self._engine) as session:
             tent_requirements_by_tent = {
-                tent_id: await self._tent_metric_requirements(session, tent_id=tent_id)
-                for tent_id in self._report_tent_ids
+                source_tent_id: await self._tent_metric_requirements(
+                    session, source_tent_id=source_tent_id
+                )
+                for source_tent_id in self._report_source_tent_ids
             }
             plant_requirements = await self._plant_metric_requirements(session)
 
-        tents: dict[str, dict[str, dict[str, WindowAvg | float | None]]] = {}
-        for tent_id, tent_requirements in tent_requirements_by_tent.items():
+        tents: dict[int, dict[str, dict[str, WindowAvg | float | None]]] = {}
+        for source_tent_id, tent_requirements in tent_requirements_by_tent.items():
             tent: dict[str, dict[str, WindowAvg | float | None]] = {}
             for requirement in tent_requirements:
                 now_r = await self._latest_for_requirement(requirement)
@@ -379,7 +383,7 @@ class SensorReader:
                     "morning": await self._avg_in_window(requirement, *morning),
                     "now": (None if now_r is None else now_r.value),
                 }
-            tents[tent_id] = tent
+            tents[source_tent_id] = tent
 
         plants: dict[str, dict[str, WindowAvg | float | None]] = {}
         for requirement in plant_requirements:
@@ -404,7 +408,7 @@ class SensorReader:
 
         return DailySensorSnapshot(
             date_mdt=target_date,
-            tent=tents.get("main", {}),
+            tent=tents.get(self._default_source_tent_id, {}),
             plants=plants,
             tents=tents,
         )

@@ -14,7 +14,6 @@ from sqlalchemy import (
     Index,
     Text,
     Time,
-    UniqueConstraint,
     text,
 )
 from sqlmodel import Field, SQLModel
@@ -27,7 +26,6 @@ def _utcnow() -> datetime:
 class Schedule(SQLModel, table=True):
     __tablename__ = "schedule"
     __table_args__ = (
-        UniqueConstraint("tent_id", "schedule_id", name="uq_schedule_tent_schedule_id"),
         Index("ix_schedule_site_id", "site_id"),
         Index("ix_schedule_tent_id", "tent_id"),
         Index("ix_schedule_device_id", "device_id"),
@@ -68,7 +66,6 @@ class Schedule(SQLModel, table=True):
             nullable=True,
         ),
     )
-    schedule_id: str = Field(sa_column=Column(Text, nullable=False))
     kind: str = Field(sa_column=Column(Text, nullable=False))
     starts_local: time | None = Field(
         default=None, sa_column=Column(Time, nullable=True)

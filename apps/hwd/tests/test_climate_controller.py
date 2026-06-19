@@ -1508,9 +1508,6 @@ async def test_service_tick_dispatches_humidify_decision_and_logs_reason_codes()
     assert (
         "humidifier_intensity_pct",
         {
-            "site_id": "homebox",
-            "tent_id": "main",
-            "zone_id": "canopy",
             "device_id": "govee-h7142-main",
             "capability_id": "humidifier_intensity_pct",
         },
@@ -1557,8 +1554,6 @@ async def test_service_tick_reconstructs_actuator_state_from_canonical_percent_m
     assert (
         "heater_intensity_pct",
         {
-            "site_id": "homebox",
-            "tent_id": "main",
             "device_id": "ac-infinity-thermoforge-main",
             "capability_id": "heat_level",
         },

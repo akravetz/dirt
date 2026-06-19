@@ -62,9 +62,9 @@ async def test_system_status_uses_device_table_projection(
         status for status in statuses if status.device_id == "plant-a-substrate-node"
     )
     assert renamed.name == "Renamed Plant A Substrate Node"
-    assert renamed.site_id == "homebox"
-    assert renamed.tent_id == "main"
-    assert renamed.zone_id == "plant-a"
+    assert renamed.source_site_id is not None
+    assert renamed.source_tent_id is not None
+    assert renamed.source_zone_id is not None
     assert renamed.wifi is not None
     assert renamed.wifi.rssi_dbm == -73
     assert renamed.wifi.reconnect_count == 5
@@ -78,4 +78,4 @@ async def test_system_status_uses_device_table_projection(
     assert humidifier.wifi is None
     voice = next(status for status in statuses if status.device_id == "jabra-claudia")
     assert voice.status == "listening"
-    assert voice.tent_id is None
+    assert voice.source_tent_id is None
