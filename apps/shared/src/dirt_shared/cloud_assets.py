@@ -208,6 +208,7 @@ class AssetUploader:
             await self._client.report_asset_failure(
                 AssetFailureRequest(
                     site_id=payload.sign_request.site_id,
+                    source_tent_id=payload.sign_request.source_tent_id,
                     tent_id=payload.sign_request.tent_id,
                     asset_id=payload.sign_request.asset_id,
                     object_key=payload.sign_request.object_key,

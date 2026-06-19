@@ -57,7 +57,6 @@ from dirt_shared.services.govee import (
 )
 from dirt_shared.services.grow_state import GrowStateService
 from dirt_shared.services.readings import ReadingsService
-from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID
 from dirt_shared.services.telegram import TelegramClient, TelegramError
 
 logger = logging.getLogger(__name__)
@@ -259,8 +258,6 @@ class HumidifierLoopService:
         http_client_factory: Callable[[], httpx.AsyncClient] | None = None,
         govee_client_factory: Callable[[str, httpx.AsyncClient], GoveeClient]
         | None = None,
-        site_id: str = DEFAULT_SITE_ID,
-        tent_id: str = DEFAULT_TENT_ID,
         canopy_device_id: str = "fan-controller",
         humidifier_device_id: str = "govee-h7142-main",
         fan_trim_config: FanTrimConfig | None = None,
@@ -269,9 +266,6 @@ class HumidifierLoopService:
         self._readings = readings
         self._grow = grow
         self._clock = clock
-        self._site_id = site_id
-        self._tent_id = tent_id
-        self._zone_id = "canopy"
         self._canopy_device_id = canopy_device_id
         self._humidifier_device_id = humidifier_device_id
         self._allocator_config = (
@@ -301,17 +295,11 @@ class HumidifierLoopService:
                 "humidifier_intensity_pct": intensity_pct,
             },
             source=SensorSource.GOVEE,
-            site_id=self._site_id,
-            tent_id=self._tent_id,
-            zone_id=self._zone_id,
             device_id=self._humidifier_device_id,
         )
 
     def _scope_fields(self, *, capability_id: str | None = None) -> dict[str, str]:
         fields = {
-            "site_id": self._site_id,
-            "tent_id": self._tent_id,
-            "zone_id": self._zone_id,
             "device_id": self._humidifier_device_id,
         }
         if capability_id is not None:
@@ -396,10 +384,7 @@ class HumidifierLoopService:
                 try:
                     now = self._clock()
 
-                    ctx = await self._grow.current_context(
-                        site_id=self._site_id,
-                        tent_id=self._tent_id,
-                    )
+                    ctx = await self._grow.current_context()
                     stage = ctx.stage
                     lights = ctx.lights
                     vpd_lo, vpd_hi = ctx.targets["vpd_kpa"]
@@ -408,17 +393,11 @@ class HumidifierLoopService:
                     reading_tasks = [
                         self._readings.get_latest_reading(
                             "vpd_kpa",
-                            site_id=self._site_id,
-                            tent_id=self._tent_id,
-                            zone_id=self._zone_id,
                             device_id=self._canopy_device_id,
                             capability_id="vpd_kpa",
                         ),
                         self._readings.get_latest_reading(
                             "humidity_pct",
-                            site_id=self._site_id,
-                            tent_id=self._tent_id,
-                            zone_id=self._zone_id,
                             device_id=self._canopy_device_id,
                             capability_id="humidity_pct",
                         ),
@@ -427,9 +406,6 @@ class HumidifierLoopService:
                         reading_tasks.append(
                             self._readings.get_latest_reading(
                                 "fan_pct",
-                                site_id=self._site_id,
-                                tent_id=self._tent_id,
-                                zone_id=self._zone_id,
                                 device_id=self._canopy_device_id,
                                 capability_id="fan_pct",
                             )

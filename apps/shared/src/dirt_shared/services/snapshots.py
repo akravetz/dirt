@@ -6,7 +6,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.snapshot import Snapshot
-from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID, resolve_scope
+from dirt_shared.services.scope import resolve_scope
 
 
 class SnapshotsService:
@@ -18,18 +18,18 @@ class SnapshotsService:
     async def latest(
         self,
         *,
-        site_id: str = DEFAULT_SITE_ID,
-        tent_id: str = DEFAULT_TENT_ID,
+        site_pk: int | None = None,
+        tent_pk: int | None = None,
     ) -> Snapshot | None:
         async with AsyncSession(self._engine) as session:
-            scope = await resolve_scope(session, site_id=site_id, tent_id=tent_id)
+            scope = await resolve_scope(session, site_pk=site_pk, tent_pk=tent_pk)
             if scope is None:
                 return None
             stmt = select(Snapshot)
             scoped_match = (Snapshot.site_id == scope.site_pk) & (
                 Snapshot.tent_id == scope.tent_pk
             )
-            if site_id == DEFAULT_SITE_ID and tent_id == DEFAULT_TENT_ID:
+            if site_pk is None and tent_pk is None:
                 stmt = stmt.where(
                     or_(
                         scoped_match,

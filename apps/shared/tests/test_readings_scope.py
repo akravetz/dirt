@@ -12,7 +12,18 @@ from dirt_shared.models.enums import SensorSource
 from dirt_shared.models.sensor_calibration import SensorCalibration
 from dirt_shared.models.sensor_reading import SensorReading
 from dirt_shared.services.readings import ReadingsService
-from dirt_shared.testing import create_test_capability, create_test_device
+from dirt_shared.testing import (
+    create_test_capability,
+    create_test_device,
+    resolve_test_tent_pk,
+)
+
+
+async def _tent_pk(engine, tent_id: str) -> int:
+    async with AsyncSession(engine) as session:
+        resolved = await resolve_test_tent_pk(session, tent_id)
+        assert resolved is not None
+        return resolved
 
 
 async def test_default_history_excludes_same_metric_from_breeding_tent(app_engine):
@@ -49,13 +60,15 @@ async def test_default_history_excludes_same_metric_from_breeding_tent(app_engin
         )
         await session.commit()
 
+    breeding_tent_pk = await _tent_pk(app_engine, "breeding")
+
     main_history = await readings.get_metric_history("temperature_f", "1h")
     breeding_history = await readings.get_metric_history(
-        "temperature_f", "1h", tent_id="breeding"
+        "temperature_f", "1h", tent_pk=breeding_tent_pk, use_default_tent=False
     )
     main_latest = await readings.get_latest_reading("temperature_f")
     breeding_latest = await readings.get_latest_reading(
-        "temperature_f", tent_id="breeding"
+        "temperature_f", tent_pk=breeding_tent_pk, use_default_tent=False
     )
 
     assert [value for _, value in main_history] == [72.0]
@@ -72,7 +85,7 @@ async def test_scoped_ingest_updates_device_heartbeat(app_engine):
     )
 
     await readings.ingest_reading(
-        {"soil_moisture_raw": 1600.0},
+        {"soil_moisture_pct": 26.9},
         source=SensorSource.ESP32,
         ip="192.168.1.101",
         firmware_version="0.2.0",
@@ -82,15 +95,14 @@ async def test_scoped_ingest_updates_device_heartbeat(app_engine):
         wifi_driver_reset_count=1,
         wifi_disconnect_reason=200,
         wifi_disconnected_for_ms=0,
-        site_id="homebox",
-        tent_id="main",
-        zone_id="plant-a",
-        device_id="plant-a-node",
+        device_id="plant-a-substrate-node",
     )
 
     async with AsyncSession(app_engine) as session:
         device = (
-            await session.exec(select(Device).where(Device.device_id == "plant-a-node"))
+            await session.exec(
+                select(Device).where(Device.device_id == "plant-a-substrate-node")
+            )
         ).one()
 
     assert device.last_seen == datetime(2026, 5, 4, tzinfo=UTC)
@@ -102,6 +114,112 @@ async def test_scoped_ingest_updates_device_heartbeat(app_engine):
     assert device.wifi_driver_reset_count == 1
     assert device.wifi_disconnect_reason == 200
     assert device.wifi_disconnected_for_ms == 0
+
+
+async def test_ingest_uses_only_enabled_capabilities_but_still_touches_device(
+    app_engine,
+):
+    readings = ReadingsService(
+        app_engine, clock=lambda: datetime(2026, 5, 4, 0, 1, tzinfo=UTC)
+    )
+
+    async with AsyncSession(app_engine) as session:
+        device = await create_test_device(
+            session,
+            tent_id="main",
+            zone_id="plant-a",
+            device_id="test-disabled-capability-node",
+            name="Test disabled capability node",
+        )
+        capability = await create_test_capability(
+            session,
+            device=device,
+            capability_id="soil_moisture_raw",
+            name="Soil Moisture Raw",
+            unit="raw",
+        )
+        capability.enabled = False
+        session.add(capability)
+        await session.commit()
+
+    inserted = await readings.ingest_reading(
+        {"soil_moisture_raw": 1600.0},
+        source=SensorSource.ESP32,
+        device_id="test-disabled-capability-node",
+    )
+
+    async with AsyncSession(app_engine) as session:
+        rows = (
+            await session.exec(
+                select(SensorReading)
+                .join(Capability, Capability.id == SensorReading.capability_id)
+                .join(Device, Device.id == Capability.device_id)
+                .where(Device.device_id == "test-disabled-capability-node")
+                .where(SensorReading.metric == "soil_moisture_raw")
+            )
+        ).all()
+        device = (
+            await session.exec(
+                select(Device).where(
+                    Device.device_id == "test-disabled-capability-node"
+                )
+            )
+        ).one()
+
+    assert inserted == 0
+    assert rows == []
+    assert device.last_seen == datetime(2026, 5, 4, 0, 1, tzinfo=UTC)
+
+
+async def test_ingest_ignores_disabled_devices(app_engine):
+    readings = ReadingsService(
+        app_engine, clock=lambda: datetime(2026, 5, 4, 0, 2, tzinfo=UTC)
+    )
+
+    async with AsyncSession(app_engine) as session:
+        device = await create_test_device(
+            session,
+            tent_id="main",
+            zone_id="plant-a",
+            device_id="test-disabled-device-node",
+            name="Test disabled device node",
+        )
+        await create_test_capability(
+            session,
+            device=device,
+            capability_id="soil_moisture_raw",
+            name="Soil Moisture Raw",
+            unit="raw",
+        )
+        device.enabled = False
+        session.add(device)
+        await session.commit()
+
+    inserted = await readings.ingest_reading(
+        {"soil_moisture_raw": 1600.0},
+        source=SensorSource.ESP32,
+        device_id="test-disabled-device-node",
+    )
+
+    async with AsyncSession(app_engine) as session:
+        rows = (
+            await session.exec(
+                select(SensorReading)
+                .join(Capability, Capability.id == SensorReading.capability_id)
+                .join(Device, Device.id == Capability.device_id)
+                .where(Device.device_id == "test-disabled-device-node")
+                .where(SensorReading.metric == "soil_moisture_raw")
+            )
+        ).all()
+        device = (
+            await session.exec(
+                select(Device).where(Device.device_id == "test-disabled-device-node")
+            )
+        ).one()
+
+    assert inserted == 0
+    assert rows == []
+    assert device.last_seen is None
 
 
 async def test_auto_calibration_updated_at_tracks_extrema_changes(app_engine):
@@ -118,14 +236,29 @@ async def test_auto_calibration_updated_at_tracks_extrema_changes(app_engine):
 
     readings = ReadingsService(app_engine, clock=clock)
 
+    async with AsyncSession(app_engine) as session:
+        device = await create_test_device(
+            session,
+            tent_id="main",
+            zone_id="plant-a",
+            device_id="test-raw-calibration-node",
+            name="Test raw calibration node",
+            kind="moisture_node",
+        )
+        await create_test_capability(
+            session,
+            device=device,
+            capability_id="soil_moisture_raw",
+            name="Soil Moisture Raw",
+            unit="raw",
+        )
+        await session.commit()
+
     async def ingest(value: float) -> SensorCalibration:
         await readings.ingest_reading(
             {"soil_moisture_raw": value},
             source=SensorSource.ESP32,
-            site_id="homebox",
-            tent_id="main",
-            zone_id="plant-a",
-            device_id="plant-a-node",
+            device_id="test-raw-calibration-node",
         )
         async with AsyncSession(app_engine) as session:
             return (
@@ -136,7 +269,7 @@ async def test_auto_calibration_updated_at_tracks_extrema_changes(app_engine):
                         Capability.id == SensorCalibration.capability_id,
                     )
                     .join(Device, Device.id == Capability.device_id)
-                    .where(Device.device_id == "plant-a-node")
+                    .where(Device.device_id == "test-raw-calibration-node")
                     .where(SensorCalibration.metric == "soil_moisture_raw")
                 )
             ).one()
@@ -171,7 +304,7 @@ async def test_touch_device_updates_device_heartbeat(app_engine):
     )
 
     await readings.touch_device(
-        device_id="plant-a-node",
+        device_id="plant-a-substrate-node",
         ip="192.168.1.102",
         firmware_version="0.1.5",
         uptime_ms=4321,
@@ -184,7 +317,9 @@ async def test_touch_device_updates_device_heartbeat(app_engine):
 
     async with AsyncSession(app_engine) as session:
         device = (
-            await session.exec(select(Device).where(Device.device_id == "plant-a-node"))
+            await session.exec(
+                select(Device).where(Device.device_id == "plant-a-substrate-node")
+            )
         ).one()
 
     assert device.last_seen == datetime(2026, 5, 4, 0, 1, tzinfo=UTC)
@@ -204,18 +339,20 @@ async def test_touch_device_without_wifi_telemetry_clears_stale_values(app_engin
     )
 
     await readings.touch_device(
-        device_id="plant-a-node",
+        device_id="plant-a-substrate-node",
         wifi_rssi_dbm=-81,
         wifi_reconnect_count=9,
         wifi_driver_reset_count=2,
         wifi_disconnect_reason=201,
         wifi_disconnected_for_ms=30000,
     )
-    await readings.touch_device(device_id="plant-a-node", uptime_ms=5000)
+    await readings.touch_device(device_id="plant-a-substrate-node", uptime_ms=5000)
 
     async with AsyncSession(app_engine) as session:
         device = (
-            await session.exec(select(Device).where(Device.device_id == "plant-a-node"))
+            await session.exec(
+                select(Device).where(Device.device_id == "plant-a-substrate-node")
+            )
         ).one()
 
     assert device.uptime_ms == 5000

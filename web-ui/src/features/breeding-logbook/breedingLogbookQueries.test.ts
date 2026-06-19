@@ -44,10 +44,9 @@ describe("breeding logbook hosted response mapping", () => {
       stages: [{ key: "flower", display_name: "Flower", display_order: 30 }],
       locations: [
         {
-          key: "main",
+          source_tent_id: 1,
           display_name: "Main flower",
-          stage_key: "flower",
-          tent_id: "main",
+          role: "flower",
           grid_position: null,
         },
       ],
@@ -56,7 +55,7 @@ describe("breeding logbook hosted response mapping", () => {
     expect(mapBootstrap(bootstrap)).toMatchObject({
       today: "2026-05-05",
       todayLabel: "05/05/26",
-      locations: [{ key: "main", displayName: "Main flower", stageKey: "flower" }],
+      locations: [{ sourceTentId: 1, displayName: "Main flower", role: "flower" }],
     });
   });
 
@@ -74,8 +73,9 @@ describe("breeding logbook hosted response mapping", () => {
       veg_started_on: "2026-04-01",
       flower_started_on: "2026-05-01",
       culled_on: null,
-      location_key: "main",
-      location_label: "main",
+      current_tent_id: 1,
+      current_tent_name: "Main flower",
+      grid_position: null,
       seed_lot_label: "SBBS R1 #2",
       last_note: "Trichomes stacking",
       telemetry_summary: "1 plant stream",
@@ -159,7 +159,7 @@ describe("breeding logbook hosted response mapping", () => {
       ],
     } satisfies HostedMetricHistory;
 
-    expect(mapPlantList(plants).plants[0]?.locationLabel).toBe("main");
+    expect(mapPlantList(plants).plants[0]?.currentTentName).toBe("Main flower");
     expect(mapSeedLotList(seedLots).seedLots[0]?.parentsLabel).toBe(
       "Plant B x Plant C",
     );
@@ -226,7 +226,7 @@ describe("breeding logbook mutation request mapping", () => {
         idempotencyKey: "germ-click",
         seedLotId: "42",
         count: 6,
-        tentId: "veg",
+        sourceTentId: 1,
         affectedLabel: "MF F2",
         germinatedAt: "2026-06-17T15:30:00.000Z",
       }),
@@ -234,7 +234,7 @@ describe("breeding logbook mutation request mapping", () => {
       idempotency_key: "germ-click",
       seed_lot_id: "42",
       count: 6,
-      tent_id: "veg",
+      source_tent_id: 1,
       grid_position: null,
       germinated_at: "2026-06-17T15:30:00.000Z",
     });
@@ -244,14 +244,14 @@ describe("breeding logbook mutation request mapping", () => {
         idempotencyKey: "clone-click",
         motherPlantKey: "MF-001",
         count: 2,
-        tentId: "clone",
+        sourceTentId: 3,
         takenAt: "2026-06-17T16:45:00.000Z",
       }),
     ).toEqual({
       idempotency_key: "clone-click",
       mother_plant_key: "MF-001",
       count: 2,
-      tent_id: "clone",
+      source_tent_id: 3,
       grid_position: null,
       taken_at: "2026-06-17T16:45:00.000Z",
     });
@@ -271,14 +271,13 @@ describe("breeding logbook mutation request mapping", () => {
       buildBulkMoveRequest({
         idempotencyKey: "move-click",
         plantKeys: ["MF-001"],
-        tentId: "flower",
+        sourceTentId: 2,
         locationLabel: "Flower",
-        locationStageKey: "flower",
       }),
     ).toEqual({
       idempotency_key: "move-click",
       plant_keys: ["MF-001"],
-      tent_id: "flower",
+      source_tent_id: 2,
       grid_position: null,
     });
     expect(
@@ -313,7 +312,7 @@ describe("breeding logbook mutation request mapping", () => {
           idempotencyKey: "germ-click",
           seedLotId: "42",
           count: 6,
-          tentId: "veg",
+          sourceTentId: 1,
           affectedLabel: "MF F2",
           germinatedAt: "2026-06-17T15:30:00.000Z",
         }),
@@ -325,7 +324,7 @@ describe("breeding logbook mutation request mapping", () => {
           idempotencyKey: "clone-click",
           motherPlantKey: "MF-001",
           count: 2,
-          tentId: "clone",
+          sourceTentId: 3,
           takenAt: "2026-06-17T16:45:00.000Z",
         }),
       ),
@@ -345,8 +344,9 @@ describe("breeding logbook pending UX helpers", () => {
       key: "MF-001",
       sexKey: "unknown",
       stageKey: "veg",
-      locationKey: "veg",
-      locationLabel: "Veg",
+      currentTentId: 1,
+      currentTentName: "Veg",
+      gridPosition: null,
       lastNote: "",
     });
     const pendingSex = makePendingCommand({
@@ -358,9 +358,9 @@ describe("breeding logbook pending UX helpers", () => {
       optimisticPlantPatches: [
         {
           plantKey: "MF-001",
-          stageKey: "flower",
-          locationKey: "flower",
-          locationLabel: "Flower",
+          currentTentId: 2,
+          currentTentName: "Flower",
+          gridPosition: null,
         },
       ],
     });
@@ -369,9 +369,9 @@ describe("breeding logbook pending UX helpers", () => {
       {
         ...plant,
         sexKey: "female",
-        stageKey: "flower",
-        locationKey: "flower",
-        locationLabel: "Flower",
+        currentTentId: 2,
+        currentTentName: "Flower",
+        gridPosition: null,
       },
     ]);
     expect(
@@ -389,8 +389,9 @@ describe("breeding logbook pending UX helpers", () => {
     const plant = makePlantRow({
       key: "MF-002",
       stageKey: "flower",
-      locationKey: "flower",
-      locationLabel: "Flower",
+      currentTentId: 2,
+      currentTentName: "Flower",
+      gridPosition: null,
     });
     const pendingCull = makePendingCommand({
       command: makeCommand({ status: "succeeded" }),
@@ -398,8 +399,6 @@ describe("breeding logbook pending UX helpers", () => {
         {
           plantKey: "MF-002",
           stageKey: "culled",
-          locationKey: "removed",
-          locationLabel: "Removed",
         },
       ],
     });
@@ -407,7 +406,7 @@ describe("breeding logbook pending UX helpers", () => {
     const [projected] = applyPendingPlantCommands([plant], [pendingCull]);
 
     expect(projected?.stageKey).toBe("culled");
-    expect(projected?.locationLabel).toBe("Removed");
+    expect(projected?.currentTentName).toBe("Flower");
     expect(projected ? projected.stageKey !== "culled" : false).toBe(false);
   });
 
@@ -525,8 +524,9 @@ function makePlantRow(overrides: Partial<PlantRow>): PlantRow {
     vegStartedOn: "2026-06-10",
     flowerStartedOn: null,
     culledOn: null,
-    locationKey: "veg",
-    locationLabel: "Veg",
+    currentTentId: 1,
+    currentTentName: "Veg",
+    gridPosition: null,
     seedLotLabel: "MF F2",
     lastNote: "",
     telemetrySummary: "",
@@ -556,8 +556,9 @@ function makeCommand({
     queued_at: "2026-06-18T11:00:00Z",
     result: null,
     site_id: "main",
+    source_tent_id: null,
     started_at: null,
     status,
-    tent_id: "breeding-logbook",
+    legacy_target_tent_id: "breeding-logbook",
   };
 }

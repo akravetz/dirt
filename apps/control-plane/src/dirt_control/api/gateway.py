@@ -136,14 +136,15 @@ async def catalog(
     session: AsyncSession = Depends(get_session),
     clock: Callable[[], datetime] = Depends(get_clock),
 ) -> CatalogResponse:
-    require_gateway_scope(principal, body.site.site_id)
+    require_gateway_scope(principal, body.site_id)
     now = clock()
     await _upsert_by_columns(
         session,
         CloudSite,
-        {"site_id": body.site.site_id},
+        {"site_id": body.site_id},
         {
-            "site_id": body.site.site_id,
+            "site_id": body.site_id,
+            "source_site_id": body.site.source_site_id,
             "name": body.site.name,
             "timezone": body.site.timezone,
             "is_active": True,
@@ -153,15 +154,21 @@ async def catalog(
         },
         now=now,
     )
+    legacy_tent_ids = {tent.source_tent_id: tent.legacy_tent_id for tent in body.tents}
+    legacy_zone_ids = {zone.source_zone_id: zone.legacy_zone_id for zone in body.zones}
     for tent in body.tents:
-        await _upsert_by_columns(
+        await _upsert_with_legacy_bridge(
             session,
             CloudTent,
-            {"site_id": body.site.site_id, "tent_id": tent.tent_id},
+            {"site_id": body.site_id, "source_tent_id": tent.source_tent_id},
+            {"site_id": body.site_id, "tent_id": tent.legacy_tent_id},
             {
-                "site_id": body.site.site_id,
-                "tent_id": tent.tent_id,
+                "site_id": body.site_id,
+                "source_site_id": body.site.source_site_id,
+                "source_tent_id": tent.source_tent_id,
+                "tent_id": tent.legacy_tent_id,
                 "name": tent.name,
+                "role": tent.role,
                 "is_active": tent.is_active,
                 "synced_at": now,
                 "created_at": now,
@@ -170,18 +177,25 @@ async def catalog(
             now=now,
         )
     for zone in body.zones:
-        await _upsert_by_columns(
+        legacy_tent_id = _legacy_tent_id(
+            zone.source_tent_id,
+            legacy_tent_ids=legacy_tent_ids,
+        )
+        await _upsert_with_legacy_bridge(
             session,
             CloudZone,
+            {"site_id": body.site_id, "source_zone_id": zone.source_zone_id},
             {
-                "site_id": body.site.site_id,
-                "tent_id": zone.tent_id,
-                "zone_id": zone.zone_id,
+                "site_id": body.site_id,
+                "tent_id": legacy_tent_id,
+                "zone_id": zone.legacy_zone_id,
             },
             {
-                "site_id": body.site.site_id,
-                "tent_id": zone.tent_id,
-                "zone_id": zone.zone_id,
+                "site_id": body.site_id,
+                "source_tent_id": zone.source_tent_id,
+                "source_zone_id": zone.source_zone_id,
+                "tent_id": legacy_tent_id,
+                "zone_id": zone.legacy_zone_id,
                 "name": zone.name,
                 "kind": zone.kind,
                 "is_active": zone.is_active,
@@ -192,18 +206,33 @@ async def catalog(
             now=now,
         )
     for device in body.devices:
-        await _upsert_by_columns(
+        legacy_tent_id = _legacy_tent_id(
+            device.source_tent_id,
+            legacy_tent_ids=legacy_tent_ids,
+        )
+        legacy_zone_id = _legacy_zone_id(
+            device.source_zone_id,
+            legacy_zone_ids=legacy_zone_ids,
+        )
+        await _upsert_with_legacy_bridge(
             session,
             CloudDevice,
             {
-                "site_id": body.site.site_id,
-                "tent_id": device.tent_id,
+                "site_id": body.site_id,
+                "source_tent_id": device.source_tent_id,
                 "device_id": device.device_id,
             },
             {
-                "site_id": body.site.site_id,
-                "tent_id": device.tent_id,
-                "zone_id": device.zone_id,
+                "site_id": body.site_id,
+                "tent_id": legacy_tent_id,
+                "device_id": device.device_id,
+            },
+            {
+                "site_id": body.site_id,
+                "source_tent_id": device.source_tent_id,
+                "source_zone_id": device.source_zone_id,
+                "tent_id": legacy_tent_id,
+                "zone_id": legacy_zone_id,
                 "device_id": device.device_id,
                 "name": device.name,
                 "kind": device.kind,
@@ -217,18 +246,29 @@ async def catalog(
             now=now,
         )
     for capability in body.capabilities:
-        await _upsert_by_columns(
+        legacy_tent_id = _legacy_tent_id(
+            capability.source_tent_id,
+            legacy_tent_ids=legacy_tent_ids,
+        )
+        await _upsert_with_legacy_bridge(
             session,
             CloudCapability,
             {
-                "site_id": body.site.site_id,
-                "tent_id": capability.tent_id,
+                "site_id": body.site_id,
+                "source_tent_id": capability.source_tent_id,
                 "device_id": capability.device_id,
                 "capability_id": capability.capability_id,
             },
             {
-                "site_id": body.site.site_id,
-                "tent_id": capability.tent_id,
+                "site_id": body.site_id,
+                "tent_id": legacy_tent_id,
+                "device_id": capability.device_id,
+                "capability_id": capability.capability_id,
+            },
+            {
+                "site_id": body.site_id,
+                "source_tent_id": capability.source_tent_id,
+                "tent_id": legacy_tent_id,
                 "device_id": capability.device_id,
                 "capability_id": capability.capability_id,
                 "metric_name": capability.metric_name,
@@ -242,22 +282,37 @@ async def catalog(
             now=now,
         )
     for schedule in body.schedules:
-        require_gateway_scope(principal, schedule.site_id)
-        await _upsert_by_columns(
+        legacy_tent_id = _legacy_tent_id(
+            schedule.source_tent_id,
+            legacy_tent_ids=legacy_tent_ids,
+        )
+        legacy_zone_id = _legacy_zone_id(
+            schedule.source_zone_id,
+            legacy_zone_ids=legacy_zone_ids,
+        )
+        await _upsert_with_legacy_bridge(
             session,
             CloudSchedule,
             {
-                "site_id": schedule.site_id,
-                "tent_id": schedule.tent_id,
-                "schedule_id": schedule.schedule_id,
+                "site_id": body.site_id,
+                "source_schedule_id": schedule.source_schedule_id,
             },
             {
-                "site_id": schedule.site_id,
-                "tent_id": schedule.tent_id,
-                "zone_id": schedule.zone_id,
+                "site_id": body.site_id,
+                "tent_id": legacy_tent_id,
+                "schedule_id": schedule.legacy_schedule_id,
+            },
+            {
+                "site_id": body.site_id,
+                "source_site_id": schedule.source_site_id,
+                "source_tent_id": schedule.source_tent_id,
+                "source_zone_id": schedule.source_zone_id,
+                "source_schedule_id": schedule.source_schedule_id,
+                "tent_id": legacy_tent_id,
+                "zone_id": legacy_zone_id,
                 "device_id": schedule.device_id,
                 "capability_id": schedule.capability_id,
-                "schedule_id": schedule.schedule_id,
+                "schedule_id": schedule.legacy_schedule_id,
                 "kind": schedule.kind,
                 "starts_local": schedule.starts_local,
                 "ends_local": schedule.ends_local,
@@ -274,11 +329,11 @@ async def catalog(
             session,
             CloudPlantLine,
             {
-                "site_id": body.site.site_id,
+                "site_id": body.site_id,
                 "source_line_id": line.source_line_id,
             },
             {
-                "site_id": body.site.site_id,
+                "site_id": body.site_id,
                 "source_line_id": line.source_line_id,
                 "project_code": line.project_code,
                 "generation_label": line.generation_label,
@@ -297,11 +352,11 @@ async def catalog(
             session,
             CloudSeedLot,
             {
-                "site_id": body.site.site_id,
+                "site_id": body.site_id,
                 "source_seed_lot_id": seed_lot.source_seed_lot_id,
             },
             {
-                "site_id": body.site.site_id,
+                "site_id": body.site_id,
                 "source_seed_lot_id": seed_lot.source_seed_lot_id,
                 "line_source_id": seed_lot.line_source_id,
                 "sex_type_key": seed_lot.sex_type_key,
@@ -324,11 +379,11 @@ async def catalog(
             session,
             CloudPlant,
             {
-                "site_id": body.site.site_id,
+                "site_id": body.site_id,
                 "source_plant_id": plant.source_plant_id,
             },
             {
-                "site_id": body.site.site_id,
+                "site_id": body.site_id,
                 "source_plant_id": plant.source_plant_id,
                 "line_source_id": plant.line_source_id,
                 "sex_key": plant.sex_key,
@@ -353,18 +408,23 @@ async def catalog(
             now=now,
         )
     for location in body.plant_locations:
+        legacy_tent_id = _legacy_tent_id(
+            location.source_tent_id,
+            legacy_tent_ids=legacy_tent_ids,
+        )
         await _upsert_by_columns(
             session,
             CloudPlantLocation,
             {
-                "site_id": body.site.site_id,
+                "site_id": body.site_id,
                 "source_location_id": location.source_location_id,
             },
             {
-                "site_id": body.site.site_id,
+                "site_id": body.site_id,
                 "source_location_id": location.source_location_id,
                 "source_plant_id": location.source_plant_id,
-                "tent_id": location.tent_id,
+                "source_tent_id": location.source_tent_id,
+                "tent_id": legacy_tent_id,
                 "grid_position": location.grid_position,
                 "start_at": location.start_at,
                 "end_at": location.end_at,
@@ -379,11 +439,11 @@ async def catalog(
             session,
             CloudCrossEvent,
             {
-                "site_id": body.site.site_id,
+                "site_id": body.site_id,
                 "source_cross_event_id": cross_event.source_cross_event_id,
             },
             {
-                "site_id": body.site.site_id,
+                "site_id": body.site_id,
                 "source_cross_event_id": cross_event.source_cross_event_id,
                 "resulting_line_source_id": cross_event.resulting_line_source_id,
                 "seed_parent_source_plant_id": (
@@ -406,11 +466,11 @@ async def catalog(
             session,
             CloudPlantNote,
             {
-                "site_id": body.site.site_id,
+                "site_id": body.site_id,
                 "source_note_id": note.source_note_id,
             },
             {
-                "site_id": body.site.site_id,
+                "site_id": body.site_id,
                 "source_note_id": note.source_note_id,
                 "source_plant_id": note.source_plant_id,
                 "observed_at": note.observed_at,
@@ -427,11 +487,11 @@ async def catalog(
             session,
             CloudPlantEvent,
             {
-                "site_id": body.site.site_id,
+                "site_id": body.site_id,
                 "source_event_id": event.source_event_id,
             },
             {
-                "site_id": body.site.site_id,
+                "site_id": body.site_id,
                 "source_event_id": event.source_event_id,
                 "source_plant_id": event.source_plant_id,
                 "is_pollen_collection": event.is_pollen_collection,
@@ -456,14 +516,14 @@ async def catalog(
             session,
             CloudPlantMetricStream,
             {
-                "site_id": body.site.site_id,
+                "site_id": body.site_id,
                 "source_plant_id": stream.source_plant_id,
                 "device_id": stream.device_id,
                 "capability_id": stream.capability_id,
                 "metric": stream.metric,
             },
             {
-                "site_id": body.site.site_id,
+                "site_id": body.site_id,
                 "source_plant_id": stream.source_plant_id,
                 "device_id": stream.device_id,
                 "capability_id": stream.capability_id,
@@ -553,20 +613,40 @@ async def metrics_latest(
     now = clock()
     for metric in body.metrics:
         require_gateway_scope(principal, metric.site_id)
-        await _upsert_by_columns(
+        legacy_tent_id = await _legacy_tent_id_from_projection(
+            session,
+            site_id=metric.site_id,
+            source_tent_id=metric.source_tent_id,
+        )
+        legacy_zone_id = await _legacy_zone_id_from_projection(
+            session,
+            site_id=metric.site_id,
+            source_zone_id=metric.source_zone_id,
+        )
+        await _upsert_with_legacy_bridge(
             session,
             CloudLatestMetric,
             {
                 "site_id": metric.site_id,
-                "tent_id": metric.tent_id,
+                "source_tent_id": metric.source_tent_id,
                 "device_id": metric.device_id,
                 "capability_id": metric.capability_id,
                 "metric": metric.metric,
             },
             {
                 "site_id": metric.site_id,
-                "tent_id": metric.tent_id,
-                "zone_id": metric.zone_id,
+                "tent_id": legacy_tent_id,
+                "device_id": metric.device_id,
+                "capability_id": metric.capability_id,
+                "metric": metric.metric,
+            },
+            {
+                "site_id": metric.site_id,
+                "source_site_id": metric.source_site_id,
+                "source_tent_id": metric.source_tent_id,
+                "source_zone_id": metric.source_zone_id,
+                "tent_id": legacy_tent_id,
+                "zone_id": legacy_zone_id,
                 "device_id": metric.device_id,
                 "capability_id": metric.capability_id,
                 "metric": metric.metric,
@@ -600,26 +680,38 @@ async def camera_capture_policy(
     )
     camera = (
         await session.execute(
-            select(CloudDevice)
+            select(CloudDevice, CloudTent)
+            .outerjoin(
+                CloudTent,
+                (CloudTent.site_id == CloudDevice.site_id)
+                & (CloudTent.source_tent_id == CloudDevice.source_tent_id),
+            )
             .where(CloudDevice.site_id == site_id)
             .where(CloudDevice.device_id == camera_device_id)
             .where(CloudDevice.kind == "camera")
             .order_by(CloudDevice.is_active.desc(), CloudDevice.synced_at.desc())
             .limit(1)
         )
-    ).scalar_one_or_none()
+    ).first()
     if camera is None:
         return _open_capture_policy(
             site_id=site_id,
+            source_site_id=None,
+            source_tent_id=None,
             tent_id=None,
+            tent_name=None,
             camera_device_id=camera_device_id,
             timezone=site_timezone,
             reason="camera_not_found",
         )
-    if not camera.is_active:
+    camera_device, tent = camera
+    if not camera_device.is_active:
         return CapturePolicyResponse(
             site_id=site_id,
-            tent_id=camera.tent_id,
+            source_site_id=None if tent is None else tent.source_site_id,
+            source_tent_id=camera_device.source_tent_id,
+            tent_id=camera_device.tent_id,
+            tent_name=None if tent is None else tent.name,
             camera_device_id=camera_device_id,
             enabled=False,
             require_lights_on=False,
@@ -633,18 +725,21 @@ async def camera_capture_policy(
     schedule = (
         await session.execute(
             select(CloudSchedule)
-            .where(CloudSchedule.site_id == camera.site_id)
-            .where(CloudSchedule.tent_id == camera.tent_id)
+            .where(CloudSchedule.site_id == camera_device.site_id)
+            .where(CloudSchedule.source_tent_id == camera_device.source_tent_id)
             .where(CloudSchedule.kind == "lights")
             .where(CloudSchedule.is_enabled.is_(True))
-            .order_by(CloudSchedule.synced_at.desc(), CloudSchedule.schedule_id)
+            .order_by(CloudSchedule.synced_at.desc(), CloudSchedule.source_schedule_id)
             .limit(1)
         )
     ).scalar_one_or_none()
     if schedule is None:
         return _open_capture_policy(
             site_id=site_id,
-            tent_id=camera.tent_id,
+            source_site_id=None if tent is None else tent.source_site_id,
+            source_tent_id=camera_device.source_tent_id,
+            tent_id=camera_device.tent_id,
+            tent_name=None if tent is None else tent.name,
             camera_device_id=camera_device_id,
             timezone=site_timezone,
             reason="lights_schedule_not_found",
@@ -652,14 +747,17 @@ async def camera_capture_policy(
 
     return CapturePolicyResponse(
         site_id=site_id,
-        tent_id=camera.tent_id,
+        source_site_id=schedule.source_site_id,
+        source_tent_id=camera_device.source_tent_id,
+        tent_id=camera_device.tent_id,
+        tent_name=None if tent is None else tent.name,
         camera_device_id=camera_device_id,
         enabled=True,
         require_lights_on=True,
         lights_on_local=schedule.starts_local,
         lights_off_local=schedule.ends_local,
         timezone=schedule.timezone,
-        source_schedule_id=schedule.schedule_id,
+        source_schedule_id=schedule.source_schedule_id,
         reason=None,
     )
 
@@ -675,12 +773,17 @@ async def metrics_rollups(
     now = clock()
     for rollup in body.rollups:
         require_gateway_scope(principal, rollup.site_id)
-        await _upsert_by_columns(
+        legacy_tent_id = await _legacy_tent_id_from_projection(
+            session,
+            site_id=rollup.site_id,
+            source_tent_id=rollup.source_tent_id,
+        )
+        await _upsert_with_legacy_bridge(
             session,
             CloudMetricRollup,
             {
                 "site_id": rollup.site_id,
-                "tent_id": rollup.tent_id,
+                "source_tent_id": rollup.source_tent_id,
                 "device_id": rollup.device_id,
                 "capability_id": rollup.capability_id,
                 "metric": rollup.metric,
@@ -689,7 +792,18 @@ async def metrics_rollups(
             },
             {
                 "site_id": rollup.site_id,
-                "tent_id": rollup.tent_id,
+                "tent_id": legacy_tent_id,
+                "device_id": rollup.device_id,
+                "capability_id": rollup.capability_id,
+                "metric": rollup.metric,
+                "bucket": rollup.bucket,
+                "bucket_start_at": rollup.bucket_start_at,
+            },
+            {
+                "site_id": rollup.site_id,
+                "source_site_id": rollup.source_site_id,
+                "source_tent_id": rollup.source_tent_id,
+                "tent_id": legacy_tent_id,
                 "device_id": rollup.device_id,
                 "capability_id": rollup.capability_id,
                 "metric": rollup.metric,
@@ -745,12 +859,13 @@ async def complete_asset(
     require_gateway_scope(principal, body.site_id)
     now = clock()
     asset_id = body.asset_id or body.sha256 or body.object_key
+    tent_id = await _asset_storage_tent_id(session, body)
     await _upsert_cloud_asset(
         session,
         {
             "asset_id": asset_id,
             "site_id": body.site_id,
-            "tent_id": body.tent_id,
+            "tent_id": tent_id,
             "zone_id": body.zone_id,
             "device_id": body.device_id,
             "kind": body.kind,
@@ -773,7 +888,8 @@ async def complete_asset(
         subject_type="cloud_asset",
         subject_id=asset_id,
         metadata={
-            "tent_id": body.tent_id,
+            "source_tent_id": body.source_tent_id,
+            "tent_id": tent_id,
             "object_key": body.object_key,
             "content_type": body.content_type,
             "byte_size": body.byte_size,
@@ -802,6 +918,7 @@ async def asset_upload_failure(
         subject_type="cloud_asset",
         subject_id=body.asset_id,
         metadata={
+            "source_tent_id": body.source_tent_id,
             "tent_id": body.tent_id,
             "object_key": body.object_key,
             "stage": body.stage,
@@ -985,17 +1102,108 @@ async def _upsert_by_columns(
     return row
 
 
-def _open_capture_policy(
+async def _upsert_with_legacy_bridge(  # noqa: PLR0913
+    session: AsyncSession,
+    model: type[ModelT],
+    source_identity: dict[str, Any],
+    legacy_identity: dict[str, Any],
+    values: dict[str, Any],
+    *,
+    now: datetime,
+) -> ModelT:
+    row = await _find_by_identity(session, model, source_identity)
+    if row is None:
+        row = await _find_by_identity(session, model, legacy_identity)
+    if row is None:
+        row = model(**values)
+        session.add(row)
+        return row
+
+    _apply_upsert_values(row, values, now=now)
+    return row
+
+
+async def _find_by_identity(
+    session: AsyncSession,
+    model: type[ModelT],
+    identity: dict[str, Any],
+) -> ModelT | None:
+    return (
+        await session.execute(
+            select(model).where(
+                *(getattr(model, key) == value for key, value in identity.items())
+            )
+        )
+    ).scalar_one_or_none()
+
+
+def _legacy_tent_id(
+    source_tent_id: int,
+    *,
+    legacy_tent_ids: dict[int, str],
+) -> str:
+    return legacy_tent_ids.get(source_tent_id, str(source_tent_id))
+
+
+def _legacy_zone_id(
+    source_zone_id: int | None,
+    *,
+    legacy_zone_ids: dict[int, str],
+) -> str | None:
+    if source_zone_id is None:
+        return None
+    return legacy_zone_ids.get(source_zone_id, str(source_zone_id))
+
+
+async def _legacy_tent_id_from_projection(
+    session: AsyncSession,
     *,
     site_id: str,
+    source_tent_id: int,
+) -> str:
+    legacy_tent_id = await session.scalar(
+        select(CloudTent.tent_id)
+        .where(CloudTent.site_id == site_id)
+        .where(CloudTent.source_tent_id == source_tent_id)
+        .limit(1)
+    )
+    return legacy_tent_id or str(source_tent_id)
+
+
+async def _legacy_zone_id_from_projection(
+    session: AsyncSession,
+    *,
+    site_id: str,
+    source_zone_id: int | None,
+) -> str | None:
+    if source_zone_id is None:
+        return None
+    legacy_zone_id = await session.scalar(
+        select(CloudZone.zone_id)
+        .where(CloudZone.site_id == site_id)
+        .where(CloudZone.source_zone_id == source_zone_id)
+        .limit(1)
+    )
+    return legacy_zone_id or str(source_zone_id)
+
+
+def _open_capture_policy(  # noqa: PLR0913
+    *,
+    site_id: str,
+    source_site_id: int | None,
+    source_tent_id: int | None,
     tent_id: str | None,
+    tent_name: str | None,
     camera_device_id: str,
     timezone: str,
     reason: CapturePolicyReason,
 ) -> CapturePolicyResponse:
     return CapturePolicyResponse(
         site_id=site_id,
+        source_site_id=source_site_id,
+        source_tent_id=source_tent_id,
         tent_id=tent_id,
+        tent_name=tent_name,
         camera_device_id=camera_device_id,
         enabled=True,
         require_lights_on=False,
@@ -1004,6 +1212,35 @@ def _open_capture_policy(
         timezone=timezone,
         source_schedule_id=None,
         reason=reason,
+    )
+
+
+async def _asset_storage_tent_id(
+    session: AsyncSession,
+    body: AssetCompleteRequest,
+) -> str:
+    if body.tent_id is not None:
+        return body.tent_id
+    if body.source_tent_id is not None:
+        legacy_tent_id = await _legacy_tent_id_from_projection(
+            session,
+            site_id=body.site_id,
+            source_tent_id=body.source_tent_id,
+        )
+        return legacy_tent_id
+    if body.device_id is not None:
+        device_tent_id = await session.scalar(
+            select(CloudDevice.tent_id)
+            .where(CloudDevice.site_id == body.site_id)
+            .where(CloudDevice.device_id == body.device_id)
+            .order_by(CloudDevice.synced_at.desc())
+            .limit(1)
+        )
+        if device_tent_id is not None:
+            return device_tent_id
+    raise HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail="asset completion requires source_tent_id, device_id, or tent_id",
     )
 
 
@@ -1050,6 +1287,7 @@ def _command_payload(command: CloudCommand) -> CommandResultResponse:
         command_id=command.command_id,
         site_id=command.site_id,
         tent_id=command.tent_id,
+        source_tent_id=command.source_tent_id,
         device_id=command.device_id,
         capability_id=command.capability_id,
         command_type=command.command_type,

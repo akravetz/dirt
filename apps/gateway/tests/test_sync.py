@@ -75,6 +75,7 @@ from dirt_shared.models import (
 )
 from dirt_shared.models.enums import SensorSource
 from dirt_shared.services.commands import CommandService
+from dirt_shared.testing import resolve_test_tent_pk, resolve_test_zone_pk
 
 FIXED_NOW = datetime(2026, 5, 5, 12, 0, tzinfo=UTC)
 SUBSTRATE_HISTORY_METRICS = {
@@ -102,9 +103,9 @@ class RecordingCloudClient:
         self.calls: list[tuple[str, str]] = []
         self.successful_calls: list[tuple[str, str]] = []
         self.catalogs: dict[str, dict[str, Any]] = {}
-        self.latest_rows: dict[tuple[str, str, str, str, str], dict[str, Any]] = {}
+        self.latest_rows: dict[tuple[str, int, str, str, str], dict[str, Any]] = {}
         self.rollup_rows: dict[
-            tuple[str, str, str, str, str, str, str], dict[str, Any]
+            tuple[str, int, str, str, str, str, str], dict[str, Any]
         ] = {}
         self.assets: dict[str, dict[str, Any]] = {}
         self.asset_sign_requests: list[AssetSignUploadRequest] = []
@@ -156,7 +157,7 @@ class RecordingCloudClient:
         for row in payload["metrics"]:
             key = (
                 row["site_id"],
-                row["tent_id"],
+                row["source_tent_id"],
                 row["device_id"],
                 row["capability_id"],
                 row["metric"],
@@ -172,7 +173,7 @@ class RecordingCloudClient:
         for row in payload["rollups"]:
             key = (
                 row["site_id"],
-                row["tent_id"],
+                row["source_tent_id"],
                 row["device_id"],
                 row["capability_id"],
                 row["metric"],
@@ -308,10 +309,11 @@ def _payload_dict(payload: Any) -> dict[str, Any]:
 def _asset_projection(asset_file: Path) -> AssetUploadProjection:
     sign_request = AssetSignUploadRequest(
         site_id="homebox",
+        source_tent_id=1,
         tent_id="main",
         content_type="image/jpeg",
         byte_size=len(b"jpeg-bytes"),
-        object_key="homebox/main/snapshots/snapshot.jpg",
+        object_key="tents/1/snapshots/snapshot.jpg",
         asset_id="asset-1",
         sha256="asset-1",
         kind="periodic",
@@ -321,6 +323,7 @@ def _asset_projection(asset_file: Path) -> AssetUploadProjection:
         complete_request=AssetCompleteRequest(
             **sign_request.model_dump(),
             captured_at=FIXED_NOW,
+            source_zone_id=None,
         ),
         file_path=asset_file,
     )
@@ -332,8 +335,17 @@ class StaticLocalServices:
 
     async def collect_catalog(self, site_id: str) -> CatalogRequest:
         return CatalogRequest(
-            site=CatalogSite(site_id=site_id, name="Homebox", timezone="UTC"),
-            tents=[CatalogTent(tent_id="main", name="Main", is_active=True)],
+            site_id=site_id,
+            site=CatalogSite(source_site_id=1, name="Homebox", timezone="UTC"),
+            tents=[
+                CatalogTent(
+                    source_tent_id=1,
+                    name="Main",
+                    role="flower",
+                    legacy_tent_id="main",
+                    is_active=True,
+                )
+            ],
         )
 
     async def collect_latest_metrics(self, site_id: str) -> LatestMetricsRequest:
@@ -374,7 +386,8 @@ class ChangingRollupLocalServices(StaticLocalServices):
             rollups=[
                 RollupItem(
                     site_id=site_id,
-                    tent_id="main",
+                    source_site_id=1,
+                    source_tent_id=1,
                     device_id="fan-controller",
                     capability_id="temperature_f",
                     metric="temperature_f",
@@ -407,7 +420,8 @@ class RecordingRollupLocalServices(StaticLocalServices):
             rollups=[
                 RollupItem(
                     site_id=site_id,
-                    tent_id="main",
+                    source_site_id=1,
+                    source_tent_id=1,
                     device_id="fan-controller",
                     capability_id="temperature_f",
                     metric="temperature_f",
@@ -479,7 +493,8 @@ class ManyRollupLocalServices(StaticLocalServices):
             rollups=[
                 RollupItem(
                     site_id=site_id,
-                    tent_id="main",
+                    source_site_id=1,
+                    source_tent_id=1,
                     device_id="fan-controller",
                     capability_id="temperature_f",
                     metric="temperature_f",
@@ -539,6 +554,7 @@ def _cloud_command(
     command_type: str = "ptz_preset",
     payload: dict[str, Any] | None = None,
     tent_id: str = "main",
+    source_tent_id: int | None = 1,
     device_id: str | None = "obsbot-main",
     capability_id: str | None = "ptz_move",
     expires_at: datetime | None = None,
@@ -547,6 +563,7 @@ def _cloud_command(
         "command_id": command_id,
         "site_id": "homebox",
         "tent_id": tent_id,
+        "source_tent_id": source_tent_id,
         "device_id": device_id,
         "capability_id": capability_id,
         "command_type": command_type,
@@ -567,18 +584,13 @@ def _cloud_command(
 async def _site_and_tent_pks(
     session: AsyncSession,
     *,
-    tent_id: str,
+    tent_id: str = "main",
 ) -> tuple[int, int]:
     site_pk = (
-        await session.exec(select(Site.id).where(Site.site_id == "homebox"))
+        await session.exec(select(Site.id).where(Site.is_default.is_(True)))
     ).one()
-    tent_pk = (
-        await session.exec(
-            select(Tent.id)
-            .where(Tent.site_id == site_pk)
-            .where(Tent.tent_id == tent_id)
-        )
-    ).one()
+    tent_pk = await resolve_test_tent_pk(session, tent_id, site_pk=site_pk)
+    assert tent_pk is not None
     return site_pk, tent_pk
 
 
@@ -737,10 +749,8 @@ async def _seed_temperature_readings(engine: AsyncEngine) -> None:
             await session.exec(
                 select(Capability)
                 .join(Device, Device.id == Capability.device_id)
-                .join(Site, Site.id == Device.site_id)
                 .join(Tent, Tent.id == Device.tent_id)
-                .where(Site.site_id == "homebox")
-                .where(Tent.tent_id == "main")
+                .where(Tent.is_default.is_(True))
                 .where(Device.device_id == "fan-controller")
                 .where(Capability.capability_id == "temperature_f")
             )
@@ -778,14 +788,8 @@ async def _seed_history_rollup_readings(engine: AsyncEngine) -> set[str]:
     }
     device_ids = {"test-history-node", "test-history-moisture"}
     async with AsyncSession(engine) as session:
-        site_pk = (
-            await session.exec(select(Site.id).where(Site.site_id == "homebox"))
-        ).one()
-        tent = (
-            await session.exec(
-                select(Tent).where(Tent.site_id == site_pk, Tent.tent_id == "main")
-            )
-        ).one()
+        site_pk, tent_pk = await _site_and_tent_pks(session)
+        tent = (await session.exec(select(Tent).where(Tent.id == tent_pk))).one()
         device = Device(
             site_id=site_pk,
             tent_id=tent.id,
@@ -872,7 +876,7 @@ async def test_latest_metrics_and_rollups_are_not_duplicated(
     assert cloud.call_counts["wiki"] == 1
     assert (
         "homebox",
-        "main",
+        1,
         "fan-controller",
         "temperature_f",
         "temperature_f",
@@ -1012,19 +1016,19 @@ async def test_collect_metrics_syncs_only_direct_plant_moisture_pct(
     app_engine: AsyncEngine,
 ) -> None:
     async with AsyncSession(app_engine) as session:
-        site_pk = (
-            await session.exec(select(Site.id).where(Site.site_id == "homebox"))
-        ).one()
-        tent = (
-            await session.exec(
-                select(Tent).where(Tent.site_id == site_pk, Tent.tent_id == "main")
-            )
-        ).one()
+        site_pk, tent_pk = await _site_and_tent_pks(session)
+        tent = (await session.exec(select(Tent).where(Tent.id == tent_pk))).one()
+        plant_a_zone_id = await resolve_test_zone_pk(
+            session,
+            "plant-a",
+            site_pk=site_pk,
+            tent_pk=tent.id,
+        )
+        assert plant_a_zone_id is not None
         plant_a_zone = (
-            await session.exec(
-                select(Zone).where(Zone.tent_id == tent.id, Zone.zone_id == "plant-a")
-            )
+            await session.exec(select(Zone).where(Zone.id == plant_a_zone_id))
         ).one()
+        plant_a_zone_id = plant_a_zone.id
         direct_device = Device(
             site_id=site_pk,
             tent_id=tent.id,
@@ -1133,7 +1137,7 @@ async def test_collect_metrics_syncs_only_direct_plant_moisture_pct(
     ]
     assert len(latest_pct) == 1
     assert latest_pct[0].device_id == "test-direct-moisture-node"
-    assert latest_pct[0].zone_id == "plant-a"
+    assert latest_pct[0].source_zone_id == plant_a_zone_id
     assert latest_pct[0].capability_id == "soil_moisture_pct"
     assert latest_pct[0].value == 45.0
     assert latest_pct[0].unit == "%"
@@ -1155,17 +1159,15 @@ async def test_collect_catalog_projects_current_grow_plants(
     monkeypatch.setattr(gateway_local, "WIKI_ROOT", wiki_root)
 
     async with AsyncSession(app_engine) as session:
-        site_pk = (
-            await session.exec(select(Site.id).where(Site.site_id == "homebox"))
-        ).one()
+        site_pk, _ = await _site_and_tent_pks(session)
         tent = Tent(
             site_id=site_pk,
-            tent_id="test-plants",
             name="Test Plants",
             role="test",
         )
         session.add(tent)
         await session.flush()
+        test_tent_source_id = tent.id
         device = Device(
             site_id=site_pk,
             tent_id=tent.id,
@@ -1347,7 +1349,7 @@ async def test_collect_catalog_projects_current_grow_plants(
     test_locations = [
         location
         for location in payload.plant_locations
-        if location.tent_id == "test-plants"
+        if location.source_tent_id == test_tent_source_id
     ]
     test_source_ids = {location.source_plant_id for location in test_locations}
     plant_lines = [
@@ -1513,6 +1515,44 @@ async def test_collect_catalog_projects_current_grow_plants(
             is_active=True,
         )
     ]
+
+
+async def test_collect_catalog_projects_current_scope_boundary_fields(
+    app_engine: AsyncEngine,
+):
+    payload = await GatewayLocalServiceBundle(
+        app_engine, clock=lambda: FIXED_NOW
+    ).collect_catalog("homebox")
+
+    tent_source_ids = {tent.source_tent_id for tent in payload.tents}
+    device_by_id = {device.device_id: device for device in payload.devices}
+    light_schedules = [
+        schedule for schedule in payload.schedules if schedule.kind == "lights"
+    ]
+
+    assert payload.site_id == "homebox"
+    assert payload.site.source_site_id > 0
+    assert all(tent.legacy_tent_id for tent in payload.tents)
+    assert light_schedules
+    for schedule in light_schedules:
+        assert schedule.source_site_id == payload.site.source_site_id
+        assert schedule.source_tent_id in tent_source_ids
+        assert schedule.source_schedule_id > 0
+        assert schedule.legacy_schedule_id
+        assert schedule.timezone
+        assert schedule.starts_local is not None
+        assert schedule.ends_local is not None
+        if schedule.device_id is not None:
+            assert (
+                device_by_id[schedule.device_id].source_tent_id
+                == schedule.source_tent_id
+            )
+
+    for device in payload.devices:
+        serialized = device.model_dump()
+        assert "last_seen_at" in serialized
+        assert device.source_tent_id in tent_source_ids
+        assert "tent_id" not in serialized
 
 
 async def test_collect_wiki_pages_projects_grow_run_plant_markdown(
@@ -1815,9 +1855,7 @@ async def test_asset_sync_uses_sign_upload_complete_flow(
         "complete_request": asset.complete_request.model_dump(mode="json"),
         "file_path": str(asset_file),
     }
-    assert (
-        cloud.assets["asset-1"]["object_key"] == "homebox/main/snapshots/snapshot.jpg"
-    )
+    assert cloud.assets["asset-1"]["object_key"] == "tents/1/snapshots/snapshot.jpg"
 
 
 async def test_asset_upload_outbox_replay_validates_stored_json_before_cloud_calls(
@@ -1833,23 +1871,26 @@ async def test_asset_upload_outbox_replay_validates_stored_json_before_cloud_cal
         payload={
             "sign_request": {
                 "site_id": "homebox",
+                "source_tent_id": 1,
                 "tent_id": "main",
                 "content_type": "image/jpeg",
-                "object_key": "homebox/main/snapshots/snapshot.jpg",
+                "object_key": "tents/1/snapshots/snapshot.jpg",
                 "asset_id": "asset-1",
                 "sha256": "asset-1",
                 "kind": "periodic",
             },
             "complete_request": {
                 "site_id": "homebox",
+                "source_tent_id": 1,
                 "tent_id": "main",
                 "content_type": "image/jpeg",
                 "byte_size": len(b"jpeg-bytes"),
-                "object_key": "homebox/main/snapshots/snapshot.jpg",
+                "object_key": "tents/1/snapshots/snapshot.jpg",
                 "asset_id": "asset-1",
                 "sha256": "asset-1",
                 "kind": "periodic",
                 "captured_at": FIXED_NOW.isoformat(),
+                "source_zone_id": None,
             },
             "file_path": str(asset_file),
         },
@@ -2122,7 +2163,7 @@ async def test_command_loop_germinates_plants_with_local_key_suffixes(
             payload={
                 "seed_lot_source_id": seed_lot_id,
                 "count": 2,
-                "tent_id": "main",
+                "source_tent_id": 1,
                 "grid_position": None,
                 "germinated_at": FIXED_NOW.isoformat(),
             },
@@ -2178,7 +2219,7 @@ async def test_command_loop_clones_plants_and_records_mother_event(
             payload={
                 "mother_plant_key": mother_key,
                 "count": 2,
-                "tent_id": "breeding",
+                "source_tent_id": 2,
                 "grid_position": None,
                 "taken_at": FIXED_NOW.isoformat(),
             },
@@ -2266,7 +2307,7 @@ async def test_command_loop_bulk_move_closes_current_location_and_starts_flower(
             capability_id=None,
             payload={
                 "plant_keys": [plant_key],
-                "tent_id": "main",
+                "source_tent_id": 1,
                 "grid_position": None,
             },
         )
@@ -2296,7 +2337,7 @@ async def test_command_loop_bulk_move_closes_current_location_and_starts_flower(
     assert locations[0].end_at == FIXED_NOW
     assert locations[1].end_at is None
     assert locations[1].grid_position is None
-    assert event.metadata_json == {"from_tent_id": "breeding", "to_tent_id": "main"}
+    assert event.metadata_json == {"from_tent_id": 2, "to_tent_id": 1}
 
 
 async def test_command_loop_bulk_cull_closes_current_location(

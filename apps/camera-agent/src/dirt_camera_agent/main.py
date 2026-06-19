@@ -47,8 +47,8 @@ def build_service(settings: CameraAgentSettings | None = None) -> CameraAgentSer
         log_event(
             "camera_agent",
             "asset_failure_report_failed",
-            site_id=settings.site_id,
-            tent_id=settings.tent_id,
+            site_id=settings.cloud_site_id,
+            source_tent_id=payload.sign_request.source_tent_id,
             gateway_id=settings.cloud_gateway_id,
             device_id=settings.camera_device_id,
             asset_id=payload.sign_request.asset_id,

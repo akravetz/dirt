@@ -4,7 +4,7 @@ type: hardware
 sources: []
 related: [wiki/decisions/2026-04-12-distributed-sensor-architecture.md, wiki/decisions/2026-04-14-esp32-c3-gpio3-adc.md, wiki/decisions/2026-04-14-server-side-auto-calibration.md, wiki/concepts/capacitive-soil-moisture.md]
 created: 2026-04-14
-updated: 2026-06-11
+updated: 2026-06-19
 ---
 
 # ESP32-C3 Per-Plant Nodes
@@ -96,9 +96,6 @@ Takes ~20s over WiFi. No need to open the tent.
 - **Payload:**
   ```json
   {
-    "site_id": "homebox",
-    "tent_id": "main",
-    "zone_id": "plant-a",
     "device_id": "plant-a-node",
     "metrics": {"soil_moisture_raw": 1234},
     "source": "esp32",
@@ -107,7 +104,7 @@ Takes ~20s over WiFi. No need to open the tent.
     "uptime_ms": 30000
   }
   ```
-- Server resolves the plant node's `soil_moisture_raw` capability, inserts one capability-owned `sensorreading` row per metric, updates the scoped `device` heartbeat, and auto-widens the capability-owned `sensorcalibration` extrema (see [server-side auto-calibration decision](../decisions/2026-04-14-server-side-auto-calibration.md)).
+- Server derives placement from the configured `device` row for `device_id`, resolves the plant node's `soil_moisture_raw` capability, inserts one capability-owned `sensorreading` row per metric, updates the scoped `device` heartbeat, and auto-widens the capability-owned `sensorcalibration` extrema (see [server-side auto-calibration decision](../decisions/2026-04-14-server-side-auto-calibration.md)).
 
 ## Pre-flight Sensor Health Check
 

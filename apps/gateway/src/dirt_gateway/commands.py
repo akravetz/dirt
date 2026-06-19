@@ -179,17 +179,16 @@ class GatewayCommandService:
             )
             return _CommandOutcome(executed=False, reported=reported)
 
-        local_command = await self._ledger.enqueue(
+        local_command = await self._ledger.enqueue_from_source_scope(
             command_type=_local_command_type(item.command_type),
             payload=_local_payload(item),
             idempotency_key=f"cloud-command:{command_id}",
             requested_by=f"cloud:{item.requested_by}",
             source="cloud_gateway",
-            site_id=self._config.site_id,
-            tent_id=_local_tent_id(item),
+            source_tent_id=_local_tent_id(item),
             device_id=_local_device_id(item),
             capability_id=_local_capability_id(item),
-            zone_id=_zone_for_command(item),
+            source_zone_id=None,
         )
         if local_command.status == "queued":
             return await self._execute_new_command(item, local_command)
@@ -429,17 +428,17 @@ def _local_payload(item: ClaimedCommand) -> dict[str, Any]:
     return payload.model_dump(mode="json")
 
 
-def _local_tent_id(item: ClaimedCommand) -> str | None:
+def _local_tent_id(item: ClaimedCommand) -> int | None:
     payload = item.payload
     if _is_ptz_command(item):
-        return item.tent_id
+        return item.source_tent_id
     if isinstance(
         payload,
         BreedingGerminatePlantsPayload
         | BreedingClonePlantsPayload
         | BreedingBulkMovePayload,
     ):
-        return payload.tent_id
+        return payload.source_tent_id
     return None
 
 
@@ -453,17 +452,6 @@ def _local_capability_id(item: ClaimedCommand) -> str | None:
     if _is_ptz_command(item):
         return LOCAL_PTZ_CAPABILITY_ID
     return None
-
-
-def _zone_for_command(item: ClaimedCommand) -> str | None:
-    if not _is_ptz_command(item):
-        return None
-    if not isinstance(item.payload, PtzPresetPayload):
-        return "canopy"
-    preset_id = item.payload.preset_id
-    if preset_id.startswith("plant_") and len(preset_id) == len("plant_a"):
-        return preset_id.replace("_", "-")
-    return "canopy"
 
 
 def _is_ptz_command(item: ClaimedCommand) -> bool:

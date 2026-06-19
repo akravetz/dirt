@@ -19,9 +19,9 @@ TEST_MAC = "AA:BB:CC:DD:EE:01"
 
 def _target() -> ShellyPlugTarget:
     return ShellyPlugTarget(
-        site_id="homebox",
-        tent_id="main",
-        zone_id=None,
+        source_site_id=1,
+        source_tent_id=1,
+        source_zone_id=None,
         device_pk=1,
         device_id="test-shelly-pump",
         capability_pk=2,

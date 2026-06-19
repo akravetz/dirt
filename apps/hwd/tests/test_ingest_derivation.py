@@ -74,13 +74,11 @@ async def test_expected_wire_metrics_come_from_capability_metadata(
     device_id: str,
     zone_id: str,
 ) -> None:
+    del zone_id
     readings = ReadingsService(app_engine)
 
     expected = await readings.get_expected_wire_metrics_for_device(
         device_id=device_id,
-        site_id="homebox",
-        tent_id="main",
-        zone_id=zone_id,
     )
 
     assert expected == frozenset(
@@ -105,9 +103,6 @@ async def test_warn_on_emitted_drift_logs_when_metadata_metric_missing(
         readings,
         payload=IngestPayload(
             device_id="plant-a-substrate-node",
-            site_id="homebox",
-            tent_id="main",
-            zone_id="plant-a",
             metrics={"soil_moisture_pct": 26.9},
         ),
         payload_metrics={"soil_moisture_pct": 26.9},
@@ -130,9 +125,6 @@ async def test_warn_on_emitted_drift_silent_when_metadata_payload_complete(
         readings,
         payload=IngestPayload(
             device_id="plant-a-substrate-node",
-            site_id="homebox",
-            tent_id="main",
-            zone_id="plant-a",
             metrics={
                 "soil_moisture_pct": 26.9,
                 "substrate_temp_c": 21.4,

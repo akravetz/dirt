@@ -13,7 +13,6 @@ from sqlalchemy import (
     Identity,
     Index,
     Text,
-    UniqueConstraint,
     text,
 )
 from sqlmodel import Field, SQLModel
@@ -26,7 +25,6 @@ def _utcnow() -> datetime:
 class Tent(SQLModel, table=True):
     __tablename__ = "tent"
     __table_args__ = (
-        UniqueConstraint("site_id", "tent_id", name="uq_tent_site_tent_id"),
         Index("ix_tent_site_id", "site_id"),
         Index(
             "ux_tent_default_per_site",
@@ -47,7 +45,6 @@ class Tent(SQLModel, table=True):
             nullable=False,
         )
     )
-    tent_id: str = Field(sa_column=Column(Text, nullable=False))
     name: str = Field(sa_column=Column(Text, nullable=False))
     role: str = Field(sa_column=Column(Text, nullable=False))
     is_default: bool = Field(

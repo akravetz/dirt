@@ -14,9 +14,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.command import Command
 from dirt_shared.models.device import Capability, Device
-from dirt_shared.models.site import Site
 from dirt_shared.models.zone import Zone
-from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID, resolve_scope
+from dirt_shared.services.scope import require_default_site_pk, require_default_tent_pk
 
 LOCAL_COMMAND_SOURCES = frozenset({"local_api", "local_loop", "cloud_gateway", "test"})
 TERMINAL_STATUSES = frozenset({"succeeded", "failed", "cancelled"})
@@ -55,9 +54,10 @@ class CommandService:
         idempotency_key: str,
         requested_by: str,
         source: str,
-        site_id: str = DEFAULT_SITE_ID,
-        tent_id: str | None = DEFAULT_TENT_ID,
-        zone_id: str | None = None,
+        site_pk: int | None = None,
+        tent_pk: int | None = None,
+        zone_pk: int | None = None,
+        use_default_tent: bool = True,
         device_id: str | None = None,
         capability_id: str | None = None,
     ) -> Command:
@@ -74,9 +74,10 @@ class CommandService:
 
             target = await _resolve_command_target(
                 session,
-                site_id=site_id,
-                tent_id=tent_id,
-                zone_id=zone_id,
+                site_pk=site_pk,
+                tent_pk=tent_pk,
+                zone_pk=zone_pk,
+                use_default_tent=use_default_tent,
                 device_id=device_id,
                 capability_id=capability_id,
             )
@@ -99,6 +100,38 @@ class CommandService:
             await session.commit()
             await session.refresh(command)
             return command
+
+    async def enqueue_from_source_scope(  # noqa: PLR0913
+        self,
+        *,
+        command_type: str,
+        payload: dict[str, Any],
+        idempotency_key: str,
+        requested_by: str,
+        source: str,
+        source_site_id: int | None = None,
+        source_tent_id: int | None,
+        source_zone_id: int | None = None,
+        device_id: str | None = None,
+        capability_id: str | None = None,
+    ) -> Command:
+        """Boundary adapter for cloud command source integer scope fields."""
+        if source_site_id is None:
+            async with AsyncSession(self._engine) as session:
+                source_site_id = await require_default_site_pk(session)
+        return await self.enqueue(
+            command_type=command_type,
+            payload=payload,
+            idempotency_key=idempotency_key,
+            requested_by=requested_by,
+            source=source,
+            site_pk=source_site_id,
+            tent_pk=source_tent_id,
+            zone_pk=source_zone_id,
+            use_default_tent=source_tent_id is not None,
+            device_id=device_id,
+            capability_id=capability_id,
+        )
 
     async def start(self, command_id: str) -> Command:
         """Mark a queued command running; no-op for running/terminal rows."""
@@ -172,28 +205,19 @@ class _CommandTarget:
 async def _resolve_command_target(  # noqa: PLR0913
     session: AsyncSession,
     *,
-    site_id: str,
-    tent_id: str | None,
-    zone_id: str | None,
+    site_pk: int | None,
+    tent_pk: int | None,
+    zone_pk: int | None,
+    use_default_tent: bool,
     device_id: str | None,
     capability_id: str | None,
 ) -> _CommandTarget:
-    if tent_id is None:
-        site_row = (
-            await session.exec(select(Site.id).where(Site.site_id == site_id))
-        ).first()
-        if site_row is None:
-            raise CommandTargetError(f"unknown site_id: {site_id}")
-        site_pk = site_row
-        tent_pk = None
-    else:
-        scope = await resolve_scope(session, site_id=site_id, tent_id=tent_id)
-        if scope is None:
-            raise CommandTargetError(f"unknown scope: {site_id}/{tent_id}")
-        site_pk = scope.site_pk
-        tent_pk = scope.tent_pk
+    if site_pk is None:
+        site_pk = await require_default_site_pk(session)
+    if use_default_tent and tent_pk is None:
+        tent_pk = await require_default_tent_pk(session, site_pk=site_pk)
 
-    zone_pk = await _resolve_zone_pk(session, site_pk, tent_pk, zone_id)
+    zone_pk = await _validate_zone_pk(session, site_pk, tent_pk, zone_pk)
     device_pk = await _resolve_device_pk(session, site_pk, tent_pk, device_id)
     capability_pk = await _resolve_capability_pk(
         session,
@@ -205,23 +229,23 @@ async def _resolve_command_target(  # noqa: PLR0913
     return _CommandTarget(site_pk, tent_pk, zone_pk, device_pk, capability_pk)
 
 
-async def _resolve_zone_pk(
+async def _validate_zone_pk(
     session: AsyncSession,
     site_pk: int,
     tent_pk: int | None,
-    zone_id: str | None,
+    zone_pk: int | None,
 ) -> int | None:
-    if zone_id is None:
+    if zone_pk is None:
         return None
-    stmt = select(Zone.id).where(Zone.site_id == site_pk).where(Zone.zone_id == zone_id)
+    stmt = select(Zone.id).where(Zone.site_id == site_pk).where(Zone.id == zone_pk)
     if tent_pk is None:
         stmt = stmt.where(Zone.tent_id.is_(None))
     else:
         stmt = stmt.where(Zone.tent_id == tent_pk)
-    zone_pk = (await session.exec(stmt)).first()
-    if zone_pk is None:
-        raise CommandTargetError(f"unknown zone_id: {zone_id}")
-    return zone_pk
+    resolved_zone_pk = (await session.exec(stmt)).first()
+    if resolved_zone_pk is None:
+        raise CommandTargetError(f"unknown zone id: {zone_pk}")
+    return resolved_zone_pk
 
 
 async def _resolve_device_pk(

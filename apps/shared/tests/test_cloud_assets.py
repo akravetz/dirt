@@ -94,10 +94,11 @@ class RecordingAssetClient:
 def _payload(asset_file: Path) -> AssetUploadRequest:
     sign_request = AssetSignUploadRequest(
         site_id="homebox",
+        source_tent_id=2,
         tent_id="breeding",
         content_type="image/jpeg",
         byte_size=10,
-        object_key="homebox/breeding/snapshots/snapshot.jpg",
+        object_key="cameras/obsbot-breeding/snapshots/2026/05/snapshot.jpg",
         asset_id="asset-1",
         sha256="asset-1",
         kind="snapshot",
@@ -107,6 +108,7 @@ def _payload(asset_file: Path) -> AssetUploadRequest:
         complete_request=AssetCompleteRequest(
             **sign_request.model_dump(),
             captured_at=FIXED_NOW,
+            source_zone_id=None,
             device_id="obsbot-breeding",
         ),
         file_path=asset_file,
@@ -161,9 +163,10 @@ async def test_asset_uploader_reports_upload_failure_then_reraises(
     assert client.failure_requests == [
         AssetFailureRequest(
             site_id="homebox",
+            source_tent_id=2,
             tent_id="breeding",
             asset_id="asset-1",
-            object_key="homebox/breeding/snapshots/snapshot.jpg",
+            object_key="cameras/obsbot-breeding/snapshots/2026/05/snapshot.jpg",
             stage="upload_or_complete",
             error="asset byte upload failed",
         )

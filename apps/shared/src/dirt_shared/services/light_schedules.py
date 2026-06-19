@@ -20,17 +20,18 @@ from dirt_shared.models import (
     Zone,
 )
 from dirt_shared.services.grow_state import derive_lights_from_times
-from dirt_shared.services.scope import DEFAULT_SITE_ID
+from dirt_shared.services.scope import require_default_site_pk
 
 
 @dataclass(frozen=True)
 class LightScheduleView:
-    site_id: str
-    tent_id: str
-    zone_id: str | None
+    source_site_id: int
+    source_tent_id: int
+    source_zone_id: int | None
+    tent_name: str
     device_id: str | None
     capability_id: str | None
-    schedule_id: str
+    source_schedule_id: int
     kind: str
     enabled: bool
     timezone: str
@@ -55,16 +56,17 @@ class LightScheduleService:
     async def list_light_schedules(
         self,
         *,
-        site_id: str = DEFAULT_SITE_ID,
-        tent_id: str | None = None,
+        site_pk: int | None = None,
+        tent_pk: int | None = None,
     ) -> list[LightScheduleView]:
         async with AsyncSession(self._engine) as session:
+            if site_pk is None:
+                site_pk = await require_default_site_pk(session)
             statement = (
                 select(
                     Schedule,
-                    Site.site_id,
-                    Tent.tent_id,
-                    Zone.zone_id,
+                    Tent.name,
+                    Zone.id,
                     Device.device_id,
                     Capability.capability_id,
                 )
@@ -73,22 +75,21 @@ class LightScheduleService:
                 .outerjoin(Device, Device.id == Schedule.device_id)
                 .outerjoin(Zone, Zone.id == Device.zone_id)
                 .outerjoin(Capability, Capability.id == Schedule.capability_id)
-                .where(Site.site_id == site_id)
+                .where(Schedule.site_id == site_pk)
                 .where(Schedule.kind == "lights")
                 .where(col(Schedule.starts_local).is_not(None))
                 .where(col(Schedule.ends_local).is_not(None))
-                .order_by(Tent.tent_id, Schedule.schedule_id)
+                .order_by(Tent.name, Schedule.id)
             )
-            if tent_id is not None:
-                statement = statement.where(Tent.tent_id == tent_id)
+            if tent_pk is not None:
+                statement = statement.where(Schedule.tent_id == tent_pk)
             rows = (await session.exec(statement)).all()
 
         schedules: list[LightScheduleView] = []
         for (
             schedule,
-            public_site_id,
-            public_tent_id,
-            zone_id,
+            tent_name,
+            source_zone_id,
             device_id,
             cap_id,
         ) in rows:
@@ -101,12 +102,13 @@ class LightScheduleService:
             )
             schedules.append(
                 LightScheduleView(
-                    site_id=public_site_id,
-                    tent_id=public_tent_id,
-                    zone_id=zone_id,
+                    source_site_id=schedule.site_id,
+                    source_tent_id=schedule.tent_id,
+                    source_zone_id=source_zone_id,
+                    tent_name=tent_name,
                     device_id=device_id,
                     capability_id=cap_id,
-                    schedule_id=schedule.schedule_id,
+                    source_schedule_id=schedule.id,
                     kind=schedule.kind,
                     enabled=schedule.enabled,
                     timezone=schedule.timezone,

@@ -9,15 +9,15 @@ import httpx
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from dirt_shared.models import Capability, Site, Tent, Zone
+from dirt_shared.models import Capability
 from dirt_shared.models import Device as DbDevice
 
 
 @dataclass(frozen=True)
 class ShellyPlugTarget:
-    site_id: str
-    tent_id: str
-    zone_id: str | None
+    source_site_id: int
+    source_tent_id: int | None
+    source_zone_id: int | None
     device_pk: int
     device_id: str
     capability_pk: int
@@ -62,15 +62,9 @@ async def load_shelly_plug_target(
     row = (
         await session.exec(
             select(
-                Site.site_id,
-                Tent.tent_id,
-                Zone.zone_id,
                 DbDevice,
                 Capability,
             )
-            .join(Site, Site.id == DbDevice.site_id)
-            .join(Tent, Tent.id == DbDevice.tent_id)
-            .outerjoin(Zone, Zone.id == DbDevice.zone_id)
             .join(Capability, Capability.device_id == DbDevice.id)
             .where(DbDevice.id == device_pk)
             .where(Capability.id == capability_pk)
@@ -83,14 +77,11 @@ async def load_shelly_plug_target(
     ).one_or_none()
     if row is None:
         return None
-    site_id, tent_id, zone_id, device, capability = row
-    return shelly_target_from_db_rows(site_id, tent_id, zone_id, device, capability)
+    device, capability = row
+    return shelly_target_from_db_rows(device, capability)
 
 
 def shelly_target_from_db_rows(
-    site_id: str,
-    tent_id: str,
-    zone_id: str | None,
     device: DbDevice,
     capability: Capability,
 ) -> ShellyPlugTarget:
@@ -105,9 +96,9 @@ def shelly_target_from_db_rows(
 
     shelly_id = _metadata_str(device.metadata_json, "shelly_id")
     return ShellyPlugTarget(
-        site_id=site_id,
-        tent_id=tent_id,
-        zone_id=zone_id,
+        source_site_id=device.site_id,
+        source_tent_id=device.tent_id,
+        source_zone_id=device.zone_id,
         device_pk=device.id,
         device_id=device.device_id,
         capability_pk=capability.id,

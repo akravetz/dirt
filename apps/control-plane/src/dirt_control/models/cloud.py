@@ -22,13 +22,23 @@ from sqlmodel import Field, SQLModel
 
 class CloudSite(SQLModel, table=True):
     __tablename__ = "cloud_site"
-    __table_args__ = (UniqueConstraint("site_id", name="cloud_site_site_id_key"),)
+    __table_args__ = (
+        UniqueConstraint("site_id", name="cloud_site_site_id_key"),
+        UniqueConstraint(
+            "site_id",
+            "source_site_id",
+            name="uq_cloud_site_site_source_site",
+        ),
+    )
 
     id: int | None = Field(
         default=None,
         sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
     )
     site_id: str = Field(max_length=80)
+    source_site_id: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
     name: str = Field(max_length=160)
     timezone: str = Field(default="America/Denver", max_length=80)
     is_active: bool = True
@@ -54,6 +64,11 @@ class CloudTent(SQLModel, table=True):
     __tablename__ = "cloud_tent"
     __table_args__ = (
         UniqueConstraint("site_id", "tent_id", name="cloud_tent_site_id_tent_id_key"),
+        UniqueConstraint(
+            "site_id",
+            "source_tent_id",
+            name="uq_cloud_tent_site_source_tent",
+        ),
     )
 
     id: int | None = Field(
@@ -61,8 +76,16 @@ class CloudTent(SQLModel, table=True):
         sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
     )
     site_id: str = Field(index=True, max_length=80)
+    source_site_id: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    source_tent_id: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    # Temporary cloud wire/storage bridge; source_tent_id is canonical identity.
     tent_id: str = Field(index=True, max_length=80)
     name: str = Field(max_length=160)
+    role: str | None = Field(default=None, max_length=80)
     is_active: bool = True
     synced_at: datetime = Field(
         sa_column=Column(DateTime(timezone=True), nullable=False)
@@ -84,6 +107,11 @@ class CloudZone(SQLModel, table=True):
             "zone_id",
             name="cloud_zone_site_id_tent_id_zone_id_key",
         ),
+        UniqueConstraint(
+            "site_id",
+            "source_zone_id",
+            name="uq_cloud_zone_site_source_zone",
+        ),
     )
 
     id: int | None = Field(
@@ -91,6 +119,13 @@ class CloudZone(SQLModel, table=True):
         sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
     )
     site_id: str = Field(index=True, max_length=80)
+    source_tent_id: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    source_zone_id: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    # Temporary cloud wire/storage bridges; source_* IDs are canonical identity.
     tent_id: str = Field(index=True, max_length=80)
     zone_id: str = Field(index=True, max_length=80)
     name: str = Field(max_length=160)
@@ -123,6 +158,13 @@ class CloudDevice(SQLModel, table=True):
         sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
     )
     site_id: str = Field(index=True, max_length=80)
+    source_tent_id: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    source_zone_id: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    # Temporary cloud wire/storage bridges; source_* IDs are canonical identity.
     tent_id: str = Field(index=True, max_length=80)
     zone_id: str | None = Field(default=None, index=True, max_length=80)
     device_id: str = Field(index=True, max_length=120)
@@ -161,6 +203,10 @@ class CloudCapability(SQLModel, table=True):
         sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
     )
     site_id: str = Field(index=True, max_length=80)
+    source_tent_id: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    # Temporary cloud wire/storage bridge; source_tent_id is canonical identity.
     tent_id: str = Field(index=True, max_length=80)
     device_id: str = Field(index=True, max_length=120)
     capability_id: str = Field(index=True, max_length=160)
@@ -188,6 +234,11 @@ class CloudSchedule(SQLModel, table=True):
             "schedule_id",
             name="cloud_schedule_site_id_tent_id_schedule_id_key",
         ),
+        UniqueConstraint(
+            "site_id",
+            "source_schedule_id",
+            name="uq_cloud_schedule_site_source_schedule",
+        ),
     )
 
     id: int | None = Field(
@@ -195,6 +246,19 @@ class CloudSchedule(SQLModel, table=True):
         sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
     )
     site_id: str = Field(index=True, max_length=80)
+    source_site_id: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    source_tent_id: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    source_zone_id: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    source_schedule_id: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    # Temporary cloud wire/storage bridges; source_* IDs are canonical identity.
     tent_id: str = Field(index=True, max_length=80)
     zone_id: str | None = Field(default=None, index=True, max_length=80)
     device_id: str | None = Field(default=None, index=True, max_length=120)
@@ -385,6 +449,10 @@ class CloudPlantLocation(SQLModel, table=True):
     site_id: str = Field(index=True, max_length=80)
     source_location_id: int = Field(sa_column=Column(BigInteger, nullable=False))
     source_plant_id: int = Field(sa_column=Column(BigInteger, nullable=False))
+    source_tent_id: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    # Temporary cloud wire/storage bridge; source_tent_id is canonical identity.
     tent_id: str = Field(index=True, max_length=80)
     grid_position: str | None = Field(default=None, max_length=80)
     start_at: datetime = Field(
@@ -616,6 +684,16 @@ class CloudLatestMetric(SQLModel, table=True):
         sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
     )
     site_id: str = Field(index=True, max_length=80)
+    source_site_id: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    source_tent_id: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    source_zone_id: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    # Temporary cloud wire/storage bridges; source_* IDs are canonical identity.
     tent_id: str = Field(index=True, max_length=80)
     zone_id: str | None = Field(default=None, index=True, max_length=80)
     device_id: str = Field(index=True, max_length=120)
@@ -652,6 +730,13 @@ class CloudMetricRollup(SQLModel, table=True):
         sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
     )
     site_id: str = Field(index=True, max_length=80)
+    source_site_id: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    source_tent_id: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    # Temporary cloud wire/storage bridge; source_tent_id is canonical identity.
     tent_id: str = Field(index=True, max_length=80)
     device_id: str = Field(index=True, max_length=120)
     capability_id: str = Field(index=True, max_length=160)
@@ -716,6 +801,7 @@ class CloudAsset(SQLModel, table=True):
     )
     asset_id: str = Field(max_length=160)
     site_id: str = Field(index=True, max_length=80)
+    # Temporary cloud asset path/storage bridge; source_tent_id travels on DTOs.
     tent_id: str = Field(index=True, max_length=80)
     zone_id: str | None = Field(default=None, index=True, max_length=80)
     device_id: str | None = Field(default=None, index=True, max_length=120)
@@ -754,7 +840,11 @@ class CloudCommand(SQLModel, table=True):
     command_id: str = Field(max_length=80)
     idempotency_key: str = Field(index=True, max_length=160)
     site_id: str = Field(index=True, max_length=80)
+    # Temporary cloud command bridge; source_tent_id is the local identity.
     tent_id: str = Field(index=True, max_length=80)
+    source_tent_id: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
     device_id: str | None = Field(default=None, max_length=120)
     capability_id: str | None = Field(default=None, max_length=160)
     command_type: str = Field(index=True, max_length=80)

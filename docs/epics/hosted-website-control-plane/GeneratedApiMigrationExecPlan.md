@@ -177,7 +177,7 @@ This plan removes those files and references rather than converting their hosted
 
 Milestone 1 establishes the generated client as the only hosted request mechanism. Update `web-ui/src/api-client/hosted.ts` so it preserves the production behavior needed from `cloudGet`: credentials are included, `401` redirects to `/login`, and errors are surfaced consistently to React Query. Do not preserve `cloud_fixture`; it exists only for MSW hosted scenarios and should disappear with MSW. Add helper types in this module only if they are consumed by application code; the `knip` invariant rejects unused exported types.
 
-Milestone 2 migrates route/query code. In `web-ui/src/routes/index.tsx`, replace every `cloudGet<CloudX>()` call with `const hostedApi = createHostedApiClient()` and typed `hostedApi.GET(...)` calls. Use generated path literals such as `/api/sites`, `/api/tents`, `/api/tents/{tent_id}/metrics/current`, and `/api/tents/{tent_id}/metrics/history`. In `web-ui/src/routes/live.tsx`, replace `cloudGet` and `cloudPost` with generated `GET /api/sync/status`, `GET /api/commands`, and `POST /api/commands`.
+Milestone 2 migrates route/query code. In `web-ui/src/routes/index.tsx`, replace every `cloudGet<CloudX>()` call with `const hostedApi = createHostedApiClient()` and typed `hostedApi.GET(...)` calls. Use generated path literals such as `/api/sites`, `/api/tents`, `/api/tents/{source_tent_id}/metrics/current`, and `/api/tents/{source_tent_id}/metrics/history`. In `web-ui/src/routes/live.tsx`, replace `cloudGet` and `cloudPost` with generated `GET /api/sync/status`, `GET /api/commands`, and `POST /api/commands`.
 
 Milestone 3 introduces explicit mappers where the UI should not consume DTOs directly. Keep local view types near the component or in a small route-local helper when display state differs from the generated DTO. Examples include converting metric freshness into `"live" | "stale"`, deriving status class names, sorting metrics into card order, or adapting command payloads for button handlers. Do not recreate one-to-one `Cloud*` copies of API DTOs.
 
@@ -292,7 +292,7 @@ Human acceptance:
 - Open the hosted dashboard.
 - Confirm sites and tents load.
 - Switch from `main` to `breeding`.
-- Confirm the network panel shows generated-route calls to `/api/sites`, `/api/tents`, `/api/tents/{tent_id}/metrics/current`, `/api/tents/{tent_id}/devices`, `/api/tents/{tent_id}/lights/schedules`, `/api/tents/{tent_id}/assets/latest`, and `/api/sync/status`.
+- Confirm the network panel shows generated-route calls to `/api/sites`, `/api/tents`, `/api/tents/{source_tent_id}/metrics/current`, `/api/tents/{source_tent_id}/devices`, `/api/tents/{source_tent_id}/lights/schedules`, `/api/tents/{source_tent_id}/assets/latest`, and `/api/sync/status`.
 - Open hosted live/PTZ.
 - Submit a PTZ command and confirm the command list updates through `GET /api/commands`.
 

@@ -18,15 +18,15 @@ from dirt_shared.models import (
     Site,
     Tent,
 )
+from dirt_shared.services.scope import require_default_site_pk
+from dirt_shared.testing import resolve_test_tent_pk
 
 
 async def _create_irrigation_fixture(session: AsyncSession):
-    site = (await session.exec(select(Site).where(Site.site_id == "homebox"))).one()
-    tent = (
-        await session.exec(
-            select(Tent).where(Tent.site_id == site.id, Tent.tent_id == "main")
-        )
-    ).one()
+    site_pk = await require_default_site_pk(session)
+    site = (await session.exec(select(Site).where(Site.id == site_pk))).one()
+    tent_pk = await resolve_test_tent_pk(session, "main", site_pk=site.id)
+    tent = (await session.exec(select(Tent).where(Tent.id == tent_pk))).one()
     device = Device(
         site_id=site.id,
         tent_id=tent.id,
@@ -55,7 +55,6 @@ async def _create_irrigation_fixture(session: AsyncSession):
         tent_id=tent.id,
         device_id=device.id,
         capability_id=capability.id,
-        schedule_id="test-irrigation",
         kind="irrigation",
         enabled=False,
     )

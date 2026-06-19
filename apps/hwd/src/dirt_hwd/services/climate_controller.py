@@ -24,7 +24,6 @@ from dirt_hwd.services.climate_policy import (
 )
 from dirt_shared.observability import log_event
 from dirt_shared.services.grow_state import GrowContext, Stage
-from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID
 
 MAX_INTEGRAL_DT_S = 120.0
 RH_SLOPE_MIN_WINDOW_S = 300.0
@@ -210,9 +209,6 @@ class ClimateControllerService:
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         poll_interval_s: float = 30.0,
         event_logger: EventLogger = log_event,
-        site_id: str = DEFAULT_SITE_ID,
-        tent_id: str = DEFAULT_TENT_ID,
-        zone_id: str = "canopy",
         canopy_device_id: str = DEFAULT_CANOPY_DEVICE_ID,
         humidifier_device_id: str = DEFAULT_HUMIDIFIER_DEVICE_ID,
         dehumidifier_device_id: str = DEFAULT_DEHUMIDIFIER_DEVICE_ID,
@@ -229,9 +225,6 @@ class ClimateControllerService:
         self._clock = clock
         self._poll_interval_s = poll_interval_s
         self._log_event = event_logger
-        self._site_id = site_id
-        self._tent_id = tent_id
-        self._zone_id = zone_id
         self._canopy_device_id = canopy_device_id
         self._humidifier_device_id = humidifier_device_id
         self._dehumidifier_device_id = dehumidifier_device_id
@@ -280,10 +273,7 @@ class ClimateControllerService:
             raise RuntimeError("climate actuators are not initialized")
 
         now = self._clock()
-        ctx = await self._grow.current_context(
-            site_id=self._site_id,
-            tent_id=self._tent_id,
-        )
+        ctx = await self._grow.current_context()
         snapshot, current_fan_pct = await asyncio.gather(
             self._read_sensor_snapshot(),
             active_actuators.fan.read_duty(),
@@ -331,24 +321,16 @@ class ClimateControllerService:
             self._canopy_reading("vpd_kpa"),
             self._readings.get_latest_reading(
                 "humidifier_intensity_pct",
-                site_id=self._site_id,
-                tent_id=self._tent_id,
-                zone_id=self._zone_id,
                 device_id=self._humidifier_device_id,
                 capability_id="humidifier_intensity_pct",
             ),
             self._readings.get_latest_reading(
                 "dehumidifier_on",
-                site_id=self._site_id,
-                tent_id=self._tent_id,
-                zone_id=self._zone_id,
                 device_id=self._dehumidifier_device_id,
                 capability_id="power",
             ),
             self._readings.get_latest_reading(
                 "heater_intensity_pct",
-                site_id=self._site_id,
-                tent_id=self._tent_id,
                 device_id=self._heater_device_id,
                 capability_id="heat_level",
             ),
@@ -365,9 +347,6 @@ class ClimateControllerService:
     async def _canopy_reading(self, metric: str) -> _Reading | None:
         return await self._readings.get_latest_reading(
             metric,
-            site_id=self._site_id,
-            tent_id=self._tent_id,
-            zone_id=self._zone_id,
             device_id=self._canopy_device_id,
             capability_id=metric,
         )
@@ -563,9 +542,6 @@ class ClimateControllerService:
 
     def _scope_fields(self) -> dict[str, str]:
         return {
-            "site_id": self._site_id,
-            "tent_id": self._tent_id,
-            "zone_id": self._zone_id,
             "device_id": self._canopy_device_id,
         }
 

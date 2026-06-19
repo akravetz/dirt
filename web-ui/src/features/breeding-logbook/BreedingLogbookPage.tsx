@@ -83,14 +83,14 @@ const VIEW_TABS = [
 const GENERATION_OPTIONS = ["R1", "F1", "F2", "F3", "F4", "F5", "S1", "BX1"] as const;
 const EMPTY_SELECTION = new Set<string>();
 const FALLBACK_LOCATION: LocationOption = {
-  key: "veg",
+  sourceTentId: 1,
   displayName: "Veg tent",
-  stageKey: "veg",
+  role: "veg",
 };
 const CULLED_LOCATION: LocationOption = {
-  key: "removed",
+  sourceTentId: 0,
   displayName: "Removed",
-  stageKey: "culled",
+  role: "culled",
 };
 const DATETIME_LOCAL_LENGTH = 16;
 const initialSeedLotDraft: AddSeedLotDraft = {
@@ -120,17 +120,17 @@ export function BreedingLogbookPage(): ReactNode {
   const [bulkPanel, setBulkPanel] = useState<BulkPanel>(null);
   const [bulkSex, setBulkSex] = useState<PlantSexKey>("female");
   const [bulkCullReason, setBulkCullReason] = useState("");
-  const [moveLocationKey, setMoveLocationKey] = useState("veg");
+  const [moveLocationKey, setMoveLocationKey] = useState(1);
   const [seedLotDraft, setSeedLotDraft] =
     useState<AddSeedLotDraft>(initialSeedLotDraft);
   const [addPlantMode, setAddPlantMode] = useState<AddPlantMode>("germinate");
   const [selectedSeedLotId, setSelectedSeedLotId] = useState("lot-maruf-black");
   const [germinateCount, setGerminateCount] = useState(10);
-  const [germinateLocationKey, setGerminateLocationKey] = useState("clone");
+  const [germinateLocationKey, setGerminateLocationKey] = useState(1);
   const [germinatedAt, setGerminatedAt] = useState(datetimeLocalNow);
   const [cloneMotherId, setCloneMotherId] = useState("plant-a");
   const [cloneCount, setCloneCount] = useState(4);
-  const [cloneLocationKey, setCloneLocationKey] = useState("veg");
+  const [cloneLocationKey, setCloneLocationKey] = useState(1);
   const [cloneTakenAt, setCloneTakenAt] = useState(datetimeLocalNow);
   const [detailPlantKey, setDetailPlantKey] = useState("");
   const [noteText, setNoteText] = useState("");
@@ -217,7 +217,9 @@ export function BreedingLogbookPage(): ReactNode {
     setBulkPanel(null);
   };
   const selectedLocation =
-    logbook.bootstrap.locations.find((location) => location.key === moveLocationKey) ??
+    logbook.bootstrap.locations.find(
+      (location) => location.sourceTentId === moveLocationKey,
+    ) ??
     logbook.bootstrap.locations[0] ??
     FALLBACK_LOCATION;
   const maxEventDateTime = datetimeLocalNow();
@@ -292,9 +294,8 @@ export function BreedingLogbookPage(): ReactNode {
                 {
                   idempotencyKey: createBreedingLogbookIdempotencyKey("bulk-move"),
                   plantKeys: selectedPlantKeys,
-                  tentId: selectedLocation.key,
+                  sourceTentId: selectedLocation.sourceTentId,
                   locationLabel: selectedLocation.displayName,
-                  locationStageKey: selectedLocation.stageKey,
                 },
                 {
                   onSuccess: clearSelection,
@@ -343,9 +344,8 @@ export function BreedingLogbookPage(): ReactNode {
                 {
                   idempotencyKey: createBreedingLogbookIdempotencyKey("board-move"),
                   plantKeys: movePlantKeys,
-                  tentId: location.key,
+                  sourceTentId: location.sourceTentId,
                   locationLabel: location.displayName,
-                  locationStageKey: location.stageKey,
                 },
                 {
                   onSuccess: () => {
@@ -435,7 +435,7 @@ export function BreedingLogbookPage(): ReactNode {
                   idempotencyKey: createBreedingLogbookIdempotencyKey("germinate"),
                   seedLotId: seedLot.id,
                   count: germinateCount,
-                  tentId: location.key,
+                  sourceTentId: location.sourceTentId,
                   affectedLabel: seedLot.label,
                   germinatedAt: germinatedAtUtc,
                 },
@@ -455,7 +455,7 @@ export function BreedingLogbookPage(): ReactNode {
                   idempotencyKey: createBreedingLogbookIdempotencyKey("clone"),
                   motherPlantKey: mother.key,
                   count: cloneCount,
-                  tentId: location.key,
+                  sourceTentId: location.sourceTentId,
                   takenAt: cloneTakenAtUtc,
                 },
                 {
@@ -652,7 +652,7 @@ function PlantsSurface({
   groupBy: PlantGroupBy;
   layout: PlantListLayout;
   mutationError: string | null;
-  moveLocationKey: string;
+  moveLocationKey: number;
   plants: readonly PlantRow[];
   pendingCommands: readonly BreedingLogbookPendingCommand[];
   selectedLocation: LocationOption;
@@ -673,7 +673,7 @@ function PlantsSurface({
   onDropPlant: (location: LocationOption) => void;
   onGroupByChange: (groupBy: PlantGroupBy) => void;
   onLayoutChange: (layout: PlantListLayout) => void;
-  onMoveLocationChange: (locationKey: string) => void;
+  onMoveLocationChange: (sourceTentId: number) => void;
   onOpenBulkNote: () => void;
   onOpenDetail: (plantId: string) => void;
   onSelectedPlantIdsChange: (plantIds: ReadonlySet<string>) => void;
@@ -738,9 +738,7 @@ function PlantsSurface({
           bulkPanel={bulkPanel}
           bulkSex={bulkSex}
           destructiveActionsDisabled={destructiveActionsDisabled}
-          locations={bootstrap.locations.filter(
-            (location) => location.stageKey !== "culled",
-          )}
+          locations={bootstrap.locations.filter(canDropIntoLocation)}
           moveLocationKey={moveLocationKey}
           selectedCount={selectedCount}
           selectedLocation={selectedLocation}
@@ -881,7 +879,7 @@ function BulkActionToolbar({
   bulkSex: PlantSexKey;
   destructiveActionsDisabled: boolean;
   locations: readonly LocationOption[];
-  moveLocationKey: string;
+  moveLocationKey: number;
   selectedCount: number;
   selectedLocation: LocationOption;
   onApplyCull: () => void;
@@ -891,7 +889,7 @@ function BulkActionToolbar({
   onBulkCullReasonChange: (reason: string) => void;
   onBulkSexChange: (sex: PlantSexKey) => void;
   onClear: () => void;
-  onMoveLocationChange: (locationKey: string) => void;
+  onMoveLocationChange: (sourceTentId: number) => void;
   onOpenNote: () => void;
 }): ReactNode {
   return (
@@ -972,7 +970,7 @@ function BulkActionToolbar({
             value={moveLocationKey}
             options={locations.map((location) => ({
               label: location.displayName,
-              value: location.key,
+              value: location.sourceTentId,
             }))}
             onChange={onMoveLocationChange}
           />
@@ -1246,7 +1244,7 @@ function PlantTableRow({
           <PendingPlantMarker pendingCommands={pendingCommands} plantKey={plant.key} />
         </div>
         <p className="mt-0.5 truncate font-mono text-fs-9 uppercase tracking-caps text-ink-3">
-          {plant.key} / {plant.locationLabel}
+          {plant.key} / {formatPlantLocation(plant)}
         </p>
       </div>
       <span className="font-mono text-fs-10 text-ink">{plant.generation}</span>
@@ -1302,7 +1300,9 @@ function PlantBoard({
   pendingCommands: readonly BreedingLogbookPendingCommand[];
 }): ReactNode {
   const dropLocations = bootstrap.locations.filter((location) =>
-    showCulled ? true : location.stageKey !== "culled",
+    showCulled
+      ? locationDropStageKey(location) !== null
+      : canDropIntoLocation(location),
   );
   const boardStages = bootstrap.stages.filter((stage) =>
     showCulled ? true : stage.key !== "culled",
@@ -1311,7 +1311,9 @@ function PlantBoard({
     const location =
       stage.key === "culled"
         ? CULLED_LOCATION
-        : dropLocations.find((candidate) => candidate.stageKey === stage.key);
+        : dropLocations.find((candidate) =>
+            canUseLocationForStage(candidate, stage.key),
+          );
     return {
       location,
       stage,
@@ -1354,7 +1356,7 @@ function PlantBoard({
                 event.preventDefault();
                 if (
                   column.location === undefined ||
-                  column.location.stageKey === "culled"
+                  !canDropIntoLocation(column.location)
                 ) {
                   return;
                 }
@@ -1717,12 +1719,12 @@ function AddPlantsSurface({
 }: {
   bootstrap: BreedingLogbookBootstrap;
   cloneCount: number;
-  cloneLocationKey: string;
+  cloneLocationKey: number;
   cloneMotherId: string;
   cloneTakenAt: string;
   germinateCount: number;
   germinatedAt: string;
-  germinateLocationKey: string;
+  germinateLocationKey: number;
   maxEventDateTime: string;
   mode: AddPlantMode;
   mutationError: string | null;
@@ -1733,12 +1735,12 @@ function AddPlantsSurface({
   pendingCommands: readonly BreedingLogbookPendingCommand[];
   onAddSeeds: () => void;
   onCloneCountChange: (count: number) => void;
-  onCloneLocationChange: (locationKey: string) => void;
+  onCloneLocationChange: (sourceTentId: number) => void;
   onCloneMotherChange: (plantId: string) => void;
   onCloneTakenAtChange: (value: string) => void;
   onGerminateCountChange: (count: number) => void;
   onGerminatedAtChange: (value: string) => void;
-  onGerminateLocationChange: (locationKey: string) => void;
+  onGerminateLocationChange: (sourceTentId: number) => void;
   onModeChange: (mode: AddPlantMode) => void;
   onSeedLotChange: (seedLotId: string) => void;
   onSow: (seedLot: SeedLotSummary, location: LocationOption) => void;
@@ -1748,14 +1750,16 @@ function AddPlantsSurface({
   const selectedSeedLot =
     seedLots.find((lot) => lot.id === selectedSeedLotId) ?? seedLots[0];
   const germLocation =
-    bootstrap.locations.find((location) => location.key === germinateLocationKey) ??
+    bootstrap.locations.find(
+      (location) => location.sourceTentId === germinateLocationKey,
+    ) ??
     bootstrap.locations[0] ??
     FALLBACK_LOCATION;
   const cloneLocations = bootstrap.locations.filter((location) =>
-    ["veg", "flower"].includes(location.stageKey),
+    canUseLocationForStage(location, "germinating"),
   );
   const cloneLocation =
-    cloneLocations.find((location) => location.key === cloneLocationKey) ??
+    cloneLocations.find((location) => location.sourceTentId === cloneLocationKey) ??
     cloneLocations[0] ??
     bootstrap.locations[0] ??
     FALLBACK_LOCATION;
@@ -1825,12 +1829,10 @@ function AddPlantsSurface({
                 label="Into tent"
                 value={germinateLocationKey}
                 options={bootstrap.locations
-                  .filter((location) =>
-                    ["germinating", "veg"].includes(location.stageKey),
-                  )
+                  .filter(canUseLocationForNewPlants)
                   .map((location) => ({
                     label: location.displayName,
-                    value: location.key,
+                    value: location.sourceTentId,
                   }))}
                 onChange={onGerminateLocationChange}
               />
@@ -1869,10 +1871,10 @@ function AddPlantsSurface({
               />
               <SelectField
                 label="Into tent"
-                value={cloneLocation.key}
+                value={cloneLocation.sourceTentId}
                 options={cloneLocations.map((location) => ({
                   label: location.displayName,
-                  value: location.key,
+                  value: location.sourceTentId,
                 }))}
                 onChange={onCloneLocationChange}
               />
@@ -1999,7 +2001,7 @@ function PlantJournalDetail({
                   : "-"
               }
             />
-            <Fact label="Location" value={detail.plant.locationLabel} />
+            <Fact label="Location" value={formatPlantLocation(detail.plant)} />
           </div>
           <div className="mt-4 border border-rule bg-paper p-3">
             <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
@@ -2054,7 +2056,7 @@ function PlantJournalDetail({
             Environment
           </p>
           <h3 className="mt-1 font-sans text-fs-14 font-semibold text-ink">
-            {detail.plant.locationLabel}
+            {formatPlantLocation(detail.plant)}
           </h3>
           <div className="mt-4 border border-rule bg-paper p-3">
             <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
@@ -2257,7 +2259,7 @@ function Button({
   );
 }
 
-function SelectField<TValue extends string>({
+function SelectField<TValue extends string | number>({
   label,
   onChange,
   options,
@@ -2274,14 +2276,17 @@ function SelectField<TValue extends string>({
         {label}
       </span>
       <select
-        value={value}
+        value={String(value)}
         onChange={(event) => {
-          onChange(event.target.value as TValue);
+          const selected = options.find(
+            (option) => String(option.value) === event.target.value,
+          );
+          if (selected !== undefined) onChange(selected.value);
         }}
         className="h-9 border border-rule bg-paper px-3 font-sans text-fs-12 text-ink"
       >
         {options.map((option) => (
-          <option key={option.value} value={option.value}>
+          <option key={option.value} value={String(option.value)}>
             {option.label}
           </option>
         ))}
@@ -2578,6 +2583,46 @@ function stageLabel(plant: PlantRow): string {
   if (plant.stageKey === "culled")
     return `Culled ${plant.culledOn ? shortDate(plant.culledOn) : ""}`;
   return `${plant.stageKey} / d${plant.stageDay}`;
+}
+
+function formatPlantLocation(plant: PlantRow): string {
+  return plant.gridPosition === null
+    ? plant.currentTentName
+    : `${plant.currentTentName} / ${plant.gridPosition}`;
+}
+
+function locationDropStageKey(location: LocationOption): PlantStageKey | null {
+  switch (location.role) {
+    case "clone":
+      return "germinating";
+    case "veg":
+      return "veg";
+    case "flower":
+      return "flower";
+    case "breeding":
+      return "breeding";
+    case "culled":
+      return "culled";
+    default:
+      return null;
+  }
+}
+
+function canUseLocationForStage(
+  location: LocationOption,
+  stageKey: PlantStageKey,
+): boolean {
+  return locationDropStageKey(location) === stageKey;
+}
+
+function canDropIntoLocation(location: LocationOption): boolean {
+  const dropStageKey = locationDropStageKey(location);
+  return dropStageKey !== null && dropStageKey !== "culled";
+}
+
+function canUseLocationForNewPlants(location: LocationOption): boolean {
+  const dropStageKey = locationDropStageKey(location);
+  return dropStageKey === "germinating" || dropStageKey === "veg";
 }
 
 function groupPlants(

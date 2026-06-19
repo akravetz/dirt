@@ -27,10 +27,10 @@ from dirt_shared.config import GROW_START
 from dirt_shared.models.plant import Plant, PlantLocationHistory
 from dirt_shared.models.schedule import Schedule
 from dirt_shared.models.site import Site
-from dirt_shared.models.tent import Tent
 from dirt_shared.services import grow_state as gs
 from dirt_shared.services.grow_state import GrowStateService
 from dirt_shared.services.scope import resolve_scope
+from dirt_shared.testing import resolve_test_tent_pk
 
 # Tests seed the default `America/Denver` timezone row; use the same IANA
 # zone locally when assembling a MDT wall-clock UTC instant.
@@ -128,14 +128,10 @@ def _local_midnight(value: date) -> datetime:
 
 async def _site_tent_ids(engine, tent_id: str) -> tuple[int, int]:
     async with AsyncSession(engine) as session:
-        result = await session.exec(
-            select(Site.id, Tent.id)
-            .join(Tent, Tent.site_id == Site.id)
-            .where(Site.site_id == "homebox")
-            .where(Tent.tent_id == tent_id)
-        )
-        row = result.one()
-        return row
+        site = (await session.exec(select(Site).where(Site.is_default.is_(True)))).one()
+        tent_pk = await resolve_test_tent_pk(session, tent_id, site_pk=site.id)
+        assert tent_pk is not None
+        return site.id, tent_pk
 
 
 # ------- current_stage -------
@@ -233,11 +229,11 @@ async def test_current_plant_context_is_scoped_per_tent(pg_engine):
     breeding_site_id, breeding_tent_id = await _site_tent_ids(pg_engine, "breeding")
 
     async with AsyncSession(pg_engine) as session:
-        for tent_id, germination, flower in (
-            ("main", date(2026, 3, 15), date(2026, 5, 3)),
-            ("breeding", date(2026, 5, 4), None),
+        for tent_pk, germination, flower in (
+            (main_tent_id, date(2026, 3, 15), date(2026, 5, 3)),
+            (breeding_tent_id, date(2026, 5, 4), None),
         ):
-            scope = await resolve_scope(session, tent_id=tent_id)
+            scope = await resolve_scope(session, tent_pk=tent_pk)
             assert scope is not None
             plants = (
                 await session.exec(
@@ -261,7 +257,7 @@ async def test_current_plant_context_is_scoped_per_tent(pg_engine):
 
     svc = _svc(pg_engine, today=date(2026, 5, 4))
     default_payload = await svc.get_grow_current_payload()
-    breeding = await svc.get_tent_context(tent_id="breeding")
+    breeding = await svc.get_tent_context(tent_pk=breeding_tent_id)
 
     assert main_site_id == breeding_site_id
     assert main_tent_id != breeding_tent_id
@@ -269,7 +265,7 @@ async def test_current_plant_context_is_scoped_per_tent(pg_engine):
     assert default_payload.stage == "flower_early"
     assert breeding.germination_date == date(2026, 5, 4)
     assert breeding.plant_count == 5
-    assert await svc.current_stage(tent_id="breeding") == "veg"
+    assert await svc.current_stage(tent_pk=breeding_tent_id) == "veg"
 
 
 # ------- lights_state (feedforward inputs for the humidifier loop) -------
@@ -321,8 +317,8 @@ async def test_current_light_schedule_is_scoped_projection(pg_engine):
 
     schedule = await GrowStateService(pg_engine).current_light_schedule()
 
-    assert schedule.site_id == "homebox"
-    assert schedule.tent_id == "main"
+    assert schedule.site_pk is not None
+    assert schedule.tent_pk is not None
     assert schedule.starts_local == time(9, 0)
     assert schedule.ends_local == time(21, 0)
     assert schedule.source == "schedule"

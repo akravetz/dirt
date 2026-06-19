@@ -56,15 +56,15 @@ def test_hosted_browser_routes_keep_response_models() -> None:
     assert routes[("GET", "/api/auth/me")] is UserResponse
     assert routes[("GET", "/api/sites")] == list[SiteResponse]
     assert routes[("GET", "/api/tents")] == list[TentResponse]
-    assert routes[("GET", "/api/tents/{tent_id}/state")] is TentStateResponse
+    assert routes[("GET", "/api/tents/{source_tent_id}/state")] is TentStateResponse
     assert (
-        routes[("GET", "/api/tents/{tent_id}/metrics/current")]
+        routes[("GET", "/api/tents/{source_tent_id}/metrics/current")]
         == list[CurrentMetricResponse]
     )
-    assert routes[("GET", "/api/tents/{tent_id}/metrics/history")] is (
+    assert routes[("GET", "/api/tents/{source_tent_id}/metrics/history")] is (
         MetricHistoryResponse
     )
-    assert routes[("GET", "/api/tents/{tent_id}/metrics/presentation")] is (
+    assert routes[("GET", "/api/tents/{source_tent_id}/metrics/presentation")] is (
         MetricPresentationResponse
     )
     assert (
@@ -97,19 +97,28 @@ def test_hosted_browser_routes_keep_response_models() -> None:
         routes[("POST", "/api/breeding-logbook/plants/{plant_key}/notes")]
         is CommandResponse
     )
-    assert routes[("GET", "/api/tents/{tent_id}/plants")] == list[PlantSummaryResponse]
     assert (
-        routes[("GET", "/api/tents/{tent_id}/plants/{plant_id}")] is PlantDetailResponse
+        routes[("GET", "/api/tents/{source_tent_id}/plants")]
+        == list[PlantSummaryResponse]
     )
     assert (
-        routes[("GET", "/api/tents/{tent_id}/plants/{plant_id}/metrics/history")]
+        routes[("GET", "/api/tents/{source_tent_id}/plants/{plant_id}")]
+        is PlantDetailResponse
+    )
+    assert (
+        routes[("GET", "/api/tents/{source_tent_id}/plants/{plant_id}/metrics/history")]
         is PlantMetricHistoryResponse
     )
-    assert routes[("GET", "/api/tents/{tent_id}/devices")] == list[DeviceResponse]
-    assert routes[("GET", "/api/tents/{tent_id}/lights/schedules")] is (
+    assert (
+        routes[("GET", "/api/tents/{source_tent_id}/devices")] == list[DeviceResponse]
+    )
+    assert routes[("GET", "/api/tents/{source_tent_id}/lights/schedules")] is (
         LightSchedulesResponse
     )
-    assert routes[("GET", "/api/tents/{tent_id}/assets/latest")] == list[AssetResponse]
+    assert (
+        routes[("GET", "/api/tents/{source_tent_id}/assets/latest")]
+        == list[AssetResponse]
+    )
     assert routes[("GET", "/api/assets/{asset_id}/signed-url")] is AssetResponse
     assert routes[("GET", "/api/sync/status")] is SyncStatusResponse
     assert routes[("POST", "/api/commands")] is CommandResponse
@@ -221,8 +230,9 @@ def test_breeding_logbook_plant_row_requires_owned_contract_shape() -> None:
         "veg_started_on": "2026-04-02",
         "flower_started_on": "2026-05-04",
         "culled_on": None,
-        "location_key": "main",
-        "location_label": "main / A1",
+        "current_tent_id": 1,
+        "current_tent_name": "Main Tent",
+        "grid_position": "A1",
         "seed_lot_label": "SBBS R1 #1",
         "last_note": "",
         "telemetry_summary": "1 plant stream",

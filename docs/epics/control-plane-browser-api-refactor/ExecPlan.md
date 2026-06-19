@@ -30,6 +30,9 @@ The work is complete when `apps/control-plane/src/dirt_control/api/browser.py` i
 
 ## Surprises & Discoveries
 
+- Observation: The scoped identity cleanup plan already retired browser tent paths keyed by ambiguous text `tent_id`.
+  Evidence: `docs/epics/scoped-identity-cleanup/ExecPlan.md` Milestones 4-7 moved gateway/cloud/browser projections to source integer IDs, regenerated hosted contracts, and changed hosted tent routes to `/api/tents/{source_tent_id}/...`.
+
 - Observation: The existing architecture invariants do not currently scan `dirt_control`.
   Evidence: `apps/tests/invariants/_helpers.py` defines `APPS = ("dirt_hwd", "dirt_shared", "dirt_voice")`; `dirt_control` lives under `apps/control-plane/src/dirt_control` and is absent from the invariant app list.
 
@@ -175,7 +178,7 @@ Milestone 5 fixes the tent/location identity smell found during the germination 
 - Keep plant lifecycle `stage_key` as a derived plant fact used for badges, filters, and detail panels. Do not use a tent bucket as the source of plant stage truth.
 - Update germinate, clone, and move browser requests and command payloads to target the canonical tent identity chosen by this milestone, not an ambiguous location key.
 - Inspect local `Tent`, cloud `CloudTent`, gateway catalog contracts, command payloads, browser routes, generated OpenAPI, and frontend uses before choosing the final boundary shape.
-- Apply the data-modeling rule to `Tent`: if `tent_id` is only a Dirt-owned readable identifier, retire it in favor of integer `id` at local relationships and a clearly named source id in cloud/browser boundaries. If a staged cutover is needed because existing HTTP paths use `/api/tents/{tent_id}`, document the temporary boundary compatibility and schedule its removal inside this plan.
+- Apply the data-modeling rule to `Tent`: if `tent_id` is only a Dirt-owned readable identifier, retire it in favor of integer `id` at local relationships and a clearly named source id in cloud/browser boundaries. The scoped identity cleanup has already chosen `source_tent_id` for hosted browser route identity, so follow `/api/tents/{source_tent_id}` and do not reintroduce `/api/tents/{tent_id}` compatibility.
 
 The intended end state is one durable identity and one human display name: `id` for linkage, `name` for people. Cloud/browser projections may carry a source identity for cross-process sync, but it must be named as such and must not pretend to be a second canonical object identity.
 
@@ -342,3 +345,4 @@ External dependencies already present in the repo include FastAPI, Pydantic, SQL
 
 - 2026-06-18: Initial ExecPlan created from the browser API architecture review and invariant discussion.
 - 2026-06-18: Updated Milestone 5 after operator review: the Breeding Logbook board should group by current tent, not inferred lifecycle stage; `location_key` / `location_label` should be replaced with explicit tent fields; and `id + tent_id + name` on Dirt-owned tent objects is a data-model cleanup target unless `tent_id` is proven external/domain-owned.
+- 2026-06-19: Recorded scoped-identity cleanup dependency: hosted browser tent routes now use `{source_tent_id}` and source integer identity; future browser API refactor work must not assume text `/api/tents/{tent_id}` paths.

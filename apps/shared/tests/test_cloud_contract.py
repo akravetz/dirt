@@ -22,7 +22,10 @@ from dirt_shared.cloud_contract import (
     CatalogPlantLocation,
     CatalogPlantMetricStream,
     CatalogPlantNote,
+    CatalogSchedule,
     CatalogSeedLot,
+    CatalogTent,
+    CatalogZone,
     CommandClaimResponse,
     LatestMetricItem,
     PtzLookPayload,
@@ -39,7 +42,8 @@ def test_catalog_device_accepts_last_seen_timestamp() -> None:
     last_seen = datetime(2026, 5, 9, 12, 30, tzinfo=UTC)
 
     device = CatalogDevice(
-        tent_id="breeding",
+        source_tent_id=2,
+        source_zone_id=10,
         device_id="breeding-env-node",
         name="Breeding environment",
         last_seen_at=last_seen,
@@ -50,7 +54,8 @@ def test_catalog_device_accepts_last_seen_timestamp() -> None:
 
 def test_catalog_device_accepts_intentional_null_last_seen() -> None:
     device = CatalogDevice(
-        tent_id="breeding",
+        source_tent_id=2,
+        source_zone_id=None,
         device_id="breeding-env-node",
         name="Breeding environment",
         last_seen_at=None,
@@ -62,7 +67,8 @@ def test_catalog_device_accepts_intentional_null_last_seen() -> None:
 def test_catalog_device_rejects_missing_last_seen() -> None:
     with pytest.raises(ValidationError) as exc_info:
         CatalogDevice(
-            tent_id="breeding",
+            source_tent_id=2,
+            source_zone_id=None,
             device_id="breeding-env-node",
             name="Breeding environment",
         )
@@ -74,7 +80,8 @@ def test_catalog_device_rejects_missing_last_seen() -> None:
 def test_gateway_contract_models_forbid_extra_fields() -> None:
     with pytest.raises(ValidationError) as exc_info:
         CatalogDevice(
-            tent_id="breeding",
+            source_tent_id=2,
+            source_zone_id=None,
             device_id="breeding-env-node",
             name="Breeding environment",
             last_seen_at=None,
@@ -83,6 +90,59 @@ def test_gateway_contract_models_forbid_extra_fields() -> None:
 
     assert exc_info.value.errors()[0]["loc"] == ("stale_field",)
     assert exc_info.value.errors()[0]["type"] == "extra_forbidden"
+
+
+def test_catalog_scope_dtos_require_source_ids_and_reject_retired_id_fields() -> None:
+    tent = CatalogTent.model_validate(
+        {
+            "source_tent_id": 2,
+            "name": "Breeding",
+            "role": "breeding",
+            "legacy_tent_id": "breeding",
+        }
+    )
+    zone = CatalogZone.model_validate(
+        {
+            "source_tent_id": tent.source_tent_id,
+            "source_zone_id": 10,
+            "name": "Canopy",
+            "kind": "environment",
+            "legacy_zone_id": "canopy",
+        }
+    )
+    schedule = CatalogSchedule.model_validate(
+        {
+            "source_site_id": 1,
+            "source_tent_id": tent.source_tent_id,
+            "source_schedule_id": 4,
+            "source_zone_id": zone.source_zone_id,
+            "device_id": "kasa-breeding-lights",
+            "capability_id": None,
+            "legacy_schedule_id": "breeding-lights-photoperiod",
+            "starts_local": "06:00:00",
+            "ends_local": "18:00:00",
+        }
+    )
+
+    assert tent.source_tent_id == 2
+    assert zone.source_zone_id == 10
+    assert schedule.source_schedule_id == 4
+
+    stale_payloads = (
+        (CatalogTent, {**tent.model_dump(mode="json"), "tent_id": "breeding"}),
+        (CatalogZone, {**zone.model_dump(mode="json"), "zone_id": "canopy"}),
+        (
+            CatalogSchedule,
+            {
+                **schedule.model_dump(mode="json"),
+                "schedule_id": "breeding-lights-photoperiod",
+            },
+        ),
+    )
+    for model, payload in stale_payloads:
+        with pytest.raises(ValidationError) as exc_info:
+            model.model_validate(payload)
+        assert exc_info.value.errors()[0]["type"] == "extra_forbidden"
 
 
 def test_catalog_plant_requires_nullable_wire_fields() -> None:
@@ -155,7 +215,7 @@ def test_catalog_line_seed_lot_and_location_require_source_identity() -> None:
         {
             "source_location_id": 1,
             "source_plant_id": 1,
-            "tent_id": "main",
+            "source_tent_id": 1,
             "grid_position": None,
             "start_at": "2026-03-15T12:00:00Z",
             "end_at": None,
@@ -183,7 +243,7 @@ def test_catalog_location_requires_nullable_grid_position() -> None:
     payload = {
         "source_location_id": 1,
         "source_plant_id": 1,
-        "tent_id": "main",
+        "source_tent_id": 1,
         "start_at": "2026-03-15T12:00:00Z",
         "end_at": None,
     }
@@ -275,7 +335,9 @@ def test_catalog_plant_metric_stream_requires_public_stream_identity() -> None:
 def test_metric_stream_contracts_require_device_id() -> None:
     metric_payload = {
         "site_id": "homebox",
-        "tent_id": "main",
+        "source_site_id": 1,
+        "source_tent_id": 1,
+        "source_zone_id": None,
         "capability_id": "soil_moisture_raw",
         "metric": "soil_moisture_raw",
         "value": 1850.0,
@@ -301,6 +363,16 @@ def test_metric_stream_contracts_require_device_id() -> None:
     assert latest_null.value.errors()[0]["loc"] == ("device_id",)
     assert rollup_missing.value.errors()[0]["loc"] == ("device_id",)
     assert rollup_null.value.errors()[0]["loc"] == ("device_id",)
+
+    with pytest.raises(ValidationError) as stale_latest:
+        LatestMetricItem.model_validate(
+            {
+                **metric_payload,
+                "device_id": "plant-a",
+                "tent_id": "main",
+            }
+        )
+    assert stale_latest.value.errors()[0]["type"] == "extra_forbidden"
 
 
 def test_wiki_projection_contract_requires_page_content_and_forbids_extra() -> None:
@@ -342,7 +414,7 @@ def test_sign_upload_response_serializes_datetime_as_json() -> None:
 
     response = SignUploadResponse(
         asset_id=None,
-        object_key="homebox/main/snapshots/latest.jpg",
+        object_key="tents/1/snapshots/latest.jpg",
         upload_url="https://assets.test/upload",
         method="PUT",
         headers={"Content-Type": "image/jpeg"},
@@ -366,6 +438,7 @@ def test_command_claim_response_requires_nullable_wire_keys() -> None:
     command = {
         "command_id": "cmd_1",
         "site_id": "homebox",
+        "source_tent_id": 1,
         "tent_id": "main",
         "device_id": None,
         "capability_id": None,
@@ -446,7 +519,7 @@ def test_command_claim_response_uses_explicit_breeding_payload_models() -> None:
             payload={
                 "seed_lot_source_id": 1,
                 "count": 2,
-                "tent_id": "breeding",
+                "source_tent_id": 2,
                 "grid_position": None,
                 "germinated_at": None,
             },
@@ -456,7 +529,7 @@ def test_command_claim_response_uses_explicit_breeding_payload_models() -> None:
             payload={
                 "mother_plant_key": "SBBS-R1-001",
                 "count": 2,
-                "tent_id": "breeding",
+                "source_tent_id": 2,
                 "grid_position": None,
                 "taken_at": None,
             },
@@ -469,7 +542,7 @@ def test_command_claim_response_uses_explicit_breeding_payload_models() -> None:
             command_type="breeding_plants_bulk_move",
             payload={
                 "plant_keys": ["SBBS-R1-001"],
-                "tent_id": "main",
+                "source_tent_id": 1,
                 "grid_position": None,
             },
         ),
@@ -515,7 +588,7 @@ def test_breeding_command_payloads_reject_bad_shapes() -> None:
         BreedingBulkMovePayload.model_validate(
             {
                 "plant_keys": ["SBBS-R1-001"],
-                "tent_id": "main",
+                "source_tent_id": 1,
                 "grid_position": None,
                 "plant_names": ["Plant A"],
             }
@@ -537,7 +610,7 @@ def test_breeding_grid_position_payloads_require_explicit_null() -> None:
             {
                 "seed_lot_source_id": 1,
                 "count": 2,
-                "tent_id": "breeding",
+                "source_tent_id": 2,
                 "grid_position": None,
             },
         ),
@@ -546,7 +619,7 @@ def test_breeding_grid_position_payloads_require_explicit_null() -> None:
             {
                 "mother_plant_key": "SBBS-R1-001",
                 "count": 2,
-                "tent_id": "breeding",
+                "source_tent_id": 2,
                 "grid_position": None,
             },
         ),
@@ -554,7 +627,7 @@ def test_breeding_grid_position_payloads_require_explicit_null() -> None:
             BreedingBulkMovePayload,
             {
                 "plant_keys": ["SBBS-R1-001"],
-                "tent_id": "main",
+                "source_tent_id": 1,
                 "grid_position": None,
             },
         ),
@@ -612,6 +685,7 @@ def _command_payload(
     return {
         "command_id": f"cmd_{command_type}",
         "site_id": "homebox",
+        "source_tent_id": 1,
         "tent_id": "main",
         "device_id": "obsbot-main",
         "capability_id": "ptz_move",

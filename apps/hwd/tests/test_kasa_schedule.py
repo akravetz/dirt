@@ -16,8 +16,13 @@ from dirt_hwd.services.kasa_schedule import (
     ScheduledKasaTarget,
 )
 from dirt_shared.config import ScheduledKasaConfig
-from dirt_shared.models import Capability, Device, Schedule, Site, Tent
-from dirt_shared.testing import create_test_capability, create_test_device
+from dirt_shared.models import Capability, Device, Schedule, Zone
+from dirt_shared.services.scope import require_default_site_pk
+from dirt_shared.testing import (
+    create_test_capability,
+    create_test_device,
+    resolve_test_tent_pk,
+)
 
 LIGHTS_ON_LOCAL_NOON = datetime(2026, 5, 4, 18, 0, tzinfo=UTC)
 LIGHTS_ON_LOCAL_NOON_PLUS_ONE = datetime(2026, 5, 4, 18, 1, tzinfo=UTC)
@@ -98,18 +103,19 @@ def _light_target(
     device_pk: int = 42,
     device_id: str | None = None,
     capability_id: str | None = None,
-    schedule_id: str | None = None,
+    source_schedule_id: int = 10,
     starts_local: time,
     ends_local: time,
 ) -> ScheduledKasaTarget:
     return ScheduledKasaTarget(
-        site_id="homebox",
-        tent_id="clones",
-        zone_id="lights",
+        source_site_id=1,
+        source_tent_id=2,
+        source_zone_id=3,
+        tent_name="Clones",
         device_pk=device_pk,
         device_id=device_id or "kasa-lights-test",
         capability_id=capability_id or "lights_power",
-        schedule_id=schedule_id or "lights-schedule",
+        source_schedule_id=source_schedule_id,
         host="192.0.2.42",
         provider_uid=TEST_KASA_MAC,
         starts_local=starts_local,
@@ -128,7 +134,7 @@ async def test_scheduled_kasa_service_reconciles_existing_light_schedule() -> No
             _light_target(
                 device_id="kasa-lights-clones",
                 capability_id="lights_power",
-                schedule_id="clones-lights-photoperiod",
+                source_schedule_id=11,
                 starts_local=time(6, 0),
                 ends_local=time(0, 0),
             )
@@ -167,7 +173,7 @@ async def test_state_change_logs_schedule_kind_stream() -> None:
             _light_target(
                 device_id="kasa-lights-clones",
                 capability_id="lights_power",
-                schedule_id="clones-lights-photoperiod",
+                source_schedule_id=11,
                 starts_local=time(9, 0),
                 ends_local=time(21, 0),
             )
@@ -187,12 +193,13 @@ async def test_state_change_logs_schedule_kind_stream() -> None:
     stream, event, fields = events[0]
     assert stream == "lights"
     assert event == "state_change"
-    assert fields["site_id"] == "homebox"
-    assert fields["tent_id"] == "clones"
-    assert fields["zone_id"] == "lights"
+    assert fields["source_site_id"] == 1
+    assert fields["source_tent_id"] == 2
+    assert fields["source_zone_id"] == 3
+    assert fields["tent_name"] == "Clones"
     assert fields["device_id"] == "kasa-lights-clones"
     assert fields["capability_id"] == "lights_power"
-    assert fields["schedule_id"] == "clones-lights-photoperiod"
+    assert fields["source_schedule_id"] == 11
     assert fields["new_state"] == "on"
     assert fields["reason"] == "scheduled_on"
 
@@ -201,9 +208,25 @@ async def test_default_kasa_loader_is_lights_only(app_engine) -> None:
     service = ScheduledKasaActuatorService(_config(), engine=app_engine)
 
     targets = await service._load_targets()
+    async with AsyncSession(app_engine) as session:
+        zone_names = dict(
+            (
+                await session.exec(
+                    select(Zone.id, Zone.name).where(
+                        Zone.id.in_(
+                            [
+                                target.source_zone_id
+                                for target in targets
+                                if target.source_zone_id is not None
+                            ]
+                        )
+                    )
+                )
+            ).all()
+        )
 
     assert targets
-    assert {target.zone_id for target in targets} == {"lights"}
+    assert {zone_names[target.source_zone_id] for target in targets} == {"Lights"}
 
 
 async def test_climate_heater_devices_keep_capabilities_without_schedules(
@@ -226,9 +249,7 @@ async def test_climate_heater_devices_keep_capabilities_without_schedules(
             )
         ).all()
         heater_schedules = (
-            await session.exec(
-                select(Schedule.schedule_id).where(Schedule.kind == "heater")
-            )
+            await session.exec(select(Schedule.id).where(Schedule.kind == "heater"))
         ).all()
 
     assert rows == [
@@ -269,7 +290,7 @@ async def test_successful_kasa_poll_refreshes_last_seen(app_engine) -> None:
                 device_pk=device_pk,
                 device_id="kasa-lights-test",
                 capability_id="lights_power",
-                schedule_id="main-lights-photoperiod",
+                source_schedule_id=12,
                 starts_local=time(6, 0),
                 ends_local=time(0, 0),
             )
@@ -299,16 +320,9 @@ async def test_successful_kasa_poll_refreshes_last_seen(app_engine) -> None:
 
 async def test_db_loader_ignores_unsuitable_schedules_and_devices(app_engine) -> None:
     async with AsyncSession(app_engine) as session:
-        site_pk = (
-            await session.exec(select(Site.id).where(Site.site_id == "homebox"))
-        ).one()
-        tent_pk = (
-            await session.exec(
-                select(Tent.id)
-                .where(Tent.site_id == site_pk)
-                .where(Tent.tent_id == "main")
-            )
-        ).one()
+        site_pk = await require_default_site_pk(session)
+        tent_pk = await resolve_test_tent_pk(session, "main", site_pk=site_pk)
+        assert tent_pk is not None
 
         async def add_scheduled_device(
             suffix: str,
@@ -351,7 +365,6 @@ async def test_db_loader_ignores_unsuitable_schedules_and_devices(app_engine) ->
                     tent_id=tent_pk,
                     device_id=device.id,
                     capability_id=capability.id,
-                    schedule_id=f"loader-{suffix}",
                     kind=schedule_kind,
                     starts_local=starts_local,
                     ends_local=ends_local,

@@ -1,8 +1,8 @@
 // Client for the dirt-hwd /api/ingest/sensors endpoint.
 //
 // Thin wrapper around HTTPClient that assembles the JSON envelope the
-// backend expects: scoped identity, source, firmware_version, ip, uptime_ms,
-// metrics{…}. Callers hand in a pre-serialized metrics object so the client
+// backend expects: device identity, source, firmware_version, ip, uptime_ms,
+// metrics{...}. Callers hand in a pre-serialized metrics object so the client
 // stays sensor-agnostic.
 
 #pragma once
@@ -22,7 +22,8 @@ public:
                  const char* token,
                  const char* firmware_version);
 
-    // POST one reading with scoped local identity only.
+    // POST one reading for a device. The backend derives placement from the
+    // configured Device row.
     // metrics_json must be a complete JSON object literal like
     // {"temperature_c":20.12,"humidity_pct":55.3}. IP and uptime_ms are
     // pulled from WiFi.localIP() and millis() respectively.
@@ -30,10 +31,7 @@ public:
     // Returns the HTTP status code on success (>0), or the negative
     // HTTPClient error code on transport failure. Failures are logged to
     // Serial internally — callers shouldn't double-log.
-    int post(const char* site_id,
-             const char* tent_id,
-             const char* zone_id,
-             const char* device_id,
+    int post(const char* device_id,
              const char* metrics_json,
              const char* diagnostics_json = nullptr);
 

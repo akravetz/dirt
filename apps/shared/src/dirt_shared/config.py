@@ -170,14 +170,14 @@ class Settings(BaseSettings):
     daily_report_codex_sandbox: str = Field(
         default="workspace-write", validation_alias="DIRT_DAILY_REPORT_CODEX_SANDBOX"
     )
-    daily_report_tent_ids: str = Field(
-        default="main,breeding", validation_alias="DIRT_DAILY_REPORT_TENT_IDS"
+    daily_report_source_tent_ids: str = Field(
+        default="1,2", validation_alias="DIRT_DAILY_REPORT_SOURCE_TENT_IDS"
     )
-    daily_report_required_tent_ids: str = Field(
-        default="main", validation_alias="DIRT_DAILY_REPORT_REQUIRED_TENT_IDS"
+    daily_report_required_source_tent_ids: str = Field(
+        default="1", validation_alias="DIRT_DAILY_REPORT_REQUIRED_SOURCE_TENT_IDS"
     )
-    daily_report_photo_tent_ids: str = Field(
-        default="breeding", validation_alias="DIRT_DAILY_REPORT_PHOTO_TENT_IDS"
+    daily_report_photo_source_tent_ids: str = Field(
+        default="2", validation_alias="DIRT_DAILY_REPORT_PHOTO_SOURCE_TENT_IDS"
     )
     # Hosted control-plane local gateway. The gateway is a separate process
     # that syncs selected local state outbound; local hardware loops do not

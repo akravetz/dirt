@@ -30,7 +30,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.models.device import Device
 from dirt_shared.models.snapshot import Snapshot
-from dirt_shared.models.zone import Zone
 from dirt_shared.observability import log_event
 from dirt_shared.services.daily_sensors import (
     DailySensorSnapshot,
@@ -39,7 +38,6 @@ from dirt_shared.services.daily_sensors import (
 )
 from dirt_shared.services.daily_synthesis import SynthesisResult, SynthesisRunner
 from dirt_shared.services.photos import CameraClient, stamp_exif_datetime
-from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID, resolve_scope
 from dirt_shared.services.telegram import (
     TELEGRAM_HTML_WHITELIST,
     TELEGRAM_MAX_MESSAGE_CHARS,
@@ -61,14 +59,6 @@ PRESET_TO_FILENAME: list[tuple[str, str]] = [
     ("plant_c", "plant-c.jpg"),
     ("plant_d", "plant-d.jpg"),
 ]
-
-PRESET_TO_ZONE_ID: dict[str, str] = {
-    "overview": "canopy",
-    "plant_a": "plant-a",
-    "plant_b": "plant-b",
-    "plant_c": "plant-c",
-    "plant_d": "plant-d",
-}
 
 
 class Phase(StrEnum):
@@ -126,20 +116,20 @@ class HostedTentAssetPhotoSource:
         http: httpx.AsyncClient,
         base_url: str,
         session_cookie: str,
-        tent_id: str,
+        source_tent_id: int,
         filename: str | None = None,
     ) -> None:
         self._http = http
         self._base_url = base_url.rstrip("/")
-        self._tent_id = tent_id
-        self._filename = filename or f"{tent_id}-overview.jpg"
+        self._source_tent_id = source_tent_id
+        self._filename = filename or f"tent-{source_tent_id}-overview.jpg"
         self._auth_headers = {"cookie": f"dirt_cloud_session={session_cookie}"}
 
     async def capture_photos(self, target_date: date, out_dir: Path) -> list[Path]:
         del target_date
         try:
             latest = await self._http.get(
-                f"{self._base_url}/api/tents/{self._tent_id}/assets/latest",
+                f"{self._base_url}/api/tents/{self._source_tent_id}/assets/latest",
                 headers=self._auth_headers,
             )
             latest.raise_for_status()
@@ -158,7 +148,8 @@ class HostedTentAssetPhotoSource:
             image.raise_for_status()
         except (KeyError, TypeError, ValueError, httpx.HTTPError) as exc:
             raise RuntimeError(
-                f"hosted tent asset fetch failed for {self._tent_id}: {exc}"
+                "hosted tent asset fetch failed for "
+                f"source_tent_id={self._source_tent_id}: {exc}"
             ) from exc
 
         path = out_dir / self._filename
@@ -180,13 +171,11 @@ class DailyReportSnapshotRecorder:
         self,
         engine: AsyncEngine,
         *,
-        site_id: str = DEFAULT_SITE_ID,
-        tent_id: str = DEFAULT_TENT_ID,
+        source_tent_id: int | None = 1,
         camera_device_id: str = "obsbot-main",
     ) -> None:
         self._engine = engine
-        self._site_id = site_id
-        self._tent_id = tent_id
+        self._source_tent_id = source_tent_id
         self._camera_device_id = camera_device_id
 
     async def record_daily_report_photo(
@@ -196,41 +185,21 @@ class DailyReportSnapshotRecorder:
         preset: str,
         captured_at: datetime,
     ) -> None:
-        zone_public_id = PRESET_TO_ZONE_ID.get(preset)
         async with AsyncSession(self._engine) as session:
-            scope = await resolve_scope(
-                session, site_id=self._site_id, tent_id=self._tent_id
+            query = (
+                select(Device)
+                .where(Device.device_id == self._camera_device_id)
+                .where(Device.kind == "camera")
             )
-            if scope is None:
-                raise RuntimeError(
-                    f"missing daily-report snapshot scope "
-                    f"{self._site_id}/{self._tent_id}"
-                )
-
+            if self._source_tent_id is not None:
+                query = query.where(Device.tent_id == self._source_tent_id)
             device = (
-                await session.exec(
-                    select(Device)
-                    .where(Device.site_id == scope.site_pk)
-                    .where(Device.device_id == self._camera_device_id)
-                    .limit(1)
-                )
+                await session.exec(query.order_by(Device.enabled.desc()).limit(1))
             ).first()
             if device is None or device.id is None:
                 raise RuntimeError(
                     f"missing daily-report camera device {self._camera_device_id}"
                 )
-
-            zone_id: int | None = None
-            if zone_public_id is not None:
-                zone_id = (
-                    await session.exec(
-                        select(Zone.id)
-                        .where(Zone.site_id == scope.site_pk)
-                        .where(Zone.tent_id == scope.tent_pk)
-                        .where(Zone.zone_id == zone_public_id)
-                        .limit(1)
-                    )
-                ).first()
 
             path_str = str(file_path)
             snapshot = (
@@ -242,9 +211,9 @@ class DailyReportSnapshotRecorder:
                 snapshot = Snapshot(file_path=path_str)
 
             snapshot.ts = captured_at
-            snapshot.site_id = scope.site_pk
-            snapshot.tent_id = scope.tent_pk
-            snapshot.zone_id = zone_id
+            snapshot.site_id = device.site_id
+            snapshot.tent_id = device.tent_id
+            snapshot.zone_id = device.zone_id
             snapshot.device_id = device.id
             snapshot.view_id = preset
             snapshot.kind = "daily_report"

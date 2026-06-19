@@ -96,8 +96,7 @@ def build_camera_source(settings: CameraAgentSettings) -> CameraSource:
 
 def metadata_from_settings(settings: CameraAgentSettings) -> CameraCaptureMetadata:
     return CameraCaptureMetadata(
-        site_id=settings.site_id,
-        tent_id=settings.tent_id,
+        site_id=settings.cloud_site_id,
         camera_device_id=settings.camera_device_id,
         camera_view_id=settings.camera_view_id,
         camera_kind=settings.camera_kind,

@@ -88,7 +88,7 @@ class LoginRequest(BaseModel):
 class CommandCreateRequest(BaseModel):
     idempotency_key: str = Field(min_length=1, max_length=160)
     site_id: str | None = None
-    tent_id: str = Field(min_length=1, max_length=80)
+    source_tent_id: int = Field(gt=0)
     device_id: Literal["obsbot-main"]
     capability_id: Literal["ptz_move"]
     command_type: PTZ_COMMAND_TYPES
@@ -110,7 +110,7 @@ class BreedingCreateSeedLotRequest(BreedingCreateSeedLotPayload):
 class BreedingGerminatePlantsRequest(BreedingCommandRequest):
     seed_lot_id: str = Field(min_length=1)
     count: int = Field(gt=0)
-    tent_id: str = Field(min_length=1, max_length=80)
+    source_tent_id: int = Field(gt=0)
     grid_position: Literal[None] = Field(...)
     germinated_at: datetime | None = None
 
@@ -118,7 +118,7 @@ class BreedingGerminatePlantsRequest(BreedingCommandRequest):
 class BreedingClonePlantsRequest(BreedingCommandRequest):
     mother_plant_key: str = Field(min_length=1, max_length=120)
     count: int = Field(gt=0)
-    tent_id: str = Field(min_length=1, max_length=80)
+    source_tent_id: int = Field(gt=0)
     grid_position: Literal[None] = Field(...)
     taken_at: datetime | None = None
 
@@ -135,7 +135,7 @@ class BreedingBulkSexRequest(BreedingCommandRequest):
 
 class BreedingBulkMoveRequest(BreedingCommandRequest):
     plant_keys: list[str] = Field(min_length=1)
-    tent_id: str = Field(min_length=1, max_length=80)
+    source_tent_id: int = Field(gt=0)
     grid_position: Literal[None] = Field(...)
 
     @field_validator("plant_keys")
@@ -221,16 +221,18 @@ class SiteResponse(BrowserResponse):
 
 class TentResponse(BrowserResponse):
     site_id: str
-    tent_id: str
+    source_tent_id: int
     name: str
+    role: str | None
     is_active: bool
     synced_at: datetime
 
 
 class TentStateResponse(BrowserResponse):
     site_id: str
-    tent_id: str
+    source_tent_id: int
     name: str
+    role: str | None
     is_active: bool
     gateway_last_seen_at: datetime | None
     last_catalog_sync_at: datetime | None
@@ -300,10 +302,9 @@ class BreedingLogbookLookupResponse(BrowserResponse):
 
 
 class BreedingLogbookLocationOptionResponse(BrowserResponse):
-    key: str
+    source_tent_id: int
     display_name: str
-    stage_key: BreedingLogbookPlantStageKey
-    tent_id: str | None
+    role: str | None
     grid_position: str | None
 
 
@@ -347,8 +348,9 @@ class BreedingLogbookPlantRowResponse(BrowserResponse):
     veg_started_on: date | None
     flower_started_on: date | None
     culled_on: date | None
-    location_key: str
-    location_label: str
+    current_tent_id: int
+    current_tent_name: str
+    grid_position: str | None
     seed_lot_label: str
     last_note: str
     telemetry_summary: str
@@ -392,7 +394,8 @@ class BreedingLogbookPlantDetailResponse(BrowserResponse):
 
 class PlantSummaryResponse(BrowserResponse):
     site_id: str
-    tent_id: str
+    current_tent_id: int
+    current_tent_name: str
     id: int
     key: str
     line_source_id: int
@@ -421,7 +424,8 @@ class PlantLineResponse(BrowserResponse):
 
 class PlantCurrentLocationResponse(BrowserResponse):
     id: int
-    tent_id: str
+    current_tent_id: int
+    current_tent_name: str
     grid_position: str | None
     start_at: datetime
     end_at: datetime | None
@@ -482,7 +486,8 @@ class PlantMetricStreamResponse(BrowserResponse):
 
 class PlantDetailResponse(BrowserResponse):
     site_id: str
-    tent_id: str
+    current_tent_id: int
+    current_tent_name: str
     id: int
     key: str
     line_source_id: int
@@ -570,6 +575,7 @@ class PlantMetricStreamProjection:
 class PlantProjection:
     plant: CloudPlant
     location: CloudPlantLocation
+    tent: CloudTent | None
     line: CloudPlantLine | None
 
 
@@ -577,6 +583,7 @@ class PlantProjection:
 class BreedingLogbookPlantProjection:
     plant: CloudPlant
     location: CloudPlantLocation
+    tent: CloudTent | None
     line: CloudPlantLine | None
     seed_lot: CloudSeedLot | None
     seed_lot_line: CloudPlantLine | None
@@ -584,11 +591,12 @@ class BreedingLogbookPlantProjection:
 
 class LightScheduleResponse(BrowserResponse):
     site_id: str
-    tent_id: str
-    zone_id: str | None
+    source_tent_id: int
+    tent_name: str
+    source_zone_id: int | None
     device_id: str | None
     capability_id: str | None
-    schedule_id: str
+    source_schedule_id: int
     kind: str
     enabled: bool
     timezone: str
@@ -602,7 +610,8 @@ class LightScheduleResponse(BrowserResponse):
 
 class LightSchedulesResponse(BrowserResponse):
     site_id: str
-    tent_id: str
+    source_tent_id: int
+    tent_name: str
     schedules: list[LightScheduleResponse]
 
 
@@ -679,7 +688,8 @@ class CommandResponse(BrowserResponse):
     command_id: str
     idempotency_key: str
     site_id: str
-    tent_id: str
+    source_tent_id: int | None
+    legacy_target_tent_id: str
     device_id: str | None
     capability_id: str | None
     command_type: str
@@ -844,14 +854,15 @@ async def tents(
         await session.execute(
             select(CloudTent)
             .where(CloudTent.site_id == scoped_site_id)
-            .order_by(CloudTent.tent_id)
+            .order_by(CloudTent.source_tent_id, CloudTent.name)
         )
     ).scalars()
     return [
         TentResponse(
             site_id=row.site_id,
-            tent_id=row.tent_id,
+            source_tent_id=_required_source_tent_id(row),
             name=row.name,
+            role=row.role,
             is_active=row.is_active,
             synced_at=row.synced_at,
         )
@@ -859,9 +870,9 @@ async def tents(
     ]
 
 
-@router.get("/tents/{tent_id}/state", response_model=TentStateResponse)
+@router.get("/tents/{source_tent_id}/state", response_model=TentStateResponse)
 async def tent_state(
-    tent_id: str,
+    source_tent_id: int,
     _: str = Depends(require_browser_user),
     settings: CloudSettings = Depends(get_settings),
     session: AsyncSession = Depends(get_session),
@@ -871,20 +882,14 @@ async def tent_state(
             select(CloudSite).where(CloudSite.site_id == settings.default_site_id)
         )
     ).scalar_one_or_none()
-    tent = (
-        await session.execute(
-            select(CloudTent).where(
-                CloudTent.site_id == settings.default_site_id,
-                CloudTent.tent_id == tent_id,
-            )
-        )
-    ).scalar_one_or_none()
-    if tent is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "tent not found")
+    tent = await _get_cloud_tent_by_source_id(
+        session, site_id=settings.default_site_id, source_tent_id=source_tent_id
+    )
     return TentStateResponse(
         site_id=tent.site_id,
-        tent_id=tent.tent_id,
+        source_tent_id=_required_source_tent_id(tent),
         name=tent.name,
+        role=tent.role,
         is_active=tent.is_active,
         gateway_last_seen_at=site.gateway_last_seen_at if site else None,
         last_catalog_sync_at=site.last_catalog_sync_at if site else None,
@@ -892,10 +897,11 @@ async def tent_state(
 
 
 @router.get(
-    "/tents/{tent_id}/metrics/current", response_model=list[CurrentMetricResponse]
+    "/tents/{source_tent_id}/metrics/current",
+    response_model=list[CurrentMetricResponse],
 )
 async def current_metrics(
-    tent_id: str,
+    source_tent_id: int,
     _: str = Depends(require_browser_user),
     settings: CloudSettings = Depends(get_settings),
     session: AsyncSession = Depends(get_session),
@@ -905,7 +911,7 @@ async def current_metrics(
             select(CloudLatestMetric)
             .where(
                 CloudLatestMetric.site_id == settings.default_site_id,
-                CloudLatestMetric.tent_id == tent_id,
+                CloudLatestMetric.source_tent_id == source_tent_id,
             )
             .order_by(
                 CloudLatestMetric.metric,
@@ -918,14 +924,15 @@ async def current_metrics(
 
 
 @router.get(
-    "/tents/{tent_id}/metrics/presentation",
+    "/tents/{source_tent_id}/metrics/presentation",
     response_model=MetricPresentationResponse,
 )
 async def metric_presentation(
-    tent_id: str,
+    source_tent_id: int,
     _: str = Depends(require_browser_user),
     session: AsyncSession = Depends(get_session),
 ) -> MetricPresentationResponse:
+    _ = source_tent_id
     rows = (
         (
             await session.execute(
@@ -971,9 +978,11 @@ async def metric_presentation(
     )
 
 
-@router.get("/tents/{tent_id}/metrics/history", response_model=MetricHistoryResponse)
+@router.get(
+    "/tents/{source_tent_id}/metrics/history", response_model=MetricHistoryResponse
+)
 async def metric_history(  # noqa: PLR0913
-    tent_id: str,
+    source_tent_id: int,
     metric: str,
     device_id: str | None = None,
     capability_id: str | None = None,
@@ -1006,7 +1015,7 @@ async def metric_history(  # noqa: PLR0913
             select(CloudMetricRollup)
             .where(
                 CloudMetricRollup.site_id == settings.default_site_id,
-                CloudMetricRollup.tent_id == tent_id,
+                CloudMetricRollup.source_tent_id == source_tent_id,
                 CloudMetricRollup.metric == metric,
                 CloudMetricRollup.bucket == bucket,
                 CloudMetricRollup.bucket_start_at >= cutoff,
@@ -1051,8 +1060,9 @@ async def breeding_logbook_bootstrap(
             .where(
                 CloudTent.site_id == settings.default_site_id,
                 CloudTent.is_active.is_(True),
+                CloudTent.source_tent_id.is_not(None),
             )
-            .order_by(CloudTent.tent_id)
+            .order_by(CloudTent.source_tent_id, CloudTent.name)
         )
     ).scalars()
     return BreedingLogbookBootstrapResponse(
@@ -1101,10 +1111,9 @@ async def breeding_logbook_bootstrap(
         ],
         locations=[
             BreedingLogbookLocationOptionResponse(
-                key=tent.tent_id,
+                source_tent_id=_required_source_tent_id(tent),
                 display_name=tent.name,
-                stage_key=_stage_for_tent_id(tent.tent_id),
-                tent_id=tent.tent_id,
+                role=tent.role,
                 grid_position=None,
             )
             for tent in tents
@@ -1232,7 +1241,7 @@ async def breeding_logbook_plant_metric_history(
     history_by_stream = await _metric_rollups_by_stream(
         session,
         site_id=settings.default_site_id,
-        tent_id=plant.location.tent_id,
+        source_tent_id=_required_location_source_tent_id(plant.location),
         bucket=bucket,
         cutoff=clock() - window,
         streams=[row.stream for row in stream_rows],
@@ -1274,7 +1283,7 @@ async def breeding_logbook_plant_detail(
     latest_by_stream = await _latest_metrics_by_stream(
         session,
         site_id=settings.default_site_id,
-        tent_id=plant.location.tent_id,
+        source_tent_id=_required_location_source_tent_id(plant.location),
         streams=[row.stream for row in stream_rows],
     )
     notes = await _breeding_logbook_plant_notes(
@@ -1309,9 +1318,9 @@ async def breeding_logbook_plant_detail(
     )
 
 
-@router.get("/tents/{tent_id}/plants", response_model=list[PlantSummaryResponse])
+@router.get("/tents/{source_tent_id}/plants", response_model=list[PlantSummaryResponse])
 async def plants(
-    tent_id: str,
+    source_tent_id: int,
     _: str = Depends(require_browser_user),
     settings: CloudSettings = Depends(get_settings),
     session: AsyncSession = Depends(get_session),
@@ -1319,7 +1328,7 @@ async def plants(
     latest_rows = await _latest_plants(
         session,
         site_id=settings.default_site_id,
-        tent_id=tent_id,
+        source_tent_id=source_tent_id,
     )
     stream_counts = await _active_plant_stream_counts(
         session,
@@ -1335,9 +1344,11 @@ async def plants(
     ]
 
 
-@router.get("/tents/{tent_id}/plants/{plant_id}", response_model=PlantDetailResponse)
+@router.get(
+    "/tents/{source_tent_id}/plants/{plant_id}", response_model=PlantDetailResponse
+)
 async def plant_detail(
-    tent_id: str,
+    source_tent_id: int,
     plant_id: str,
     _: str = Depends(require_browser_user),
     settings: CloudSettings = Depends(get_settings),
@@ -1346,7 +1357,7 @@ async def plant_detail(
     plant = await _get_plant(
         session,
         site_id=settings.default_site_id,
-        tent_id=tent_id,
+        source_tent_id=source_tent_id,
         plant_id=plant_id,
     )
     stream_rows = await _active_plant_metric_streams(
@@ -1357,7 +1368,7 @@ async def plant_detail(
     latest_by_stream = await _latest_metrics_by_stream(
         session,
         site_id=settings.default_site_id,
-        tent_id=tent_id,
+        source_tent_id=source_tent_id,
         streams=[row.stream for row in stream_rows],
     )
     return _plant_detail_response(
@@ -1368,11 +1379,11 @@ async def plant_detail(
 
 
 @router.get(
-    "/tents/{tent_id}/plants/{plant_id}/metrics/history",
+    "/tents/{source_tent_id}/plants/{plant_id}/metrics/history",
     response_model=PlantMetricHistoryResponse,
 )
 async def plant_metric_history(  # noqa: PLR0913
-    tent_id: str,
+    source_tent_id: int,
     plant_id: str,
     range: str = "24h",
     _: str = Depends(require_browser_user),
@@ -1386,7 +1397,7 @@ async def plant_metric_history(  # noqa: PLR0913
     plant = await _get_plant(
         session,
         site_id=settings.default_site_id,
-        tent_id=tent_id,
+        source_tent_id=source_tent_id,
         plant_id=plant_id,
     )
     stream_rows = [
@@ -1403,7 +1414,7 @@ async def plant_metric_history(  # noqa: PLR0913
     history_by_stream = await _metric_rollups_by_stream(
         session,
         site_id=settings.default_site_id,
-        tent_id=tent_id,
+        source_tent_id=source_tent_id,
         bucket=bucket,
         cutoff=cutoff,
         streams=[row.stream for row in stream_rows],
@@ -1421,9 +1432,9 @@ async def plant_metric_history(  # noqa: PLR0913
     )
 
 
-@router.get("/tents/{tent_id}/devices", response_model=list[DeviceResponse])
+@router.get("/tents/{source_tent_id}/devices", response_model=list[DeviceResponse])
 async def devices(
-    tent_id: str,
+    source_tent_id: int,
     _: str = Depends(require_browser_user),
     settings: CloudSettings = Depends(get_settings),
     session: AsyncSession = Depends(get_session),
@@ -1433,7 +1444,7 @@ async def devices(
             select(CloudDevice)
             .where(
                 CloudDevice.site_id == settings.default_site_id,
-                CloudDevice.tent_id == tent_id,
+                CloudDevice.source_tent_id == source_tent_id,
             )
             .order_by(CloudDevice.device_id)
         )
@@ -1452,25 +1463,29 @@ async def devices(
 
 
 @router.get(
-    "/tents/{tent_id}/lights/schedules",
+    "/tents/{source_tent_id}/lights/schedules",
     response_model=LightSchedulesResponse,
 )
 async def light_schedules(
-    tent_id: str,
+    source_tent_id: int,
     _: str = Depends(require_browser_user),
     settings: CloudSettings = Depends(get_settings),
     session: AsyncSession = Depends(get_session),
     clock: Callable[[], datetime] = Depends(get_clock),
 ) -> LightSchedulesResponse:
+    tent = await _get_cloud_tent_by_source_id(
+        session, site_id=settings.default_site_id, source_tent_id=source_tent_id
+    )
     rows = (
         await session.execute(
             select(CloudSchedule)
             .where(
                 CloudSchedule.site_id == settings.default_site_id,
-                CloudSchedule.tent_id == tent_id,
+                CloudSchedule.source_tent_id == source_tent_id,
                 CloudSchedule.kind == "lights",
+                CloudSchedule.source_schedule_id.is_not(None),
             )
-            .order_by(CloudSchedule.schedule_id)
+            .order_by(CloudSchedule.source_schedule_id)
         )
     ).scalars()
     schedules = []
@@ -1484,11 +1499,12 @@ async def light_schedules(
         schedules.append(
             LightScheduleResponse(
                 site_id=row.site_id,
-                tent_id=row.tent_id,
-                zone_id=row.zone_id,
+                source_tent_id=_required_schedule_source_tent_id(row),
+                tent_name=tent.name,
+                source_zone_id=row.source_zone_id,
                 device_id=row.device_id,
                 capability_id=row.capability_id,
-                schedule_id=row.schedule_id,
+                source_schedule_id=_required_source_schedule_id(row),
                 kind=row.kind,
                 enabled=row.is_enabled,
                 timezone=row.timezone,
@@ -1505,26 +1521,30 @@ async def light_schedules(
         )
     return LightSchedulesResponse(
         site_id=settings.default_site_id,
-        tent_id=tent_id,
+        source_tent_id=source_tent_id,
+        tent_name=tent.name,
         schedules=schedules,
     )
 
 
-@router.get("/tents/{tent_id}/assets/latest", response_model=list[AssetResponse])
+@router.get("/tents/{source_tent_id}/assets/latest", response_model=list[AssetResponse])
 async def latest_assets(
-    tent_id: str,
+    source_tent_id: int,
     _: str = Depends(require_browser_user),
     settings: CloudSettings = Depends(get_settings),
     asset_store: AssetStore = Depends(get_asset_store),
     session: AsyncSession = Depends(get_session),
     clock: Callable[[], datetime] = Depends(get_clock),
 ) -> list[AssetResponse]:
+    tent = await _get_cloud_tent_by_source_id(
+        session, site_id=settings.default_site_id, source_tent_id=source_tent_id
+    )
     rows = (
         await session.execute(
             select(CloudAsset)
             .where(
                 CloudAsset.site_id == settings.default_site_id,
-                CloudAsset.tent_id == tent_id,
+                CloudAsset.tent_id == tent.tent_id,
             )
             .order_by(desc(CloudAsset.captured_at))
             .limit(10)
@@ -1640,6 +1660,7 @@ async def create_breeding_seed_lot(
         clock=clock,
         command_type="breeding_seed_lot_create",
         target_tent_id=BREEDING_SITE_WIDE_TENT_ID,
+        source_tent_id=None,
         payload=payload,
     )
 
@@ -1656,8 +1677,10 @@ async def germinate_breeding_plants(
     session: AsyncSession = Depends(get_session),
     clock: Callable[[], datetime] = Depends(get_clock),
 ) -> CommandResponse:
-    await _require_cloud_tent(
-        session, site_id=settings.default_site_id, tent_id=body.tent_id
+    target_tent_id = await _legacy_tent_id_for_browser_source_tent_id(
+        session,
+        site_id=settings.default_site_id,
+        source_tent_id=body.source_tent_id,
     )
     seed_lot_source_id = _seed_lot_source_id_from_request(body.seed_lot_id)
     await _require_cloud_seed_lot_source_id(
@@ -1668,7 +1691,7 @@ async def germinate_breeding_plants(
     payload = BreedingGerminatePlantsPayload(
         seed_lot_source_id=seed_lot_source_id,
         count=body.count,
-        tent_id=body.tent_id,
+        source_tent_id=body.source_tent_id,
         grid_position=None,
         germinated_at=body.germinated_at,
     )
@@ -1679,7 +1702,8 @@ async def germinate_breeding_plants(
         session=session,
         clock=clock,
         command_type="breeding_plants_germinate",
-        target_tent_id=body.tent_id,
+        target_tent_id=target_tent_id,
+        source_tent_id=body.source_tent_id,
         payload=payload,
     )
 
@@ -1696,8 +1720,10 @@ async def clone_breeding_plants(
     session: AsyncSession = Depends(get_session),
     clock: Callable[[], datetime] = Depends(get_clock),
 ) -> CommandResponse:
-    await _require_cloud_tent(
-        session, site_id=settings.default_site_id, tent_id=body.tent_id
+    target_tent_id = await _legacy_tent_id_for_browser_source_tent_id(
+        session,
+        site_id=settings.default_site_id,
+        source_tent_id=body.source_tent_id,
     )
     mother = await _require_cloud_plant_key(
         session, site_id=settings.default_site_id, plant_key=body.mother_plant_key
@@ -1705,7 +1731,7 @@ async def clone_breeding_plants(
     payload = BreedingClonePlantsPayload(
         mother_plant_key=mother.key,
         count=body.count,
-        tent_id=body.tent_id,
+        source_tent_id=body.source_tent_id,
         grid_position=None,
         taken_at=body.taken_at,
     )
@@ -1716,7 +1742,8 @@ async def clone_breeding_plants(
         session=session,
         clock=clock,
         command_type="breeding_plants_clone",
-        target_tent_id=body.tent_id,
+        target_tent_id=target_tent_id,
+        source_tent_id=body.source_tent_id,
         payload=payload,
     )
 
@@ -1745,6 +1772,7 @@ async def bulk_sex_breeding_plants(
         clock=clock,
         command_type="breeding_plants_bulk_sex",
         target_tent_id=BREEDING_SITE_WIDE_TENT_ID,
+        source_tent_id=None,
         payload=payload,
     )
 
@@ -1761,15 +1789,17 @@ async def bulk_move_breeding_plants(
     session: AsyncSession = Depends(get_session),
     clock: Callable[[], datetime] = Depends(get_clock),
 ) -> CommandResponse:
-    await _require_cloud_tent(
-        session, site_id=settings.default_site_id, tent_id=body.tent_id
+    target_tent_id = await _legacy_tent_id_for_browser_source_tent_id(
+        session,
+        site_id=settings.default_site_id,
+        source_tent_id=body.source_tent_id,
     )
     await _require_cloud_plant_keys(
         session, site_id=settings.default_site_id, plant_keys=body.plant_keys
     )
     payload = BreedingBulkMovePayload(
         plant_keys=body.plant_keys,
-        tent_id=body.tent_id,
+        source_tent_id=body.source_tent_id,
         grid_position=None,
     )
     return await _enqueue_breeding_command(
@@ -1779,7 +1809,8 @@ async def bulk_move_breeding_plants(
         session=session,
         clock=clock,
         command_type="breeding_plants_bulk_move",
-        target_tent_id=body.tent_id,
+        target_tent_id=target_tent_id,
+        source_tent_id=body.source_tent_id,
         payload=payload,
     )
 
@@ -1808,6 +1839,7 @@ async def bulk_cull_breeding_plants(
         clock=clock,
         command_type="breeding_plants_bulk_cull",
         target_tent_id=BREEDING_SITE_WIDE_TENT_ID,
+        source_tent_id=None,
         payload=payload,
     )
 
@@ -1841,6 +1873,7 @@ async def create_breeding_plant_note(  # noqa: PLR0913
         clock=clock,
         command_type="breeding_plant_note_create",
         target_tent_id=BREEDING_SITE_WIDE_TENT_ID,
+        source_tent_id=None,
         payload=payload,
     )
 
@@ -1874,11 +1907,15 @@ async def create_command(
     site_id = body.site_id or settings.default_site_id
     if site_id != settings.default_site_id:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "unsupported site")
+    target_tent_id = await _legacy_tent_id_for_browser_source_tent_id(
+        session, site_id=site_id, source_tent_id=body.source_tent_id
+    )
     command = CloudCommand(
         command_id=str(uuid.uuid4()),
         idempotency_key=body.idempotency_key,
         site_id=site_id,
-        tent_id=body.tent_id,
+        tent_id=target_tent_id,
+        source_tent_id=body.source_tent_id,
         device_id=body.device_id,
         capability_id=body.capability_id,
         command_type=body.command_type,
@@ -2070,21 +2107,32 @@ async def _breeding_logbook_plants(
         )
     ).scalars()
     locations = _breeding_logbook_locations_by_plant(location_rows)
+    tents = await _cloud_tents_by_source_id(
+        session,
+        site_id=site_id,
+        source_tent_ids={
+            location.source_tent_id
+            for location in locations.values()
+            if location.source_tent_id is not None
+        },
+    )
     projections = [
         BreedingLogbookPlantProjection(
             plant=plant,
             location=location,
+            tent=tent,
             line=line,
             seed_lot=seed_lot,
             seed_lot_line=line,
         )
         for plant, line, seed_lot in plant_rows
         if (location := locations.get(plant.source_plant_id)) is not None
+        for tent in [tents.get(_required_location_source_tent_id(location))]
     ]
     return sorted(
         projections,
         key=lambda row: (
-            row.location.tent_id,
+            _required_location_source_tent_id(row.location),
             row.location.grid_position or "",
             row.plant.key,
         ),
@@ -2139,6 +2187,7 @@ def _plant_projection_from_breeding_logbook(
     return PlantProjection(
         plant=projection.plant,
         location=projection.location,
+        tent=projection.tent,
         line=projection.line,
     )
 
@@ -2449,8 +2498,9 @@ def _breeding_logbook_plant_row_response(
         veg_started_on=_date_or_none(plant.veg_started_at or plant.rooted_at),
         flower_started_on=_date_or_none(plant.flower_started_at),
         culled_on=_date_or_none(plant.culled_at),
-        location_key=projection.location.tent_id,
-        location_label=_breeding_logbook_location_label(projection.location),
+        current_tent_id=_required_location_source_tent_id(projection.location),
+        current_tent_name=_tent_display_name(projection.tent, projection.location),
+        grid_position=projection.location.grid_position,
         seed_lot_label=_seed_lot_label(projection.seed_lot, projection.seed_lot_line),
         last_note=_breeding_logbook_last_note(
             plant,
@@ -2478,12 +2528,6 @@ def _breeding_logbook_seed_lot_summary_response(
         sex_type_key=seed_lot.sex_type_key,
         seed_count=seed_lot.seed_count,
     )
-
-
-def _breeding_logbook_location_label(location: CloudPlantLocation) -> str:
-    if location.grid_position is None:
-        return location.tent_id
-    return f"{location.tent_id} / {location.grid_position}"
 
 
 def _breeding_logbook_last_note(
@@ -2616,10 +2660,7 @@ def _breeding_logbook_stage_key(
         return "harvested"
     if not plant.is_active:
         return "culled"
-    if (
-        plant.selected_for_breeding_at is not None
-        or projection.location.tent_id == "breeding"
-    ):
+    if plant.selected_for_breeding_at is not None:
         return "breeding"
     if plant.flower_started_at is not None:
         return "flower"
@@ -2645,16 +2686,6 @@ def _stage_day(
     }[stage_key]
     start_date = _date_or_none(starts_at) or location.start_at.date()
     return max(0, (today - start_date).days)
-
-
-def _stage_for_tent_id(tent_id: str) -> BreedingLogbookPlantStageKey:
-    if "breed" in tent_id:
-        return "breeding"
-    if "veg" in tent_id:
-        return "veg"
-    if "clone" in tent_id or "germ" in tent_id:
-        return "germinating"
-    return "flower"
 
 
 def _seed_lot_label(
@@ -2730,16 +2761,23 @@ async def _latest_plants(
     session: AsyncSession,
     *,
     site_id: str,
-    tent_id: str,
+    source_tent_id: int,
 ) -> list[PlantProjection]:
     rows = (
         await session.execute(
-            select(CloudPlant, CloudPlantLocation, CloudPlantLine)
+            select(CloudPlant, CloudPlantLocation, CloudTent, CloudPlantLine)
             .join(
                 CloudPlantLocation,
                 and_(
                     CloudPlantLocation.site_id == CloudPlant.site_id,
                     CloudPlantLocation.source_plant_id == CloudPlant.source_plant_id,
+                ),
+            )
+            .outerjoin(
+                CloudTent,
+                and_(
+                    CloudTent.site_id == CloudPlantLocation.site_id,
+                    CloudTent.source_tent_id == CloudPlantLocation.source_tent_id,
                 ),
             )
             .outerjoin(
@@ -2752,15 +2790,15 @@ async def _latest_plants(
             .where(
                 CloudPlant.site_id == site_id,
                 CloudPlantLocation.site_id == site_id,
-                CloudPlantLocation.tent_id == tent_id,
+                CloudPlantLocation.source_tent_id == source_tent_id,
                 CloudPlantLocation.end_at.is_(None),
             )
             .order_by(CloudPlantLocation.grid_position, CloudPlant.key)
         )
     ).all()
     return [
-        PlantProjection(plant=plant, location=location, line=line)
-        for plant, location, line in rows
+        PlantProjection(plant=plant, location=location, tent=tent, line=line)
+        for plant, location, tent, line in rows
     ]
 
 
@@ -2773,7 +2811,8 @@ def _plant_summary_response(
     location = projection.location
     return PlantSummaryResponse(
         site_id=plant.site_id,
-        tent_id=location.tent_id,
+        current_tent_id=_required_location_source_tent_id(location),
+        current_tent_name=_tent_display_name(projection.tent, location),
         id=plant.source_plant_id,
         key=plant.key,
         line_source_id=plant.line_source_id,
@@ -2796,17 +2835,24 @@ async def _get_plant(
     session: AsyncSession,
     *,
     site_id: str,
-    tent_id: str,
+    source_tent_id: int,
     plant_id: str,
 ) -> PlantProjection:
     row = (
         await session.execute(
-            select(CloudPlant, CloudPlantLocation, CloudPlantLine)
+            select(CloudPlant, CloudPlantLocation, CloudTent, CloudPlantLine)
             .join(
                 CloudPlantLocation,
                 and_(
                     CloudPlantLocation.site_id == CloudPlant.site_id,
                     CloudPlantLocation.source_plant_id == CloudPlant.source_plant_id,
+                ),
+            )
+            .outerjoin(
+                CloudTent,
+                and_(
+                    CloudTent.site_id == CloudPlantLocation.site_id,
+                    CloudTent.source_tent_id == CloudPlantLocation.source_tent_id,
                 ),
             )
             .outerjoin(
@@ -2820,7 +2866,7 @@ async def _get_plant(
                 CloudPlant.site_id == site_id,
                 CloudPlant.key == plant_id,
                 CloudPlantLocation.site_id == site_id,
-                CloudPlantLocation.tent_id == tent_id,
+                CloudPlantLocation.source_tent_id == source_tent_id,
                 CloudPlantLocation.end_at.is_(None),
             )
             .limit(1)
@@ -2828,8 +2874,8 @@ async def _get_plant(
     ).one_or_none()
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "plant not found")
-    plant, location, line = row
-    return PlantProjection(plant=plant, location=location, line=line)
+    plant, location, tent, line = row
+    return PlantProjection(plant=plant, location=location, tent=tent, line=line)
 
 
 async def _active_plant_stream_counts(
@@ -2899,7 +2945,7 @@ async def _latest_metrics_by_stream(
     session: AsyncSession,
     *,
     site_id: str,
-    tent_id: str,
+    source_tent_id: int,
     streams: list[CloudPlantMetricStream],
 ) -> dict[MetricStreamKey, CloudLatestMetric]:
     stream_keys = {_metric_stream_key(stream) for stream in streams}
@@ -2910,7 +2956,7 @@ async def _latest_metrics_by_stream(
         await session.execute(
             select(CloudLatestMetric).where(
                 CloudLatestMetric.site_id == site_id,
-                CloudLatestMetric.tent_id == tent_id,
+                CloudLatestMetric.source_tent_id == source_tent_id,
                 CloudLatestMetric.device_id.in_(device_ids),
                 CloudLatestMetric.capability_id.in_(capability_ids),
                 CloudLatestMetric.metric.in_(metrics),
@@ -2929,7 +2975,7 @@ async def _metric_rollups_by_stream(  # noqa: PLR0913
     session: AsyncSession,
     *,
     site_id: str,
-    tent_id: str,
+    source_tent_id: int,
     bucket: str,
     cutoff: datetime,
     streams: list[CloudPlantMetricStream],
@@ -2944,7 +2990,7 @@ async def _metric_rollups_by_stream(  # noqa: PLR0913
                 select(CloudMetricRollup)
                 .where(
                     CloudMetricRollup.site_id == site_id,
-                    CloudMetricRollup.tent_id == tent_id,
+                    CloudMetricRollup.source_tent_id == source_tent_id,
                     CloudMetricRollup.bucket == bucket,
                     CloudMetricRollup.bucket_start_at >= cutoff,
                     CloudMetricRollup.device_id.in_(device_ids),
@@ -2975,7 +3021,8 @@ def _plant_detail_response(
     location = plant.location
     return PlantDetailResponse(
         site_id=cloud_plant.site_id,
-        tent_id=location.tent_id,
+        current_tent_id=_required_location_source_tent_id(location),
+        current_tent_name=_tent_display_name(plant.tent, location),
         id=cloud_plant.source_plant_id,
         key=cloud_plant.key,
         line_source_id=cloud_plant.line_source_id,
@@ -2983,7 +3030,7 @@ def _plant_detail_response(
         sex_key=cloud_plant.sex_key,
         name=cloud_plant.name,
         grid_position=location.grid_position,
-        current_location=_plant_current_location_response(location),
+        current_location=_plant_current_location_response(location, plant.tent),
         germinated_at=cloud_plant.germinated_at,
         rooted_at=cloud_plant.rooted_at,
         veg_started_at=cloud_plant.veg_started_at,
@@ -3028,10 +3075,12 @@ def _plant_line_response(line: CloudPlantLine | None) -> PlantLineResponse | Non
 
 def _plant_current_location_response(
     location: CloudPlantLocation,
+    tent: CloudTent | None,
 ) -> PlantCurrentLocationResponse:
     return PlantCurrentLocationResponse(
         id=location.source_location_id,
-        tent_id=location.tent_id,
+        current_tent_id=_required_location_source_tent_id(location),
+        current_tent_name=_tent_display_name(tent, location),
         grid_position=location.grid_position,
         start_at=location.start_at,
         end_at=location.end_at,
@@ -3232,7 +3281,8 @@ def _command_response(command: CloudCommand) -> CommandResponse:
         command_id=command.command_id,
         idempotency_key=command.idempotency_key,
         site_id=command.site_id,
-        tent_id=command.tent_id,
+        source_tent_id=command.source_tent_id,
+        legacy_target_tent_id=command.tent_id,
         device_id=command.device_id,
         capability_id=command.capability_id,
         command_type=command.command_type,
@@ -3279,14 +3329,30 @@ def _seed_lot_source_id_from_request(seed_lot_id: str) -> int:
     return value
 
 
-async def _require_cloud_tent(
-    session: AsyncSession, *, site_id: str, tent_id: str
+async def _get_cloud_tent_by_source_id(
+    session: AsyncSession, *, site_id: str, source_tent_id: int
 ) -> CloudTent:
     tent = (
         await session.execute(
             select(CloudTent).where(
                 CloudTent.site_id == site_id,
-                CloudTent.tent_id == tent_id,
+                CloudTent.source_tent_id == source_tent_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if tent is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "tent not found")
+    return tent
+
+
+async def _require_cloud_tent_by_source_id(
+    session: AsyncSession, *, site_id: str, source_tent_id: int
+) -> CloudTent:
+    tent = (
+        await session.execute(
+            select(CloudTent).where(
+                CloudTent.site_id == site_id,
+                CloudTent.source_tent_id == source_tent_id,
                 CloudTent.is_active.is_(True),
             )
         )
@@ -3297,6 +3363,90 @@ async def _require_cloud_tent(
             "unknown target tent",
         )
     return tent
+
+
+async def _cloud_tents_by_source_id(
+    session: AsyncSession, *, site_id: str, source_tent_ids: set[int]
+) -> dict[int, CloudTent]:
+    if not source_tent_ids:
+        return {}
+    rows = (
+        await session.execute(
+            select(CloudTent).where(
+                CloudTent.site_id == site_id,
+                CloudTent.source_tent_id.in_(source_tent_ids),
+            )
+        )
+    ).scalars()
+    return {_required_source_tent_id(row): row for row in rows}
+
+
+def _required_source_tent_id(tent: CloudTent) -> int:
+    if tent.source_tent_id is None:
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "cloud tent missing source_tent_id",
+        )
+    return tent.source_tent_id
+
+
+def _required_location_source_tent_id(location: CloudPlantLocation) -> int:
+    if location.source_tent_id is None:
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "cloud plant location missing source_tent_id",
+        )
+    return location.source_tent_id
+
+
+def _tent_display_name(tent: CloudTent | None, location: CloudPlantLocation) -> str:
+    if tent is not None:
+        return tent.name
+    # Temporary bridge for older additive cloud projections until Milestone 7
+    # makes source tent identity mandatory everywhere.
+    return location.tent_id
+
+
+def _required_schedule_source_tent_id(schedule: CloudSchedule) -> int:
+    if schedule.source_tent_id is None:
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "cloud schedule missing source_tent_id",
+        )
+    return schedule.source_tent_id
+
+
+def _required_source_schedule_id(schedule: CloudSchedule) -> int:
+    if schedule.source_schedule_id is None:
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "cloud schedule missing source_schedule_id",
+        )
+    return schedule.source_schedule_id
+
+
+async def _legacy_tent_id_for_browser_source_tent_id(
+    session: AsyncSession, *, site_id: str, source_tent_id: int
+) -> str:
+    tent = (
+        await session.execute(
+            select(CloudTent).where(
+                CloudTent.site_id == site_id,
+                CloudTent.source_tent_id == source_tent_id,
+                CloudTent.is_active.is_(True),
+            )
+        )
+    ).scalar_one_or_none()
+    if tent is not None:
+        return tent.tent_id
+    # Temporary bridge until command payload/storage no longer carries tent text.
+    fallback = {1: "main", 2: "breeding", 3: "clones"}.get(source_tent_id)
+    if fallback is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "unknown target tent",
+        )
+    return fallback
 
 
 async def _require_cloud_seed_lot_source_id(
@@ -3371,6 +3521,7 @@ async def _enqueue_breeding_command(  # noqa: PLR0913
     clock: Callable[[], datetime],
     command_type: CommandType,
     target_tent_id: str,
+    source_tent_id: int | None,
     payload: BreedingCommandPayload,
 ) -> CommandResponse:
     if not settings.command_creation_enabled:
@@ -3392,6 +3543,7 @@ async def _enqueue_breeding_command(  # noqa: PLR0913
         idempotency_key=idempotency_key,
         site_id=settings.default_site_id,
         tent_id=target_tent_id,
+        source_tent_id=source_tent_id,
         device_id=None,
         capability_id=None,
         command_type=command_type,

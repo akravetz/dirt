@@ -8,7 +8,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_hwd.services.climate_actuators import (
     DEFAULT_DEHUMIDIFIER_DEVICE_ID,
-    ClimateKasaPlugTarget,
     FanNodeActuator,
     H7142HumidifierActuator,
     KasaDehumidifierActuator,
@@ -213,9 +212,6 @@ async def test_h7142_humidifier_actuator_uses_quantizer_and_dispatch_plan() -> N
                 "humidifier_intensity_pct": pytest.approx(400.0 / 9.0),
             },
             "source": "govee",
-            "site_id": "homebox",
-            "tent_id": "main",
-            "zone_id": "canopy",
             "device_id": "govee-h7142-main",
         }
     ]
@@ -224,15 +220,14 @@ async def test_h7142_humidifier_actuator_uses_quantizer_and_dispatch_plan() -> N
 async def test_load_dehumidifier_target_uses_db_known_natural_id(app_engine) -> None:
     target = await load_dehumidifier_target(app_engine)
 
-    assert target == ClimateKasaPlugTarget(
-        site_id="homebox",
-        tent_id="main",
-        zone_id="canopy",
-        device_id=DEFAULT_DEHUMIDIFIER_DEVICE_ID,
-        capability_id="power",
-        host="192.168.1.208",
-        provider_uid="58:04:4F:10:3D:19",
-    )
+    assert target is not None
+    assert target.source_site_id > 0
+    assert target.source_tent_id > 0
+    assert target.source_zone_id is not None
+    assert target.device_id == DEFAULT_DEHUMIDIFIER_DEVICE_ID
+    assert target.capability_id == "power"
+    assert target.host == "192.168.1.208"
+    assert target.provider_uid == "58:04:4F:10:3D:19"
 
 
 async def test_kasa_dehumidifier_actuator_sets_power_and_records_reading(
@@ -291,9 +286,9 @@ async def test_thermoforge_heater_actuator_reconciles_and_records_reading() -> N
     client = FakeThermoForgeClient()
     readings = FakeReadings()
     device = ThermoForgeActuatorDevice(
-        site_id="homebox",
-        tent_id="main",
-        zone_id="canopy",
+        source_site_id=1,
+        source_tent_id=1,
+        source_zone_id=1,
         device_id="ac-infinity-thermoforge-main",
         capability_id="heat",
         provider_uid="80:B5:4E:4D:27:01",
@@ -317,9 +312,6 @@ async def test_thermoforge_heater_actuator_reconciles_and_records_reading() -> N
             "metrics": {"heater_on": 1.0, "heater_intensity_pct": 40.0},
             "device_id": "ac-infinity-thermoforge-main",
             "source": "ac_infinity",
-            "site_id": "homebox",
-            "tent_id": "main",
-            "zone_id": "canopy",
             "capability_id": "heat",
         }
     ]

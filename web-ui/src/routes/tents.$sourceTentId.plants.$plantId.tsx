@@ -10,16 +10,16 @@ import { MarkdownDocument } from "@/ui/MarkdownDocument";
 import { RangeSwitch, type SparklineRange } from "@/ui/RangeSwitch";
 import { Sparkline } from "@/ui/Sparkline";
 
-export const Route = createFileRoute("/tents/$tentId/plants/$plantId")({
+export const Route = createFileRoute("/tents/$sourceTentId/plants/$plantId")({
   component: HostedPlantDetailRoute,
   errorComponent: PlantDetailUnavailableScreen,
 });
 
 const hostedApi = createHostedApiClient();
 const DASHBOARD_ROUTE = "/" as const;
-const PLANT_DETAIL_PATH = "/api/tents/{tent_id}/plants/{plant_id}" as const;
+const PLANT_DETAIL_PATH = "/api/tents/{source_tent_id}/plants/{plant_id}" as const;
 const PLANT_METRIC_HISTORY_PATH =
-  "/api/tents/{tent_id}/plants/{plant_id}/metrics/history" as const;
+  "/api/tents/{source_tent_id}/plants/{plant_id}/metrics/history" as const;
 
 type SparklineAccent =
   | "temp"
@@ -62,12 +62,12 @@ function asAccent(raw: string): SparklineAccent {
     : "neutral";
 }
 
-function plantDetailOptions(tentId: string, plantId: string) {
+function plantDetailOptions(sourceTentId: string, plantId: string) {
   return queryOptions({
-    queryKey: ["cloud.plants.detail", tentId, plantId],
+    queryKey: ["cloud.plants.detail", sourceTentId, plantId],
     queryFn: async () => {
       const { data } = await hostedApi.GET(PLANT_DETAIL_PATH, {
-        params: { path: { tent_id: tentId, plant_id: plantId } },
+        params: { path: { source_tent_id: Number(sourceTentId), plant_id: plantId } },
       });
       return hostedData(data, PLANT_DETAIL_PATH);
     },
@@ -76,18 +76,18 @@ function plantDetailOptions(tentId: string, plantId: string) {
 }
 
 function HostedPlantDetailPage() {
-  const { tentId, plantId } = Route.useParams();
+  const { sourceTentId, plantId } = Route.useParams();
   const [range, setRange] = useState<SparklineRange>("24h");
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [hoverTimestamp, setHoverTimestamp] = useState<string | null>(null);
 
-  const { data: detail } = useSuspenseQuery(plantDetailOptions(tentId, plantId));
+  const { data: detail } = useSuspenseQuery(plantDetailOptions(sourceTentId, plantId));
   const historyQuery = useQuery({
-    queryKey: ["cloud.plants.metrics.history", tentId, plantId, range],
+    queryKey: ["cloud.plants.metrics.history", sourceTentId, plantId, range],
     queryFn: async () => {
       const { data } = await hostedApi.GET(PLANT_METRIC_HISTORY_PATH, {
         params: {
-          path: { tent_id: tentId, plant_id: plantId },
+          path: { source_tent_id: Number(sourceTentId), plant_id: plantId },
           query: { range },
         },
       });
@@ -528,7 +528,7 @@ function formatNullableTimestamp(value: string | null): string {
 }
 
 function formatCurrentLocation(detail: PlantDetail): string {
-  return `${detail.current_location.tent_id} · ${detail.current_location.grid_position}`;
+  return `${detail.current_location.current_tent_name} · ${detail.current_location.grid_position}`;
 }
 
 function formatLineIdentity(detail: PlantDetail): string {

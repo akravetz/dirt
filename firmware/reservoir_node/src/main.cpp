@@ -18,7 +18,7 @@
 // ships already-calibrated values; server stores them as-is). Recalibrate
 // by editing the constants below and OTA-reflashing. The raw count is also
 // POSTed so history can be recomputed against new constants if cal changes.
-// Posts as homebox/main/reservoir/reservoir-node.
+// Posts as reservoir-node; the server derives placement from the Device row.
 // Full rationale: wiki/hardware/reservoir-level.md "Where the calibration lives".
 
 #include <Arduino.h>
@@ -39,9 +39,6 @@ constexpr uint8_t  ADS_ADDR     = 0x48;
 constexpr uint32_t POST_INTERVAL_MS = 30000;  // 30s; matches plant nodes
 constexpr uint16_t SAMPLE_COUNT     = 32;     // ~9 mV jitter at GAIN_FOUR
 
-const char* const SITE_ID = "homebox";
-const char* const TENT_ID = "main";
-const char* const ZONE_ID = "reservoir";
 const char* const DEVICE_ID = "reservoir-node";
 const char* const HOSTNAME = "dirt-reservoir";
 
@@ -177,7 +174,7 @@ void loop() {
                  ph_raw,
                  ph_voltage,
                  ph);
-        int code = ingest.post(SITE_ID, TENT_ID, ZONE_ID, DEVICE_ID, metrics);
+        int code = ingest.post(DEVICE_ID, metrics);
         if (code > 0) {
             Serial.printf("[post] a0_cal=%ld a0_gain_two=%d depth_in=%.2f ph_raw=%d ph_v=%.4f ph=%.2f http=%d\n",
                           (long)raw0,

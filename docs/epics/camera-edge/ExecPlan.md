@@ -7,11 +7,11 @@ This plan follows `.agents/PLANS.md`.
 
 ## Purpose / Big Picture
 
-After this change, Dirt can run camera capture on more than one host without building one-off scripts for each tent. The immediate user-visible result is that `dirt2`, the LAN box attached to the breeding-tent camera, captures periodic breeding-tent photos and uploads them as private cloud assets under `homebox/breeding`. The hosted UI and API then show the breeding tent with fresh imagery the same way the main tent already has recent photos.
+After this change, Dirt can run camera capture on more than one host without building one-off scripts for each tent. The immediate user-visible result is that `dirt2`, the LAN box attached to the breeding-tent camera, captures periodic breeding-tent photos and uploads them as private cloud assets keyed by camera device and source tent identity. The hosted UI and API then show the breeding tent with fresh imagery the same way the main tent already has recent photos.
 
 This matters because the project is moving from a single grow-box camera to modular, analogous hardware across tents. Camera capture should be reusable infrastructure: a host-local camera driver captures frames, shared snapshot code records scoped metadata, and shared cloud asset code publishes images through the existing signed upload contract. The OBSBOT-specific daemon remains a low-level device driver; Dirt-level services should not hard-code OBSBOT, `/dev/video0`, or one physical tent into their architecture.
 
-The working behavior is observable by running a camera-agent service on `dirt2`, seeing successful systemd status and structured logs, finding JPEGs in its local spool, and fetching a signed hosted asset for `tent_id=breeding`.
+The working behavior is observable by running a camera-agent service on `dirt2`, seeing successful systemd status and structured logs, finding JPEGs in its local spool, and fetching a signed hosted asset through the breeding tent's hosted `source_tent_id`.
 
 
 ## Progress
@@ -60,7 +60,7 @@ The working behavior is observable by running a camera-agent service on `dirt2`,
   Date/Author: 2026-05-10 / Codex
 
 - Decision: Build `dirt2` as a camera edge node, not a second full site gateway.
-  Rationale: `dirt2` only needs camera capture and asset publishing for `homebox/breeding`. Full gateway behavior includes heartbeats and command claiming that should remain owned by the main controller unless `dirt2` later becomes a broader hardware authority.
+  Rationale: `dirt2` only needs camera capture and asset publishing for the breeding camera device/source tent. Full gateway behavior includes heartbeats and command claiming that should remain owned by the main controller unless `dirt2` later becomes a broader hardware authority.
   Date/Author: 2026-05-10 / Codex
 
 - Decision: Reuse the existing gateway asset contract for camera-agent uploads.
@@ -292,9 +292,9 @@ Milestone 4 adds a camera-agent service. Create a new uv workspace app under `ap
 
 - loads settings from environment and `.env`;
 - configures `CameraSource` from `DIRT_CAMERA_AGENT_SOURCE=obsbot-daemon`;
-- configures scoped metadata: `DIRT_SITE_ID`, `DIRT_TENT_ID`, `DIRT_CAMERA_DEVICE_ID`, optional `DIRT_CAMERA_VIEW_ID`, `DIRT_CAMERA_KIND`;
+- configures camera identity: `DIRT_CAMERA_DEVICE_ID`, optional `DIRT_CAMERA_VIEW_ID`, `DIRT_CAMERA_KIND`; hosted placement is derived from the synced camera device row instead of `DIRT_SITE_ID` / `DIRT_TENT_ID`;
 - captures periodically using `DIRT_CAMERA_CAPTURE_INTERVAL_S`;
-- writes a local spool under `DIRT_DATA_DIR/camera-agent/<tent_id>/snapshots` or configured `DIRT_CAMERA_SPOOL_DIR`;
+- writes a local spool under `DIRT_DATA_DIR/camera-agent/<camera_device_id>/snapshots` or configured `DIRT_CAMERA_SPOOL_DIR`;
 - uploads through the shared asset uploader using the existing cloud gateway asset routes;
 - reports upload failures through the existing asset failure route;
 - logs structured events through the existing observability helper.
@@ -311,9 +311,9 @@ Milestone 5 deploys and smoke tests `dirt2`. Install the repo or a deployment ch
 
 Do not print private keys, gateway tokens, or full environment files.
 
-Milestone 6 enables real breeding-tent uploads and hosted verification. Turn on non-dry-run upload for `homebox/breeding`, wait for an upload, then verify the cloud API returns a recent breeding-tent asset:
+Milestone 6 enables real breeding-tent uploads and hosted verification. Turn on non-dry-run upload for the breeding camera device, wait for an upload, then verify the cloud API returns a recent breeding-tent asset:
 
-- authenticated browser API route `/api/tents/breeding/assets/latest`;
+- authenticated browser API route `/api/tents/{source_tent_id}/assets/latest` using the breeding tent source row;
 - signed URL route `/api/assets/{asset_id}/signed-url`;
 - hosted UI if it already surfaces assets for the selected tent.
 
@@ -383,10 +383,10 @@ Acceptance requires all of these signals:
 - Main-tent capture on this box uses the same shared `CameraSource` and `SnapshotWriter` path that camera-agent uses; there is no duplicate private snapshot-writing implementation left in `dirt_shared.services.capture`.
 - Gateway asset tests pass after extracting shared uploader code.
 - Gateway and camera-agent asset publication use the same shared upload workflow; there is no duplicate sign/upload/complete implementation except thin service-specific orchestration.
-- Camera-agent unit tests prove retryable upload failure handling, local spool creation, idempotency key construction, and correct `AssetSignUploadRequest` / `AssetCompleteRequest` payloads for `homebox/breeding`.
+- Camera-agent unit tests prove retryable upload failure handling, local spool creation, camera-keyed idempotency construction, and correct `AssetSignUploadRequest` / `AssetCompleteRequest` payloads with `source_tent_id` when the hosted policy resolves placement.
 - On `dirt2`, `dirt-camera.service` is active and capture returns a JPEG path with nonzero bytes.
 - On `dirt2`, `dirt-camera-agent.service` is active and logs successful captures plus successful cloud upload completion.
-- The hosted cloud API returns at least one recent asset where `site_id=homebox`, `tent_id=breeding`, and `device_id` is the configured breeding camera device.
+- The hosted cloud API returns at least one recent asset where `site_id=homebox`, `source_tent_id` is the breeding tent source row, and `device_id` is the configured breeding camera device.
 - A final cleanup diff removes or updates obsolete code, tests, and docs that referred to the old one-off main-box capture/upload path.
 
 
@@ -439,8 +439,6 @@ Expected new or changed interfaces:
   - `DIRT_CAMERA_AGENT_SOURCE`
   - `DIRT_CAMERA_CAPTURE_INTERVAL_S`
   - `DIRT_CAMERA_SPOOL_DIR`
-  - `DIRT_SITE_ID`
-  - `DIRT_TENT_ID`
   - `DIRT_CAMERA_DEVICE_ID`
   - `DIRT_CAMERA_VIEW_ID`
   - `DIRT_CAMERA_KIND`

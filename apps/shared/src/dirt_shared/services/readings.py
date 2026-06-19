@@ -17,14 +17,13 @@ from dirt_shared.models.enums import SensorSource
 from dirt_shared.models.plant import Plant, PlantLocationHistory, PlantMetricStream
 from dirt_shared.models.sensor_calibration import SensorCalibration
 from dirt_shared.models.sensor_reading import SensorReading
-from dirt_shared.models.site import Site
 from dirt_shared.models.tent import Tent
 from dirt_shared.models.zone import Zone
 from dirt_shared.sensor_contract import (
     capability_metadata_from_json,
     persisted_metrics_for_device_id,
 )
-from dirt_shared.services.scope import DEFAULT_SITE_ID, DEFAULT_TENT_ID
+from dirt_shared.services.scope import require_default_site_pk, require_default_tent_pk
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +38,8 @@ PRODUCT_PLANT_MOISTURE_METRIC = "soil_moisture_pct"
 @dataclass(frozen=True)
 class ProductPlantMoistureCapability:
     plant_key: str
-    tent_id: str
-    zone_id: str | None
+    source_tent_id: int
+    source_zone_id: int | None
     device_id: str
     capability_id: str
     capability_pk: int
@@ -106,11 +105,9 @@ _BUCKET_SQL = {
         "FROM sensorreading sr "
         "JOIN capability c ON c.id = sr.capability_id "
         "JOIN device d ON d.id = c.device_id "
-        "JOIN site s ON s.id = d.site_id "
-        "LEFT JOIN tent t ON t.id = d.tent_id "
         "WHERE sr.ts >= :cutoff AND c.metric_name = :metric "
-        "AND s.site_id = :site_id "
-        "AND (CAST(:tent_id AS text) IS NULL OR t.tent_id = :tent_id) "
+        "AND d.site_id = :site_pk "
+        "AND (CAST(:tent_pk AS bigint) IS NULL OR d.tent_id = :tent_pk) "
         "AND (CAST(:device_id AS text) IS NULL OR d.device_id = :device_id) "
         "AND (CAST(:capability_public_id AS text) IS NULL OR "
         "c.capability_id = :capability_public_id) "
@@ -123,11 +120,9 @@ _BUCKET_SQL = {
         "FROM sensorreading sr "
         "JOIN capability c ON c.id = sr.capability_id "
         "JOIN device d ON d.id = c.device_id "
-        "JOIN site s ON s.id = d.site_id "
-        "LEFT JOIN tent t ON t.id = d.tent_id "
         "WHERE sr.ts >= :cutoff AND c.metric_name = :metric "
-        "AND s.site_id = :site_id "
-        "AND (CAST(:tent_id AS text) IS NULL OR t.tent_id = :tent_id) "
+        "AND d.site_id = :site_pk "
+        "AND (CAST(:tent_pk AS bigint) IS NULL OR d.tent_id = :tent_pk) "
         "AND (CAST(:device_id AS text) IS NULL OR d.device_id = :device_id) "
         "AND (CAST(:capability_public_id AS text) IS NULL OR "
         "c.capability_id = :capability_public_id) "
@@ -140,11 +135,9 @@ _BUCKET_SQL = {
         "FROM sensorreading sr "
         "JOIN capability c ON c.id = sr.capability_id "
         "JOIN device d ON d.id = c.device_id "
-        "JOIN site s ON s.id = d.site_id "
-        "LEFT JOIN tent t ON t.id = d.tent_id "
         "WHERE sr.ts >= :cutoff AND c.metric_name = :metric "
-        "AND s.site_id = :site_id "
-        "AND (CAST(:tent_id AS text) IS NULL OR t.tent_id = :tent_id) "
+        "AND d.site_id = :site_pk "
+        "AND (CAST(:tent_pk AS bigint) IS NULL OR d.tent_id = :tent_pk) "
         "AND (CAST(:device_id AS text) IS NULL OR d.device_id = :device_id) "
         "AND (CAST(:capability_public_id AS text) IS NULL OR "
         "c.capability_id = :capability_public_id) "
@@ -166,11 +159,9 @@ _BUCKET_SQL_NATIVE = {
         "FROM sensorreading sr "
         "JOIN capability c ON c.id = sr.capability_id "
         "JOIN device d ON d.id = c.device_id "
-        "JOIN site s ON s.id = d.site_id "
-        "LEFT JOIN tent t ON t.id = d.tent_id "
         "WHERE sr.ts >= :cutoff AND c.metric_name = :metric "
-        "AND s.site_id = :site_id "
-        "AND (CAST(:tent_id AS text) IS NULL OR t.tent_id = :tent_id) "
+        "AND d.site_id = :site_pk "
+        "AND (CAST(:tent_pk AS bigint) IS NULL OR d.tent_id = :tent_pk) "
         "AND (CAST(:device_id AS text) IS NULL OR d.device_id = :device_id) "
         "AND (CAST(:capability_public_id AS text) IS NULL OR "
         "c.capability_id = :capability_public_id) "
@@ -182,11 +173,9 @@ _BUCKET_SQL_NATIVE = {
         "FROM sensorreading sr "
         "JOIN capability c ON c.id = sr.capability_id "
         "JOIN device d ON d.id = c.device_id "
-        "JOIN site s ON s.id = d.site_id "
-        "LEFT JOIN tent t ON t.id = d.tent_id "
         "WHERE sr.ts >= :cutoff AND c.metric_name = :metric "
-        "AND s.site_id = :site_id "
-        "AND (CAST(:tent_id AS text) IS NULL OR t.tent_id = :tent_id) "
+        "AND d.site_id = :site_pk "
+        "AND (CAST(:tent_pk AS bigint) IS NULL OR d.tent_id = :tent_pk) "
         "AND (CAST(:device_id AS text) IS NULL OR d.device_id = :device_id) "
         "AND (CAST(:capability_public_id AS text) IS NULL OR "
         "c.capability_id = :capability_public_id) "
@@ -201,8 +190,8 @@ async def _get_metric_series(  # noqa: PLR0913
     range_key: str,
     cutoff: datetime,
     *,
-    site_id: str = DEFAULT_SITE_ID,
-    tent_id: str | None = DEFAULT_TENT_ID,
+    site_pk: int,
+    tent_pk: int | None,
     device_id: str | None = None,
     capability_id: str | None = None,
 ) -> dict[str, list]:
@@ -210,8 +199,8 @@ async def _get_metric_series(  # noqa: PLR0913
     params = _history_params(
         cutoff=cutoff,
         metric=metric,
-        site_id=site_id,
-        tent_id=tent_id,
+        site_pk=site_pk,
+        tent_pk=tent_pk,
         device_id=device_id,
         capability_id=capability_id,
     )
@@ -227,8 +216,8 @@ async def _get_metric_series(  # noqa: PLR0913
     result = await session.exec(
         _scoped_readings_select(
             metric,
-            site_id=site_id,
-            tent_id=tent_id,
+            site_pk=site_pk,
+            tent_pk=tent_pk,
             device_id=device_id,
             capability_id=capability_id,
         )
@@ -246,10 +235,7 @@ async def _touch_device_heartbeat(  # noqa: PLR0913
     session: AsyncSession,
     *,
     now: datetime,
-    site_id: str,
-    tent_id: str | None,
-    zone_id: str | None,
-    device_id: str | None,
+    device: Device,
     ip: str | None,
     firmware_version: str | None,
     uptime_ms: int | None,
@@ -260,22 +246,6 @@ async def _touch_device_heartbeat(  # noqa: PLR0913
     wifi_disconnected_for_ms: int | None,
     diagnostics: Mapping[str, object] | None,
 ) -> None:
-    if device_id is None:
-        return
-    stmt = (
-        select(Device)
-        .join(Site, Site.id == Device.site_id)
-        .where(Site.site_id == site_id)
-        .where(Device.device_id == device_id)
-    )
-    if tent_id is not None:
-        stmt = stmt.join(Tent, Tent.id == Device.tent_id).where(Tent.tent_id == tent_id)
-    if zone_id is not None:
-        stmt = stmt.join(Zone, Zone.id == Device.zone_id).where(Zone.zone_id == zone_id)
-
-    device = (await session.exec(stmt)).first()
-    if device is None:
-        return
     if ip is not None:
         device.ip = ip
     if firmware_version is not None:
@@ -296,6 +266,21 @@ async def _touch_device_heartbeat(  # noqa: PLR0913
     session.add(device)
 
 
+async def _get_enabled_device(
+    session: AsyncSession,
+    *,
+    device_id: str,
+) -> Device | None:
+    return (
+        await session.exec(
+            select(Device)
+            .where(Device.device_id == device_id)
+            .where(Device.enabled.is_(True))
+            .order_by(Device.id)
+        )
+    ).first()
+
+
 def _warn_on_unresolved_capabilities(
     *,
     device_id: str | None,
@@ -308,7 +293,7 @@ def _warn_on_unresolved_capabilities(
     if not unresolved:
         return
     logger.warning(
-        "sensor ingest for known device could not resolve capabilities",
+        "sensor ingest could not resolve capabilities for device",
         extra={
             "unscoped_sensorreading": True,
             "device_id": device_id,
@@ -321,16 +306,16 @@ def _history_params(  # noqa: PLR0913
     *,
     cutoff: datetime,
     metric: str,
-    site_id: str,
-    tent_id: str | None,
+    site_pk: int,
+    tent_pk: int | None,
     device_id: str | None,
     capability_id: str | None,
 ) -> dict[str, object]:
     return {
         "cutoff": cutoff,
         "metric": metric,
-        "site_id": site_id,
-        "tent_id": tent_id,
+        "site_pk": site_pk,
+        "tent_pk": tent_pk,
         "device_id": device_id,
         "capability_public_id": capability_id,
     }
@@ -339,9 +324,9 @@ def _history_params(  # noqa: PLR0913
 def _scoped_readings_select(  # noqa: PLR0913
     metric: str,
     *,
-    site_id: str = DEFAULT_SITE_ID,
-    tent_id: str | None = DEFAULT_TENT_ID,
-    zone_id: str | None = None,
+    site_pk: int,
+    tent_pk: int | None = None,
+    zone_pk: int | None = None,
     device_id: str | None = None,
     capability_id: str | None = None,
 ):
@@ -349,14 +334,13 @@ def _scoped_readings_select(  # noqa: PLR0913
         select(SensorReading)
         .join(Capability, Capability.id == SensorReading.capability_id)
         .join(Device, Device.id == Capability.device_id)
-        .join(Site, Site.id == Device.site_id)
-        .where(Site.site_id == site_id)
+        .where(Device.site_id == site_pk)
         .where(Capability.metric_name == metric)
     )
-    if tent_id is not None:
-        stmt = stmt.join(Tent, Tent.id == Device.tent_id).where(Tent.tent_id == tent_id)
-    if zone_id is not None:
-        stmt = stmt.join(Zone, Zone.id == Device.zone_id).where(Zone.zone_id == zone_id)
+    if tent_pk is not None:
+        stmt = stmt.where(Device.tent_id == tent_pk)
+    if zone_pk is not None:
+        stmt = stmt.where(Device.zone_id == zone_pk)
     if device_id is not None:
         stmt = stmt.where(Device.device_id == device_id)
     if capability_id is not None:
@@ -368,9 +352,9 @@ async def _resolve_capability_ids(  # noqa: PLR0913
     session: AsyncSession,
     *,
     metric_names: Iterable[str],
-    site_id: str,
-    tent_id: str | None,
-    zone_id: str | None,
+    site_pk: int,
+    tent_pk: int | None = None,
+    zone_pk: int | None = None,
     device_id: str | None,
     capability_id: str | None,
 ) -> dict[str, int]:
@@ -380,15 +364,14 @@ async def _resolve_capability_ids(  # noqa: PLR0913
     stmt = (
         select(Capability.metric_name, Capability.id)
         .join(Device, Device.id == Capability.device_id)
-        .join(Site, Site.id == Device.site_id)
-        .where(Site.site_id == site_id)
+        .where(Device.site_id == site_pk)
         .where(Device.device_id == device_id)
         .where(Capability.metric_name.in_(set(metric_names)))
     )
-    if tent_id is not None:
-        stmt = stmt.join(Tent, Tent.id == Device.tent_id).where(Tent.tent_id == tent_id)
-    if zone_id is not None:
-        stmt = stmt.join(Zone, Zone.id == Device.zone_id).where(Zone.zone_id == zone_id)
+    if tent_pk is not None:
+        stmt = stmt.where(Device.tent_id == tent_pk)
+    if zone_pk is not None:
+        stmt = stmt.where(Device.zone_id == zone_pk)
     if capability_id is not None:
         stmt = stmt.where(Capability.capability_id == capability_id)
 
@@ -396,23 +379,44 @@ async def _resolve_capability_ids(  # noqa: PLR0913
     return {metric_name: cap_id for metric_name, cap_id in rows if metric_name}
 
 
-async def resolve_metric_capability_id(  # noqa: PLR0913
+async def _resolve_enabled_device_capability_ids(
+    session: AsyncSession,
+    *,
+    metric_names: Iterable[str],
+    device_pk: int,
+    capability_id: str | None,
+) -> dict[str, int]:
+    metric_name_set = set(metric_names)
+    if not metric_name_set:
+        return {}
+    stmt = (
+        select(Capability.metric_name, Capability.id)
+        .where(Capability.device_id == device_pk)
+        .where(Capability.enabled.is_(True))
+        .where(Capability.metric_name.in_(metric_name_set))
+    )
+    if capability_id is not None:
+        stmt = stmt.where(Capability.capability_id == capability_id)
+
+    rows = (await session.exec(stmt)).all()
+    return {metric_name: cap_id for metric_name, cap_id in rows if metric_name}
+
+
+async def resolve_metric_capability_id(
     session: AsyncSession,
     *,
     metric: str,
-    site_id: str = DEFAULT_SITE_ID,
-    tent_id: str | None = DEFAULT_TENT_ID,
-    zone_id: str | None = None,
+    site_pk: int | None = None,
     device_id: str | None = None,
     capability_id: str | None = None,
 ) -> int | None:
     """Resolve one public metric/scope tuple to the canonical capability PK."""
+    if site_pk is None:
+        site_pk = await require_default_site_pk(session)
     matches = await _resolve_capability_ids(
         session,
         metric_names=(metric,),
-        site_id=site_id,
-        tent_id=tent_id,
-        zone_id=zone_id,
+        site_pk=site_pk,
         device_id=device_id,
         capability_id=capability_id,
     )
@@ -439,8 +443,9 @@ async def get_sensor_calibration(
 async def get_supported_product_plant_moisture_capabilities(
     session: AsyncSession,
     *,
-    site_id: str = DEFAULT_SITE_ID,
-    tent_id: str | None = DEFAULT_TENT_ID,
+    site_pk: int | None = None,
+    tent_pk: int | None = None,
+    use_default_tent: bool = True,
 ) -> list[ProductPlantMoistureCapability]:
     """Return current plant moisture capabilities that are direct percent streams.
 
@@ -448,39 +453,42 @@ async def get_supported_product_plant_moisture_capabilities(
     as current product moisture sources. Historical raw readings may still exist,
     but this resolver intentionally does not calibrate them.
     """
+    if site_pk is None:
+        site_pk = await require_default_site_pk(session)
+    if use_default_tent and tent_pk is None:
+        tent_pk = await require_default_tent_pk(session, site_pk=site_pk)
     stmt = (
         select(
             Plant.key,
-            Tent.tent_id,
-            Zone.zone_id,
+            Tent.id,
+            Zone.id,
             Device.device_id,
             Capability.capability_id,
             Capability.id,
         )
         .join(PlantLocationHistory, PlantLocationHistory.plant_id == Plant.id)
-        .join(Site, Site.id == PlantLocationHistory.site_id)
         .join(Tent, Tent.id == PlantLocationHistory.tent_id)
         .join(PlantMetricStream, PlantMetricStream.plant_id == Plant.id)
         .join(Capability, Capability.id == PlantMetricStream.capability_id)
         .join(Device, Device.id == Capability.device_id)
         .outerjoin(Zone, Zone.id == Device.zone_id)
-        .where(Site.site_id == site_id)
+        .where(PlantLocationHistory.site_id == site_pk)
         .where(PlantLocationHistory.end_at.is_(None))
         .where(PlantMetricStream.is_active.is_(True))
         .where(Device.enabled.is_(True))
         .where(Capability.enabled.is_(True))
         .where(Capability.metric_name == PRODUCT_PLANT_MOISTURE_METRIC)
-        .order_by(Tent.tent_id, PlantLocationHistory.grid_position, Plant.key)
+        .order_by(Tent.name, PlantLocationHistory.grid_position, Plant.key)
     )
-    if tent_id is not None:
-        stmt = stmt.where(Tent.tent_id == tent_id)
+    if tent_pk is not None:
+        stmt = stmt.where(PlantLocationHistory.tent_id == tent_pk)
 
     rows = (await session.exec(stmt)).all()
     return [
         ProductPlantMoistureCapability(
             plant_key=plant_key,
-            tent_id=scope_tent_id,
-            zone_id=scope_zone_id,
+            source_tent_id=scope_tent_id,
+            source_zone_id=scope_zone_id,
             device_id=device_id,
             capability_id=capability_id,
             capability_pk=capability_pk,
@@ -500,14 +508,16 @@ async def get_latest_product_plant_moisture_readings(
     session: AsyncSession,
     *,
     now: datetime,
-    site_id: str = DEFAULT_SITE_ID,
-    tent_id: str | None = DEFAULT_TENT_ID,
+    site_pk: int | None = None,
+    tent_pk: int | None = None,
+    use_default_tent: bool = True,
 ) -> list[ProductPlantMoistureReading]:
     """Return latest current plant moisture readings from direct percent probes."""
     capabilities = await get_supported_product_plant_moisture_capabilities(
         session,
-        site_id=site_id,
-        tent_id=tent_id,
+        site_pk=site_pk,
+        tent_pk=tent_pk,
+        use_default_tent=use_default_tent,
     )
     if not capabilities:
         return []
@@ -531,8 +541,8 @@ async def get_latest_product_plant_moisture_readings(
         readings.append(
             ProductPlantMoistureReading(
                 plant_key=capability.plant_key,
-                tent_id=capability.tent_id,
-                zone_id=capability.zone_id,
+                source_tent_id=capability.source_tent_id,
+                source_zone_id=capability.source_zone_id,
                 device_id=capability.device_id,
                 capability_id=capability.capability_id,
                 capability_pk=capability.capability_pk,
@@ -614,9 +624,10 @@ class ReadingsService:
         self,
         metric: str,
         *,
-        site_id: str = DEFAULT_SITE_ID,
-        tent_id: str | None = DEFAULT_TENT_ID,
-        zone_id: str | None = None,
+        site_pk: int | None = None,
+        tent_pk: int | None = None,
+        zone_pk: int | None = None,
+        use_default_tent: bool = True,
         device_id: str | None = None,
         capability_id: str | None = None,
     ) -> SensorReading | None:
@@ -626,12 +637,16 @@ class ReadingsService:
         matching metric for the requested site/tent.
         """
         async with AsyncSession(self._engine) as session:
+            if site_pk is None:
+                site_pk = await require_default_site_pk(session)
+            if use_default_tent and tent_pk is None:
+                tent_pk = await require_default_tent_pk(session, site_pk=site_pk)
             result = await session.exec(
                 _scoped_readings_select(
                     metric,
-                    site_id=site_id,
-                    tent_id=tent_id,
-                    zone_id=zone_id,
+                    site_pk=site_pk,
+                    tent_pk=tent_pk,
+                    zone_pk=zone_pk,
                     device_id=device_id,
                     capability_id=capability_id,
                 )
@@ -644,12 +659,17 @@ class ReadingsService:
         self,
         stale_cutoff: datetime,
         *,
-        site_id: str = DEFAULT_SITE_ID,
-        tent_id: str | None = DEFAULT_TENT_ID,
+        site_pk: int | None = None,
+        tent_pk: int | None = None,
+        use_default_tent: bool = True,
     ) -> dict[str, tuple[str, datetime | None, dict[str, str | None]]]:
         """Classify metadata-marked capabilities keyed by device/capability."""
         out: dict[str, tuple[str, datetime | None, dict[str, str | None]]] = {}
         async with AsyncSession(self._engine) as session:
+            if site_pk is None:
+                site_pk = await require_default_site_pk(session)
+            if use_default_tent and tent_pk is None:
+                tent_pk = await require_default_tent_pk(session, site_pk=site_pk)
             latest = (
                 select(
                     SensorReading.capability_id,
@@ -660,19 +680,19 @@ class ReadingsService:
             )
             stmt = (
                 select(
-                    Site.site_id,
-                    Tent.tent_id,
+                    Device.site_id,
+                    Device.tent_id,
                     Device.device_id,
                     Capability.capability_id,
                     Capability.metric_name,
                     Capability.metadata_json,
                     latest.c.last_seen,
                 )
-                .join(Device, Device.site_id == Site.id)
+                .select_from(Device)
                 .join(Capability, Capability.device_id == Device.id)
                 .outerjoin(Tent, Tent.id == Device.tent_id)
                 .outerjoin(latest, latest.c.capability_id == Capability.id)
-                .where(Site.site_id == site_id)
+                .where(Device.site_id == site_pk)
                 .where(Device.enabled.is_(True))
                 .where(Device.last_seen.is_not(None))
                 .where(Device.last_seen >= stale_cutoff)
@@ -680,8 +700,8 @@ class ReadingsService:
                 .where(Capability.metric_name.is_not(None))
                 .order_by(Device.device_id, Capability.capability_id)
             )
-            if tent_id is not None:
-                stmt = stmt.where(Tent.tent_id == tent_id)
+            if tent_pk is not None:
+                stmt = stmt.where(Device.tent_id == tent_pk)
 
             for row in (await session.exec(stmt)).all():
                 (
@@ -706,7 +726,7 @@ class ReadingsService:
                     last_seen,
                     {
                         "site_id": scope_site_id,
-                        "tent_id": scope_tent_id,
+                        "source_tent_id": scope_tent_id,
                         "device_id": device_public_id,
                         "capability_id": capability_public_id,
                         "metric": metric,
@@ -718,30 +738,18 @@ class ReadingsService:
         self,
         *,
         device_id: str,
-        site_id: str = DEFAULT_SITE_ID,
-        tent_id: str | None = DEFAULT_TENT_ID,
-        zone_id: str | None = None,
     ) -> frozenset[str]:
         """Return enabled metrics marked as expected in capability metadata."""
         async with AsyncSession(self._engine) as session:
+            device = await _get_enabled_device(session, device_id=device_id)
+            if device is None or device.id is None:
+                return frozenset()
             stmt = (
                 select(Capability.metric_name, Capability.metadata_json)
-                .join(Device, Device.id == Capability.device_id)
-                .join(Site, Site.id == Device.site_id)
-                .where(Site.site_id == site_id)
-                .where(Device.device_id == device_id)
-                .where(Device.enabled.is_(True))
+                .where(Capability.device_id == device.id)
                 .where(Capability.enabled.is_(True))
                 .where(Capability.metric_name.is_not(None))
             )
-            if tent_id is not None:
-                stmt = stmt.join(Tent, Tent.id == Device.tent_id).where(
-                    Tent.tent_id == tent_id
-                )
-            if zone_id is not None:
-                stmt = stmt.join(Zone, Zone.id == Device.zone_id).where(
-                    Zone.zone_id == zone_id
-                )
 
             metrics: set[str] = set()
             for metric, metadata_json in (await session.exec(stmt)).all():
@@ -754,17 +762,21 @@ class ReadingsService:
         self,
         threshold: int = 10,
         *,
-        site_id: str = DEFAULT_SITE_ID,
-        tent_id: str | None = DEFAULT_TENT_ID,
+        site_pk: int | None = None,
+        tent_pk: int | None = None,
     ) -> bool:
         """Return True if the last ``threshold`` tent temperature readings are identical."""  # noqa: E501
         async with AsyncSession(self._engine) as session:
+            if site_pk is None:
+                site_pk = await require_default_site_pk(session)
+            if tent_pk is None:
+                tent_pk = await require_default_tent_pk(session, site_pk=site_pk)
             result = await session.exec(
                 _scoped_readings_select(
                     "temperature_f",
-                    site_id=site_id,
-                    tent_id=tent_id,
-                    device_id="fan-controller" if tent_id == DEFAULT_TENT_ID else None,
+                    site_pk=site_pk,
+                    tent_pk=tent_pk,
+                    device_id="fan-controller",
                 )
                 .order_by(SensorReading.ts.desc())
                 .limit(threshold)
@@ -789,22 +801,24 @@ class ReadingsService:
         wifi_disconnect_reason: int | None = None,
         wifi_disconnected_for_ms: int | None = None,
         diagnostics: Mapping[str, object] | None = None,
-        site_id: str = DEFAULT_SITE_ID,
-        tent_id: str | None = DEFAULT_TENT_ID,
-        zone_id: str | None = None,
         capability_id: str | None = None,
     ) -> int:
         """Record a batch of capability-owned sensor readings."""
         now = self._clock()
-        inserted = 0
         async with AsyncSession(self._engine) as session:
+            device = await _get_enabled_device(session, device_id=device_id)
+            if device is None or device.id is None:
+                _warn_on_unresolved_capabilities(
+                    device_id=device_id,
+                    capability_ids={},
+                    metric_names=metrics.keys(),
+                )
+                return 0
+
             await _touch_device_heartbeat(
                 session,
                 now=now,
-                site_id=site_id,
-                tent_id=tent_id,
-                zone_id=zone_id,
-                device_id=device_id,
+                device=device,
                 ip=ip,
                 firmware_version=firmware_version,
                 uptime_ms=uptime_ms,
@@ -816,13 +830,10 @@ class ReadingsService:
                 diagnostics=diagnostics,
             )
 
-            capability_ids = await _resolve_capability_ids(
+            capability_ids = await _resolve_enabled_device_capability_ids(
                 session,
                 metric_names=metrics.keys(),
-                site_id=site_id,
-                tent_id=tent_id,
-                zone_id=zone_id,
-                device_id=device_id,
+                device_pk=device.id,
                 capability_id=capability_id if len(metrics) == 1 else None,
             )
             _warn_on_unresolved_capabilities(
@@ -831,6 +842,7 @@ class ReadingsService:
                 metric_names=metrics.keys(),
             )
 
+            inserted = 0
             for metric_name, value in metrics.items():
                 resolved_capability_id = capability_ids.get(metric_name)
                 if resolved_capability_id is None:
@@ -856,7 +868,6 @@ class ReadingsService:
                         capability_id=resolved_capability_id,
                         updated_at=now,
                     )
-
             await session.commit()
         return inserted
 
@@ -864,9 +875,6 @@ class ReadingsService:
         self,
         *,
         device_id: str,
-        site_id: str = DEFAULT_SITE_ID,
-        tent_id: str | None = DEFAULT_TENT_ID,
-        zone_id: str | None = None,
         ip: str | None = None,
         firmware_version: str | None = None,
         uptime_ms: int | None = None,
@@ -880,13 +888,13 @@ class ReadingsService:
         """Update canonical device heartbeat."""
         now = self._clock()
         async with AsyncSession(self._engine) as session:
+            device = await _get_enabled_device(session, device_id=device_id)
+            if device is None or device.id is None:
+                return
             await _touch_device_heartbeat(
                 session,
                 now=now,
-                site_id=site_id,
-                tent_id=tent_id,
-                zone_id=zone_id,
-                device_id=device_id,
+                device=device,
                 ip=ip,
                 firmware_version=firmware_version,
                 uptime_ms=uptime_ms,
@@ -905,8 +913,17 @@ class ReadingsService:
         cutoff = self._clock() - delta
 
         async with AsyncSession(self._engine) as session:
+            site_pk = await require_default_site_pk(session)
+            tent_pk = await require_default_tent_pk(session, site_pk=site_pk)
             return {
-                metric: await _get_metric_series(session, metric, range_key, cutoff)
+                metric: await _get_metric_series(
+                    session,
+                    metric,
+                    range_key,
+                    cutoff,
+                    site_pk=site_pk,
+                    tent_pk=tent_pk,
+                )
                 for metric in sorted(persisted_metrics_for_device_id("fan-controller"))
             }
 
@@ -915,9 +932,10 @@ class ReadingsService:
         metric: str,
         range_key: str,
         *,
-        site_id: str = DEFAULT_SITE_ID,
-        tent_id: str | None = DEFAULT_TENT_ID,
-        zone_id: str | None = None,
+        site_pk: int | None = None,
+        tent_pk: int | None = None,
+        zone_pk: int | None = None,
+        use_default_tent: bool = True,
         device_id: str | None = None,
         capability_id: str | None = None,
     ) -> list[tuple[datetime, float]]:
@@ -935,11 +953,15 @@ class ReadingsService:
         delta = RANGE_DELTAS[range_key]
         cutoff = self._clock() - delta
         async with AsyncSession(self._engine) as session:
+            if site_pk is None:
+                site_pk = await require_default_site_pk(session)
+            if use_default_tent and tent_pk is None:
+                tent_pk = await require_default_tent_pk(session, site_pk=site_pk)
             params = _history_params(
                 cutoff=cutoff,
                 metric=metric,
-                site_id=site_id,
-                tent_id=tent_id,
+                site_pk=site_pk,
+                tent_pk=tent_pk,
                 device_id=device_id,
                 capability_id=capability_id,
             )
@@ -953,9 +975,9 @@ class ReadingsService:
             result = await session.exec(
                 _scoped_readings_select(
                     metric,
-                    site_id=site_id,
-                    tent_id=tent_id,
-                    zone_id=zone_id,
+                    site_pk=site_pk,
+                    tent_pk=tent_pk,
+                    zone_pk=zone_pk,
                     device_id=device_id,
                     capability_id=capability_id,
                 )

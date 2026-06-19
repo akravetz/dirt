@@ -330,13 +330,9 @@ async def test_run_records_scoped_daily_report_snapshot_rows(tmp_path, app_engin
     }
 
     assert set(by_view) == {"overview", "plant_a", "plant_b", "plant_c", "plant_d"}
-    assert {item[1].tent_id for item in by_view.values()} == {"main"}
+    assert {item[1].role for item in by_view.values()} == {"flower"}
     assert {item[2].device_id for item in by_view.values()} == {"obsbot-main"}
-    assert by_view["overview"][3].zone_id == "canopy"
-    assert by_view["plant_a"][3].zone_id == "plant-a"
-    assert by_view["plant_b"][3].zone_id == "plant-b"
-    assert by_view["plant_c"][3].zone_id == "plant-c"
-    assert by_view["plant_d"][3].zone_id == "plant-d"
+    assert {item[3].name for item in by_view.values()} == {"Canopy"}
     assert all(Path(item[0].file_path).exists() for item in by_view.values())
 
 
@@ -369,7 +365,7 @@ async def test_hosted_tent_asset_photo_source_downloads_signed_asset(tmp_path):
 
     def handler(request: httpx.Request) -> httpx.Response:
         requests.append(str(request.url))
-        if request.url.path == "/api/tents/breeding/assets/latest":
+        if request.url.path == "/api/tents/2/assets/latest":
             assert request.headers["cookie"].startswith("dirt_cloud_session=")
             return httpx.Response(
                 200,
@@ -389,14 +385,14 @@ async def test_hosted_tent_asset_photo_source_downloads_signed_asset(tmp_path):
             http=http,
             base_url="https://api.test",
             session_cookie="session-cookie",
-            tent_id="breeding",
+            source_tent_id=2,
         )
         paths = await source.capture_photos(TARGET_DATE, tmp_path)
 
-    assert [path.name for path in paths] == ["breeding-overview.jpg"]
+    assert [path.name for path in paths] == ["tent-2-overview.jpg"]
     assert paths[0].read_bytes() == _tiny_jpeg()
     assert requests == [
-        "https://api.test/api/tents/breeding/assets/latest",
+        "https://api.test/api/tents/2/assets/latest",
         "https://assets.test/breeding.jpg",
     ]
 

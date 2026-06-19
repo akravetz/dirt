@@ -20,9 +20,9 @@ export type LookupRow<TKey extends string> = {
 };
 
 export type LocationOption = {
-  key: string;
+  sourceTentId: number;
   displayName: string;
-  stageKey: PlantStageKey;
+  role: string | null;
 };
 
 export type BreedingLogbookBootstrap = {
@@ -61,8 +61,9 @@ export type PlantRow = {
   vegStartedOn: string | null;
   flowerStartedOn: string | null;
   culledOn: string | null;
-  locationKey: string;
-  locationLabel: string;
+  currentTentId: number;
+  currentTentName: string;
+  gridPosition: string | null;
   seedLotLabel: string;
   lastNote: string;
   telemetrySummary: string;
