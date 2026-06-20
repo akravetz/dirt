@@ -7,7 +7,7 @@ This plan follows `.agents/PLANS.md`.
 
 ## Purpose / Big Picture
 
-After this change, the hosted cloud path will no longer carry the old source-owned text scope identities through storage, gateway payloads, browser responses, generated contracts, or service logic. The local scoped identity cleanup already made local `Tent.id`, `Zone.id`, and `Schedule.id` the source row identities and exposed those values to the hosted control plane as `source_tent_id`, `source_zone_id`, and `source_schedule_id`. The remaining cloud text fields named `tent_id`, `zone_id`, and `schedule_id` are compatibility bridges from the older hosted schema. They duplicate source IDs, appear in several cloud projection tables, and force browser services and gateway contracts to keep translating between integer source identity and old strings such as `"main"`, `"canopy"`, or `"main-lights-photoperiod"`.
+After this change, the hosted cloud path will no longer carry the old source-owned text scope identities through storage, gateway payloads, browser responses, generated contracts, or service logic. The local scoped identity cleanup already made local `Tent.id`, `Zone.id`, and `Schedule.id` the source row identities and exposed those values to the hosted control plane as `source_tent_id`, `source_zone_id`, and `source_schedule_id`. At the start of this plan, the remaining cloud text fields named `tent_id`, `zone_id`, and `schedule_id` were compatibility bridges from the older hosted schema. They duplicated source IDs, appeared in several cloud projection tables, and forced browser services and gateway contracts to keep translating between integer source identity and old strings such as `"main"`, `"canopy"`, or `"main-lights-photoperiod"`.
 
 The user-visible goal is not a new screen. The goal is operational: future hosted control-plane work should read and write source identities without hidden fallback maps, legacy response fields, or storage columns that can drift from the source identity. A human can observe success by running the test suites, regenerating the hosted contract, inspecting generated OpenAPI/TypeScript schemas, and confirming that no active cloud/gateway/browser code refers to legacy text `tent_id`, `zone_id`, or `schedule_id` fields except historical migrations and deliberately out-of-scope local integer foreign keys with those names.
 
@@ -31,10 +31,12 @@ This rollout must be deployable in isolated pieces. Dirt has a local gateway pro
 - [x] (2026-06-20) Milestone 5: stop gateway/control-plane producers from emitting legacy scoped text fields after tolerant consumers are deployed.
 - [x] (2026-06-20) Milestone 6: remove legacy scoped text fields from Pydantic contracts and generated browser contracts after old payloads have drained.
 - [x] (2026-06-20) Milestone 7: drop legacy cloud scoped text storage columns, indexes, constraints, helper functions, and tests that only protect the bridge.
-- [ ] Milestone 8: run final validation, update docs, and record deployment evidence.
+- [x] (2026-06-20) Milestone 8: update final-state documentation, record grep evidence, and correct stale camera-agent test contract usage found by final validation.
 
 
 ## Surprises & Discoveries
+
+Historical observations describe the state at the time they were discovered. The final active state is recorded in `Context and Orientation` and the Milestone 8 outcome.
 
 - Observation: The old text scope fields are not only a command bridge.
   Evidence: `apps/control-plane/src/dirt_control/models/cloud.py` still defines text `tent_id` on `CloudTent`, `CloudZone`, `CloudDevice`, `CloudCapability`, `CloudSchedule`, `CloudPlantLocation`, `CloudLatestMetric`, `CloudMetricRollup`, `CloudAsset`, and `CloudCommand`.
@@ -90,6 +92,9 @@ This rollout must be deployable in isolated pieces. Dirt has a local gateway pro
 - Observation: The plan's broad `breeding-logbook` grep pattern now catches legitimate product routes and query keys.
   Evidence: After the fake `breeding-logbook` command target was removed, `rg "breeding-logbook"` still finds browser routes, hosted API paths, generated route-tree entries, and query keys for the actual breeding logbook feature. Storage-retirement acceptance uses the narrower bridge-symbol grep for fake target/storage evidence instead of renaming product surfaces.
 
+- Observation: Final validation exposed stale camera-agent test fixtures, not production behavior.
+  Evidence: `apps/camera-agent/tests/test_camera_agent.py` still built `CapturePolicyResponse` with removed `tent_id` and asserted the removed `AssetSignUploadRequest.tent_id`; removing those fixture/assertion references made `uv run pytest apps/camera-agent/tests/test_camera_agent.py -q` pass (`8 passed`).
+
 
 ## Decision Log
 
@@ -139,49 +144,31 @@ This rollout must be deployable in isolated pieces. Dirt has a local gateway pro
 - Milestone 5 stopped active producers from serializing legacy scoped text fields while keeping optional DTO compatibility. Gateway catalog, asset, and cloud HTTP/outbox serializers omit legacy catalog and asset scope fields; capture policy and command claim/result responses exclude text `tent_id`; breeding command responses have `target=None` and no fake `breeding-logbook` target. Validation passed: `uv run pytest apps/shared/tests/test_cloud_contract.py apps/shared/tests/test_cloud_assets.py apps/shared/tests/test_camera_publisher.py -q` (`36 passed`), `uv run pytest apps/gateway/tests/test_sync.py apps/gateway/tests/test_cloud_client.py -q` (`41 passed`), `uv run pytest apps/control-plane/tests/test_api.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py -q` (`64 passed`), `uv run ruff check apps/shared/src/dirt_shared apps/gateway/src/dirt_gateway apps/control-plane/src/dirt_control apps/shared/tests apps/gateway/tests apps/control-plane/tests`, and `git diff --check`.
 - Milestone 6 removed legacy scoped text fields from shared gateway DTOs, browser command schemas, generated hosted contracts, and frontend command fixtures. PTZ browser command creation now submits the final `target` shape, `CommandResponse` no longer exposes flat PTZ metadata or `legacy_target_tent_id`, and stale DTO fields are rejected by `extra="forbid"`. The live local outbox had no pending replay candidates with retired keys, and no pending command-result rows; a full historical payload scan was intentionally not used as acceptance evidence after it hit the bounded timeout. Validation passed: `scripts/gen-hosted-contract`, `uv run pytest apps/shared/tests/test_cloud_contract.py apps/shared/tests/test_cloud_assets.py apps/shared/tests/test_camera_publisher.py -q` (`34 passed`), `uv run pytest apps/gateway/tests/test_sync.py apps/gateway/tests/test_cloud_client.py -q` (`41 passed`), `uv run pytest apps/control-plane/tests/test_api.py apps/control-plane/tests/test_asset_store.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py -q` (`69 passed`), `uv run ruff check apps/shared/src/dirt_shared apps/gateway/src/dirt_gateway apps/control-plane/src/dirt_control apps/shared/tests apps/gateway/tests apps/control-plane/tests`, `pnpm --dir web-ui typecheck`, `pnpm --dir web-ui lint`, `pnpm --dir web-ui test` (`3 files, 12 tests passed`), acceptance greps for retired contract fields, and `git diff --check`.
 - Milestone 7 removed source-owned text scope storage from cloud projection SQLModel models and active write/read paths, deleted bridge-only helper functions and display fallbacks, and generated the final cloud storage contraction migrations: `20260620164338_drop_plant_location_current_tent_index.sql`, `20260620164339_cloud_scope_text_storage_retirement.sql`, and `20260620164340_create_plant_location_source_tent_index.sql`. Validation passed: `uv run atlas migrate hash --dir file://cloud/migrations`, `uv run pytest apps/control-plane/tests/test_api.py apps/control-plane/tests/test_asset_store.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py -q` (`69 passed`), `uv run pytest apps/shared/tests/test_cloud_contract.py apps/shared/tests/test_cloud_assets.py apps/shared/tests/test_camera_publisher.py -q` (`34 passed`), `uv run pytest apps/gateway/tests/test_sync.py apps/gateway/tests/test_cloud_client.py -q` (`41 passed`), `uv run ruff check apps/control-plane/src/dirt_control apps/shared/src/dirt_shared apps/gateway/src/dirt_gateway apps/control-plane/tests apps/shared/tests apps/gateway/tests`, storage-bridge acceptance greps, and `git diff --check`.
+- Milestone 8 updated this ExecPlan from transitional/historical wording to the post-Milestone 7 source-only final state, recorded final grep evidence, and corrected stale camera-agent test contract usage. Final validation passed: `uv run atlas migrate hash --dir file://cloud/migrations`, `scripts/gen-hosted-contract`, `uv run pytest -q` (`736 passed, 1 skipped`), `uv run pytest apps/tests/invariants -q` (`51 passed`), `uv run ruff check`, `pnpm --dir web-ui typecheck`, `pnpm --dir web-ui lint`, `pnpm --dir web-ui test` (`3 files, 12 tests passed`), the narrowed bridge-symbol grep over active source plus hosted contract artifacts returned no matches, the generated-contract text-field grep for non-source `tent_id` / `zone_id` / `schedule_id` returned no matches, the old broad grep was confirmed to match only legitimate `breeding-logbook` product routes/query keys, and `git diff --check` passed.
 
 
 ## Context and Orientation
 
 The local scoped identity cleanup is recorded in `docs/epics/scoped-identity-cleanup/ExecPlan.md`. It retired local text identities such as `tent.tent_id`, `zone.zone_id`, and `schedule.schedule_id`, and moved gateway/cloud/browser boundaries to source integer IDs. The source identities in the hosted cloud are `source_tent_id`, `source_zone_id`, and `source_schedule_id`; they are the integer primary keys of local source rows as reported by the gateway.
 
-The hosted control-plane storage model is in `apps/control-plane/src/dirt_control/models/cloud.py`. The relevant current tables are:
+The hosted control-plane storage model is in `apps/control-plane/src/dirt_control/models/cloud.py`. The relevant current tables now use source identity for source-owned scope:
 
-- `CloudTent`: has `source_tent_id` and legacy text `tent_id`.
-- `CloudZone`: has `source_tent_id`, `source_zone_id`, and legacy text `tent_id` / `zone_id`.
-- `CloudDevice`: has `source_tent_id`, `source_zone_id`, and legacy text `tent_id` / `zone_id`.
-- `CloudCapability`: has `source_tent_id` and legacy text `tent_id`.
-- `CloudSchedule`: has `source_tent_id`, `source_zone_id`, `source_schedule_id`, and legacy text `tent_id` / `zone_id` / `schedule_id`.
-- `CloudPlantLocation`: has `source_tent_id` and legacy text `tent_id`.
-- `CloudLatestMetric`: has `source_tent_id`, `source_zone_id`, and legacy text `tent_id` / `zone_id`.
-- `CloudMetricRollup`: has `source_tent_id` and legacy text `tent_id`.
-- `CloudAsset`: has legacy text `tent_id` / `zone_id` and needs source identity added.
-- `CloudCommand`: has `source_tent_id` and legacy text `tent_id`.
+- `CloudTent`: stores `source_tent_id`, name, role, and active state; it has no text `tent_id`.
+- `CloudZone`: stores `source_tent_id` and `source_zone_id`; it has no text `tent_id` / `zone_id`.
+- `CloudDevice`: stores `source_tent_id`, `source_zone_id`, and device identity; it has no text tent/zone scope.
+- `CloudCapability`: stores `source_tent_id` plus device/capability identity; it has no text tent scope.
+- `CloudSchedule`: stores `source_tent_id`, `source_zone_id`, and `source_schedule_id`; it has no text `tent_id` / `zone_id` / `schedule_id`.
+- `CloudPlantLocation`: stores `source_tent_id` for current plant placement; it has no text tent scope.
+- `CloudLatestMetric`: stores `source_tent_id` and `source_zone_id`; it has no text tent/zone scope.
+- `CloudMetricRollup`: stores `source_tent_id`; it has no text tent scope.
+- `CloudAsset`: stores `source_tent_id` and `source_zone_id`; it has no text `tent_id` / `zone_id`.
+- `CloudCommand`: stores lifecycle fields and nullable PTZ hardware target columns (`source_tent_id`, `device_id`, `capability_id`) only for commands that address hardware. Breeding commands do not invent a command-level tent target.
 
 `CloudSite.site_id` remains in scope as the hosted site/tenant string for this plan. `source_site_id` may continue to be stored and projected as source identity, but replacing cloud `site_id` is deferred.
 
-The shared gateway protocol is in `apps/shared/src/dirt_shared/cloud_contract.py`. Current legacy scoped text fields include:
+The shared gateway protocol is in `apps/shared/src/dirt_shared/cloud_contract.py`. Final gateway DTOs carry source identity only: catalog messages use `source_tent_id`, `source_zone_id`, and `source_schedule_id`; asset requests use `source_tent_id` / `source_zone_id` where scope is needed; capture policy responses use `source_tent_id` and `tent_name`; command claim/result DTOs have no text `tent_id`.
 
-- `CatalogTent.legacy_tent_id`, a gateway-to-control-plane catalog request field.
-- `CatalogZone.legacy_zone_id`, a gateway-to-control-plane catalog request field.
-- `CatalogSchedule.legacy_schedule_id`, a gateway-to-control-plane catalog request field.
-- `AssetSignUploadRequest.tent_id`, `AssetCompleteRequest.tent_id`, `AssetCompleteRequest.zone_id`, and `AssetFailureRequest.tent_id`, gateway-to-control-plane asset request fields.
-- `CapturePolicyResponse.tent_id`, a control-plane-to-gateway response field.
-- `ClaimedCommand.tent_id`, inherited by `CommandResultResponse`, a control-plane-to-gateway command response field.
-
-The command contract should be read as lifecycle plus action, not as "a tent command". The current shape forces every claimed command to carry a text tent:
-
-    class ClaimedCommand(CloudContractModel):
-        command_id: str
-        site_id: str
-        tent_id: str
-        source_tent_id: int | None
-        device_id: str | None
-        capability_id: str | None
-        command_type: CommandType
-        payload: PtzCommandPayload | BreedingCommandPayload
-
-The final shape should keep lifecycle fields at top level and move physical addressing into an optional target. PTZ commands get a target; breeding commands normally do not.
+The command contract is now lifecycle plus action, not "a tent command". Lifecycle fields stay at top level and physical addressing lives in an optional target. PTZ commands get a target; breeding commands normally do not.
 
     class PtzCommandTarget(CloudContractModel):
         kind: Literal["ptz"]
@@ -211,20 +198,20 @@ A breeding payload that has no tent should not carry one:
         plant_keys: list[str]
         sex_key: PlantSexKey
 
-The local gateway producer is `apps/gateway/src/dirt_gateway/local.py`. It currently sends `legacy_tent_id=str(tent.tent_pk)`, `legacy_zone_id=str(zone.id)`, and `legacy_schedule_id=str(schedule.id)` in catalog payloads, and `tent_id=str(tent.tent_pk)` / `zone_id=str(zone_pk)` in local snapshot asset payloads. Camera upload policy helpers in `apps/shared/src/dirt_shared/services/camera_publisher.py` still pass text `tent_id` through capture policy responses.
+The local gateway producer is `apps/gateway/src/dirt_gateway/local.py`. It sends source IDs in catalog, metric, rollup, plant, and asset payloads and no longer emits legacy catalog or asset scope fields. Camera upload policy helpers in `apps/shared/src/dirt_shared/services/camera_publisher.py` pass source scope only.
 
-The hosted gateway receiver is `apps/control-plane/src/dirt_control/api/gateway.py`. It currently builds `legacy_tent_ids` and `legacy_zone_ids`, writes legacy `tent_id`, `zone_id`, and `schedule_id` into cloud projection tables, resolves legacy text values with `_legacy_tent_id_from_projection()` and `_legacy_zone_id_from_projection()`, and stores assets by text `tent_id`.
+The hosted gateway receiver is `apps/control-plane/src/dirt_control/api/gateway.py`. It writes source IDs into cloud projection tables, resolves asset scope with source identity, and returns source-only command and capture-policy responses. Legacy helper functions such as `_legacy_tent_id_from_projection()` and `_asset_storage_tent_id()` are gone.
 
-Browser-facing services now live under `apps/control-plane/src/dirt_control/services/`. Legacy text scope reads and command bridges remain in:
+Browser-facing services now live under `apps/control-plane/src/dirt_control/services/` and use source identity:
 
-- `browser_assets.py`, which looks up `CloudAsset` rows through `CloudAsset.tent_id == tent.tent_id`.
-- `browser_health.py`, which joins `CloudLatestMetric` to `CloudDevice` through text `tent_id` and logs it in audit metadata.
-- `browser_commands.py`, which maps `source_tent_id` to legacy text, exposes `legacy_target_tent_id`, and stores the fake `breeding-logbook` tent for site-wide breeding commands.
-- `browser_tents.py`, where `tent_display_name()` falls back to `CloudPlantLocation.tent_id` for old rows.
+- `browser_assets.py` queries `CloudAsset.source_tent_id`.
+- `browser_health.py` joins `CloudLatestMetric` to `CloudDevice` through source tent identity and logs `source_tent_id`.
+- `browser_commands.py` exposes PTZ target data through the optional target shape and leaves breeding command targets unset.
+- `browser_tents.py` displays tent names from `CloudTent.name` and falls back to a source-ID label when needed.
 
 The browser OpenAPI/TypeScript contract is generated by `scripts/gen-hosted-contract`, which writes `contracts/hosted-browser-v1.json` and `web-ui/src/api-client/generated/hosted-schema.ts`. Do not hand-edit generated files.
 
-After the browser UI refactor, handwritten browser command usage is concentrated in two areas. `web-ui/src/routes/live.tsx` is the PTZ command producer for the live camera screen and currently submits flat command target fields from generated `CommandCreateRequest`. `web-ui/src/features/breeding-logbook/breedingLogbookMutations.ts` and `web-ui/src/features/breeding-logbook/breedingLogbookQueries.test.ts` consume generated `CommandResponse` for pending command tracking; they should continue to use command lifecycle/status fields and should not depend on legacy tent targeting.
+After the browser UI refactor, handwritten browser command usage is concentrated in two areas. `web-ui/src/routes/live.tsx` is the PTZ command producer for the live camera screen and submits the final `target` shape from generated `CommandCreateRequest`. `web-ui/src/features/breeding-logbook/breedingLogbookMutations.ts` and `web-ui/src/features/breeding-logbook/breedingLogbookQueries.test.ts` consume generated `CommandResponse` for pending command tracking through command lifecycle/status fields and do not depend on legacy tent targeting.
 
 
 ## Plan of Work
@@ -386,11 +373,25 @@ Milestone 7 is accepted when cloud SQLModel storage no longer has old text scope
 - New source-based constraints replace old `site_id, tent_id, zone_id, schedule_id, ...` constraints where those text fields were source-owned bridges.
 - `cloud/migrations/` contains the final drop migration and `atlas migrate hash --dir file://cloud/migrations` passes.
 
-The final acceptance grep must allow local integer FK names and historical migrations, but not active legacy cloud text bridges. A useful final check is:
+Milestone 8 final evidence must allow local integer FK names, hosted `site_id`, historical migrations, and legitimate breeding logbook product routes, but not active legacy cloud text bridges. The old broad pattern is still useful for review, but it includes `breeding-logbook` and therefore is not expected to be empty anymore:
 
     rg -n "legacy_(tent|zone|schedule)_id|legacy_target_tent_id|BREEDING_SITE_WIDE_TENT_ID|breeding-logbook|Temporary cloud.*(tent|scope)|_legacy_(tent|zone)_id|_asset_storage_tent_id|tent_display_name|CloudAsset\\.(tent_id|zone_id)|CloudLatestMetric\\.(tent_id|zone_id)|CloudCommand\\.tent_id|CloudSchedule\\.(tent_id|zone_id|schedule_id)" apps/control-plane/src apps/shared/src apps/gateway/src apps/hwd/src web-ui/src --glob '!api-client/generated/**'
 
-Expected result at completion:
+Expected broad-pattern result at completion: matches may remain for the real `breeding-logbook` product route, hosted API paths, route-tree entries, and query keys only. They are not evidence of the retired fake command target.
+
+The narrowed storage/contract bridge grep is the final no-match acceptance check:
+
+    rg -n "legacy_(tent|zone|schedule)_id|legacy_target_tent_id|BREEDING_SITE_WIDE_TENT_ID|Temporary cloud.*(tent|scope)|_legacy_(tent|zone)_id|_asset_storage_tent_id|tent_display_name|CloudAsset\\.(tent_id|zone_id)|CloudLatestMetric\\.(tent_id|zone_id)|CloudCommand\\.tent_id|CloudSchedule\\.(tent_id|zone_id|schedule_id)" apps/control-plane/src apps/shared/src apps/gateway/src apps/hwd/src web-ui/src contracts/hosted-browser-v1.json web-ui/src/api-client/generated/hosted-schema.ts
+
+Expected narrowed result:
+
+    no matches
+
+Generated gateway/browser contract artifacts should also have no non-source text scoped field names:
+
+    rg -n -P "(?<!source_)(?<!legacy_)\\b(tent_id|zone_id|schedule_id)\\b" apps/shared/src/dirt_shared/cloud_contract.py contracts/hosted-browser-v1.json web-ui/src/api-client/generated/hosted-schema.ts
+
+Expected generated-contract field-name result:
 
     no matches
 
@@ -417,7 +418,7 @@ For cloud database migrations, do not run destructive `atlas migrate apply --env
 
 ## Artifacts and Notes
 
-Initial active-source audit on 2026-06-19 found these important references. Current line references were refreshed on 2026-06-20:
+Initial active-source audit on 2026-06-19 found these important references. These are historical references to retired bridge code; line references were refreshed during planning on 2026-06-20 and should not be read as current active-source locations after Milestone 7:
 
     apps/shared/src/dirt_shared/cloud_contract.py:70: CatalogTent.legacy_tent_id
     apps/shared/src/dirt_shared/cloud_contract.py:79: CatalogZone.legacy_zone_id
@@ -438,7 +439,7 @@ Initial active-source audit on 2026-06-19 found these important references. Curr
     apps/control-plane/src/dirt_control/api/gateway.py:1218: _asset_storage_tent_id(...)
     apps/hwd/src/dirt_hwd/services/metric_freshness.py:147: scope.get("tent_id")
 
-Browser UI refactor audit on 2026-06-20 found these additional generated-contract touchpoints:
+Browser UI refactor audit on 2026-06-20 found these additional generated-contract touchpoints. They are historical touchpoints that Milestones 6 and 7 moved to the final target/source-ID shape:
 
     web-ui/src/routes/live.tsx:19: HostedCommandCreate = hostedComponents["schemas"]["CommandCreateRequest"]
     web-ui/src/routes/live.tsx:120: commandMutation.mutate({ source_tent_id, device_id, capability_id, ... })
@@ -500,3 +501,4 @@ External services and tools:
 - 2026-06-19: Scope broadened after review to include legacy text `zone_id` and `schedule_id`; cloud `site_id` remains out of scope because it is tied to hosted auth/tenant scoping.
 - 2026-06-19: Command-contract decision added: keep the shared command queue, remove required tent targeting, model PTZ as an optional hardware target, and remove the fake `breeding-logbook` tent from breeding commands.
 - 2026-06-20: Refreshed plan after the browser UI refactor review. Added `/live` and breeding logbook generated-command consumers as explicit touchpoints, included `apps/hwd/src` in the first inventory grep, and updated the current audit line references.
+- 2026-06-20: Milestone 8 updated the plan to the final source-only state, recorded narrowed grep evidence instead of treating real `breeding-logbook` product routes as failures, and corrected stale camera-agent test contract usage found by final validation.

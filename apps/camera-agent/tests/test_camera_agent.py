@@ -116,7 +116,6 @@ class FakePolicyClient:
             site_id="homebox",
             source_site_id=1,
             source_tent_id=2,
-            tent_id="breeding",
             tent_name="Breeding Tent",
             camera_device_id=camera_device_id,
             enabled=True,
@@ -244,7 +243,6 @@ async def test_capture_upload_uses_source_tent_from_hosted_policy(
 
     assert result is not None
     assert client.sign_requests[0].source_tent_id == 2
-    assert client.sign_requests[0].tent_id is None
     assert client.complete_requests[0].source_tent_id == 2
 
 
@@ -258,7 +256,6 @@ def test_payload_builder_uses_camera_device_identity(tmp_path: Path) -> None:
     digest = hashlib.sha256(JPEG_BYTES).hexdigest()
     assert payload.sign_request.site_id == "homebox"
     assert payload.sign_request.source_tent_id is None
-    assert payload.sign_request.tent_id is None
     assert payload.sign_request.object_key.endswith(
         "/obsbot-breeding/snapshots/2026/05/snapshot_20260511_123045.jpg"
     )
