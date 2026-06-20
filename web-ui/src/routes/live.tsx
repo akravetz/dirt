@@ -118,9 +118,12 @@ function HostedLivePage() {
     payload: Record<string, unknown>,
   ) => {
     commandMutation.mutate({
-      source_tent_id: HOSTED_TENT_ID,
-      device_id: HOSTED_DEVICE_ID,
-      capability_id: HOSTED_CAPABILITY_ID,
+      target: {
+        kind: "ptz",
+        source_tent_id: HOSTED_TENT_ID,
+        device_id: HOSTED_DEVICE_ID,
+        capability_id: HOSTED_CAPABILITY_ID,
+      },
       command_type,
       payload,
     });

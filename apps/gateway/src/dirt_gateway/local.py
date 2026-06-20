@@ -257,7 +257,7 @@ class GatewayLocalServiceBundle:
                 kind=snapshot.kind,
             )
             complete_request = AssetCompleteRequest(
-                **sign_request.model_dump(exclude={"tent_id"}),
+                **sign_request.model_dump(),
                 captured_at=_as_utc(snapshot.ts),
                 source_zone_id=snapshot.zone_id,
                 device_id=await self._public_device_id(snapshot),

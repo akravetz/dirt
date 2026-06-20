@@ -156,7 +156,6 @@ async def test_local_asset_store_is_used_for_gateway_sign_upload(
             json={
                 "site_id": "homebox",
                 "source_tent_id": 1,
-                "tent_id": "main",
                 "asset_id": "asset-1",
                 "object_key": "tents/1/asset-1.jpg",
                 "content_type": "image/jpeg",

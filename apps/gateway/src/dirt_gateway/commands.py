@@ -376,11 +376,7 @@ class GatewayCommandService:
         if item.site_id != self._config.site_id:
             return "command site scope does not match this gateway"
         if _is_breeding_command(item):
-            if (
-                item.target is not None
-                or item.device_id is not None
-                or item.capability_id is not None
-            ):
+            if item.target is not None:
                 return "breeding commands must not include PTZ device targets"
             return None
         target = _ptz_target(item)
@@ -468,24 +464,7 @@ def _local_capability_id(item: ClaimedCommand) -> str | None:
 
 
 def _ptz_target(item: ClaimedCommand) -> PtzCommandTarget | None:
-    if item.target is not None:
-        return item.target
-    if (
-        item.source_tent_id is None
-        or item.device_id is None
-        or item.capability_id is None
-    ):
-        return None
-    if item.device_id != LOCAL_PTZ_DEVICE_ID:
-        return None
-    if item.capability_id != LOCAL_PTZ_CAPABILITY_ID:
-        return None
-    return PtzCommandTarget(
-        kind="ptz",
-        source_tent_id=item.source_tent_id,
-        device_id=LOCAL_PTZ_DEVICE_ID,
-        capability_id=LOCAL_PTZ_CAPABILITY_ID,
-    )
+    return item.target
 
 
 def _is_ptz_command(item: ClaimedCommand) -> bool:

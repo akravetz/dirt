@@ -105,7 +105,6 @@ def test_catalog_scope_dtos_require_source_ids_and_reject_retired_id_fields() ->
             "source_tent_id": 2,
             "name": "Breeding",
             "role": "breeding",
-            "legacy_tent_id": "breeding",
         }
     )
     zone = CatalogZone.model_validate(
@@ -114,7 +113,6 @@ def test_catalog_scope_dtos_require_source_ids_and_reject_retired_id_fields() ->
             "source_zone_id": 10,
             "name": "Canopy",
             "kind": "environment",
-            "legacy_zone_id": "canopy",
         }
     )
     schedule = CatalogSchedule.model_validate(
@@ -125,7 +123,6 @@ def test_catalog_scope_dtos_require_source_ids_and_reject_retired_id_fields() ->
             "source_zone_id": zone.source_zone_id,
             "device_id": "kasa-breeding-lights",
             "capability_id": None,
-            "legacy_schedule_id": "breeding-lights-photoperiod",
             "starts_local": "06:00:00",
             "ends_local": "18:00:00",
         }
@@ -136,8 +133,23 @@ def test_catalog_scope_dtos_require_source_ids_and_reject_retired_id_fields() ->
     assert schedule.source_schedule_id == 4
 
     stale_payloads = (
+        (
+            CatalogTent,
+            {**tent.model_dump(mode="json"), "legacy_tent_id": "breeding"},
+        ),
         (CatalogTent, {**tent.model_dump(mode="json"), "tent_id": "breeding"}),
+        (
+            CatalogZone,
+            {**zone.model_dump(mode="json"), "legacy_zone_id": "canopy"},
+        ),
         (CatalogZone, {**zone.model_dump(mode="json"), "zone_id": "canopy"}),
+        (
+            CatalogSchedule,
+            {
+                **schedule.model_dump(mode="json"),
+                "legacy_schedule_id": "breeding-lights-photoperiod",
+            },
+        ),
         (
             CatalogSchedule,
             {
@@ -150,62 +162,6 @@ def test_catalog_scope_dtos_require_source_ids_and_reject_retired_id_fields() ->
         with pytest.raises(ValidationError) as exc_info:
             model.model_validate(payload)
         assert exc_info.value.errors()[0]["type"] == "extra_forbidden"
-
-
-def test_catalog_legacy_scope_fields_are_optional_during_bridge_retirement() -> None:
-    tent = CatalogTent.model_validate(
-        {
-            "source_tent_id": 2,
-            "name": "Breeding",
-            "role": "breeding",
-        }
-    )
-    zone = CatalogZone.model_validate(
-        {
-            "source_tent_id": tent.source_tent_id,
-            "source_zone_id": 10,
-            "name": "Canopy",
-            "kind": "environment",
-        }
-    )
-    schedule = CatalogSchedule.model_validate(
-        {
-            "source_site_id": 1,
-            "source_tent_id": tent.source_tent_id,
-            "source_schedule_id": 4,
-            "source_zone_id": zone.source_zone_id,
-            "device_id": "kasa-breeding-lights",
-            "capability_id": None,
-            "starts_local": "06:00:00",
-            "ends_local": "18:00:00",
-        }
-    )
-
-    assert tent.legacy_tent_id is None
-    assert zone.legacy_zone_id is None
-    assert schedule.legacy_schedule_id is None
-
-
-def test_legacy_cloud_contract_fields_are_deprecated_in_schema() -> None:
-    schema_fields = (
-        (CatalogTent, ("legacy_tent_id",)),
-        (CatalogZone, ("legacy_zone_id",)),
-        (CatalogSchedule, ("legacy_schedule_id",)),
-        (AssetSignUploadRequest, ("tent_id",)),
-        (AssetCompleteRequest, ("tent_id", "zone_id")),
-        (AssetFailureRequest, ("tent_id",)),
-        (CapturePolicyResponse, ("tent_id",)),
-        (ClaimedCommand, ("tent_id", "source_tent_id", "device_id", "capability_id")),
-        (
-            CommandResultResponse,
-            ("tent_id", "source_tent_id", "device_id", "capability_id"),
-        ),
-    )
-
-    for model, field_names in schema_fields:
-        properties = model.model_json_schema()["properties"]
-        for field_name in field_names:
-            assert properties[field_name]["deprecated"] is True
 
 
 def test_catalog_plant_requires_nullable_wire_fields() -> None:
@@ -497,7 +453,7 @@ def test_asset_retention_request_matches_gateway_projection_shape() -> None:
     }
 
 
-def test_asset_request_legacy_scope_fields_are_optional() -> None:
+def test_asset_request_retired_scope_fields_are_rejected() -> None:
     sign_payload = {
         "site_id": "homebox",
         "source_tent_id": 2,
@@ -517,30 +473,23 @@ def test_asset_request_legacy_scope_fields_are_optional() -> None:
         "source_tent_id": 2,
     }
 
-    assert AssetSignUploadRequest.model_validate(sign_payload).tent_id is None
-    assert (
-        AssetSignUploadRequest.model_validate(
-            {**sign_payload, "tent_id": "breeding"}
-        ).tent_id
-        == "breeding"
+    assert AssetSignUploadRequest.model_validate(sign_payload).source_tent_id == 2
+    assert AssetCompleteRequest.model_validate(complete_payload).source_zone_id == 10
+    assert AssetFailureRequest.model_validate(failure_payload).source_tent_id == 2
+
+    stale_payloads = (
+        (AssetSignUploadRequest, {**sign_payload, "tent_id": "breeding"}),
+        (AssetCompleteRequest, {**complete_payload, "tent_id": "breeding"}),
+        (AssetCompleteRequest, {**complete_payload, "zone_id": "canopy"}),
+        (AssetFailureRequest, {**failure_payload, "tent_id": "breeding"}),
     )
-    assert AssetCompleteRequest.model_validate(complete_payload).zone_id is None
-    assert (
-        AssetCompleteRequest.model_validate(
-            {**complete_payload, "zone_id": "canopy"}
-        ).zone_id
-        == "canopy"
-    )
-    assert AssetFailureRequest.model_validate(failure_payload).tent_id is None
-    assert (
-        AssetFailureRequest.model_validate(
-            {**failure_payload, "tent_id": "breeding"}
-        ).tent_id
-        == "breeding"
-    )
+    for model, payload in stale_payloads:
+        with pytest.raises(ValidationError) as exc_info:
+            model.model_validate(payload)
+        assert exc_info.value.errors()[0]["type"] == "extra_forbidden"
 
 
-def test_capture_policy_legacy_tent_id_is_optional() -> None:
+def test_capture_policy_retired_tent_id_is_rejected() -> None:
     payload = {
         "site_id": "homebox",
         "source_site_id": 1,
@@ -556,21 +505,22 @@ def test_capture_policy_legacy_tent_id_is_optional() -> None:
         "reason": None,
     }
 
-    assert CapturePolicyResponse.model_validate(payload).tent_id is None
-    assert (
-        CapturePolicyResponse.model_validate({**payload, "tent_id": "breeding"}).tent_id
-        == "breeding"
-    )
+    assert CapturePolicyResponse.model_validate(payload).source_tent_id == 2
+    with pytest.raises(ValidationError) as exc_info:
+        CapturePolicyResponse.model_validate({**payload, "tent_id": "breeding"})
+    assert exc_info.value.errors()[0]["type"] == "extra_forbidden"
 
 
 def test_command_claim_response_requires_nullable_wire_keys() -> None:
     command = {
         "command_id": "cmd_1",
         "site_id": "homebox",
-        "source_tent_id": 1,
-        "tent_id": "main",
-        "device_id": None,
-        "capability_id": None,
+        "target": {
+            "kind": "ptz",
+            "source_tent_id": 1,
+            "device_id": "obsbot-main",
+            "capability_id": "ptz_move",
+        },
         "command_type": "ptz_zoom",
         "payload": {"zoom": 1.2},
         "status": "claimed",
@@ -596,44 +546,36 @@ def test_command_claim_response_requires_nullable_wire_keys() -> None:
     assert exc_info.value.errors()[0]["type"] == "missing"
 
 
-def test_claimed_command_and_result_response_accept_missing_legacy_tent_id() -> None:
+def test_claimed_command_and_result_response_reject_retired_command_fields() -> None:
     command = _command_payload(
         command_type="ptz_preset",
         payload={"preset_id": "overview"},
     )
-    no_legacy_tent = dict(command)
-    del no_legacy_tent["tent_id"]
     result = {
         **command,
         "status": "succeeded",
         "finished_at": "2026-05-09T12:00:30Z",
         "result": {"ok": True},
     }
-    result_no_legacy_tent = dict(result)
-    del result_no_legacy_tent["tent_id"]
 
-    assert ClaimedCommand.model_validate(command).tent_id == "main"
-    assert ClaimedCommand.model_validate(no_legacy_tent).tent_id is None
-    assert CommandResultResponse.model_validate(result).tent_id == "main"
-    assert CommandResultResponse.model_validate(result_no_legacy_tent).tent_id is None
+    for field_name, value in (
+        ("tent_id", "main"),
+        ("source_tent_id", 1),
+        ("device_id", "obsbot-main"),
+        ("capability_id", "ptz_move"),
+    ):
+        with pytest.raises(ValidationError) as claimed_exc:
+            ClaimedCommand.model_validate({**command, field_name: value})
+        assert claimed_exc.value.errors()[0]["type"] == "extra_forbidden"
+        with pytest.raises(ValidationError) as result_exc:
+            CommandResultResponse.model_validate({**result, field_name: value})
+        assert result_exc.value.errors()[0]["type"] == "extra_forbidden"
 
 
 def test_claimed_command_accepts_ptz_target_shape() -> None:
     command = _command_payload(
         command_type="ptz_preset",
         payload={"preset_id": "overview"},
-    )
-    for field_name in ("tent_id", "source_tent_id", "device_id", "capability_id"):
-        del command[field_name]
-    command.update(
-        {
-            "target": {
-                "kind": "ptz",
-                "source_tent_id": 1,
-                "device_id": "obsbot-main",
-                "capability_id": "ptz_move",
-            },
-        }
     )
 
     claimed = ClaimedCommand.model_validate(command)
@@ -648,13 +590,10 @@ def test_claimed_command_accepts_breeding_command_without_target() -> None:
         command_type="breeding_plants_bulk_sex",
         payload={"plant_keys": ["SBBS-R1-001"], "sex_key": "female"},
     )
-    for field_name in ("tent_id", "source_tent_id", "device_id", "capability_id"):
-        del command[field_name]
     command["target"] = None
 
     claimed = ClaimedCommand.model_validate(command)
 
-    assert claimed.tent_id is None
     assert claimed.target is None
     assert isinstance(claimed.payload, BreedingBulkSexPayload)
 
@@ -874,13 +813,18 @@ def test_breeding_seed_lot_payload_validates_source_specific_fields() -> None:
 def _command_payload(
     *, command_type: str, payload: dict[str, object]
 ) -> dict[str, object]:
+    target = None
+    if command_type.startswith("ptz_"):
+        target = {
+            "kind": "ptz",
+            "source_tent_id": 1,
+            "device_id": "obsbot-main",
+            "capability_id": "ptz_move",
+        }
     return {
         "command_id": f"cmd_{command_type}",
         "site_id": "homebox",
-        "source_tent_id": 1,
-        "tent_id": "main",
-        "device_id": "obsbot-main",
-        "capability_id": "ptz_move",
+        "target": target,
         "command_type": command_type,
         "payload": payload,
         "status": "claimed",

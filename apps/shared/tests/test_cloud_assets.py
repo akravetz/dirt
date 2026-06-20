@@ -111,7 +111,7 @@ def _payload(asset_file: Path) -> AssetUploadRequest:
     return AssetUploadRequest(
         sign_request=sign_request,
         complete_request=AssetCompleteRequest(
-            **sign_request.model_dump(exclude={"tent_id"}),
+            **sign_request.model_dump(),
             captured_at=FIXED_NOW,
             source_zone_id=None,
             device_id="obsbot-breeding",
@@ -204,7 +204,7 @@ async def test_asset_uploader_swallow_failure_report_error_with_hook(
     assert hook_calls == [(payload, "asset-key", "failure report failed")]
 
 
-async def test_http_asset_client_omits_legacy_scope_fields() -> None:
+async def test_http_asset_client_sends_final_scope_fields() -> None:
     seen: dict[str, dict[str, object]] = {}
 
     async def handler(request: httpx.Request) -> httpx.Response:
@@ -253,7 +253,6 @@ async def test_http_asset_client_omits_legacy_scope_fields() -> None:
         sign_request = AssetSignUploadRequest(
             site_id="homebox",
             source_tent_id=2,
-            tent_id="breeding",
             content_type="image/jpeg",
             byte_size=10,
             object_key="cameras/obsbot-breeding/snapshot.jpg",
@@ -266,7 +265,6 @@ async def test_http_asset_client_omits_legacy_scope_fields() -> None:
                 **sign_request.model_dump(),
                 captured_at=FIXED_NOW,
                 source_zone_id=20,
-                zone_id="canopy",
                 device_id="obsbot-breeding",
             ),
             idempotency_key="asset-key:complete",
@@ -275,7 +273,6 @@ async def test_http_asset_client_omits_legacy_scope_fields() -> None:
             AssetFailureRequest(
                 site_id="homebox",
                 source_tent_id=2,
-                tent_id="breeding",
                 asset_id="asset-1",
                 object_key="cameras/obsbot-breeding/snapshot.jpg",
                 stage="upload",

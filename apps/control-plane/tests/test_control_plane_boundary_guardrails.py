@@ -179,10 +179,12 @@ def test_gateway_catalog_rejects_omitted_device_liveness() -> None:
     with pytest.raises(ValidationError):
         CatalogRequest.model_validate(
             {
-                "site": {"site_id": "homebox", "name": "Homebox"},
+                "site_id": "homebox",
+                "site": {"source_site_id": 1, "name": "Homebox"},
                 "devices": [
                     {
-                        "tent_id": "main",
+                        "source_tent_id": 1,
+                        "source_zone_id": None,
                         "device_id": "env-main",
                         "name": "Env Main",
                     }

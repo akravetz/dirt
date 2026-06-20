@@ -67,11 +67,6 @@ class CatalogTent(CloudContractModel):
     source_tent_id: int
     name: str
     role: str
-    legacy_tent_id: str | None = Field(
-        default=None,
-        json_schema_extra={"deprecated": True},
-        description="Deprecated transition field for legacy cloud text tent identity.",
-    )
     is_active: bool = True
 
 
@@ -80,11 +75,6 @@ class CatalogZone(CloudContractModel):
     source_zone_id: int
     name: str
     kind: str = "environment"
-    legacy_zone_id: str | None = Field(
-        default=None,
-        json_schema_extra={"deprecated": True},
-        description="Deprecated transition field for legacy cloud text zone identity.",
-    )
     is_active: bool = True
 
 
@@ -119,13 +109,6 @@ class CatalogSchedule(CloudContractModel):
     device_id: str | None = None
     capability_id: str | None = None
     kind: str = "lights"
-    legacy_schedule_id: str | None = Field(
-        default=None,
-        json_schema_extra={"deprecated": True},
-        description=(
-            "Deprecated transition field for legacy cloud text schedule identity."
-        ),
-    )
     timezone: str = "America/Denver"
     is_enabled: bool = True
 
@@ -330,12 +313,6 @@ class WikiProjectionResponse(CloudContractModel):
 class AssetSignUploadRequest(CloudContractModel):
     site_id: str
     source_tent_id: int | None = Field(...)
-    # Temporary cloud asset bridge for object paths/browser compatibility.
-    tent_id: str | None = Field(
-        default=None,
-        json_schema_extra={"deprecated": True},
-        description="Deprecated transition field for legacy cloud text tent identity.",
-    )
     content_type: str
     byte_size: int = Field(gt=0)
     object_key: str
@@ -357,12 +334,6 @@ class SignUploadResponse(CloudContractModel):
 class AssetCompleteRequest(AssetSignUploadRequest):
     captured_at: datetime
     source_zone_id: int | None = Field(...)
-    # Temporary cloud asset bridge for object paths/browser compatibility.
-    zone_id: str | None = Field(
-        default=None,
-        json_schema_extra={"deprecated": True},
-        description="Deprecated transition field for legacy cloud text zone identity.",
-    )
     device_id: str | None = None
 
 
@@ -377,11 +348,6 @@ class AssetFailureRequest(CloudContractModel):
     stage: str = Field(max_length=80)
     error: str = Field(max_length=500)
     source_tent_id: int | None = Field(default=None)
-    tent_id: str | None = Field(
-        default=None,
-        json_schema_extra={"deprecated": True},
-        description="Deprecated transition field for legacy cloud text tent identity.",
-    )
     asset_id: str | None = None
     object_key: str | None = None
 
@@ -395,11 +361,6 @@ class CapturePolicyResponse(CloudContractModel):
     site_id: str
     source_site_id: int | None = Field(...)
     source_tent_id: int | None = Field(...)
-    tent_id: str | None = Field(
-        default=None,
-        json_schema_extra={"deprecated": True},
-        description="Deprecated transition field for legacy cloud text tent identity.",
-    )
     tent_name: str | None = Field(...)
     camera_device_id: str
     enabled: bool
@@ -625,27 +586,6 @@ BreedingCommandPayload: TypeAlias = (
 class ClaimedCommand(CloudContractModel):
     command_id: str
     site_id: str
-    # Temporary cloud command bridge; source_tent_id is the local identity.
-    tent_id: str | None = Field(
-        default=None,
-        json_schema_extra={"deprecated": True},
-        description="Deprecated transition field for legacy cloud text command scope.",
-    )
-    source_tent_id: int | None = Field(
-        default=None,
-        json_schema_extra={"deprecated": True},
-        description="Deprecated flat PTZ target field; use target.source_tent_id.",
-    )
-    device_id: str | None = Field(
-        default=None,
-        json_schema_extra={"deprecated": True},
-        description="Deprecated flat PTZ target field; use target.device_id.",
-    )
-    capability_id: str | None = Field(
-        default=None,
-        json_schema_extra={"deprecated": True},
-        description="Deprecated flat PTZ target field; use target.capability_id.",
-    )
     command_type: CommandType
     target: CommandTarget | None = None
     payload: PtzCommandPayload | BreedingCommandPayload

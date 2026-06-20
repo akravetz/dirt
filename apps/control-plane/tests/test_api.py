@@ -590,7 +590,6 @@ async def test_catalog_upsert_is_idempotent(
                 "source_tent_id": 1,
                 "name": "Main",
                 "role": "flower",
-                "legacy_tent_id": "main",
             }
         ],
         "zones": [
@@ -598,7 +597,6 @@ async def test_catalog_upsert_is_idempotent(
                 "source_tent_id": 1,
                 "source_zone_id": 10,
                 "name": "Canopy",
-                "legacy_zone_id": "canopy",
             }
         ],
         "devices": [
@@ -641,7 +639,6 @@ async def test_catalog_upsert_is_idempotent(
                 "source_schedule_id": 100,
                 "device_id": "env-main",
                 "capability_id": "env-main-temp",
-                "legacy_schedule_id": "main-lights-photoperiod",
                 "kind": "lights",
                 "starts_local": "09:00:00",
                 "ends_local": "21:00:00",
@@ -877,7 +874,7 @@ async def test_catalog_upsert_is_idempotent(
                 select(CloudPlantLocation).where(
                     CloudPlantLocation.site_id == "homebox",
                     CloudPlantLocation.source_plant_id == 1,
-                    CloudPlantLocation.tent_id == "main",
+                    CloudPlantLocation.tent_id == "1",
                     CloudPlantLocation.grid_position == "A1",
                 )
             )
@@ -887,7 +884,7 @@ async def test_catalog_upsert_is_idempotent(
                 select(CloudPlantLocation).where(
                     CloudPlantLocation.site_id == "homebox",
                     CloudPlantLocation.source_plant_id == 2,
-                    CloudPlantLocation.tent_id == "main",
+                    CloudPlantLocation.tent_id == "1",
                     CloudPlantLocation.grid_position.is_(None),
                 )
             )
@@ -941,15 +938,15 @@ async def test_catalog_upsert_is_idempotent(
     assert event_count == 1
     assert stream_count == 1
     assert tent is not None
-    assert tent.tent_id == "main"
+    assert tent.tent_id == "1"
     assert tent.role == "flower"
     assert zone is not None
     assert zone.source_tent_id == 1
-    assert zone.zone_id == "canopy"
+    assert zone.zone_id == "10"
     assert schedule is not None
     assert schedule.source_tent_id == 1
     assert schedule.source_zone_id == 10
-    assert schedule.schedule_id == "main-lights-photoperiod"
+    assert schedule.schedule_id == "100"
     assert plant_a is not None
     assert plant_a.key == "SBBS-R1-001"
     assert plant_a.line_source_id == 1
@@ -975,7 +972,7 @@ async def test_catalog_upsert_is_idempotent(
     assert plant_a_stream.is_active is True
 
 
-async def test_catalog_upsert_accepts_missing_legacy_scope_fields(
+async def test_catalog_upsert_derives_storage_scope_from_source_ids(
     client: AsyncClient,
     gateway_headers: dict[str, str],
     cloud_engine: AsyncEngine,
@@ -1121,7 +1118,6 @@ async def test_gateway_camera_capture_policy_matches_camera_to_lights_by_tent(
                 "source_tent_id": 2,
                 "name": "Breeding",
                 "role": "breeding",
-                "legacy_tent_id": "breeding",
             }
         ],
         "zones": [
@@ -1129,13 +1125,11 @@ async def test_gateway_camera_capture_policy_matches_camera_to_lights_by_tent(
                 "source_tent_id": 2,
                 "source_zone_id": 20,
                 "name": "Canopy",
-                "legacy_zone_id": "canopy",
             },
             {
                 "source_tent_id": 2,
                 "source_zone_id": 21,
                 "name": "Lights",
-                "legacy_zone_id": "lights",
             },
         ],
         "devices": [
@@ -1154,7 +1148,6 @@ async def test_gateway_camera_capture_policy_matches_camera_to_lights_by_tent(
                 "source_tent_id": 2,
                 "source_zone_id": 21,
                 "source_schedule_id": 200,
-                "legacy_schedule_id": "breeding-lights-photoperiod",
                 "kind": "lights",
                 "starts_local": "06:00:00",
                 "ends_local": "18:00:00",
@@ -2586,10 +2579,6 @@ async def test_breeding_logbook_write_routes_enqueue_typed_commands_idempotently
         assert second.status_code == 201
         assert second.json()["command_id"] == first.json()["command_id"]
         first_body = first.json()
-        assert first_body["source_tent_id"] is None
-        assert first_body["legacy_target_tent_id"] is None
-        assert first_body["device_id"] is None
-        assert first_body["capability_id"] is None
         assert first_body["target"] is None
         assert first_body["payload"] == expected_payload
         assert datetime.fromisoformat(first.json()["expires_at"]) == (
@@ -3249,9 +3238,12 @@ async def test_duplicate_command_idempotency_returns_same_intent_without_hardwar
 ) -> None:
     body = {
         "idempotency_key": "same-click",
-        "source_tent_id": 1,
-        "device_id": "obsbot-main",
-        "capability_id": "ptz_move",
+        "target": {
+            "kind": "ptz",
+            "source_tent_id": 1,
+            "device_id": "obsbot-main",
+            "capability_id": "ptz_move",
+        },
         "command_type": "ptz_preset",
         "payload": {"preset_id": "overview"},
     }
@@ -3287,7 +3279,7 @@ async def test_duplicate_command_idempotency_returns_same_intent_without_hardwar
     assert count == 1
 
 
-async def test_command_creation_accepts_transitional_ptz_target_shape(
+async def test_command_creation_accepts_ptz_target_shape(
     authed_client: AsyncClient,
     gateway_headers: dict[str, str],
 ) -> None:
@@ -3307,10 +3299,6 @@ async def test_command_creation_accepts_transitional_ptz_target_shape(
 
     assert created.status_code == 201
     created_body = created.json()
-    assert created_body["source_tent_id"] == 1
-    assert created_body["legacy_target_tent_id"] is None
-    assert created_body["device_id"] == "obsbot-main"
-    assert created_body["capability_id"] == "ptz_move"
     assert created_body["target"] == body["target"]
 
     claim = await authed_client.post(
@@ -3322,12 +3310,14 @@ async def test_command_creation_accepts_transitional_ptz_target_shape(
     assert claim.status_code == 200
     command = claim.json()["commands"][0]
     assert command["command_id"] == created_body["command_id"]
-    assert command["source_tent_id"] == 1
     assert "tent_id" not in command
+    assert "source_tent_id" not in command
+    assert "device_id" not in command
+    assert "capability_id" not in command
     assert command["target"] == body["target"]
 
 
-async def test_command_openapi_marks_transition_fields(client: AsyncClient) -> None:
+async def test_command_openapi_uses_final_target_shape(client: AsyncClient) -> None:
     response = await client.get("/openapi.json")
 
     assert response.status_code == 200
@@ -3338,13 +3328,11 @@ async def test_command_openapi_marks_transition_fields(client: AsyncClient) -> N
     response_properties = response_schema["properties"]
 
     assert "target" in create_properties
+    assert "target" in create_schema.get("required", [])
     for flat_field in ("source_tent_id", "device_id", "capability_id"):
-        assert flat_field not in create_schema.get("required", [])
-        assert create_properties[flat_field]["deprecated"] is True
-        assert flat_field not in response_schema.get("required", [])
-        assert response_properties[flat_field]["deprecated"] is True
-    assert "legacy_target_tent_id" not in response_schema.get("required", [])
-    assert response_properties["legacy_target_tent_id"]["deprecated"] is True
+        assert flat_field not in create_properties
+        assert flat_field not in response_properties
+    assert "legacy_target_tent_id" not in response_properties
     assert "target" in response_properties
     assert "target" not in response_schema.get("required", [])
 
@@ -3381,9 +3369,12 @@ async def test_command_creation_rejects_non_ptz_remote_control(
 ) -> None:
     valid_body = {
         "idempotency_key": "unsafe-click",
-        "source_tent_id": 1,
-        "device_id": "obsbot-main",
-        "capability_id": "ptz_move",
+        "target": {
+            "kind": "ptz",
+            "source_tent_id": 1,
+            "device_id": "obsbot-main",
+            "capability_id": "ptz_move",
+        },
         "command_type": "ptz_preset",
         "payload": {"preset_id": "overview"},
     }
@@ -3418,7 +3409,6 @@ async def test_asset_flow_is_direct_upload_handshake_and_signed_url_requires_aut
         json={
             "site_id": "homebox",
             "source_tent_id": 1,
-            "tent_id": "main",
             "asset_id": "asset-1",
             "object_key": "tents/1/asset-1.jpg",
             "content_type": "image/jpeg",
@@ -3443,7 +3433,6 @@ async def test_asset_flow_is_direct_upload_handshake_and_signed_url_requires_aut
         json={
             "site_id": "homebox",
             "source_tent_id": 1,
-            "tent_id": "main",
             "asset_id": "asset-1",
             "object_key": "tents/1/asset-1.jpg",
             "content_type": "image/jpeg",
@@ -3462,7 +3451,7 @@ async def test_asset_flow_is_direct_upload_handshake_and_signed_url_requires_aut
         ).scalar_one()
     assert asset.source_tent_id == 1
     assert asset.source_zone_id is None
-    assert asset.tent_id == "main"
+    assert asset.tent_id == "1"
 
     unauth = await client.get("/api/assets/asset-1/signed-url")
     assert unauth.status_code == 401
@@ -3490,9 +3479,7 @@ async def test_asset_complete_persists_source_scope_from_request(
         json={
             "site_id": "homebox",
             "source_tent_id": 2,
-            "tent_id": "breeding",
             "source_zone_id": 21,
-            "zone_id": "clone-rack",
             "device_id": "obsbot-sidecar",
             "asset_id": "asset-zone-scoped",
             "object_key": "tents/2/snapshots/clone-rack.jpg",
@@ -3513,8 +3500,8 @@ async def test_asset_complete_persists_source_scope_from_request(
         ).scalar_one()
     assert asset.source_tent_id == 2
     assert asset.source_zone_id == 21
-    assert asset.tent_id == "breeding"
-    assert asset.zone_id == "clone-rack"
+    assert asset.tent_id == "2"
+    assert asset.zone_id == "21"
 
 
 async def test_asset_complete_replaces_existing_asset_for_same_object_key(
@@ -3528,7 +3515,6 @@ async def test_asset_complete_replaces_existing_asset_for_same_object_key(
         json={
             "site_id": "homebox",
             "source_tent_id": 1,
-            "tent_id": "main",
             "asset_id": "asset-old",
             "object_key": "tents/1/snapshots/plant-a.jpg",
             "content_type": "image/jpeg",
@@ -3544,7 +3530,6 @@ async def test_asset_complete_replaces_existing_asset_for_same_object_key(
         json={
             "site_id": "homebox",
             "source_tent_id": 1,
-            "tent_id": "flower",
             "asset_id": "asset-new",
             "object_key": "tents/1/snapshots/plant-a.jpg",
             "content_type": "image/jpeg",
@@ -3575,7 +3560,7 @@ async def test_asset_complete_replaces_existing_asset_for_same_object_key(
     assert assets[0].asset_id == "asset-new"
     assert assets[0].source_tent_id == 1
     assert assets[0].source_zone_id is None
-    assert assets[0].tent_id == "flower"
+    assert assets[0].tent_id == "1"
     assert assets[0].byte_size == 20
 
 
@@ -3597,9 +3582,12 @@ async def test_sync_status_exposes_gateway_age_and_command_backlog(
         "/api/commands",
         json={
             "idempotency_key": "backlog-click",
-            "source_tent_id": 1,
-            "device_id": "obsbot-main",
-            "capability_id": "ptz_move",
+            "target": {
+                "kind": "ptz",
+                "source_tent_id": 1,
+                "device_id": "obsbot-main",
+                "capability_id": "ptz_move",
+            },
             "command_type": "ptz_preset",
             "payload": {"preset_id": "overview"},
         },
@@ -3629,7 +3617,6 @@ async def test_health_exposes_gateway_backlog_and_failure_counts(
         json={
             "site_id": "homebox",
             "source_tent_id": 1,
-            "tent_id": "main",
             "asset_id": "asset-1",
             "object_key": "tents/1/asset-1.jpg",
             "stage": "upload_or_complete",
@@ -3758,9 +3745,12 @@ async def test_audit_rows_cover_auth_command_claim_result_and_rotation(
         "/api/commands",
         json={
             "idempotency_key": "audit-click",
-            "source_tent_id": 1,
-            "device_id": "obsbot-main",
-            "capability_id": "ptz_move",
+            "target": {
+                "kind": "ptz",
+                "source_tent_id": 1,
+                "device_id": "obsbot-main",
+                "capability_id": "ptz_move",
+            },
             "command_type": "ptz_preset",
             "payload": {"preset_id": "overview"},
         },
@@ -3837,9 +3827,12 @@ async def test_command_creation_can_be_disabled_by_config(
             "/api/commands",
             json={
                 "idempotency_key": "disabled-click",
-                "source_tent_id": 1,
-                "device_id": "obsbot-main",
-                "capability_id": "ptz_move",
+                "target": {
+                    "kind": "ptz",
+                    "source_tent_id": 1,
+                    "device_id": "obsbot-main",
+                    "capability_id": "ptz_move",
+                },
                 "command_type": "ptz_preset",
                 "payload": {"preset_id": "overview"},
             },
@@ -3921,9 +3914,12 @@ async def test_gateway_claim_expires_stale_commands_and_reclaims_own_claim(
         "/api/commands",
         json={
             "idempotency_key": "stale-click",
-            "source_tent_id": 1,
-            "device_id": "obsbot-main",
-            "capability_id": "ptz_move",
+            "target": {
+                "kind": "ptz",
+                "source_tent_id": 1,
+                "device_id": "obsbot-main",
+                "capability_id": "ptz_move",
+            },
             "command_type": "ptz_preset",
             "payload": {"preset_id": "overview"},
         },
@@ -3932,9 +3928,12 @@ async def test_gateway_claim_expires_stale_commands_and_reclaims_own_claim(
         "/api/commands",
         json={
             "idempotency_key": "fresh-click",
-            "source_tent_id": 1,
-            "device_id": "obsbot-main",
-            "capability_id": "ptz_move",
+            "target": {
+                "kind": "ptz",
+                "source_tent_id": 1,
+                "device_id": "obsbot-main",
+                "capability_id": "ptz_move",
+            },
             "command_type": "ptz_zoom",
             "payload": {"zoom": 1.2},
         },
@@ -3985,9 +3984,12 @@ async def test_gateway_result_does_not_regress_terminal_command(
         "/api/commands",
         json={
             "idempotency_key": "terminal-click",
-            "source_tent_id": 1,
-            "device_id": "obsbot-main",
-            "capability_id": "ptz_move",
+            "target": {
+                "kind": "ptz",
+                "source_tent_id": 1,
+                "device_id": "obsbot-main",
+                "capability_id": "ptz_move",
+            },
             "command_type": "ptz_zoom",
             "payload": {"zoom": 1.4},
         },

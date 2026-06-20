@@ -85,32 +85,6 @@
               }
             ],
             "title": "Source Zone Id"
-          },
-          "tent_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "deprecated": true,
-            "description": "Deprecated transition field for legacy cloud text tent identity.",
-            "title": "Tent Id"
-          },
-          "zone_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "deprecated": true,
-            "description": "Deprecated transition field for legacy cloud text zone identity.",
-            "title": "Zone Id"
           }
         },
         "required": [
@@ -199,19 +173,6 @@
             "maxLength": 80,
             "title": "Stage",
             "type": "string"
-          },
-          "tent_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "deprecated": true,
-            "description": "Deprecated transition field for legacy cloud text tent identity.",
-            "title": "Tent Id"
           }
         },
         "required": [
@@ -383,19 +344,6 @@
               }
             ],
             "title": "Source Tent Id"
-          },
-          "tent_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "deprecated": true,
-            "description": "Deprecated transition field for legacy cloud text tent identity.",
-            "title": "Tent Id"
           }
         },
         "required": [
@@ -1835,19 +1783,6 @@
             ],
             "title": "Source Tent Id"
           },
-          "tent_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "deprecated": true,
-            "description": "Deprecated transition field for legacy cloud text tent identity.",
-            "title": "Tent Id"
-          },
           "tent_name": {
             "anyOf": [
               {
@@ -2777,19 +2712,6 @@
             "title": "Kind",
             "type": "string"
           },
-          "legacy_schedule_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "deprecated": true,
-            "description": "Deprecated transition field for legacy cloud text schedule identity.",
-            "title": "Legacy Schedule Id"
-          },
           "source_schedule_id": {
             "title": "Source Schedule Id",
             "type": "integer"
@@ -2962,19 +2884,6 @@
             "title": "Is Active",
             "type": "boolean"
           },
-          "legacy_tent_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "deprecated": true,
-            "description": "Deprecated transition field for legacy cloud text tent identity.",
-            "title": "Legacy Tent Id"
-          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -3009,19 +2918,6 @@
             "title": "Kind",
             "type": "string"
           },
-          "legacy_zone_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "deprecated": true,
-            "description": "Deprecated transition field for legacy cloud text zone identity.",
-            "title": "Legacy Zone Id"
-          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -3046,19 +2942,6 @@
       "ClaimedCommand": {
         "additionalProperties": false,
         "properties": {
-          "capability_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "deprecated": true,
-            "description": "Deprecated flat PTZ target field; use target.capability_id.",
-            "title": "Capability Id"
-          },
           "claimed_at": {
             "anyOf": [
               {
@@ -3101,19 +2984,6 @@
             ],
             "title": "Command Type",
             "type": "string"
-          },
-          "device_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "deprecated": true,
-            "description": "Deprecated flat PTZ target field; use target.device_id.",
-            "title": "Device Id"
           },
           "error": {
             "anyOf": [
@@ -3206,19 +3076,6 @@
             "title": "Site Id",
             "type": "string"
           },
-          "source_tent_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "deprecated": true,
-            "description": "Deprecated flat PTZ target field; use target.source_tent_id.",
-            "title": "Source Tent Id"
-          },
           "started_at": {
             "anyOf": [
               {
@@ -3253,19 +3110,6 @@
                 "type": "null"
               }
             ]
-          },
-          "tent_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "deprecated": true,
-            "description": "Deprecated transition field for legacy cloud text command scope.",
-            "title": "Tent Id"
           }
         },
         "required": [
@@ -3326,21 +3170,8 @@
         "type": "object"
       },
       "CommandCreateRequest": {
+        "additionalProperties": false,
         "properties": {
-          "capability_id": {
-            "anyOf": [
-              {
-                "const": "ptz_move",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "deprecated": true,
-            "description": "Deprecated flat PTZ target field; use target.capability_id.",
-            "title": "Capability Id"
-          },
           "command_type": {
             "enum": [
               "ptz_preset",
@@ -3349,20 +3180,6 @@
             ],
             "title": "Command Type",
             "type": "string"
-          },
-          "device_id": {
-            "anyOf": [
-              {
-                "const": "obsbot-main",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "deprecated": true,
-            "description": "Deprecated flat PTZ target field; use target.device_id.",
-            "title": "Device Id"
           },
           "idempotency_key": {
             "maxLength": 160,
@@ -3386,33 +3203,13 @@
             ],
             "title": "Site Id"
           },
-          "source_tent_id": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "deprecated": true,
-            "description": "Deprecated flat PTZ target field; use target.source_tent_id.",
-            "title": "Source Tent Id"
-          },
           "target": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PtzCommandTarget"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "$ref": "#/components/schemas/PtzCommandTarget"
           }
         },
         "required": [
           "idempotency_key",
+          "target",
           "command_type"
         ],
         "title": "CommandCreateRequest",
@@ -3421,19 +3218,6 @@
       "CommandResponse": {
         "additionalProperties": false,
         "properties": {
-          "capability_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "deprecated": true,
-            "description": "Deprecated flat PTZ target field; use target.capability_id.",
-            "title": "Capability Id"
-          },
           "claimed_at": {
             "anyOf": [
               {
@@ -3464,19 +3248,6 @@
           "command_type": {
             "title": "Command Type",
             "type": "string"
-          },
-          "device_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "deprecated": true,
-            "description": "Deprecated flat PTZ target field; use target.device_id.",
-            "title": "Device Id"
           },
           "error": {
             "anyOf": [
@@ -3510,19 +3281,6 @@
             "title": "Idempotency Key",
             "type": "string"
           },
-          "legacy_target_tent_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "deprecated": true,
-            "description": "Deprecated transition field for legacy cloud text command scope.",
-            "title": "Legacy Target Tent Id"
-          },
           "payload": {
             "additionalProperties": true,
             "title": "Payload",
@@ -3548,19 +3306,6 @@
           "site_id": {
             "title": "Site Id",
             "type": "string"
-          },
-          "source_tent_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "deprecated": true,
-            "description": "Deprecated flat PTZ target field; use target.source_tent_id.",
-            "title": "Source Tent Id"
           },
           "started_at": {
             "anyOf": [
@@ -3660,19 +3405,6 @@
       "CommandResultResponse": {
         "additionalProperties": false,
         "properties": {
-          "capability_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "deprecated": true,
-            "description": "Deprecated flat PTZ target field; use target.capability_id.",
-            "title": "Capability Id"
-          },
           "claimed_at": {
             "anyOf": [
               {
@@ -3715,19 +3447,6 @@
             ],
             "title": "Command Type",
             "type": "string"
-          },
-          "device_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "deprecated": true,
-            "description": "Deprecated flat PTZ target field; use target.device_id.",
-            "title": "Device Id"
           },
           "error": {
             "anyOf": [
@@ -3820,19 +3539,6 @@
             "title": "Site Id",
             "type": "string"
           },
-          "source_tent_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "deprecated": true,
-            "description": "Deprecated flat PTZ target field; use target.source_tent_id.",
-            "title": "Source Tent Id"
-          },
           "started_at": {
             "anyOf": [
               {
@@ -3867,19 +3573,6 @@
                 "type": "null"
               }
             ]
-          },
-          "tent_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "deprecated": true,
-            "description": "Deprecated transition field for legacy cloud text command scope.",
-            "title": "Tent Id"
           }
         },
         "required": [

@@ -84,7 +84,6 @@ async def test_catalog_request_omits_legacy_scope_fields() -> None:
                         source_tent_id=1,
                         name="Main",
                         role="flower",
-                        legacy_tent_id="main",
                     )
                 ],
                 zones=[
@@ -92,7 +91,6 @@ async def test_catalog_request_omits_legacy_scope_fields() -> None:
                         source_tent_id=1,
                         source_zone_id=10,
                         name="Canopy",
-                        legacy_zone_id="canopy",
                     )
                 ],
                 schedules=[
@@ -101,7 +99,6 @@ async def test_catalog_request_omits_legacy_scope_fields() -> None:
                         source_tent_id=1,
                         source_zone_id=10,
                         source_schedule_id=100,
-                        legacy_schedule_id="main-lights",
                         starts_local="09:00",
                         ends_local="21:00",
                     )

@@ -210,11 +210,4 @@ def _json_payload(payload: dict[str, Any] | BaseModel) -> dict[str, Any]:
 
 
 def catalog_request_json(payload: CatalogRequest) -> dict[str, Any]:
-    return payload.model_dump(
-        mode="json",
-        exclude={
-            "tents": {"__all__": {"legacy_tent_id"}},
-            "zones": {"__all__": {"legacy_zone_id"}},
-            "schedules": {"__all__": {"legacy_schedule_id"}},
-        },
-    )
+    return payload.model_dump(mode="json")

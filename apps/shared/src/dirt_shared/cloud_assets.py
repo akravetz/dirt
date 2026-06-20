@@ -222,8 +222,4 @@ class AssetUploader:
 
 
 def _asset_payload_json(payload: CloudContractModel) -> dict[str, object]:
-    if isinstance(payload, AssetCompleteRequest):
-        return payload.model_dump(mode="json", exclude={"tent_id", "zone_id"})
-    if isinstance(payload, AssetSignUploadRequest | AssetFailureRequest):
-        return payload.model_dump(mode="json", exclude={"tent_id"})
     return payload.model_dump(mode="json")

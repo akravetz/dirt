@@ -546,13 +546,7 @@ def _count_projection(value: dict[str, Any]) -> int:
 
 def _projection_payload_json(payload: ProjectionPayload) -> dict[str, Any]:
     if isinstance(payload, AssetUploadProjection):
-        return payload.to_outbox_payload().model_dump(
-            mode="json",
-            exclude={
-                "sign_request": {"tent_id"},
-                "complete_request": {"tent_id", "zone_id"},
-            },
-        )
+        return payload.to_outbox_payload().model_dump(mode="json")
     if isinstance(payload, CatalogRequest):
         return catalog_request_json(payload)
     if isinstance(payload, BaseModel):
