@@ -155,19 +155,29 @@ async def catalog(
         },
         now=now,
     )
-    legacy_tent_ids = {tent.source_tent_id: tent.legacy_tent_id for tent in body.tents}
-    legacy_zone_ids = {zone.source_zone_id: zone.legacy_zone_id for zone in body.zones}
+    legacy_tent_ids = {
+        tent.source_tent_id: _legacy_tent_id(tent.source_tent_id, tent.legacy_tent_id)
+        for tent in body.tents
+    }
+    legacy_zone_ids = {
+        zone.source_zone_id: _legacy_zone_id(
+            zone.source_zone_id,
+            zone.legacy_zone_id,
+        )
+        for zone in body.zones
+    }
     for tent in body.tents:
+        legacy_tent_id = legacy_tent_ids[tent.source_tent_id]
         await _upsert_with_legacy_bridge(
             session,
             CloudTent,
             {"site_id": body.site_id, "source_tent_id": tent.source_tent_id},
-            {"site_id": body.site_id, "tent_id": tent.legacy_tent_id},
+            {"site_id": body.site_id, "tent_id": legacy_tent_id},
             {
                 "site_id": body.site_id,
                 "source_site_id": body.site.source_site_id,
                 "source_tent_id": tent.source_tent_id,
-                "tent_id": tent.legacy_tent_id,
+                "tent_id": legacy_tent_id,
                 "name": tent.name,
                 "role": tent.role,
                 "is_active": tent.is_active,
@@ -178,10 +188,10 @@ async def catalog(
             now=now,
         )
     for zone in body.zones:
-        legacy_tent_id = _legacy_tent_id(
-            zone.source_tent_id,
-            legacy_tent_ids=legacy_tent_ids,
+        legacy_tent_id = _legacy_tent_id_from_map(
+            zone.source_tent_id, legacy_tent_ids=legacy_tent_ids
         )
+        legacy_zone_id = legacy_zone_ids[zone.source_zone_id]
         await _upsert_with_legacy_bridge(
             session,
             CloudZone,
@@ -189,14 +199,14 @@ async def catalog(
             {
                 "site_id": body.site_id,
                 "tent_id": legacy_tent_id,
-                "zone_id": zone.legacy_zone_id,
+                "zone_id": legacy_zone_id,
             },
             {
                 "site_id": body.site_id,
                 "source_tent_id": zone.source_tent_id,
                 "source_zone_id": zone.source_zone_id,
                 "tent_id": legacy_tent_id,
-                "zone_id": zone.legacy_zone_id,
+                "zone_id": legacy_zone_id,
                 "name": zone.name,
                 "kind": zone.kind,
                 "is_active": zone.is_active,
@@ -207,11 +217,11 @@ async def catalog(
             now=now,
         )
     for device in body.devices:
-        legacy_tent_id = _legacy_tent_id(
+        legacy_tent_id = _legacy_tent_id_from_map(
             device.source_tent_id,
             legacy_tent_ids=legacy_tent_ids,
         )
-        legacy_zone_id = _legacy_zone_id(
+        legacy_zone_id = _legacy_zone_id_from_map(
             device.source_zone_id,
             legacy_zone_ids=legacy_zone_ids,
         )
@@ -247,7 +257,7 @@ async def catalog(
             now=now,
         )
     for capability in body.capabilities:
-        legacy_tent_id = _legacy_tent_id(
+        legacy_tent_id = _legacy_tent_id_from_map(
             capability.source_tent_id,
             legacy_tent_ids=legacy_tent_ids,
         )
@@ -283,13 +293,17 @@ async def catalog(
             now=now,
         )
     for schedule in body.schedules:
-        legacy_tent_id = _legacy_tent_id(
+        legacy_tent_id = _legacy_tent_id_from_map(
             schedule.source_tent_id,
             legacy_tent_ids=legacy_tent_ids,
         )
-        legacy_zone_id = _legacy_zone_id(
+        legacy_zone_id = _legacy_zone_id_from_map(
             schedule.source_zone_id,
             legacy_zone_ids=legacy_zone_ids,
+        )
+        legacy_schedule_id = _legacy_schedule_id(
+            schedule.source_schedule_id,
+            schedule.legacy_schedule_id,
         )
         await _upsert_with_legacy_bridge(
             session,
@@ -301,7 +315,7 @@ async def catalog(
             {
                 "site_id": body.site_id,
                 "tent_id": legacy_tent_id,
-                "schedule_id": schedule.legacy_schedule_id,
+                "schedule_id": legacy_schedule_id,
             },
             {
                 "site_id": body.site_id,
@@ -313,7 +327,7 @@ async def catalog(
                 "zone_id": legacy_zone_id,
                 "device_id": schedule.device_id,
                 "capability_id": schedule.capability_id,
-                "schedule_id": schedule.legacy_schedule_id,
+                "schedule_id": legacy_schedule_id,
                 "kind": schedule.kind,
                 "starts_local": schedule.starts_local,
                 "ends_local": schedule.ends_local,
@@ -409,7 +423,7 @@ async def catalog(
             now=now,
         )
     for location in body.plant_locations:
-        legacy_tent_id = _legacy_tent_id(
+        legacy_tent_id = _legacy_tent_id_from_map(
             location.source_tent_id,
             legacy_tent_ids=legacy_tent_ids,
         )
@@ -666,6 +680,7 @@ async def metrics_latest(
 @router.get(
     "/cameras/{camera_device_id}/capture-policy",
     response_model=CapturePolicyResponse,
+    response_model_exclude={"tent_id"},
 )
 async def camera_capture_policy(
     camera_device_id: str,
@@ -699,7 +714,6 @@ async def camera_capture_policy(
             site_id=site_id,
             source_site_id=None,
             source_tent_id=None,
-            tent_id=None,
             tent_name=None,
             camera_device_id=camera_device_id,
             timezone=site_timezone,
@@ -711,7 +725,6 @@ async def camera_capture_policy(
             site_id=site_id,
             source_site_id=None if tent is None else tent.source_site_id,
             source_tent_id=camera_device.source_tent_id,
-            tent_id=camera_device.tent_id,
             tent_name=None if tent is None else tent.name,
             camera_device_id=camera_device_id,
             enabled=False,
@@ -739,7 +752,6 @@ async def camera_capture_policy(
             site_id=site_id,
             source_site_id=None if tent is None else tent.source_site_id,
             source_tent_id=camera_device.source_tent_id,
-            tent_id=camera_device.tent_id,
             tent_name=None if tent is None else tent.name,
             camera_device_id=camera_device_id,
             timezone=site_timezone,
@@ -750,7 +762,6 @@ async def camera_capture_policy(
         site_id=site_id,
         source_site_id=schedule.source_site_id,
         source_tent_id=camera_device.source_tent_id,
-        tent_id=camera_device.tent_id,
         tent_name=None if tent is None else tent.name,
         camera_device_id=camera_device_id,
         enabled=True,
@@ -958,7 +969,11 @@ async def prune_assets(  # noqa: PLR0913
     }
 
 
-@router.post("/commands/claim", response_model=CommandClaimResponse)
+@router.post(
+    "/commands/claim",
+    response_model=CommandClaimResponse,
+    response_model_exclude={"commands": {"__all__": {"tent_id"}}},
+)
 async def claim_commands(
     body: CommandClaimRequest,
     principal: GatewayPrincipal = Depends(require_gateway),
@@ -1037,7 +1052,11 @@ async def claim_commands(
     return CommandClaimResponse(commands=commands)
 
 
-@router.post("/commands/{command_id}/result", response_model=CommandResultResponse)
+@router.post(
+    "/commands/{command_id}/result",
+    response_model=CommandResultResponse,
+    response_model_exclude={"tent_id"},
+)
 async def command_result(
     command_id: str,
     body: CommandResultRequest,
@@ -1140,7 +1159,11 @@ async def _find_by_identity(
     ).scalar_one_or_none()
 
 
-def _legacy_tent_id(
+def _legacy_tent_id(source_tent_id: int, legacy_tent_id: str | None) -> str:
+    return legacy_tent_id or str(source_tent_id)
+
+
+def _legacy_tent_id_from_map(
     source_tent_id: int,
     *,
     legacy_tent_ids: dict[int, str],
@@ -1148,7 +1171,11 @@ def _legacy_tent_id(
     return legacy_tent_ids.get(source_tent_id, str(source_tent_id))
 
 
-def _legacy_zone_id(
+def _legacy_zone_id(source_zone_id: int, legacy_zone_id: str | None) -> str:
+    return legacy_zone_id or str(source_zone_id)
+
+
+def _legacy_zone_id_from_map(
     source_zone_id: int | None,
     *,
     legacy_zone_ids: dict[int, str],
@@ -1156,6 +1183,13 @@ def _legacy_zone_id(
     if source_zone_id is None:
         return None
     return legacy_zone_ids.get(source_zone_id, str(source_zone_id))
+
+
+def _legacy_schedule_id(
+    source_schedule_id: int,
+    legacy_schedule_id: str | None,
+) -> str:
+    return legacy_schedule_id or str(source_schedule_id)
 
 
 async def _legacy_tent_id_from_projection(
@@ -1195,7 +1229,6 @@ def _open_capture_policy(  # noqa: PLR0913
     site_id: str,
     source_site_id: int | None,
     source_tent_id: int | None,
-    tent_id: str | None,
     tent_name: str | None,
     camera_device_id: str,
     timezone: str,
@@ -1205,7 +1238,6 @@ def _open_capture_policy(  # noqa: PLR0913
         site_id=site_id,
         source_site_id=source_site_id,
         source_tent_id=source_tent_id,
-        tent_id=tent_id,
         tent_name=tent_name,
         camera_device_id=camera_device_id,
         enabled=True,
@@ -1301,7 +1333,7 @@ def _command_payload(command: CloudCommand) -> CommandResultResponse:
     return CommandResultResponse(
         command_id=command.command_id,
         site_id=command.site_id,
-        tent_id=command.tent_id,
+        tent_id=None,
         source_tent_id=command.source_tent_id,
         device_id=command.device_id,
         capability_id=command.capability_id,

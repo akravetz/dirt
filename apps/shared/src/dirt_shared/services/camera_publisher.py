@@ -269,7 +269,6 @@ def open_capture_policy(  # noqa: PLR0913
     site_id: str,
     source_site_id: int | None = None,
     source_tent_id: int | None,
-    tent_id: str | None,
     tent_name: str | None = None,
     camera_device_id: str,
     timezone: str = "America/Denver",
@@ -279,7 +278,6 @@ def open_capture_policy(  # noqa: PLR0913
         site_id=site_id,
         source_site_id=source_site_id,
         source_tent_id=source_tent_id,
-        tent_id=tent_id,
         tent_name=tent_name,
         camera_device_id=camera_device_id,
         enabled=True,
@@ -297,7 +295,6 @@ def disabled_capture_policy(  # noqa: PLR0913
     site_id: str,
     source_site_id: int | None = None,
     source_tent_id: int | None,
-    tent_id: str | None,
     tent_name: str | None = None,
     camera_device_id: str,
     timezone: str = "America/Denver",
@@ -306,7 +303,6 @@ def disabled_capture_policy(  # noqa: PLR0913
         site_id=site_id,
         source_site_id=source_site_id,
         source_tent_id=source_tent_id,
-        tent_id=tent_id,
         tent_name=tent_name,
         camera_device_id=camera_device_id,
         enabled=False,
@@ -367,7 +363,6 @@ class CameraLightScheduleResolver:
                 return open_capture_policy(
                     site_id="",
                     source_tent_id=None,
-                    tent_id=None,
                     camera_device_id=camera_device_id,
                     timezone="America/Denver",
                     reason="camera_not_found",
@@ -376,14 +371,12 @@ class CameraLightScheduleResolver:
             camera, site, tent = row
             source_site_id = site.id
             source_tent_id = None if tent is None else tent.id
-            legacy_tent_id = None if tent is None else str(tent.id)
             tent_name = None if tent is None else tent.name
             if not camera.enabled:
                 return disabled_capture_policy(
                     site_id="homebox",
                     source_site_id=source_site_id,
                     source_tent_id=source_tent_id,
-                    tent_id=legacy_tent_id,
                     tent_name=tent_name,
                     camera_device_id=camera_device_id,
                     timezone=site.timezone,
@@ -393,7 +386,6 @@ class CameraLightScheduleResolver:
                     site_id="homebox",
                     source_site_id=source_site_id,
                     source_tent_id=source_tent_id,
-                    tent_id=legacy_tent_id,
                     tent_name=tent_name,
                     camera_device_id=camera_device_id,
                     timezone=site.timezone,
@@ -418,7 +410,6 @@ class CameraLightScheduleResolver:
                     site_id="homebox",
                     source_site_id=source_site_id,
                     source_tent_id=source_tent_id,
-                    tent_id=legacy_tent_id,
                     tent_name=tent_name,
                     camera_device_id=camera_device_id,
                     timezone=site.timezone,
@@ -429,7 +420,6 @@ class CameraLightScheduleResolver:
                 site_id="homebox",
                 source_site_id=source_site_id,
                 source_tent_id=source_tent_id,
-                tent_id=legacy_tent_id,
                 tent_name=tent_name,
                 camera_device_id=camera_device_id,
                 enabled=True,

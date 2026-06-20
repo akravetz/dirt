@@ -975,6 +975,70 @@ async def test_catalog_upsert_is_idempotent(
     assert plant_a_stream.is_active is True
 
 
+async def test_catalog_upsert_accepts_missing_legacy_scope_fields(
+    client: AsyncClient,
+    gateway_headers: dict[str, str],
+    cloud_engine: AsyncEngine,
+) -> None:
+    response = await client.put(
+        "/api/gateway/v1/catalog",
+        headers=gateway_headers,
+        json={
+            "site_id": "homebox",
+            "site": {"source_site_id": 1, "name": "Home Box"},
+            "tents": [
+                {"source_tent_id": 1, "name": "Main", "role": "flower"},
+            ],
+            "zones": [
+                {
+                    "source_tent_id": 1,
+                    "source_zone_id": 10,
+                    "name": "Canopy",
+                }
+            ],
+            "schedules": [
+                {
+                    "source_site_id": 1,
+                    "source_tent_id": 1,
+                    "source_zone_id": 10,
+                    "source_schedule_id": 100,
+                    "kind": "lights",
+                    "starts_local": "09:00:00",
+                    "ends_local": "21:00:00",
+                    "timezone": "America/Denver",
+                    "is_enabled": True,
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    sessionmaker = create_sessionmaker(cloud_engine)
+    async with sessionmaker() as session:
+        tent = (
+            await session.execute(
+                select(CloudTent).where(CloudTent.source_tent_id == 1)
+            )
+        ).scalar_one()
+        zone = (
+            await session.execute(
+                select(CloudZone).where(CloudZone.source_zone_id == 10)
+            )
+        ).scalar_one()
+        schedule = (
+            await session.execute(
+                select(CloudSchedule).where(CloudSchedule.source_schedule_id == 100)
+            )
+        ).scalar_one()
+
+    assert tent.tent_id == "1"
+    assert zone.tent_id == "1"
+    assert zone.zone_id == "10"
+    assert schedule.tent_id == "1"
+    assert schedule.zone_id == "10"
+    assert schedule.schedule_id == "100"
+
+
 async def test_gateway_wiki_projection_upserts_deletes_and_checks_scope(
     client: AsyncClient,
     gateway_headers: dict[str, str],
@@ -1114,7 +1178,6 @@ async def test_gateway_camera_capture_policy_matches_camera_to_lights_by_tent(
         "site_id": "homebox",
         "source_site_id": 1,
         "source_tent_id": 2,
-        "tent_id": "breeding",
         "tent_name": "Breeding",
         "camera_device_id": "obsbot-breeding",
         "enabled": True,
@@ -1191,14 +1254,17 @@ async def test_gateway_camera_capture_policy_fails_open_when_missing_rows(
     )
 
     assert missing_camera.status_code == 200
+    assert "tent_id" not in missing_camera.json()
     assert missing_camera.json()["enabled"] is True
     assert missing_camera.json()["require_lights_on"] is False
     assert missing_camera.json()["reason"] == "camera_not_found"
     assert missing_schedule.status_code == 200
+    assert "tent_id" not in missing_schedule.json()
     assert missing_schedule.json()["enabled"] is True
     assert missing_schedule.json()["require_lights_on"] is False
     assert missing_schedule.json()["reason"] == "lights_schedule_not_found"
     assert disabled.status_code == 200
+    assert "tent_id" not in disabled.json()
     assert disabled.json()["enabled"] is False
     assert disabled.json()["reason"] == "camera_disabled"
 
@@ -2520,7 +2586,8 @@ async def test_breeding_logbook_write_routes_enqueue_typed_commands_idempotently
         assert second.status_code == 201
         assert second.json()["command_id"] == first.json()["command_id"]
         first_body = first.json()
-        assert first_body["source_tent_id"] == expected_payload.get("source_tent_id")
+        assert first_body["source_tent_id"] is None
+        assert first_body["legacy_target_tent_id"] is None
         assert first_body["device_id"] is None
         assert first_body["capability_id"] is None
         assert first_body["target"] is None
@@ -2550,6 +2617,8 @@ async def test_breeding_logbook_write_routes_enqueue_typed_commands_idempotently
         "breeding_plants_bulk_cull",
         "breeding_plant_note_create",
     }
+    assert all(row.source_tent_id is None for row in rows)
+    assert all(row.tent_id != "breeding-logbook" for row in rows)
 
 
 async def test_breeding_logbook_write_routes_return_503_when_commands_disabled(
@@ -3239,7 +3308,7 @@ async def test_command_creation_accepts_transitional_ptz_target_shape(
     assert created.status_code == 201
     created_body = created.json()
     assert created_body["source_tent_id"] == 1
-    assert created_body["legacy_target_tent_id"] == "1"
+    assert created_body["legacy_target_tent_id"] is None
     assert created_body["device_id"] == "obsbot-main"
     assert created_body["capability_id"] == "ptz_move"
     assert created_body["target"] == body["target"]
@@ -3254,7 +3323,7 @@ async def test_command_creation_accepts_transitional_ptz_target_shape(
     command = claim.json()["commands"][0]
     assert command["command_id"] == created_body["command_id"]
     assert command["source_tent_id"] == 1
-    assert command["tent_id"] == "1"
+    assert "tent_id" not in command
     assert command["target"] == body["target"]
 
 

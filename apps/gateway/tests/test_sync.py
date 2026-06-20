@@ -310,7 +310,6 @@ def _asset_projection(asset_file: Path) -> AssetUploadProjection:
     sign_request = AssetSignUploadRequest(
         site_id="homebox",
         source_tent_id=1,
-        tent_id="main",
         content_type="image/jpeg",
         byte_size=len(b"jpeg-bytes"),
         object_key="tents/1/snapshots/snapshot.jpg",
@@ -321,7 +320,7 @@ def _asset_projection(asset_file: Path) -> AssetUploadProjection:
     return AssetUploadProjection(
         sign_request=sign_request,
         complete_request=AssetCompleteRequest(
-            **sign_request.model_dump(),
+            **sign_request.model_dump(exclude={"tent_id"}),
             captured_at=FIXED_NOW,
             source_zone_id=None,
         ),
@@ -342,7 +341,6 @@ class StaticLocalServices:
                     source_tent_id=1,
                     name="Main",
                     role="flower",
-                    legacy_tent_id="main",
                     is_active=True,
                 )
             ],
@@ -1536,13 +1534,14 @@ async def test_collect_catalog_projects_current_scope_boundary_fields(
 
     assert payload.site_id == "homebox"
     assert payload.site.source_site_id > 0
-    assert all(tent.legacy_tent_id for tent in payload.tents)
+    assert all(tent.legacy_tent_id is None for tent in payload.tents)
+    assert all(zone.legacy_zone_id is None for zone in payload.zones)
     assert light_schedules
     for schedule in light_schedules:
         assert schedule.source_site_id == payload.site.source_site_id
         assert schedule.source_tent_id in tent_source_ids
         assert schedule.source_schedule_id > 0
-        assert schedule.legacy_schedule_id
+        assert schedule.legacy_schedule_id is None
         assert schedule.timezone
         assert schedule.starts_local is not None
         assert schedule.ends_local is not None
@@ -1855,10 +1854,15 @@ async def test_asset_sync_uses_sign_upload_complete_flow(
             )
         ).one()
     assert asset_row.payload == {
-        "sign_request": asset.sign_request.model_dump(mode="json"),
-        "complete_request": asset.complete_request.model_dump(mode="json"),
+        "sign_request": asset.sign_request.model_dump(mode="json", exclude={"tent_id"}),
+        "complete_request": asset.complete_request.model_dump(
+            mode="json", exclude={"tent_id", "zone_id"}
+        ),
         "file_path": str(asset_file),
     }
+    assert "tent_id" not in asset_row.payload["sign_request"]
+    assert "tent_id" not in asset_row.payload["complete_request"]
+    assert "zone_id" not in asset_row.payload["complete_request"]
     assert cloud.assets["asset-1"]["object_key"] == "tents/1/snapshots/snapshot.jpg"
 
 
@@ -1983,6 +1987,7 @@ async def test_asset_sync_reports_upload_failures_and_retries(
     assert cloud.call_counts["asset_failure"] == 1
     assert cloud.asset_failures[0]["stage"] == "upload_or_complete"
     assert cloud.asset_failures[0]["asset_id"] == "asset-1"
+    assert cloud.asset_failures[0]["tent_id"] is None
     assert await OutboxRepository(app_engine).pending_count() == 1
 
 

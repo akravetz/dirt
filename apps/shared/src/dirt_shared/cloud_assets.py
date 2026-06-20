@@ -147,7 +147,7 @@ class HttpCloudAssetClient:
             response = await self._client.request(
                 method,
                 f"{self._base_url}{path}",
-                json=payload.model_dump(mode="json"),
+                json=_asset_payload_json(payload),
                 headers=headers,
             )
             response.raise_for_status()
@@ -209,7 +209,6 @@ class AssetUploader:
                 AssetFailureRequest(
                     site_id=payload.sign_request.site_id,
                     source_tent_id=payload.sign_request.source_tent_id,
-                    tent_id=payload.sign_request.tent_id,
                     asset_id=payload.sign_request.asset_id,
                     object_key=payload.sign_request.object_key,
                     stage="upload_or_complete",
@@ -220,3 +219,11 @@ class AssetUploader:
         except Exception as report_exc:
             if self._on_failure_report_error is not None:
                 self._on_failure_report_error(payload, idempotency_key, report_exc)
+
+
+def _asset_payload_json(payload: CloudContractModel) -> dict[str, object]:
+    if isinstance(payload, AssetCompleteRequest):
+        return payload.model_dump(mode="json", exclude={"tent_id", "zone_id"})
+    if isinstance(payload, AssetSignUploadRequest | AssetFailureRequest):
+        return payload.model_dump(mode="json", exclude={"tent_id"})
+    return payload.model_dump(mode="json")

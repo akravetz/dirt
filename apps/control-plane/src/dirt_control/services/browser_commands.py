@@ -22,7 +22,6 @@ from dirt_shared.cloud_contract import (
 
 COMMAND_EXPIRY_SECONDS = 60
 BREEDING_COMMAND_EXPIRY_SECONDS = 3600
-BREEDING_SITE_WIDE_TENT_ID = "breeding-logbook"
 PTZ_COMMAND_TYPE_VALUES = frozenset({"ptz_preset", "ptz_look", "ptz_zoom"})
 
 
@@ -61,7 +60,7 @@ async def create_command(
         command_id=str(uuid.uuid4()),
         idempotency_key=body.idempotency_key,
         site_id=site_id,
-        tent_id=storage_compat_tent_id(source_tent_id),
+        tent_id=_storage_compat_tent_id(source_tent_id),
         source_tent_id=source_tent_id,
         device_id=target.device_id,
         capability_id=target.capability_id,
@@ -129,8 +128,6 @@ async def enqueue_breeding_command(  # noqa: PLR0913
     session: AsyncSession,
     now: datetime,
     command_type: CommandType,
-    legacy_storage_tent_id: str,
-    source_tent_id: int | None,
     payload: BreedingCommandPayload,
 ) -> CommandResponse:
     if not settings.command_creation_enabled:
@@ -150,8 +147,9 @@ async def enqueue_breeding_command(  # noqa: PLR0913
         command_id=str(uuid.uuid4()),
         idempotency_key=idempotency_key,
         site_id=settings.default_site_id,
-        tent_id=legacy_storage_tent_id,
-        source_tent_id=source_tent_id,
+        # Legacy storage column is non-null until the storage contraction milestone.
+        tent_id="",
+        source_tent_id=None,
         device_id=None,
         capability_id=None,
         command_type=command_type,
@@ -191,7 +189,7 @@ def command_response(command: CloudCommand) -> CommandResponse:
         idempotency_key=command.idempotency_key,
         site_id=command.site_id,
         source_tent_id=command.source_tent_id,
-        legacy_target_tent_id=command.tent_id,
+        legacy_target_tent_id=None,
         device_id=command.device_id,
         capability_id=command.capability_id,
         target=_command_target(command),
@@ -209,7 +207,7 @@ def command_response(command: CloudCommand) -> CommandResponse:
     )
 
 
-def storage_compat_tent_id(source_tent_id: int) -> str:
+def _storage_compat_tent_id(source_tent_id: int) -> str:
     return str(source_tent_id)
 
 
