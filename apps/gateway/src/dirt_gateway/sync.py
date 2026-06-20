@@ -9,7 +9,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from dirt_gateway.cloud import CloudDeliveryError
+from dirt_gateway.cloud import CloudDeliveryError, catalog_request_json
 from dirt_gateway.outbox import OutboxRepository, stable_json_hash
 from dirt_gateway.protocols import (
     AssetUploadProjection,
@@ -547,6 +547,8 @@ def _count_projection(value: dict[str, Any]) -> int:
 def _projection_payload_json(payload: ProjectionPayload) -> dict[str, Any]:
     if isinstance(payload, AssetUploadProjection):
         return payload.to_outbox_payload().model_dump(mode="json")
+    if isinstance(payload, CatalogRequest):
+        return catalog_request_json(payload)
     if isinstance(payload, BaseModel):
         return payload.model_dump(mode="json")
     return dict(payload)

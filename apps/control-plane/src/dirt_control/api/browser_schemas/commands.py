@@ -3,31 +3,40 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from dirt_control.api.browser_schemas.common import BrowserResponse
+from dirt_shared.cloud_contract import PtzCommandTarget
 
 PTZ_COMMAND_TYPES = Literal["ptz_preset", "ptz_look", "ptz_zoom"]
 
 
 class CommandCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     idempotency_key: str = Field(min_length=1, max_length=160)
     site_id: str | None = None
-    source_tent_id: int = Field(gt=0)
-    device_id: Literal["obsbot-main"]
-    capability_id: Literal["ptz_move"]
+    target: PtzCommandTarget
     command_type: PTZ_COMMAND_TYPES
     payload: dict[str, Any] = Field(default_factory=dict)
 
+    @model_validator(mode="after")
+    def _target_is_complete(self) -> CommandCreateRequest:
+        if self.target.source_tent_id is None:
+            raise ValueError("PTZ target requires source_tent_id")
+        return self
+
+    def resolved_target(self) -> PtzCommandTarget:
+        return self.target
+
 
 class CommandResponse(BrowserResponse):
+    model_config = ConfigDict(extra="forbid")
+
     command_id: str
     idempotency_key: str
     site_id: str
-    source_tent_id: int | None
-    legacy_target_tent_id: str
-    device_id: str | None
-    capability_id: str | None
+    target: PtzCommandTarget | None = None
     command_type: str
     payload: dict[str, Any]
     status: str

@@ -67,7 +67,6 @@ class CatalogTent(CloudContractModel):
     source_tent_id: int
     name: str
     role: str
-    legacy_tent_id: str
     is_active: bool = True
 
 
@@ -76,7 +75,6 @@ class CatalogZone(CloudContractModel):
     source_zone_id: int
     name: str
     kind: str = "environment"
-    legacy_zone_id: str
     is_active: bool = True
 
 
@@ -111,7 +109,6 @@ class CatalogSchedule(CloudContractModel):
     device_id: str | None = None
     capability_id: str | None = None
     kind: str = "lights"
-    legacy_schedule_id: str
     timezone: str = "America/Denver"
     is_enabled: bool = True
 
@@ -316,8 +313,6 @@ class WikiProjectionResponse(CloudContractModel):
 class AssetSignUploadRequest(CloudContractModel):
     site_id: str
     source_tent_id: int | None = Field(...)
-    # Temporary cloud asset bridge for object paths/browser compatibility.
-    tent_id: str | None = None
     content_type: str
     byte_size: int = Field(gt=0)
     object_key: str
@@ -339,8 +334,6 @@ class SignUploadResponse(CloudContractModel):
 class AssetCompleteRequest(AssetSignUploadRequest):
     captured_at: datetime
     source_zone_id: int | None = Field(...)
-    # Temporary cloud asset bridge for object paths/browser compatibility.
-    zone_id: str | None = None
     device_id: str | None = None
 
 
@@ -355,7 +348,6 @@ class AssetFailureRequest(CloudContractModel):
     stage: str = Field(max_length=80)
     error: str = Field(max_length=500)
     source_tent_id: int | None = Field(default=None)
-    tent_id: str | None = None
     asset_id: str | None = None
     object_key: str | None = None
 
@@ -369,7 +361,6 @@ class CapturePolicyResponse(CloudContractModel):
     site_id: str
     source_site_id: int | None = Field(...)
     source_tent_id: int | None = Field(...)
-    tent_id: str | None
     tent_name: str | None = Field(...)
     camera_device_id: str
     enabled: bool
@@ -569,6 +560,18 @@ class BreedingCreatePlantNotePayload(CloudContractModel):
 
 PtzZoomPayload: TypeAlias = PtzZoomAbsolutePayload | PtzZoomRelativePayload
 PtzCommandPayload: TypeAlias = PtzPresetPayload | PtzLookPayload | PtzZoomPayload
+
+
+class PtzCommandTarget(CloudContractModel):
+    kind: Literal["ptz"]
+    source_tent_id: int | None = None
+    device_id: Literal["obsbot-main"]
+    capability_id: Literal["ptz_move"]
+
+
+CommandTarget: TypeAlias = PtzCommandTarget
+
+
 BreedingCommandPayload: TypeAlias = (
     BreedingCreateSeedLotPayload
     | BreedingGerminatePlantsPayload
@@ -583,12 +586,8 @@ BreedingCommandPayload: TypeAlias = (
 class ClaimedCommand(CloudContractModel):
     command_id: str
     site_id: str
-    # Temporary cloud command bridge; source_tent_id is the local identity.
-    tent_id: str
-    source_tent_id: int | None = Field(...)
-    device_id: str | None
-    capability_id: str | None
     command_type: CommandType
+    target: CommandTarget | None = None
     payload: PtzCommandPayload | BreedingCommandPayload
     status: CommandResponseStatus
     queued_at: datetime

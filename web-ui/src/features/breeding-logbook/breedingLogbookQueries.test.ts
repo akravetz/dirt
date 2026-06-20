@@ -542,12 +542,10 @@ function makeCommand({
   status: string;
 }): HostedCommand {
   return {
-    capability_id: null,
     claimed_at: null,
     claimed_by: null,
     command_id: "command-1",
     command_type: "breeding_plant_note_create",
-    device_id: null,
     error,
     expires_at: "2026-06-18T12:00:00Z",
     finished_at: null,
@@ -556,9 +554,8 @@ function makeCommand({
     queued_at: "2026-06-18T11:00:00Z",
     result: null,
     site_id: "main",
-    source_tent_id: null,
     started_at: null,
     status,
-    legacy_target_tent_id: "breeding-logbook",
+    target: null,
   };
 }

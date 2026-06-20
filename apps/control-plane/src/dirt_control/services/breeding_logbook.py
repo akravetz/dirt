@@ -48,9 +48,7 @@ from dirt_control.models import (
     CloudTent,
 )
 from dirt_control.services.browser_commands import (
-    BREEDING_SITE_WIDE_TENT_ID,
     enqueue_breeding_command,
-    storage_compat_tent_id,
 )
 from dirt_control.services.browser_plants import (
     PlantProjection,
@@ -65,9 +63,9 @@ from dirt_control.services.browser_plants import (
 from dirt_control.services.browser_tents import (
     cloud_tents_by_source_id,
     get_cloud_tent_by_source_id,
+    location_tent_name,
     required_location_source_tent_id,
     required_source_tent_id,
-    tent_display_name,
 )
 from dirt_control.settings import CloudSettings
 from dirt_shared.cloud_contract import (
@@ -375,8 +373,6 @@ async def create_seed_lot_command(
         session=session,
         now=now,
         command_type="breeding_seed_lot_create",
-        target_tent_id=BREEDING_SITE_WIDE_TENT_ID,
-        source_tent_id=None,
         payload=payload,
     )
 
@@ -412,8 +408,6 @@ async def germinate_plants_command(
         session=session,
         now=now,
         command_type="breeding_plants_germinate",
-        target_tent_id=storage_compat_tent_id(body.source_tent_id),
-        source_tent_id=body.source_tent_id,
         payload=payload,
     )
 
@@ -446,8 +440,6 @@ async def clone_plants_command(
         session=session,
         now=now,
         command_type="breeding_plants_clone",
-        target_tent_id=storage_compat_tent_id(body.source_tent_id),
-        source_tent_id=body.source_tent_id,
         payload=payload,
     )
 
@@ -471,8 +463,6 @@ async def bulk_sex_plants_command(
         session=session,
         now=now,
         command_type="breeding_plants_bulk_sex",
-        target_tent_id=BREEDING_SITE_WIDE_TENT_ID,
-        source_tent_id=None,
         payload=payload,
     )
 
@@ -503,8 +493,6 @@ async def bulk_move_plants_command(
         session=session,
         now=now,
         command_type="breeding_plants_bulk_move",
-        target_tent_id=storage_compat_tent_id(body.source_tent_id),
-        source_tent_id=body.source_tent_id,
         payload=payload,
     )
 
@@ -528,8 +516,6 @@ async def bulk_cull_plants_command(
         session=session,
         now=now,
         command_type="breeding_plants_bulk_cull",
-        target_tent_id=BREEDING_SITE_WIDE_TENT_ID,
-        source_tent_id=None,
         payload=payload,
     )
 
@@ -558,8 +544,6 @@ async def create_plant_note_command(  # noqa: PLR0913
         session=session,
         now=now,
         command_type="breeding_plant_note_create",
-        target_tent_id=BREEDING_SITE_WIDE_TENT_ID,
-        source_tent_id=None,
         payload=payload,
     )
 
@@ -1015,7 +999,7 @@ def breeding_logbook_plant_row_response(
         flower_started_on=date_or_none(plant.flower_started_at),
         culled_on=date_or_none(plant.culled_at),
         current_tent_id=required_location_source_tent_id(projection.location),
-        current_tent_name=tent_display_name(projection.tent, projection.location),
+        current_tent_name=location_tent_name(projection.tent, projection.location),
         grid_position=projection.location.grid_position,
         seed_lot_label=seed_lot_label(projection.seed_lot, projection.seed_lot_line),
         last_note=breeding_logbook_last_note(

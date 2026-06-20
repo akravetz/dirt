@@ -121,7 +121,6 @@ async def test_capture_policy_evaluation_uses_local_window() -> None:
         site_id="homebox",
         source_site_id=1,
         source_tent_id=2,
-        tent_id="breeding",
         tent_name="Breeding Tent",
         camera_device_id="obsbot-breeding",
         enabled=True,
@@ -132,6 +131,7 @@ async def test_capture_policy_evaluation_uses_local_window() -> None:
         source_schedule_id=3,
         reason=None,
     )
+    assert "tent_id" not in policy.model_dump(mode="json", exclude_none=True)
 
     assert (
         evaluate_capture_policy(
@@ -152,7 +152,6 @@ async def test_hosted_capture_policy_gate_uses_cached_policy_on_fetch_failure() 
         site_id="homebox",
         source_site_id=1,
         source_tent_id=2,
-        tent_id="breeding",
         tent_name="Breeding Tent",
         camera_device_id="obsbot-breeding",
         enabled=True,

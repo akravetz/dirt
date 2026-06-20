@@ -171,7 +171,6 @@ def _rollup(
     return CloudMetricRollup(
         site_id="homebox",
         source_tent_id=1,
-        tent_id="main",
         device_id=device_id,
         capability_id=capability_id,
         metric=metric,
@@ -274,7 +273,6 @@ def _plant_location(
         source_location_id=_source_plant_id(plant_id),
         source_plant_id=_source_plant_id(plant_id),
         source_tent_id=_source_tent_id(tent_id),
-        tent_id=tent_id,
         grid_position=grid_position,
         start_at=FIXED_NOW - timedelta(days=51),
         end_at=end_at,
@@ -399,7 +397,6 @@ def _tent(tent_id: str, name: str) -> CloudTent:
     return CloudTent(
         site_id="homebox",
         source_tent_id=_source_tent_id(tent_id),
-        tent_id=tent_id,
         name=name,
         is_active=True,
         synced_at=FIXED_NOW,
@@ -422,8 +419,6 @@ def _latest_metric(
     return CloudLatestMetric(
         site_id="homebox",
         source_tent_id=1,
-        tent_id="main",
-        zone_id="ignored-for-plant-detail",
         device_id=device_id,
         capability_id=capability_id,
         metric=metric,
@@ -493,7 +488,6 @@ async def test_browser_tents_ignore_legacy_rows_without_source_tent_id(
             CloudTent(
                 site_id="homebox",
                 source_tent_id=None,
-                tent_id="main",
                 name="Legacy Main Tent",
                 is_active=True,
                 synced_at=FIXED_NOW,
@@ -506,7 +500,6 @@ async def test_browser_tents_ignore_legacy_rows_without_source_tent_id(
                 site_id="homebox",
                 source_site_id=1,
                 source_tent_id=1,
-                tent_id="1",
                 name="Main Tent",
                 role="flower",
                 is_active=True,
@@ -590,7 +583,6 @@ async def test_catalog_upsert_is_idempotent(
                 "source_tent_id": 1,
                 "name": "Main",
                 "role": "flower",
-                "legacy_tent_id": "main",
             }
         ],
         "zones": [
@@ -598,7 +590,6 @@ async def test_catalog_upsert_is_idempotent(
                 "source_tent_id": 1,
                 "source_zone_id": 10,
                 "name": "Canopy",
-                "legacy_zone_id": "canopy",
             }
         ],
         "devices": [
@@ -641,7 +632,6 @@ async def test_catalog_upsert_is_idempotent(
                 "source_schedule_id": 100,
                 "device_id": "env-main",
                 "capability_id": "env-main-temp",
-                "legacy_schedule_id": "main-lights-photoperiod",
                 "kind": "lights",
                 "starts_local": "09:00:00",
                 "ends_local": "21:00:00",
@@ -877,7 +867,7 @@ async def test_catalog_upsert_is_idempotent(
                 select(CloudPlantLocation).where(
                     CloudPlantLocation.site_id == "homebox",
                     CloudPlantLocation.source_plant_id == 1,
-                    CloudPlantLocation.tent_id == "main",
+                    CloudPlantLocation.source_tent_id == 1,
                     CloudPlantLocation.grid_position == "A1",
                 )
             )
@@ -887,7 +877,7 @@ async def test_catalog_upsert_is_idempotent(
                 select(CloudPlantLocation).where(
                     CloudPlantLocation.site_id == "homebox",
                     CloudPlantLocation.source_plant_id == 2,
-                    CloudPlantLocation.tent_id == "main",
+                    CloudPlantLocation.source_tent_id == 1,
                     CloudPlantLocation.grid_position.is_(None),
                 )
             )
@@ -941,15 +931,15 @@ async def test_catalog_upsert_is_idempotent(
     assert event_count == 1
     assert stream_count == 1
     assert tent is not None
-    assert tent.tent_id == "main"
+    assert tent.source_tent_id == 1
     assert tent.role == "flower"
     assert zone is not None
     assert zone.source_tent_id == 1
-    assert zone.zone_id == "canopy"
+    assert zone.source_zone_id == 10
     assert schedule is not None
     assert schedule.source_tent_id == 1
     assert schedule.source_zone_id == 10
-    assert schedule.schedule_id == "main-lights-photoperiod"
+    assert schedule.source_schedule_id == 100
     assert plant_a is not None
     assert plant_a.key == "SBBS-R1-001"
     assert plant_a.line_source_id == 1
@@ -973,6 +963,70 @@ async def test_catalog_upsert_is_idempotent(
     assert plant_a_stream is not None
     assert plant_a_stream.display_order == 1
     assert plant_a_stream.is_active is True
+
+
+async def test_catalog_upsert_persists_source_scope_ids(
+    client: AsyncClient,
+    gateway_headers: dict[str, str],
+    cloud_engine: AsyncEngine,
+) -> None:
+    response = await client.put(
+        "/api/gateway/v1/catalog",
+        headers=gateway_headers,
+        json={
+            "site_id": "homebox",
+            "site": {"source_site_id": 1, "name": "Home Box"},
+            "tents": [
+                {"source_tent_id": 1, "name": "Main", "role": "flower"},
+            ],
+            "zones": [
+                {
+                    "source_tent_id": 1,
+                    "source_zone_id": 10,
+                    "name": "Canopy",
+                }
+            ],
+            "schedules": [
+                {
+                    "source_site_id": 1,
+                    "source_tent_id": 1,
+                    "source_zone_id": 10,
+                    "source_schedule_id": 100,
+                    "kind": "lights",
+                    "starts_local": "09:00:00",
+                    "ends_local": "21:00:00",
+                    "timezone": "America/Denver",
+                    "is_enabled": True,
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    sessionmaker = create_sessionmaker(cloud_engine)
+    async with sessionmaker() as session:
+        tent = (
+            await session.execute(
+                select(CloudTent).where(CloudTent.source_tent_id == 1)
+            )
+        ).scalar_one()
+        zone = (
+            await session.execute(
+                select(CloudZone).where(CloudZone.source_zone_id == 10)
+            )
+        ).scalar_one()
+        schedule = (
+            await session.execute(
+                select(CloudSchedule).where(CloudSchedule.source_schedule_id == 100)
+            )
+        ).scalar_one()
+
+    assert tent.source_tent_id == 1
+    assert zone.source_tent_id == 1
+    assert zone.source_zone_id == 10
+    assert schedule.source_tent_id == 1
+    assert schedule.source_zone_id == 10
+    assert schedule.source_schedule_id == 100
 
 
 async def test_gateway_wiki_projection_upserts_deletes_and_checks_scope(
@@ -1057,7 +1111,6 @@ async def test_gateway_camera_capture_policy_matches_camera_to_lights_by_tent(
                 "source_tent_id": 2,
                 "name": "Breeding",
                 "role": "breeding",
-                "legacy_tent_id": "breeding",
             }
         ],
         "zones": [
@@ -1065,13 +1118,11 @@ async def test_gateway_camera_capture_policy_matches_camera_to_lights_by_tent(
                 "source_tent_id": 2,
                 "source_zone_id": 20,
                 "name": "Canopy",
-                "legacy_zone_id": "canopy",
             },
             {
                 "source_tent_id": 2,
                 "source_zone_id": 21,
                 "name": "Lights",
-                "legacy_zone_id": "lights",
             },
         ],
         "devices": [
@@ -1090,7 +1141,6 @@ async def test_gateway_camera_capture_policy_matches_camera_to_lights_by_tent(
                 "source_tent_id": 2,
                 "source_zone_id": 21,
                 "source_schedule_id": 200,
-                "legacy_schedule_id": "breeding-lights-photoperiod",
                 "kind": "lights",
                 "starts_local": "06:00:00",
                 "ends_local": "18:00:00",
@@ -1114,7 +1164,6 @@ async def test_gateway_camera_capture_policy_matches_camera_to_lights_by_tent(
         "site_id": "homebox",
         "source_site_id": 1,
         "source_tent_id": 2,
-        "tent_id": "breeding",
         "tent_name": "Breeding",
         "camera_device_id": "obsbot-breeding",
         "enabled": True,
@@ -1150,9 +1199,7 @@ async def test_gateway_camera_capture_policy_fails_open_when_missing_rows(
         session.add(
             CloudDevice(
                 site_id="homebox",
-                tent_id="breeding",
                 source_tent_id=2,
-                zone_id="canopy",
                 device_id="obsbot-breeding",
                 name="Breeding Camera",
                 kind="camera",
@@ -1166,9 +1213,7 @@ async def test_gateway_camera_capture_policy_fails_open_when_missing_rows(
         session.add(
             CloudDevice(
                 site_id="homebox",
-                tent_id="breeding",
                 source_tent_id=2,
-                zone_id="canopy",
                 device_id="obsbot-disabled",
                 name="Disabled Breeding Camera",
                 kind="camera",
@@ -1191,14 +1236,17 @@ async def test_gateway_camera_capture_policy_fails_open_when_missing_rows(
     )
 
     assert missing_camera.status_code == 200
+    assert "tent_id" not in missing_camera.json()
     assert missing_camera.json()["enabled"] is True
     assert missing_camera.json()["require_lights_on"] is False
     assert missing_camera.json()["reason"] == "camera_not_found"
     assert missing_schedule.status_code == 200
+    assert "tent_id" not in missing_schedule.json()
     assert missing_schedule.json()["enabled"] is True
     assert missing_schedule.json()["require_lights_on"] is False
     assert missing_schedule.json()["reason"] == "lights_schedule_not_found"
     assert disabled.status_code == 200
+    assert "tent_id" not in disabled.json()
     assert disabled.json()["enabled"] is False
     assert disabled.json()["reason"] == "camera_disabled"
 
@@ -1419,9 +1467,7 @@ async def test_current_metrics_expose_canonical_metric_names(
             [
                 CloudLatestMetric(
                     site_id="homebox",
-                    tent_id="main",
                     source_tent_id=1,
-                    zone_id="canopy",
                     device_id="fan-controller",
                     capability_id="fan_pct",
                     metric="fan_pct",
@@ -1433,9 +1479,7 @@ async def test_current_metrics_expose_canonical_metric_names(
                 ),
                 CloudLatestMetric(
                     site_id="homebox",
-                    tent_id="main",
                     source_tent_id=1,
-                    zone_id="canopy",
                     device_id="govee-h7142-main",
                     capability_id="humidifier_intensity_pct",
                     metric="humidifier_intensity_pct",
@@ -1447,9 +1491,7 @@ async def test_current_metrics_expose_canonical_metric_names(
                 ),
                 CloudLatestMetric(
                     site_id="homebox",
-                    tent_id="main",
                     source_tent_id=1,
-                    zone_id="heat",
                     device_id="ac-infinity-thermoforge-main",
                     capability_id="heat_level",
                     metric="heater_intensity_pct",
@@ -1461,9 +1503,7 @@ async def test_current_metrics_expose_canonical_metric_names(
                 ),
                 CloudLatestMetric(
                     site_id="homebox",
-                    tent_id="main",
                     source_tent_id=1,
-                    zone_id="canopy",
                     device_id="kasa-dehumidifier-main",
                     capability_id="power",
                     metric="dehumidifier_on",
@@ -1668,9 +1708,7 @@ async def test_current_metrics_keep_device_scoped_streams_separate(
             [
                 CloudLatestMetric(
                     site_id="homebox",
-                    tent_id="main",
                     source_tent_id=1,
-                    zone_id="canopy",
                     device_id="plant-a-node",
                     capability_id="soil_moisture_raw",
                     metric="soil_moisture_raw",
@@ -1682,9 +1720,7 @@ async def test_current_metrics_keep_device_scoped_streams_separate(
                 ),
                 CloudLatestMetric(
                     site_id="homebox",
-                    tent_id="main",
                     source_tent_id=1,
-                    zone_id="canopy",
                     device_id="plant-b-node",
                     capability_id="soil_moisture_raw",
                     metric="soil_moisture_raw",
@@ -1798,11 +1834,8 @@ async def test_browser_tent_routes_scope_schedules_and_latest_assets_by_path_ten
                     source_tent_id=1,
                     source_zone_id=8,
                     source_schedule_id=1,
-                    tent_id="main",
-                    zone_id="lights",
                     device_id="kasa-lights-main",
                     capability_id="power",
-                    schedule_id="main-current-lights",
                     kind="lights",
                     starts_local=time(9, 0),
                     ends_local=time(21, 0),
@@ -1817,11 +1850,8 @@ async def test_browser_tent_routes_scope_schedules_and_latest_assets_by_path_ten
                     source_tent_id=2,
                     source_zone_id=11,
                     source_schedule_id=2,
-                    tent_id="breeding",
-                    zone_id="lights",
                     device_id="kasa-lights-breeding",
                     capability_id="power",
-                    schedule_id="breeding-current-lights",
                     kind="lights",
                     starts_local=time(6, 0),
                     ends_local=time(18, 0),
@@ -1834,7 +1864,7 @@ async def test_browser_tent_routes_scope_schedules_and_latest_assets_by_path_ten
                 CloudAsset(
                     asset_id="main-latest",
                     site_id="homebox",
-                    tent_id="main",
+                    source_tent_id=1,
                     object_key="homebox/main/snapshots/latest.jpg",
                     content_type="image/jpeg",
                     byte_size=10,
@@ -1844,7 +1874,7 @@ async def test_browser_tent_routes_scope_schedules_and_latest_assets_by_path_ten
                 CloudAsset(
                     asset_id="breeding-latest",
                     site_id="homebox",
-                    tent_id="breeding",
+                    source_tent_id=2,
                     object_key="homebox/breeding/snapshots/latest.jpg",
                     content_type="image/jpeg",
                     byte_size=11,
@@ -1886,6 +1916,90 @@ async def test_browser_tent_routes_scope_schedules_and_latest_assets_by_path_ten
     assert asset_body[0]["kind"] == "snapshot"
     assert asset_body[0]["content_type"] == "image/jpeg"
     assert asset_body[0]["signed_url"].startswith("https://assets.test/")
+
+
+async def test_cloud_asset_source_scope_supports_latest_asset_reads(
+    cloud_engine: AsyncEngine,
+) -> None:
+    sessionmaker = create_sessionmaker(cloud_engine)
+    async with sessionmaker() as session:
+        session.add_all(
+            [
+                CloudAsset(
+                    asset_id="main-before-rename",
+                    site_id="homebox",
+                    source_tent_id=1,
+                    source_zone_id=10,
+                    object_key="homebox/main/snapshots/before.jpg",
+                    content_type="image/jpeg",
+                    byte_size=10,
+                    captured_at=FIXED_NOW,
+                    uploaded_at=FIXED_NOW,
+                ),
+                CloudAsset(
+                    asset_id="main-after-rename",
+                    site_id="homebox",
+                    source_tent_id=1,
+                    source_zone_id=10,
+                    object_key="homebox/flower/snapshots/after.jpg",
+                    content_type="image/jpeg",
+                    byte_size=11,
+                    captured_at=FIXED_NOW + timedelta(minutes=1),
+                    uploaded_at=FIXED_NOW + timedelta(minutes=1),
+                ),
+                CloudAsset(
+                    asset_id="breeding-latest",
+                    site_id="homebox",
+                    source_tent_id=2,
+                    source_zone_id=20,
+                    object_key="homebox/breeding/snapshots/latest.jpg",
+                    content_type="image/jpeg",
+                    byte_size=12,
+                    captured_at=FIXED_NOW + timedelta(minutes=2),
+                    uploaded_at=FIXED_NOW + timedelta(minutes=2),
+                ),
+            ]
+        )
+        await session.commit()
+
+    async with sessionmaker() as session:
+        tent_rows = (
+            (
+                await session.execute(
+                    select(CloudAsset)
+                    .where(
+                        CloudAsset.site_id == "homebox",
+                        CloudAsset.source_tent_id == 1,
+                    )
+                    .order_by(CloudAsset.captured_at.desc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+        zone_rows = (
+            (
+                await session.execute(
+                    select(CloudAsset)
+                    .where(
+                        CloudAsset.site_id == "homebox",
+                        CloudAsset.source_zone_id == 10,
+                    )
+                    .order_by(CloudAsset.captured_at.desc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    assert [row.asset_id for row in tent_rows] == [
+        "main-after-rename",
+        "main-before-rename",
+    ]
+    assert [row.asset_id for row in zone_rows] == [
+        "main-after-rename",
+        "main-before-rename",
+    ]
 
 
 async def test_metric_history_can_filter_exact_device_stream(
@@ -2041,7 +2155,7 @@ async def test_breeding_logbook_plant_list_is_site_wide_and_screen_shaped(
         "flower_started_on": None,
         "culled_on": None,
         "current_tent_id": 1,
-        "current_tent_name": "main",
+        "current_tent_name": "Tent 1",
         "grid_position": "A1",
         "seed_lot_label": "SBBS R1 #1",
         "last_note": "",
@@ -2102,7 +2216,7 @@ async def test_breeding_logbook_plant_list_handles_timeline_note_fallbacks(
     assert response.status_code == 200
     plants = {plant["key"]: plant for plant in response.json()["plants"]}
     assert plants["SBBS-R1-001"]["current_tent_id"] == 1
-    assert plants["SBBS-R1-001"]["current_tent_name"] == "main"
+    assert plants["SBBS-R1-001"]["current_tent_name"] == "Tent 1"
     assert plants["SBBS-R1-001"]["grid_position"] is None
     assert plants["SBBS-R1-001"]["last_note"] == "Latest canopy note"
     assert plants["SBBS-R1-002"]["last_note"] == "Moved into flower"
@@ -2427,9 +2541,9 @@ async def test_breeding_logbook_write_routes_enqueue_typed_commands_idempotently
         assert first.status_code == 201
         assert second.status_code == 201
         assert second.json()["command_id"] == first.json()["command_id"]
-        assert first.json()["device_id"] is None
-        assert first.json()["capability_id"] is None
-        assert first.json()["payload"] == expected_payload
+        first_body = first.json()
+        assert first_body["target"] is None
+        assert first_body["payload"] == expected_payload
         assert datetime.fromisoformat(first.json()["expires_at"]) == (
             FIXED_NOW + timedelta(seconds=3600)
         )
@@ -2455,6 +2569,7 @@ async def test_breeding_logbook_write_routes_enqueue_typed_commands_idempotently
         "breeding_plants_bulk_cull",
         "breeding_plant_note_create",
     }
+    assert all(row.source_tent_id is None for row in rows)
 
 
 async def test_breeding_logbook_write_routes_return_503_when_commands_disabled(
@@ -2650,7 +2765,7 @@ async def test_browser_plant_detail_returns_metadata_wiki_and_telemetry_count(
     assert body["current_location"] == {
         "id": 1,
         "current_tent_id": 1,
-        "current_tent_name": "main",
+        "current_tent_name": "Tent 1",
         "grid_position": "A1",
         "start_at": (FIXED_NOW - timedelta(days=51)).isoformat().replace("+00:00", "Z"),
         "end_at": None,
@@ -3085,9 +3200,12 @@ async def test_duplicate_command_idempotency_returns_same_intent_without_hardwar
 ) -> None:
     body = {
         "idempotency_key": "same-click",
-        "source_tent_id": 1,
-        "device_id": "obsbot-main",
-        "capability_id": "ptz_move",
+        "target": {
+            "kind": "ptz",
+            "source_tent_id": 1,
+            "device_id": "obsbot-main",
+            "capability_id": "ptz_move",
+        },
         "command_type": "ptz_preset",
         "payload": {"preset_id": "overview"},
     }
@@ -3123,6 +3241,64 @@ async def test_duplicate_command_idempotency_returns_same_intent_without_hardwar
     assert count == 1
 
 
+async def test_command_creation_accepts_ptz_target_shape(
+    authed_client: AsyncClient,
+    gateway_headers: dict[str, str],
+) -> None:
+    body = {
+        "idempotency_key": "target-click",
+        "target": {
+            "kind": "ptz",
+            "source_tent_id": 1,
+            "device_id": "obsbot-main",
+            "capability_id": "ptz_move",
+        },
+        "command_type": "ptz_preset",
+        "payload": {"preset_id": "overview"},
+    }
+
+    created = await authed_client.post("/api/commands", json=body)
+
+    assert created.status_code == 201
+    created_body = created.json()
+    assert created_body["target"] == body["target"]
+
+    claim = await authed_client.post(
+        "/api/gateway/v1/commands/claim",
+        headers=gateway_headers,
+        json={"site_id": "homebox", "limit": 1},
+    )
+
+    assert claim.status_code == 200
+    command = claim.json()["commands"][0]
+    assert command["command_id"] == created_body["command_id"]
+    assert "tent_id" not in command
+    assert "source_tent_id" not in command
+    assert "device_id" not in command
+    assert "capability_id" not in command
+    assert command["target"] == body["target"]
+
+
+async def test_command_openapi_uses_final_target_shape(client: AsyncClient) -> None:
+    response = await client.get("/openapi.json")
+
+    assert response.status_code == 200
+    schemas = response.json()["components"]["schemas"]
+    create_schema = schemas["CommandCreateRequest"]
+    create_properties = create_schema["properties"]
+    response_schema = schemas["CommandResponse"]
+    response_properties = response_schema["properties"]
+
+    assert "target" in create_properties
+    assert "target" in create_schema.get("required", [])
+    for flat_field in ("source_tent_id", "device_id", "capability_id"):
+        assert flat_field not in create_properties
+        assert flat_field not in response_properties
+    assert "legacy_target_tent_id" not in response_properties
+    assert "target" in response_properties
+    assert "target" not in response_schema.get("required", [])
+
+
 def _forbidden_hardware_imports() -> set[str]:
     forbidden = {"dirt_hwd", "dirt_shared.services.ptz"}
     package_root = Path(dirt_control.__file__).parent
@@ -3155,9 +3331,12 @@ async def test_command_creation_rejects_non_ptz_remote_control(
 ) -> None:
     valid_body = {
         "idempotency_key": "unsafe-click",
-        "source_tent_id": 1,
-        "device_id": "obsbot-main",
-        "capability_id": "ptz_move",
+        "target": {
+            "kind": "ptz",
+            "source_tent_id": 1,
+            "device_id": "obsbot-main",
+            "capability_id": "ptz_move",
+        },
         "command_type": "ptz_preset",
         "payload": {"preset_id": "overview"},
     }
@@ -3192,7 +3371,6 @@ async def test_asset_flow_is_direct_upload_handshake_and_signed_url_requires_aut
         json={
             "site_id": "homebox",
             "source_tent_id": 1,
-            "tent_id": "main",
             "asset_id": "asset-1",
             "object_key": "tents/1/asset-1.jpg",
             "content_type": "image/jpeg",
@@ -3217,7 +3395,6 @@ async def test_asset_flow_is_direct_upload_handshake_and_signed_url_requires_aut
         json={
             "site_id": "homebox",
             "source_tent_id": 1,
-            "tent_id": "main",
             "asset_id": "asset-1",
             "object_key": "tents/1/asset-1.jpg",
             "content_type": "image/jpeg",
@@ -3228,6 +3405,14 @@ async def test_asset_flow_is_direct_upload_handshake_and_signed_url_requires_aut
         },
     )
     assert complete.status_code == 200
+    async with sessionmaker() as session:
+        asset = (
+            await session.execute(
+                select(CloudAsset).where(CloudAsset.asset_id == "asset-1")
+            )
+        ).scalar_one()
+    assert asset.source_tent_id == 1
+    assert asset.source_zone_id is None
 
     unauth = await client.get("/api/assets/asset-1/signed-url")
     assert unauth.status_code == 401
@@ -3244,6 +3429,40 @@ async def test_asset_flow_is_direct_upload_handshake_and_signed_url_requires_aut
     assert authed.json()["signed_url"].startswith("https://assets.test/")
 
 
+async def test_asset_complete_persists_source_scope_from_request(
+    client: AsyncClient,
+    gateway_headers: dict[str, str],
+    cloud_engine: AsyncEngine,
+) -> None:
+    response = await client.post(
+        "/api/gateway/v1/assets/complete",
+        headers=gateway_headers,
+        json={
+            "site_id": "homebox",
+            "source_tent_id": 2,
+            "source_zone_id": 21,
+            "device_id": "obsbot-sidecar",
+            "asset_id": "asset-zone-scoped",
+            "object_key": "tents/2/snapshots/clone-rack.jpg",
+            "content_type": "image/jpeg",
+            "byte_size": 12_000,
+            "sha256": "c" * 64,
+            "captured_at": "2026-05-05T03:41:00Z",
+        },
+    )
+
+    assert response.status_code == 200
+    sessionmaker = create_sessionmaker(cloud_engine)
+    async with sessionmaker() as session:
+        asset = (
+            await session.execute(
+                select(CloudAsset).where(CloudAsset.asset_id == "asset-zone-scoped")
+            )
+        ).scalar_one()
+    assert asset.source_tent_id == 2
+    assert asset.source_zone_id == 21
+
+
 async def test_asset_complete_replaces_existing_asset_for_same_object_key(
     client: AsyncClient,
     gateway_headers: dict[str, str],
@@ -3255,7 +3474,6 @@ async def test_asset_complete_replaces_existing_asset_for_same_object_key(
         json={
             "site_id": "homebox",
             "source_tent_id": 1,
-            "tent_id": "main",
             "asset_id": "asset-old",
             "object_key": "tents/1/snapshots/plant-a.jpg",
             "content_type": "image/jpeg",
@@ -3271,7 +3489,6 @@ async def test_asset_complete_replaces_existing_asset_for_same_object_key(
         json={
             "site_id": "homebox",
             "source_tent_id": 1,
-            "tent_id": "main",
             "asset_id": "asset-new",
             "object_key": "tents/1/snapshots/plant-a.jpg",
             "content_type": "image/jpeg",
@@ -3300,6 +3517,8 @@ async def test_asset_complete_replaces_existing_asset_for_same_object_key(
         )
     assert len(assets) == 1
     assert assets[0].asset_id == "asset-new"
+    assert assets[0].source_tent_id == 1
+    assert assets[0].source_zone_id is None
     assert assets[0].byte_size == 20
 
 
@@ -3321,9 +3540,12 @@ async def test_sync_status_exposes_gateway_age_and_command_backlog(
         "/api/commands",
         json={
             "idempotency_key": "backlog-click",
-            "source_tent_id": 1,
-            "device_id": "obsbot-main",
-            "capability_id": "ptz_move",
+            "target": {
+                "kind": "ptz",
+                "source_tent_id": 1,
+                "device_id": "obsbot-main",
+                "capability_id": "ptz_move",
+            },
             "command_type": "ptz_preset",
             "payload": {"preset_id": "overview"},
         },
@@ -3353,7 +3575,6 @@ async def test_health_exposes_gateway_backlog_and_failure_counts(
         json={
             "site_id": "homebox",
             "source_tent_id": 1,
-            "tent_id": "main",
             "asset_id": "asset-1",
             "object_key": "tents/1/asset-1.jpg",
             "stage": "upload_or_complete",
@@ -3368,7 +3589,6 @@ async def test_health_exposes_gateway_backlog_and_failure_counts(
             command_id="failed-command",
             idempotency_key="failed-key",
             site_id="homebox",
-            tent_id="main",
             device_id="obsbot-main",
             capability_id="ptz_move",
             command_type="ptz_zoom",
@@ -3416,9 +3636,7 @@ async def test_health_audits_current_metrics_without_device_liveness(
         session.add(
             CloudDevice(
                 site_id="homebox",
-                tent_id="main",
                 source_tent_id=1,
-                zone_id="canopy",
                 device_id="env-main",
                 name="Env Main",
                 kind="sensor",
@@ -3432,9 +3650,7 @@ async def test_health_audits_current_metrics_without_device_liveness(
         session.add(
             CloudLatestMetric(
                 site_id="homebox",
-                tent_id="main",
                 source_tent_id=1,
-                zone_id="canopy",
                 device_id="env-main",
                 capability_id="env-main-temp",
                 metric="temperature_f",
@@ -3464,9 +3680,9 @@ async def test_health_audits_current_metrics_without_device_liveness(
     assert event.actor_type == "system"
     assert event.site_id == "homebox"
     assert event.subject_type == "cloud_device"
-    assert event.subject_id == "site=homebox;tent=main;device=env-main"
+    assert event.subject_id == "site=homebox;source_tent=1;device=env-main"
     assert event.event_metadata == {
-        "tent_id": "main",
+        "source_tent_id": 1,
         "device_id": "env-main",
         "metrics": ["temperature_f"],
         "capability_ids": ["env-main-temp"],
@@ -3482,9 +3698,12 @@ async def test_audit_rows_cover_auth_command_claim_result_and_rotation(
         "/api/commands",
         json={
             "idempotency_key": "audit-click",
-            "source_tent_id": 1,
-            "device_id": "obsbot-main",
-            "capability_id": "ptz_move",
+            "target": {
+                "kind": "ptz",
+                "source_tent_id": 1,
+                "device_id": "obsbot-main",
+                "capability_id": "ptz_move",
+            },
             "command_type": "ptz_preset",
             "payload": {"preset_id": "overview"},
         },
@@ -3561,9 +3780,12 @@ async def test_command_creation_can_be_disabled_by_config(
             "/api/commands",
             json={
                 "idempotency_key": "disabled-click",
-                "source_tent_id": 1,
-                "device_id": "obsbot-main",
-                "capability_id": "ptz_move",
+                "target": {
+                    "kind": "ptz",
+                    "source_tent_id": 1,
+                    "device_id": "obsbot-main",
+                    "capability_id": "ptz_move",
+                },
                 "command_type": "ptz_preset",
                 "payload": {"preset_id": "overview"},
             },
@@ -3591,7 +3813,7 @@ async def test_asset_retention_prunes_assets_older_than_30_days(
             CloudAsset(
                 asset_id="old-asset",
                 site_id="homebox",
-                tent_id="main",
+                source_tent_id=1,
                 object_key="homebox/main/old.jpg",
                 content_type="image/jpeg",
                 byte_size=10,
@@ -3603,7 +3825,7 @@ async def test_asset_retention_prunes_assets_older_than_30_days(
             CloudAsset(
                 asset_id="fresh-asset",
                 site_id="homebox",
-                tent_id="main",
+                source_tent_id=1,
                 object_key="homebox/main/fresh.jpg",
                 content_type="image/jpeg",
                 byte_size=10,
@@ -3645,9 +3867,12 @@ async def test_gateway_claim_expires_stale_commands_and_reclaims_own_claim(
         "/api/commands",
         json={
             "idempotency_key": "stale-click",
-            "source_tent_id": 1,
-            "device_id": "obsbot-main",
-            "capability_id": "ptz_move",
+            "target": {
+                "kind": "ptz",
+                "source_tent_id": 1,
+                "device_id": "obsbot-main",
+                "capability_id": "ptz_move",
+            },
             "command_type": "ptz_preset",
             "payload": {"preset_id": "overview"},
         },
@@ -3656,9 +3881,12 @@ async def test_gateway_claim_expires_stale_commands_and_reclaims_own_claim(
         "/api/commands",
         json={
             "idempotency_key": "fresh-click",
-            "source_tent_id": 1,
-            "device_id": "obsbot-main",
-            "capability_id": "ptz_move",
+            "target": {
+                "kind": "ptz",
+                "source_tent_id": 1,
+                "device_id": "obsbot-main",
+                "capability_id": "ptz_move",
+            },
             "command_type": "ptz_zoom",
             "payload": {"zoom": 1.2},
         },
@@ -3709,9 +3937,12 @@ async def test_gateway_result_does_not_regress_terminal_command(
         "/api/commands",
         json={
             "idempotency_key": "terminal-click",
-            "source_tent_id": 1,
-            "device_id": "obsbot-main",
-            "capability_id": "ptz_move",
+            "target": {
+                "kind": "ptz",
+                "source_tent_id": 1,
+                "device_id": "obsbot-main",
+                "capability_id": "ptz_move",
+            },
             "command_type": "ptz_zoom",
             "payload": {"zoom": 1.4},
         },

@@ -276,9 +276,12 @@ class RecordingCloudClient:
         return CommandResultResponse.model_validate(
             {
                 "command_id": command_id,
-                "tent_id": "main",
-                "device_id": "obsbot-main",
-                "capability_id": "ptz_move",
+                "target": {
+                    "kind": "ptz",
+                    "source_tent_id": 1,
+                    "device_id": "obsbot-main",
+                    "capability_id": "ptz_move",
+                },
                 "command_type": "ptz_preset",
                 "payload": {"preset_id": "overview"},
                 "queued_at": FIXED_NOW - timedelta(seconds=5),
@@ -310,7 +313,6 @@ def _asset_projection(asset_file: Path) -> AssetUploadProjection:
     sign_request = AssetSignUploadRequest(
         site_id="homebox",
         source_tent_id=1,
-        tent_id="main",
         content_type="image/jpeg",
         byte_size=len(b"jpeg-bytes"),
         object_key="tents/1/snapshots/snapshot.jpg",
@@ -342,7 +344,6 @@ class StaticLocalServices:
                     source_tent_id=1,
                     name="Main",
                     role="flower",
-                    legacy_tent_id="main",
                     is_active=True,
                 )
             ],
@@ -553,19 +554,20 @@ def _cloud_command(
     *,
     command_type: str = "ptz_preset",
     payload: dict[str, Any] | None = None,
-    tent_id: str = "main",
-    source_tent_id: int | None = 1,
-    device_id: str | None = "obsbot-main",
-    capability_id: str | None = "ptz_move",
+    target: dict[str, object] | None = None,
     expires_at: datetime | None = None,
 ) -> dict[str, Any]:
-    return {
+    if target is None and command_type.startswith("ptz_"):
+        target = {
+            "kind": "ptz",
+            "source_tent_id": 1,
+            "device_id": "obsbot-main",
+            "capability_id": "ptz_move",
+        }
+    command = {
         "command_id": command_id,
         "site_id": "homebox",
-        "tent_id": tent_id,
-        "source_tent_id": source_tent_id,
-        "device_id": device_id,
-        "capability_id": capability_id,
+        "target": target,
         "command_type": command_type,
         "payload": payload or {"preset_id": "overview"},
         "status": "claimed",
@@ -579,6 +581,7 @@ def _cloud_command(
         "result": None,
         "error": None,
     }
+    return command
 
 
 async def _site_and_tent_pks(
@@ -1532,13 +1535,11 @@ async def test_collect_catalog_projects_current_scope_boundary_fields(
 
     assert payload.site_id == "homebox"
     assert payload.site.source_site_id > 0
-    assert all(tent.legacy_tent_id for tent in payload.tents)
     assert light_schedules
     for schedule in light_schedules:
         assert schedule.source_site_id == payload.site.source_site_id
         assert schedule.source_tent_id in tent_source_ids
         assert schedule.source_schedule_id > 0
-        assert schedule.legacy_schedule_id
         assert schedule.timezone
         assert schedule.starts_local is not None
         assert schedule.ends_local is not None
@@ -1667,12 +1668,14 @@ async def test_read_only_outbox_replay_validates_stored_json_before_dispatch(
         event_type="catalog",
         idempotency_key="homebox:catalog:missing-last-seen",
         payload={
-            "site": {"site_id": "homebox", "name": "Homebox", "timezone": "UTC"},
+            "site_id": "homebox",
+            "site": {"source_site_id": 1, "name": "Homebox", "timezone": "UTC"},
             "tents": [],
             "zones": [],
             "devices": [
                 {
-                    "tent_id": "main",
+                    "source_tent_id": 1,
+                    "source_zone_id": None,
                     "device_id": "test-node",
                     "name": "Test node",
                 }
@@ -1855,6 +1858,9 @@ async def test_asset_sync_uses_sign_upload_complete_flow(
         "complete_request": asset.complete_request.model_dump(mode="json"),
         "file_path": str(asset_file),
     }
+    assert "tent_id" not in asset_row.payload["sign_request"]
+    assert "tent_id" not in asset_row.payload["complete_request"]
+    assert "zone_id" not in asset_row.payload["complete_request"]
     assert cloud.assets["asset-1"]["object_key"] == "tents/1/snapshots/snapshot.jpg"
 
 
@@ -1872,7 +1878,6 @@ async def test_asset_upload_outbox_replay_validates_stored_json_before_cloud_cal
             "sign_request": {
                 "site_id": "homebox",
                 "source_tent_id": 1,
-                "tent_id": "main",
                 "content_type": "image/jpeg",
                 "object_key": "tents/1/snapshots/snapshot.jpg",
                 "asset_id": "asset-1",
@@ -1882,7 +1887,6 @@ async def test_asset_upload_outbox_replay_validates_stored_json_before_cloud_cal
             "complete_request": {
                 "site_id": "homebox",
                 "source_tent_id": 1,
-                "tent_id": "main",
                 "content_type": "image/jpeg",
                 "byte_size": len(b"jpeg-bytes"),
                 "object_key": "tents/1/snapshots/snapshot.jpg",
@@ -1979,6 +1983,7 @@ async def test_asset_sync_reports_upload_failures_and_retries(
     assert cloud.call_counts["asset_failure"] == 1
     assert cloud.asset_failures[0]["stage"] == "upload_or_complete"
     assert cloud.asset_failures[0]["asset_id"] == "asset-1"
+    assert "tent_id" not in cloud.asset_failures[0]
     assert await OutboxRepository(app_engine).pending_count() == 1
 
 
@@ -2037,6 +2042,41 @@ async def test_command_loop_executes_ptz_and_records_local_ledger(
     assert command.result["preset"] == "overview"
 
 
+async def test_command_loop_uses_ptz_target_for_local_scope(
+    app_engine: AsyncEngine,
+):
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command(
+            "cloud-target",
+            target={
+                "kind": "ptz",
+                "source_tent_id": 1,
+                "device_id": "obsbot-main",
+                "capability_id": "ptz_move",
+            },
+            payload={"preset_id": "overview"},
+        )
+    ]
+    ptz = RecordingPTZ()
+
+    result = await _command_service(app_engine, cloud, ptz).run_once()
+
+    assert result.executed == 1
+    assert ptz.calls == [("preset", "overview")]
+    async with AsyncSession(app_engine) as session:
+        command = (
+            await session.exec(
+                select(Command).where(
+                    Command.idempotency_key == "cloud-command:cloud-target"
+                )
+            )
+        ).one()
+    assert command.tent_id == 1
+    assert command.device_id is not None
+    assert command.capability_id is not None
+
+
 async def test_command_loop_executes_purchased_seed_lot_create(
     app_engine: AsyncEngine,
 ):
@@ -2045,9 +2085,6 @@ async def test_command_loop_executes_purchased_seed_lot_create(
         _cloud_command(
             "cloud-seed-purchased",
             command_type="breeding_seed_lot_create",
-            tent_id="breeding-logbook",
-            device_id=None,
-            capability_id=None,
             payload={
                 "source": "purchased",
                 "generation": "F4",
@@ -2101,9 +2138,6 @@ async def test_command_loop_executes_cross_seed_lot_create(
         _cloud_command(
             "cloud-seed-cross",
             command_type="breeding_seed_lot_create",
-            tent_id="breeding-logbook",
-            device_id=None,
-            capability_id=None,
             payload={
                 "source": "cross",
                 "generation": "F1",
@@ -2157,9 +2191,6 @@ async def test_command_loop_germinates_plants_with_local_key_suffixes(
         _cloud_command(
             "cloud-germinate",
             command_type="breeding_plants_germinate",
-            tent_id="breeding-logbook",
-            device_id=None,
-            capability_id=None,
             payload={
                 "seed_lot_source_id": seed_lot_id,
                 "count": 2,
@@ -2213,9 +2244,6 @@ async def test_command_loop_clones_plants_and_records_mother_event(
         _cloud_command(
             "cloud-clone",
             command_type="breeding_plants_clone",
-            tent_id="breeding-logbook",
-            device_id=None,
-            capability_id=None,
             payload={
                 "mother_plant_key": mother_key,
                 "count": 2,
@@ -2263,9 +2291,6 @@ async def test_command_loop_bulk_sex_updates_plants_and_events(
         _cloud_command(
             "cloud-sex",
             command_type="breeding_plants_bulk_sex",
-            tent_id="breeding-logbook",
-            device_id=None,
-            capability_id=None,
             payload={"plant_keys": plant_keys, "sex_key": "female"},
         )
     ]
@@ -2282,9 +2307,17 @@ async def test_command_loop_bulk_sex_updates_plants_and_events(
                 select(PlantEvent).where(PlantEvent.is_sex_observation.is_(True))
             )
         ).all()
+        command = (
+            await session.exec(
+                select(Command).where(
+                    Command.idempotency_key == "cloud-command:cloud-sex"
+                )
+            )
+        ).one()
 
     assert {plant.sex_key for plant in plants} == {"female"}
     assert {event.metadata_json["sex_key"] for event in events} >= {"female"}
+    assert command.tent_id is None
 
 
 async def test_command_loop_bulk_move_closes_current_location_and_starts_flower(
@@ -2302,9 +2335,6 @@ async def test_command_loop_bulk_move_closes_current_location_and_starts_flower(
         _cloud_command(
             "cloud-move",
             command_type="breeding_plants_bulk_move",
-            tent_id="breeding-logbook",
-            device_id=None,
-            capability_id=None,
             payload={
                 "plant_keys": [plant_key],
                 "source_tent_id": 1,
@@ -2354,9 +2384,6 @@ async def test_command_loop_bulk_cull_closes_current_location(
         _cloud_command(
             "cloud-cull",
             command_type="breeding_plants_bulk_cull",
-            tent_id="breeding-logbook",
-            device_id=None,
-            capability_id=None,
             payload={"plant_keys": [plant_key], "reason": "failed vigor check"},
         )
     ]
@@ -2373,10 +2400,18 @@ async def test_command_loop_bulk_cull_closes_current_location(
                 .where(PlantLocationHistory.end_at.is_(None))
             )
         ).all()
+        command = (
+            await session.exec(
+                select(Command).where(
+                    Command.idempotency_key == "cloud-command:cloud-cull"
+                )
+            )
+        ).one()
 
     assert plant.culled_at == FIXED_NOW
     assert plant.culled_reason == "failed vigor check"
     assert current_locations == []
+    assert command.tent_id is None
 
 
 async def test_command_loop_creates_plant_note_with_cloud_requester(
@@ -2388,9 +2423,6 @@ async def test_command_loop_creates_plant_note_with_cloud_requester(
         _cloud_command(
             "cloud-note",
             command_type="breeding_plant_note_create",
-            tent_id="breeding-logbook",
-            device_id=None,
-            capability_id=None,
             payload={
                 "plant_key": plant_key,
                 "body": "Stem rub is citrus-heavy.",
@@ -2421,6 +2453,7 @@ async def test_command_loop_creates_plant_note_with_cloud_requester(
     assert note.body == "Stem rub is citrus-heavy."
     assert note.created_by == "admin"
     assert command.result["source_note_id"] == note.id
+    assert command.tent_id is None
 
 
 async def test_command_loop_rejects_breeding_with_ptz_target_before_ledger(
@@ -2432,9 +2465,13 @@ async def test_command_loop_rejects_breeding_with_ptz_target_before_ledger(
             "cloud-breeding-bad-target",
             command_type="breeding_plants_bulk_cull",
             payload={"plant_keys": ["missing"], "reason": "bad target"},
-            device_id="obsbot-main",
-            capability_id="ptz_move",
-        )
+            target={
+                "kind": "ptz",
+                "source_tent_id": 1,
+                "device_id": "obsbot-main",
+                "capability_id": "ptz_move",
+            },
+        ),
     ]
 
     result = await _command_service(app_engine, cloud, RecordingPTZ()).run_once()
@@ -2454,9 +2491,6 @@ async def test_command_loop_reports_failed_for_invalid_breeding_state(
         _cloud_command(
             "cloud-missing-plant",
             command_type="breeding_plant_note_create",
-            tent_id="breeding-logbook",
-            device_id=None,
-            capability_id=None,
             payload={"plant_key": "NOPE-001", "body": "Missing plant."},
         )
     ]
@@ -2487,9 +2521,6 @@ async def test_command_loop_does_not_duplicate_breeding_terminal_local_command(
         _cloud_command(
             "cloud-note-repeat",
             command_type="breeding_plant_note_create",
-            tent_id="breeding-logbook",
-            device_id=None,
-            capability_id=None,
             payload={"plant_key": plant_key, "body": "One note only."},
         )
     ]
@@ -2532,8 +2563,13 @@ async def test_command_loop_rejects_expired_and_invalid_without_ptz(
             payload={"preset_id": "not-a-preset"},
         ),
         _cloud_command(
-            "cloud-unsafe-device",
-            device_id="fan-main",
+            "cloud-missing-target-scope",
+            target={
+                "kind": "ptz",
+                "source_tent_id": None,
+                "device_id": "obsbot-main",
+                "capability_id": "ptz_move",
+            },
         ),
     ]
     ptz = RecordingPTZ()

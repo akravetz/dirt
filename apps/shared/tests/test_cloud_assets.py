@@ -1,13 +1,19 @@
 from __future__ import annotations
 
+import json
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import httpx
 import pytest
 
-from dirt_shared.cloud_assets import AssetUploader, AssetUploadRequest
+from dirt_shared.cloud_assets import (
+    AssetUploader,
+    AssetUploadRequest,
+    HttpCloudAssetClient,
+)
 from dirt_shared.cloud_contract import (
     AssetCompleteRequest,
     AssetCompleteResponse,
@@ -95,7 +101,6 @@ def _payload(asset_file: Path) -> AssetUploadRequest:
     sign_request = AssetSignUploadRequest(
         site_id="homebox",
         source_tent_id=2,
-        tent_id="breeding",
         content_type="image/jpeg",
         byte_size=10,
         object_key="cameras/obsbot-breeding/snapshots/2026/05/snapshot.jpg",
@@ -164,7 +169,6 @@ async def test_asset_uploader_reports_upload_failure_then_reraises(
         AssetFailureRequest(
             site_id="homebox",
             source_tent_id=2,
-            tent_id="breeding",
             asset_id="asset-1",
             object_key="cameras/obsbot-breeding/snapshots/2026/05/snapshot.jpg",
             stage="upload_or_complete",
@@ -198,3 +202,86 @@ async def test_asset_uploader_swallow_failure_report_error_with_hook(
         )
 
     assert hook_calls == [(payload, "asset-key", "failure report failed")]
+
+
+async def test_http_asset_client_sends_final_scope_fields() -> None:
+    seen: dict[str, dict[str, object]] = {}
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content)
+        if request.url.path == "/api/gateway/v1/assets/sign-upload":
+            seen["sign"] = payload
+            return httpx.Response(
+                200,
+                json={
+                    "asset_id": payload["asset_id"],
+                    "object_key": payload["object_key"],
+                    "upload_url": "https://assets.test/upload",
+                    "method": "PUT",
+                    "headers": {"Content-Type": payload["content_type"]},
+                    "expires_at": FIXED_NOW.isoformat(),
+                    "byte_size": payload["byte_size"],
+                },
+            )
+        if request.url.path == "/api/gateway/v1/assets/complete":
+            seen["complete"] = payload
+            return httpx.Response(
+                200,
+                json={
+                    "asset_id": payload["asset_id"],
+                    "object_key": payload["object_key"],
+                    "uploaded_at": FIXED_NOW.isoformat(),
+                },
+            )
+        if request.url.path == "/api/gateway/v1/assets/upload-failure":
+            seen["failure"] = payload
+            return httpx.Response(
+                200,
+                json={"ok": True, "received_at": FIXED_NOW.isoformat()},
+            )
+        return httpx.Response(404)
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url="https://api.test",
+    ) as http_client:
+        client = HttpCloudAssetClient(
+            base_url="https://api.test",
+            gateway_token="token",
+            http_client=http_client,
+        )
+        sign_request = AssetSignUploadRequest(
+            site_id="homebox",
+            source_tent_id=2,
+            content_type="image/jpeg",
+            byte_size=10,
+            object_key="cameras/obsbot-breeding/snapshot.jpg",
+            asset_id="asset-1",
+            sha256="asset-1",
+        )
+        await client.sign_upload(sign_request, idempotency_key="asset-key:sign")
+        await client.complete_asset(
+            AssetCompleteRequest(
+                **sign_request.model_dump(),
+                captured_at=FIXED_NOW,
+                source_zone_id=20,
+                device_id="obsbot-breeding",
+            ),
+            idempotency_key="asset-key:complete",
+        )
+        await client.report_asset_failure(
+            AssetFailureRequest(
+                site_id="homebox",
+                source_tent_id=2,
+                asset_id="asset-1",
+                object_key="cameras/obsbot-breeding/snapshot.jpg",
+                stage="upload",
+                error="network unavailable",
+            ),
+            idempotency_key="asset-key:failure",
+        )
+
+    assert "tent_id" not in seen["sign"]
+    assert "tent_id" not in seen["complete"]
+    assert "zone_id" not in seen["complete"]
+    assert "tent_id" not in seen["failure"]

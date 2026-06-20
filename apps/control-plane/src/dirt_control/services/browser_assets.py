@@ -22,7 +22,7 @@ async def latest_assets(
     source_tent_id: int,
     now: datetime,
 ) -> list[AssetResponse]:
-    tent = await get_cloud_tent_by_source_id(
+    await get_cloud_tent_by_source_id(
         session, site_id=settings.default_site_id, source_tent_id=source_tent_id
     )
     rows = (
@@ -30,7 +30,7 @@ async def latest_assets(
             select(CloudAsset)
             .where(
                 CloudAsset.site_id == settings.default_site_id,
-                CloudAsset.tent_id == tent.tent_id,
+                CloudAsset.source_tent_id == source_tent_id,
             )
             .order_by(desc(CloudAsset.captured_at))
             .limit(10)

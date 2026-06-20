@@ -24,6 +24,7 @@ from dirt_shared.cloud_contract import (
     CommandRequestStatus,
     CommandResultOutboxPayload,
     CommandResultRequest,
+    PtzCommandTarget,
     PtzLookPayload,
     PtzPresetPayload,
     PtzZoomAbsolutePayload,
@@ -375,12 +376,17 @@ class GatewayCommandService:
         if item.site_id != self._config.site_id:
             return "command site scope does not match this gateway"
         if _is_breeding_command(item):
-            if item.device_id is not None or item.capability_id is not None:
+            if item.target is not None:
                 return "breeding commands must not include PTZ device targets"
             return None
-        if item.device_id != LOCAL_PTZ_DEVICE_ID:
+        target = _ptz_target(item)
+        if target is None:
+            return "PTZ commands require a PTZ target"
+        if target.source_tent_id is None:
+            return "PTZ commands require source tent target"
+        if target.device_id != LOCAL_PTZ_DEVICE_ID:
             return "unsupported PTZ device target"
-        if item.capability_id != LOCAL_PTZ_CAPABILITY_ID:
+        if target.capability_id != LOCAL_PTZ_CAPABILITY_ID:
             return "unsupported PTZ capability target"
         if (
             isinstance(item.payload, PtzPresetPayload)
@@ -431,7 +437,8 @@ def _local_payload(item: ClaimedCommand) -> dict[str, Any]:
 def _local_tent_id(item: ClaimedCommand) -> int | None:
     payload = item.payload
     if _is_ptz_command(item):
-        return item.source_tent_id
+        target = _ptz_target(item)
+        return None if target is None else target.source_tent_id
     if isinstance(
         payload,
         BreedingGerminatePlantsPayload
@@ -444,14 +451,20 @@ def _local_tent_id(item: ClaimedCommand) -> int | None:
 
 def _local_device_id(item: ClaimedCommand) -> str | None:
     if _is_ptz_command(item):
-        return LOCAL_PTZ_DEVICE_ID
+        target = _ptz_target(item)
+        return None if target is None else target.device_id
     return None
 
 
 def _local_capability_id(item: ClaimedCommand) -> str | None:
     if _is_ptz_command(item):
-        return LOCAL_PTZ_CAPABILITY_ID
+        target = _ptz_target(item)
+        return None if target is None else target.capability_id
     return None
+
+
+def _ptz_target(item: ClaimedCommand) -> PtzCommandTarget | None:
+    return item.target
 
 
 def _is_ptz_command(item: ClaimedCommand) -> bool:

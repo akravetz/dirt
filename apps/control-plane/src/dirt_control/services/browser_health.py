@@ -136,7 +136,7 @@ async def audit_missing_device_liveness(
                 CloudLatestMetric,
                 and_(
                     CloudLatestMetric.site_id == CloudDevice.site_id,
-                    CloudLatestMetric.tent_id == CloudDevice.tent_id,
+                    CloudLatestMetric.source_tent_id == CloudDevice.source_tent_id,
                     CloudLatestMetric.device_id == CloudDevice.device_id,
                 ),
             )
@@ -186,7 +186,7 @@ async def audit_missing_device_liveness(
             subject_type="cloud_device",
             subject_id=subject_id,
             metadata={
-                "tent_id": device.tent_id,
+                "source_tent_id": device.source_tent_id,
                 "device_id": device.device_id,
                 "metrics": sorted({metric.metric for metric in metrics}),
                 "capability_ids": sorted({metric.capability_id for metric in metrics}),
@@ -197,7 +197,10 @@ async def audit_missing_device_liveness(
 
 
 def device_audit_subject_id(device: CloudDevice) -> str:
-    return f"site={device.site_id};tent={device.tent_id};device={device.device_id}"
+    return (
+        f"site={device.site_id};source_tent={device.source_tent_id};"
+        f"device={device.device_id}"
+    )
 
 
 def metric_is_current(metric: CloudLatestMetric, *, now: datetime) -> bool:

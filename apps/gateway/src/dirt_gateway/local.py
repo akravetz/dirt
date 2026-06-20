@@ -117,7 +117,6 @@ class GatewayLocalServiceBundle:
                     source_tent_id=tent.tent_pk,
                     name=tent.name,
                     role=tent.role,
-                    legacy_tent_id=str(tent.tent_pk),
                     is_active=tent.active,
                 )
                 for tent in tents
@@ -250,7 +249,6 @@ class GatewayLocalServiceBundle:
             sign_request = AssetSignUploadRequest(
                 site_id=site_id,
                 source_tent_id=tent.tent_pk,
-                tent_id=str(tent.tent_pk),
                 content_type="image/jpeg",
                 byte_size=path.stat().st_size,
                 object_key=object_key,
@@ -262,7 +260,6 @@ class GatewayLocalServiceBundle:
                 **sign_request.model_dump(),
                 captured_at=_as_utc(snapshot.ts),
                 source_zone_id=snapshot.zone_id,
-                zone_id=await self._public_zone_id(snapshot),
                 device_id=await self._public_device_id(snapshot),
             )
             return AssetUploadProjection(
@@ -288,7 +285,6 @@ class GatewayLocalServiceBundle:
                 source_zone_id=zone.id,
                 name=zone.name,
                 kind=zone.zone_type,
-                legacy_zone_id=str(zone.id),
                 is_active=zone.active,
             )
             for zone, source_tent_id in rows
@@ -373,7 +369,6 @@ class GatewayLocalServiceBundle:
                 source_schedule_id=schedule.id,
                 device_id=device_id,
                 capability_id=capability_id,
-                legacy_schedule_id=str(schedule.id),
                 kind=schedule.kind,
                 starts_local=schedule.starts_local,
                 ends_local=schedule.ends_local,
@@ -642,11 +637,6 @@ class GatewayLocalServiceBundle:
                 )
             )
         return streams
-
-    async def _public_zone_id(self, snapshot: Snapshot) -> str | None:
-        if snapshot.zone_id is None:
-            return None
-        return str(snapshot.zone_id)
 
     async def _public_device_id(self, snapshot: Snapshot) -> str | None:
         if snapshot.device_id is None:

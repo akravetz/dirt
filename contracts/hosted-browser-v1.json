@@ -85,28 +85,6 @@
               }
             ],
             "title": "Source Zone Id"
-          },
-          "tent_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Tent Id"
-          },
-          "zone_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Zone Id"
           }
         },
         "required": [
@@ -195,17 +173,6 @@
             "maxLength": 80,
             "title": "Stage",
             "type": "string"
-          },
-          "tent_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Tent Id"
           }
         },
         "required": [
@@ -377,17 +344,6 @@
               }
             ],
             "title": "Source Tent Id"
-          },
-          "tent_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Tent Id"
           }
         },
         "required": [
@@ -1827,17 +1783,6 @@
             ],
             "title": "Source Tent Id"
           },
-          "tent_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Tent Id"
-          },
           "tent_name": {
             "anyOf": [
               {
@@ -1858,7 +1803,6 @@
           "site_id",
           "source_site_id",
           "source_tent_id",
-          "tent_id",
           "tent_name",
           "camera_device_id",
           "enabled",
@@ -2768,10 +2712,6 @@
             "title": "Kind",
             "type": "string"
           },
-          "legacy_schedule_id": {
-            "title": "Legacy Schedule Id",
-            "type": "string"
-          },
           "source_schedule_id": {
             "title": "Source Schedule Id",
             "type": "integer"
@@ -2812,8 +2752,7 @@
           "source_schedule_id",
           "starts_local",
           "ends_local",
-          "source_zone_id",
-          "legacy_schedule_id"
+          "source_zone_id"
         ],
         "title": "CatalogSchedule",
         "type": "object"
@@ -2945,10 +2884,6 @@
             "title": "Is Active",
             "type": "boolean"
           },
-          "legacy_tent_id": {
-            "title": "Legacy Tent Id",
-            "type": "string"
-          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -2965,8 +2900,7 @@
         "required": [
           "source_tent_id",
           "name",
-          "role",
-          "legacy_tent_id"
+          "role"
         ],
         "title": "CatalogTent",
         "type": "object"
@@ -2982,10 +2916,6 @@
           "kind": {
             "default": "environment",
             "title": "Kind",
-            "type": "string"
-          },
-          "legacy_zone_id": {
-            "title": "Legacy Zone Id",
             "type": "string"
           },
           "name": {
@@ -3004,8 +2934,7 @@
         "required": [
           "source_tent_id",
           "source_zone_id",
-          "name",
-          "legacy_zone_id"
+          "name"
         ],
         "title": "CatalogZone",
         "type": "object"
@@ -3013,17 +2942,6 @@
       "ClaimedCommand": {
         "additionalProperties": false,
         "properties": {
-          "capability_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Capability Id"
-          },
           "claimed_at": {
             "anyOf": [
               {
@@ -3066,17 +2984,6 @@
             ],
             "title": "Command Type",
             "type": "string"
-          },
-          "device_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Device Id"
           },
           "error": {
             "anyOf": [
@@ -3169,17 +3076,6 @@
             "title": "Site Id",
             "type": "string"
           },
-          "source_tent_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Tent Id"
-          },
           "started_at": {
             "anyOf": [
               {
@@ -3205,18 +3101,20 @@
             "title": "Status",
             "type": "string"
           },
-          "tent_id": {
-            "title": "Tent Id",
-            "type": "string"
+          "target": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PtzCommandTarget"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
           "command_id",
           "site_id",
-          "tent_id",
-          "source_tent_id",
-          "device_id",
-          "capability_id",
           "command_type",
           "payload",
           "status",
@@ -3272,12 +3170,8 @@
         "type": "object"
       },
       "CommandCreateRequest": {
+        "additionalProperties": false,
         "properties": {
-          "capability_id": {
-            "const": "ptz_move",
-            "title": "Capability Id",
-            "type": "string"
-          },
           "command_type": {
             "enum": [
               "ptz_preset",
@@ -3285,11 +3179,6 @@
               "ptz_zoom"
             ],
             "title": "Command Type",
-            "type": "string"
-          },
-          "device_id": {
-            "const": "obsbot-main",
-            "title": "Device Id",
             "type": "string"
           },
           "idempotency_key": {
@@ -3314,17 +3203,13 @@
             ],
             "title": "Site Id"
           },
-          "source_tent_id": {
-            "exclusiveMinimum": 0.0,
-            "title": "Source Tent Id",
-            "type": "integer"
+          "target": {
+            "$ref": "#/components/schemas/PtzCommandTarget"
           }
         },
         "required": [
           "idempotency_key",
-          "source_tent_id",
-          "device_id",
-          "capability_id",
+          "target",
           "command_type"
         ],
         "title": "CommandCreateRequest",
@@ -3333,17 +3218,6 @@
       "CommandResponse": {
         "additionalProperties": false,
         "properties": {
-          "capability_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Capability Id"
-          },
           "claimed_at": {
             "anyOf": [
               {
@@ -3374,17 +3248,6 @@
           "command_type": {
             "title": "Command Type",
             "type": "string"
-          },
-          "device_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Device Id"
           },
           "error": {
             "anyOf": [
@@ -3418,10 +3281,6 @@
             "title": "Idempotency Key",
             "type": "string"
           },
-          "legacy_target_tent_id": {
-            "title": "Legacy Target Tent Id",
-            "type": "string"
-          },
           "payload": {
             "additionalProperties": true,
             "title": "Payload",
@@ -3448,17 +3307,6 @@
             "title": "Site Id",
             "type": "string"
           },
-          "source_tent_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Tent Id"
-          },
           "started_at": {
             "anyOf": [
               {
@@ -3474,16 +3322,22 @@
           "status": {
             "title": "Status",
             "type": "string"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PtzCommandTarget"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
           "command_id",
           "idempotency_key",
           "site_id",
-          "source_tent_id",
-          "legacy_target_tent_id",
-          "device_id",
-          "capability_id",
           "command_type",
           "payload",
           "status",
@@ -3551,17 +3405,6 @@
       "CommandResultResponse": {
         "additionalProperties": false,
         "properties": {
-          "capability_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Capability Id"
-          },
           "claimed_at": {
             "anyOf": [
               {
@@ -3604,17 +3447,6 @@
             ],
             "title": "Command Type",
             "type": "string"
-          },
-          "device_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Device Id"
           },
           "error": {
             "anyOf": [
@@ -3707,17 +3539,6 @@
             "title": "Site Id",
             "type": "string"
           },
-          "source_tent_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Tent Id"
-          },
           "started_at": {
             "anyOf": [
               {
@@ -3743,18 +3564,20 @@
             "title": "Status",
             "type": "string"
           },
-          "tent_id": {
-            "title": "Tent Id",
-            "type": "string"
+          "target": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PtzCommandTarget"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
           "command_id",
           "site_id",
-          "tent_id",
-          "source_tent_id",
-          "device_id",
-          "capability_id",
           "command_type",
           "payload",
           "status",
@@ -5700,6 +5523,44 @@
           "objects_deleted"
         ],
         "title": "PruneAssetsResponse",
+        "type": "object"
+      },
+      "PtzCommandTarget": {
+        "additionalProperties": false,
+        "properties": {
+          "capability_id": {
+            "const": "ptz_move",
+            "title": "Capability Id",
+            "type": "string"
+          },
+          "device_id": {
+            "const": "obsbot-main",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "ptz",
+            "title": "Kind",
+            "type": "string"
+          },
+          "source_tent_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Tent Id"
+          }
+        },
+        "required": [
+          "kind",
+          "device_id",
+          "capability_id"
+        ],
+        "title": "PtzCommandTarget",
         "type": "object"
       },
       "PtzLookPayload": {

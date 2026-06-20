@@ -636,10 +636,6 @@ export interface components {
       source_tent_id: number | null;
       /** Source Zone Id */
       source_zone_id: number | null;
-      /** Tent Id */
-      tent_id?: string | null;
-      /** Zone Id */
-      zone_id?: string | null;
     };
     /** AssetCompleteResponse */
     AssetCompleteResponse: {
@@ -667,8 +663,6 @@ export interface components {
       source_tent_id?: number | null;
       /** Stage */
       stage: string;
-      /** Tent Id */
-      tent_id?: string | null;
     };
     /** AssetFailureResponse */
     AssetFailureResponse: {
@@ -741,8 +735,6 @@ export interface components {
       site_id: string;
       /** Source Tent Id */
       source_tent_id: number | null;
-      /** Tent Id */
-      tent_id?: string | null;
     };
     /** BreedingBulkCullPayload */
     BreedingBulkCullPayload: {
@@ -1162,8 +1154,6 @@ export interface components {
       source_site_id: number | null;
       /** Source Tent Id */
       source_tent_id: number | null;
-      /** Tent Id */
-      tent_id: string | null;
       /** Tent Name */
       tent_name: string | null;
       /** Timezone */
@@ -1461,8 +1451,6 @@ export interface components {
        * @default lights
        */
       kind: string;
-      /** Legacy Schedule Id */
-      legacy_schedule_id: string;
       /** Source Schedule Id */
       source_schedule_id: number;
       /** Source Site Id */
@@ -1525,8 +1513,6 @@ export interface components {
        * @default true
        */
       is_active: boolean;
-      /** Legacy Tent Id */
-      legacy_tent_id: string;
       /** Name */
       name: string;
       /** Role */
@@ -1546,8 +1532,6 @@ export interface components {
        * @default environment
        */
       kind: string;
-      /** Legacy Zone Id */
-      legacy_zone_id: string;
       /** Name */
       name: string;
       /** Source Tent Id */
@@ -1557,8 +1541,6 @@ export interface components {
     };
     /** ClaimedCommand */
     ClaimedCommand: {
-      /** Capability Id */
-      capability_id: string | null;
       /** Claimed At */
       claimed_at: string | null;
       /** Claimed By */
@@ -1580,8 +1562,6 @@ export interface components {
         | "breeding_plants_bulk_move"
         | "breeding_plants_bulk_cull"
         | "breeding_plant_note_create";
-      /** Device Id */
-      device_id: string | null;
       /** Error */
       error: string | null;
       /**
@@ -1617,8 +1597,6 @@ export interface components {
       } | null;
       /** Site Id */
       site_id: string;
-      /** Source Tent Id */
-      source_tent_id: number | null;
       /** Started At */
       started_at: string | null;
       /**
@@ -1633,8 +1611,7 @@ export interface components {
         | "failed"
         | "rejected"
         | "expired";
-      /** Tent Id */
-      tent_id: string;
+      target?: components["schemas"]["PtzCommandTarget"] | null;
     };
     /** CommandClaimRequest */
     CommandClaimRequest: {
@@ -1654,20 +1631,10 @@ export interface components {
     /** CommandCreateRequest */
     CommandCreateRequest: {
       /**
-       * Capability Id
-       * @constant
-       */
-      capability_id: "ptz_move";
-      /**
        * Command Type
        * @enum {string}
        */
       command_type: "ptz_preset" | "ptz_look" | "ptz_zoom";
-      /**
-       * Device Id
-       * @constant
-       */
-      device_id: "obsbot-main";
       /** Idempotency Key */
       idempotency_key: string;
       /** Payload */
@@ -1676,13 +1643,10 @@ export interface components {
       };
       /** Site Id */
       site_id?: string | null;
-      /** Source Tent Id */
-      source_tent_id: number;
+      target: components["schemas"]["PtzCommandTarget"];
     };
     /** CommandResponse */
     CommandResponse: {
-      /** Capability Id */
-      capability_id: string | null;
       /** Claimed At */
       claimed_at: string | null;
       /** Claimed By */
@@ -1691,8 +1655,6 @@ export interface components {
       command_id: string;
       /** Command Type */
       command_type: string;
-      /** Device Id */
-      device_id: string | null;
       /** Error */
       error: string | null;
       /**
@@ -1704,8 +1666,6 @@ export interface components {
       finished_at: string | null;
       /** Idempotency Key */
       idempotency_key: string;
-      /** Legacy Target Tent Id */
-      legacy_target_tent_id: string;
       /** Payload */
       payload: {
         [key: string]: unknown;
@@ -1721,12 +1681,11 @@ export interface components {
       } | null;
       /** Site Id */
       site_id: string;
-      /** Source Tent Id */
-      source_tent_id: number | null;
       /** Started At */
       started_at: string | null;
       /** Status */
       status: string;
+      target?: components["schemas"]["PtzCommandTarget"] | null;
     };
     /** CommandResultRequest */
     CommandResultRequest: {
@@ -1746,8 +1705,6 @@ export interface components {
     };
     /** CommandResultResponse */
     CommandResultResponse: {
-      /** Capability Id */
-      capability_id: string | null;
       /** Claimed At */
       claimed_at: string | null;
       /** Claimed By */
@@ -1769,8 +1726,6 @@ export interface components {
         | "breeding_plants_bulk_move"
         | "breeding_plants_bulk_cull"
         | "breeding_plant_note_create";
-      /** Device Id */
-      device_id: string | null;
       /** Error */
       error: string | null;
       /**
@@ -1806,8 +1761,6 @@ export interface components {
       } | null;
       /** Site Id */
       site_id: string;
-      /** Source Tent Id */
-      source_tent_id: number | null;
       /** Started At */
       started_at: string | null;
       /**
@@ -1822,8 +1775,7 @@ export interface components {
         | "failed"
         | "rejected"
         | "expired";
-      /** Tent Id */
-      tent_id: string;
+      target?: components["schemas"]["PtzCommandTarget"] | null;
     };
     /** CurrentMetricResponse */
     CurrentMetricResponse: {
@@ -2436,6 +2388,26 @@ export interface components {
       matched: number;
       /** Objects Deleted */
       objects_deleted: number;
+    };
+    /** PtzCommandTarget */
+    PtzCommandTarget: {
+      /**
+       * Capability Id
+       * @constant
+       */
+      capability_id: "ptz_move";
+      /**
+       * Device Id
+       * @constant
+       */
+      device_id: "obsbot-main";
+      /**
+       * Kind
+       * @constant
+       */
+      kind: "ptz";
+      /** Source Tent Id */
+      source_tent_id?: number | null;
     };
     /** PtzLookPayload */
     PtzLookPayload: {
