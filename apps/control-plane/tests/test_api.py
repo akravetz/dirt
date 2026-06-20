@@ -2483,6 +2483,26 @@ def _breeding_write_cases() -> list[tuple[str, dict[str, object], dict[str, obje
             },
         ),
         (
+            "/api/breeding-logbook/plants:update-facts",
+            {
+                "idempotency_key": "update-facts",
+                "plant_keys": ["SBBS-R1-001", "SBBS-R1-002"],
+                "updates": [
+                    {"field": "veg_started_at", "value": "2026-06-20T16:00:00Z"},
+                    {"field": "sex_key", "value": "female"},
+                    {"field": "flower_started_at", "value": None},
+                ],
+            },
+            {
+                "plant_keys": ["SBBS-R1-001", "SBBS-R1-002"],
+                "updates": [
+                    {"field": "veg_started_at", "value": "2026-06-20T16:00:00Z"},
+                    {"field": "sex_key", "value": "female"},
+                    {"field": "flower_started_at", "value": None},
+                ],
+            },
+        ),
+        (
             "/api/breeding-logbook/plants:bulk-cull",
             {
                 "idempotency_key": "bulk-cull",
@@ -2501,6 +2521,20 @@ def _breeding_write_cases() -> list[tuple[str, dict[str, object], dict[str, obje
             {
                 "plant_key": "SBBS-R1-001",
                 "body": "Stem rub improved.",
+                "observed_at": None,
+            },
+        ),
+        (
+            "/api/breeding-logbook/plants:bulk-note",
+            {
+                "idempotency_key": "bulk-note",
+                "plant_keys": ["SBBS-R1-001", "SBBS-R1-002"],
+                "body": "Canopy improved.",
+                "observed_at": None,
+            },
+            {
+                "plant_keys": ["SBBS-R1-001", "SBBS-R1-002"],
+                "body": "Canopy improved.",
                 "observed_at": None,
             },
         ),
@@ -2566,8 +2600,10 @@ async def test_breeding_logbook_write_routes_enqueue_typed_commands_idempotently
         "breeding_plants_clone",
         "breeding_plants_bulk_sex",
         "breeding_plants_bulk_move",
+        "breeding_plants_update_facts",
         "breeding_plants_bulk_cull",
         "breeding_plant_note_create",
+        "breeding_plants_bulk_note",
     }
     assert all(row.source_tent_id is None for row in rows)
 
@@ -2683,6 +2719,22 @@ async def test_breeding_logbook_write_routes_reject_obvious_bad_inputs(
             },
         ),
         (
+            "/api/breeding-logbook/plants:update-facts",
+            {
+                "idempotency_key": "bad-update-facts-plant",
+                "plant_keys": ["SBBS-R1-001", "missing"],
+                "updates": [{"field": "veg_started_at", "value": None}],
+            },
+        ),
+        (
+            "/api/breeding-logbook/plants:update-facts",
+            {
+                "idempotency_key": "bad-update-facts-shape",
+                "plant_keys": ["SBBS-R1-001"],
+                "updates": [{"field": "sex_key", "value": None}],
+            },
+        ),
+        (
             "/api/breeding-logbook/plants:bulk-cull",
             {
                 "idempotency_key": "bad-cull",
@@ -2693,6 +2745,22 @@ async def test_breeding_logbook_write_routes_reject_obvious_bad_inputs(
         (
             "/api/breeding-logbook/plants/missing/notes",
             {"idempotency_key": "bad-note", "body": "Looks better."},
+        ),
+        (
+            "/api/breeding-logbook/plants:bulk-note",
+            {
+                "idempotency_key": "bad-bulk-note-plant",
+                "plant_keys": ["SBBS-R1-001", "missing"],
+                "body": "Looks better.",
+            },
+        ),
+        (
+            "/api/breeding-logbook/plants:bulk-note",
+            {
+                "idempotency_key": "bad-bulk-note-body",
+                "plant_keys": ["SBBS-R1-001"],
+                "body": "   ",
+            },
         ),
     ]
 

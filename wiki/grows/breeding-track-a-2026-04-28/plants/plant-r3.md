@@ -4,7 +4,7 @@ type: plant
 sources: []
 related: [wiki/grows/breeding-track-a-2026-04-28/README.md, wiki/breeding/male-evaluation.md]
 created: 2026-05-30
-updated: 2026-06-19
+updated: 2026-06-20
 ---
 
 # R3
@@ -17,7 +17,7 @@ updated: 2026-06-19
 
 ## Current State
 
-R3 remains a confirmed female culled from the Track A pollen run on 2026-06-04. No breeding photo is available today, and the active pollen-collection focus remains R2 under a direct sensor/airflow check. See [2026-06-19 daily](../../../daily/2026-06-19.md).
+`SBBS-R1-007` remains a confirmed female culled from the Track A pollen run on 2026-06-04. No breeding photo is available today, and the active pollen-collection focus remains R2 under a repeated wet sensor check. See [2026-06-20 daily](../../../daily/2026-06-20.md).
 
 ## Timeline
 
@@ -37,3 +37,4 @@ R3 remains a confirmed female culled from the Track A pollen run on 2026-06-04. 
 - 2026-06-10 — Culled status carried forward; remaining Track A pollen focus is R1/R2/R4, with R5 still on sex watch. See [2026-06-10](../../../daily/2026-06-10.md).
 - 2026-06-14 — Track A narrowed to R2 only for purple pollen-sac expression; R3 remains culled. Filed in [activity log](../../../log.md).
 - 2026-06-19 — No breeding photo; remains culled while tent-level current-only wet sensor repeat keeps R2 environment verification active. See [2026-06-19](../../../daily/2026-06-19.md).
+- 2026-06-20 — No breeding photo; `SBBS-R1-007` remains culled while R2 environment and dry pollen-handling checks continue. See [2026-06-20](../../../daily/2026-06-20.md).

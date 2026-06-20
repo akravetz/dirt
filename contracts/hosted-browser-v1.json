@@ -476,6 +476,112 @@
         "title": "BreedingBulkMoveRequest",
         "type": "object"
       },
+      "BreedingBulkPlantFactsPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "plant_keys": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Plant Keys",
+            "type": "array"
+          },
+          "updates": {
+            "items": {
+              "$ref": "#/components/schemas/BreedingPlantFactUpdate"
+            },
+            "minItems": 1,
+            "title": "Updates",
+            "type": "array"
+          }
+        },
+        "required": [
+          "plant_keys",
+          "updates"
+        ],
+        "title": "BreedingBulkPlantFactsPayload",
+        "type": "object"
+      },
+      "BreedingBulkPlantNotePayload": {
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "minLength": 1,
+            "title": "Body",
+            "type": "string"
+          },
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "plant_keys": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Plant Keys",
+            "type": "array"
+          }
+        },
+        "required": [
+          "plant_keys",
+          "body"
+        ],
+        "title": "BreedingBulkPlantNotePayload",
+        "type": "object"
+      },
+      "BreedingBulkPlantNoteRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "minLength": 1,
+            "title": "Body",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "plant_keys": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Plant Keys",
+            "type": "array"
+          }
+        },
+        "required": [
+          "idempotency_key",
+          "plant_keys",
+          "body"
+        ],
+        "title": "BreedingBulkPlantNoteRequest",
+        "type": "object"
+      },
       "BreedingBulkSexPayload": {
         "additionalProperties": false,
         "properties": {
@@ -1689,6 +1795,84 @@
           "seed_count"
         ],
         "title": "BreedingLogbookSeedLotSummaryResponse",
+        "type": "object"
+      },
+      "BreedingPlantFactUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "field": {
+            "enum": [
+              "sex_key",
+              "germinated_at",
+              "rooted_at",
+              "veg_started_at",
+              "flower_started_at"
+            ],
+            "title": "Field",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "enum": [
+                  "unknown",
+                  "male",
+                  "female",
+                  "herm",
+                  "reversed"
+                ],
+                "type": "string"
+              },
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "field",
+          "value"
+        ],
+        "title": "BreedingPlantFactUpdate",
+        "type": "object"
+      },
+      "BreedingUpdatePlantFactsRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "idempotency_key": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "plant_keys": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Plant Keys",
+            "type": "array"
+          },
+          "updates": {
+            "items": {
+              "$ref": "#/components/schemas/BreedingPlantFactUpdate"
+            },
+            "minItems": 1,
+            "title": "Updates",
+            "type": "array"
+          }
+        },
+        "required": [
+          "plant_keys",
+          "updates",
+          "idempotency_key"
+        ],
+        "title": "BreedingUpdatePlantFactsRequest",
         "type": "object"
       },
       "CapturePolicyResponse": {
@@ -2979,8 +3163,10 @@
               "breeding_plants_clone",
               "breeding_plants_bulk_sex",
               "breeding_plants_bulk_move",
+              "breeding_plants_update_facts",
               "breeding_plants_bulk_cull",
-              "breeding_plant_note_create"
+              "breeding_plant_note_create",
+              "breeding_plants_bulk_note"
             ],
             "title": "Command Type",
             "type": "string"
@@ -3043,10 +3229,16 @@
                 "$ref": "#/components/schemas/BreedingBulkMovePayload"
               },
               {
+                "$ref": "#/components/schemas/BreedingBulkPlantFactsPayload"
+              },
+              {
                 "$ref": "#/components/schemas/BreedingBulkCullPayload"
               },
               {
                 "$ref": "#/components/schemas/BreedingCreatePlantNotePayload"
+              },
+              {
+                "$ref": "#/components/schemas/BreedingBulkPlantNotePayload"
               }
             ],
             "title": "Payload"
@@ -3442,8 +3634,10 @@
               "breeding_plants_clone",
               "breeding_plants_bulk_sex",
               "breeding_plants_bulk_move",
+              "breeding_plants_update_facts",
               "breeding_plants_bulk_cull",
-              "breeding_plant_note_create"
+              "breeding_plant_note_create",
+              "breeding_plants_bulk_note"
             ],
             "title": "Command Type",
             "type": "string"
@@ -3506,10 +3700,16 @@
                 "$ref": "#/components/schemas/BreedingBulkMovePayload"
               },
               {
+                "$ref": "#/components/schemas/BreedingBulkPlantFactsPayload"
+              },
+              {
                 "$ref": "#/components/schemas/BreedingBulkCullPayload"
               },
               {
                 "$ref": "#/components/schemas/BreedingCreatePlantNotePayload"
+              },
+              {
+                "$ref": "#/components/schemas/BreedingBulkPlantNotePayload"
               }
             ],
             "title": "Payload"
@@ -6683,6 +6883,44 @@
         "summary": "Bulk Move Breeding Plants"
       }
     },
+    "/api/breeding-logbook/plants:bulk-note": {
+      "post": {
+        "operationId": "bulk_create_breeding_plant_notes_api_breeding_logbook_plants_bulk_note_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BreedingBulkPlantNoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Bulk Create Breeding Plant Notes"
+      }
+    },
     "/api/breeding-logbook/plants:bulk-sex": {
       "post": {
         "operationId": "bulk_sex_breeding_plants_api_breeding_logbook_plants_bulk_sex_post",
@@ -6795,6 +7033,44 @@
           }
         },
         "summary": "Germinate Breeding Plants"
+      }
+    },
+    "/api/breeding-logbook/plants:update-facts": {
+      "post": {
+        "operationId": "update_breeding_plant_facts_api_breeding_logbook_plants_update_facts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BreedingUpdatePlantFactsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Breeding Plant Facts"
       }
     },
     "/api/breeding-logbook/seed-lots": {

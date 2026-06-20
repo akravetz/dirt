@@ -15,6 +15,8 @@ from dirt_gateway.sync import ExponentialBackoff
 from dirt_shared.cloud_contract import (
     BreedingBulkCullPayload,
     BreedingBulkMovePayload,
+    BreedingBulkPlantFactsPayload,
+    BreedingBulkPlantNotePayload,
     BreedingBulkSexPayload,
     BreedingClonePlantsPayload,
     BreedingCreatePlantNotePayload,
@@ -416,8 +418,10 @@ def _local_command_type(cloud_type: str) -> str:
         "breeding_plants_clone": "breeding.plants.clone",
         "breeding_plants_bulk_sex": "breeding.plants.bulk_sex",
         "breeding_plants_bulk_move": "breeding.plants.bulk_move",
+        "breeding_plants_update_facts": "breeding.plants.update_facts",
         "breeding_plants_bulk_cull": "breeding.plants.bulk_cull",
         "breeding_plant_note_create": "breeding.plant_note.create",
+        "breeding_plants_bulk_note": "breeding.plants.bulk_note",
     }[cloud_type]
 
 
@@ -485,8 +489,10 @@ def _is_breeding_command(item: ClaimedCommand) -> bool:
         | BreedingClonePlantsPayload
         | BreedingBulkSexPayload
         | BreedingBulkMovePayload
+        | BreedingBulkPlantFactsPayload
         | BreedingBulkCullPayload
-        | BreedingCreatePlantNotePayload,
+        | BreedingCreatePlantNotePayload
+        | BreedingBulkPlantNotePayload,
     )
 
 

@@ -4,7 +4,7 @@ type: environment
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/environment/humidity.md, wiki/overview.md]
 created: 2026-04-06
-updated: 2026-06-19
+updated: 2026-06-20
 ---
 
 # Temperature
@@ -88,6 +88,7 @@ updated: 2026-06-19
 | 2026-06-10 | Main 79.81°F now ⚠️ / 69.92°F overnight avg ⚠️ / 76.60°F morning avg ⚠️; breeding 71.92°F now ✅ | Main-tent temperature remains warm across late-flower windows and now pairs with dry/high VPD, while the overnight miss is still wet/low. Avoid heat-first correction; focus on dark-cycle clearing and airflow paths while preventing additional lights-on dryness. Breeding temperature is usable if the repeated current reading is fresh. → [2026-06-10](../daily/2026-06-10.md) |
 | 2026-06-16 | Manual correction at 20:50 MDT | Plant A's highest fan leaves were yellow with the light only ~5 inches away, so the Fold-650 was raised about 5 inches and the lung-room AC was set to hold 72°F to reduce lights-on heat/VPD pressure. Confirm the next lights-on temperature and VPD before making further changes. → [2026-06-16 log](../log.md#2026-06-16-query-filed--plant-a-upper-canopy-lighttemperature-correction) |
 | 2026-06-19 | Main 75.52°F now ⚠️ / 68.73°F overnight avg ⚠️ / 74.35°F morning avg ✅; breeding 71.92°F now ✅ | Main-tent temperature improved materially after the 2026-06-16 light/AC correction: morning is in the late-flower day guide and now is only slightly warm, supporting in-range lights-on VPD. Breeding temperature is usable if the repeated current reading is fresh; the breeding anomaly is humidity/VPD. → [2026-06-19](../daily/2026-06-19.md) |
+| 2026-06-20 | Main 75.51°F now ⚠️ / 68.17°F overnight avg ⚠️ / 72.94°F morning avg ✅; breeding 71.92°F now ✅ | Main-tent temperature remains closer to the late-flower guide than the 2026-06-10 hot spike, but overnight and now are still just warm. Because current VPD is slightly dry/high, avoid heat-first or broad drying changes. Breeding temperature is usable if the repeated current reading is fresh; the anomaly remains humidity/VPD. → [2026-06-20](../daily/2026-06-20.md) |
 
 ## Notable Events
 - **2026-03-21** — Overnight low of 59.5°F due to exhaust fan running too fast at night; resolved by throttling fan after lights-out → [2026-03-27 daily](../daily/2026-03-27.md)
@@ -142,3 +143,4 @@ updated: 2026-06-19
 - **2026-06-10** — Main-tent current temperature climbed to 79.81°F, morning averaged 76.60°F, and overnight averaged 69.92°F, all warm against late-flower guides. Because current VPD is now dry/high at 1.62 kPa while overnight remains wet/low, the practical correction is airflow and dark-cycle clearing rather than heat-first changes. → [2026-06-10](../daily/2026-06-10.md)
 - **2026-06-16** — Manual late-flower light/temperature correction: the Fold-650 was raised about 5 inches over Plant A and the lung-room AC was set to hold 72°F after upper fan leaves yellowed at a very close light distance. This is intended to lower top-canopy light/heat pressure without changing the corrected reservoir feed. → [2026-06-16 log](../log.md#2026-06-16-query-filed--plant-a-upper-canopy-lighttemperature-correction)
 - **2026-06-19** — First full report after the light/AC correction shows main-tent temperature closer to the late-flower guide: 74.35°F morning and 75.52°F now, down from the 79.81°F current spike on 2026-06-10. Keep the steadier lights-on profile and use airflow/flower-pocket checks instead of heat-first changes. → [2026-06-19](../daily/2026-06-19.md)
+- **2026-06-20** — Main-tent temperature held the post-correction improvement: 72.94°F morning and 75.51°F now, with overnight only slightly above the late-flower night guide. Current VPD is slightly dry/high, so keep any correction focused on dark-cycle clearing and airflow rather than adding heat or broad lights-on drying. → [2026-06-20](../daily/2026-06-20.md)

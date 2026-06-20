@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-06-19
+updated: 2026-06-20
 ---
 
 # Plant B
@@ -19,7 +19,7 @@ updated: 2026-06-19
 
 ## Current State
 
-Day 97 / Flower Day 47: `SBBS-R1-002` has upright visible flower clusters with older tip/edge wear, but it is omitted from today's trusted direct-percent moisture set. Keep B on tray, float, media, smell/weight, and posture checks rather than inferring root-zone status from A/C/D telemetry. See [2026-06-19 daily](../../../daily/2026-06-19.md).
+Day 98 / Flower Day 48: `SBBS-R1-002` has no photo coverage and remains omitted from today's trusted direct-percent moisture set. Keep B on tray, float, media, smell/weight, and posture checks rather than inferring root-zone status from A/C/D telemetry. See [2026-06-20 daily](../../../daily/2026-06-20.md).
 
 ## Timeline
 
@@ -90,3 +90,4 @@ Day 97 / Flower Day 47: `SBBS-R1-002` has upright visible flower clusters with o
 - 2026-06-10 evening — [Whole Autopot reservoir EC found >2.0; reservoir reset to pH 5.8 / EC ~0.3 plain water for ~24h correction](../../../daily/2026-06-10.md)
 - 2026-06-12 — [Day 90 / Flower Day 40: post-flush recovery plan filed; hold EC 0.8-1.0 for 48-72h and only root-zone flush if fresh damage advances](../../../daily/2026-06-12.md)
 - 2026-06-19 — [Day 97 / Flower Day 47: upright flower clusters with older tip wear; omitted from trusted direct moisture set, so hand-check tray/media/posture](../../../daily/2026-06-19.md)
+- 2026-06-20 — [Day 98 / Flower Day 48: no photo coverage and no trusted direct moisture reading; hand-check tray/media/posture](../../../daily/2026-06-20.md)

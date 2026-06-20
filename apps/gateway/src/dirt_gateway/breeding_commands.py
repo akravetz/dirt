@@ -15,6 +15,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from dirt_shared.cloud_contract import (
     BreedingBulkCullPayload,
     BreedingBulkMovePayload,
+    BreedingBulkPlantFactsPayload,
+    BreedingBulkPlantNotePayload,
     BreedingBulkSexPayload,
     BreedingClonePlantsPayload,
     BreedingCreatePlantNotePayload,
@@ -72,10 +74,18 @@ class BreedingCommandExecutor:
                 return await self._bulk_sex(session, payload)
             if isinstance(payload, BreedingBulkMovePayload):
                 return await self._bulk_move(session, item.site_id, payload)
+            if isinstance(payload, BreedingBulkPlantFactsPayload):
+                return await self._bulk_update_facts(session, payload)
             if isinstance(payload, BreedingBulkCullPayload):
                 return await self._bulk_cull(session, payload)
             if isinstance(payload, BreedingCreatePlantNotePayload):
                 return await self._create_note(
+                    session,
+                    payload,
+                    created_by=item.requested_by or None,
+                )
+            if isinstance(payload, BreedingBulkPlantNotePayload):
+                return await self._bulk_create_notes(
                     session,
                     payload,
                     created_by=item.requested_by or None,
@@ -172,8 +182,6 @@ class BreedingCommandExecutor:
                 sex_key="unknown",
                 source_seed_lot_id=_pk(seed_lot),
                 germinated_at=occurred_at,
-                veg_started_at=occurred_at,
-                flower_started_at=occurred_at if _is_flower_tent(tent) else None,
             )
             session.add(plant)
             plants.append(plant)
@@ -215,8 +223,6 @@ class BreedingCommandExecutor:
                 sex_key=mother.sex_key,
                 clone_source_plant_id=_pk(mother),
                 rooted_at=occurred_at,
-                veg_started_at=occurred_at,
-                flower_started_at=occurred_at if _is_flower_tent(tent) else None,
             )
             session.add(clone)
             clones.append(clone)
@@ -292,10 +298,6 @@ class BreedingCommandExecutor:
                 session.add(current)
             else:
                 from_tent_ids[plant.key] = None
-            if plant.veg_started_at is None and _is_veg_tent(tent):
-                plant.veg_started_at = occurred_at
-            if plant.flower_started_at is None and _is_flower_tent(tent):
-                plant.flower_started_at = occurred_at
             plant.updated_at = occurred_at
             session.add(plant)
             session.add(
@@ -324,6 +326,40 @@ class BreedingCommandExecutor:
             "moved_plant_keys": [plant.key for plant in plants],
             "target_tent_id": tent.tent_pk,
             "grid_position": None,
+        }
+
+    async def _bulk_update_facts(
+        self,
+        session: AsyncSession,
+        payload: BreedingBulkPlantFactsPayload,
+    ) -> dict[str, Any]:
+        sex_update = next(
+            (update for update in payload.updates if update.field == "sex_key"),
+            None,
+        )
+        if sex_update is not None:
+            await _require_plant_sex(session, str(sex_update.value))
+        plants = await _require_plants(session, payload.plant_keys)
+        occurred_at = self._clock()
+        for plant in plants:
+            for update in payload.updates:
+                if update.field == "sex_key":
+                    plant.sex_key = str(update.value)
+                elif update.field == "germinated_at":
+                    plant.germinated_at = update.value
+                elif update.field == "rooted_at":
+                    plant.rooted_at = update.value
+                elif update.field == "veg_started_at":
+                    plant.veg_started_at = update.value
+                elif update.field == "flower_started_at":
+                    plant.flower_started_at = update.value
+            plant.updated_at = occurred_at
+            session.add(plant)
+        await session.flush()
+        return {
+            "updated_plant_ids": [_pk(plant) for plant in plants],
+            "updated_plant_keys": [plant.key for plant in plants],
+            "updated_fields": [update.field for update in payload.updates],
         }
 
     async def _bulk_cull(
@@ -371,6 +407,33 @@ class BreedingCommandExecutor:
             "source_note_id": _pk(note),
             "plant_id": _pk(plant),
             "plant_key": plant.key,
+            "observed_at": observed_at.isoformat(),
+        }
+
+    async def _bulk_create_notes(
+        self,
+        session: AsyncSession,
+        payload: BreedingBulkPlantNotePayload,
+        *,
+        created_by: str | None,
+    ) -> dict[str, Any]:
+        plants = await _require_plants(session, payload.plant_keys)
+        observed_at = payload.observed_at or self._clock()
+        notes = [
+            PlantNote(
+                plant_id=_pk(plant),
+                observed_at=observed_at,
+                body=payload.body,
+                created_by=created_by,
+            )
+            for plant in plants
+        ]
+        session.add_all(notes)
+        await session.flush()
+        return {
+            "source_note_ids": [_pk(note) for note in notes],
+            "plant_ids": [_pk(plant) for plant in plants],
+            "plant_keys": [plant.key for plant in plants],
             "observed_at": observed_at.isoformat(),
         }
 
@@ -524,16 +587,6 @@ def _plant_prefix(line: PlantLine) -> str:
     if prefix:
         return prefix
     return re.sub(r"[^A-Za-z0-9]+", "-", line.strain).strip("-").upper()
-
-
-def _is_flower_tent(tent: _ResolvedTent) -> bool:
-    role = tent.role.lower()
-    return "flower" in role
-
-
-def _is_veg_tent(tent: _ResolvedTent) -> bool:
-    role = tent.role.lower()
-    return "veg" in role or "vegetative" in role or "breeding" in role
 
 
 def _combined_label(left: str, right: str) -> str:

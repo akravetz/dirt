@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dirt_control.api.browser_schemas.breeding_logbook import (
     BreedingBulkCullRequest,
     BreedingBulkMoveRequest,
+    BreedingBulkPlantNoteRequest,
     BreedingBulkSexRequest,
     BreedingClonePlantsRequest,
     BreedingCreatePlantNoteRequest,
@@ -30,6 +31,7 @@ from dirt_control.api.browser_schemas.breeding_logbook import (
     BreedingLogbookPlantStageKey,
     BreedingLogbookSeedLotListResponse,
     BreedingLogbookSeedLotSummaryResponse,
+    BreedingUpdatePlantFactsRequest,
 )
 from dirt_control.api.browser_schemas.commands import CommandResponse
 from dirt_control.api.browser_schemas.metrics import METRIC_HISTORY_RANGES
@@ -71,6 +73,8 @@ from dirt_control.settings import CloudSettings
 from dirt_shared.cloud_contract import (
     BreedingBulkCullPayload,
     BreedingBulkMovePayload,
+    BreedingBulkPlantFactsPayload,
+    BreedingBulkPlantNotePayload,
     BreedingBulkSexPayload,
     BreedingClonePlantsPayload,
     BreedingCreatePlantNotePayload,
@@ -497,6 +501,32 @@ async def bulk_move_plants_command(
     )
 
 
+async def bulk_update_plant_facts_command(
+    body: BreedingUpdatePlantFactsRequest,
+    *,
+    user: str,
+    settings: CloudSettings,
+    session: AsyncSession,
+    now: datetime,
+) -> CommandResponse:
+    await require_cloud_plant_keys(
+        session, site_id=settings.default_site_id, plant_keys=body.plant_keys
+    )
+    payload = BreedingBulkPlantFactsPayload(
+        plant_keys=body.plant_keys,
+        updates=body.updates,
+    )
+    return await enqueue_breeding_command(
+        body.idempotency_key,
+        user=user,
+        settings=settings,
+        session=session,
+        now=now,
+        command_type="breeding_plants_update_facts",
+        payload=payload,
+    )
+
+
 async def bulk_cull_plants_command(
     body: BreedingBulkCullRequest,
     *,
@@ -544,6 +574,33 @@ async def create_plant_note_command(  # noqa: PLR0913
         session=session,
         now=now,
         command_type="breeding_plant_note_create",
+        payload=payload,
+    )
+
+
+async def bulk_create_plant_notes_command(
+    body: BreedingBulkPlantNoteRequest,
+    *,
+    user: str,
+    settings: CloudSettings,
+    session: AsyncSession,
+    now: datetime,
+) -> CommandResponse:
+    await require_cloud_plant_keys(
+        session, site_id=settings.default_site_id, plant_keys=body.plant_keys
+    )
+    payload = BreedingBulkPlantNotePayload(
+        plant_keys=body.plant_keys,
+        body=body.body,
+        observed_at=body.observed_at,
+    )
+    return await enqueue_breeding_command(
+        body.idempotency_key,
+        user=user,
+        settings=settings,
+        session=session,
+        now=now,
+        command_type="breeding_plants_bulk_note",
         payload=payload,
     )
 
@@ -995,7 +1052,7 @@ def breeding_logbook_plant_row_response(
         stage_key=stage_key,
         stage_day=stage_day(plant, projection.location, stage_key, today=today),
         germinated_on=date_or_none(plant.germinated_at),
-        veg_started_on=date_or_none(plant.veg_started_at or plant.rooted_at),
+        veg_started_on=date_or_none(plant.veg_started_at),
         flower_started_on=date_or_none(plant.flower_started_at),
         culled_on=date_or_none(plant.culled_at),
         current_tent_id=required_location_source_tent_id(projection.location),
@@ -1164,7 +1221,7 @@ def breeding_logbook_stage_key(
         return "breeding"
     if plant.flower_started_at is not None:
         return "flower"
-    if plant.veg_started_at is not None or plant.rooted_at is not None:
+    if plant.veg_started_at is not None:
         return "veg"
     return "germinating"
 
@@ -1178,7 +1235,7 @@ def stage_day(
 ) -> int:
     starts_at = {
         "germinating": plant.germinated_at,
-        "veg": plant.veg_started_at or plant.rooted_at,
+        "veg": plant.veg_started_at,
         "flower": plant.flower_started_at,
         "breeding": plant.selected_for_breeding_at or plant.flower_started_at,
         "harvested": plant.harvested_at,

@@ -1,7 +1,7 @@
 export type BreedingLogbookView = "plants" | "add-seeds" | "add-plants" | "detail";
 export type PlantListLayout = "table" | "board";
 export type PlantGroupBy = "stage" | "parents";
-export type BulkPanel = "sex" | "move" | "cull" | null;
+export type BulkPanel = "sex" | "dates" | "move" | "cull" | null;
 export type PlantSexKey = "unknown" | "male" | "female" | "herm" | "reversed";
 export type PlantStageKey =
   | "germinating"

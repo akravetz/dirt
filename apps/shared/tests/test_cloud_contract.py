@@ -12,6 +12,8 @@ from dirt_shared.cloud_contract import (
     AssetSignUploadRequest,
     BreedingBulkCullPayload,
     BreedingBulkMovePayload,
+    BreedingBulkPlantFactsPayload,
+    BreedingBulkPlantNotePayload,
     BreedingBulkSexPayload,
     BreedingClonePlantsPayload,
     BreedingCreatePlantNotePayload,
@@ -678,6 +680,17 @@ def test_command_claim_response_uses_explicit_breeding_payload_models() -> None:
             },
         ),
         _command_payload(
+            command_type="breeding_plants_update_facts",
+            payload={
+                "plant_keys": ["SBBS-R1-001", "SBBS-R1-002"],
+                "updates": [
+                    {"field": "veg_started_at", "value": "2026-06-20T16:00:00Z"},
+                    {"field": "sex_key", "value": "female"},
+                    {"field": "flower_started_at", "value": None},
+                ],
+            },
+        ),
+        _command_payload(
             command_type="breeding_plants_bulk_cull",
             payload={"plant_keys": ["SBBS-R1-001"], "reason": "selected male"},
         ),
@@ -686,6 +699,14 @@ def test_command_claim_response_uses_explicit_breeding_payload_models() -> None:
             payload={
                 "plant_key": "SBBS-R1-001",
                 "body": "Stem rub improved.",
+                "observed_at": None,
+            },
+        ),
+        _command_payload(
+            command_type="breeding_plants_bulk_note",
+            payload={
+                "plant_keys": ["SBBS-R1-001", "SBBS-R1-002"],
+                "body": "Canopy improved.",
                 "observed_at": None,
             },
         ),
@@ -698,8 +719,10 @@ def test_command_claim_response_uses_explicit_breeding_payload_models() -> None:
     assert isinstance(response.commands[2].payload, BreedingClonePlantsPayload)
     assert isinstance(response.commands[3].payload, BreedingBulkSexPayload)
     assert isinstance(response.commands[4].payload, BreedingBulkMovePayload)
-    assert isinstance(response.commands[5].payload, BreedingBulkCullPayload)
-    assert isinstance(response.commands[6].payload, BreedingCreatePlantNotePayload)
+    assert isinstance(response.commands[5].payload, BreedingBulkPlantFactsPayload)
+    assert isinstance(response.commands[6].payload, BreedingBulkCullPayload)
+    assert isinstance(response.commands[7].payload, BreedingCreatePlantNotePayload)
+    assert isinstance(response.commands[8].payload, BreedingBulkPlantNotePayload)
     assert response.commands[1].payload.grid_position is None
 
 
@@ -732,6 +755,34 @@ def test_breeding_command_payloads_reject_bad_shapes() -> None:
         BreedingBulkCullPayload(plant_keys=["SBBS-R1-001"], reason="   ")
     with pytest.raises(ValidationError):
         BreedingCreatePlantNotePayload(plant_key="SBBS-R1-001", body="   ")
+    with pytest.raises(ValidationError):
+        BreedingBulkPlantNotePayload(plant_keys=[], body="Looks better.")
+    with pytest.raises(ValidationError):
+        BreedingBulkPlantNotePayload(
+            plant_keys=["SBBS-R1-001", "SBBS-R1-001"], body="Looks better."
+        )
+    with pytest.raises(ValidationError):
+        BreedingBulkPlantNotePayload(plant_keys=["SBBS-R1-001"], body="   ")
+    with pytest.raises(ValidationError):
+        BreedingBulkPlantFactsPayload(plant_keys=[], updates=[])
+    with pytest.raises(ValidationError):
+        BreedingBulkPlantFactsPayload(
+            plant_keys=["SBBS-R1-001"],
+            updates=[{"field": "sex_key", "value": None}],
+        )
+    with pytest.raises(ValidationError):
+        BreedingBulkPlantFactsPayload(
+            plant_keys=["SBBS-R1-001"],
+            updates=[{"field": "veg_started_at", "value": "female"}],
+        )
+    with pytest.raises(ValidationError):
+        BreedingBulkPlantFactsPayload(
+            plant_keys=["SBBS-R1-001"],
+            updates=[
+                {"field": "veg_started_at", "value": None},
+                {"field": "veg_started_at", "value": "2026-06-20T16:00:00Z"},
+            ],
+        )
 
 
 def test_breeding_grid_position_payloads_require_explicit_null() -> None:

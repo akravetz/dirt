@@ -4,12 +4,14 @@ import {
   applyPendingPlantCommands,
   type BreedingLogbookPendingCommand,
   buildBulkCullRequest,
+  buildBulkLogNoteRequest,
   buildBulkMoveRequest,
   buildBulkSexRequest,
   buildClonePlantsRequest,
   buildCreateSeedLotRequest,
   buildGerminatePlantsRequest,
   buildLogNoteRequest,
+  buildUpdatePlantFactsRequest,
   canSubmitBulkCull,
   isPendingCommandProjected,
   pendingTimelineNotes,
@@ -302,6 +304,37 @@ describe("breeding logbook mutation request mapping", () => {
       body: "stem rub changed",
       observed_at: null,
     });
+    expect(
+      buildUpdatePlantFactsRequest({
+        idempotencyKey: "facts-click",
+        plantKeys: ["MF-001", "MF-002"],
+        updates: [
+          { field: "sex_key", value: "female" },
+          { field: "veg_started_at", value: "2026-06-17T16:45:00.000Z" },
+          { field: "flower_started_at", value: null },
+        ],
+      }),
+    ).toEqual({
+      idempotency_key: "facts-click",
+      plant_keys: ["MF-001", "MF-002"],
+      updates: [
+        { field: "sex_key", value: "female" },
+        { field: "veg_started_at", value: "2026-06-17T16:45:00.000Z" },
+        { field: "flower_started_at", value: null },
+      ],
+    });
+    expect(
+      buildBulkLogNoteRequest({
+        idempotencyKey: "bulk-note-click",
+        plantKeys: ["MF-001", "MF-002"],
+        body: "  canopy improved  ",
+      }),
+    ).toEqual({
+      idempotency_key: "bulk-note-click",
+      plant_keys: ["MF-001", "MF-002"],
+      body: "canopy improved",
+      observed_at: null,
+    });
   });
 
   it("keeps add-plants prefix read-only and out of germinate/clone requests", () => {
@@ -364,14 +397,28 @@ describe("breeding logbook pending UX helpers", () => {
         },
       ],
     });
+    const pendingFacts = makePendingCommand({
+      command: makeCommand({ status: "queued" }),
+      optimisticPlantPatches: [
+        {
+          plantKey: "MF-001",
+          vegStartedOn: "2026-06-17",
+          flowerStartedOn: "2026-06-18",
+        },
+      ],
+    });
 
-    expect(applyPendingPlantCommands([plant], [pendingSex, pendingMove])).toEqual([
+    expect(
+      applyPendingPlantCommands([plant], [pendingSex, pendingMove, pendingFacts]),
+    ).toEqual([
       {
         ...plant,
         sexKey: "female",
         currentTentId: 2,
         currentTentName: "Flower",
         gridPosition: null,
+        vegStartedOn: "2026-06-17",
+        flowerStartedOn: "2026-06-18",
       },
     ]);
     expect(
@@ -383,6 +430,20 @@ describe("breeding logbook pending UX helpers", () => {
       ),
     ).toBe(true);
     expect(isPendingCommandProjected(pendingMove, [plant], [], "MF-001")).toBe(false);
+    expect(
+      isPendingCommandProjected(
+        pendingFacts,
+        [
+          {
+            ...plant,
+            vegStartedOn: "2026-06-17",
+            flowerStartedOn: "2026-06-18",
+          },
+        ],
+        [],
+        "MF-001",
+      ),
+    ).toBe(true);
   });
 
   it("hides plants from active views immediately after a cull command is accepted", () => {
@@ -458,6 +519,43 @@ describe("breeding logbook pending UX helpers", () => {
     ).toBe(true);
   });
 
+  it("shows bulk pending notes on each affected plant", () => {
+    const pending = makePendingCommand({
+      body: "Canopy improved.",
+      command: makeCommand({ status: "queued" }),
+      optimisticPlantPatches: [
+        { plantKey: "MF-001", lastNote: "Canopy improved." },
+        { plantKey: "MF-002", lastNote: "Canopy improved." },
+      ],
+    });
+
+    expect(pendingTimelineNotes([], [pending], "MF-001")).toHaveLength(1);
+    expect(pendingTimelineNotes([], [pending], "MF-002")).toHaveLength(1);
+    expect(pendingTimelineNotes([], [pending], "MF-003")).toEqual([]);
+    expect(
+      isPendingCommandProjected(
+        pending,
+        [
+          makePlantRow({ key: "MF-001", lastNote: "Canopy improved." }),
+          makePlantRow({ key: "MF-002", lastNote: "Canopy improved." }),
+        ],
+        [],
+        "MF-003",
+      ),
+    ).toBe(true);
+    expect(
+      isPendingCommandProjected(
+        pending,
+        [
+          makePlantRow({ key: "MF-001", lastNote: "Canopy improved." }),
+          makePlantRow({ key: "MF-002", lastNote: "Canopy improved." }),
+        ],
+        [],
+        "MF-001",
+      ),
+    ).toBe(false);
+  });
+
   it("keeps failed command errors visible without changing synced facts", () => {
     const failed = makePendingCommand({
       body: "Stem rub shifted.",
@@ -504,7 +602,10 @@ function makePendingCommand({
       body === undefined
         ? null
         : {
-            plantKey: "MF-001",
+            plantKeys:
+              optimisticPlantPatches.length > 0
+                ? optimisticPlantPatches.map((patch) => patch.plantKey)
+                : ["MF-001"],
             body,
           },
   };

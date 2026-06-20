@@ -31,8 +31,10 @@ CommandType = Literal[
     "breeding_plants_clone",
     "breeding_plants_bulk_sex",
     "breeding_plants_bulk_move",
+    "breeding_plants_update_facts",
     "breeding_plants_bulk_cull",
     "breeding_plant_note_create",
+    "breeding_plants_bulk_note",
 ]
 CapturePolicyReason = Literal[
     "camera_not_found",
@@ -41,6 +43,13 @@ CapturePolicyReason = Literal[
 ]
 PlantSexKey = Literal["unknown", "male", "female", "herm", "reversed"]
 SeedLotSexTypeKey = Literal["unknown", "feminized", "regular"]
+BreedingPlantFactField = Literal[
+    "sex_key",
+    "germinated_at",
+    "rooted_at",
+    "veg_started_at",
+    "flower_started_at",
+]
 
 
 class HeartbeatRequest(CloudContractModel):
@@ -532,6 +541,38 @@ class BreedingBulkMovePayload(CloudContractModel):
         return _strip_required_text_list(value)
 
 
+class BreedingPlantFactUpdate(CloudContractModel):
+    field: BreedingPlantFactField
+    value: PlantSexKey | datetime | None
+
+    @model_validator(mode="after")
+    def _value_matches_field(self) -> BreedingPlantFactUpdate:
+        if self.field == "sex_key":
+            if self.value not in ("unknown", "male", "female", "herm", "reversed"):
+                raise ValueError("sex_key updates require a plant sex key")
+            return self
+        if self.value is not None and not isinstance(self.value, datetime):
+            raise ValueError(f"{self.field} updates require a datetime or null")
+        return self
+
+
+class BreedingBulkPlantFactsPayload(CloudContractModel):
+    plant_keys: list[str] = Field(min_length=1)
+    updates: list[BreedingPlantFactUpdate] = Field(min_length=1)
+
+    @field_validator("plant_keys")
+    @classmethod
+    def _strip_plant_keys(cls, value: list[str]) -> list[str]:
+        return _strip_required_text_list(value)
+
+    @model_validator(mode="after")
+    def _updates_are_unambiguous(self) -> BreedingBulkPlantFactsPayload:
+        fields = [update.field for update in self.updates]
+        if len(set(fields)) != len(fields):
+            raise ValueError("updates must not contain duplicate fields")
+        return self
+
+
 class BreedingBulkCullPayload(CloudContractModel):
     plant_keys: list[str] = Field(min_length=1)
     reason: str = Field(min_length=1)
@@ -558,6 +599,22 @@ class BreedingCreatePlantNotePayload(CloudContractModel):
         return _strip_required_text(value)
 
 
+class BreedingBulkPlantNotePayload(CloudContractModel):
+    plant_keys: list[str] = Field(min_length=1)
+    body: str = Field(min_length=1)
+    observed_at: datetime | None = None
+
+    @field_validator("plant_keys")
+    @classmethod
+    def _strip_plant_keys(cls, value: list[str]) -> list[str]:
+        return _strip_required_text_list(value)
+
+    @field_validator("body")
+    @classmethod
+    def _strip_body(cls, value: str) -> str:
+        return _strip_required_text(value)
+
+
 PtzZoomPayload: TypeAlias = PtzZoomAbsolutePayload | PtzZoomRelativePayload
 PtzCommandPayload: TypeAlias = PtzPresetPayload | PtzLookPayload | PtzZoomPayload
 
@@ -578,8 +635,10 @@ BreedingCommandPayload: TypeAlias = (
     | BreedingClonePlantsPayload
     | BreedingBulkSexPayload
     | BreedingBulkMovePayload
+    | BreedingBulkPlantFactsPayload
     | BreedingBulkCullPayload
     | BreedingCreatePlantNotePayload
+    | BreedingBulkPlantNotePayload
 )
 
 
@@ -620,8 +679,10 @@ class ClaimedCommand(CloudContractModel):
             "breeding_plants_clone": BreedingClonePlantsPayload,
             "breeding_plants_bulk_sex": BreedingBulkSexPayload,
             "breeding_plants_bulk_move": BreedingBulkMovePayload,
+            "breeding_plants_update_facts": BreedingBulkPlantFactsPayload,
             "breeding_plants_bulk_cull": BreedingBulkCullPayload,
             "breeding_plant_note_create": BreedingCreatePlantNotePayload,
+            "breeding_plants_bulk_note": BreedingBulkPlantNotePayload,
         }
         expected = expected_payloads.get(self.command_type)
         if expected is not None and not isinstance(self.payload, expected):

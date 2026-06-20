@@ -15,7 +15,11 @@ from dirt_control.api.browser_schemas.plants import (
     PlantMetricStreamResponse,
     PlantWikiContentResponse,
 )
-from dirt_shared.cloud_contract import BreedingCreateSeedLotPayload, PlantSexKey
+from dirt_shared.cloud_contract import (
+    BreedingBulkPlantFactsPayload,
+    BreedingCreateSeedLotPayload,
+    PlantSexKey,
+)
 
 BreedingLogbookPlantStageKey = Literal[
     "germinating",
@@ -75,6 +79,10 @@ class BreedingBulkMoveRequest(BreedingCommandRequest):
         return clean_nonblank_list(value, field_name="plant_keys")
 
 
+class BreedingUpdatePlantFactsRequest(BreedingBulkPlantFactsPayload):
+    idempotency_key: str = Field(min_length=1, max_length=160)
+
+
 class BreedingBulkCullRequest(BreedingCommandRequest):
     plant_keys: list[str] = Field(min_length=1)
     reason: str = Field(min_length=1)
@@ -93,6 +101,22 @@ class BreedingBulkCullRequest(BreedingCommandRequest):
 class BreedingCreatePlantNoteRequest(BreedingCommandRequest):
     body: str = Field(min_length=1)
     observed_at: datetime | None = None
+
+    @field_validator("body")
+    @classmethod
+    def _clean_body(cls, value: str) -> str:
+        return clean_nonblank(value, field_name="body")
+
+
+class BreedingBulkPlantNoteRequest(BreedingCommandRequest):
+    plant_keys: list[str] = Field(min_length=1)
+    body: str = Field(min_length=1)
+    observed_at: datetime | None = None
+
+    @field_validator("plant_keys")
+    @classmethod
+    def _clean_plant_keys(cls, value: list[str]) -> list[str]:
+        return clean_nonblank_list(value, field_name="plant_keys")
 
     @field_validator("body")
     @classmethod

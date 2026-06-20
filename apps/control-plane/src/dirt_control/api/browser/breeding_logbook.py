@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, status
 from dirt_control.api.browser_schemas.breeding_logbook import (
     BreedingBulkCullRequest,
     BreedingBulkMoveRequest,
+    BreedingBulkPlantNoteRequest,
     BreedingBulkSexRequest,
     BreedingClonePlantsRequest,
     BreedingCreatePlantNoteRequest,
@@ -18,6 +19,7 @@ from dirt_control.api.browser_schemas.breeding_logbook import (
     BreedingLogbookPlantDetailResponse,
     BreedingLogbookPlantListResponse,
     BreedingLogbookSeedLotListResponse,
+    BreedingUpdatePlantFactsRequest,
 )
 from dirt_control.api.browser_schemas.commands import CommandResponse
 from dirt_control.api.browser_schemas.plants import PlantMetricHistoryResponse
@@ -25,9 +27,11 @@ from dirt_control.deps import get_clock, get_session, get_settings
 from dirt_control.security import require_browser_user
 from dirt_control.services.breeding_logbook import (
     bootstrap,
+    bulk_create_plant_notes_command,
     bulk_cull_plants_command,
     bulk_move_plants_command,
     bulk_sex_plants_command,
+    bulk_update_plant_facts_command,
     clone_plants_command,
     create_plant_note_command,
     create_seed_lot_command,
@@ -236,6 +240,27 @@ async def bulk_move_breeding_plants(
 
 
 @router.post(
+    "/breeding-logbook/plants:update-facts",
+    status_code=status.HTTP_201_CREATED,
+    response_model=CommandResponse,
+)
+async def update_breeding_plant_facts(
+    body: BreedingUpdatePlantFactsRequest,
+    user: str = Depends(require_browser_user),
+    settings: CloudSettings = Depends(get_settings),
+    session=Depends(get_session),
+    clock: Callable[[], datetime] = Depends(get_clock),
+) -> CommandResponse:
+    return await bulk_update_plant_facts_command(
+        body,
+        user=user,
+        settings=settings,
+        session=session,
+        now=clock(),
+    )
+
+
+@router.post(
     "/breeding-logbook/plants:bulk-cull",
     status_code=status.HTTP_201_CREATED,
     response_model=CommandResponse,
@@ -271,6 +296,27 @@ async def create_breeding_plant_note(  # noqa: PLR0913
 ) -> CommandResponse:
     return await create_plant_note_command(
         plant_key,
+        body,
+        user=user,
+        settings=settings,
+        session=session,
+        now=clock(),
+    )
+
+
+@router.post(
+    "/breeding-logbook/plants:bulk-note",
+    status_code=status.HTTP_201_CREATED,
+    response_model=CommandResponse,
+)
+async def bulk_create_breeding_plant_notes(
+    body: BreedingBulkPlantNoteRequest,
+    user: str = Depends(require_browser_user),
+    settings: CloudSettings = Depends(get_settings),
+    session=Depends(get_session),
+    clock: Callable[[], datetime] = Depends(get_clock),
+) -> CommandResponse:
+    return await bulk_create_plant_notes_command(
         body,
         user=user,
         settings=settings,

@@ -92,7 +92,11 @@ def test_hosted_browser_routes_keep_response_models() -> None:
     assert routes[("POST", "/api/breeding-logbook/plants:clone")] is CommandResponse
     assert routes[("POST", "/api/breeding-logbook/plants:bulk-sex")] is CommandResponse
     assert routes[("POST", "/api/breeding-logbook/plants:bulk-move")] is CommandResponse
+    assert (
+        routes[("POST", "/api/breeding-logbook/plants:update-facts")] is CommandResponse
+    )
     assert routes[("POST", "/api/breeding-logbook/plants:bulk-cull")] is CommandResponse
+    assert routes[("POST", "/api/breeding-logbook/plants:bulk-note")] is CommandResponse
     assert (
         routes[("POST", "/api/breeding-logbook/plants/{plant_key}/notes")]
         is CommandResponse

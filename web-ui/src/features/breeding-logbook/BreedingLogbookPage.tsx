@@ -26,6 +26,7 @@ import {
   useClonePlantsMutation,
   useGerminatePlantsMutation,
   useLogPlantNoteMutation,
+  useUpdatePlantFactsMutation,
 } from "./breedingLogbookMutations";
 import {
   invalidateBreedingLogbookReads,
@@ -52,6 +53,8 @@ import type {
 const THEME_STORAGE_KEY = "dirt.theme";
 type Theme = "light" | "dark";
 type AddPlantMode = "germinate" | "clone";
+type BulkDateField = "veg_started_at" | "flower_started_at";
+type DetailFactPanel = "sex" | "veg" | "flower" | null;
 
 type AddSeedLotDraft = {
   source: SeedLotSource;
@@ -93,6 +96,10 @@ const CULLED_LOCATION: LocationOption = {
   role: "culled",
 };
 const DATETIME_LOCAL_LENGTH = 16;
+const BULK_DATE_FIELD_OPTIONS = [
+  { label: "Veg start", value: "veg_started_at" },
+  { label: "Flower start", value: "flower_started_at" },
+] as const satisfies readonly { label: string; value: BulkDateField }[];
 const initialSeedLotDraft: AddSeedLotDraft = {
   source: "cross",
   motherId: "plant-d",
@@ -119,6 +126,8 @@ export function BreedingLogbookPage(): ReactNode {
     useState<ReadonlySet<string>>(EMPTY_SELECTION);
   const [bulkPanel, setBulkPanel] = useState<BulkPanel>(null);
   const [bulkSex, setBulkSex] = useState<PlantSexKey>("female");
+  const [bulkDateField, setBulkDateField] = useState<BulkDateField>("veg_started_at");
+  const [bulkDateValue, setBulkDateValue] = useState(datetimeLocalNow);
   const [bulkCullReason, setBulkCullReason] = useState("");
   const [moveLocationKey, setMoveLocationKey] = useState(1);
   const [seedLotDraft, setSeedLotDraft] =
@@ -133,6 +142,12 @@ export function BreedingLogbookPage(): ReactNode {
   const [cloneLocationKey, setCloneLocationKey] = useState(1);
   const [cloneTakenAt, setCloneTakenAt] = useState(datetimeLocalNow);
   const [detailPlantKey, setDetailPlantKey] = useState("");
+  const [detailFactPanel, setDetailFactPanel] = useState<DetailFactPanel>(null);
+  const [detailFactSex, setDetailFactSex] = useState<PlantSexKey>("unknown");
+  const [detailFactDate, setDetailFactDate] = useState(datetimeLocalNow);
+  const [bulkNotePlantKeys, setBulkNotePlantKeys] = useState<readonly string[] | null>(
+    null,
+  );
   const [noteText, setNoteText] = useState("");
   const [draggingPlantId, setDraggingPlantId] = useState<string | null>(null);
   const [theme, setTheme] = useState<Theme>(readStoredTheme);
@@ -149,6 +164,7 @@ export function BreedingLogbookPage(): ReactNode {
   const cloneMutation = useClonePlantsMutation();
   const bulkSexMutation = useBulkSexMutation();
   const bulkMoveMutation = useBulkMoveMutation();
+  const updatePlantFactsMutation = useUpdatePlantFactsMutation();
   const bulkCullMutation = useBulkCullMutation();
   const logNoteMutation = useLogPlantNoteMutation();
   const serverPlants = logbook.plants.plants;
@@ -173,6 +189,8 @@ export function BreedingLogbookPage(): ReactNode {
       (plant) => plant.key === (detailPlantKey || logbook.detail.plant.key),
     ) ?? logbook.detail.plant;
   const detail = { ...logbook.detail, plant: detailPlant };
+  const noteTargetPlantKeys = bulkNotePlantKeys ?? [detail.plant.key];
+  const loggingBulkNote = bulkNotePlantKeys !== null;
   const unprojectedSucceededCommands = useMemo(
     () =>
       pendingCommands.filter(
@@ -209,6 +227,8 @@ export function BreedingLogbookPage(): ReactNode {
   }, [queryClient, unprojectedSucceededCommands]);
 
   const openDetail = (plantKey: string) => {
+    setBulkNotePlantKeys(null);
+    setDetailFactPanel(null);
     setDetailPlantKey(plantKey);
     setView("detail");
   };
@@ -223,6 +243,8 @@ export function BreedingLogbookPage(): ReactNode {
     logbook.bootstrap.locations[0] ??
     FALLBACK_LOCATION;
   const maxEventDateTime = datetimeLocalNow();
+  const detailPlantHasPendingCommand =
+    activePendingCommandsForPlant(pendingCommands, detail.plant.key).length > 0;
 
   return (
     <main className="flex-1 overflow-auto bg-paper text-ink">
@@ -232,6 +254,8 @@ export function BreedingLogbookPage(): ReactNode {
         view={view}
         onThemeChange={setTheme}
         onViewChange={(nextView) => {
+          setBulkNotePlantKeys(null);
+          setDetailFactPanel(null);
           setView(nextView);
         }}
       />
@@ -240,12 +264,15 @@ export function BreedingLogbookPage(): ReactNode {
           <PlantsSurface
             activeCount={activeCount}
             bootstrap={logbook.bootstrap}
+            bulkDateField={bulkDateField}
+            bulkDateValue={bulkDateValue}
             bulkPanel={bulkPanel}
             bulkSex={bulkSex}
             culledCount={culledCount}
             draggingPlantId={draggingPlantId}
             groupBy={groupBy}
             layout={layout}
+            maxEventDateTime={maxEventDateTime}
             moveLocationKey={moveLocationKey}
             plants={visiblePlants}
             selectedLocation={selectedLocation}
@@ -255,7 +282,10 @@ export function BreedingLogbookPage(): ReactNode {
             pendingCommands={pendingCommands}
             bulkCullReason={bulkCullReason}
             mutationError={mutationErrorText(
-              bulkSexMutation.error ?? bulkMoveMutation.error ?? bulkCullMutation.error,
+              bulkSexMutation.error ??
+                bulkMoveMutation.error ??
+                updatePlantFactsMutation.error ??
+                bulkCullMutation.error,
             )}
             destructiveActionsDisabled={selectedPlantsHavePendingCommand}
             onAddPlants={() => {
@@ -302,6 +332,44 @@ export function BreedingLogbookPage(): ReactNode {
                 },
               );
             }}
+            onApplyBulkDate={() => {
+              if (
+                selectedPlantKeys.length === 0 ||
+                selectedPlantsHavePendingCommand ||
+                !canSubmitEventDateTime(bulkDateValue, maxEventDateTime)
+              ) {
+                return;
+              }
+              const bulkDateUtc = datetimeLocalToUtcIso(bulkDateValue);
+              if (bulkDateUtc === null) return;
+              updatePlantFactsMutation.mutate(
+                {
+                  idempotencyKey:
+                    createBreedingLogbookIdempotencyKey("bulk-update-facts"),
+                  plantKeys: selectedPlantKeys,
+                  updates: [{ field: bulkDateField, value: bulkDateUtc }],
+                },
+                {
+                  onSuccess: clearSelection,
+                },
+              );
+            }}
+            onClearBulkDate={() => {
+              if (selectedPlantKeys.length === 0 || selectedPlantsHavePendingCommand) {
+                return;
+              }
+              updatePlantFactsMutation.mutate(
+                {
+                  idempotencyKey:
+                    createBreedingLogbookIdempotencyKey("bulk-clear-facts"),
+                  plantKeys: selectedPlantKeys,
+                  updates: [{ field: bulkDateField, value: null }],
+                },
+                {
+                  onSuccess: clearSelection,
+                },
+              );
+            }}
             onApplySex={() => {
               if (selectedPlantKeys.length === 0 || selectedPlantsHavePendingCommand) {
                 return;
@@ -317,6 +385,8 @@ export function BreedingLogbookPage(): ReactNode {
                 },
               );
             }}
+            onBulkDateFieldChange={setBulkDateField}
+            onBulkDateValueChange={setBulkDateValue}
             onBulkPanelChange={setBulkPanel}
             onBulkSexChange={setBulkSex}
             onBulkCullReasonChange={setBulkCullReason}
@@ -360,7 +430,10 @@ export function BreedingLogbookPage(): ReactNode {
             onMoveLocationChange={setMoveLocationKey}
             onOpenBulkNote={() => {
               const firstSelected = selectedPlants[0];
-              if (firstSelected) openDetail(firstSelected.key);
+              if (!firstSelected) return;
+              setBulkNotePlantKeys(selectedPlantKeys);
+              setDetailPlantKey(firstSelected.key);
+              setView("detail");
             }}
             onOpenDetail={openDetail}
             onSelectedPlantIdsChange={setSelectedPlantIds}
@@ -471,6 +544,16 @@ export function BreedingLogbookPage(): ReactNode {
         ) : (
           <PlantJournalDetail
             detail={detail}
+            factActionsDisabled={
+              detailPlantHasPendingCommand || updatePlantFactsMutation.isPending
+            }
+            factDate={detailFactDate}
+            factPanel={detailFactPanel}
+            factSex={detailFactSex}
+            factsMutationError={mutationErrorText(updatePlantFactsMutation.error)}
+            factsMutationPending={updatePlantFactsMutation.isPending}
+            maxEventDateTime={maxEventDateTime}
+            noteTargetCount={noteTargetPlantKeys.length}
             noteText={noteText}
             mutationError={mutationErrorText(logNoteMutation.error)}
             mutationPending={logNoteMutation.isPending}
@@ -480,25 +563,95 @@ export function BreedingLogbookPage(): ReactNode {
               detail.plant.key,
             )}
             onBack={() => {
+              setBulkNotePlantKeys(null);
+              setDetailFactPanel(null);
               setView("plants");
             }}
+            onClearFactDate={(field) => {
+              updatePlantFactsMutation.mutate(
+                {
+                  idempotencyKey:
+                    createBreedingLogbookIdempotencyKey("plant-clear-facts"),
+                  plantKeys: [detail.plant.key],
+                  updates: [{ field, value: null }],
+                },
+                {
+                  onSuccess: () => {
+                    setDetailFactPanel(null);
+                  },
+                },
+              );
+            }}
+            onFactDateChange={setDetailFactDate}
+            onFactPanelChange={(panel) => {
+              if (panel === "sex") {
+                setDetailFactSex(detail.plant.sexKey);
+              } else if (panel === "veg") {
+                setDetailFactDate(datetimeLocalFromDateOnly(detail.plant.vegStartedOn));
+              } else if (panel === "flower") {
+                setDetailFactDate(
+                  datetimeLocalFromDateOnly(detail.plant.flowerStartedOn),
+                );
+              }
+              setDetailFactPanel(panel);
+            }}
+            onFactSexChange={setDetailFactSex}
             onLogNote={() => {
               const body = noteText.trim();
-              if (body.length === 0) return;
+              if (body.length === 0 || noteTargetPlantKeys.length === 0) return;
               logNoteMutation.mutate(
                 {
                   idempotencyKey: createBreedingLogbookIdempotencyKey("plant-note"),
-                  plantKey: detail.plant.key,
+                  plantKeys: noteTargetPlantKeys,
                   body,
                 },
                 {
                   onSuccess: () => {
                     setNoteText("");
+                    if (loggingBulkNote) {
+                      setBulkNotePlantKeys(null);
+                      clearSelection();
+                    }
                   },
                 },
               );
             }}
             onNoteTextChange={setNoteText}
+            onSaveFactDate={(field) => {
+              if (!canSubmitEventDateTime(detailFactDate, maxEventDateTime)) {
+                return;
+              }
+              const dateUtc = datetimeLocalToUtcIso(detailFactDate);
+              if (dateUtc === null) return;
+              updatePlantFactsMutation.mutate(
+                {
+                  idempotencyKey:
+                    createBreedingLogbookIdempotencyKey("plant-update-facts"),
+                  plantKeys: [detail.plant.key],
+                  updates: [{ field, value: dateUtc }],
+                },
+                {
+                  onSuccess: () => {
+                    setDetailFactPanel(null);
+                  },
+                },
+              );
+            }}
+            onSaveFactSex={() => {
+              updatePlantFactsMutation.mutate(
+                {
+                  idempotencyKey:
+                    createBreedingLogbookIdempotencyKey("plant-update-sex"),
+                  plantKeys: [detail.plant.key],
+                  updates: [{ field: "sex_key", value: detailFactSex }],
+                },
+                {
+                  onSuccess: () => {
+                    setDetailFactPanel(null);
+                  },
+                },
+              );
+            }}
           />
         )}
       </div>
@@ -606,6 +759,8 @@ function PlantsSurface({
   activeCount,
   bootstrap,
   bulkCullReason,
+  bulkDateField,
+  bulkDateValue,
   bulkPanel,
   bulkSex,
   culledCount,
@@ -613,16 +768,21 @@ function PlantsSurface({
   draggingPlantId,
   groupBy,
   layout,
+  maxEventDateTime,
   mutationError,
   moveLocationKey,
   onAddPlants,
   onAddSeeds,
+  onApplyBulkDate,
   onApplyCull,
   onApplyMove,
   onApplySex,
+  onBulkDateFieldChange,
+  onBulkDateValueChange,
   onBulkPanelChange,
   onBulkCullReasonChange,
   onBulkSexChange,
+  onClearBulkDate,
   onClearSelection,
   onDragEnd,
   onDragStart,
@@ -644,6 +804,8 @@ function PlantsSurface({
   activeCount: number;
   bootstrap: BreedingLogbookBootstrap;
   bulkCullReason: string;
+  bulkDateField: BulkDateField;
+  bulkDateValue: string;
   bulkPanel: BulkPanel;
   bulkSex: PlantSexKey;
   culledCount: number;
@@ -651,6 +813,7 @@ function PlantsSurface({
   draggingPlantId: string | null;
   groupBy: PlantGroupBy;
   layout: PlantListLayout;
+  maxEventDateTime: string;
   mutationError: string | null;
   moveLocationKey: number;
   plants: readonly PlantRow[];
@@ -661,12 +824,16 @@ function PlantsSurface({
   showCulled: boolean;
   onAddPlants: () => void;
   onAddSeeds: () => void;
+  onApplyBulkDate: () => void;
   onApplyCull: () => void;
   onApplyMove: () => void;
   onApplySex: () => void;
+  onBulkDateFieldChange: (field: BulkDateField) => void;
+  onBulkDateValueChange: (value: string) => void;
   onBulkPanelChange: (panel: BulkPanel) => void;
   onBulkCullReasonChange: (reason: string) => void;
   onBulkSexChange: (sex: PlantSexKey) => void;
+  onClearBulkDate: () => void;
   onClearSelection: () => void;
   onDragEnd: () => void;
   onDragStart: (plantId: string) => void;
@@ -735,19 +902,26 @@ function PlantsSurface({
       {selectedCount > 0 ? (
         <BulkActionToolbar
           bulkCullReason={bulkCullReason}
+          bulkDateField={bulkDateField}
+          bulkDateValue={bulkDateValue}
           bulkPanel={bulkPanel}
           bulkSex={bulkSex}
           destructiveActionsDisabled={destructiveActionsDisabled}
-          locations={bootstrap.locations.filter(canDropIntoLocation)}
+          locations={bootstrap.locations}
+          maxEventDateTime={maxEventDateTime}
           moveLocationKey={moveLocationKey}
           selectedCount={selectedCount}
           selectedLocation={selectedLocation}
+          onApplyBulkDate={onApplyBulkDate}
           onApplyCull={onApplyCull}
           onApplyMove={onApplyMove}
           onApplySex={onApplySex}
+          onBulkDateFieldChange={onBulkDateFieldChange}
+          onBulkDateValueChange={onBulkDateValueChange}
           onBulkPanelChange={onBulkPanelChange}
           onBulkCullReasonChange={onBulkCullReasonChange}
           onBulkSexChange={onBulkSexChange}
+          onClearBulkDate={onClearBulkDate}
           onClear={onClearSelection}
           onMoveLocationChange={onMoveLocationChange}
           onOpenNote={onOpenBulkNote}
@@ -857,17 +1031,24 @@ function PlantChrome({
 
 function BulkActionToolbar({
   bulkCullReason,
+  bulkDateField,
+  bulkDateValue,
   bulkPanel,
   bulkSex,
   destructiveActionsDisabled,
   locations,
+  maxEventDateTime,
   moveLocationKey,
+  onApplyBulkDate,
   onApplyCull,
   onApplyMove,
   onApplySex,
+  onBulkDateFieldChange,
+  onBulkDateValueChange,
   onBulkPanelChange,
   onBulkCullReasonChange,
   onBulkSexChange,
+  onClearBulkDate,
   onClear,
   onMoveLocationChange,
   onOpenNote,
@@ -875,19 +1056,26 @@ function BulkActionToolbar({
   selectedLocation,
 }: {
   bulkCullReason: string;
+  bulkDateField: BulkDateField;
+  bulkDateValue: string;
   bulkPanel: BulkPanel;
   bulkSex: PlantSexKey;
   destructiveActionsDisabled: boolean;
   locations: readonly LocationOption[];
+  maxEventDateTime: string;
   moveLocationKey: number;
   selectedCount: number;
   selectedLocation: LocationOption;
+  onApplyBulkDate: () => void;
   onApplyCull: () => void;
   onApplyMove: () => void;
   onApplySex: () => void;
+  onBulkDateFieldChange: (field: BulkDateField) => void;
+  onBulkDateValueChange: (value: string) => void;
   onBulkPanelChange: (panel: BulkPanel) => void;
   onBulkCullReasonChange: (reason: string) => void;
   onBulkSexChange: (sex: PlantSexKey) => void;
+  onClearBulkDate: () => void;
   onClear: () => void;
   onMoveLocationChange: (sourceTentId: number) => void;
   onOpenNote: () => void;
@@ -907,6 +1095,15 @@ function BulkActionToolbar({
           }}
         >
           sex
+        </ToolbarButton>
+        <ToolbarButton
+          active={bulkPanel === "dates"}
+          label="Set dates"
+          onClick={() => {
+            onBulkPanelChange(bulkPanel === "dates" ? null : "dates");
+          }}
+        >
+          dates
         </ToolbarButton>
         <ToolbarButton
           active={bulkPanel === "move"}
@@ -959,6 +1156,41 @@ function BulkActionToolbar({
             onClick={onApplySex}
           >
             Apply
+          </Button>
+          {destructiveActionsDisabled ? <PendingBlockMessage /> : null}
+        </div>
+      ) : null}
+      {bulkPanel === "dates" ? (
+        <div className="flex flex-wrap items-end gap-3 border-t border-rule bg-paper px-3 py-3">
+          <Segmented
+            label="Date"
+            options={BULK_DATE_FIELD_OPTIONS}
+            value={bulkDateField}
+            onChange={onBulkDateFieldChange}
+          />
+          <DateTimeField
+            label="Started at"
+            max={maxEventDateTime}
+            value={bulkDateValue}
+            onChange={onBulkDateValueChange}
+          />
+          <Button
+            variant="primary"
+            disabled={
+              destructiveActionsDisabled ||
+              !canSubmitEventDateTime(bulkDateValue, maxEventDateTime)
+            }
+            onClick={onApplyBulkDate}
+          >
+            Set {bulkDateField === "veg_started_at" ? "veg" : "flower"} on{" "}
+            {selectedCount}
+          </Button>
+          <Button
+            variant="secondary"
+            disabled={destructiveActionsDisabled}
+            onClick={onClearBulkDate}
+          >
+            Clear date
           </Button>
           {destructiveActionsDisabled ? <PendingBlockMessage /> : null}
         </div>
@@ -1749,15 +1981,13 @@ function AddPlantsSurface({
 }): ReactNode {
   const selectedSeedLot =
     seedLots.find((lot) => lot.id === selectedSeedLotId) ?? seedLots[0];
+  const germLocations = bootstrap.locations;
   const germLocation =
-    bootstrap.locations.find(
-      (location) => location.sourceTentId === germinateLocationKey,
-    ) ??
+    germLocations.find((location) => location.sourceTentId === germinateLocationKey) ??
+    germLocations[0] ??
     bootstrap.locations[0] ??
     FALLBACK_LOCATION;
-  const cloneLocations = bootstrap.locations.filter((location) =>
-    canUseLocationForStage(location, "germinating"),
-  );
+  const cloneLocations = bootstrap.locations;
   const cloneLocation =
     cloneLocations.find((location) => location.sourceTentId === cloneLocationKey) ??
     cloneLocations[0] ??
@@ -1827,13 +2057,11 @@ function AddPlantsSurface({
               />
               <SelectField
                 label="Into tent"
-                value={germinateLocationKey}
-                options={bootstrap.locations
-                  .filter(canUseLocationForNewPlants)
-                  .map((location) => ({
-                    label: location.displayName,
-                    value: location.sourceTentId,
-                  }))}
+                value={germLocation.sourceTentId}
+                options={germLocations.map((location) => ({
+                  label: location.displayName,
+                  value: location.sourceTentId,
+                }))}
                 onChange={onGerminateLocationChange}
               />
               <ReadOnlyFact
@@ -1939,21 +2167,49 @@ function AddPlantsSurface({
 
 function PlantJournalDetail({
   detail,
+  factActionsDisabled,
+  factDate,
+  factPanel,
+  factSex,
+  factsMutationError,
+  factsMutationPending,
+  maxEventDateTime,
   mutationError,
   mutationPending,
+  noteTargetCount,
   noteText,
   onBack,
+  onClearFactDate,
+  onFactDateChange,
+  onFactPanelChange,
+  onFactSexChange,
   onLogNote,
   onNoteTextChange,
+  onSaveFactDate,
+  onSaveFactSex,
   pendingNotes,
 }: {
   detail: PlantDetail;
+  factActionsDisabled: boolean;
+  factDate: string;
+  factPanel: DetailFactPanel;
+  factSex: PlantSexKey;
+  factsMutationError: string | null;
+  factsMutationPending: boolean;
+  maxEventDateTime: string;
   mutationError: string | null;
   mutationPending: boolean;
+  noteTargetCount: number;
   noteText: string;
   onBack: () => void;
+  onClearFactDate: (field: "veg_started_at" | "flower_started_at") => void;
+  onFactDateChange: (value: string) => void;
+  onFactPanelChange: (panel: DetailFactPanel) => void;
+  onFactSexChange: (sex: PlantSexKey) => void;
   onLogNote: () => void;
   onNoteTextChange: (text: string) => void;
+  onSaveFactDate: (field: "veg_started_at" | "flower_started_at") => void;
+  onSaveFactSex: () => void;
   pendingNotes: readonly PendingTimelineNote[];
 }): ReactNode {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
@@ -2003,6 +2259,22 @@ function PlantJournalDetail({
             />
             <Fact label="Location" value={formatPlantLocation(detail.plant)} />
           </div>
+          <PlantFactsEditor
+            disabled={factActionsDisabled}
+            factDate={factDate}
+            factPanel={factPanel}
+            factSex={factSex}
+            maxEventDateTime={maxEventDateTime}
+            mutationError={factsMutationError}
+            mutationPending={factsMutationPending}
+            plant={detail.plant}
+            onClearDate={onClearFactDate}
+            onDateChange={onFactDateChange}
+            onPanelChange={onFactPanelChange}
+            onSaveDate={onSaveFactDate}
+            onSaveSex={onSaveFactSex}
+            onSexChange={onFactSexChange}
+          />
           <div className="mt-4 border border-rule bg-paper p-3">
             <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
               Lineage
@@ -2038,7 +2310,9 @@ function PlantJournalDetail({
                 disabled={noteText.trim().length === 0 || mutationPending}
                 onClick={onLogNote}
               >
-                Log note
+                {noteTargetCount === 1
+                  ? "Log note"
+                  : `Log note on ${noteTargetCount} plants`}
               </Button>
             </div>
           </div>
@@ -2092,6 +2366,174 @@ function PlantJournalDetail({
         </aside>
       </section>
     </>
+  );
+}
+
+function PlantFactsEditor({
+  disabled,
+  factDate,
+  factPanel,
+  factSex,
+  maxEventDateTime,
+  mutationError,
+  mutationPending,
+  onClearDate,
+  onDateChange,
+  onPanelChange,
+  onSaveDate,
+  onSaveSex,
+  onSexChange,
+  plant,
+}: {
+  disabled: boolean;
+  factDate: string;
+  factPanel: DetailFactPanel;
+  factSex: PlantSexKey;
+  maxEventDateTime: string;
+  mutationError: string | null;
+  mutationPending: boolean;
+  plant: PlantRow;
+  onClearDate: (field: "veg_started_at" | "flower_started_at") => void;
+  onDateChange: (value: string) => void;
+  onPanelChange: (panel: DetailFactPanel) => void;
+  onSaveDate: (field: "veg_started_at" | "flower_started_at") => void;
+  onSaveSex: () => void;
+  onSexChange: (sex: PlantSexKey) => void;
+}): ReactNode {
+  return (
+    <div className="mt-4 border border-rule bg-paper p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+          Plant facts
+        </p>
+        {mutationPending ? (
+          <p className="font-mono text-fs-9 uppercase tracking-caps text-status-warn">
+            queueing
+          </p>
+        ) : null}
+      </div>
+      <div className="mt-2 grid gap-px bg-rule">
+        <FactEditRow
+          active={factPanel === "sex"}
+          disabled={disabled}
+          label="Sex"
+          value={sexLabel(plant.sexKey)}
+          onClick={() => {
+            onPanelChange(factPanel === "sex" ? null : "sex");
+          }}
+        />
+        <FactEditRow
+          active={factPanel === "veg"}
+          disabled={disabled}
+          label="Veg"
+          value={plant.vegStartedOn ? shortDate(plant.vegStartedOn) : "-"}
+          onClick={() => {
+            onPanelChange(factPanel === "veg" ? null : "veg");
+          }}
+        />
+        <FactEditRow
+          active={factPanel === "flower"}
+          disabled={disabled}
+          label="Flower"
+          value={plant.flowerStartedOn ? shortDate(plant.flowerStartedOn) : "-"}
+          onClick={() => {
+            onPanelChange(factPanel === "flower" ? null : "flower");
+          }}
+        />
+      </div>
+      {factPanel === "sex" ? (
+        <div className="mt-3 grid gap-3 border-t border-rule pt-3">
+          <Segmented
+            label="Sex"
+            options={[
+              { label: "♂ Male", value: "male" },
+              { label: "♀ Female", value: "female" },
+              { label: "Unknown", value: "unknown" },
+              { label: "Herm", value: "herm" },
+              { label: "Reversed", value: "reversed" },
+            ]}
+            value={factSex}
+            onChange={onSexChange}
+          />
+          <div className="flex flex-wrap justify-end gap-2">
+            {mutationError ? <InlineError text={mutationError} /> : null}
+            <Button variant="primary" disabled={disabled} onClick={onSaveSex}>
+              Save sex
+            </Button>
+          </div>
+        </div>
+      ) : null}
+      {factPanel === "veg" || factPanel === "flower" ? (
+        <div className="mt-3 grid gap-3 border-t border-rule pt-3">
+          <DateTimeField
+            label={factPanel === "veg" ? "Veg started" : "Flower started"}
+            max={maxEventDateTime}
+            value={factDate}
+            onChange={onDateChange}
+          />
+          <div className="flex flex-wrap justify-end gap-2">
+            {mutationError ? <InlineError text={mutationError} /> : null}
+            <Button
+              variant="secondary"
+              disabled={disabled}
+              onClick={() => {
+                onClearDate(
+                  factPanel === "veg" ? "veg_started_at" : "flower_started_at",
+                );
+              }}
+            >
+              Clear
+            </Button>
+            <Button
+              variant="primary"
+              disabled={disabled || !canSubmitEventDateTime(factDate, maxEventDateTime)}
+              onClick={() => {
+                onSaveDate(
+                  factPanel === "veg" ? "veg_started_at" : "flower_started_at",
+                );
+              }}
+            >
+              Save date
+            </Button>
+          </div>
+        </div>
+      ) : null}
+      {disabled && !mutationPending ? <PendingBlockMessage /> : null}
+    </div>
+  );
+}
+
+function FactEditRow({
+  active,
+  disabled,
+  label,
+  onClick,
+  value,
+}: {
+  active: boolean;
+  disabled: boolean;
+  label: string;
+  onClick: () => void;
+  value: string;
+}): ReactNode {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={
+        active
+          ? "flex items-center justify-between gap-3 bg-paper-2 px-3 py-2 text-left transition disabled:cursor-not-allowed"
+          : "flex items-center justify-between gap-3 bg-paper px-3 py-2 text-left transition hover:bg-paper-2 disabled:cursor-not-allowed"
+      }
+    >
+      <span className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+        {label}
+      </span>
+      <span className="truncate font-mono text-fs-10 uppercase tracking-caps text-ink">
+        {value}
+      </span>
+    </button>
   );
 }
 
@@ -2557,6 +2999,10 @@ function datetimeLocalNow(): string {
   return dateToDatetimeLocal(new Date());
 }
 
+function datetimeLocalFromDateOnly(value: string | null): string {
+  return value === null ? datetimeLocalNow() : `${value}T12:00`;
+}
+
 function dateToDatetimeLocal(value: Date): string {
   const offsetMs = value.getTimezoneOffset() * 60_000;
   return new Date(value.getTime() - offsetMs)
@@ -2618,11 +3064,6 @@ function canUseLocationForStage(
 function canDropIntoLocation(location: LocationOption): boolean {
   const dropStageKey = locationDropStageKey(location);
   return dropStageKey !== null && dropStageKey !== "culled";
-}
-
-function canUseLocationForNewPlants(location: LocationOption): boolean {
-  const dropStageKey = locationDropStageKey(location);
-  return dropStageKey === "germinating" || dropStageKey === "veg";
 }
 
 function groupPlants(

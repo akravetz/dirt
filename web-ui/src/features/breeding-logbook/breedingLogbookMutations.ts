@@ -37,9 +37,13 @@ type BreedingClonePlantsRequest =
   hostedComponents["schemas"]["BreedingClonePlantsRequest"];
 type BreedingBulkSexRequest = hostedComponents["schemas"]["BreedingBulkSexRequest"];
 type BreedingBulkMoveRequest = hostedComponents["schemas"]["BreedingBulkMoveRequest"];
+type BreedingUpdatePlantFactsRequest =
+  hostedComponents["schemas"]["BreedingUpdatePlantFactsRequest"];
 type BreedingBulkCullRequest = hostedComponents["schemas"]["BreedingBulkCullRequest"];
 type BreedingCreatePlantNoteRequest =
   hostedComponents["schemas"]["BreedingCreatePlantNoteRequest"];
+type BreedingBulkPlantNoteRequest =
+  hostedComponents["schemas"]["BreedingBulkPlantNoteRequest"];
 
 type PendingOperation =
   | "add-seeds"
@@ -47,6 +51,7 @@ type PendingOperation =
   | "clone"
   | "bulk-sex"
   | "bulk-move"
+  | "update-facts"
   | "bulk-cull"
   | "note";
 
@@ -58,7 +63,7 @@ export type BreedingLogbookPendingCommand = {
   affectedPlantKeys: readonly string[];
   optimisticPlantPatches: readonly PendingPlantPatch[];
   pendingNote: {
-    plantKey: string;
+    plantKeys: readonly string[];
     body: string;
   } | null;
 };
@@ -70,6 +75,9 @@ type PendingPlantPatch = {
   currentTentId?: number;
   currentTentName?: string;
   gridPosition?: string | null;
+  germinatedOn?: string | null;
+  vegStartedOn?: string | null;
+  flowerStartedOn?: string | null;
   culledOn?: string | null;
   lastNote?: string;
 };
@@ -128,15 +136,34 @@ type BulkMoveMutationInput = {
   locationLabel: string;
 };
 
+type PlantFactUpdate =
+  | { field: "sex_key"; value: PlantSexKey }
+  | {
+      field: "germinated_at" | "rooted_at" | "veg_started_at" | "flower_started_at";
+      value: string | null;
+    };
+
+type UpdatePlantFactsMutationInput = {
+  idempotencyKey: string;
+  plantKeys: readonly string[];
+  updates: readonly PlantFactUpdate[];
+};
+
 type BulkCullMutationInput = {
   idempotencyKey: string;
   plantKeys: readonly string[];
   reason: string;
 };
 
-type LogNoteMutationInput = {
+type SingleLogNoteRequestInput = {
   idempotencyKey: string;
   plantKey: string;
+  body: string;
+};
+
+type LogNoteMutationInput = {
+  idempotencyKey: string;
+  plantKeys: readonly string[];
   body: string;
 };
 
@@ -226,6 +253,19 @@ export function buildBulkMoveRequest(
   };
 }
 
+export function buildUpdatePlantFactsRequest(
+  input: UpdatePlantFactsMutationInput,
+): BreedingUpdatePlantFactsRequest {
+  return {
+    idempotency_key: input.idempotencyKey,
+    plant_keys: [...input.plantKeys],
+    updates: input.updates.map((update) => ({
+      field: update.field,
+      value: update.value,
+    })),
+  };
+}
+
 export function buildBulkCullRequest(
   input: BulkCullMutationInput,
 ): BreedingBulkCullRequest {
@@ -237,10 +277,21 @@ export function buildBulkCullRequest(
 }
 
 export function buildLogNoteRequest(
-  input: LogNoteMutationInput,
+  input: SingleLogNoteRequestInput,
 ): BreedingCreatePlantNoteRequest {
   return {
     idempotency_key: input.idempotencyKey,
+    body: input.body.trim(),
+    observed_at: null,
+  };
+}
+
+export function buildBulkLogNoteRequest(
+  input: LogNoteMutationInput,
+): BreedingBulkPlantNoteRequest {
+  return {
+    idempotency_key: input.idempotencyKey,
+    plant_keys: [...input.plantKeys],
     body: input.body.trim(),
     observed_at: null,
   };
@@ -399,6 +450,29 @@ export function useBulkMoveMutation() {
   });
 }
 
+export function useUpdatePlantFactsMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: updatePlantFacts,
+    onSuccess: (command, input) => {
+      addPendingCommand(queryClient, {
+        command,
+        operation: "update-facts",
+        label: `Updating facts on ${input.plantKeys.length} plants`,
+        affectedPlantKeys: input.plantKeys,
+        optimisticPlantPatches: plantFactUpdatesToPatches(
+          input.plantKeys,
+          input.updates,
+        ),
+        pendingNote: null,
+      });
+      if (command.status === "succeeded") {
+        scheduleProjectionRefresh(queryClient, input.plantKeys);
+      }
+    },
+  });
+}
+
 export function useBulkCullMutation() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -430,21 +504,22 @@ export function useLogPlantNoteMutation() {
       addPendingCommand(queryClient, {
         command,
         operation: "note",
-        label: "Logging note",
-        affectedPlantKeys: [input.plantKey],
-        optimisticPlantPatches: [
-          {
-            plantKey: input.plantKey,
-            lastNote: input.body.trim(),
-          },
-        ],
+        label:
+          input.plantKeys.length === 1
+            ? "Logging note"
+            : `Logging note on ${input.plantKeys.length} plants`,
+        affectedPlantKeys: input.plantKeys,
+        optimisticPlantPatches: input.plantKeys.map((plantKey) => ({
+          plantKey,
+          lastNote: input.body.trim(),
+        })),
         pendingNote: {
-          plantKey: input.plantKey,
+          plantKeys: input.plantKeys,
           body: input.body.trim(),
         },
       });
       if (command.status === "succeeded") {
-        scheduleProjectionRefresh(queryClient, [input.plantKey]);
+        scheduleProjectionRefresh(queryClient, input.plantKeys);
       }
     },
   });
@@ -487,7 +562,7 @@ export function pendingTimelineNotes(
   plantKey: string,
 ): readonly PendingTimelineNote[] {
   return pendingCommands.flatMap((pending) => {
-    if (pending.pendingNote?.plantKey !== plantKey) return [];
+    if (!pending.pendingNote?.plantKeys.includes(plantKey)) return [];
     if (hasSyncedNote(events, pending.pendingNote.body)) return [];
     return [
       {
@@ -541,7 +616,7 @@ export function isPendingCommandProjected(
   });
   if (!patchesProjected) return false;
   if (pending.pendingNote === null) return true;
-  if (pending.pendingNote.plantKey !== detailPlantKey) return true;
+  if (!pending.pendingNote.plantKeys.includes(detailPlantKey)) return true;
   return hasSyncedNote(events, pending.pendingNote.body);
 }
 
@@ -598,6 +673,15 @@ async function bulkMovePlants(input: BulkMoveMutationInput): Promise<HostedComma
   return hostedData(data, "POST /api/breeding-logbook/plants:bulk-move");
 }
 
+async function updatePlantFacts(
+  input: UpdatePlantFactsMutationInput,
+): Promise<HostedCommand> {
+  const { data } = await hostedApi.POST("/api/breeding-logbook/plants:update-facts", {
+    body: buildUpdatePlantFactsRequest(input),
+  });
+  return hostedData(data, "POST /api/breeding-logbook/plants:update-facts");
+}
+
 async function bulkCullPlants(input: BulkCullMutationInput): Promise<HostedCommand> {
   const { data } = await hostedApi.POST("/api/breeding-logbook/plants:bulk-cull", {
     body: buildBulkCullRequest(input),
@@ -606,14 +690,10 @@ async function bulkCullPlants(input: BulkCullMutationInput): Promise<HostedComma
 }
 
 async function logPlantNote(input: LogNoteMutationInput): Promise<HostedCommand> {
-  const { data } = await hostedApi.POST(
-    "/api/breeding-logbook/plants/{plant_key}/notes",
-    {
-      params: { path: { plant_key: input.plantKey } },
-      body: buildLogNoteRequest(input),
-    },
-  );
-  return hostedData(data, "POST /api/breeding-logbook/plants/{plant_key}/notes");
+  const { data } = await hostedApi.POST("/api/breeding-logbook/plants:bulk-note", {
+    body: buildBulkLogNoteRequest(input),
+  });
+  return hostedData(data, "POST /api/breeding-logbook/plants:bulk-note");
 }
 
 async function fetchCommand(commandId: string): Promise<HostedCommand> {
@@ -693,6 +773,31 @@ function shouldApplyOptimisticCommand(pending: BreedingLogbookPendingCommand): b
   return !isFailedCommandStatus(pending.command.status);
 }
 
+function plantFactUpdatesToPatches(
+  plantKeys: readonly string[],
+  updates: readonly PlantFactUpdate[],
+): readonly PendingPlantPatch[] {
+  return plantKeys.map((plantKey) => {
+    const patch: PendingPlantPatch = { plantKey };
+    for (const update of updates) {
+      if (update.field === "sex_key") {
+        patch.sexKey = update.value;
+      } else if (update.field === "germinated_at") {
+        patch.germinatedOn = dateOnlyFromFactValue(update.value);
+      } else if (update.field === "veg_started_at") {
+        patch.vegStartedOn = dateOnlyFromFactValue(update.value);
+      } else if (update.field === "flower_started_at") {
+        patch.flowerStartedOn = dateOnlyFromFactValue(update.value);
+      }
+    }
+    return patch;
+  });
+}
+
+function dateOnlyFromFactValue(value: string | null): string | null {
+  return value === null ? null : value.slice(0, 10);
+}
+
 function applyPlantPatch(plant: PlantRow, patch: PendingPlantPatch): PlantRow {
   return {
     ...plant,
@@ -702,6 +807,14 @@ function applyPlantPatch(plant: PlantRow, patch: PendingPlantPatch): PlantRow {
     currentTentName: patch.currentTentName ?? plant.currentTentName,
     gridPosition:
       patch.gridPosition !== undefined ? patch.gridPosition : plant.gridPosition,
+    germinatedOn:
+      patch.germinatedOn !== undefined ? patch.germinatedOn : plant.germinatedOn,
+    vegStartedOn:
+      patch.vegStartedOn !== undefined ? patch.vegStartedOn : plant.vegStartedOn,
+    flowerStartedOn:
+      patch.flowerStartedOn !== undefined
+        ? patch.flowerStartedOn
+        : plant.flowerStartedOn,
     culledOn: patch.culledOn !== undefined ? patch.culledOn : plant.culledOn,
     lastNote: patch.lastNote ?? plant.lastNote,
   };
@@ -723,6 +836,18 @@ function isPlantPatchProjected(plant: PlantRow, patch: PendingPlantPatch): boole
     return false;
   }
   if (patch.gridPosition !== undefined && plant.gridPosition !== patch.gridPosition) {
+    return false;
+  }
+  if (patch.germinatedOn !== undefined && plant.germinatedOn !== patch.germinatedOn) {
+    return false;
+  }
+  if (patch.vegStartedOn !== undefined && plant.vegStartedOn !== patch.vegStartedOn) {
+    return false;
+  }
+  if (
+    patch.flowerStartedOn !== undefined &&
+    plant.flowerStartedOn !== patch.flowerStartedOn
+  ) {
     return false;
   }
   if (patch.culledOn !== undefined && plant.culledOn !== patch.culledOn) {

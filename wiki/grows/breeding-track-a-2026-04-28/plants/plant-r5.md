@@ -4,7 +4,7 @@ type: plant
 sources: []
 related: [wiki/grows/breeding-track-a-2026-04-28/README.md, wiki/breeding/male-evaluation.md]
 created: 2026-05-30
-updated: 2026-06-19
+updated: 2026-06-20
 ---
 
 # R5
@@ -17,7 +17,7 @@ updated: 2026-06-19
 
 ## Current State
 
-R5 remains culled/not retained for pollen after Track A narrowed to R2 on 2026-06-14. No breeding photo is available today, and the active pollen-collection focus remains R2 under a direct sensor/airflow check. See [2026-06-19 daily](../../../daily/2026-06-19.md).
+`SBBS-R1-009` remains culled/not retained for pollen after Track A narrowed to R2 on 2026-06-14. No breeding photo is available today, and the active pollen-collection focus remains R2 under a repeated wet sensor check. See [2026-06-20 daily](../../../daily/2026-06-20.md).
 
 ## Timeline
 
@@ -37,3 +37,4 @@ R5 remains culled/not retained for pollen after Track A narrowed to R2 on 2026-0
 - 2026-06-10 — Breeding overview stayed tent-level only; no sex confirmation filed, and repeated current-only wet sensor data keeps sex watch plus small-pot checks active. See [2026-06-10](../../../daily/2026-06-10.md).
 - 2026-06-14 — Culled/not retained for pollen when Track A narrowed to R2 for purple pollen-sac expression. Filed in [activity log](../../../log.md).
 - 2026-06-19 — No breeding photo; remains culled/not retained while tent-level current-only wet sensor repeat keeps R2 environment verification active. See [2026-06-19](../../../daily/2026-06-19.md).
+- 2026-06-20 — No breeding photo; `SBBS-R1-009` remains culled/not retained while R2 environment and dry pollen-handling checks continue. See [2026-06-20](../../../daily/2026-06-20.md).

@@ -2230,8 +2230,8 @@ async def test_command_loop_germinates_plants_with_local_key_suffixes(
     assert command.result["created_plant_keys"] == ["GERM-R1-002", "GERM-R1-003"]
     assert {plant.sex_key for plant in plants} == {"unknown"}
     assert {plant.germinated_at for plant in plants} == {FIXED_NOW}
-    assert {plant.veg_started_at for plant in plants} == {FIXED_NOW}
-    assert {plant.flower_started_at for plant in plants} == {FIXED_NOW}
+    assert {plant.veg_started_at for plant in plants} == {None}
+    assert {plant.flower_started_at for plant in plants} == {None}
     assert {location.grid_position for location in locations} == {None}
 
 
@@ -2279,6 +2279,8 @@ async def test_command_loop_clones_plants_and_records_mother_event(
     assert {clone.clone_source_plant_id for clone in clones} == {mother.id}
     assert {clone.sex_key for clone in clones} == {"female"}
     assert {clone.rooted_at for clone in clones} == {FIXED_NOW}
+    assert {clone.veg_started_at for clone in clones} == {None}
+    assert {clone.flower_started_at for clone in clones} == {None}
     assert event.metadata_json == {"clone_keys": ["MOM-001-C-001", "MOM-001-C-002"]}
 
 
@@ -2320,7 +2322,7 @@ async def test_command_loop_bulk_sex_updates_plants_and_events(
     assert command.tent_id is None
 
 
-async def test_command_loop_bulk_move_closes_current_location_and_starts_flower(
+async def test_command_loop_bulk_move_closes_current_location_without_stage_change(
     app_engine: AsyncEngine,
 ):
     [plant_key] = await _seed_command_plants(
@@ -2363,11 +2365,101 @@ async def test_command_loop_bulk_move_closes_current_location_and_starts_flower(
             )
         ).one()
 
-    assert plant.flower_started_at == FIXED_NOW
+    assert plant.veg_started_at == FIXED_NOW - timedelta(days=7)
+    assert plant.flower_started_at is None
     assert locations[0].end_at == FIXED_NOW
     assert locations[1].end_at is None
     assert locations[1].grid_position is None
     assert event.metadata_json == {"from_tent_id": 2, "to_tent_id": 1}
+
+
+async def test_command_loop_updates_plant_facts(
+    app_engine: AsyncEngine,
+):
+    plant_keys = await _seed_command_plants(app_engine, prefix="FACT", count=2)
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command(
+            "cloud-update-facts",
+            command_type="breeding_plants_update_facts",
+            payload={
+                "plant_keys": plant_keys,
+                "updates": [
+                    {"field": "sex_key", "value": "female"},
+                    {"field": "veg_started_at", "value": None},
+                    {"field": "flower_started_at", "value": FIXED_NOW.isoformat()},
+                ],
+            },
+        )
+    ]
+
+    result = await _command_service(app_engine, cloud, RecordingPTZ()).run_once()
+
+    assert result.executed == 1
+    async with AsyncSession(app_engine) as session:
+        plants = (
+            await session.exec(select(Plant).where(col(Plant.key).in_(plant_keys)))
+        ).all()
+        command = (
+            await session.exec(
+                select(Command).where(
+                    Command.idempotency_key == "cloud-command:cloud-update-facts"
+                )
+            )
+        ).one()
+
+    assert {plant.sex_key for plant in plants} == {"female"}
+    assert {plant.veg_started_at for plant in plants} == {None}
+    assert {plant.flower_started_at for plant in plants} == {FIXED_NOW}
+    assert command.result["updated_plant_keys"] == plant_keys
+    assert command.result["updated_fields"] == [
+        "sex_key",
+        "veg_started_at",
+        "flower_started_at",
+    ]
+    assert command.tent_id is None
+
+
+async def test_command_loop_update_facts_missing_plant_rolls_back_all_changes(
+    app_engine: AsyncEngine,
+):
+    [plant_key] = await _seed_command_plants(app_engine, prefix="FFAIL", count=1)
+    original_veg_started_at = FIXED_NOW - timedelta(days=7)
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command(
+            "cloud-update-facts-missing",
+            command_type="breeding_plants_update_facts",
+            payload={
+                "plant_keys": [plant_key, "NOPE-001"],
+                "updates": [
+                    {"field": "sex_key", "value": "female"},
+                    {"field": "veg_started_at", "value": None},
+                ],
+            },
+        )
+    ]
+
+    result = await _command_service(app_engine, cloud, RecordingPTZ()).run_once()
+
+    assert result.executed == 1
+    statuses = [payload.status for _, payload, _ in cloud.command_results]
+    assert statuses == ["running", "failed"]
+    assert "unknown plant key(s): NOPE-001" in cloud.command_results[-1][1].error
+    async with AsyncSession(app_engine) as session:
+        plant = (await session.exec(select(Plant).where(Plant.key == plant_key))).one()
+        command = (
+            await session.exec(
+                select(Command).where(
+                    Command.idempotency_key
+                    == "cloud-command:cloud-update-facts-missing"
+                )
+            )
+        ).one()
+
+    assert plant.sex_key == "unknown"
+    assert plant.veg_started_at == original_veg_started_at
+    assert command.status == "failed"
 
 
 async def test_command_loop_bulk_cull_closes_current_location(
@@ -2454,6 +2546,96 @@ async def test_command_loop_creates_plant_note_with_cloud_requester(
     assert note.created_by == "admin"
     assert command.result["source_note_id"] == note.id
     assert command.tent_id is None
+
+
+async def test_command_loop_bulk_creates_plant_notes_atomically(
+    app_engine: AsyncEngine,
+):
+    plant_keys = await _seed_command_plants(app_engine, prefix="BNOTE", count=2)
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command(
+            "cloud-bulk-note",
+            command_type="breeding_plants_bulk_note",
+            payload={
+                "plant_keys": plant_keys,
+                "body": "Shared canopy note.",
+                "observed_at": FIXED_NOW.isoformat(),
+            },
+        )
+    ]
+
+    result = await _command_service(app_engine, cloud, RecordingPTZ()).run_once()
+
+    assert result.executed == 1
+    async with AsyncSession(app_engine) as session:
+        notes = (
+            await session.exec(
+                select(PlantNote, Plant.key)
+                .join(Plant, Plant.id == PlantNote.plant_id)
+                .where(col(Plant.key).in_(plant_keys))
+                .order_by(Plant.key)
+            )
+        ).all()
+        command = (
+            await session.exec(
+                select(Command).where(
+                    Command.idempotency_key == "cloud-command:cloud-bulk-note"
+                )
+            )
+        ).one()
+
+    assert [plant_key for _, plant_key in notes] == plant_keys
+    assert [note.body for note, _ in notes] == [
+        "Shared canopy note.",
+        "Shared canopy note.",
+    ]
+    assert [note.created_by for note, _ in notes] == ["admin", "admin"]
+    assert command.result["plant_keys"] == plant_keys
+    assert command.result["source_note_ids"] == [note.id for note, _ in notes]
+    assert command.tent_id is None
+
+
+async def test_command_loop_bulk_note_missing_plant_rolls_back_all_notes(
+    app_engine: AsyncEngine,
+):
+    [plant_key] = await _seed_command_plants(app_engine, prefix="BFAIL", count=1)
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command(
+            "cloud-bulk-note-missing",
+            command_type="breeding_plants_bulk_note",
+            payload={
+                "plant_keys": [plant_key, "NOPE-001"],
+                "body": "No partial writes.",
+            },
+        )
+    ]
+
+    result = await _command_service(app_engine, cloud, RecordingPTZ()).run_once()
+
+    assert result.executed == 1
+    statuses = [payload.status for _, payload, _ in cloud.command_results]
+    assert statuses == ["running", "failed"]
+    assert "unknown plant key(s): NOPE-001" in cloud.command_results[-1][1].error
+    async with AsyncSession(app_engine) as session:
+        notes = (
+            await session.exec(
+                select(PlantNote)
+                .join(Plant, Plant.id == PlantNote.plant_id)
+                .where(Plant.key == plant_key)
+            )
+        ).all()
+        command = (
+            await session.exec(
+                select(Command).where(
+                    Command.idempotency_key == "cloud-command:cloud-bulk-note-missing"
+                )
+            )
+        ).one()
+
+    assert notes == []
+    assert command.status == "failed"
 
 
 async def test_command_loop_rejects_breeding_with_ptz_target_before_ledger(
