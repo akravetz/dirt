@@ -11,6 +11,8 @@ Treat the plan document as the source of truth. Work milestone by milestone in o
 
 Use subagents for implementation when the environment supports them. The main agent owns orchestration, targeted review, verification, shared-state validation, and concise plan updates. Worker agents own concrete implementation edits for one milestone at a time.
 
+Every verified milestone must end in a git commit before the next milestone begins. The commit is the rollback boundary for the next milestone. Do not accumulate multiple milestones in one uncommitted worktree.
+
 ## Context Discipline Contract
 
 Keep the main context window clean. The main agent must not become a second implementation agent.
@@ -46,6 +48,9 @@ If verification fails, the default action is to send the failed criterion, evide
 1. Read the plan document fully enough to understand purpose, progress, milestones, acceptance criteria, validation commands, recovery notes, and any required documentation.
 2. Read any repo-specific agent instructions and docs that the plan or repository says are required before editing code or running commands.
 3. Identify the next incomplete milestone. Do not skip ahead unless the plan says a later milestone is prerequisite.
+   - Before starting the milestone, record `git status --short` as the baseline.
+   - If the worktree already has unrelated dirty files, keep them out of the milestone commit.
+   - If planned edits must overlap existing dirty files, stop for human input unless the user has explicitly authorized working through that overlap.
 4. Create a concise milestone brief for the implementation agent:
    - plan path and milestone name
    - exact scope and non-goals
@@ -71,11 +76,25 @@ If verification fails, the default action is to send the failed criterion, evide
    - run focused tests or lint commands needed to prove the milestone
    - inspect changed code for scope creep, compatibility branches, stale naming, and unremoved legacy code
 9. If verification fails, send concrete feedback to the same implementation agent and wait for a revised result. Repeat review and verification until the milestone is complete. Do not patch the failure locally unless the Context Discipline exception policy applies.
-10. When the milestone is complete, update the ExecPlan:
+10. If the worker has clearly gone off the rails, stop the worker and recover before retrying:
+   - close or interrupt the worker so it cannot continue editing
+   - capture the failed criterion, the bad diff pattern, and why it violated the plan
+   - revert only the current milestone's worker-owned changes back to the last verified milestone commit; do not use broad commands that would discard unrelated user work
+   - remove only untracked files that were created by the failed milestone attempt and are known to be worker-owned
+   - update the retry brief with the failure analysis and the extra constraints needed to avoid repeating it
+   - retry with a fresh worker when a clean-room pass is more appropriate than a correction loop
+11. When the milestone is complete, update the ExecPlan:
    - mark the milestone complete with date/time
    - record validation commands and results in Outcomes or Progress
    - record surprises, unexpected behavior, broken assumptions, cleanup decisions, or follow-up risks in the appropriate plan sections
-11. Repeat from step 3 for the next incomplete milestone.
+12. Commit the verified milestone before continuing:
+   - run any repository-required pre-commit formatting or fix command documented by the repo
+   - stage only files that belong to the milestone and the ExecPlan update; never stage unrelated baseline changes
+   - inspect `git diff --cached --stat` and `git diff --cached --check`
+   - create a normal git commit with a message that names the ExecPlan milestone
+   - if hooks or formatting change files, re-check, re-stage only milestone-owned files, and commit again
+   - if the milestone cannot be committed cleanly because unrelated dirty work overlaps the same files, stop for human input instead of proceeding
+13. Repeat from step 3 for the next incomplete milestone.
 
 ## Main-Agent Review Checklist
 
@@ -88,6 +107,7 @@ For each milestone, verify all of these before marking it complete:
 - Temporary compatibility layers are explicitly marked and scheduled for immediate removal when the plan requires a clean cutover.
 - Any surprising, unexpected, or broken behavior is captured in the ExecPlan.
 - The plan's progress state matches the codebase state.
+- A git commit exists for the milestone after verification and before any later milestone starts.
 
 ## Feedback Loop
 

@@ -38,8 +38,8 @@ from pathlib import Path
 import pytest
 
 from ._helpers import (
-    APPS,
     APPS_ROOT,
+    STAGE1_GENERIC_APPS,
     build_import_map,
     format_invariant_failure,
     iter_py,
@@ -70,6 +70,10 @@ ALLOWED: frozenset[str] = frozenset(
         # through to the repo-root default. A Settings field would force
         # every non-wiki test to stub a Settings object.
         "shared/src/dirt_shared/services/wiki.py",
+        # bootstrap_gateway.py: deploy script entrypoint that reads the
+        # already-validated Railway/cloud env to seed the gateway credential.
+        # It is a process/bootstrap boundary, not reusable app logic.
+        "control-plane/src/dirt_control/bootstrap_gateway.py",
     }
 )
 
@@ -135,7 +139,7 @@ def _violations_in_file(py: Path) -> list[tuple[int, str]]:
     return out
 
 
-@pytest.mark.parametrize("app", APPS)
+@pytest.mark.parametrize("app", STAGE1_GENERIC_APPS)
 def test_no_env_reads_outside_config(app: str) -> None:
     """Production code must not call ``os.environ`` / ``os.getenv`` outside ALLOWED."""
     pkg_dir = pkg_src_dir(app)

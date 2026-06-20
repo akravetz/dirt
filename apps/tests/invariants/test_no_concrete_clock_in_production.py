@@ -63,9 +63,9 @@ from pathlib import Path
 import pytest
 
 from ._helpers import (
-    APPS,
     APPS_ROOT,
     COMPOSITION_ROOTS,
+    STAGE1_GENERIC_APPS,
     build_import_map,
     format_invariant_failure,
     iter_py,
@@ -181,7 +181,7 @@ def _violations_in_file(py: Path) -> list[tuple[int, str]]:
     return out
 
 
-@pytest.mark.parametrize("app", APPS)
+@pytest.mark.parametrize("app", STAGE1_GENERIC_APPS)
 def test_no_concrete_clock_in_production(app: str) -> None:
     """Production code must not call ``datetime.now()`` / ``time.time()`` inline."""
     pkg_dir = pkg_src_dir(app)

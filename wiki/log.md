@@ -1272,3 +1272,11 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - Reservoir status was acceptable by handheld check: pH 5.8 / EC 1.1 mS/cm, with tray cycling normal. Buds and sugar leaves were not bleaching or crisping, and trichomes were still largely clear.
 - At 20:50 MDT, the light was raised about 5 inches and lung-room AC was adjusted to hold 72°F to reduce lights-on heat/VPD pressure.
 - Updated: `grows/main-2026-03-15/plants/plant-a.md`, `environment/temperature.md`, `environment/nutrients.md`, `overview.md`, `index.md`.
+
+## [2026-06-19] daily | Day 97 / Flower Day 47 - full main photos; steadier VPD, breeding photo missing
+- Photos captured across all 5 expected main presets: overview plus Plant A, Plant B, Plant C, and Plant D. No breeding overview photo was available, so breeding visual coverage is incomplete.
+- **Main-tent environment:** VPD is steadier than the last full report at 1.18 kPa overnight / 1.43 morning / 1.49 now. RH remains above the late-flower guide near 51%, so keep flower-pocket airflow and dead-leaf checks active rather than adding broad lights-on drying.
+- **Plant observations:** A remains fan-obstructed but visible tops are upright with no obvious bud/sugar-leaf bleaching; B has upright flower clusters but no trusted direct moisture value; C is upright on the wall side; D still shows the strongest visible purple flower expression.
+- **Moisture telemetry:** trusted direct-percent readings are stable for A/C/D (`SBBS-R1-001` 26.4%, `SBBS-R1-003` 34.6%, `SBBS-R1-004` 31.8%) with less than 0.1 point movement from morning to now. `SBBS-R1-002` is omitted and remains hand-check-only.
+- **Breeding-tent watch:** Flower Day 26; R2 remains the only retained pollen donor. Current-only sensor data repeats 71.92°F / 83.28% RH / 0.45 kPa, so verify sensor freshness/exposure, airflow, pot weight, and dry pollen-handling conditions directly.
+- Updated: `daily/2026-06-19.md`, `grows/main-2026-03-15/README.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`.

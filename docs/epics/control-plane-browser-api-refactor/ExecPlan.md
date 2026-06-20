@@ -17,15 +17,15 @@ The work is complete when `apps/control-plane/src/dirt_control/api/browser.py` i
 ## Progress
 
 - [x] (2026-06-18) Created this ExecPlan after reviewing `browser.py`, the hwd FastAPI architecture, existing invariant tests, `.agents/PLANS.md`, and `docs/rules/simple-clean-architecture.md`.
-- [ ] Milestone 1: take an inventory and add characterization tests that protect current browser route behavior before moving code.
-- [ ] Milestone 2: split browser schemas out of `browser.py` without changing route behavior or generated OpenAPI shape.
-- [ ] Milestone 3: split browser routes by feature while keeping existing paths and route response models stable.
-- [ ] Milestone 4: extract data access and application decisions from browser route modules into focused control-plane services/query modules.
+- [x] (2026-06-19 13:11Z) Milestone 1: inventoried the browser API and added focused characterization tests for current browser route behavior before moving code.
+- [x] (2026-06-19 13:23Z) Milestone 2: split browser schemas out of `browser.py` without changing route behavior or generated OpenAPI shape.
+- [x] (2026-06-19 13:33Z) Milestone 3: split browser routes by feature while keeping existing paths and route response models stable.
+- [x] (2026-06-19 13:54Z) Milestone 4: extracted data access and application decisions from browser route modules into focused control-plane services/query modules.
 - [x] (2026-06-19) Milestone 5: removed the tent/location identity smell and made breeding logbook grouping explicitly tent-based as part of `docs/epics/scoped-identity-cleanup/ExecPlan.md`; future browser API refactor milestones must preserve that completed boundary.
-- [ ] Milestone 6: add Stage 1 generic invariants for `dirt_control`.
-- [ ] Milestone 7: add Stage 2 control-plane import-boundary invariants.
-- [ ] Milestone 8: add Stage 3 browser-specific shape invariants and remove obsolete compatibility structure.
-- [ ] Milestone 9: validate locally, regenerate hosted contracts, deploy if requested, and record final evidence.
+- [x] (2026-06-19 14:06Z) Milestone 6: added Stage 1 generic invariants for `dirt_control`.
+- [x] (2026-06-19 14:15Z) Milestone 7: added Stage 2 control-plane import-boundary invariants.
+- [x] (2026-06-19 14:32Z) Milestone 8: added Stage 3 browser-specific shape invariants and removed obsolete compatibility structure.
+- [x] (2026-06-19 14:35Z) Milestone 9: validated locally, regenerated hosted contracts, and recorded final evidence. No deploy was requested or run.
 
 
 ## Surprises & Discoveries
@@ -56,6 +56,24 @@ The work is complete when `apps/control-plane/src/dirt_control/api/browser.py` i
 
 - Observation: The tentative `id + tent_id + name` cleanup target has already been resolved locally.
   Evidence: `docs/epics/scoped-identity-cleanup/ExecPlan.md` records Milestone 7 removing `site.site_id`, `tent.tent_id`, `zone.zone_id`, and `schedule.schedule_id`; its post-cleanup interface says local `Tent` has `id`, display `name`, semantic `role`, active/default fields, and no text `tent_id`.
+
+- Observation: Existing control-plane API coverage was broader than the Milestone 1 risk list implied.
+  Evidence: Before adding tests, `apps/control-plane/tests/test_api.py` already covered breeding write idempotency, plant detail/history mapping, command flows, asset upload completion, and metric history range behavior. Milestone 1 therefore tightened boundary assertions instead of adding broad duplicate snapshots.
+
+- Observation: `scripts/gen-hosted-contract` can report that Biome fixed the generated TypeScript schema even when the generated contract has no net diff.
+  Evidence: The Milestone 1 run printed `Fixed 1 file`, but `git diff -- contracts/hosted-browser-v1.json web-ui/src/api-client/generated/hosted-schema.ts` was empty.
+
+- Observation: The hosted contract generator carried a stale source comment that named the deleted `browser.py` file.
+  Evidence: Milestone 3 converted `dirt_control.api.browser` into a package; `scripts/gen-hosted-contract` now documents `dirt_control.api.browser` as the source instead of `apps/control-plane/src/dirt_control/api/browser.py`.
+
+- Observation: The command storage/browser response still has a legacy tent-text bridge even though browser routes no longer expose text tent identity.
+  Evidence: Milestone 4 moved `legacy_tent_id_for_browser_source_tent_id()` and `legacy_target_tent_id` response construction into `dirt_control.services.browser_commands`; browser route modules no longer own the bridge.
+
+- Observation: Enrolling `dirt_control` in the broad invariant `APPS` tuple would also opt it into unrelated invariant families that are outside Stage 1.
+  Evidence: A Milestone 6 implementation attempt exposed pre-existing control-plane issues in dependency/no-patching invariants. The final change added `STAGE1_GENERIC_APPS` for the five Stage 1 generic rules while preserving the existing broad `APPS` list for already-covered packages.
+
+- Observation: Import-linter can own the Stage 2 browser rule if external packages are included.
+  Evidence: A temporary config with `include_external_packages = True` caught a direct `from sqlalchemy import select` probe in `dirt_hwd.api.ingest`. The final Milestone 7 revision enables external packages in `apps/tests/invariants/import_boundaries.invariant.ini`, adds `dirt_control` as a root package, extends the `dirt_hwd.api` rule to forbid direct SQLAlchemy imports, and adds the equivalent `dirt_control.api.browser` rule. The custom AST import-boundary test was removed.
 
 
 ## Decision Log
@@ -95,7 +113,14 @@ The work is complete when `apps/control-plane/src/dirt_control/api/browser.py` i
 
 ## Outcomes & Retrospective
 
-Not started. Update this section at the end of each milestone with what changed, what validation passed, and whether the refactor is still reducing complexity rather than moving it around.
+- Milestone 1 completed the safety pass without moving production code. `apps/control-plane/tests/test_api.py` now more directly protects breeding logbook bootstrap/location options, metric-history request validation, command enqueue idempotency, and browser signed-asset response shape. Focused backend tests passed, hosted contract generation produced no net generated diff, and `web-ui` typecheck passed.
+- Milestone 2 moved browser request/response DTOs and shared browser schema constants into feature modules under `apps/control-plane/src/dirt_control/api/browser_schemas/`. `browser.py` remains the route aggregate/handler module for now and imports schema classes from the canonical package. Focused backend tests passed, hosted contract generation produced no net generated diff, `web-ui` typecheck passed, and a targeted Ruff check passed.
+- Milestone 3 converted `dirt_control.api.browser` into an aggregate package with focused feature route modules. The public `dirt_control.api.browser.router` import remains stable, route modules still call direct SQLAlchemy/model/helper code as intended before Milestone 4, and shared helper/projection code lives temporarily in `browser/_shared.py`. Focused backend tests, targeted Ruff, hosted contract generation, hosted contract diff check, `web-ui` typecheck, and structural route checks passed.
+- Milestone 4 removed `api/browser/_shared.py`, added focused service modules under `dirt_control.services`, and left browser route modules as HTTP boundary adapters that delegate to services. Browser route modules no longer import `dirt_control.models`, SQLAlchemy, `AsyncSession`, SQL builder functions, or `_shared`. Existing browser paths, response models, and generated contract output were preserved. Control-plane tests, current invariants, targeted Ruff, hosted contract generation, hosted contract diff check, `web-ui` typecheck/lint/test, and `git diff --check` passed.
+- Milestone 6 added Stage 1 generic invariant coverage for `dirt_control`. The invariant helper now has explicit source mapping for non-standard app paths, including `dirt_control -> apps/control-plane/src/dirt_control`, and the five Stage 1 rules now run against `dirt_control`. `ensure_gateway_credential()` was fixed to use an injected clock default instead of a body-level `datetime.now()` fallback. Invariants, control-plane tests, targeted Ruff, `git diff --check`, and a negative env-read probe check all passed.
+- Milestone 7 added import-linter API data-layer boundary rules. `dirt_hwd.api` may not directly import `dirt_shared.db`, `dirt_shared.models`, or `sqlalchemy`; `dirt_control.api.browser` may not directly import `dirt_control.db`, `dirt_control.models`, or `sqlalchemy`. Indirect route-to-service-to-model imports remain legal, and `dirt_control.api.gateway` is intentionally outside this browser rule. A previous custom AST import-boundary test was removed in favor of the shared import-linter contract. Focused and full invariant suites, control-plane tests, targeted Ruff, `git diff --check`, and negative forbidden-import probes passed.
+- Milestone 8 added browser-specific shape invariants for the refactored browser API. The new rules protect aggregate router composition, DTO placement in `browser_schemas`, no SQLAlchemy statement-builder calls in browser route modules, explicit browser route response models, and strict `BrowserRequest` / `BrowserResponse` `extra="forbid"` behavior. No source issue was exposed and no compatibility cleanup was needed beyond the structure already removed in Milestones 2-4. Focused and full invariant suites, control-plane tests, targeted Ruff, `git diff --check`, and required negative probes passed.
+- Milestone 9 completed final local validation. The full Python test suite, control-plane tests, invariant tests, hosted contract regeneration, hosted contract diff check, frontend typecheck/lint/test, and `git diff --check` all passed. `scripts/gen-hosted-contract` again reported that Biome fixed the generated TypeScript schema, but generated contract/schema diff was empty. No hosted deploy was requested or run, and no local hosted browser smoke was run.
 
 
 ## Context and Orientation
@@ -293,10 +318,259 @@ Deployment is retryable through `scripts/deploy-control-plane`. If a deploy fail
 
 ## Artifacts and Notes
 
-Initial inventory:
+Milestone 1 inventory:
 
-    apps/control-plane/src/dirt_control/api/browser.py has 3,593 lines.
-    It contains request DTOs starting near line 83, response DTOs starting near line 176, route handlers from roughly line 705 through 2008, and helper/query/projection functions from roughly line 2014 onward.
+    apps/control-plane/src/dirt_control/api/browser.py has 3,746 lines.
+    It contains 35 browser path operations: 23 GET routes and 12 POST routes.
+    It contains 59 classes: 43 response contracts including BrowserResponse, 12 request/common DTOs, and 4 internal projection/state helper classes.
+    It contains 123 def / async def entries: 35 route handlers and 88 helper/query/projection functions.
+    It contains 48 select(...) call sites. Query clusters remain health/auth/sync, sites/tents/devices/lights/assets, metrics, breeding logbook, plants, commands, and admin.
+
+Milestone 1 validation:
+
+    uv run pytest apps/control-plane/tests/test_api.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py -q
+    59 passed in 15.75s
+
+    scripts/gen-hosted-contract
+    Completed successfully; no net diff in contracts/hosted-browser-v1.json or web-ui/src/api-client/generated/hosted-schema.ts.
+
+    pnpm --dir web-ui typecheck
+    Completed successfully.
+
+Milestone 2 schema package:
+
+    apps/control-plane/src/dirt_control/api/browser_schemas/common.py
+    apps/control-plane/src/dirt_control/api/browser_schemas/auth.py
+    apps/control-plane/src/dirt_control/api/browser_schemas/health.py
+    apps/control-plane/src/dirt_control/api/browser_schemas/sites.py
+    apps/control-plane/src/dirt_control/api/browser_schemas/tents.py
+    apps/control-plane/src/dirt_control/api/browser_schemas/metrics.py
+    apps/control-plane/src/dirt_control/api/browser_schemas/plants.py
+    apps/control-plane/src/dirt_control/api/browser_schemas/breeding_logbook.py
+    apps/control-plane/src/dirt_control/api/browser_schemas/assets.py
+    apps/control-plane/src/dirt_control/api/browser_schemas/commands.py
+    apps/control-plane/src/dirt_control/api/browser_schemas/admin.py
+
+Milestone 2 validation:
+
+    uv run pytest apps/control-plane/tests/test_control_plane_boundary_guardrails.py -q
+    5 passed in 0.07s
+
+    uv run pytest apps/control-plane/tests/test_api.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py -q
+    59 passed in 15.07s
+
+    scripts/gen-hosted-contract
+    Completed successfully; no net diff in contracts/hosted-browser-v1.json or web-ui/src/api-client/generated/hosted-schema.ts.
+
+    pnpm --dir web-ui typecheck
+    Completed successfully.
+
+    uv run ruff check apps/control-plane/src/dirt_control/api/browser.py apps/control-plane/src/dirt_control/api/browser_schemas apps/control-plane/tests/test_control_plane_boundary_guardrails.py
+    All checks passed.
+
+Milestone 3 route package:
+
+    apps/control-plane/src/dirt_control/api/browser/__init__.py
+    apps/control-plane/src/dirt_control/api/browser/_shared.py
+    apps/control-plane/src/dirt_control/api/browser/auth.py
+    apps/control-plane/src/dirt_control/api/browser/health.py
+    apps/control-plane/src/dirt_control/api/browser/sites.py
+    apps/control-plane/src/dirt_control/api/browser/tents.py
+    apps/control-plane/src/dirt_control/api/browser/metrics.py
+    apps/control-plane/src/dirt_control/api/browser/plants.py
+    apps/control-plane/src/dirt_control/api/browser/breeding_logbook.py
+    apps/control-plane/src/dirt_control/api/browser/assets.py
+    apps/control-plane/src/dirt_control/api/browser/commands.py
+    apps/control-plane/src/dirt_control/api/browser/admin.py
+
+Milestone 3 validation:
+
+    uv run pytest apps/control-plane/tests/test_control_plane_boundary_guardrails.py -q
+    5 passed in 0.07s
+
+    uv run pytest apps/control-plane/tests/test_api.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py -q
+    59 passed in 15.49s
+
+    uv run ruff check apps/control-plane/src/dirt_control/api/browser apps/control-plane/src/dirt_control/api/browser_schemas apps/control-plane/tests/test_control_plane_boundary_guardrails.py
+    All checks passed.
+
+    scripts/gen-hosted-contract
+    Completed successfully; no net diff in contracts/hosted-browser-v1.json or web-ui/src/api-client/generated/hosted-schema.ts.
+
+    pnpm --dir web-ui typecheck
+    Completed successfully.
+
+    Structural route check
+    Aggregate browser package has no path-operation decorators. The aggregate exposes 35 browser routes. All routes declare response_model; /api/auth/logout intentionally declares response_model=None for 204 responses.
+
+Milestone 4 service package:
+
+    apps/control-plane/src/dirt_control/services/__init__.py
+    apps/control-plane/src/dirt_control/services/browser_auth.py
+    apps/control-plane/src/dirt_control/services/browser_health.py
+    apps/control-plane/src/dirt_control/services/browser_tents.py
+    apps/control-plane/src/dirt_control/services/browser_metrics.py
+    apps/control-plane/src/dirt_control/services/browser_plants.py
+    apps/control-plane/src/dirt_control/services/breeding_logbook.py
+    apps/control-plane/src/dirt_control/services/browser_assets.py
+    apps/control-plane/src/dirt_control/services/browser_commands.py
+    apps/control-plane/src/dirt_control/services/browser_admin.py
+
+Milestone 4 validation:
+
+    uv run pytest apps/control-plane/tests -q
+    66 passed in 16.47s
+
+    uv run pytest apps/tests/invariants -q
+    41 passed in 3.58s
+
+    uv run ruff check apps/control-plane/src/dirt_control/api/browser apps/control-plane/src/dirt_control/services apps/control-plane/src/dirt_control/api/browser_schemas apps/control-plane/tests/test_control_plane_boundary_guardrails.py
+    All checks passed.
+
+    scripts/gen-hosted-contract
+    Completed successfully; no net diff in contracts/hosted-browser-v1.json or web-ui/src/api-client/generated/hosted-schema.ts.
+
+    pnpm --dir web-ui typecheck
+    Completed successfully.
+
+    pnpm --dir web-ui lint
+    Completed successfully.
+
+    pnpm --dir web-ui test
+    3 files passed; 12 tests passed.
+
+    rg -n "dirt_control\\.models|from sqlalchemy|sqlalchemy\\.ext\\.asyncio|select\\(|insert\\(|update\\(|delete\\(|\\._shared" apps/control-plane/src/dirt_control/api/browser
+    No matches. Browser route modules no longer import the database/model layer or private shared data helper module.
+
+Milestone 6 invariant files changed:
+
+    apps/tests/invariants/_helpers.py
+    apps/tests/invariants/test_no_module_level_singletons.py
+    apps/tests/invariants/test_no_concrete_clock_in_production.py
+    apps/tests/invariants/test_no_env_reads_outside_config.py
+    apps/tests/invariants/test_no_asyncio_run_outside_entrypoints.py
+    apps/tests/invariants/test_no_raw_sql_outside_data_layer.py
+
+Milestone 6 allowlist/source-map rationale:
+
+    APP_SOURCE_DIRS maps dirt_control to control-plane/src/dirt_control because the package path does not follow the dirt_<name> -> apps/<name>/src convention.
+    STAGE1_GENERIC_APPS applies only the Stage 1 generic invariant family to dirt_control while avoiding unrelated invariant families until their milestones.
+    control-plane/src/dirt_control/app.py is a composition root because it builds the FastAPI app, lifespan, sessions, engine, and asset store.
+    control-plane/src/dirt_control/bootstrap_gateway.py is an env/bootstrap boundary and short-lived command entrypoint used by scripts/deploy-control-plane.
+    control-plane/src/dirt_control/models/, services/, and db.py are control-plane data-layer locations for raw SQL literal allowance.
+
+Milestone 6 validation:
+
+    uv run pytest apps/tests/invariants -q
+    46 passed in 3.92s
+
+    uv run pytest apps/control-plane/tests -q
+    66 passed in 18.14s
+
+    uv run ruff check apps/tests/invariants apps/control-plane/src/dirt_control
+    All checks passed.
+
+    git diff --check
+    Completed successfully.
+
+    Negative invariant check
+    Temporarily added apps/control-plane/src/dirt_control/_invariant_probe.py with os.environ.get(...). uv run pytest apps/tests/invariants/test_no_env_reads_outside_config.py -q failed as expected for dirt_control, reporting the probe path and os.environ.get(...). The probe was removed, and the focused env invariant reran clean: 4 passed in 0.19s.
+
+Milestone 7 invariant files changed:
+
+    apps/tests/invariants/import_boundaries.invariant.ini
+    apps/tests/invariants/test_import_boundaries.py
+
+Milestone 7 validation:
+
+    uv run pytest apps/tests/invariants/test_import_boundaries.py -q
+    1 passed in 0.19s
+
+    uv run pytest apps/tests/invariants -q
+    51 passed in 3.69s
+
+    uv run pytest apps/control-plane/tests -q
+    66 passed in 16.71s
+
+    uv run ruff check apps/tests/invariants apps/control-plane/src/dirt_control
+    All checks passed.
+
+    git diff --check
+    Completed successfully.
+
+    Negative invariant checks
+    Temporarily added `from sqlalchemy import select` to apps/hwd/src/dirt_hwd/api/ingest.py. uv run pytest apps/tests/invariants/test_import_boundaries.py -q failed as expected, reporting dirt_hwd.api.ingest -> sqlalchemy.
+    Temporarily added `from dirt_control.models import CloudTent` to apps/control-plane/src/dirt_control/api/browser/sites.py. uv run pytest apps/tests/invariants/test_import_boundaries.py -q failed as expected, reporting dirt_control.api.browser.sites -> dirt_control.models.
+    Both probes were removed and the focused import-boundary invariant reran clean.
+
+Milestone 8 invariant file added:
+
+    apps/tests/invariants/test_control_plane_browser_shape.py
+
+Milestone 8 validation:
+
+    uv run pytest apps/tests/invariants/test_control_plane_browser_shape.py -q
+    5 passed in 0.09s
+
+    uv run pytest apps/tests/invariants -q
+    51 passed in 3.69s
+
+    uv run pytest apps/control-plane/tests -q
+    66 passed in 16.52s
+
+    uv run ruff check apps/tests/invariants apps/control-plane/src/dirt_control
+    All checks passed.
+
+    git diff --check
+    Completed successfully.
+
+    Negative invariant checks
+    Temporarily added a browser path operation to apps/control-plane/src/dirt_control/api/browser/__init__.py; the focused invariant failed with apps/control-plane/src/dirt_control/api/browser/__init__.py:31 uses router.get(...) in the aggregate module.
+    Temporarily added a Pydantic DTO class to apps/control-plane/src/dirt_control/api/browser/sites.py; the focused invariant failed with class _InvariantProbeDto(pydantic.BaseModel).
+    Temporarily removed response_model from the /sites route decorator; the focused invariant failed with router.get(...) omits response_model=....
+    Temporarily added a SQLAlchemy select(...) call to apps/control-plane/src/dirt_control/api/browser/sites.py; the focused invariant failed with calls sqlalchemy.select(...).
+    Temporarily changed BrowserResponse model_config extra to "allow"; the focused invariant failed with model_config extra is 'allow'; expected 'forbid'.
+    All probes were removed and the focused invariant reran clean.
+
+Milestone 9 final validation:
+
+    uv run pytest -q
+    723 passed, 1 skipped in 80.03s
+
+    uv run pytest apps/control-plane/tests -q
+    66 passed in 16.54s
+
+    uv run pytest apps/tests/invariants -q
+    51 passed in 3.69s
+
+    scripts/gen-hosted-contract
+    Completed successfully.
+
+    git diff -- contracts/hosted-browser-v1.json web-ui/src/api-client/generated/hosted-schema.ts
+    No output; generated hosted browser contract artifacts have no net diff.
+
+    pnpm --dir web-ui typecheck
+    Completed successfully.
+
+    pnpm --dir web-ui lint
+    Completed successfully.
+
+    pnpm --dir web-ui test
+    3 files passed; 12 tests passed.
+
+    git diff --check
+    Completed successfully.
+
+    rg -n "dirt_control\\.models|from sqlalchemy|sqlalchemy\\.ext\\.asyncio|select\\(|insert\\(|update\\(|delete\\(|\\._shared" apps/control-plane/src/dirt_control/api/browser
+    No matches. Browser route modules remain thin HTTP adapters.
+
+    rg -n "location_key|location_label|/api/tents/\\{tent_id\\}" apps/control-plane/src/dirt_control apps/control-plane/tests web-ui/src
+    Only the Milestone 1 negative assertions in apps/control-plane/tests/test_api.py remain.
+
+Milestone 9 deployment/browser-smoke note:
+
+    No hosted deploy was requested, so scripts/deploy-control-plane was not run.
+    No local hosted browser smoke was run during this validation pass.
 
 Existing hwd comparison points:
 

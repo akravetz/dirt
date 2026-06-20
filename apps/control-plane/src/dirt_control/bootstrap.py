@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -23,7 +24,7 @@ async def ensure_gateway_credential(
     *,
     database_url: str,
     seed: GatewayCredentialSeed,
-    now: datetime | None = None,
+    clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     engine: AsyncEngine | None = None,
 ) -> None:
     """Create or update the single V1 gateway credential row."""
@@ -31,7 +32,7 @@ async def ensure_gateway_credential(
     owns_engine = engine is None
     engine = engine or create_async_engine(normalize_async_database_url(database_url))
     sessionmaker = create_sessionmaker(engine)
-    timestamp = now or datetime.now(UTC)
+    timestamp = clock()
     try:
         async with sessionmaker() as session:
             credential = (

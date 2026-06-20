@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/coco-coir.md, wiki/concepts/lst.md, wiki/environment/nutrients.md]
 created: 2026-04-06
-updated: 2026-06-12
+updated: 2026-06-19
 ---
 
 # Plant C
@@ -19,7 +19,7 @@ updated: 2026-06-12
 
 ## Current State
 
-Day 90 / Flower Day 40: The latest full view from 2026-06-10 showed upright wall-side flower clusters with fresh pistils and dense surrounding foliage. The old capacitive moisture stream is retired from current operations, so C has no trusted current moisture probe until a replacement is installed. After the high-EC reservoir reset and 24-hour pH-adjusted tap-water correction, rebuilt feed measured 1300 uS/cm / 1.3 mS/cm and was diluted to EC 1.0 as a conservative recovery-strength reservoir on 2026-06-12. Hold EC 0.8-1.0 for 48-72h; keep root-zone and interior-airflow checks active. See [2026-06-12 daily](../../../daily/2026-06-12.md).
+Day 97 / Flower Day 47: `SBBS-R1-003` shows upright wall-side flower clusters with active pistils and dense foliage, while direct moisture is stable near 34.6% rough context. Keep root-zone and interior/wall-side airflow checks active because the canopy remains crowded. See [2026-06-19 daily](../../../daily/2026-06-19.md).
 
 ## Timeline
 
@@ -89,3 +89,4 @@ Day 90 / Flower Day 40: The latest full view from 2026-06-10 showed upright wall
 - 2026-06-10 — [Day 88 / Flower Day 38: upright wall-side flower clusters; moisture ~91.9% remains high/flat, keep root-zone/airflow watch](../../../daily/2026-06-10.md)
 - 2026-06-10 evening — [Whole Autopot reservoir EC found >2.0; reservoir reset to pH 5.8 / EC ~0.3 plain water for ~24h correction](../../../daily/2026-06-10.md)
 - 2026-06-12 — [Day 90 / Flower Day 40: post-flush recovery plan filed; hold EC 0.8-1.0 for 48-72h and only root-zone flush if fresh damage advances](../../../daily/2026-06-12.md)
+- 2026-06-19 — [Day 97 / Flower Day 47: upright wall-side flowers, stable direct moisture near 34.6%, keep root-zone and airflow checks active](../../../daily/2026-06-19.md)

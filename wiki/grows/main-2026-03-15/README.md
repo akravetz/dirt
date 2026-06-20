@@ -2,7 +2,7 @@
 title: Main Grow 2026-03-15
 type: grow
 sources: []
-related: [wiki/overview.md, wiki/breeding/README.md, wiki/daily/2026-06-10.md, wiki/environment/nutrients.md]
+related: [wiki/overview.md, wiki/breeding/README.md, wiki/daily/2026-06-19.md, wiki/environment/humidity.md, wiki/environment/temperature.md, wiki/environment/nutrients.md]
 created: 2026-05-30
 updated: 2026-06-19
 ---
@@ -35,20 +35,16 @@ This is the original four-plant SBxBS01 flower run. Plants A and D are the
 primary purple keeper candidates; B and C remain secondary references. See the
 current operational summary in [overview.md](../../overview.md).
 
-As of 2026-06-12, the run is Day 90 / Flower Day 40. The main canopy remains
-dense, purple, and flower-heavy; Plant A is still a watched Autopot
-reconnection, Plant B returned to the high/pinned rough-moisture zone after
-yesterday's drier move, Plant C remains high/flat, Plant D remains a low/probe
-hand-check, and environment work is focused on dark-cycle clearing without
-pushing the current lights-on window drier. The Autopot reservoir was reset on
-2026-06-10 from EC well over 2.0 to pH 5.8 / EC ~0.3 plain tap water for about
-24 hours. On 2026-06-12, rebuilt feed measured 1300 uS/cm / 1.3 mS/cm on the
-Apera EC60, then was diluted to EC 1.0 as a conservative recovery-strength feed
-after the burn/high-EC concern.
+As of 2026-06-19, the run is Day 97 / Flower Day 47. The main canopy remains
+dense, purple-toned, and flower-heavy with many fresh pistils; Plant A remains
+on upper-canopy light-stress follow-up after the 2026-06-16 light raise, while
+Plant D is still the strongest visible purple expression. Main VPD is steadier
+than the 2026-06-10 full report at 1.18 overnight / 1.43 morning / 1.49 now, but
+RH remains above the late-flower guide, so manual flower-pocket airflow checks
+are still active.
 
-Moisture telemetry changed on 2026-06-10/11. Plant A now uses
-`plant-a-substrate-node` RS485 direct-percent substrate moisture as its
-canonical current moisture source. Plants B-D have no current trusted moisture
-probe after the old capacitive nodes were disabled/retired, so use direct hand
-checks, tray behavior, media condition, and plant posture for root-zone
-decisions until replacement probes exist.
+Today's trusted direct-percent moisture set reports only A/C/D: `SBBS-R1-001`
+near 26.4%, `SBBS-R1-003` near 34.6%, and `SBBS-R1-004` near 31.8%, all nearly
+flat from morning to now. `SBBS-R1-002` is omitted and remains hand-check-only.
+Treat all moisture percentages as rough movement context and use tray behavior,
+media condition, and posture for root-zone decisions.

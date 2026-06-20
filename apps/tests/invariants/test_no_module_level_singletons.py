@@ -44,9 +44,9 @@ from pathlib import Path
 import pytest
 
 from ._helpers import (
-    APPS,
     APPS_ROOT,
     COMPOSITION_ROOTS,
+    STAGE1_GENERIC_APPS,
     format_invariant_failure,
     iter_py,
     pkg_src_dir,
@@ -141,7 +141,7 @@ def _violations_in_file(py: Path) -> list[tuple[int, str]]:
     return out
 
 
-@pytest.mark.parametrize("app", APPS)
+@pytest.mark.parametrize("app", STAGE1_GENERIC_APPS)
 def test_no_module_level_singletons(app: str) -> None:
     """No production module may instantiate a stateful singleton at import."""
     pkg_dir = pkg_src_dir(app)

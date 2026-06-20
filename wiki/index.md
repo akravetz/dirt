@@ -1,7 +1,7 @@
 ---
 title: Index
 type: index
-updated: 2026-06-17
+updated: 2026-06-19
 ---
 
 # Grow Wiki Index
@@ -17,14 +17,14 @@ updated: 2026-06-17
 
 ## Grow Runs
 - [Grow Runs](grows/README.md) — Historical grow folders; current plant identity is `plant.id` plus durable `plant.key`
-- [Main grow 2026-03-15](grows/main-2026-03-15/README.md) — Current main tent flower run; plants `SBBS-R1-001` through `SBBS-R1-004`
+- [Main grow 2026-03-15](grows/main-2026-03-15/README.md) — Current main tent flower run; Day 97 / Flower Day 47 as of 2026-06-19
 - [Track A pollen run](grows/breeding-track-a-2026-04-28/README.md) — Current breeding tent pollen-collection run; R2 is the selected donor after purple pollen-sac expression
 
 ## Current Plants
-- [Plant A](grows/main-2026-03-15/plants/plant-a.md) — 🔴 Primary keeper; Flower Day 45; upper-canopy light-stress watch after 2026-06-16 light raise + lung-room AC correction
-- [Plant B](grows/main-2026-03-15/plants/plant-b.md) — 🟡 Secondary; Flower Day 45; no current trusted moisture probe; conservative recovery feed after high-EC reset
-- [Plant C](grows/main-2026-03-15/plants/plant-c.md) — 🟡 Secondary; Flower Day 45; no current trusted moisture probe; conservative recovery feed after high-EC reset
-- [Plant D](grows/main-2026-03-15/plants/plant-d.md) — 🔴 Primary keeper; Flower Day 45; no current trusted moisture probe; conservative recovery feed after high-EC reset
+- [Plant A](grows/main-2026-03-15/plants/plant-a.md) — Primary keeper; Flower Day 47; upright purple tops, stable direct moisture near 26.4%, upper-canopy light-stress watch
+- [Plant B](grows/main-2026-03-15/plants/plant-b.md) — Secondary; Flower Day 47; no trusted direct moisture value today, hand-check tray/media/posture
+- [Plant C](grows/main-2026-03-15/plants/plant-c.md) — Secondary; Flower Day 47; upright wall-side clusters, stable direct moisture near 34.6%, airflow/root-zone watch
+- [Plant D](grows/main-2026-03-15/plants/plant-d.md) — Primary keeper; Flower Day 47; strongest visible purple expression, stable direct moisture near 31.8%
 - [R1](grows/breeding-track-a-2026-04-28/plants/plant-r1.md) — Track A pollen run; confirmed male; culled/not retained for pollen 2026-06-14
 - [R2](grows/breeding-track-a-2026-04-28/plants/plant-r2.md) — Track A pollen run; selected pollen donor after purple pollen-sac expression
 - [R3](grows/breeding-track-a-2026-04-28/plants/plant-r3.md) — Track A pollen run; confirmed female and culled 2026-06-04
@@ -98,10 +98,11 @@ updated: 2026-06-17
 - [2026-06-09](daily/2026-06-09.md) — Day 87 / Flower Day 37: full photo coverage; main canopy dense with upright purple flowers; lights-on VPD in range while overnight worsened wet/low; Plant B moved sharply drier from pinned-high pattern; breeding current-only wet sensor repeat
 - [2026-06-10](daily/2026-06-10.md) — Day 88 / Flower Day 38: full photo coverage; main canopy dense with upright purple flowers; current VPD dry/high while overnight remains wet/low; Plant B returned high/pinned; evening high-EC reservoir reset to pH 5.8 / EC ~0.3 plain water; breeding current-only wet sensor repeat
 - [2026-06-12](daily/2026-06-12.md) — Day 90 / Flower Day 40: post-flush reservoir recovery plan; hold EC 0.8-1.0 for 48-72h, watch fresh growth/tip burn, and only do drain-to-waste root-zone reset if fresh damage advances or root-zone EC evidence stays high
+- [2026-06-19](daily/2026-06-19.md) — Day 97 / Flower Day 47: full main-tent photo coverage; dense purple late-flower canopy; VPD steadier at 1.18/1.43/1.49 kPa; A/C/D direct moisture stable, B hand-check only; breeding photo missing and wet current-only sensor repeat persists
 
 ## Environment
-- [Temperature](environment/temperature.md) — Trend log; targets by phase; 2026-06-16 light raise + lung-room AC correction for Plant A upper-canopy stress
-- [Humidity](environment/humidity.md) — Trend log; Denver humidification notes
+- [Temperature](environment/temperature.md) — Trend log; targets by phase; 2026-06-19 shows improved lights-on temperature after the 2026-06-16 light/AC correction
+- [Humidity](environment/humidity.md) — Trend log; Denver humidification notes; 2026-06-19 main VPD steadier while breeding wet sensor repeat persists
 - [Nutrients & pH](environment/nutrients.md) — Canna A+B protocol; pH management; incident log; 2026-06-16 pH 5.8 / EC 1.1 stable after high-EC recovery
 
 ## Hardware

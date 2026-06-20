@@ -4,7 +4,7 @@ type: plant
 sources: []
 related: [wiki/grows/breeding-track-a-2026-04-28/README.md, wiki/breeding/male-evaluation.md, wiki/breeding/pollen-handling.md]
 created: 2026-05-30
-updated: 2026-06-14
+updated: 2026-06-19
 ---
 
 # R2
@@ -17,7 +17,7 @@ updated: 2026-06-14
 
 ## Current State
 
-R2 is the selected Track A pollen donor as of 2026-06-14. It was retained because it showed purple coloration on the pollen sacs; collect and store R2-derived pollen under explicit R2 labels per the [pollen handling](../../../breeding/pollen-handling.md) protocol. Filed in [activity log](../../../log.md).
+R2 is the selected Track A pollen donor, retained for purple coloration on the pollen sacs. No breeding photo is available today; the repeated current-only wet sensor value means sensor freshness, air exchange, pot weight, and dry pollen-handling conditions need direct verification before collection. See [2026-06-19 daily](../../../daily/2026-06-19.md).
 
 ## Timeline
 
@@ -36,3 +36,4 @@ R2 is the selected Track A pollen donor as of 2026-06-14. It was retained becaus
 - 2026-06-09 — Breeding overview stayed tent-level only; repeated current-only wet reading keeps pot-weight, fan-exposure, sensor, and male-evaluation checks active. See [2026-06-09](../../../daily/2026-06-09.md).
 - 2026-06-10 — Breeding overview stayed tent-level only; repeated current-only wet reading keeps pot-weight, fan-exposure, sensor, and male-evaluation checks active. See [2026-06-10](../../../daily/2026-06-10.md).
 - 2026-06-14 — Retained as the only Track A pollen donor because it showed purple coloration on the pollen sacs; current plan is to collect pollen from R2. Filed in [activity log](../../../log.md).
+- 2026-06-19 — No breeding photo; current-only 83.28% RH / 0.45 kPa VPD repeat keeps sensor freshness, airflow, pot-weight, and dry R2 pollen-handling checks active. See [2026-06-19](../../../daily/2026-06-19.md).
