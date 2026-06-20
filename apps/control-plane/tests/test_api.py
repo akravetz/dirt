@@ -446,7 +446,7 @@ async def test_gateway_credential_bootstrap_upserts(
             token_sha256="a" * 64,
             allowed_site_id="homebox",
         ),
-        now=FIXED_NOW,
+        clock=lambda: FIXED_NOW,
         engine=cloud_engine,
     )
     await ensure_gateway_credential(
@@ -457,7 +457,7 @@ async def test_gateway_credential_bootstrap_upserts(
             token_sha256="b" * 64,
             allowed_site_id="homebox",
         ),
-        now=FIXED_NOW,
+        clock=lambda: FIXED_NOW,
         engine=cloud_engine,
     )
 

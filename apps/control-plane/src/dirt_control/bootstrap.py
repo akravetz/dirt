@@ -24,7 +24,6 @@ async def ensure_gateway_credential(
     *,
     database_url: str,
     seed: GatewayCredentialSeed,
-    now: datetime | None = None,
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     engine: AsyncEngine | None = None,
 ) -> None:
@@ -33,7 +32,7 @@ async def ensure_gateway_credential(
     owns_engine = engine is None
     engine = engine or create_async_engine(normalize_async_database_url(database_url))
     sessionmaker = create_sessionmaker(engine)
-    timestamp = now if now is not None else clock()
+    timestamp = clock()
     try:
         async with sessionmaker() as session:
             credential = (
