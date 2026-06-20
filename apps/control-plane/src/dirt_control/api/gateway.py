@@ -865,6 +865,8 @@ async def complete_asset(
         {
             "asset_id": asset_id,
             "site_id": body.site_id,
+            "source_tent_id": body.source_tent_id,
+            "source_zone_id": body.source_zone_id,
             "tent_id": tent_id,
             "zone_id": body.zone_id,
             "device_id": body.device_id,
@@ -1254,6 +1256,18 @@ async def _upsert_cloud_asset(
     row = (
         await session.execute(select(CloudAsset).where(CloudAsset.asset_id == asset_id))
     ).scalar_one_or_none()
+    if row is None:
+        source_tent_id = values.get("source_tent_id")
+        if source_tent_id is not None:
+            row = (
+                await session.execute(
+                    select(CloudAsset).where(
+                        CloudAsset.site_id == values["site_id"],
+                        CloudAsset.source_tent_id == source_tent_id,
+                        CloudAsset.object_key == values["object_key"],
+                    )
+                )
+            ).scalar_one_or_none()
     if row is None:
         row = (
             await session.execute(

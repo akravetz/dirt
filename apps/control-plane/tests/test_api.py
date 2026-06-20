@@ -1888,6 +1888,96 @@ async def test_browser_tent_routes_scope_schedules_and_latest_assets_by_path_ten
     assert asset_body[0]["signed_url"].startswith("https://assets.test/")
 
 
+async def test_cloud_asset_source_scope_supports_latest_asset_reads(
+    cloud_engine: AsyncEngine,
+) -> None:
+    sessionmaker = create_sessionmaker(cloud_engine)
+    async with sessionmaker() as session:
+        session.add_all(
+            [
+                CloudAsset(
+                    asset_id="main-before-rename",
+                    site_id="homebox",
+                    source_tent_id=1,
+                    source_zone_id=10,
+                    tent_id="main",
+                    zone_id="canopy",
+                    object_key="homebox/main/snapshots/before.jpg",
+                    content_type="image/jpeg",
+                    byte_size=10,
+                    captured_at=FIXED_NOW,
+                    uploaded_at=FIXED_NOW,
+                ),
+                CloudAsset(
+                    asset_id="main-after-rename",
+                    site_id="homebox",
+                    source_tent_id=1,
+                    source_zone_id=10,
+                    tent_id="flower",
+                    zone_id="top-canopy",
+                    object_key="homebox/flower/snapshots/after.jpg",
+                    content_type="image/jpeg",
+                    byte_size=11,
+                    captured_at=FIXED_NOW + timedelta(minutes=1),
+                    uploaded_at=FIXED_NOW + timedelta(minutes=1),
+                ),
+                CloudAsset(
+                    asset_id="breeding-latest",
+                    site_id="homebox",
+                    source_tent_id=2,
+                    source_zone_id=20,
+                    tent_id="breeding",
+                    zone_id="canopy",
+                    object_key="homebox/breeding/snapshots/latest.jpg",
+                    content_type="image/jpeg",
+                    byte_size=12,
+                    captured_at=FIXED_NOW + timedelta(minutes=2),
+                    uploaded_at=FIXED_NOW + timedelta(minutes=2),
+                ),
+            ]
+        )
+        await session.commit()
+
+    async with sessionmaker() as session:
+        tent_rows = (
+            (
+                await session.execute(
+                    select(CloudAsset)
+                    .where(
+                        CloudAsset.site_id == "homebox",
+                        CloudAsset.source_tent_id == 1,
+                    )
+                    .order_by(CloudAsset.captured_at.desc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+        zone_rows = (
+            (
+                await session.execute(
+                    select(CloudAsset)
+                    .where(
+                        CloudAsset.site_id == "homebox",
+                        CloudAsset.source_zone_id == 10,
+                    )
+                    .order_by(CloudAsset.captured_at.desc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    assert [row.asset_id for row in tent_rows] == [
+        "main-after-rename",
+        "main-before-rename",
+    ]
+    assert [row.asset_id for row in zone_rows] == [
+        "main-after-rename",
+        "main-before-rename",
+    ]
+
+
 async def test_metric_history_can_filter_exact_device_stream(
     authed_client: AsyncClient,
     cloud_engine: AsyncEngine,
@@ -3228,6 +3318,15 @@ async def test_asset_flow_is_direct_upload_handshake_and_signed_url_requires_aut
         },
     )
     assert complete.status_code == 200
+    async with sessionmaker() as session:
+        asset = (
+            await session.execute(
+                select(CloudAsset).where(CloudAsset.asset_id == "asset-1")
+            )
+        ).scalar_one()
+    assert asset.source_tent_id == 1
+    assert asset.source_zone_id is None
+    assert asset.tent_id == "main"
 
     unauth = await client.get("/api/assets/asset-1/signed-url")
     assert unauth.status_code == 401
@@ -3242,6 +3341,44 @@ async def test_asset_flow_is_direct_upload_handshake_and_signed_url_requires_aut
     authed = await client.get("/api/assets/asset-1/signed-url")
     assert authed.status_code == 200
     assert authed.json()["signed_url"].startswith("https://assets.test/")
+
+
+async def test_asset_complete_persists_source_scope_from_request(
+    client: AsyncClient,
+    gateway_headers: dict[str, str],
+    cloud_engine: AsyncEngine,
+) -> None:
+    response = await client.post(
+        "/api/gateway/v1/assets/complete",
+        headers=gateway_headers,
+        json={
+            "site_id": "homebox",
+            "source_tent_id": 2,
+            "tent_id": "breeding",
+            "source_zone_id": 21,
+            "zone_id": "clone-rack",
+            "device_id": "obsbot-sidecar",
+            "asset_id": "asset-zone-scoped",
+            "object_key": "tents/2/snapshots/clone-rack.jpg",
+            "content_type": "image/jpeg",
+            "byte_size": 12_000,
+            "sha256": "c" * 64,
+            "captured_at": "2026-05-05T03:41:00Z",
+        },
+    )
+
+    assert response.status_code == 200
+    sessionmaker = create_sessionmaker(cloud_engine)
+    async with sessionmaker() as session:
+        asset = (
+            await session.execute(
+                select(CloudAsset).where(CloudAsset.asset_id == "asset-zone-scoped")
+            )
+        ).scalar_one()
+    assert asset.source_tent_id == 2
+    assert asset.source_zone_id == 21
+    assert asset.tent_id == "breeding"
+    assert asset.zone_id == "clone-rack"
 
 
 async def test_asset_complete_replaces_existing_asset_for_same_object_key(
@@ -3271,7 +3408,7 @@ async def test_asset_complete_replaces_existing_asset_for_same_object_key(
         json={
             "site_id": "homebox",
             "source_tent_id": 1,
-            "tent_id": "main",
+            "tent_id": "flower",
             "asset_id": "asset-new",
             "object_key": "tents/1/snapshots/plant-a.jpg",
             "content_type": "image/jpeg",
@@ -3300,6 +3437,9 @@ async def test_asset_complete_replaces_existing_asset_for_same_object_key(
         )
     assert len(assets) == 1
     assert assets[0].asset_id == "asset-new"
+    assert assets[0].source_tent_id == 1
+    assert assets[0].source_zone_id is None
+    assert assets[0].tent_id == "flower"
     assert assets[0].byte_size == 20
 
 

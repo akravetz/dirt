@@ -25,7 +25,7 @@ This rollout must be deployable in isolated pieces. Dirt has a local gateway pro
 - [x] (2026-06-19) Locked command-contract direction: keep one command queue, remove required tent targeting, add an optional hardware target for PTZ-style commands, and keep breeding tent references only inside breeding payloads that actually need them.
 - [x] (2026-06-20) Refreshed plan references after the browser UI refactor audit: added the `/live` PTZ command and breeding pending-command UI touchpoints, included `apps/hwd/src` in the inventory grep, and refreshed current artifact line references.
 - [x] (2026-06-20) Milestone 1: add compatibility characterization tests and migration inventory queries for every legacy scoped text path.
-- [ ] Milestone 2: expand cloud storage so every table that currently needs text `tent_id`, `zone_id`, or `schedule_id` also has enough source identity to read without it, especially `cloud_asset`.
+- [x] (2026-06-20) Milestone 2: expand cloud storage so every table that currently needs text `tent_id`, `zone_id`, or `schedule_id` also has enough source identity to read without it, especially `cloud_asset`.
 - [ ] Milestone 3: make gateway/shared/browser contracts tolerant by marking legacy text fields optional and deprecated while keeping `extra="forbid"`.
 - [ ] Milestone 4: change consumers and storage reads to use source identity only, while producers still write both source and legacy storage fields.
 - [ ] Milestone 5: stop gateway/control-plane producers from emitting legacy scoped text fields after tolerant consumers are deployed.
@@ -69,6 +69,9 @@ This rollout must be deployable in isolated pieces. Dirt has a local gateway pro
 - Observation: The Milestone 1 characterization tests required the first slice of DTO tolerance to be executable.
   Evidence: `CatalogTent`, `CatalogZone`, `CatalogSchedule`, `CapturePolicyResponse`, and `ClaimedCommand` now accept missing legacy bridge fields while `CloudContractModel` still uses `extra="forbid"`; no producers, consumers, storage models, or generated browser contracts were cut over in this milestone.
 
+- Observation: New cloud asset rows also needed source scope writes, not just source columns and backfills.
+  Evidence: Milestone 2 updates `/api/gateway/v1/assets/complete` to persist `CloudAsset.source_tent_id` and `CloudAsset.source_zone_id` from `AssetCompleteRequest` while retaining legacy `tent_id` and `zone_id` writes.
+
 
 ## Decision Log
 
@@ -104,10 +107,15 @@ This rollout must be deployable in isolated pieces. Dirt has a local gateway pro
   Rationale: The queue lifecycle is generic, but target shape is not. PTZ commands address a physical camera capability, so they should carry an explicit target. Breeding commands are domain actions; some payloads place or move plants into a tent, while others operate on seed lots or plant keys and have no tent target. Requiring top-level `tent_id` made non-tent commands invent `breeding-logbook` and made the contract look camera-specific. The final contract should remove required top-level tent scope, remove `legacy_target_tent_id`, and represent PTZ targeting as an optional target object while breeding keeps real domain identifiers inside typed payloads.
   Date/Author: 2026-06-19 / Codex
 
+- Decision: Split the Milestone 2 cloud migration into transactional add/backfill SQL and a separate non-transactional concurrent-index migration.
+  Rationale: Atlas generated concurrent indexes with `-- atlas:txmode none`. Keeping long backfills in that same file would make partial failure recovery worse. The source-column add/backfill migration can stay transactional, while only the concurrent indexes need non-transactional execution.
+  Date/Author: 2026-06-20 / Codex
+
 
 ## Outcomes & Retrospective
 
 - Milestone 1 added shared DTO compatibility tests for legacy scoped text fields and transitional command target shapes, plus non-destructive SQL inventory queries in `docs/epics/cloud-tent-text-retirement/milestone-1-inventory.sql`. Validation passed: `uv run pytest apps/shared/tests/test_cloud_contract.py apps/shared/tests/test_cloud_assets.py apps/shared/tests/test_camera_publisher.py -q` (`34 passed`), `uv run pytest apps/gateway/tests/test_sync.py -q` (`38 passed`), `uv run pytest apps/control-plane/tests/test_api.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py -q` (`59 passed`), `uv run ruff check apps/shared/src/dirt_shared apps/gateway/src/dirt_gateway apps/control-plane/src/dirt_control apps/shared/tests apps/gateway/tests apps/control-plane/tests`, and `git diff --check`.
+- Milestone 2 added `CloudAsset.source_tent_id` and `CloudAsset.source_zone_id`, backfilled source scope for cloud projection tables that already had source columns, added source-scope indexes for later read cutover, and updated asset completion storage to write both source and legacy scope. Validation passed: `uv run atlas migrate hash --dir file://cloud/migrations`, `uv run pytest apps/control-plane/tests/test_api.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py -q` (`61 passed`), `uv run pytest apps/shared/tests/test_cloud_contract.py apps/shared/tests/test_cloud_assets.py apps/shared/tests/test_camera_publisher.py -q` (`34 passed`), `uv run pytest apps/gateway/tests/test_sync.py -q` (`38 passed`), `uv run ruff check apps/shared/src/dirt_shared apps/gateway/src/dirt_gateway apps/control-plane/src/dirt_control apps/shared/tests apps/gateway/tests apps/control-plane/tests`, and `git diff --check`.
 
 
 ## Context and Orientation

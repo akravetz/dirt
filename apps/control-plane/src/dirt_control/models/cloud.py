@@ -112,6 +112,7 @@ class CloudZone(SQLModel, table=True):
             "source_zone_id",
             name="uq_cloud_zone_site_source_zone",
         ),
+        Index("ix_cloud_zone_site_source_tent", "site_id", "source_tent_id"),
     )
 
     id: int | None = Field(
@@ -151,6 +152,14 @@ class CloudDevice(SQLModel, table=True):
             "device_id",
             name="cloud_device_site_id_tent_id_device_id_key",
         ),
+        Index(
+            "ux_cloud_device_site_source_tent_device",
+            "site_id",
+            "source_tent_id",
+            "device_id",
+            unique=True,
+        ),
+        Index("ix_cloud_device_site_source_zone", "site_id", "source_zone_id"),
     )
 
     id: int | None = Field(
@@ -196,6 +205,14 @@ class CloudCapability(SQLModel, table=True):
             "capability_id",
             name="cloud_capability_site_id_tent_id_device_id_capability_id_key",
         ),
+        Index(
+            "ux_cloud_capability_site_source_tent_device_cap",
+            "site_id",
+            "source_tent_id",
+            "device_id",
+            "capability_id",
+            unique=True,
+        ),
     )
 
     id: int | None = Field(
@@ -239,6 +256,13 @@ class CloudSchedule(SQLModel, table=True):
             "source_schedule_id",
             name="uq_cloud_schedule_site_source_schedule",
         ),
+        Index(
+            "ix_cloud_schedule_site_source_tent_kind",
+            "site_id",
+            "source_tent_id",
+            "kind",
+        ),
+        Index("ix_cloud_schedule_site_source_zone", "site_id", "source_zone_id"),
     )
 
     id: int | None = Field(
@@ -677,6 +701,15 @@ class CloudLatestMetric(SQLModel, table=True):
             "metric",
             name="cloud_latest_metric_site_id_tent_id_device_id_capability_id_key",
         ),
+        Index(
+            "ux_cloud_latest_metric_site_source_stream",
+            "site_id",
+            "source_tent_id",
+            "device_id",
+            "capability_id",
+            "metric",
+            unique=True,
+        ),
     )
 
     id: int | None = Field(
@@ -722,6 +755,25 @@ class CloudMetricRollup(SQLModel, table=True):
             "bucket",
             "bucket_start_at",
             name="cloud_metric_rollup_site_id_tent_id_device_id_capability_id_key",
+        ),
+        Index(
+            "ux_cloud_metric_rollup_site_source_stream_bucket",
+            "site_id",
+            "source_tent_id",
+            "device_id",
+            "capability_id",
+            "metric",
+            "bucket",
+            "bucket_start_at",
+            unique=True,
+        ),
+        Index(
+            "ix_cloud_metric_rollup_site_source_metric_bucket",
+            "site_id",
+            "source_tent_id",
+            "metric",
+            "bucket",
+            "bucket_start_at",
         ),
     )
 
@@ -793,6 +845,25 @@ class CloudAsset(SQLModel, table=True):
             "object_key",
             name="cloud_asset_site_id_tent_id_object_key_key",
         ),
+        Index(
+            "ux_cloud_asset_site_source_tent_object_key",
+            "site_id",
+            "source_tent_id",
+            "object_key",
+            unique=True,
+        ),
+        Index(
+            "ix_cloud_asset_site_source_tent_captured",
+            "site_id",
+            "source_tent_id",
+            "captured_at",
+        ),
+        Index(
+            "ix_cloud_asset_site_source_zone_captured",
+            "site_id",
+            "source_zone_id",
+            "captured_at",
+        ),
     )
 
     id: int | None = Field(
@@ -801,7 +872,13 @@ class CloudAsset(SQLModel, table=True):
     )
     asset_id: str = Field(max_length=160)
     site_id: str = Field(index=True, max_length=80)
-    # Temporary cloud asset path/storage bridge; source_tent_id travels on DTOs.
+    source_tent_id: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    source_zone_id: int | None = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
+    # Temporary cloud asset path/storage bridge; source_* IDs are canonical.
     tent_id: str = Field(index=True, max_length=80)
     zone_id: str | None = Field(default=None, index=True, max_length=80)
     device_id: str | None = Field(default=None, index=True, max_length=120)
