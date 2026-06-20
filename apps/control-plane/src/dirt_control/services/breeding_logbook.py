@@ -63,9 +63,9 @@ from dirt_control.services.browser_plants import (
 from dirt_control.services.browser_tents import (
     cloud_tents_by_source_id,
     get_cloud_tent_by_source_id,
+    location_tent_name,
     required_location_source_tent_id,
     required_source_tent_id,
-    tent_display_name,
 )
 from dirt_control.settings import CloudSettings
 from dirt_shared.cloud_contract import (
@@ -999,7 +999,7 @@ def breeding_logbook_plant_row_response(
         flower_started_on=date_or_none(plant.flower_started_at),
         culled_on=date_or_none(plant.culled_at),
         current_tent_id=required_location_source_tent_id(projection.location),
-        current_tent_name=tent_display_name(projection.tent, projection.location),
+        current_tent_name=location_tent_name(projection.tent, projection.location),
         grid_position=projection.location.grid_position,
         seed_lot_label=seed_lot_label(projection.seed_lot, projection.seed_lot_line),
         last_note=breeding_logbook_last_note(

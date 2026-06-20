@@ -60,7 +60,6 @@ async def create_command(
         command_id=str(uuid.uuid4()),
         idempotency_key=body.idempotency_key,
         site_id=site_id,
-        tent_id=_storage_compat_tent_id(source_tent_id),
         source_tent_id=source_tent_id,
         device_id=target.device_id,
         capability_id=target.capability_id,
@@ -147,8 +146,6 @@ async def enqueue_breeding_command(  # noqa: PLR0913
         command_id=str(uuid.uuid4()),
         idempotency_key=idempotency_key,
         site_id=settings.default_site_id,
-        # Legacy storage column is non-null until the storage contraction milestone.
-        tent_id="",
         source_tent_id=None,
         device_id=None,
         capability_id=None,
@@ -201,10 +198,6 @@ def command_response(command: CloudCommand) -> CommandResponse:
         result=command.result,
         error=command.error,
     )
-
-
-def _storage_compat_tent_id(source_tent_id: int) -> str:
-    return str(source_tent_id)
 
 
 def _command_target(command: CloudCommand) -> PtzCommandTarget | None:

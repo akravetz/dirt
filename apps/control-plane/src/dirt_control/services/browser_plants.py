@@ -45,8 +45,8 @@ from dirt_control.services.browser_metrics import (
     value_precision_for_metric,
 )
 from dirt_control.services.browser_tents import (
+    location_tent_name,
     required_location_source_tent_id,
-    tent_display_name,
 )
 
 
@@ -217,7 +217,7 @@ def plant_summary_response(
     return PlantSummaryResponse(
         site_id=plant.site_id,
         current_tent_id=required_location_source_tent_id(location),
-        current_tent_name=tent_display_name(projection.tent, location),
+        current_tent_name=location_tent_name(projection.tent, location),
         id=plant.source_plant_id,
         key=plant.key,
         line_source_id=plant.line_source_id,
@@ -427,7 +427,7 @@ def plant_detail_response(
     return PlantDetailResponse(
         site_id=cloud_plant.site_id,
         current_tent_id=required_location_source_tent_id(location),
-        current_tent_name=tent_display_name(plant.tent, location),
+        current_tent_name=location_tent_name(plant.tent, location),
         id=cloud_plant.source_plant_id,
         key=cloud_plant.key,
         line_source_id=cloud_plant.line_source_id,
@@ -485,7 +485,7 @@ def plant_current_location_response(
     return PlantCurrentLocationResponse(
         id=location.source_location_id,
         current_tent_id=required_location_source_tent_id(location),
-        current_tent_name=tent_display_name(tent, location),
+        current_tent_name=location_tent_name(tent, location),
         grid_position=location.grid_position,
         start_at=location.start_at,
         end_at=location.end_at,

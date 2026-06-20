@@ -50,7 +50,7 @@ async def test_local_asset_signed_url_serves_file_and_preserves_object_key(
             CloudAsset(
                 asset_id="asset-1",
                 site_id="homebox",
-                tent_id="main",
+                source_tent_id=1,
                 object_key=object_key,
                 content_type="image/jpeg",
                 byte_size=16,
@@ -253,7 +253,7 @@ async def test_local_retention_deletes_configured_store_files(
             CloudAsset(
                 asset_id="old-asset",
                 site_id="homebox",
-                tent_id="main",
+                source_tent_id=1,
                 object_key="homebox/main/old.jpg",
                 content_type="image/jpeg",
                 byte_size=3,
@@ -265,7 +265,7 @@ async def test_local_retention_deletes_configured_store_files(
             CloudAsset(
                 asset_id="fresh-asset",
                 site_id="homebox",
-                tent_id="main",
+                source_tent_id=1,
                 object_key="homebox/main/fresh.jpg",
                 content_type="image/jpeg",
                 byte_size=5,

@@ -218,12 +218,10 @@ def required_location_source_tent_id(location: CloudPlantLocation) -> int:
     return location.source_tent_id
 
 
-def tent_display_name(tent: CloudTent | None, location: CloudPlantLocation) -> str:
+def location_tent_name(tent: CloudTent | None, location: CloudPlantLocation) -> str:
     if tent is not None:
         return tent.name
-    # Temporary bridge for older additive cloud projections until source tent
-    # identity is mandatory in every synced plant-location row.
-    return location.tent_id
+    return f"Tent {required_location_source_tent_id(location)}"
 
 
 def required_schedule_source_tent_id(schedule: CloudSchedule) -> int:

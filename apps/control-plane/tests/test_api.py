@@ -171,7 +171,6 @@ def _rollup(
     return CloudMetricRollup(
         site_id="homebox",
         source_tent_id=1,
-        tent_id="main",
         device_id=device_id,
         capability_id=capability_id,
         metric=metric,
@@ -274,7 +273,6 @@ def _plant_location(
         source_location_id=_source_plant_id(plant_id),
         source_plant_id=_source_plant_id(plant_id),
         source_tent_id=_source_tent_id(tent_id),
-        tent_id=tent_id,
         grid_position=grid_position,
         start_at=FIXED_NOW - timedelta(days=51),
         end_at=end_at,
@@ -399,7 +397,6 @@ def _tent(tent_id: str, name: str) -> CloudTent:
     return CloudTent(
         site_id="homebox",
         source_tent_id=_source_tent_id(tent_id),
-        tent_id=tent_id,
         name=name,
         is_active=True,
         synced_at=FIXED_NOW,
@@ -422,8 +419,6 @@ def _latest_metric(
     return CloudLatestMetric(
         site_id="homebox",
         source_tent_id=1,
-        tent_id="main",
-        zone_id="ignored-for-plant-detail",
         device_id=device_id,
         capability_id=capability_id,
         metric=metric,
@@ -493,7 +488,6 @@ async def test_browser_tents_ignore_legacy_rows_without_source_tent_id(
             CloudTent(
                 site_id="homebox",
                 source_tent_id=None,
-                tent_id="main",
                 name="Legacy Main Tent",
                 is_active=True,
                 synced_at=FIXED_NOW,
@@ -506,7 +500,6 @@ async def test_browser_tents_ignore_legacy_rows_without_source_tent_id(
                 site_id="homebox",
                 source_site_id=1,
                 source_tent_id=1,
-                tent_id="1",
                 name="Main Tent",
                 role="flower",
                 is_active=True,
@@ -874,7 +867,7 @@ async def test_catalog_upsert_is_idempotent(
                 select(CloudPlantLocation).where(
                     CloudPlantLocation.site_id == "homebox",
                     CloudPlantLocation.source_plant_id == 1,
-                    CloudPlantLocation.tent_id == "1",
+                    CloudPlantLocation.source_tent_id == 1,
                     CloudPlantLocation.grid_position == "A1",
                 )
             )
@@ -884,7 +877,7 @@ async def test_catalog_upsert_is_idempotent(
                 select(CloudPlantLocation).where(
                     CloudPlantLocation.site_id == "homebox",
                     CloudPlantLocation.source_plant_id == 2,
-                    CloudPlantLocation.tent_id == "1",
+                    CloudPlantLocation.source_tent_id == 1,
                     CloudPlantLocation.grid_position.is_(None),
                 )
             )
@@ -938,15 +931,15 @@ async def test_catalog_upsert_is_idempotent(
     assert event_count == 1
     assert stream_count == 1
     assert tent is not None
-    assert tent.tent_id == "1"
+    assert tent.source_tent_id == 1
     assert tent.role == "flower"
     assert zone is not None
     assert zone.source_tent_id == 1
-    assert zone.zone_id == "10"
+    assert zone.source_zone_id == 10
     assert schedule is not None
     assert schedule.source_tent_id == 1
     assert schedule.source_zone_id == 10
-    assert schedule.schedule_id == "100"
+    assert schedule.source_schedule_id == 100
     assert plant_a is not None
     assert plant_a.key == "SBBS-R1-001"
     assert plant_a.line_source_id == 1
@@ -972,7 +965,7 @@ async def test_catalog_upsert_is_idempotent(
     assert plant_a_stream.is_active is True
 
 
-async def test_catalog_upsert_derives_storage_scope_from_source_ids(
+async def test_catalog_upsert_persists_source_scope_ids(
     client: AsyncClient,
     gateway_headers: dict[str, str],
     cloud_engine: AsyncEngine,
@@ -1028,12 +1021,12 @@ async def test_catalog_upsert_derives_storage_scope_from_source_ids(
             )
         ).scalar_one()
 
-    assert tent.tent_id == "1"
-    assert zone.tent_id == "1"
-    assert zone.zone_id == "10"
-    assert schedule.tent_id == "1"
-    assert schedule.zone_id == "10"
-    assert schedule.schedule_id == "100"
+    assert tent.source_tent_id == 1
+    assert zone.source_tent_id == 1
+    assert zone.source_zone_id == 10
+    assert schedule.source_tent_id == 1
+    assert schedule.source_zone_id == 10
+    assert schedule.source_schedule_id == 100
 
 
 async def test_gateway_wiki_projection_upserts_deletes_and_checks_scope(
@@ -1206,9 +1199,7 @@ async def test_gateway_camera_capture_policy_fails_open_when_missing_rows(
         session.add(
             CloudDevice(
                 site_id="homebox",
-                tent_id="breeding",
                 source_tent_id=2,
-                zone_id="canopy",
                 device_id="obsbot-breeding",
                 name="Breeding Camera",
                 kind="camera",
@@ -1222,9 +1213,7 @@ async def test_gateway_camera_capture_policy_fails_open_when_missing_rows(
         session.add(
             CloudDevice(
                 site_id="homebox",
-                tent_id="breeding",
                 source_tent_id=2,
-                zone_id="canopy",
                 device_id="obsbot-disabled",
                 name="Disabled Breeding Camera",
                 kind="camera",
@@ -1478,9 +1467,7 @@ async def test_current_metrics_expose_canonical_metric_names(
             [
                 CloudLatestMetric(
                     site_id="homebox",
-                    tent_id="main",
                     source_tent_id=1,
-                    zone_id="canopy",
                     device_id="fan-controller",
                     capability_id="fan_pct",
                     metric="fan_pct",
@@ -1492,9 +1479,7 @@ async def test_current_metrics_expose_canonical_metric_names(
                 ),
                 CloudLatestMetric(
                     site_id="homebox",
-                    tent_id="main",
                     source_tent_id=1,
-                    zone_id="canopy",
                     device_id="govee-h7142-main",
                     capability_id="humidifier_intensity_pct",
                     metric="humidifier_intensity_pct",
@@ -1506,9 +1491,7 @@ async def test_current_metrics_expose_canonical_metric_names(
                 ),
                 CloudLatestMetric(
                     site_id="homebox",
-                    tent_id="main",
                     source_tent_id=1,
-                    zone_id="heat",
                     device_id="ac-infinity-thermoforge-main",
                     capability_id="heat_level",
                     metric="heater_intensity_pct",
@@ -1520,9 +1503,7 @@ async def test_current_metrics_expose_canonical_metric_names(
                 ),
                 CloudLatestMetric(
                     site_id="homebox",
-                    tent_id="main",
                     source_tent_id=1,
-                    zone_id="canopy",
                     device_id="kasa-dehumidifier-main",
                     capability_id="power",
                     metric="dehumidifier_on",
@@ -1727,9 +1708,7 @@ async def test_current_metrics_keep_device_scoped_streams_separate(
             [
                 CloudLatestMetric(
                     site_id="homebox",
-                    tent_id="main",
                     source_tent_id=1,
-                    zone_id="canopy",
                     device_id="plant-a-node",
                     capability_id="soil_moisture_raw",
                     metric="soil_moisture_raw",
@@ -1741,9 +1720,7 @@ async def test_current_metrics_keep_device_scoped_streams_separate(
                 ),
                 CloudLatestMetric(
                     site_id="homebox",
-                    tent_id="main",
                     source_tent_id=1,
-                    zone_id="canopy",
                     device_id="plant-b-node",
                     capability_id="soil_moisture_raw",
                     metric="soil_moisture_raw",
@@ -1857,11 +1834,8 @@ async def test_browser_tent_routes_scope_schedules_and_latest_assets_by_path_ten
                     source_tent_id=1,
                     source_zone_id=8,
                     source_schedule_id=1,
-                    tent_id="main",
-                    zone_id="lights",
                     device_id="kasa-lights-main",
                     capability_id="power",
-                    schedule_id="main-current-lights",
                     kind="lights",
                     starts_local=time(9, 0),
                     ends_local=time(21, 0),
@@ -1876,11 +1850,8 @@ async def test_browser_tent_routes_scope_schedules_and_latest_assets_by_path_ten
                     source_tent_id=2,
                     source_zone_id=11,
                     source_schedule_id=2,
-                    tent_id="breeding",
-                    zone_id="lights",
                     device_id="kasa-lights-breeding",
                     capability_id="power",
-                    schedule_id="breeding-current-lights",
                     kind="lights",
                     starts_local=time(6, 0),
                     ends_local=time(18, 0),
@@ -1894,7 +1865,6 @@ async def test_browser_tent_routes_scope_schedules_and_latest_assets_by_path_ten
                     asset_id="main-latest",
                     site_id="homebox",
                     source_tent_id=1,
-                    tent_id="breeding",
                     object_key="homebox/main/snapshots/latest.jpg",
                     content_type="image/jpeg",
                     byte_size=10,
@@ -1905,7 +1875,6 @@ async def test_browser_tent_routes_scope_schedules_and_latest_assets_by_path_ten
                     asset_id="breeding-latest",
                     site_id="homebox",
                     source_tent_id=2,
-                    tent_id="legacy-breeding",
                     object_key="homebox/breeding/snapshots/latest.jpg",
                     content_type="image/jpeg",
                     byte_size=11,
@@ -1961,8 +1930,6 @@ async def test_cloud_asset_source_scope_supports_latest_asset_reads(
                     site_id="homebox",
                     source_tent_id=1,
                     source_zone_id=10,
-                    tent_id="main",
-                    zone_id="canopy",
                     object_key="homebox/main/snapshots/before.jpg",
                     content_type="image/jpeg",
                     byte_size=10,
@@ -1974,8 +1941,6 @@ async def test_cloud_asset_source_scope_supports_latest_asset_reads(
                     site_id="homebox",
                     source_tent_id=1,
                     source_zone_id=10,
-                    tent_id="flower",
-                    zone_id="top-canopy",
                     object_key="homebox/flower/snapshots/after.jpg",
                     content_type="image/jpeg",
                     byte_size=11,
@@ -1987,8 +1952,6 @@ async def test_cloud_asset_source_scope_supports_latest_asset_reads(
                     site_id="homebox",
                     source_tent_id=2,
                     source_zone_id=20,
-                    tent_id="breeding",
-                    zone_id="canopy",
                     object_key="homebox/breeding/snapshots/latest.jpg",
                     content_type="image/jpeg",
                     byte_size=12,
@@ -2192,7 +2155,7 @@ async def test_breeding_logbook_plant_list_is_site_wide_and_screen_shaped(
         "flower_started_on": None,
         "culled_on": None,
         "current_tent_id": 1,
-        "current_tent_name": "main",
+        "current_tent_name": "Tent 1",
         "grid_position": "A1",
         "seed_lot_label": "SBBS R1 #1",
         "last_note": "",
@@ -2253,7 +2216,7 @@ async def test_breeding_logbook_plant_list_handles_timeline_note_fallbacks(
     assert response.status_code == 200
     plants = {plant["key"]: plant for plant in response.json()["plants"]}
     assert plants["SBBS-R1-001"]["current_tent_id"] == 1
-    assert plants["SBBS-R1-001"]["current_tent_name"] == "main"
+    assert plants["SBBS-R1-001"]["current_tent_name"] == "Tent 1"
     assert plants["SBBS-R1-001"]["grid_position"] is None
     assert plants["SBBS-R1-001"]["last_note"] == "Latest canopy note"
     assert plants["SBBS-R1-002"]["last_note"] == "Moved into flower"
@@ -2607,7 +2570,6 @@ async def test_breeding_logbook_write_routes_enqueue_typed_commands_idempotently
         "breeding_plant_note_create",
     }
     assert all(row.source_tent_id is None for row in rows)
-    assert all(row.tent_id != "breeding-logbook" for row in rows)
 
 
 async def test_breeding_logbook_write_routes_return_503_when_commands_disabled(
@@ -2803,7 +2765,7 @@ async def test_browser_plant_detail_returns_metadata_wiki_and_telemetry_count(
     assert body["current_location"] == {
         "id": 1,
         "current_tent_id": 1,
-        "current_tent_name": "main",
+        "current_tent_name": "Tent 1",
         "grid_position": "A1",
         "start_at": (FIXED_NOW - timedelta(days=51)).isoformat().replace("+00:00", "Z"),
         "end_at": None,
@@ -3451,7 +3413,6 @@ async def test_asset_flow_is_direct_upload_handshake_and_signed_url_requires_aut
         ).scalar_one()
     assert asset.source_tent_id == 1
     assert asset.source_zone_id is None
-    assert asset.tent_id == "1"
 
     unauth = await client.get("/api/assets/asset-1/signed-url")
     assert unauth.status_code == 401
@@ -3500,8 +3461,6 @@ async def test_asset_complete_persists_source_scope_from_request(
         ).scalar_one()
     assert asset.source_tent_id == 2
     assert asset.source_zone_id == 21
-    assert asset.tent_id == "2"
-    assert asset.zone_id == "21"
 
 
 async def test_asset_complete_replaces_existing_asset_for_same_object_key(
@@ -3560,7 +3519,6 @@ async def test_asset_complete_replaces_existing_asset_for_same_object_key(
     assert assets[0].asset_id == "asset-new"
     assert assets[0].source_tent_id == 1
     assert assets[0].source_zone_id is None
-    assert assets[0].tent_id == "1"
     assert assets[0].byte_size == 20
 
 
@@ -3631,7 +3589,6 @@ async def test_health_exposes_gateway_backlog_and_failure_counts(
             command_id="failed-command",
             idempotency_key="failed-key",
             site_id="homebox",
-            tent_id="main",
             device_id="obsbot-main",
             capability_id="ptz_move",
             command_type="ptz_zoom",
@@ -3679,9 +3636,7 @@ async def test_health_audits_current_metrics_without_device_liveness(
         session.add(
             CloudDevice(
                 site_id="homebox",
-                tent_id="main",
                 source_tent_id=1,
-                zone_id="canopy",
                 device_id="env-main",
                 name="Env Main",
                 kind="sensor",
@@ -3695,9 +3650,7 @@ async def test_health_audits_current_metrics_without_device_liveness(
         session.add(
             CloudLatestMetric(
                 site_id="homebox",
-                tent_id="flower",
                 source_tent_id=1,
-                zone_id="canopy",
                 device_id="env-main",
                 capability_id="env-main-temp",
                 metric="temperature_f",
@@ -3860,7 +3813,7 @@ async def test_asset_retention_prunes_assets_older_than_30_days(
             CloudAsset(
                 asset_id="old-asset",
                 site_id="homebox",
-                tent_id="main",
+                source_tent_id=1,
                 object_key="homebox/main/old.jpg",
                 content_type="image/jpeg",
                 byte_size=10,
@@ -3872,7 +3825,7 @@ async def test_asset_retention_prunes_assets_older_than_30_days(
             CloudAsset(
                 asset_id="fresh-asset",
                 site_id="homebox",
-                tent_id="main",
+                source_tent_id=1,
                 object_key="homebox/main/fresh.jpg",
                 content_type="image/jpeg",
                 byte_size=10,
