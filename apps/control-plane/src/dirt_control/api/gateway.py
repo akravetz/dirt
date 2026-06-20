@@ -61,6 +61,7 @@ from dirt_shared.cloud_contract import (
     HeartbeatResponse,
     LatestMetricsRequest,
     PruneAssetsResponse,
+    PtzCommandTarget,
     RollupsRequest,
     SignUploadResponse,
     UpsertCountResponse,
@@ -1304,6 +1305,7 @@ def _command_payload(command: CloudCommand) -> CommandResultResponse:
         source_tent_id=command.source_tent_id,
         device_id=command.device_id,
         capability_id=command.capability_id,
+        target=_command_target(command),
         command_type=command.command_type,
         payload=command.payload,
         status=command.status,
@@ -1316,4 +1318,19 @@ def _command_payload(command: CloudCommand) -> CommandResultResponse:
         finished_at=command.finished_at,
         result=command.result,
         error=command.error,
+    )
+
+
+def _command_target(command: CloudCommand) -> PtzCommandTarget | None:
+    if command.command_type not in {"ptz_preset", "ptz_look", "ptz_zoom"}:
+        return None
+    if command.source_tent_id is None:
+        return None
+    if command.device_id != "obsbot-main" or command.capability_id != "ptz_move":
+        return None
+    return PtzCommandTarget(
+        kind="ptz",
+        source_tent_id=command.source_tent_id,
+        device_id="obsbot-main",
+        capability_id="ptz_move",
     )

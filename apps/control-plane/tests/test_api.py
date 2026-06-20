@@ -3213,6 +3213,68 @@ async def test_duplicate_command_idempotency_returns_same_intent_without_hardwar
     assert count == 1
 
 
+async def test_command_creation_accepts_transitional_ptz_target_shape(
+    authed_client: AsyncClient,
+    gateway_headers: dict[str, str],
+) -> None:
+    body = {
+        "idempotency_key": "target-click",
+        "target": {
+            "kind": "ptz",
+            "source_tent_id": 1,
+            "device_id": "obsbot-main",
+            "capability_id": "ptz_move",
+        },
+        "command_type": "ptz_preset",
+        "payload": {"preset_id": "overview"},
+    }
+
+    created = await authed_client.post("/api/commands", json=body)
+
+    assert created.status_code == 201
+    created_body = created.json()
+    assert created_body["source_tent_id"] == 1
+    assert created_body["legacy_target_tent_id"] == "1"
+    assert created_body["device_id"] == "obsbot-main"
+    assert created_body["capability_id"] == "ptz_move"
+    assert created_body["target"] == body["target"]
+
+    claim = await authed_client.post(
+        "/api/gateway/v1/commands/claim",
+        headers=gateway_headers,
+        json={"site_id": "homebox", "limit": 1},
+    )
+
+    assert claim.status_code == 200
+    command = claim.json()["commands"][0]
+    assert command["command_id"] == created_body["command_id"]
+    assert command["source_tent_id"] == 1
+    assert command["tent_id"] == "1"
+    assert command["target"] == body["target"]
+
+
+async def test_command_openapi_marks_transition_fields(client: AsyncClient) -> None:
+    response = await client.get("/openapi.json")
+
+    assert response.status_code == 200
+    schemas = response.json()["components"]["schemas"]
+    create_schema = schemas["CommandCreateRequest"]
+    create_properties = create_schema["properties"]
+    response_schema = schemas["CommandResponse"]
+    response_properties = response_schema["properties"]
+
+    assert "target" in create_properties
+    for flat_field in ("source_tent_id", "device_id", "capability_id"):
+        assert flat_field not in create_schema.get("required", [])
+        assert create_properties[flat_field]["deprecated"] is True
+        assert flat_field not in response_schema.get("required", [])
+        assert response_properties[flat_field]["deprecated"] is True
+    assert "legacy_target_tent_id" not in response_schema.get("required", [])
+    assert response_properties["legacy_target_tent_id"]["deprecated"] is True
+    assert "target" in response_properties
+    assert "target" not in response_schema.get("required", [])
+
+
 def _forbidden_hardware_imports() -> set[str]:
     forbidden = {"dirt_hwd", "dirt_shared.services.ptz"}
     package_root = Path(dirt_control.__file__).parent

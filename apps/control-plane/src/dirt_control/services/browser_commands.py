@@ -14,11 +14,16 @@ from dirt_control.api.browser_schemas.commands import (
 from dirt_control.audit import add_audit_event
 from dirt_control.models import CloudCommand
 from dirt_control.settings import CloudSettings
-from dirt_shared.cloud_contract import BreedingCommandPayload, CommandType
+from dirt_shared.cloud_contract import (
+    BreedingCommandPayload,
+    CommandType,
+    PtzCommandTarget,
+)
 
 COMMAND_EXPIRY_SECONDS = 60
 BREEDING_COMMAND_EXPIRY_SECONDS = 3600
 BREEDING_SITE_WIDE_TENT_ID = "breeding-logbook"
+PTZ_COMMAND_TYPE_VALUES = frozenset({"ptz_preset", "ptz_look", "ptz_zoom"})
 
 
 async def create_command(
@@ -45,14 +50,21 @@ async def create_command(
     site_id = body.site_id or settings.default_site_id
     if site_id != settings.default_site_id:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "unsupported site")
+    target = body.resolved_target()
+    if target.source_tent_id is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "PTZ target requires source_tent_id",
+        )
+    source_tent_id = target.source_tent_id
     command = CloudCommand(
         command_id=str(uuid.uuid4()),
         idempotency_key=body.idempotency_key,
         site_id=site_id,
-        tent_id=storage_compat_tent_id(body.source_tent_id),
-        source_tent_id=body.source_tent_id,
-        device_id=body.device_id,
-        capability_id=body.capability_id,
+        tent_id=storage_compat_tent_id(source_tent_id),
+        source_tent_id=source_tent_id,
+        device_id=target.device_id,
+        capability_id=target.capability_id,
         command_type=body.command_type,
         payload=body.payload,
         requested_by=user,
@@ -182,6 +194,7 @@ def command_response(command: CloudCommand) -> CommandResponse:
         legacy_target_tent_id=command.tent_id,
         device_id=command.device_id,
         capability_id=command.capability_id,
+        target=_command_target(command),
         command_type=command.command_type,
         payload=command.payload,
         status=command.status,
@@ -198,3 +211,18 @@ def command_response(command: CloudCommand) -> CommandResponse:
 
 def storage_compat_tent_id(source_tent_id: int) -> str:
     return str(source_tent_id)
+
+
+def _command_target(command: CloudCommand) -> PtzCommandTarget | None:
+    if command.command_type not in PTZ_COMMAND_TYPE_VALUES:
+        return None
+    if command.source_tent_id is None:
+        return None
+    if command.device_id != "obsbot-main" or command.capability_id != "ptz_move":
+        return None
+    return PtzCommandTarget(
+        kind="ptz",
+        source_tent_id=command.source_tent_id,
+        device_id="obsbot-main",
+        capability_id="ptz_move",
+    )

@@ -636,9 +636,17 @@ export interface components {
       source_tent_id: number | null;
       /** Source Zone Id */
       source_zone_id: number | null;
-      /** Tent Id */
+      /**
+       * Tent Id
+       * @deprecated
+       * @description Deprecated transition field for legacy cloud text tent identity.
+       */
       tent_id?: string | null;
-      /** Zone Id */
+      /**
+       * Zone Id
+       * @deprecated
+       * @description Deprecated transition field for legacy cloud text zone identity.
+       */
       zone_id?: string | null;
     };
     /** AssetCompleteResponse */
@@ -667,7 +675,11 @@ export interface components {
       source_tent_id?: number | null;
       /** Stage */
       stage: string;
-      /** Tent Id */
+      /**
+       * Tent Id
+       * @deprecated
+       * @description Deprecated transition field for legacy cloud text tent identity.
+       */
       tent_id?: string | null;
     };
     /** AssetFailureResponse */
@@ -741,7 +753,11 @@ export interface components {
       site_id: string;
       /** Source Tent Id */
       source_tent_id: number | null;
-      /** Tent Id */
+      /**
+       * Tent Id
+       * @deprecated
+       * @description Deprecated transition field for legacy cloud text tent identity.
+       */
       tent_id?: string | null;
     };
     /** BreedingBulkCullPayload */
@@ -1162,8 +1178,12 @@ export interface components {
       source_site_id: number | null;
       /** Source Tent Id */
       source_tent_id: number | null;
-      /** Tent Id */
-      tent_id: string | null;
+      /**
+       * Tent Id
+       * @deprecated
+       * @description Deprecated transition field for legacy cloud text tent identity.
+       */
+      tent_id?: string | null;
       /** Tent Name */
       tent_name: string | null;
       /** Timezone */
@@ -1461,8 +1481,12 @@ export interface components {
        * @default lights
        */
       kind: string;
-      /** Legacy Schedule Id */
-      legacy_schedule_id: string;
+      /**
+       * Legacy Schedule Id
+       * @deprecated
+       * @description Deprecated transition field for legacy cloud text schedule identity.
+       */
+      legacy_schedule_id?: string | null;
       /** Source Schedule Id */
       source_schedule_id: number;
       /** Source Site Id */
@@ -1525,8 +1549,12 @@ export interface components {
        * @default true
        */
       is_active: boolean;
-      /** Legacy Tent Id */
-      legacy_tent_id: string;
+      /**
+       * Legacy Tent Id
+       * @deprecated
+       * @description Deprecated transition field for legacy cloud text tent identity.
+       */
+      legacy_tent_id?: string | null;
       /** Name */
       name: string;
       /** Role */
@@ -1546,8 +1574,12 @@ export interface components {
        * @default environment
        */
       kind: string;
-      /** Legacy Zone Id */
-      legacy_zone_id: string;
+      /**
+       * Legacy Zone Id
+       * @deprecated
+       * @description Deprecated transition field for legacy cloud text zone identity.
+       */
+      legacy_zone_id?: string | null;
       /** Name */
       name: string;
       /** Source Tent Id */
@@ -1557,8 +1589,12 @@ export interface components {
     };
     /** ClaimedCommand */
     ClaimedCommand: {
-      /** Capability Id */
-      capability_id: string | null;
+      /**
+       * Capability Id
+       * @deprecated
+       * @description Deprecated flat PTZ target field; use target.capability_id.
+       */
+      capability_id?: string | null;
       /** Claimed At */
       claimed_at: string | null;
       /** Claimed By */
@@ -1580,8 +1616,12 @@ export interface components {
         | "breeding_plants_bulk_move"
         | "breeding_plants_bulk_cull"
         | "breeding_plant_note_create";
-      /** Device Id */
-      device_id: string | null;
+      /**
+       * Device Id
+       * @deprecated
+       * @description Deprecated flat PTZ target field; use target.device_id.
+       */
+      device_id?: string | null;
       /** Error */
       error: string | null;
       /**
@@ -1617,8 +1657,12 @@ export interface components {
       } | null;
       /** Site Id */
       site_id: string;
-      /** Source Tent Id */
-      source_tent_id: number | null;
+      /**
+       * Source Tent Id
+       * @deprecated
+       * @description Deprecated flat PTZ target field; use target.source_tent_id.
+       */
+      source_tent_id?: number | null;
       /** Started At */
       started_at: string | null;
       /**
@@ -1633,8 +1677,13 @@ export interface components {
         | "failed"
         | "rejected"
         | "expired";
-      /** Tent Id */
-      tent_id: string;
+      target?: components["schemas"]["PtzCommandTarget"] | null;
+      /**
+       * Tent Id
+       * @deprecated
+       * @description Deprecated transition field for legacy cloud text command scope.
+       */
+      tent_id?: string | null;
     };
     /** CommandClaimRequest */
     CommandClaimRequest: {
@@ -1655,9 +1704,10 @@ export interface components {
     CommandCreateRequest: {
       /**
        * Capability Id
-       * @constant
+       * @deprecated
+       * @description Deprecated flat PTZ target field; use target.capability_id.
        */
-      capability_id: "ptz_move";
+      capability_id?: "ptz_move" | null;
       /**
        * Command Type
        * @enum {string}
@@ -1665,9 +1715,10 @@ export interface components {
       command_type: "ptz_preset" | "ptz_look" | "ptz_zoom";
       /**
        * Device Id
-       * @constant
+       * @deprecated
+       * @description Deprecated flat PTZ target field; use target.device_id.
        */
-      device_id: "obsbot-main";
+      device_id?: "obsbot-main" | null;
       /** Idempotency Key */
       idempotency_key: string;
       /** Payload */
@@ -1676,13 +1727,22 @@ export interface components {
       };
       /** Site Id */
       site_id?: string | null;
-      /** Source Tent Id */
-      source_tent_id: number;
+      /**
+       * Source Tent Id
+       * @deprecated
+       * @description Deprecated flat PTZ target field; use target.source_tent_id.
+       */
+      source_tent_id?: number | null;
+      target?: components["schemas"]["PtzCommandTarget"] | null;
     };
     /** CommandResponse */
     CommandResponse: {
-      /** Capability Id */
-      capability_id: string | null;
+      /**
+       * Capability Id
+       * @deprecated
+       * @description Deprecated flat PTZ target field; use target.capability_id.
+       */
+      capability_id?: string | null;
       /** Claimed At */
       claimed_at: string | null;
       /** Claimed By */
@@ -1691,8 +1751,12 @@ export interface components {
       command_id: string;
       /** Command Type */
       command_type: string;
-      /** Device Id */
-      device_id: string | null;
+      /**
+       * Device Id
+       * @deprecated
+       * @description Deprecated flat PTZ target field; use target.device_id.
+       */
+      device_id?: string | null;
       /** Error */
       error: string | null;
       /**
@@ -1704,8 +1768,12 @@ export interface components {
       finished_at: string | null;
       /** Idempotency Key */
       idempotency_key: string;
-      /** Legacy Target Tent Id */
-      legacy_target_tent_id: string;
+      /**
+       * Legacy Target Tent Id
+       * @deprecated
+       * @description Deprecated transition field for legacy cloud text command scope.
+       */
+      legacy_target_tent_id?: string | null;
       /** Payload */
       payload: {
         [key: string]: unknown;
@@ -1721,12 +1789,17 @@ export interface components {
       } | null;
       /** Site Id */
       site_id: string;
-      /** Source Tent Id */
-      source_tent_id: number | null;
+      /**
+       * Source Tent Id
+       * @deprecated
+       * @description Deprecated flat PTZ target field; use target.source_tent_id.
+       */
+      source_tent_id?: number | null;
       /** Started At */
       started_at: string | null;
       /** Status */
       status: string;
+      target?: components["schemas"]["PtzCommandTarget"] | null;
     };
     /** CommandResultRequest */
     CommandResultRequest: {
@@ -1746,8 +1819,12 @@ export interface components {
     };
     /** CommandResultResponse */
     CommandResultResponse: {
-      /** Capability Id */
-      capability_id: string | null;
+      /**
+       * Capability Id
+       * @deprecated
+       * @description Deprecated flat PTZ target field; use target.capability_id.
+       */
+      capability_id?: string | null;
       /** Claimed At */
       claimed_at: string | null;
       /** Claimed By */
@@ -1769,8 +1846,12 @@ export interface components {
         | "breeding_plants_bulk_move"
         | "breeding_plants_bulk_cull"
         | "breeding_plant_note_create";
-      /** Device Id */
-      device_id: string | null;
+      /**
+       * Device Id
+       * @deprecated
+       * @description Deprecated flat PTZ target field; use target.device_id.
+       */
+      device_id?: string | null;
       /** Error */
       error: string | null;
       /**
@@ -1806,8 +1887,12 @@ export interface components {
       } | null;
       /** Site Id */
       site_id: string;
-      /** Source Tent Id */
-      source_tent_id: number | null;
+      /**
+       * Source Tent Id
+       * @deprecated
+       * @description Deprecated flat PTZ target field; use target.source_tent_id.
+       */
+      source_tent_id?: number | null;
       /** Started At */
       started_at: string | null;
       /**
@@ -1822,8 +1907,13 @@ export interface components {
         | "failed"
         | "rejected"
         | "expired";
-      /** Tent Id */
-      tent_id: string;
+      target?: components["schemas"]["PtzCommandTarget"] | null;
+      /**
+       * Tent Id
+       * @deprecated
+       * @description Deprecated transition field for legacy cloud text command scope.
+       */
+      tent_id?: string | null;
     };
     /** CurrentMetricResponse */
     CurrentMetricResponse: {
@@ -2436,6 +2526,26 @@ export interface components {
       matched: number;
       /** Objects Deleted */
       objects_deleted: number;
+    };
+    /** PtzCommandTarget */
+    PtzCommandTarget: {
+      /**
+       * Capability Id
+       * @constant
+       */
+      capability_id: "ptz_move";
+      /**
+       * Device Id
+       * @constant
+       */
+      device_id: "obsbot-main";
+      /**
+       * Kind
+       * @constant
+       */
+      kind: "ptz";
+      /** Source Tent Id */
+      source_tent_id?: number | null;
     };
     /** PtzLookPayload */
     PtzLookPayload: {

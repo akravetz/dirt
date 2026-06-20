@@ -186,6 +186,28 @@ def test_catalog_legacy_scope_fields_are_optional_during_bridge_retirement() -> 
     assert schedule.legacy_schedule_id is None
 
 
+def test_legacy_cloud_contract_fields_are_deprecated_in_schema() -> None:
+    schema_fields = (
+        (CatalogTent, ("legacy_tent_id",)),
+        (CatalogZone, ("legacy_zone_id",)),
+        (CatalogSchedule, ("legacy_schedule_id",)),
+        (AssetSignUploadRequest, ("tent_id",)),
+        (AssetCompleteRequest, ("tent_id", "zone_id")),
+        (AssetFailureRequest, ("tent_id",)),
+        (CapturePolicyResponse, ("tent_id",)),
+        (ClaimedCommand, ("tent_id", "source_tent_id", "device_id", "capability_id")),
+        (
+            CommandResultResponse,
+            ("tent_id", "source_tent_id", "device_id", "capability_id"),
+        ),
+    )
+
+    for model, field_names in schema_fields:
+        properties = model.model_json_schema()["properties"]
+        for field_name in field_names:
+            assert properties[field_name]["deprecated"] is True
+
+
 def test_catalog_plant_requires_nullable_wire_fields() -> None:
     plant_payload = {
         "source_plant_id": 1,

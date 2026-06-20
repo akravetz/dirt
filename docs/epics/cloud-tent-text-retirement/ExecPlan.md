@@ -26,7 +26,7 @@ This rollout must be deployable in isolated pieces. Dirt has a local gateway pro
 - [x] (2026-06-20) Refreshed plan references after the browser UI refactor audit: added the `/live` PTZ command and breeding pending-command UI touchpoints, included `apps/hwd/src` in the inventory grep, and refreshed current artifact line references.
 - [x] (2026-06-20) Milestone 1: add compatibility characterization tests and migration inventory queries for every legacy scoped text path.
 - [x] (2026-06-20) Milestone 2: expand cloud storage so every table that currently needs text `tent_id`, `zone_id`, or `schedule_id` also has enough source identity to read without it, especially `cloud_asset`.
-- [ ] Milestone 3: make gateway/shared/browser contracts tolerant by marking legacy text fields optional and deprecated while keeping `extra="forbid"`.
+- [x] (2026-06-20) Milestone 3: make gateway/shared/browser contracts tolerant by marking legacy text fields optional and deprecated while keeping `extra="forbid"`.
 - [ ] Milestone 4: change consumers and storage reads to use source identity only, while producers still write both source and legacy storage fields.
 - [ ] Milestone 5: stop gateway/control-plane producers from emitting legacy scoped text fields after tolerant consumers are deployed.
 - [ ] Milestone 6: remove legacy scoped text fields from Pydantic contracts and generated browser contracts after old payloads have drained.
@@ -72,6 +72,9 @@ This rollout must be deployable in isolated pieces. Dirt has a local gateway pro
 - Observation: New cloud asset rows also needed source scope writes, not just source columns and backfills.
   Evidence: Milestone 2 updates `/api/gateway/v1/assets/complete` to persist `CloudAsset.source_tent_id` and `CloudAsset.source_zone_id` from `AssetCompleteRequest` while retaining legacy `tent_id` and `zone_id` writes.
 
+- Observation: Pydantic runtime deprecation warnings are too noisy for compatibility reads.
+  Evidence: Milestone 3 uses `json_schema_extra={"deprecated": True}` for transition fields so OpenAPI and generated TypeScript communicate deprecation without emitting `DeprecationWarning` when old compatibility fields are read.
+
 
 ## Decision Log
 
@@ -116,6 +119,7 @@ This rollout must be deployable in isolated pieces. Dirt has a local gateway pro
 
 - Milestone 1 added shared DTO compatibility tests for legacy scoped text fields and transitional command target shapes, plus non-destructive SQL inventory queries in `docs/epics/cloud-tent-text-retirement/milestone-1-inventory.sql`. Validation passed: `uv run pytest apps/shared/tests/test_cloud_contract.py apps/shared/tests/test_cloud_assets.py apps/shared/tests/test_camera_publisher.py -q` (`34 passed`), `uv run pytest apps/gateway/tests/test_sync.py -q` (`38 passed`), `uv run pytest apps/control-plane/tests/test_api.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py -q` (`59 passed`), `uv run ruff check apps/shared/src/dirt_shared apps/gateway/src/dirt_gateway apps/control-plane/src/dirt_control apps/shared/tests apps/gateway/tests apps/control-plane/tests`, and `git diff --check`.
 - Milestone 2 added `CloudAsset.source_tent_id` and `CloudAsset.source_zone_id`, backfilled source scope for cloud projection tables that already had source columns, added source-scope indexes for later read cutover, and updated asset completion storage to write both source and legacy scope. Validation passed: `uv run atlas migrate hash --dir file://cloud/migrations`, `uv run pytest apps/control-plane/tests/test_api.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py -q` (`61 passed`), `uv run pytest apps/shared/tests/test_cloud_contract.py apps/shared/tests/test_cloud_assets.py apps/shared/tests/test_camera_publisher.py -q` (`34 passed`), `uv run pytest apps/gateway/tests/test_sync.py -q` (`38 passed`), `uv run ruff check apps/shared/src/dirt_shared apps/gateway/src/dirt_gateway apps/control-plane/src/dirt_control apps/shared/tests apps/gateway/tests apps/control-plane/tests`, and `git diff --check`.
+- Milestone 3 made shared cloud contracts and browser command schemas tolerate old flat PTZ command shapes and new `target`-shaped PTZ commands while keeping `CloudContractModel.extra="forbid"`. Hosted browser OpenAPI and TypeScript contracts were regenerated with optional/deprecated transition fields. Validation passed: `scripts/gen-hosted-contract`, `uv run pytest apps/shared/tests/test_cloud_contract.py apps/shared/tests/test_cloud_assets.py apps/shared/tests/test_camera_publisher.py -q` (`35 passed`), `uv run pytest apps/gateway/tests/test_sync.py -q` (`38 passed`), `uv run pytest apps/control-plane/tests/test_api.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py -q` (`63 passed`), `uv run ruff check apps/shared/src/dirt_shared apps/gateway/src/dirt_gateway apps/control-plane/src/dirt_control apps/shared/tests apps/gateway/tests apps/control-plane/tests`, `pnpm --dir web-ui typecheck`, `pnpm --dir web-ui lint`, `pnpm --dir web-ui test` (`3 files, 12 tests passed`), and `git diff --check`.
 
 
 ## Context and Orientation
