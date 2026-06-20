@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-06-12
+updated: 2026-06-19
 ---
 
 # Plant D
@@ -19,7 +19,7 @@ updated: 2026-06-12
 
 ## Current State
 
-Day 90 / Flower Day 40: The latest full view from 2026-06-10 showed strong purple flower tops upright with many fresh pistils. The old capacitive moisture stream is retired from current operations, so D has no trusted current moisture probe until a replacement is installed. After the high-EC reservoir reset and 24-hour pH-adjusted tap-water correction, rebuilt feed measured 1300 uS/cm / 1.3 mS/cm and was diluted to EC 1.0 as a conservative recovery-strength reservoir on 2026-06-12. Hold EC 0.8-1.0 for 48-72h and keep the media/tray hand-check open. See [2026-06-12 daily](../../../daily/2026-06-12.md).
+Day 97 / Flower Day 47: `SBBS-R1-004` remains a primary purple keeper candidate with the strongest visible purple flower expression and stable direct moisture near 31.8% rough context. Keep media/tray hand checks active, but today's telemetry does not show a large irrigation-direction signal. See [2026-06-19 daily](../../../daily/2026-06-19.md).
 
 ## Timeline
 
@@ -89,3 +89,4 @@ Day 90 / Flower Day 40: The latest full view from 2026-06-10 showed strong purpl
 - 2026-06-10 — [Day 88 / Flower Day 38: strong purple flower tops visible; moisture low and drifting drier near 41.7%, verify media/tray/probe by hand](../../../daily/2026-06-10.md)
 - 2026-06-10 evening — [Whole Autopot reservoir EC found >2.0; reservoir reset to pH 5.8 / EC ~0.3 plain water for ~24h correction](../../../daily/2026-06-10.md)
 - 2026-06-12 — [Day 90 / Flower Day 40: post-flush recovery plan filed; hold EC 0.8-1.0 for 48-72h and only root-zone flush if fresh damage advances](../../../daily/2026-06-12.md)
+- 2026-06-19 — [Day 97 / Flower Day 47: strongest purple flower expression, stable direct moisture near 31.8%, no large irrigation-direction signal](../../../daily/2026-06-19.md)

@@ -19,11 +19,22 @@ from pathlib import Path
 # apps/tests/invariants/_helpers.py → apps/
 APPS_ROOT: Path = Path(__file__).resolve().parents[2]
 
+APP_SOURCE_DIRS: dict[str, str] = {
+    "dirt_hwd": "hwd/src/dirt_hwd",
+    "dirt_shared": "shared/src/dirt_shared",
+    "dirt_voice": "voice/src/dirt_voice",
+    "dirt_control": "control-plane/src/dirt_control",
+}
+
+# APPS is the pre-existing broad invariant suite. Milestone-specific app
+# sets opt in below as each rule family is deliberately expanded.
 APPS: tuple[str, ...] = (
     "dirt_hwd",
     "dirt_shared",
     "dirt_voice",
 )
+
+STAGE1_GENERIC_APPS: tuple[str, ...] = (*APPS, "dirt_control")
 
 # Files where wiring stateful singletons / reading the wall clock at
 # startup is the intended architectural pattern. Used by both the
@@ -31,13 +42,15 @@ APPS: tuple[str, ...] = (
 COMPOSITION_ROOTS: frozenset[str] = frozenset(
     {
         "hwd/src/dirt_hwd/app.py",  # builds dirt-hwd FastAPI app + lifespan
+        # builds control-plane FastAPI app, lifespan, sessions, engine, asset store
+        "control-plane/src/dirt_control/app.py",
     }
 )
 
 
 def pkg_src_dir(pkg: str) -> Path:
-    """``dirt_shared`` → ``apps/shared/src/dirt_shared``."""
-    return APPS_ROOT / pkg.removeprefix("dirt_") / "src" / pkg
+    """``dirt_control`` → ``apps/control-plane/src/dirt_control``."""
+    return APPS_ROOT / APP_SOURCE_DIRS[pkg]
 
 
 def iter_py(root: Path) -> Iterator[Path]:

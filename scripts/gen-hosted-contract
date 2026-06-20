@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Regenerate the hosted browser API contract from the control-plane FastAPI app.
 #
-# Source of truth: apps/control-plane/src/dirt_control/api/browser.py response
-# models exposed through dirt_control.app:create_app(). The generated artifacts
+# Source of truth: dirt_control.api.browser response models exposed through
+# dirt_control.app:create_app(). The generated artifacts
 # are committed so frontend code can use OpenAPI-derived types instead of
 # handwritten hosted/cloud response interfaces.
 set -euo pipefail

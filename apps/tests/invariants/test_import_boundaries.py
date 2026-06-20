@@ -14,9 +14,9 @@ for "which package may import which". The contracts there encode:
      in dirt_hwd; voice is its own process). Apps share state ONLY
      through the database or HTTP
      across process boundaries.
-  2. API-layer rules (dirt_hwd.api may not reach past the service layer
-     into dirt_shared.db / .models — sessions and model usage stay
-     encapsulated in services).
+  2. API-layer rules (dirt_hwd.api and dirt_control.api.browser may not
+     reach past the service layer into db/models/SQLAlchemy — sessions,
+     model usage, and query construction stay encapsulated in services).
 
 Both the .ini file and this wrapper live in ``apps/tests/invariants/``,
 the directory protected from agent edits.
@@ -62,7 +62,7 @@ def test_import_boundaries() -> None:
         "  guarantees break, and the package boundary becomes fiction. The api/*\n"
         "  layer rule has the same shape one level down: API routes are\n"
         "  HTTP edge code, services are business logic. If api reaches\n"
-        "  past services into db/models directly, route handlers can\n"
+        "  past services into db/models/SQLAlchemy directly, route handlers can\n"
         "  open ad-hoc sessions, bypass auth checks, and corrupt the\n"
         "  ingest invariants the service layer enforces.\n\n"
         "WHAT was detected (from import-linter):\n"
@@ -73,9 +73,9 @@ def test_import_boundaries() -> None:
         "    (if it's pure / stateless), or call across the process\n"
         "    boundary via HTTP. Direct Python import of a peer app is\n"
         "    never the answer — even 'just one helper'.\n"
-        "  - api/* → db/models violation: move the offending logic into\n"
-        "    a service in dirt_shared.services (or dirt_hwd.services if\n"
-        "    HW-owning). The api route should call the service function.\n\n"
+        "  - api/* → db/models/SQLAlchemy violation: move the offending\n"
+        "    logic into a service in the owning package. The api route\n"
+        "    should call the service function.\n\n"
         "DO NOT edit import_boundaries.invariant.ini or this test file.\n"
         "Both are HUMAN-OWNED and protected by Codex hooks. Fix\n"
         "the production code instead.\n"

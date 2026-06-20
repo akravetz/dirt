@@ -7,7 +7,7 @@ service (or a model, or a migration) — never modify this file's ALLOWED
 prefixes to paper over a new smell.
 
 Purpose: forbid raw SQL strings outside the data layer. The schema and
-every runtime query must live in one of three places:
+every runtime query must live in one of the app's data-layer places:
 
   * ``apps/shared/src/dirt_shared/models/``   — SQLModel class bodies.
   * ``apps/shared/src/dirt_shared/services/`` — service methods using
@@ -15,6 +15,8 @@ every runtime query must live in one of three places:
     ``text("SELECT ...")`` for Postgres-specific aggregation.
   * ``apps/shared/src/dirt_shared/db.py``     — engine factory + the
     session-level health-check (``SELECT 1``).
+  * ``apps/control-plane/src/dirt_control/{models,services,db.py}``
+    — hosted projection models/services and DB health-check helper.
   * ``migrations/``                           — Atlas-generated SQL.
 
 The schema is owned by Atlas (see ADR-006 + ``test_schema_managed_by_atlas.py``
@@ -41,8 +43,8 @@ from pathlib import Path
 import pytest
 
 from ._helpers import (
-    APPS,
     APPS_ROOT,
+    STAGE1_GENERIC_APPS,
     format_invariant_failure,
     iter_py,
     pkg_src_dir,
@@ -54,6 +56,9 @@ ALLOWED_PREFIXES: tuple[str, ...] = (
     "shared/src/dirt_shared/models/",
     "shared/src/dirt_shared/services/",
     "shared/src/dirt_shared/db.py",
+    "control-plane/src/dirt_control/models/",
+    "control-plane/src/dirt_control/services/",
+    "control-plane/src/dirt_control/db.py",
     # Test infrastructure — pg_database catalog query for stale-clone
     # cleanup, plus CREATE/DROP DATABASE template wiring. None of this
     # SQL touches application tables; it's all database-level admin
@@ -121,7 +126,7 @@ def _violations_in_file(py: Path) -> list[tuple[int, str]]:
     return out
 
 
-@pytest.mark.parametrize("app", APPS)
+@pytest.mark.parametrize("app", STAGE1_GENERIC_APPS)
 def test_no_raw_sql_outside_data_layer(app: str) -> None:
     """Raw SQL strings must not appear outside models/services/db/migrations."""
     pkg_dir = pkg_src_dir(app)
@@ -150,17 +155,18 @@ def test_no_raw_sql_outside_data_layer(app: str) -> None:
                 ),
                 body=(
                     "WHY this rule exists:\n"
-                    "  dirt_shared.services is the single place that opens DB\n"
-                    "  sessions, wraps queries in transactions, and runs auth /\n"
+                    "  App data-layer services are the single place that open\n"
+                    "  DB sessions, wrap queries in transactions, and run auth /\n"
                     "  ingest validation. A raw `SELECT *` or `INSERT INTO` in\n"
-                    "  a route handler bypasses all three — every new such call\n"
-                    "  site is a candidate for a silent data-corruption bug.\n"
+                    "  a route handler bypasses those guarantees — every new\n"
+                    "  such call site is a candidate for a silent data-corruption\n"
+                    "  bug.\n"
                     "  Schema DDL specifically must go through Atlas\n"
                     "  (see test_schema_managed_by_atlas.py).\n\n"
                     "FIX:\n"
-                    "  - Runtime query: add a method to the relevant service in\n"
-                    "    apps/shared/src/dirt_shared/services/ and call it from\n"
-                    "    the route handler / CLI / tool. Use SQLModel's typed\n"
+                    "  - Runtime query: add a method to the relevant app service\n"
+                    "    module and call it from the route handler / CLI / tool.\n"
+                    "    Use SQLModel's typed\n"
                     "    `select(Model).where(...)` — raw `text(...)` is\n"
                     "    reserved for Postgres aggregation primitives that\n"
                     "    SQLModel doesn't model (window funcs, date_trunc,\n"

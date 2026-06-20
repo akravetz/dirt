@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-06-12
+updated: 2026-06-19
 ---
 
 # Plant B
@@ -19,7 +19,7 @@ updated: 2026-06-12
 
 ## Current State
 
-Day 90 / Flower Day 40: The latest full view from 2026-06-10 showed upright active flower clusters with fresh pistils and older edge/tip wear. The old capacitive moisture stream is retired from current operations, so B has no trusted current moisture probe until a replacement is installed. After the high-EC reservoir reset and 24-hour pH-adjusted tap-water correction, rebuilt feed measured 1300 uS/cm / 1.3 mS/cm and was diluted to EC 1.0 as a conservative recovery-strength reservoir on 2026-06-12. Hold EC 0.8-1.0 for 48-72h and verify tray/media conditions by hand. See [2026-06-12 daily](../../../daily/2026-06-12.md).
+Day 97 / Flower Day 47: `SBBS-R1-002` has upright visible flower clusters with older tip/edge wear, but it is omitted from today's trusted direct-percent moisture set. Keep B on tray, float, media, smell/weight, and posture checks rather than inferring root-zone status from A/C/D telemetry. See [2026-06-19 daily](../../../daily/2026-06-19.md).
 
 ## Timeline
 
@@ -89,3 +89,4 @@ Day 90 / Flower Day 40: The latest full view from 2026-06-10 showed upright acti
 - 2026-06-10 — [Day 88 / Flower Day 38: upright active flower clusters; rough moisture back high near 96.0%, verify tray/media/probe by hand](../../../daily/2026-06-10.md)
 - 2026-06-10 evening — [Whole Autopot reservoir EC found >2.0; reservoir reset to pH 5.8 / EC ~0.3 plain water for ~24h correction](../../../daily/2026-06-10.md)
 - 2026-06-12 — [Day 90 / Flower Day 40: post-flush recovery plan filed; hold EC 0.8-1.0 for 48-72h and only root-zone flush if fresh damage advances](../../../daily/2026-06-12.md)
+- 2026-06-19 — [Day 97 / Flower Day 47: upright flower clusters with older tip wear; omitted from trusted direct moisture set, so hand-check tray/media/posture](../../../daily/2026-06-19.md)

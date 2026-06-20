@@ -4,7 +4,7 @@ type: environment
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/bible.md, raw/chat-history/memory.md]
 related: [wiki/environment/temperature.md, wiki/concepts/vpd.md, wiki/overview.md, wiki/hardware/humidifier-control.md, wiki/decisions/2026-04-17-humidifier-kasa-ep10.md]
 created: 2026-04-06
-updated: 2026-06-10
+updated: 2026-06-19
 ---
 
 
@@ -89,6 +89,7 @@ VPD is the control-loop setpoint; RH is informational (temperature determines wh
 | 2026-06-08 | Main: 51.39% now ⚠️ / 54.61% overnight avg ⚠️; VPD 1.53 kPa now ⚠️ / 1.10 kPa overnight ⚠️. Breeding: 83.28% now / 0.45 kPa VPD | Main now is slightly dry/high while the 00-06 window remains wet/low, so avoid more broad lights-on drying and target dark-cycle clearing. Breeding current-only wet data exactly repeats again, so verify sensor freshness/exposure while checking watering and airflow. → [2026-06-08](../daily/2026-06-08.md) |
 | 2026-06-09 | Main: 56.54% now ⚠️ / 57.44% overnight avg ⚠️; VPD 1.47 kPa now ✅ / 1.01 kPa overnight ⚠️. Breeding: 83.28% now / 0.45 kPa VPD | Main lights-on VPD is in range, but the 00-06 window worsened wet/low and current dew point climbed to 62.30°F. Preserve lights-on stability while tightening dark-cycle clearing and canopy airflow. Breeding current-only wet data exactly repeats again, so verify sensor freshness/exposure while checking watering and airflow. → [2026-06-09](../daily/2026-06-09.md) |
 | 2026-06-10 | Main: 53.32% now ⚠️ / 55.86% overnight avg ⚠️; VPD 1.62 kPa now ⚠️ / 1.10 kPa overnight ⚠️. Breeding: 83.28% now / 0.45 kPa VPD | Main current VPD is dry/high with the fan at 80%, while the 00-06 window remains wet/low. Improve dark-cycle clearing and flower-pocket airflow without adding broad lights-on dryness. Breeding current-only wet data exactly repeats again, so verify sensor freshness/exposure while checking watering and airflow. → [2026-06-10](../daily/2026-06-10.md) |
+| 2026-06-19 | Main: 50.66% now ⚠️ / 50.89% overnight avg ⚠️; VPD 1.49 kPa now ✅ / 1.18 kPa overnight ⚠️. Breeding: 83.28% now / 0.45 kPa VPD | Main-tent VPD is much steadier: morning/current are in range and overnight is only slightly wet/low, with current dew point down to 55.92°F. RH is still above the late-flower guide, so keep physical flower-pocket airflow checks active. Breeding current-only wet data repeats again with no photo, so verify sensor freshness/exposure before treating it as a fresh condition. → [2026-06-19](../daily/2026-06-19.md) |
 
 ## Notable Events
 - **2026-03-20** — Dome propped open, room humidifier added to tent after RH consistently below 50% → [2026-03-27 daily](../daily/2026-03-27.md)
@@ -147,6 +148,7 @@ VPD is the control-loop setpoint; RH is informational (temperature determines wh
 - **2026-06-08** — Main-tent lights-on split widened: morning VPD was in range at 1.43 kPa, but now is slightly dry/high at 1.53 kPa while overnight stayed wet/low at 1.10 kPa. The correction remains dark-cycle clearing and flower-pocket airflow, not more lights-on exhaust; breeding current-only data repeated the same wet value again. → [2026-06-08](../daily/2026-06-08.md)
 - **2026-06-09** — Main-tent lights-on VPD recovered into range at 1.41 kPa morning / 1.47 kPa now, but overnight worsened wet/low to 1.01 kPa and current dew point rose to 62.30°F. Preserve lights-on VPD while improving dark-cycle clearing and flower-pocket airflow; breeding current-only data repeated the same wet value again. → [2026-06-09](../daily/2026-06-09.md)
 - **2026-06-10** — Main-tent profile split again: morning VPD was in range at 1.41 kPa, but current VPD is dry/high at 1.62 kPa with the fan at 80% while overnight remains wet/low at 1.10 kPa. Improve dark-cycle clearing and flower-pocket airflow without adding broad lights-on dryness; breeding current-only data repeated the same wet value again. → [2026-06-10](../daily/2026-06-10.md)
+- **2026-06-19** — Main-tent VPD improved to a steadier late-flower profile: 1.18 kPa overnight, 1.43 kPa morning, and 1.49 kPa now. Current dew point is 55.92°F, well below the 2026-06-10 current 61.30°F, but RH still sits above the 40-45% guide, so keep flower-pocket airflow and dead-leaf checks active. Breeding current-only data repeats the same wet 83.28% RH / 0.45 kPa value with no photo. → [2026-06-19](../daily/2026-06-19.md)
 
 ## Deployed Control System
 

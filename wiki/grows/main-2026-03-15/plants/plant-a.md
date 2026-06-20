@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-06-17
+updated: 2026-06-19
 ---
 
 # Plant A
@@ -18,7 +18,7 @@ updated: 2026-06-17
 
 ## Current State
 
-Day 95 / Flower Day 45: Plant A is on an upper-canopy light-stress watch after the highest fan leaves stayed yellow while lower/protected foliage remained dark green. Reservoir pH/EC and tray cycling were acceptable by user report, so the 2026-06-16 correction was to raise the light about 5 inches and set the lung-room AC to 72°F; watch for fresh spread or bud/sugar-leaf bleaching rather than trying to green damaged fan leaves back up. See [2026-06-16 log](../../../log.md#2026-06-16-query-filed--plant-a-upper-canopy-lighttemperature-correction).
+Day 97 / Flower Day 47: `SBBS-R1-001` remains a primary purple keeper candidate with upright visible tops, stable direct moisture near 26.4% rough context, and no obvious bud/sugar-leaf bleaching in today's fan-obstructed view. Continue the upper-canopy light-stress watch from the 2026-06-16 correction and judge recovery by fresh tissue, not already-yellow fan leaves. See [2026-06-19 daily](../../../daily/2026-06-19.md).
 
 ## Timeline
 
@@ -91,3 +91,4 @@ Day 95 / Flower Day 45: Plant A is on an upper-canopy light-stress watch after t
 - 2026-06-10 evening — Plant A current moisture cut over from the old capacitive `plant-a-node` raw stream to `plant-a-substrate-node` RS485 direct `soil_moisture_pct`; old capacitive A-D nodes retired from current operations 2026-06-11.
 - 2026-06-12 — [Day 90 / Flower Day 40: post-flush recovery plan filed; hold EC 0.8-1.0 for 48-72h and only root-zone flush if fresh damage advances](../../../daily/2026-06-12.md)
 - 2026-06-16 — [Day 94 / Flower Day 44: upper fan leaves yellow at the closest light distance; reservoir pH 5.8 / EC 1.1 and tray cycling acceptable; light raised ~5 inches and lung-room AC set to 72°F](../../../log.md#2026-06-16-query-filed--plant-a-upper-canopy-lighttemperature-correction)
+- 2026-06-19 — [Day 97 / Flower Day 47: fan-obstructed view, upright purple tops, stable direct moisture near 26.4%, continue upper-canopy light-stress watch](../../../daily/2026-06-19.md)

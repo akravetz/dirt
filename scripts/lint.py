@@ -267,7 +267,8 @@ KNOWN_MISSING_PHOTOS = {
 
 # ─── check 4: timeline continuity ────────────────────────────────────────────
 
-# Known gaps where no photos or observations were taken.
+# Known gaps where no daily-report entry was produced. Some dates may still have
+# query-filed log updates; those remain in wiki/log.md rather than daily pages.
 # These dates are excluded from the timeline continuity check.
 KNOWN_TIMELINE_GAPS = {
     date(2026, 3, 28),   # No photo/chat data
@@ -282,6 +283,12 @@ KNOWN_TIMELINE_GAPS = {
     date(2026, 4, 16),   # No photo/chat data
     date(2026, 4, 17),   # No photo/chat data
     date(2026, 6, 11),   # No photo/chat data
+    date(2026, 6, 13),   # No daily report/photo set
+    date(2026, 6, 14),   # Query-filed Track A update only
+    date(2026, 6, 15),   # No daily report/photo set
+    date(2026, 6, 16),   # Query-filed Plant A correction only
+    date(2026, 6, 17),   # No daily report/photo set
+    date(2026, 6, 18),   # No daily report/photo set
 }
 
 

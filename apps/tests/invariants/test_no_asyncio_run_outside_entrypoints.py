@@ -23,7 +23,8 @@ Detection (AST):
     _a.run(...)``).
   * Flag if the resolved target is ``asyncio.run`` UNLESS the Call is
     inside an ``if __name__ == "__main__":`` block at module level, or
-    the file is listed in ``COMPOSITION_ROOTS`` from ``_helpers.py``.
+    the file is listed in ``COMPOSITION_ROOTS`` from ``_helpers.py`` or
+    ``ENTRYPOINT_MODULES`` below.
   * ``asyncio.run_coroutine_threadsafe`` is NOT flagged — it's the
     correct way to hand work to an event loop from a C thread and
     doesn't create a new loop.
@@ -37,13 +38,21 @@ from pathlib import Path
 import pytest
 
 from ._helpers import (
-    APPS,
     APPS_ROOT,
     COMPOSITION_ROOTS,
+    STAGE1_GENERIC_APPS,
     build_import_map,
     format_invariant_failure,
     iter_py,
     pkg_src_dir,
+)
+
+ENTRYPOINT_MODULES: frozenset[str] = frozenset(
+    {
+        # bootstrap_gateway.py is invoked by scripts/deploy-control-plane via
+        # `python -m`; it owns the one event loop for that short-lived command.
+        "control-plane/src/dirt_control/bootstrap_gateway.py",
+    }
 )
 
 
@@ -105,7 +114,7 @@ def _violations_in_file(py: Path) -> list[tuple[int, str]]:
     return out
 
 
-@pytest.mark.parametrize("app", APPS)
+@pytest.mark.parametrize("app", STAGE1_GENERIC_APPS)
 def test_no_asyncio_run_outside_entrypoints(app: str) -> None:
     """Production code must not call ``asyncio.run()`` except inside __main__ / composition roots."""
     pkg_dir = pkg_src_dir(app)
@@ -114,7 +123,7 @@ def test_no_asyncio_run_outside_entrypoints(app: str) -> None:
     violations: list[str] = []
     for py in iter_py(pkg_dir):
         rel = str(py.relative_to(APPS_ROOT))
-        if rel in COMPOSITION_ROOTS:
+        if rel in COMPOSITION_ROOTS or rel in ENTRYPOINT_MODULES:
             continue
         for lineno, target in _violations_in_file(py):
             violations.append(f"apps/{rel}:{lineno}  {target}(...)")
@@ -157,7 +166,9 @@ def test_no_asyncio_run_outside_entrypoints(app: str) -> None:
                     "IF the file genuinely is a composition root (for example,\n"
                     "the dirt-hwd app factory), add it to `COMPOSITION_ROOTS` in\n"
                     "apps/tests/invariants/_helpers.py with a WHY comment.\n"
-                    "That list is deliberately short."
+                    "If it is a short-lived command entrypoint that owns the\n"
+                    "process event loop, add it to `ENTRYPOINT_MODULES` in this\n"
+                    "file with a WHY comment. Both lists are deliberately short."
                 ),
                 violations=violations,
             )
