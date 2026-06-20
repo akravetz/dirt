@@ -24,7 +24,7 @@ This rollout must be deployable in isolated pieces. Dirt has a local gateway pro
 - [x] (2026-06-19) Broadened scope to include legacy text `zone_id` and `schedule_id`, explicitly left hosted cloud `site_id` out of scope, and added the `metric_freshness` stale scope-name cleanup.
 - [x] (2026-06-19) Locked command-contract direction: keep one command queue, remove required tent targeting, add an optional hardware target for PTZ-style commands, and keep breeding tent references only inside breeding payloads that actually need them.
 - [x] (2026-06-20) Refreshed plan references after the browser UI refactor audit: added the `/live` PTZ command and breeding pending-command UI touchpoints, included `apps/hwd/src` in the inventory grep, and refreshed current artifact line references.
-- [ ] Milestone 1: add compatibility characterization tests and migration inventory queries for every legacy scoped text path.
+- [x] (2026-06-20) Milestone 1: add compatibility characterization tests and migration inventory queries for every legacy scoped text path.
 - [ ] Milestone 2: expand cloud storage so every table that currently needs text `tent_id`, `zone_id`, or `schedule_id` also has enough source identity to read without it, especially `cloud_asset`.
 - [ ] Milestone 3: make gateway/shared/browser contracts tolerant by marking legacy text fields optional and deprecated while keeping `extra="forbid"`.
 - [ ] Milestone 4: change consumers and storage reads to use source identity only, while producers still write both source and legacy storage fields.
@@ -66,6 +66,9 @@ This rollout must be deployable in isolated pieces. Dirt has a local gateway pro
 - Observation: One local observability path still uses stale scope naming.
   Evidence: `apps/shared/src/dirt_shared/services/readings.py` emits `source_tent_id` in capability freshness scope metadata, while `apps/hwd/src/dirt_hwd/services/metric_freshness.py` still reads and logs `tent_id`.
 
+- Observation: The Milestone 1 characterization tests required the first slice of DTO tolerance to be executable.
+  Evidence: `CatalogTent`, `CatalogZone`, `CatalogSchedule`, `CapturePolicyResponse`, and `ClaimedCommand` now accept missing legacy bridge fields while `CloudContractModel` still uses `extra="forbid"`; no producers, consumers, storage models, or generated browser contracts were cut over in this milestone.
+
 
 ## Decision Log
 
@@ -104,7 +107,7 @@ This rollout must be deployable in isolated pieces. Dirt has a local gateway pro
 
 ## Outcomes & Retrospective
 
-Not started. Update this section at the end of each milestone with what changed, what validation passed, what deploy ordering was proven, and whether any legacy field remains deliberately tolerated.
+- Milestone 1 added shared DTO compatibility tests for legacy scoped text fields and transitional command target shapes, plus non-destructive SQL inventory queries in `docs/epics/cloud-tent-text-retirement/milestone-1-inventory.sql`. Validation passed: `uv run pytest apps/shared/tests/test_cloud_contract.py apps/shared/tests/test_cloud_assets.py apps/shared/tests/test_camera_publisher.py -q` (`34 passed`), `uv run pytest apps/gateway/tests/test_sync.py -q` (`38 passed`), `uv run pytest apps/control-plane/tests/test_api.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py -q` (`59 passed`), `uv run ruff check apps/shared/src/dirt_shared apps/gateway/src/dirt_gateway apps/control-plane/src/dirt_control apps/shared/tests apps/gateway/tests apps/control-plane/tests`, and `git diff --check`.
 
 
 ## Context and Orientation
