@@ -129,7 +129,7 @@ async def enqueue_breeding_command(  # noqa: PLR0913
     session: AsyncSession,
     now: datetime,
     command_type: CommandType,
-    target_tent_id: str,
+    legacy_storage_tent_id: str,
     source_tent_id: int | None,
     payload: BreedingCommandPayload,
 ) -> CommandResponse:
@@ -150,7 +150,7 @@ async def enqueue_breeding_command(  # noqa: PLR0913
         command_id=str(uuid.uuid4()),
         idempotency_key=idempotency_key,
         site_id=settings.default_site_id,
-        tent_id=target_tent_id,
+        tent_id=legacy_storage_tent_id,
         source_tent_id=source_tent_id,
         device_id=None,
         capability_id=None,
@@ -175,7 +175,7 @@ async def enqueue_breeding_command(  # noqa: PLR0913
         subject_id=command.command_id,
         metadata={
             "command_type": command.command_type,
-            "tent_id": command.tent_id,
+            "source_tent_id": command.source_tent_id,
             "device_id": command.device_id,
             "capability_id": command.capability_id,
         },

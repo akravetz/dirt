@@ -375,7 +375,7 @@ async def create_seed_lot_command(
         session=session,
         now=now,
         command_type="breeding_seed_lot_create",
-        target_tent_id=BREEDING_SITE_WIDE_TENT_ID,
+        legacy_storage_tent_id=BREEDING_SITE_WIDE_TENT_ID,
         source_tent_id=None,
         payload=payload,
     )
@@ -412,7 +412,7 @@ async def germinate_plants_command(
         session=session,
         now=now,
         command_type="breeding_plants_germinate",
-        target_tent_id=storage_compat_tent_id(body.source_tent_id),
+        legacy_storage_tent_id=storage_compat_tent_id(body.source_tent_id),
         source_tent_id=body.source_tent_id,
         payload=payload,
     )
@@ -446,7 +446,7 @@ async def clone_plants_command(
         session=session,
         now=now,
         command_type="breeding_plants_clone",
-        target_tent_id=storage_compat_tent_id(body.source_tent_id),
+        legacy_storage_tent_id=storage_compat_tent_id(body.source_tent_id),
         source_tent_id=body.source_tent_id,
         payload=payload,
     )
@@ -471,7 +471,7 @@ async def bulk_sex_plants_command(
         session=session,
         now=now,
         command_type="breeding_plants_bulk_sex",
-        target_tent_id=BREEDING_SITE_WIDE_TENT_ID,
+        legacy_storage_tent_id=BREEDING_SITE_WIDE_TENT_ID,
         source_tent_id=None,
         payload=payload,
     )
@@ -503,7 +503,7 @@ async def bulk_move_plants_command(
         session=session,
         now=now,
         command_type="breeding_plants_bulk_move",
-        target_tent_id=storage_compat_tent_id(body.source_tent_id),
+        legacy_storage_tent_id=storage_compat_tent_id(body.source_tent_id),
         source_tent_id=body.source_tent_id,
         payload=payload,
     )
@@ -528,7 +528,7 @@ async def bulk_cull_plants_command(
         session=session,
         now=now,
         command_type="breeding_plants_bulk_cull",
-        target_tent_id=BREEDING_SITE_WIDE_TENT_ID,
+        legacy_storage_tent_id=BREEDING_SITE_WIDE_TENT_ID,
         source_tent_id=None,
         payload=payload,
     )
@@ -558,7 +558,7 @@ async def create_plant_note_command(  # noqa: PLR0913
         session=session,
         now=now,
         command_type="breeding_plant_note_create",
-        target_tent_id=BREEDING_SITE_WIDE_TENT_ID,
+        legacy_storage_tent_id=BREEDING_SITE_WIDE_TENT_ID,
         source_tent_id=None,
         payload=payload,
     )

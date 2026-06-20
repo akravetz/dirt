@@ -55,7 +55,7 @@ class _Freshness:
     status: str
     last_seen: datetime | None
     site_id: str | None
-    tent_id: str | None
+    source_tent_id: int | None
     device_id: str | None
     capability_id: str | None
     metric: str | None
@@ -68,7 +68,7 @@ class _Transition:
     new: str
     last_seen: datetime | None
     site_id: str | None
-    tent_id: str | None
+    source_tent_id: int | None
     device_id: str | None
     capability_id: str | None
     metric: str | None
@@ -144,7 +144,7 @@ class MetricFreshnessService:
                 status=status,
                 last_seen=last_seen,
                 site_id=scope.get("site_id"),
-                tent_id=scope.get("tent_id"),
+                source_tent_id=scope.get("source_tent_id"),
                 device_id=scope.get("device_id"),
                 capability_id=scope.get("capability_id"),
                 metric=scope.get("metric"),
@@ -170,7 +170,7 @@ class MetricFreshnessService:
             STREAM,
             "state_change",
             site_id=t.site_id,
-            tent_id=t.tent_id,
+            source_tent_id=t.source_tent_id,
             device_id=t.device_id,
             capability_id=t.capability_id,
             metric=t.metric,
@@ -217,7 +217,7 @@ def _diff(
                 new=new,
                 last_seen=freshness.last_seen,
                 site_id=freshness.site_id,
-                tent_id=freshness.tent_id,
+                source_tent_id=freshness.source_tent_id,
                 device_id=freshness.device_id,
                 capability_id=freshness.capability_id,
                 metric=freshness.metric,

@@ -557,9 +557,10 @@ def _cloud_command(
     source_tent_id: int | None = 1,
     device_id: str | None = "obsbot-main",
     capability_id: str | None = "ptz_move",
+    target: dict[str, object] | None = None,
     expires_at: datetime | None = None,
 ) -> dict[str, Any]:
-    return {
+    command = {
         "command_id": command_id,
         "site_id": "homebox",
         "tent_id": tent_id,
@@ -579,6 +580,9 @@ def _cloud_command(
         "result": None,
         "error": None,
     }
+    if target is not None:
+        command["target"] = target
+    return command
 
 
 async def _site_and_tent_pks(
@@ -2037,6 +2041,44 @@ async def test_command_loop_executes_ptz_and_records_local_ledger(
     assert command.result["preset"] == "overview"
 
 
+async def test_command_loop_uses_ptz_target_for_local_scope(
+    app_engine: AsyncEngine,
+):
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command(
+            "cloud-target",
+            source_tent_id=999,
+            device_id="fan-main",
+            capability_id="fan_duty",
+            target={
+                "kind": "ptz",
+                "source_tent_id": 1,
+                "device_id": "obsbot-main",
+                "capability_id": "ptz_move",
+            },
+            payload={"preset_id": "overview"},
+        )
+    ]
+    ptz = RecordingPTZ()
+
+    result = await _command_service(app_engine, cloud, ptz).run_once()
+
+    assert result.executed == 1
+    assert ptz.calls == [("preset", "overview")]
+    async with AsyncSession(app_engine) as session:
+        command = (
+            await session.exec(
+                select(Command).where(
+                    Command.idempotency_key == "cloud-command:cloud-target"
+                )
+            )
+        ).one()
+    assert command.tent_id == 1
+    assert command.device_id is not None
+    assert command.capability_id is not None
+
+
 async def test_command_loop_executes_purchased_seed_lot_create(
     app_engine: AsyncEngine,
 ):
@@ -2282,9 +2324,17 @@ async def test_command_loop_bulk_sex_updates_plants_and_events(
                 select(PlantEvent).where(PlantEvent.is_sex_observation.is_(True))
             )
         ).all()
+        command = (
+            await session.exec(
+                select(Command).where(
+                    Command.idempotency_key == "cloud-command:cloud-sex"
+                )
+            )
+        ).one()
 
     assert {plant.sex_key for plant in plants} == {"female"}
     assert {event.metadata_json["sex_key"] for event in events} >= {"female"}
+    assert command.tent_id is None
 
 
 async def test_command_loop_bulk_move_closes_current_location_and_starts_flower(
@@ -2373,10 +2423,18 @@ async def test_command_loop_bulk_cull_closes_current_location(
                 .where(PlantLocationHistory.end_at.is_(None))
             )
         ).all()
+        command = (
+            await session.exec(
+                select(Command).where(
+                    Command.idempotency_key == "cloud-command:cloud-cull"
+                )
+            )
+        ).one()
 
     assert plant.culled_at == FIXED_NOW
     assert plant.culled_reason == "failed vigor check"
     assert current_locations == []
+    assert command.tent_id is None
 
 
 async def test_command_loop_creates_plant_note_with_cloud_requester(
@@ -2421,6 +2479,7 @@ async def test_command_loop_creates_plant_note_with_cloud_requester(
     assert note.body == "Stem rub is citrus-heavy."
     assert note.created_by == "admin"
     assert command.result["source_note_id"] == note.id
+    assert command.tent_id is None
 
 
 async def test_command_loop_rejects_breeding_with_ptz_target_before_ledger(
@@ -2429,18 +2488,34 @@ async def test_command_loop_rejects_breeding_with_ptz_target_before_ledger(
     cloud = RecordingCloudClient()
     cloud.claimed_commands = [
         _cloud_command(
-            "cloud-breeding-bad-target",
+            "cloud-breeding-bad-flat-target",
             command_type="breeding_plants_bulk_cull",
             payload={"plant_keys": ["missing"], "reason": "bad target"},
             device_id="obsbot-main",
             capability_id="ptz_move",
-        )
+        ),
+        _cloud_command(
+            "cloud-breeding-bad-target",
+            command_type="breeding_plants_bulk_cull",
+            payload={"plant_keys": ["missing"], "reason": "bad target"},
+            device_id=None,
+            capability_id=None,
+            target={
+                "kind": "ptz",
+                "source_tent_id": 1,
+                "device_id": "obsbot-main",
+                "capability_id": "ptz_move",
+            },
+        ),
     ]
 
     result = await _command_service(app_engine, cloud, RecordingPTZ()).run_once()
 
     assert result.executed == 0
-    assert [payload.status for _, payload, _ in cloud.command_results] == ["rejected"]
+    assert [payload.status for _, payload, _ in cloud.command_results] == [
+        "rejected",
+        "rejected",
+    ]
     async with AsyncSession(app_engine) as session:
         commands = (await session.exec(select(Command))).all()
     assert commands == []

@@ -1834,7 +1834,8 @@ async def test_browser_tent_routes_scope_schedules_and_latest_assets_by_path_ten
                 CloudAsset(
                     asset_id="main-latest",
                     site_id="homebox",
-                    tent_id="main",
+                    source_tent_id=1,
+                    tent_id="breeding",
                     object_key="homebox/main/snapshots/latest.jpg",
                     content_type="image/jpeg",
                     byte_size=10,
@@ -1844,7 +1845,8 @@ async def test_browser_tent_routes_scope_schedules_and_latest_assets_by_path_ten
                 CloudAsset(
                     asset_id="breeding-latest",
                     site_id="homebox",
-                    tent_id="breeding",
+                    source_tent_id=2,
+                    tent_id="legacy-breeding",
                     object_key="homebox/breeding/snapshots/latest.jpg",
                     content_type="image/jpeg",
                     byte_size=11,
@@ -2517,9 +2519,12 @@ async def test_breeding_logbook_write_routes_enqueue_typed_commands_idempotently
         assert first.status_code == 201
         assert second.status_code == 201
         assert second.json()["command_id"] == first.json()["command_id"]
-        assert first.json()["device_id"] is None
-        assert first.json()["capability_id"] is None
-        assert first.json()["payload"] == expected_payload
+        first_body = first.json()
+        assert first_body["source_tent_id"] == expected_payload.get("source_tent_id")
+        assert first_body["device_id"] is None
+        assert first_body["capability_id"] is None
+        assert first_body["target"] is None
+        assert first_body["payload"] == expected_payload
         assert datetime.fromisoformat(first.json()["expires_at"]) == (
             FIXED_NOW + timedelta(seconds=3600)
         )
@@ -3634,7 +3639,7 @@ async def test_health_audits_current_metrics_without_device_liveness(
         session.add(
             CloudLatestMetric(
                 site_id="homebox",
-                tent_id="main",
+                tent_id="flower",
                 source_tent_id=1,
                 zone_id="canopy",
                 device_id="env-main",
@@ -3666,9 +3671,9 @@ async def test_health_audits_current_metrics_without_device_liveness(
     assert event.actor_type == "system"
     assert event.site_id == "homebox"
     assert event.subject_type == "cloud_device"
-    assert event.subject_id == "site=homebox;tent=main;device=env-main"
+    assert event.subject_id == "site=homebox;source_tent=1;device=env-main"
     assert event.event_metadata == {
-        "tent_id": "main",
+        "source_tent_id": 1,
         "device_id": "env-main",
         "metrics": ["temperature_f"],
         "capability_ids": ["env-main-temp"],

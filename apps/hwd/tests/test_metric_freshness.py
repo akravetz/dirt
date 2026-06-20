@@ -15,7 +15,7 @@ def test_metric_freshness_transition_uses_device_capability_identity() -> None:
                 status="stale",
                 last_seen=last_seen,
                 site_id="homebox",
-                tent_id="main",
+                source_tent_id=1,
                 device_id="plant-a-node",
                 capability_id="soil_moisture_raw",
                 metric="soil_moisture_raw",
@@ -25,5 +25,6 @@ def test_metric_freshness_transition_uses_device_capability_identity() -> None:
 
     assert len(transitions) == 1
     assert transitions[0].key == "plant-a-node:soil_moisture_raw"
+    assert transitions[0].source_tent_id == 1
     assert transitions[0].device_id == "plant-a-node"
     assert transitions[0].capability_id == "soil_moisture_raw"
