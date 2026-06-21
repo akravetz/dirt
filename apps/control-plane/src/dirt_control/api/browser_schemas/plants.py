@@ -19,6 +19,7 @@ class PlantSummaryResponse(BrowserResponse):
     name: str
     grid_position: str | None
     germinated_at: datetime | None
+    taken_at: datetime | None
     rooted_at: datetime | None
     veg_started_at: datetime | None
     flower_started_at: datetime | None
@@ -112,6 +113,7 @@ class PlantDetailResponse(BrowserResponse):
     grid_position: str | None
     current_location: PlantCurrentLocationResponse
     germinated_at: datetime | None
+    taken_at: datetime | None
     rooted_at: datetime | None
     veg_started_at: datetime | None
     flower_started_at: datetime | None

@@ -1570,6 +1570,18 @@
             "title": "Current Tent Name",
             "type": "string"
           },
+          "flower_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flower Started At"
+          },
           "flower_started_on": {
             "anyOf": [
               {
@@ -1585,6 +1597,18 @@
           "generation": {
             "title": "Generation",
             "type": "string"
+          },
+          "germinated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Germinated At"
           },
           "germinated_on": {
             "anyOf": [
@@ -1613,6 +1637,10 @@
             "title": "Id",
             "type": "string"
           },
+          "is_clone": {
+            "title": "Is Clone",
+            "type": "boolean"
+          },
           "key": {
             "title": "Key",
             "type": "string"
@@ -1628,6 +1656,30 @@
           "parents_label": {
             "title": "Parents Label",
             "type": "string"
+          },
+          "rooted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rooted At"
+          },
+          "rooted_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rooted On"
           },
           "seed_lot_label": {
             "title": "Seed Lot Label",
@@ -1660,9 +1712,45 @@
             "title": "Stage Key",
             "type": "string"
           },
+          "taken_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taken At"
+          },
+          "taken_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taken On"
+          },
           "telemetry_summary": {
             "title": "Telemetry Summary",
             "type": "string"
+          },
+          "veg_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Veg Started At"
           },
           "veg_started_on": {
             "anyOf": [
@@ -1686,8 +1774,16 @@
           "sex_key",
           "stage_key",
           "stage_day",
+          "is_clone",
+          "germinated_at",
           "germinated_on",
+          "taken_at",
+          "taken_on",
+          "rooted_at",
+          "rooted_on",
+          "veg_started_at",
           "veg_started_on",
+          "flower_started_at",
           "flower_started_on",
           "culled_on",
           "current_tent_id",
@@ -1804,6 +1900,7 @@
             "enum": [
               "sex_key",
               "germinated_at",
+              "taken_at",
               "rooted_at",
               "veg_started_at",
               "flower_started_at"
@@ -2335,6 +2432,18 @@
             ],
             "title": "Source Seed Lot Id"
           },
+          "taken_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taken At"
+          },
           "veg_started_at": {
             "anyOf": [
               {
@@ -2357,6 +2466,7 @@
           "key",
           "name",
           "germinated_at",
+          "taken_at",
           "rooted_at",
           "veg_started_at",
           "flower_started_at",
@@ -4868,6 +4978,18 @@
             "title": "Site Id",
             "type": "string"
           },
+          "taken_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taken At"
+          },
           "telemetry": {
             "items": {
               "$ref": "#/components/schemas/PlantMetricStreamResponse"
@@ -4915,6 +5037,7 @@
           "grid_position",
           "current_location",
           "germinated_at",
+          "taken_at",
           "rooted_at",
           "veg_started_at",
           "flower_started_at",
@@ -5619,6 +5742,18 @@
             "title": "Site Id",
             "type": "string"
           },
+          "taken_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taken At"
+          },
           "telemetry_stream_count": {
             "title": "Telemetry Stream Count",
             "type": "integer"
@@ -5648,6 +5783,7 @@
           "name",
           "grid_position",
           "germinated_at",
+          "taken_at",
           "rooted_at",
           "veg_started_at",
           "flower_started_at",

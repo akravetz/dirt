@@ -54,7 +54,24 @@ const THEME_STORAGE_KEY = "dirt.theme";
 type Theme = "light" | "dark";
 type AddPlantMode = "germinate" | "clone";
 type BulkDateField = "veg_started_at" | "flower_started_at";
-type DetailFactPanel = "sex" | "veg" | "flower" | null;
+type DetailDateFactField =
+  | "germinated_at"
+  | "taken_at"
+  | "rooted_at"
+  | "veg_started_at"
+  | "flower_started_at";
+type DetailFactsDraft = {
+  sexKey: PlantSexKey;
+  germinatedAt: string;
+  takenAt: string;
+  rootedAt: string;
+  vegStartedAt: string;
+  flowerStartedAt: string;
+};
+type DetailFactsDraftDateKey = Exclude<keyof DetailFactsDraft, "sexKey">;
+type DetailFactUpdate =
+  | { field: "sex_key"; value: PlantSexKey }
+  | { field: DetailDateFactField; value: string | null };
 
 type AddSeedLotDraft = {
   source: SeedLotSource;
@@ -110,6 +127,14 @@ const initialSeedLotDraft: AddSeedLotDraft = {
   strain: "",
   breeder: "",
 };
+const EMPTY_DETAIL_FACTS_DRAFT: DetailFactsDraft = {
+  sexKey: "unknown",
+  germinatedAt: "",
+  takenAt: "",
+  rootedAt: "",
+  vegStartedAt: "",
+  flowerStartedAt: "",
+};
 
 function readStoredTheme(): Theme {
   const raw = storage.get(THEME_STORAGE_KEY);
@@ -142,9 +167,10 @@ export function BreedingLogbookPage(): ReactNode {
   const [cloneLocationKey, setCloneLocationKey] = useState(1);
   const [cloneTakenAt, setCloneTakenAt] = useState(datetimeLocalNow);
   const [detailPlantKey, setDetailPlantKey] = useState("");
-  const [detailFactPanel, setDetailFactPanel] = useState<DetailFactPanel>(null);
-  const [detailFactSex, setDetailFactSex] = useState<PlantSexKey>("unknown");
-  const [detailFactDate, setDetailFactDate] = useState(datetimeLocalNow);
+  const [detailFactsEditing, setDetailFactsEditing] = useState(false);
+  const [detailFactsDraft, setDetailFactsDraft] = useState<DetailFactsDraft>(
+    EMPTY_DETAIL_FACTS_DRAFT,
+  );
   const [bulkNotePlantKeys, setBulkNotePlantKeys] = useState<readonly string[] | null>(
     null,
   );
@@ -228,7 +254,7 @@ export function BreedingLogbookPage(): ReactNode {
 
   const openDetail = (plantKey: string) => {
     setBulkNotePlantKeys(null);
-    setDetailFactPanel(null);
+    setDetailFactsEditing(false);
     setDetailPlantKey(plantKey);
     setView("detail");
   };
@@ -255,7 +281,7 @@ export function BreedingLogbookPage(): ReactNode {
         onThemeChange={setTheme}
         onViewChange={(nextView) => {
           setBulkNotePlantKeys(null);
-          setDetailFactPanel(null);
+          setDetailFactsEditing(false);
           setView(nextView);
         }}
       />
@@ -547,9 +573,8 @@ export function BreedingLogbookPage(): ReactNode {
             factActionsDisabled={
               detailPlantHasPendingCommand || updatePlantFactsMutation.isPending
             }
-            factDate={detailFactDate}
-            factPanel={detailFactPanel}
-            factSex={detailFactSex}
+            factsDraft={detailFactsDraft}
+            factsEditing={detailFactsEditing}
             factsMutationError={mutationErrorText(updatePlantFactsMutation.error)}
             factsMutationPending={updatePlantFactsMutation.isPending}
             maxEventDateTime={maxEventDateTime}
@@ -564,38 +589,17 @@ export function BreedingLogbookPage(): ReactNode {
             )}
             onBack={() => {
               setBulkNotePlantKeys(null);
-              setDetailFactPanel(null);
+              setDetailFactsEditing(false);
               setView("plants");
             }}
-            onClearFactDate={(field) => {
-              updatePlantFactsMutation.mutate(
-                {
-                  idempotencyKey:
-                    createBreedingLogbookIdempotencyKey("plant-clear-facts"),
-                  plantKeys: [detail.plant.key],
-                  updates: [{ field, value: null }],
-                },
-                {
-                  onSuccess: () => {
-                    setDetailFactPanel(null);
-                  },
-                },
-              );
+            onCancelFactsEdit={() => {
+              setDetailFactsEditing(false);
             }}
-            onFactDateChange={setDetailFactDate}
-            onFactPanelChange={(panel) => {
-              if (panel === "sex") {
-                setDetailFactSex(detail.plant.sexKey);
-              } else if (panel === "veg") {
-                setDetailFactDate(datetimeLocalFromDateOnly(detail.plant.vegStartedOn));
-              } else if (panel === "flower") {
-                setDetailFactDate(
-                  datetimeLocalFromDateOnly(detail.plant.flowerStartedOn),
-                );
-              }
-              setDetailFactPanel(panel);
+            onFactsDraftChange={setDetailFactsDraft}
+            onStartFactsEdit={() => {
+              setDetailFactsDraft(detailFactsDraftFromPlant(detail.plant));
+              setDetailFactsEditing(true);
             }}
-            onFactSexChange={setDetailFactSex}
             onLogNote={() => {
               const body = noteText.trim();
               if (body.length === 0 || noteTargetPlantKeys.length === 0) return;
@@ -617,37 +621,28 @@ export function BreedingLogbookPage(): ReactNode {
               );
             }}
             onNoteTextChange={setNoteText}
-            onSaveFactDate={(field) => {
-              if (!canSubmitEventDateTime(detailFactDate, maxEventDateTime)) {
+            onSaveFacts={() => {
+              if (
+                !canSaveDetailFactsDraft(
+                  detail.plant,
+                  detailFactsDraft,
+                  maxEventDateTime,
+                )
+              ) {
                 return;
               }
-              const dateUtc = datetimeLocalToUtcIso(detailFactDate);
-              if (dateUtc === null) return;
+              const updates = detailFactUpdates(detail.plant, detailFactsDraft);
+              if (updates.length === 0) return;
               updatePlantFactsMutation.mutate(
                 {
                   idempotencyKey:
                     createBreedingLogbookIdempotencyKey("plant-update-facts"),
                   plantKeys: [detail.plant.key],
-                  updates: [{ field, value: dateUtc }],
+                  updates,
                 },
                 {
                   onSuccess: () => {
-                    setDetailFactPanel(null);
-                  },
-                },
-              );
-            }}
-            onSaveFactSex={() => {
-              updatePlantFactsMutation.mutate(
-                {
-                  idempotencyKey:
-                    createBreedingLogbookIdempotencyKey("plant-update-sex"),
-                  plantKeys: [detail.plant.key],
-                  updates: [{ field: "sex_key", value: detailFactSex }],
-                },
-                {
-                  onSuccess: () => {
-                    setDetailFactPanel(null);
+                    setDetailFactsEditing(false);
                   },
                 },
               );
@@ -2168,9 +2163,8 @@ function AddPlantsSurface({
 function PlantJournalDetail({
   detail,
   factActionsDisabled,
-  factDate,
-  factPanel,
-  factSex,
+  factsDraft,
+  factsEditing,
   factsMutationError,
   factsMutationPending,
   maxEventDateTime,
@@ -2179,21 +2173,18 @@ function PlantJournalDetail({
   noteTargetCount,
   noteText,
   onBack,
-  onClearFactDate,
-  onFactDateChange,
-  onFactPanelChange,
-  onFactSexChange,
+  onCancelFactsEdit,
+  onFactsDraftChange,
   onLogNote,
   onNoteTextChange,
-  onSaveFactDate,
-  onSaveFactSex,
+  onSaveFacts,
+  onStartFactsEdit,
   pendingNotes,
 }: {
   detail: PlantDetail;
   factActionsDisabled: boolean;
-  factDate: string;
-  factPanel: DetailFactPanel;
-  factSex: PlantSexKey;
+  factsDraft: DetailFactsDraft;
+  factsEditing: boolean;
   factsMutationError: string | null;
   factsMutationPending: boolean;
   maxEventDateTime: string;
@@ -2202,14 +2193,12 @@ function PlantJournalDetail({
   noteTargetCount: number;
   noteText: string;
   onBack: () => void;
-  onClearFactDate: (field: "veg_started_at" | "flower_started_at") => void;
-  onFactDateChange: (value: string) => void;
-  onFactPanelChange: (panel: DetailFactPanel) => void;
-  onFactSexChange: (sex: PlantSexKey) => void;
+  onCancelFactsEdit: () => void;
+  onFactsDraftChange: (draft: DetailFactsDraft) => void;
   onLogNote: () => void;
   onNoteTextChange: (text: string) => void;
-  onSaveFactDate: (field: "veg_started_at" | "flower_started_at") => void;
-  onSaveFactSex: () => void;
+  onSaveFacts: () => void;
+  onStartFactsEdit: () => void;
   pendingNotes: readonly PendingTimelineNote[];
 }): ReactNode {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
@@ -2238,42 +2227,33 @@ function PlantJournalDetail({
             <Fact label="Generation" value={detail.plant.generation} />
             <Fact label="Sex" value={sexLabel(detail.plant.sexKey)} />
             <Fact
-              label="Germinated"
-              value={
-                detail.plant.germinatedOn ? shortDate(detail.plant.germinatedOn) : "-"
-              }
+              label={detail.plant.isClone ? "Taken" : "Germinated"}
+              value={shortDateOrDash(
+                detail.plant.isClone ? detail.plant.takenOn : detail.plant.germinatedOn,
+              )}
             />
-            <Fact
-              label="Vegged"
-              value={
-                detail.plant.vegStartedOn ? shortDate(detail.plant.vegStartedOn) : "-"
-              }
-            />
+            {detail.plant.isClone ? (
+              <Fact label="Rooted" value={shortDateOrDash(detail.plant.rootedOn)} />
+            ) : null}
+            <Fact label="Vegged" value={shortDateOrDash(detail.plant.vegStartedOn)} />
             <Fact
               label="Flowered"
-              value={
-                detail.plant.flowerStartedOn
-                  ? shortDate(detail.plant.flowerStartedOn)
-                  : "-"
-              }
+              value={shortDateOrDash(detail.plant.flowerStartedOn)}
             />
             <Fact label="Location" value={formatPlantLocation(detail.plant)} />
           </div>
           <PlantFactsEditor
             disabled={factActionsDisabled}
-            factDate={factDate}
-            factPanel={factPanel}
-            factSex={factSex}
+            draft={factsDraft}
+            editing={factsEditing}
             maxEventDateTime={maxEventDateTime}
             mutationError={factsMutationError}
             mutationPending={factsMutationPending}
             plant={detail.plant}
-            onClearDate={onClearFactDate}
-            onDateChange={onFactDateChange}
-            onPanelChange={onFactPanelChange}
-            onSaveDate={onSaveFactDate}
-            onSaveSex={onSaveFactSex}
-            onSexChange={onFactSexChange}
+            onCancel={onCancelFactsEdit}
+            onDraftChange={onFactsDraftChange}
+            onEdit={onStartFactsEdit}
+            onSave={onSaveFacts}
           />
           <div className="mt-4 border border-rule bg-paper p-3">
             <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
@@ -2371,35 +2351,35 @@ function PlantJournalDetail({
 
 function PlantFactsEditor({
   disabled,
-  factDate,
-  factPanel,
-  factSex,
+  draft,
+  editing,
   maxEventDateTime,
   mutationError,
   mutationPending,
-  onClearDate,
-  onDateChange,
-  onPanelChange,
-  onSaveDate,
-  onSaveSex,
-  onSexChange,
+  onCancel,
+  onDraftChange,
+  onEdit,
+  onSave,
   plant,
 }: {
   disabled: boolean;
-  factDate: string;
-  factPanel: DetailFactPanel;
-  factSex: PlantSexKey;
+  draft: DetailFactsDraft;
+  editing: boolean;
   maxEventDateTime: string;
   mutationError: string | null;
   mutationPending: boolean;
   plant: PlantRow;
-  onClearDate: (field: "veg_started_at" | "flower_started_at") => void;
-  onDateChange: (value: string) => void;
-  onPanelChange: (panel: DetailFactPanel) => void;
-  onSaveDate: (field: "veg_started_at" | "flower_started_at") => void;
-  onSaveSex: () => void;
-  onSexChange: (sex: PlantSexKey) => void;
+  onCancel: () => void;
+  onDraftChange: (draft: DetailFactsDraft) => void;
+  onEdit: () => void;
+  onSave: () => void;
 }): ReactNode {
+  const saveDisabled =
+    disabled || !canSaveDetailFactsDraft(plant, draft, maxEventDateTime);
+  const updateDraft = (patch: Partial<DetailFactsDraft>) => {
+    onDraftChange({ ...draft, ...patch });
+  };
+
   return (
     <div className="mt-4 border border-rule bg-paper p-3">
       <div className="flex items-center justify-between gap-2">
@@ -2410,130 +2390,166 @@ function PlantFactsEditor({
           <p className="font-mono text-fs-9 uppercase tracking-caps text-status-warn">
             queueing
           </p>
-        ) : null}
+        ) : editing ? null : (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={onEdit}
+            className="border border-rule px-2 py-1 font-mono text-fs-9 uppercase tracking-caps text-ink-3 transition hover:border-rule-strong hover:text-ink disabled:cursor-not-allowed disabled:text-ink-3"
+          >
+            Edit
+          </button>
+        )}
       </div>
-      <div className="mt-2 grid gap-px bg-rule">
-        <FactEditRow
-          active={factPanel === "sex"}
-          disabled={disabled}
-          label="Sex"
-          value={sexLabel(plant.sexKey)}
-          onClick={() => {
-            onPanelChange(factPanel === "sex" ? null : "sex");
-          }}
-        />
-        <FactEditRow
-          active={factPanel === "veg"}
-          disabled={disabled}
-          label="Veg"
-          value={plant.vegStartedOn ? shortDate(plant.vegStartedOn) : "-"}
-          onClick={() => {
-            onPanelChange(factPanel === "veg" ? null : "veg");
-          }}
-        />
-        <FactEditRow
-          active={factPanel === "flower"}
-          disabled={disabled}
-          label="Flower"
-          value={plant.flowerStartedOn ? shortDate(plant.flowerStartedOn) : "-"}
-          onClick={() => {
-            onPanelChange(factPanel === "flower" ? null : "flower");
-          }}
-        />
-      </div>
-      {factPanel === "sex" ? (
+      {editing ? (
         <div className="mt-3 grid gap-3 border-t border-rule pt-3">
-          <Segmented
+          <SelectField
             label="Sex"
             options={[
-              { label: "♂ Male", value: "male" },
-              { label: "♀ Female", value: "female" },
-              { label: "Unknown", value: "unknown" },
+              { label: "Unsexed", value: "unknown" },
+              { label: "Male", value: "male" },
+              { label: "Female", value: "female" },
               { label: "Herm", value: "herm" },
               { label: "Reversed", value: "reversed" },
             ]}
-            value={factSex}
-            onChange={onSexChange}
+            value={draft.sexKey}
+            onChange={(sexKey) => {
+              updateDraft({ sexKey });
+            }}
           />
-          <div className="flex flex-wrap justify-end gap-2">
+          <div className="grid gap-2">
+            {plant.isClone ? (
+              <>
+                <FactDateEditRow
+                  label="Taken"
+                  max={maxEventDateTime}
+                  value={draft.takenAt}
+                  onChange={(takenAt) => {
+                    updateDraft({ takenAt });
+                  }}
+                />
+                <FactDateEditRow
+                  label="Rooted"
+                  max={maxEventDateTime}
+                  value={draft.rootedAt}
+                  onChange={(rootedAt) => {
+                    updateDraft({ rootedAt });
+                  }}
+                />
+              </>
+            ) : (
+              <FactDateEditRow
+                label="Germ"
+                max={maxEventDateTime}
+                value={draft.germinatedAt}
+                onChange={(germinatedAt) => {
+                  updateDraft({ germinatedAt });
+                }}
+              />
+            )}
+            <FactDateEditRow
+              label="Veg"
+              max={maxEventDateTime}
+              value={draft.vegStartedAt}
+              onChange={(vegStartedAt) => {
+                updateDraft({ vegStartedAt });
+              }}
+            />
+            <FactDateEditRow
+              label="Flower"
+              max={maxEventDateTime}
+              value={draft.flowerStartedAt}
+              onChange={(flowerStartedAt) => {
+                updateDraft({ flowerStartedAt });
+              }}
+            />
+          </div>
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-rule pt-3">
             {mutationError ? <InlineError text={mutationError} /> : null}
-            <Button variant="primary" disabled={disabled} onClick={onSaveSex}>
-              Save sex
+            <Button variant="secondary" disabled={disabled} onClick={onCancel}>
+              Cancel
+            </Button>
+            <Button variant="primary" disabled={saveDisabled} onClick={onSave}>
+              Save changes
             </Button>
           </div>
         </div>
-      ) : null}
-      {factPanel === "veg" || factPanel === "flower" ? (
-        <div className="mt-3 grid gap-3 border-t border-rule pt-3">
-          <DateTimeField
-            label={factPanel === "veg" ? "Veg started" : "Flower started"}
-            max={maxEventDateTime}
-            value={factDate}
-            onChange={onDateChange}
-          />
-          <div className="flex flex-wrap justify-end gap-2">
-            {mutationError ? <InlineError text={mutationError} /> : null}
-            <Button
-              variant="secondary"
-              disabled={disabled}
-              onClick={() => {
-                onClearDate(
-                  factPanel === "veg" ? "veg_started_at" : "flower_started_at",
-                );
-              }}
-            >
-              Clear
-            </Button>
-            <Button
-              variant="primary"
-              disabled={disabled || !canSubmitEventDateTime(factDate, maxEventDateTime)}
-              onClick={() => {
-                onSaveDate(
-                  factPanel === "veg" ? "veg_started_at" : "flower_started_at",
-                );
-              }}
-            >
-              Save date
-            </Button>
-          </div>
+      ) : (
+        <div className="mt-2 grid gap-px bg-rule">
+          <FactReadRow label="Sex" value={sexLabel(plant.sexKey)} />
+          {plant.isClone ? (
+            <>
+              <FactReadRow label="Taken" value={shortDateOrDash(plant.takenOn)} />
+              <FactReadRow label="Rooted" value={shortDateOrDash(plant.rootedOn)} />
+            </>
+          ) : (
+            <FactReadRow label="Germ" value={shortDateOrDash(plant.germinatedOn)} />
+          )}
+          <FactReadRow label="Veg" value={shortDateOrDash(plant.vegStartedOn)} />
+          <FactReadRow label="Flower" value={shortDateOrDash(plant.flowerStartedOn)} />
         </div>
-      ) : null}
+      )}
       {disabled && !mutationPending ? <PendingBlockMessage /> : null}
     </div>
   );
 }
 
-function FactEditRow({
-  active,
-  disabled,
-  label,
-  onClick,
-  value,
-}: {
-  active: boolean;
-  disabled: boolean;
-  label: string;
-  onClick: () => void;
-  value: string;
-}): ReactNode {
+function FactReadRow({ label, value }: { label: string; value: string }): ReactNode {
   return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={
-        active
-          ? "flex items-center justify-between gap-3 bg-paper-2 px-3 py-2 text-left transition disabled:cursor-not-allowed"
-          : "flex items-center justify-between gap-3 bg-paper px-3 py-2 text-left transition hover:bg-paper-2 disabled:cursor-not-allowed"
-      }
-    >
+    <div className="grid min-h-9 grid-cols-[72px_minmax(0,1fr)] items-center gap-2 bg-paper-2 px-3 py-2">
       <span className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
         {label}
       </span>
-      <span className="truncate font-mono text-fs-10 uppercase tracking-caps text-ink">
+      <span className="truncate text-right font-sans text-fs-12 font-semibold text-ink">
         {value}
       </span>
-    </button>
+    </div>
+  );
+}
+
+function FactDateEditRow({
+  label,
+  max,
+  onChange,
+  value,
+}: {
+  label: string;
+  max: string;
+  onChange: (value: string) => void;
+  value: string;
+}): ReactNode {
+  const invalid = value.length > 0 && !canSubmitEventDateTime(value, max);
+  return (
+    <div className="grid gap-1">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+          {label}
+        </span>
+        <button
+          type="button"
+          disabled={value.length === 0}
+          onClick={() => {
+            onChange("");
+          }}
+          className="font-mono text-fs-9 uppercase tracking-caps text-ink-3 transition hover:text-ink disabled:text-ink-3"
+        >
+          Clear
+        </button>
+      </div>
+      <input
+        type="datetime-local"
+        max={max}
+        value={value}
+        onChange={(event) => {
+          onChange(event.target.value);
+        }}
+        className={
+          invalid
+            ? "h-9 w-full border border-status-err bg-paper px-2 font-sans text-fs-12 text-ink"
+            : "h-9 w-full border border-rule bg-paper px-2 font-sans text-fs-12 text-ink"
+        }
+      />
+    </div>
   );
 }
 
@@ -2655,7 +2671,7 @@ function Segmented<TValue extends string>({
       <span className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
         {label}
       </span>
-      <div className="flex border border-rule bg-paper">
+      <div className="flex max-w-full flex-wrap gap-px bg-rule">
         {options.map((option) => (
           <button
             key={option.value}
@@ -2665,8 +2681,8 @@ function Segmented<TValue extends string>({
             }}
             className={
               option.value === value
-                ? "border-r border-rule bg-paper-2 px-2.5 py-1.5 font-mono text-fs-10 uppercase tracking-caps text-ink last:border-r-0"
-                : "border-r border-rule px-2.5 py-1.5 font-mono text-fs-10 uppercase tracking-caps text-ink-3 transition last:border-r-0 hover:text-ink"
+                ? "bg-paper-2 px-2.5 py-1.5 font-mono text-fs-10 uppercase tracking-caps text-ink"
+                : "bg-paper px-2.5 py-1.5 font-mono text-fs-10 uppercase tracking-caps text-ink-3 transition hover:text-ink"
             }
           >
             {option.label}
@@ -2995,12 +3011,113 @@ function shortDate(value: string): string {
   return value.slice(5);
 }
 
+function shortDateOrDash(value: string | null): string {
+  return value === null ? "-" : shortDate(value);
+}
+
+function detailFactsDraftFromPlant(plant: PlantRow): DetailFactsDraft {
+  return {
+    sexKey: plant.sexKey,
+    germinatedAt: datetimeLocalFromOptionalFact(plant.germinatedAt, plant.germinatedOn),
+    takenAt: datetimeLocalFromOptionalFact(plant.takenAt, plant.takenOn),
+    rootedAt: datetimeLocalFromOptionalFact(plant.rootedAt, plant.rootedOn),
+    vegStartedAt: datetimeLocalFromOptionalFact(plant.vegStartedAt, plant.vegStartedOn),
+    flowerStartedAt: datetimeLocalFromOptionalFact(
+      plant.flowerStartedAt,
+      plant.flowerStartedOn,
+    ),
+  };
+}
+
+function canSaveDetailFactsDraft(
+  plant: PlantRow,
+  draft: DetailFactsDraft,
+  maxEventDateTime: string,
+): boolean {
+  return (
+    detailFactsDraftDatesValid(plant, draft, maxEventDateTime) &&
+    detailFactUpdates(plant, draft).length > 0
+  );
+}
+
+function detailFactsDraftDatesValid(
+  plant: PlantRow,
+  draft: DetailFactsDraft,
+  maxEventDateTime: string,
+): boolean {
+  return detailFactDateDraftFields(plant).every((field) => {
+    const value = draft[field];
+    return value.length === 0 || canSubmitEventDateTime(value, maxEventDateTime);
+  });
+}
+
+function detailFactUpdates(
+  plant: PlantRow,
+  draft: DetailFactsDraft,
+): DetailFactUpdate[] {
+  const current = detailFactsDraftFromPlant(plant);
+  const updates: DetailFactUpdate[] = [];
+  if (draft.sexKey !== current.sexKey) {
+    updates.push({ field: "sex_key", value: draft.sexKey });
+  }
+  for (const field of detailFactDateDraftFields(plant)) {
+    if (draft[field] === current[field]) continue;
+    const value = dateFactValueFromDraft(draft[field]);
+    if (value !== undefined) {
+      updates.push({ field: detailDateFieldFromDraftKey(field), value });
+    }
+  }
+  return updates;
+}
+
+function detailFactDateDraftFields(
+  plant: PlantRow,
+): readonly DetailFactsDraftDateKey[] {
+  return plant.isClone
+    ? ["takenAt", "rootedAt", "vegStartedAt", "flowerStartedAt"]
+    : ["germinatedAt", "vegStartedAt", "flowerStartedAt"];
+}
+
+function detailDateFieldFromDraftKey(
+  field: DetailFactsDraftDateKey,
+): DetailDateFactField {
+  if (field === "germinatedAt") return "germinated_at";
+  if (field === "takenAt") return "taken_at";
+  if (field === "rootedAt") return "rooted_at";
+  if (field === "vegStartedAt") return "veg_started_at";
+  return "flower_started_at";
+}
+
+function dateFactValueFromDraft(value: string): string | null | undefined {
+  if (value.length === 0) return null;
+  return datetimeLocalToUtcIso(value) ?? undefined;
+}
+
 function datetimeLocalNow(): string {
   return dateToDatetimeLocal(new Date());
 }
 
 function datetimeLocalFromDateOnly(value: string | null): string {
   return value === null ? datetimeLocalNow() : `${value}T12:00`;
+}
+
+function datetimeLocalFromIsoOrDateOnly(
+  timestamp: string | null,
+  dateOnly: string | null,
+): string {
+  if (timestamp === null) return datetimeLocalFromDateOnly(dateOnly);
+  const parsed = new Date(timestamp);
+  return Number.isNaN(parsed.getTime())
+    ? datetimeLocalFromDateOnly(dateOnly)
+    : dateToDatetimeLocal(parsed);
+}
+
+function datetimeLocalFromOptionalFact(
+  timestamp: string | null,
+  dateOnly: string | null,
+): string {
+  if (timestamp === null && dateOnly === null) return "";
+  return datetimeLocalFromIsoOrDateOnly(timestamp, dateOnly);
 }
 
 function dateToDatetimeLocal(value: Date): string {

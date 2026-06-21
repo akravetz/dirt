@@ -373,8 +373,27 @@ class CloudPlant(SQLModel, table=True):
     germinated_at: datetime | None = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
+    taken_at: datetime | None = Field(
+        default=None,
+        sa_column=Column(
+            DateTime(timezone=True),
+            nullable=True,
+            comment=(
+                "Timestamp when a cutting was taken from its mother plant; clone "
+                "propagation fact independent from rooting."
+            ),
+        ),
+    )
     rooted_at: datetime | None = Field(
-        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+        default=None,
+        sa_column=Column(
+            DateTime(timezone=True),
+            nullable=True,
+            comment=(
+                "Timestamp when a clone cutting was observed rooted; independent "
+                "from when the cutting was taken."
+            ),
+        ),
     )
     veg_started_at: datetime | None = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)

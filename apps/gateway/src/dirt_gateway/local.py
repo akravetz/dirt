@@ -449,6 +449,7 @@ class GatewayLocalServiceBundle:
                 key=plant.key,
                 name=plant.name,
                 germinated_at=plant.germinated_at,
+                taken_at=plant.taken_at,
                 rooted_at=plant.rooted_at,
                 veg_started_at=plant.veg_started_at,
                 flower_started_at=plant.flower_started_at,

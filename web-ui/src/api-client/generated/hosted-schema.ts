@@ -1118,16 +1118,22 @@ export interface components {
       current_tent_id: number;
       /** Current Tent Name */
       current_tent_name: string;
+      /** Flower Started At */
+      flower_started_at: string | null;
       /** Flower Started On */
       flower_started_on: string | null;
       /** Generation */
       generation: string;
+      /** Germinated At */
+      germinated_at: string | null;
       /** Germinated On */
       germinated_on: string | null;
       /** Grid Position */
       grid_position: string | null;
       /** Id */
       id: string;
+      /** Is Clone */
+      is_clone: boolean;
       /** Key */
       key: string;
       /** Last Note */
@@ -1136,6 +1142,10 @@ export interface components {
       name: string;
       /** Parents Label */
       parents_label: string;
+      /** Rooted At */
+      rooted_at: string | null;
+      /** Rooted On */
+      rooted_on: string | null;
       /** Seed Lot Label */
       seed_lot_label: string;
       /**
@@ -1150,8 +1160,14 @@ export interface components {
        * @enum {string}
        */
       stage_key: "germinating" | "veg" | "flower" | "breeding" | "harvested" | "culled";
+      /** Taken At */
+      taken_at: string | null;
+      /** Taken On */
+      taken_on: string | null;
       /** Telemetry Summary */
       telemetry_summary: string;
+      /** Veg Started At */
+      veg_started_at: string | null;
       /** Veg Started On */
       veg_started_on: string | null;
     };
@@ -1200,6 +1216,7 @@ export interface components {
       field:
         | "sex_key"
         | "germinated_at"
+        | "taken_at"
         | "rooted_at"
         | "veg_started_at"
         | "flower_started_at";
@@ -1349,6 +1366,8 @@ export interface components {
       source_plant_id: number;
       /** Source Seed Lot Id */
       source_seed_lot_id: number | null;
+      /** Taken At */
+      taken_at: string | null;
       /** Veg Started At */
       veg_started_at: string | null;
     };
@@ -2228,6 +2247,8 @@ export interface components {
       sex_key: "unknown" | "male" | "female" | "herm" | "reversed";
       /** Site Id */
       site_id: string;
+      /** Taken At */
+      taken_at: string | null;
       /** Telemetry */
       telemetry: components["schemas"]["PlantMetricStreamResponse"][];
       /** Telemetry Stream Count */
@@ -2445,6 +2466,8 @@ export interface components {
       sex_key: "unknown" | "male" | "female" | "herm" | "reversed";
       /** Site Id */
       site_id: string;
+      /** Taken At */
+      taken_at: string | null;
       /** Telemetry Stream Count */
       telemetry_stream_count: number;
       /** Veg Started At */

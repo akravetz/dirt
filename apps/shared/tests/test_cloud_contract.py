@@ -176,6 +176,7 @@ def test_catalog_plant_requires_nullable_wire_fields() -> None:
         "key": "SBBS-R1-001",
         "name": "Plant A",
         "germinated_at": "2026-03-15T12:00:00Z",
+        "taken_at": None,
         "rooted_at": None,
         "veg_started_at": None,
         "flower_started_at": None,
@@ -196,6 +197,7 @@ def test_catalog_plant_requires_nullable_wire_fields() -> None:
         "sex_key",
         "source_seed_lot_id",
         "clone_source_plant_id",
+        "taken_at",
         "rooted_at",
         "culled_reason",
     ):
@@ -684,6 +686,8 @@ def test_command_claim_response_uses_explicit_breeding_payload_models() -> None:
             payload={
                 "plant_keys": ["SBBS-R1-001", "SBBS-R1-002"],
                 "updates": [
+                    {"field": "taken_at", "value": "2026-06-18T16:00:00Z"},
+                    {"field": "rooted_at", "value": "2026-06-19T16:00:00Z"},
                     {"field": "veg_started_at", "value": "2026-06-20T16:00:00Z"},
                     {"field": "sex_key", "value": "female"},
                     {"field": "flower_started_at", "value": None},

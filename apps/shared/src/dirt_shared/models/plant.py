@@ -361,6 +361,10 @@ class Plant(SQLModel, table=True):
             name="ck_plant_seed_not_rooted_as_clone",
         ),
         CheckConstraint(
+            "source_seed_lot_id IS NULL OR taken_at IS NULL",
+            name="ck_plant_seed_not_taken_as_clone",
+        ),
+        CheckConstraint(
             "clone_source_plant_id IS NULL OR germinated_at IS NULL",
             name="ck_plant_clone_not_germinated",
         ),
@@ -470,8 +474,27 @@ class Plant(SQLModel, table=True):
     germinated_at: datetime | None = Field(
         default=None, sa_column=Column(TIMESTAMP(timezone=True), nullable=True)
     )
+    taken_at: datetime | None = Field(
+        default=None,
+        sa_column=Column(
+            TIMESTAMP(timezone=True),
+            nullable=True,
+            comment=(
+                "Timestamp when a cutting was taken from its mother plant; clone "
+                "propagation fact independent from rooting."
+            ),
+        ),
+    )
     rooted_at: datetime | None = Field(
-        default=None, sa_column=Column(TIMESTAMP(timezone=True), nullable=True)
+        default=None,
+        sa_column=Column(
+            TIMESTAMP(timezone=True),
+            nullable=True,
+            comment=(
+                "Timestamp when a clone cutting was observed rooted; independent "
+                "from when the cutting was taken."
+            ),
+        ),
     )
     veg_started_at: datetime | None = Field(
         default=None, sa_column=Column(TIMESTAMP(timezone=True), nullable=True)

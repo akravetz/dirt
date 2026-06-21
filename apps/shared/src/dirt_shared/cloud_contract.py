@@ -46,6 +46,7 @@ SeedLotSexTypeKey = Literal["unknown", "feminized", "regular"]
 BreedingPlantFactField = Literal[
     "sex_key",
     "germinated_at",
+    "taken_at",
     "rooted_at",
     "veg_started_at",
     "flower_started_at",
@@ -153,6 +154,7 @@ class CatalogPlant(CloudContractModel):
     key: str
     name: str
     germinated_at: datetime | None = Field(...)
+    taken_at: datetime | None = Field(...)
     rooted_at: datetime | None = Field(...)
     veg_started_at: datetime | None = Field(...)
     flower_started_at: datetime | None = Field(...)

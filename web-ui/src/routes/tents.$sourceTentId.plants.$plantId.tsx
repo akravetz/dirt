@@ -149,6 +149,7 @@ function HostedPlantDetailPage() {
             label="Veg Started"
             value={formatNullableTimestamp(detail.veg_started_at)}
           />
+          <PlantFact label="Taken" value={formatNullableTimestamp(detail.taken_at)} />
           <PlantFact label="Rooted" value={formatNullableTimestamp(detail.rooted_at)} />
           <PlantFact
             label="Selected"

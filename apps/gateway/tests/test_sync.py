@@ -1379,6 +1379,7 @@ async def test_collect_catalog_projects_current_grow_plants(
             key="TEST-R1-001",
             name="Test X1",
             germinated_at=None,
+            taken_at=None,
             rooted_at=None,
             veg_started_at=None,
             flower_started_at=None,
@@ -1398,6 +1399,7 @@ async def test_collect_catalog_projects_current_grow_plants(
             key="TEST-R1-002",
             name="Test X2",
             germinated_at=None,
+            taken_at=None,
             rooted_at=None,
             veg_started_at=None,
             flower_started_at=None,
@@ -1417,6 +1419,7 @@ async def test_collect_catalog_projects_current_grow_plants(
             key="TEST-R1-003",
             name="Test X3",
             germinated_at=None,
+            taken_at=None,
             rooted_at=None,
             veg_started_at=None,
             flower_started_at=None,
@@ -2278,7 +2281,8 @@ async def test_command_loop_clones_plants_and_records_mother_event(
 
     assert {clone.clone_source_plant_id for clone in clones} == {mother.id}
     assert {clone.sex_key for clone in clones} == {"female"}
-    assert {clone.rooted_at for clone in clones} == {FIXED_NOW}
+    assert {clone.taken_at for clone in clones} == {FIXED_NOW}
+    assert {clone.rooted_at for clone in clones} == {None}
     assert {clone.veg_started_at for clone in clones} == {None}
     assert {clone.flower_started_at for clone in clones} == {None}
     assert event.metadata_json == {"clone_keys": ["MOM-001-C-001", "MOM-001-C-002"]}

@@ -222,7 +222,7 @@ class BreedingCommandExecutor:
                 line_id=mother.line_id,
                 sex_key=mother.sex_key,
                 clone_source_plant_id=_pk(mother),
-                rooted_at=occurred_at,
+                taken_at=occurred_at,
             )
             session.add(clone)
             clones.append(clone)
@@ -347,6 +347,8 @@ class BreedingCommandExecutor:
                     plant.sex_key = str(update.value)
                 elif update.field == "germinated_at":
                     plant.germinated_at = update.value
+                elif update.field == "taken_at":
+                    plant.taken_at = update.value
                 elif update.field == "rooted_at":
                     plant.rooted_at = update.value
                 elif update.field == "veg_started_at":

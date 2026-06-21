@@ -75,8 +75,15 @@ type PendingPlantPatch = {
   currentTentId?: number;
   currentTentName?: string;
   gridPosition?: string | null;
+  takenAt?: string | null;
+  takenOn?: string | null;
+  rootedAt?: string | null;
+  rootedOn?: string | null;
+  germinatedAt?: string | null;
   germinatedOn?: string | null;
+  vegStartedAt?: string | null;
   vegStartedOn?: string | null;
+  flowerStartedAt?: string | null;
   flowerStartedOn?: string | null;
   culledOn?: string | null;
   lastNote?: string;
@@ -139,7 +146,12 @@ type BulkMoveMutationInput = {
 type PlantFactUpdate =
   | { field: "sex_key"; value: PlantSexKey }
   | {
-      field: "germinated_at" | "rooted_at" | "veg_started_at" | "flower_started_at";
+      field:
+        | "germinated_at"
+        | "taken_at"
+        | "rooted_at"
+        | "veg_started_at"
+        | "flower_started_at";
       value: string | null;
     };
 
@@ -783,10 +795,19 @@ function plantFactUpdatesToPatches(
       if (update.field === "sex_key") {
         patch.sexKey = update.value;
       } else if (update.field === "germinated_at") {
+        patch.germinatedAt = update.value;
         patch.germinatedOn = dateOnlyFromFactValue(update.value);
+      } else if (update.field === "taken_at") {
+        patch.takenAt = update.value;
+        patch.takenOn = dateOnlyFromFactValue(update.value);
+      } else if (update.field === "rooted_at") {
+        patch.rootedAt = update.value;
+        patch.rootedOn = dateOnlyFromFactValue(update.value);
       } else if (update.field === "veg_started_at") {
+        patch.vegStartedAt = update.value;
         patch.vegStartedOn = dateOnlyFromFactValue(update.value);
       } else if (update.field === "flower_started_at") {
+        patch.flowerStartedAt = update.value;
         patch.flowerStartedOn = dateOnlyFromFactValue(update.value);
       }
     }
@@ -807,10 +828,22 @@ function applyPlantPatch(plant: PlantRow, patch: PendingPlantPatch): PlantRow {
     currentTentName: patch.currentTentName ?? plant.currentTentName,
     gridPosition:
       patch.gridPosition !== undefined ? patch.gridPosition : plant.gridPosition,
+    takenAt: patch.takenAt !== undefined ? patch.takenAt : plant.takenAt,
+    takenOn: patch.takenOn !== undefined ? patch.takenOn : plant.takenOn,
+    rootedAt: patch.rootedAt !== undefined ? patch.rootedAt : plant.rootedAt,
+    rootedOn: patch.rootedOn !== undefined ? patch.rootedOn : plant.rootedOn,
+    germinatedAt:
+      patch.germinatedAt !== undefined ? patch.germinatedAt : plant.germinatedAt,
     germinatedOn:
       patch.germinatedOn !== undefined ? patch.germinatedOn : plant.germinatedOn,
+    vegStartedAt:
+      patch.vegStartedAt !== undefined ? patch.vegStartedAt : plant.vegStartedAt,
     vegStartedOn:
       patch.vegStartedOn !== undefined ? patch.vegStartedOn : plant.vegStartedOn,
+    flowerStartedAt:
+      patch.flowerStartedAt !== undefined
+        ? patch.flowerStartedAt
+        : plant.flowerStartedAt,
     flowerStartedOn:
       patch.flowerStartedOn !== undefined
         ? patch.flowerStartedOn
@@ -838,10 +871,34 @@ function isPlantPatchProjected(plant: PlantRow, patch: PendingPlantPatch): boole
   if (patch.gridPosition !== undefined && plant.gridPosition !== patch.gridPosition) {
     return false;
   }
+  if (patch.takenAt !== undefined && plant.takenAt !== patch.takenAt) {
+    return false;
+  }
+  if (patch.takenOn !== undefined && plant.takenOn !== patch.takenOn) {
+    return false;
+  }
+  if (patch.rootedAt !== undefined && plant.rootedAt !== patch.rootedAt) {
+    return false;
+  }
+  if (patch.rootedOn !== undefined && plant.rootedOn !== patch.rootedOn) {
+    return false;
+  }
+  if (patch.germinatedAt !== undefined && plant.germinatedAt !== patch.germinatedAt) {
+    return false;
+  }
   if (patch.germinatedOn !== undefined && plant.germinatedOn !== patch.germinatedOn) {
     return false;
   }
+  if (patch.vegStartedAt !== undefined && plant.vegStartedAt !== patch.vegStartedAt) {
+    return false;
+  }
   if (patch.vegStartedOn !== undefined && plant.vegStartedOn !== patch.vegStartedOn) {
+    return false;
+  }
+  if (
+    patch.flowerStartedAt !== undefined &&
+    plant.flowerStartedAt !== patch.flowerStartedAt
+  ) {
     return false;
   }
   if (

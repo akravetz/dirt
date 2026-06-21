@@ -173,8 +173,16 @@ class BreedingLogbookPlantRowResponse(BrowserResponse):
     sex_key: PlantSexKey
     stage_key: BreedingLogbookPlantStageKey
     stage_day: int
+    is_clone: bool
+    germinated_at: datetime | None
     germinated_on: date | None
+    taken_at: datetime | None
+    taken_on: date | None
+    rooted_at: datetime | None
+    rooted_on: date | None
+    veg_started_at: datetime | None
     veg_started_on: date | None
+    flower_started_at: datetime | None
     flower_started_on: date | None
     culled_on: date | None
     current_tent_id: int

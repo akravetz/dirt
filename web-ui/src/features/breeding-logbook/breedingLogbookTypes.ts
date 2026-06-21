@@ -57,8 +57,16 @@ export type PlantRow = {
   sexKey: PlantSexKey;
   stageKey: PlantStageKey;
   stageDay: number;
+  isClone: boolean;
+  germinatedAt: string | null;
   germinatedOn: string | null;
+  takenAt: string | null;
+  takenOn: string | null;
+  rootedAt: string | null;
+  rootedOn: string | null;
+  vegStartedAt: string | null;
   vegStartedOn: string | null;
+  flowerStartedAt: string | null;
   flowerStartedOn: string | null;
   culledOn: string | null;
   currentTentId: number;
