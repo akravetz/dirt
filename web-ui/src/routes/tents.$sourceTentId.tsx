@@ -1,9 +1,6 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
-import {
-  useIsLeafRoute,
-  WorkspaceLink,
-  WorkspacePlaceholder,
-} from "./-workspacePlaceholders";
+import { TentsWorkspace } from "@/features/tents/TentsWorkspace";
+import { useIsLeafRoute } from "./-workspacePlaceholders";
 
 export const Route = createFileRoute("/tents/$sourceTentId")({
   component: TentRoute,
@@ -15,14 +12,5 @@ function TentRoute() {
 
   if (!isLeafRoute) return <Outlet />;
 
-  return (
-    <WorkspacePlaceholder
-      kicker="Tent"
-      title={`Tent ${sourceTentId}`}
-      facts={[{ label: "Source tent", value: sourceTentId }]}
-      actions={[
-        { label: "Tents", link: <WorkspaceLink to="/tents">Tents</WorkspaceLink> },
-      ]}
-    />
-  );
+  return <TentsWorkspace sourceTentId={sourceTentId} />;
 }
