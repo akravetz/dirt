@@ -37,6 +37,7 @@ export type PlantRow = {
   id: string;
   key: string;
   name: string;
+  strain: string;
   generation: string;
   parentsLabel: string;
   sexKey: PlantSexKey;

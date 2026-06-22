@@ -1712,6 +1712,10 @@
             "title": "Stage Key",
             "type": "string"
           },
+          "strain": {
+            "title": "Strain",
+            "type": "string"
+          },
           "taken_at": {
             "anyOf": [
               {
@@ -1769,6 +1773,7 @@
           "id",
           "key",
           "name",
+          "strain",
           "generation",
           "parents_label",
           "sex_key",

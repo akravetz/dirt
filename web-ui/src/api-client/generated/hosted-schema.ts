@@ -1194,6 +1194,8 @@ export interface components {
        * @enum {string}
        */
       stage_key: "germinating" | "veg" | "flower" | "breeding" | "harvested" | "culled";
+      /** Strain */
+      strain: string;
       /** Taken At */
       taken_at: string | null;
       /** Taken On */

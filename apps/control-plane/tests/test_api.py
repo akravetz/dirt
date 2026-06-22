@@ -2158,6 +2158,7 @@ async def test_breeding_logbook_plant_list_is_site_wide_and_screen_shaped(
         "id": "1",
         "key": "SBBS-R1-001",
         "name": "Plant A",
+        "strain": "Sirius Black x BS01",
         "generation": "R1",
         "parents_label": "Sirius Black x BS01 x R1",
         "sex_key": "unknown",

@@ -212,6 +212,7 @@ class BreedingLogbookPlantRowResponse(BrowserResponse):
     id: str
     key: str
     name: str
+    strain: str
     generation: str
     parents_label: str
     sex_key: PlantSexKey

@@ -61,6 +61,7 @@ describe("seeds hosted response mapping", () => {
           id: "1",
           key: "SBBS-R1-001",
           name: "Plant A",
+          strain: "Sirius Black x BS01",
           generation: "R1",
           parents_label: "Plant B x Plant C",
           sex_key: "female",

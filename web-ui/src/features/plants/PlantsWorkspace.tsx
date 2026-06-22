@@ -72,9 +72,14 @@ type TableGroup = {
 };
 
 type PlantVisibilityFilter = "active" | "all" | "culled" | "harvested";
+type PlantLifecycleStatusFilter = "all" | "started" | "veg" | "flower";
 type PlantsSearchState = {
   groupBy?: PlantGroupBy;
   layout?: PlantListLayout;
+  parent?: string;
+  q?: string;
+  status?: PlantLifecycleStatusFilter;
+  strain?: string;
   visibility?: PlantVisibilityFilter;
 };
 
@@ -104,12 +109,18 @@ const EMPTY_DETAIL_FACTS_DRAFT: DetailFactsDraft = {
 };
 const PLANT_LIST_LAYOUT_VALUES = ["table", "board"] as const;
 const PLANT_GROUP_BY_VALUES = ["stage", "parents"] as const;
+const PLANT_LIFECYCLE_STATUS_VALUES = ["all", "started", "veg", "flower"] as const;
 const PLANT_VISIBILITY_VALUES = ["active", "all", "culled", "harvested"] as const;
 const DEFAULT_PLANTS_SEARCH = {
   groupBy: "stage",
   layout: "table",
+  parent: "all",
+  q: "",
+  status: "all",
+  strain: "all",
   visibility: "active",
 } as const satisfies Required<PlantsSearchState>;
+const PLANT_FILTER_COLLATOR = new Intl.Collator("en", { sensitivity: "base" });
 
 type PlantsPageView = "plants" | "add-plants" | "detail";
 type PlantsPageMode = "list" | "new-plant" | "detail";
@@ -128,6 +139,14 @@ export function validatePlantsSearch(
       PLANT_LIST_LAYOUT_VALUES,
       DEFAULT_PLANTS_SEARCH.layout,
     ),
+    parent: parseSearchString(search.parent, DEFAULT_PLANTS_SEARCH.parent),
+    q: parseSearchString(search.q, DEFAULT_PLANTS_SEARCH.q),
+    status: parseSearchEnum(
+      search.status,
+      PLANT_LIFECYCLE_STATUS_VALUES,
+      DEFAULT_PLANTS_SEARCH.status,
+    ),
+    strain: parseSearchString(search.strain, DEFAULT_PLANTS_SEARCH.strain),
     visibility: parseSearchEnum(
       search.visibility,
       PLANT_VISIBILITY_VALUES,
@@ -142,6 +161,10 @@ export function normalizePlantsSearch(
   return {
     groupBy: search.groupBy ?? DEFAULT_PLANTS_SEARCH.groupBy,
     layout: search.layout ?? DEFAULT_PLANTS_SEARCH.layout,
+    parent: search.parent ?? DEFAULT_PLANTS_SEARCH.parent,
+    q: search.q ?? DEFAULT_PLANTS_SEARCH.q,
+    status: search.status ?? DEFAULT_PLANTS_SEARCH.status,
+    strain: search.strain ?? DEFAULT_PLANTS_SEARCH.strain,
     visibility: search.visibility ?? DEFAULT_PLANTS_SEARCH.visibility,
   };
 }
@@ -182,6 +205,10 @@ function parseSearchEnum<TValue extends string>(
     : fallback;
 }
 
+function parseSearchString(value: unknown, fallback: string): string {
+  return typeof value === "string" ? value : fallback;
+}
+
 function pageViewFromMode(mode: PlantsPageMode): PlantsPageView {
   if (mode === "new-plant") return "add-plants";
   if (mode === "detail") return "detail";
@@ -204,6 +231,31 @@ function filterPlantsByVisibility(
 
 function isActivePlant(plant: PlantRow): boolean {
   return plant.stageKey !== "culled" && plant.stageKey !== "harvested";
+}
+
+export function filterPlantsForSearch(
+  plants: readonly PlantRow[],
+  search: Required<PlantsSearchState>,
+): readonly PlantRow[] {
+  const query = normalizeSearchText(search.q);
+  return plants.filter((plant) => {
+    if (search.parent !== "all" && plant.parentsLabel !== search.parent) return false;
+    if (search.strain !== "all" && plant.strain !== search.strain) return false;
+    if (search.status !== "all" && plantLifecycleStatus(plant) !== search.status) {
+      return false;
+    }
+    if (query.length === 0) return true;
+    return normalizeSearchText(plantSearchText(plant)).includes(query);
+  });
+}
+
+export function plantLifecycleStatus(
+  plant: PlantRow,
+): Exclude<PlantLifecycleStatusFilter, "all"> | "unstarted" {
+  if (plant.flowerStartedAt !== null) return "flower";
+  if (plant.vegStartedAt !== null) return "veg";
+  if (plant.germinatedAt !== null || plant.takenAt !== null) return "started";
+  return "unstarted";
 }
 
 function PlantsPage({
@@ -282,6 +334,7 @@ function PlantsPage({
   ).length;
   const archivedCount = culledCount + harvestedCount;
   const visiblePlants = filterPlantsByVisibility(plants, search.visibility);
+  const filteredPlants = filterPlantsForSearch(visiblePlants, search);
   const selectedPlants = plants.filter((plant) => selectedPlantIds.has(plant.id));
   const selectedPlantKeys = selectedPlants.map((plant) => plant.key);
   const selectedPlantsHavePendingCommand = hasActivePendingForAnyPlant(
@@ -369,7 +422,9 @@ function PlantsPage({
             layout={search.layout}
             maxEventDateTime={maxEventDateTime}
             moveLocationKey={moveLocationKey}
-            plants={visiblePlants}
+            filterSourcePlants={visiblePlants}
+            plants={filteredPlants}
+            search={search}
             selectedLocation={selectedLocation}
             selectedPlantIds={selectedPlantIds}
             selectedPlants={selectedPlants}
@@ -529,6 +584,47 @@ function PlantsPage({
               void navigate({
                 to: "/plants",
                 search: (previous) => ({ ...previous, layout }),
+                replace: true,
+              });
+            }}
+            onParentFilterChange={(parent) => {
+              void navigate({
+                to: "/plants",
+                search: (previous) => ({ ...previous, parent }),
+                replace: true,
+              });
+            }}
+            onQueryChange={(q) => {
+              void navigate({
+                to: "/plants",
+                search: (previous) => ({ ...previous, q }),
+                replace: true,
+              });
+            }}
+            onResetFilters={() => {
+              void navigate({
+                to: "/plants",
+                search: (previous) => ({
+                  ...previous,
+                  parent: DEFAULT_PLANTS_SEARCH.parent,
+                  q: DEFAULT_PLANTS_SEARCH.q,
+                  status: DEFAULT_PLANTS_SEARCH.status,
+                  strain: DEFAULT_PLANTS_SEARCH.strain,
+                }),
+                replace: true,
+              });
+            }}
+            onStatusFilterChange={(status) => {
+              void navigate({
+                to: "/plants",
+                search: (previous) => ({ ...previous, status }),
+                replace: true,
+              });
+            }}
+            onStrainFilterChange={(strain) => {
+              void navigate({
+                to: "/plants",
+                search: (previous) => ({ ...previous, strain }),
                 replace: true,
               });
             }}
@@ -782,6 +878,7 @@ function PlantsSurface({
   culledCount,
   destructiveActionsDisabled,
   draggingPlantId,
+  filterSourcePlants,
   groupBy,
   harvestedCount,
   layout,
@@ -809,10 +906,16 @@ function PlantsSurface({
   onMoveLocationChange,
   onOpenBulkNote,
   onOpenDetail,
+  onParentFilterChange,
+  onQueryChange,
+  onResetFilters,
   onSelectedPlantIdsChange,
+  onStatusFilterChange,
+  onStrainFilterChange,
   onVisibilityChange,
   plants,
   pendingCommands,
+  search,
   selectedLocation,
   selectedPlantIds,
   selectedPlants,
@@ -829,6 +932,7 @@ function PlantsSurface({
   culledCount: number;
   destructiveActionsDisabled: boolean;
   draggingPlantId: string | null;
+  filterSourcePlants: readonly PlantRow[];
   groupBy: PlantGroupBy;
   harvestedCount: number;
   layout: PlantListLayout;
@@ -837,6 +941,7 @@ function PlantsSurface({
   moveLocationKey: number;
   plants: readonly PlantRow[];
   pendingCommands: readonly PlantsPendingCommand[];
+  search: Required<PlantsSearchState>;
   selectedLocation: LocationOption;
   selectedPlantIds: ReadonlySet<string>;
   selectedPlants: readonly PlantRow[];
@@ -862,7 +967,12 @@ function PlantsSurface({
   onMoveLocationChange: (sourceTentId: number) => void;
   onOpenBulkNote: () => void;
   onOpenDetail: (plantId: string) => void;
+  onParentFilterChange: (parent: string) => void;
+  onQueryChange: (query: string) => void;
+  onResetFilters: () => void;
   onSelectedPlantIdsChange: (plantIds: ReadonlySet<string>) => void;
+  onStatusFilterChange: (status: PlantLifecycleStatusFilter) => void;
+  onStrainFilterChange: (strain: string) => void;
   onVisibilityChange: (visibility: PlantVisibilityFilter) => void;
 }): ReactNode {
   const selectedCount = selectedPlantIds.size;
@@ -871,7 +981,7 @@ function PlantsSurface({
   const someVisibleSelected = plants.some((plant) => selectedPlantIds.has(plant.id));
   const listFooter =
     visibility === "active"
-      ? `${activeCount} active shown / grouped by ${groupBy} / ${archivedCount} archived hidden`
+      ? `${plants.length} shown / ${activeCount} active / grouped by ${groupBy} / ${archivedCount} archived hidden`
       : `${plants.length} shown / grouped by ${groupBy} / ${activeCount} active / ${culledCount} culled / ${harvestedCount} harvested`;
 
   const togglePlant = (plantId: string) => {
@@ -913,12 +1023,19 @@ function PlantsSurface({
       <PlantChrome
         archivedCount={archivedCount}
         culledCount={culledCount}
+        filterSourcePlants={filterSourcePlants}
         groupBy={groupBy}
         harvestedCount={harvestedCount}
         layout={layout}
+        search={search}
         visibility={visibility}
         onGroupByChange={onGroupByChange}
         onLayoutChange={onLayoutChange}
+        onParentFilterChange={onParentFilterChange}
+        onQueryChange={onQueryChange}
+        onResetFilters={onResetFilters}
+        onStatusFilterChange={onStatusFilterChange}
+        onStrainFilterChange={onStrainFilterChange}
         onVisibilityChange={onVisibilityChange}
       />
       {selectedCount > 0 ? (
@@ -991,64 +1108,126 @@ function PlantsSurface({
 function PlantChrome({
   archivedCount,
   culledCount,
+  filterSourcePlants,
   groupBy,
   harvestedCount,
   layout,
   onGroupByChange,
   onLayoutChange,
+  onParentFilterChange,
+  onQueryChange,
+  onResetFilters,
+  onStatusFilterChange,
+  onStrainFilterChange,
   onVisibilityChange,
+  search,
   visibility,
 }: {
   archivedCount: number;
   culledCount: number;
+  filterSourcePlants: readonly PlantRow[];
   groupBy: PlantGroupBy;
   harvestedCount: number;
   layout: PlantListLayout;
+  search: Required<PlantsSearchState>;
   onGroupByChange: (groupBy: PlantGroupBy) => void;
   onLayoutChange: (layout: PlantListLayout) => void;
+  onParentFilterChange: (parent: string) => void;
+  onQueryChange: (query: string) => void;
+  onResetFilters: () => void;
+  onStatusFilterChange: (status: PlantLifecycleStatusFilter) => void;
+  onStrainFilterChange: (strain: string) => void;
   onVisibilityChange: (visibility: PlantVisibilityFilter) => void;
   visibility: PlantVisibilityFilter;
 }): ReactNode {
+  const parentOptions = plantExactFilterOptions(
+    filterSourcePlants,
+    "parentsLabel",
+    search.parent,
+  );
+  const strainOptions = plantExactFilterOptions(
+    filterSourcePlants,
+    "strain",
+    search.strain,
+  );
+  const hasListFilters =
+    search.q !== DEFAULT_PLANTS_SEARCH.q ||
+    search.parent !== DEFAULT_PLANTS_SEARCH.parent ||
+    search.status !== DEFAULT_PLANTS_SEARCH.status ||
+    search.strain !== DEFAULT_PLANTS_SEARCH.strain;
+
   return (
-    <section className="flex flex-wrap items-center gap-2 border border-rule bg-paper-2 px-3 py-2.5">
-      <button
-        type="button"
-        className="border border-rule px-2.5 py-1.5 font-mono text-fs-10 uppercase tracking-caps text-ink-3 transition hover:border-rule-strong hover:text-ink"
-      >
-        ⊟ Filter
-      </button>
-      <Segmented
-        label="Group"
-        options={[
-          { label: "Stage", value: "stage" },
-          { label: "Parents", value: "parents" },
-        ]}
-        value={groupBy}
-        onChange={onGroupByChange}
-      />
-      <div className="min-w-44 flex-1 border border-rule bg-paper px-2.5 py-1.5 font-mono text-fs-10 uppercase tracking-caps text-ink-3">
-        ⌕ search plants
+    <section className="grid gap-3 border border-rule bg-paper-2 px-3 py-2.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <Segmented
+          label="Group"
+          options={[
+            { label: "Stage", value: "stage" },
+            { label: "Parents", value: "parents" },
+          ]}
+          value={groupBy}
+          onChange={onGroupByChange}
+        />
+        <Segmented
+          label="Visibility"
+          options={[
+            { label: "Active", value: "active" },
+            { label: `All (${archivedCount})`, value: "all" },
+            { label: `Culled (${culledCount})`, value: "culled" },
+            { label: `Harvested (${harvestedCount})`, value: "harvested" },
+          ]}
+          value={visibility}
+          onChange={onVisibilityChange}
+        />
+        <Segmented
+          label="Status"
+          options={[
+            { label: "All", value: "all" },
+            { label: "Started", value: "started" },
+            { label: "Veg", value: "veg" },
+            { label: "Flower", value: "flower" },
+          ]}
+          value={search.status}
+          onChange={onStatusFilterChange}
+        />
+        <Segmented
+          label="Layout"
+          options={[
+            { label: "▤ Table", value: "table" },
+            { label: "▥ Board", value: "board" },
+          ]}
+          value={layout}
+          onChange={onLayoutChange}
+        />
       </div>
-      <Segmented
-        label="Visibility"
-        options={[
-          { label: "Active", value: "active" },
-          { label: `All (${archivedCount})`, value: "all" },
-          { label: `Culled (${culledCount})`, value: "culled" },
-          { label: `Harvested (${harvestedCount})`, value: "harvested" },
-        ]}
-        value={visibility}
-        onChange={onVisibilityChange}
-      />
-      <Segmented
-        label="Layout"
-        options={[
-          { label: "▤ Table", value: "table" },
-          { label: "▥ Board", value: "board" },
-        ]}
-        value={layout}
-        onChange={onLayoutChange}
-      />
+      <div className="grid gap-2 md:grid-cols-[minmax(190px,1fr)_minmax(170px,0.7fr)_minmax(170px,0.7fr)_auto] md:items-end">
+        <TextField
+          label="Search"
+          placeholder="name, key, note"
+          value={search.q}
+          onChange={onQueryChange}
+        />
+        <SelectField
+          label="Parent"
+          options={parentOptions}
+          value={search.parent}
+          onChange={onParentFilterChange}
+        />
+        <SelectField
+          label="Strain"
+          options={strainOptions}
+          value={search.strain}
+          onChange={onStrainFilterChange}
+        />
+        <button
+          type="button"
+          disabled={!hasListFilters}
+          onClick={onResetFilters}
+          className="h-9 border border-rule bg-paper px-2.5 font-mono text-fs-10 uppercase tracking-caps text-ink-3 transition hover:border-rule-strong hover:text-ink disabled:cursor-not-allowed disabled:text-ink-3"
+        >
+          Clear
+        </button>
+      </div>
     </section>
   );
 }
@@ -3042,6 +3221,45 @@ function groupPlants(
       plants: plants.filter((plant) => plant.stageKey === stage.key),
     }))
     .filter((group) => group.plants.length > 0);
+}
+
+function plantExactFilterOptions(
+  plants: readonly PlantRow[],
+  field: "parentsLabel" | "strain",
+  selectedValue: string,
+): readonly { label: string; value: string }[] {
+  const values = uniqueSortedValues(plants.map((plant) => plant[field]));
+  if (selectedValue !== "all" && !values.includes(selectedValue)) {
+    values.push(selectedValue);
+    values.sort(PLANT_FILTER_COLLATOR.compare);
+  }
+  return [
+    { label: field === "parentsLabel" ? "All parents" : "All strains", value: "all" },
+    ...values.map((value) => ({ label: value, value })),
+  ];
+}
+
+function uniqueSortedValues(values: readonly string[]): string[] {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))].sort(
+    PLANT_FILTER_COLLATOR.compare,
+  );
+}
+
+function plantSearchText(plant: PlantRow): string {
+  return [
+    plant.key,
+    plant.name,
+    plant.strain,
+    plant.generation,
+    plant.parentsLabel,
+    plant.seedLotLabel,
+    plant.currentTentName,
+    plant.lastNote,
+  ].join(" ");
+}
+
+function normalizeSearchText(value: string): string {
+  return value.trim().toLocaleLowerCase();
 }
 
 function clonePrefixFor(name: string): string {

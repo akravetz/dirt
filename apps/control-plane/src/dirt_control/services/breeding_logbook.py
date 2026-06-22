@@ -1237,6 +1237,9 @@ def breeding_logbook_plant_row_response(
         id=str(plant.source_plant_id),
         key=plant.key,
         name=plant.name,
+        strain=projection.line.strain
+        if projection.line is not None
+        else "Unknown strain",
         generation=generation_label(projection.line),
         parents_label=lineage_label(projection.line),
         sex_key=plant.sex_key,

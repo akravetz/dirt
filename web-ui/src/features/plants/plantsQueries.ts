@@ -241,6 +241,7 @@ function mapPlantRow(plant: HostedPlantsPlantList["plants"][number]): PlantRow {
     id: plant.id,
     key: plant.key,
     name: plant.name,
+    strain: plant.strain,
     generation: plant.generation,
     parentsLabel: plant.parents_label,
     sexKey: plant.sex_key,

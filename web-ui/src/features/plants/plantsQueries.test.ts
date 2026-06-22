@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { hostedComponents } from "@/api-client";
 import {
+  filterPlantsForSearch,
+  normalizePlantsSearch,
+  plantLifecycleStatus,
+  validatePlantsSearch,
+} from "./PlantsWorkspace";
+import {
   applyPendingPlantCommands,
   buildBulkCullRequest,
   buildBulkLogNoteRequest,
@@ -58,6 +64,7 @@ describe("plants hosted response mapping", () => {
       id: "1",
       key: "SBBS-R1-001",
       name: "Plant A",
+      strain: "Sirius Black",
       generation: "R1",
       parents_label: "Plant B x Plant C",
       sex_key: "female",
@@ -144,7 +151,10 @@ describe("plants hosted response mapping", () => {
       ],
     } satisfies HostedMetricHistory;
 
-    expect(mapPlantList(plants).plants[0]?.currentTentName).toBe("Main flower");
+    expect(mapPlantList(plants).plants[0]).toMatchObject({
+      currentTentName: "Main flower",
+      strain: "Sirius Black",
+    });
     expect(mapPlantDetail(detail, history)).toMatchObject({
       plant: { key: "SBBS-R1-001", lastNote: "Trichomes stacking" },
       lineage: { offspring: "Cross #43: SBBS R1 #3 (1 plant)" },
@@ -157,6 +167,75 @@ describe("plants hosted response mapping", () => {
         },
       ],
     });
+  });
+});
+
+describe("plants list filters", () => {
+  it("filters by query, parent, strain, and lifecycle status", () => {
+    const plants = [
+      makePlantRow({
+        key: "MF-001",
+        name: "MF-001",
+        parentsLabel: "Mother x Father",
+        strain: "Maruf Black",
+      }),
+      makePlantRow({
+        id: "2",
+        key: "SB-001",
+        name: "SB-001",
+        parentsLabel: "Sirius Black x BS01",
+        strain: "Sirius Black",
+        vegStartedAt: null,
+        vegStartedOn: null,
+      }),
+      makePlantRow({
+        id: "3",
+        isClone: true,
+        key: "CL-001",
+        name: "CL-001",
+        parentsLabel: "Mother x Father",
+        strain: "Maruf Black",
+        germinatedAt: null,
+        germinatedOn: null,
+        takenAt: "2026-06-02T16:45:00.000Z",
+        takenOn: "2026-06-02",
+        vegStartedAt: null,
+        vegStartedOn: null,
+      }),
+      makePlantRow({
+        id: "4",
+        key: "FL-001",
+        name: "FL-001",
+        parentsLabel: "Mother x Father",
+        strain: "Maruf Black",
+        flowerStartedAt: "2026-06-20T16:45:00.000Z",
+        flowerStartedOn: "2026-06-20",
+      }),
+    ];
+
+    expect(
+      filterPlantsForSearch(
+        plants,
+        normalizePlantsSearch(
+          validatePlantsSearch({
+            parent: "Mother x Father",
+            q: "mf",
+            status: "veg",
+            strain: "Maruf Black",
+          }),
+        ),
+      ).map((plant) => plant.key),
+    ).toEqual(["MF-001"]);
+    expect(
+      filterPlantsForSearch(
+        plants,
+        normalizePlantsSearch(validatePlantsSearch({ status: "started" })),
+      ).map((plant) => plant.key),
+    ).toEqual(["SB-001", "CL-001"]);
+    const floweringPlant = plants.find((plant) => plant.key === "FL-001");
+    expect(floweringPlant).toBeDefined();
+    if (floweringPlant === undefined) return;
+    expect(plantLifecycleStatus(floweringPlant)).toBe("flower");
   });
 });
 
@@ -585,6 +664,7 @@ function makePlantRow(overrides: Partial<PlantRow>): PlantRow {
     id: "1",
     key: "MF-001",
     name: "MF-001",
+    strain: "Maruf Black",
     generation: "F2",
     parentsLabel: "Mother x Father",
     sexKey: "unknown",

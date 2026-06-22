@@ -236,6 +236,7 @@ def test_breeding_logbook_plant_row_requires_owned_contract_shape() -> None:
         "id": "1",
         "key": "SBBS-R1-001",
         "name": "Plant A",
+        "strain": "Sugar Black Rose",
         "generation": "R1",
         "parents_label": "Sugar Black Rose x Black Sugar",
         "sex_key": "female",
