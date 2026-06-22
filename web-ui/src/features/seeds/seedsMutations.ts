@@ -12,11 +12,7 @@ import { invalidateSeedLotReads } from "./seedsQueries";
 import type { SeedLotSexTypeKey, SeedLotSource } from "./seedsTypes";
 
 const hostedApi = createHostedApiClient();
-const pendingSeedCommandsQueryKey = [
-  "breeding-logbook",
-  "seed-lots",
-  "pending-commands",
-] as const;
+const pendingSeedCommandsQueryKey = ["seeds", "seed-lots", "pending-commands"] as const;
 const TERMINAL_COMMAND_STATUSES = new Set([
   "succeeded",
   "failed",
@@ -75,7 +71,7 @@ export function createSeedsIdempotencyKey(operation: string): string {
     typeof crypto === "undefined" || crypto.randomUUID === undefined
       ? Math.random().toString(36).slice(2)
       : crypto.randomUUID();
-  return `breeding-logbook:${operation}:${Date.now()}:${random}`;
+  return `seeds:${operation}:${Date.now()}:${random}`;
 }
 
 export function buildCreateSeedLotRequest(
@@ -133,7 +129,7 @@ export function useSeedsPendingCommands(): readonly SeedsPendingCommand[] {
   );
   const commandPollQueries = useQueries({
     queries: pollableCommands.map((pending) => ({
-      queryKey: ["breeding-logbook", "commands", pending.commandId],
+      queryKey: ["seeds", "commands", pending.commandId],
       queryFn: () => fetchCommand(pending.commandId),
       refetchInterval: 2_500,
       staleTime: 0,

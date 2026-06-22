@@ -18,9 +18,8 @@ import type {
 } from "./plantsTypes";
 
 const hostedApi = createHostedApiClient();
-const BREEDING_LOGBOOK_PLANT_DETAIL_PATH =
-  "/api/breeding-logbook/plants/{plant_key}" as const;
-const BREEDING_LOGBOOK_PLANT_METRIC_HISTORY_PATH =
+const PLANT_DETAIL_API_PATH = "/api/breeding-logbook/plants/{plant_key}" as const;
+const PLANT_METRIC_HISTORY_API_PATH =
   "/api/breeding-logbook/plants/{plant_key}/metrics/history" as const;
 
 type HostedPlantsBootstrap =
@@ -33,14 +32,9 @@ type HostedPlantMetricHistory =
   hostedComponents["schemas"]["PlantMetricHistoryResponse"];
 
 const plantsQueryKeys = {
-  bootstrap: ["breeding-logbook", "bootstrap"],
-  plants: ["breeding-logbook", "plants"],
-  plantDetail: (plantKey: string) => [
-    "breeding-logbook",
-    "plants",
-    plantKey || "first",
-    "detail",
-  ],
+  bootstrap: ["plants", "bootstrap"],
+  plants: ["plants", "list"],
+  plantDetail: (plantKey: string) => ["plants", plantKey || "first", "detail"],
 } as const;
 
 export function invalidatePlantsReads(
@@ -84,10 +78,10 @@ async function fetchPlantsPlantDetail(
     throw new Error("No plants are available to select");
   }
   const [detailResponse, historyResponse] = await Promise.all([
-    hostedApi.GET(BREEDING_LOGBOOK_PLANT_DETAIL_PATH, {
+    hostedApi.GET(PLANT_DETAIL_API_PATH, {
       params: { path: { plant_key: resolvedPlantKey } },
     }),
-    hostedApi.GET(BREEDING_LOGBOOK_PLANT_METRIC_HISTORY_PATH, {
+    hostedApi.GET(PLANT_METRIC_HISTORY_API_PATH, {
       params: {
         path: { plant_key: resolvedPlantKey },
         query: { range: "24h" },
@@ -95,8 +89,8 @@ async function fetchPlantsPlantDetail(
     }),
   ]);
   return mapPlantDetail(
-    hostedData(detailResponse.data, BREEDING_LOGBOOK_PLANT_DETAIL_PATH),
-    hostedData(historyResponse.data, BREEDING_LOGBOOK_PLANT_METRIC_HISTORY_PATH),
+    hostedData(detailResponse.data, PLANT_DETAIL_API_PATH),
+    hostedData(historyResponse.data, PLANT_METRIC_HISTORY_API_PATH),
   );
 }
 

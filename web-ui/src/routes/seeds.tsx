@@ -6,7 +6,7 @@ import {
   SeedsListPage,
   validateSeedsSearch,
 } from "@/features/seeds/SeedsWorkspace";
-import { useIsLeafRoute } from "./-workspacePlaceholders";
+import { useIsLeafRoute } from "./-leafRoute";
 
 export const Route = createFileRoute("/seeds")({
   validateSearch: validateSeedsSearch,

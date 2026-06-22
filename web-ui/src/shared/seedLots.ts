@@ -22,9 +22,9 @@ export type SeedLotListResult = {
 };
 
 export const seedLotQueryKeys = {
-  seedLots: ["breeding-logbook", "seed-lots"] as const,
+  seedLots: ["seeds", "seed-lots"] as const,
   seedLotDetail: (seedLotId: string) =>
-    ["breeding-logbook", "seed-lots", seedLotId, "detail"] as const,
+    ["seeds", "seed-lots", seedLotId, "detail"] as const,
 };
 
 export function invalidateSeedLotReads(

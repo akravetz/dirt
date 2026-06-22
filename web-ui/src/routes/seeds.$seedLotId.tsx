@@ -1,7 +1,7 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { Suspense } from "react";
 import { SeedLotDetailPage, SeedStatusScreen } from "@/features/seeds/SeedsWorkspace";
-import { useIsLeafRoute } from "./-workspacePlaceholders";
+import { useIsLeafRoute } from "./-leafRoute";
 
 export const Route = createFileRoute("/seeds/$seedLotId")({
   component: SeedLotRoute,

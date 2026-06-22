@@ -14,7 +14,7 @@ import type {
 } from "./seedsTypes";
 
 const hostedApi = createHostedApiClient();
-const BREEDING_LOGBOOK_SEED_LOT_DETAIL_PATH =
+const SEED_LOT_DETAIL_API_PATH =
   "/api/breeding-logbook/seed-lots/{seed_lot_id}" as const;
 
 type HostedBootstrap = hostedComponents["schemas"]["BreedingLogbookBootstrapResponse"];
@@ -25,9 +25,9 @@ type HostedSeedLotDetail =
   hostedComponents["schemas"]["BreedingLogbookSeedLotDetailResponse"];
 
 const seedsQueryKeys = {
-  bootstrap: ["breeding-logbook", "bootstrap"] as const,
+  bootstrap: ["seeds", "bootstrap"] as const,
   seedLots: seedLotQueryKeys.seedLots,
-  seedParentPlants: ["breeding-logbook", "seed-parent-plants"] as const,
+  seedParentPlants: ["seeds", "seed-parent-plants"] as const,
   seedLotDetail: seedLotQueryKeys.seedLotDetail,
 };
 
@@ -51,10 +51,10 @@ async function fetchSeedParentPlants(): Promise<readonly SeedParentPlant[]> {
 }
 
 async function fetchSeedLotDetail(seedLotId: string): Promise<SeedLotDetail> {
-  const { data } = await hostedApi.GET(BREEDING_LOGBOOK_SEED_LOT_DETAIL_PATH, {
+  const { data } = await hostedApi.GET(SEED_LOT_DETAIL_API_PATH, {
     params: { path: { seed_lot_id: seedLotId } },
   });
-  return mapSeedLotDetail(hostedData(data, BREEDING_LOGBOOK_SEED_LOT_DETAIL_PATH));
+  return mapSeedLotDetail(hostedData(data, SEED_LOT_DETAIL_API_PATH));
 }
 
 function seedsBootstrapOptions() {

@@ -6,7 +6,7 @@ import {
   StatusScreen,
   validatePlantsSearch,
 } from "@/features/plants/PlantsWorkspace";
-import { useIsLeafRoute } from "./-workspacePlaceholders";
+import { useIsLeafRoute } from "./-leafRoute";
 
 export const Route = createFileRoute("/plants")({
   validateSearch: validatePlantsSearch,

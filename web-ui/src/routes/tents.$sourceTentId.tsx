@@ -1,6 +1,6 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { TentsWorkspace } from "@/features/tents/TentsWorkspace";
-import { useIsLeafRoute } from "./-workspacePlaceholders";
+import { useIsLeafRoute } from "./-leafRoute";
 
 export const Route = createFileRoute("/tents/$sourceTentId")({
   component: TentRoute,

@@ -17,7 +17,7 @@ import type {
 } from "./plantsTypes";
 
 const hostedApi = createHostedApiClient();
-const pendingCommandsQueryKey = ["breeding-logbook", "pending-commands"] as const;
+const pendingCommandsQueryKey = ["plants", "pending-commands"] as const;
 const TERMINAL_COMMAND_STATUSES = new Set([
   "succeeded",
   "failed",
@@ -163,7 +163,7 @@ export function createPlantsIdempotencyKey(operation: string): string {
     typeof crypto === "undefined" || crypto.randomUUID === undefined
       ? Math.random().toString(36).slice(2)
       : crypto.randomUUID();
-  return `breeding-logbook:${operation}:${Date.now()}:${random}`;
+  return `plants:${operation}:${Date.now()}:${random}`;
 }
 
 export function canSubmitBulkCull(reason: string): boolean {
@@ -283,7 +283,7 @@ export function usePlantsPendingCommands(): readonly PlantsPendingCommand[] {
   );
   const commandPollQueries = useQueries({
     queries: pollableCommands.map((pending) => ({
-      queryKey: ["breeding-logbook", "commands", pending.commandId],
+      queryKey: ["plants", "commands", pending.commandId],
       queryFn: () => fetchCommand(pending.commandId),
       refetchInterval: 2_500,
       staleTime: 0,

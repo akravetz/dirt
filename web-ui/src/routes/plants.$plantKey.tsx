@@ -1,7 +1,7 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { Suspense } from "react";
 import { PlantDetailPage, StatusScreen } from "@/features/plants/PlantsWorkspace";
-import { useIsLeafRoute } from "./-workspacePlaceholders";
+import { useIsLeafRoute } from "./-leafRoute";
 
 export const Route = createFileRoute("/plants/$plantKey")({
   component: PlantRoute,
