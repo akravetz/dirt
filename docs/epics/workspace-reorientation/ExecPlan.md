@@ -20,7 +20,7 @@ The work is complete when the top navigation is exactly `Tents`, `Plants`, and `
 - [x] (2026-06-21) Inspected the current `web-ui/src/routes/` tree, top bar, dashboard route, live route, wiki route, breeding-logbook feature, generated hosted schema references, control-plane breeding-logbook API, shared cloud command contract, and gateway breeding command executor.
 - [x] (2026-06-21) Confirmed the operator decisions: delete Live/Wiki from the web UI only; top nav becomes Tents/Plants/Seeds; `/` lands on Tents; Tents means physical tents; Plants defaults active with an archive filter; Seeds means seed lots; adding a seed lot is seed inventory work; germination/clone creation is plant work; plants originate from seed lots or clones; seed-lot detail/edit pages are required for consistency.
 - [x] (2026-06-21) Drafted this ExecPlan.
-- [ ] Milestone 1: delete unused web UI routes and stale wiki/live frontend code.
+- [x] (2026-06-21 18:37 MDT) Milestone 1 complete: deleted unused `/live` and `/wiki` web UI routes, removed `Live`/`Wiki` top-nav tabs, removed unused wiki localStorage helpers, and regenerated `web-ui/src/routeTree.gen.ts` through the Vite/TanStack Router toolchain.
 - [ ] Milestone 2: establish the route IA and top-level workspace chrome.
 - [ ] Milestone 3: move the dashboard into the Tents workspace with tent deep links.
 - [ ] Milestone 4: split the current Breeding Logbook plant surface into routable Plants pages.
@@ -87,7 +87,7 @@ The work is complete when the top navigation is exactly `Tents`, `Plants`, and `
 
 ## Outcomes & Retrospective
 
-Not started beyond planning. Fill this section after each milestone with the actual behavior delivered, validation evidence, gaps, and any changes to scope.
+Milestone 1 removed the dead hosted Live and Wiki browser surfaces without touching backend PTZ/wiki projection code or repository wiki content. Validation passed with `pnpm --dir web-ui typecheck`, `pnpm --dir web-ui lint`, `git diff --check`, and the focused dead-code search `rg -n "HostedLive|WikiPage|readRecentWiki|pushRecentWiki|ExpandedWiki|/live|/wiki" web-ui/src`, which returned no matches.
 
 
 ## Context and Orientation

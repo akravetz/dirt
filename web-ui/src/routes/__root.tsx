@@ -16,7 +16,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 const api = createHostedApiClient();
 
 // Pre-auth /login and the standalone Breeding Logbook route own their full
-// viewport chrome. Dashboard / Live / Wiki keep the shared TopBar.
+// viewport chrome. Other routes keep the shared TopBar.
 function RootComponent() {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });

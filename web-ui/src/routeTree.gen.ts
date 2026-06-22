@@ -9,26 +9,14 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as WikiRouteImport } from './routes/wiki'
 import { Route as LoginRouteImport } from './routes/login'
-import { Route as LiveRouteImport } from './routes/live'
 import { Route as BreedingLogbookRouteImport } from './routes/breeding-logbook'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TentsSourceTentIdPlantsPlantIdRouteImport } from './routes/tents.$sourceTentId.plants.$plantId'
 
-const WikiRoute = WikiRouteImport.update({
-  id: '/wiki',
-  path: '/wiki',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LiveRoute = LiveRouteImport.update({
-  id: '/live',
-  path: '/live',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BreedingLogbookRoute = BreedingLogbookRouteImport.update({
@@ -51,26 +39,20 @@ const TentsSourceTentIdPlantsPlantIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/breeding-logbook': typeof BreedingLogbookRoute
-  '/live': typeof LiveRoute
   '/login': typeof LoginRoute
-  '/wiki': typeof WikiRoute
   '/tents/$sourceTentId/plants/$plantId': typeof TentsSourceTentIdPlantsPlantIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/breeding-logbook': typeof BreedingLogbookRoute
-  '/live': typeof LiveRoute
   '/login': typeof LoginRoute
-  '/wiki': typeof WikiRoute
   '/tents/$sourceTentId/plants/$plantId': typeof TentsSourceTentIdPlantsPlantIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/breeding-logbook': typeof BreedingLogbookRoute
-  '/live': typeof LiveRoute
   '/login': typeof LoginRoute
-  '/wiki': typeof WikiRoute
   '/tents/$sourceTentId/plants/$plantId': typeof TentsSourceTentIdPlantsPlantIdRoute
 }
 export interface FileRouteTypes {
@@ -78,58 +60,36 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/breeding-logbook'
-    | '/live'
     | '/login'
-    | '/wiki'
     | '/tents/$sourceTentId/plants/$plantId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/breeding-logbook'
-    | '/live'
     | '/login'
-    | '/wiki'
     | '/tents/$sourceTentId/plants/$plantId'
   id:
     | '__root__'
     | '/'
     | '/breeding-logbook'
-    | '/live'
     | '/login'
-    | '/wiki'
     | '/tents/$sourceTentId/plants/$plantId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BreedingLogbookRoute: typeof BreedingLogbookRoute
-  LiveRoute: typeof LiveRoute
   LoginRoute: typeof LoginRoute
-  WikiRoute: typeof WikiRoute
   TentsSourceTentIdPlantsPlantIdRoute: typeof TentsSourceTentIdPlantsPlantIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/wiki': {
-      id: '/wiki'
-      path: '/wiki'
-      fullPath: '/wiki'
-      preLoaderRoute: typeof WikiRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/login': {
       id: '/login'
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/live': {
-      id: '/live'
-      path: '/live'
-      fullPath: '/live'
-      preLoaderRoute: typeof LiveRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/breeding-logbook': {
@@ -159,9 +119,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BreedingLogbookRoute: BreedingLogbookRoute,
-  LiveRoute: LiveRoute,
   LoginRoute: LoginRoute,
-  WikiRoute: WikiRoute,
   TentsSourceTentIdPlantsPlantIdRoute: TentsSourceTentIdPlantsPlantIdRoute,
 }
 export const routeTree = rootRouteImport

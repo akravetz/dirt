@@ -2,14 +2,7 @@ import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { storage } from "@/shared/storage";
 
-// Primary nav tabs. Paths match the file-based routes under src/routes/;
-// `as const` preserves the literal union so `navigate({ to })` stays
-// type-checked against the generated route tree.
-const TABS = [
-  { label: "Dashboard", path: "/" },
-  { label: "Live", path: "/live" },
-  { label: "Wiki", path: "/wiki" },
-] as const;
+const TABS = [{ label: "Dashboard", path: "/" }] as const;
 
 const THEME_STORAGE_KEY = "dirt.theme";
 type Theme = "light" | "dark";
