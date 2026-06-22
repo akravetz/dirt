@@ -240,6 +240,9 @@ def _seed_lot(
     is_purchased: bool = True,
     seed_count: int | None = 12,
     produced_by_cross_event_source_id: int | None = None,
+    vendor_name: str | None = None,
+    acquired_at: datetime | None = None,
+    notes: str | None = None,
 ) -> CloudSeedLot:
     return CloudSeedLot(
         site_id="homebox",
@@ -247,13 +250,21 @@ def _seed_lot(
         line_source_id=line_source_id,
         sex_type_key=sex_type_key,
         is_purchased=is_purchased,
-        vendor_name="Unknown vendor" if is_purchased else None,
-        acquired_at=FIXED_NOW - timedelta(days=60) if is_purchased else None,
+        vendor_name=(
+            (vendor_name if vendor_name is not None else "Unknown vendor")
+            if is_purchased
+            else None
+        ),
+        acquired_at=(
+            (acquired_at if acquired_at is not None else FIXED_NOW - timedelta(days=60))
+            if is_purchased
+            else None
+        ),
         produced_by_cross_event_source_id=(
             None if is_purchased else produced_by_cross_event_source_id or 42
         ),
         seed_count=seed_count,
-        notes=None,
+        notes=notes,
         synced_at=FIXED_NOW,
         created_at=FIXED_NOW,
         updated_at=FIXED_NOW,
@@ -2286,6 +2297,94 @@ async def test_breeding_logbook_seed_lots_include_lots_without_current_plants(
     ]
 
 
+async def test_breeding_logbook_seed_lot_detail_includes_inventory_and_source_context(
+    authed_client: AsyncClient,
+    cloud_engine: AsyncEngine,
+) -> None:
+    sessionmaker = create_sessionmaker(cloud_engine)
+    async with sessionmaker() as session:
+        session.add(_plant_line())
+        session.add_all(
+            [
+                _seed_lot(
+                    1,
+                    vendor_name="Archive",
+                    notes="Stored cold.",
+                ),
+                _seed_lot(
+                    2,
+                    sex_type_key="regular",
+                    is_purchased=False,
+                    seed_count=18,
+                    produced_by_cross_event_source_id=42,
+                    notes="Lower branch harvest.",
+                ),
+                _plant("a", display_order=1, source_seed_lot_id=2),
+                _plant("b", display_order=2, source_seed_lot_id=None),
+                _plant("c", display_order=3, source_seed_lot_id=None),
+                _cross_event(
+                    42,
+                    seed_parent="b",
+                    pollen_parent="c",
+                    pollen_parent_is_reversed=True,
+                ),
+            ]
+        )
+        await session.commit()
+
+    purchased = await authed_client.get("/api/breeding-logbook/seed-lots/1")
+    cross = await authed_client.get("/api/breeding-logbook/seed-lots/2")
+    missing = await authed_client.get("/api/breeding-logbook/seed-lots/999")
+
+    assert purchased.status_code == 200
+    purchased_body = purchased.json()
+    assert purchased_body["id"] == "1"
+    assert purchased_body["label"] == "SBBS R1 #1"
+    assert purchased_body["source_seed_lot_id"] == 1
+    assert purchased_body["source"] == "purchased"
+    assert purchased_body["vendor_name"] == "Archive"
+    assert purchased_body["acquired_at"] == "2026-03-06T03:45:00Z"
+    assert purchased_body["notes"] == "Stored cold."
+    assert purchased_body["created_plant_count"] == 0
+    assert purchased_body["line"] == {
+        "source_line_id": 1,
+        "prefix": "SBBS",
+        "generation": "R1",
+        "strain": "Sirius Black x BS01",
+        "cultivar": "R1",
+        "source_name": "Unknown vendor",
+        "description": None,
+    }
+    assert purchased_body["cross"] is None
+
+    assert cross.status_code == 200
+    cross_body = cross.json()
+    assert cross_body["id"] == "2"
+    assert cross_body["source"] == "cross"
+    assert cross_body["vendor_name"] is None
+    assert cross_body["acquired_at"] is None
+    assert cross_body["seed_count"] == 18
+    assert cross_body["notes"] == "Lower branch harvest."
+    assert cross_body["created_plant_count"] == 1
+    assert cross_body["produced_by_cross_event_source_id"] == 42
+    assert cross_body["cross"] == {
+        "source_cross_event_id": 42,
+        "pollinated_at": "2026-04-25T03:45:00Z",
+        "pollen_parent_is_reversed": True,
+        "seed_parent_source_plant_id": 2,
+        "seed_parent_key": "SBBS-R1-002",
+        "seed_parent_name": "Plant B",
+        "seed_parent_label": "Plant B (SBBS-R1-002)",
+        "pollen_parent_source_plant_id": 3,
+        "pollen_parent_key": "SBBS-R1-003",
+        "pollen_parent_name": "Plant C",
+        "pollen_parent_label": "Plant C (SBBS-R1-003)",
+        "parents_label": "Plant B (SBBS-R1-002) x Plant C (SBBS-R1-003) (reversed)",
+        "notes": None,
+    }
+    assert missing.status_code == 404
+
+
 async def test_breeding_logbook_plant_detail_and_history_reuse_cloud_projection(
     authed_client: AsyncClient,
     cloud_engine: AsyncEngine,
@@ -2431,6 +2530,26 @@ def _breeding_write_cases() -> list[tuple[str, dict[str, object], dict[str, obje
                 "seed_count": 10,
                 "sex_type_key": "feminized",
                 "notes": None,
+            },
+        ),
+        (
+            "/api/breeding-logbook/seed-lots/1:update",
+            {
+                "idempotency_key": "update-seed-lot",
+                "seed_lot_source_id": 1,
+                "sex_type_key": "regular",
+                "seed_count": 9,
+                "notes": "Inventory recounted.",
+                "vendor_name": "Archive",
+                "acquired_at": None,
+            },
+            {
+                "seed_lot_source_id": 1,
+                "sex_type_key": "regular",
+                "seed_count": 9,
+                "notes": "Inventory recounted.",
+                "vendor_name": "Archive",
+                "acquired_at": None,
             },
         ),
         (
@@ -2610,6 +2729,7 @@ async def test_breeding_logbook_write_routes_enqueue_typed_commands_idempotently
     assert len(rows) == len(_breeding_write_cases())
     assert {row.command_type for row in rows} == {
         "breeding_seed_lot_create",
+        "breeding_seed_lot_update",
         "breeding_plants_germinate",
         "breeding_plants_clone",
         "breeding_plants_bulk_sex",
@@ -2674,6 +2794,42 @@ async def test_breeding_logbook_write_routes_reject_obvious_bad_inputs(
                 "count": 1,
                 "source_tent_id": 2,
                 "grid_position": None,
+            },
+        ),
+        (
+            "/api/breeding-logbook/seed-lots/999:update",
+            {
+                "idempotency_key": "bad-seed-update-missing",
+                "seed_lot_source_id": 999,
+                "sex_type_key": "regular",
+                "seed_count": 9,
+                "notes": None,
+                "vendor_name": "Archive",
+                "acquired_at": None,
+            },
+        ),
+        (
+            "/api/breeding-logbook/seed-lots/1:update",
+            {
+                "idempotency_key": "bad-seed-update-mismatch",
+                "seed_lot_source_id": 2,
+                "sex_type_key": "regular",
+                "seed_count": 9,
+                "notes": None,
+                "vendor_name": "Archive",
+                "acquired_at": None,
+            },
+        ),
+        (
+            "/api/breeding-logbook/seed-lots/1:update",
+            {
+                "idempotency_key": "bad-seed-update-shape",
+                "seed_lot_source_id": 1,
+                "sex_type_key": "regular",
+                "seed_count": -1,
+                "notes": None,
+                "vendor_name": "Archive",
+                "acquired_at": None,
             },
         ),
         (

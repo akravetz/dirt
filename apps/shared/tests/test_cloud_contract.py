@@ -19,6 +19,7 @@ from dirt_shared.cloud_contract import (
     BreedingCreatePlantNotePayload,
     BreedingCreateSeedLotPayload,
     BreedingGerminatePlantsPayload,
+    BreedingUpdateSeedLotInventoryPayload,
     CapturePolicyResponse,
     CatalogCrossEvent,
     CatalogDevice,
@@ -650,6 +651,17 @@ def test_command_claim_response_uses_explicit_breeding_payload_models() -> None:
             },
         ),
         _command_payload(
+            command_type="breeding_seed_lot_update",
+            payload={
+                "seed_lot_source_id": 1,
+                "sex_type_key": "regular",
+                "seed_count": 8,
+                "notes": None,
+                "vendor_name": "Archive",
+                "acquired_at": None,
+            },
+        ),
+        _command_payload(
             command_type="breeding_plants_germinate",
             payload={
                 "seed_lot_source_id": 1,
@@ -719,15 +731,18 @@ def test_command_claim_response_uses_explicit_breeding_payload_models() -> None:
     response = CommandClaimResponse(commands=commands)
 
     assert isinstance(response.commands[0].payload, BreedingCreateSeedLotPayload)
-    assert isinstance(response.commands[1].payload, BreedingGerminatePlantsPayload)
-    assert isinstance(response.commands[2].payload, BreedingClonePlantsPayload)
-    assert isinstance(response.commands[3].payload, BreedingBulkSexPayload)
-    assert isinstance(response.commands[4].payload, BreedingBulkMovePayload)
-    assert isinstance(response.commands[5].payload, BreedingBulkPlantFactsPayload)
-    assert isinstance(response.commands[6].payload, BreedingBulkCullPayload)
-    assert isinstance(response.commands[7].payload, BreedingCreatePlantNotePayload)
-    assert isinstance(response.commands[8].payload, BreedingBulkPlantNotePayload)
-    assert response.commands[1].payload.grid_position is None
+    assert isinstance(
+        response.commands[1].payload, BreedingUpdateSeedLotInventoryPayload
+    )
+    assert isinstance(response.commands[2].payload, BreedingGerminatePlantsPayload)
+    assert isinstance(response.commands[3].payload, BreedingClonePlantsPayload)
+    assert isinstance(response.commands[4].payload, BreedingBulkSexPayload)
+    assert isinstance(response.commands[5].payload, BreedingBulkMovePayload)
+    assert isinstance(response.commands[6].payload, BreedingBulkPlantFactsPayload)
+    assert isinstance(response.commands[7].payload, BreedingBulkCullPayload)
+    assert isinstance(response.commands[8].payload, BreedingCreatePlantNotePayload)
+    assert isinstance(response.commands[9].payload, BreedingBulkPlantNotePayload)
+    assert response.commands[2].payload.grid_position is None
 
 
 def test_breeding_command_payloads_reject_bad_shapes() -> None:
@@ -741,6 +756,17 @@ def test_breeding_command_payloads_reject_bad_shapes() -> None:
             ]
         )
     assert mismatch_exc.value.errors()[0]["type"] == "value_error"
+
+    with pytest.raises(ValidationError) as update_mismatch_exc:
+        CommandClaimResponse(
+            commands=[
+                _command_payload(
+                    command_type="breeding_seed_lot_update",
+                    payload={"plant_keys": ["SBBS-R1-001"], "sex_key": "female"},
+                )
+            ]
+        )
+    assert update_mismatch_exc.value.errors()[0]["type"] == "value_error"
 
     with pytest.raises(ValidationError) as extra_exc:
         BreedingBulkMovePayload.model_validate(
@@ -787,6 +813,44 @@ def test_breeding_command_payloads_reject_bad_shapes() -> None:
                 {"field": "veg_started_at", "value": "2026-06-20T16:00:00Z"},
             ],
         )
+
+
+def test_breeding_seed_lot_update_payload_requires_complete_inventory_state() -> None:
+    payload = {
+        "seed_lot_source_id": 1,
+        "sex_type_key": "regular",
+        "seed_count": 8,
+        "notes": None,
+        "vendor_name": " Archive ",
+        "acquired_at": None,
+    }
+
+    update = BreedingUpdateSeedLotInventoryPayload.model_validate(payload)
+
+    assert update.vendor_name == "Archive"
+    assert update.notes is None
+
+    for field_name in ("seed_count", "notes", "vendor_name", "acquired_at"):
+        invalid = dict(payload)
+        del invalid[field_name]
+        with pytest.raises(ValidationError) as exc_info:
+            BreedingUpdateSeedLotInventoryPayload.model_validate(invalid)
+        assert exc_info.value.errors()[0]["loc"] == (field_name,)
+        assert exc_info.value.errors()[0]["type"] == "missing"
+
+    with pytest.raises(ValidationError):
+        BreedingUpdateSeedLotInventoryPayload.model_validate(
+            {**payload, "seed_count": -1}
+        )
+    with pytest.raises(ValidationError):
+        BreedingUpdateSeedLotInventoryPayload.model_validate(
+            {**payload, "vendor_name": "   "}
+        )
+    with pytest.raises(ValidationError) as extra_exc:
+        BreedingUpdateSeedLotInventoryPayload.model_validate(
+            {**payload, "line_source_id": 1}
+        )
+    assert extra_exc.value.errors()[0]["type"] == "extra_forbidden"
 
 
 def test_breeding_grid_position_payloads_require_explicit_null() -> None:

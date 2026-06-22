@@ -10,6 +10,7 @@ from dirt_control.api.browser_schemas.breeding_logbook import (
     BreedingLogbookPlantDetailResponse,
     BreedingLogbookPlantListResponse,
     BreedingLogbookPlantRowResponse,
+    BreedingLogbookSeedLotDetailResponse,
     BreedingLogbookSeedLotListResponse,
 )
 from dirt_control.api.browser_schemas.commands import CommandResponse
@@ -64,6 +65,7 @@ __all__ = [
     "BreedingLogbookPlantDetailResponse",
     "BreedingLogbookPlantListResponse",
     "BreedingLogbookPlantRowResponse",
+    "BreedingLogbookSeedLotDetailResponse",
     "BreedingLogbookSeedLotListResponse",
     "CommandResponse",
     "CurrentMetricResponse",

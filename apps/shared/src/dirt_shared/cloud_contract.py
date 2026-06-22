@@ -27,6 +27,7 @@ CommandType = Literal[
     "ptz_look",
     "ptz_zoom",
     "breeding_seed_lot_create",
+    "breeding_seed_lot_update",
     "breeding_plants_germinate",
     "breeding_plants_clone",
     "breeding_plants_bulk_sex",
@@ -501,6 +502,20 @@ class BreedingCreateSeedLotPayload(CloudContractModel):
         return self
 
 
+class BreedingUpdateSeedLotInventoryPayload(CloudContractModel):
+    seed_lot_source_id: int = Field(gt=0)
+    sex_type_key: SeedLotSexTypeKey
+    seed_count: int | None = Field(..., ge=0)
+    notes: str | None = Field(...)
+    vendor_name: str | None = Field(...)
+    acquired_at: datetime | None = Field(...)
+
+    @field_validator("notes", "vendor_name")
+    @classmethod
+    def _strip_optional_text(cls, value: str | None) -> str | None:
+        return _strip_optional_text(value)
+
+
 class BreedingGerminatePlantsPayload(CloudContractModel):
     seed_lot_source_id: int = Field(gt=0)
     count: int = Field(gt=0)
@@ -633,6 +648,7 @@ CommandTarget: TypeAlias = PtzCommandTarget
 
 BreedingCommandPayload: TypeAlias = (
     BreedingCreateSeedLotPayload
+    | BreedingUpdateSeedLotInventoryPayload
     | BreedingGerminatePlantsPayload
     | BreedingClonePlantsPayload
     | BreedingBulkSexPayload
@@ -677,6 +693,7 @@ class ClaimedCommand(CloudContractModel):
             raise ValueError("ptz_zoom requires a zoom payload")
         expected_payloads: dict[CommandType, type[CloudContractModel]] = {
             "breeding_seed_lot_create": BreedingCreateSeedLotPayload,
+            "breeding_seed_lot_update": BreedingUpdateSeedLotInventoryPayload,
             "breeding_plants_germinate": BreedingGerminatePlantsPayload,
             "breeding_plants_clone": BreedingClonePlantsPayload,
             "breeding_plants_bulk_sex": BreedingBulkSexPayload,

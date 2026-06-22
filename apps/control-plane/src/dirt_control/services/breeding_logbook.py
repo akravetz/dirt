@@ -29,9 +29,13 @@ from dirt_control.api.browser_schemas.breeding_logbook import (
     BreedingLogbookPlantMetricSummaryResponse,
     BreedingLogbookPlantRowResponse,
     BreedingLogbookPlantStageKey,
+    BreedingLogbookSeedLotCrossContextResponse,
+    BreedingLogbookSeedLotDetailResponse,
+    BreedingLogbookSeedLotLineResponse,
     BreedingLogbookSeedLotListResponse,
     BreedingLogbookSeedLotSummaryResponse,
     BreedingUpdatePlantFactsRequest,
+    BreedingUpdateSeedLotInventoryRequest,
 )
 from dirt_control.api.browser_schemas.commands import CommandResponse
 from dirt_control.api.browser_schemas.metrics import METRIC_HISTORY_RANGES
@@ -80,6 +84,7 @@ from dirt_shared.cloud_contract import (
     BreedingCreatePlantNotePayload,
     BreedingCreateSeedLotPayload,
     BreedingGerminatePlantsPayload,
+    BreedingUpdateSeedLotInventoryPayload,
 )
 
 
@@ -239,6 +244,46 @@ async def list_seed_lots(
     )
 
 
+async def seed_lot_detail(
+    session: AsyncSession,
+    *,
+    site_id: str,
+    seed_lot_id: str,
+) -> BreedingLogbookSeedLotDetailResponse:
+    seed_lot_source_id = seed_lot_source_id_from_request(seed_lot_id)
+    seed_lot, line = await get_breeding_logbook_seed_lot(
+        session,
+        site_id=site_id,
+        seed_lot_source_id=seed_lot_source_id,
+    )
+    created_plant_count = await seed_lot_created_plant_count(
+        session,
+        site_id=site_id,
+        seed_lot_source_id=seed_lot_source_id,
+    )
+    cross = await seed_lot_cross_context(
+        session,
+        site_id=site_id,
+        seed_lot=seed_lot,
+    )
+    return BreedingLogbookSeedLotDetailResponse(
+        **breeding_logbook_seed_lot_summary_response(
+            seed_lot,
+            line,
+        ).model_dump(),
+        source_seed_lot_id=seed_lot.source_seed_lot_id,
+        source_line_id=seed_lot.line_source_id,
+        line=seed_lot_line_response(line),
+        is_purchased=seed_lot.is_purchased,
+        vendor_name=seed_lot.vendor_name,
+        acquired_at=seed_lot.acquired_at,
+        produced_by_cross_event_source_id=seed_lot.produced_by_cross_event_source_id,
+        cross=cross,
+        notes=seed_lot.notes,
+        created_plant_count=created_plant_count,
+    )
+
+
 async def plant_metric_history(
     session: AsyncSession,
     *,
@@ -377,6 +422,40 @@ async def create_seed_lot_command(
         session=session,
         now=now,
         command_type="breeding_seed_lot_create",
+        payload=payload,
+    )
+
+
+async def update_seed_lot_inventory_command(  # noqa: PLR0913
+    seed_lot_id: str,
+    body: BreedingUpdateSeedLotInventoryRequest,
+    *,
+    user: str,
+    settings: CloudSettings,
+    session: AsyncSession,
+    now: datetime,
+) -> CommandResponse:
+    seed_lot_source_id = seed_lot_source_id_from_request(seed_lot_id)
+    if body.seed_lot_source_id != seed_lot_source_id:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "seed_lot_source_id must match seed_lot_id",
+        )
+    await get_breeding_logbook_seed_lot(
+        session,
+        site_id=settings.default_site_id,
+        seed_lot_source_id=seed_lot_source_id,
+    )
+    payload = BreedingUpdateSeedLotInventoryPayload(
+        **body.model_dump(exclude={"idempotency_key"})
+    )
+    return await enqueue_breeding_command(
+        body.idempotency_key,
+        user=user,
+        settings=settings,
+        session=session,
+        now=now,
+        command_type="breeding_seed_lot_update",
         payload=payload,
     )
 
@@ -738,6 +817,118 @@ async def get_breeding_logbook_plant(
     raise HTTPException(status.HTTP_404_NOT_FOUND, "plant not found")
 
 
+async def get_breeding_logbook_seed_lot(
+    session: AsyncSession,
+    *,
+    site_id: str,
+    seed_lot_source_id: int,
+) -> tuple[CloudSeedLot, CloudPlantLine | None]:
+    row = (
+        await session.execute(
+            select(CloudSeedLot, CloudPlantLine)
+            .outerjoin(
+                CloudPlantLine,
+                and_(
+                    CloudPlantLine.site_id == CloudSeedLot.site_id,
+                    CloudPlantLine.source_line_id == CloudSeedLot.line_source_id,
+                ),
+            )
+            .where(
+                CloudSeedLot.site_id == site_id,
+                CloudSeedLot.source_seed_lot_id == seed_lot_source_id,
+            )
+        )
+    ).one_or_none()
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "seed lot not found")
+    return row
+
+
+async def seed_lot_created_plant_count(
+    session: AsyncSession,
+    *,
+    site_id: str,
+    seed_lot_source_id: int,
+) -> int:
+    count = await session.scalar(
+        select(func.count())
+        .select_from(CloudPlant)
+        .where(
+            CloudPlant.site_id == site_id,
+            CloudPlant.source_seed_lot_id == seed_lot_source_id,
+        )
+    )
+    return int(count or 0)
+
+
+async def seed_lot_cross_context(
+    session: AsyncSession,
+    *,
+    site_id: str,
+    seed_lot: CloudSeedLot,
+) -> BreedingLogbookSeedLotCrossContextResponse | None:
+    cross_event_id = seed_lot.produced_by_cross_event_source_id
+    if cross_event_id is None:
+        return None
+
+    cross = (
+        await session.execute(
+            select(CloudCrossEvent).where(
+                CloudCrossEvent.site_id == site_id,
+                CloudCrossEvent.source_cross_event_id == cross_event_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if cross is None:
+        return None
+
+    parent_ids = [
+        cross.seed_parent_source_plant_id,
+        cross.pollen_parent_source_plant_id,
+    ]
+    parents = {
+        plant.source_plant_id: plant
+        for plant in (
+            await session.execute(
+                select(CloudPlant).where(
+                    CloudPlant.site_id == site_id,
+                    CloudPlant.source_plant_id.in_(parent_ids),
+                )
+            )
+        ).scalars()
+    }
+    seed_parent = parents.get(cross.seed_parent_source_plant_id)
+    pollen_parent = parents.get(cross.pollen_parent_source_plant_id)
+    seed_parent_label = breeding_logbook_parent_plant_label(
+        seed_parent,
+        fallback=f"plant #{cross.seed_parent_source_plant_id}",
+    )
+    pollen_parent_label = breeding_logbook_parent_plant_label(
+        pollen_parent,
+        fallback=f"plant #{cross.pollen_parent_source_plant_id}",
+    )
+    parents_label = seed_lot_cross_parents_label(
+        seed_parent_label,
+        pollen_parent_label,
+        pollen_parent_is_reversed=cross.pollen_parent_is_reversed,
+    )
+    return BreedingLogbookSeedLotCrossContextResponse(
+        source_cross_event_id=cross.source_cross_event_id,
+        pollinated_at=cross.pollinated_at,
+        pollen_parent_is_reversed=cross.pollen_parent_is_reversed,
+        seed_parent_source_plant_id=cross.seed_parent_source_plant_id,
+        seed_parent_key=None if seed_parent is None else seed_parent.key,
+        seed_parent_name=None if seed_parent is None else seed_parent.name,
+        seed_parent_label=seed_parent_label,
+        pollen_parent_source_plant_id=cross.pollen_parent_source_plant_id,
+        pollen_parent_key=None if pollen_parent is None else pollen_parent.key,
+        pollen_parent_name=None if pollen_parent is None else pollen_parent.name,
+        pollen_parent_label=pollen_parent_label,
+        parents_label=parents_label,
+        notes=cross.notes,
+    )
+
+
 def plant_projection_from_breeding_logbook(
     projection: BreedingLogbookPlantProjection,
 ) -> PlantProjection:
@@ -1095,6 +1286,22 @@ def breeding_logbook_seed_lot_summary_response(
     )
 
 
+def seed_lot_line_response(
+    line: CloudPlantLine | None,
+) -> BreedingLogbookSeedLotLineResponse | None:
+    if line is None:
+        return None
+    return BreedingLogbookSeedLotLineResponse(
+        source_line_id=line.source_line_id,
+        prefix=line.project_code or "",
+        generation=generation_label(line),
+        strain=line.strain,
+        cultivar=line.cultivar,
+        source_name=line.source_name,
+        description=line.description,
+    )
+
+
 def breeding_logbook_last_note(
     plant: CloudPlant,
     *,
@@ -1207,6 +1414,17 @@ def breeding_logbook_parent_plant_label(
     if plant is None:
         return fallback
     return f"{plant.name} ({plant.key})"
+
+
+def seed_lot_cross_parents_label(
+    seed_parent_label: str,
+    pollen_parent_label: str,
+    *,
+    pollen_parent_is_reversed: bool | None,
+) -> str:
+    if pollen_parent_is_reversed:
+        pollen_parent_label = f"{pollen_parent_label} (reversed)"
+    return f"{seed_parent_label} x {pollen_parent_label}"
 
 
 def plant_count_label(count: int) -> str:

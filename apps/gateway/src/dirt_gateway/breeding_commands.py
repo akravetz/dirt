@@ -22,6 +22,7 @@ from dirt_shared.cloud_contract import (
     BreedingCreatePlantNotePayload,
     BreedingCreateSeedLotPayload,
     BreedingGerminatePlantsPayload,
+    BreedingUpdateSeedLotInventoryPayload,
     ClaimedCommand,
 )
 from dirt_shared.models import (
@@ -66,6 +67,8 @@ class BreedingCommandExecutor:
         async with AsyncSession(self._engine) as session, session.begin():
             if isinstance(payload, BreedingCreateSeedLotPayload):
                 return await self._create_seed_lot(session, item.site_id, payload)
+            if isinstance(payload, BreedingUpdateSeedLotInventoryPayload):
+                return await self._update_seed_lot_inventory(session, payload)
             if isinstance(payload, BreedingGerminatePlantsPayload):
                 return await self._germinate(session, item.site_id, payload)
             if isinstance(payload, BreedingClonePlantsPayload):
@@ -161,6 +164,34 @@ class BreedingCommandExecutor:
         result = _seed_lot_result(seed_lot, line)
         result["source_cross_event_id"] = _pk(cross)
         return result
+
+    async def _update_seed_lot_inventory(
+        self,
+        session: AsyncSession,
+        payload: BreedingUpdateSeedLotInventoryPayload,
+    ) -> dict[str, Any]:
+        await _require_seed_lot_sex_type(session, payload.sex_type_key)
+        seed_lot = await _require_seed_lot(session, payload.seed_lot_source_id)
+
+        if seed_lot.is_purchased:
+            seed_lot.vendor_name = _require(payload.vendor_name, "vendor_name")
+            seed_lot.acquired_at = payload.acquired_at
+        elif payload.vendor_name is not None or payload.acquired_at is not None:
+            raise BreedingCommandError(
+                "cross-created seed lots must not include vendor_name or acquired_at"
+            )
+
+        seed_lot.sex_type_key = payload.sex_type_key
+        seed_lot.seed_count = payload.seed_count
+        seed_lot.notes = payload.notes
+        seed_lot.updated_at = self._clock()
+        session.add(seed_lot)
+        await session.flush()
+        return {
+            "source_seed_lot_id": _pk(seed_lot),
+            "sex_type_key": seed_lot.sex_type_key,
+            "seed_count": seed_lot.seed_count,
+        }
 
     async def _germinate(
         self,

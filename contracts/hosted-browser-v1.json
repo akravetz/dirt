@@ -1796,6 +1796,352 @@
         "title": "BreedingLogbookPlantRowResponse",
         "type": "object"
       },
+      "BreedingLogbookSeedLotCrossContextResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "parents_label": {
+            "title": "Parents Label",
+            "type": "string"
+          },
+          "pollen_parent_is_reversed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pollen Parent Is Reversed"
+          },
+          "pollen_parent_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pollen Parent Key"
+          },
+          "pollen_parent_label": {
+            "title": "Pollen Parent Label",
+            "type": "string"
+          },
+          "pollen_parent_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pollen Parent Name"
+          },
+          "pollen_parent_source_plant_id": {
+            "title": "Pollen Parent Source Plant Id",
+            "type": "integer"
+          },
+          "pollinated_at": {
+            "format": "date-time",
+            "title": "Pollinated At",
+            "type": "string"
+          },
+          "seed_parent_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed Parent Key"
+          },
+          "seed_parent_label": {
+            "title": "Seed Parent Label",
+            "type": "string"
+          },
+          "seed_parent_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed Parent Name"
+          },
+          "seed_parent_source_plant_id": {
+            "title": "Seed Parent Source Plant Id",
+            "type": "integer"
+          },
+          "source_cross_event_id": {
+            "title": "Source Cross Event Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "source_cross_event_id",
+          "pollinated_at",
+          "pollen_parent_is_reversed",
+          "seed_parent_source_plant_id",
+          "seed_parent_key",
+          "seed_parent_name",
+          "seed_parent_label",
+          "pollen_parent_source_plant_id",
+          "pollen_parent_key",
+          "pollen_parent_name",
+          "pollen_parent_label",
+          "parents_label",
+          "notes"
+        ],
+        "title": "BreedingLogbookSeedLotCrossContextResponse",
+        "type": "object"
+      },
+      "BreedingLogbookSeedLotDetailResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "acquired_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acquired At"
+          },
+          "created_plant_count": {
+            "title": "Created Plant Count",
+            "type": "integer"
+          },
+          "cross": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BreedingLogbookSeedLotCrossContextResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cultivar": {
+            "title": "Cultivar",
+            "type": "string"
+          },
+          "generation": {
+            "title": "Generation",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "is_purchased": {
+            "title": "Is Purchased",
+            "type": "boolean"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "line": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BreedingLogbookSeedLotLineResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "parents_label": {
+            "title": "Parents Label",
+            "type": "string"
+          },
+          "prefix": {
+            "title": "Prefix",
+            "type": "string"
+          },
+          "produced_by_cross_event_source_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Produced By Cross Event Source Id"
+          },
+          "seed_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed Count"
+          },
+          "sex_type_key": {
+            "enum": [
+              "unknown",
+              "feminized",
+              "regular"
+            ],
+            "title": "Sex Type Key",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "cross",
+              "purchased"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "source_label": {
+            "title": "Source Label",
+            "type": "string"
+          },
+          "source_line_id": {
+            "title": "Source Line Id",
+            "type": "integer"
+          },
+          "source_seed_lot_id": {
+            "title": "Source Seed Lot Id",
+            "type": "integer"
+          },
+          "strain": {
+            "title": "Strain",
+            "type": "string"
+          },
+          "vendor_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor Name"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "prefix",
+          "strain",
+          "cultivar",
+          "generation",
+          "source",
+          "source_label",
+          "parents_label",
+          "sex_type_key",
+          "seed_count",
+          "source_seed_lot_id",
+          "source_line_id",
+          "line",
+          "is_purchased",
+          "vendor_name",
+          "acquired_at",
+          "produced_by_cross_event_source_id",
+          "cross",
+          "notes",
+          "created_plant_count"
+        ],
+        "title": "BreedingLogbookSeedLotDetailResponse",
+        "type": "object"
+      },
+      "BreedingLogbookSeedLotLineResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "cultivar": {
+            "title": "Cultivar",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "generation": {
+            "title": "Generation",
+            "type": "string"
+          },
+          "prefix": {
+            "title": "Prefix",
+            "type": "string"
+          },
+          "source_line_id": {
+            "title": "Source Line Id",
+            "type": "integer"
+          },
+          "source_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Name"
+          },
+          "strain": {
+            "title": "Strain",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_line_id",
+          "prefix",
+          "generation",
+          "strain",
+          "cultivar",
+          "source_name",
+          "description"
+        ],
+        "title": "BreedingLogbookSeedLotLineResponse",
+        "type": "object"
+      },
       "BreedingLogbookSeedLotListResponse": {
         "additionalProperties": false,
         "properties": {
@@ -1970,6 +2316,163 @@
           "idempotency_key"
         ],
         "title": "BreedingUpdatePlantFactsRequest",
+        "type": "object"
+      },
+      "BreedingUpdateSeedLotInventoryPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "acquired_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acquired At"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "seed_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed Count"
+          },
+          "seed_lot_source_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Seed Lot Source Id",
+            "type": "integer"
+          },
+          "sex_type_key": {
+            "enum": [
+              "unknown",
+              "feminized",
+              "regular"
+            ],
+            "title": "Sex Type Key",
+            "type": "string"
+          },
+          "vendor_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor Name"
+          }
+        },
+        "required": [
+          "seed_lot_source_id",
+          "sex_type_key",
+          "seed_count",
+          "notes",
+          "vendor_name",
+          "acquired_at"
+        ],
+        "title": "BreedingUpdateSeedLotInventoryPayload",
+        "type": "object"
+      },
+      "BreedingUpdateSeedLotInventoryRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "acquired_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acquired At"
+          },
+          "idempotency_key": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "seed_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed Count"
+          },
+          "seed_lot_source_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Seed Lot Source Id",
+            "type": "integer"
+          },
+          "sex_type_key": {
+            "enum": [
+              "unknown",
+              "feminized",
+              "regular"
+            ],
+            "title": "Sex Type Key",
+            "type": "string"
+          },
+          "vendor_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor Name"
+          }
+        },
+        "required": [
+          "seed_lot_source_id",
+          "sex_type_key",
+          "seed_count",
+          "notes",
+          "vendor_name",
+          "acquired_at",
+          "idempotency_key"
+        ],
+        "title": "BreedingUpdateSeedLotInventoryRequest",
         "type": "object"
       },
       "CapturePolicyResponse": {
@@ -3269,6 +3772,7 @@
               "ptz_look",
               "ptz_zoom",
               "breeding_seed_lot_create",
+              "breeding_seed_lot_update",
               "breeding_plants_germinate",
               "breeding_plants_clone",
               "breeding_plants_bulk_sex",
@@ -3325,6 +3829,9 @@
               },
               {
                 "$ref": "#/components/schemas/BreedingCreateSeedLotPayload"
+              },
+              {
+                "$ref": "#/components/schemas/BreedingUpdateSeedLotInventoryPayload"
               },
               {
                 "$ref": "#/components/schemas/BreedingGerminatePlantsPayload"
@@ -3740,6 +4247,7 @@
               "ptz_look",
               "ptz_zoom",
               "breeding_seed_lot_create",
+              "breeding_seed_lot_update",
               "breeding_plants_germinate",
               "breeding_plants_clone",
               "breeding_plants_bulk_sex",
@@ -3796,6 +4304,9 @@
               },
               {
                 "$ref": "#/components/schemas/BreedingCreateSeedLotPayload"
+              },
+              {
+                "$ref": "#/components/schemas/BreedingUpdateSeedLotInventoryPayload"
               },
               {
                 "$ref": "#/components/schemas/BreedingGerminatePlantsPayload"
@@ -7261,6 +7772,94 @@
           }
         },
         "summary": "Create Breeding Seed Lot"
+      }
+    },
+    "/api/breeding-logbook/seed-lots/{seed_lot_id}": {
+      "get": {
+        "operationId": "breeding_logbook_seed_lot_detail_api_breeding_logbook_seed_lots__seed_lot_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "seed_lot_id",
+            "required": true,
+            "schema": {
+              "title": "Seed Lot Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BreedingLogbookSeedLotDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Breeding Logbook Seed Lot Detail"
+      }
+    },
+    "/api/breeding-logbook/seed-lots/{seed_lot_id}:update": {
+      "post": {
+        "operationId": "update_breeding_seed_lot_inventory_api_breeding_logbook_seed_lots__seed_lot_id__update_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "seed_lot_id",
+            "required": true,
+            "schema": {
+              "title": "Seed Lot Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BreedingUpdateSeedLotInventoryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Breeding Seed Lot Inventory"
       }
     },
     "/api/commands": {

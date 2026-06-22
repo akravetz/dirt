@@ -11,6 +11,7 @@ from dirt_control.api.browser import (
     BreedingLogbookPlantDetailResponse,
     BreedingLogbookPlantListResponse,
     BreedingLogbookPlantRowResponse,
+    BreedingLogbookSeedLotDetailResponse,
     BreedingLogbookSeedLotListResponse,
     CommandResponse,
     CurrentMetricResponse,
@@ -80,6 +81,10 @@ def test_hosted_browser_routes_keep_response_models() -> None:
         is BreedingLogbookSeedLotListResponse
     )
     assert (
+        routes[("GET", "/api/breeding-logbook/seed-lots/{seed_lot_id}")]
+        is BreedingLogbookSeedLotDetailResponse
+    )
+    assert (
         routes[("GET", "/api/breeding-logbook/plants/{plant_key}/metrics/history")]
         is PlantMetricHistoryResponse
     )
@@ -88,6 +93,10 @@ def test_hosted_browser_routes_keep_response_models() -> None:
         is BreedingLogbookPlantDetailResponse
     )
     assert routes[("POST", "/api/breeding-logbook/seed-lots")] is CommandResponse
+    assert (
+        routes[("POST", "/api/breeding-logbook/seed-lots/{seed_lot_id}:update")]
+        is CommandResponse
+    )
     assert routes[("POST", "/api/breeding-logbook/plants:germinate")] is CommandResponse
     assert routes[("POST", "/api/breeding-logbook/plants:clone")] is CommandResponse
     assert routes[("POST", "/api/breeding-logbook/plants:bulk-sex")] is CommandResponse

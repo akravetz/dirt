@@ -18,8 +18,10 @@ from dirt_control.api.browser_schemas.breeding_logbook import (
     BreedingLogbookGroupBy,
     BreedingLogbookPlantDetailResponse,
     BreedingLogbookPlantListResponse,
+    BreedingLogbookSeedLotDetailResponse,
     BreedingLogbookSeedLotListResponse,
     BreedingUpdatePlantFactsRequest,
+    BreedingUpdateSeedLotInventoryRequest,
 )
 from dirt_control.api.browser_schemas.commands import CommandResponse
 from dirt_control.api.browser_schemas.plants import PlantMetricHistoryResponse
@@ -40,6 +42,8 @@ from dirt_control.services.breeding_logbook import (
     list_seed_lots,
     plant_detail,
     plant_metric_history,
+    seed_lot_detail,
+    update_seed_lot_inventory_command,
 )
 from dirt_control.settings import CloudSettings
 
@@ -95,6 +99,23 @@ async def breeding_logbook_seed_lots(
 
 
 @router.get(
+    "/breeding-logbook/seed-lots/{seed_lot_id}",
+    response_model=BreedingLogbookSeedLotDetailResponse,
+)
+async def breeding_logbook_seed_lot_detail(
+    seed_lot_id: str,
+    _: str = Depends(require_browser_user),
+    settings: CloudSettings = Depends(get_settings),
+    session=Depends(get_session),
+) -> BreedingLogbookSeedLotDetailResponse:
+    return await seed_lot_detail(
+        session,
+        site_id=settings.default_site_id,
+        seed_lot_id=seed_lot_id,
+    )
+
+
+@router.get(
     "/breeding-logbook/plants/{plant_key}/metrics/history",
     response_model=PlantMetricHistoryResponse,
 )
@@ -147,6 +168,29 @@ async def create_breeding_seed_lot(
     clock: Callable[[], datetime] = Depends(get_clock),
 ) -> CommandResponse:
     return await create_seed_lot_command(
+        body,
+        user=user,
+        settings=settings,
+        session=session,
+        now=clock(),
+    )
+
+
+@router.post(
+    "/breeding-logbook/seed-lots/{seed_lot_id}:update",
+    status_code=status.HTTP_201_CREATED,
+    response_model=CommandResponse,
+)
+async def update_breeding_seed_lot_inventory(  # noqa: PLR0913
+    seed_lot_id: str,
+    body: BreedingUpdateSeedLotInventoryRequest,
+    user: str = Depends(require_browser_user),
+    settings: CloudSettings = Depends(get_settings),
+    session=Depends(get_session),
+    clock: Callable[[], datetime] = Depends(get_clock),
+) -> CommandResponse:
+    return await update_seed_lot_inventory_command(
+        seed_lot_id,
         body,
         user=user,
         settings=settings,

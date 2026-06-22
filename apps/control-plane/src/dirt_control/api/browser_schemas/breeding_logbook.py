@@ -18,6 +18,7 @@ from dirt_control.api.browser_schemas.plants import (
 from dirt_shared.cloud_contract import (
     BreedingBulkPlantFactsPayload,
     BreedingCreateSeedLotPayload,
+    BreedingUpdateSeedLotInventoryPayload,
     PlantSexKey,
 )
 
@@ -39,6 +40,10 @@ class BreedingCommandRequest(BrowserRequest):
 
 
 class BreedingCreateSeedLotRequest(BreedingCreateSeedLotPayload):
+    idempotency_key: str = Field(min_length=1, max_length=160)
+
+
+class BreedingUpdateSeedLotInventoryRequest(BreedingUpdateSeedLotInventoryPayload):
     idempotency_key: str = Field(min_length=1, max_length=160)
 
 
@@ -162,6 +167,45 @@ class BreedingLogbookSeedLotSummaryResponse(BrowserResponse):
 
 class BreedingLogbookSeedLotListResponse(BrowserResponse):
     seed_lots: list[BreedingLogbookSeedLotSummaryResponse]
+
+
+class BreedingLogbookSeedLotLineResponse(BrowserResponse):
+    source_line_id: int
+    prefix: str
+    generation: str
+    strain: str
+    cultivar: str
+    source_name: str | None = Field(...)
+    description: str | None = Field(...)
+
+
+class BreedingLogbookSeedLotCrossContextResponse(BrowserResponse):
+    source_cross_event_id: int
+    pollinated_at: datetime
+    pollen_parent_is_reversed: bool | None = Field(...)
+    seed_parent_source_plant_id: int
+    seed_parent_key: str | None = Field(...)
+    seed_parent_name: str | None = Field(...)
+    seed_parent_label: str
+    pollen_parent_source_plant_id: int
+    pollen_parent_key: str | None = Field(...)
+    pollen_parent_name: str | None = Field(...)
+    pollen_parent_label: str
+    parents_label: str
+    notes: str | None = Field(...)
+
+
+class BreedingLogbookSeedLotDetailResponse(BreedingLogbookSeedLotSummaryResponse):
+    source_seed_lot_id: int
+    source_line_id: int
+    line: BreedingLogbookSeedLotLineResponse | None = Field(...)
+    is_purchased: bool
+    vendor_name: str | None = Field(...)
+    acquired_at: datetime | None = Field(...)
+    produced_by_cross_event_source_id: int | None = Field(...)
+    cross: BreedingLogbookSeedLotCrossContextResponse | None = Field(...)
+    notes: str | None = Field(...)
+    created_plant_count: int
 
 
 class BreedingLogbookPlantRowResponse(BrowserResponse):

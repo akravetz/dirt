@@ -22,6 +22,7 @@ from dirt_shared.cloud_contract import (
     BreedingCreatePlantNotePayload,
     BreedingCreateSeedLotPayload,
     BreedingGerminatePlantsPayload,
+    BreedingUpdateSeedLotInventoryPayload,
     ClaimedCommand,
     CommandRequestStatus,
     CommandResultOutboxPayload,
@@ -414,6 +415,7 @@ def _local_command_type(cloud_type: str) -> str:
         "ptz_look": "ptz.look",
         "ptz_zoom": "ptz.zoom",
         "breeding_seed_lot_create": "breeding.seed_lot.create",
+        "breeding_seed_lot_update": "breeding.seed_lot.update",
         "breeding_plants_germinate": "breeding.plants.germinate",
         "breeding_plants_clone": "breeding.plants.clone",
         "breeding_plants_bulk_sex": "breeding.plants.bulk_sex",
@@ -485,6 +487,7 @@ def _is_breeding_command(item: ClaimedCommand) -> bool:
     return isinstance(
         item.payload,
         BreedingCreateSeedLotPayload
+        | BreedingUpdateSeedLotInventoryPayload
         | BreedingGerminatePlantsPayload
         | BreedingClonePlantsPayload
         | BreedingBulkSexPayload

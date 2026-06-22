@@ -2180,6 +2180,170 @@ async def test_command_loop_executes_cross_seed_lot_create(
     assert cross.pollen_parent_is_reversed is True
 
 
+async def test_command_loop_updates_purchased_seed_lot_inventory(
+    app_engine: AsyncEngine,
+):
+    seed_lot_id = await _seed_seed_lot_for_commands(
+        app_engine,
+        project_code="UPD",
+        generation_label="R1",
+    )
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command(
+            "cloud-seed-update",
+            command_type="breeding_seed_lot_update",
+            payload={
+                "seed_lot_source_id": seed_lot_id,
+                "sex_type_key": "feminized",
+                "seed_count": 7,
+                "notes": "Inventory recounted.",
+                "vendor_name": "Archive",
+                "acquired_at": FIXED_NOW.isoformat(),
+            },
+        )
+    ]
+
+    result = await _command_service(app_engine, cloud, RecordingPTZ()).run_once()
+
+    assert result.executed == 1
+    async with AsyncSession(app_engine) as session:
+        seed_lot = await session.get(SeedLot, seed_lot_id)
+        command = (
+            await session.exec(
+                select(Command).where(
+                    Command.idempotency_key == "cloud-command:cloud-seed-update"
+                )
+            )
+        ).one()
+
+    assert command.command_type == "breeding.seed_lot.update"
+    assert command.status == "succeeded"
+    assert command.result == {
+        "source_seed_lot_id": seed_lot_id,
+        "sex_type_key": "feminized",
+        "seed_count": 7,
+    }
+    assert seed_lot is not None
+    assert seed_lot.sex_type_key == "feminized"
+    assert seed_lot.seed_count == 7
+    assert seed_lot.notes == "Inventory recounted."
+    assert seed_lot.vendor_name == "Archive"
+    assert seed_lot.acquired_at == FIXED_NOW
+
+
+async def test_command_loop_rejects_purchased_seed_lot_update_without_vendor(
+    app_engine: AsyncEngine,
+):
+    seed_lot_id = await _seed_seed_lot_for_commands(
+        app_engine,
+        project_code="PVEND",
+        generation_label="R1",
+    )
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command(
+            "cloud-seed-update-no-vendor",
+            command_type="breeding_seed_lot_update",
+            payload={
+                "seed_lot_source_id": seed_lot_id,
+                "sex_type_key": "regular",
+                "seed_count": 4,
+                "notes": None,
+                "vendor_name": None,
+                "acquired_at": None,
+            },
+        )
+    ]
+
+    result = await _command_service(app_engine, cloud, RecordingPTZ()).run_once()
+
+    assert result.executed == 1
+    statuses = [payload.status for _, payload, _ in cloud.command_results]
+    assert statuses == ["running", "failed"]
+    assert "missing vendor_name" in cloud.command_results[-1][1].error
+    async with AsyncSession(app_engine) as session:
+        seed_lot = await session.get(SeedLot, seed_lot_id)
+        command = (
+            await session.exec(
+                select(Command).where(
+                    Command.idempotency_key
+                    == "cloud-command:cloud-seed-update-no-vendor"
+                )
+            )
+        ).one()
+
+    assert seed_lot is not None
+    assert seed_lot.vendor_name == "Fixture vendor"
+    assert seed_lot.seed_count is None
+    assert command.status == "failed"
+
+
+async def test_command_loop_rejects_cross_seed_lot_update_with_purchased_fields(
+    app_engine: AsyncEngine,
+):
+    async with AsyncSession(app_engine) as session:
+        line = PlantLine(
+            project_code="XUPD",
+            generation_label="F1",
+            strain="Cross Update",
+            cultivar="F1",
+            source_name="in-house",
+        )
+        session.add(line)
+        await session.flush()
+        seed_lot = SeedLot(
+            line_id=line.id,
+            sex_type_key="regular",
+            is_purchased=False,
+            seed_count=20,
+            notes="Original count.",
+        )
+        session.add(seed_lot)
+        await session.flush()
+        seed_lot_id = seed_lot.id
+        await session.commit()
+    assert seed_lot_id is not None
+
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command(
+            "cloud-cross-seed-update-with-vendor",
+            command_type="breeding_seed_lot_update",
+            payload={
+                "seed_lot_source_id": seed_lot_id,
+                "sex_type_key": "regular",
+                "seed_count": 18,
+                "notes": "Should not apply.",
+                "vendor_name": "Archive",
+                "acquired_at": None,
+            },
+        )
+    ]
+
+    result = await _command_service(app_engine, cloud, RecordingPTZ()).run_once()
+
+    assert result.executed == 1
+    statuses = [payload.status for _, payload, _ in cloud.command_results]
+    assert statuses == ["running", "failed"]
+    assert "must not include vendor_name" in cloud.command_results[-1][1].error
+    async with AsyncSession(app_engine) as session:
+        seed_lot = await session.get(SeedLot, seed_lot_id)
+        command = (
+            await session.exec(
+                select(Command).where(
+                    Command.idempotency_key
+                    == "cloud-command:cloud-cross-seed-update-with-vendor"
+                )
+            )
+        ).one()
+
+    assert seed_lot is not None
+    assert seed_lot.seed_count == 20
+    assert seed_lot.notes == "Original count."
+    assert command.status == "failed"
+
+
 async def test_command_loop_germinates_plants_with_local_key_suffixes(
     app_engine: AsyncEngine,
 ):
