@@ -1,18 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { WorkspaceLink, WorkspacePlaceholder } from "./-workspacePlaceholders";
+import { Suspense } from "react";
+import { NewPlantPage, StatusScreen } from "@/features/plants/PlantsWorkspace";
 
 export const Route = createFileRoute("/plants/new")({
   component: NewPlantRoute,
+  errorComponent: () => (
+    <StatusScreen message="Failed to load plant creation." tone="danger" />
+  ),
 });
 
 function NewPlantRoute() {
   return (
-    <WorkspacePlaceholder
-      kicker="Plants"
-      title="New Plant"
-      actions={[
-        { label: "Plants", link: <WorkspaceLink to="/plants">Plants</WorkspaceLink> },
-      ]}
-    />
+    <Suspense fallback={<StatusScreen message="Loading plant creation..." />}>
+      <NewPlantPage />
+    </Suspense>
   );
 }

@@ -8,7 +8,7 @@ import {
 import { useEffect, useMemo } from "react";
 import { createHostedApiClient, type hostedComponents } from "@/api-client";
 import { platform } from "@/shared/platform";
-import { invalidateBreedingLogbookReads } from "./breedingLogbookQueries";
+import { invalidatePlantsReads } from "./plantsQueries";
 import type {
   PlantJournalEvent,
   PlantRow,
@@ -16,7 +16,7 @@ import type {
   PlantStageKey,
   SeedLotSexTypeKey,
   SeedLotSource,
-} from "./breedingLogbookTypes";
+} from "./plantsTypes";
 
 const hostedApi = createHostedApiClient();
 const pendingCommandsQueryKey = ["breeding-logbook", "pending-commands"] as const;
@@ -55,7 +55,7 @@ type PendingOperation =
   | "bulk-cull"
   | "note";
 
-export type BreedingLogbookPendingCommand = {
+export type PlantsPendingCommand = {
   commandId: string;
   command: HostedCommand;
   operation: PendingOperation;
@@ -179,7 +179,7 @@ type LogNoteMutationInput = {
   body: string;
 };
 
-export function createBreedingLogbookIdempotencyKey(operation: string): string {
+export function createPlantsIdempotencyKey(operation: string): string {
   const random =
     typeof crypto === "undefined" || crypto.randomUUID === undefined
       ? Math.random().toString(36).slice(2)
@@ -309,7 +309,7 @@ export function buildBulkLogNoteRequest(
   };
 }
 
-export function useBreedingLogbookPendingCommands(): readonly BreedingLogbookPendingCommand[] {
+export function usePlantsPendingCommands(): readonly PlantsPendingCommand[] {
   const queryClient = useQueryClient();
   const pendingQuery = useQuery({
     queryKey: pendingCommandsQueryKey,
@@ -366,7 +366,7 @@ export function useAddSeedLotMutation() {
         optimisticPlantPatches: [],
         pendingNote: null,
       });
-      invalidateBreedingLogbookReads(queryClient);
+      invalidatePlantsReads(queryClient);
       if (command.status === "succeeded") {
         scheduleProjectionRefresh(queryClient);
       }
@@ -538,9 +538,9 @@ export function useLogPlantNoteMutation() {
 }
 
 export function activePendingCommandsForPlant(
-  pendingCommands: readonly BreedingLogbookPendingCommand[],
+  pendingCommands: readonly PlantsPendingCommand[],
   plantKey: string,
-): readonly BreedingLogbookPendingCommand[] {
+): readonly PlantsPendingCommand[] {
   return pendingCommands.filter(
     (pending) =>
       pending.affectedPlantKeys.includes(plantKey) &&
@@ -549,9 +549,9 @@ export function activePendingCommandsForPlant(
 }
 
 export function failedCommandsForPlant(
-  pendingCommands: readonly BreedingLogbookPendingCommand[],
+  pendingCommands: readonly PlantsPendingCommand[],
   plantKey: string,
-): readonly BreedingLogbookPendingCommand[] {
+): readonly PlantsPendingCommand[] {
   return pendingCommands.filter(
     (pending) =>
       pending.affectedPlantKeys.includes(plantKey) &&
@@ -560,7 +560,7 @@ export function failedCommandsForPlant(
 }
 
 export function hasActivePendingForAnyPlant(
-  pendingCommands: readonly BreedingLogbookPendingCommand[],
+  pendingCommands: readonly PlantsPendingCommand[],
   plantKeys: readonly string[],
 ): boolean {
   return plantKeys.some(
@@ -570,7 +570,7 @@ export function hasActivePendingForAnyPlant(
 
 export function pendingTimelineNotes(
   events: readonly PlantJournalEvent[],
-  pendingCommands: readonly BreedingLogbookPendingCommand[],
+  pendingCommands: readonly PlantsPendingCommand[],
   plantKey: string,
 ): readonly PendingTimelineNote[] {
   return pendingCommands.flatMap((pending) => {
@@ -597,7 +597,7 @@ export function pendingTimelineNotes(
 
 export function applyPendingPlantCommands(
   plants: readonly PlantRow[],
-  pendingCommands: readonly BreedingLogbookPendingCommand[],
+  pendingCommands: readonly PlantsPendingCommand[],
 ): readonly PlantRow[] {
   const patchesByPlantKey = new Map<string, PendingPlantPatch[]>();
   for (const pending of pendingCommands) {
@@ -617,7 +617,7 @@ export function applyPendingPlantCommands(
 }
 
 export function isPendingCommandProjected(
-  pending: BreedingLogbookPendingCommand,
+  pending: PlantsPendingCommand,
   plants: readonly PlantRow[],
   events: readonly PlantJournalEvent[],
   detailPlantKey: string,
@@ -632,9 +632,7 @@ export function isPendingCommandProjected(
   return hasSyncedNote(events, pending.pendingNote.body);
 }
 
-export function commandErrorText(
-  pendingCommand: BreedingLogbookPendingCommand,
-): string | null {
+export function commandErrorText(pendingCommand: PlantsPendingCommand): string | null {
   if (!isFailedCommandStatus(pendingCommand.command.status)) return null;
   return (
     pendingCommand.command.error ||
@@ -733,9 +731,9 @@ function bodyWithoutRequiredNullGridPosition<TBody extends { grid_position: null
 
 function addPendingCommand(
   queryClient: QueryClient,
-  input: Omit<BreedingLogbookPendingCommand, "commandId">,
+  input: Omit<PlantsPendingCommand, "commandId">,
 ): void {
-  queryClient.setQueryData<readonly BreedingLogbookPendingCommand[]>(
+  queryClient.setQueryData<readonly PlantsPendingCommand[]>(
     pendingCommandsQueryKey,
     (current = []) => {
       const next = {
@@ -755,7 +753,7 @@ function updatePendingCommand(
   commandId: string,
   command: HostedCommand,
 ): void {
-  queryClient.setQueryData<readonly BreedingLogbookPendingCommand[]>(
+  queryClient.setQueryData<readonly PlantsPendingCommand[]>(
     pendingCommandsQueryKey,
     (current = []) =>
       current.map((pending) =>
@@ -764,9 +762,7 @@ function updatePendingCommand(
   );
 }
 
-function getPendingCommands(
-  queryClient: QueryClient,
-): readonly BreedingLogbookPendingCommand[] {
+function getPendingCommands(queryClient: QueryClient): readonly PlantsPendingCommand[] {
   return queryClient.getQueryData(pendingCommandsQueryKey) ?? [];
 }
 
@@ -776,12 +772,12 @@ function scheduleProjectionRefresh(
 ): void {
   for (const delayMs of PROJECTION_REFRESH_DELAYS_MS) {
     platform.setTimeout(() => {
-      invalidateBreedingLogbookReads(queryClient, plantKeys);
+      invalidatePlantsReads(queryClient, plantKeys);
     }, delayMs);
   }
 }
 
-function shouldApplyOptimisticCommand(pending: BreedingLogbookPendingCommand): boolean {
+function shouldApplyOptimisticCommand(pending: PlantsPendingCommand): boolean {
   return !isFailedCommandStatus(pending.command.status);
 }
 

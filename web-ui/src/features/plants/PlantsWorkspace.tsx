@@ -1,40 +1,36 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { platform } from "@/shared/platform";
-import { storage } from "@/shared/storage";
+import { MarkdownDocument } from "@/ui/MarkdownDocument";
 import { Sparkline } from "@/ui/Sparkline";
 import {
   type AddSeedLotMutationInput,
   activePendingCommandsForPlant,
   applyPendingPlantCommands,
-  type BreedingLogbookPendingCommand,
   canSubmitBulkCull,
   commandErrorText,
-  createBreedingLogbookIdempotencyKey,
+  createPlantsIdempotencyKey,
   failedCommandsForPlant,
   hasActivePendingForAnyPlant,
   isPendingCommandProjected,
   type PendingTimelineNote,
+  type PlantsPendingCommand,
   pendingTimelineNotes,
   readonlyPlantPrefixPreview,
   useAddSeedLotMutation,
-  useBreedingLogbookPendingCommands,
   useBulkCullMutation,
   useBulkMoveMutation,
   useBulkSexMutation,
   useClonePlantsMutation,
   useGerminatePlantsMutation,
   useLogPlantNoteMutation,
+  usePlantsPendingCommands,
   useUpdatePlantFactsMutation,
-} from "./breedingLogbookMutations";
-import {
-  invalidateBreedingLogbookReads,
-  useBreedingLogbookQueries,
-} from "./breedingLogbookQueries";
+} from "./plantsMutations";
+import { invalidatePlantsReads, usePlantsQueries } from "./plantsQueries";
 import type {
-  BreedingLogbookBootstrap,
-  BreedingLogbookView,
   BulkPanel,
   LocationOption,
   PlantDetail,
@@ -45,13 +41,12 @@ import type {
   PlantRow,
   PlantSexKey,
   PlantStageKey,
+  PlantsBootstrap,
   SeedLotSexTypeKey,
   SeedLotSource,
   SeedLotSummary,
-} from "./breedingLogbookTypes";
+} from "./plantsTypes";
 
-const THEME_STORAGE_KEY = "dirt.theme";
-type Theme = "light" | "dark";
 type AddPlantMode = "germinate" | "clone";
 type BulkDateField = "veg_started_at" | "flower_started_at";
 type DetailDateFactField =
@@ -91,14 +86,12 @@ type TableGroup = {
   plants: readonly PlantRow[];
 };
 
-const VIEW_TABS = [
-  { value: "plants", label: "Plants" },
-  { value: "add-seeds", label: "Add seeds" },
-  { value: "add-plants", label: "Add plants" },
-] as const satisfies readonly {
-  value: Exclude<BreedingLogbookView, "detail">;
-  label: string;
-}[];
+type PlantVisibilityFilter = "active" | "all" | "culled" | "harvested";
+type PlantsSearchState = {
+  groupBy?: PlantGroupBy;
+  layout?: PlantListLayout;
+  visibility?: PlantVisibilityFilter;
+};
 
 const GENERATION_OPTIONS = ["R1", "F1", "F2", "F3", "F4", "F5", "S1", "BX1"] as const;
 const EMPTY_SELECTION = new Set<string>();
@@ -135,18 +128,125 @@ const EMPTY_DETAIL_FACTS_DRAFT: DetailFactsDraft = {
   vegStartedAt: "",
   flowerStartedAt: "",
 };
+const PLANT_LIST_LAYOUT_VALUES = ["table", "board"] as const;
+const PLANT_GROUP_BY_VALUES = ["stage", "parents"] as const;
+const PLANT_VISIBILITY_VALUES = ["active", "all", "culled", "harvested"] as const;
+const DEFAULT_PLANTS_SEARCH = {
+  groupBy: "stage",
+  layout: "table",
+  visibility: "active",
+} as const satisfies Required<PlantsSearchState>;
 
-function readStoredTheme(): Theme {
-  const raw = storage.get(THEME_STORAGE_KEY);
-  return raw === "dark" ? "dark" : "light";
+type PlantsPageView = "plants" | "add-seeds" | "add-plants" | "detail";
+type PlantsPageMode = "list" | "new-plant" | "new-seed-lot" | "detail";
+
+export function validatePlantsSearch(
+  search: Record<string, unknown>,
+): PlantsSearchState {
+  return {
+    groupBy: parseSearchEnum(
+      search.groupBy,
+      PLANT_GROUP_BY_VALUES,
+      DEFAULT_PLANTS_SEARCH.groupBy,
+    ),
+    layout: parseSearchEnum(
+      search.layout,
+      PLANT_LIST_LAYOUT_VALUES,
+      DEFAULT_PLANTS_SEARCH.layout,
+    ),
+    visibility: parseSearchEnum(
+      search.visibility,
+      PLANT_VISIBILITY_VALUES,
+      DEFAULT_PLANTS_SEARCH.visibility,
+    ),
+  };
 }
 
-export function BreedingLogbookPage(): ReactNode {
+export function normalizePlantsSearch(
+  search: PlantsSearchState,
+): Required<PlantsSearchState> {
+  return {
+    groupBy: search.groupBy ?? DEFAULT_PLANTS_SEARCH.groupBy,
+    layout: search.layout ?? DEFAULT_PLANTS_SEARCH.layout,
+    visibility: search.visibility ?? DEFAULT_PLANTS_SEARCH.visibility,
+  };
+}
+
+export function PlantsListPage({
+  search,
+}: {
+  search: Required<PlantsSearchState>;
+}): ReactNode {
+  return <PlantsPage mode="list" search={search} />;
+}
+
+export function NewPlantPage(): ReactNode {
+  return <PlantsPage mode="new-plant" />;
+}
+
+export function NewSeedLotPage(): ReactNode {
+  return <PlantsPage mode="new-seed-lot" />;
+}
+
+export function PlantDetailPage({
+  editMode = false,
+  plantKey,
+}: {
+  editMode?: boolean;
+  plantKey: string;
+}): ReactNode {
+  return <PlantsPage editMode={editMode} mode="detail" plantKey={plantKey} />;
+}
+
+function parseSearchEnum<TValue extends string>(
+  value: unknown,
+  values: readonly TValue[],
+  fallback: TValue,
+): TValue {
+  return typeof value === "string" && values.includes(value as TValue)
+    ? (value as TValue)
+    : fallback;
+}
+
+function pageViewFromMode(mode: PlantsPageMode): PlantsPageView {
+  if (mode === "new-plant") return "add-plants";
+  if (mode === "new-seed-lot") return "add-seeds";
+  if (mode === "detail") return "detail";
+  return "plants";
+}
+
+function filterPlantsByVisibility(
+  plants: readonly PlantRow[],
+  visibility: PlantVisibilityFilter,
+): readonly PlantRow[] {
+  if (visibility === "all") return plants;
+  if (visibility === "culled") {
+    return plants.filter((plant) => plant.stageKey === "culled");
+  }
+  if (visibility === "harvested") {
+    return plants.filter((plant) => plant.stageKey === "harvested");
+  }
+  return plants.filter(isActivePlant);
+}
+
+function isActivePlant(plant: PlantRow): boolean {
+  return plant.stageKey !== "culled" && plant.stageKey !== "harvested";
+}
+
+function PlantsPage({
+  editMode = false,
+  mode,
+  plantKey = "",
+  search = DEFAULT_PLANTS_SEARCH,
+}: {
+  editMode?: boolean;
+  mode: PlantsPageMode;
+  plantKey?: string;
+  search?: Required<PlantsSearchState>;
+}): ReactNode {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [view, setView] = useState<BreedingLogbookView>("plants");
-  const [layout, setLayout] = useState<PlantListLayout>("table");
-  const [groupBy, setGroupBy] = useState<PlantGroupBy>("stage");
-  const [showCulled, setShowCulled] = useState(false);
+  const [view, setView] = useState<PlantsPageView>(() => pageViewFromMode(mode));
   const [selectedPlantIds, setSelectedPlantIds] =
     useState<ReadonlySet<string>>(EMPTY_SELECTION);
   const [bulkPanel, setBulkPanel] = useState<BulkPanel>(null);
@@ -166,25 +266,30 @@ export function BreedingLogbookPage(): ReactNode {
   const [cloneCount, setCloneCount] = useState(4);
   const [cloneLocationKey, setCloneLocationKey] = useState(1);
   const [cloneTakenAt, setCloneTakenAt] = useState(datetimeLocalNow);
-  const [detailPlantKey, setDetailPlantKey] = useState("");
+  const [detailPlantKey, setDetailPlantKey] = useState(plantKey);
   const [detailFactsEditing, setDetailFactsEditing] = useState(false);
   const [detailFactsDraft, setDetailFactsDraft] = useState<DetailFactsDraft>(
     EMPTY_DETAIL_FACTS_DRAFT,
   );
+  const [detailFactsDraftPlantKey, setDetailFactsDraftPlantKey] = useState<
+    string | null
+  >(null);
   const [bulkNotePlantKeys, setBulkNotePlantKeys] = useState<readonly string[] | null>(
     null,
   );
   const [noteText, setNoteText] = useState("");
   const [draggingPlantId, setDraggingPlantId] = useState<string | null>(null);
-  const [theme, setTheme] = useState<Theme>(readStoredTheme);
 
   useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
-    storage.set(THEME_STORAGE_KEY, theme);
-  }, [theme]);
+    setView(pageViewFromMode(mode));
+    setDetailPlantKey(plantKey);
+    setDetailFactsEditing(editMode);
+    if (!editMode) setDetailFactsDraftPlantKey(null);
+    setBulkNotePlantKeys(null);
+  }, [editMode, mode, plantKey]);
 
-  const logbook = useBreedingLogbookQueries(detailPlantKey);
-  const pendingCommands = useBreedingLogbookPendingCommands();
+  const logbook = usePlantsQueries(detailPlantKey);
+  const pendingCommands = usePlantsPendingCommands();
   const addSeedLotMutation = useAddSeedLotMutation();
   const germinateMutation = useGerminatePlantsMutation();
   const cloneMutation = useClonePlantsMutation();
@@ -198,12 +303,14 @@ export function BreedingLogbookPage(): ReactNode {
     () => applyPendingPlantCommands(serverPlants, pendingCommands),
     [serverPlants, pendingCommands],
   );
-  const activeCount = plants.filter((plant) => plant.stageKey !== "culled").length;
-  const culledCount = plants.length - activeCount;
+  const activeCount = plants.filter(isActivePlant).length;
+  const culledCount = plants.filter((plant) => plant.stageKey === "culled").length;
+  const harvestedCount = plants.filter(
+    (plant) => plant.stageKey === "harvested",
+  ).length;
+  const archivedCount = culledCount + harvestedCount;
   const seedLots = logbook.seedLots.seedLots;
-  const visiblePlants = plants.filter(
-    (plant) => showCulled || plant.stageKey !== "culled",
-  );
+  const visiblePlants = filterPlantsByVisibility(plants, search.visibility);
   const selectedPlants = plants.filter((plant) => selectedPlantIds.has(plant.id));
   const selectedPlantKeys = selectedPlants.map((plant) => plant.key);
   const selectedPlantsHavePendingCommand = hasActivePendingForAnyPlant(
@@ -215,6 +322,12 @@ export function BreedingLogbookPage(): ReactNode {
       (plant) => plant.key === (detailPlantKey || logbook.detail.plant.key),
     ) ?? logbook.detail.plant;
   const detail = { ...logbook.detail, plant: detailPlant };
+  useLayoutEffect(() => {
+    if (!detailFactsEditing) return;
+    if (detailFactsDraftPlantKey === detail.plant.key) return;
+    setDetailFactsDraft(detailFactsDraftFromPlant(detail.plant));
+    setDetailFactsDraftPlantKey(detail.plant.key);
+  }, [detail.plant, detailFactsDraftPlantKey, detailFactsEditing]);
   const noteTargetPlantKeys = bulkNotePlantKeys ?? [detail.plant.key];
   const loggingBulkNote = bulkNotePlantKeys !== null;
   const unprojectedSucceededCommands = useMemo(
@@ -236,7 +349,7 @@ export function BreedingLogbookPage(): ReactNode {
     if (unprojectedSucceededCommands.length === 0) return;
     let timeoutId: number | null = null;
     const refreshUntilProjected = () => {
-      invalidateBreedingLogbookReads(
+      invalidatePlantsReads(
         queryClient,
         unprojectedSucceededCommands.flatMap((pending) => pending.affectedPlantKeys),
       );
@@ -252,12 +365,6 @@ export function BreedingLogbookPage(): ReactNode {
     };
   }, [queryClient, unprojectedSucceededCommands]);
 
-  const openDetail = (plantKey: string) => {
-    setBulkNotePlantKeys(null);
-    setDetailFactsEditing(false);
-    setDetailPlantKey(plantKey);
-    setView("detail");
-  };
   const clearSelection = () => {
     setSelectedPlantIds(new Set());
     setBulkPanel(null);
@@ -274,21 +381,11 @@ export function BreedingLogbookPage(): ReactNode {
 
   return (
     <main className="flex-1 overflow-auto bg-paper text-ink">
-      <BreedingLogbookTopBar
-        todayLabel={logbook.bootstrap.todayLabel}
-        theme={theme}
-        view={view}
-        onThemeChange={setTheme}
-        onViewChange={(nextView) => {
-          setBulkNotePlantKeys(null);
-          setDetailFactsEditing(false);
-          setView(nextView);
-        }}
-      />
       <div className="mx-auto flex max-w-330 flex-col gap-4 px-4 pb-14 pt-4 sm:px-6">
         {view === "plants" ? (
           <PlantsSurface
             activeCount={activeCount}
+            archivedCount={archivedCount}
             bootstrap={logbook.bootstrap}
             bulkDateField={bulkDateField}
             bulkDateValue={bulkDateValue}
@@ -296,15 +393,16 @@ export function BreedingLogbookPage(): ReactNode {
             bulkSex={bulkSex}
             culledCount={culledCount}
             draggingPlantId={draggingPlantId}
-            groupBy={groupBy}
-            layout={layout}
+            groupBy={search.groupBy}
+            harvestedCount={harvestedCount}
+            layout={search.layout}
             maxEventDateTime={maxEventDateTime}
             moveLocationKey={moveLocationKey}
             plants={visiblePlants}
             selectedLocation={selectedLocation}
             selectedPlantIds={selectedPlantIds}
             selectedPlants={selectedPlants}
-            showCulled={showCulled}
+            visibility={search.visibility}
             pendingCommands={pendingCommands}
             bulkCullReason={bulkCullReason}
             mutationError={mutationErrorText(
@@ -315,10 +413,10 @@ export function BreedingLogbookPage(): ReactNode {
             )}
             destructiveActionsDisabled={selectedPlantsHavePendingCommand}
             onAddPlants={() => {
-              setView("add-plants");
+              void navigate({ to: "/plants/new" });
             }}
             onAddSeeds={() => {
-              setView("add-seeds");
+              void navigate({ to: "/seeds/new" });
             }}
             onApplyCull={() => {
               if (
@@ -330,7 +428,7 @@ export function BreedingLogbookPage(): ReactNode {
               }
               bulkCullMutation.mutate(
                 {
-                  idempotencyKey: createBreedingLogbookIdempotencyKey("bulk-cull"),
+                  idempotencyKey: createPlantsIdempotencyKey("bulk-cull"),
                   plantKeys: selectedPlantKeys,
                   reason: bulkCullReason,
                 },
@@ -348,7 +446,7 @@ export function BreedingLogbookPage(): ReactNode {
               }
               bulkMoveMutation.mutate(
                 {
-                  idempotencyKey: createBreedingLogbookIdempotencyKey("bulk-move"),
+                  idempotencyKey: createPlantsIdempotencyKey("bulk-move"),
                   plantKeys: selectedPlantKeys,
                   sourceTentId: selectedLocation.sourceTentId,
                   locationLabel: selectedLocation.displayName,
@@ -370,8 +468,7 @@ export function BreedingLogbookPage(): ReactNode {
               if (bulkDateUtc === null) return;
               updatePlantFactsMutation.mutate(
                 {
-                  idempotencyKey:
-                    createBreedingLogbookIdempotencyKey("bulk-update-facts"),
+                  idempotencyKey: createPlantsIdempotencyKey("bulk-update-facts"),
                   plantKeys: selectedPlantKeys,
                   updates: [{ field: bulkDateField, value: bulkDateUtc }],
                 },
@@ -386,8 +483,7 @@ export function BreedingLogbookPage(): ReactNode {
               }
               updatePlantFactsMutation.mutate(
                 {
-                  idempotencyKey:
-                    createBreedingLogbookIdempotencyKey("bulk-clear-facts"),
+                  idempotencyKey: createPlantsIdempotencyKey("bulk-clear-facts"),
                   plantKeys: selectedPlantKeys,
                   updates: [{ field: bulkDateField, value: null }],
                 },
@@ -402,7 +498,7 @@ export function BreedingLogbookPage(): ReactNode {
               }
               bulkSexMutation.mutate(
                 {
-                  idempotencyKey: createBreedingLogbookIdempotencyKey("bulk-sex"),
+                  idempotencyKey: createPlantsIdempotencyKey("bulk-sex"),
                   plantKeys: selectedPlantKeys,
                   sexKey: bulkSex,
                 },
@@ -438,7 +534,7 @@ export function BreedingLogbookPage(): ReactNode {
               }
               bulkMoveMutation.mutate(
                 {
-                  idempotencyKey: createBreedingLogbookIdempotencyKey("board-move"),
+                  idempotencyKey: createPlantsIdempotencyKey("board-move"),
                   plantKeys: movePlantKeys,
                   sourceTentId: location.sourceTentId,
                   locationLabel: location.displayName,
@@ -451,19 +547,43 @@ export function BreedingLogbookPage(): ReactNode {
                 },
               );
             }}
-            onGroupByChange={setGroupBy}
-            onLayoutChange={setLayout}
+            onGroupByChange={(groupBy) => {
+              void navigate({
+                to: "/plants",
+                search: (previous) => ({ ...previous, groupBy }),
+                replace: true,
+              });
+            }}
+            onLayoutChange={(layout) => {
+              void navigate({
+                to: "/plants",
+                search: (previous) => ({ ...previous, layout }),
+                replace: true,
+              });
+            }}
             onMoveLocationChange={setMoveLocationKey}
             onOpenBulkNote={() => {
               const firstSelected = selectedPlants[0];
               if (!firstSelected) return;
-              setBulkNotePlantKeys(selectedPlantKeys);
-              setDetailPlantKey(firstSelected.key);
-              setView("detail");
+              void navigate({
+                to: "/plants/$plantKey",
+                params: { plantKey: firstSelected.key },
+              });
             }}
-            onOpenDetail={openDetail}
+            onOpenDetail={(nextPlantKey) => {
+              void navigate({
+                to: "/plants/$plantKey",
+                params: { plantKey: nextPlantKey },
+              });
+            }}
             onSelectedPlantIdsChange={setSelectedPlantIds}
-            onShowCulledChange={setShowCulled}
+            onVisibilityChange={(visibility) => {
+              void navigate({
+                to: "/plants",
+                search: (previous) => ({ ...previous, visibility }),
+                replace: true,
+              });
+            }}
           />
         ) : view === "add-seeds" ? (
           <AddSeedsSurface
@@ -478,7 +598,7 @@ export function BreedingLogbookPage(): ReactNode {
             onGerminate={(seedLotId) => {
               setSelectedSeedLotId(seedLotId);
               setAddPlantMode("germinate");
-              setView("add-plants");
+              void navigate({ to: "/plants/new" });
             }}
             onSubmit={() => {
               const input = createSeedLotInputFromDraft(seedLotDraft, plants);
@@ -492,7 +612,9 @@ export function BreedingLogbookPage(): ReactNode {
                 },
               });
             }}
-            onViewChange={setView}
+            onBack={() => {
+              void navigate({ to: "/seeds" });
+            }}
           />
         ) : view === "add-plants" ? (
           <AddPlantsSurface
@@ -515,7 +637,10 @@ export function BreedingLogbookPage(): ReactNode {
             )}
             mutationPending={germinateMutation.isPending || cloneMutation.isPending}
             onAddSeeds={() => {
-              setView("add-seeds");
+              void navigate({ to: "/seeds/new" });
+            }}
+            onBack={() => {
+              void navigate({ to: "/plants" });
             }}
             onCloneCountChange={setCloneCount}
             onCloneLocationChange={setCloneLocationKey}
@@ -531,7 +656,7 @@ export function BreedingLogbookPage(): ReactNode {
               if (germinatedAtUtc === null) return;
               germinateMutation.mutate(
                 {
-                  idempotencyKey: createBreedingLogbookIdempotencyKey("germinate"),
+                  idempotencyKey: createPlantsIdempotencyKey("germinate"),
                   seedLotId: seedLot.id,
                   count: germinateCount,
                   sourceTentId: location.sourceTentId,
@@ -540,8 +665,8 @@ export function BreedingLogbookPage(): ReactNode {
                 },
                 {
                   onSuccess: () => {
-                    setView("plants");
                     clearSelection();
+                    void navigate({ to: "/plants" });
                   },
                 },
               );
@@ -551,7 +676,7 @@ export function BreedingLogbookPage(): ReactNode {
               if (cloneTakenAtUtc === null) return;
               cloneMutation.mutate(
                 {
-                  idempotencyKey: createBreedingLogbookIdempotencyKey("clone"),
+                  idempotencyKey: createPlantsIdempotencyKey("clone"),
                   motherPlantKey: mother.key,
                   count: cloneCount,
                   sourceTentId: location.sourceTentId,
@@ -559,13 +684,12 @@ export function BreedingLogbookPage(): ReactNode {
                 },
                 {
                   onSuccess: () => {
-                    setView("plants");
                     clearSelection();
+                    void navigate({ to: "/plants" });
                   },
                 },
               );
             }}
-            onViewChange={setView}
           />
         ) : (
           <PlantJournalDetail
@@ -590,22 +714,35 @@ export function BreedingLogbookPage(): ReactNode {
             onBack={() => {
               setBulkNotePlantKeys(null);
               setDetailFactsEditing(false);
-              setView("plants");
+              setDetailFactsDraftPlantKey(null);
+              void navigate({ to: "/plants" });
             }}
             onCancelFactsEdit={() => {
+              if (editMode) {
+                void navigate({
+                  to: "/plants/$plantKey",
+                  params: { plantKey: detail.plant.key },
+                });
+                return;
+              }
               setDetailFactsEditing(false);
+              setDetailFactsDraftPlantKey(null);
             }}
             onFactsDraftChange={setDetailFactsDraft}
             onStartFactsEdit={() => {
               setDetailFactsDraft(detailFactsDraftFromPlant(detail.plant));
-              setDetailFactsEditing(true);
+              setDetailFactsDraftPlantKey(detail.plant.key);
+              void navigate({
+                to: "/plants/$plantKey/edit",
+                params: { plantKey: detail.plant.key },
+              });
             }}
             onLogNote={() => {
               const body = noteText.trim();
               if (body.length === 0 || noteTargetPlantKeys.length === 0) return;
               logNoteMutation.mutate(
                 {
-                  idempotencyKey: createBreedingLogbookIdempotencyKey("plant-note"),
+                  idempotencyKey: createPlantsIdempotencyKey("plant-note"),
                   plantKeys: noteTargetPlantKeys,
                   body,
                 },
@@ -632,17 +769,34 @@ export function BreedingLogbookPage(): ReactNode {
                 return;
               }
               const updates = detailFactUpdates(detail.plant, detailFactsDraft);
-              if (updates.length === 0) return;
+              if (updates.length === 0) {
+                if (editMode) {
+                  void navigate({
+                    to: "/plants/$plantKey",
+                    params: { plantKey: detail.plant.key },
+                  });
+                } else {
+                  setDetailFactsEditing(false);
+                  setDetailFactsDraftPlantKey(null);
+                }
+                return;
+              }
               updatePlantFactsMutation.mutate(
                 {
-                  idempotencyKey:
-                    createBreedingLogbookIdempotencyKey("plant-update-facts"),
+                  idempotencyKey: createPlantsIdempotencyKey("plant-update-facts"),
                   plantKeys: [detail.plant.key],
                   updates,
                 },
                 {
                   onSuccess: () => {
                     setDetailFactsEditing(false);
+                    setDetailFactsDraftPlantKey(null);
+                    if (editMode) {
+                      void navigate({
+                        to: "/plants/$plantKey",
+                        params: { plantKey: detail.plant.key },
+                      });
+                    }
                   },
                 },
               );
@@ -676,82 +830,9 @@ export function StatusScreen({
   );
 }
 
-function BreedingLogbookTopBar({
-  onThemeChange,
-  onViewChange,
-  theme,
-  todayLabel,
-  view,
-}: {
-  onThemeChange: (theme: Theme) => void;
-  onViewChange: (view: Exclude<BreedingLogbookView, "detail">) => void;
-  theme: Theme;
-  todayLabel: string;
-  view: BreedingLogbookView;
-}): ReactNode {
-  const nextTheme: Theme = theme === "dark" ? "light" : "dark";
-
-  return (
-    <header className="sticky top-0 z-30 flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-rule-strong bg-paper px-4 py-3 sm:px-6">
-      <div className="flex min-w-0 items-baseline gap-2.5">
-        <h1 className="font-serif text-fs-24 font-medium italic leading-none text-ink">
-          dirt<span className="text-accent-magenta">.</span>
-        </h1>
-        <span
-          aria-hidden="true"
-          className="mb-1.5 inline-block h-px w-5 self-end bg-rule-strong"
-        />
-        <p className="font-mono text-fs-10 uppercase tracking-cap-field text-ink-3">
-          Breeding Logbook
-        </p>
-      </div>
-      <nav
-        aria-label="Breeding logbook"
-        className="order-3 flex w-full items-center gap-1.5 overflow-x-auto sm:order-none sm:w-auto"
-      >
-        {VIEW_TABS.map((tab) => {
-          const active =
-            view === tab.value || (tab.value === "plants" && view === "detail");
-          return (
-            <button
-              key={tab.value}
-              type="button"
-              onClick={() => {
-                onViewChange(tab.value);
-              }}
-              aria-current={active ? "page" : undefined}
-              className={tabButtonClass(active)}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
-      </nav>
-      <div className="ml-auto flex items-center gap-2">
-        <p className="hidden font-mono text-fs-9 uppercase tracking-caps text-ink-3 sm:block">
-          {todayLabel} / operator access
-        </p>
-        <span className="inline-flex items-center gap-2 border border-status-ok bg-paper-2 px-2.5 py-1.5 font-mono text-fs-10 uppercase tracking-caps text-ink-3">
-          <span aria-hidden="true" className="h-1.5 w-1.5 bg-status-ok" />
-          Operator
-        </span>
-        <button
-          type="button"
-          aria-label={`Switch to ${nextTheme} theme`}
-          onClick={() => {
-            onThemeChange(nextTheme);
-          }}
-          className="grid h-8.5 w-8.5 place-items-center border border-rule-strong bg-paper font-mono text-fs-14 text-ink transition hover:border-ink-2"
-        >
-          {theme === "dark" ? "◑" : "◐"}
-        </button>
-      </div>
-    </header>
-  );
-}
-
 function PlantsSurface({
   activeCount,
+  archivedCount,
   bootstrap,
   bulkCullReason,
   bulkDateField,
@@ -762,6 +843,7 @@ function PlantsSurface({
   destructiveActionsDisabled,
   draggingPlantId,
   groupBy,
+  harvestedCount,
   layout,
   maxEventDateTime,
   mutationError,
@@ -788,16 +870,17 @@ function PlantsSurface({
   onOpenBulkNote,
   onOpenDetail,
   onSelectedPlantIdsChange,
-  onShowCulledChange,
+  onVisibilityChange,
   plants,
   pendingCommands,
   selectedLocation,
   selectedPlantIds,
   selectedPlants,
-  showCulled,
+  visibility,
 }: {
   activeCount: number;
-  bootstrap: BreedingLogbookBootstrap;
+  archivedCount: number;
+  bootstrap: PlantsBootstrap;
   bulkCullReason: string;
   bulkDateField: BulkDateField;
   bulkDateValue: string;
@@ -807,16 +890,17 @@ function PlantsSurface({
   destructiveActionsDisabled: boolean;
   draggingPlantId: string | null;
   groupBy: PlantGroupBy;
+  harvestedCount: number;
   layout: PlantListLayout;
   maxEventDateTime: string;
   mutationError: string | null;
   moveLocationKey: number;
   plants: readonly PlantRow[];
-  pendingCommands: readonly BreedingLogbookPendingCommand[];
+  pendingCommands: readonly PlantsPendingCommand[];
   selectedLocation: LocationOption;
   selectedPlantIds: ReadonlySet<string>;
   selectedPlants: readonly PlantRow[];
-  showCulled: boolean;
+  visibility: PlantVisibilityFilter;
   onAddPlants: () => void;
   onAddSeeds: () => void;
   onApplyBulkDate: () => void;
@@ -839,15 +923,16 @@ function PlantsSurface({
   onOpenBulkNote: () => void;
   onOpenDetail: (plantId: string) => void;
   onSelectedPlantIdsChange: (plantIds: ReadonlySet<string>) => void;
-  onShowCulledChange: (showCulled: boolean) => void;
+  onVisibilityChange: (visibility: PlantVisibilityFilter) => void;
 }): ReactNode {
   const selectedCount = selectedPlantIds.size;
   const allVisibleSelected =
     plants.length > 0 && plants.every((plant) => selectedPlantIds.has(plant.id));
   const someVisibleSelected = plants.some((plant) => selectedPlantIds.has(plant.id));
-  const listFooter = showCulled
-    ? `${plants.length} plants / grouped by ${groupBy} / ${activeCount} active / ${culledCount} culled`
-    : `${activeCount} active shown / grouped by ${groupBy} / ${culledCount} culled hidden`;
+  const listFooter =
+    visibility === "active"
+      ? `${activeCount} active shown / grouped by ${groupBy} / ${archivedCount} archived hidden`
+      : `${plants.length} shown / grouped by ${groupBy} / ${activeCount} active / ${culledCount} culled / ${harvestedCount} harvested`;
 
   const togglePlant = (plantId: string) => {
     const next = new Set(selectedPlantIds);
@@ -873,7 +958,7 @@ function PlantsSurface({
         <div>
           <h2 className="font-sans text-fs-22 font-semibold text-ink">Plants</h2>
           <p className="mt-1 font-mono text-fs-10 uppercase tracking-caps text-ink-3">
-            {activeCount} active / {culledCount} culled
+            {activeCount} active / {archivedCount} archived
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -886,13 +971,15 @@ function PlantsSurface({
         </div>
       </section>
       <PlantChrome
+        archivedCount={archivedCount}
         culledCount={culledCount}
         groupBy={groupBy}
+        harvestedCount={harvestedCount}
         layout={layout}
-        showCulled={showCulled}
+        visibility={visibility}
         onGroupByChange={onGroupByChange}
         onLayoutChange={onLayoutChange}
-        onShowCulledChange={onShowCulledChange}
+        onVisibilityChange={onVisibilityChange}
       />
       {selectedCount > 0 ? (
         <BulkActionToolbar
@@ -943,7 +1030,7 @@ function PlantsSurface({
           plants={plants}
           pendingCommands={pendingCommands}
           selectedPlantIds={selectedPlantIds}
-          showCulled={showCulled}
+          includeArchived={visibility !== "active"}
           onDragEnd={onDragEnd}
           onDragStart={onDragStart}
           onDropPlant={onDropPlant}
@@ -962,21 +1049,25 @@ function PlantsSurface({
 }
 
 function PlantChrome({
+  archivedCount,
   culledCount,
   groupBy,
+  harvestedCount,
   layout,
   onGroupByChange,
   onLayoutChange,
-  onShowCulledChange,
-  showCulled,
+  onVisibilityChange,
+  visibility,
 }: {
+  archivedCount: number;
   culledCount: number;
   groupBy: PlantGroupBy;
+  harvestedCount: number;
   layout: PlantListLayout;
   onGroupByChange: (groupBy: PlantGroupBy) => void;
   onLayoutChange: (layout: PlantListLayout) => void;
-  onShowCulledChange: (showCulled: boolean) => void;
-  showCulled: boolean;
+  onVisibilityChange: (visibility: PlantVisibilityFilter) => void;
+  visibility: PlantVisibilityFilter;
 }): ReactNode {
   return (
     <section className="flex flex-wrap items-center gap-2 border border-rule bg-paper-2 px-3 py-2.5">
@@ -998,19 +1089,17 @@ function PlantChrome({
       <div className="min-w-44 flex-1 border border-rule bg-paper px-2.5 py-1.5 font-mono text-fs-10 uppercase tracking-caps text-ink-3">
         ⌕ search plants
       </div>
-      <button
-        type="button"
-        onClick={() => {
-          onShowCulledChange(!showCulled);
-        }}
-        className={
-          showCulled
-            ? "border border-ink bg-paper px-2.5 py-1.5 font-mono text-fs-10 uppercase tracking-caps text-ink"
-            : "border border-rule px-2.5 py-1.5 font-mono text-fs-10 uppercase tracking-caps text-ink-3 transition hover:border-rule-strong hover:text-ink"
-        }
-      >
-        {showCulled ? "Showing culled" : `Show culled (${culledCount})`}
-      </button>
+      <Segmented
+        label="Visibility"
+        options={[
+          { label: "Active", value: "active" },
+          { label: `All (${archivedCount})`, value: "all" },
+          { label: `Culled (${culledCount})`, value: "culled" },
+          { label: `Harvested (${harvestedCount})`, value: "harvested" },
+        ]}
+        value={visibility}
+        onChange={onVisibilityChange}
+      />
       <Segmented
         label="Layout"
         options={[
@@ -1248,7 +1337,7 @@ function PendingCommandSummary({
   commands,
   mutationError,
 }: {
-  commands: readonly BreedingLogbookPendingCommand[];
+  commands: readonly PlantsPendingCommand[];
   mutationError: string | null;
 }): ReactNode {
   const visibleCommands = commands.filter((command) => {
@@ -1284,7 +1373,7 @@ function PendingPlantMarker({
   pendingCommands,
   plantKey,
 }: {
-  pendingCommands: readonly BreedingLogbookPendingCommand[];
+  pendingCommands: readonly PlantsPendingCommand[];
   plantKey: string;
 }): ReactNode {
   const activeCommands = activePendingCommandsForPlant(pendingCommands, plantKey);
@@ -1308,7 +1397,7 @@ function PlantInlineError({
   pendingCommands,
   plantKey,
 }: {
-  pendingCommands: readonly BreedingLogbookPendingCommand[];
+  pendingCommands: readonly PlantsPendingCommand[];
   plantKey: string;
 }): ReactNode {
   const failedCommand = failedCommandsForPlant(pendingCommands, plantKey)[0];
@@ -1369,9 +1458,9 @@ function PlantTable({
   someChecked,
 }: {
   allChecked: boolean;
-  bootstrap: BreedingLogbookBootstrap;
+  bootstrap: PlantsBootstrap;
   groupBy: PlantGroupBy;
-  pendingCommands: readonly BreedingLogbookPendingCommand[];
+  pendingCommands: readonly PlantsPendingCommand[];
   plants: readonly PlantRow[];
   selectedPlantIds: ReadonlySet<string>;
   someChecked: boolean;
@@ -1437,7 +1526,7 @@ function PlantTableRow({
   selected,
 }: {
   plant: PlantRow;
-  pendingCommands: readonly BreedingLogbookPendingCommand[];
+  pendingCommands: readonly PlantsPendingCommand[];
   selected: boolean;
   onOpenDetail: (plantId: string) => void;
   onTogglePlant: (plantId: string) => void;
@@ -1512,27 +1601,27 @@ function PlantBoard({
   pendingCommands,
   plants,
   selectedPlantIds,
-  showCulled,
+  includeArchived,
 }: {
-  bootstrap: BreedingLogbookBootstrap;
+  bootstrap: PlantsBootstrap;
   draggingPlantId: string | null;
+  includeArchived: boolean;
   plants: readonly PlantRow[];
   selectedPlantIds: ReadonlySet<string>;
-  showCulled: boolean;
   onDragEnd: () => void;
   onDragStart: (plantId: string) => void;
   onDropPlant: (location: LocationOption) => void;
   onOpenDetail: (plantId: string) => void;
   onTogglePlant: (plantId: string) => void;
-  pendingCommands: readonly BreedingLogbookPendingCommand[];
+  pendingCommands: readonly PlantsPendingCommand[];
 }): ReactNode {
   const dropLocations = bootstrap.locations.filter((location) =>
-    showCulled
+    includeArchived
       ? locationDropStageKey(location) !== null
       : canDropIntoLocation(location),
   );
   const boardStages = bootstrap.stages.filter((stage) =>
-    showCulled ? true : stage.key !== "culled",
+    includeArchived ? true : stage.key !== "culled" && stage.key !== "harvested",
   );
   const columns = boardStages.map((stage) => {
     const location =
@@ -1637,7 +1726,7 @@ function PlantBoardChip({
   onDragStart: (plantId: string) => void;
   onOpenDetail: (plantId: string) => void;
   onTogglePlant: (plantId: string) => void;
-  pendingCommands: readonly BreedingLogbookPendingCommand[];
+  pendingCommands: readonly PlantsPendingCommand[];
 }): ReactNode {
   return (
     <li
@@ -1693,27 +1782,27 @@ function AddSeedsSurface({
   draft,
   mutationError,
   mutationPending,
+  onBack,
   onDraftChange,
   onGerminate,
   onSubmit,
-  onViewChange,
   pendingCommands,
   plants,
   seedLots,
 }: {
-  bootstrap: BreedingLogbookBootstrap;
+  bootstrap: PlantsBootstrap;
   draft: AddSeedLotDraft;
   mutationError: string | null;
   mutationPending: boolean;
   plants: readonly PlantRow[];
   seedLots: readonly SeedLotSummary[];
-  pendingCommands: readonly BreedingLogbookPendingCommand[];
+  pendingCommands: readonly PlantsPendingCommand[];
+  onBack: () => void;
   onDraftChange: (draft: AddSeedLotDraft) => void;
   onGerminate: (seedLotId: string) => void;
   onSubmit: () => void;
-  onViewChange: (view: BreedingLogbookView) => void;
 }): ReactNode {
-  const activePlants = plants.filter((plant) => plant.stageKey !== "culled");
+  const activePlants = plants.filter(isActivePlant);
   const motherOptions = activePlants
     .filter((plant) => plant.sexKey !== "male")
     .map((plant) => ({
@@ -1747,9 +1836,7 @@ function AddSeedsSurface({
       <SurfaceHeader
         description="Queue a seed-lot command without creating plant rows."
         title="Add seeds"
-        onBack={() => {
-          onViewChange("plants");
-        }}
+        onBack={onBack}
       />
       <PendingCommandSummary
         commands={pendingCommands.filter(
@@ -1927,6 +2014,7 @@ function AddPlantsSurface({
   mutationError,
   mutationPending,
   onAddSeeds,
+  onBack,
   onCloneCountChange,
   onCloneLocationChange,
   onCloneMotherChange,
@@ -1938,13 +2026,12 @@ function AddPlantsSurface({
   onSeedLotChange,
   onSow,
   onTakeClones,
-  onViewChange,
   pendingCommands,
   plants,
   seedLots,
   selectedSeedLotId,
 }: {
-  bootstrap: BreedingLogbookBootstrap;
+  bootstrap: PlantsBootstrap;
   cloneCount: number;
   cloneLocationKey: number;
   cloneMotherId: string;
@@ -1959,8 +2046,9 @@ function AddPlantsSurface({
   plants: readonly PlantRow[];
   seedLots: readonly SeedLotSummary[];
   selectedSeedLotId: string;
-  pendingCommands: readonly BreedingLogbookPendingCommand[];
+  pendingCommands: readonly PlantsPendingCommand[];
   onAddSeeds: () => void;
+  onBack: () => void;
   onCloneCountChange: (count: number) => void;
   onCloneLocationChange: (sourceTentId: number) => void;
   onCloneMotherChange: (plantId: string) => void;
@@ -1972,7 +2060,6 @@ function AddPlantsSurface({
   onSeedLotChange: (seedLotId: string) => void;
   onSow: (seedLot: SeedLotSummary, location: LocationOption) => void;
   onTakeClones: (mother: PlantRow, location: LocationOption) => void;
-  onViewChange: (view: BreedingLogbookView) => void;
 }): ReactNode {
   const selectedSeedLot =
     seedLots.find((lot) => lot.id === selectedSeedLotId) ?? seedLots[0];
@@ -1989,7 +2076,7 @@ function AddPlantsSurface({
     bootstrap.locations[0] ??
     FALLBACK_LOCATION;
   const cloneMothers = plants.filter(
-    (plant) => plant.stageKey !== "culled" && plant.stageKey !== "germinating",
+    (plant) => isActivePlant(plant) && plant.stageKey !== "germinating",
   );
   const mother =
     cloneMothers.find((plant) => plant.id === cloneMotherId) ?? cloneMothers[0];
@@ -2000,9 +2087,7 @@ function AddPlantsSurface({
       <SurfaceHeader
         description="Queue germination or clone commands; local Dirt assigns plant keys."
         title="Add plants"
-        onBack={() => {
-          onViewChange("plants");
-        }}
+        onBack={onBack}
       />
       <div className="flex">
         <Segmented
@@ -2312,6 +2397,10 @@ function PlantJournalDetail({
           <h3 className="mt-1 font-sans text-fs-14 font-semibold text-ink">
             {formatPlantLocation(detail.plant)}
           </h3>
+          <p className="mt-1 font-mono text-fs-9 uppercase tracking-caps text-ink-3">
+            {detail.telemetry.length} telemetry stream
+            {detail.telemetry.length === 1 ? "" : "s"}
+          </p>
           <div className="mt-4 border border-rule bg-paper p-3">
             <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
               Substrate moisture
@@ -2345,6 +2434,28 @@ function PlantJournalDetail({
           </button>
         </aside>
       </section>
+      {detail.wikiContent === null ? (
+        <section className="border border-rule-strong bg-paper-2 p-4">
+          <h2 className="font-sans text-fs-10 font-semibold uppercase tracking-cap-med text-ink-3">
+            Wiki
+          </h2>
+          <p className="mt-3 font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+            No projected wiki content for this plant.
+          </p>
+        </section>
+      ) : (
+        <section className="border border-rule-strong bg-paper-2 p-4">
+          <header className="mb-4 flex flex-wrap items-baseline justify-between gap-2 border-b border-rule pb-3">
+            <h2 className="font-sans text-fs-16 font-semibold text-ink">
+              {detail.wikiContent.title}
+            </h2>
+            <span className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+              {formatDateTime(detail.wikiContent.sourceUpdatedAt)}
+            </span>
+          </header>
+          <MarkdownDocument bodyMarkdown={detail.wikiContent.bodyMarkdown} />
+        </section>
+      )}
     </>
   );
 }
@@ -2959,12 +3070,6 @@ function Pill({ children }: { children: ReactNode }): ReactNode {
   );
 }
 
-function tabButtonClass(active: boolean): string {
-  return active
-    ? "shrink-0 border border-ink bg-paper-2 px-3 py-2 font-mono text-fs-10 uppercase tracking-caps text-ink transition"
-    : "shrink-0 border border-rule px-3 py-2 font-mono text-fs-10 uppercase tracking-caps text-ink-3 transition hover:border-rule-strong hover:text-ink";
-}
-
 function stageSquareClass(stageKey: PlantStageKey): string {
   if (stageKey === "germinating") return "bg-leaf";
   if (stageKey === "veg") return "bg-sensor-vpd";
@@ -3009,6 +3114,15 @@ function metricAccent(
 
 function shortDate(value: string): string {
   return value.slice(5);
+}
+
+function formatDateTime(value: string): string {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "unknown";
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(date);
 }
 
 function shortDateOrDash(value: string | null): string {
@@ -3185,7 +3299,7 @@ function canDropIntoLocation(location: LocationOption): boolean {
 
 function groupPlants(
   plants: readonly PlantRow[],
-  bootstrap: BreedingLogbookBootstrap,
+  bootstrap: PlantsBootstrap,
   groupBy: PlantGroupBy,
 ): readonly TableGroup[] {
   if (groupBy === "parents") {
@@ -3227,7 +3341,7 @@ function createSeedLotInputFromDraft(
     return null;
   }
   return {
-    idempotencyKey: createBreedingLogbookIdempotencyKey("add-seeds"),
+    idempotencyKey: createPlantsIdempotencyKey("add-seeds"),
     source: draft.source,
     prefix: preview.prefix,
     generation: draft.generation,
@@ -3277,7 +3391,7 @@ function seedLotPrimaryLabel(lot: SeedLotSummary): string {
 }
 
 function seedLotSexTypeDisplayName(
-  bootstrap: BreedingLogbookBootstrap,
+  bootstrap: PlantsBootstrap,
   sexTypeKey: SeedLotSexTypeKey,
 ): string {
   return (

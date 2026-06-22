@@ -13,7 +13,7 @@ import { RangeSwitch, type SparklineRange } from "@/ui/RangeSwitch";
 import { Sparkline } from "@/ui/Sparkline";
 
 const hostedApi = createHostedApiClient();
-const PLANT_DETAIL_ROUTE = "/tents/$sourceTentId/plants/$plantId" as const;
+const PLANT_DETAIL_ROUTE = "/plants/$plantKey" as const;
 const TENTS_REFETCH_MS = 30_000;
 
 type SparklineAccent =
@@ -468,11 +468,7 @@ export function TentsWorkspace({ sourceTentId }: { sourceTentId: string }): Reac
           </div>
         )}
 
-        <HostedPlantsPanel
-          plants={plants}
-          sourceTentId={String(sourceTentIdNumber)}
-          loading={plantsQuery.isLoading}
-        />
+        <HostedPlantsPanel plants={plants} loading={plantsQuery.isLoading} />
 
         <section aria-label="Metric history" className="flex flex-col">
           <header className="sticky top-0 z-20 flex flex-col gap-2 border-b border-rule bg-paper/95 px-0.5 py-2 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
@@ -667,11 +663,9 @@ function LightStatePill({ isOn }: { isOn: boolean }): ReactNode {
 function HostedPlantsPanel({
   loading,
   plants,
-  sourceTentId,
 }: {
   loading: boolean;
   plants: readonly HostedPlant[];
-  sourceTentId: string;
 }): ReactNode {
   return (
     <section aria-label="Plants" className="border border-rule bg-paper-2 px-4 py-3">
@@ -697,7 +691,7 @@ function HostedPlantsPanel({
             <Link
               key={plant.id}
               to={PLANT_DETAIL_ROUTE}
-              params={{ sourceTentId, plantId: plant.key }}
+              params={{ plantKey: plant.key }}
               className="group min-w-0 border border-rule bg-paper px-3.5 py-3 transition hover:border-rule-strong"
             >
               <PlantRowContent plant={plant} />

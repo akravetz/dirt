@@ -1,4 +1,3 @@
-export type BreedingLogbookView = "plants" | "add-seeds" | "add-plants" | "detail";
 export type PlantListLayout = "table" | "board";
 export type PlantGroupBy = "stage" | "parents";
 export type BulkPanel = "sex" | "dates" | "move" | "cull" | null;
@@ -25,7 +24,7 @@ export type LocationOption = {
   role: string | null;
 };
 
-export type BreedingLogbookBootstrap = {
+export type PlantsBootstrap = {
   today: string;
   todayLabel: string;
   plantSexes: readonly LookupRow<PlantSexKey>[];
@@ -92,6 +91,32 @@ export type PlantMetricHistory = {
   points: readonly number[];
 };
 
+export type PlantTelemetryReading = {
+  receivedAt: string;
+  value: number;
+};
+
+export type PlantTelemetryStream = {
+  accent: string;
+  capabilityId: string;
+  deviceId: string;
+  displayName: string;
+  displayUnit: string;
+  historyEnabled: boolean;
+  key: string;
+  latestReading: PlantTelemetryReading | null;
+  metric: string;
+  valuePrecision: number;
+  yMax: number | null;
+  yMin: number | null;
+};
+
+export type PlantWikiContent = {
+  bodyMarkdown: string;
+  sourceUpdatedAt: string;
+  title: string;
+};
+
 export type PlantJournalEvent = {
   id: string;
   dateLabel: string;
@@ -108,6 +133,8 @@ export type PlantDetail = {
   };
   metrics: readonly PlantMetricSummary[];
   metricHistory: readonly PlantMetricHistory[];
+  telemetry: readonly PlantTelemetryStream[];
+  wikiContent: PlantWikiContent | null;
   events: readonly PlantJournalEvent[];
 };
 

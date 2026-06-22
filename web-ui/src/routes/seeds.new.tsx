@@ -1,18 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { WorkspaceLink, WorkspacePlaceholder } from "./-workspacePlaceholders";
+import { Suspense } from "react";
+import { NewSeedLotPage, StatusScreen } from "@/features/plants/PlantsWorkspace";
 
 export const Route = createFileRoute("/seeds/new")({
   component: NewSeedLotRoute,
+  errorComponent: () => (
+    <StatusScreen message="Failed to load seed-lot creation." tone="danger" />
+  ),
 });
 
 function NewSeedLotRoute() {
   return (
-    <WorkspacePlaceholder
-      kicker="Seeds"
-      title="New Seed Lot"
-      actions={[
-        { label: "Seeds", link: <WorkspaceLink to="/seeds">Seeds</WorkspaceLink> },
-      ]}
-    />
+    <Suspense fallback={<StatusScreen message="Loading seed-lot creation..." />}>
+      <NewSeedLotPage />
+    </Suspense>
   );
 }

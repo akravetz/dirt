@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { hostedComponents } from "@/api-client";
 import {
   applyPendingPlantCommands,
-  type BreedingLogbookPendingCommand,
   buildBulkCullRequest,
   buildBulkLogNoteRequest,
   buildBulkMoveRequest,
@@ -14,16 +13,17 @@ import {
   buildUpdatePlantFactsRequest,
   canSubmitBulkCull,
   isPendingCommandProjected,
+  type PlantsPendingCommand,
   pendingTimelineNotes,
   readonlyPlantPrefixPreview,
-} from "./breedingLogbookMutations";
+} from "./plantsMutations";
 import {
   mapBootstrap,
   mapPlantDetail,
   mapPlantList,
   mapSeedLotList,
-} from "./breedingLogbookQueries";
-import type { PlantRow } from "./breedingLogbookTypes";
+} from "./plantsQueries";
+import type { PlantRow } from "./plantsTypes";
 
 type HostedBootstrap = hostedComponents["schemas"]["BreedingLogbookBootstrapResponse"];
 type HostedPlantDetail =
@@ -34,7 +34,7 @@ type HostedSeedLotList =
 type HostedMetricHistory = hostedComponents["schemas"]["PlantMetricHistoryResponse"];
 type HostedCommand = hostedComponents["schemas"]["CommandResponse"];
 
-describe("breeding logbook hosted response mapping", () => {
+describe("plants hosted response mapping", () => {
   it("maps bootstrap lookups and nullable locations", () => {
     const bootstrap = {
       today: "2026-05-05",
@@ -194,7 +194,7 @@ describe("breeding logbook hosted response mapping", () => {
   });
 });
 
-describe("breeding logbook mutation request mapping", () => {
+describe("plants mutation request mapping", () => {
   it("builds snake_case write request bodies from screen-shaped inputs", () => {
     expect(
       buildCreateSeedLotRequest({
@@ -385,7 +385,7 @@ describe("breeding logbook mutation request mapping", () => {
   });
 });
 
-describe("breeding logbook pending UX helpers", () => {
+describe("plants pending UX helpers", () => {
   it("optimistically applies plant patches until the read projection catches up", () => {
     const plant = makePlantRow({
       key: "MF-001",
@@ -624,8 +624,8 @@ function makePendingCommand({
 }: {
   body?: string;
   command: HostedCommand;
-  optimisticPlantPatches?: BreedingLogbookPendingCommand["optimisticPlantPatches"];
-}): BreedingLogbookPendingCommand {
+  optimisticPlantPatches?: PlantsPendingCommand["optimisticPlantPatches"];
+}): PlantsPendingCommand {
   return {
     commandId: command.command_id,
     command,

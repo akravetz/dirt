@@ -21,7 +21,6 @@ import { Route as PlantsNewRouteImport } from './routes/plants.new'
 import { Route as PlantsPlantKeyRouteImport } from './routes/plants.$plantKey'
 import { Route as SeedsSeedLotIdEditRouteImport } from './routes/seeds.$seedLotId.edit'
 import { Route as PlantsPlantKeyEditRouteImport } from './routes/plants.$plantKey.edit'
-import { Route as TentsSourceTentIdPlantsPlantIdRouteImport } from './routes/tents.$sourceTentId.plants.$plantId'
 
 const TentsRoute = TentsRouteImport.update({
   id: '/tents',
@@ -83,12 +82,6 @@ const PlantsPlantKeyEditRoute = PlantsPlantKeyEditRouteImport.update({
   path: '/edit',
   getParentRoute: () => PlantsPlantKeyRoute,
 } as any)
-const TentsSourceTentIdPlantsPlantIdRoute =
-  TentsSourceTentIdPlantsPlantIdRouteImport.update({
-    id: '/plants/$plantId',
-    path: '/plants/$plantId',
-    getParentRoute: () => TentsSourceTentIdRoute,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -100,10 +93,9 @@ export interface FileRoutesByFullPath {
   '/plants/new': typeof PlantsNewRoute
   '/seeds/$seedLotId': typeof SeedsSeedLotIdRouteWithChildren
   '/seeds/new': typeof SeedsNewRoute
-  '/tents/$sourceTentId': typeof TentsSourceTentIdRouteWithChildren
+  '/tents/$sourceTentId': typeof TentsSourceTentIdRoute
   '/plants/$plantKey/edit': typeof PlantsPlantKeyEditRoute
   '/seeds/$seedLotId/edit': typeof SeedsSeedLotIdEditRoute
-  '/tents/$sourceTentId/plants/$plantId': typeof TentsSourceTentIdPlantsPlantIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -115,10 +107,9 @@ export interface FileRoutesByTo {
   '/plants/new': typeof PlantsNewRoute
   '/seeds/$seedLotId': typeof SeedsSeedLotIdRouteWithChildren
   '/seeds/new': typeof SeedsNewRoute
-  '/tents/$sourceTentId': typeof TentsSourceTentIdRouteWithChildren
+  '/tents/$sourceTentId': typeof TentsSourceTentIdRoute
   '/plants/$plantKey/edit': typeof PlantsPlantKeyEditRoute
   '/seeds/$seedLotId/edit': typeof SeedsSeedLotIdEditRoute
-  '/tents/$sourceTentId/plants/$plantId': typeof TentsSourceTentIdPlantsPlantIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -131,10 +122,9 @@ export interface FileRoutesById {
   '/plants/new': typeof PlantsNewRoute
   '/seeds/$seedLotId': typeof SeedsSeedLotIdRouteWithChildren
   '/seeds/new': typeof SeedsNewRoute
-  '/tents/$sourceTentId': typeof TentsSourceTentIdRouteWithChildren
+  '/tents/$sourceTentId': typeof TentsSourceTentIdRoute
   '/plants/$plantKey/edit': typeof PlantsPlantKeyEditRoute
   '/seeds/$seedLotId/edit': typeof SeedsSeedLotIdEditRoute
-  '/tents/$sourceTentId/plants/$plantId': typeof TentsSourceTentIdPlantsPlantIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -151,7 +141,6 @@ export interface FileRouteTypes {
     | '/tents/$sourceTentId'
     | '/plants/$plantKey/edit'
     | '/seeds/$seedLotId/edit'
-    | '/tents/$sourceTentId/plants/$plantId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -166,7 +155,6 @@ export interface FileRouteTypes {
     | '/tents/$sourceTentId'
     | '/plants/$plantKey/edit'
     | '/seeds/$seedLotId/edit'
-    | '/tents/$sourceTentId/plants/$plantId'
   id:
     | '__root__'
     | '/'
@@ -181,7 +169,6 @@ export interface FileRouteTypes {
     | '/tents/$sourceTentId'
     | '/plants/$plantKey/edit'
     | '/seeds/$seedLotId/edit'
-    | '/tents/$sourceTentId/plants/$plantId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -278,13 +265,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlantsPlantKeyEditRouteImport
       parentRoute: typeof PlantsPlantKeyRoute
     }
-    '/tents/$sourceTentId/plants/$plantId': {
-      id: '/tents/$sourceTentId/plants/$plantId'
-      path: '/plants/$plantId'
-      fullPath: '/tents/$sourceTentId/plants/$plantId'
-      preLoaderRoute: typeof TentsSourceTentIdPlantsPlantIdRouteImport
-      parentRoute: typeof TentsSourceTentIdRoute
-    }
   }
 }
 
@@ -337,23 +317,12 @@ const SeedsRouteChildren: SeedsRouteChildren = {
 
 const SeedsRouteWithChildren = SeedsRoute._addFileChildren(SeedsRouteChildren)
 
-interface TentsSourceTentIdRouteChildren {
-  TentsSourceTentIdPlantsPlantIdRoute: typeof TentsSourceTentIdPlantsPlantIdRoute
-}
-
-const TentsSourceTentIdRouteChildren: TentsSourceTentIdRouteChildren = {
-  TentsSourceTentIdPlantsPlantIdRoute: TentsSourceTentIdPlantsPlantIdRoute,
-}
-
-const TentsSourceTentIdRouteWithChildren =
-  TentsSourceTentIdRoute._addFileChildren(TentsSourceTentIdRouteChildren)
-
 interface TentsRouteChildren {
-  TentsSourceTentIdRoute: typeof TentsSourceTentIdRouteWithChildren
+  TentsSourceTentIdRoute: typeof TentsSourceTentIdRoute
 }
 
 const TentsRouteChildren: TentsRouteChildren = {
-  TentsSourceTentIdRoute: TentsSourceTentIdRouteWithChildren,
+  TentsSourceTentIdRoute: TentsSourceTentIdRoute,
 }
 
 const TentsRouteWithChildren = TentsRoute._addFileChildren(TentsRouteChildren)

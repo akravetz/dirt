@@ -6,16 +6,17 @@ import {
 } from "@tanstack/react-query";
 import { createHostedApiClient, type hostedComponents } from "@/api-client";
 import type {
-  BreedingLogbookBootstrap,
   PlantDetail,
   PlantListResult,
   PlantMetricHistory,
   PlantRow,
   PlantSexKey,
   PlantStageKey,
+  PlantsBootstrap,
+  PlantTelemetryStream,
   SeedLotListResult,
   SeedLotSexTypeKey,
-} from "./breedingLogbookTypes";
+} from "./plantsTypes";
 
 const hostedApi = createHostedApiClient();
 const BREEDING_LOGBOOK_PLANT_DETAIL_PATH =
@@ -23,18 +24,18 @@ const BREEDING_LOGBOOK_PLANT_DETAIL_PATH =
 const BREEDING_LOGBOOK_PLANT_METRIC_HISTORY_PATH =
   "/api/breeding-logbook/plants/{plant_key}/metrics/history" as const;
 
-type HostedBreedingLogbookBootstrap =
+type HostedPlantsBootstrap =
   hostedComponents["schemas"]["BreedingLogbookBootstrapResponse"];
-type HostedBreedingLogbookPlantList =
+type HostedPlantsPlantList =
   hostedComponents["schemas"]["BreedingLogbookPlantListResponse"];
-type HostedBreedingLogbookPlantDetail =
+type HostedPlantsPlantDetail =
   hostedComponents["schemas"]["BreedingLogbookPlantDetailResponse"];
-type HostedBreedingLogbookSeedLotList =
+type HostedPlantsSeedLotList =
   hostedComponents["schemas"]["BreedingLogbookSeedLotListResponse"];
 type HostedPlantMetricHistory =
   hostedComponents["schemas"]["PlantMetricHistoryResponse"];
 
-const breedingLogbookQueryKeys = {
+const plantsQueryKeys = {
   bootstrap: ["breeding-logbook", "bootstrap"],
   plants: ["breeding-logbook", "plants"],
   seedLots: ["breeding-logbook", "seed-lots"],
@@ -46,52 +47,52 @@ const breedingLogbookQueryKeys = {
   ],
 } as const;
 
-export function invalidateBreedingLogbookReads(
+export function invalidatePlantsReads(
   queryClient: QueryClient,
   plantKeys: readonly string[] = [],
 ): void {
   void queryClient.invalidateQueries({
-    queryKey: breedingLogbookQueryKeys.bootstrap,
+    queryKey: plantsQueryKeys.bootstrap,
   });
   void queryClient.invalidateQueries({
-    queryKey: breedingLogbookQueryKeys.seedLots,
+    queryKey: plantsQueryKeys.seedLots,
   });
   void queryClient.invalidateQueries({
-    queryKey: breedingLogbookQueryKeys.plants,
+    queryKey: plantsQueryKeys.plants,
   });
   for (const plantKey of plantKeys) {
     void queryClient.invalidateQueries({
-      queryKey: breedingLogbookQueryKeys.plantDetail(plantKey),
+      queryKey: plantsQueryKeys.plantDetail(plantKey),
     });
   }
 }
 
-async function fetchBreedingLogbookBootstrap(): Promise<BreedingLogbookBootstrap> {
+async function fetchPlantsBootstrap(): Promise<PlantsBootstrap> {
   const { data } = await hostedApi.GET("/api/breeding-logbook/bootstrap");
   return mapBootstrap(hostedData(data, "/api/breeding-logbook/bootstrap"));
 }
 
-async function fetchBreedingLogbookPlants(): Promise<PlantListResult> {
+async function fetchPlantsPlants(): Promise<PlantListResult> {
   const { data } = await hostedApi.GET("/api/breeding-logbook/plants", {
     params: { query: { include_culled: true, group_by: "stage" } },
   });
   return mapPlantList(hostedData(data, "/api/breeding-logbook/plants"));
 }
 
-async function fetchBreedingLogbookSeedLots(): Promise<SeedLotListResult> {
+async function fetchPlantsSeedLots(): Promise<SeedLotListResult> {
   const { data } = await hostedApi.GET("/api/breeding-logbook/seed-lots");
   return mapSeedLotList(hostedData(data, "/api/breeding-logbook/seed-lots"));
 }
 
-async function fetchBreedingLogbookPlantDetail(
+async function fetchPlantsPlantDetail(
   plantKey: string,
   queryClient: QueryClient,
 ): Promise<PlantDetail> {
   const resolvedPlantKey =
     plantKey ||
-    (await queryClient.ensureQueryData(breedingLogbookPlantsOptions())).plants[0]?.key;
+    (await queryClient.ensureQueryData(plantsPlantsOptions())).plants[0]?.key;
   if (!resolvedPlantKey) {
-    throw new Error("Breeding Logbook has no plants to select");
+    throw new Error("No plants are available to select");
   }
   const [detailResponse, historyResponse] = await Promise.all([
     hostedApi.GET(BREEDING_LOGBOOK_PLANT_DETAIL_PATH, {
@@ -110,46 +111,46 @@ async function fetchBreedingLogbookPlantDetail(
   );
 }
 
-function breedingLogbookBootstrapOptions() {
+function plantsBootstrapOptions() {
   return queryOptions({
-    queryKey: breedingLogbookQueryKeys.bootstrap,
-    queryFn: fetchBreedingLogbookBootstrap,
+    queryKey: plantsQueryKeys.bootstrap,
+    queryFn: fetchPlantsBootstrap,
     staleTime: Infinity,
   });
 }
 
-function breedingLogbookPlantsOptions() {
+function plantsPlantsOptions() {
   return queryOptions({
-    queryKey: breedingLogbookQueryKeys.plants,
-    queryFn: fetchBreedingLogbookPlants,
+    queryKey: plantsQueryKeys.plants,
+    queryFn: fetchPlantsPlants,
     staleTime: Infinity,
   });
 }
 
-function breedingLogbookSeedLotsOptions() {
+function plantsSeedLotsOptions() {
   return queryOptions({
-    queryKey: breedingLogbookQueryKeys.seedLots,
-    queryFn: fetchBreedingLogbookSeedLots,
+    queryKey: plantsQueryKeys.seedLots,
+    queryFn: fetchPlantsSeedLots,
     staleTime: Infinity,
   });
 }
 
-function breedingLogbookPlantDetailOptions(plantKey: string, queryClient: QueryClient) {
+function plantsPlantDetailOptions(plantKey: string, queryClient: QueryClient) {
   return queryOptions({
-    queryKey: breedingLogbookQueryKeys.plantDetail(plantKey),
-    queryFn: () => fetchBreedingLogbookPlantDetail(plantKey, queryClient),
+    queryKey: plantsQueryKeys.plantDetail(plantKey),
+    queryFn: () => fetchPlantsPlantDetail(plantKey, queryClient),
     staleTime: Infinity,
   });
 }
 
-export function useBreedingLogbookQueries(plantKey: string) {
+export function usePlantsQueries(plantKey: string) {
   const queryClient = useQueryClient();
   return useSuspenseQueries({
     queries: [
-      breedingLogbookBootstrapOptions(),
-      breedingLogbookPlantsOptions(),
-      breedingLogbookSeedLotsOptions(),
-      breedingLogbookPlantDetailOptions(plantKey, queryClient),
+      plantsBootstrapOptions(),
+      plantsPlantsOptions(),
+      plantsSeedLotsOptions(),
+      plantsPlantDetailOptions(plantKey, queryClient),
     ],
     combine: ([bootstrap, plants, seedLots, detail]) => ({
       bootstrap: bootstrap.data,
@@ -167,9 +168,7 @@ function hostedData<T>(data: T | undefined, path: string): T {
   return data;
 }
 
-export function mapBootstrap(
-  response: HostedBreedingLogbookBootstrap,
-): BreedingLogbookBootstrap {
+export function mapBootstrap(response: HostedPlantsBootstrap): PlantsBootstrap {
   return {
     today: response.today,
     todayLabel: response.today_label,
@@ -196,9 +195,7 @@ export function mapBootstrap(
   };
 }
 
-export function mapPlantList(
-  response: HostedBreedingLogbookPlantList,
-): PlantListResult {
+export function mapPlantList(response: HostedPlantsPlantList): PlantListResult {
   return {
     activeCount: response.active_count,
     culledCount: response.culled_count,
@@ -206,9 +203,7 @@ export function mapPlantList(
   };
 }
 
-export function mapSeedLotList(
-  response: HostedBreedingLogbookSeedLotList,
-): SeedLotListResult {
+export function mapSeedLotList(response: HostedPlantsSeedLotList): SeedLotListResult {
   return {
     seedLots: response.seed_lots.map((seedLot) => ({
       id: seedLot.id,
@@ -227,7 +222,7 @@ export function mapSeedLotList(
 }
 
 export function mapPlantDetail(
-  detail: HostedBreedingLogbookPlantDetail,
+  detail: HostedPlantsPlantDetail,
   metricHistory: HostedPlantMetricHistory,
 ): PlantDetail {
   return {
@@ -242,6 +237,15 @@ export function mapPlantDetail(
       tone: metric.tone,
     })),
     metricHistory: metricHistory.streams.flatMap(mapMetricHistory),
+    telemetry: detail.telemetry.map(mapTelemetryStream),
+    wikiContent:
+      detail.wiki_content === null
+        ? null
+        : {
+            bodyMarkdown: detail.wiki_content.body_markdown,
+            sourceUpdatedAt: detail.wiki_content.source_updated_at,
+            title: detail.wiki_content.title,
+          },
     events: detail.events.map((event) => ({
       id: event.id,
       dateLabel: event.date_label,
@@ -252,9 +256,32 @@ export function mapPlantDetail(
   };
 }
 
-function mapPlantRow(
-  plant: HostedBreedingLogbookPlantList["plants"][number],
-): PlantRow {
+function mapTelemetryStream(
+  stream: HostedPlantsPlantDetail["telemetry"][number],
+): PlantTelemetryStream {
+  return {
+    accent: stream.accent,
+    capabilityId: stream.capability_id,
+    deviceId: stream.device_id,
+    displayName: stream.display_name,
+    displayUnit: stream.display_unit,
+    historyEnabled: stream.history_enabled,
+    key: `${stream.device_id}:${stream.capability_id}:${stream.metric}`,
+    latestReading:
+      stream.latest_reading === null
+        ? null
+        : {
+            receivedAt: stream.latest_reading.received_at,
+            value: stream.latest_reading.value,
+          },
+    metric: stream.metric,
+    valuePrecision: stream.value_precision,
+    yMax: stream.y_max,
+    yMin: stream.y_min,
+  };
+}
+
+function mapPlantRow(plant: HostedPlantsPlantList["plants"][number]): PlantRow {
   return {
     id: plant.id,
     key: plant.key,
