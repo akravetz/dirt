@@ -16,7 +16,7 @@ export const Route = createFileRoute("/tents/$sourceTentId/plants/$plantId")({
 });
 
 const hostedApi = createHostedApiClient();
-const DASHBOARD_ROUTE = "/" as const;
+const TENTS_ROUTE = "/tents" as const;
 const PLANT_DETAIL_PATH = "/api/tents/{source_tent_id}/plants/{plant_id}" as const;
 const PLANT_METRIC_HISTORY_PATH =
   "/api/tents/{source_tent_id}/plants/{plant_id}/metrics/history" as const;
@@ -109,10 +109,10 @@ function HostedPlantDetailPage() {
         <header className="grid gap-4 border-b border-rule-strong pb-4 lg:grid-cols-[1fr_auto] lg:items-end">
           <div className="min-w-0">
             <Link
-              to={DASHBOARD_ROUTE}
+              to={TENTS_ROUTE}
               className="mb-3 inline-flex border border-rule px-3 py-1.5 font-mono text-fs-10 uppercase tracking-caps text-ink-3 hover:border-rule-strong hover:text-ink"
             >
-              Dashboard
+              Tents
             </Link>
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <h1 className="min-w-0 break-words font-sans text-fs-24 font-semibold tracking-tight text-ink">
@@ -272,10 +272,10 @@ function PlantDetailUnavailableScreen(): ReactNode {
     <main className="flex-1 overflow-auto">
       <div className="mx-auto flex max-w-320 flex-col gap-4 px-5 py-6 sm:px-8">
         <Link
-          to={DASHBOARD_ROUTE}
+          to={TENTS_ROUTE}
           className="w-fit border border-rule px-3 py-1.5 font-mono text-fs-10 uppercase tracking-caps text-ink-3 hover:border-rule-strong hover:text-ink"
         >
-          Dashboard
+          Tents
         </Link>
         <section className="border border-rule-strong bg-paper-2 p-5">
           <p className="font-mono text-fs-10 uppercase tracking-caps text-accent-magenta">

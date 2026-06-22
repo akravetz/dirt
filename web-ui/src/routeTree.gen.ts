@@ -9,19 +9,38 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TentsRouteImport } from './routes/tents'
+import { Route as SeedsRouteImport } from './routes/seeds'
+import { Route as PlantsRouteImport } from './routes/plants'
 import { Route as LoginRouteImport } from './routes/login'
-import { Route as BreedingLogbookRouteImport } from './routes/breeding-logbook'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as TentsSourceTentIdRouteImport } from './routes/tents.$sourceTentId'
+import { Route as SeedsNewRouteImport } from './routes/seeds.new'
+import { Route as SeedsSeedLotIdRouteImport } from './routes/seeds.$seedLotId'
+import { Route as PlantsNewRouteImport } from './routes/plants.new'
+import { Route as PlantsPlantKeyRouteImport } from './routes/plants.$plantKey'
+import { Route as SeedsSeedLotIdEditRouteImport } from './routes/seeds.$seedLotId.edit'
+import { Route as PlantsPlantKeyEditRouteImport } from './routes/plants.$plantKey.edit'
 import { Route as TentsSourceTentIdPlantsPlantIdRouteImport } from './routes/tents.$sourceTentId.plants.$plantId'
 
+const TentsRoute = TentsRouteImport.update({
+  id: '/tents',
+  path: '/tents',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SeedsRoute = SeedsRouteImport.update({
+  id: '/seeds',
+  path: '/seeds',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlantsRoute = PlantsRouteImport.update({
+  id: '/plants',
+  path: '/plants',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BreedingLogbookRoute = BreedingLogbookRouteImport.update({
-  id: '/breeding-logbook',
-  path: '/breeding-logbook',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -29,74 +48,178 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TentsSourceTentIdRoute = TentsSourceTentIdRouteImport.update({
+  id: '/$sourceTentId',
+  path: '/$sourceTentId',
+  getParentRoute: () => TentsRoute,
+} as any)
+const SeedsNewRoute = SeedsNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => SeedsRoute,
+} as any)
+const SeedsSeedLotIdRoute = SeedsSeedLotIdRouteImport.update({
+  id: '/$seedLotId',
+  path: '/$seedLotId',
+  getParentRoute: () => SeedsRoute,
+} as any)
+const PlantsNewRoute = PlantsNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => PlantsRoute,
+} as any)
+const PlantsPlantKeyRoute = PlantsPlantKeyRouteImport.update({
+  id: '/$plantKey',
+  path: '/$plantKey',
+  getParentRoute: () => PlantsRoute,
+} as any)
+const SeedsSeedLotIdEditRoute = SeedsSeedLotIdEditRouteImport.update({
+  id: '/edit',
+  path: '/edit',
+  getParentRoute: () => SeedsSeedLotIdRoute,
+} as any)
+const PlantsPlantKeyEditRoute = PlantsPlantKeyEditRouteImport.update({
+  id: '/edit',
+  path: '/edit',
+  getParentRoute: () => PlantsPlantKeyRoute,
+} as any)
 const TentsSourceTentIdPlantsPlantIdRoute =
   TentsSourceTentIdPlantsPlantIdRouteImport.update({
-    id: '/tents/$sourceTentId/plants/$plantId',
-    path: '/tents/$sourceTentId/plants/$plantId',
-    getParentRoute: () => rootRouteImport,
+    id: '/plants/$plantId',
+    path: '/plants/$plantId',
+    getParentRoute: () => TentsSourceTentIdRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/breeding-logbook': typeof BreedingLogbookRoute
   '/login': typeof LoginRoute
+  '/plants': typeof PlantsRouteWithChildren
+  '/seeds': typeof SeedsRouteWithChildren
+  '/tents': typeof TentsRouteWithChildren
+  '/plants/$plantKey': typeof PlantsPlantKeyRouteWithChildren
+  '/plants/new': typeof PlantsNewRoute
+  '/seeds/$seedLotId': typeof SeedsSeedLotIdRouteWithChildren
+  '/seeds/new': typeof SeedsNewRoute
+  '/tents/$sourceTentId': typeof TentsSourceTentIdRouteWithChildren
+  '/plants/$plantKey/edit': typeof PlantsPlantKeyEditRoute
+  '/seeds/$seedLotId/edit': typeof SeedsSeedLotIdEditRoute
   '/tents/$sourceTentId/plants/$plantId': typeof TentsSourceTentIdPlantsPlantIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/breeding-logbook': typeof BreedingLogbookRoute
   '/login': typeof LoginRoute
+  '/plants': typeof PlantsRouteWithChildren
+  '/seeds': typeof SeedsRouteWithChildren
+  '/tents': typeof TentsRouteWithChildren
+  '/plants/$plantKey': typeof PlantsPlantKeyRouteWithChildren
+  '/plants/new': typeof PlantsNewRoute
+  '/seeds/$seedLotId': typeof SeedsSeedLotIdRouteWithChildren
+  '/seeds/new': typeof SeedsNewRoute
+  '/tents/$sourceTentId': typeof TentsSourceTentIdRouteWithChildren
+  '/plants/$plantKey/edit': typeof PlantsPlantKeyEditRoute
+  '/seeds/$seedLotId/edit': typeof SeedsSeedLotIdEditRoute
   '/tents/$sourceTentId/plants/$plantId': typeof TentsSourceTentIdPlantsPlantIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/breeding-logbook': typeof BreedingLogbookRoute
   '/login': typeof LoginRoute
+  '/plants': typeof PlantsRouteWithChildren
+  '/seeds': typeof SeedsRouteWithChildren
+  '/tents': typeof TentsRouteWithChildren
+  '/plants/$plantKey': typeof PlantsPlantKeyRouteWithChildren
+  '/plants/new': typeof PlantsNewRoute
+  '/seeds/$seedLotId': typeof SeedsSeedLotIdRouteWithChildren
+  '/seeds/new': typeof SeedsNewRoute
+  '/tents/$sourceTentId': typeof TentsSourceTentIdRouteWithChildren
+  '/plants/$plantKey/edit': typeof PlantsPlantKeyEditRoute
+  '/seeds/$seedLotId/edit': typeof SeedsSeedLotIdEditRoute
   '/tents/$sourceTentId/plants/$plantId': typeof TentsSourceTentIdPlantsPlantIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/breeding-logbook'
     | '/login'
+    | '/plants'
+    | '/seeds'
+    | '/tents'
+    | '/plants/$plantKey'
+    | '/plants/new'
+    | '/seeds/$seedLotId'
+    | '/seeds/new'
+    | '/tents/$sourceTentId'
+    | '/plants/$plantKey/edit'
+    | '/seeds/$seedLotId/edit'
     | '/tents/$sourceTentId/plants/$plantId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/breeding-logbook'
     | '/login'
+    | '/plants'
+    | '/seeds'
+    | '/tents'
+    | '/plants/$plantKey'
+    | '/plants/new'
+    | '/seeds/$seedLotId'
+    | '/seeds/new'
+    | '/tents/$sourceTentId'
+    | '/plants/$plantKey/edit'
+    | '/seeds/$seedLotId/edit'
     | '/tents/$sourceTentId/plants/$plantId'
   id:
     | '__root__'
     | '/'
-    | '/breeding-logbook'
     | '/login'
+    | '/plants'
+    | '/seeds'
+    | '/tents'
+    | '/plants/$plantKey'
+    | '/plants/new'
+    | '/seeds/$seedLotId'
+    | '/seeds/new'
+    | '/tents/$sourceTentId'
+    | '/plants/$plantKey/edit'
+    | '/seeds/$seedLotId/edit'
     | '/tents/$sourceTentId/plants/$plantId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  BreedingLogbookRoute: typeof BreedingLogbookRoute
   LoginRoute: typeof LoginRoute
-  TentsSourceTentIdPlantsPlantIdRoute: typeof TentsSourceTentIdPlantsPlantIdRoute
+  PlantsRoute: typeof PlantsRouteWithChildren
+  SeedsRoute: typeof SeedsRouteWithChildren
+  TentsRoute: typeof TentsRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/tents': {
+      id: '/tents'
+      path: '/tents'
+      fullPath: '/tents'
+      preLoaderRoute: typeof TentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/seeds': {
+      id: '/seeds'
+      path: '/seeds'
+      fullPath: '/seeds'
+      preLoaderRoute: typeof SeedsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/plants': {
+      id: '/plants'
+      path: '/plants'
+      fullPath: '/plants'
+      preLoaderRoute: typeof PlantsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/breeding-logbook': {
-      id: '/breeding-logbook'
-      path: '/breeding-logbook'
-      fullPath: '/breeding-logbook'
-      preLoaderRoute: typeof BreedingLogbookRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -106,21 +229,141 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/tents/$sourceTentId': {
+      id: '/tents/$sourceTentId'
+      path: '/$sourceTentId'
+      fullPath: '/tents/$sourceTentId'
+      preLoaderRoute: typeof TentsSourceTentIdRouteImport
+      parentRoute: typeof TentsRoute
+    }
+    '/seeds/new': {
+      id: '/seeds/new'
+      path: '/new'
+      fullPath: '/seeds/new'
+      preLoaderRoute: typeof SeedsNewRouteImport
+      parentRoute: typeof SeedsRoute
+    }
+    '/seeds/$seedLotId': {
+      id: '/seeds/$seedLotId'
+      path: '/$seedLotId'
+      fullPath: '/seeds/$seedLotId'
+      preLoaderRoute: typeof SeedsSeedLotIdRouteImport
+      parentRoute: typeof SeedsRoute
+    }
+    '/plants/new': {
+      id: '/plants/new'
+      path: '/new'
+      fullPath: '/plants/new'
+      preLoaderRoute: typeof PlantsNewRouteImport
+      parentRoute: typeof PlantsRoute
+    }
+    '/plants/$plantKey': {
+      id: '/plants/$plantKey'
+      path: '/$plantKey'
+      fullPath: '/plants/$plantKey'
+      preLoaderRoute: typeof PlantsPlantKeyRouteImport
+      parentRoute: typeof PlantsRoute
+    }
+    '/seeds/$seedLotId/edit': {
+      id: '/seeds/$seedLotId/edit'
+      path: '/edit'
+      fullPath: '/seeds/$seedLotId/edit'
+      preLoaderRoute: typeof SeedsSeedLotIdEditRouteImport
+      parentRoute: typeof SeedsSeedLotIdRoute
+    }
+    '/plants/$plantKey/edit': {
+      id: '/plants/$plantKey/edit'
+      path: '/edit'
+      fullPath: '/plants/$plantKey/edit'
+      preLoaderRoute: typeof PlantsPlantKeyEditRouteImport
+      parentRoute: typeof PlantsPlantKeyRoute
+    }
     '/tents/$sourceTentId/plants/$plantId': {
       id: '/tents/$sourceTentId/plants/$plantId'
-      path: '/tents/$sourceTentId/plants/$plantId'
+      path: '/plants/$plantId'
       fullPath: '/tents/$sourceTentId/plants/$plantId'
       preLoaderRoute: typeof TentsSourceTentIdPlantsPlantIdRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof TentsSourceTentIdRoute
     }
   }
 }
 
+interface PlantsPlantKeyRouteChildren {
+  PlantsPlantKeyEditRoute: typeof PlantsPlantKeyEditRoute
+}
+
+const PlantsPlantKeyRouteChildren: PlantsPlantKeyRouteChildren = {
+  PlantsPlantKeyEditRoute: PlantsPlantKeyEditRoute,
+}
+
+const PlantsPlantKeyRouteWithChildren = PlantsPlantKeyRoute._addFileChildren(
+  PlantsPlantKeyRouteChildren,
+)
+
+interface PlantsRouteChildren {
+  PlantsPlantKeyRoute: typeof PlantsPlantKeyRouteWithChildren
+  PlantsNewRoute: typeof PlantsNewRoute
+}
+
+const PlantsRouteChildren: PlantsRouteChildren = {
+  PlantsPlantKeyRoute: PlantsPlantKeyRouteWithChildren,
+  PlantsNewRoute: PlantsNewRoute,
+}
+
+const PlantsRouteWithChildren =
+  PlantsRoute._addFileChildren(PlantsRouteChildren)
+
+interface SeedsSeedLotIdRouteChildren {
+  SeedsSeedLotIdEditRoute: typeof SeedsSeedLotIdEditRoute
+}
+
+const SeedsSeedLotIdRouteChildren: SeedsSeedLotIdRouteChildren = {
+  SeedsSeedLotIdEditRoute: SeedsSeedLotIdEditRoute,
+}
+
+const SeedsSeedLotIdRouteWithChildren = SeedsSeedLotIdRoute._addFileChildren(
+  SeedsSeedLotIdRouteChildren,
+)
+
+interface SeedsRouteChildren {
+  SeedsSeedLotIdRoute: typeof SeedsSeedLotIdRouteWithChildren
+  SeedsNewRoute: typeof SeedsNewRoute
+}
+
+const SeedsRouteChildren: SeedsRouteChildren = {
+  SeedsSeedLotIdRoute: SeedsSeedLotIdRouteWithChildren,
+  SeedsNewRoute: SeedsNewRoute,
+}
+
+const SeedsRouteWithChildren = SeedsRoute._addFileChildren(SeedsRouteChildren)
+
+interface TentsSourceTentIdRouteChildren {
+  TentsSourceTentIdPlantsPlantIdRoute: typeof TentsSourceTentIdPlantsPlantIdRoute
+}
+
+const TentsSourceTentIdRouteChildren: TentsSourceTentIdRouteChildren = {
+  TentsSourceTentIdPlantsPlantIdRoute: TentsSourceTentIdPlantsPlantIdRoute,
+}
+
+const TentsSourceTentIdRouteWithChildren =
+  TentsSourceTentIdRoute._addFileChildren(TentsSourceTentIdRouteChildren)
+
+interface TentsRouteChildren {
+  TentsSourceTentIdRoute: typeof TentsSourceTentIdRouteWithChildren
+}
+
+const TentsRouteChildren: TentsRouteChildren = {
+  TentsSourceTentIdRoute: TentsSourceTentIdRouteWithChildren,
+}
+
+const TentsRouteWithChildren = TentsRoute._addFileChildren(TentsRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  BreedingLogbookRoute: BreedingLogbookRoute,
   LoginRoute: LoginRoute,
-  TentsSourceTentIdPlantsPlantIdRoute: TentsSourceTentIdPlantsPlantIdRoute,
+  PlantsRoute: PlantsRouteWithChildren,
+  SeedsRoute: SeedsRouteWithChildren,
+  TentsRoute: TentsRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -1,8 +1,12 @@
-import { useNavigate, useRouterState } from "@tanstack/react-router";
+import { Link, linkOptions } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { storage } from "@/shared/storage";
 
-const TABS = [{ label: "Dashboard", path: "/" }] as const;
+const TABS = linkOptions([
+  { label: "Tents", to: "/tents" },
+  { label: "Plants", to: "/plants" },
+  { label: "Seeds", to: "/seeds" },
+]);
 
 const THEME_STORAGE_KEY = "dirt.theme";
 type Theme = "light" | "dark";
@@ -45,8 +49,6 @@ function shortLocalTime(value: string): string {
 }
 
 export function TopBar({ growContext = null, onLogout }: TopBarProps) {
-  const navigate = useNavigate();
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [theme, setTheme] = useState<Theme>(readStoredTheme);
 
   // Apply the theme as a data attribute on <html> so Tailwind's
@@ -88,26 +90,16 @@ export function TopBar({ growContext = null, onLogout }: TopBarProps) {
         aria-label="Primary"
         className="order-3 flex w-full items-center gap-1.5 overflow-x-auto sm:order-none sm:mx-auto sm:w-auto"
       >
-        {TABS.map(({ label, path }) => {
-          const active = pathname === path;
-          return (
-            <button
-              key={path}
-              type="button"
-              onClick={() => {
-                void navigate({ to: path });
-              }}
-              aria-current={active ? "page" : undefined}
-              className={
-                active
-                  ? "shrink-0 border border-ink bg-paper-2 px-4.5 py-2 font-sans text-fs-11 font-semibold uppercase tracking-cap-ui text-ink transition"
-                  : "shrink-0 border border-rule px-4.5 py-2 font-sans text-fs-11 font-semibold uppercase tracking-cap-ui text-ink-3 transition hover:border-rule-strong hover:text-ink"
-              }
-            >
-              {label}
-            </button>
-          );
-        })}
+        {TABS.map((tab) => (
+          <Link
+            key={tab.to}
+            {...tab}
+            activeProps={{ "aria-current": "page" }}
+            className="shrink-0 border border-rule px-4.5 py-2 font-sans text-fs-11 font-semibold uppercase tracking-cap-ui text-ink-3 transition hover:border-rule-strong hover:text-ink data-[status=active]:border-ink data-[status=active]:bg-paper-2 data-[status=active]:text-ink"
+          >
+            {tab.label}
+          </Link>
+        ))}
       </nav>
       <div className="ml-auto flex items-center gap-2 font-mono text-fs-11 text-ink-3 sm:gap-4.5">
         <button

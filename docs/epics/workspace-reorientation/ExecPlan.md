@@ -21,7 +21,7 @@ The work is complete when the top navigation is exactly `Tents`, `Plants`, and `
 - [x] (2026-06-21) Confirmed the operator decisions: delete Live/Wiki from the web UI only; top nav becomes Tents/Plants/Seeds; `/` lands on Tents; Tents means physical tents; Plants defaults active with an archive filter; Seeds means seed lots; adding a seed lot is seed inventory work; germination/clone creation is plant work; plants originate from seed lots or clones; seed-lot detail/edit pages are required for consistency.
 - [x] (2026-06-21) Drafted this ExecPlan.
 - [x] (2026-06-21 18:37 MDT) Milestone 1 complete: deleted unused `/live` and `/wiki` web UI routes, removed `Live`/`Wiki` top-nav tabs, removed unused wiki localStorage helpers, and regenerated `web-ui/src/routeTree.gen.ts` through the Vite/TanStack Router toolchain.
-- [ ] Milestone 2: establish the route IA and top-level workspace chrome.
+- [x] (2026-06-21 18:55 MDT) Milestone 2 complete: established the canonical workspace route files, moved the dashboard implementation to `/tents`, redirected `/` to `/tents`, added temporary routable Plants/Seeds/detail/edit placeholders, removed `/breeding-logbook`, and regenerated `web-ui/src/routeTree.gen.ts`.
 - [ ] Milestone 3: move the dashboard into the Tents workspace with tent deep links.
 - [ ] Milestone 4: split the current Breeding Logbook plant surface into routable Plants pages.
 - [ ] Milestone 5: add seed-lot detail/edit API and command contracts.
@@ -48,6 +48,9 @@ The work is complete when the top navigation is exactly `Tents`, `Plants`, and `
 
 - Observation: Seed-lot inventory editing should not pretend to edit every piece of lineage identity.
   Evidence: local `SeedLot` owns `sex_type_key`, `is_purchased`, `vendor_name`, `acquired_at`, `produced_by_cross_event_id`, `seed_count`, and `notes`; line identity lives on `PlantLine`, and cross parent identity lives through `CrossEvent`.
+
+- Observation: The frontend dead-code invariant requires the existing breeding-logbook feature to stay reachable after deleting the stale `/breeding-logbook` route.
+  Evidence: the first Milestone 2 commit attempt failed `apps/tests/invariants/test_typescript_dead_code.py::test_no_unused_files_exports_or_deps`; `pnpm knip` reported `src/features/breeding-logbook/BreedingLogbookPage.tsx` and its exported hooks/types as unused until the leaf `/plants` route temporarily rendered `BreedingLogbookPage`.
 
 
 ## Decision Log
@@ -88,6 +91,8 @@ The work is complete when the top navigation is exactly `Tents`, `Plants`, and `
 ## Outcomes & Retrospective
 
 Milestone 1 removed the dead hosted Live and Wiki browser surfaces without touching backend PTZ/wiki projection code or repository wiki content. Validation passed with `pnpm --dir web-ui typecheck`, `pnpm --dir web-ui lint`, `git diff --check`, and the focused dead-code search `rg -n "HostedLive|WikiPage|readRecentWiki|pushRecentWiki|ExpandedWiki|/live|/wiki" web-ui/src`, which returned no matches.
+
+Milestone 2 established the top-level workspace chrome with exactly `Tents`, `Plants`, and `Seeds`. `/` now redirects to `/tents`, `/breeding-logbook` is no longer a web route, `/login` is the only route without shared chrome, and canonical Plants/Seeds/Tents route files exist for later milestones to fill in. The leaf `/plants` route temporarily renders the existing `BreedingLogbookPage` so live plant functionality and dead-code invariants remain intact until Milestone 4 replaces it with canonical Plants pages. Validation passed with `pnpm --dir web-ui exec vite build`, `pnpm --dir web-ui typecheck`, `pnpm --dir web-ui lint`, `pnpm --dir web-ui test`, `pnpm --dir web-ui knip --no-progress`, `uv run pytest apps/tests/invariants/test_typescript_dead_code.py -q`, `git diff --check`, and the required stale-route search; the remaining `Wiki` matches are the retained projected-wiki labels in `web-ui/src/routes/tents.$sourceTentId.plants.$plantId.tsx`.
 
 
 ## Context and Orientation

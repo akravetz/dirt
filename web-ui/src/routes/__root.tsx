@@ -15,13 +15,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 const api = createHostedApiClient();
 
-// Pre-auth /login and the standalone Breeding Logbook route own their full
-// viewport chrome. Other routes keep the shared TopBar.
+// Pre-auth /login owns its full viewport chrome. Other routes keep the shared TopBar.
 function RootComponent() {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isLogin = pathname === "/login";
-  const routeOwnsChrome = isLogin || pathname === "/breeding-logbook";
   const { queryClient } = Route.useRouteContext();
 
   // Cached query: one fetch shared by every non-login route. Disabled
@@ -63,7 +61,7 @@ function RootComponent() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-paper font-sans text-ink">
-      {routeOwnsChrome ? null : <TopBar growContext={null} onLogout={logout} />}
+      {isLogin ? null : <TopBar growContext={null} onLogout={logout} />}
       <Outlet />
     </div>
   );

@@ -2,7 +2,7 @@
 //
 // Owns the POST /api/auth/login call on behalf of LoginScreen (the
 // ui/ layer is forbidden to import api-client by boundaries/TS-05).
-// On 200 → navigate to "/"; on 401 → surface the contract's ErrorDetail
+// On 200 → navigate to "/tents"; on 401 → surface the contract's ErrorDetail
 // string back to the presentational component, which flips aria-invalid
 // and renders the role="alert" block.
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
@@ -36,7 +36,7 @@ function LoginPage() {
       body: { username, password },
     });
     if (data) {
-      await navigate({ to: "/" });
+      await navigate({ to: "/tents" });
       return null;
     }
     const detail =
