@@ -1,17 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Suspense } from "react";
-import { NewSeedLotPage, StatusScreen } from "@/features/plants/PlantsWorkspace";
+import { NewSeedLotPage, SeedStatusScreen } from "@/features/seeds/SeedsWorkspace";
 
 export const Route = createFileRoute("/seeds/new")({
   component: NewSeedLotRoute,
   errorComponent: () => (
-    <StatusScreen message="Failed to load seed-lot creation." tone="danger" />
+    <SeedStatusScreen message="Failed to load seed-lot creation." tone="danger" />
   ),
 });
 
 function NewSeedLotRoute() {
   return (
-    <Suspense fallback={<StatusScreen message="Loading seed-lot creation..." />}>
+    <Suspense fallback={<SeedStatusScreen message="Loading seed-lot creation..." />}>
       <NewSeedLotPage />
     </Suspense>
   );

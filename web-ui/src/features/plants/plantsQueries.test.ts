@@ -7,7 +7,6 @@ import {
   buildBulkMoveRequest,
   buildBulkSexRequest,
   buildClonePlantsRequest,
-  buildCreateSeedLotRequest,
   buildGerminatePlantsRequest,
   buildLogNoteRequest,
   buildUpdatePlantFactsRequest,
@@ -17,20 +16,13 @@ import {
   pendingTimelineNotes,
   readonlyPlantPrefixPreview,
 } from "./plantsMutations";
-import {
-  mapBootstrap,
-  mapPlantDetail,
-  mapPlantList,
-  mapSeedLotList,
-} from "./plantsQueries";
+import { mapBootstrap, mapPlantDetail, mapPlantList } from "./plantsQueries";
 import type { PlantRow } from "./plantsTypes";
 
 type HostedBootstrap = hostedComponents["schemas"]["BreedingLogbookBootstrapResponse"];
 type HostedPlantDetail =
   hostedComponents["schemas"]["BreedingLogbookPlantDetailResponse"];
 type HostedPlantList = hostedComponents["schemas"]["BreedingLogbookPlantListResponse"];
-type HostedSeedLotList =
-  hostedComponents["schemas"]["BreedingLogbookSeedLotListResponse"];
 type HostedMetricHistory = hostedComponents["schemas"]["PlantMetricHistoryResponse"];
 type HostedCommand = hostedComponents["schemas"]["CommandResponse"];
 
@@ -61,7 +53,7 @@ describe("plants hosted response mapping", () => {
     });
   });
 
-  it("maps plant, seed lot, detail timeline, and metric history responses", () => {
+  it("maps plant detail timeline and metric history responses", () => {
     const plant = {
       id: "1",
       key: "SBBS-R1-001",
@@ -96,23 +88,6 @@ describe("plants hosted response mapping", () => {
       group_by: "stage",
       plants: [plant],
     } satisfies HostedPlantList;
-    const seedLots = {
-      seed_lots: [
-        {
-          id: "2",
-          label: "SBBS R1 #2",
-          prefix: "SBBS",
-          strain: "Sirius Black x BS01",
-          cultivar: "R1",
-          generation: "R1",
-          source: "cross",
-          source_label: "in-house cross",
-          parents_label: "Plant B x Plant C",
-          sex_type_key: "regular",
-          seed_count: null,
-        },
-      ],
-    } satisfies HostedSeedLotList;
     const detail = {
       plant,
       lineage: {
@@ -170,15 +145,6 @@ describe("plants hosted response mapping", () => {
     } satisfies HostedMetricHistory;
 
     expect(mapPlantList(plants).plants[0]?.currentTentName).toBe("Main flower");
-    expect(mapSeedLotList(seedLots).seedLots[0]?.parentsLabel).toBe(
-      "Plant B x Plant C",
-    );
-    expect(mapSeedLotList(seedLots).seedLots[0]).toMatchObject({
-      prefix: "SBBS",
-      strain: "Sirius Black x BS01",
-      cultivar: "R1",
-      sexTypeKey: "regular",
-    });
     expect(mapPlantDetail(detail, history)).toMatchObject({
       plant: { key: "SBBS-R1-001", lastNote: "Trichomes stacking" },
       lineage: { offspring: "Cross #43: SBBS R1 #3 (1 plant)" },
@@ -196,41 +162,6 @@ describe("plants hosted response mapping", () => {
 
 describe("plants mutation request mapping", () => {
   it("builds snake_case write request bodies from screen-shaped inputs", () => {
-    expect(
-      buildCreateSeedLotRequest({
-        idempotencyKey: "seed-click",
-        source: "cross",
-        generation: "F2",
-        prefix: "MF",
-        sexTypeKey: "regular",
-        strain: null,
-        cultivar: null,
-        sourceName: null,
-        vendorName: null,
-        seedParentPlantKey: "MOM-001",
-        pollenParentPlantKey: "DAD-001",
-        seedCount: null,
-        notes: null,
-      }),
-    ).toEqual({
-      idempotency_key: "seed-click",
-      source: "cross",
-      generation: "F2",
-      prefix: "MF",
-      strain: null,
-      cultivar: null,
-      source_name: null,
-      vendor_name: null,
-      acquired_at: null,
-      seed_parent_plant_key: "MOM-001",
-      pollen_parent_plant_key: "DAD-001",
-      pollinated_at: null,
-      pollen_parent_is_reversed: null,
-      seed_count: null,
-      sex_type_key: "regular",
-      notes: null,
-    });
-
     expect(
       buildGerminatePlantsRequest({
         idempotencyKey: "germ-click",

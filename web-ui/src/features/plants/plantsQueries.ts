@@ -5,6 +5,7 @@ import {
   useSuspenseQueries,
 } from "@tanstack/react-query";
 import { createHostedApiClient, type hostedComponents } from "@/api-client";
+import { invalidateSeedLotReads, type SeedLotSexTypeKey } from "@/shared/seedLots";
 import type {
   PlantDetail,
   PlantListResult,
@@ -14,8 +15,6 @@ import type {
   PlantStageKey,
   PlantsBootstrap,
   PlantTelemetryStream,
-  SeedLotListResult,
-  SeedLotSexTypeKey,
 } from "./plantsTypes";
 
 const hostedApi = createHostedApiClient();
@@ -30,15 +29,12 @@ type HostedPlantsPlantList =
   hostedComponents["schemas"]["BreedingLogbookPlantListResponse"];
 type HostedPlantsPlantDetail =
   hostedComponents["schemas"]["BreedingLogbookPlantDetailResponse"];
-type HostedPlantsSeedLotList =
-  hostedComponents["schemas"]["BreedingLogbookSeedLotListResponse"];
 type HostedPlantMetricHistory =
   hostedComponents["schemas"]["PlantMetricHistoryResponse"];
 
 const plantsQueryKeys = {
   bootstrap: ["breeding-logbook", "bootstrap"],
   plants: ["breeding-logbook", "plants"],
-  seedLots: ["breeding-logbook", "seed-lots"],
   plantDetail: (plantKey: string) => [
     "breeding-logbook",
     "plants",
@@ -54,9 +50,7 @@ export function invalidatePlantsReads(
   void queryClient.invalidateQueries({
     queryKey: plantsQueryKeys.bootstrap,
   });
-  void queryClient.invalidateQueries({
-    queryKey: plantsQueryKeys.seedLots,
-  });
+  invalidateSeedLotReads(queryClient);
   void queryClient.invalidateQueries({
     queryKey: plantsQueryKeys.plants,
   });
@@ -77,11 +71,6 @@ async function fetchPlantsPlants(): Promise<PlantListResult> {
     params: { query: { include_culled: true, group_by: "stage" } },
   });
   return mapPlantList(hostedData(data, "/api/breeding-logbook/plants"));
-}
-
-async function fetchPlantsSeedLots(): Promise<SeedLotListResult> {
-  const { data } = await hostedApi.GET("/api/breeding-logbook/seed-lots");
-  return mapSeedLotList(hostedData(data, "/api/breeding-logbook/seed-lots"));
 }
 
 async function fetchPlantsPlantDetail(
@@ -127,14 +116,6 @@ function plantsPlantsOptions() {
   });
 }
 
-function plantsSeedLotsOptions() {
-  return queryOptions({
-    queryKey: plantsQueryKeys.seedLots,
-    queryFn: fetchPlantsSeedLots,
-    staleTime: Infinity,
-  });
-}
-
 function plantsPlantDetailOptions(plantKey: string, queryClient: QueryClient) {
   return queryOptions({
     queryKey: plantsQueryKeys.plantDetail(plantKey),
@@ -149,13 +130,11 @@ export function usePlantsQueries(plantKey: string) {
     queries: [
       plantsBootstrapOptions(),
       plantsPlantsOptions(),
-      plantsSeedLotsOptions(),
       plantsPlantDetailOptions(plantKey, queryClient),
     ],
-    combine: ([bootstrap, plants, seedLots, detail]) => ({
+    combine: ([bootstrap, plants, detail]) => ({
       bootstrap: bootstrap.data,
       plants: plants.data,
-      seedLots: seedLots.data,
       detail: detail.data,
     }),
   });
@@ -200,24 +179,6 @@ export function mapPlantList(response: HostedPlantsPlantList): PlantListResult {
     activeCount: response.active_count,
     culledCount: response.culled_count,
     plants: response.plants.map(mapPlantRow),
-  };
-}
-
-export function mapSeedLotList(response: HostedPlantsSeedLotList): SeedLotListResult {
-  return {
-    seedLots: response.seed_lots.map((seedLot) => ({
-      id: seedLot.id,
-      label: seedLot.label,
-      prefix: seedLot.prefix,
-      strain: seedLot.strain,
-      cultivar: seedLot.cultivar,
-      generation: seedLot.generation,
-      source: seedLot.source,
-      sourceLabel: seedLot.source_label,
-      parentsLabel: seedLot.parents_label,
-      sexTypeKey: seedLot.sex_type_key,
-      seedCount: seedLot.seed_count,
-    })),
   };
 }
 

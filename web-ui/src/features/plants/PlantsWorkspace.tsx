@@ -3,10 +3,10 @@ import { useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { platform } from "@/shared/platform";
+import type { SeedLotSummary } from "@/shared/seedLots";
 import { MarkdownDocument } from "@/ui/MarkdownDocument";
 import { Sparkline } from "@/ui/Sparkline";
 import {
-  type AddSeedLotMutationInput,
   activePendingCommandsForPlant,
   applyPendingPlantCommands,
   canSubmitBulkCull,
@@ -19,7 +19,6 @@ import {
   type PlantsPendingCommand,
   pendingTimelineNotes,
   readonlyPlantPrefixPreview,
-  useAddSeedLotMutation,
   useBulkCullMutation,
   useBulkMoveMutation,
   useBulkSexMutation,
@@ -42,9 +41,6 @@ import type {
   PlantSexKey,
   PlantStageKey,
   PlantsBootstrap,
-  SeedLotSexTypeKey,
-  SeedLotSource,
-  SeedLotSummary,
 } from "./plantsTypes";
 
 type AddPlantMode = "germinate" | "clone";
@@ -68,17 +64,6 @@ type DetailFactUpdate =
   | { field: "sex_key"; value: PlantSexKey }
   | { field: DetailDateFactField; value: string | null };
 
-type AddSeedLotDraft = {
-  source: SeedLotSource;
-  motherId: string;
-  fatherId: string;
-  generation: string;
-  sexTypeKey: SeedLotSexTypeKey;
-  prefix: string;
-  strain: string;
-  breeder: string;
-};
-
 type TableGroup = {
   key: string;
   label: string;
@@ -93,7 +78,6 @@ type PlantsSearchState = {
   visibility?: PlantVisibilityFilter;
 };
 
-const GENERATION_OPTIONS = ["R1", "F1", "F2", "F3", "F4", "F5", "S1", "BX1"] as const;
 const EMPTY_SELECTION = new Set<string>();
 const FALLBACK_LOCATION: LocationOption = {
   sourceTentId: 1,
@@ -110,16 +94,6 @@ const BULK_DATE_FIELD_OPTIONS = [
   { label: "Veg start", value: "veg_started_at" },
   { label: "Flower start", value: "flower_started_at" },
 ] as const satisfies readonly { label: string; value: BulkDateField }[];
-const initialSeedLotDraft: AddSeedLotDraft = {
-  source: "cross",
-  motherId: "plant-d",
-  fatherId: "r2",
-  generation: "F2",
-  sexTypeKey: "regular",
-  prefix: "",
-  strain: "",
-  breeder: "",
-};
 const EMPTY_DETAIL_FACTS_DRAFT: DetailFactsDraft = {
   sexKey: "unknown",
   germinatedAt: "",
@@ -137,8 +111,8 @@ const DEFAULT_PLANTS_SEARCH = {
   visibility: "active",
 } as const satisfies Required<PlantsSearchState>;
 
-type PlantsPageView = "plants" | "add-seeds" | "add-plants" | "detail";
-type PlantsPageMode = "list" | "new-plant" | "new-seed-lot" | "detail";
+type PlantsPageView = "plants" | "add-plants" | "detail";
+type PlantsPageMode = "list" | "new-plant" | "detail";
 
 export function validatePlantsSearch(
   search: Record<string, unknown>,
@@ -180,12 +154,12 @@ export function PlantsListPage({
   return <PlantsPage mode="list" search={search} />;
 }
 
-export function NewPlantPage(): ReactNode {
-  return <PlantsPage mode="new-plant" />;
-}
-
-export function NewSeedLotPage(): ReactNode {
-  return <PlantsPage mode="new-seed-lot" />;
+export function NewPlantPage({
+  seedLots,
+}: {
+  seedLots: readonly SeedLotSummary[];
+}): ReactNode {
+  return <PlantsPage mode="new-plant" seedLots={seedLots} />;
 }
 
 export function PlantDetailPage({
@@ -210,7 +184,6 @@ function parseSearchEnum<TValue extends string>(
 
 function pageViewFromMode(mode: PlantsPageMode): PlantsPageView {
   if (mode === "new-plant") return "add-plants";
-  if (mode === "new-seed-lot") return "add-seeds";
   if (mode === "detail") return "detail";
   return "plants";
 }
@@ -237,11 +210,13 @@ function PlantsPage({
   editMode = false,
   mode,
   plantKey = "",
+  seedLots = [],
   search = DEFAULT_PLANTS_SEARCH,
 }: {
   editMode?: boolean;
   mode: PlantsPageMode;
   plantKey?: string;
+  seedLots?: readonly SeedLotSummary[];
   search?: Required<PlantsSearchState>;
 }): ReactNode {
   const navigate = useNavigate();
@@ -255,8 +230,6 @@ function PlantsPage({
   const [bulkDateValue, setBulkDateValue] = useState(datetimeLocalNow);
   const [bulkCullReason, setBulkCullReason] = useState("");
   const [moveLocationKey, setMoveLocationKey] = useState(1);
-  const [seedLotDraft, setSeedLotDraft] =
-    useState<AddSeedLotDraft>(initialSeedLotDraft);
   const [addPlantMode, setAddPlantMode] = useState<AddPlantMode>("germinate");
   const [selectedSeedLotId, setSelectedSeedLotId] = useState("lot-maruf-black");
   const [germinateCount, setGerminateCount] = useState(10);
@@ -290,7 +263,6 @@ function PlantsPage({
 
   const logbook = usePlantsQueries(detailPlantKey);
   const pendingCommands = usePlantsPendingCommands();
-  const addSeedLotMutation = useAddSeedLotMutation();
   const germinateMutation = useGerminatePlantsMutation();
   const cloneMutation = useClonePlantsMutation();
   const bulkSexMutation = useBulkSexMutation();
@@ -309,7 +281,6 @@ function PlantsPage({
     (plant) => plant.stageKey === "harvested",
   ).length;
   const archivedCount = culledCount + harvestedCount;
-  const seedLots = logbook.seedLots.seedLots;
   const visiblePlants = filterPlantsByVisibility(plants, search.visibility);
   const selectedPlants = plants.filter((plant) => selectedPlantIds.has(plant.id));
   const selectedPlantKeys = selectedPlants.map((plant) => plant.key);
@@ -583,37 +554,6 @@ function PlantsPage({
                 search: (previous) => ({ ...previous, visibility }),
                 replace: true,
               });
-            }}
-          />
-        ) : view === "add-seeds" ? (
-          <AddSeedsSurface
-            bootstrap={logbook.bootstrap}
-            draft={seedLotDraft}
-            mutationError={mutationErrorText(addSeedLotMutation.error)}
-            mutationPending={addSeedLotMutation.isPending}
-            pendingCommands={pendingCommands}
-            plants={plants}
-            seedLots={seedLots}
-            onDraftChange={setSeedLotDraft}
-            onGerminate={(seedLotId) => {
-              setSelectedSeedLotId(seedLotId);
-              setAddPlantMode("germinate");
-              void navigate({ to: "/plants/new" });
-            }}
-            onSubmit={() => {
-              const input = createSeedLotInputFromDraft(seedLotDraft, plants);
-              if (input === null) return;
-              addSeedLotMutation.mutate(input, {
-                onSuccess: () => {
-                  setSeedLotDraft({
-                    ...initialSeedLotDraft,
-                    source: seedLotDraft.source,
-                  });
-                },
-              });
-            }}
-            onBack={() => {
-              void navigate({ to: "/seeds" });
             }}
           />
         ) : view === "add-plants" ? (
@@ -1774,229 +1714,6 @@ function PlantBoardChip({
         </span>
       </div>
     </li>
-  );
-}
-
-function AddSeedsSurface({
-  bootstrap,
-  draft,
-  mutationError,
-  mutationPending,
-  onBack,
-  onDraftChange,
-  onGerminate,
-  onSubmit,
-  pendingCommands,
-  plants,
-  seedLots,
-}: {
-  bootstrap: PlantsBootstrap;
-  draft: AddSeedLotDraft;
-  mutationError: string | null;
-  mutationPending: boolean;
-  plants: readonly PlantRow[];
-  seedLots: readonly SeedLotSummary[];
-  pendingCommands: readonly PlantsPendingCommand[];
-  onBack: () => void;
-  onDraftChange: (draft: AddSeedLotDraft) => void;
-  onGerminate: (seedLotId: string) => void;
-  onSubmit: () => void;
-}): ReactNode {
-  const activePlants = plants.filter(isActivePlant);
-  const motherOptions = activePlants
-    .filter((plant) => plant.sexKey !== "male")
-    .map((plant) => ({
-      value: plant.id,
-      label: `${plant.name} ${plant.sexKey === "female" ? "♀" : "?"}`,
-    }));
-  const fatherOptions = activePlants
-    .filter((plant) => plant.sexKey !== "female")
-    .map((plant) => ({
-      value: plant.id,
-      label: `${plant.name} ${plant.sexKey === "male" ? "♂" : "?"}`,
-    }));
-  const preview = seedLotPreview(draft, plants);
-  const hasSelectedCrossParents =
-    motherOptions.some((option) => option.value === draft.motherId) &&
-    fatherOptions.some((option) => option.value === draft.fatherId);
-  const canSubmit =
-    draft.source === "cross" ? hasSelectedCrossParents : draft.strain.trim().length > 0;
-  const seedLotSexTypeOptions = bootstrap.seedLotSexTypes.map((sexType) => ({
-    value: sexType.key,
-    label: sexType.displayName,
-  }));
-  const selectedSexType = seedLotSexTypeOptions.some(
-    (option) => option.value === draft.sexTypeKey,
-  )
-    ? draft.sexTypeKey
-    : "regular";
-
-  return (
-    <>
-      <SurfaceHeader
-        description="Queue a seed-lot command without creating plant rows."
-        title="Add seeds"
-        onBack={onBack}
-      />
-      <PendingCommandSummary
-        commands={pendingCommands.filter(
-          (command) => command.operation === "add-seeds",
-        )}
-        mutationError={mutationError}
-      />
-      <section className="grid gap-px border border-rule-strong bg-rule md:grid-cols-[minmax(360px,1fr)_minmax(280px,360px)]">
-        <div className="bg-paper-2 p-5">
-          <Segmented
-            label="Source"
-            options={[
-              { label: "Our cross", value: "cross" },
-              { label: "Purchased", value: "purchased" },
-            ]}
-            value={draft.source}
-            onChange={(source) => {
-              onDraftChange({ ...draft, source });
-            }}
-          />
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            {draft.source === "cross" ? (
-              <>
-                <SelectField
-                  label="Mother ♀"
-                  value={draft.motherId}
-                  options={motherOptions}
-                  onChange={(motherId) => {
-                    onDraftChange({ ...draft, motherId });
-                  }}
-                />
-                <SelectField
-                  label="Father ♂"
-                  value={draft.fatherId}
-                  options={fatherOptions}
-                  onChange={(fatherId) => {
-                    onDraftChange({ ...draft, fatherId });
-                  }}
-                />
-                <SelectField
-                  label="Generation"
-                  value={draft.generation}
-                  options={GENERATION_OPTIONS.map((generation) => ({
-                    value: generation,
-                    label: generation,
-                  }))}
-                  onChange={(generation) => {
-                    onDraftChange({ ...draft, generation });
-                  }}
-                />
-                <SelectField
-                  label="Seed type"
-                  value={selectedSexType}
-                  options={seedLotSexTypeOptions}
-                  onChange={(sexTypeKey) => {
-                    onDraftChange({ ...draft, sexTypeKey });
-                  }}
-                />
-                <TextField
-                  label="Prefix"
-                  value={draft.prefix}
-                  placeholder={preview.prefix}
-                  onChange={(prefix) => {
-                    onDraftChange({ ...draft, prefix });
-                  }}
-                />
-              </>
-            ) : (
-              <>
-                <TextField
-                  label="Strain / cultivar"
-                  value={draft.strain}
-                  placeholder="Maruf Black"
-                  onChange={(strain) => {
-                    onDraftChange({ ...draft, strain });
-                  }}
-                />
-                <TextField
-                  label="Breeder / source"
-                  value={draft.breeder}
-                  placeholder="archive"
-                  onChange={(breeder) => {
-                    onDraftChange({ ...draft, breeder });
-                  }}
-                />
-                <SelectField
-                  label="Generation"
-                  value={draft.generation}
-                  options={GENERATION_OPTIONS.map((generation) => ({
-                    value: generation,
-                    label: generation,
-                  }))}
-                  onChange={(generation) => {
-                    onDraftChange({ ...draft, generation });
-                  }}
-                />
-                <SelectField
-                  label="Seed type"
-                  value={selectedSexType}
-                  options={seedLotSexTypeOptions}
-                  onChange={(sexTypeKey) => {
-                    onDraftChange({ ...draft, sexTypeKey });
-                  }}
-                />
-                <TextField
-                  label="Prefix"
-                  value={draft.prefix}
-                  placeholder={preview.prefix}
-                  onChange={(prefix) => {
-                    onDraftChange({ ...draft, prefix });
-                  }}
-                />
-              </>
-            )}
-          </div>
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-rule pt-3">
-            <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
-              {preview.label} / plant label prefix{" "}
-              {readonlyPlantPrefixPreview(preview.prefix)}
-            </p>
-            <Button
-              variant="primary"
-              disabled={!canSubmit || mutationPending}
-              onClick={onSubmit}
-            >
-              Record seed lot
-            </Button>
-          </div>
-        </div>
-        <div className="bg-paper p-4">
-          <h3 className="font-sans text-fs-13 font-semibold text-ink">
-            Seed lots on file / {seedLots.length} lots
-          </h3>
-          <div className="mt-3 grid gap-2">
-            {seedLots.map((lot) => {
-              const seedType = seedLotSexTypeDisplayName(bootstrap, lot.sexTypeKey);
-              return (
-                <div key={lot.id} className="border border-rule bg-paper-2 px-3 py-2.5">
-                  <p className="font-sans text-fs-12 font-semibold text-ink">
-                    {seedLotPrimaryLabel(lot)}
-                  </p>
-                  <p className="mt-1 font-mono text-fs-9 uppercase tracking-caps text-ink-3">
-                    {lot.cultivar} / {seedType}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onGerminate(lot.id);
-                    }}
-                    className="mt-2 border border-rule px-2 py-1 font-mono text-fs-9 uppercase tracking-caps text-ink-3 transition hover:border-rule-strong hover:text-ink"
-                  >
-                    Germinate →
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-    </>
   );
 }
 
@@ -3325,97 +3042,6 @@ function groupPlants(
       plants: plants.filter((plant) => plant.stageKey === stage.key),
     }))
     .filter((group) => group.plants.length > 0);
-}
-
-function createSeedLotInputFromDraft(
-  draft: AddSeedLotDraft,
-  plants: readonly PlantRow[],
-): AddSeedLotMutationInput | null {
-  const preview = seedLotPreview(draft, plants);
-  if (draft.source === "purchased" && draft.strain.trim().length === 0) {
-    return null;
-  }
-  const mother = plants.find((plant) => plant.id === draft.motherId);
-  const father = plants.find((plant) => plant.id === draft.fatherId);
-  if (draft.source === "cross" && (mother === undefined || father === undefined)) {
-    return null;
-  }
-  return {
-    idempotencyKey: createPlantsIdempotencyKey("add-seeds"),
-    source: draft.source,
-    prefix: preview.prefix,
-    generation: draft.generation,
-    sexTypeKey: draft.sexTypeKey,
-    strain: draft.source === "purchased" ? draft.strain.trim() : null,
-    cultivar: draft.source === "purchased" ? draft.generation : null,
-    sourceName: draft.source === "purchased" ? draft.breeder.trim() || null : null,
-    vendorName: draft.source === "purchased" ? draft.breeder.trim() || null : null,
-    seedParentPlantKey: draft.source === "cross" ? (mother?.key ?? null) : null,
-    pollenParentPlantKey: draft.source === "cross" ? (father?.key ?? null) : null,
-    seedCount: null,
-    notes: null,
-  };
-}
-
-function seedLotPreview(
-  draft: AddSeedLotDraft,
-  plants: readonly PlantRow[],
-): { label: string; parents: string; prefix: string } {
-  if (draft.source === "purchased") {
-    const strain = draft.strain.trim() || "(strain)";
-    const breeder = draft.breeder.trim();
-    const prefix = normalizePrefix(draft.prefix) || strainPrefix(strain);
-    return {
-      label: `${strain}${breeder ? ` / ${breeder}` : ""} / ${draft.generation}`,
-      parents: `${strain}${breeder ? ` (${breeder})` : " (purchased)"}`,
-      prefix,
-    };
-  }
-  const mother = plants.find((plant) => plant.id === draft.motherId);
-  const father = plants.find((plant) => plant.id === draft.fatherId);
-  const motherName = mother?.name ?? "Mother";
-  const fatherName = father?.name ?? "Father";
-  const prefix =
-    normalizePrefix(draft.prefix) ||
-    `${motherName[0] ?? "M"}${fatherName.replace(/[^A-Za-z0-9]/g, "")[0] ?? "F"}`.toUpperCase();
-  return {
-    label: `${motherName} x ${fatherName} / ${draft.generation}`,
-    parents: `${motherName} x ${fatherName}`,
-    prefix,
-  };
-}
-
-function seedLotPrimaryLabel(lot: SeedLotSummary): string {
-  const prefix = lot.prefix.trim() || "Seed lot";
-  return `${prefix} / ${lot.strain}`;
-}
-
-function seedLotSexTypeDisplayName(
-  bootstrap: PlantsBootstrap,
-  sexTypeKey: SeedLotSexTypeKey,
-): string {
-  return (
-    bootstrap.seedLotSexTypes.find((sexType) => sexType.key === sexTypeKey)
-      ?.displayName ?? sexTypeKey
-  );
-}
-
-function strainPrefix(strain: string): string {
-  const initials = strain
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((word) => word[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 3);
-  return initials || "XX";
-}
-
-function normalizePrefix(prefix: string): string {
-  return prefix
-    .trim()
-    .replace(/[^A-Za-z0-9]/g, "")
-    .toUpperCase();
 }
 
 function clonePrefixFor(name: string): string {

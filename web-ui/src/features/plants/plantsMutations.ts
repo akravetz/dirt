@@ -14,8 +14,6 @@ import type {
   PlantRow,
   PlantSexKey,
   PlantStageKey,
-  SeedLotSexTypeKey,
-  SeedLotSource,
 } from "./plantsTypes";
 
 const hostedApi = createHostedApiClient();
@@ -29,8 +27,6 @@ const TERMINAL_COMMAND_STATUSES = new Set([
 const PROJECTION_REFRESH_DELAYS_MS = [0, 2_500, 7_500, 15_000] as const;
 
 type HostedCommand = hostedComponents["schemas"]["CommandResponse"];
-type BreedingCreateSeedLotRequest =
-  hostedComponents["schemas"]["BreedingCreateSeedLotRequest"];
 type BreedingGerminatePlantsRequest =
   hostedComponents["schemas"]["BreedingGerminatePlantsRequest"];
 type BreedingClonePlantsRequest =
@@ -46,7 +42,6 @@ type BreedingBulkPlantNoteRequest =
   hostedComponents["schemas"]["BreedingBulkPlantNoteRequest"];
 
 type PendingOperation =
-  | "add-seeds"
   | "germinate"
   | "clone"
   | "bulk-sex"
@@ -95,22 +90,6 @@ export type PendingTimelineNote = {
   dateLabel: string;
   error: string | null;
   statusLabel: string;
-};
-
-export type AddSeedLotMutationInput = {
-  idempotencyKey: string;
-  source: SeedLotSource;
-  generation: string;
-  prefix: string;
-  sexTypeKey: SeedLotSexTypeKey;
-  strain: string | null;
-  cultivar: string | null;
-  sourceName: string | null;
-  vendorName: string | null;
-  seedParentPlantKey: string | null;
-  pollenParentPlantKey: string | null;
-  seedCount: number | null;
-  notes: string | null;
 };
 
 type GerminatePlantsMutationInput = {
@@ -193,29 +172,6 @@ export function canSubmitBulkCull(reason: string): boolean {
 
 export function readonlyPlantPrefixPreview(prefix: string): string {
   return `${prefix}-`;
-}
-
-export function buildCreateSeedLotRequest(
-  input: AddSeedLotMutationInput,
-): BreedingCreateSeedLotRequest {
-  return {
-    idempotency_key: input.idempotencyKey,
-    source: input.source,
-    generation: input.generation,
-    prefix: input.prefix,
-    strain: input.strain,
-    cultivar: input.cultivar,
-    source_name: input.sourceName,
-    vendor_name: input.vendorName,
-    acquired_at: null,
-    seed_parent_plant_key: input.seedParentPlantKey,
-    pollen_parent_plant_key: input.pollenParentPlantKey,
-    pollinated_at: null,
-    pollen_parent_is_reversed: null,
-    seed_count: input.seedCount,
-    sex_type_key: input.sexTypeKey,
-    notes: input.notes,
-  };
 }
 
 export function buildGerminatePlantsRequest(
@@ -351,27 +307,6 @@ export function usePlantsPendingCommands(): readonly PlantsPendingCommand[] {
   }, [commandPollQueries, pollableCommands, queryClient]);
 
   return pendingCommands;
-}
-
-export function useAddSeedLotMutation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: createSeedLot,
-    onSuccess: (command, input) => {
-      addPendingCommand(queryClient, {
-        command,
-        operation: "add-seeds",
-        label: `Seed lot ${input.prefix} queued`,
-        affectedPlantKeys: [],
-        optimisticPlantPatches: [],
-        pendingNote: null,
-      });
-      invalidatePlantsReads(queryClient);
-      if (command.status === "succeeded") {
-        scheduleProjectionRefresh(queryClient);
-      }
-    },
-  });
 }
 
 export function useGerminatePlantsMutation() {
@@ -638,13 +573,6 @@ export function commandErrorText(pendingCommand: PlantsPendingCommand): string |
     pendingCommand.command.error ||
     `${pendingCommand.label} ${pendingCommand.command.status}`
   );
-}
-
-async function createSeedLot(input: AddSeedLotMutationInput): Promise<HostedCommand> {
-  const { data } = await hostedApi.POST("/api/breeding-logbook/seed-lots", {
-    body: buildCreateSeedLotRequest(input),
-  });
-  return hostedData(data, "POST /api/breeding-logbook/seed-lots");
 }
 
 async function germinatePlants(

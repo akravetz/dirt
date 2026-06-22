@@ -1,3 +1,5 @@
+import type { SeedLotSexTypeKey } from "@/shared/seedLots";
+
 export type PlantListLayout = "table" | "board";
 export type PlantGroupBy = "stage" | "parents";
 export type BulkPanel = "sex" | "dates" | "move" | "cull" | null;
@@ -9,8 +11,6 @@ export type PlantStageKey =
   | "breeding"
   | "harvested"
   | "culled";
-export type SeedLotSource = "cross" | "purchased";
-export type SeedLotSexTypeKey = "unknown" | "feminized" | "regular";
 
 export type LookupRow<TKey extends string> = {
   key: TKey;
@@ -31,20 +31,6 @@ export type PlantsBootstrap = {
   seedLotSexTypes: readonly LookupRow<SeedLotSexTypeKey>[];
   stages: readonly LookupRow<PlantStageKey>[];
   locations: readonly LocationOption[];
-};
-
-export type SeedLotSummary = {
-  id: string;
-  label: string;
-  prefix: string;
-  strain: string;
-  cultivar: string;
-  generation: string;
-  source: SeedLotSource;
-  sourceLabel: string;
-  parentsLabel: string;
-  sexTypeKey: SeedLotSexTypeKey;
-  seedCount: number | null;
 };
 
 export type PlantRow = {
@@ -142,8 +128,4 @@ export type PlantListResult = {
   activeCount: number;
   culledCount: number;
   plants: readonly PlantRow[];
-};
-
-export type SeedLotListResult = {
-  seedLots: readonly SeedLotSummary[];
 };

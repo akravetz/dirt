@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Suspense } from "react";
 import { NewPlantPage, StatusScreen } from "@/features/plants/PlantsWorkspace";
+import { useSeedLotListQuery } from "@/features/seeds/seedsQueries";
 
 export const Route = createFileRoute("/plants/new")({
   component: NewPlantRoute,
@@ -12,7 +13,12 @@ export const Route = createFileRoute("/plants/new")({
 function NewPlantRoute() {
   return (
     <Suspense fallback={<StatusScreen message="Loading plant creation..." />}>
-      <NewPlantPage />
+      <NewPlantRouteContent />
     </Suspense>
   );
+}
+
+function NewPlantRouteContent() {
+  const seedLots = useSeedLotListQuery();
+  return <NewPlantPage seedLots={seedLots.seedLots} />;
 }

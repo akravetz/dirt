@@ -1,21 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { WorkspaceLink, WorkspacePlaceholder } from "./-workspacePlaceholders";
+import { Suspense } from "react";
+import { SeedLotDetailPage, SeedStatusScreen } from "@/features/seeds/SeedsWorkspace";
 
 export const Route = createFileRoute("/seeds/$seedLotId/edit")({
   component: EditSeedLotRoute,
+  errorComponent: () => (
+    <SeedStatusScreen message="Failed to load seed-lot editor." tone="danger" />
+  ),
 });
 
 function EditSeedLotRoute() {
   const { seedLotId } = Route.useParams();
 
   return (
-    <WorkspacePlaceholder
-      kicker="Edit seed lot"
-      title={seedLotId}
-      facts={[{ label: "Seed lot", value: seedLotId }]}
-      actions={[
-        { label: "Seeds", link: <WorkspaceLink to="/seeds">Seeds</WorkspaceLink> },
-      ]}
-    />
+    <Suspense fallback={<SeedStatusScreen message="Loading seed-lot editor..." />}>
+      <SeedLotDetailPage editMode seedLotId={seedLotId} />
+    </Suspense>
   );
 }

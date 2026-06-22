@@ -1,12 +1,13 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
-import {
-  useIsLeafRoute,
-  WorkspaceLink,
-  WorkspacePlaceholder,
-} from "./-workspacePlaceholders";
+import { Suspense } from "react";
+import { SeedLotDetailPage, SeedStatusScreen } from "@/features/seeds/SeedsWorkspace";
+import { useIsLeafRoute } from "./-workspacePlaceholders";
 
 export const Route = createFileRoute("/seeds/$seedLotId")({
   component: SeedLotRoute,
+  errorComponent: () => (
+    <SeedStatusScreen message="Failed to load seed-lot detail." tone="danger" />
+  ),
 });
 
 function SeedLotRoute() {
@@ -16,13 +17,8 @@ function SeedLotRoute() {
   if (!isLeafRoute) return <Outlet />;
 
   return (
-    <WorkspacePlaceholder
-      kicker="Seed lot"
-      title={seedLotId}
-      facts={[{ label: "Seed lot", value: seedLotId }]}
-      actions={[
-        { label: "Seeds", link: <WorkspaceLink to="/seeds">Seeds</WorkspaceLink> },
-      ]}
-    />
+    <Suspense fallback={<SeedStatusScreen message="Loading seed-lot detail..." />}>
+      <SeedLotDetailPage seedLotId={seedLotId} />
+    </Suspense>
   );
 }
