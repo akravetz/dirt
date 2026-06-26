@@ -1,7 +1,7 @@
 ---
 title: Index
 type: index
-updated: 2026-06-20
+updated: 2026-06-25
 ---
 
 # Grow Wiki Index
@@ -17,14 +17,14 @@ updated: 2026-06-20
 
 ## Grow Runs
 - [Grow Runs](grows/README.md) — Historical grow folders; current plant identity is `plant.id` plus durable `plant.key`
-- [Main grow 2026-03-15](grows/main-2026-03-15/README.md) — Current main tent flower run; Day 98 / Flower Day 48 as of 2026-06-20
-- [Track A pollen run](grows/breeding-track-a-2026-04-28/README.md) — Current breeding tent pollen-collection run; R2 is the selected donor after purple pollen-sac expression
+- [Main grow 2026-03-15](grows/main-2026-03-15/README.md) — Current main tent flower run; Day 103 / Flower Day 53 as of 2026-06-25
+- [Track A pollen run](grows/breeding-track-a-2026-04-28/README.md) — Current breeding tent pollen-collection run; Flower Day 32; R2 is the selected donor after purple pollen-sac expression
 
 ## Current Plants
-- [Plant A](grows/main-2026-03-15/plants/plant-a.md) — Primary keeper; Flower Day 48; no photo today, stable direct moisture near 26.5%, manual upper-canopy light-stress watch
-- [Plant B](grows/main-2026-03-15/plants/plant-b.md) — Secondary; Flower Day 48; no photo or trusted direct moisture value today, hand-check tray/media/posture
-- [Plant C](grows/main-2026-03-15/plants/plant-c.md) — Secondary; Flower Day 48; no photo today, direct moisture stable/slightly down near 34.0%, airflow/root-zone watch
-- [Plant D](grows/main-2026-03-15/plants/plant-d.md) — Primary keeper; Flower Day 48; no photo today, direct moisture near 31.4% with small downward drift
+- [Plant A](grows/main-2026-03-15/plants/plant-a.md) — Primary keeper; Flower Day 53; dedicated view mostly fan/blur-obstructed, direct moisture flat near 26.2%, manual upper-canopy light-stress watch
+- [Plant B](grows/main-2026-03-15/plants/plant-b.md) — Secondary; Flower Day 53; partially visible upright late-flower clusters and no trusted direct moisture value, hand-check tray/media/posture
+- [Plant C](grows/main-2026-03-15/plants/plant-c.md) — Secondary; Flower Day 53; chunky purple/lavender flowers with late yellow fade, direct moisture flat/slightly down near 32.9%, airflow/root-zone watch
+- [Plant D](grows/main-2026-03-15/plants/plant-d.md) — Primary keeper; Flower Day 53; upright purple flower tops with late lime/yellow fade, direct moisture modestly up near 32.8%
 - [R1](grows/breeding-track-a-2026-04-28/plants/plant-r1.md) — Track A pollen run; confirmed male; culled/not retained for pollen 2026-06-14
 - [R2](grows/breeding-track-a-2026-04-28/plants/plant-r2.md) — Track A pollen run; selected pollen donor after purple pollen-sac expression
 - [R3](grows/breeding-track-a-2026-04-28/plants/plant-r3.md) — Track A pollen run; confirmed female and culled 2026-06-04
@@ -100,10 +100,15 @@ updated: 2026-06-20
 - [2026-06-12](daily/2026-06-12.md) — Day 90 / Flower Day 40: post-flush reservoir recovery plan; hold EC 0.8-1.0 for 48-72h, watch fresh growth/tip burn, and only do drain-to-waste root-zone reset if fresh damage advances or root-zone EC evidence stays high
 - [2026-06-19](daily/2026-06-19.md) — Day 97 / Flower Day 47: full main-tent photo coverage; dense purple late-flower canopy; VPD steadier at 1.18/1.43/1.49 kPa; A/C/D direct moisture stable, B hand-check only; breeding photo missing and wet current-only sensor repeat persists
 - [2026-06-20](daily/2026-06-20.md) — Day 98 / Flower Day 48: no photos available; main VPD split at 1.10/1.39/1.55 kPa; A/C/D direct moisture stable to slightly drifting, B hand-check only; breeding wet current-only sensor repeat persists
+- [2026-06-21](daily/2026-06-21.md) — Day 99 / Flower Day 49: full main-tent photos with Plant A obstructed; main VPD 1.00/1.37/1.43 kPa with higher current dew point; A/D moisture flat, C slightly down, B hand-check only; breeding photo missing and wet current-only sensor repeat persists
+- [2026-06-22](daily/2026-06-22.md) — Day 100 / Flower Day 50: full main-tent photos with Plant A obstructed; main VPD split at 1.05/1.39/1.69 kPa with fan at 80%; A/C/D moisture stable/small moves, B hand-check only; breeding photo missing and wet current-only sensor repeat persists
+- [2026-06-23](daily/2026-06-23.md) — Day 101 / Flower Day 51: full main-tent photos with Plant A obstructed; main VPD split narrowed to 1.10/1.37/1.51 kPa with fan near 20%; A/C/D moisture small/flat moves, B hand-check only; breeding photo missing and wet current-only sensor repeat persists
+- [2026-06-24](daily/2026-06-24.md) — Day 102 / Flower Day 52: no photos available; main VPD improved to 1.17/1.31/1.40 kPa with lights-on in range; A/C/D moisture small/modest moves, B hand-check only; breeding wet current-only sensor repeat persists
+- [2026-06-25](daily/2026-06-25.md) — Day 103 / Flower Day 53: main photos available but Plant A obstructed and breeding photo missing; main VPD held stable at 1.16/1.29/1.37 kPa; A/C/D moisture flat/modestly up, B hand-check only; breeding wet current-only sensor repeat persists
 
 ## Environment
-- [Temperature](environment/temperature.md) — Trend log; targets by phase; 2026-06-20 holds the post-correction temperature improvement but remains slightly warm overnight/now
-- [Humidity](environment/humidity.md) — Trend log; Denver humidification notes; 2026-06-20 main VPD split returned while breeding wet sensor repeat persists
+- [Temperature](environment/temperature.md) — Trend log; targets by phase; 2026-06-25 lights-on in range, overnight still slightly warm
+- [Humidity](environment/humidity.md) — Trend log; Denver humidification notes; 2026-06-25 main lights-on VPD stable with only slight overnight wet miss while breeding wet sensor repeat persists
 - [Nutrients & pH](environment/nutrients.md) — Canna A+B protocol; pH management; incident log; 2026-06-16 pH 5.8 / EC 1.1 stable after high-EC recovery
 
 ## Hardware

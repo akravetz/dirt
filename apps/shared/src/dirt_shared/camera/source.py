@@ -131,6 +131,8 @@ class ObsbotDaemonCameraSource:
             raise CameraCaptureError(
                 f"failed to read camera capture tempfile {path}: {exc}"
             ) from exc
+        if not jpeg_bytes:
+            raise CameraCaptureError(f"camera capture tempfile is empty: {path}")
 
         diagnostics = {
             key: value

@@ -359,6 +359,18 @@
       "BreedingBulkCullPayload": {
         "additionalProperties": false,
         "properties": {
+          "culled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Culled At"
+          },
           "plant_keys": {
             "items": {
               "type": "string"
@@ -375,7 +387,8 @@
         },
         "required": [
           "plant_keys",
-          "reason"
+          "reason",
+          "culled_at"
         ],
         "title": "BreedingBulkCullPayload",
         "type": "object"
@@ -383,6 +396,18 @@
       "BreedingBulkCullRequest": {
         "additionalProperties": false,
         "properties": {
+          "culled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Culled At"
+          },
           "idempotency_key": {
             "maxLength": 160,
             "minLength": 1,
@@ -406,7 +431,8 @@
         "required": [
           "idempotency_key",
           "plant_keys",
-          "reason"
+          "reason",
+          "culled_at"
         ],
         "title": "BreedingBulkCullRequest",
         "type": "object"
@@ -1550,6 +1576,18 @@
       "BreedingLogbookPlantRowResponse": {
         "additionalProperties": false,
         "properties": {
+          "culled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Culled At"
+          },
           "culled_on": {
             "anyOf": [
               {
@@ -1561,6 +1599,17 @@
               }
             ],
             "title": "Culled On"
+          },
+          "culled_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Culled Reason"
           },
           "current_tent_id": {
             "title": "Current Tent Id",
@@ -1633,6 +1682,30 @@
             ],
             "title": "Grid Position"
           },
+          "harvested_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Harvested At"
+          },
+          "harvested_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Harvested On"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -1684,6 +1757,41 @@
           "seed_lot_label": {
             "title": "Seed Lot Label",
             "type": "string"
+          },
+          "selected_for_breeding_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected For Breeding At"
+          },
+          "selected_for_breeding_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected For Breeding On"
+          },
+          "selected_for_breeding_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected For Breeding Reason"
           },
           "sex_key": {
             "enum": [
@@ -1790,7 +1898,14 @@
           "veg_started_on",
           "flower_started_at",
           "flower_started_on",
+          "culled_at",
           "culled_on",
+          "culled_reason",
+          "harvested_at",
+          "harvested_on",
+          "selected_for_breeding_at",
+          "selected_for_breeding_on",
+          "selected_for_breeding_reason",
           "current_tent_id",
           "current_tent_name",
           "grid_position",
@@ -2254,7 +2369,12 @@
               "taken_at",
               "rooted_at",
               "veg_started_at",
-              "flower_started_at"
+              "flower_started_at",
+              "culled_at",
+              "culled_reason",
+              "harvested_at",
+              "selected_for_breeding_at",
+              "selected_for_breeding_reason"
             ],
             "title": "Field",
             "type": "string"
@@ -2262,17 +2382,10 @@
           "value": {
             "anyOf": [
               {
-                "enum": [
-                  "unknown",
-                  "male",
-                  "female",
-                  "herm",
-                  "reversed"
-                ],
+                "format": "date-time",
                 "type": "string"
               },
               {
-                "format": "date-time",
                 "type": "string"
               },
               {

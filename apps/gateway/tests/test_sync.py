@@ -26,7 +26,7 @@ from dirt_gateway.commands import GatewayCommandService
 from dirt_gateway.local import GatewayLocalServiceBundle
 from dirt_gateway.outbox import OutboxRepository
 from dirt_gateway.protocols import AssetUploadProjection
-from dirt_gateway.sync import GatewaySyncService
+from dirt_gateway.sync import ExponentialBackoff, GatewaySyncService
 from dirt_shared.cloud_contract import (
     AssetCompleteRequest,
     AssetCompleteResponse,
@@ -70,6 +70,7 @@ from dirt_shared.models import (
     SeedLot,
     SensorReading,
     Site,
+    Snapshot,
     Tent,
     Zone,
 )
@@ -370,6 +371,26 @@ class StaticLocalServices:
     async def latest_snapshot_asset(self, site_id: str) -> AssetUploadProjection | None:
         del site_id
         return self.asset
+
+
+class MalformedCatalogLocalServices(StaticLocalServices):
+    async def collect_catalog(self, site_id: str) -> dict[str, Any]:
+        return {
+            "site_id": site_id,
+            "site": {"source_site_id": 1, "name": "Homebox", "timezone": "UTC"},
+            "tents": [],
+            "zones": [],
+            "devices": [
+                {
+                    "source_tent_id": 1,
+                    "source_zone_id": None,
+                    "device_id": "test-node",
+                    "name": "Test node",
+                }
+            ],
+            "capabilities": [],
+            "schedules": [],
+        }
 
 
 class ChangingRollupLocalServices(StaticLocalServices):
@@ -1663,7 +1684,7 @@ async def test_heartbeat_delivery_is_not_blocked_by_rollup_backlog(
     assert cloud.call_counts["rollups"] == 1
 
 
-async def test_read_only_outbox_replay_validates_stored_json_before_dispatch(
+async def test_stale_read_only_outbox_projection_is_superseded_by_newer_projection(
     app_engine: AsyncEngine,
 ):
     outbox = OutboxRepository(app_engine)
@@ -1693,7 +1714,7 @@ async def test_read_only_outbox_replay_validates_stored_json_before_dispatch(
 
     result = await service.run_once()
 
-    assert result.failed == 1
+    assert result.failed == 0
     assert cloud.call_counts["catalog"] == 1
     assert "homebox:catalog:missing-last-seen" not in cloud.catalogs
     async with AsyncSession(app_engine) as session:
@@ -1704,9 +1725,40 @@ async def test_read_only_outbox_replay_validates_stored_json_before_dispatch(
                 )
             )
         ).one()
+    assert row.status == "superseded"
+    assert row.attempt_count == 0
+    assert row.last_error == "superseded by newer projection"
+
+
+async def test_current_read_only_projection_validates_stored_json_before_dispatch(
+    app_engine: AsyncEngine,
+):
+    cloud = RecordingCloudClient()
+    service = _service(
+        app_engine,
+        cloud,
+        local_services=MalformedCatalogLocalServices(),
+    )
+
+    result = await service.run_once()
+
+    assert result.failed == 1
+    assert cloud.call_counts["catalog"] == 0
+    async with AsyncSession(app_engine) as session:
+        row = (
+            await session.exec(
+                select(CloudOutbox).where(CloudOutbox.event_type == "catalog")
+            )
+        ).one()
     assert row.status == "pending"
     assert row.attempt_count == 1
     assert "last_seen_at" in str(row.last_error)
+
+
+def test_exponential_backoff_saturates_without_large_exponent_overflow() -> None:
+    backoff = ExponentialBackoff(base_s=5.0, max_s=300.0)
+
+    assert backoff.next_delay_s(1025) == 300.0
 
 
 async def test_pending_rollups_are_superseded_by_newer_projection(
@@ -1865,6 +1917,61 @@ async def test_asset_sync_uses_sign_upload_complete_flow(
     assert "tent_id" not in asset_row.payload["complete_request"]
     assert "zone_id" not in asset_row.payload["complete_request"]
     assert cloud.assets["asset-1"]["object_key"] == "tents/1/snapshots/snapshot.jpg"
+
+
+async def test_latest_snapshot_asset_skips_empty_latest_snapshot(
+    app_engine: AsyncEngine,
+    tmp_path: Path,
+):
+    good_file = tmp_path / "good.jpg"
+    empty_file = tmp_path / "empty.jpg"
+    good_file.write_bytes(b"jpeg-bytes")
+    empty_file.write_bytes(b"")
+
+    async with AsyncSession(app_engine) as session:
+        site = (await session.exec(select(Site).where(Site.is_default.is_(True)))).one()
+        tent_pk = await resolve_test_tent_pk(session, "main", site_pk=site.id)
+        camera = (
+            await session.exec(
+                select(Device).where(
+                    Device.site_id == site.id,
+                    Device.device_id == "obsbot-main",
+                )
+            )
+        ).one()
+        session.add_all(
+            [
+                Snapshot(
+                    ts=FIXED_NOW - timedelta(minutes=5),
+                    file_path=str(good_file),
+                    site_id=site.id,
+                    tent_id=tent_pk,
+                    zone_id=camera.zone_id,
+                    device_id=camera.id,
+                    view_id="periodic",
+                    kind="periodic",
+                ),
+                Snapshot(
+                    ts=FIXED_NOW,
+                    file_path=str(empty_file),
+                    site_id=site.id,
+                    tent_id=tent_pk,
+                    zone_id=camera.zone_id,
+                    device_id=camera.id,
+                    view_id="periodic",
+                    kind="periodic",
+                ),
+            ]
+        )
+        await session.commit()
+
+    asset = await GatewayLocalServiceBundle(
+        app_engine, clock=lambda: FIXED_NOW
+    ).latest_snapshot_asset("homebox")
+
+    assert asset is not None
+    assert asset.file_path == good_file
+    assert asset.sign_request.byte_size == len(b"jpeg-bytes")
 
 
 async def test_asset_upload_outbox_replay_validates_stored_json_before_cloud_calls(
@@ -2644,7 +2751,11 @@ async def test_command_loop_bulk_cull_closes_current_location(
         _cloud_command(
             "cloud-cull",
             command_type="breeding_plants_bulk_cull",
-            payload={"plant_keys": [plant_key], "reason": "failed vigor check"},
+            payload={
+                "plant_keys": [plant_key],
+                "reason": "failed vigor check",
+                "culled_at": (FIXED_NOW - timedelta(hours=6)).isoformat(),
+            },
         )
     ]
 
@@ -2660,6 +2771,13 @@ async def test_command_loop_bulk_cull_closes_current_location(
                 .where(PlantLocationHistory.end_at.is_(None))
             )
         ).all()
+        closed_location = (
+            await session.exec(
+                select(PlantLocationHistory)
+                .where(PlantLocationHistory.plant_id == plant.id)
+                .where(PlantLocationHistory.end_at.is_not(None))
+            )
+        ).one()
         command = (
             await session.exec(
                 select(Command).where(
@@ -2668,9 +2786,10 @@ async def test_command_loop_bulk_cull_closes_current_location(
             )
         ).one()
 
-    assert plant.culled_at == FIXED_NOW
+    assert plant.culled_at == FIXED_NOW - timedelta(hours=6)
     assert plant.culled_reason == "failed vigor check"
     assert current_locations == []
+    assert closed_location.end_at == FIXED_NOW - timedelta(hours=6)
     assert command.tent_id is None
 
 
@@ -2814,7 +2933,11 @@ async def test_command_loop_rejects_breeding_with_ptz_target_before_ledger(
         _cloud_command(
             "cloud-breeding-bad-target",
             command_type="breeding_plants_bulk_cull",
-            payload={"plant_keys": ["missing"], "reason": "bad target"},
+            payload={
+                "plant_keys": ["missing"],
+                "reason": "bad target",
+                "culled_at": FIXED_NOW.isoformat(),
+            },
             target={
                 "kind": "ptz",
                 "source_tent_id": 1,

@@ -263,6 +263,7 @@ KNOWN_MISSING_PHOTOS = {
     "2026-06-04",  # manual Plant A runoff/TDS diagnostic; no photo taken
     "2026-06-12",  # manual reservoir burn-recovery plan; no photo taken
     "2026-06-20",  # daily report ran sensor-only; no photos available
+    "2026-06-24",  # daily report ran sensor-only; no photos available
 }
 
 

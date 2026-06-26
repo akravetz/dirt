@@ -91,6 +91,7 @@ class BreedingUpdatePlantFactsRequest(BreedingBulkPlantFactsPayload):
 class BreedingBulkCullRequest(BreedingCommandRequest):
     plant_keys: list[str] = Field(min_length=1)
     reason: str = Field(min_length=1)
+    culled_at: datetime | None = Field(...)
 
     @field_validator("plant_keys")
     @classmethod
@@ -229,7 +230,14 @@ class BreedingLogbookPlantRowResponse(BrowserResponse):
     veg_started_on: date | None
     flower_started_at: datetime | None
     flower_started_on: date | None
+    culled_at: datetime | None
     culled_on: date | None
+    culled_reason: str | None
+    harvested_at: datetime | None
+    harvested_on: date | None
+    selected_for_breeding_at: datetime | None
+    selected_for_breeding_on: date | None
+    selected_for_breeding_reason: str | None
     current_tent_id: int
     current_tent_name: str
     grid_position: str | None

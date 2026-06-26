@@ -93,6 +93,24 @@ async def test_obsbot_daemon_camera_source_raises_on_failed_capture() -> None:
         await source.capture()
 
 
+async def test_obsbot_daemon_camera_source_rejects_empty_tempfile(tmp_path) -> None:
+    tempfile = tmp_path / "empty-frame.jpg"
+    tempfile.write_bytes(b"")
+
+    async def fake_rpc(line: str) -> dict[str, str]:
+        assert line == "capture"
+        return {
+            "_status": "ok",
+            "path": str(tempfile),
+            "bytes": "0",
+        }
+
+    source = ObsbotDaemonCameraSource(rpc=fake_rpc)
+
+    with pytest.raises(CameraCaptureError, match="empty"):
+        await source.capture()
+
+
 async def test_snapshot_spool_writes_stable_name_atomically_and_hashes(
     tmp_path,
 ) -> None:
@@ -115,3 +133,14 @@ async def test_snapshot_spool_writes_stable_name_atomically_and_hashes(
         for path in Path(tmp_path / "snapshots").iterdir()
         if path.name.endswith(".tmp")
     ] == []
+
+
+async def test_snapshot_spool_rejects_empty_frames(tmp_path) -> None:
+    captured_at = datetime(2026, 5, 10, 12, 30, 45, tzinfo=UTC)
+    frame = CapturedFrame(jpeg_bytes=b"", captured_at=captured_at)
+    spool = SnapshotSpool(tmp_path / "snapshots")
+
+    with pytest.raises(ValueError, match="empty"):
+        await spool.write(frame)
+
+    assert not (tmp_path / "snapshots").exists()

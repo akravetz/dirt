@@ -13,6 +13,8 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dirt_shared.cloud_contract import (
+    BREEDING_PLANT_DATE_FACT_FIELDS,
+    BREEDING_PLANT_TEXT_FACT_FIELDS,
     BreedingBulkCullPayload,
     BreedingBulkMovePayload,
     BreedingBulkPlantFactsPayload,
@@ -22,6 +24,8 @@ from dirt_shared.cloud_contract import (
     BreedingCreatePlantNotePayload,
     BreedingCreateSeedLotPayload,
     BreedingGerminatePlantsPayload,
+    BreedingPlantFactField,
+    BreedingPlantFactUpdate,
     BreedingUpdateSeedLotInventoryPayload,
     ClaimedCommand,
 )
@@ -50,6 +54,11 @@ class _ResolvedTent:
     tent_pk: int
     name: str
     role: str
+
+
+_LOCATION_ENDING_FACT_FIELDS: frozenset[BreedingPlantFactField] = frozenset(
+    {"culled_at", "harvested_at"}
+)
 
 
 class BreedingCommandExecutor:
@@ -374,18 +383,7 @@ class BreedingCommandExecutor:
         occurred_at = self._clock()
         for plant in plants:
             for update in payload.updates:
-                if update.field == "sex_key":
-                    plant.sex_key = str(update.value)
-                elif update.field == "germinated_at":
-                    plant.germinated_at = update.value
-                elif update.field == "taken_at":
-                    plant.taken_at = update.value
-                elif update.field == "rooted_at":
-                    plant.rooted_at = update.value
-                elif update.field == "veg_started_at":
-                    plant.veg_started_at = update.value
-                elif update.field == "flower_started_at":
-                    plant.flower_started_at = update.value
+                await _apply_plant_fact_update(session, plant, update)
             plant.updated_at = occurred_at
             session.add(plant)
         await session.flush()
@@ -401,16 +399,13 @@ class BreedingCommandExecutor:
         payload: BreedingBulkCullPayload,
     ) -> dict[str, Any]:
         plants = await _require_plants(session, payload.plant_keys)
-        occurred_at = self._clock()
+        occurred_at = payload.culled_at or self._clock()
         for plant in plants:
             plant.culled_at = occurred_at
             plant.culled_reason = payload.reason
             plant.updated_at = occurred_at
             session.add(plant)
-            current = await _current_location(session, _pk(plant))
-            if current is not None:
-                current.end_at = occurred_at
-                session.add(current)
+            await _end_current_location(session, plant, occurred_at)
         await session.flush()
         return {
             "culled_plant_ids": [_pk(plant) for plant in plants],
@@ -539,6 +534,31 @@ async def _require_plant_sex(session: AsyncSession, sex_key: str) -> None:
         raise BreedingCommandError(f"unknown plant sex key: {sex_key}")
 
 
+async def _apply_plant_fact_update(
+    session: AsyncSession,
+    plant: Plant,
+    update: BreedingPlantFactUpdate,
+) -> None:
+    if update.field == "sex_key":
+        plant.sex_key = str(update.value)
+        return
+    if update.field in BREEDING_PLANT_DATE_FACT_FIELDS:
+        setattr(plant, update.field, update.value)
+        if update.field in _LOCATION_ENDING_FACT_FIELDS and update.value is not None:
+            if not isinstance(update.value, datetime):
+                value_type = type(update.value).__name__
+                raise BreedingCommandError(
+                    f"expected datetime value for {update.field}, got {value_type}"
+                )
+            await _end_current_location(session, plant, update.value)
+        return
+    if update.field in BREEDING_PLANT_TEXT_FACT_FIELDS:
+        text_value = None if update.value is None else str(update.value)
+        setattr(plant, update.field, text_value)
+        return
+    raise BreedingCommandError(f"unsupported plant fact field: {update.field}")
+
+
 async def _require_seed_lot_sex_type(
     session: AsyncSession,
     sex_type_key: str,
@@ -612,6 +632,17 @@ async def _current_location(
             .where(PlantLocationHistory.end_at.is_(None))
         )
     ).first()
+
+
+async def _end_current_location(
+    session: AsyncSession,
+    plant: Plant,
+    ended_at: datetime,
+) -> None:
+    current = await _current_location(session, _pk(plant))
+    if current is not None:
+        current.end_at = ended_at
+        session.add(current)
 
 
 def _plant_prefix(line: PlantLine) -> str:

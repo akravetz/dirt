@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-06-20
+updated: 2026-06-25
 ---
 
 # Plant A
@@ -18,7 +18,7 @@ updated: 2026-06-20
 
 ## Current State
 
-Day 98 / Flower Day 48: `SBBS-R1-001` has no photo coverage today, but direct moisture is stable near 26.5% rough context. Continue manual upper-canopy light-stress follow-up and dense flower-pocket checks. See [2026-06-20 daily](../../../daily/2026-06-20.md).
+Day 103 / Flower Day 53: `SBBS-R1-001` has a mostly fan/blur-obstructed dedicated photo, and direct moisture is flat near 26.2% rough context. Continue manual upper-canopy light-stress follow-up, dense flower-pocket cleanup, and trichome checks. See [2026-06-25 daily](../../../daily/2026-06-25.md).
 
 ## Timeline
 
@@ -93,3 +93,8 @@ Day 98 / Flower Day 48: `SBBS-R1-001` has no photo coverage today, but direct mo
 - 2026-06-16 — [Day 94 / Flower Day 44: upper fan leaves yellow at the closest light distance; reservoir pH 5.8 / EC 1.1 and tray cycling acceptable; light raised ~5 inches and lung-room AC set to 72°F](../../../log.md#2026-06-16-query-filed--plant-a-upper-canopy-lighttemperature-correction)
 - 2026-06-19 — [Day 97 / Flower Day 47: fan-obstructed view, upright purple tops, stable direct moisture near 26.4%, continue upper-canopy light-stress watch](../../../daily/2026-06-19.md)
 - 2026-06-20 — [Day 98 / Flower Day 48: no photo coverage; direct moisture stable near 26.5%, continue manual light-stress and flower-pocket checks](../../../daily/2026-06-20.md)
+- 2026-06-21 — [Day 99 / Flower Day 49: dedicated view mostly obstructed; direct moisture flat near 26.5%, continue manual light-stress and flower-pocket checks](../../../daily/2026-06-21.md)
+- 2026-06-22 — [Day 100 / Flower Day 50: dedicated view still obstructed; direct moisture flat near 26.5%, continue manual light-stress and flower-pocket checks](../../../daily/2026-06-22.md)
+- 2026-06-23 — [Day 101 / Flower Day 51: dedicated view still obstructed; direct moisture flat/slightly down near 26.4%, continue manual light-stress and flower-pocket checks](../../../daily/2026-06-23.md)
+- 2026-06-24 — [Day 102 / Flower Day 52: no photo coverage; direct moisture flat/slightly down near 26.2%, continue manual light-stress and flower-pocket checks](../../../daily/2026-06-24.md)
+- 2026-06-25 — [Day 103 / Flower Day 53: dedicated view mostly fan/blur-obstructed; direct moisture flat near 26.2%, continue manual light-stress, flower-pocket, and trichome checks](../../../daily/2026-06-25.md)

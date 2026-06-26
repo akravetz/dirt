@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/coco-coir.md, wiki/concepts/lst.md, wiki/environment/nutrients.md]
 created: 2026-04-06
-updated: 2026-06-20
+updated: 2026-06-25
 ---
 
 # Plant C
@@ -19,7 +19,7 @@ updated: 2026-06-20
 
 ## Current State
 
-Day 98 / Flower Day 48: `SBBS-R1-003` has no photo coverage today, and direct moisture is stable/slightly down near 34.0% rough context. Keep root-zone and interior/wall-side airflow checks active because the canopy remains crowded. See [2026-06-20 daily](../../../daily/2026-06-20.md).
+Day 103 / Flower Day 53: `SBBS-R1-003` shows chunky purple/lavender flowers with late yellow fade, and direct moisture is flat/slightly down near 32.9% rough context. Keep root-zone and interior/wall-side airflow checks active, with hand confirmation before any irrigation change. See [2026-06-25 daily](../../../daily/2026-06-25.md).
 
 ## Timeline
 
@@ -91,3 +91,8 @@ Day 98 / Flower Day 48: `SBBS-R1-003` has no photo coverage today, and direct mo
 - 2026-06-12 — [Day 90 / Flower Day 40: post-flush recovery plan filed; hold EC 0.8-1.0 for 48-72h and only root-zone flush if fresh damage advances](../../../daily/2026-06-12.md)
 - 2026-06-19 — [Day 97 / Flower Day 47: upright wall-side flowers, stable direct moisture near 34.6%, keep root-zone and airflow checks active](../../../daily/2026-06-19.md)
 - 2026-06-20 — [Day 98 / Flower Day 48: no photo coverage; direct moisture stable/slightly down near 34.0%, keep root-zone and airflow checks active](../../../daily/2026-06-20.md)
+- 2026-06-21 — [Day 99 / Flower Day 49: upright wall-side flowers with pale/yellow fade; direct moisture slightly down near 33.0%, keep root-zone and airflow checks active](../../../daily/2026-06-21.md)
+- 2026-06-22 — [Day 100 / Flower Day 50: upright wall-side flowers with pale/yellow fade; direct moisture essentially flat near 33.6%, keep root-zone and airflow checks active](../../../daily/2026-06-22.md)
+- 2026-06-23 — [Day 101 / Flower Day 51: upright wall-side flowers with pale/yellow fade; direct moisture flat near 33.7%, keep root-zone and airflow checks active](../../../daily/2026-06-23.md)
+- 2026-06-24 — [Day 102 / Flower Day 52: no photo coverage; direct moisture modestly down to 32.8%, keep root-zone and airflow checks active](../../../daily/2026-06-24.md)
+- 2026-06-25 — [Day 103 / Flower Day 53: chunky purple/lavender flowers with late yellow fade; direct moisture flat/slightly down near 32.9%, keep root-zone and airflow checks active](../../../daily/2026-06-25.md)

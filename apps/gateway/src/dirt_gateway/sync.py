@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from math import ceil, log2
 from typing import Any
 
 from pydantic import BaseModel
@@ -77,7 +78,15 @@ class ExponentialBackoff:
         self._max_s = max_s
 
     def next_delay_s(self, attempt_count: int) -> float:
-        return min(self._max_s, self._base_s * (2 ** max(0, attempt_count - 1)))
+        if self._base_s <= 0:
+            return 0.0
+        if self._max_s <= self._base_s:
+            return self._max_s
+        exponent = max(0, attempt_count - 1)
+        saturation_exponent = ceil(log2(self._max_s / self._base_s))
+        if exponent >= saturation_exponent:
+            return self._max_s
+        return min(self._max_s, self._base_s * (2**exponent))
 
 
 class AsyncioSleeper:
@@ -236,7 +245,7 @@ class GatewaySyncService:
                 payload=payload,
                 now=now,
             )
-            if event_type in {"rollups", "wiki"}:
+            if event_type in {"heartbeat", "catalog", "latest_metrics", "wiki"}:
                 superseded = await self._outbox.supersede_pending(
                     event_type=event_type,
                     keep_idempotency_key=key,

@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-06-20
+updated: 2026-06-25
 ---
 
 # Plant B
@@ -19,7 +19,7 @@ updated: 2026-06-20
 
 ## Current State
 
-Day 98 / Flower Day 48: `SBBS-R1-002` has no photo coverage and remains omitted from today's trusted direct-percent moisture set. Keep B on tray, float, media, smell/weight, and posture checks rather than inferring root-zone status from A/C/D telemetry. See [2026-06-20 daily](../../../daily/2026-06-20.md).
+Day 103 / Flower Day 53: `SBBS-R1-002` is partially visible with upright late-flower clusters, older tip/edge wear, and ongoing fade, but it remains omitted from the trusted direct-percent moisture set. Keep B on tray, float, media, smell/weight, and posture checks rather than inferring root-zone status from A/C/D telemetry. See [2026-06-25 daily](../../../daily/2026-06-25.md).
 
 ## Timeline
 
@@ -91,3 +91,8 @@ Day 98 / Flower Day 48: `SBBS-R1-002` has no photo coverage and remains omitted 
 - 2026-06-12 — [Day 90 / Flower Day 40: post-flush recovery plan filed; hold EC 0.8-1.0 for 48-72h and only root-zone flush if fresh damage advances](../../../daily/2026-06-12.md)
 - 2026-06-19 — [Day 97 / Flower Day 47: upright flower clusters with older tip wear; omitted from trusted direct moisture set, so hand-check tray/media/posture](../../../daily/2026-06-19.md)
 - 2026-06-20 — [Day 98 / Flower Day 48: no photo coverage and no trusted direct moisture reading; hand-check tray/media/posture](../../../daily/2026-06-20.md)
+- 2026-06-21 — [Day 99 / Flower Day 49: upright dense flowers with older tip/edge wear; no trusted direct moisture reading, hand-check tray/media/posture](../../../daily/2026-06-21.md)
+- 2026-06-22 — [Day 100 / Flower Day 50: upright dense flowers with older tip/edge wear; no trusted direct moisture reading, hand-check tray/media/posture](../../../daily/2026-06-22.md)
+- 2026-06-23 — [Day 101 / Flower Day 51: upright visible flowers with older tip/edge wear; no trusted direct moisture reading, hand-check tray/media/posture](../../../daily/2026-06-23.md)
+- 2026-06-24 — [Day 102 / Flower Day 52: no photo coverage and no trusted direct moisture reading; hand-check tray/media/posture](../../../daily/2026-06-24.md)
+- 2026-06-25 — [Day 103 / Flower Day 53: partially visible upright late-flower clusters; no trusted direct moisture reading, hand-check tray/media/posture](../../../daily/2026-06-25.md)

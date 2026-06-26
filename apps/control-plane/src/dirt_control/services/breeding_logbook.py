@@ -617,7 +617,11 @@ async def bulk_cull_plants_command(
     await require_cloud_plant_keys(
         session, site_id=settings.default_site_id, plant_keys=body.plant_keys
     )
-    payload = BreedingBulkCullPayload(plant_keys=body.plant_keys, reason=body.reason)
+    payload = BreedingBulkCullPayload(
+        plant_keys=body.plant_keys,
+        reason=body.reason,
+        culled_at=body.culled_at,
+    )
     return await enqueue_breeding_command(
         body.idempotency_key,
         user=user,
@@ -1256,7 +1260,14 @@ def breeding_logbook_plant_row_response(
         veg_started_on=date_or_none(plant.veg_started_at),
         flower_started_at=plant.flower_started_at,
         flower_started_on=date_or_none(plant.flower_started_at),
+        culled_at=plant.culled_at,
         culled_on=date_or_none(plant.culled_at),
+        culled_reason=plant.culled_reason,
+        harvested_at=plant.harvested_at,
+        harvested_on=date_or_none(plant.harvested_at),
+        selected_for_breeding_at=plant.selected_for_breeding_at,
+        selected_for_breeding_on=date_or_none(plant.selected_for_breeding_at),
+        selected_for_breeding_reason=plant.selected_for_breeding_reason,
         current_tent_id=required_location_source_tent_id(projection.location),
         current_tent_name=location_tent_name(projection.tent, projection.location),
         grid_position=projection.location.grid_position,

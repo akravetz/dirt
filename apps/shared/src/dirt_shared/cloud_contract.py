@@ -51,7 +51,26 @@ BreedingPlantFactField = Literal[
     "rooted_at",
     "veg_started_at",
     "flower_started_at",
+    "culled_at",
+    "culled_reason",
+    "harvested_at",
+    "selected_for_breeding_at",
+    "selected_for_breeding_reason",
 ]
+BREEDING_PLANT_DATE_FACT_FIELDS = {
+    "germinated_at",
+    "taken_at",
+    "rooted_at",
+    "veg_started_at",
+    "flower_started_at",
+    "culled_at",
+    "harvested_at",
+    "selected_for_breeding_at",
+}
+BREEDING_PLANT_TEXT_FACT_FIELDS = {
+    "culled_reason",
+    "selected_for_breeding_reason",
+}
 
 
 class HeartbeatRequest(CloudContractModel):
@@ -560,7 +579,7 @@ class BreedingBulkMovePayload(CloudContractModel):
 
 class BreedingPlantFactUpdate(CloudContractModel):
     field: BreedingPlantFactField
-    value: PlantSexKey | datetime | None
+    value: datetime | str | None
 
     @model_validator(mode="after")
     def _value_matches_field(self) -> BreedingPlantFactUpdate:
@@ -568,9 +587,28 @@ class BreedingPlantFactUpdate(CloudContractModel):
             if self.value not in ("unknown", "male", "female", "herm", "reversed"):
                 raise ValueError("sex_key updates require a plant sex key")
             return self
-        if self.value is not None and not isinstance(self.value, datetime):
+        if self.field in BREEDING_PLANT_TEXT_FACT_FIELDS:
+            if self.value is None:
+                return self
+            if not isinstance(self.value, str) or self.value.strip() == "":
+                raise ValueError(f"{self.field} updates require nonblank text or null")
+            self.value = self.value.strip()
+            return self
+        if self.field in BREEDING_PLANT_DATE_FACT_FIELDS:
+            if self.value is None or isinstance(self.value, datetime):
+                return self
+            if isinstance(self.value, str):
+                try:
+                    self.value = datetime.fromisoformat(
+                        self.value.replace("Z", "+00:00")
+                    )
+                except ValueError as exc:
+                    raise ValueError(
+                        f"{self.field} updates require a datetime or null"
+                    ) from exc
+                return self
             raise ValueError(f"{self.field} updates require a datetime or null")
-        return self
+        raise ValueError(f"unsupported plant fact field: {self.field}")
 
 
 class BreedingBulkPlantFactsPayload(CloudContractModel):
@@ -593,6 +631,7 @@ class BreedingBulkPlantFactsPayload(CloudContractModel):
 class BreedingBulkCullPayload(CloudContractModel):
     plant_keys: list[str] = Field(min_length=1)
     reason: str = Field(min_length=1)
+    culled_at: datetime | None = Field(...)
 
     @field_validator("reason")
     @classmethod

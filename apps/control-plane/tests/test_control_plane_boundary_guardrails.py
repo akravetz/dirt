@@ -253,7 +253,14 @@ def test_breeding_logbook_plant_row_requires_owned_contract_shape() -> None:
         "veg_started_on": "2026-04-02",
         "flower_started_at": "2026-05-04T12:00:00Z",
         "flower_started_on": "2026-05-04",
+        "culled_at": None,
         "culled_on": None,
+        "culled_reason": None,
+        "harvested_at": None,
+        "harvested_on": None,
+        "selected_for_breeding_at": None,
+        "selected_for_breeding_on": None,
+        "selected_for_breeding_reason": None,
         "current_tent_id": 1,
         "current_tent_name": "Main Tent",
         "grid_position": "A1",
@@ -265,7 +272,7 @@ def test_breeding_logbook_plant_row_requires_owned_contract_shape() -> None:
     assert BreedingLogbookPlantRowResponse.model_validate(payload).culled_on is None
 
     missing_required_nullable = dict(payload)
-    del missing_required_nullable["culled_on"]
+    del missing_required_nullable["selected_for_breeding_reason"]
     with pytest.raises(ValidationError):
         BreedingLogbookPlantRowResponse.model_validate(missing_required_nullable)
 

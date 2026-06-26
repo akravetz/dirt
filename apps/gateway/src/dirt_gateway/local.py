@@ -55,6 +55,7 @@ from dirt_shared.models import (
     Tent,
     Zone,
 )
+from dirt_shared.observability import log_event
 from dirt_shared.services.light_schedules import LightScheduleService
 from dirt_shared.services.readings import (
     PRODUCT_PLANT_MOISTURE_METRIC,
@@ -62,7 +63,7 @@ from dirt_shared.services.readings import (
 )
 from dirt_shared.services.scope import require_default_site, require_default_site_pk
 from dirt_shared.services.scope_catalog import ScopeCatalogService
-from dirt_shared.services.snapshots import SnapshotsService, get_snapshot_path
+from dirt_shared.services.snapshots import get_snapshot_path
 
 ROLLUP_SPECS: tuple[tuple[str, timedelta, int], ...] = (
     ("5m", timedelta(hours=24), 300),
@@ -88,7 +89,6 @@ class GatewayLocalServiceBundle:
         self._stale_after_s = stale_after_s
         self._catalog = ScopeCatalogService(engine)
         self._light_schedules = LightScheduleService(engine, clock=clock)
-        self._snapshots = SnapshotsService(engine)
 
     async def collect_catalog(self, site_id: str) -> CatalogRequest:
         async with AsyncSession(self._engine) as session:
@@ -235,7 +235,8 @@ class GatewayLocalServiceBundle:
             site_pk = await require_default_site_pk(session)
         tents = await self._catalog.list_tents(site_pk=site_pk)
         for tent in sorted(tents, key=lambda item: (not item.is_default, item.name)):
-            snapshot = await self._snapshots.latest(
+            snapshot = await self._latest_usable_snapshot(
+                site_id=site_id,
                 site_pk=site_pk,
                 tent_pk=tent.tent_pk,
             )
@@ -244,13 +245,14 @@ class GatewayLocalServiceBundle:
             path = get_snapshot_path(snapshot)
             if path is None:
                 continue
+            byte_size = path.stat().st_size
             digest = _file_sha256(path)
             object_key = f"tents/{tent.tent_pk}/snapshots/{path.name}"
             sign_request = AssetSignUploadRequest(
                 site_id=site_id,
                 source_tent_id=tent.tent_pk,
                 content_type="image/jpeg",
-                byte_size=path.stat().st_size,
+                byte_size=byte_size,
                 object_key=object_key,
                 asset_id=digest,
                 sha256=digest,
@@ -266,6 +268,41 @@ class GatewayLocalServiceBundle:
                 sign_request=sign_request,
                 complete_request=complete_request,
                 file_path=path,
+            )
+        return None
+
+    async def _latest_usable_snapshot(
+        self,
+        *,
+        site_id: str,
+        site_pk: int,
+        tent_pk: int,
+    ) -> Snapshot | None:
+        async with AsyncSession(self._engine) as session:
+            rows = (
+                await session.exec(
+                    select(Snapshot)
+                    .where(Snapshot.site_id == site_pk)
+                    .where(Snapshot.tent_id == tent_pk)
+                    .order_by(Snapshot.ts.desc())
+                    .limit(10)
+                )
+            ).all()
+        for snapshot in rows:
+            path = get_snapshot_path(snapshot)
+            if path is None:
+                continue
+            byte_size = path.stat().st_size
+            if byte_size > 0:
+                return snapshot
+            log_event(
+                "cloud_gateway",
+                "asset_skipped",
+                site_id=site_id,
+                source_tent_id=tent_pk,
+                snapshot_id=snapshot.id,
+                file_path=str(path),
+                reason="empty_file",
             )
         return None
 

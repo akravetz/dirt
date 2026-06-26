@@ -35,11 +35,45 @@ type BreedingBulkSexRequest = hostedComponents["schemas"]["BreedingBulkSexReques
 type BreedingBulkMoveRequest = hostedComponents["schemas"]["BreedingBulkMoveRequest"];
 type BreedingUpdatePlantFactsRequest =
   hostedComponents["schemas"]["BreedingUpdatePlantFactsRequest"];
+type HostedPlantFactUpdate = hostedComponents["schemas"]["BreedingPlantFactUpdate"];
 type BreedingBulkCullRequest = hostedComponents["schemas"]["BreedingBulkCullRequest"];
 type BreedingCreatePlantNoteRequest =
   hostedComponents["schemas"]["BreedingCreatePlantNoteRequest"];
 type BreedingBulkPlantNoteRequest =
   hostedComponents["schemas"]["BreedingBulkPlantNoteRequest"];
+
+const PLANT_PATCH_FIELDS = [
+  "sexKey",
+  "currentTentId",
+  "currentTentName",
+  "gridPosition",
+  "takenAt",
+  "takenOn",
+  "rootedAt",
+  "rootedOn",
+  "germinatedAt",
+  "germinatedOn",
+  "vegStartedAt",
+  "vegStartedOn",
+  "flowerStartedAt",
+  "flowerStartedOn",
+  "culledAt",
+  "culledOn",
+  "culledReason",
+  "harvestedAt",
+  "harvestedOn",
+  "selectedForBreedingAt",
+  "selectedForBreedingOn",
+  "selectedForBreedingReason",
+  "lastNote",
+] as const satisfies readonly (keyof PlantRow)[];
+const STAGE_FACT_PATCH_FIELDS = [
+  "culledAt",
+  "harvestedAt",
+  "selectedForBreedingAt",
+  "flowerStartedAt",
+  "vegStartedAt",
+] as const satisfies readonly (keyof PlantRow)[];
 
 type PendingOperation =
   | "germinate"
@@ -63,25 +97,9 @@ export type PlantsPendingCommand = {
   } | null;
 };
 
-type PendingPlantPatch = {
-  plantKey: string;
-  sexKey?: PlantSexKey;
-  stageKey?: PlantStageKey;
-  currentTentId?: number;
-  currentTentName?: string;
-  gridPosition?: string | null;
-  takenAt?: string | null;
-  takenOn?: string | null;
-  rootedAt?: string | null;
-  rootedOn?: string | null;
-  germinatedAt?: string | null;
-  germinatedOn?: string | null;
-  vegStartedAt?: string | null;
-  vegStartedOn?: string | null;
-  flowerStartedAt?: string | null;
-  flowerStartedOn?: string | null;
-  culledOn?: string | null;
-  lastNote?: string;
+type PlantPatchField = (typeof PLANT_PATCH_FIELDS)[number];
+type PendingPlantPatch = { plantKey: PlantRow["key"] } & {
+  [TKey in PlantPatchField]?: PlantRow[TKey];
 };
 
 export type PendingTimelineNote = {
@@ -122,17 +140,82 @@ type BulkMoveMutationInput = {
   locationLabel: string;
 };
 
-type PlantFactUpdate =
+type PlantFactField = HostedPlantFactUpdate["field"];
+type TextPlantFactField = Extract<
+  PlantFactField,
+  "culled_reason" | "selected_for_breeding_reason"
+>;
+type DatePlantFactField = Exclude<PlantFactField, "sex_key" | TextPlantFactField>;
+type DateFactPatchTimestampField =
+  | "germinatedAt"
+  | "takenAt"
+  | "rootedAt"
+  | "vegStartedAt"
+  | "flowerStartedAt"
+  | "culledAt"
+  | "harvestedAt"
+  | "selectedForBreedingAt";
+type DateFactPatchDateOnlyField =
+  | "germinatedOn"
+  | "takenOn"
+  | "rootedOn"
+  | "vegStartedOn"
+  | "flowerStartedOn"
+  | "culledOn"
+  | "harvestedOn"
+  | "selectedForBreedingOn";
+type TextFactPatchField = "culledReason" | "selectedForBreedingReason";
+type DatePlantFactUpdate = { field: DatePlantFactField; value: string | null };
+type TextPlantFactUpdate = { field: TextPlantFactField; value: string | null };
+export type PlantFactUpdate =
   | { field: "sex_key"; value: PlantSexKey }
-  | {
-      field:
-        | "germinated_at"
-        | "taken_at"
-        | "rooted_at"
-        | "veg_started_at"
-        | "flower_started_at";
-      value: string | null;
-    };
+  | DatePlantFactUpdate
+  | TextPlantFactUpdate;
+
+const DATE_FACT_PATCH_FIELDS = {
+  germinated_at: {
+    timestampField: "germinatedAt",
+    dateOnlyField: "germinatedOn",
+  },
+  taken_at: {
+    timestampField: "takenAt",
+    dateOnlyField: "takenOn",
+  },
+  rooted_at: {
+    timestampField: "rootedAt",
+    dateOnlyField: "rootedOn",
+  },
+  veg_started_at: {
+    timestampField: "vegStartedAt",
+    dateOnlyField: "vegStartedOn",
+  },
+  flower_started_at: {
+    timestampField: "flowerStartedAt",
+    dateOnlyField: "flowerStartedOn",
+  },
+  culled_at: {
+    timestampField: "culledAt",
+    dateOnlyField: "culledOn",
+  },
+  harvested_at: {
+    timestampField: "harvestedAt",
+    dateOnlyField: "harvestedOn",
+  },
+  selected_for_breeding_at: {
+    timestampField: "selectedForBreedingAt",
+    dateOnlyField: "selectedForBreedingOn",
+  },
+} as const satisfies Record<
+  DatePlantFactField,
+  {
+    timestampField: DateFactPatchTimestampField;
+    dateOnlyField: DateFactPatchDateOnlyField;
+  }
+>;
+const TEXT_FACT_PATCH_FIELDS = {
+  culled_reason: "culledReason",
+  selected_for_breeding_reason: "selectedForBreedingReason",
+} as const satisfies Record<TextPlantFactField, TextFactPatchField>;
 
 type UpdatePlantFactsMutationInput = {
   idempotencyKey: string;
@@ -144,6 +227,7 @@ type BulkCullMutationInput = {
   idempotencyKey: string;
   plantKeys: readonly string[];
   reason: string;
+  culledAt: string;
 };
 
 type SingleLogNoteRequestInput = {
@@ -241,6 +325,7 @@ export function buildBulkCullRequest(
     idempotency_key: input.idempotencyKey,
     plant_keys: [...input.plantKeys],
     reason: input.reason.trim(),
+    culled_at: input.culledAt,
   };
 }
 
@@ -430,10 +515,10 @@ export function useBulkCullMutation() {
         operation: "bulk-cull",
         label: `Culling ${input.plantKeys.length} plants`,
         affectedPlantKeys: input.plantKeys,
-        optimisticPlantPatches: input.plantKeys.map((plantKey) => ({
-          plantKey,
-          stageKey: "culled",
-        })),
+        optimisticPlantPatches: plantFactUpdatesToPatches(input.plantKeys, [
+          { field: "culled_at", value: input.culledAt },
+          { field: "culled_reason", value: input.reason.trim() },
+        ]),
         pendingNote: null,
       });
       if (command.status === "succeeded") {
@@ -716,27 +801,39 @@ function plantFactUpdatesToPatches(
   return plantKeys.map((plantKey) => {
     const patch: PendingPlantPatch = { plantKey };
     for (const update of updates) {
-      if (update.field === "sex_key") {
-        patch.sexKey = update.value;
-      } else if (update.field === "germinated_at") {
-        patch.germinatedAt = update.value;
-        patch.germinatedOn = dateOnlyFromFactValue(update.value);
-      } else if (update.field === "taken_at") {
-        patch.takenAt = update.value;
-        patch.takenOn = dateOnlyFromFactValue(update.value);
-      } else if (update.field === "rooted_at") {
-        patch.rootedAt = update.value;
-        patch.rootedOn = dateOnlyFromFactValue(update.value);
-      } else if (update.field === "veg_started_at") {
-        patch.vegStartedAt = update.value;
-        patch.vegStartedOn = dateOnlyFromFactValue(update.value);
-      } else if (update.field === "flower_started_at") {
-        patch.flowerStartedAt = update.value;
-        patch.flowerStartedOn = dateOnlyFromFactValue(update.value);
-      }
+      applyPlantFactUpdateToPatch(patch, update);
     }
     return patch;
   });
+}
+
+function applyPlantFactUpdateToPatch(
+  patch: PendingPlantPatch,
+  update: PlantFactUpdate,
+): void {
+  if (update.field === "sex_key") {
+    assignPatchValue(patch, "sexKey", update.value);
+    return;
+  }
+  if (isDatePlantFactField(update.field)) {
+    const fields = DATE_FACT_PATCH_FIELDS[update.field];
+    assignPatchValue(patch, fields.timestampField, update.value);
+    assignPatchValue(patch, fields.dateOnlyField, dateOnlyFromFactValue(update.value));
+    return;
+  }
+  assignPatchValue(patch, TEXT_FACT_PATCH_FIELDS[update.field], update.value);
+}
+
+function assignPatchValue<TKey extends PlantPatchField>(
+  patch: PendingPlantPatch,
+  field: TKey,
+  value: PlantRow[TKey],
+): void {
+  Object.assign(patch, { [field]: value });
+}
+
+function isDatePlantFactField(field: PlantFactField): field is DatePlantFactField {
+  return field in DATE_FACT_PATCH_FIELDS;
 }
 
 function dateOnlyFromFactValue(value: string | null): string | null {
@@ -744,100 +841,57 @@ function dateOnlyFromFactValue(value: string | null): string | null {
 }
 
 function applyPlantPatch(plant: PlantRow, patch: PendingPlantPatch): PlantRow {
-  return {
-    ...plant,
-    sexKey: patch.sexKey ?? plant.sexKey,
-    stageKey: patch.stageKey ?? plant.stageKey,
-    currentTentId: patch.currentTentId ?? plant.currentTentId,
-    currentTentName: patch.currentTentName ?? plant.currentTentName,
-    gridPosition:
-      patch.gridPosition !== undefined ? patch.gridPosition : plant.gridPosition,
-    takenAt: patch.takenAt !== undefined ? patch.takenAt : plant.takenAt,
-    takenOn: patch.takenOn !== undefined ? patch.takenOn : plant.takenOn,
-    rootedAt: patch.rootedAt !== undefined ? patch.rootedAt : plant.rootedAt,
-    rootedOn: patch.rootedOn !== undefined ? patch.rootedOn : plant.rootedOn,
-    germinatedAt:
-      patch.germinatedAt !== undefined ? patch.germinatedAt : plant.germinatedAt,
-    germinatedOn:
-      patch.germinatedOn !== undefined ? patch.germinatedOn : plant.germinatedOn,
-    vegStartedAt:
-      patch.vegStartedAt !== undefined ? patch.vegStartedAt : plant.vegStartedAt,
-    vegStartedOn:
-      patch.vegStartedOn !== undefined ? patch.vegStartedOn : plant.vegStartedOn,
-    flowerStartedAt:
-      patch.flowerStartedAt !== undefined
-        ? patch.flowerStartedAt
-        : plant.flowerStartedAt,
-    flowerStartedOn:
-      patch.flowerStartedOn !== undefined
-        ? patch.flowerStartedOn
-        : plant.flowerStartedOn,
-    culledOn: patch.culledOn !== undefined ? patch.culledOn : plant.culledOn,
-    lastNote: patch.lastNote ?? plant.lastNote,
-  };
+  const next = { ...plant, ...definedPlantPatchValues(patch) };
+  if (patchAffectsStage(patch)) {
+    next.stageKey = plantStageKeyFromFacts(next);
+  }
+  return next;
+}
+
+function definedPlantPatchValues(
+  patch: PendingPlantPatch,
+): Partial<Pick<PlantRow, PlantPatchField>> {
+  const values: Partial<Pick<PlantRow, PlantPatchField>> = {};
+  for (const field of PLANT_PATCH_FIELDS) {
+    const value = patch[field];
+    if (value !== undefined) {
+      Object.assign(values, { [field]: value });
+    }
+  }
+  return values;
+}
+
+function patchAffectsStage(patch: PendingPlantPatch): boolean {
+  return STAGE_FACT_PATCH_FIELDS.some((field) => patch[field] !== undefined);
+}
+
+function plantStageKeyFromFacts(plant: PlantRow): PlantStageKey {
+  if (plant.culledAt !== null) return "culled";
+  if (plant.harvestedAt !== null) return "harvested";
+  if (plant.selectedForBreedingAt !== null) return "breeding";
+  if (plant.flowerStartedAt !== null) return "flower";
+  if (plant.vegStartedAt !== null) return "veg";
+  return "germinating";
 }
 
 function isPlantPatchProjected(plant: PlantRow, patch: PendingPlantPatch): boolean {
-  if (patch.sexKey !== undefined && plant.sexKey !== patch.sexKey) return false;
-  if (patch.stageKey !== undefined && plant.stageKey !== patch.stageKey) return false;
-  if (
-    patch.currentTentId !== undefined &&
-    plant.currentTentId !== patch.currentTentId
-  ) {
-    return false;
-  }
-  if (
-    patch.currentTentName !== undefined &&
-    plant.currentTentName !== patch.currentTentName
-  ) {
-    return false;
-  }
-  if (patch.gridPosition !== undefined && plant.gridPosition !== patch.gridPosition) {
-    return false;
-  }
-  if (patch.takenAt !== undefined && plant.takenAt !== patch.takenAt) {
-    return false;
-  }
-  if (patch.takenOn !== undefined && plant.takenOn !== patch.takenOn) {
-    return false;
-  }
-  if (patch.rootedAt !== undefined && plant.rootedAt !== patch.rootedAt) {
-    return false;
-  }
-  if (patch.rootedOn !== undefined && plant.rootedOn !== patch.rootedOn) {
-    return false;
-  }
-  if (patch.germinatedAt !== undefined && plant.germinatedAt !== patch.germinatedAt) {
-    return false;
-  }
-  if (patch.germinatedOn !== undefined && plant.germinatedOn !== patch.germinatedOn) {
-    return false;
-  }
-  if (patch.vegStartedAt !== undefined && plant.vegStartedAt !== patch.vegStartedAt) {
-    return false;
-  }
-  if (patch.vegStartedOn !== undefined && plant.vegStartedOn !== patch.vegStartedOn) {
-    return false;
-  }
-  if (
-    patch.flowerStartedAt !== undefined &&
-    plant.flowerStartedAt !== patch.flowerStartedAt
-  ) {
-    return false;
-  }
-  if (
-    patch.flowerStartedOn !== undefined &&
-    plant.flowerStartedOn !== patch.flowerStartedOn
-  ) {
-    return false;
-  }
-  if (patch.culledOn !== undefined && plant.culledOn !== patch.culledOn) {
-    return false;
-  }
   if (patch.lastNote !== undefined && plant.lastNote.trim() !== patch.lastNote.trim()) {
     return false;
   }
+  for (const field of PLANT_PATCH_FIELDS) {
+    if (field === "lastNote") continue;
+    if (!isPatchFieldProjected(plant, patch, field)) return false;
+  }
   return true;
+}
+
+function isPatchFieldProjected<TKey extends PlantPatchField>(
+  plant: PlantRow,
+  patch: PendingPlantPatch,
+  field: TKey,
+): boolean {
+  const expected = patch[field];
+  return expected === undefined || Object.is(plant[field], expected);
 }
 
 function isTerminalCommandStatus(status: string): boolean {

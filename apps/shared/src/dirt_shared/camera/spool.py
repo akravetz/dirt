@@ -31,6 +31,9 @@ class SnapshotWriter:
         return await asyncio.to_thread(self.write_sync, frame)
 
     def write_sync(self, frame: CapturedFrame) -> SnapshotArtifact:
+        if not frame.jpeg_bytes:
+            raise ValueError("captured JPEG frame is empty")
+
         self._directory.mkdir(parents=True, exist_ok=True)
         filename = f"snapshot_{frame.captured_at.strftime('%Y%m%d_%H%M%S')}.jpg"
         path = self._directory / filename

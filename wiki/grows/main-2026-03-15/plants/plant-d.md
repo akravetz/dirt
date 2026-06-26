@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-06-20
+updated: 2026-06-25
 ---
 
 # Plant D
@@ -19,7 +19,7 @@ updated: 2026-06-20
 
 ## Current State
 
-Day 98 / Flower Day 48: `SBBS-R1-004` has no photo coverage today, and direct moisture shows only a small downward drift near 31.4% rough context. Keep media/tray hand checks active, but today's telemetry does not show a large irrigation-direction signal. See [2026-06-20 daily](../../../daily/2026-06-20.md).
+Day 103 / Flower Day 53: `SBBS-R1-004` shows upright purple flower tops with late lime/yellow fade, and direct moisture moved modestly up to 32.8% rough context. Keep media/tray and trichome checks active, but hand-confirm before treating the moisture move as irrigation direction. See [2026-06-25 daily](../../../daily/2026-06-25.md).
 
 ## Timeline
 
@@ -91,3 +91,8 @@ Day 98 / Flower Day 48: `SBBS-R1-004` has no photo coverage today, and direct mo
 - 2026-06-12 — [Day 90 / Flower Day 40: post-flush recovery plan filed; hold EC 0.8-1.0 for 48-72h and only root-zone flush if fresh damage advances](../../../daily/2026-06-12.md)
 - 2026-06-19 — [Day 97 / Flower Day 47: strongest purple flower expression, stable direct moisture near 31.8%, no large irrigation-direction signal](../../../daily/2026-06-19.md)
 - 2026-06-20 — [Day 98 / Flower Day 48: no photo coverage; direct moisture near 31.4% with only small downward drift](../../../daily/2026-06-20.md)
+- 2026-06-21 — [Day 99 / Flower Day 49: strongest purple chunky flowers with late-fade foliage; direct moisture stable near 31.4%](../../../daily/2026-06-21.md)
+- 2026-06-22 — [Day 100 / Flower Day 50: strongest purple chunky flowers with late-fade foliage; direct moisture slightly down near 30.7%](../../../daily/2026-06-22.md)
+- 2026-06-23 — [Day 101 / Flower Day 51: strongest purple chunky flowers with late-fade foliage; direct moisture slightly up near 31.1%](../../../daily/2026-06-23.md)
+- 2026-06-24 — [Day 102 / Flower Day 52: no photo coverage; direct moisture essentially flat/slightly up near 31.9%, continue media/tray and trichome checks](../../../daily/2026-06-24.md)
+- 2026-06-25 — [Day 103 / Flower Day 53: upright purple flower tops with late lime/yellow fade; direct moisture modestly up to 32.8%, continue media/tray and trichome checks](../../../daily/2026-06-25.md)

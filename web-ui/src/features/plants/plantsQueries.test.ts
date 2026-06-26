@@ -81,7 +81,14 @@ describe("plants hosted response mapping", () => {
       veg_started_on: "2026-04-01",
       flower_started_at: "2026-05-01T16:45:00.000Z",
       flower_started_on: "2026-05-01",
+      culled_at: null,
       culled_on: null,
+      culled_reason: null,
+      harvested_at: null,
+      harvested_on: null,
+      selected_for_breeding_at: null,
+      selected_for_breeding_on: null,
+      selected_for_breeding_reason: null,
       current_tent_id: 1,
       current_tent_name: "Main flower",
       grid_position: null,
@@ -305,11 +312,13 @@ describe("plants mutation request mapping", () => {
         idempotencyKey: "cull-click",
         plantKeys: ["MF-002"],
         reason: "  selected male  ",
+        culledAt: "2026-06-20T16:45:00.000Z",
       }),
     ).toEqual({
       idempotency_key: "cull-click",
       plant_keys: ["MF-002"],
       reason: "selected male",
+      culled_at: "2026-06-20T16:45:00.000Z",
     });
     expect(
       buildLogNoteRequest({
@@ -333,6 +342,8 @@ describe("plants mutation request mapping", () => {
           { field: "rooted_at", value: "2026-06-16T16:45:00.000Z" },
           { field: "veg_started_at", value: "2026-06-17T16:45:00.000Z" },
           { field: "flower_started_at", value: null },
+          { field: "harvested_at", value: "2026-07-01T16:45:00.000Z" },
+          { field: "selected_for_breeding_reason", value: "keeper" },
         ],
       }),
     ).toEqual({
@@ -345,6 +356,8 @@ describe("plants mutation request mapping", () => {
         { field: "rooted_at", value: "2026-06-16T16:45:00.000Z" },
         { field: "veg_started_at", value: "2026-06-17T16:45:00.000Z" },
         { field: "flower_started_at", value: null },
+        { field: "harvested_at", value: "2026-07-01T16:45:00.000Z" },
+        { field: "selected_for_breeding_reason", value: "keeper" },
       ],
     });
     expect(
@@ -459,6 +472,7 @@ describe("plants pending UX helpers", () => {
         vegStartedOn: "2026-06-17",
         flowerStartedAt: "2026-06-18T16:45:00.000Z",
         flowerStartedOn: "2026-06-18",
+        stageKey: "flower",
       },
     ]);
     expect(
@@ -507,7 +521,9 @@ describe("plants pending UX helpers", () => {
       optimisticPlantPatches: [
         {
           plantKey: "MF-002",
-          stageKey: "culled",
+          culledAt: "2026-06-21T16:45:00.000Z",
+          culledOn: "2026-06-21",
+          culledReason: "failed vigor check",
         },
       ],
     });
@@ -515,8 +531,75 @@ describe("plants pending UX helpers", () => {
     const [projected] = applyPendingPlantCommands([plant], [pendingCull]);
 
     expect(projected?.stageKey).toBe("culled");
+    expect(projected?.culledAt).toBe("2026-06-21T16:45:00.000Z");
+    expect(projected?.culledOn).toBe("2026-06-21");
+    expect(projected?.culledReason).toBe("failed vigor check");
     expect(projected?.currentTentName).toBe("Flower");
     expect(projected ? projected.stageKey !== "culled" : false).toBe(false);
+  });
+
+  it("derives optimistic stage from lifecycle fact priority", () => {
+    const floweringPlant = makePlantRow({
+      flowerStartedAt: "2026-06-18T16:45:00.000Z",
+      flowerStartedOn: "2026-06-18",
+      stageKey: "flower",
+    });
+    const selectedAndHarvested = makePendingCommand({
+      command: makeCommand({ status: "queued" }),
+      optimisticPlantPatches: [
+        {
+          plantKey: "MF-001",
+          harvestedAt: "2026-07-10T16:45:00.000Z",
+          harvestedOn: "2026-07-10",
+          selectedForBreedingAt: "2026-07-01T16:45:00.000Z",
+          selectedForBreedingOn: "2026-07-01",
+        },
+      ],
+    });
+    const selectedAndCulled = makePendingCommand({
+      command: makeCommand({ status: "queued" }),
+      optimisticPlantPatches: [
+        {
+          plantKey: "MF-001",
+          culledAt: "2026-07-11T16:45:00.000Z",
+          culledOn: "2026-07-11",
+          culledReason: "failed vigor check",
+          selectedForBreedingAt: "2026-07-01T16:45:00.000Z",
+          selectedForBreedingOn: "2026-07-01",
+        },
+      ],
+    });
+    const clearedSelection = makePendingCommand({
+      command: makeCommand({ status: "queued" }),
+      optimisticPlantPatches: [
+        {
+          plantKey: "MF-001",
+          selectedForBreedingAt: null,
+          selectedForBreedingOn: null,
+          selectedForBreedingReason: null,
+        },
+      ],
+    });
+
+    expect(
+      applyPendingPlantCommands([floweringPlant], [selectedAndHarvested])[0]?.stageKey,
+    ).toBe("harvested");
+    expect(
+      applyPendingPlantCommands([floweringPlant], [selectedAndCulled])[0]?.stageKey,
+    ).toBe("culled");
+    expect(
+      applyPendingPlantCommands(
+        [
+          {
+            ...floweringPlant,
+            selectedForBreedingAt: "2026-07-01T16:45:00.000Z",
+            selectedForBreedingOn: "2026-07-01",
+            stageKey: "breeding",
+          },
+        ],
+        [clearedSelection],
+      )[0]?.stageKey,
+    ).toBe("flower");
   });
 
   it("shows pending notes distinctly until projection syncs them", () => {
@@ -681,7 +764,14 @@ function makePlantRow(overrides: Partial<PlantRow>): PlantRow {
     vegStartedOn: "2026-06-10",
     flowerStartedAt: null,
     flowerStartedOn: null,
+    culledAt: null,
     culledOn: null,
+    culledReason: null,
+    harvestedAt: null,
+    harvestedOn: null,
+    selectedForBreedingAt: null,
+    selectedForBreedingOn: null,
+    selectedForBreedingReason: null,
     currentTentId: 1,
     currentTentName: "Veg",
     gridPosition: null,

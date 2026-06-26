@@ -703,12 +703,21 @@ def test_command_claim_response_uses_explicit_breeding_payload_models() -> None:
                     {"field": "veg_started_at", "value": "2026-06-20T16:00:00Z"},
                     {"field": "sex_key", "value": "female"},
                     {"field": "flower_started_at", "value": None},
+                    {"field": "harvested_at", "value": None},
+                    {
+                        "field": "selected_for_breeding_reason",
+                        "value": "keeper",
+                    },
                 ],
             },
         ),
         _command_payload(
             command_type="breeding_plants_bulk_cull",
-            payload={"plant_keys": ["SBBS-R1-001"], "reason": "selected male"},
+            payload={
+                "plant_keys": ["SBBS-R1-001"],
+                "reason": "selected male",
+                "culled_at": "2026-06-21T16:00:00Z",
+            },
         ),
         _command_payload(
             command_type="breeding_plant_note_create",
@@ -780,9 +789,11 @@ def test_breeding_command_payloads_reject_bad_shapes() -> None:
     assert extra_exc.value.errors()[0]["type"] == "extra_forbidden"
 
     with pytest.raises(ValidationError):
-        BreedingBulkCullPayload(plant_keys=[], reason="culled")
+        BreedingBulkCullPayload(plant_keys=[], reason="culled", culled_at=None)
     with pytest.raises(ValidationError):
-        BreedingBulkCullPayload(plant_keys=["SBBS-R1-001"], reason="   ")
+        BreedingBulkCullPayload(
+            plant_keys=["SBBS-R1-001"], reason="   ", culled_at=None
+        )
     with pytest.raises(ValidationError):
         BreedingCreatePlantNotePayload(plant_key="SBBS-R1-001", body="   ")
     with pytest.raises(ValidationError):

@@ -16,6 +16,7 @@ import {
   hasActivePendingForAnyPlant,
   isPendingCommandProjected,
   type PendingTimelineNote,
+  type PlantFactUpdate,
   type PlantsPendingCommand,
   pendingTimelineNotes,
   readonlyPlantPrefixPreview,
@@ -44,13 +45,25 @@ import type {
 } from "./plantsTypes";
 
 type AddPlantMode = "germinate" | "clone";
-type BulkDateField = "veg_started_at" | "flower_started_at";
-type DetailDateFactField =
+type BulkDateField = Extract<
+  PlantFactUpdate["field"],
+  "germinated_at" | "taken_at" | "veg_started_at" | "flower_started_at"
+>;
+type DetailDateFactField = Extract<
+  PlantFactUpdate["field"],
   | "germinated_at"
   | "taken_at"
   | "rooted_at"
   | "veg_started_at"
-  | "flower_started_at";
+  | "flower_started_at"
+  | "culled_at"
+  | "harvested_at"
+  | "selected_for_breeding_at"
+>;
+type DetailTextFactField = Extract<
+  PlantFactUpdate["field"],
+  "culled_reason" | "selected_for_breeding_reason"
+>;
 type DetailFactsDraft = {
   sexKey: PlantSexKey;
   germinatedAt: string;
@@ -58,11 +71,23 @@ type DetailFactsDraft = {
   rootedAt: string;
   vegStartedAt: string;
   flowerStartedAt: string;
+  culledAt: string;
+  culledReason: string;
+  harvestedAt: string;
+  selectedForBreedingAt: string;
+  selectedForBreedingReason: string;
 };
-type DetailFactsDraftDateKey = Exclude<keyof DetailFactsDraft, "sexKey">;
-type DetailFactUpdate =
-  | { field: "sex_key"; value: PlantSexKey }
-  | { field: DetailDateFactField; value: string | null };
+type DetailFactsDraftDateKey =
+  | "germinatedAt"
+  | "takenAt"
+  | "rootedAt"
+  | "vegStartedAt"
+  | "flowerStartedAt"
+  | "culledAt"
+  | "harvestedAt"
+  | "selectedForBreedingAt";
+type DetailFactsDraftTextKey = "culledReason" | "selectedForBreedingReason";
+type DetailFactUpdate = PlantFactUpdate;
 
 type TableGroup = {
   key: string;
@@ -95,10 +120,41 @@ const CULLED_LOCATION: LocationOption = {
   role: "culled",
 };
 const DATETIME_LOCAL_LENGTH = 16;
-const BULK_DATE_FIELD_OPTIONS = [
-  { label: "Veg start", value: "veg_started_at" },
-  { label: "Flower start", value: "flower_started_at" },
-] as const satisfies readonly { label: string; value: BulkDateField }[];
+const BULK_DATE_FIELDS = [
+  "germinated_at",
+  "taken_at",
+  "veg_started_at",
+  "flower_started_at",
+] as const satisfies readonly BulkDateField[];
+const BULK_DATE_FIELD_COPY = {
+  germinated_at: {
+    actionLabel: "germ",
+    fieldLabel: "Germinated at",
+    optionLabel: "Germinated",
+  },
+  taken_at: {
+    actionLabel: "taken",
+    fieldLabel: "Taken at",
+    optionLabel: "Taken",
+  },
+  veg_started_at: {
+    actionLabel: "veg",
+    fieldLabel: "Veg started at",
+    optionLabel: "Veg start",
+  },
+  flower_started_at: {
+    actionLabel: "flower",
+    fieldLabel: "Flower started at",
+    optionLabel: "Flower start",
+  },
+} as const satisfies Record<
+  BulkDateField,
+  { actionLabel: string; fieldLabel: string; optionLabel: string }
+>;
+const BULK_DATE_FIELD_OPTIONS = BULK_DATE_FIELDS.map((value) => ({
+  label: BULK_DATE_FIELD_COPY[value].optionLabel,
+  value,
+})) satisfies readonly { label: string; value: BulkDateField }[];
 const EMPTY_DETAIL_FACTS_DRAFT: DetailFactsDraft = {
   sexKey: "unknown",
   germinatedAt: "",
@@ -106,7 +162,50 @@ const EMPTY_DETAIL_FACTS_DRAFT: DetailFactsDraft = {
   rootedAt: "",
   vegStartedAt: "",
   flowerStartedAt: "",
+  culledAt: "",
+  culledReason: "",
+  harvestedAt: "",
+  selectedForBreedingAt: "",
+  selectedForBreedingReason: "",
 };
+const COMMON_DETAIL_DATE_DRAFT_FIELDS = [
+  "vegStartedAt",
+  "flowerStartedAt",
+  "culledAt",
+  "harvestedAt",
+  "selectedForBreedingAt",
+] as const satisfies readonly DetailFactsDraftDateKey[];
+const CLONE_DETAIL_DATE_DRAFT_FIELDS = [
+  "takenAt",
+  "rootedAt",
+  ...COMMON_DETAIL_DATE_DRAFT_FIELDS,
+] as const satisfies readonly DetailFactsDraftDateKey[];
+const SEED_DETAIL_DATE_DRAFT_FIELDS = [
+  "germinatedAt",
+  ...COMMON_DETAIL_DATE_DRAFT_FIELDS,
+] as const satisfies readonly DetailFactsDraftDateKey[];
+const DETAIL_DATE_FACT_FIELD_BY_DRAFT_KEY = {
+  germinatedAt: "germinated_at",
+  takenAt: "taken_at",
+  rootedAt: "rooted_at",
+  vegStartedAt: "veg_started_at",
+  flowerStartedAt: "flower_started_at",
+  culledAt: "culled_at",
+  harvestedAt: "harvested_at",
+  selectedForBreedingAt: "selected_for_breeding_at",
+} as const satisfies Record<DetailFactsDraftDateKey, DetailDateFactField>;
+const DETAIL_TEXT_DRAFT_FIELDS = [
+  "culledReason",
+  "selectedForBreedingReason",
+] as const satisfies readonly DetailFactsDraftTextKey[];
+const DETAIL_TEXT_FACT_FIELD_BY_DRAFT_KEY = {
+  culledReason: "culled_reason",
+  selectedForBreedingReason: "selected_for_breeding_reason",
+} as const satisfies Record<DetailFactsDraftTextKey, DetailTextFactField>;
+const DETAIL_TEXT_OWNER_DATE_DRAFT_KEY = {
+  culledReason: "culledAt",
+  selectedForBreedingReason: "selectedForBreedingAt",
+} as const satisfies Record<DetailFactsDraftTextKey, DetailFactsDraftDateKey>;
 const PLANT_LIST_LAYOUT_VALUES = ["table", "board"] as const;
 const PLANT_GROUP_BY_VALUES = ["stage", "parents"] as const;
 const PLANT_LIFECYCLE_STATUS_VALUES = ["all", "started", "veg", "flower"] as const;
@@ -281,6 +380,7 @@ function PlantsPage({
   const [bulkDateField, setBulkDateField] = useState<BulkDateField>("veg_started_at");
   const [bulkDateValue, setBulkDateValue] = useState(datetimeLocalNow);
   const [bulkCullReason, setBulkCullReason] = useState("");
+  const [bulkCullAt, setBulkCullAt] = useState(datetimeLocalNow);
   const [moveLocationKey, setMoveLocationKey] = useState(1);
   const [addPlantMode, setAddPlantMode] = useState<AddPlantMode>("germinate");
   const [selectedSeedLotId, setSelectedSeedLotId] = useState("lot-maruf-black");
@@ -411,6 +511,7 @@ function PlantsPage({
             activeCount={activeCount}
             archivedCount={archivedCount}
             bootstrap={logbook.bootstrap}
+            bulkCullAt={bulkCullAt}
             bulkDateField={bulkDateField}
             bulkDateValue={bulkDateValue}
             bulkPanel={bulkPanel}
@@ -448,19 +549,24 @@ function PlantsPage({
               if (
                 selectedPlantKeys.length === 0 ||
                 selectedPlantsHavePendingCommand ||
-                !canSubmitBulkCull(bulkCullReason)
+                !canSubmitBulkCull(bulkCullReason) ||
+                !canSubmitEventDateTime(bulkCullAt, maxEventDateTime)
               ) {
                 return;
               }
+              const bulkCullAtUtc = datetimeLocalToUtcIso(bulkCullAt);
+              if (bulkCullAtUtc === null) return;
               bulkCullMutation.mutate(
                 {
                   idempotencyKey: createPlantsIdempotencyKey("bulk-cull"),
                   plantKeys: selectedPlantKeys,
                   reason: bulkCullReason,
+                  culledAt: bulkCullAtUtc,
                 },
                 {
                   onSuccess: () => {
                     setBulkCullReason("");
+                    setBulkCullAt(datetimeLocalNow());
                     clearSelection();
                   },
                 },
@@ -538,6 +644,7 @@ function PlantsPage({
             onBulkPanelChange={setBulkPanel}
             onBulkSexChange={setBulkSex}
             onBulkCullReasonChange={setBulkCullReason}
+            onBulkCullAtChange={setBulkCullAt}
             onClearSelection={clearSelection}
             onDragEnd={() => {
               setDraggingPlantId(null);
@@ -870,6 +977,7 @@ function PlantsSurface({
   activeCount,
   archivedCount,
   bootstrap,
+  bulkCullAt,
   bulkCullReason,
   bulkDateField,
   bulkDateValue,
@@ -894,6 +1002,7 @@ function PlantsSurface({
   onBulkDateFieldChange,
   onBulkDateValueChange,
   onBulkPanelChange,
+  onBulkCullAtChange,
   onBulkCullReasonChange,
   onBulkSexChange,
   onClearBulkDate,
@@ -924,6 +1033,7 @@ function PlantsSurface({
   activeCount: number;
   archivedCount: number;
   bootstrap: PlantsBootstrap;
+  bulkCullAt: string;
   bulkCullReason: string;
   bulkDateField: BulkDateField;
   bulkDateValue: string;
@@ -955,6 +1065,7 @@ function PlantsSurface({
   onBulkDateFieldChange: (field: BulkDateField) => void;
   onBulkDateValueChange: (value: string) => void;
   onBulkPanelChange: (panel: BulkPanel) => void;
+  onBulkCullAtChange: (value: string) => void;
   onBulkCullReasonChange: (reason: string) => void;
   onBulkSexChange: (sex: PlantSexKey) => void;
   onClearBulkDate: () => void;
@@ -1040,6 +1151,7 @@ function PlantsSurface({
       />
       {selectedCount > 0 ? (
         <BulkActionToolbar
+          bulkCullAt={bulkCullAt}
           bulkCullReason={bulkCullReason}
           bulkDateField={bulkDateField}
           bulkDateValue={bulkDateValue}
@@ -1058,6 +1170,7 @@ function PlantsSurface({
           onBulkDateFieldChange={onBulkDateFieldChange}
           onBulkDateValueChange={onBulkDateValueChange}
           onBulkPanelChange={onBulkPanelChange}
+          onBulkCullAtChange={onBulkCullAtChange}
           onBulkCullReasonChange={onBulkCullReasonChange}
           onBulkSexChange={onBulkSexChange}
           onClearBulkDate={onClearBulkDate}
@@ -1233,6 +1346,7 @@ function PlantChrome({
 }
 
 function BulkActionToolbar({
+  bulkCullAt,
   bulkCullReason,
   bulkDateField,
   bulkDateValue,
@@ -1249,6 +1363,7 @@ function BulkActionToolbar({
   onBulkDateFieldChange,
   onBulkDateValueChange,
   onBulkPanelChange,
+  onBulkCullAtChange,
   onBulkCullReasonChange,
   onBulkSexChange,
   onClearBulkDate,
@@ -1258,6 +1373,7 @@ function BulkActionToolbar({
   selectedCount,
   selectedLocation,
 }: {
+  bulkCullAt: string;
   bulkCullReason: string;
   bulkDateField: BulkDateField;
   bulkDateValue: string;
@@ -1276,6 +1392,7 @@ function BulkActionToolbar({
   onBulkDateFieldChange: (field: BulkDateField) => void;
   onBulkDateValueChange: (value: string) => void;
   onBulkPanelChange: (panel: BulkPanel) => void;
+  onBulkCullAtChange: (value: string) => void;
   onBulkCullReasonChange: (reason: string) => void;
   onBulkSexChange: (sex: PlantSexKey) => void;
   onClearBulkDate: () => void;
@@ -1372,7 +1489,7 @@ function BulkActionToolbar({
             onChange={onBulkDateFieldChange}
           />
           <DateTimeField
-            label="Started at"
+            label={bulkDateFieldLabel(bulkDateField)}
             max={maxEventDateTime}
             value={bulkDateValue}
             onChange={onBulkDateValueChange}
@@ -1385,8 +1502,7 @@ function BulkActionToolbar({
             }
             onClick={onApplyBulkDate}
           >
-            Set {bulkDateField === "veg_started_at" ? "veg" : "flower"} on{" "}
-            {selectedCount}
+            Set {bulkDateFieldShortLabel(bulkDateField)} on {selectedCount}
           </Button>
           <Button
             variant="secondary"
@@ -1424,6 +1540,12 @@ function BulkActionToolbar({
       ) : null}
       {bulkPanel === "cull" ? (
         <div className="flex flex-wrap items-center gap-3 border-t border-rule bg-paper px-3 py-3">
+          <DateTimeField
+            label="Culled at"
+            max={maxEventDateTime}
+            value={bulkCullAt}
+            onChange={onBulkCullAtChange}
+          />
           <TextField
             label="Reason"
             value={bulkCullReason}
@@ -1432,7 +1554,11 @@ function BulkActionToolbar({
           />
           <Button
             variant="danger"
-            disabled={destructiveActionsDisabled || !canSubmitBulkCull(bulkCullReason)}
+            disabled={
+              destructiveActionsDisabled ||
+              !canSubmitBulkCull(bulkCullReason) ||
+              !canSubmitEventDateTime(bulkCullAt, maxEventDateTime)
+            }
             onClick={onApplyCull}
           >
             x Confirm cull
@@ -2221,6 +2347,12 @@ function PlantJournalDetail({
               label="Flowered"
               value={shortDateOrDash(detail.plant.flowerStartedOn)}
             />
+            <Fact label="Culled" value={shortDateOrDash(detail.plant.culledOn)} />
+            <Fact label="Harvested" value={shortDateOrDash(detail.plant.harvestedOn)} />
+            <Fact
+              label="Selected"
+              value={shortDateOrDash(detail.plant.selectedForBreedingOn)}
+            />
             <Fact label="Location" value={formatPlantLocation(detail.plant)} />
           </div>
           <PlantFactsEditor
@@ -2470,6 +2602,46 @@ function PlantFactsEditor({
                 updateDraft({ flowerStartedAt });
               }}
             />
+            <FactDateEditRow
+              label="Cull"
+              max={maxEventDateTime}
+              value={draft.culledAt}
+              onChange={(culledAt) => {
+                updateDraft({ culledAt });
+              }}
+            />
+            <TextField
+              label="Cull reason"
+              value={draft.culledReason}
+              placeholder="selected male"
+              onChange={(culledReason) => {
+                updateDraft({ culledReason });
+              }}
+            />
+            <FactDateEditRow
+              label="Harvest"
+              max={maxEventDateTime}
+              value={draft.harvestedAt}
+              onChange={(harvestedAt) => {
+                updateDraft({ harvestedAt });
+              }}
+            />
+            <FactDateEditRow
+              label="Selected"
+              max={maxEventDateTime}
+              value={draft.selectedForBreedingAt}
+              onChange={(selectedForBreedingAt) => {
+                updateDraft({ selectedForBreedingAt });
+              }}
+            />
+            <TextField
+              label="Selection reason"
+              value={draft.selectedForBreedingReason}
+              placeholder="keeper candidate"
+              onChange={(selectedForBreedingReason) => {
+                updateDraft({ selectedForBreedingReason });
+              }}
+            />
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2 border-t border-rule pt-3">
             {mutationError ? <InlineError text={mutationError} /> : null}
@@ -2494,6 +2666,17 @@ function PlantFactsEditor({
           )}
           <FactReadRow label="Veg" value={shortDateOrDash(plant.vegStartedOn)} />
           <FactReadRow label="Flower" value={shortDateOrDash(plant.flowerStartedOn)} />
+          <FactReadRow label="Cull" value={shortDateOrDash(plant.culledOn)} />
+          <FactReadRow label="Cull why" value={plant.culledReason?.trim() || "-"} />
+          <FactReadRow label="Harvest" value={shortDateOrDash(plant.harvestedOn)} />
+          <FactReadRow
+            label="Selected"
+            value={shortDateOrDash(plant.selectedForBreedingOn)}
+          />
+          <FactReadRow
+            label="Select why"
+            value={plant.selectedForBreedingReason?.trim() || "-"}
+          />
         </div>
       )}
       {disabled && !mutationPending ? <PendingBlockMessage /> : null}
@@ -3036,6 +3219,14 @@ function detailFactsDraftFromPlant(plant: PlantRow): DetailFactsDraft {
       plant.flowerStartedAt,
       plant.flowerStartedOn,
     ),
+    culledAt: datetimeLocalFromOptionalFact(plant.culledAt, plant.culledOn),
+    culledReason: plant.culledReason ?? "",
+    harvestedAt: datetimeLocalFromOptionalFact(plant.harvestedAt, plant.harvestedOn),
+    selectedForBreedingAt: datetimeLocalFromOptionalFact(
+      plant.selectedForBreedingAt,
+      plant.selectedForBreedingOn,
+    ),
+    selectedForBreedingReason: plant.selectedForBreedingReason ?? "",
   };
 }
 
@@ -3077,25 +3268,45 @@ function detailFactUpdates(
       updates.push({ field: detailDateFieldFromDraftKey(field), value });
     }
   }
+  for (const field of detailFactTextDraftFields()) {
+    const currentValue = normalizedDetailTextDraftValue(current, field);
+    const draftValue = normalizedDetailTextDraftValue(draft, field);
+    if (draftValue === currentValue) continue;
+    updates.push({ field: detailTextFieldFromDraftKey(field), value: draftValue });
+  }
   return updates;
 }
 
 function detailFactDateDraftFields(
   plant: PlantRow,
 ): readonly DetailFactsDraftDateKey[] {
-  return plant.isClone
-    ? ["takenAt", "rootedAt", "vegStartedAt", "flowerStartedAt"]
-    : ["germinatedAt", "vegStartedAt", "flowerStartedAt"];
+  return plant.isClone ? CLONE_DETAIL_DATE_DRAFT_FIELDS : SEED_DETAIL_DATE_DRAFT_FIELDS;
 }
 
 function detailDateFieldFromDraftKey(
   field: DetailFactsDraftDateKey,
 ): DetailDateFactField {
-  if (field === "germinatedAt") return "germinated_at";
-  if (field === "takenAt") return "taken_at";
-  if (field === "rootedAt") return "rooted_at";
-  if (field === "vegStartedAt") return "veg_started_at";
-  return "flower_started_at";
+  return DETAIL_DATE_FACT_FIELD_BY_DRAFT_KEY[field];
+}
+
+function detailFactTextDraftFields(): readonly DetailFactsDraftTextKey[] {
+  return DETAIL_TEXT_DRAFT_FIELDS;
+}
+
+function detailTextFieldFromDraftKey(
+  field: DetailFactsDraftTextKey,
+): DetailTextFactField {
+  return DETAIL_TEXT_FACT_FIELD_BY_DRAFT_KEY[field];
+}
+
+function normalizedDetailTextDraftValue(
+  draft: DetailFactsDraft,
+  field: DetailFactsDraftTextKey,
+): string | null {
+  const ownerDate = draft[DETAIL_TEXT_OWNER_DATE_DRAFT_KEY[field]];
+  if (ownerDate.length === 0) return null;
+  const value = draft[field].trim();
+  return value.length === 0 ? null : value;
 }
 
 function dateFactValueFromDraft(value: string): string | null | undefined {
@@ -3156,6 +3367,14 @@ function stageLabel(plant: PlantRow): string {
   if (plant.stageKey === "culled")
     return `Culled ${plant.culledOn ? shortDate(plant.culledOn) : ""}`;
   return `${plant.stageKey} / d${plant.stageDay}`;
+}
+
+function bulkDateFieldLabel(field: BulkDateField): string {
+  return BULK_DATE_FIELD_COPY[field].fieldLabel;
+}
+
+function bulkDateFieldShortLabel(field: BulkDateField): string {
+  return BULK_DATE_FIELD_COPY[field].actionLabel;
 }
 
 function formatPlantLocation(plant: PlantRow): string {

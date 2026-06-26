@@ -4,7 +4,7 @@ type: plant
 sources: []
 related: [wiki/grows/breeding-track-a-2026-04-28/README.md, wiki/breeding/male-evaluation.md, wiki/breeding/pollen-handling.md]
 created: 2026-05-30
-updated: 2026-06-20
+updated: 2026-06-25
 ---
 
 # R2
@@ -17,7 +17,7 @@ updated: 2026-06-20
 
 ## Current State
 
-`SBBS-R1-006` is the selected Track A pollen donor, retained for purple coloration on the pollen sacs. No breeding photo is available today; the repeated current-only 83.28% RH / 0.45 kPa value means sensor freshness, air exchange, pot weight, and dry pollen-handling conditions need direct verification before collection. See [2026-06-20 daily](../../../daily/2026-06-20.md).
+`SBBS-R1-006` is the selected Track A pollen donor, retained for purple coloration on the pollen sacs. No breeding photo is available today; the repeated current-only 83.28% RH / 0.45 kPa value means sensor freshness, air exchange, pot weight, and dry pollen-handling conditions need direct verification before collection. See [2026-06-25 daily](../../../daily/2026-06-25.md).
 
 ## Timeline
 
@@ -38,3 +38,8 @@ updated: 2026-06-20
 - 2026-06-14 — Retained as the only Track A pollen donor because it showed purple coloration on the pollen sacs; current plan is to collect pollen from R2. Filed in [activity log](../../../log.md).
 - 2026-06-19 — No breeding photo; current-only 83.28% RH / 0.45 kPa VPD repeat keeps sensor freshness, airflow, pot-weight, and dry R2 pollen-handling checks active. See [2026-06-19](../../../daily/2026-06-19.md).
 - 2026-06-20 — No breeding photo; `SBBS-R1-006` remains selected donor, but the current-only wet sensor repeat keeps sensor freshness and dry pollen-handling checks active. See [2026-06-20](../../../daily/2026-06-20.md).
+- 2026-06-21 — No breeding photo; `SBBS-R1-006` remains selected donor, but the current-only wet sensor repeat keeps sensor freshness and dry pollen-handling checks active. See [2026-06-21](../../../daily/2026-06-21.md).
+- 2026-06-22 — No breeding photo; `SBBS-R1-006` remains selected donor, but the current-only wet sensor repeat keeps sensor freshness and dry pollen-handling checks active. See [2026-06-22](../../../daily/2026-06-22.md).
+- 2026-06-23 — No breeding photo; `SBBS-R1-006` remains selected donor, but the current-only wet sensor repeat keeps sensor freshness and dry pollen-handling checks active. See [2026-06-23](../../../daily/2026-06-23.md).
+- 2026-06-24 — No breeding photo; `SBBS-R1-006` remains selected donor, but the current-only wet sensor repeat keeps sensor freshness and dry pollen-handling checks active. See [2026-06-24](../../../daily/2026-06-24.md).
+- 2026-06-25 — No breeding photo; `SBBS-R1-006` remains selected donor, but the current-only wet sensor repeat keeps sensor freshness and dry pollen-handling checks active. See [2026-06-25](../../../daily/2026-06-25.md).

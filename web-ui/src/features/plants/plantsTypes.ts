@@ -54,7 +54,14 @@ export type PlantRow = {
   vegStartedOn: string | null;
   flowerStartedAt: string | null;
   flowerStartedOn: string | null;
+  culledAt: string | null;
   culledOn: string | null;
+  culledReason: string | null;
+  harvestedAt: string | null;
+  harvestedOn: string | null;
+  selectedForBreedingAt: string | null;
+  selectedForBreedingOn: string | null;
+  selectedForBreedingReason: string | null;
   currentTentId: number;
   currentTentName: string;
   gridPosition: string | null;

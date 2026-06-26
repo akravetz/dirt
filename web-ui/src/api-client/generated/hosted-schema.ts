@@ -806,6 +806,8 @@ export interface components {
     };
     /** BreedingBulkCullPayload */
     BreedingBulkCullPayload: {
+      /** Culled At */
+      culled_at: string | null;
       /** Plant Keys */
       plant_keys: string[];
       /** Reason */
@@ -813,6 +815,8 @@ export interface components {
     };
     /** BreedingBulkCullRequest */
     BreedingBulkCullRequest: {
+      /** Culled At */
+      culled_at: string | null;
       /** Idempotency Key */
       idempotency_key: string;
       /** Plant Keys */
@@ -1146,8 +1150,12 @@ export interface components {
     };
     /** BreedingLogbookPlantRowResponse */
     BreedingLogbookPlantRowResponse: {
+      /** Culled At */
+      culled_at: string | null;
       /** Culled On */
       culled_on: string | null;
+      /** Culled Reason */
+      culled_reason: string | null;
       /** Current Tent Id */
       current_tent_id: number;
       /** Current Tent Name */
@@ -1164,6 +1172,10 @@ export interface components {
       germinated_on: string | null;
       /** Grid Position */
       grid_position: string | null;
+      /** Harvested At */
+      harvested_at: string | null;
+      /** Harvested On */
+      harvested_on: string | null;
       /** Id */
       id: string;
       /** Is Clone */
@@ -1182,6 +1194,12 @@ export interface components {
       rooted_on: string | null;
       /** Seed Lot Label */
       seed_lot_label: string;
+      /** Selected For Breeding At */
+      selected_for_breeding_at: string | null;
+      /** Selected For Breeding On */
+      selected_for_breeding_on: string | null;
+      /** Selected For Breeding Reason */
+      selected_for_breeding_reason: string | null;
       /**
        * Sex Key
        * @enum {string}
@@ -1353,9 +1371,14 @@ export interface components {
         | "taken_at"
         | "rooted_at"
         | "veg_started_at"
-        | "flower_started_at";
+        | "flower_started_at"
+        | "culled_at"
+        | "culled_reason"
+        | "harvested_at"
+        | "selected_for_breeding_at"
+        | "selected_for_breeding_reason";
       /** Value */
-      value: ("unknown" | "male" | "female" | "herm" | "reversed") | string | null;
+      value: string | null;
     };
     /** BreedingUpdatePlantFactsRequest */
     BreedingUpdatePlantFactsRequest: {
