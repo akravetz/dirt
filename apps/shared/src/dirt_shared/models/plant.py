@@ -535,6 +535,134 @@ class Plant(SQLModel, table=True):
     )
 
 
+class PlantSexTest(SQLModel, table=True):
+    __tablename__ = "plant_sex_test"
+    __table_args__ = (
+        UniqueConstraint(
+            "vendor_name",
+            "vendor_test_code",
+            name="uq_plant_sex_test_vendor_code",
+        ),
+        CheckConstraint(
+            "btrim(vendor_name) <> ''",
+            name="ck_plant_sex_test_vendor_name_not_blank",
+        ),
+        CheckConstraint(
+            "assay_name IS NULL OR btrim(assay_name) <> ''",
+            name="ck_plant_sex_test_assay_name_not_blank",
+        ),
+        CheckConstraint(
+            "btrim(vendor_test_code) <> ''",
+            name="ck_plant_sex_test_vendor_test_code_not_blank",
+        ),
+        CheckConstraint(
+            "notes IS NULL OR btrim(notes) <> ''",
+            name="ck_plant_sex_test_notes_not_blank",
+        ),
+        CheckConstraint(
+            """
+            (sample_sent_at IS NULL OR sample_sent_at >= sample_collected_at)
+            AND (
+                result_received_at IS NULL
+                OR result_received_at >= sample_collected_at
+            )
+            AND (
+                result_received_at IS NULL
+                OR sample_sent_at IS NULL
+                OR result_received_at >= sample_sent_at
+            )
+            """,
+            name="ck_plant_sex_test_timestamp_order",
+        ),
+        CheckConstraint(
+            """
+            (
+                result_received_at IS NULL
+                AND result_sex_key IS NULL
+                AND NOT is_inconclusive
+            )
+            OR (
+                result_received_at IS NOT NULL
+                AND (
+                    (CASE WHEN result_sex_key IS NOT NULL THEN 1 ELSE 0 END)
+                    + (CASE WHEN is_inconclusive THEN 1 ELSE 0 END)
+                ) = 1
+            )
+            """,
+            name="ck_plant_sex_test_result_state",
+        ),
+        Index(
+            "ix_plant_sex_test_plant_sample_collected",
+            "plant_id",
+            "sample_collected_at",
+            postgresql_ops={"sample_collected_at": "DESC"},
+        ),
+        Index(
+            "ux_plant_sex_test_one_pending_per_plant",
+            "plant_id",
+            unique=True,
+            postgresql_where=text("result_received_at IS NULL"),
+        ),
+    )
+
+    id: int | None = Field(
+        default=None,
+        sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
+    )
+    plant_id: int = Field(
+        sa_column=Column(
+            BigInteger,
+            ForeignKey("plant.id", name="fk_plant_sex_test_plant", ondelete="RESTRICT"),
+            nullable=False,
+        )
+    )
+    vendor_name: str = Field(sa_column=Column(Text, nullable=False))
+    assay_name: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    vendor_test_code: str = Field(sa_column=Column(Text, nullable=False))
+    sample_collected_at: datetime = Field(
+        sa_column=Column(TIMESTAMP(timezone=True), nullable=False)
+    )
+    sample_sent_at: datetime | None = Field(
+        default=None, sa_column=Column(TIMESTAMP(timezone=True), nullable=True)
+    )
+    result_received_at: datetime | None = Field(
+        default=None, sa_column=Column(TIMESTAMP(timezone=True), nullable=True)
+    )
+    result_sex_key: str | None = Field(
+        default=None,
+        sa_column=Column(
+            Text,
+            ForeignKey(
+                "plant_lku_sex.key",
+                name="fk_plant_sex_test_result_sex",
+                ondelete="RESTRICT",
+            ),
+            nullable=True,
+        ),
+    )
+    is_inconclusive: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default=text("false")),
+    )
+    notes: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    created_at: datetime = Field(
+        default_factory=_utcnow,
+        sa_column=Column(
+            TIMESTAMP(timezone=True),
+            nullable=False,
+            server_default=text("now()"),
+        ),
+    )
+    updated_at: datetime = Field(
+        default_factory=_utcnow,
+        sa_column=Column(
+            TIMESTAMP(timezone=True),
+            nullable=False,
+            server_default=text("now()"),
+        ),
+    )
+
+
 class PlantLocationHistory(SQLModel, table=True):
     __tablename__ = "plant_location_history"
     __table_args__ = (

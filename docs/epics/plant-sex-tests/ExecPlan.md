@@ -19,8 +19,9 @@ The work is complete when a developer can create a pending sex test for each sel
 - [x] (2026-07-01T00:00Z) Reviewed the current plant, breeding-logbook, gateway command, cloud projection, and frontend plant workflow shape.
 - [x] (2026-07-01T00:00Z) Locked product and model decisions with the operator: one-to-many sex tests, one open pending test per plant, timestamp fields, explicit UI-supplied result receipt time, inline plant read arrays, no standalone list endpoint in v1, and command-backed writes.
 - [x] (2026-07-01T00:00Z) Drafted this ExecPlan.
-- [ ] Implement local and cloud sex-test storage.
-- [ ] Add shared gateway/catalog/command contracts and command execution.
+- [x] (2026-07-01T18:06:15-06:00) Implement local sex-test source storage.
+- [ ] Add shared gateway/catalog contracts and cloud projection storage.
+- [ ] Add sex-test command contracts and command execution.
 - [ ] Add hosted browser read/write API routes and generated frontend contract.
 - [ ] Add hosted UI sampling, pending-results, filtering, and detail history workflows.
 - [ ] Validate end-to-end with tests and browser verification.
@@ -42,6 +43,9 @@ The work is complete when a developer can create a pending sex test for each sel
 
 - Observation: The current plant sex lookup is broad enough for manual observations, but lab sex-test results should initially accept conclusive male/female results plus an inconclusive state.
   Evidence: `dirt_shared.cloud_contract.PlantSexKey` includes `unknown`, `male`, `female`, `herm`, and `reversed`. The user's sex-test result workflow is specifically to punch in male, female, or inconclusive results from Farmer Freeman.
+
+- Observation: Local Atlas diff still needs the existing `btree_gist` disposable-dev workaround when SQLModel desired-state loading reaches plant-location exclusion constraints.
+  Evidence: `atlas migrate diff plant_sex_tests_verify --env local --format '{{ sql . "  " }}'` failed before this migration with `pq: data type bigint has no default operator class for access method "gist"` on `plant_location_history`; the same sync check passed against disposable PostgreSQL 17 on port 55434 after `CREATE EXTENSION IF NOT EXISTS btree_gist;`.
 
 
 ## Decision Log
@@ -93,7 +97,9 @@ The work is complete when a developer can create a pending sex test for each sel
 
 ## Outcomes & Retrospective
 
-No implementation has been performed yet. This section must be updated after each milestone with what changed, which commands passed, and any gaps that remain.
+- Milestone 1 added local source storage for plant sex tests. `apps/shared/src/dirt_shared/models/plant.py` now defines `PlantSexTest`, `apps/shared/src/dirt_shared/models/__init__.py` exports it, and local migration `migrations/20260701235933_plant_sex_tests.sql` creates `plant_sex_test` with the required foreign keys, vendor-code uniqueness, one-open-pending-test partial unique index, timestamp ordering check, result-state check, and nonblank checks.
+- Milestone 1 validation passed: `uv run --package dirt-shared python scripts/atlas-load-sqlmodel.py postgresql`, `atlas migrate hash --env local`, `set -a; source .env; set +a; atlas migrate apply --env local --dry-run`, `uv run pytest apps/shared/tests/test_plant_sex_test_models.py -q` (`14 passed`), `uv run ruff check` and `uv run ruff format --check` on touched Python files, `git diff --check` on milestone files, and the disposable-Postgres `atlas migrate diff plant_sex_tests_verify --env local --dev-url ... --format '{{ sql . "  " }}'` sync check.
+- No live/local migration apply was run for Milestone 1.
 
 
 ## Context and Orientation
@@ -355,7 +361,10 @@ Existing dirty worktree changes in wiki files and `scripts/lint.py` predate this
 
 ## Artifacts and Notes
 
-Implementation has not started. Add short evidence here as milestones complete, including generated migration names, contract regeneration output, focused test summaries, and browser screenshot paths if screenshots are captured.
+Milestone 1 evidence:
+
+- Generated local migration: `migrations/20260701235933_plant_sex_tests.sql`.
+- Focused storage tests: `apps/shared/tests/test_plant_sex_test_models.py`.
 
 Initial planning evidence:
 

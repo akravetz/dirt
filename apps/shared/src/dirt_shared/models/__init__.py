@@ -25,6 +25,7 @@ from dirt_shared.models.plant import (
     PlantLocationHistory,
     PlantMetricStream,
     PlantNote,
+    PlantSexTest,
     SeedLot,
     SeedLotLkuSexType,
 )
@@ -54,6 +55,7 @@ __all__ = [
     "PlantLocationHistory",
     "PlantMetricStream",
     "PlantNote",
+    "PlantSexTest",
     "Schedule",
     "SeedLot",
     "SeedLotLkuSexType",
