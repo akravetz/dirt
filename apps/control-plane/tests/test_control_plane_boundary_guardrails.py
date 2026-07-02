@@ -194,6 +194,7 @@ def test_gateway_catalog_rejects_omitted_device_liveness() -> None:
             {
                 "site_id": "homebox",
                 "site": {"source_site_id": 1, "name": "Homebox"},
+                "sex_tests": [],
                 "devices": [
                     {
                         "source_tent_id": 1,

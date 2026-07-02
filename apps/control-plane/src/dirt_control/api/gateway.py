@@ -25,6 +25,7 @@ from dirt_control.models import (
     CloudPlantLocation,
     CloudPlantMetricStream,
     CloudPlantNote,
+    CloudPlantSexTest,
     CloudSchedule,
     CloudSeedLot,
     CloudSite,
@@ -352,6 +353,33 @@ async def catalog(
             },
             now=now,
         )
+    for sex_test in body.sex_tests:
+        await _upsert_by_columns(
+            session,
+            CloudPlantSexTest,
+            {
+                "site_id": body.site_id,
+                "source_sex_test_id": sex_test.source_sex_test_id,
+            },
+            {
+                "site_id": body.site_id,
+                "source_sex_test_id": sex_test.source_sex_test_id,
+                "source_plant_id": sex_test.source_plant_id,
+                "vendor_name": sex_test.vendor_name,
+                "assay_name": sex_test.assay_name,
+                "vendor_test_code": sex_test.vendor_test_code,
+                "sample_collected_at": sex_test.sample_collected_at,
+                "sample_sent_at": sex_test.sample_sent_at,
+                "result_received_at": sex_test.result_received_at,
+                "result_sex_key": sex_test.result_sex_key,
+                "is_inconclusive": sex_test.is_inconclusive,
+                "notes": sex_test.notes,
+                "synced_at": now,
+                "created_at": now,
+                "updated_at": now,
+            },
+            now=now,
+        )
     for location in body.plant_locations:
         await _upsert_by_columns(
             session,
@@ -487,6 +515,7 @@ async def catalog(
         plant_lines=len(body.plant_lines),
         seed_lots=len(body.seed_lots),
         plants=len(body.plants),
+        sex_tests=len(body.sex_tests),
         plant_locations=len(body.plant_locations),
         cross_events=len(body.cross_events),
         plant_notes=len(body.plant_notes),

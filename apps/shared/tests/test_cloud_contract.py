@@ -29,6 +29,8 @@ from dirt_shared.cloud_contract import (
     CatalogPlantLocation,
     CatalogPlantMetricStream,
     CatalogPlantNote,
+    CatalogPlantSexTest,
+    CatalogRequest,
     CatalogSchedule,
     CatalogSeedLot,
     CatalogTent,
@@ -208,6 +210,56 @@ def test_catalog_plant_requires_nullable_wire_fields() -> None:
             CatalogPlant.model_validate(invalid)
         assert exc_info.value.errors()[0]["loc"] == (field_name,)
         assert exc_info.value.errors()[0]["type"] == "missing"
+
+
+def test_catalog_plant_sex_test_requires_nullable_wire_fields() -> None:
+    sex_test_payload = {
+        "source_sex_test_id": 10,
+        "source_plant_id": 1,
+        "vendor_name": "Farmer Freeman",
+        "assay_name": None,
+        "vendor_test_code": "FF-001",
+        "sample_collected_at": "2026-07-01T12:00:00Z",
+        "sample_sent_at": None,
+        "result_received_at": None,
+        "result_sex_key": None,
+        "is_inconclusive": False,
+        "notes": None,
+    }
+
+    sex_test = CatalogPlantSexTest.model_validate(sex_test_payload)
+    assert sex_test.source_sex_test_id == 10
+    assert sex_test.source_plant_id == 1
+    assert sex_test.vendor_test_code == "FF-001"
+    assert sex_test.result_sex_key is None
+
+    for field_name in (
+        "assay_name",
+        "sample_sent_at",
+        "result_received_at",
+        "result_sex_key",
+        "notes",
+    ):
+        invalid = dict(sex_test_payload)
+        del invalid[field_name]
+        with pytest.raises(ValidationError) as exc_info:
+            CatalogPlantSexTest.model_validate(invalid)
+        assert exc_info.value.errors()[0]["loc"] == (field_name,)
+        assert exc_info.value.errors()[0]["type"] == "missing"
+
+
+def test_catalog_request_requires_sex_tests() -> None:
+    payload = {
+        "site_id": "homebox",
+        "site": {"source_site_id": 1, "name": "Home Box"},
+    }
+
+    with pytest.raises(ValidationError) as exc_info:
+        CatalogRequest.model_validate(payload)
+
+    assert exc_info.value.errors()[0]["loc"] == ("sex_tests",)
+    assert exc_info.value.errors()[0]["type"] == "missing"
+    assert CatalogRequest.model_validate({**payload, "sex_tests": []}).sex_tests == []
 
 
 def test_catalog_line_seed_lot_and_location_require_source_identity() -> None:

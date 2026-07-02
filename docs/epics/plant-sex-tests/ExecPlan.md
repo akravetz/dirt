@@ -20,7 +20,7 @@ The work is complete when a developer can create a pending sex test for each sel
 - [x] (2026-07-01T00:00Z) Locked product and model decisions with the operator: one-to-many sex tests, one open pending test per plant, timestamp fields, explicit UI-supplied result receipt time, inline plant read arrays, no standalone list endpoint in v1, and command-backed writes.
 - [x] (2026-07-01T00:00Z) Drafted this ExecPlan.
 - [x] (2026-07-01T18:06:15-06:00) Implement local sex-test source storage.
-- [ ] Add shared gateway/catalog contracts and cloud projection storage.
+- [x] (2026-07-01T18:21:37-06:00) Add shared gateway/catalog contracts and cloud projection storage.
 - [ ] Add sex-test command contracts and command execution.
 - [ ] Add hosted browser read/write API routes and generated frontend contract.
 - [ ] Add hosted UI sampling, pending-results, filtering, and detail history workflows.
@@ -100,6 +100,9 @@ The work is complete when a developer can create a pending sex test for each sel
 - Milestone 1 added local source storage for plant sex tests. `apps/shared/src/dirt_shared/models/plant.py` now defines `PlantSexTest`, `apps/shared/src/dirt_shared/models/__init__.py` exports it, and local migration `migrations/20260701235933_plant_sex_tests.sql` creates `plant_sex_test` with the required foreign keys, vendor-code uniqueness, one-open-pending-test partial unique index, timestamp ordering check, result-state check, and nonblank checks.
 - Milestone 1 validation passed: `uv run --package dirt-shared python scripts/atlas-load-sqlmodel.py postgresql`, `atlas migrate hash --env local`, `set -a; source .env; set +a; atlas migrate apply --env local --dry-run`, `uv run pytest apps/shared/tests/test_plant_sex_test_models.py -q` (`14 passed`), `uv run ruff check` and `uv run ruff format --check` on touched Python files, `git diff --check` on milestone files, and the disposable-Postgres `atlas migrate diff plant_sex_tests_verify --env local --dev-url ... --format '{{ sql . "  " }}'` sync check.
 - No live/local migration apply was run for Milestone 1.
+- Milestone 2 added `CatalogPlantSexTest`, required `CatalogRequest.sex_tests`, `CatalogResponse.sex_tests`, gateway catalog collection for scoped local `PlantSexTest` rows, hosted `CloudPlantSexTest` storage, and idempotent gateway catalog upsert/count handling. Cloud migration `cloud/migrations/20260702001559_plant_sex_tests.sql` creates `cloud_plant_sex_test` with source-test and vendor-code uniqueness plus plant/result query indexes.
+- Milestone 2 validation passed: `atlas migrate hash --env cloud`, `atlas migrate diff plant_sex_tests_verify --env cloud --format '{{ sql . "  " }}'`, `uv run pytest apps/shared/tests/test_cloud_contract.py -q` (`29 passed`), `uv run pytest apps/gateway/tests/test_sync.py apps/gateway/tests/test_cloud_client.py apps/gateway/tests/test_gateway_boundary_guardrails.py -q` (`54 passed`), `uv run pytest apps/control-plane/tests/test_api.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py -q` (`65 passed`), `uv run ruff check` on touched Python files, and `git diff --check` on milestone files.
+- No live/cloud migration apply was run for Milestone 2.
 
 
 ## Context and Orientation
@@ -365,6 +368,11 @@ Milestone 1 evidence:
 
 - Generated local migration: `migrations/20260701235933_plant_sex_tests.sql`.
 - Focused storage tests: `apps/shared/tests/test_plant_sex_test_models.py`.
+
+Milestone 2 evidence:
+
+- Generated cloud migration: `cloud/migrations/20260702001559_plant_sex_tests.sql`.
+- Focused contract/projection tests updated in `apps/shared/tests/test_cloud_contract.py`, `apps/gateway/tests/test_sync.py`, `apps/gateway/tests/test_cloud_client.py`, `apps/control-plane/tests/test_api.py`, and `apps/control-plane/tests/test_control_plane_boundary_guardrails.py`.
 
 Initial planning evidence:
 

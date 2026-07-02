@@ -28,6 +28,7 @@ from dirt_control.models import (
     CloudPlantLocation,
     CloudPlantMetricStream,
     CloudPlantNote,
+    CloudPlantSexTest,
     CloudSchedule,
     CloudSeedLot,
     CloudSite,
@@ -716,6 +717,21 @@ async def test_catalog_upsert_is_idempotent(
                 "is_active": False,
             },
         ],
+        "sex_tests": [
+            {
+                "source_sex_test_id": 1000,
+                "source_plant_id": 1,
+                "vendor_name": "Farmer Freeman",
+                "assay_name": "EZ-XY",
+                "vendor_test_code": "FF-001",
+                "sample_collected_at": "2026-07-01T12:00:00Z",
+                "sample_sent_at": None,
+                "result_received_at": None,
+                "result_sex_key": None,
+                "is_inconclusive": False,
+                "notes": None,
+            }
+        ],
         "plant_locations": [
             {
                 "source_location_id": 1,
@@ -795,6 +811,7 @@ async def test_catalog_upsert_is_idempotent(
     assert first.json()["plant_lines"] == 1
     assert first.json()["seed_lots"] == 1
     assert first.json()["plants"] == 2
+    assert first.json()["sex_tests"] == 1
     assert first.json()["plant_locations"] == 2
     assert first.json()["cross_events"] == 1
     assert first.json()["plant_notes"] == 1
@@ -820,6 +837,9 @@ async def test_catalog_upsert_is_idempotent(
             select(func.count()).select_from(CloudSeedLot)
         )
         plant_count = await session.scalar(select(func.count()).select_from(CloudPlant))
+        sex_test_count = await session.scalar(
+            select(func.count()).select_from(CloudPlantSexTest)
+        )
         location_count = await session.scalar(
             select(func.count()).select_from(CloudPlantLocation)
         )
@@ -872,6 +892,14 @@ async def test_catalog_upsert_is_idempotent(
                 select(CloudSeedLot).where(
                     CloudSeedLot.site_id == "homebox",
                     CloudSeedLot.source_seed_lot_id == 1,
+                )
+            )
+        ).scalar_one_or_none()
+        sex_test = (
+            await session.execute(
+                select(CloudPlantSexTest).where(
+                    CloudPlantSexTest.site_id == "homebox",
+                    CloudPlantSexTest.source_sex_test_id == 1000,
                 )
             )
         ).scalar_one_or_none()
@@ -938,6 +966,7 @@ async def test_catalog_upsert_is_idempotent(
     assert line_count == 1
     assert seed_lot_count == 1
     assert plant_count == 2
+    assert sex_test_count == 1
     assert location_count == 2
     assert cross_event_count == 1
     assert note_count == 1
@@ -959,6 +988,15 @@ async def test_catalog_upsert_is_idempotent(
     assert plant_a.sex_key == "female"
     assert seed_lot is not None
     assert seed_lot.sex_type_key == "feminized"
+    assert sex_test is not None
+    assert sex_test.source_plant_id == 1
+    assert sex_test.vendor_name == "Farmer Freeman"
+    assert sex_test.assay_name == "EZ-XY"
+    assert sex_test.vendor_test_code == "FF-001"
+    assert sex_test.result_received_at is None
+    assert sex_test.result_sex_key is None
+    assert sex_test.is_inconclusive is False
+    assert sex_test.notes is None
     assert plant_a_location is not None
     assert plant_b_location is not None
     assert plant_b_location.grid_position is None
@@ -1012,6 +1050,7 @@ async def test_catalog_upsert_persists_source_scope_ids(
                     "is_enabled": True,
                 }
             ],
+            "sex_tests": [],
         },
     )
 
@@ -1161,6 +1200,7 @@ async def test_gateway_camera_capture_policy_matches_camera_to_lights_by_tent(
                 "is_enabled": True,
             }
         ],
+        "sex_tests": [],
     }
     synced = await client.put(
         "/api/gateway/v1/catalog", json=catalog, headers=gateway_headers

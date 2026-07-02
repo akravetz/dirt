@@ -428,6 +428,65 @@ class CloudPlant(SQLModel, table=True):
     )
 
 
+class CloudPlantSexTest(SQLModel, table=True):
+    __tablename__ = "cloud_plant_sex_test"
+    __table_args__ = (
+        UniqueConstraint(
+            "site_id",
+            "source_sex_test_id",
+            name="uq_cloud_plant_sex_test_site_source_test",
+        ),
+        UniqueConstraint(
+            "site_id",
+            "vendor_name",
+            "vendor_test_code",
+            name="uq_cloud_plant_sex_test_site_vendor_code",
+        ),
+        Index(
+            "ix_cloud_plant_sex_test_site_source_plant",
+            "site_id",
+            "source_plant_id",
+        ),
+        Index(
+            "ix_cloud_plant_sex_test_site_result_received",
+            "site_id",
+            "result_received_at",
+        ),
+    )
+
+    id: int | None = Field(
+        default=None,
+        sa_column=Column(BigInteger, Identity(always=True), primary_key=True),
+    )
+    site_id: str = Field(index=True, max_length=80)
+    source_sex_test_id: int = Field(sa_column=Column(BigInteger, nullable=False))
+    source_plant_id: int = Field(sa_column=Column(BigInteger, nullable=False))
+    vendor_name: str = Field(max_length=160)
+    assay_name: str | None = Field(default=None, max_length=160)
+    vendor_test_code: str = Field(max_length=160)
+    sample_collected_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    sample_sent_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    result_received_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    result_sex_key: str | None = Field(default=None, max_length=40)
+    is_inconclusive: bool = False
+    notes: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    synced_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    created_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    updated_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+
+
 class CloudPlantLocation(SQLModel, table=True):
     __tablename__ = "cloud_plant_location"
     __table_args__ = (

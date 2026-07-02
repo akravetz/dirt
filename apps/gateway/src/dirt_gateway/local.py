@@ -26,6 +26,7 @@ from dirt_shared.cloud_contract import (
     CatalogPlantLocation,
     CatalogPlantMetricStream,
     CatalogPlantNote,
+    CatalogPlantSexTest,
     CatalogRequest,
     CatalogSchedule,
     CatalogSeedLot,
@@ -49,6 +50,7 @@ from dirt_shared.models import (
     PlantLocationHistory,
     PlantMetricStream,
     PlantNote,
+    PlantSexTest,
     Schedule,
     SeedLot,
     Snapshot,
@@ -102,6 +104,7 @@ class GatewayLocalServiceBundle:
                     name=site_id,
                     timezone="America/Denver",
                 ),
+                sex_tests=[],
             )
         tents = await self._catalog.list_tents(site_pk=site_pk)
 
@@ -128,6 +131,7 @@ class GatewayLocalServiceBundle:
             plant_lines=await self._collect_plant_lines(),
             seed_lots=await self._collect_seed_lots(),
             plants=await self._collect_plants(site_pk=site_pk),
+            sex_tests=await self._collect_plant_sex_tests(site_pk=site_pk),
             plant_locations=await self._collect_plant_locations(site_pk=site_pk),
             cross_events=await self._collect_cross_events(),
             plant_notes=await self._collect_plant_notes(site_pk=site_pk),
@@ -530,6 +534,42 @@ class GatewayLocalServiceBundle:
             )
             for location, plant, source_tent_id in rows
             if location.id is not None and plant.id is not None
+        ]
+
+    async def _collect_plant_sex_tests(
+        self, *, site_pk: int
+    ) -> list[CatalogPlantSexTest]:
+        async with AsyncSession(self._engine) as session:
+            site_plant_ids = select(PlantLocationHistory.plant_id).where(
+                PlantLocationHistory.site_id == site_pk
+            )
+            rows = (
+                await session.exec(
+                    select(PlantSexTest)
+                    .where(col(PlantSexTest.plant_id).in_(site_plant_ids))
+                    .order_by(
+                        PlantSexTest.plant_id,
+                        PlantSexTest.sample_collected_at,
+                        PlantSexTest.id,
+                    )
+                )
+            ).all()
+        return [
+            CatalogPlantSexTest(
+                source_sex_test_id=sex_test.id,
+                source_plant_id=sex_test.plant_id,
+                vendor_name=sex_test.vendor_name,
+                assay_name=sex_test.assay_name,
+                vendor_test_code=sex_test.vendor_test_code,
+                sample_collected_at=sex_test.sample_collected_at,
+                sample_sent_at=sex_test.sample_sent_at,
+                result_received_at=sex_test.result_received_at,
+                result_sex_key=sex_test.result_sex_key,
+                is_inconclusive=sex_test.is_inconclusive,
+                notes=sex_test.notes,
+            )
+            for sex_test in rows
+            if sex_test.id is not None
         ]
 
     async def _collect_cross_events(self) -> list[CatalogCrossEvent]:

@@ -58,6 +58,7 @@ async def test_catalog_request_omits_legacy_scope_fields() -> None:
                 "plant_lines": 0,
                 "seed_lots": 0,
                 "plants": 0,
+                "sex_tests": 0,
                 "plant_locations": 0,
                 "cross_events": 0,
                 "plant_notes": 0,
@@ -103,6 +104,7 @@ async def test_catalog_request_omits_legacy_scope_fields() -> None:
                         ends_local="21:00",
                     )
                 ],
+                sex_tests=[],
             ),
             idempotency_key="catalog-key",
         )

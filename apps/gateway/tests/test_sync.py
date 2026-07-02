@@ -36,6 +36,7 @@ from dirt_shared.cloud_contract import (
     AssetSignUploadRequest,
     CatalogPlant,
     CatalogPlantMetricStream,
+    CatalogPlantSexTest,
     CatalogRequest,
     CatalogResponse,
     CatalogSite,
@@ -67,6 +68,7 @@ from dirt_shared.models import (
     PlantLocationHistory,
     PlantMetricStream,
     PlantNote,
+    PlantSexTest,
     SeedLot,
     SensorReading,
     Site,
@@ -143,6 +145,7 @@ class RecordingCloudClient:
             plant_lines=len(payload["plant_lines"]),
             seed_lots=len(payload["seed_lots"]),
             plants=len(payload["plants"]),
+            sex_tests=len(payload["sex_tests"]),
             plant_locations=len(payload["plant_locations"]),
             cross_events=len(payload["cross_events"]),
             plant_notes=len(payload["plant_notes"]),
@@ -348,6 +351,7 @@ class StaticLocalServices:
                     is_active=True,
                 )
             ],
+            sex_tests=[],
         )
 
     async def collect_latest_metrics(self, site_id: str) -> LatestMetricsRequest:
@@ -390,6 +394,7 @@ class MalformedCatalogLocalServices(StaticLocalServices):
             ],
             "capabilities": [],
             "schedules": [],
+            "sex_tests": [],
         }
 
 
@@ -1315,8 +1320,40 @@ async def test_collect_catalog_projects_current_grow_plants(
             notes=None,
             metadata_json={},
         )
+        sex_test_x1 = PlantSexTest(
+            plant_id=plant_x1.id,
+            vendor_name="Farmer Freeman",
+            assay_name="EZ-XY",
+            vendor_test_code="FF-X1",
+            sample_collected_at=FIXED_NOW + timedelta(minutes=5),
+            sample_sent_at=None,
+            result_received_at=None,
+            result_sex_key=None,
+            is_inconclusive=False,
+            notes=None,
+        )
+        sex_test_x3 = PlantSexTest(
+            plant_id=plant_x3.id,
+            vendor_name="Farmer Freeman",
+            assay_name=None,
+            vendor_test_code="FF-X3",
+            sample_collected_at=FIXED_NOW + timedelta(minutes=10),
+            sample_sent_at=FIXED_NOW + timedelta(hours=1),
+            result_received_at=FIXED_NOW + timedelta(hours=3),
+            result_sex_key=None,
+            is_inconclusive=True,
+            notes="Retest needed.",
+        )
         session.add_all(
-            [cross_event, note, event, closed_location_note, closed_location_event]
+            [
+                cross_event,
+                note,
+                event,
+                closed_location_note,
+                closed_location_event,
+                sex_test_x1,
+                sex_test_x3,
+            ]
         )
         await session.flush()
         cross_event_source_id = cross_event.id
@@ -1324,6 +1361,8 @@ async def test_collect_catalog_projects_current_grow_plants(
         event_source_id = event.id
         closed_location_note_source_id = closed_location_note.id
         closed_location_event_source_id = closed_location_event.id
+        sex_test_x1_source_id = sex_test_x1.id
+        sex_test_x3_source_id = sex_test_x3.id
         session.add_all(
             [
                 PlantLocationHistory(
@@ -1527,6 +1566,39 @@ async def test_collect_catalog_projects_current_grow_plants(
     assert closed_location_events[0].source_plant_id == plant_x3_source_id
     assert closed_location_events[0].is_selection_for_breeding is True
     assert closed_location_events[0].reason == "archival review"
+    sex_tests = [
+        sex_test
+        for sex_test in payload.sex_tests
+        if sex_test.source_sex_test_id in {sex_test_x1_source_id, sex_test_x3_source_id}
+    ]
+    assert sex_tests == [
+        CatalogPlantSexTest(
+            source_sex_test_id=sex_test_x1_source_id,
+            source_plant_id=plant_x1_source_id,
+            vendor_name="Farmer Freeman",
+            assay_name="EZ-XY",
+            vendor_test_code="FF-X1",
+            sample_collected_at=FIXED_NOW + timedelta(minutes=5),
+            sample_sent_at=None,
+            result_received_at=None,
+            result_sex_key=None,
+            is_inconclusive=False,
+            notes=None,
+        ),
+        CatalogPlantSexTest(
+            source_sex_test_id=sex_test_x3_source_id,
+            source_plant_id=plant_x3_source_id,
+            vendor_name="Farmer Freeman",
+            assay_name=None,
+            vendor_test_code="FF-X3",
+            sample_collected_at=FIXED_NOW + timedelta(minutes=10),
+            sample_sent_at=FIXED_NOW + timedelta(hours=1),
+            result_received_at=FIXED_NOW + timedelta(hours=3),
+            result_sex_key=None,
+            is_inconclusive=True,
+            notes="Retest needed.",
+        ),
+    ]
     plant_metric_streams = [
         stream
         for stream in payload.plant_metric_streams

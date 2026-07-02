@@ -186,6 +186,20 @@ class CatalogPlant(CloudContractModel):
     is_active: bool
 
 
+class CatalogPlantSexTest(CloudContractModel):
+    source_sex_test_id: int
+    source_plant_id: int
+    vendor_name: str
+    assay_name: str | None = Field(...)
+    vendor_test_code: str
+    sample_collected_at: datetime
+    sample_sent_at: datetime | None = Field(...)
+    result_received_at: datetime | None = Field(...)
+    result_sex_key: PlantSexKey | None = Field(...)
+    is_inconclusive: bool
+    notes: str | None = Field(...)
+
+
 class CatalogPlantLocation(CloudContractModel):
     source_location_id: int
     source_plant_id: int
@@ -249,6 +263,7 @@ class CatalogRequest(CloudContractModel):
     plant_lines: list[CatalogPlantLine] = Field(default_factory=list)
     seed_lots: list[CatalogSeedLot] = Field(default_factory=list)
     plants: list[CatalogPlant] = Field(default_factory=list)
+    sex_tests: list[CatalogPlantSexTest]
     plant_locations: list[CatalogPlantLocation] = Field(default_factory=list)
     cross_events: list[CatalogCrossEvent] = Field(default_factory=list)
     plant_notes: list[CatalogPlantNote] = Field(default_factory=list)
@@ -266,6 +281,7 @@ class CatalogResponse(CloudContractModel):
     plant_lines: int
     seed_lots: int
     plants: int
+    sex_tests: int
     plant_locations: int
     cross_events: int
     plant_notes: int
