@@ -22,7 +22,7 @@ The work is complete when a developer can create a pending sex test for each sel
 - [x] (2026-07-01T18:06:15-06:00) Implement local sex-test source storage.
 - [x] (2026-07-01T18:21:37-06:00) Add shared gateway/catalog contracts and cloud projection storage.
 - [x] (2026-07-01T18:43:27-06:00) Add sex-test command contracts and command execution.
-- [ ] Add hosted browser read/write API routes and generated frontend contract.
+- [x] (2026-07-01T19:01:24-06:00) Add hosted browser read/write API routes and generated frontend contract.
 - [ ] Add hosted UI sampling, pending-results, filtering, and detail history workflows.
 - [ ] Validate end-to-end with tests and browser verification.
 
@@ -105,6 +105,8 @@ The work is complete when a developer can create a pending sex test for each sel
 - No live/cloud migration apply was run for Milestone 2.
 - Milestone 3 added shared sex-test command payloads and command types, gateway local command classification, and local execution for bulk-create, update, and bulk-result sex-test commands. Bulk create rejects unknown plants, duplicate plant keys, duplicate vendor codes, and an existing pending test; bulk result and update persist received results, update `plant.sex_key` for conclusive male/female lab results, and write sex-observation events with sex-test metadata.
 - Milestone 3 validation passed: `uv run pytest apps/shared/tests/test_cloud_contract.py -q` (`33 passed`), `uv run pytest apps/gateway/tests/test_sync.py apps/gateway/tests/test_gateway_boundary_guardrails.py -q` (`59 passed`), `uv run ruff check` on touched Python files, and `git diff --check` on milestone files.
+- Milestone 4 added inline hosted browser sex-test read rows on plant list/detail responses, command-backed sex-test bulk-create/update/bulk-result browser routes, service-side pre-enqueue plant/test validation, hosted OpenAPI/TypeScript contract regeneration, and focused control-plane tests/guardrails.
+- Milestone 4 validation passed: `DIRT_CLOUD_ASSET_STORE=local scripts/gen-hosted-contract`, `uv run pytest apps/control-plane/tests/test_api.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py -q` (`68 passed`), `uv run ruff check` on touched Python files, `pnpm --dir web-ui typecheck`, and `git diff --check`.
 
 
 ## Context and Orientation
@@ -381,6 +383,12 @@ Milestone 3 evidence:
 - Shared command DTOs added in `apps/shared/src/dirt_shared/cloud_contract.py`.
 - Local command execution added in `apps/gateway/src/dirt_gateway/breeding_commands.py` with command-loop wiring in `apps/gateway/src/dirt_gateway/commands.py`.
 - Focused command contract/execution tests updated in `apps/shared/tests/test_cloud_contract.py` and `apps/gateway/tests/test_sync.py`.
+
+Milestone 4 evidence:
+
+- Hosted browser sex-test schemas and routes added in `apps/control-plane/src/dirt_control/api/browser_schemas/breeding_logbook.py` and `apps/control-plane/src/dirt_control/api/browser/breeding_logbook.py`.
+- Hosted breeding-logbook service reads `CloudPlantSexTest`, attaches sorted inline sex-test arrays, validates write references, and enqueues sex-test commands in `apps/control-plane/src/dirt_control/services/breeding_logbook.py`.
+- Hosted OpenAPI and generated TypeScript contracts updated in `contracts/hosted-browser-v1.json` and `web-ui/src/api-client/generated/hosted-schema.ts`.
 
 Initial planning evidence:
 

@@ -393,6 +393,36 @@ def _plant_stream(
     )
 
 
+def _plant_sex_test(
+    source_sex_test_id: int,
+    *,
+    plant_id: str,
+    vendor_test_code: str,
+    sample_collected_at: datetime = FIXED_NOW - timedelta(days=1),
+    result_received_at: datetime | None = None,
+    result_sex_key: str | None = None,
+    is_inconclusive: bool = False,
+    notes: str | None = None,
+) -> CloudPlantSexTest:
+    return CloudPlantSexTest(
+        site_id="homebox",
+        source_sex_test_id=source_sex_test_id,
+        source_plant_id=_source_plant_id(plant_id),
+        vendor_name="Farmer Freeman",
+        assay_name="EZ-XY",
+        vendor_test_code=vendor_test_code,
+        sample_collected_at=sample_collected_at,
+        sample_sent_at=None,
+        result_received_at=result_received_at,
+        result_sex_key=result_sex_key,
+        is_inconclusive=is_inconclusive,
+        notes=notes,
+        synced_at=FIXED_NOW,
+        created_at=FIXED_NOW,
+        updated_at=FIXED_NOW,
+    )
+
+
 def _plant_key(plant_id: str) -> str:
     return f"SBBS-R1-00{_source_plant_id(plant_id)}"
 
@@ -2229,6 +2259,7 @@ async def test_breeding_logbook_plant_list_is_site_wide_and_screen_shaped(
         "seed_lot_label": "SBBS R1 #1",
         "last_note": "",
         "telemetry_summary": "1 plant stream",
+        "sex_tests": [],
     }
     assert with_culled.status_code == 200
     assert with_culled.json()["culled_count"] == 1
@@ -2290,6 +2321,79 @@ async def test_breeding_logbook_plant_list_handles_timeline_note_fallbacks(
     assert plants["SBBS-R1-001"]["last_note"] == "Latest canopy note"
     assert plants["SBBS-R1-002"]["last_note"] == "Moved into flower"
     assert plants["SBBS-R1-003"]["last_note"] == "test fixture"
+
+
+async def test_breeding_logbook_plants_include_sorted_sex_tests(
+    authed_client: AsyncClient,
+    cloud_engine: AsyncEngine,
+) -> None:
+    sessionmaker = create_sessionmaker(cloud_engine)
+    async with sessionmaker() as session:
+        session.add_all(
+            [
+                _plant_line(),
+                _seed_lot(),
+                _plant("a", display_order=1),
+                _plant("b", display_order=2),
+                _plant_location("a", grid_position="A1"),
+                _plant_location("b", grid_position="B1"),
+                _plant_sex_test(
+                    1000,
+                    plant_id="a",
+                    vendor_test_code="FF-PENDING-OLD",
+                    sample_collected_at=FIXED_NOW - timedelta(days=4),
+                    notes="First sample.",
+                ),
+                _plant_sex_test(
+                    1001,
+                    plant_id="a",
+                    vendor_test_code="FF-RESULT",
+                    sample_collected_at=FIXED_NOW - timedelta(days=5),
+                    result_received_at=FIXED_NOW - timedelta(days=1),
+                    result_sex_key="female",
+                ),
+                _plant_sex_test(
+                    1002,
+                    plant_id="a",
+                    vendor_test_code="FF-PENDING-NEW",
+                    sample_collected_at=FIXED_NOW - timedelta(days=2),
+                ),
+                _plant_sex_test(
+                    2000,
+                    plant_id="b",
+                    vendor_test_code="FF-B",
+                    sample_collected_at=FIXED_NOW - timedelta(days=1),
+                ),
+            ]
+        )
+        await session.commit()
+
+    listed = await authed_client.get("/api/breeding-logbook/plants")
+    detail = await authed_client.get("/api/breeding-logbook/plants/SBBS-R1-001")
+
+    assert listed.status_code == 200
+    plant_a = {plant["key"]: plant for plant in listed.json()["plants"]}["SBBS-R1-001"]
+    assert [sex_test["source_sex_test_id"] for sex_test in plant_a["sex_tests"]] == [
+        1002,
+        1000,
+        1001,
+    ]
+    assert plant_a["sex_tests"][0] == {
+        "id": "1002",
+        "source_sex_test_id": 1002,
+        "source_plant_id": 1,
+        "vendor_name": "Farmer Freeman",
+        "assay_name": "EZ-XY",
+        "vendor_test_code": "FF-PENDING-NEW",
+        "sample_collected_at": "2026-05-03T03:45:00Z",
+        "sample_sent_at": None,
+        "result_received_at": None,
+        "result_sex_key": None,
+        "is_inconclusive": False,
+        "notes": None,
+    }
+    assert detail.status_code == 200
+    assert detail.json()["plant"]["sex_tests"] == plant_a["sex_tests"]
 
 
 async def test_breeding_logbook_seed_lots_include_lots_without_current_plants(
@@ -2646,6 +2750,98 @@ def _breeding_write_cases() -> list[tuple[str, dict[str, object], dict[str, obje
             {"plant_keys": ["SBBS-R1-001", "SBBS-R1-002"], "sex_key": "female"},
         ),
         (
+            "/api/breeding-logbook/sex-tests:bulk-create",
+            {
+                "idempotency_key": "bulk-create-sex-tests",
+                "vendor_name": " Farmer Freeman ",
+                "assay_name": "EZ-XY",
+                "sample_collected_at": "2026-06-18T16:00:00Z",
+                "sample_sent_at": None,
+                "tests": [
+                    {
+                        "plant_key": "SBBS-R1-001",
+                        "vendor_test_code": " FF-001 ",
+                        "notes": " fresh cutting ",
+                    },
+                    {
+                        "plant_key": "SBBS-R1-002",
+                        "vendor_test_code": "FF-002",
+                        "notes": None,
+                    },
+                ],
+            },
+            {
+                "vendor_name": "Farmer Freeman",
+                "assay_name": "EZ-XY",
+                "sample_collected_at": "2026-06-18T16:00:00Z",
+                "sample_sent_at": None,
+                "tests": [
+                    {
+                        "plant_key": "SBBS-R1-001",
+                        "vendor_test_code": "FF-001",
+                        "notes": "fresh cutting",
+                    },
+                    {
+                        "plant_key": "SBBS-R1-002",
+                        "vendor_test_code": "FF-002",
+                        "notes": None,
+                    },
+                ],
+            },
+        ),
+        (
+            "/api/breeding-logbook/sex-tests/1000:update",
+            {
+                "idempotency_key": "update-sex-test",
+                "sex_test_source_id": 1000,
+                "vendor_name": "Farmer Freeman",
+                "assay_name": "EZ-XY",
+                "vendor_test_code": "FF-EXISTING",
+                "sample_collected_at": "2026-06-17T16:00:00Z",
+                "sample_sent_at": None,
+                "result_received_at": "2026-06-22T16:00:00Z",
+                "result_sex_key": "female",
+                "is_inconclusive": False,
+                "notes": "Lab result entered.",
+            },
+            {
+                "sex_test_source_id": 1000,
+                "vendor_name": "Farmer Freeman",
+                "assay_name": "EZ-XY",
+                "vendor_test_code": "FF-EXISTING",
+                "sample_collected_at": "2026-06-17T16:00:00Z",
+                "sample_sent_at": None,
+                "result_received_at": "2026-06-22T16:00:00Z",
+                "result_sex_key": "female",
+                "is_inconclusive": False,
+                "notes": "Lab result entered.",
+            },
+        ),
+        (
+            "/api/breeding-logbook/sex-tests:bulk-result",
+            {
+                "idempotency_key": "bulk-result-sex-tests",
+                "result_received_at": "2026-06-22T16:00:00Z",
+                "results": [
+                    {
+                        "sex_test_source_id": 1000,
+                        "result_sex_key": "female",
+                        "is_inconclusive": False,
+                    }
+                ],
+            },
+            {
+                "result_received_at": "2026-06-22T16:00:00Z",
+                "results": [
+                    {
+                        "sex_test_source_id": 1000,
+                        "result_sex_key": "female",
+                        "is_inconclusive": False,
+                    }
+                ],
+            },
+        ),
+        (
             "/api/breeding-logbook/plants:bulk-move",
             {
                 "idempotency_key": "bulk-move",
@@ -2737,6 +2933,12 @@ async def _seed_breeding_write_projection(cloud_engine: AsyncEngine) -> None:
                 _seed_lot(),
                 _plant("a", display_order=1),
                 _plant("b", display_order=2),
+                _plant_sex_test(
+                    1000,
+                    plant_id="a",
+                    vendor_test_code="FF-EXISTING",
+                    sample_collected_at=FIXED_NOW - timedelta(days=3),
+                ),
             ]
         )
         await session.commit()
@@ -2786,6 +2988,9 @@ async def test_breeding_logbook_write_routes_enqueue_typed_commands_idempotently
         "breeding_plants_germinate",
         "breeding_plants_clone",
         "breeding_plants_bulk_sex",
+        "breeding_sex_tests_bulk_create",
+        "breeding_sex_test_update",
+        "breeding_sex_tests_bulk_result",
         "breeding_plants_bulk_move",
         "breeding_plants_update_facts",
         "breeding_plants_bulk_cull",
@@ -2955,6 +3160,116 @@ async def test_breeding_logbook_write_routes_reject_obvious_bad_inputs(
                 "idempotency_key": "bad-update-facts-shape",
                 "plant_keys": ["SBBS-R1-001"],
                 "updates": [{"field": "sex_key", "value": None}],
+            },
+        ),
+        (
+            "/api/breeding-logbook/sex-tests:bulk-create",
+            {
+                "idempotency_key": "bad-sex-test-plant",
+                "vendor_name": "Farmer Freeman",
+                "assay_name": "EZ-XY",
+                "sample_collected_at": "2026-06-18T16:00:00Z",
+                "sample_sent_at": None,
+                "tests": [
+                    {
+                        "plant_key": "missing",
+                        "vendor_test_code": "FF-001",
+                        "notes": None,
+                    }
+                ],
+            },
+        ),
+        (
+            "/api/breeding-logbook/sex-tests:bulk-create",
+            {
+                "idempotency_key": "bad-sex-test-blank-code",
+                "vendor_name": "Farmer Freeman",
+                "assay_name": "EZ-XY",
+                "sample_collected_at": "2026-06-18T16:00:00Z",
+                "sample_sent_at": None,
+                "tests": [
+                    {
+                        "plant_key": "SBBS-R1-001",
+                        "vendor_test_code": "   ",
+                        "notes": None,
+                    }
+                ],
+            },
+        ),
+        (
+            "/api/breeding-logbook/sex-tests:bulk-create",
+            {
+                "idempotency_key": "bad-sex-test-blank-note",
+                "vendor_name": "Farmer Freeman",
+                "assay_name": "EZ-XY",
+                "sample_collected_at": "2026-06-18T16:00:00Z",
+                "sample_sent_at": None,
+                "tests": [
+                    {
+                        "plant_key": "SBBS-R1-001",
+                        "vendor_test_code": "FF-001",
+                        "notes": "   ",
+                    }
+                ],
+            },
+        ),
+        (
+            "/api/breeding-logbook/sex-tests/999:update",
+            {
+                "idempotency_key": "bad-sex-test-update-missing",
+                "sex_test_source_id": 999,
+                "vendor_name": "Farmer Freeman",
+                "assay_name": "EZ-XY",
+                "vendor_test_code": "FF-999",
+                "sample_collected_at": "2026-06-18T16:00:00Z",
+                "sample_sent_at": None,
+                "result_received_at": None,
+                "result_sex_key": None,
+                "is_inconclusive": False,
+                "notes": None,
+            },
+        ),
+        (
+            "/api/breeding-logbook/sex-tests/1000:update",
+            {
+                "idempotency_key": "bad-sex-test-update-mismatch",
+                "sex_test_source_id": 1001,
+                "vendor_name": "Farmer Freeman",
+                "assay_name": "EZ-XY",
+                "vendor_test_code": "FF-001",
+                "sample_collected_at": "2026-06-18T16:00:00Z",
+                "sample_sent_at": None,
+                "result_received_at": None,
+                "result_sex_key": None,
+                "is_inconclusive": False,
+                "notes": None,
+            },
+        ),
+        (
+            "/api/breeding-logbook/sex-tests:bulk-result",
+            {
+                "idempotency_key": "bad-sex-test-result-missing-id",
+                "result_received_at": "2026-06-22T16:00:00Z",
+                "results": [
+                    {
+                        "sex_test_source_id": 999,
+                        "result_sex_key": "female",
+                        "is_inconclusive": False,
+                    }
+                ],
+            },
+        ),
+        (
+            "/api/breeding-logbook/sex-tests:bulk-result",
+            {
+                "idempotency_key": "bad-sex-test-result-missing-time",
+                "results": [
+                    {
+                        "sex_test_source_id": 1000,
+                        "result_sex_key": "female",
+                        "is_inconclusive": False,
+                    }
+                ],
             },
         ),
         (

@@ -6,9 +6,11 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, status
 
 from dirt_control.api.browser_schemas.breeding_logbook import (
+    BreedingBulkCreateSexTestsRequest,
     BreedingBulkCullRequest,
     BreedingBulkMoveRequest,
     BreedingBulkPlantNoteRequest,
+    BreedingBulkResultSexTestsRequest,
     BreedingBulkSexRequest,
     BreedingClonePlantsRequest,
     BreedingCreatePlantNoteRequest,
@@ -22,6 +24,7 @@ from dirt_control.api.browser_schemas.breeding_logbook import (
     BreedingLogbookSeedLotListResponse,
     BreedingUpdatePlantFactsRequest,
     BreedingUpdateSeedLotInventoryRequest,
+    BreedingUpdateSexTestRequest,
 )
 from dirt_control.api.browser_schemas.commands import CommandResponse
 from dirt_control.api.browser_schemas.plants import PlantMetricHistoryResponse
@@ -30,8 +33,10 @@ from dirt_control.security import require_browser_user
 from dirt_control.services.breeding_logbook import (
     bootstrap,
     bulk_create_plant_notes_command,
+    bulk_create_sex_tests_command,
     bulk_cull_plants_command,
     bulk_move_plants_command,
+    bulk_result_sex_tests_command,
     bulk_sex_plants_command,
     bulk_update_plant_facts_command,
     clone_plants_command,
@@ -44,6 +49,7 @@ from dirt_control.services.breeding_logbook import (
     plant_metric_history,
     seed_lot_detail,
     update_seed_lot_inventory_command,
+    update_sex_test_command,
 )
 from dirt_control.settings import CloudSettings
 
@@ -296,6 +302,71 @@ async def update_breeding_plant_facts(
     clock: Callable[[], datetime] = Depends(get_clock),
 ) -> CommandResponse:
     return await bulk_update_plant_facts_command(
+        body,
+        user=user,
+        settings=settings,
+        session=session,
+        now=clock(),
+    )
+
+
+@router.post(
+    "/breeding-logbook/sex-tests:bulk-create",
+    status_code=status.HTTP_201_CREATED,
+    response_model=CommandResponse,
+)
+async def bulk_create_breeding_sex_tests(
+    body: BreedingBulkCreateSexTestsRequest,
+    user: str = Depends(require_browser_user),
+    settings: CloudSettings = Depends(get_settings),
+    session=Depends(get_session),
+    clock: Callable[[], datetime] = Depends(get_clock),
+) -> CommandResponse:
+    return await bulk_create_sex_tests_command(
+        body,
+        user=user,
+        settings=settings,
+        session=session,
+        now=clock(),
+    )
+
+
+@router.post(
+    "/breeding-logbook/sex-tests/{sex_test_id}:update",
+    status_code=status.HTTP_201_CREATED,
+    response_model=CommandResponse,
+)
+async def update_breeding_sex_test(  # noqa: PLR0913
+    sex_test_id: str,
+    body: BreedingUpdateSexTestRequest,
+    user: str = Depends(require_browser_user),
+    settings: CloudSettings = Depends(get_settings),
+    session=Depends(get_session),
+    clock: Callable[[], datetime] = Depends(get_clock),
+) -> CommandResponse:
+    return await update_sex_test_command(
+        sex_test_id,
+        body,
+        user=user,
+        settings=settings,
+        session=session,
+        now=clock(),
+    )
+
+
+@router.post(
+    "/breeding-logbook/sex-tests:bulk-result",
+    status_code=status.HTTP_201_CREATED,
+    response_model=CommandResponse,
+)
+async def bulk_result_breeding_sex_tests(
+    body: BreedingBulkResultSexTestsRequest,
+    user: str = Depends(require_browser_user),
+    settings: CloudSettings = Depends(get_settings),
+    session=Depends(get_session),
+    clock: Callable[[], datetime] = Depends(get_clock),
+) -> CommandResponse:
+    return await bulk_result_sex_tests_command(
         body,
         user=user,
         settings=settings,

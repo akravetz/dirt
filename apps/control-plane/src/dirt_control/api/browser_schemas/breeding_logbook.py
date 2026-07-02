@@ -16,9 +16,12 @@ from dirt_control.api.browser_schemas.plants import (
     PlantWikiContentResponse,
 )
 from dirt_shared.cloud_contract import (
+    BreedingBulkCreateSexTestsPayload,
     BreedingBulkPlantFactsPayload,
+    BreedingBulkResultSexTestsPayload,
     BreedingCreateSeedLotPayload,
     BreedingUpdateSeedLotInventoryPayload,
+    BreedingUpdateSexTestPayload,
     PlantSexKey,
 )
 
@@ -85,6 +88,18 @@ class BreedingBulkMoveRequest(BreedingCommandRequest):
 
 
 class BreedingUpdatePlantFactsRequest(BreedingBulkPlantFactsPayload):
+    idempotency_key: str = Field(min_length=1, max_length=160)
+
+
+class BreedingBulkCreateSexTestsRequest(BreedingBulkCreateSexTestsPayload):
+    idempotency_key: str = Field(min_length=1, max_length=160)
+
+
+class BreedingUpdateSexTestRequest(BreedingUpdateSexTestPayload):
+    idempotency_key: str = Field(min_length=1, max_length=160)
+
+
+class BreedingBulkResultSexTestsRequest(BreedingBulkResultSexTestsPayload):
     idempotency_key: str = Field(min_length=1, max_length=160)
 
 
@@ -209,6 +224,21 @@ class BreedingLogbookSeedLotDetailResponse(BreedingLogbookSeedLotSummaryResponse
     created_plant_count: int
 
 
+class BreedingLogbookSexTestResponse(BrowserResponse):
+    id: str
+    source_sex_test_id: int
+    source_plant_id: int
+    vendor_name: str
+    assay_name: str | None = Field(...)
+    vendor_test_code: str
+    sample_collected_at: datetime
+    sample_sent_at: datetime | None = Field(...)
+    result_received_at: datetime | None = Field(...)
+    result_sex_key: PlantSexKey | None = Field(...)
+    is_inconclusive: bool
+    notes: str | None = Field(...)
+
+
 class BreedingLogbookPlantRowResponse(BrowserResponse):
     id: str
     key: str
@@ -244,6 +274,7 @@ class BreedingLogbookPlantRowResponse(BrowserResponse):
     seed_lot_label: str
     last_note: str
     telemetry_summary: str
+    sex_tests: list[BreedingLogbookSexTestResponse]
 
 
 class BreedingLogbookPlantListResponse(BrowserResponse):

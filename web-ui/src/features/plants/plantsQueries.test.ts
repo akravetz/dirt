@@ -95,6 +95,7 @@ describe("plants hosted response mapping", () => {
       seed_lot_label: "SBBS R1 #2",
       last_note: "Trichomes stacking",
       telemetry_summary: "1 plant stream",
+      sex_tests: [],
     } satisfies HostedPlantList["plants"][number];
     const plants = {
       active_count: 1,

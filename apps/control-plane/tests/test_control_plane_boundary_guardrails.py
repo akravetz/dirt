@@ -31,6 +31,12 @@ from dirt_control.api.browser import (
     TentStateResponse,
     UserResponse,
 )
+from dirt_control.api.browser_schemas.breeding_logbook import (
+    BreedingBulkCreateSexTestsRequest,
+    BreedingBulkResultSexTestsRequest,
+    BreedingLogbookSexTestResponse,
+    BreedingUpdateSexTestRequest,
+)
 from dirt_shared.cloud_contract import (
     AssetCompleteResponse,
     AssetFailureResponse,
@@ -104,6 +110,18 @@ def test_hosted_browser_routes_keep_response_models() -> None:
     assert (
         routes[("POST", "/api/breeding-logbook/plants:update-facts")] is CommandResponse
     )
+    assert (
+        routes[("POST", "/api/breeding-logbook/sex-tests:bulk-create")]
+        is CommandResponse
+    )
+    assert (
+        routes[("POST", "/api/breeding-logbook/sex-tests/{sex_test_id}:update")]
+        is CommandResponse
+    )
+    assert (
+        routes[("POST", "/api/breeding-logbook/sex-tests:bulk-result")]
+        is CommandResponse
+    )
     assert routes[("POST", "/api/breeding-logbook/plants:bulk-cull")] is CommandResponse
     assert routes[("POST", "/api/breeding-logbook/plants:bulk-note")] is CommandResponse
     assert (
@@ -142,6 +160,23 @@ def test_hosted_browser_routes_keep_response_models() -> None:
     assert routes[("POST", "/api/admin/assets/prune-expired")] is (PruneAssetsResponse)
     assert routes[("GET", "/api/commands/{command_id}")] is CommandResponse
     assert routes[("GET", "/api/commands")] == list[CommandResponse]
+
+
+def test_hosted_browser_sex_test_routes_keep_request_models() -> None:
+    routes = _route_contracts(browser.router)
+
+    assert routes[("POST", "/api/breeding-logbook/sex-tests:bulk-create")] == (
+        BreedingBulkCreateSexTestsRequest,
+        CommandResponse,
+    )
+    assert routes[("POST", "/api/breeding-logbook/sex-tests/{sex_test_id}:update")] == (
+        BreedingUpdateSexTestRequest,
+        CommandResponse,
+    )
+    assert routes[("POST", "/api/breeding-logbook/sex-tests:bulk-result")] == (
+        BreedingBulkResultSexTestsRequest,
+        CommandResponse,
+    )
 
 
 def test_hosted_gateway_routes_keep_shared_boundary_models() -> None:
@@ -268,6 +303,7 @@ def test_breeding_logbook_plant_row_requires_owned_contract_shape() -> None:
         "seed_lot_label": "SBBS R1 #1",
         "last_note": "",
         "telemetry_summary": "1 plant stream",
+        "sex_tests": [],
     }
 
     assert BreedingLogbookPlantRowResponse.model_validate(payload).culled_on is None
@@ -279,6 +315,35 @@ def test_breeding_logbook_plant_row_requires_owned_contract_shape() -> None:
 
     with pytest.raises(ValidationError):
         BreedingLogbookPlantRowResponse.model_validate(
+            {**payload, "unexpected_unit": "%"}
+        )
+
+
+def test_breeding_logbook_sex_test_response_requires_owned_contract_shape() -> None:
+    payload = {
+        "id": "1000",
+        "source_sex_test_id": 1000,
+        "source_plant_id": 1,
+        "vendor_name": "Farmer Freeman",
+        "assay_name": "EZ-XY",
+        "vendor_test_code": "FF-001",
+        "sample_collected_at": "2026-07-01T12:00:00Z",
+        "sample_sent_at": None,
+        "result_received_at": None,
+        "result_sex_key": None,
+        "is_inconclusive": False,
+        "notes": None,
+    }
+
+    assert BreedingLogbookSexTestResponse.model_validate(payload).notes is None
+
+    missing_required_nullable = dict(payload)
+    del missing_required_nullable["result_received_at"]
+    with pytest.raises(ValidationError):
+        BreedingLogbookSexTestResponse.model_validate(missing_required_nullable)
+
+    with pytest.raises(ValidationError):
+        BreedingLogbookSexTestResponse.model_validate(
             {**payload, "unexpected_unit": "%"}
         )
 

@@ -10,9 +10,11 @@ from sqlalchemy import and_, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirt_control.api.browser_schemas.breeding_logbook import (
+    BreedingBulkCreateSexTestsRequest,
     BreedingBulkCullRequest,
     BreedingBulkMoveRequest,
     BreedingBulkPlantNoteRequest,
+    BreedingBulkResultSexTestsRequest,
     BreedingBulkSexRequest,
     BreedingClonePlantsRequest,
     BreedingCreatePlantNoteRequest,
@@ -34,8 +36,10 @@ from dirt_control.api.browser_schemas.breeding_logbook import (
     BreedingLogbookSeedLotLineResponse,
     BreedingLogbookSeedLotListResponse,
     BreedingLogbookSeedLotSummaryResponse,
+    BreedingLogbookSexTestResponse,
     BreedingUpdatePlantFactsRequest,
     BreedingUpdateSeedLotInventoryRequest,
+    BreedingUpdateSexTestRequest,
 )
 from dirt_control.api.browser_schemas.commands import CommandResponse
 from dirt_control.api.browser_schemas.metrics import METRIC_HISTORY_RANGES
@@ -50,6 +54,7 @@ from dirt_control.models import (
     CloudPlantLine,
     CloudPlantLocation,
     CloudPlantNote,
+    CloudPlantSexTest,
     CloudSeedLot,
     CloudTent,
 )
@@ -75,16 +80,19 @@ from dirt_control.services.browser_tents import (
 )
 from dirt_control.settings import CloudSettings
 from dirt_shared.cloud_contract import (
+    BreedingBulkCreateSexTestsPayload,
     BreedingBulkCullPayload,
     BreedingBulkMovePayload,
     BreedingBulkPlantFactsPayload,
     BreedingBulkPlantNotePayload,
+    BreedingBulkResultSexTestsPayload,
     BreedingBulkSexPayload,
     BreedingClonePlantsPayload,
     BreedingCreatePlantNotePayload,
     BreedingCreateSeedLotPayload,
     BreedingGerminatePlantsPayload,
     BreedingUpdateSeedLotInventoryPayload,
+    BreedingUpdateSexTestPayload,
 )
 
 
@@ -96,6 +104,7 @@ class BreedingLogbookPlantProjection:
     line: CloudPlantLine | None
     seed_lot: CloudSeedLot | None
     seed_lot_line: CloudPlantLine | None
+    sex_tests: tuple[CloudPlantSexTest, ...]
 
 
 async def bootstrap(
@@ -606,6 +615,94 @@ async def bulk_update_plant_facts_command(
     )
 
 
+async def bulk_create_sex_tests_command(
+    body: BreedingBulkCreateSexTestsRequest,
+    *,
+    user: str,
+    settings: CloudSettings,
+    session: AsyncSession,
+    now: datetime,
+) -> CommandResponse:
+    await require_cloud_plant_keys(
+        session,
+        site_id=settings.default_site_id,
+        plant_keys=[test.plant_key for test in body.tests],
+    )
+    payload = BreedingBulkCreateSexTestsPayload(
+        **body.model_dump(exclude={"idempotency_key"})
+    )
+    return await enqueue_breeding_command(
+        body.idempotency_key,
+        user=user,
+        settings=settings,
+        session=session,
+        now=now,
+        command_type="breeding_sex_tests_bulk_create",
+        payload=payload,
+    )
+
+
+async def update_sex_test_command(  # noqa: PLR0913
+    sex_test_id: str,
+    body: BreedingUpdateSexTestRequest,
+    *,
+    user: str,
+    settings: CloudSettings,
+    session: AsyncSession,
+    now: datetime,
+) -> CommandResponse:
+    sex_test_source_id = sex_test_source_id_from_request(sex_test_id)
+    if body.sex_test_source_id != sex_test_source_id:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "sex_test_source_id must match sex_test_id",
+        )
+    await require_cloud_sex_test_source_id(
+        session,
+        site_id=settings.default_site_id,
+        sex_test_source_id=sex_test_source_id,
+    )
+    payload = BreedingUpdateSexTestPayload(
+        **body.model_dump(exclude={"idempotency_key"})
+    )
+    return await enqueue_breeding_command(
+        body.idempotency_key,
+        user=user,
+        settings=settings,
+        session=session,
+        now=now,
+        command_type="breeding_sex_test_update",
+        payload=payload,
+    )
+
+
+async def bulk_result_sex_tests_command(
+    body: BreedingBulkResultSexTestsRequest,
+    *,
+    user: str,
+    settings: CloudSettings,
+    session: AsyncSession,
+    now: datetime,
+) -> CommandResponse:
+    await require_cloud_sex_test_source_ids(
+        session,
+        site_id=settings.default_site_id,
+        sex_test_source_ids=[row.sex_test_source_id for row in body.results],
+    )
+    payload = BreedingBulkResultSexTestsPayload(
+        **body.model_dump(exclude={"idempotency_key"})
+    )
+    return await enqueue_breeding_command(
+        body.idempotency_key,
+        user=user,
+        settings=settings,
+        session=session,
+        now=now,
+        command_type="breeding_sex_tests_bulk_result",
+        payload=payload,
+    )
+
+
 async def bulk_cull_plants_command(
     body: BreedingBulkCullRequest,
     *,
@@ -756,6 +853,11 @@ async def breeding_logbook_plants(
             if location.source_tent_id is not None
         },
     )
+    sex_tests = await breeding_logbook_sex_tests_by_plant(
+        session,
+        site_id=site_id,
+        plant_ids=plant_ids,
+    )
     projections = [
         BreedingLogbookPlantProjection(
             plant=plant,
@@ -764,6 +866,7 @@ async def breeding_logbook_plants(
             line=line,
             seed_lot=seed_lot,
             seed_lot_line=line,
+            sex_tests=tuple(sex_tests.get(plant.source_plant_id, ())),
         )
         for plant, line, seed_lot in plant_rows
         if (location := locations.get(plant.source_plant_id)) is not None
@@ -802,6 +905,30 @@ def is_preferred_breeding_logbook_location(
     if candidate.end_at is not None and current.end_at is None:
         return False
     return candidate.start_at > current.start_at
+
+
+async def breeding_logbook_sex_tests_by_plant(
+    session: AsyncSession,
+    *,
+    site_id: str,
+    plant_ids: list[int],
+) -> dict[int, list[CloudPlantSexTest]]:
+    if not plant_ids:
+        return {}
+    rows = (
+        await session.execute(
+            select(CloudPlantSexTest).where(
+                CloudPlantSexTest.site_id == site_id,
+                CloudPlantSexTest.source_plant_id.in_(plant_ids),
+            )
+        )
+    ).scalars()
+    sex_tests: dict[int, list[CloudPlantSexTest]] = {}
+    for sex_test in rows:
+        sex_tests.setdefault(sex_test.source_plant_id, []).append(sex_test)
+    for plant_tests in sex_tests.values():
+        plant_tests.sort(key=breeding_logbook_sex_test_sort_key)
+    return sex_tests
 
 
 async def get_breeding_logbook_plant(
@@ -1278,6 +1405,40 @@ def breeding_logbook_plant_row_response(
             latest_event=latest_event,
         ),
         telemetry_summary=telemetry_summary(telemetry_stream_count),
+        sex_tests=[
+            breeding_logbook_sex_test_response(sex_test)
+            for sex_test in projection.sex_tests
+        ],
+    )
+
+
+def breeding_logbook_sex_test_response(
+    sex_test: CloudPlantSexTest,
+) -> BreedingLogbookSexTestResponse:
+    return BreedingLogbookSexTestResponse(
+        id=str(sex_test.source_sex_test_id),
+        source_sex_test_id=sex_test.source_sex_test_id,
+        source_plant_id=sex_test.source_plant_id,
+        vendor_name=sex_test.vendor_name,
+        assay_name=sex_test.assay_name,
+        vendor_test_code=sex_test.vendor_test_code,
+        sample_collected_at=sex_test.sample_collected_at,
+        sample_sent_at=sex_test.sample_sent_at,
+        result_received_at=sex_test.result_received_at,
+        result_sex_key=sex_test.result_sex_key,
+        is_inconclusive=sex_test.is_inconclusive,
+        notes=sex_test.notes,
+    )
+
+
+def breeding_logbook_sex_test_sort_key(
+    sex_test: CloudPlantSexTest,
+) -> tuple[bool, float, int]:
+    sort_date = sex_test.result_received_at or sex_test.sample_collected_at
+    return (
+        sex_test.result_received_at is not None,
+        -sort_date.timestamp(),
+        -sex_test.source_sex_test_id,
     )
 
 
@@ -1570,6 +1731,22 @@ def seed_lot_source_id_from_request(seed_lot_id: str) -> int:
     return value
 
 
+def sex_test_source_id_from_request(sex_test_id: str) -> int:
+    try:
+        value = int(sex_test_id)
+    except ValueError as exc:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "sex_test_id must be a source sex test id",
+        ) from exc
+    if value <= 0:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "sex_test_id must be positive",
+        )
+    return value
+
+
 async def require_cloud_seed_lot_source_id(
     session: AsyncSession, *, site_id: str, seed_lot_source_id: int
 ) -> CloudSeedLot:
@@ -1587,6 +1764,60 @@ async def require_cloud_seed_lot_source_id(
             "unknown seed lot",
         )
     return seed_lot
+
+
+async def require_cloud_sex_test_source_id(
+    session: AsyncSession,
+    *,
+    site_id: str,
+    sex_test_source_id: int,
+) -> CloudPlantSexTest:
+    sex_test = (
+        await session.execute(
+            select(CloudPlantSexTest).where(
+                CloudPlantSexTest.site_id == site_id,
+                CloudPlantSexTest.source_sex_test_id == sex_test_source_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if sex_test is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "unknown sex test",
+        )
+    return sex_test
+
+
+async def require_cloud_sex_test_source_ids(
+    session: AsyncSession,
+    *,
+    site_id: str,
+    sex_test_source_ids: list[int],
+) -> list[CloudPlantSexTest]:
+    rows = (
+        (
+            await session.execute(
+                select(CloudPlantSexTest).where(
+                    CloudPlantSexTest.site_id == site_id,
+                    CloudPlantSexTest.source_sex_test_id.in_(sex_test_source_ids),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    found = {sex_test.source_sex_test_id for sex_test in rows}
+    missing = [
+        sex_test_source_id
+        for sex_test_source_id in sex_test_source_ids
+        if sex_test_source_id not in found
+    ]
+    if missing:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            f"unknown sex test: {missing[0]}",
+        )
+    return rows
 
 
 async def require_cloud_plant_key(

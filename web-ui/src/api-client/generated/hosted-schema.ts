@@ -362,6 +362,57 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/breeding-logbook/sex-tests/{sex_test_id}:update": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Update Breeding Sex Test */
+    post: operations["update_breeding_sex_test_api_breeding_logbook_sex_tests__sex_test_id__update_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/breeding-logbook/sex-tests:bulk-create": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Bulk Create Breeding Sex Tests */
+    post: operations["bulk_create_breeding_sex_tests_api_breeding_logbook_sex_tests_bulk_create_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/breeding-logbook/sex-tests:bulk-result": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Bulk Result Breeding Sex Tests */
+    post: operations["bulk_result_breeding_sex_tests_api_breeding_logbook_sex_tests_bulk_result_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/commands": {
     parameters: {
       query?: never;
@@ -804,6 +855,49 @@ export interface components {
       /** Source Tent Id */
       source_tent_id: number | null;
     };
+    /** BreedingBulkCreateSexTestItem */
+    BreedingBulkCreateSexTestItem: {
+      /** Notes */
+      notes?: string | null;
+      /** Plant Key */
+      plant_key: string;
+      /** Vendor Test Code */
+      vendor_test_code: string;
+    };
+    /** BreedingBulkCreateSexTestsPayload */
+    BreedingBulkCreateSexTestsPayload: {
+      /** Assay Name */
+      assay_name: string | null;
+      /**
+       * Sample Collected At
+       * Format: date-time
+       */
+      sample_collected_at: string;
+      /** Sample Sent At */
+      sample_sent_at: string | null;
+      /** Tests */
+      tests: components["schemas"]["BreedingBulkCreateSexTestItem"][];
+      /** Vendor Name */
+      vendor_name: string;
+    };
+    /** BreedingBulkCreateSexTestsRequest */
+    BreedingBulkCreateSexTestsRequest: {
+      /** Assay Name */
+      assay_name: string | null;
+      /** Idempotency Key */
+      idempotency_key: string;
+      /**
+       * Sample Collected At
+       * Format: date-time
+       */
+      sample_collected_at: string;
+      /** Sample Sent At */
+      sample_sent_at: string | null;
+      /** Tests */
+      tests: components["schemas"]["BreedingBulkCreateSexTestItem"][];
+      /** Vendor Name */
+      vendor_name: string;
+    };
     /** BreedingBulkCullPayload */
     BreedingBulkCullPayload: {
       /** Culled At */
@@ -870,6 +964,28 @@ export interface components {
       observed_at?: string | null;
       /** Plant Keys */
       plant_keys: string[];
+    };
+    /** BreedingBulkResultSexTestsPayload */
+    BreedingBulkResultSexTestsPayload: {
+      /**
+       * Result Received At
+       * Format: date-time
+       */
+      result_received_at: string;
+      /** Results */
+      results: components["schemas"]["BreedingSexTestResultRow"][];
+    };
+    /** BreedingBulkResultSexTestsRequest */
+    BreedingBulkResultSexTestsRequest: {
+      /** Idempotency Key */
+      idempotency_key: string;
+      /**
+       * Result Received At
+       * Format: date-time
+       */
+      result_received_at: string;
+      /** Results */
+      results: components["schemas"]["BreedingSexTestResultRow"][];
     };
     /** BreedingBulkSexPayload */
     BreedingBulkSexPayload: {
@@ -1205,6 +1321,8 @@ export interface components {
        * @enum {string}
        */
       sex_key: "unknown" | "male" | "female" | "herm" | "reversed";
+      /** Sex Tests */
+      sex_tests: components["schemas"]["BreedingLogbookSexTestResponse"][];
       /** Stage Day */
       stage_day: number;
       /**
@@ -1359,6 +1477,36 @@ export interface components {
       /** Strain */
       strain: string;
     };
+    /** BreedingLogbookSexTestResponse */
+    BreedingLogbookSexTestResponse: {
+      /** Assay Name */
+      assay_name: string | null;
+      /** Id */
+      id: string;
+      /** Is Inconclusive */
+      is_inconclusive: boolean;
+      /** Notes */
+      notes: string | null;
+      /** Result Received At */
+      result_received_at: string | null;
+      /** Result Sex Key */
+      result_sex_key: ("unknown" | "male" | "female" | "herm" | "reversed") | null;
+      /**
+       * Sample Collected At
+       * Format: date-time
+       */
+      sample_collected_at: string;
+      /** Sample Sent At */
+      sample_sent_at: string | null;
+      /** Source Plant Id */
+      source_plant_id: number;
+      /** Source Sex Test Id */
+      source_sex_test_id: number;
+      /** Vendor Name */
+      vendor_name: string;
+      /** Vendor Test Code */
+      vendor_test_code: string;
+    };
     /** BreedingPlantFactUpdate */
     BreedingPlantFactUpdate: {
       /**
@@ -1379,6 +1527,15 @@ export interface components {
         | "selected_for_breeding_reason";
       /** Value */
       value: string | null;
+    };
+    /** BreedingSexTestResultRow */
+    BreedingSexTestResultRow: {
+      /** Is Inconclusive */
+      is_inconclusive: boolean;
+      /** Result Sex Key */
+      result_sex_key: ("male" | "female") | null;
+      /** Sex Test Source Id */
+      sex_test_source_id: number;
     };
     /** BreedingUpdatePlantFactsRequest */
     BreedingUpdatePlantFactsRequest: {
@@ -1426,6 +1583,60 @@ export interface components {
       sex_type_key: "unknown" | "feminized" | "regular";
       /** Vendor Name */
       vendor_name: string | null;
+    };
+    /** BreedingUpdateSexTestPayload */
+    BreedingUpdateSexTestPayload: {
+      /** Assay Name */
+      assay_name: string | null;
+      /** Is Inconclusive */
+      is_inconclusive: boolean;
+      /** Notes */
+      notes: string | null;
+      /** Result Received At */
+      result_received_at: string | null;
+      /** Result Sex Key */
+      result_sex_key: ("male" | "female") | null;
+      /**
+       * Sample Collected At
+       * Format: date-time
+       */
+      sample_collected_at: string;
+      /** Sample Sent At */
+      sample_sent_at: string | null;
+      /** Sex Test Source Id */
+      sex_test_source_id: number;
+      /** Vendor Name */
+      vendor_name: string;
+      /** Vendor Test Code */
+      vendor_test_code: string;
+    };
+    /** BreedingUpdateSexTestRequest */
+    BreedingUpdateSexTestRequest: {
+      /** Assay Name */
+      assay_name: string | null;
+      /** Idempotency Key */
+      idempotency_key: string;
+      /** Is Inconclusive */
+      is_inconclusive: boolean;
+      /** Notes */
+      notes: string | null;
+      /** Result Received At */
+      result_received_at: string | null;
+      /** Result Sex Key */
+      result_sex_key: ("male" | "female") | null;
+      /**
+       * Sample Collected At
+       * Format: date-time
+       */
+      sample_collected_at: string;
+      /** Sample Sent At */
+      sample_sent_at: string | null;
+      /** Sex Test Source Id */
+      sex_test_source_id: number;
+      /** Vendor Name */
+      vendor_name: string;
+      /** Vendor Test Code */
+      vendor_test_code: string;
     };
     /** CapturePolicyResponse */
     CapturePolicyResponse: {
@@ -1666,6 +1877,34 @@ export interface components {
       /** Source Plant Id */
       source_plant_id: number;
     };
+    /** CatalogPlantSexTest */
+    CatalogPlantSexTest: {
+      /** Assay Name */
+      assay_name: string | null;
+      /** Is Inconclusive */
+      is_inconclusive: boolean;
+      /** Notes */
+      notes: string | null;
+      /** Result Received At */
+      result_received_at: string | null;
+      /** Result Sex Key */
+      result_sex_key: ("unknown" | "male" | "female" | "herm" | "reversed") | null;
+      /**
+       * Sample Collected At
+       * Format: date-time
+       */
+      sample_collected_at: string;
+      /** Sample Sent At */
+      sample_sent_at: string | null;
+      /** Source Plant Id */
+      source_plant_id: number;
+      /** Source Sex Test Id */
+      source_sex_test_id: number;
+      /** Vendor Name */
+      vendor_name: string;
+      /** Vendor Test Code */
+      vendor_test_code: string;
+    };
     /** CatalogRequest */
     CatalogRequest: {
       /** Capabilities */
@@ -1690,6 +1929,8 @@ export interface components {
       schedules?: components["schemas"]["CatalogSchedule"][];
       /** Seed Lots */
       seed_lots?: components["schemas"]["CatalogSeedLot"][];
+      /** Sex Tests */
+      sex_tests: components["schemas"]["CatalogPlantSexTest"][];
       site: components["schemas"]["CatalogSite"];
       /** Site Id */
       site_id: string;
@@ -1722,6 +1963,8 @@ export interface components {
       schedules: number;
       /** Seed Lots */
       seed_lots: number;
+      /** Sex Tests */
+      sex_tests: number;
       /** Sites */
       sites: number;
       /** Tents */
@@ -1859,6 +2102,9 @@ export interface components {
         | "breeding_plants_germinate"
         | "breeding_plants_clone"
         | "breeding_plants_bulk_sex"
+        | "breeding_sex_tests_bulk_create"
+        | "breeding_sex_test_update"
+        | "breeding_sex_tests_bulk_result"
         | "breeding_plants_bulk_move"
         | "breeding_plants_update_facts"
         | "breeding_plants_bulk_cull"
@@ -1884,6 +2130,9 @@ export interface components {
         | components["schemas"]["BreedingGerminatePlantsPayload"]
         | components["schemas"]["BreedingClonePlantsPayload"]
         | components["schemas"]["BreedingBulkSexPayload"]
+        | components["schemas"]["BreedingBulkCreateSexTestsPayload"]
+        | components["schemas"]["BreedingUpdateSexTestPayload"]
+        | components["schemas"]["BreedingBulkResultSexTestsPayload"]
         | components["schemas"]["BreedingBulkMovePayload"]
         | components["schemas"]["BreedingBulkPlantFactsPayload"]
         | components["schemas"]["BreedingBulkCullPayload"]
@@ -2029,6 +2278,9 @@ export interface components {
         | "breeding_plants_germinate"
         | "breeding_plants_clone"
         | "breeding_plants_bulk_sex"
+        | "breeding_sex_tests_bulk_create"
+        | "breeding_sex_test_update"
+        | "breeding_sex_tests_bulk_result"
         | "breeding_plants_bulk_move"
         | "breeding_plants_update_facts"
         | "breeding_plants_bulk_cull"
@@ -2054,6 +2306,9 @@ export interface components {
         | components["schemas"]["BreedingGerminatePlantsPayload"]
         | components["schemas"]["BreedingClonePlantsPayload"]
         | components["schemas"]["BreedingBulkSexPayload"]
+        | components["schemas"]["BreedingBulkCreateSexTestsPayload"]
+        | components["schemas"]["BreedingUpdateSexTestPayload"]
+        | components["schemas"]["BreedingBulkResultSexTestsPayload"]
         | components["schemas"]["BreedingBulkMovePayload"]
         | components["schemas"]["BreedingBulkPlantFactsPayload"]
         | components["schemas"]["BreedingBulkCullPayload"]
@@ -3601,6 +3856,107 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": components["schemas"]["BreedingUpdateSeedLotInventoryRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CommandResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  update_breeding_sex_test_api_breeding_logbook_sex_tests__sex_test_id__update_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        sex_test_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BreedingUpdateSexTestRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CommandResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  bulk_create_breeding_sex_tests_api_breeding_logbook_sex_tests_bulk_create_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BreedingBulkCreateSexTestsRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CommandResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  bulk_result_breeding_sex_tests_api_breeding_logbook_sex_tests_bulk_result_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BreedingBulkResultSexTestsRequest"];
       };
     };
     responses: {

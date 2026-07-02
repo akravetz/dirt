@@ -356,6 +356,155 @@
         "title": "AssetSignUploadRequest",
         "type": "object"
       },
+      "BreedingBulkCreateSexTestItem": {
+        "additionalProperties": false,
+        "properties": {
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "plant_key": {
+            "minLength": 1,
+            "title": "Plant Key",
+            "type": "string"
+          },
+          "vendor_test_code": {
+            "minLength": 1,
+            "title": "Vendor Test Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "plant_key",
+          "vendor_test_code"
+        ],
+        "title": "BreedingBulkCreateSexTestItem",
+        "type": "object"
+      },
+      "BreedingBulkCreateSexTestsPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "assay_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assay Name"
+          },
+          "sample_collected_at": {
+            "format": "date-time",
+            "title": "Sample Collected At",
+            "type": "string"
+          },
+          "sample_sent_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample Sent At"
+          },
+          "tests": {
+            "items": {
+              "$ref": "#/components/schemas/BreedingBulkCreateSexTestItem"
+            },
+            "minItems": 1,
+            "title": "Tests",
+            "type": "array"
+          },
+          "vendor_name": {
+            "minLength": 1,
+            "title": "Vendor Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "vendor_name",
+          "assay_name",
+          "sample_collected_at",
+          "sample_sent_at",
+          "tests"
+        ],
+        "title": "BreedingBulkCreateSexTestsPayload",
+        "type": "object"
+      },
+      "BreedingBulkCreateSexTestsRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "assay_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assay Name"
+          },
+          "idempotency_key": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "sample_collected_at": {
+            "format": "date-time",
+            "title": "Sample Collected At",
+            "type": "string"
+          },
+          "sample_sent_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample Sent At"
+          },
+          "tests": {
+            "items": {
+              "$ref": "#/components/schemas/BreedingBulkCreateSexTestItem"
+            },
+            "minItems": 1,
+            "title": "Tests",
+            "type": "array"
+          },
+          "vendor_name": {
+            "minLength": 1,
+            "title": "Vendor Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "vendor_name",
+          "assay_name",
+          "sample_collected_at",
+          "sample_sent_at",
+          "tests",
+          "idempotency_key"
+        ],
+        "title": "BreedingBulkCreateSexTestsRequest",
+        "type": "object"
+      },
       "BreedingBulkCullPayload": {
         "additionalProperties": false,
         "properties": {
@@ -606,6 +755,61 @@
           "body"
         ],
         "title": "BreedingBulkPlantNoteRequest",
+        "type": "object"
+      },
+      "BreedingBulkResultSexTestsPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "result_received_at": {
+            "format": "date-time",
+            "title": "Result Received At",
+            "type": "string"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/BreedingSexTestResultRow"
+            },
+            "minItems": 1,
+            "title": "Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result_received_at",
+          "results"
+        ],
+        "title": "BreedingBulkResultSexTestsPayload",
+        "type": "object"
+      },
+      "BreedingBulkResultSexTestsRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "idempotency_key": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "result_received_at": {
+            "format": "date-time",
+            "title": "Result Received At",
+            "type": "string"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/BreedingSexTestResultRow"
+            },
+            "minItems": 1,
+            "title": "Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result_received_at",
+          "results",
+          "idempotency_key"
+        ],
+        "title": "BreedingBulkResultSexTestsRequest",
         "type": "object"
       },
       "BreedingBulkSexPayload": {
@@ -1804,6 +2008,13 @@
             "title": "Sex Key",
             "type": "string"
           },
+          "sex_tests": {
+            "items": {
+              "$ref": "#/components/schemas/BreedingLogbookSexTestResponse"
+            },
+            "title": "Sex Tests",
+            "type": "array"
+          },
           "stage_day": {
             "title": "Stage Day",
             "type": "integer"
@@ -1911,7 +2122,8 @@
           "grid_position",
           "seed_lot_label",
           "last_note",
-          "telemetry_summary"
+          "telemetry_summary",
+          "sex_tests"
         ],
         "title": "BreedingLogbookPlantRowResponse",
         "type": "object"
@@ -2359,6 +2571,120 @@
         "title": "BreedingLogbookSeedLotSummaryResponse",
         "type": "object"
       },
+      "BreedingLogbookSexTestResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "assay_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assay Name"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "is_inconclusive": {
+            "title": "Is Inconclusive",
+            "type": "boolean"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "result_received_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Received At"
+          },
+          "result_sex_key": {
+            "anyOf": [
+              {
+                "enum": [
+                  "unknown",
+                  "male",
+                  "female",
+                  "herm",
+                  "reversed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Sex Key"
+          },
+          "sample_collected_at": {
+            "format": "date-time",
+            "title": "Sample Collected At",
+            "type": "string"
+          },
+          "sample_sent_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample Sent At"
+          },
+          "source_plant_id": {
+            "title": "Source Plant Id",
+            "type": "integer"
+          },
+          "source_sex_test_id": {
+            "title": "Source Sex Test Id",
+            "type": "integer"
+          },
+          "vendor_name": {
+            "title": "Vendor Name",
+            "type": "string"
+          },
+          "vendor_test_code": {
+            "title": "Vendor Test Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source_sex_test_id",
+          "source_plant_id",
+          "vendor_name",
+          "assay_name",
+          "vendor_test_code",
+          "sample_collected_at",
+          "sample_sent_at",
+          "result_received_at",
+          "result_sex_key",
+          "is_inconclusive",
+          "notes"
+        ],
+        "title": "BreedingLogbookSexTestResponse",
+        "type": "object"
+      },
       "BreedingPlantFactUpdate": {
         "additionalProperties": false,
         "properties": {
@@ -2400,6 +2726,42 @@
           "value"
         ],
         "title": "BreedingPlantFactUpdate",
+        "type": "object"
+      },
+      "BreedingSexTestResultRow": {
+        "additionalProperties": false,
+        "properties": {
+          "is_inconclusive": {
+            "title": "Is Inconclusive",
+            "type": "boolean"
+          },
+          "result_sex_key": {
+            "anyOf": [
+              {
+                "enum": [
+                  "male",
+                  "female"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Sex Key"
+          },
+          "sex_test_source_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Sex Test Source Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "sex_test_source_id",
+          "result_sex_key",
+          "is_inconclusive"
+        ],
+        "title": "BreedingSexTestResultRow",
         "type": "object"
       },
       "BreedingUpdatePlantFactsRequest": {
@@ -2591,6 +2953,221 @@
           "idempotency_key"
         ],
         "title": "BreedingUpdateSeedLotInventoryRequest",
+        "type": "object"
+      },
+      "BreedingUpdateSexTestPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "assay_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assay Name"
+          },
+          "is_inconclusive": {
+            "title": "Is Inconclusive",
+            "type": "boolean"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "result_received_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Received At"
+          },
+          "result_sex_key": {
+            "anyOf": [
+              {
+                "enum": [
+                  "male",
+                  "female"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Sex Key"
+          },
+          "sample_collected_at": {
+            "format": "date-time",
+            "title": "Sample Collected At",
+            "type": "string"
+          },
+          "sample_sent_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample Sent At"
+          },
+          "sex_test_source_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Sex Test Source Id",
+            "type": "integer"
+          },
+          "vendor_name": {
+            "minLength": 1,
+            "title": "Vendor Name",
+            "type": "string"
+          },
+          "vendor_test_code": {
+            "minLength": 1,
+            "title": "Vendor Test Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sex_test_source_id",
+          "vendor_name",
+          "assay_name",
+          "vendor_test_code",
+          "sample_collected_at",
+          "sample_sent_at",
+          "result_received_at",
+          "result_sex_key",
+          "is_inconclusive",
+          "notes"
+        ],
+        "title": "BreedingUpdateSexTestPayload",
+        "type": "object"
+      },
+      "BreedingUpdateSexTestRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "assay_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assay Name"
+          },
+          "idempotency_key": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "is_inconclusive": {
+            "title": "Is Inconclusive",
+            "type": "boolean"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "result_received_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Received At"
+          },
+          "result_sex_key": {
+            "anyOf": [
+              {
+                "enum": [
+                  "male",
+                  "female"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Sex Key"
+          },
+          "sample_collected_at": {
+            "format": "date-time",
+            "title": "Sample Collected At",
+            "type": "string"
+          },
+          "sample_sent_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample Sent At"
+          },
+          "sex_test_source_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Sex Test Source Id",
+            "type": "integer"
+          },
+          "vendor_name": {
+            "minLength": 1,
+            "title": "Vendor Name",
+            "type": "string"
+          },
+          "vendor_test_code": {
+            "minLength": 1,
+            "title": "Vendor Test Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sex_test_source_id",
+          "vendor_name",
+          "assay_name",
+          "vendor_test_code",
+          "sample_collected_at",
+          "sample_sent_at",
+          "result_received_at",
+          "result_sex_key",
+          "is_inconclusive",
+          "notes",
+          "idempotency_key"
+        ],
+        "title": "BreedingUpdateSexTestRequest",
         "type": "object"
       },
       "CapturePolicyResponse": {
@@ -3399,6 +3976,115 @@
         "title": "CatalogPlantNote",
         "type": "object"
       },
+      "CatalogPlantSexTest": {
+        "additionalProperties": false,
+        "properties": {
+          "assay_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assay Name"
+          },
+          "is_inconclusive": {
+            "title": "Is Inconclusive",
+            "type": "boolean"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "result_received_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Received At"
+          },
+          "result_sex_key": {
+            "anyOf": [
+              {
+                "enum": [
+                  "unknown",
+                  "male",
+                  "female",
+                  "herm",
+                  "reversed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Sex Key"
+          },
+          "sample_collected_at": {
+            "format": "date-time",
+            "title": "Sample Collected At",
+            "type": "string"
+          },
+          "sample_sent_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample Sent At"
+          },
+          "source_plant_id": {
+            "title": "Source Plant Id",
+            "type": "integer"
+          },
+          "source_sex_test_id": {
+            "title": "Source Sex Test Id",
+            "type": "integer"
+          },
+          "vendor_name": {
+            "title": "Vendor Name",
+            "type": "string"
+          },
+          "vendor_test_code": {
+            "title": "Vendor Test Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_sex_test_id",
+          "source_plant_id",
+          "vendor_name",
+          "assay_name",
+          "vendor_test_code",
+          "sample_collected_at",
+          "sample_sent_at",
+          "result_received_at",
+          "result_sex_key",
+          "is_inconclusive",
+          "notes"
+        ],
+        "title": "CatalogPlantSexTest",
+        "type": "object"
+      },
       "CatalogRequest": {
         "additionalProperties": false,
         "properties": {
@@ -3479,6 +4165,13 @@
             "title": "Seed Lots",
             "type": "array"
           },
+          "sex_tests": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogPlantSexTest"
+            },
+            "title": "Sex Tests",
+            "type": "array"
+          },
           "site": {
             "$ref": "#/components/schemas/CatalogSite"
           },
@@ -3503,7 +4196,8 @@
         },
         "required": [
           "site_id",
-          "site"
+          "site",
+          "sex_tests"
         ],
         "title": "CatalogRequest",
         "type": "object"
@@ -3555,6 +4249,10 @@
             "title": "Seed Lots",
             "type": "integer"
           },
+          "sex_tests": {
+            "title": "Sex Tests",
+            "type": "integer"
+          },
           "sites": {
             "title": "Sites",
             "type": "integer"
@@ -3578,6 +4276,7 @@
           "plant_lines",
           "seed_lots",
           "plants",
+          "sex_tests",
           "plant_locations",
           "cross_events",
           "plant_notes",
@@ -3894,6 +4593,9 @@
               "breeding_plants_germinate",
               "breeding_plants_clone",
               "breeding_plants_bulk_sex",
+              "breeding_sex_tests_bulk_create",
+              "breeding_sex_test_update",
+              "breeding_sex_tests_bulk_result",
               "breeding_plants_bulk_move",
               "breeding_plants_update_facts",
               "breeding_plants_bulk_cull",
@@ -3959,6 +4661,15 @@
               },
               {
                 "$ref": "#/components/schemas/BreedingBulkSexPayload"
+              },
+              {
+                "$ref": "#/components/schemas/BreedingBulkCreateSexTestsPayload"
+              },
+              {
+                "$ref": "#/components/schemas/BreedingUpdateSexTestPayload"
+              },
+              {
+                "$ref": "#/components/schemas/BreedingBulkResultSexTestsPayload"
               },
               {
                 "$ref": "#/components/schemas/BreedingBulkMovePayload"
@@ -4369,6 +5080,9 @@
               "breeding_plants_germinate",
               "breeding_plants_clone",
               "breeding_plants_bulk_sex",
+              "breeding_sex_tests_bulk_create",
+              "breeding_sex_test_update",
+              "breeding_sex_tests_bulk_result",
               "breeding_plants_bulk_move",
               "breeding_plants_update_facts",
               "breeding_plants_bulk_cull",
@@ -4434,6 +5148,15 @@
               },
               {
                 "$ref": "#/components/schemas/BreedingBulkSexPayload"
+              },
+              {
+                "$ref": "#/components/schemas/BreedingBulkCreateSexTestsPayload"
+              },
+              {
+                "$ref": "#/components/schemas/BreedingUpdateSexTestPayload"
+              },
+              {
+                "$ref": "#/components/schemas/BreedingBulkResultSexTestsPayload"
               },
               {
                 "$ref": "#/components/schemas/BreedingBulkMovePayload"
@@ -7978,6 +8701,131 @@
           }
         },
         "summary": "Update Breeding Seed Lot Inventory"
+      }
+    },
+    "/api/breeding-logbook/sex-tests/{sex_test_id}:update": {
+      "post": {
+        "operationId": "update_breeding_sex_test_api_breeding_logbook_sex_tests__sex_test_id__update_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sex_test_id",
+            "required": true,
+            "schema": {
+              "title": "Sex Test Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BreedingUpdateSexTestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Breeding Sex Test"
+      }
+    },
+    "/api/breeding-logbook/sex-tests:bulk-create": {
+      "post": {
+        "operationId": "bulk_create_breeding_sex_tests_api_breeding_logbook_sex_tests_bulk_create_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BreedingBulkCreateSexTestsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Bulk Create Breeding Sex Tests"
+      }
+    },
+    "/api/breeding-logbook/sex-tests:bulk-result": {
+      "post": {
+        "operationId": "bulk_result_breeding_sex_tests_api_breeding_logbook_sex_tests_bulk_result_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BreedingBulkResultSexTestsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Bulk Result Breeding Sex Tests"
       }
     },
     "/api/commands": {
