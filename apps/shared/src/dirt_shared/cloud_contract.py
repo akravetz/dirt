@@ -199,9 +199,18 @@ class CatalogPlantSexTest(CloudContractModel):
     sample_collected_at: datetime
     sample_sent_at: datetime | None = Field(...)
     result_received_at: datetime | None = Field(...)
-    result_sex_key: PlantSexKey | None = Field(...)
+    result_sex_key: PlantSexTestResultSexKey | None = Field(...)
     is_inconclusive: bool
     notes: str | None = Field(...)
+
+    @model_validator(mode="after")
+    def _result_state_is_complete(self) -> CatalogPlantSexTest:
+        _validate_sex_test_result_state(
+            result_received_at=self.result_received_at,
+            result_sex_key=self.result_sex_key,
+            is_inconclusive=self.is_inconclusive,
+        )
+        return self
 
 
 class CatalogPlantLocation(CloudContractModel):
@@ -643,7 +652,11 @@ class BreedingBulkCreateSexTestsPayload(CloudContractModel):
         return _strip_optional_text(value)
 
     @model_validator(mode="after")
-    def _vendor_test_codes_are_unique(self) -> BreedingBulkCreateSexTestsPayload:
+    def _tests_are_unique(self) -> BreedingBulkCreateSexTestsPayload:
+        _reject_duplicate_values(
+            [test.plant_key for test in self.tests],
+            "tests must not contain duplicate plant_key values",
+        )
         _reject_duplicate_values(
             [test.vendor_test_code for test in self.tests],
             "tests must not contain duplicate vendor_test_code values",

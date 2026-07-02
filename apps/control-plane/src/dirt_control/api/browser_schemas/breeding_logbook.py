@@ -23,6 +23,7 @@ from dirt_shared.cloud_contract import (
     BreedingUpdateSeedLotInventoryPayload,
     BreedingUpdateSexTestPayload,
     PlantSexKey,
+    PlantSexTestResultSexKey,
 )
 
 BreedingLogbookPlantStageKey = Literal[
@@ -234,7 +235,7 @@ class BreedingLogbookSexTestResponse(BrowserResponse):
     sample_collected_at: datetime
     sample_sent_at: datetime | None = Field(...)
     result_received_at: datetime | None = Field(...)
-    result_sex_key: PlantSexKey | None = Field(...)
+    result_sex_key: PlantSexTestResultSexKey | None = Field(...)
     is_inconclusive: bool
     notes: str | None = Field(...)
 

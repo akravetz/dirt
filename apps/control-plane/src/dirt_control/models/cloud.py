@@ -6,6 +6,7 @@ from typing import Any
 from sqlalchemy import (
     JSON,
     BigInteger,
+    CheckConstraint,
     Column,
     DateTime,
     Float,
@@ -451,6 +452,10 @@ class CloudPlantSexTest(SQLModel, table=True):
             "ix_cloud_plant_sex_test_site_result_received",
             "site_id",
             "result_received_at",
+        ),
+        CheckConstraint(
+            "result_sex_key IS NULL OR result_sex_key IN ('male', 'female')",
+            name="ck_cloud_plant_sex_test_result_sex_key_lab_result",
         ),
     )
 

@@ -28,6 +28,7 @@ CASE
     WHEN is_inconclusive THEN 1
     ELSE 0
 END) = 1))),
+  CONSTRAINT "ck_plant_sex_test_result_sex_key_lab_result" CHECK ((result_sex_key IS NULL) OR (result_sex_key IN ('male'::text, 'female'::text))),
   CONSTRAINT "ck_plant_sex_test_timestamp_order" CHECK (((sample_sent_at IS NULL) OR (sample_sent_at >= sample_collected_at)) AND ((result_received_at IS NULL) OR (result_received_at >= sample_collected_at)) AND ((result_received_at IS NULL) OR (sample_sent_at IS NULL) OR (result_received_at >= sample_sent_at))),
   CONSTRAINT "ck_plant_sex_test_vendor_name_not_blank" CHECK (btrim(vendor_name) <> ''::text),
   CONSTRAINT "ck_plant_sex_test_vendor_test_code_not_blank" CHECK (btrim(vendor_test_code) <> ''::text)

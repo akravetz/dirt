@@ -2955,10 +2955,10 @@ async def test_command_loop_bulk_create_sex_tests_duplicate_plant_keys_fails(
 
     result = await _command_service(app_engine, cloud, RecordingPTZ()).run_once()
 
-    assert result.executed == 1
-    statuses = [payload.status for _, payload, _ in cloud.command_results]
-    assert statuses == ["running", "failed"]
-    assert f"duplicate plant key(s): {plant_key}" in cloud.command_results[-1][1].error
+    assert result.executed == 0
+    assert result.reported == 0
+    assert result.failed == 1
+    assert cloud.command_results == []
     async with AsyncSession(app_engine) as session:
         sex_tests = (
             await session.exec(
@@ -2967,17 +2967,10 @@ async def test_command_loop_bulk_create_sex_tests_duplicate_plant_keys_fails(
                 .where(Plant.key == plant_key)
             )
         ).all()
-        command = (
-            await session.exec(
-                select(Command).where(
-                    Command.idempotency_key
-                    == "cloud-command:cloud-sex-test-create-duplicate-plant"
-                )
-            )
-        ).one()
+        commands = (await session.exec(select(Command))).all()
 
     assert sex_tests == []
-    assert command.status == "failed"
+    assert commands == []
 
 
 async def test_command_loop_bulk_results_sex_tests_and_records_events(

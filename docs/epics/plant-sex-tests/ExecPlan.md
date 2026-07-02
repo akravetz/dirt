@@ -25,7 +25,7 @@ The work is complete when a developer can create a pending sex test for each sel
 - [x] (2026-07-01T19:01:24-06:00) Add hosted browser read/write API routes and generated frontend contract.
 - [x] (2026-07-01T19:29:37-06:00) Add frontend query types and mutations.
 - [x] (2026-07-01T19:48:15-06:00) Add hosted UI sampling, pending-results, filtering, and detail history workflows.
-- [ ] Validate end-to-end with tests and browser verification.
+- [x] (2026-07-01T22:04:26-06:00) Validate end-to-end with tests, simplify cleanup, local dev stack, and browser verification.
 
 
 ## Surprises & Discoveries
@@ -47,6 +47,12 @@ The work is complete when a developer can create a pending sex test for each sel
 
 - Observation: Local Atlas diff still needs the existing `btree_gist` disposable-dev workaround when SQLModel desired-state loading reaches plant-location exclusion constraints.
   Evidence: `atlas migrate diff plant_sex_tests_verify --env local --format '{{ sql . "  " }}'` failed before this migration with `pq: data type bigint has no default operator class for access method "gist"` on `plant_location_history`; the same sync check passed against disposable PostgreSQL 17 on port 55434 after `CREATE EXTENSION IF NOT EXISTS btree_gist;`.
+
+- Observation: Final hosted-dev browser verification required applying the new local source migration, not just cloud dev migrations.
+  Evidence: `make dev-up` initially failed seeding with `UndefinedTableError: relation "plant_sex_test" does not exist` from gateway catalog collection. After backing up the local source database to `var/db-backups/dirt-2026-07-01-215446-pre-plant-sex-tests.dump` and running `atlas migrate apply --env local`, `make dev-up` seeded and started successfully.
+
+- Observation: The local hosted dev stack starts the control-plane API and Vite UI, but it does not continuously run the gateway command loop.
+  Evidence: Browser-created sex-test commands returned `201` and rendered optimistic `PENDING` / `SYNCING` state; result controls stayed disabled for those optimistic rows because the projected source sex-test IDs had not arrived yet.
 
 
 ## Decision Log
@@ -116,6 +122,10 @@ The work is complete when a developer can create a pending sex test for each sel
 - Milestone 5 validation passed: `pnpm --dir web-ui test -- plantsQueries.test.ts` (`4 files`, `20 tests`), `pnpm --dir web-ui typecheck`, `pnpm --dir web-ui lint`, `pnpm --dir web-ui knip` (exit 0 with existing configuration hints), and `git diff --check`.
 - Milestone 6 added the hosted plant sex-test UI workflow in the existing Plants workspace: selected-plant sampling entry, one-off detail add/edit/result actions, inline table/board code/status display, sex-test state filters, pending-result batch entry with explicit receipt time, and detail sex-test history. The UI reuses command-backed pending state from Milestone 5.
 - Milestone 6 validation passed: `pnpm --dir web-ui test -- plantsQueries.test.ts` (`4 files`, `21 tests`), `pnpm --dir web-ui typecheck`, `pnpm --dir web-ui lint`, `pnpm --dir web-ui knip` (exit 0 with existing configuration hints), and `git diff --check`.
+- Milestone 7 ran a simplify pass with reuse, maintainability, and efficiency reviewers. Accepted cleanup narrowed sex-test result fields to the male/female lab-result type across catalog/read DTOs and generated frontend types, added local/cloud DB checks for lab-result sex keys, moved duplicate plant-key validation into the shared bulk-create payload, reused frontend mutation input aliases in the workspace, tightened optimistic created-sex-test projection checks to include all submitted fields, and extracted shared positive source-id parsing in the hosted breeding service. Larger follow-up suggestions to split list/detail sex-test read shapes and extract sex-test UI components were left out of this final pass because they change broader API/UI structure.
+- Milestone 7 source validation passed after cleanup: `uv run pytest apps/shared/tests/test_cloud_contract.py -q` (`33 passed`), `uv run pytest apps/gateway/tests/test_sync.py apps/gateway/tests/test_gateway_boundary_guardrails.py -q` (`59 passed`), `uv run pytest apps/control-plane/tests/test_api.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py -q` (`68 passed`), `uv run pytest apps/tests/invariants -q` (`51 passed`), `pnpm --dir web-ui typecheck`, `pnpm --dir web-ui lint`, `pnpm --dir web-ui test` (`4 files`, `21 tests`), `pnpm --dir web-ui knip` (exit 0 with existing configuration hints), `make fix`, and `git diff --check`.
+- Milestone 7 migration validation passed: `atlas migrate hash --env local`, `atlas migrate hash --env cloud`, and `set -a; source .env; set +a; atlas migrate apply --env local --dry-run`, which reported one pending local migration with three SQL statements before live local apply. With operator approval, a compressed local backup was written to `var/db-backups/dirt-2026-07-01-215446-pre-plant-sex-tests.dump`, then `atlas migrate apply --env local` applied `20260701235933_plant_sex_tests.sql` successfully.
+- Milestone 7 browser verification passed against the local hosted dev stack at `http://192.168.1.79:5171`: logged in through the real dev auth flow, opened `/plants`, confirmed sex-test filters, selected two plants, opened the sampling panel, verified default Farmer Freeman / EZ-XY fields and explicit collected timestamp, submitted a bulk sex-test create command (`201`), saw `FF-VERIFY-2159-1` and `FF-VERIFY-2159-2` inline on list rows and in the pending-results panel as `PENDING` / `SYNCING`, filtered to `sexTest=pending`, searched by `FF-VERIFY-2159-2`, and confirmed only the matching plant remained. Detail verification opened `SD-F5-007`, used the sex-test `ADD` form, submitted `FF-DETAIL-2203` (`201`), and saw the detail sex-test history row render as `PENDING` / `SYNCING` with edit/result controls disabled until projection.
 
 
 ## Context and Orientation
@@ -410,6 +420,13 @@ Milestone 6 evidence:
 - Sex-test sampling, pending-result, list/board inline status, filter, and detail-history workflows added in `web-ui/src/features/plants/PlantsWorkspace.tsx`.
 - Focused sex-test filter coverage added in `web-ui/src/features/plants/plantsQueries.test.ts`.
 
+Milestone 7 evidence:
+
+- Simplify cleanup tightened sex-test result contracts and validation in `apps/shared/src/dirt_shared/cloud_contract.py`, `apps/shared/src/dirt_shared/models/plant.py`, `apps/control-plane/src/dirt_control/api/browser_schemas/breeding_logbook.py`, `apps/control-plane/src/dirt_control/models/cloud.py`, and regenerated `contracts/hosted-browser-v1.json` / `web-ui/src/api-client/generated/hosted-schema.ts`.
+- Frontend cleanup reused mutation input types and strengthened pending projection in `web-ui/src/features/plants/PlantsWorkspace.tsx`, `web-ui/src/features/plants/plantsMutations.ts`, `web-ui/src/features/plants/plantsTypes.ts`, and `web-ui/src/features/plants/plantsQueries.test.ts`.
+- Local source database backup before live apply: `var/db-backups/dirt-2026-07-01-215446-pre-plant-sex-tests.dump`.
+- Local hosted browser verification used `make dev-up`, `make dev-status`, and `agent-browser` against `http://192.168.1.79:5171`.
+
 Initial planning evidence:
 
 - `apps/shared/src/dirt_shared/models/plant.py` currently defines `Plant`, `PlantLkuSex`, and `PlantEvent`, but no sex-test table.
@@ -473,3 +490,4 @@ External dependency:
 ## Revision Notes
 
 - 2026-07-01 / Codex: Initial ExecPlan drafted from operator-approved design decisions.
+- 2026-07-01 / Codex: Milestone 7 completed with simplify cleanup, validation, local migration apply after backup, and browser verification.

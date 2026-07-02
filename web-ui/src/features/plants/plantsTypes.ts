@@ -4,6 +4,7 @@ export type PlantListLayout = "table" | "board";
 export type PlantGroupBy = "stage" | "parents";
 export type BulkPanel = "sex" | "sex-test" | "dates" | "move" | "cull" | null;
 export type PlantSexKey = "unknown" | "male" | "female" | "herm" | "reversed";
+export type PlantSexTestResultSexKey = Extract<PlantSexKey, "female" | "male">;
 export type PlantStageKey =
   | "germinating"
   | "veg"
@@ -34,7 +35,7 @@ export type PlantSexTest = {
   sampleCollectedAt: string;
   sampleSentAt: string | null;
   resultReceivedAt: string | null;
-  resultSexKey: PlantSexKey | null;
+  resultSexKey: PlantSexTestResultSexKey | null;
   isInconclusive: boolean;
   notes: string | null;
 };

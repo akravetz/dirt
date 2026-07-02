@@ -17,6 +17,7 @@ CREATE TABLE "cloud_plant_sex_test" (
   "created_at" timestamptz NOT NULL,
   "updated_at" timestamptz NOT NULL,
   PRIMARY KEY ("id"),
+  CONSTRAINT "ck_cloud_plant_sex_test_result_sex_key_lab_result" CHECK ((result_sex_key IS NULL) OR ((result_sex_key)::text IN ('male'::text, 'female'::text))),
   CONSTRAINT "uq_cloud_plant_sex_test_site_source_test" UNIQUE ("site_id", "source_sex_test_id"),
   CONSTRAINT "uq_cloud_plant_sex_test_site_vendor_code" UNIQUE ("site_id", "vendor_name", "vendor_test_code")
 );

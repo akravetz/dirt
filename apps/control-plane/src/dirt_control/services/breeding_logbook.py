@@ -1716,33 +1716,38 @@ def date_or_none(value: datetime | None) -> date | None:
 
 
 def seed_lot_source_id_from_request(seed_lot_id: str) -> int:
-    try:
-        value = int(seed_lot_id)
-    except ValueError as exc:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            "seed_lot_id must be a source seed lot id",
-        ) from exc
-    if value <= 0:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            "seed_lot_id must be positive",
-        )
-    return value
+    return positive_source_id_from_request(
+        seed_lot_id,
+        field_name="seed_lot_id",
+        source_name="source seed lot id",
+    )
 
 
 def sex_test_source_id_from_request(sex_test_id: str) -> int:
+    return positive_source_id_from_request(
+        sex_test_id,
+        field_name="sex_test_id",
+        source_name="source sex test id",
+    )
+
+
+def positive_source_id_from_request(
+    raw_value: str,
+    *,
+    field_name: str,
+    source_name: str,
+) -> int:
     try:
-        value = int(sex_test_id)
+        value = int(raw_value)
     except ValueError as exc:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
-            "sex_test_id must be a source sex test id",
+            f"{field_name} must be a {source_name}",
         ) from exc
     if value <= 0:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
-            "sex_test_id must be positive",
+            f"{field_name} must be positive",
         )
     return value
 

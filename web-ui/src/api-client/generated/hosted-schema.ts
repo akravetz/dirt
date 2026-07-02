@@ -1490,7 +1490,7 @@ export interface components {
       /** Result Received At */
       result_received_at: string | null;
       /** Result Sex Key */
-      result_sex_key: ("unknown" | "male" | "female" | "herm" | "reversed") | null;
+      result_sex_key: ("male" | "female") | null;
       /**
        * Sample Collected At
        * Format: date-time
@@ -1888,7 +1888,7 @@ export interface components {
       /** Result Received At */
       result_received_at: string | null;
       /** Result Sex Key */
-      result_sex_key: ("unknown" | "male" | "female" | "herm" | "reversed") | null;
+      result_sex_key: ("male" | "female") | null;
       /**
        * Sample Collected At
        * Format: date-time

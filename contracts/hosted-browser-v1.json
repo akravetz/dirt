@@ -2620,11 +2620,8 @@
             "anyOf": [
               {
                 "enum": [
-                  "unknown",
                   "male",
-                  "female",
-                  "herm",
-                  "reversed"
+                  "female"
                 ],
                 "type": "string"
               },
@@ -4021,11 +4018,8 @@
             "anyOf": [
               {
                 "enum": [
-                  "unknown",
                   "male",
-                  "female",
-                  "herm",
-                  "reversed"
+                  "female"
                 ],
                 "type": "string"
               },

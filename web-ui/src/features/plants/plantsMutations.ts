@@ -14,6 +14,7 @@ import type {
   PlantRow,
   PlantSexKey,
   PlantSexTest,
+  PlantSexTestResultSexKey,
   PlantStageKey,
 } from "./plantsTypes";
 
@@ -258,15 +259,15 @@ type LogNoteMutationInput = {
   body: string;
 };
 
-type SexTestResultSexKey = Extract<PlantSexKey, "male" | "female">;
+export type SexTestResultSexKey = PlantSexTestResultSexKey;
 
-type BulkCreateSexTestInput = {
+export type BulkCreateSexTestInput = {
   plantKey: string;
   vendorTestCode: string;
   notes: string | null;
 };
 
-type BulkCreateSexTestsMutationInput = {
+export type BulkCreateSexTestsMutationInput = {
   idempotencyKey: string;
   vendorName: string;
   assayName: string | null;
@@ -275,7 +276,7 @@ type BulkCreateSexTestsMutationInput = {
   tests: readonly BulkCreateSexTestInput[];
 };
 
-type UpdateSexTestMutationInput = {
+export type UpdateSexTestMutationInput = {
   idempotencyKey: string;
   plantKey: string;
   sexTestId: string;
@@ -291,14 +292,14 @@ type UpdateSexTestMutationInput = {
   notes: string | null;
 };
 
-type BulkResultSexTestInput = {
+export type BulkResultSexTestInput = {
   plantKey: string;
   sexTestSourceId: number;
   resultSexKey: SexTestResultSexKey | null;
   isInconclusive: boolean;
 };
 
-type BulkResultSexTestsMutationInput = {
+export type BulkResultSexTestsMutationInput = {
   idempotencyKey: string;
   resultReceivedAt: string;
   results: readonly BulkResultSexTestInput[];
@@ -1283,23 +1284,41 @@ function isSexTestPatchProjected(
 ): boolean {
   if (patch.sourceSexTestId === undefined) {
     return (
-      sexTestPatchValueProjected(sexTest, patch, "vendorName") &&
-      sexTestPatchValueProjected(sexTest, patch, "vendorTestCode") &&
-      sexTestPatchValueProjected(sexTest, patch, "resultReceivedAt") &&
-      sexTestPatchValueProjected(sexTest, patch, "resultSexKey") &&
-      sexTestPatchValueProjected(sexTest, patch, "isInconclusive")
+      sexTestPatchMatchesCreatedIdentity(sexTest, patch) &&
+      allSexTestPatchValuesProjected(sexTest, patch)
     );
   }
+  return allSexTestPatchValuesProjected(sexTest, patch);
+}
+
+function allSexTestPatchValuesProjected(
+  sexTest: PlantSexTest,
+  patch: PendingSexTestPatch,
+): boolean {
+  return SEX_TEST_PATCH_FIELDS.every((field) =>
+    sexTestPatchValueProjected(sexTest, patch, field),
+  );
+}
+
+const SEX_TEST_PATCH_FIELDS = [
+  "vendorName",
+  "assayName",
+  "vendorTestCode",
+  "sampleCollectedAt",
+  "sampleSentAt",
+  "resultReceivedAt",
+  "resultSexKey",
+  "isInconclusive",
+  "notes",
+] as const satisfies readonly (keyof PlantSexTest)[];
+
+function sexTestPatchMatchesCreatedIdentity(
+  sexTest: PlantSexTest,
+  patch: PendingSexTestPatch,
+): boolean {
   return (
     sexTestPatchValueProjected(sexTest, patch, "vendorName") &&
-    sexTestPatchValueProjected(sexTest, patch, "assayName") &&
-    sexTestPatchValueProjected(sexTest, patch, "vendorTestCode") &&
-    sexTestPatchValueProjected(sexTest, patch, "sampleCollectedAt") &&
-    sexTestPatchValueProjected(sexTest, patch, "sampleSentAt") &&
-    sexTestPatchValueProjected(sexTest, patch, "resultReceivedAt") &&
-    sexTestPatchValueProjected(sexTest, patch, "resultSexKey") &&
-    sexTestPatchValueProjected(sexTest, patch, "isInconclusive") &&
-    sexTestPatchValueProjected(sexTest, patch, "notes")
+    sexTestPatchValueProjected(sexTest, patch, "vendorTestCode")
   );
 }
 

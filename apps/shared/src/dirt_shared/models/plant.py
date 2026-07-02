@@ -591,6 +591,10 @@ class PlantSexTest(SQLModel, table=True):
             """,
             name="ck_plant_sex_test_result_state",
         ),
+        CheckConstraint(
+            "result_sex_key IS NULL OR result_sex_key IN ('male', 'female')",
+            name="ck_plant_sex_test_result_sex_key_lab_result",
+        ),
         Index(
             "ix_plant_sex_test_plant_sample_collected",
             "plant_id",

@@ -9,6 +9,8 @@ import { Sparkline } from "@/ui/Sparkline";
 import {
   activePendingCommandsForPlant,
   applyPendingPlantCommands,
+  type BulkCreateSexTestsMutationInput,
+  type BulkResultSexTestsMutationInput,
   canSubmitBulkCull,
   commandErrorText,
   createPlantsIdempotencyKey,
@@ -20,6 +22,8 @@ import {
   type PlantsPendingCommand,
   pendingTimelineNotes,
   readonlyPlantPrefixPreview,
+  type SexTestResultSexKey,
+  type UpdateSexTestMutationInput,
   useBulkCreateSexTestsMutation,
   useBulkCullMutation,
   useBulkMoveMutation,
@@ -118,47 +122,12 @@ type PlantsSearchState = {
   strain?: string;
   visibility?: PlantVisibilityFilter;
 };
-type SexTestConclusiveResult = Extract<PlantSexKey, "female" | "male">;
+type SexTestConclusiveResult = SexTestResultSexKey;
 type SexTestResultOption = SexTestConclusiveResult | "inconclusive";
 type SexTestResultDraftValue = SexTestResultOption | "";
-type SexTestSampleInput = {
-  plantKey: string;
-  vendorTestCode: string;
-  notes: string | null;
-};
-type CreateSexTestsInput = {
-  idempotencyKey: string;
-  vendorName: string;
-  assayName: string | null;
-  sampleCollectedAt: string;
-  sampleSentAt: string | null;
-  tests: readonly SexTestSampleInput[];
-};
-type UpdateSexTestInput = {
-  idempotencyKey: string;
-  plantKey: string;
-  sexTestId: string;
-  sexTestSourceId: number;
-  vendorName: string;
-  assayName: string | null;
-  vendorTestCode: string;
-  sampleCollectedAt: string;
-  sampleSentAt: string | null;
-  resultReceivedAt: string | null;
-  resultSexKey: SexTestConclusiveResult | null;
-  isInconclusive: boolean;
-  notes: string | null;
-};
-type ResultSexTestsInput = {
-  idempotencyKey: string;
-  resultReceivedAt: string;
-  results: readonly {
-    plantKey: string;
-    sexTestSourceId: number;
-    resultSexKey: SexTestConclusiveResult | null;
-    isInconclusive: boolean;
-  }[];
-};
+type CreateSexTestsInput = BulkCreateSexTestsMutationInput;
+type UpdateSexTestInput = UpdateSexTestMutationInput;
+type ResultSexTestsInput = BulkResultSexTestsMutationInput;
 type SexTestMutationSubmit<TInput> = (input: TInput, onSuccess: () => void) => void;
 
 const EMPTY_SELECTION = new Set<string>();
@@ -1939,13 +1908,13 @@ function SexTestSamplingPanel({
               {
                 idempotencyKey: createPlantsIdempotencyKey("sex-tests-bulk-create"),
                 vendorName,
-                assayName: assayName.trim().length === 0 ? null : assayName,
+                assayName,
                 sampleCollectedAt: sampleCollectedAtUtc,
                 sampleSentAt: sampleSentAtUtc,
                 tests: rows.map(({ plant, draft }) => ({
                   plantKey: plant.key,
                   vendorTestCode: draft.vendorTestCode,
-                  notes: draft.notes.trim().length === 0 ? null : draft.notes,
+                  notes: draft.notes,
                 })),
               },
               resetDraft,
@@ -3552,14 +3521,14 @@ function SexTestEditForm({
                 sexTestId: sexTest.id,
                 sexTestSourceId: sexTest.sourceSexTestId,
                 vendorName: draft.vendorName,
-                assayName: draft.assayName.trim().length === 0 ? null : draft.assayName,
+                assayName: draft.assayName,
                 vendorTestCode: draft.vendorTestCode,
                 sampleCollectedAt: sampleCollectedAtUtc,
                 sampleSentAt: sampleSentAtUtc,
                 resultReceivedAt: sexTest.resultReceivedAt,
                 resultSexKey: conclusiveSexTestResultKey(sexTest.resultSexKey),
                 isInconclusive: sexTest.isInconclusive,
-                notes: draft.notes.trim().length === 0 ? null : draft.notes,
+                notes: draft.notes,
               },
               () => {},
             );
