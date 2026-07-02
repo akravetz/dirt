@@ -24,6 +24,21 @@ export type LocationOption = {
   role: string | null;
 };
 
+export type PlantSexTest = {
+  id: string;
+  sourceSexTestId: number;
+  sourcePlantId: number;
+  vendorName: string;
+  assayName: string | null;
+  vendorTestCode: string;
+  sampleCollectedAt: string;
+  sampleSentAt: string | null;
+  resultReceivedAt: string | null;
+  resultSexKey: PlantSexKey | null;
+  isInconclusive: boolean;
+  notes: string | null;
+};
+
 export type PlantsBootstrap = {
   today: string;
   todayLabel: string;
@@ -68,6 +83,7 @@ export type PlantRow = {
   seedLotLabel: string;
   lastNote: string;
   telemetrySummary: string;
+  sexTests: readonly PlantSexTest[];
 };
 
 export type PlantMetricSummary = {

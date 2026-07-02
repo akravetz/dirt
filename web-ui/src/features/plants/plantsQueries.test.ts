@@ -8,14 +8,17 @@ import {
 } from "./PlantsWorkspace";
 import {
   applyPendingPlantCommands,
+  buildBulkCreateSexTestsRequest,
   buildBulkCullRequest,
   buildBulkLogNoteRequest,
   buildBulkMoveRequest,
+  buildBulkResultSexTestsRequest,
   buildBulkSexRequest,
   buildClonePlantsRequest,
   buildGerminatePlantsRequest,
   buildLogNoteRequest,
   buildUpdatePlantFactsRequest,
+  buildUpdateSexTestRequest,
   canSubmitBulkCull,
   isPendingCommandProjected,
   type PlantsPendingCommand,
@@ -23,7 +26,7 @@ import {
   readonlyPlantPrefixPreview,
 } from "./plantsMutations";
 import { mapBootstrap, mapPlantDetail, mapPlantList } from "./plantsQueries";
-import type { PlantRow } from "./plantsTypes";
+import type { PlantRow, PlantSexTest } from "./plantsTypes";
 
 type HostedBootstrap = hostedComponents["schemas"]["BreedingLogbookBootstrapResponse"];
 type HostedPlantDetail =
@@ -95,7 +98,22 @@ describe("plants hosted response mapping", () => {
       seed_lot_label: "SBBS R1 #2",
       last_note: "Trichomes stacking",
       telemetry_summary: "1 plant stream",
-      sex_tests: [],
+      sex_tests: [
+        {
+          id: "22",
+          source_sex_test_id: 22,
+          source_plant_id: 1,
+          vendor_name: "Farmer Freeman",
+          assay_name: "EZ-XY",
+          vendor_test_code: "FF-XY-001",
+          sample_collected_at: "2026-05-03T16:45:00.000Z",
+          sample_sent_at: null,
+          result_received_at: "2026-05-10T16:45:00.000Z",
+          result_sex_key: "female",
+          is_inconclusive: false,
+          notes: "leaf punch",
+        },
+      ],
     } satisfies HostedPlantList["plants"][number];
     const plants = {
       active_count: 1,
@@ -162,9 +180,22 @@ describe("plants hosted response mapping", () => {
     expect(mapPlantList(plants).plants[0]).toMatchObject({
       currentTentName: "Main flower",
       strain: "Sirius Black",
+      sexTests: [
+        {
+          sourceSexTestId: 22,
+          vendorName: "Farmer Freeman",
+          assayName: "EZ-XY",
+          vendorTestCode: "FF-XY-001",
+          resultSexKey: "female",
+        },
+      ],
     });
     expect(mapPlantDetail(detail, history)).toMatchObject({
-      plant: { key: "SBBS-R1-001", lastNote: "Trichomes stacking" },
+      plant: {
+        key: "SBBS-R1-001",
+        lastNote: "Trichomes stacking",
+        sexTests: [{ sourceSexTestId: 22, vendorTestCode: "FF-XY-001" }],
+      },
       lineage: { offspring: "Cross #43: SBBS R1 #3 (1 plant)" },
       events: [{ id: "event-201", tag: "sex", body: "Confirmed female" }],
       metricHistory: [
@@ -219,6 +250,21 @@ describe("plants list filters", () => {
         flowerStartedAt: "2026-06-20T16:45:00.000Z",
         flowerStartedOn: "2026-06-20",
       }),
+      makePlantRow({
+        id: "5",
+        key: "FF-001",
+        name: "FF-001",
+        parentsLabel: "Farmer x Freeman",
+        seedLotLabel: "FF test batch",
+        strain: "Farmer Freeman",
+        sexTests: [
+          makeSexTest({
+            vendorTestCode: "FF-XY-123",
+            resultReceivedAt: null,
+            resultSexKey: null,
+          }),
+        ],
+      }),
     ];
 
     expect(
@@ -244,6 +290,18 @@ describe("plants list filters", () => {
     expect(floweringPlant).toBeDefined();
     if (floweringPlant === undefined) return;
     expect(plantLifecycleStatus(floweringPlant)).toBe("flower");
+    expect(
+      filterPlantsForSearch(
+        plants,
+        normalizePlantsSearch(validatePlantsSearch({ q: "ff-xy-123" })),
+      ).map((plant) => plant.key),
+    ).toEqual(["FF-001"]);
+    expect(
+      filterPlantsForSearch(
+        plants,
+        normalizePlantsSearch(validatePlantsSearch({ q: "pending" })),
+      ).map((plant) => plant.key),
+    ).toEqual(["FF-001"]);
   });
 });
 
@@ -372,6 +430,99 @@ describe("plants mutation request mapping", () => {
       plant_keys: ["MF-001", "MF-002"],
       body: "canopy improved",
       observed_at: null,
+    });
+    expect(
+      buildBulkCreateSexTestsRequest({
+        idempotencyKey: "sex-test-create",
+        vendorName: "  Farmer Freeman  ",
+        assayName: " EZ-XY ",
+        sampleCollectedAt: "2026-06-21T16:45:00.000Z",
+        sampleSentAt: null,
+        tests: [
+          {
+            plantKey: "MF-001",
+            vendorTestCode: " FF-XY-001 ",
+            notes: " leaf punch ",
+          },
+        ],
+      }),
+    ).toEqual({
+      idempotency_key: "sex-test-create",
+      vendor_name: "Farmer Freeman",
+      assay_name: "EZ-XY",
+      sample_collected_at: "2026-06-21T16:45:00.000Z",
+      sample_sent_at: null,
+      tests: [
+        {
+          plant_key: "MF-001",
+          vendor_test_code: "FF-XY-001",
+          notes: "leaf punch",
+        },
+      ],
+    });
+    expect(
+      buildUpdateSexTestRequest({
+        idempotencyKey: "sex-test-update",
+        plantKey: "MF-001",
+        sexTestId: "22",
+        sexTestSourceId: 22,
+        vendorName: "Farmer Freeman",
+        assayName: null,
+        vendorTestCode: "FF-XY-001",
+        sampleCollectedAt: "2026-06-21T16:45:00.000Z",
+        sampleSentAt: "2026-06-22T16:45:00.000Z",
+        resultReceivedAt: null,
+        resultSexKey: null,
+        isInconclusive: false,
+        notes: " ",
+      }),
+    ).toEqual({
+      idempotency_key: "sex-test-update",
+      sex_test_source_id: 22,
+      vendor_name: "Farmer Freeman",
+      assay_name: null,
+      vendor_test_code: "FF-XY-001",
+      sample_collected_at: "2026-06-21T16:45:00.000Z",
+      sample_sent_at: "2026-06-22T16:45:00.000Z",
+      result_received_at: null,
+      result_sex_key: null,
+      is_inconclusive: false,
+      notes: null,
+    });
+    expect(
+      buildBulkResultSexTestsRequest({
+        idempotencyKey: "sex-test-result",
+        resultReceivedAt: "2026-06-28T16:45:00.000Z",
+        results: [
+          {
+            plantKey: "MF-001",
+            sexTestSourceId: 22,
+            resultSexKey: "female",
+            isInconclusive: false,
+          },
+          {
+            plantKey: "MF-002",
+            sexTestSourceId: 23,
+            resultSexKey: null,
+            isInconclusive: true,
+          },
+        ],
+      }),
+    ).toEqual({
+      idempotency_key: "sex-test-result",
+      result_received_at: "2026-06-28T16:45:00.000Z",
+      results: [
+        {
+          sex_test_source_id: 22,
+          result_sex_key: "female",
+          is_inconclusive: false,
+        },
+        {
+          sex_test_source_id: 23,
+          result_sex_key: null,
+          is_inconclusive: true,
+        },
+      ],
     });
   });
 
@@ -537,6 +688,142 @@ describe("plants pending UX helpers", () => {
     expect(projected?.culledReason).toBe("failed vigor check");
     expect(projected?.currentTentName).toBe("Flower");
     expect(projected ? projected.stageKey !== "culled" : false).toBe(false);
+  });
+
+  it("merges pending sex-test creates and converges by vendor code", () => {
+    const existingSexTest = makeSexTest({
+      sourceSexTestId: 7,
+      vendorTestCode: "FF-XY-OLD",
+      resultReceivedAt: "2026-06-20T16:45:00.000Z",
+      resultSexKey: "female",
+    });
+    const plant = makePlantRow({ sexTests: [existingSexTest] });
+    const pendingCreate = makePendingCommand({
+      command: makeCommand({ status: "succeeded" }),
+      optimisticPlantPatches: [
+        {
+          plantKey: "MF-001",
+          sexTestPatches: [
+            {
+              optimisticId: "pending:sex-test-create:MF-001",
+              vendorName: "Farmer Freeman",
+              assayName: "EZ-XY",
+              vendorTestCode: "FF-XY-200",
+              sampleCollectedAt: "2026-06-21T16:45:00.000Z",
+              sampleSentAt: null,
+              resultReceivedAt: null,
+              resultSexKey: null,
+              isInconclusive: false,
+              notes: "leaf sample",
+            },
+          ],
+        },
+      ],
+    });
+
+    const [optimistic] = applyPendingPlantCommands([plant], [pendingCreate]);
+
+    expect(optimistic?.sexTests).toMatchObject([
+      {
+        id: "pending:sex-test-create:MF-001",
+        vendorTestCode: "FF-XY-200",
+        resultReceivedAt: null,
+      },
+      {
+        vendorTestCode: "FF-XY-OLD",
+        resultSexKey: "female",
+      },
+    ]);
+    expect(isPendingCommandProjected(pendingCreate, [plant], [], "MF-001")).toBe(false);
+    expect(
+      isPendingCommandProjected(
+        pendingCreate,
+        [
+          {
+            ...plant,
+            sexTests: [
+              makeSexTest({
+                id: "31",
+                sourceSexTestId: 31,
+                vendorTestCode: "FF-XY-200",
+                resultReceivedAt: null,
+                resultSexKey: null,
+                isInconclusive: false,
+              }),
+              existingSexTest,
+            ],
+          },
+        ],
+        [],
+        "MF-001",
+      ),
+    ).toBe(true);
+  });
+
+  it("optimistically applies conclusive sex-test results until projection syncs", () => {
+    const resultReceivedAt = "2026-06-28T16:45:00.000Z";
+    const plant = makePlantRow({
+      sexKey: "unknown",
+      sexTests: [
+        makeSexTest({
+          sourceSexTestId: 22,
+          vendorTestCode: "FF-XY-001",
+          resultReceivedAt: null,
+          resultSexKey: null,
+          isInconclusive: false,
+        }),
+      ],
+    });
+    const pendingResult = makePendingCommand({
+      command: makeCommand({ status: "succeeded" }),
+      optimisticPlantPatches: [
+        {
+          plantKey: "MF-001",
+          sexKey: "female",
+          sexTestPatches: [
+            {
+              sourceSexTestId: 22,
+              resultReceivedAt,
+              resultSexKey: "female",
+              isInconclusive: false,
+            },
+          ],
+        },
+      ],
+    });
+
+    const [optimistic] = applyPendingPlantCommands([plant], [pendingResult]);
+
+    expect(optimistic?.sexKey).toBe("female");
+    expect(optimistic?.sexTests[0]).toMatchObject({
+      sourceSexTestId: 22,
+      resultReceivedAt,
+      resultSexKey: "female",
+      isInconclusive: false,
+    });
+    expect(isPendingCommandProjected(pendingResult, [plant], [], "MF-001")).toBe(false);
+    expect(
+      isPendingCommandProjected(
+        pendingResult,
+        [
+          {
+            ...plant,
+            sexKey: "female",
+            sexTests: [
+              makeSexTest({
+                sourceSexTestId: 22,
+                vendorTestCode: "FF-XY-001",
+                resultReceivedAt,
+                resultSexKey: "female",
+                isInconclusive: false,
+              }),
+            ],
+          },
+        ],
+        [],
+        "MF-001",
+      ),
+    ).toBe(true);
   });
 
   it("derives optimistic stage from lifecycle fact priority", () => {
@@ -779,6 +1066,25 @@ function makePlantRow(overrides: Partial<PlantRow>): PlantRow {
     seedLotLabel: "MF F2",
     lastNote: "",
     telemetrySummary: "",
+    sexTests: [],
+    ...overrides,
+  };
+}
+
+function makeSexTest(overrides: Partial<PlantSexTest> = {}): PlantSexTest {
+  return {
+    id: "22",
+    sourceSexTestId: 22,
+    sourcePlantId: 1,
+    vendorName: "Farmer Freeman",
+    assayName: "EZ-XY",
+    vendorTestCode: "FF-XY-001",
+    sampleCollectedAt: "2026-06-21T16:45:00.000Z",
+    sampleSentAt: null,
+    resultReceivedAt: null,
+    resultSexKey: null,
+    isInconclusive: false,
+    notes: null,
     ...overrides,
   };
 }

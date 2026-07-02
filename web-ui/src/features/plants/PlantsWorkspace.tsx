@@ -20,14 +20,17 @@ import {
   type PlantsPendingCommand,
   pendingTimelineNotes,
   readonlyPlantPrefixPreview,
+  useBulkCreateSexTestsMutation,
   useBulkCullMutation,
   useBulkMoveMutation,
+  useBulkResultSexTestsMutation,
   useBulkSexMutation,
   useClonePlantsMutation,
   useGerminatePlantsMutation,
   useLogPlantNoteMutation,
   usePlantsPendingCommands,
   useUpdatePlantFactsMutation,
+  useUpdateSexTestMutation,
 } from "./plantsMutations";
 import { invalidatePlantsReads, usePlantsQueries } from "./plantsQueries";
 import type {
@@ -422,6 +425,9 @@ function PlantsPage({
   const updatePlantFactsMutation = useUpdatePlantFactsMutation();
   const bulkCullMutation = useBulkCullMutation();
   const logNoteMutation = useLogPlantNoteMutation();
+  const bulkCreateSexTestsMutation = useBulkCreateSexTestsMutation();
+  const updateSexTestMutation = useUpdateSexTestMutation();
+  const bulkResultSexTestsMutation = useBulkResultSexTestsMutation();
   const serverPlants = logbook.plants.plants;
   const plants = useMemo(
     () => applyPendingPlantCommands(serverPlants, pendingCommands),
@@ -536,7 +542,10 @@ function PlantsPage({
               bulkSexMutation.error ??
                 bulkMoveMutation.error ??
                 updatePlantFactsMutation.error ??
-                bulkCullMutation.error,
+                bulkCullMutation.error ??
+                bulkCreateSexTestsMutation.error ??
+                updateSexTestMutation.error ??
+                bulkResultSexTestsMutation.error,
             )}
             destructiveActionsDisabled={selectedPlantsHavePendingCommand}
             onAddPlants={() => {
@@ -3474,7 +3483,20 @@ function plantSearchText(plant: PlantRow): string {
     plant.seedLotLabel,
     plant.currentTentName,
     plant.lastNote,
+    ...plant.sexTests.flatMap((sexTest) => [
+      sexTest.vendorName,
+      sexTest.assayName ?? "",
+      sexTest.vendorTestCode,
+      plantSexTestStatusText(sexTest),
+    ]),
   ].join(" ");
+}
+
+function plantSexTestStatusText(sexTest: PlantRow["sexTests"][number]): string {
+  if (sexTest.resultSexKey !== null) return sexTest.resultSexKey;
+  if (sexTest.isInconclusive) return "inconclusive";
+  if (sexTest.resultReceivedAt !== null) return "resulted";
+  return "pending";
 }
 
 function normalizeSearchText(value: string): string {

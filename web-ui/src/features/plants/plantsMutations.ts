@@ -13,6 +13,7 @@ import type {
   PlantJournalEvent,
   PlantRow,
   PlantSexKey,
+  PlantSexTest,
   PlantStageKey,
 } from "./plantsTypes";
 
@@ -41,6 +42,12 @@ type BreedingCreatePlantNoteRequest =
   hostedComponents["schemas"]["BreedingCreatePlantNoteRequest"];
 type BreedingBulkPlantNoteRequest =
   hostedComponents["schemas"]["BreedingBulkPlantNoteRequest"];
+type BreedingBulkCreateSexTestsRequest =
+  hostedComponents["schemas"]["BreedingBulkCreateSexTestsRequest"];
+type BreedingUpdateSexTestRequest =
+  hostedComponents["schemas"]["BreedingUpdateSexTestRequest"];
+type BreedingBulkResultSexTestsRequest =
+  hostedComponents["schemas"]["BreedingBulkResultSexTestsRequest"];
 
 const PLANT_PATCH_FIELDS = [
   "sexKey",
@@ -82,7 +89,10 @@ type PendingOperation =
   | "bulk-move"
   | "update-facts"
   | "bulk-cull"
-  | "note";
+  | "note"
+  | "sex-test-bulk-create"
+  | "sex-test-update"
+  | "sex-test-bulk-result";
 
 export type PlantsPendingCommand = {
   commandId: string;
@@ -98,8 +108,14 @@ export type PlantsPendingCommand = {
 };
 
 type PlantPatchField = (typeof PLANT_PATCH_FIELDS)[number];
-type PendingPlantPatch = { plantKey: PlantRow["key"] } & {
+type PendingPlantPatch = {
+  plantKey: PlantRow["key"];
+  sexTestPatches?: readonly PendingSexTestPatch[];
+} & {
   [TKey in PlantPatchField]?: PlantRow[TKey];
+};
+type PendingSexTestPatch = Partial<PlantSexTest> & {
+  optimisticId?: string;
 };
 
 export type PendingTimelineNote = {
@@ -242,6 +258,52 @@ type LogNoteMutationInput = {
   body: string;
 };
 
+type SexTestResultSexKey = Extract<PlantSexKey, "male" | "female">;
+
+type BulkCreateSexTestInput = {
+  plantKey: string;
+  vendorTestCode: string;
+  notes: string | null;
+};
+
+type BulkCreateSexTestsMutationInput = {
+  idempotencyKey: string;
+  vendorName: string;
+  assayName: string | null;
+  sampleCollectedAt: string;
+  sampleSentAt: string | null;
+  tests: readonly BulkCreateSexTestInput[];
+};
+
+type UpdateSexTestMutationInput = {
+  idempotencyKey: string;
+  plantKey: string;
+  sexTestId: string;
+  sexTestSourceId: number;
+  vendorName: string;
+  assayName: string | null;
+  vendorTestCode: string;
+  sampleCollectedAt: string;
+  sampleSentAt: string | null;
+  resultReceivedAt: string | null;
+  resultSexKey: SexTestResultSexKey | null;
+  isInconclusive: boolean;
+  notes: string | null;
+};
+
+type BulkResultSexTestInput = {
+  plantKey: string;
+  sexTestSourceId: number;
+  resultSexKey: SexTestResultSexKey | null;
+  isInconclusive: boolean;
+};
+
+type BulkResultSexTestsMutationInput = {
+  idempotencyKey: string;
+  resultReceivedAt: string;
+  results: readonly BulkResultSexTestInput[];
+};
+
 export function createPlantsIdempotencyKey(operation: string): string {
   const random =
     typeof crypto === "undefined" || crypto.randomUUID === undefined
@@ -347,6 +409,55 @@ export function buildBulkLogNoteRequest(
     plant_keys: [...input.plantKeys],
     body: input.body.trim(),
     observed_at: null,
+  };
+}
+
+export function buildBulkCreateSexTestsRequest(
+  input: BulkCreateSexTestsMutationInput,
+): BreedingBulkCreateSexTestsRequest {
+  return {
+    idempotency_key: input.idempotencyKey,
+    vendor_name: input.vendorName.trim(),
+    assay_name: trimNullableText(input.assayName),
+    sample_collected_at: input.sampleCollectedAt,
+    sample_sent_at: input.sampleSentAt,
+    tests: input.tests.map((test) => ({
+      plant_key: test.plantKey,
+      vendor_test_code: test.vendorTestCode.trim(),
+      notes: trimNullableText(test.notes),
+    })),
+  };
+}
+
+export function buildUpdateSexTestRequest(
+  input: UpdateSexTestMutationInput,
+): BreedingUpdateSexTestRequest {
+  return {
+    idempotency_key: input.idempotencyKey,
+    sex_test_source_id: input.sexTestSourceId,
+    vendor_name: input.vendorName.trim(),
+    assay_name: trimNullableText(input.assayName),
+    vendor_test_code: input.vendorTestCode.trim(),
+    sample_collected_at: input.sampleCollectedAt,
+    sample_sent_at: input.sampleSentAt,
+    result_received_at: input.resultReceivedAt,
+    result_sex_key: input.resultSexKey,
+    is_inconclusive: input.isInconclusive,
+    notes: trimNullableText(input.notes),
+  };
+}
+
+export function buildBulkResultSexTestsRequest(
+  input: BulkResultSexTestsMutationInput,
+): BreedingBulkResultSexTestsRequest {
+  return {
+    idempotency_key: input.idempotencyKey,
+    result_received_at: input.resultReceivedAt,
+    results: input.results.map((result) => ({
+      sex_test_source_id: result.sexTestSourceId,
+      result_sex_key: result.resultSexKey,
+      is_inconclusive: result.isInconclusive,
+    })),
   };
 }
 
@@ -557,6 +668,68 @@ export function useLogPlantNoteMutation() {
   });
 }
 
+export function useBulkCreateSexTestsMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: bulkCreateSexTests,
+    onSuccess: (command, input) => {
+      const plantKeys = input.tests.map((test) => test.plantKey);
+      addPendingCommand(queryClient, {
+        command,
+        operation: "sex-test-bulk-create",
+        label: `Creating ${input.tests.length} sex tests`,
+        affectedPlantKeys: plantKeys,
+        optimisticPlantPatches: bulkCreateSexTestsToPatches(input),
+        pendingNote: null,
+      });
+      if (command.status === "succeeded") {
+        scheduleProjectionRefresh(queryClient, plantKeys);
+      }
+    },
+  });
+}
+
+export function useUpdateSexTestMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: updateSexTest,
+    onSuccess: (command, input) => {
+      addPendingCommand(queryClient, {
+        command,
+        operation: "sex-test-update",
+        label: `Updating sex test ${input.sexTestSourceId}`,
+        affectedPlantKeys: [input.plantKey],
+        optimisticPlantPatches: [updateSexTestToPatch(input)],
+        pendingNote: null,
+      });
+      if (command.status === "succeeded") {
+        scheduleProjectionRefresh(queryClient, [input.plantKey]);
+      }
+    },
+  });
+}
+
+export function useBulkResultSexTestsMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: bulkResultSexTests,
+    onSuccess: (command, input) => {
+      const plantKeys = input.results.map((result) => result.plantKey);
+      addPendingCommand(queryClient, {
+        command,
+        operation: "sex-test-bulk-result",
+        label: `Recording ${input.results.length} sex test results`,
+        affectedPlantKeys: plantKeys,
+        optimisticPlantPatches: bulkResultSexTestsToPatches(input),
+        pendingNote: null,
+      });
+      if (command.status === "succeeded") {
+        scheduleProjectionRefresh(queryClient, plantKeys);
+      }
+    },
+  });
+}
+
 export function activePendingCommandsForPlant(
   pendingCommands: readonly PlantsPendingCommand[],
   plantKey: string,
@@ -719,6 +892,37 @@ async function logPlantNote(input: LogNoteMutationInput): Promise<HostedCommand>
   return hostedData(data, "POST /api/breeding-logbook/plants:bulk-note");
 }
 
+async function bulkCreateSexTests(
+  input: BulkCreateSexTestsMutationInput,
+): Promise<HostedCommand> {
+  const { data } = await hostedApi.POST("/api/breeding-logbook/sex-tests:bulk-create", {
+    body: buildBulkCreateSexTestsRequest(input),
+  });
+  return hostedData(data, "POST /api/breeding-logbook/sex-tests:bulk-create");
+}
+
+async function updateSexTest(
+  input: UpdateSexTestMutationInput,
+): Promise<HostedCommand> {
+  const { data } = await hostedApi.POST(
+    "/api/breeding-logbook/sex-tests/{sex_test_id}:update",
+    {
+      params: { path: { sex_test_id: input.sexTestId } },
+      body: buildUpdateSexTestRequest(input),
+    },
+  );
+  return hostedData(data, "POST /api/breeding-logbook/sex-tests/{sex_test_id}:update");
+}
+
+async function bulkResultSexTests(
+  input: BulkResultSexTestsMutationInput,
+): Promise<HostedCommand> {
+  const { data } = await hostedApi.POST("/api/breeding-logbook/sex-tests:bulk-result", {
+    body: buildBulkResultSexTestsRequest(input),
+  });
+  return hostedData(data, "POST /api/breeding-logbook/sex-tests:bulk-result");
+}
+
 async function fetchCommand(commandId: string): Promise<HostedCommand> {
   const { data } = await hostedApi.GET("/api/commands/{command_id}", {
     params: { path: { command_id: commandId } },
@@ -807,6 +1011,88 @@ function plantFactUpdatesToPatches(
   });
 }
 
+function bulkCreateSexTestsToPatches(
+  input: BulkCreateSexTestsMutationInput,
+): readonly PendingPlantPatch[] {
+  const body = buildBulkCreateSexTestsRequest(input);
+  return body.tests.map((test) => ({
+    plantKey: test.plant_key,
+    sexTestPatches: [
+      {
+        optimisticId: pendingSexTestId(body.idempotency_key, test.plant_key),
+        vendorName: body.vendor_name,
+        assayName: body.assay_name,
+        vendorTestCode: test.vendor_test_code,
+        sampleCollectedAt: body.sample_collected_at,
+        sampleSentAt: body.sample_sent_at,
+        resultReceivedAt: null,
+        resultSexKey: null,
+        isInconclusive: false,
+        notes: test.notes ?? null,
+      },
+    ],
+  }));
+}
+
+function updateSexTestToPatch(input: UpdateSexTestMutationInput): PendingPlantPatch {
+  const body = buildUpdateSexTestRequest(input);
+  const patch: PendingPlantPatch = {
+    plantKey: input.plantKey,
+    sexTestPatches: [
+      {
+        id: input.sexTestId,
+        sourceSexTestId: body.sex_test_source_id,
+        vendorName: body.vendor_name,
+        assayName: body.assay_name,
+        vendorTestCode: body.vendor_test_code,
+        sampleCollectedAt: body.sample_collected_at,
+        sampleSentAt: body.sample_sent_at,
+        resultReceivedAt: body.result_received_at,
+        resultSexKey: body.result_sex_key,
+        isInconclusive: body.is_inconclusive,
+        notes: body.notes,
+      },
+    ],
+  };
+  const sexKey = conclusiveSexKeyFromResult(
+    body.result_received_at,
+    body.result_sex_key,
+    body.is_inconclusive,
+  );
+  if (sexKey !== undefined) {
+    patch.sexKey = sexKey;
+  }
+  return patch;
+}
+
+function bulkResultSexTestsToPatches(
+  input: BulkResultSexTestsMutationInput,
+): readonly PendingPlantPatch[] {
+  const body = buildBulkResultSexTestsRequest(input);
+  return input.results.map((result) => {
+    const patch: PendingPlantPatch = {
+      plantKey: result.plantKey,
+      sexTestPatches: [
+        {
+          sourceSexTestId: result.sexTestSourceId,
+          resultReceivedAt: body.result_received_at,
+          resultSexKey: result.resultSexKey,
+          isInconclusive: result.isInconclusive,
+        },
+      ],
+    };
+    const sexKey = conclusiveSexKeyFromResult(
+      body.result_received_at,
+      result.resultSexKey,
+      result.isInconclusive,
+    );
+    if (sexKey !== undefined) {
+      patch.sexKey = sexKey;
+    }
+    return patch;
+  });
+}
+
 function applyPlantFactUpdateToPatch(
   patch: PendingPlantPatch,
   update: PlantFactUpdate,
@@ -841,7 +1127,14 @@ function dateOnlyFromFactValue(value: string | null): string | null {
 }
 
 function applyPlantPatch(plant: PlantRow, patch: PendingPlantPatch): PlantRow {
-  const next = { ...plant, ...definedPlantPatchValues(patch) };
+  const next = {
+    ...plant,
+    ...definedPlantPatchValues(patch),
+    sexTests:
+      patch.sexTestPatches === undefined
+        ? plant.sexTests
+        : applySexTestPatches(plant, patch.sexTestPatches),
+  };
   if (patchAffectsStage(patch)) {
     next.stageKey = plantStageKeyFromFacts(next);
   }
@@ -882,7 +1175,7 @@ function isPlantPatchProjected(plant: PlantRow, patch: PendingPlantPatch): boole
     if (field === "lastNote") continue;
     if (!isPatchFieldProjected(plant, patch, field)) return false;
   }
-  return true;
+  return areSexTestPatchesProjected(plant, patch.sexTestPatches ?? []);
 }
 
 function isPatchFieldProjected<TKey extends PlantPatchField>(
@@ -892,6 +1185,202 @@ function isPatchFieldProjected<TKey extends PlantPatchField>(
 ): boolean {
   const expected = patch[field];
   return expected === undefined || Object.is(plant[field], expected);
+}
+
+function applySexTestPatches(
+  plant: PlantRow,
+  patches: readonly PendingSexTestPatch[],
+): readonly PlantSexTest[] {
+  return patches.reduce(
+    (sexTests, patch) => applySexTestPatch(plant, sexTests, patch),
+    plant.sexTests,
+  );
+}
+
+function applySexTestPatch(
+  plant: PlantRow,
+  sexTests: readonly PlantSexTest[],
+  patch: PendingSexTestPatch,
+): readonly PlantSexTest[] {
+  const index = findSexTestPatchIndex(sexTests, patch);
+  if (index === -1) {
+    const sexTest = plantSexTestFromPatch(plant, patch);
+    return sexTest === null ? sexTests : [sexTest, ...sexTests];
+  }
+  return sexTests.map((sexTest, sexTestIndex) =>
+    sexTestIndex === index ? mergeSexTestPatch(sexTest, patch) : sexTest,
+  );
+}
+
+function plantSexTestFromPatch(
+  plant: PlantRow,
+  patch: PendingSexTestPatch,
+): PlantSexTest | null {
+  if (
+    patch.vendorName === undefined ||
+    patch.vendorTestCode === undefined ||
+    patch.sampleCollectedAt === undefined
+  ) {
+    return null;
+  }
+  return {
+    id:
+      patch.id ??
+      patch.optimisticId ??
+      pendingSexTestId("sex-test", `${patch.vendorName}:${patch.vendorTestCode}`),
+    sourceSexTestId: patch.sourceSexTestId ?? pendingSourceSexTestId(patch),
+    sourcePlantId: patch.sourcePlantId ?? sourcePlantIdFromPlant(plant),
+    vendorName: patch.vendorName,
+    assayName: patch.assayName ?? null,
+    vendorTestCode: patch.vendorTestCode,
+    sampleCollectedAt: patch.sampleCollectedAt,
+    sampleSentAt: patch.sampleSentAt ?? null,
+    resultReceivedAt: patch.resultReceivedAt ?? null,
+    resultSexKey: patch.resultSexKey ?? null,
+    isInconclusive: patch.isInconclusive ?? false,
+    notes: patch.notes ?? null,
+  };
+}
+
+function mergeSexTestPatch(
+  sexTest: PlantSexTest,
+  patch: PendingSexTestPatch,
+): PlantSexTest {
+  return {
+    id: patch.id ?? sexTest.id,
+    sourceSexTestId: patch.sourceSexTestId ?? sexTest.sourceSexTestId,
+    sourcePlantId: patch.sourcePlantId ?? sexTest.sourcePlantId,
+    vendorName: patch.vendorName ?? sexTest.vendorName,
+    assayName: patch.assayName === undefined ? sexTest.assayName : patch.assayName,
+    vendorTestCode: patch.vendorTestCode ?? sexTest.vendorTestCode,
+    sampleCollectedAt: patch.sampleCollectedAt ?? sexTest.sampleCollectedAt,
+    sampleSentAt:
+      patch.sampleSentAt === undefined ? sexTest.sampleSentAt : patch.sampleSentAt,
+    resultReceivedAt:
+      patch.resultReceivedAt === undefined
+        ? sexTest.resultReceivedAt
+        : patch.resultReceivedAt,
+    resultSexKey:
+      patch.resultSexKey === undefined ? sexTest.resultSexKey : patch.resultSexKey,
+    isInconclusive: patch.isInconclusive ?? sexTest.isInconclusive,
+    notes: patch.notes === undefined ? sexTest.notes : patch.notes,
+  };
+}
+
+function areSexTestPatchesProjected(
+  plant: PlantRow,
+  patches: readonly PendingSexTestPatch[],
+): boolean {
+  return patches.every((patch) => {
+    const sexTest = findMatchingSexTest(plant.sexTests, patch);
+    return sexTest !== undefined && isSexTestPatchProjected(sexTest, patch);
+  });
+}
+
+function isSexTestPatchProjected(
+  sexTest: PlantSexTest,
+  patch: PendingSexTestPatch,
+): boolean {
+  if (patch.sourceSexTestId === undefined) {
+    return (
+      sexTestPatchValueProjected(sexTest, patch, "vendorName") &&
+      sexTestPatchValueProjected(sexTest, patch, "vendorTestCode") &&
+      sexTestPatchValueProjected(sexTest, patch, "resultReceivedAt") &&
+      sexTestPatchValueProjected(sexTest, patch, "resultSexKey") &&
+      sexTestPatchValueProjected(sexTest, patch, "isInconclusive")
+    );
+  }
+  return (
+    sexTestPatchValueProjected(sexTest, patch, "vendorName") &&
+    sexTestPatchValueProjected(sexTest, patch, "assayName") &&
+    sexTestPatchValueProjected(sexTest, patch, "vendorTestCode") &&
+    sexTestPatchValueProjected(sexTest, patch, "sampleCollectedAt") &&
+    sexTestPatchValueProjected(sexTest, patch, "sampleSentAt") &&
+    sexTestPatchValueProjected(sexTest, patch, "resultReceivedAt") &&
+    sexTestPatchValueProjected(sexTest, patch, "resultSexKey") &&
+    sexTestPatchValueProjected(sexTest, patch, "isInconclusive") &&
+    sexTestPatchValueProjected(sexTest, patch, "notes")
+  );
+}
+
+function sexTestPatchValueProjected<TKey extends keyof PlantSexTest>(
+  sexTest: PlantSexTest,
+  patch: PendingSexTestPatch,
+  field: TKey,
+): boolean {
+  const expected = patch[field];
+  return expected === undefined || Object.is(sexTest[field], expected);
+}
+
+function findSexTestPatchIndex(
+  sexTests: readonly PlantSexTest[],
+  patch: PendingSexTestPatch,
+): number {
+  return sexTests.findIndex((sexTest) => sexTestsMatchPatch(sexTest, patch));
+}
+
+function findMatchingSexTest(
+  sexTests: readonly PlantSexTest[],
+  patch: PendingSexTestPatch,
+): PlantSexTest | undefined {
+  return sexTests.find((sexTest) => sexTestsMatchPatch(sexTest, patch));
+}
+
+function sexTestsMatchPatch(
+  sexTest: PlantSexTest,
+  patch: PendingSexTestPatch,
+): boolean {
+  if (patch.sourceSexTestId !== undefined) {
+    return sexTest.sourceSexTestId === patch.sourceSexTestId;
+  }
+  if (patch.vendorName === undefined || patch.vendorTestCode === undefined) {
+    return false;
+  }
+  return (
+    normalizedSexTestIdentity(sexTest.vendorName) ===
+      normalizedSexTestIdentity(patch.vendorName) &&
+    normalizedSexTestIdentity(sexTest.vendorTestCode) ===
+      normalizedSexTestIdentity(patch.vendorTestCode)
+  );
+}
+
+function normalizedSexTestIdentity(value: string): string {
+  return value.trim();
+}
+
+function pendingSexTestId(idempotencyKey: string, plantKey: string): string {
+  return `pending:${idempotencyKey}:${plantKey}`;
+}
+
+function pendingSourceSexTestId(patch: PendingSexTestPatch): number {
+  const identity = `${patch.vendorName ?? ""}:${patch.vendorTestCode ?? ""}`;
+  let hash = 0;
+  for (const character of identity) {
+    hash = (hash * 31 + character.charCodeAt(0)) | 0;
+  }
+  return hash === 0 ? -1 : -Math.abs(hash);
+}
+
+function sourcePlantIdFromPlant(plant: PlantRow): number {
+  const value = Number.parseInt(plant.id, 10);
+  return Number.isNaN(value) ? 0 : value;
+}
+
+function conclusiveSexKeyFromResult(
+  resultReceivedAt: string | null,
+  resultSexKey: SexTestResultSexKey | null,
+  isInconclusive: boolean,
+): SexTestResultSexKey | undefined {
+  if (resultReceivedAt === null || resultSexKey === null || isInconclusive) {
+    return undefined;
+  }
+  return resultSexKey;
+}
+
+function trimNullableText(value: string | null): string | null {
+  if (value === null) return null;
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? null : trimmed;
 }
 
 function isTerminalCommandStatus(status: string): boolean {

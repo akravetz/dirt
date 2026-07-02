@@ -23,6 +23,7 @@ The work is complete when a developer can create a pending sex test for each sel
 - [x] (2026-07-01T18:21:37-06:00) Add shared gateway/catalog contracts and cloud projection storage.
 - [x] (2026-07-01T18:43:27-06:00) Add sex-test command contracts and command execution.
 - [x] (2026-07-01T19:01:24-06:00) Add hosted browser read/write API routes and generated frontend contract.
+- [x] (2026-07-01T19:29:37-06:00) Add frontend query types and mutations.
 - [ ] Add hosted UI sampling, pending-results, filtering, and detail history workflows.
 - [ ] Validate end-to-end with tests and browser verification.
 
@@ -94,6 +95,10 @@ The work is complete when a developer can create a pending sex test for each sel
   Rationale: The likely workflow is "these results came back on this date" followed by entering male/female/inconclusive per test. If later workflows need per-row received dates, the contract can add an explicit row-level command.
   Date/Author: 2026-07-01 / Operator + Codex
 
+- Decision: Keep frontend sex-test mutation input types internal until a UI surface consumes them directly.
+  Rationale: The web `knip` invariant rejects unused exported types. Milestone 5 can still expose the mutation hooks and request builders while leaving input aliases module-local, then milestone 6 can export narrower UI-facing types if needed.
+  Date/Author: 2026-07-01 / Codex
+
 
 ## Outcomes & Retrospective
 
@@ -107,6 +112,8 @@ The work is complete when a developer can create a pending sex test for each sel
 - Milestone 3 validation passed: `uv run pytest apps/shared/tests/test_cloud_contract.py -q` (`33 passed`), `uv run pytest apps/gateway/tests/test_sync.py apps/gateway/tests/test_gateway_boundary_guardrails.py -q` (`59 passed`), `uv run ruff check` on touched Python files, and `git diff --check` on milestone files.
 - Milestone 4 added inline hosted browser sex-test read rows on plant list/detail responses, command-backed sex-test bulk-create/update/bulk-result browser routes, service-side pre-enqueue plant/test validation, hosted OpenAPI/TypeScript contract regeneration, and focused control-plane tests/guardrails.
 - Milestone 4 validation passed: `DIRT_CLOUD_ASSET_STORE=local scripts/gen-hosted-contract`, `uv run pytest apps/control-plane/tests/test_api.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py -q` (`68 passed`), `uv run ruff check` on touched Python files, `pnpm --dir web-ui typecheck`, and `git diff --check`.
+- Milestone 5 added frontend `PlantSexTest` view types, hosted `sex_tests` response mapping, search-helper inclusion for vendor/assay/code/status text, sex-test request builders and command-backed mutation hooks, and pending-command optimistic sex-test merge/projection logic. The hooks are wired into the existing workspace mutation-error path without adding visible UI controls yet.
+- Milestone 5 validation passed: `pnpm --dir web-ui test -- plantsQueries.test.ts` (`4 files`, `20 tests`), `pnpm --dir web-ui typecheck`, `pnpm --dir web-ui lint`, `pnpm --dir web-ui knip` (exit 0 with existing configuration hints), and `git diff --check`.
 
 
 ## Context and Orientation
@@ -389,6 +396,12 @@ Milestone 4 evidence:
 - Hosted browser sex-test schemas and routes added in `apps/control-plane/src/dirt_control/api/browser_schemas/breeding_logbook.py` and `apps/control-plane/src/dirt_control/api/browser/breeding_logbook.py`.
 - Hosted breeding-logbook service reads `CloudPlantSexTest`, attaches sorted inline sex-test arrays, validates write references, and enqueues sex-test commands in `apps/control-plane/src/dirt_control/services/breeding_logbook.py`.
 - Hosted OpenAPI and generated TypeScript contracts updated in `contracts/hosted-browser-v1.json` and `web-ui/src/api-client/generated/hosted-schema.ts`.
+
+Milestone 5 evidence:
+
+- Frontend plant view types and query mapping updated in `web-ui/src/features/plants/plantsTypes.ts` and `web-ui/src/features/plants/plantsQueries.ts`.
+- Sex-test search text, request builders, mutation hooks, and pending optimistic projection support added in `web-ui/src/features/plants/PlantsWorkspace.tsx` and `web-ui/src/features/plants/plantsMutations.ts`.
+- Focused mapper/mutation/pending-helper tests updated in `web-ui/src/features/plants/plantsQueries.test.ts`.
 
 Initial planning evidence:
 

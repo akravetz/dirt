@@ -12,6 +12,7 @@ import type {
   PlantMetricHistory,
   PlantRow,
   PlantSexKey,
+  PlantSexTest,
   PlantStageKey,
   PlantsBootstrap,
   PlantTelemetryStream,
@@ -30,6 +31,7 @@ type HostedPlantsPlantDetail =
   hostedComponents["schemas"]["BreedingLogbookPlantDetailResponse"];
 type HostedPlantMetricHistory =
   hostedComponents["schemas"]["PlantMetricHistoryResponse"];
+type HostedPlantSexTest = hostedComponents["schemas"]["BreedingLogbookSexTestResponse"];
 
 const plantsQueryKeys = {
   bootstrap: ["plants", "bootstrap"],
@@ -272,6 +274,24 @@ function mapPlantRow(plant: HostedPlantsPlantList["plants"][number]): PlantRow {
     seedLotLabel: plant.seed_lot_label,
     lastNote: plant.last_note,
     telemetrySummary: plant.telemetry_summary,
+    sexTests: plant.sex_tests.map(mapPlantSexTest),
+  };
+}
+
+function mapPlantSexTest(sexTest: HostedPlantSexTest): PlantSexTest {
+  return {
+    id: sexTest.id,
+    sourceSexTestId: sexTest.source_sex_test_id,
+    sourcePlantId: sexTest.source_plant_id,
+    vendorName: sexTest.vendor_name,
+    assayName: sexTest.assay_name,
+    vendorTestCode: sexTest.vendor_test_code,
+    sampleCollectedAt: sexTest.sample_collected_at,
+    sampleSentAt: sexTest.sample_sent_at,
+    resultReceivedAt: sexTest.result_received_at,
+    resultSexKey: sexTest.result_sex_key,
+    isInconclusive: sexTest.is_inconclusive,
+    notes: sexTest.notes,
   };
 }
 
