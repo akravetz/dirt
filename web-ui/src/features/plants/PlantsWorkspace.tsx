@@ -43,6 +43,7 @@ import type {
   PlantMetricHistory,
   PlantRow,
   PlantSexKey,
+  PlantSexTest,
   PlantStageKey,
   PlantsBootstrap,
 } from "./plantsTypes";
@@ -101,15 +102,64 @@ type TableGroup = {
 
 type PlantVisibilityFilter = "active" | "all" | "culled" | "harvested";
 type PlantLifecycleStatusFilter = "all" | "started" | "veg" | "flower";
+type PlantSexTestStateFilter =
+  | "all"
+  | "untested"
+  | "pending"
+  | "resulted"
+  | "inconclusive";
 type PlantsSearchState = {
   groupBy?: PlantGroupBy;
   layout?: PlantListLayout;
   parent?: string;
   q?: string;
+  sexTest?: PlantSexTestStateFilter;
   status?: PlantLifecycleStatusFilter;
   strain?: string;
   visibility?: PlantVisibilityFilter;
 };
+type SexTestConclusiveResult = Extract<PlantSexKey, "female" | "male">;
+type SexTestResultOption = SexTestConclusiveResult | "inconclusive";
+type SexTestResultDraftValue = SexTestResultOption | "";
+type SexTestSampleInput = {
+  plantKey: string;
+  vendorTestCode: string;
+  notes: string | null;
+};
+type CreateSexTestsInput = {
+  idempotencyKey: string;
+  vendorName: string;
+  assayName: string | null;
+  sampleCollectedAt: string;
+  sampleSentAt: string | null;
+  tests: readonly SexTestSampleInput[];
+};
+type UpdateSexTestInput = {
+  idempotencyKey: string;
+  plantKey: string;
+  sexTestId: string;
+  sexTestSourceId: number;
+  vendorName: string;
+  assayName: string | null;
+  vendorTestCode: string;
+  sampleCollectedAt: string;
+  sampleSentAt: string | null;
+  resultReceivedAt: string | null;
+  resultSexKey: SexTestConclusiveResult | null;
+  isInconclusive: boolean;
+  notes: string | null;
+};
+type ResultSexTestsInput = {
+  idempotencyKey: string;
+  resultReceivedAt: string;
+  results: readonly {
+    plantKey: string;
+    sexTestSourceId: number;
+    resultSexKey: SexTestConclusiveResult | null;
+    isInconclusive: boolean;
+  }[];
+};
+type SexTestMutationSubmit<TInput> = (input: TInput, onSuccess: () => void) => void;
 
 const EMPTY_SELECTION = new Set<string>();
 const FALLBACK_LOCATION: LocationOption = {
@@ -212,17 +262,27 @@ const DETAIL_TEXT_OWNER_DATE_DRAFT_KEY = {
 const PLANT_LIST_LAYOUT_VALUES = ["table", "board"] as const;
 const PLANT_GROUP_BY_VALUES = ["stage", "parents"] as const;
 const PLANT_LIFECYCLE_STATUS_VALUES = ["all", "started", "veg", "flower"] as const;
+const PLANT_SEX_TEST_STATE_VALUES = [
+  "all",
+  "untested",
+  "pending",
+  "resulted",
+  "inconclusive",
+] as const;
 const PLANT_VISIBILITY_VALUES = ["active", "all", "culled", "harvested"] as const;
 const DEFAULT_PLANTS_SEARCH = {
   groupBy: "stage",
   layout: "table",
   parent: "all",
   q: "",
+  sexTest: "all",
   status: "all",
   strain: "all",
   visibility: "active",
 } as const satisfies Required<PlantsSearchState>;
 const PLANT_FILTER_COLLATOR = new Intl.Collator("en", { sensitivity: "base" });
+const DEFAULT_SEX_TEST_VENDOR = "Farmer Freeman";
+const DEFAULT_SEX_TEST_ASSAY = "EZ-XY";
 
 type PlantsPageView = "plants" | "add-plants" | "detail";
 type PlantsPageMode = "list" | "new-plant" | "detail";
@@ -243,6 +303,11 @@ export function validatePlantsSearch(
     ),
     parent: parseSearchString(search.parent, DEFAULT_PLANTS_SEARCH.parent),
     q: parseSearchString(search.q, DEFAULT_PLANTS_SEARCH.q),
+    sexTest: parseSearchEnum(
+      search.sexTest,
+      PLANT_SEX_TEST_STATE_VALUES,
+      DEFAULT_PLANTS_SEARCH.sexTest,
+    ),
     status: parseSearchEnum(
       search.status,
       PLANT_LIFECYCLE_STATUS_VALUES,
@@ -265,6 +330,7 @@ export function normalizePlantsSearch(
     layout: search.layout ?? DEFAULT_PLANTS_SEARCH.layout,
     parent: search.parent ?? DEFAULT_PLANTS_SEARCH.parent,
     q: search.q ?? DEFAULT_PLANTS_SEARCH.q,
+    sexTest: search.sexTest ?? DEFAULT_PLANTS_SEARCH.sexTest,
     status: search.status ?? DEFAULT_PLANTS_SEARCH.status,
     strain: search.strain ?? DEFAULT_PLANTS_SEARCH.strain,
     visibility: search.visibility ?? DEFAULT_PLANTS_SEARCH.visibility,
@@ -346,6 +412,9 @@ export function filterPlantsForSearch(
     if (search.status !== "all" && plantLifecycleStatus(plant) !== search.status) {
       return false;
     }
+    if (search.sexTest !== "all" && plantSexTestState(plant) !== search.sexTest) {
+      return false;
+    }
     if (query.length === 0) return true;
     return normalizeSearchText(plantSearchText(plant)).includes(query);
   });
@@ -358,6 +427,12 @@ export function plantLifecycleStatus(
   if (plant.vegStartedAt !== null) return "veg";
   if (plant.germinatedAt !== null || plant.takenAt !== null) return "started";
   return "unstarted";
+}
+
+function plantSexTestState(plant: PlantRow): Exclude<PlantSexTestStateFilter, "all"> {
+  const sexTest = latestSexTest(plant);
+  if (sexTest === undefined) return "untested";
+  return sexTestState(sexTest);
 }
 
 function PlantsPage({
@@ -508,6 +583,15 @@ function PlantsPage({
   const maxEventDateTime = datetimeLocalNow();
   const detailPlantHasPendingCommand =
     activePendingCommandsForPlant(pendingCommands, detail.plant.key).length > 0;
+  const sexTestMutationPending =
+    bulkCreateSexTestsMutation.isPending ||
+    updateSexTestMutation.isPending ||
+    bulkResultSexTestsMutation.isPending;
+  const sexTestMutationError = mutationErrorText(
+    bulkCreateSexTestsMutation.error ??
+      updateSexTestMutation.error ??
+      bulkResultSexTestsMutation.error,
+  );
 
   return (
     <main className="flex-1 overflow-auto bg-paper text-ink">
@@ -532,6 +616,8 @@ function PlantsPage({
             filterSourcePlants={visiblePlants}
             plants={filteredPlants}
             search={search}
+            sexTestCreatePending={bulkCreateSexTestsMutation.isPending}
+            sexTestResultPending={bulkResultSexTestsMutation.isPending}
             selectedLocation={selectedLocation}
             selectedPlantIds={selectedPlantIds}
             selectedPlants={selectedPlants}
@@ -648,6 +734,17 @@ function PlantsPage({
                 },
               );
             }}
+            onCreateSexTests={(input, onSuccess) => {
+              bulkCreateSexTestsMutation.mutate(input, {
+                onSuccess: () => {
+                  onSuccess();
+                  clearSelection();
+                },
+              });
+            }}
+            onResultSexTests={(input, onSuccess) => {
+              bulkResultSexTestsMutation.mutate(input, { onSuccess });
+            }}
             onBulkDateFieldChange={setBulkDateField}
             onBulkDateValueChange={setBulkDateValue}
             onBulkPanelChange={setBulkPanel}
@@ -724,6 +821,7 @@ function PlantsPage({
                   ...previous,
                   parent: DEFAULT_PLANTS_SEARCH.parent,
                   q: DEFAULT_PLANTS_SEARCH.q,
+                  sexTest: DEFAULT_PLANTS_SEARCH.sexTest,
                   status: DEFAULT_PLANTS_SEARCH.status,
                   strain: DEFAULT_PLANTS_SEARCH.strain,
                 }),
@@ -734,6 +832,13 @@ function PlantsPage({
               void navigate({
                 to: "/plants",
                 search: (previous) => ({ ...previous, status }),
+                replace: true,
+              });
+            }}
+            onSexTestFilterChange={(sexTest) => {
+              void navigate({
+                to: "/plants",
+                search: (previous) => ({ ...previous, sexTest }),
                 replace: true,
               });
             }}
@@ -863,6 +968,10 @@ function PlantsPage({
               pendingCommands,
               detail.plant.key,
             )}
+            pendingCommands={pendingCommands}
+            sexTestActionsDisabled={detailPlantHasPendingCommand}
+            sexTestMutationError={sexTestMutationError}
+            sexTestMutationPending={sexTestMutationPending}
             onBack={() => {
               setBulkNotePlantKeys(null);
               setDetailFactsEditing(false);
@@ -909,6 +1018,12 @@ function PlantsPage({
                 },
               );
             }}
+            onCreateSexTests={(input, onSuccess) => {
+              bulkCreateSexTestsMutation.mutate(input, { onSuccess });
+            }}
+            onResultSexTests={(input, onSuccess) => {
+              bulkResultSexTestsMutation.mutate(input, { onSuccess });
+            }}
             onNoteTextChange={setNoteText}
             onSaveFacts={() => {
               if (
@@ -952,6 +1067,9 @@ function PlantsPage({
                   },
                 },
               );
+            }}
+            onUpdateSexTest={(input, onSuccess) => {
+              updateSexTestMutation.mutate(input, { onSuccess });
             }}
           />
         )}
@@ -1008,6 +1126,7 @@ function PlantsSurface({
   onApplyCull,
   onApplyMove,
   onApplySex,
+  onCreateSexTests,
   onBulkDateFieldChange,
   onBulkDateValueChange,
   onBulkPanelChange,
@@ -1026,14 +1145,18 @@ function PlantsSurface({
   onOpenDetail,
   onParentFilterChange,
   onQueryChange,
+  onResultSexTests,
   onResetFilters,
   onSelectedPlantIdsChange,
+  onSexTestFilterChange,
   onStatusFilterChange,
   onStrainFilterChange,
   onVisibilityChange,
   plants,
   pendingCommands,
   search,
+  sexTestCreatePending,
+  sexTestResultPending,
   selectedLocation,
   selectedPlantIds,
   selectedPlants,
@@ -1061,6 +1184,8 @@ function PlantsSurface({
   plants: readonly PlantRow[];
   pendingCommands: readonly PlantsPendingCommand[];
   search: Required<PlantsSearchState>;
+  sexTestCreatePending: boolean;
+  sexTestResultPending: boolean;
   selectedLocation: LocationOption;
   selectedPlantIds: ReadonlySet<string>;
   selectedPlants: readonly PlantRow[];
@@ -1071,6 +1196,7 @@ function PlantsSurface({
   onApplyCull: () => void;
   onApplyMove: () => void;
   onApplySex: () => void;
+  onCreateSexTests: SexTestMutationSubmit<CreateSexTestsInput>;
   onBulkDateFieldChange: (field: BulkDateField) => void;
   onBulkDateValueChange: (value: string) => void;
   onBulkPanelChange: (panel: BulkPanel) => void;
@@ -1089,8 +1215,10 @@ function PlantsSurface({
   onOpenDetail: (plantId: string) => void;
   onParentFilterChange: (parent: string) => void;
   onQueryChange: (query: string) => void;
+  onResultSexTests: SexTestMutationSubmit<ResultSexTestsInput>;
   onResetFilters: () => void;
   onSelectedPlantIdsChange: (plantIds: ReadonlySet<string>) => void;
+  onSexTestFilterChange: (sexTest: PlantSexTestStateFilter) => void;
   onStatusFilterChange: (status: PlantLifecycleStatusFilter) => void;
   onStrainFilterChange: (strain: string) => void;
   onVisibilityChange: (visibility: PlantVisibilityFilter) => void;
@@ -1154,6 +1282,7 @@ function PlantsSurface({
         onParentFilterChange={onParentFilterChange}
         onQueryChange={onQueryChange}
         onResetFilters={onResetFilters}
+        onSexTestFilterChange={onSexTestFilterChange}
         onStatusFilterChange={onStatusFilterChange}
         onStrainFilterChange={onStrainFilterChange}
         onVisibilityChange={onVisibilityChange}
@@ -1170,12 +1299,16 @@ function PlantsSurface({
           locations={bootstrap.locations}
           maxEventDateTime={maxEventDateTime}
           moveLocationKey={moveLocationKey}
+          mutationPending={sexTestCreatePending}
+          pendingCommands={pendingCommands}
           selectedCount={selectedCount}
+          selectedPlants={selectedPlants}
           selectedLocation={selectedLocation}
           onApplyBulkDate={onApplyBulkDate}
           onApplyCull={onApplyCull}
           onApplyMove={onApplyMove}
           onApplySex={onApplySex}
+          onCreateSexTests={onCreateSexTests}
           onBulkDateFieldChange={onBulkDateFieldChange}
           onBulkDateValueChange={onBulkDateValueChange}
           onBulkPanelChange={onBulkPanelChange}
@@ -1189,6 +1322,13 @@ function PlantsSurface({
         />
       ) : null}
       <PendingCommandSummary commands={pendingCommands} mutationError={mutationError} />
+      <PendingSexTestResultsPanel
+        maxEventDateTime={maxEventDateTime}
+        mutationPending={sexTestResultPending}
+        pendingCommands={pendingCommands}
+        plants={plants}
+        onResultSexTests={onResultSexTests}
+      />
       {layout === "table" ? (
         <PlantTable
           allChecked={allVisibleSelected}
@@ -1239,6 +1379,7 @@ function PlantChrome({
   onParentFilterChange,
   onQueryChange,
   onResetFilters,
+  onSexTestFilterChange,
   onStatusFilterChange,
   onStrainFilterChange,
   onVisibilityChange,
@@ -1257,6 +1398,7 @@ function PlantChrome({
   onParentFilterChange: (parent: string) => void;
   onQueryChange: (query: string) => void;
   onResetFilters: () => void;
+  onSexTestFilterChange: (sexTest: PlantSexTestStateFilter) => void;
   onStatusFilterChange: (status: PlantLifecycleStatusFilter) => void;
   onStrainFilterChange: (strain: string) => void;
   onVisibilityChange: (visibility: PlantVisibilityFilter) => void;
@@ -1275,6 +1417,7 @@ function PlantChrome({
   const hasListFilters =
     search.q !== DEFAULT_PLANTS_SEARCH.q ||
     search.parent !== DEFAULT_PLANTS_SEARCH.parent ||
+    search.sexTest !== DEFAULT_PLANTS_SEARCH.sexTest ||
     search.status !== DEFAULT_PLANTS_SEARCH.status ||
     search.strain !== DEFAULT_PLANTS_SEARCH.strain;
 
@@ -1313,6 +1456,18 @@ function PlantChrome({
           onChange={onStatusFilterChange}
         />
         <Segmented
+          label="Sex test"
+          options={[
+            { label: "All", value: "all" },
+            { label: "Untested", value: "untested" },
+            { label: "Pending", value: "pending" },
+            { label: "Resulted", value: "resulted" },
+            { label: "Inconclusive", value: "inconclusive" },
+          ]}
+          value={search.sexTest}
+          onChange={onSexTestFilterChange}
+        />
+        <Segmented
           label="Layout"
           options={[
             { label: "▤ Table", value: "table" },
@@ -1325,7 +1480,7 @@ function PlantChrome({
       <div className="grid gap-2 md:grid-cols-[minmax(190px,1fr)_minmax(170px,0.7fr)_minmax(170px,0.7fr)_auto] md:items-end">
         <TextField
           label="Search"
-          placeholder="name, key, note"
+          placeholder="name, key, code, note"
           value={search.q}
           onChange={onQueryChange}
         />
@@ -1365,10 +1520,12 @@ function BulkActionToolbar({
   locations,
   maxEventDateTime,
   moveLocationKey,
+  mutationPending,
   onApplyBulkDate,
   onApplyCull,
   onApplyMove,
   onApplySex,
+  onCreateSexTests,
   onBulkDateFieldChange,
   onBulkDateValueChange,
   onBulkPanelChange,
@@ -1379,8 +1536,10 @@ function BulkActionToolbar({
   onClear,
   onMoveLocationChange,
   onOpenNote,
+  pendingCommands,
   selectedCount,
   selectedLocation,
+  selectedPlants,
 }: {
   bulkCullAt: string;
   bulkCullReason: string;
@@ -1392,12 +1551,16 @@ function BulkActionToolbar({
   locations: readonly LocationOption[];
   maxEventDateTime: string;
   moveLocationKey: number;
+  mutationPending: boolean;
+  pendingCommands: readonly PlantsPendingCommand[];
   selectedCount: number;
   selectedLocation: LocationOption;
+  selectedPlants: readonly PlantRow[];
   onApplyBulkDate: () => void;
   onApplyCull: () => void;
   onApplyMove: () => void;
   onApplySex: () => void;
+  onCreateSexTests: SexTestMutationSubmit<CreateSexTestsInput>;
   onBulkDateFieldChange: (field: BulkDateField) => void;
   onBulkDateValueChange: (value: string) => void;
   onBulkPanelChange: (panel: BulkPanel) => void;
@@ -1424,6 +1587,15 @@ function BulkActionToolbar({
           }}
         >
           sex
+        </ToolbarButton>
+        <ToolbarButton
+          active={bulkPanel === "sex-test"}
+          label="Sample sex tests"
+          onClick={() => {
+            onBulkPanelChange(bulkPanel === "sex-test" ? null : "sex-test");
+          }}
+        >
+          test
         </ToolbarButton>
         <ToolbarButton
           active={bulkPanel === "dates"}
@@ -1488,6 +1660,16 @@ function BulkActionToolbar({
           </Button>
           {destructiveActionsDisabled ? <PendingBlockMessage /> : null}
         </div>
+      ) : null}
+      {bulkPanel === "sex-test" ? (
+        <SexTestSamplingPanel
+          maxEventDateTime={maxEventDateTime}
+          mutationPending={mutationPending}
+          pendingCommands={pendingCommands}
+          plants={selectedPlants}
+          submitLabel={`Create ${selectedCount} tests`}
+          onCreateSexTests={onCreateSexTests}
+        />
       ) : null}
       {bulkPanel === "dates" ? (
         <div className="flex flex-wrap items-end gap-3 border-t border-rule bg-paper px-3 py-3">
@@ -1575,6 +1757,346 @@ function BulkActionToolbar({
           {destructiveActionsDisabled ? <PendingBlockMessage /> : null}
         </div>
       ) : null}
+    </section>
+  );
+}
+
+type SexTestSampleRowDraft = {
+  vendorTestCode: string;
+  notes: string;
+};
+
+const EMPTY_SEX_TEST_SAMPLE_ROW: SexTestSampleRowDraft = {
+  vendorTestCode: "",
+  notes: "",
+};
+const SEX_TEST_RESULT_OPTIONS = [
+  { label: "Female", value: "female" },
+  { label: "Male", value: "male" },
+  { label: "Inconclusive", value: "inconclusive" },
+] satisfies readonly { label: string; value: SexTestResultDraftValue }[];
+
+function SexTestSamplingPanel({
+  maxEventDateTime,
+  mutationPending,
+  onCreateSexTests,
+  pendingCommands,
+  plants,
+  submitLabel,
+}: {
+  maxEventDateTime: string;
+  mutationPending: boolean;
+  pendingCommands: readonly PlantsPendingCommand[];
+  plants: readonly PlantRow[];
+  submitLabel: string;
+  onCreateSexTests: SexTestMutationSubmit<CreateSexTestsInput>;
+}): ReactNode {
+  const [vendorName, setVendorName] = useState(DEFAULT_SEX_TEST_VENDOR);
+  const [assayName, setAssayName] = useState(DEFAULT_SEX_TEST_ASSAY);
+  const [sampleCollectedAt, setSampleCollectedAt] = useState(datetimeLocalNow);
+  const [sampleSentAt, setSampleSentAt] = useState("");
+  const [rowDrafts, setRowDrafts] = useState<Record<string, SexTestSampleRowDraft>>({});
+  const rows = plants.map((plant) => ({
+    plant,
+    draft: rowDrafts[plant.key] ?? EMPTY_SEX_TEST_SAMPLE_ROW,
+  }));
+  const duplicateCodes = duplicateSexTestCodes(
+    rows.map((row) => row.draft.vendorTestCode),
+  );
+  const hasPendingAffectedPlant = plants.some(
+    (plant) => activePendingCommandsForPlant(pendingCommands, plant.key).length > 0,
+  );
+  const sampleCollectedValid = canSubmitEventDateTime(
+    sampleCollectedAt,
+    maxEventDateTime,
+  );
+  const sampleSentValid =
+    sampleSentAt.length === 0 ||
+    (canSubmitEventDateTime(sampleSentAt, maxEventDateTime) &&
+      sampleSentAt >= sampleCollectedAt);
+  const allRowsHaveCodes = rows.every(
+    (row) => row.draft.vendorTestCode.trim().length > 0,
+  );
+  const canSubmit =
+    plants.length > 0 &&
+    vendorName.trim().length > 0 &&
+    sampleCollectedValid &&
+    sampleSentValid &&
+    allRowsHaveCodes &&
+    duplicateCodes.size === 0 &&
+    !hasPendingAffectedPlant &&
+    !mutationPending;
+
+  const updateRow = (plantKey: string, patch: Partial<SexTestSampleRowDraft>) => {
+    setRowDrafts((current) => ({
+      ...current,
+      [plantKey]: {
+        ...(current[plantKey] ?? EMPTY_SEX_TEST_SAMPLE_ROW),
+        ...patch,
+      },
+    }));
+  };
+  const resetDraft = () => {
+    setVendorName(DEFAULT_SEX_TEST_VENDOR);
+    setAssayName(DEFAULT_SEX_TEST_ASSAY);
+    setSampleCollectedAt(datetimeLocalNow());
+    setSampleSentAt("");
+    setRowDrafts({});
+  };
+
+  return (
+    <div className="grid gap-3 border-t border-rule bg-paper px-3 py-3">
+      <div className="grid gap-2 md:grid-cols-[minmax(150px,0.8fr)_minmax(120px,0.55fr)_minmax(170px,0.8fr)_minmax(170px,0.8fr)]">
+        <TextField
+          label="Vendor"
+          placeholder={DEFAULT_SEX_TEST_VENDOR}
+          value={vendorName}
+          onChange={setVendorName}
+        />
+        <TextField
+          label="Assay"
+          placeholder={DEFAULT_SEX_TEST_ASSAY}
+          value={assayName}
+          onChange={setAssayName}
+        />
+        <DateTimeField
+          label="Collected"
+          max={maxEventDateTime}
+          value={sampleCollectedAt}
+          onChange={setSampleCollectedAt}
+        />
+        <DateTimeField
+          label="Sent"
+          max={maxEventDateTime}
+          required={false}
+          value={sampleSentAt}
+          onChange={setSampleSentAt}
+        />
+      </div>
+      <div className="overflow-x-auto border border-rule-strong bg-paper">
+        <div className="min-w-180">
+          <div className="grid grid-cols-[150px_minmax(150px,0.8fr)_minmax(180px,1fr)] gap-2 border-b border-rule bg-paper-2 px-3 py-2 font-mono text-fs-9 uppercase tracking-caps text-ink-3">
+            <span>Plant</span>
+            <span>Vendor code</span>
+            <span>Notes</span>
+          </div>
+          {rows.map(({ plant, draft }) => {
+            const normalizedCode = normalizedSexTestCode(draft.vendorTestCode);
+            const duplicate =
+              normalizedCode.length > 0 && duplicateCodes.has(normalizedCode);
+            return (
+              <div
+                key={plant.key}
+                className="grid grid-cols-[150px_minmax(150px,0.8fr)_minmax(180px,1fr)] items-center gap-2 border-b border-rule px-3 py-2 last:border-b-0"
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-sans text-fs-12 font-semibold text-ink">
+                    {plant.name}
+                  </p>
+                  <p className="truncate font-mono text-fs-9 uppercase tracking-caps text-ink-3">
+                    {plant.key} / {formatPlantLocation(plant)}
+                  </p>
+                </div>
+                <input
+                  value={draft.vendorTestCode}
+                  placeholder="FF-XY-001"
+                  onChange={(event) => {
+                    updateRow(plant.key, { vendorTestCode: event.target.value });
+                  }}
+                  className={
+                    duplicate
+                      ? "h-9 border border-status-err bg-paper px-2 font-sans text-fs-12 text-ink placeholder:text-ink-3"
+                      : "h-9 border border-rule bg-paper px-2 font-sans text-fs-12 text-ink placeholder:text-ink-3"
+                  }
+                />
+                <input
+                  value={draft.notes}
+                  placeholder="leaf punch"
+                  onChange={(event) => {
+                    updateRow(plant.key, { notes: event.target.value });
+                  }}
+                  className="h-9 border border-rule bg-paper px-2 font-sans text-fs-12 text-ink placeholder:text-ink-3"
+                />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {duplicateCodes.size > 0 ? <InlineError text="Duplicate test code" /> : null}
+        {!sampleSentValid ? <InlineError text="Sent time is invalid" /> : null}
+        {hasPendingAffectedPlant ? <PendingBlockMessage /> : null}
+        <Button
+          variant="primary"
+          disabled={!canSubmit}
+          onClick={() => {
+            const sampleCollectedAtUtc = datetimeLocalToUtcIso(sampleCollectedAt);
+            const sampleSentAtUtc =
+              sampleSentAt.length === 0 ? null : datetimeLocalToUtcIso(sampleSentAt);
+            if (sampleCollectedAtUtc === null) return;
+            if (sampleSentAt.length > 0 && sampleSentAtUtc === null) return;
+            onCreateSexTests(
+              {
+                idempotencyKey: createPlantsIdempotencyKey("sex-tests-bulk-create"),
+                vendorName,
+                assayName: assayName.trim().length === 0 ? null : assayName,
+                sampleCollectedAt: sampleCollectedAtUtc,
+                sampleSentAt: sampleSentAtUtc,
+                tests: rows.map(({ plant, draft }) => ({
+                  plantKey: plant.key,
+                  vendorTestCode: draft.vendorTestCode,
+                  notes: draft.notes.trim().length === 0 ? null : draft.notes,
+                })),
+              },
+              resetDraft,
+            );
+          }}
+        >
+          {submitLabel}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function PendingSexTestResultsPanel({
+  maxEventDateTime,
+  mutationPending,
+  onResultSexTests,
+  pendingCommands,
+  plants,
+}: {
+  maxEventDateTime: string;
+  mutationPending: boolean;
+  pendingCommands: readonly PlantsPendingCommand[];
+  plants: readonly PlantRow[];
+  onResultSexTests: SexTestMutationSubmit<ResultSexTestsInput>;
+}): ReactNode {
+  const rows = pendingSexTestRows(plants);
+  const [resultReceivedAt, setResultReceivedAt] = useState(datetimeLocalNow);
+  const [resultDrafts, setResultDrafts] = useState<
+    Record<number, SexTestResultDraftValue>
+  >({});
+  if (rows.length === 0) return null;
+
+  const selectedRows = rows.filter(({ sexTest }) =>
+    hasSexTestResultDraft(resultDrafts[sexTest.sourceSexTestId]),
+  );
+  const selectedRowsWithRealIds = selectedRows.filter(({ sexTest }) =>
+    hasProjectedSexTestIdentity(sexTest),
+  );
+  const selectedRowsHavePendingCommands = selectedRowsWithRealIds.some(
+    ({ plant }) => activePendingCommandsForPlant(pendingCommands, plant.key).length > 0,
+  );
+  const resultReceivedAtValid = canSubmitEventDateTime(
+    resultReceivedAt,
+    maxEventDateTime,
+  );
+  const canSubmit =
+    selectedRows.length > 0 &&
+    selectedRows.length === selectedRowsWithRealIds.length &&
+    resultReceivedAtValid &&
+    !selectedRowsHavePendingCommands &&
+    !mutationPending;
+
+  return (
+    <section className="grid gap-3 border border-rule-strong bg-paper-2 px-3 py-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h3 className="font-mono text-fs-10 uppercase tracking-caps text-ink">
+            Pending sex-test results
+          </h3>
+          <p className="mt-1 font-mono text-fs-9 uppercase tracking-caps text-ink-3">
+            {rows.length} pending / batch results
+          </p>
+        </div>
+        <DateTimeField
+          label="Received"
+          max={maxEventDateTime}
+          value={resultReceivedAt}
+          onChange={setResultReceivedAt}
+        />
+      </div>
+      <div className="grid gap-px bg-rule">
+        {rows.map(({ plant, sexTest }) => {
+          const sourceId = sexTest.sourceSexTestId;
+          const resultValue = resultDrafts[sourceId] ?? "";
+          const syncing = !hasProjectedSexTestIdentity(sexTest);
+          return (
+            <div
+              key={`${plant.key}:${sexTest.id}`}
+              className="grid gap-2 bg-paper px-3 py-2 md:grid-cols-[minmax(150px,0.8fr)_minmax(110px,0.45fr)_minmax(260px,1fr)] md:items-center"
+            >
+              <div className="min-w-0">
+                <p className="truncate font-sans text-fs-12 font-semibold text-ink">
+                  {plant.name}
+                </p>
+                <p className="truncate font-mono text-fs-9 uppercase tracking-caps text-ink-3">
+                  {plant.key} / {formatPlantLocation(plant)}
+                </p>
+              </div>
+              <span className="truncate font-mono text-fs-10 uppercase tracking-caps text-ink">
+                {sexTest.vendorTestCode}
+              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <Segmented
+                  disabled={syncing}
+                  label="Result"
+                  options={SEX_TEST_RESULT_OPTIONS}
+                  value={resultValue}
+                  onChange={(value) => {
+                    setResultDrafts((current) => ({
+                      ...current,
+                      [sourceId]: value,
+                    }));
+                  }}
+                />
+                {syncing ? (
+                  <span className="font-mono text-fs-9 uppercase tracking-caps text-status-warn">
+                    syncing
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {!resultReceivedAtValid ? <InlineError text="Received time required" /> : null}
+        {selectedRowsHavePendingCommands ? <PendingBlockMessage /> : null}
+        <Button
+          variant="primary"
+          disabled={!canSubmit}
+          onClick={() => {
+            const resultReceivedAtUtc = datetimeLocalToUtcIso(resultReceivedAt);
+            if (resultReceivedAtUtc === null) return;
+            onResultSexTests(
+              {
+                idempotencyKey: createPlantsIdempotencyKey("sex-tests-bulk-result"),
+                resultReceivedAt: resultReceivedAtUtc,
+                results: selectedRowsWithRealIds.flatMap(({ plant, sexTest }) => {
+                  const result = resultDrafts[sexTest.sourceSexTestId];
+                  if (!hasSexTestResultDraft(result)) return [];
+                  return [
+                    {
+                      plantKey: plant.key,
+                      sexTestSourceId: sexTest.sourceSexTestId,
+                      ...resultInputFromOption(result),
+                    },
+                  ];
+                }),
+              },
+              () => {
+                setResultDrafts({});
+                setResultReceivedAt(datetimeLocalNow());
+              },
+            );
+          }}
+        >
+          Record {selectedRows.length} result
+          {selectedRows.length === 1 ? "" : "s"}
+        </Button>
+      </div>
     </section>
   );
 }
@@ -1730,7 +2252,7 @@ function PlantTable({
   return (
     <section className="overflow-x-auto border border-rule-strong bg-paper">
       <div className="min-w-230">
-        <div className="grid grid-cols-[36px_150px_42px_168px_40px_64px_72px_72px_72px_minmax(150px,1fr)] gap-2 border-b border-rule-strong bg-paper-2 px-3 py-2 font-mono text-fs-9 uppercase tracking-caps text-ink-3">
+        <div className="grid grid-cols-[36px_150px_42px_168px_40px_64px_72px_72px_72px_92px_minmax(150px,1fr)] gap-2 border-b border-rule-strong bg-paper-2 px-3 py-2 font-mono text-fs-9 uppercase tracking-caps text-ink-3">
           <Checkbox
             checked={allChecked}
             indeterminate={someChecked && !allChecked}
@@ -1745,6 +2267,7 @@ function PlantTable({
           <span>Germ</span>
           <span>Veg</span>
           <span>Flwr</span>
+          <span>Test</span>
           <span>Last note</span>
         </div>
         {groups.map((group) => (
@@ -1789,8 +2312,8 @@ function PlantTableRow({
     <div
       className={
         selected
-          ? "grid grid-cols-[36px_150px_42px_168px_40px_64px_72px_72px_72px_minmax(150px,1fr)] items-center gap-2 border-b border-rule bg-accent-magenta/8 px-3 py-2.5 font-sans text-fs-11 last:border-b-0"
-          : "grid grid-cols-[36px_150px_42px_168px_40px_64px_72px_72px_72px_minmax(150px,1fr)] items-center gap-2 border-b border-rule px-3 py-2.5 font-sans text-fs-11 last:border-b-0 hover:bg-paper-2"
+          ? "grid grid-cols-[36px_150px_42px_168px_40px_64px_72px_72px_72px_92px_minmax(150px,1fr)] items-center gap-2 border-b border-rule bg-accent-magenta/8 px-3 py-2.5 font-sans text-fs-11 last:border-b-0"
+          : "grid grid-cols-[36px_150px_42px_168px_40px_64px_72px_72px_72px_92px_minmax(150px,1fr)] items-center gap-2 border-b border-rule px-3 py-2.5 font-sans text-fs-11 last:border-b-0 hover:bg-paper-2"
       }
     >
       <Checkbox
@@ -1836,6 +2359,7 @@ function PlantTableRow({
       <DateCell value={plant.germinatedOn} />
       <DateCell value={plant.vegStartedOn} />
       <DateCell value={plant.flowerStartedOn} />
+      <SexTestInline plant={plant} />
       <span className="truncate text-ink-3">
         <PlantInlineError pendingCommands={pendingCommands} plantKey={plant.key} />
         {plant.lastNote}
@@ -2022,6 +2546,9 @@ function PlantBoardChip({
               ? `culled ${shortDate(plant.culledOn)}`
               : `d${plant.stageDay}`}
           </p>
+          <div className="mt-1">
+            <SexTestInline compact plant={plant} />
+          </div>
         </div>
         <span className={`font-mono text-fs-13 ${sexTextClass(plant.sexKey)}`}>
           {sexGlyph(plant.sexKey)}
@@ -2290,12 +2817,19 @@ function PlantJournalDetail({
   noteText,
   onBack,
   onCancelFactsEdit,
+  onCreateSexTests,
   onFactsDraftChange,
   onLogNote,
   onNoteTextChange,
+  onResultSexTests,
   onSaveFacts,
   onStartFactsEdit,
+  onUpdateSexTest,
+  pendingCommands,
   pendingNotes,
+  sexTestActionsDisabled,
+  sexTestMutationError,
+  sexTestMutationPending,
 }: {
   detail: PlantDetail;
   factActionsDisabled: boolean;
@@ -2310,12 +2844,19 @@ function PlantJournalDetail({
   noteText: string;
   onBack: () => void;
   onCancelFactsEdit: () => void;
+  onCreateSexTests: SexTestMutationSubmit<CreateSexTestsInput>;
   onFactsDraftChange: (draft: DetailFactsDraft) => void;
   onLogNote: () => void;
   onNoteTextChange: (text: string) => void;
+  onResultSexTests: SexTestMutationSubmit<ResultSexTestsInput>;
   onSaveFacts: () => void;
   onStartFactsEdit: () => void;
+  onUpdateSexTest: SexTestMutationSubmit<UpdateSexTestInput>;
+  pendingCommands: readonly PlantsPendingCommand[];
   pendingNotes: readonly PendingTimelineNote[];
+  sexTestActionsDisabled: boolean;
+  sexTestMutationError: string | null;
+  sexTestMutationPending: boolean;
 }): ReactNode {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
@@ -2376,6 +2917,17 @@ function PlantJournalDetail({
             onDraftChange={onFactsDraftChange}
             onEdit={onStartFactsEdit}
             onSave={onSaveFacts}
+          />
+          <PlantSexTestHistory
+            disabled={sexTestActionsDisabled}
+            maxEventDateTime={maxEventDateTime}
+            mutationError={sexTestMutationError}
+            mutationPending={sexTestMutationPending}
+            pendingCommands={pendingCommands}
+            plant={detail.plant}
+            onCreateSexTests={onCreateSexTests}
+            onResultSexTests={onResultSexTests}
+            onUpdateSexTest={onUpdateSexTest}
           />
           <div className="mt-4 border border-rule bg-paper p-3">
             <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
@@ -2693,6 +3245,403 @@ function PlantFactsEditor({
   );
 }
 
+type SexTestHistoryAction =
+  | { kind: "add" }
+  | { kind: "edit"; sexTest: PlantSexTest }
+  | { kind: "result"; sexTest: PlantSexTest }
+  | null;
+type SexTestEditDraft = {
+  vendorName: string;
+  assayName: string;
+  vendorTestCode: string;
+  sampleCollectedAt: string;
+  sampleSentAt: string;
+  notes: string;
+};
+
+function PlantSexTestHistory({
+  disabled,
+  maxEventDateTime,
+  mutationError,
+  mutationPending,
+  onCreateSexTests,
+  onResultSexTests,
+  onUpdateSexTest,
+  pendingCommands,
+  plant,
+}: {
+  disabled: boolean;
+  maxEventDateTime: string;
+  mutationError: string | null;
+  mutationPending: boolean;
+  pendingCommands: readonly PlantsPendingCommand[];
+  plant: PlantRow;
+  onCreateSexTests: SexTestMutationSubmit<CreateSexTestsInput>;
+  onResultSexTests: SexTestMutationSubmit<ResultSexTestsInput>;
+  onUpdateSexTest: SexTestMutationSubmit<UpdateSexTestInput>;
+}): ReactNode {
+  const [actionState, setActionState] = useState<{
+    action: SexTestHistoryAction;
+    plantKey: string;
+  }>({ action: null, plantKey: plant.key });
+  const action = actionState.plantKey === plant.key ? actionState.action : null;
+  const setPlantAction = (nextAction: SexTestHistoryAction) => {
+    setActionState({ action: nextAction, plantKey: plant.key });
+  };
+
+  return (
+    <div className="mt-4 border border-rule bg-paper p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+          Sex tests
+        </p>
+        <button
+          type="button"
+          disabled={disabled || mutationPending}
+          onClick={() => {
+            setPlantAction(action?.kind === "add" ? null : { kind: "add" });
+          }}
+          className="border border-rule px-2 py-1 font-mono text-fs-9 uppercase tracking-caps text-ink-3 transition hover:border-rule-strong hover:text-ink disabled:cursor-not-allowed disabled:text-ink-3"
+        >
+          Add
+        </button>
+      </div>
+      {mutationError ? (
+        <div className="mt-2">
+          <InlineError text={mutationError} />
+        </div>
+      ) : null}
+      {action?.kind === "add" ? (
+        <div className="mt-3 border-t border-rule">
+          <SexTestSamplingPanel
+            maxEventDateTime={maxEventDateTime}
+            mutationPending={mutationPending}
+            pendingCommands={pendingCommands}
+            plants={[plant]}
+            submitLabel="Create test"
+            onCreateSexTests={(input, onSuccess) => {
+              onCreateSexTests(input, () => {
+                onSuccess();
+                setPlantAction(null);
+              });
+            }}
+          />
+        </div>
+      ) : null}
+      {action?.kind === "edit" ? (
+        <SexTestEditForm
+          disabled={disabled || mutationPending}
+          maxEventDateTime={maxEventDateTime}
+          plant={plant}
+          sexTest={action.sexTest}
+          onCancel={() => {
+            setPlantAction(null);
+          }}
+          onUpdateSexTest={(input, onSuccess) => {
+            onUpdateSexTest(input, () => {
+              onSuccess();
+              setPlantAction(null);
+            });
+          }}
+        />
+      ) : null}
+      {action?.kind === "result" ? (
+        <SexTestResultForm
+          disabled={
+            disabled || mutationPending || !hasProjectedSexTestIdentity(action.sexTest)
+          }
+          maxEventDateTime={maxEventDateTime}
+          plant={plant}
+          sexTest={action.sexTest}
+          onCancel={() => {
+            setPlantAction(null);
+          }}
+          onResultSexTests={(input, onSuccess) => {
+            onResultSexTests(input, () => {
+              onSuccess();
+              setPlantAction(null);
+            });
+          }}
+        />
+      ) : null}
+      <div className="mt-3 grid gap-px bg-rule">
+        {plant.sexTests.length === 0 ? (
+          <div className="bg-paper-2 px-3 py-2 font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+            Untested
+          </div>
+        ) : (
+          plant.sexTests.map((sexTest) => {
+            const pending = sexTestState(sexTest) === "pending";
+            const syncing = pending && !hasProjectedSexTestIdentity(sexTest);
+            return (
+              <div key={sexTest.id} className="bg-paper-2 px-3 py-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <span className="truncate font-mono text-fs-10 uppercase tracking-caps text-ink">
+                    {sexTest.vendorTestCode}
+                  </span>
+                  <span
+                    className={`border px-1.5 py-0.5 font-mono text-fs-9 uppercase tracking-caps ${sexTestStatusClass(sexTest)}`}
+                  >
+                    {sexTestStatusLabel(sexTest)}
+                  </span>
+                </div>
+                <p className="mt-1 truncate font-mono text-fs-9 uppercase tracking-caps text-ink-3">
+                  {sexTest.vendorName} / {sexTest.assayName ?? "assay n/a"} / sample{" "}
+                  {formatDateTime(sexTest.sampleCollectedAt)}
+                </p>
+                <p className="mt-1 truncate font-mono text-fs-9 uppercase tracking-caps text-ink-3">
+                  sent{" "}
+                  {sexTest.sampleSentAt ? formatDateTime(sexTest.sampleSentAt) : "-"} /
+                  received{" "}
+                  {sexTest.resultReceivedAt
+                    ? formatDateTime(sexTest.resultReceivedAt)
+                    : "-"}
+                </p>
+                {sexTest.notes ? (
+                  <p className="mt-1 truncate text-fs-11 text-ink-2">{sexTest.notes}</p>
+                ) : null}
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={
+                      disabled ||
+                      mutationPending ||
+                      !hasProjectedSexTestIdentity(sexTest)
+                    }
+                    onClick={() => {
+                      setPlantAction({ kind: "edit", sexTest });
+                    }}
+                    className="border border-rule bg-paper px-2 py-1 font-mono text-fs-9 uppercase tracking-caps text-ink-3 transition hover:border-rule-strong hover:text-ink disabled:cursor-not-allowed disabled:text-ink-3"
+                  >
+                    Edit
+                  </button>
+                  {pending ? (
+                    <button
+                      type="button"
+                      disabled={disabled || mutationPending || syncing}
+                      onClick={() => {
+                        setPlantAction({ kind: "result", sexTest });
+                      }}
+                      className="border border-rule bg-paper px-2 py-1 font-mono text-fs-9 uppercase tracking-caps text-ink-3 transition hover:border-rule-strong hover:text-ink disabled:cursor-not-allowed disabled:text-ink-3"
+                    >
+                      {syncing ? "Syncing" : "Result"}
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+      {disabled && !mutationPending ? <PendingBlockMessage /> : null}
+    </div>
+  );
+}
+
+function SexTestEditForm({
+  disabled,
+  maxEventDateTime,
+  onCancel,
+  onUpdateSexTest,
+  plant,
+  sexTest,
+}: {
+  disabled: boolean;
+  maxEventDateTime: string;
+  plant: PlantRow;
+  sexTest: PlantSexTest;
+  onCancel: () => void;
+  onUpdateSexTest: SexTestMutationSubmit<UpdateSexTestInput>;
+}): ReactNode {
+  const [draft, setDraft] = useState(() => sexTestEditDraftFromTest(sexTest));
+
+  useEffect(() => {
+    setDraft(sexTestEditDraftFromTest(sexTest));
+  }, [sexTest]);
+
+  const sampleCollectedValid = canSubmitEventDateTime(
+    draft.sampleCollectedAt,
+    maxEventDateTime,
+  );
+  const sampleSentValid =
+    draft.sampleSentAt.length === 0 ||
+    (canSubmitEventDateTime(draft.sampleSentAt, maxEventDateTime) &&
+      draft.sampleSentAt >= draft.sampleCollectedAt);
+  const canSave =
+    !disabled &&
+    draft.vendorName.trim().length > 0 &&
+    draft.vendorTestCode.trim().length > 0 &&
+    sampleCollectedValid &&
+    sampleSentValid &&
+    sexTestEditDraftChanged(sexTest, draft);
+
+  const updateDraft = (patch: Partial<SexTestEditDraft>) => {
+    setDraft((current) => ({ ...current, ...patch }));
+  };
+
+  return (
+    <div className="mt-3 grid gap-3 border-t border-rule pt-3">
+      <TextField
+        label="Vendor"
+        placeholder={DEFAULT_SEX_TEST_VENDOR}
+        value={draft.vendorName}
+        onChange={(vendorName) => {
+          updateDraft({ vendorName });
+        }}
+      />
+      <TextField
+        label="Assay"
+        placeholder={DEFAULT_SEX_TEST_ASSAY}
+        value={draft.assayName}
+        onChange={(assayName) => {
+          updateDraft({ assayName });
+        }}
+      />
+      <TextField
+        label="Vendor code"
+        placeholder="FF-XY-001"
+        value={draft.vendorTestCode}
+        onChange={(vendorTestCode) => {
+          updateDraft({ vendorTestCode });
+        }}
+      />
+      <FactDateEditRow
+        label="Collected"
+        max={maxEventDateTime}
+        value={draft.sampleCollectedAt}
+        onChange={(sampleCollectedAt) => {
+          updateDraft({ sampleCollectedAt });
+        }}
+      />
+      <FactDateEditRow
+        label="Sent"
+        max={maxEventDateTime}
+        value={draft.sampleSentAt}
+        onChange={(sampleSentAt) => {
+          updateDraft({ sampleSentAt });
+        }}
+      />
+      <TextField
+        label="Notes"
+        placeholder="leaf punch"
+        value={draft.notes}
+        onChange={(notes) => {
+          updateDraft({ notes });
+        }}
+      />
+      <div className="flex flex-wrap items-center justify-end gap-2 border-t border-rule pt-3">
+        {!sampleSentValid ? <InlineError text="Sent time is invalid" /> : null}
+        <Button variant="secondary" disabled={disabled} onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button
+          variant="primary"
+          disabled={!canSave}
+          onClick={() => {
+            const sampleCollectedAtUtc = datetimeLocalToUtcIso(draft.sampleCollectedAt);
+            const sampleSentAtUtc =
+              draft.sampleSentAt.length === 0
+                ? null
+                : datetimeLocalToUtcIso(draft.sampleSentAt);
+            if (sampleCollectedAtUtc === null) return;
+            if (draft.sampleSentAt.length > 0 && sampleSentAtUtc === null) return;
+            onUpdateSexTest(
+              {
+                idempotencyKey: createPlantsIdempotencyKey("sex-test-update"),
+                plantKey: plant.key,
+                sexTestId: sexTest.id,
+                sexTestSourceId: sexTest.sourceSexTestId,
+                vendorName: draft.vendorName,
+                assayName: draft.assayName.trim().length === 0 ? null : draft.assayName,
+                vendorTestCode: draft.vendorTestCode,
+                sampleCollectedAt: sampleCollectedAtUtc,
+                sampleSentAt: sampleSentAtUtc,
+                resultReceivedAt: sexTest.resultReceivedAt,
+                resultSexKey: conclusiveSexTestResultKey(sexTest.resultSexKey),
+                isInconclusive: sexTest.isInconclusive,
+                notes: draft.notes.trim().length === 0 ? null : draft.notes,
+              },
+              () => {},
+            );
+          }}
+        >
+          Save test
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function SexTestResultForm({
+  disabled,
+  maxEventDateTime,
+  onCancel,
+  onResultSexTests,
+  plant,
+  sexTest,
+}: {
+  disabled: boolean;
+  maxEventDateTime: string;
+  plant: PlantRow;
+  sexTest: PlantSexTest;
+  onCancel: () => void;
+  onResultSexTests: SexTestMutationSubmit<ResultSexTestsInput>;
+}): ReactNode {
+  const [resultReceivedAt, setResultReceivedAt] = useState(datetimeLocalNow);
+  const [result, setResult] = useState<SexTestResultDraftValue>("");
+  const canSave =
+    !disabled &&
+    result !== "" &&
+    canSubmitEventDateTime(resultReceivedAt, maxEventDateTime);
+
+  return (
+    <div className="mt-3 grid gap-3 border-t border-rule pt-3">
+      <DateTimeField
+        label="Received"
+        max={maxEventDateTime}
+        value={resultReceivedAt}
+        onChange={setResultReceivedAt}
+      />
+      <Segmented
+        disabled={disabled}
+        label="Result"
+        options={SEX_TEST_RESULT_OPTIONS}
+        value={result}
+        onChange={setResult}
+      />
+      <div className="flex flex-wrap items-center justify-end gap-2 border-t border-rule pt-3">
+        <Button variant="secondary" disabled={disabled} onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button
+          variant="primary"
+          disabled={!canSave}
+          onClick={() => {
+            const resultReceivedAtUtc = datetimeLocalToUtcIso(resultReceivedAt);
+            if (result === "" || resultReceivedAtUtc === null) return;
+            onResultSexTests(
+              {
+                idempotencyKey: createPlantsIdempotencyKey("sex-tests-bulk-result"),
+                resultReceivedAt: resultReceivedAtUtc,
+                results: [
+                  {
+                    plantKey: plant.key,
+                    sexTestSourceId: sexTest.sourceSexTestId,
+                    ...resultInputFromOption(result),
+                  },
+                ],
+              },
+              () => {},
+            );
+          }}
+        >
+          Save result
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function FactReadRow({ label, value }: { label: string; value: string }): ReactNode {
   return (
     <div className="grid min-h-9 grid-cols-[72px_minmax(0,1fr)] items-center gap-2 bg-paper-2 px-3 py-2">
@@ -2855,11 +3804,13 @@ function SurfaceHeader({
 }
 
 function Segmented<TValue extends string>({
+  disabled = false,
   label,
   onChange,
   options,
   value,
 }: {
+  disabled?: boolean;
   label: string;
   onChange: (value: TValue) => void;
   options: readonly { label: string; value: TValue }[];
@@ -2875,13 +3826,14 @@ function Segmented<TValue extends string>({
           <button
             key={option.value}
             type="button"
+            disabled={disabled}
             onClick={() => {
               onChange(option.value);
             }}
             className={
               option.value === value
-                ? "bg-paper-2 px-2.5 py-1.5 font-mono text-fs-10 uppercase tracking-caps text-ink"
-                : "bg-paper px-2.5 py-1.5 font-mono text-fs-10 uppercase tracking-caps text-ink-3 transition hover:text-ink"
+                ? "bg-paper-2 px-2.5 py-1.5 font-mono text-fs-10 uppercase tracking-caps text-ink disabled:cursor-not-allowed disabled:text-ink-3"
+                : "bg-paper px-2.5 py-1.5 font-mono text-fs-10 uppercase tracking-caps text-ink-3 transition hover:text-ink disabled:cursor-not-allowed disabled:text-ink-3"
             }
           >
             {option.label}
@@ -2984,11 +3936,13 @@ function DateTimeField({
   label,
   max,
   onChange,
+  required = true,
   value,
 }: {
   label: string;
   max: string;
   onChange: (value: string) => void;
+  required?: boolean;
   value: string;
 }): ReactNode {
   return (
@@ -2998,7 +3952,7 @@ function DateTimeField({
       </span>
       <input
         type="datetime-local"
-        required
+        required={required}
         max={max}
         value={value}
         onChange={(event) => {
@@ -3125,6 +4079,36 @@ function DateCell({ value }: { value: string | null }): ReactNode {
   return (
     <span className="font-mono text-fs-10 text-ink-2">
       {value ? shortDate(value) : "-"}
+    </span>
+  );
+}
+
+function SexTestInline({
+  compact = false,
+  plant,
+}: {
+  compact?: boolean;
+  plant: PlantRow;
+}): ReactNode {
+  const sexTest = latestSexTest(plant);
+  if (sexTest === undefined) {
+    return (
+      <span className="font-mono text-fs-9 uppercase tracking-caps text-ink-3">-</span>
+    );
+  }
+  return (
+    <span
+      title={`${sexTest.vendorTestCode} / ${sexTestStatusLabel(sexTest)}`}
+      className={
+        compact
+          ? "inline-flex max-w-full items-center gap-1 font-mono text-fs-9 uppercase tracking-caps"
+          : "inline-flex max-w-full flex-col font-mono text-fs-9 uppercase tracking-caps"
+      }
+    >
+      <span className="max-w-full truncate text-ink">{sexTest.vendorTestCode}</span>
+      <span className={sexTestStatusTextClass(sexTest)}>
+        {sexTestStatusLabel(sexTest)}
+      </span>
     </span>
   );
 }
@@ -3350,6 +4334,19 @@ function datetimeLocalFromOptionalFact(
   return datetimeLocalFromIsoOrDateOnly(timestamp, dateOnly);
 }
 
+function datetimeLocalFromRequiredIso(value: string): string {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime())
+    ? datetimeLocalNow()
+    : dateToDatetimeLocal(parsed);
+}
+
+function datetimeLocalFromOptionalIso(value: string | null): string {
+  if (value === null) return "";
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? "" : dateToDatetimeLocal(parsed);
+}
+
 function dateToDatetimeLocal(value: Date): string {
   const offsetMs = value.getTimezoneOffset() * 60_000;
   return new Date(value.getTime() - offsetMs)
@@ -3473,6 +4470,123 @@ function uniqueSortedValues(values: readonly string[]): string[] {
   );
 }
 
+function latestSexTest(plant: PlantRow): PlantSexTest | undefined {
+  return plant.sexTests[0];
+}
+
+function sexTestState(sexTest: PlantSexTest): Exclude<PlantSexTestStateFilter, "all"> {
+  if (sexTest.resultReceivedAt === null) return "pending";
+  if (sexTest.isInconclusive) return "inconclusive";
+  return "resulted";
+}
+
+function sexTestStatusLabel(sexTest: PlantSexTest): string {
+  if (sexTest.resultSexKey === "female") return "female";
+  if (sexTest.resultSexKey === "male") return "male";
+  if (sexTest.isInconclusive) return "inconclusive";
+  if (sexTest.resultReceivedAt !== null) return "resulted";
+  return "pending";
+}
+
+function sexTestStatusTextClass(sexTest: PlantSexTest): string {
+  const state = sexTestState(sexTest);
+  if (state === "pending") return "text-status-warn";
+  if (state === "inconclusive") return "text-accent-purple";
+  return sexTest.resultSexKey === "female"
+    ? "text-accent-magenta"
+    : "text-sensor-humidity";
+}
+
+function sexTestStatusClass(sexTest: PlantSexTest): string {
+  const state = sexTestState(sexTest);
+  if (state === "pending") return "border-status-warn text-status-warn";
+  if (state === "inconclusive") return "border-accent-purple text-accent-purple";
+  return sexTest.resultSexKey === "female"
+    ? "border-accent-magenta text-accent-magenta"
+    : "border-sensor-humidity text-sensor-humidity";
+}
+
+function duplicateSexTestCodes(codes: readonly string[]): ReadonlySet<string> {
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  for (const code of codes) {
+    const normalized = normalizedSexTestCode(code);
+    if (normalized.length === 0) continue;
+    if (seen.has(normalized)) {
+      duplicates.add(normalized);
+    } else {
+      seen.add(normalized);
+    }
+  }
+  return duplicates;
+}
+
+function normalizedSexTestCode(value: string): string {
+  return value.trim().toLocaleLowerCase();
+}
+
+function pendingSexTestRows(
+  plants: readonly PlantRow[],
+): readonly { plant: PlantRow; sexTest: PlantSexTest }[] {
+  return plants.flatMap((plant) =>
+    plant.sexTests
+      .filter((sexTest) => sexTestState(sexTest) === "pending")
+      .map((sexTest) => ({ plant, sexTest })),
+  );
+}
+
+function hasProjectedSexTestIdentity(sexTest: PlantSexTest): boolean {
+  return sexTest.sourceSexTestId > 0 && !sexTest.id.startsWith("pending:");
+}
+
+function resultInputFromOption(result: SexTestResultOption): {
+  resultSexKey: SexTestConclusiveResult | null;
+  isInconclusive: boolean;
+} {
+  if (result === "inconclusive") {
+    return { resultSexKey: null, isInconclusive: true };
+  }
+  return { resultSexKey: result, isInconclusive: false };
+}
+
+function hasSexTestResultDraft(
+  value: SexTestResultDraftValue | undefined,
+): value is SexTestResultOption {
+  return value === "female" || value === "male" || value === "inconclusive";
+}
+
+function sexTestEditDraftFromTest(sexTest: PlantSexTest): SexTestEditDraft {
+  return {
+    vendorName: sexTest.vendorName,
+    assayName: sexTest.assayName ?? "",
+    vendorTestCode: sexTest.vendorTestCode,
+    sampleCollectedAt: datetimeLocalFromRequiredIso(sexTest.sampleCollectedAt),
+    sampleSentAt: datetimeLocalFromOptionalIso(sexTest.sampleSentAt),
+    notes: sexTest.notes ?? "",
+  };
+}
+
+function sexTestEditDraftChanged(
+  sexTest: PlantSexTest,
+  draft: SexTestEditDraft,
+): boolean {
+  const current = sexTestEditDraftFromTest(sexTest);
+  return (
+    draft.vendorName !== current.vendorName ||
+    draft.assayName !== current.assayName ||
+    draft.vendorTestCode !== current.vendorTestCode ||
+    draft.sampleCollectedAt !== current.sampleCollectedAt ||
+    draft.sampleSentAt !== current.sampleSentAt ||
+    draft.notes !== current.notes
+  );
+}
+
+function conclusiveSexTestResultKey(
+  sexKey: PlantSexKey | null,
+): SexTestConclusiveResult | null {
+  return sexKey === "female" || sexKey === "male" ? sexKey : null;
+}
+
 function plantSearchText(plant: PlantRow): string {
   return [
     plant.key,
@@ -3487,16 +4601,9 @@ function plantSearchText(plant: PlantRow): string {
       sexTest.vendorName,
       sexTest.assayName ?? "",
       sexTest.vendorTestCode,
-      plantSexTestStatusText(sexTest),
+      sexTestStatusLabel(sexTest),
     ]),
   ].join(" ");
-}
-
-function plantSexTestStatusText(sexTest: PlantRow["sexTests"][number]): string {
-  if (sexTest.resultSexKey !== null) return sexTest.resultSexKey;
-  if (sexTest.isInconclusive) return "inconclusive";
-  if (sexTest.resultReceivedAt !== null) return "resulted";
-  return "pending";
 }
 
 function normalizeSearchText(value: string): string {

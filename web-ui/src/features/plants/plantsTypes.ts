@@ -2,7 +2,7 @@ import type { SeedLotSexTypeKey } from "@/shared/seedLots";
 
 export type PlantListLayout = "table" | "board";
 export type PlantGroupBy = "stage" | "parents";
-export type BulkPanel = "sex" | "dates" | "move" | "cull" | null;
+export type BulkPanel = "sex" | "sex-test" | "dates" | "move" | "cull" | null;
 export type PlantSexKey = "unknown" | "male" | "female" | "herm" | "reversed";
 export type PlantStageKey =
   | "germinating"

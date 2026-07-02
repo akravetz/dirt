@@ -303,6 +303,85 @@ describe("plants list filters", () => {
       ).map((plant) => plant.key),
     ).toEqual(["FF-001"]);
   });
+
+  it("validates and filters by sex-test state", () => {
+    const plants = [
+      makePlantRow({ key: "UN-001", name: "Untested" }),
+      makePlantRow({
+        id: "2",
+        key: "PN-001",
+        name: "Pending",
+        sexTests: [
+          makeSexTest({
+            sourceSexTestId: 31,
+            vendorTestCode: "FF-XY-031",
+            resultReceivedAt: null,
+            resultSexKey: null,
+            isInconclusive: false,
+          }),
+        ],
+      }),
+      makePlantRow({
+        id: "3",
+        key: "RS-001",
+        name: "Resulted",
+        sexTests: [
+          makeSexTest({
+            sourceSexTestId: 32,
+            vendorTestCode: "FF-XY-032",
+            resultReceivedAt: "2026-06-28T16:45:00.000Z",
+            resultSexKey: "female",
+            isInconclusive: false,
+          }),
+        ],
+      }),
+      makePlantRow({
+        id: "4",
+        key: "IC-001",
+        name: "Inconclusive",
+        sexTests: [
+          makeSexTest({
+            sourceSexTestId: 33,
+            vendorTestCode: "FF-XY-033",
+            resultReceivedAt: "2026-06-28T16:45:00.000Z",
+            resultSexKey: null,
+            isInconclusive: true,
+          }),
+        ],
+      }),
+    ];
+
+    expect(
+      normalizePlantsSearch(validatePlantsSearch({ sexTest: "pending" })).sexTest,
+    ).toBe("pending");
+    expect(
+      normalizePlantsSearch(validatePlantsSearch({ sexTest: "not-real" })).sexTest,
+    ).toBe("all");
+    expect(
+      filterPlantsForSearch(
+        plants,
+        normalizePlantsSearch(validatePlantsSearch({ sexTest: "untested" })),
+      ).map((plant) => plant.key),
+    ).toEqual(["UN-001"]);
+    expect(
+      filterPlantsForSearch(
+        plants,
+        normalizePlantsSearch(validatePlantsSearch({ sexTest: "pending" })),
+      ).map((plant) => plant.key),
+    ).toEqual(["PN-001"]);
+    expect(
+      filterPlantsForSearch(
+        plants,
+        normalizePlantsSearch(validatePlantsSearch({ sexTest: "resulted" })),
+      ).map((plant) => plant.key),
+    ).toEqual(["RS-001"]);
+    expect(
+      filterPlantsForSearch(
+        plants,
+        normalizePlantsSearch(validatePlantsSearch({ sexTest: "inconclusive" })),
+      ).map((plant) => plant.key),
+    ).toEqual(["IC-001"]);
+  });
 });
 
 describe("plants mutation request mapping", () => {

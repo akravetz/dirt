@@ -24,7 +24,7 @@ The work is complete when a developer can create a pending sex test for each sel
 - [x] (2026-07-01T18:43:27-06:00) Add sex-test command contracts and command execution.
 - [x] (2026-07-01T19:01:24-06:00) Add hosted browser read/write API routes and generated frontend contract.
 - [x] (2026-07-01T19:29:37-06:00) Add frontend query types and mutations.
-- [ ] Add hosted UI sampling, pending-results, filtering, and detail history workflows.
+- [x] (2026-07-01T19:48:15-06:00) Add hosted UI sampling, pending-results, filtering, and detail history workflows.
 - [ ] Validate end-to-end with tests and browser verification.
 
 
@@ -114,6 +114,8 @@ The work is complete when a developer can create a pending sex test for each sel
 - Milestone 4 validation passed: `DIRT_CLOUD_ASSET_STORE=local scripts/gen-hosted-contract`, `uv run pytest apps/control-plane/tests/test_api.py apps/control-plane/tests/test_control_plane_boundary_guardrails.py -q` (`68 passed`), `uv run ruff check` on touched Python files, `pnpm --dir web-ui typecheck`, and `git diff --check`.
 - Milestone 5 added frontend `PlantSexTest` view types, hosted `sex_tests` response mapping, search-helper inclusion for vendor/assay/code/status text, sex-test request builders and command-backed mutation hooks, and pending-command optimistic sex-test merge/projection logic. The hooks are wired into the existing workspace mutation-error path without adding visible UI controls yet.
 - Milestone 5 validation passed: `pnpm --dir web-ui test -- plantsQueries.test.ts` (`4 files`, `20 tests`), `pnpm --dir web-ui typecheck`, `pnpm --dir web-ui lint`, `pnpm --dir web-ui knip` (exit 0 with existing configuration hints), and `git diff --check`.
+- Milestone 6 added the hosted plant sex-test UI workflow in the existing Plants workspace: selected-plant sampling entry, one-off detail add/edit/result actions, inline table/board code/status display, sex-test state filters, pending-result batch entry with explicit receipt time, and detail sex-test history. The UI reuses command-backed pending state from Milestone 5.
+- Milestone 6 validation passed: `pnpm --dir web-ui test -- plantsQueries.test.ts` (`4 files`, `21 tests`), `pnpm --dir web-ui typecheck`, `pnpm --dir web-ui lint`, `pnpm --dir web-ui knip` (exit 0 with existing configuration hints), and `git diff --check`.
 
 
 ## Context and Orientation
@@ -402,6 +404,11 @@ Milestone 5 evidence:
 - Frontend plant view types and query mapping updated in `web-ui/src/features/plants/plantsTypes.ts` and `web-ui/src/features/plants/plantsQueries.ts`.
 - Sex-test search text, request builders, mutation hooks, and pending optimistic projection support added in `web-ui/src/features/plants/PlantsWorkspace.tsx` and `web-ui/src/features/plants/plantsMutations.ts`.
 - Focused mapper/mutation/pending-helper tests updated in `web-ui/src/features/plants/plantsQueries.test.ts`.
+
+Milestone 6 evidence:
+
+- Sex-test sampling, pending-result, list/board inline status, filter, and detail-history workflows added in `web-ui/src/features/plants/PlantsWorkspace.tsx`.
+- Focused sex-test filter coverage added in `web-ui/src/features/plants/plantsQueries.test.ts`.
 
 Initial planning evidence:
 
