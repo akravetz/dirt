@@ -10,16 +10,19 @@ from dirt_shared.cloud_contract import (
     AssetFailureRequest,
     AssetRetentionRequest,
     AssetSignUploadRequest,
+    BreedingBulkCreateSexTestsPayload,
     BreedingBulkCullPayload,
     BreedingBulkMovePayload,
     BreedingBulkPlantFactsPayload,
     BreedingBulkPlantNotePayload,
+    BreedingBulkResultSexTestsPayload,
     BreedingBulkSexPayload,
     BreedingClonePlantsPayload,
     BreedingCreatePlantNotePayload,
     BreedingCreateSeedLotPayload,
     BreedingGerminatePlantsPayload,
     BreedingUpdateSeedLotInventoryPayload,
+    BreedingUpdateSexTestPayload,
     CapturePolicyResponse,
     CatalogCrossEvent,
     CatalogDevice,
@@ -738,6 +741,55 @@ def test_command_claim_response_uses_explicit_breeding_payload_models() -> None:
             payload={"plant_keys": ["SBBS-R1-001"], "sex_key": "female"},
         ),
         _command_payload(
+            command_type="breeding_sex_tests_bulk_create",
+            payload={
+                "vendor_name": "Farmer Freeman",
+                "assay_name": "EZ-XY",
+                "sample_collected_at": "2026-07-01T12:00:00Z",
+                "sample_sent_at": None,
+                "tests": [
+                    {
+                        "plant_key": "SBBS-R1-001",
+                        "vendor_test_code": "FF-001",
+                        "notes": None,
+                    }
+                ],
+            },
+        ),
+        _command_payload(
+            command_type="breeding_sex_test_update",
+            payload={
+                "sex_test_source_id": 10,
+                "vendor_name": "Farmer Freeman",
+                "assay_name": "EZ-XY",
+                "vendor_test_code": "FF-001",
+                "sample_collected_at": "2026-07-01T12:00:00Z",
+                "sample_sent_at": None,
+                "result_received_at": None,
+                "result_sex_key": None,
+                "is_inconclusive": False,
+                "notes": None,
+            },
+        ),
+        _command_payload(
+            command_type="breeding_sex_tests_bulk_result",
+            payload={
+                "result_received_at": "2026-07-05T12:00:00Z",
+                "results": [
+                    {
+                        "sex_test_source_id": 10,
+                        "result_sex_key": "female",
+                        "is_inconclusive": False,
+                    },
+                    {
+                        "sex_test_source_id": 11,
+                        "result_sex_key": None,
+                        "is_inconclusive": True,
+                    },
+                ],
+            },
+        ),
+        _command_payload(
             command_type="breeding_plants_bulk_move",
             payload={
                 "plant_keys": ["SBBS-R1-001"],
@@ -798,11 +850,14 @@ def test_command_claim_response_uses_explicit_breeding_payload_models() -> None:
     assert isinstance(response.commands[2].payload, BreedingGerminatePlantsPayload)
     assert isinstance(response.commands[3].payload, BreedingClonePlantsPayload)
     assert isinstance(response.commands[4].payload, BreedingBulkSexPayload)
-    assert isinstance(response.commands[5].payload, BreedingBulkMovePayload)
-    assert isinstance(response.commands[6].payload, BreedingBulkPlantFactsPayload)
-    assert isinstance(response.commands[7].payload, BreedingBulkCullPayload)
-    assert isinstance(response.commands[8].payload, BreedingCreatePlantNotePayload)
-    assert isinstance(response.commands[9].payload, BreedingBulkPlantNotePayload)
+    assert isinstance(response.commands[5].payload, BreedingBulkCreateSexTestsPayload)
+    assert isinstance(response.commands[6].payload, BreedingUpdateSexTestPayload)
+    assert isinstance(response.commands[7].payload, BreedingBulkResultSexTestsPayload)
+    assert isinstance(response.commands[8].payload, BreedingBulkMovePayload)
+    assert isinstance(response.commands[9].payload, BreedingBulkPlantFactsPayload)
+    assert isinstance(response.commands[10].payload, BreedingBulkCullPayload)
+    assert isinstance(response.commands[11].payload, BreedingCreatePlantNotePayload)
+    assert isinstance(response.commands[12].payload, BreedingBulkPlantNotePayload)
     assert response.commands[2].payload.grid_position is None
 
 
@@ -876,6 +931,239 @@ def test_breeding_command_payloads_reject_bad_shapes() -> None:
                 {"field": "veg_started_at", "value": "2026-06-20T16:00:00Z"},
             ],
         )
+
+
+def test_breeding_sex_test_payloads_require_nullable_fields() -> None:
+    create_payload = {
+        "vendor_name": "Farmer Freeman",
+        "assay_name": None,
+        "sample_collected_at": "2026-07-01T12:00:00Z",
+        "sample_sent_at": None,
+        "tests": [
+            {
+                "plant_key": "SBBS-R1-001",
+                "vendor_test_code": "FF-001",
+                "notes": None,
+            }
+        ],
+    }
+    update_payload = {
+        "sex_test_source_id": 10,
+        "vendor_name": "Farmer Freeman",
+        "assay_name": None,
+        "vendor_test_code": "FF-001",
+        "sample_collected_at": "2026-07-01T12:00:00Z",
+        "sample_sent_at": None,
+        "result_received_at": None,
+        "result_sex_key": None,
+        "is_inconclusive": False,
+        "notes": None,
+    }
+    result_payload = {
+        "result_received_at": "2026-07-05T12:00:00Z",
+        "results": [
+            {
+                "sex_test_source_id": 10,
+                "result_sex_key": "female",
+                "is_inconclusive": False,
+            }
+        ],
+    }
+
+    assert BreedingBulkCreateSexTestsPayload.model_validate(create_payload)
+    assert BreedingUpdateSexTestPayload.model_validate(update_payload)
+    assert BreedingBulkResultSexTestsPayload.model_validate(result_payload)
+
+    for field_name in ("assay_name", "sample_sent_at"):
+        invalid = dict(create_payload)
+        del invalid[field_name]
+        with pytest.raises(ValidationError) as exc_info:
+            BreedingBulkCreateSexTestsPayload.model_validate(invalid)
+        assert exc_info.value.errors()[0]["loc"] == (field_name,)
+        assert exc_info.value.errors()[0]["type"] == "missing"
+
+    for field_name in (
+        "assay_name",
+        "sample_sent_at",
+        "result_received_at",
+        "result_sex_key",
+        "notes",
+    ):
+        invalid = dict(update_payload)
+        del invalid[field_name]
+        with pytest.raises(ValidationError) as exc_info:
+            BreedingUpdateSexTestPayload.model_validate(invalid)
+        assert exc_info.value.errors()[0]["loc"] == (field_name,)
+        assert exc_info.value.errors()[0]["type"] == "missing"
+
+    invalid_result = dict(result_payload)
+    del invalid_result["result_received_at"]
+    with pytest.raises(ValidationError) as exc_info:
+        BreedingBulkResultSexTestsPayload.model_validate(invalid_result)
+    assert exc_info.value.errors()[0]["loc"] == ("result_received_at",)
+    assert exc_info.value.errors()[0]["type"] == "missing"
+
+    invalid_row = {
+        **result_payload,
+        "results": [{"sex_test_source_id": 10, "is_inconclusive": False}],
+    }
+    with pytest.raises(ValidationError) as row_exc:
+        BreedingBulkResultSexTestsPayload.model_validate(invalid_row)
+    assert row_exc.value.errors()[0]["loc"] == ("results", 0, "result_sex_key")
+    assert row_exc.value.errors()[0]["type"] == "missing"
+
+
+def test_breeding_sex_test_payloads_reject_bad_text_and_duplicates() -> None:
+    payload = {
+        "vendor_name": " Farmer Freeman ",
+        "assay_name": " EZ-XY ",
+        "sample_collected_at": "2026-07-01T12:00:00Z",
+        "sample_sent_at": None,
+        "tests": [
+            {
+                "plant_key": " SBBS-R1-001 ",
+                "vendor_test_code": " FF-001 ",
+                "notes": " sample ok ",
+            }
+        ],
+    }
+
+    parsed = BreedingBulkCreateSexTestsPayload.model_validate(payload)
+
+    assert parsed.vendor_name == "Farmer Freeman"
+    assert parsed.assay_name == "EZ-XY"
+    assert parsed.tests[0].plant_key == "SBBS-R1-001"
+    assert parsed.tests[0].vendor_test_code == "FF-001"
+    assert parsed.tests[0].notes == "sample ok"
+
+    for invalid in (
+        {**payload, "vendor_name": "   "},
+        {**payload, "assay_name": "   "},
+        {
+            **payload,
+            "tests": [
+                {
+                    "plant_key": "   ",
+                    "vendor_test_code": "FF-001",
+                    "notes": None,
+                }
+            ],
+        },
+        {
+            **payload,
+            "tests": [
+                {
+                    "plant_key": "SBBS-R1-001",
+                    "vendor_test_code": "   ",
+                    "notes": None,
+                }
+            ],
+        },
+        {
+            **payload,
+            "tests": [
+                {
+                    "plant_key": "SBBS-R1-001",
+                    "vendor_test_code": "FF-001",
+                    "notes": "   ",
+                }
+            ],
+        },
+        {
+            **payload,
+            "tests": [
+                {"plant_key": "SBBS-R1-001", "vendor_test_code": "FF-001"},
+                {"plant_key": "SBBS-R1-002", "vendor_test_code": "FF-001"},
+            ],
+        },
+    ):
+        with pytest.raises(ValidationError):
+            BreedingBulkCreateSexTestsPayload.model_validate(invalid)
+
+
+def test_breeding_sex_test_result_payloads_reject_bad_result_shapes() -> None:
+    for row in (
+        {"sex_test_source_id": 10, "result_sex_key": None, "is_inconclusive": False},
+        {
+            "sex_test_source_id": 10,
+            "result_sex_key": "female",
+            "is_inconclusive": True,
+        },
+    ):
+        with pytest.raises(ValidationError):
+            BreedingBulkResultSexTestsPayload.model_validate(
+                {
+                    "result_received_at": "2026-07-05T12:00:00Z",
+                    "results": [row],
+                }
+            )
+
+    with pytest.raises(ValidationError):
+        BreedingBulkResultSexTestsPayload.model_validate(
+            {
+                "result_received_at": "2026-07-05T12:00:00Z",
+                "results": [
+                    {
+                        "sex_test_source_id": 10,
+                        "result_sex_key": "female",
+                        "is_inconclusive": False,
+                    },
+                    {
+                        "sex_test_source_id": 10,
+                        "result_sex_key": None,
+                        "is_inconclusive": True,
+                    },
+                ],
+            }
+        )
+
+    with pytest.raises(ValidationError):
+        BreedingUpdateSexTestPayload.model_validate(
+            {
+                "sex_test_source_id": 10,
+                "vendor_name": "Farmer Freeman",
+                "assay_name": "EZ-XY",
+                "vendor_test_code": "FF-001",
+                "sample_collected_at": "2026-07-01T12:00:00Z",
+                "sample_sent_at": None,
+                "result_received_at": None,
+                "result_sex_key": "female",
+                "is_inconclusive": False,
+                "notes": None,
+            }
+        )
+
+
+def test_breeding_sex_test_result_payloads_reject_non_lab_sex_keys() -> None:
+    for sex_key in ("unknown", "herm", "reversed"):
+        with pytest.raises(ValidationError):
+            BreedingBulkResultSexTestsPayload.model_validate(
+                {
+                    "result_received_at": "2026-07-05T12:00:00Z",
+                    "results": [
+                        {
+                            "sex_test_source_id": 10,
+                            "result_sex_key": sex_key,
+                            "is_inconclusive": False,
+                        }
+                    ],
+                }
+            )
+        with pytest.raises(ValidationError):
+            BreedingUpdateSexTestPayload.model_validate(
+                {
+                    "sex_test_source_id": 10,
+                    "vendor_name": "Farmer Freeman",
+                    "assay_name": "EZ-XY",
+                    "vendor_test_code": "FF-001",
+                    "sample_collected_at": "2026-07-01T12:00:00Z",
+                    "sample_sent_at": None,
+                    "result_received_at": "2026-07-05T12:00:00Z",
+                    "result_sex_key": sex_key,
+                    "is_inconclusive": False,
+                    "notes": None,
+                }
+            )
 
 
 def test_breeding_seed_lot_update_payload_requires_complete_inventory_state() -> None:

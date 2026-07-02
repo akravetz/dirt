@@ -719,6 +719,39 @@ async def _seed_command_plants(
         return plant_keys
 
 
+async def _seed_command_sex_test(
+    engine: AsyncEngine,
+    *,
+    plant_key: str,
+    vendor_test_code: str,
+    vendor_name: str = "Farmer Freeman",
+    result_received_at: datetime | None = None,
+    result_sex_key: str | None = None,
+    is_inconclusive: bool = False,
+    notes: str | None = None,
+) -> int:
+    async with AsyncSession(engine) as session:
+        plant = (await session.exec(select(Plant).where(Plant.key == plant_key))).one()
+        sex_test = PlantSexTest(
+            plant_id=plant.id,
+            vendor_name=vendor_name,
+            assay_name="EZ-XY",
+            vendor_test_code=vendor_test_code,
+            sample_collected_at=FIXED_NOW - timedelta(days=4),
+            sample_sent_at=FIXED_NOW - timedelta(days=3),
+            result_received_at=result_received_at,
+            result_sex_key=result_sex_key,
+            is_inconclusive=is_inconclusive,
+            notes=notes,
+        )
+        session.add(sex_test)
+        await session.flush()
+        sex_test_id = sex_test.id
+        assert sex_test_id is not None
+        await session.commit()
+        return sex_test_id
+
+
 async def _seed_parent_plants(engine: AsyncEngine) -> tuple[str, str]:
     async with AsyncSession(engine) as session:
         line = PlantLine(
@@ -2635,6 +2668,11 @@ async def test_command_loop_bulk_sex_updates_plants_and_events(
     app_engine: AsyncEngine,
 ):
     plant_keys = await _seed_command_plants(app_engine, prefix="SEX", count=2)
+    sex_test_id = await _seed_command_sex_test(
+        app_engine,
+        plant_key=plant_keys[0],
+        vendor_test_code="FF-MANUAL",
+    )
     cloud = RecordingCloudClient()
     cloud.claimed_commands = [
         _cloud_command(
@@ -2663,10 +2701,462 @@ async def test_command_loop_bulk_sex_updates_plants_and_events(
                 )
             )
         ).one()
+        sex_test = await session.get(PlantSexTest, sex_test_id)
 
     assert {plant.sex_key for plant in plants} == {"female"}
     assert {event.metadata_json["sex_key"] for event in events} >= {"female"}
+    assert sex_test is not None
+    assert sex_test.result_received_at is None
+    assert sex_test.result_sex_key is None
+    assert sex_test.is_inconclusive is False
     assert command.tent_id is None
+
+
+async def test_command_loop_bulk_creates_sex_tests(
+    app_engine: AsyncEngine,
+):
+    plant_keys = await _seed_command_plants(app_engine, prefix="STC", count=2)
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command(
+            "cloud-sex-test-create",
+            command_type="breeding_sex_tests_bulk_create",
+            payload={
+                "vendor_name": "Farmer Freeman",
+                "assay_name": "EZ-XY",
+                "sample_collected_at": (FIXED_NOW - timedelta(days=2)).isoformat(),
+                "sample_sent_at": None,
+                "tests": [
+                    {
+                        "plant_key": plant_keys[0],
+                        "vendor_test_code": "FF-CREATE-1",
+                        "notes": "lower leaf sample",
+                    },
+                    {
+                        "plant_key": plant_keys[1],
+                        "vendor_test_code": "FF-CREATE-2",
+                        "notes": None,
+                    },
+                ],
+            },
+        )
+    ]
+
+    result = await _command_service(app_engine, cloud, RecordingPTZ()).run_once()
+
+    assert result.executed == 1
+    async with AsyncSession(app_engine) as session:
+        rows = (
+            await session.exec(
+                select(PlantSexTest, Plant.key)
+                .join(Plant, Plant.id == PlantSexTest.plant_id)
+                .where(col(Plant.key).in_(plant_keys))
+                .order_by(Plant.key)
+            )
+        ).all()
+        command = (
+            await session.exec(
+                select(Command).where(
+                    Command.idempotency_key == "cloud-command:cloud-sex-test-create"
+                )
+            )
+        ).one()
+
+    assert [plant_key for _, plant_key in rows] == plant_keys
+    assert [sex_test.vendor_test_code for sex_test, _ in rows] == [
+        "FF-CREATE-1",
+        "FF-CREATE-2",
+    ]
+    assert {sex_test.vendor_name for sex_test, _ in rows} == {"Farmer Freeman"}
+    assert {sex_test.assay_name for sex_test, _ in rows} == {"EZ-XY"}
+    assert {sex_test.sample_collected_at for sex_test, _ in rows} == {
+        FIXED_NOW - timedelta(days=2)
+    }
+    assert {sex_test.sample_sent_at for sex_test, _ in rows} == {None}
+    assert {sex_test.result_received_at for sex_test, _ in rows} == {None}
+    assert command.result["created_plant_keys"] == plant_keys
+    assert command.result["created_sex_test_ids"] == [
+        sex_test.id for sex_test, _ in rows
+    ]
+
+
+async def test_command_loop_bulk_create_sex_tests_unknown_plant_fails(
+    app_engine: AsyncEngine,
+):
+    [plant_key] = await _seed_command_plants(app_engine, prefix="STUNK", count=1)
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command(
+            "cloud-sex-test-create-unknown",
+            command_type="breeding_sex_tests_bulk_create",
+            payload={
+                "vendor_name": "Farmer Freeman",
+                "assay_name": "EZ-XY",
+                "sample_collected_at": FIXED_NOW.isoformat(),
+                "sample_sent_at": None,
+                "tests": [
+                    {"plant_key": plant_key, "vendor_test_code": "FF-UNK-1"},
+                    {"plant_key": "NOPE-001", "vendor_test_code": "FF-UNK-2"},
+                ],
+            },
+        )
+    ]
+
+    result = await _command_service(app_engine, cloud, RecordingPTZ()).run_once()
+
+    assert result.executed == 1
+    statuses = [payload.status for _, payload, _ in cloud.command_results]
+    assert statuses == ["running", "failed"]
+    assert "unknown plant key(s): NOPE-001" in cloud.command_results[-1][1].error
+    async with AsyncSession(app_engine) as session:
+        sex_tests = (
+            await session.exec(
+                select(PlantSexTest)
+                .join(Plant, Plant.id == PlantSexTest.plant_id)
+                .where(Plant.key == plant_key)
+            )
+        ).all()
+        command = (
+            await session.exec(
+                select(Command).where(
+                    Command.idempotency_key
+                    == "cloud-command:cloud-sex-test-create-unknown"
+                )
+            )
+        ).one()
+
+    assert sex_tests == []
+    assert command.status == "failed"
+
+
+async def test_command_loop_bulk_create_sex_tests_duplicate_vendor_code_fails(
+    app_engine: AsyncEngine,
+):
+    plant_keys = await _seed_command_plants(app_engine, prefix="STDUP", count=2)
+    await _seed_command_sex_test(
+        app_engine,
+        plant_key=plant_keys[0],
+        vendor_test_code="FF-DUP",
+    )
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command(
+            "cloud-sex-test-create-duplicate-code",
+            command_type="breeding_sex_tests_bulk_create",
+            payload={
+                "vendor_name": "Farmer Freeman",
+                "assay_name": "EZ-XY",
+                "sample_collected_at": FIXED_NOW.isoformat(),
+                "sample_sent_at": None,
+                "tests": [{"plant_key": plant_keys[1], "vendor_test_code": "FF-DUP"}],
+            },
+        )
+    ]
+
+    result = await _command_service(app_engine, cloud, RecordingPTZ()).run_once()
+
+    assert result.executed == 1
+    statuses = [payload.status for _, payload, _ in cloud.command_results]
+    assert statuses == ["running", "failed"]
+    assert "duplicate vendor test code(s)" in cloud.command_results[-1][1].error
+    async with AsyncSession(app_engine) as session:
+        sex_tests = (
+            await session.exec(
+                select(PlantSexTest)
+                .join(Plant, Plant.id == PlantSexTest.plant_id)
+                .where(Plant.key == plant_keys[1])
+            )
+        ).all()
+        command = (
+            await session.exec(
+                select(Command).where(
+                    Command.idempotency_key
+                    == "cloud-command:cloud-sex-test-create-duplicate-code"
+                )
+            )
+        ).one()
+
+    assert sex_tests == []
+    assert command.status == "failed"
+
+
+async def test_command_loop_bulk_create_sex_tests_existing_pending_fails(
+    app_engine: AsyncEngine,
+):
+    [plant_key] = await _seed_command_plants(app_engine, prefix="STPEND", count=1)
+    existing_sex_test_id = await _seed_command_sex_test(
+        app_engine,
+        plant_key=plant_key,
+        vendor_test_code="FF-PENDING-A",
+    )
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command(
+            "cloud-sex-test-create-pending",
+            command_type="breeding_sex_tests_bulk_create",
+            payload={
+                "vendor_name": "Farmer Freeman",
+                "assay_name": "EZ-XY",
+                "sample_collected_at": FIXED_NOW.isoformat(),
+                "sample_sent_at": None,
+                "tests": [{"plant_key": plant_key, "vendor_test_code": "FF-PENDING-B"}],
+            },
+        )
+    ]
+
+    result = await _command_service(app_engine, cloud, RecordingPTZ()).run_once()
+
+    assert result.executed == 1
+    statuses = [payload.status for _, payload, _ in cloud.command_results]
+    assert statuses == ["running", "failed"]
+    assert "plant already has pending sex test(s)" in cloud.command_results[-1][1].error
+    async with AsyncSession(app_engine) as session:
+        sex_tests = (
+            await session.exec(
+                select(PlantSexTest)
+                .join(Plant, Plant.id == PlantSexTest.plant_id)
+                .where(Plant.key == plant_key)
+            )
+        ).all()
+        command = (
+            await session.exec(
+                select(Command).where(
+                    Command.idempotency_key
+                    == "cloud-command:cloud-sex-test-create-pending"
+                )
+            )
+        ).one()
+
+    assert [sex_test.id for sex_test in sex_tests] == [existing_sex_test_id]
+    assert command.status == "failed"
+
+
+async def test_command_loop_bulk_create_sex_tests_duplicate_plant_keys_fails(
+    app_engine: AsyncEngine,
+):
+    [plant_key] = await _seed_command_plants(app_engine, prefix="STDPK", count=1)
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command(
+            "cloud-sex-test-create-duplicate-plant",
+            command_type="breeding_sex_tests_bulk_create",
+            payload={
+                "vendor_name": "Farmer Freeman",
+                "assay_name": "EZ-XY",
+                "sample_collected_at": FIXED_NOW.isoformat(),
+                "sample_sent_at": None,
+                "tests": [
+                    {"plant_key": plant_key, "vendor_test_code": "FF-DPK-1"},
+                    {"plant_key": plant_key, "vendor_test_code": "FF-DPK-2"},
+                ],
+            },
+        )
+    ]
+
+    result = await _command_service(app_engine, cloud, RecordingPTZ()).run_once()
+
+    assert result.executed == 1
+    statuses = [payload.status for _, payload, _ in cloud.command_results]
+    assert statuses == ["running", "failed"]
+    assert f"duplicate plant key(s): {plant_key}" in cloud.command_results[-1][1].error
+    async with AsyncSession(app_engine) as session:
+        sex_tests = (
+            await session.exec(
+                select(PlantSexTest)
+                .join(Plant, Plant.id == PlantSexTest.plant_id)
+                .where(Plant.key == plant_key)
+            )
+        ).all()
+        command = (
+            await session.exec(
+                select(Command).where(
+                    Command.idempotency_key
+                    == "cloud-command:cloud-sex-test-create-duplicate-plant"
+                )
+            )
+        ).one()
+
+    assert sex_tests == []
+    assert command.status == "failed"
+
+
+async def test_command_loop_bulk_results_sex_tests_and_records_events(
+    app_engine: AsyncEngine,
+):
+    plant_keys = await _seed_command_plants(app_engine, prefix="STR", count=2)
+    female_test_id = await _seed_command_sex_test(
+        app_engine,
+        plant_key=plant_keys[0],
+        vendor_test_code="FF-RESULT-1",
+    )
+    inconclusive_test_id = await _seed_command_sex_test(
+        app_engine,
+        plant_key=plant_keys[1],
+        vendor_test_code="FF-RESULT-2",
+    )
+    received_at = FIXED_NOW + timedelta(days=1)
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command(
+            "cloud-sex-test-results",
+            command_type="breeding_sex_tests_bulk_result",
+            payload={
+                "result_received_at": received_at.isoformat(),
+                "results": [
+                    {
+                        "sex_test_source_id": female_test_id,
+                        "result_sex_key": "female",
+                        "is_inconclusive": False,
+                    },
+                    {
+                        "sex_test_source_id": inconclusive_test_id,
+                        "result_sex_key": None,
+                        "is_inconclusive": True,
+                    },
+                ],
+            },
+        )
+    ]
+
+    result = await _command_service(app_engine, cloud, RecordingPTZ()).run_once()
+
+    assert result.executed == 1
+    async with AsyncSession(app_engine) as session:
+        plants = (
+            await session.exec(
+                select(Plant).where(col(Plant.key).in_(plant_keys)).order_by(Plant.key)
+            )
+        ).all()
+        sex_tests = (
+            await session.exec(
+                select(PlantSexTest).where(
+                    col(PlantSexTest.id).in_([female_test_id, inconclusive_test_id])
+                )
+            )
+        ).all()
+        events = (
+            await session.exec(
+                select(PlantEvent, Plant.key)
+                .join(Plant, Plant.id == PlantEvent.plant_id)
+                .where(col(Plant.key).in_(plant_keys))
+                .where(PlantEvent.is_sex_observation.is_(True))
+                .order_by(Plant.key)
+            )
+        ).all()
+        command = (
+            await session.exec(
+                select(Command).where(
+                    Command.idempotency_key == "cloud-command:cloud-sex-test-results"
+                )
+            )
+        ).one()
+
+    assert [plant.sex_key for plant in plants] == ["female", "unknown"]
+    sex_test_by_id = {sex_test.id: sex_test for sex_test in sex_tests}
+    assert sex_test_by_id[female_test_id].result_received_at == received_at
+    assert sex_test_by_id[female_test_id].result_sex_key == "female"
+    assert sex_test_by_id[female_test_id].is_inconclusive is False
+    assert sex_test_by_id[inconclusive_test_id].result_received_at == received_at
+    assert sex_test_by_id[inconclusive_test_id].result_sex_key is None
+    assert sex_test_by_id[inconclusive_test_id].is_inconclusive is True
+    assert [plant_key for _, plant_key in events] == plant_keys
+    assert [event.occurred_at for event, _ in events] == [received_at, received_at]
+    assert events[0][0].metadata_json == {
+        "source": "sex_test",
+        "sex_test_id": female_test_id,
+        "vendor_name": "Farmer Freeman",
+        "vendor_test_code": "FF-RESULT-1",
+        "result_sex_key": "female",
+    }
+    assert events[1][0].metadata_json == {
+        "source": "sex_test",
+        "sex_test_id": inconclusive_test_id,
+        "vendor_name": "Farmer Freeman",
+        "vendor_test_code": "FF-RESULT-2",
+        "is_inconclusive": True,
+    }
+    assert command.result["updated_sex_test_ids"] == [
+        female_test_id,
+        inconclusive_test_id,
+    ]
+    assert command.result["updated_plant_keys"] == [plant_keys[0]]
+
+
+async def test_command_loop_updates_sex_test_state_and_result(
+    app_engine: AsyncEngine,
+):
+    [plant_key] = await _seed_command_plants(app_engine, prefix="STU", count=1)
+    sex_test_id = await _seed_command_sex_test(
+        app_engine,
+        plant_key=plant_key,
+        vendor_test_code="FF-UPDATE-1",
+    )
+    received_at = FIXED_NOW + timedelta(days=1)
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command(
+            "cloud-sex-test-update-metadata",
+            command_type="breeding_sex_test_update",
+            payload={
+                "sex_test_source_id": sex_test_id,
+                "vendor_name": "Farmer Freeman",
+                "assay_name": "EZ-XY",
+                "vendor_test_code": "FF-UPDATE-1A",
+                "sample_collected_at": (FIXED_NOW - timedelta(days=5)).isoformat(),
+                "sample_sent_at": (FIXED_NOW - timedelta(days=4)).isoformat(),
+                "result_received_at": None,
+                "result_sex_key": None,
+                "is_inconclusive": False,
+                "notes": "corrected code",
+            },
+        ),
+        _cloud_command(
+            "cloud-sex-test-update-result",
+            command_type="breeding_sex_test_update",
+            payload={
+                "sex_test_source_id": sex_test_id,
+                "vendor_name": "Farmer Freeman",
+                "assay_name": "EZ-XY",
+                "vendor_test_code": "FF-UPDATE-1A",
+                "sample_collected_at": (FIXED_NOW - timedelta(days=5)).isoformat(),
+                "sample_sent_at": (FIXED_NOW - timedelta(days=4)).isoformat(),
+                "result_received_at": received_at.isoformat(),
+                "result_sex_key": "male",
+                "is_inconclusive": False,
+                "notes": "result entered",
+            },
+        ),
+    ]
+
+    result = await _command_service(app_engine, cloud, RecordingPTZ()).run_once()
+
+    assert result.executed == 2
+    async with AsyncSession(app_engine) as session:
+        plant = (await session.exec(select(Plant).where(Plant.key == plant_key))).one()
+        sex_test = await session.get(PlantSexTest, sex_test_id)
+        events = (
+            await session.exec(
+                select(PlantEvent)
+                .where(PlantEvent.plant_id == plant.id)
+                .where(PlantEvent.is_sex_observation.is_(True))
+            )
+        ).all()
+
+    assert sex_test is not None
+    assert sex_test.vendor_test_code == "FF-UPDATE-1A"
+    assert sex_test.result_received_at == received_at
+    assert sex_test.result_sex_key == "male"
+    assert sex_test.is_inconclusive is False
+    assert sex_test.notes == "result entered"
+    assert plant.sex_key == "male"
+    assert len(events) == 1
+    assert events[0].metadata_json == {
+        "source": "sex_test",
+        "sex_test_id": sex_test_id,
+        "vendor_name": "Farmer Freeman",
+        "vendor_test_code": "FF-UPDATE-1A",
+        "result_sex_key": "male",
+    }
 
 
 async def test_command_loop_bulk_move_closes_current_location_without_stage_change(

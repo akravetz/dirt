@@ -13,16 +13,19 @@ from dirt_gateway.outbox import OutboxRepository
 from dirt_gateway.protocols import BackoffPolicy, CloudGatewayClient, Sleeper
 from dirt_gateway.sync import ExponentialBackoff
 from dirt_shared.cloud_contract import (
+    BreedingBulkCreateSexTestsPayload,
     BreedingBulkCullPayload,
     BreedingBulkMovePayload,
     BreedingBulkPlantFactsPayload,
     BreedingBulkPlantNotePayload,
+    BreedingBulkResultSexTestsPayload,
     BreedingBulkSexPayload,
     BreedingClonePlantsPayload,
     BreedingCreatePlantNotePayload,
     BreedingCreateSeedLotPayload,
     BreedingGerminatePlantsPayload,
     BreedingUpdateSeedLotInventoryPayload,
+    BreedingUpdateSexTestPayload,
     ClaimedCommand,
     CommandRequestStatus,
     CommandResultOutboxPayload,
@@ -419,6 +422,9 @@ def _local_command_type(cloud_type: str) -> str:
         "breeding_plants_germinate": "breeding.plants.germinate",
         "breeding_plants_clone": "breeding.plants.clone",
         "breeding_plants_bulk_sex": "breeding.plants.bulk_sex",
+        "breeding_sex_tests_bulk_create": "breeding.sex_tests.bulk_create",
+        "breeding_sex_test_update": "breeding.sex_test.update",
+        "breeding_sex_tests_bulk_result": "breeding.sex_tests.bulk_result",
         "breeding_plants_bulk_move": "breeding.plants.bulk_move",
         "breeding_plants_update_facts": "breeding.plants.update_facts",
         "breeding_plants_bulk_cull": "breeding.plants.bulk_cull",
@@ -491,6 +497,9 @@ def _is_breeding_command(item: ClaimedCommand) -> bool:
         | BreedingGerminatePlantsPayload
         | BreedingClonePlantsPayload
         | BreedingBulkSexPayload
+        | BreedingBulkCreateSexTestsPayload
+        | BreedingUpdateSexTestPayload
+        | BreedingBulkResultSexTestsPayload
         | BreedingBulkMovePayload
         | BreedingBulkPlantFactsPayload
         | BreedingBulkCullPayload

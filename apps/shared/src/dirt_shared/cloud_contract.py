@@ -31,6 +31,9 @@ CommandType = Literal[
     "breeding_plants_germinate",
     "breeding_plants_clone",
     "breeding_plants_bulk_sex",
+    "breeding_sex_tests_bulk_create",
+    "breeding_sex_test_update",
+    "breeding_sex_tests_bulk_result",
     "breeding_plants_bulk_move",
     "breeding_plants_update_facts",
     "breeding_plants_bulk_cull",
@@ -43,6 +46,7 @@ CapturePolicyReason = Literal[
     "lights_schedule_not_found",
 ]
 PlantSexKey = Literal["unknown", "male", "female", "herm", "reversed"]
+PlantSexTestResultSexKey = Literal["male", "female"]
 SeedLotSexTypeKey = Literal["unknown", "feminized", "regular"]
 BreedingPlantFactField = Literal[
     "sex_key",
@@ -472,6 +476,29 @@ def _strip_required_text_list(values: list[str]) -> list[str]:
     return stripped
 
 
+def _reject_duplicate_values(values: list[object], message: str) -> None:
+    if len(set(values)) != len(values):
+        raise ValueError(message)
+
+
+def _validate_sex_test_result_state(
+    *,
+    result_received_at: datetime | None,
+    result_sex_key: PlantSexTestResultSexKey | None,
+    is_inconclusive: bool,
+) -> None:
+    has_result = result_sex_key is not None
+    if result_received_at is None:
+        if has_result or is_inconclusive:
+            raise ValueError("pending sex tests must not include a result")
+        return
+    if has_result == is_inconclusive:
+        raise ValueError(
+            "received sex tests require exactly one conclusive result_sex_key "
+            "or is_inconclusive=true"
+        )
+
+
 class BreedingCreateSeedLotPayload(CloudContractModel):
     source: Literal["purchased", "cross"]
     generation: str = Field(min_length=1)
@@ -580,6 +607,109 @@ class BreedingBulkSexPayload(CloudContractModel):
     @classmethod
     def _strip_plant_keys(cls, value: list[str]) -> list[str]:
         return _strip_required_text_list(value)
+
+
+class BreedingBulkCreateSexTestItem(CloudContractModel):
+    plant_key: str = Field(min_length=1)
+    vendor_test_code: str = Field(min_length=1)
+    notes: str | None = None
+
+    @field_validator("plant_key", "vendor_test_code")
+    @classmethod
+    def _strip_required_text(cls, value: str) -> str:
+        return _strip_required_text(value)
+
+    @field_validator("notes")
+    @classmethod
+    def _strip_optional_text(cls, value: str | None) -> str | None:
+        return _strip_optional_text(value)
+
+
+class BreedingBulkCreateSexTestsPayload(CloudContractModel):
+    vendor_name: str = Field(min_length=1)
+    assay_name: str | None = Field(...)
+    sample_collected_at: datetime
+    sample_sent_at: datetime | None = Field(...)
+    tests: list[BreedingBulkCreateSexTestItem] = Field(min_length=1)
+
+    @field_validator("vendor_name")
+    @classmethod
+    def _strip_vendor_name(cls, value: str) -> str:
+        return _strip_required_text(value)
+
+    @field_validator("assay_name")
+    @classmethod
+    def _strip_assay_name(cls, value: str | None) -> str | None:
+        return _strip_optional_text(value)
+
+    @model_validator(mode="after")
+    def _vendor_test_codes_are_unique(self) -> BreedingBulkCreateSexTestsPayload:
+        _reject_duplicate_values(
+            [test.vendor_test_code for test in self.tests],
+            "tests must not contain duplicate vendor_test_code values",
+        )
+        return self
+
+
+class BreedingUpdateSexTestPayload(CloudContractModel):
+    sex_test_source_id: int = Field(gt=0)
+    vendor_name: str = Field(min_length=1)
+    assay_name: str | None = Field(...)
+    vendor_test_code: str = Field(min_length=1)
+    sample_collected_at: datetime
+    sample_sent_at: datetime | None = Field(...)
+    result_received_at: datetime | None = Field(...)
+    result_sex_key: PlantSexTestResultSexKey | None = Field(...)
+    is_inconclusive: bool
+    notes: str | None = Field(...)
+
+    @field_validator("vendor_name", "vendor_test_code")
+    @classmethod
+    def _strip_required_text(cls, value: str) -> str:
+        return _strip_required_text(value)
+
+    @field_validator("assay_name", "notes")
+    @classmethod
+    def _strip_optional_text(cls, value: str | None) -> str | None:
+        return _strip_optional_text(value)
+
+    @model_validator(mode="after")
+    def _result_state_is_complete(self) -> BreedingUpdateSexTestPayload:
+        _validate_sex_test_result_state(
+            result_received_at=self.result_received_at,
+            result_sex_key=self.result_sex_key,
+            is_inconclusive=self.is_inconclusive,
+        )
+        return self
+
+
+class BreedingSexTestResultRow(CloudContractModel):
+    sex_test_source_id: int = Field(gt=0)
+    result_sex_key: PlantSexTestResultSexKey | None = Field(...)
+    is_inconclusive: bool
+
+    @model_validator(mode="after")
+    def _result_is_unambiguous(self) -> BreedingSexTestResultRow:
+        has_result_sex = self.result_sex_key is not None
+        if has_result_sex == self.is_inconclusive:
+            raise ValueError(
+                "sex-test result rows require exactly one conclusive "
+                "result_sex_key or is_inconclusive=true"
+            )
+        return self
+
+
+class BreedingBulkResultSexTestsPayload(CloudContractModel):
+    result_received_at: datetime
+    results: list[BreedingSexTestResultRow] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _results_are_unique(self) -> BreedingBulkResultSexTestsPayload:
+        _reject_duplicate_values(
+            [row.sex_test_source_id for row in self.results],
+            "results must not contain duplicate sex_test_source_id values",
+        )
+        return self
 
 
 class BreedingBulkMovePayload(CloudContractModel):
@@ -707,6 +837,9 @@ BreedingCommandPayload: TypeAlias = (
     | BreedingGerminatePlantsPayload
     | BreedingClonePlantsPayload
     | BreedingBulkSexPayload
+    | BreedingBulkCreateSexTestsPayload
+    | BreedingUpdateSexTestPayload
+    | BreedingBulkResultSexTestsPayload
     | BreedingBulkMovePayload
     | BreedingBulkPlantFactsPayload
     | BreedingBulkCullPayload
@@ -752,6 +885,9 @@ class ClaimedCommand(CloudContractModel):
             "breeding_plants_germinate": BreedingGerminatePlantsPayload,
             "breeding_plants_clone": BreedingClonePlantsPayload,
             "breeding_plants_bulk_sex": BreedingBulkSexPayload,
+            "breeding_sex_tests_bulk_create": BreedingBulkCreateSexTestsPayload,
+            "breeding_sex_test_update": BreedingUpdateSexTestPayload,
+            "breeding_sex_tests_bulk_result": BreedingBulkResultSexTestsPayload,
             "breeding_plants_bulk_move": BreedingBulkMovePayload,
             "breeding_plants_update_facts": BreedingBulkPlantFactsPayload,
             "breeding_plants_bulk_cull": BreedingBulkCullPayload,
