@@ -18,8 +18,10 @@ from dirt_hwd.tools.substrate_calibration.schemas import (
     Capture,
     CapturePreview,
     CapturePreviewRequest,
+    ControllerStatus,
     ProbeIdentity,
     ProbeSample,
+    SamplesResponse,
     SessionStatus,
 )
 from dirt_hwd.tools.substrate_calibration.store import (
@@ -209,6 +211,109 @@ async def test_latest_completed_route_is_not_shadowed_by_session_id(tmp_path) ->
     assert response.json() == {"artifact": None, "session": None}
 
 
+async def test_root_serves_browser_ui_and_info_route_remains_json(tmp_path) -> None:
+    store = CalibrationStore(
+        root=tmp_path / "substrate-calibration",
+        clock=lambda: T0,
+    )
+    app = create_app(
+        controller_url="http://controller.local",
+        store=store,
+        clock=lambda: T0,
+    )
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        root_response = await client.get("/")
+        info_response = await client.get("/api/info")
+
+    assert root_response.status_code == 200
+    assert "text/html" in root_response.headers["content-type"]
+    assert "Substrate Probe Calibration" in root_response.text
+    assert info_response.status_code == 200
+    assert info_response.json() == {
+        "ok": True,
+        "controller_url": "http://controller.local",
+        "storage_root": str(tmp_path / "substrate-calibration"),
+    }
+
+
+async def test_controller_samples_route_proxies_firmware_samples(tmp_path) -> None:
+    probe = _probe(1, "0x02")
+    sample = _sample(1, probe, 12.5)
+    controller = _RouteFakeController(
+        _firmware_samples_response(
+            probe=probe,
+            samples=[sample],
+            window_s=60,
+        )
+    )
+    store = CalibrationStore(
+        root=tmp_path / "substrate-calibration",
+        clock=lambda: T0,
+    )
+    app = create_app(
+        controller_url="http://controller.local",
+        controller=controller,
+        store=store,
+        clock=lambda: T0,
+    )
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/api/controller/samples?window_s=60")
+
+    assert response.status_code == 200
+    assert controller.last_window_s == 60
+    payload = response.json()
+    assert payload["slots"][0]["samples"][0]["soil_moisture_pct"] == 12.5
+
+
+async def test_controller_samples_route_rejects_window_above_firmware_max(
+    tmp_path,
+) -> None:
+    probe = _probe(1, "0x02")
+    controller = _RouteFakeController(
+        _firmware_samples_response(
+            probe=probe,
+            samples=[],
+            window_s=60,
+        )
+    )
+    store = CalibrationStore(
+        root=tmp_path / "substrate-calibration",
+        clock=lambda: T0,
+    )
+    app = create_app(
+        controller_url="http://controller.local",
+        controller=controller,
+        store=store,
+        clock=lambda: T0,
+    )
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/api/controller/samples?window_s=121")
+
+    assert response.status_code == 422
+    assert controller.last_window_s is None
+
+
+def test_controller_status_accepts_pre_calibration_firmware_payload() -> None:
+    status = ControllerStatus.model_validate(_old_status_payload())
+
+    assert status.controller.normal_measurement_interval_ms == 30000
+    assert status.controller.ingest_interval_ms == 30000
+    assert status.calibration_mode.active is False
+    assert status.calibration_mode.counters.start_count == 0
+    by_address = {slot.modbus_address: slot for slot in status.slots}
+    assert by_address["0x02"].probe_id == 1
+    assert by_address["0x03"].probe_id == 2
+    assert by_address["0x04"].probe_id == 3
+    assert by_address["0x02"].sample_ring_count == 0
+    assert by_address["0x02"].latest_sample.soil_moisture_pct == 24.5
+
+
 async def test_capture_preview_excludes_samples_before_controller_start() -> None:
     probe = _probe(1, "0x02")
     pre_capture = _sample(1, probe, 9.0, read_ms=900)
@@ -251,6 +356,20 @@ class _FakeController:
         return response
 
 
+class _RouteFakeController:
+    def __init__(self, response: SamplesResponse) -> None:
+        self._response = response
+        self.last_window_s: int | None = None
+        self.base_url = "http://controller.local"
+
+    async def samples(self, *, window_s: int) -> SamplesResponse:
+        self.last_window_s = window_s
+        return self._response
+
+    async def aclose(self) -> None:
+        return None
+
+
 def _samples_response(
     controller_read_ms: int,
     probe: ProbeIdentity,
@@ -264,4 +383,135 @@ def _samples_response(
                 samples=samples,
             )
         ],
+    )
+
+
+def _calibration_mode_payload() -> dict[str, object]:
+    return {
+        "active": True,
+        "started_ms": 1000,
+        "expires_ms": 901000,
+        "remaining_ms": 900000,
+        "interval_ms": 2000,
+        "normal_measurement_interval_ms": 30000,
+        "ingest_interval_ms": 30000,
+        "counters": {
+            "start_count": 1,
+            "stop_count": 0,
+            "auto_expire_count": 0,
+            "measurement_cycle_count": 1,
+            "sample_success_count": 1,
+            "sample_failure_count": 0,
+        },
+    }
+
+
+def _old_status_payload() -> dict[str, object]:
+    return {
+        "controller": {
+            "device_id": "plant-a-substrate-node",
+            "hostname": "plant-a-substrate-node",
+            "slot_count": 3,
+            "enabled_slot_count": 3,
+            "any_enabled_slot_failing": False,
+        },
+        "firmware_version": "0.1.0-rs485-substrate",
+        "wifi": {
+            "connected": True,
+            "ip": "192.168.1.40",
+            "rssi_dbm": -50,
+            "reconnect_count": 0,
+            "driver_reset_count": 0,
+            "last_disconnect_reason": 0,
+            "disconnected_for_ms": 0,
+        },
+        "diagnostics": {},
+        "provisioning": {},
+        "slots": [
+            _old_status_slot(
+                address="0x02",
+                device_id="plant-a-substrate-node",
+                moisture=24.5,
+            ),
+            _old_status_slot(
+                address="0x03",
+                device_id="plant-d-substrate-node",
+                moisture=25.5,
+            ),
+            _old_status_slot(
+                address="0x04",
+                device_id="plant-c-substrate-node",
+                moisture=26.5,
+            ),
+        ],
+    }
+
+
+def _old_status_slot(
+    *,
+    address: str,
+    device_id: str,
+    moisture: float,
+) -> dict[str, object]:
+    return {
+        "plant_label": device_id.removesuffix("-substrate-node"),
+        "device_id": device_id,
+        "modbus_address": address,
+        "enabled": True,
+        "assigned": True,
+        "provisioning_target": False,
+        "latest_sample": {
+            "soil_moisture_pct": moisture,
+            "substrate_temp_c": 20.2,
+            "substrate_ec_us_cm": 126,
+            "substrate_ph": 4.9,
+            "age_ms": 1000,
+        },
+        "latest_raw_modbus_frame_hex": "02030800F500CA007E00310640",
+        "last_modbus_status": "ok",
+        "last_ingest_status": {
+            "code": 200,
+            "ok_count": 1,
+            "fail_count": 0,
+        },
+        "modbus_counters": {
+            "success_count": 1,
+            "failure_count": 0,
+            "crc_mismatch_count": 0,
+            "short_response_count": 0,
+            "no_response_count": 0,
+            "bad_header_count": 0,
+        },
+    }
+
+
+def _firmware_samples_response(
+    *,
+    probe: ProbeIdentity,
+    samples: list[ProbeSample],
+    window_s: int,
+) -> SamplesResponse:
+    return SamplesResponse.model_validate(
+        {
+            "controller": {
+                "device_id": "plant-a-substrate-node",
+                "hostname": "plant-a-substrate-node",
+                "firmware_version": "0.1.0-rs485-substrate",
+                "read_ms": 2000,
+                "window_s": window_s,
+                "calibration_mode": _calibration_mode_payload(),
+            },
+            "slots": [
+                {
+                    "probe_id": probe.probe_id,
+                    "device_id": probe.device_id,
+                    "modbus_address": probe.modbus_address,
+                    "enabled": True,
+                    "ring_capacity": 150,
+                    "ring_sample_count": len(samples),
+                    "returned_sample_count": len(samples),
+                    "samples": [sample.model_dump(mode="json") for sample in samples],
+                }
+            ],
+        }
     )

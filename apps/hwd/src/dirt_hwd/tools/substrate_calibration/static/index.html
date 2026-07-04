@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dirt Substrate Probe Calibration</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/static/styles.css" />
+    <script type="module" src="/static/app.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>Substrate Probe Calibration</h1>
+        <div class="meta-row">
+          <span id="controller-url">controller: loading</span>
+          <span id="session-id">session: loading</span>
+        </div>
+      </div>
+      <button id="renew-calibration" type="button">Enable calibration mode</button>
+    </header>
+
+    <main>
+      <section id="alert" class="alert" hidden></section>
+
+      <section class="status-grid" aria-label="Controller and session state">
+        <section class="panel state-panel">
+          <h2>Controller</h2>
+          <dl>
+            <div>
+              <dt>Connection</dt>
+              <dd id="connection-state">loading</dd>
+            </div>
+            <div>
+              <dt>Firmware</dt>
+              <dd id="firmware-version">unknown</dd>
+            </div>
+            <div>
+              <dt>Samples</dt>
+              <dd id="samples-state">loading</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="panel state-panel">
+          <h2>Calibration Mode</h2>
+          <dl>
+            <div>
+              <dt>State</dt>
+              <dd id="calibration-state">unknown</dd>
+            </div>
+            <div>
+              <dt>Interval</dt>
+              <dd id="calibration-interval">unknown</dd>
+            </div>
+            <div>
+              <dt>Remaining</dt>
+              <dd id="calibration-remaining">unknown</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="panel reference-panel">
+          <h2>Wet Reference</h2>
+          <div class="field-row">
+            <label for="input-ec">Input EC ms/cm</label>
+            <input id="input-ec" type="number" min="0" step="0.01" inputmode="decimal" />
+          </div>
+          <div class="field-row">
+            <label for="input-ph">Input pH</label>
+            <input id="input-ph" type="number" min="0" max="14" step="0.01" inputmode="decimal" />
+          </div>
+          <button id="save-reference" type="button">Save reference</button>
+        </section>
+
+        <section class="panel capture-panel">
+          <h2>Capture</h2>
+          <fieldset class="segmented" id="anchor-type">
+            <legend>Anchor</legend>
+            <label>
+              <input type="radio" name="anchor-type" value="dry" checked />
+              <span>Dry</span>
+            </label>
+            <label>
+              <input type="radio" name="anchor-type" value="wet_capacity" />
+              <span>Wet capacity</span>
+            </label>
+          </fieldset>
+          <div id="capture-progress" class="capture-progress" hidden></div>
+        </section>
+      </section>
+
+      <section class="probe-grid" id="probe-grid" aria-label="Live probes"></section>
+
+      <section class="summary-section">
+        <div class="summary-header">
+          <h2>Session Summary</h2>
+          <button id="complete-session" type="button">Complete session</button>
+        </div>
+        <div id="accepted-captures" class="accepted-captures"></div>
+        <div id="summary-table" class="summary-table"></div>
+        <div class="copy-grid">
+          <label for="markdown-summary">Markdown</label>
+          <button id="copy-markdown" type="button">Copy Markdown</button>
+          <textarea id="markdown-summary" readonly spellcheck="false"></textarea>
+          <label for="csv-summary">CSV</label>
+          <button id="copy-csv" type="button">Copy CSV</button>
+          <textarea id="csv-summary" readonly spellcheck="false"></textarea>
+        </div>
+      </section>
+    </main>
+
+    <dialog id="preview-dialog">
+      <form method="dialog" class="preview-dialog">
+        <h2>Capture Review</h2>
+        <div id="preview-content"></div>
+        <div class="dialog-actions">
+          <button id="reject-preview" value="reject" type="button">Reject</button>
+          <button id="accept-preview" value="accept" type="button">Accept</button>
+        </div>
+      </form>
+    </dialog>
+  </body>
+</html>

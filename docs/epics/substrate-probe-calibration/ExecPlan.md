@@ -24,7 +24,7 @@ The second user-visible outcome is higher-resolution local sampling from the RS4
 - [x] (2026-07-04) Authored this ExecPlan.
 - [x] (2026-07-04 05:42Z) Implemented Milestone 1: firmware high-rate calibration sampling endpoints. Validation passed for `pio run -e plant-a-substrate`, `pio run -e plant-a-substrate-ota`, and `git diff --check` on the firmware files.
 - [x] (2026-07-04 06:01Z) Implemented Milestone 2: local file-backed calibration domain models and service. Added the separate `dirt_hwd.tools.substrate_calibration` CLI/app, strict local/persisted DTOs, controller adapter validation, atomic JSON store, capture preview/accept/complete APIs, calibration summaries, and focused tests.
-- [ ] Implement Milestone 3: local LAN web app and UI flow.
+- [x] (2026-07-04 06:32Z) Implemented Milestone 3: local LAN web app and UI flow. Added the static browser UI at `/`, moved tool info to `/api/info`, added `/api/controller/samples`, and wired live probe cards, high-rate traces, noise stats, wet reference editing, capture preview/accept/reject, grouped summaries, Markdown/CSV copy output, and session completion.
 - [ ] Implement Milestone 4: tests, docs, and operator validation.
 
 ## Surprises & Discoveries
@@ -43,6 +43,9 @@ The second user-visible outcome is higher-resolution local sampling from the RS4
 
 - Observation: Static session API paths must be registered before the dynamic session id route.
   Evidence: `GET /api/sessions/latest-completed` would otherwise be interpreted as `session_id="latest-completed"`. The local calibration app registers the latest-completed route before `GET /api/sessions/{session_id}`, and `apps/hwd/tests/test_substrate_calibration.py` covers that ordering.
+
+- Observation: The local UI must tolerate the old `/status` shape until the controller is flashed with Milestone 1 firmware.
+  Evidence: Browser smoke against `http://plant-a-substrate-node.local` found current firmware still returns status without `probe_id`, `sample_ring_count`, or `calibration_mode`. The controller adapter now derives probe ids from Modbus address for display/session identity while still requiring `/samples` for high-rate traces and captures.
 
 ## Decision Log
 
@@ -85,6 +88,8 @@ Milestone 1 added separate firmware measurement and ingest cadences, calibration
 Remaining hardware validation for Milestone 1: flash the controller through the approved firmware workflow, then curl `/health`, `/status`, `/calibration/start`, `/samples`, and `/calibration/stop`, and observe that Dirt ingest stays near the normal 30-second cadence during calibration mode.
 
 Milestone 2 added the local calibration backend under `apps/hwd/src/dirt_hwd/tools/substrate_calibration/`. The tool now has a separate CLI entry point, local FastAPI app, controller adapter for `/status`, `/samples`, and calibration-mode commands, Pydantic DTOs for local API and persisted JSON sessions, atomic file-backed storage under `Settings.data_dir / "substrate-calibration"`, capture preview/accept/remove/complete routes, immutable completed sessions, and per-probe formula summaries with missing-anchor, low-sample, invalid-span, and inverted-anchor warnings. Validation passed for `uv run --package dirt-hwd python -m dirt_hwd.tools.substrate_calibration --help`, `uv run pytest apps/tests/invariants/test_no_concrete_clock_in_production.py::test_no_concrete_clock_in_production -q`, `uv run pytest apps/hwd/tests/test_substrate_calibration.py -q`, `uv run pytest apps/hwd/tests -q`, `uv run ruff check apps/hwd/src/dirt_hwd/tools/substrate_calibration apps/hwd/tests/test_substrate_calibration.py`, and `uv run ruff format --check apps/hwd/src/dirt_hwd/tools/substrate_calibration apps/hwd/tests/test_substrate_calibration.py`.
+
+Milestone 3 added the local static browser UI served by the calibration FastAPI app. The UI shows the current controller connection, three probe cards, raw values from status, high-rate sample traces when `/samples` is available, noise stats, calibration-mode renewal, wet reference fields, per-probe capture fields, server-side 60-second preview capture, accept/reject persistence, grouped accepted captures, per-probe formulas and warnings, Markdown/CSV copy text, and session completion. Validation passed for `uv run --package dirt-hwd python -m dirt_hwd.tools.substrate_calibration --help`, `uv run pytest apps/hwd/tests/test_substrate_calibration.py -q`, `uv run pytest apps/hwd/tests -q`, `uv run ruff check apps/hwd/src/dirt_hwd/tools/substrate_calibration apps/hwd/tests/test_substrate_calibration.py`, `uv run ruff format --check apps/hwd/src/dirt_hwd/tools/substrate_calibration apps/hwd/tests/test_substrate_calibration.py`, `node --check apps/hwd/src/dirt_hwd/tools/substrate_calibration/static/app.js`, and `git diff --check -- apps/hwd/src/dirt_hwd/tools/substrate_calibration apps/hwd/tests/test_substrate_calibration.py`. Browser smoke with `agent-browser` against the real current controller verified that old `/status` renders the probe cards, missing `/samples` shows a high-rate firmware required message, capture buttons are disabled, desktop and mobile document widths do not overflow, and no page or console errors are reported.
 
 ## Context and Orientation
 

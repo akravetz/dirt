@@ -7,11 +7,14 @@ import time
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Annotated
 
 import httpx
-from fastapi import FastAPI, HTTPException, Path, status
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, HTTPException, Query, status
+from fastapi import Path as RoutePath
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from dirt_hwd.tools.substrate_calibration.calibration import (
     compute_capture_stats,
@@ -33,6 +36,7 @@ from dirt_hwd.tools.substrate_calibration.schemas import (
     LiveStatusResponse,
     ProbeIdentity,
     ProbeSample,
+    SamplesResponse,
     SessionStatus,
     SessionSummaryResponse,
     StartCalibrationRequest,
@@ -48,8 +52,7 @@ from dirt_hwd.tools.substrate_calibration.store import (
 )
 from dirt_shared.config import Settings
 
-SessionId = Annotated[str, Path(min_length=1)]
-CaptureId = Annotated[str, Path(min_length=1)]
+STATIC_DIR = Path(__file__).with_name("static")
 
 
 def create_app(
@@ -76,6 +79,7 @@ def create_app(
     app.state.store = store
     app.state.controller = controller
     app.state.clock = clock
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
     @app.exception_handler(SessionNotFoundError)
     async def _session_not_found(_request, exc: SessionNotFoundError):
@@ -112,7 +116,11 @@ def create_app(
             content={"detail": f"controller request failed: {exc}"},
         )
 
-    @app.get("/", response_model=ToolInfoResponse)
+    @app.get("/", response_class=FileResponse)
+    def index() -> FileResponse:
+        return FileResponse(STATIC_DIR / "index.html")
+
+    @app.get("/api/info", response_model=ToolInfoResponse)
     def info() -> ToolInfoResponse:
         return ToolInfoResponse(
             ok=True,
@@ -126,6 +134,12 @@ def create_app(
             controller_url=controller.base_url,
             status=await controller.status(),
         )
+
+    @app.get("/api/controller/samples", response_model=SamplesResponse)
+    async def controller_samples(
+        window_s: Annotated[int, Query(ge=1, le=120)] = 60,
+    ) -> SamplesResponse:
+        return await controller.samples(window_s=window_s)
 
     @app.post(
         "/api/controller/calibration/start",
@@ -180,14 +194,16 @@ def create_app(
         return LatestCompletedResponse(artifact=artifact, session=session)
 
     @app.get("/api/sessions/{session_id}", response_model=CalibrationSession)
-    def read_session(session_id: SessionId) -> CalibrationSession:
+    def read_session(
+        session_id: Annotated[str, RoutePath(min_length=1)],
+    ) -> CalibrationSession:
         return store.read_session(session_id)
 
     @app.patch(
         "/api/sessions/{session_id}/wet-reference", response_model=CalibrationSession
     )
     def update_wet_reference(
-        session_id: SessionId,
+        session_id: Annotated[str, RoutePath(min_length=1)],
         request: UpdateWetReferenceRequest,
     ) -> CalibrationSession:
         return store.update_wet_reference(
@@ -201,7 +217,7 @@ def create_app(
         response_model=CapturePreview,
     )
     async def preview_capture(
-        session_id: SessionId,
+        session_id: Annotated[str, RoutePath(min_length=1)],
         request: CapturePreviewRequest,
     ) -> CapturePreview:
         session = store.read_session(session_id)
@@ -217,7 +233,7 @@ def create_app(
         response_model=CalibrationSession,
     )
     def accept_capture(
-        session_id: SessionId,
+        session_id: Annotated[str, RoutePath(min_length=1)],
         request: AcceptCaptureRequest,
     ) -> CalibrationSession:
         return store.append_capture(session_id, request.capture)
@@ -227,20 +243,24 @@ def create_app(
         response_model=CalibrationSession,
     )
     def remove_capture(
-        session_id: SessionId,
-        capture_id: CaptureId,
+        session_id: Annotated[str, RoutePath(min_length=1)],
+        capture_id: Annotated[str, RoutePath(min_length=1)],
     ) -> CalibrationSession:
         return store.remove_capture(session_id, capture_id)
 
     @app.post("/api/sessions/{session_id}/complete", response_model=CalibrationSession)
-    def complete_session(session_id: SessionId) -> CalibrationSession:
+    def complete_session(
+        session_id: Annotated[str, RoutePath(min_length=1)],
+    ) -> CalibrationSession:
         return store.complete_session(session_id)
 
     @app.get(
         "/api/sessions/{session_id}/summary",
         response_model=SessionSummaryResponse,
     )
-    def session_summary(session_id: SessionId) -> SessionSummaryResponse:
+    def session_summary(
+        session_id: Annotated[str, RoutePath(min_length=1)],
+    ) -> SessionSummaryResponse:
         session = store.read_session(session_id)
         summary = session.summary or summarize_session(session)
         return SessionSummaryResponse(

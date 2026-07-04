@@ -8,6 +8,12 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 PROBE_ID_MIN = 1
 PROBE_ID_MAX = 3
 FORMULA_TEMPLATE = "100 * (raw_moisture_pct - dry_anchor_mean) / span"
+DEFAULT_STATUS_INTERVAL_MS = 30000
+PROBE_ID_BY_MODBUS_ADDRESS = {
+    "0x02": 1,
+    "0x03": 2,
+    "0x04": 3,
+}
 
 
 class StrictModel(BaseModel):
@@ -208,6 +214,26 @@ class ControllerCalibrationMode(FirmwareModel):
     counters: ControllerCalibrationCounters
 
 
+def _inactive_calibration_mode_payload() -> dict[str, object]:
+    return {
+        "active": False,
+        "started_ms": 0,
+        "expires_ms": 0,
+        "remaining_ms": 0,
+        "interval_ms": 0,
+        "normal_measurement_interval_ms": DEFAULT_STATUS_INTERVAL_MS,
+        "ingest_interval_ms": DEFAULT_STATUS_INTERVAL_MS,
+        "counters": {
+            "start_count": 0,
+            "stop_count": 0,
+            "auto_expire_count": 0,
+            "measurement_cycle_count": 0,
+            "sample_success_count": 0,
+            "sample_failure_count": 0,
+        },
+    }
+
+
 class StatusLatestSample(FirmwareModel):
     soil_moisture_pct: float
     substrate_temp_c: float
@@ -226,6 +252,20 @@ class ControllerStatusSlot(FirmwareModel):
     latest_raw_modbus_frame_hex: str = ""
     last_modbus_status: str = Field(min_length=1)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _adapt_pre_calibration_status_slot(cls, data):
+        if not isinstance(data, dict):
+            return data
+        adapted = dict(data)
+        address = adapted.get("modbus_address")
+        if "probe_id" not in adapted and isinstance(address, str):
+            probe_id = PROBE_ID_BY_MODBUS_ADDRESS.get(address.lower())
+            if probe_id is not None:
+                adapted["probe_id"] = probe_id
+        adapted.setdefault("sample_ring_count", 0)
+        return adapted
+
 
 class ControllerInfo(FirmwareModel):
     device_id: str = Field(min_length=1)
@@ -236,12 +276,31 @@ class ControllerInfo(FirmwareModel):
     normal_measurement_interval_ms: int = Field(ge=0)
     ingest_interval_ms: int = Field(ge=0)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _adapt_pre_calibration_status_controller(cls, data):
+        if not isinstance(data, dict):
+            return data
+        adapted = dict(data)
+        adapted.setdefault("normal_measurement_interval_ms", DEFAULT_STATUS_INTERVAL_MS)
+        adapted.setdefault("ingest_interval_ms", DEFAULT_STATUS_INTERVAL_MS)
+        return adapted
+
 
 class ControllerStatus(FirmwareModel):
     controller: ControllerInfo
     firmware_version: str = Field(min_length=1)
     calibration_mode: ControllerCalibrationMode
     slots: list[ControllerStatusSlot]
+
+    @model_validator(mode="before")
+    @classmethod
+    def _adapt_pre_calibration_status(cls, data):
+        if not isinstance(data, dict):
+            return data
+        adapted = dict(data)
+        adapted.setdefault("calibration_mode", _inactive_calibration_mode_payload())
+        return adapted
 
 
 class ControllerCommandResponse(FirmwareModel):
