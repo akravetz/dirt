@@ -11,6 +11,7 @@
 #include <WiFi.h>
 #include <esp_system.h>
 #include <stdarg.h>
+#include <stdlib.h>
 
 #include "ingest_client.h"
 #include "ota.h"
@@ -25,8 +26,14 @@
 #ifndef NODE_HOSTNAME
 #define NODE_HOSTNAME "plant-a-substrate-node"
 #endif
-#ifndef POST_INTERVAL_MS
-#define POST_INTERVAL_MS 30000
+#ifndef INGEST_INTERVAL_MS
+#define INGEST_INTERVAL_MS 30000
+#endif
+#ifndef NORMAL_MEASUREMENT_INTERVAL_MS
+#define NORMAL_MEASUREMENT_INTERVAL_MS 30000
+#endif
+#ifndef CALIBRATION_MEASUREMENT_INTERVAL_MS
+#define CALIBRATION_MEASUREMENT_INTERVAL_MS 2000
 #endif
 
 constexpr int RS485_RX_PIN = 7;
@@ -43,10 +50,24 @@ constexpr uint32_t PROVISION_SETTLE_MS = 500;
 constexpr uint32_t PROVISION_FAILURE_COOLDOWN_MS = 300000;
 constexpr uint32_t PROVISION_SUCCESS_COOLDOWN_MS = 60000;
 constexpr uint32_t PROVISION_PREF_SCHEMA_VERSION = 1;
+constexpr uint32_t CONFIG_INGEST_INTERVAL_MS = INGEST_INTERVAL_MS;
+constexpr uint32_t CONFIG_NORMAL_MEASUREMENT_INTERVAL_MS = NORMAL_MEASUREMENT_INTERVAL_MS;
+constexpr uint32_t CONFIG_CALIBRATION_MEASUREMENT_INTERVAL_MS = CALIBRATION_MEASUREMENT_INTERVAL_MS;
+constexpr uint32_t CALIBRATION_INTERVAL_MIN_MS = 1000;
+constexpr uint32_t CALIBRATION_INTERVAL_MAX_MS = 30000;
+constexpr uint32_t CALIBRATION_DURATION_DEFAULT_S = 900;
+constexpr uint32_t CALIBRATION_DURATION_MIN_S = 1;
+constexpr uint32_t CALIBRATION_DURATION_MAX_S = 3600;
+constexpr uint32_t SAMPLES_WINDOW_DEFAULT_S = 120;
+constexpr uint32_t SAMPLES_WINDOW_MIN_S = 1;
+constexpr uint32_t SAMPLES_WINDOW_MAX_S = 120;
+constexpr uint32_t SAMPLE_RING_WINDOW_MS = 5UL * 60UL * 1000UL;
+constexpr uint32_t SAMPLE_RING_TARGET_INTERVAL_MS = 2000;
+constexpr size_t SAMPLE_RING_CAPACITY =
+    (SAMPLE_RING_WINDOW_MS / SAMPLE_RING_TARGET_INTERVAL_MS) + 8;
 
 constexpr const char* CONTROLLER_DEVICE_ID = NODE_DEVICE_ID;
 constexpr const char* HOSTNAME = NODE_HOSTNAME;
-constexpr uint32_t POLL_INTERVAL_MS = POST_INTERVAL_MS;
 constexpr const char* PROVISION_PREF_NAMESPACE = "rs485_bus";
 
 // --- State ----------------------------------------------------------------
@@ -91,6 +112,22 @@ struct SubstrateSample {
     uint32_t read_ms = 0;
 };
 
+struct SampleRingEntry {
+    bool used = false;
+    bool decoded = false;
+    uint32_t seq = 0;
+    uint32_t read_ms = 0;
+    uint8_t probe_id = 0;
+    uint8_t modbus_address = 0;
+    float moisture_pct = 0.0f;
+    float temp_c = 0.0f;
+    uint16_t ec_us_cm = 0;
+    float ph = 0.0f;
+    ModbusStatus modbus_status = ModbusStatus::Never;
+    uint8_t raw_frame[MODBUS_RESPONSE_MAX] = {};
+    size_t raw_frame_len = 0;
+};
+
 struct ProbeSlot {
     ProbeSlot(const char* label,
               const char* zone,
@@ -130,6 +167,11 @@ struct ProbeSlot {
     uint32_t ingest_ok_count = 0;
     uint32_t ingest_fail_count = 0;
     int last_ingest_code = 0;
+    bool sample_pending_ingest = false;
+
+    SampleRingEntry samples[SAMPLE_RING_CAPACITY] = {};
+    size_t sample_next = 0;
+    size_t sample_count = 0;
 };
 
 struct ProvisioningState {
@@ -147,6 +189,19 @@ struct ProvisioningState {
     uint32_t cooldown_until_ms = 0;
 };
 
+struct CalibrationModeState {
+    bool active = false;
+    uint32_t started_ms = 0;
+    uint32_t expires_ms = 0;
+    uint32_t interval_ms = CONFIG_CALIBRATION_MEASUREMENT_INTERVAL_MS;
+    uint32_t start_count = 0;
+    uint32_t stop_count = 0;
+    uint32_t auto_expire_count = 0;
+    uint32_t measurement_cycle_count = 0;
+    uint32_t sample_success_count = 0;
+    uint32_t sample_failure_count = 0;
+};
+
 HardwareSerial rs485(1);
 WebServer http_server(80);
 IngestClient ingest(SERVER_URL, SENSOR_INGEST_TOKEN, FIRMWARE_VERSION);
@@ -158,7 +213,9 @@ ProbeSlot g_slots[] = {
 };
 constexpr size_t SLOT_COUNT = sizeof(g_slots) / sizeof(g_slots[0]);
 
-uint32_t g_last_poll_ms = 0;
+uint32_t g_last_measurement_ms = 0;
+uint32_t g_last_ingest_ms = 0;
+uint32_t g_last_provisioning_ms = 0;
 uint32_t g_loop_last_ms = 0;
 uint32_t g_loop_gap_max_ms = 0;
 uint32_t g_boot_count = 0;
@@ -166,6 +223,8 @@ esp_reset_reason_t g_reset_reason = ESP_RST_UNKNOWN;
 
 size_t g_last_modbus_response_len = 0;
 int g_last_ingest_code = 0;
+uint32_t g_next_sample_seq = 1;
+CalibrationModeState g_calibration;
 ProvisioningState g_provisioning;
 
 // --- Modbus ---------------------------------------------------------------
@@ -319,6 +378,38 @@ const char* provisioning_phase_name(ProvisioningPhase phase) {
     }
 }
 
+bool deadline_reached(uint32_t now, uint32_t deadline_ms) {
+    return static_cast<int32_t>(now - deadline_ms) >= 0;
+}
+
+void expire_calibration_if_due() {
+    if (!g_calibration.active) return;
+    uint32_t now = millis();
+    if (!deadline_reached(now, g_calibration.expires_ms)) return;
+
+    g_calibration.active = false;
+    g_calibration.auto_expire_count++;
+    Serial.printf("[calibration] auto-expired interval_ms=%lu\n",
+                  (unsigned long)g_calibration.interval_ms);
+}
+
+uint32_t calibration_remaining_ms() {
+    expire_calibration_if_due();
+    if (!g_calibration.active) return 0;
+    uint32_t now = millis();
+    if (deadline_reached(now, g_calibration.expires_ms)) return 0;
+    return g_calibration.expires_ms - now;
+}
+
+uint32_t current_measurement_interval_ms() {
+    expire_calibration_if_due();
+    if (g_calibration.active) return g_calibration.interval_ms;
+    return CONFIG_NORMAL_MEASUREMENT_INTERVAL_MS;
+}
+
+uint8_t probe_id_for_slot(size_t slot_index) {
+    return static_cast<uint8_t>(slot_index + 1);
+}
 
 ModbusStatus parse_measurement_response(uint8_t address,
                                         const uint8_t* response,
@@ -390,13 +481,49 @@ void record_slot_modbus_failure(ProbeSlot& slot, ModbusStatus status) {
     }
 }
 
-bool read_substrate_sample(ProbeSlot& slot) {
+void record_sample_ring_entry(ProbeSlot& slot,
+                              size_t slot_index,
+                              const SubstrateSample& sample,
+                              ModbusStatus status,
+                              const uint8_t* frame,
+                              size_t frame_len) {
+    SampleRingEntry& entry = slot.samples[slot.sample_next];
+    slot.sample_next = (slot.sample_next + 1) % SAMPLE_RING_CAPACITY;
+    if (slot.sample_count < SAMPLE_RING_CAPACITY) {
+        slot.sample_count++;
+    }
+
+    entry.used = true;
+    entry.decoded = status == ModbusStatus::Ok && sample.valid;
+    entry.seq = g_next_sample_seq++;
+    entry.read_ms = entry.decoded ? sample.read_ms : millis();
+    entry.probe_id = probe_id_for_slot(slot_index);
+    entry.modbus_address = slot.modbus_address;
+    entry.moisture_pct = entry.decoded ? sample.moisture_pct : 0.0f;
+    entry.temp_c = entry.decoded ? sample.temp_c : 0.0f;
+    entry.ec_us_cm = entry.decoded ? sample.ec_us_cm : 0;
+    entry.ph = entry.decoded ? sample.ph : 0.0f;
+    entry.modbus_status = status;
+    entry.raw_frame_len = min(frame_len, MODBUS_RESPONSE_MAX);
+    memcpy(entry.raw_frame, frame, entry.raw_frame_len);
+
+    if (g_calibration.active) {
+        if (entry.decoded) {
+            g_calibration.sample_success_count++;
+        } else {
+            g_calibration.sample_failure_count++;
+        }
+    }
+}
+
+bool read_substrate_sample(ProbeSlot& slot, size_t slot_index) {
     uint8_t response[MODBUS_RESPONSE_MAX] = {};
     size_t len = 0;
     SubstrateSample sample;
     ModbusStatus status =
         read_measurement(slot.modbus_address, false, sample, response, sizeof(response), len);
     remember_frame(slot, response, len);
+    record_sample_ring_entry(slot, slot_index, sample, status, response, len);
 
     if (status != ModbusStatus::Ok) {
         record_slot_modbus_failure(slot, status);
@@ -411,6 +538,7 @@ bool read_substrate_sample(ProbeSlot& slot) {
     slot.latest_sample = sample;
     slot.last_modbus_status = ModbusStatus::Ok;
     slot.modbus_success_count++;
+    slot.sample_pending_ingest = true;
     Serial.printf("[modbus] %s addr=0x%02X moisture=%.1f%% temp=%.1fC ec=%u ph=%.1f\n",
                   slot.device_id,
                   slot.modbus_address,
@@ -643,16 +771,29 @@ bool appendf(char* out, size_t out_len, size_t& pos, const char* fmt, ...) {
     return true;
 }
 
-void append_frame_hex(const ProbeSlot& slot, char* out, size_t out_len) {
+void append_bytes_hex(const uint8_t* data, size_t len, char* out, size_t out_len) {
     size_t pos = 0;
-    for (size_t i = 0; i < slot.last_frame_len && pos + 3 <= out_len; i++) {
-        int written = snprintf(out + pos, out_len - pos, "%02X", slot.last_frame[i]);
+    for (size_t i = 0; i < len && pos + 3 <= out_len; i++) {
+        int written = snprintf(out + pos, out_len - pos, "%02X", data[i]);
         if (written <= 0) break;
         pos += static_cast<size_t>(written);
     }
     if (out_len > 0) {
         out[min(pos, out_len - 1)] = '\0';
     }
+}
+
+void append_frame_hex(const ProbeSlot& slot, char* out, size_t out_len) {
+    append_bytes_hex(slot.last_frame, slot.last_frame_len, out, out_len);
+}
+
+void send_contentf(const char* fmt, ...) {
+    char chunk[1024];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(chunk, sizeof(chunk), fmt, args);
+    va_end(args);
+    http_server.sendContent(chunk);
 }
 
 void build_diagnostics(char* out, size_t out_len) {
@@ -704,6 +845,40 @@ void build_diagnostics(char* out, size_t out_len) {
              (unsigned long)ESP.getFreeHeap(),
              (unsigned long)ESP.getMinFreeHeap(),
              (unsigned long)g_loop_gap_max_ms);
+}
+
+bool build_calibration_mode_json(char* out, size_t out_len) {
+    uint32_t remaining_ms = calibration_remaining_ms();
+    size_t pos = 0;
+    return appendf(out, out_len, pos,
+                   "{\"active\":%s,"
+                   "\"started_ms\":%lu,"
+                   "\"expires_ms\":%lu,"
+                   "\"remaining_ms\":%lu,"
+                   "\"interval_ms\":%lu,"
+                   "\"normal_measurement_interval_ms\":%lu,"
+                   "\"ingest_interval_ms\":%lu,"
+                   "\"counters\":{"
+                   "\"start_count\":%lu,"
+                   "\"stop_count\":%lu,"
+                   "\"auto_expire_count\":%lu,"
+                   "\"measurement_cycle_count\":%lu,"
+                   "\"sample_success_count\":%lu,"
+                   "\"sample_failure_count\":%lu"
+                   "}}",
+                   g_calibration.active ? "true" : "false",
+                   (unsigned long)g_calibration.started_ms,
+                   (unsigned long)g_calibration.expires_ms,
+                   (unsigned long)remaining_ms,
+                   (unsigned long)g_calibration.interval_ms,
+                   (unsigned long)CONFIG_NORMAL_MEASUREMENT_INTERVAL_MS,
+                   (unsigned long)CONFIG_INGEST_INTERVAL_MS,
+                   (unsigned long)g_calibration.start_count,
+                   (unsigned long)g_calibration.stop_count,
+                   (unsigned long)g_calibration.auto_expire_count,
+                   (unsigned long)g_calibration.measurement_cycle_count,
+                   (unsigned long)g_calibration.sample_success_count,
+                   (unsigned long)g_calibration.sample_failure_count);
 }
 
 void build_sample_json(const ProbeSlot& slot, char* out, size_t out_len) {
@@ -814,11 +989,13 @@ bool append_slots_json(char* out, size_t out_len, size_t& pos) {
         if (!appendf(
                 out, out_len, pos,
                 "{\"plant_label\":\"%s\","
+                "\"probe_id\":%u,"
                 "\"device_id\":\"%s\","
                 "\"modbus_address\":\"0x%02X\","
                 "\"enabled\":%s,"
                 "\"assigned\":%s,"
                 "\"provisioning_target\":%s,"
+                "\"sample_ring_count\":%u,"
                 "\"latest_sample\":%s,"
                 "\"latest_raw_modbus_frame_hex\":\"%s\","
                 "\"last_modbus_status\":\"%s\","
@@ -836,11 +1013,13 @@ bool append_slots_json(char* out, size_t out_len, size_t& pos) {
                 "\"bad_header_count\":%lu"
                 "}}",
                 slot.plant_label,
+                probe_id_for_slot(i),
                 slot.device_id,
                 slot.modbus_address,
                 slot.enabled ? "true" : "false",
                 slot.assigned ? "true" : "false",
                 slot.provisioning_target ? "true" : "false",
+                static_cast<unsigned>(slot.sample_count),
                 sample,
                 frame_hex,
                 modbus_status_name(slot.last_modbus_status),
@@ -862,8 +1041,10 @@ bool append_slots_json(char* out, size_t out_len, size_t& pos) {
 bool build_status_json(char* out, size_t out_len) {
     wifi_client::Snapshot wifi = wifi_client::snapshot();
     char diagnostics[512];
+    char calibration[640];
     char provisioning[768];
     build_diagnostics(diagnostics, sizeof(diagnostics));
+    if (!build_calibration_mode_json(calibration, sizeof(calibration))) return false;
     if (!build_provisioning_json(provisioning, sizeof(provisioning))) return false;
 
     size_t pos = 0;
@@ -874,9 +1055,12 @@ bool build_status_json(char* out, size_t out_len) {
             "\"hostname\":\"%s\","
             "\"slot_count\":%u,"
             "\"enabled_slot_count\":%u,"
-            "\"any_enabled_slot_failing\":%s"
+            "\"any_enabled_slot_failing\":%s,"
+            "\"normal_measurement_interval_ms\":%lu,"
+            "\"ingest_interval_ms\":%lu"
             "},"
             "\"firmware_version\":\"%s\","
+            "\"calibration_mode\":%s,"
             "\"wifi\":{"
             "\"connected\":%s,"
             "\"ip\":\"%s\","
@@ -894,7 +1078,10 @@ bool build_status_json(char* out, size_t out_len) {
             static_cast<unsigned>(SLOT_COUNT),
             static_cast<unsigned>(enabled_slot_count()),
             any_enabled_slot_failing() ? "true" : "false",
+            (unsigned long)CONFIG_NORMAL_MEASUREMENT_INTERVAL_MS,
+            (unsigned long)CONFIG_INGEST_INTERVAL_MS,
             FIRMWARE_VERSION,
+            calibration,
             wifi.connected ? "true" : "false",
             WiFi.localIP().toString().c_str(),
             wifi.rssi_dbm,
@@ -912,6 +1099,265 @@ bool build_status_json(char* out, size_t out_len) {
 
 // --- HTTP -----------------------------------------------------------------
 
+void send_json_error(int status_code, const char* message) {
+    char resp[160];
+    snprintf(resp, sizeof(resp), "{\"error\":\"%s\"}", message);
+    http_server.send(status_code, "application/json", resp);
+}
+
+bool parse_uint_query_arg(const char* name,
+                          uint32_t default_value,
+                          uint32_t min_value,
+                          uint32_t max_value,
+                          uint32_t& value,
+                          char* error,
+                          size_t error_len) {
+    if (!http_server.hasArg(name)) {
+        value = default_value;
+        return true;
+    }
+
+    String raw = http_server.arg(name);
+    if (raw.length() == 0) {
+        snprintf(error, error_len, "%s is required", name);
+        return false;
+    }
+    for (unsigned int i = 0; i < raw.length(); i++) {
+        char ch = raw.charAt(i);
+        if (ch < '0' || ch > '9') {
+            snprintf(error, error_len, "%s must be an integer", name);
+            return false;
+        }
+    }
+
+    uint32_t parsed = static_cast<uint32_t>(strtoul(raw.c_str(), nullptr, 10));
+    if (parsed < min_value || parsed > max_value) {
+        snprintf(error,
+                 error_len,
+                 "%s must be between %lu and %lu",
+                 name,
+                 (unsigned long)min_value,
+                 (unsigned long)max_value);
+        return false;
+    }
+    value = parsed;
+    return true;
+}
+
+void send_calibration_mode_response(const char* state) {
+    char calibration[640];
+    char resp[768];
+    if (!build_calibration_mode_json(calibration, sizeof(calibration))) {
+        send_json_error(500, "calibration response too large");
+        return;
+    }
+    snprintf(resp,
+             sizeof(resp),
+             "{\"ok\":true,\"state\":\"%s\",\"calibration_mode\":%s}",
+             state,
+             calibration);
+    http_server.send(200, "application/json", resp);
+}
+
+void handle_calibration_start() {
+    uint32_t duration_s = CALIBRATION_DURATION_DEFAULT_S;
+    uint32_t interval_ms = CONFIG_CALIBRATION_MEASUREMENT_INTERVAL_MS;
+    char error[120];
+    if (!parse_uint_query_arg("duration_s",
+                              CALIBRATION_DURATION_DEFAULT_S,
+                              CALIBRATION_DURATION_MIN_S,
+                              CALIBRATION_DURATION_MAX_S,
+                              duration_s,
+                              error,
+                              sizeof(error)) ||
+        !parse_uint_query_arg("interval_ms",
+                              CONFIG_CALIBRATION_MEASUREMENT_INTERVAL_MS,
+                              CALIBRATION_INTERVAL_MIN_MS,
+                              CALIBRATION_INTERVAL_MAX_MS,
+                              interval_ms,
+                              error,
+                              sizeof(error))) {
+        send_json_error(400, error);
+        return;
+    }
+
+    uint32_t now = millis();
+    g_calibration.active = true;
+    g_calibration.started_ms = now;
+    g_calibration.expires_ms = now + (duration_s * 1000UL);
+    g_calibration.interval_ms = interval_ms;
+    g_calibration.start_count++;
+    g_last_measurement_ms = 0;
+
+    Serial.printf("[calibration] started duration_s=%lu interval_ms=%lu\n",
+                  (unsigned long)duration_s,
+                  (unsigned long)interval_ms);
+    send_calibration_mode_response("started");
+}
+
+void handle_calibration_stop() {
+    g_calibration.active = false;
+    g_calibration.stop_count++;
+    Serial.println("[calibration] stopped");
+    send_calibration_mode_response("stopped");
+}
+
+size_t ring_start_index(const ProbeSlot& slot) {
+    if (slot.sample_count < SAMPLE_RING_CAPACITY) return 0;
+    return slot.sample_next;
+}
+
+bool sample_within_window(const SampleRingEntry& entry, uint32_t now, uint32_t window_ms) {
+    if (!entry.used) return false;
+    return now - entry.read_ms <= window_ms;
+}
+
+size_t count_recent_samples(const ProbeSlot& slot, uint32_t now, uint32_t window_ms) {
+    size_t count = 0;
+    size_t start = ring_start_index(slot);
+    for (size_t i = 0; i < slot.sample_count; i++) {
+        size_t index = (start + i) % SAMPLE_RING_CAPACITY;
+        if (sample_within_window(slot.samples[index], now, window_ms)) {
+            count++;
+        }
+    }
+    return count;
+}
+
+void send_ring_entry_json(const SampleRingEntry& entry) {
+    char frame_hex[MODBUS_RESPONSE_MAX * 2 + 1];
+    append_bytes_hex(entry.raw_frame, entry.raw_frame_len, frame_hex, sizeof(frame_hex));
+
+    if (entry.decoded) {
+        send_contentf("{\"seq\":%lu,"
+                      "\"read_ms\":%lu,"
+                      "\"probe_id\":%u,"
+                      "\"modbus_address\":\"0x%02X\","
+                      "\"modbus_status\":\"%s\","
+                      "\"valid\":true,"
+                      "\"soil_moisture_pct\":%.1f,"
+                      "\"substrate_temp_c\":%.1f,"
+                      "\"substrate_ec_us_cm\":%u,"
+                      "\"substrate_ph\":%.1f,"
+                      "\"raw_modbus_frame_hex\":\"%s\"}",
+                      (unsigned long)entry.seq,
+                      (unsigned long)entry.read_ms,
+                      entry.probe_id,
+                      entry.modbus_address,
+                      modbus_status_name(entry.modbus_status),
+                      entry.moisture_pct,
+                      entry.temp_c,
+                      entry.ec_us_cm,
+                      entry.ph,
+                      frame_hex);
+        return;
+    }
+
+    send_contentf("{\"seq\":%lu,"
+                  "\"read_ms\":%lu,"
+                  "\"probe_id\":%u,"
+                  "\"modbus_address\":\"0x%02X\","
+                  "\"modbus_status\":\"%s\","
+                  "\"valid\":false,"
+                  "\"soil_moisture_pct\":null,"
+                  "\"substrate_temp_c\":null,"
+                  "\"substrate_ec_us_cm\":null,"
+                  "\"substrate_ph\":null,"
+                  "\"raw_modbus_frame_hex\":\"%s\"}",
+                  (unsigned long)entry.seq,
+                  (unsigned long)entry.read_ms,
+                  entry.probe_id,
+                  entry.modbus_address,
+                  modbus_status_name(entry.modbus_status),
+                  frame_hex);
+}
+
+void send_slot_samples_json(const ProbeSlot& slot,
+                            size_t slot_index,
+                            uint32_t now,
+                            uint32_t window_ms) {
+    size_t returned_count = count_recent_samples(slot, now, window_ms);
+    send_contentf("{\"probe_id\":%u,"
+                  "\"device_id\":\"%s\","
+                  "\"modbus_address\":\"0x%02X\","
+                  "\"enabled\":%s,"
+                  "\"ring_capacity\":%u,"
+                  "\"ring_sample_count\":%u,"
+                  "\"returned_sample_count\":%u,"
+                  "\"samples\":[",
+                  probe_id_for_slot(slot_index),
+                  slot.device_id,
+                  slot.modbus_address,
+                  slot.enabled ? "true" : "false",
+                  static_cast<unsigned>(SAMPLE_RING_CAPACITY),
+                  static_cast<unsigned>(slot.sample_count),
+                  static_cast<unsigned>(returned_count));
+
+    bool first = true;
+    size_t start = ring_start_index(slot);
+    for (size_t i = 0; i < slot.sample_count; i++) {
+        size_t index = (start + i) % SAMPLE_RING_CAPACITY;
+        const SampleRingEntry& entry = slot.samples[index];
+        if (!sample_within_window(entry, now, window_ms)) continue;
+        if (!first) {
+            http_server.sendContent(",");
+        }
+        send_ring_entry_json(entry);
+        first = false;
+    }
+    http_server.sendContent("]}");
+}
+
+void handle_samples() {
+    uint32_t window_s = SAMPLES_WINDOW_DEFAULT_S;
+    char error[120];
+    if (!parse_uint_query_arg("window_s",
+                              SAMPLES_WINDOW_DEFAULT_S,
+                              SAMPLES_WINDOW_MIN_S,
+                              SAMPLES_WINDOW_MAX_S,
+                              window_s,
+                              error,
+                              sizeof(error))) {
+        send_json_error(400, error);
+        return;
+    }
+
+    char calibration[640];
+    if (!build_calibration_mode_json(calibration, sizeof(calibration))) {
+        send_json_error(500, "samples response too large");
+        return;
+    }
+
+    uint32_t now = millis();
+    uint32_t window_ms = window_s * 1000UL;
+    http_server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+    http_server.send(200, "application/json", "");
+    send_contentf("{\"controller\":{"
+                  "\"device_id\":\"%s\","
+                  "\"hostname\":\"%s\","
+                  "\"firmware_version\":\"%s\","
+                  "\"read_ms\":%lu,"
+                  "\"window_s\":%lu,"
+                  "\"calibration_mode\":%s"
+                  "},"
+                  "\"slots\":[",
+                  CONTROLLER_DEVICE_ID,
+                  HOSTNAME,
+                  FIRMWARE_VERSION,
+                  (unsigned long)now,
+                  (unsigned long)window_s,
+                  calibration);
+
+    for (size_t i = 0; i < SLOT_COUNT; i++) {
+        if (i > 0) {
+            http_server.sendContent(",");
+        }
+        send_slot_samples_json(g_slots[i], i, now, window_ms);
+    }
+    http_server.sendContent("]}");
+    http_server.sendContent("");
+}
+
 void handle_health() {
     bool failing = any_enabled_slot_failing();
     char resp[128];
@@ -924,7 +1370,7 @@ void handle_health() {
 }
 
 void handle_status() {
-    static char resp[5120];
+    static char resp[6144];
     if (!build_status_json(resp, sizeof(resp))) {
         http_server.send(500, "application/json", "{\"error\":\"status too large\"}");
         return;
@@ -967,23 +1413,51 @@ void post_latest_sample(ProbeSlot& slot) {
                   (unsigned long)slot.ingest_fail_count);
 }
 
-void poll_sensor_if_due() {
+void measure_sensors_if_due() {
     uint32_t now = millis();
-    if (g_last_poll_ms != 0 && now - g_last_poll_ms < POLL_INTERVAL_MS) {
+    uint32_t interval_ms = current_measurement_interval_ms();
+    if (g_last_measurement_ms != 0 && now - g_last_measurement_ms < interval_ms) {
         return;
     }
-    g_last_poll_ms = now;
+    g_last_measurement_ms = now;
+    bool calibration_active = g_calibration.active;
+    if (calibration_active) {
+        g_calibration.measurement_cycle_count++;
+    }
 
     for (size_t i = 0; i < SLOT_COUNT; i++) {
         ProbeSlot& slot = g_slots[i];
         if (!slot.enabled) continue;
-        if (read_substrate_sample(slot)) {
+        if (read_substrate_sample(slot, i)) {
             if (slot.provisioning_target && !slot.assigned) {
                 mark_slot_assigned(i);
             }
-            post_latest_sample(slot);
         }
     }
+}
+
+void ingest_latest_samples_if_due() {
+    uint32_t now = millis();
+    if (g_last_ingest_ms != 0 && now - g_last_ingest_ms < CONFIG_INGEST_INTERVAL_MS) {
+        return;
+    }
+    g_last_ingest_ms = now;
+
+    for (size_t i = 0; i < SLOT_COUNT; i++) {
+        ProbeSlot& slot = g_slots[i];
+        if (!slot.enabled || !slot.sample_pending_ingest || !slot.latest_sample.valid) continue;
+        post_latest_sample(slot);
+        slot.sample_pending_ingest = false;
+    }
+}
+
+void attempt_factory_provisioning_if_due() {
+    uint32_t now = millis();
+    if (g_last_provisioning_ms != 0 &&
+        now - g_last_provisioning_ms < CONFIG_NORMAL_MEASUREMENT_INTERVAL_MS) {
+        return;
+    }
+    g_last_provisioning_ms = now;
     attempt_factory_provisioning();
 }
 
@@ -1018,12 +1492,15 @@ void setup() {
 
     Serial.println();
     Serial.println("# rs485-substrate-node");
-    Serial.printf("# fw=%s controller=%s host=%s slots=%u interval=%lums\n",
+    Serial.printf("# fw=%s controller=%s host=%s slots=%u normal_measurement_interval=%lums "
+                  "calibration_measurement_interval=%lums ingest_interval=%lums\n",
                   FIRMWARE_VERSION,
                   CONTROLLER_DEVICE_ID,
                   HOSTNAME,
                   static_cast<unsigned>(SLOT_COUNT),
-                  (unsigned long)POLL_INTERVAL_MS);
+                  (unsigned long)CONFIG_NORMAL_MEASUREMENT_INTERVAL_MS,
+                  (unsigned long)CONFIG_CALIBRATION_MEASUREMENT_INTERVAL_MS,
+                  (unsigned long)CONFIG_INGEST_INTERVAL_MS);
     for (size_t i = 0; i < SLOT_COUNT; i++) {
         const ProbeSlot& slot = g_slots[i];
         Serial.printf("# slot %s zone=%s device=%s address=0x%02X enabled=%s assigned=%s target=%s\n",
@@ -1049,9 +1526,14 @@ void setup() {
 
     http_server.on("/health", HTTP_GET, handle_health);
     http_server.on("/status", HTTP_GET, handle_status);
+    http_server.on("/calibration/start", HTTP_POST, handle_calibration_start);
+    http_server.on("/calibration/stop", HTTP_POST, handle_calibration_stop);
+    http_server.on("/samples", HTTP_GET, handle_samples);
     http_server.onNotFound(handle_not_found);
     http_server.begin();
-    Serial.println("[boot] http status surface up on :80 (GET /health, GET /status)");
+    Serial.println("[boot] http status surface up on :80 "
+                   "(GET /health, GET /status, GET /samples, POST /calibration/start, "
+                   "POST /calibration/stop)");
 }
 
 void loop() {
@@ -1059,6 +1541,8 @@ void loop() {
     ota::loop();
     wifi_client::maintain();
     http_server.handleClient();
-    poll_sensor_if_due();
+    measure_sensors_if_due();
+    ingest_latest_samples_if_due();
+    attempt_factory_provisioning_if_due();
     delay(10);
 }
