@@ -45,6 +45,28 @@ The local backend runs as systemd-managed processes. `dirt-hwd` is hardware + in
 - **Format**: `uv run ruff format`
 - **Add dependency**: `uv add --package dirt-<app> <package>` (targets a specific workspace member; dev deps stay at root via `uv add --dev`)
 
+## RS485 substrate calibration
+
+Use this local-only bench tool when calibrating the three DFRobot SEN0604 RS485 substrate probes against dry 70/30 coco/perlite and wet field-capacity anchors. It reads the controller directly and writes accepted calibration artifacts under `$DIRT_DATA_DIR/substrate-calibration/`, or `var/substrate-calibration/` when `DIRT_DATA_DIR` is unset.
+
+```bash
+uv run --package dirt-hwd python -m dirt_hwd.tools.substrate_calibration --host 0.0.0.0 --port 8097 --controller-url http://plant-a-substrate-node.local
+```
+
+Open the printed LAN URL from the calibration laptop. If port 8097 is busy, rerun with another port such as `--port 8098`.
+
+Safe local validation commands:
+
+```bash
+uv run pytest apps/hwd/tests/test_substrate_calibration.py -q
+uv run ruff check apps/hwd/src/dirt_hwd/tools/substrate_calibration apps/hwd/tests/test_substrate_calibration.py
+uv run ruff format --check apps/hwd/src/dirt_hwd/tools/substrate_calibration apps/hwd/tests/test_substrate_calibration.py
+(cd firmware/rs485_substrate_node && pio run -e plant-a-substrate)
+(cd firmware/rs485_substrate_node && pio run -e plant-a-substrate-ota)
+```
+
+Do not run the controller `POST /calibration/start` or `POST /calibration/stop` curl commands unless you are intentionally operating the physical bench and the controller has been flashed with the calibration-mode firmware.
+
 ## Remote boxes
 
 - **dirt2 SSH**: `ssh dirt2` uses the local `akcom` SSH key and logs in as `akcom` on `dirt2` (`192.168.1.123` on the LAN). Do not print or copy private keys.

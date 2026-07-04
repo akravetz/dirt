@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from types import SimpleNamespace
 
+import httpx
 import pytest
 from httpx import ASGITransport, AsyncClient
+from pydantic import ValidationError
 
 from dirt_hwd.tools.substrate_calibration.app import _capture_preview, create_app
 from dirt_hwd.tools.substrate_calibration.calibration import (
     compute_capture_stats,
     summarize_session,
 )
+from dirt_hwd.tools.substrate_calibration.controller import SubstrateControllerClient
 from dirt_hwd.tools.substrate_calibration.schemas import (
     FORMULA_TEMPLATE,
     AnchorType,
@@ -19,17 +23,21 @@ from dirt_hwd.tools.substrate_calibration.schemas import (
     CapturePreview,
     CapturePreviewRequest,
     ControllerStatus,
+    LiveStatusResponse,
     ProbeIdentity,
     ProbeSample,
     SamplesResponse,
     SessionStatus,
+    SessionSummaryResponse,
 )
 from dirt_hwd.tools.substrate_calibration.store import (
     CalibrationStore,
     CaptureProbeMismatchError,
     SessionCompletedError,
 )
+from dirt_shared.config import Settings
 
+REPO_ROOT = Path(__file__).resolve().parents[3]
 T0 = datetime(2026, 7, 4, 15, 30, tzinfo=UTC)
 
 
@@ -96,6 +104,45 @@ def _capture(
     return Capture(**preview.model_dump(), accepted_at=T0 + timedelta(seconds=61))
 
 
+def test_summary_averages_multiple_accepted_anchor_captures_per_probe() -> None:
+    probe_1 = _probe(1, "0x02")
+    probe_2 = _probe(2, "0x03")
+    session = CalibrationSession(
+        id="session-1",
+        created_at=T0,
+        updated_at=T0,
+        status=SessionStatus.DRAFT,
+        controller_url="http://controller.local",
+        probe_map=[probe_1, probe_2],
+        accepted_captures=[
+            _capture("dry-1a", probe_1, AnchorType.DRY, [2.0] * 10),
+            _capture("dry-1b", probe_1, AnchorType.DRY, [6.0] * 10),
+            _capture("wet-1a", probe_1, AnchorType.WET_CAPACITY, [42.0] * 10),
+            _capture("wet-1b", probe_1, AnchorType.WET_CAPACITY, [46.0] * 10),
+            _capture("dry-2a", probe_2, AnchorType.DRY, [8.0] * 10),
+            _capture("dry-2b", probe_2, AnchorType.DRY, [10.0] * 10),
+            _capture("wet-2a", probe_2, AnchorType.WET_CAPACITY, [59.0] * 10),
+            _capture("wet-2b", probe_2, AnchorType.WET_CAPACITY, [63.0] * 10),
+        ],
+    )
+
+    summary = summarize_session(session)
+
+    by_probe = {item.probe.probe_id: item for item in summary.probes}
+    assert by_probe[1].dry_capture_count == 2
+    assert by_probe[1].wet_capture_count == 2
+    assert by_probe[1].valid_dry_sample_count == 20
+    assert by_probe[1].valid_wet_sample_count == 20
+    assert by_probe[1].dry_anchor_mean == 4.0
+    assert by_probe[1].wet_anchor_mean == 44.0
+    assert by_probe[1].span == 40.0
+    assert by_probe[1].formula == "100 * (raw_moisture_pct - 4.000) / 40.000"
+    assert by_probe[2].dry_anchor_mean == 9.0
+    assert by_probe[2].wet_anchor_mean == 61.0
+    assert by_probe[2].span == 52.0
+    assert by_probe[2].formula == "100 * (raw_moisture_pct - 9.000) / 52.000"
+
+
 def test_summary_computes_formula_and_missing_anchor_warnings() -> None:
     probe_1 = _probe(1, "0x02")
     probe_2 = _probe(2, "0x03")
@@ -126,6 +173,51 @@ def test_summary_computes_formula_and_missing_anchor_warnings() -> None:
     assert "missing wet_capacity anchor" in by_probe[2].warnings
 
 
+def test_complete_session_with_missing_anchors_warns_and_keeps_partial_probes_empty(
+    tmp_path,
+) -> None:
+    store = CalibrationStore(
+        root=tmp_path / "substrate-calibration",
+        clock=lambda: T0,
+    )
+    probes = [_probe(1, "0x02"), _probe(2, "0x03"), _probe(3, "0x04")]
+    session = store.create_session(
+        controller_url="http://controller.local",
+        probe_map=probes,
+    )
+    store.append_capture(
+        session.id,
+        _preview("probe-1-dry", probes[0], AnchorType.DRY, [3.0] * 10),
+    )
+    store.append_capture(
+        session.id,
+        _preview("probe-1-wet", probes[0], AnchorType.WET_CAPACITY, [43.0] * 10),
+    )
+    store.append_capture(
+        session.id,
+        _preview("probe-2-dry", probes[1], AnchorType.DRY, [4.0] * 10),
+    )
+    store.append_capture(
+        session.id,
+        _preview("probe-3-wet", probes[2], AnchorType.WET_CAPACITY, [45.0] * 10),
+    )
+
+    completed = store.complete_session(session.id)
+
+    assert completed.summary is not None
+    by_probe = {item.probe.probe_id: item for item in completed.summary.probes}
+    assert by_probe[1].ready is True
+    assert by_probe[1].formula == "100 * (raw_moisture_pct - 3.000) / 40.000"
+    assert by_probe[2].ready is False
+    assert by_probe[2].formula is None
+    assert "missing wet_capacity anchor" in by_probe[2].warnings
+    assert by_probe[3].ready is False
+    assert by_probe[3].formula is None
+    assert "missing dry anchor" in by_probe[3].warnings
+    assert "probe 2: missing wet_capacity anchor" in completed.summary.warnings
+    assert "probe 3: missing dry anchor" in completed.summary.warnings
+
+
 def test_store_writes_under_root_and_allows_draft_capture_removal(tmp_path) -> None:
     store = CalibrationStore(
         root=tmp_path / "substrate-calibration",
@@ -144,6 +236,29 @@ def test_store_writes_under_root_and_allows_draft_capture_removal(tmp_path) -> N
     assert store.root == tmp_path / "substrate-calibration"
     assert (store.sessions_dir / f"{session.id}.json").exists()
     assert without_capture.accepted_captures == []
+
+
+def test_default_store_root_uses_temp_configured_data_dir(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    data_dir = tmp_path / "dirt-data"
+    monkeypatch.setenv("DIRT_DATA_DIR", str(data_dir))
+    store = CalibrationStore(settings=Settings(), clock=lambda: T0)
+    probe = _probe(1, "0x02")
+
+    session = store.create_session(
+        controller_url="http://controller.local",
+        probe_map=[probe],
+    )
+
+    assert store.root == data_dir / "substrate-calibration"
+    assert store.root.is_relative_to(tmp_path)
+    assert (store.sessions_dir / f"{session.id}.json").exists()
+    real_var_session = (
+        REPO_ROOT / "var" / "substrate-calibration" / "sessions" / f"{session.id}.json"
+    )
+    assert not real_var_session.exists()
 
 
 def test_accept_capture_rejects_probe_identity_mismatch(tmp_path) -> None:
@@ -192,6 +307,30 @@ def test_completed_sessions_are_immutable_and_update_latest(tmp_path) -> None:
         store.remove_capture(session.id, preview.id)
 
 
+async def test_controller_client_rejects_malformed_samples_payload() -> None:
+    probe = _probe(1, "0x02")
+    sample = _sample(1, probe, 12.5)
+    payload = _firmware_samples_response(
+        probe=probe,
+        samples=[sample],
+        window_s=60,
+    ).model_dump(mode="json")
+    del payload["slots"][0]["samples"][0]["substrate_ph"]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/samples"
+        assert request.url.params["window_s"] == "60"
+        return httpx.Response(200, json=payload)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        controller = SubstrateControllerClient("http://controller.local", http=http)
+        with pytest.raises(
+            ValidationError,
+            match="valid firmware sample missing substrate_ph",
+        ):
+            await controller.samples(window_s=60)
+
+
 async def test_latest_completed_route_is_not_shadowed_by_session_id(tmp_path) -> None:
     store = CalibrationStore(
         root=tmp_path / "substrate-calibration",
@@ -209,6 +348,78 @@ async def test_latest_completed_route_is_not_shadowed_by_session_id(tmp_path) ->
 
     assert response.status_code == 200
     assert response.json() == {"artifact": None, "session": None}
+
+
+async def test_local_api_returns_declared_response_models_for_calibration_flow(
+    tmp_path,
+) -> None:
+    probe = _probe(1, "0x02")
+    controller = _ApiFakeController(
+        status=ControllerStatus.model_validate(_old_status_payload()),
+        samples_response=_firmware_samples_response(
+            probe=probe,
+            samples=[_sample(1, probe, 12.5, read_ms=2000)],
+            window_s=60,
+        ),
+    )
+    store = CalibrationStore(
+        root=tmp_path / "substrate-calibration",
+        clock=lambda: T0,
+    )
+    app = create_app(
+        controller_url="http://controller.local",
+        controller=controller,
+        store=store,
+        clock=lambda: T0,
+    )
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        live_status_response = await client.get("/api/controller/status")
+        live_status = LiveStatusResponse.model_validate(live_status_response.json())
+
+        create_response = await client.post("/api/sessions", json={})
+        session = CalibrationSession.model_validate(create_response.json())
+
+        preview_response = await client.post(
+            f"/api/sessions/{session.id}/captures/preview",
+            json={
+                "probe_id": probe.probe_id,
+                "anchor_type": AnchorType.DRY,
+                "duration_s": 0.01,
+                "poll_interval_s": 0.001,
+            },
+        )
+        preview = CapturePreview.model_validate(preview_response.json())
+
+        accept_response = await client.post(
+            f"/api/sessions/{session.id}/captures/accept",
+            json={"capture": preview.model_dump(mode="json")},
+        )
+        accepted = CalibrationSession.model_validate(accept_response.json())
+
+        complete_response = await client.post(f"/api/sessions/{session.id}/complete")
+        completed = CalibrationSession.model_validate(complete_response.json())
+
+        summary_response = await client.get(f"/api/sessions/{session.id}/summary")
+        summary = SessionSummaryResponse.model_validate(summary_response.json())
+
+    assert live_status_response.status_code == 200
+    assert live_status.controller_url == "http://controller.local"
+    assert live_status.status.slots[0].probe_id == 1
+    assert create_response.status_code == 200
+    assert session.probe_map[0].probe_id == 1
+    assert preview_response.status_code == 200
+    assert preview.probe_id == probe.probe_id
+    assert preview.stats.soil_moisture_pct.mean == 12.5
+    assert accept_response.status_code == 200
+    assert len(accepted.accepted_captures) == 1
+    assert complete_response.status_code == 200
+    assert completed.status == SessionStatus.COMPLETED
+    assert completed.summary is not None
+    assert summary_response.status_code == 200
+    assert summary.session_id == session.id
+    assert summary.status == SessionStatus.COMPLETED
 
 
 async def test_root_serves_browser_ui_and_info_route_remains_json(tmp_path) -> None:
@@ -365,6 +576,33 @@ class _RouteFakeController:
     async def samples(self, *, window_s: int) -> SamplesResponse:
         self.last_window_s = window_s
         return self._response
+
+    async def aclose(self) -> None:
+        return None
+
+
+class _ApiFakeController:
+    def __init__(
+        self,
+        *,
+        status: ControllerStatus,
+        samples_response: SamplesResponse,
+    ) -> None:
+        self._status = status
+        self._samples_response = samples_response
+        self.base_url = "http://controller.local"
+
+    async def status(self) -> ControllerStatus:
+        return self._status
+
+    async def samples(self, *, window_s: int) -> SamplesResponse:
+        return self._samples_response.model_copy(
+            update={
+                "controller": self._samples_response.controller.model_copy(
+                    update={"window_s": window_s}
+                )
+            }
+        )
 
     async def aclose(self) -> None:
         return None

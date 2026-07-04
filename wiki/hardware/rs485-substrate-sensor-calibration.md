@@ -4,7 +4,7 @@ type: hardware
 sources: []
 related: [wiki/hardware/rs485-substrate-sensors.md, wiki/hardware/soil-moisture-sensing-options.md]
 created: 2026-06-10
-updated: 2026-06-12
+updated: 2026-07-04
 ---
 
 # RS485 Substrate Sensor Calibration
@@ -12,6 +12,45 @@ updated: 2026-06-12
 Calibration log for the DFRobot SEN0604 RS485 substrate probe on the Seeed Studio XIAO ESP32C3 + Seeed XIAO RS485 breakout. The probe has been changed to Modbus address `0x02`.
 
 Keep probe-register calibration read-only for now. Current Dirt operational status for Plant A EC/pH is calibrated; maintain that calibration in Dirt/software and use new standards/reference captures as QA evidence before changing correction behavior.
+
+## Local Calibration Bench Command
+
+Run the local bench tool from the repository root:
+
+```bash
+uv run --package dirt-hwd python -m dirt_hwd.tools.substrate_calibration --host 0.0.0.0 --port 8097 --controller-url http://plant-a-substrate-node.local
+```
+
+Open the printed LAN URL from the calibration laptop. The tool talks directly to the RS485 controller, uses controller high-rate `/samples` data for capture windows, and writes accepted artifacts under `$DIRT_DATA_DIR/substrate-calibration/` or `var/substrate-calibration/`.
+
+## Dryback Calibration Workflow
+
+This v1 workflow produces a relative dryback formula for each physical probe:
+
+```text
+normalized_moisture_pct = 100 * (raw_moisture_pct - dry_anchor_mean) / (wet_anchor_mean - dry_anchor_mean)
+```
+
+It is not a true volumetric water content calibration. It makes Probe 1, Probe 2, and Probe 3 comparable to each other for future dryback decisions.
+
+1. Start the local bench tool and enable or renew calibration mode from the UI. Calibration mode increases local controller sampling while normal Dirt ingest stays on the production cadence.
+2. Confirm physical probe identity. Probe 1 is Modbus `0x02`, Probe 2 is `0x03`, and Probe 3 is `0x04`. Pull one physical probe from the media and watch for only one live moisture trace to drop.
+3. Prepare the dry anchor using dry 70/30 coco/perlite in a representative container with repeatable packing. Insert the probe fully and vertically, wait for the trace to settle, then run a 60-second dry capture. Accept only captures with enough samples and stable noise stats; reject and repeat thin or disturbed captures.
+4. Repeat the dry capture for each physical probe. Multiple accepted dry captures are allowed; the summary averages all accepted dry samples for that probe.
+5. Prepare the wet field-capacity anchor using the same 70/30 coco/perlite. Feed to field capacity with known input feed, allow free drainage, and let the media equilibrate. Enter the known input EC in mS/cm and input pH in the session fields before wet captures.
+6. Run a 60-second wet-capacity capture for each physical probe at the same insertion depth and orientation used for dry capture. Accept only captures that look stable. Multiple accepted wet captures are allowed and are averaged per probe.
+7. Review the accepted capture table and per-probe formula summary. A complete probe needs at least one accepted dry capture and one accepted wet-capacity capture. Missing anchors produce warnings and no formula for that probe, but the session can still be completed for the probes that are complete.
+8. Complete the session only when the accepted captures are the intended record. Completed sessions are immutable; create a new session to correct a bad calibration.
+
+The completed summary shows each probe's dry anchor mean, wet anchor mean, span, formula, accepted capture counts, valid sample counts, and warnings. The latest completed artifact is recorded locally as `latest-completed.json` next to the session JSON file.
+
+## pH And EC Limitations
+
+The dryback formula uses raw `soil_moisture_pct` only. Wet-capture input EC and pH are stored as context so a later operator can understand the feed used for field-capacity anchors.
+
+EC in this workflow is probe-native substrate EC context, not a calibrated EC correction curve. pH is diagnostic only; do not use the local dryback session to correct pH. Continue pH buffer and EC standard QA separately before changing any operational pH/EC correction behavior.
+
+Do not write DFRobot calibration registers during this workflow. The local calibration mode endpoints only change the controller's temporary sampling cadence and read recent samples from the controller ring buffer.
 
 ## Current Firmware And Serial Capture
 

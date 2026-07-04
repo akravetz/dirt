@@ -4,16 +4,74 @@ type: hardware
 sources: []
 related: [wiki/hardware/soil-moisture-sensing-options.md, wiki/hardware/esp32-plant-nodes.md, wiki/hardware/project-box-enclosures.md]
 created: 2026-06-09
-updated: 2026-06-12
+updated: 2026-07-04
 ---
 
 # RS485 Substrate Sensors
 
-Status: Plant A production interim substrate node is live as of 2026-06-10 evening MDT. DFRobot SEN0604 is reading over RS485/Modbus at address `0x02`, and `plant-a-substrate-node` is the canonical current Plant A moisture source in Dirt. Moisture is the operational direct-percent signal, and EC/pH are current calibrated operational streams. Continue periodic cross-checks against hand measurements when troubleshooting.
+Status: three DFRobot SEN0604 RS485/TDS substrate probes are live on the main-tent RS485 bus. The physical controller is `plant-a-substrate-node`; Dirt models Plant A, Plant D, and Plant C as separate logical devices so each probe has its own capabilities and plant metric streams. Moisture is the operational direct-percent signal, and EC/pH are current calibrated operational streams. Continue periodic cross-checks against hand measurements when troubleshooting.
+
+## Current Three-Probe Runtime
+
+Live check on 2026-07-03 20:43 MDT:
+
+```text
+Controller device ID: plant-a-substrate-node
+Controller hostname: plant-a-substrate-node.local
+Observed IP: 192.168.1.40
+Firmware: 0.1.0-rs485-substrate
+Health: ok=true, any_enabled_slot_failing=false, last_ingest_code=202
+Bus diagnostics: 3623 Modbus successes, 0 Modbus failures
+```
+
+Active logical slots:
+
+| Plant | Device ID | Modbus address | Latest moisture | Latest temp | Latest EC | Latest pH |
+|---|---|---:|---:|---:|---:|---:|
+| Plant A | `plant-a-substrate-node` | `0x02` | 24.5% | 20.2 deg C | 126 us/cm | 4.9 |
+| Plant D | `plant-d-substrate-node` | `0x03` | 38.4% | 20.2 deg C | 261 us/cm | 5.6 |
+| Plant C | `plant-c-substrate-node` | `0x04` | 27.2% | 20.2 deg C | 198 us/cm | 5.3 |
+
+All three logical devices currently post four metrics: `soil_moisture_pct`, `substrate_temp_c`, `substrate_ec_us_cm`, and `substrate_ph`. Plant D and Plant C share the Plant A controller hostname because they are logical devices on the same RS485 bus, not separate ESP32 boards.
+
+## Calibration Probe Identity
+
+The local calibration bench labels physical probes by Modbus address, not by the current plant placement. Keep this mapping stable when probes move to a future sentinel-plant layout:
+
+| Calibration probe | Modbus address | Current logical device | Current placement |
+|---|---:|---|---|
+| Probe 1 | `0x02` | `plant-a-substrate-node` | Plant A |
+| Probe 2 | `0x03` | `plant-d-substrate-node` | Plant D |
+| Probe 3 | `0x04` | `plant-c-substrate-node` | Plant C |
+
+Use the live moisture trace in the local calibration UI to identify a physical probe before capture: pull one probe from its pot or bench container, wait for only one trace to drop, and label that physical probe with the matching calibration probe ID.
+
+## Local Calibration Mode Endpoints
+
+The RS485 substrate controller keeps normal Dirt ingest separate from calibration-mode measurement. Normal ingest remains on the production cadence, while calibration mode polls the probes faster into a volatile in-memory ring buffer on the controller.
+
+Read-only status endpoints:
+
+```bash
+curl -fsS http://plant-a-substrate-node.local/health
+curl -fsS http://plant-a-substrate-node.local/status | jq .
+curl -fsS 'http://plant-a-substrate-node.local/samples?window_s=60' | jq .
+```
+
+State-changing calibration-mode endpoints:
+
+```bash
+curl -fsS -X POST 'http://plant-a-substrate-node.local/calibration/start?duration_s=900&interval_ms=2000' | jq .
+curl -fsS -X POST 'http://plant-a-substrate-node.local/calibration/stop' | jq .
+```
+
+Only run the state-changing curl commands during an intentional local bench session. They do not write DFRobot calibration registers or change irrigation behavior, but they do change the controller's local measurement cadence until stopped or until the firmware timeout expires.
+
+`GET /samples` returns recent decoded high-rate samples from the controller ring buffer: controller timestamp, probe ID, Modbus address, moisture, temperature, EC, pH, raw Modbus frame, and Modbus status. These high-rate samples are local-only. They are not posted to Dirt ingest, not written to Postgres, and not synced to the hosted dashboard. Accepted captures are stored only as local JSON artifacts under the calibration tool's data directory.
 
 ## Production Cutover
 
-Plant A now uses the dedicated RS485 substrate node:
+Plant A first moved to the dedicated RS485 substrate node on 2026-06-10:
 
 ```text
 Device ID: plant-a-substrate-node
