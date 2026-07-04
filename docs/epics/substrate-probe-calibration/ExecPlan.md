@@ -23,7 +23,7 @@ The second user-visible outcome is higher-resolution local sampling from the RS4
 - [x] (2026-07-04) Decided to split controller measurement cadence from Dirt ingest cadence by adding calibration mode and a sample ring buffer.
 - [x] (2026-07-04) Authored this ExecPlan.
 - [x] (2026-07-04 05:42Z) Implemented Milestone 1: firmware high-rate calibration sampling endpoints. Validation passed for `pio run -e plant-a-substrate`, `pio run -e plant-a-substrate-ota`, and `git diff --check` on the firmware files.
-- [ ] Implement Milestone 2: local file-backed calibration domain models and service.
+- [x] (2026-07-04 06:01Z) Implemented Milestone 2: local file-backed calibration domain models and service. Added the separate `dirt_hwd.tools.substrate_calibration` CLI/app, strict local/persisted DTOs, controller adapter validation, atomic JSON store, capture preview/accept/complete APIs, calibration summaries, and focused tests.
 - [ ] Implement Milestone 3: local LAN web app and UI flow.
 - [ ] Implement Milestone 4: tests, docs, and operator validation.
 
@@ -40,6 +40,9 @@ The second user-visible outcome is higher-resolution local sampling from the RS4
 
 - Observation: Milestone 1 is build-validated but not hardware-flashed yet.
   Evidence: Both PlatformIO firmware environments build successfully after the calibration endpoint changes, but `/calibration/start`, `/samples`, `/calibration/stop`, and observed 30-second Dirt ingest cadence have not been curl-validated on the physical controller.
+
+- Observation: Static session API paths must be registered before the dynamic session id route.
+  Evidence: `GET /api/sessions/latest-completed` would otherwise be interpreted as `session_id="latest-completed"`. The local calibration app registers the latest-completed route before `GET /api/sessions/{session_id}`, and `apps/hwd/tests/test_substrate_calibration.py` covers that ordering.
 
 ## Decision Log
 
@@ -80,6 +83,8 @@ The second user-visible outcome is higher-resolution local sampling from the RS4
 Milestone 1 added separate firmware measurement and ingest cadences, calibration mode with bounded auto-expiry, fixed per-slot sample rings, and LAN endpoints for starting/stopping calibration mode and reading recent samples. Normal Dirt ingest remains gated by the 30-second ingest interval while calibration mode can poll probes at a 2-second default interval. Validation passed for `pio run -e plant-a-substrate`, `pio run -e plant-a-substrate-ota`, and `git diff --check -- firmware/rs485_substrate_node/src/main.cpp firmware/rs485_substrate_node/platformio.ini`.
 
 Remaining hardware validation for Milestone 1: flash the controller through the approved firmware workflow, then curl `/health`, `/status`, `/calibration/start`, `/samples`, and `/calibration/stop`, and observe that Dirt ingest stays near the normal 30-second cadence during calibration mode.
+
+Milestone 2 added the local calibration backend under `apps/hwd/src/dirt_hwd/tools/substrate_calibration/`. The tool now has a separate CLI entry point, local FastAPI app, controller adapter for `/status`, `/samples`, and calibration-mode commands, Pydantic DTOs for local API and persisted JSON sessions, atomic file-backed storage under `Settings.data_dir / "substrate-calibration"`, capture preview/accept/remove/complete routes, immutable completed sessions, and per-probe formula summaries with missing-anchor, low-sample, invalid-span, and inverted-anchor warnings. Validation passed for `uv run --package dirt-hwd python -m dirt_hwd.tools.substrate_calibration --help`, `uv run pytest apps/tests/invariants/test_no_concrete_clock_in_production.py::test_no_concrete_clock_in_production -q`, `uv run pytest apps/hwd/tests/test_substrate_calibration.py -q`, `uv run pytest apps/hwd/tests -q`, `uv run ruff check apps/hwd/src/dirt_hwd/tools/substrate_calibration apps/hwd/tests/test_substrate_calibration.py`, and `uv run ruff format --check apps/hwd/src/dirt_hwd/tools/substrate_calibration apps/hwd/tests/test_substrate_calibration.py`.
 
 ## Context and Orientation
 
