@@ -771,7 +771,7 @@ function HostedDevicesPanel({
       </h2>
       {devices.length === 0 ? (
         <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
-          No devices synced for this tent.
+          No active devices for this tent.
         </p>
       ) : (
         <table className="w-full border-collapse font-sans text-fs-12">
@@ -842,12 +842,14 @@ function toAssetPanelModel(
 }
 
 function toDeviceRows(devices: readonly HostedDevice[]): readonly DeviceRowModel[] {
-  return devices.map((device) => ({
-    id: device.device_id,
-    kindLabel: device.is_active ? device.kind : "inactive",
-    lastSeenLabel: formatAge(device.last_seen_at),
-    name: device.name,
-  }));
+  return devices
+    .filter((device) => device.is_active)
+    .map((device) => ({
+      id: device.device_id,
+      kindLabel: device.kind,
+      lastSeenLabel: formatAge(device.last_seen_at),
+      name: device.name,
+    }));
 }
 
 function toMetricStatus(metric: HostedMetric): MetricStatus {
