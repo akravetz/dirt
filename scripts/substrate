@@ -1,0 +1,71 @@
+#!/usr/bin/env -S uv run --package dirt-shared python
+"""List or change plant ownership for an RS485 substrate probe."""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.pool import NullPool
+
+from dirt_shared.config import Settings
+from dirt_shared.services.substrate_assignment import (
+    SubstrateAssignmentError,
+    assign_substrate_probe,
+    list_substrate_assignments,
+)
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="List or assign RS485 substrate probes."
+    )
+    commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("list", help="show each probe's active plant assignment")
+    assign = commands.add_parser("assign", help="move a probe to a current plant")
+    assign.add_argument("bus_id", help="Modbus address, for example 0x02 or 2")
+    assign.add_argument("plant_key", help="canonical plant tag, for example ESP-R1-002")
+    return parser.parse_args()
+
+
+async def _run(args: argparse.Namespace) -> int:
+    settings = Settings()
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    try:
+        if args.command == "list":
+            rows = await list_substrate_assignments(engine)
+            for row in rows:
+                plants = ", ".join(row.plant_keys) if row.plant_keys else "unassigned"
+                print(f"{row.bus_id}  {plants}  ({row.device_id})")  # noqa: T201
+            return 0
+
+        result = await assign_substrate_probe(
+            engine,
+            bus_id=args.bus_id,
+            plant_key=args.plant_key,
+        )
+        previous = (
+            ", ".join(result.previous_plant_keys)
+            if result.previous_plant_keys
+            else "none"
+        )
+        print(  # noqa: T201
+            f"assigned {result.bus_id} ({result.device_id}) to {result.plant_key}; "
+            f"tent_id={result.tent_id}; metrics={','.join(result.metrics)}; "
+            f"previous={previous}"
+        )
+        return 0
+    except SubstrateAssignmentError as exc:
+        print(f"substrate: {exc}")  # noqa: T201
+        return 2
+    finally:
+        await engine.dispose()
+
+
+def main() -> None:
+    raise SystemExit(asyncio.run(_run(_parse_args())))
+
+
+if __name__ == "__main__":
+    main()

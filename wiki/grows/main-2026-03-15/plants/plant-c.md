@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/coco-coir.md, wiki/concepts/lst.md, wiki/environment/nutrients.md]
 created: 2026-04-06
-updated: 2026-06-25
+updated: 2026-07-31
 ---
 
 # Plant C
@@ -19,7 +19,7 @@ updated: 2026-06-25
 
 ## Current State
 
-Day 103 / Flower Day 53: `SBBS-R1-003` shows chunky purple/lavender flowers with late yellow fade, and direct moisture is flat/slightly down near 32.9% rough context. Keep root-zone and interior/wall-side airflow checks active, with hand confirmation before any irrigation change. See [2026-06-25 daily](../../../daily/2026-06-25.md).
+Day 139 / Flower Day 89: `SBBS-R1-003` has no photo and no trusted direct moisture for a twenty-first report after the earlier lower-reading run. Confirm retained status and verify probe/feed, media, tray behavior, posture, and pocket risk before using older moisture trends. See [2026-07-31 daily](../../../daily/2026-07-31.md).
 
 ## Timeline
 
@@ -96,3 +96,39 @@ Day 103 / Flower Day 53: `SBBS-R1-003` shows chunky purple/lavender flowers with
 - 2026-06-23 — [Day 101 / Flower Day 51: upright wall-side flowers with pale/yellow fade; direct moisture flat near 33.7%, keep root-zone and airflow checks active](../../../daily/2026-06-23.md)
 - 2026-06-24 — [Day 102 / Flower Day 52: no photo coverage; direct moisture modestly down to 32.8%, keep root-zone and airflow checks active](../../../daily/2026-06-24.md)
 - 2026-06-25 — [Day 103 / Flower Day 53: chunky purple/lavender flowers with late yellow fade; direct moisture flat/slightly down near 32.9%, keep root-zone and airflow checks active](../../../daily/2026-06-25.md)
+- 2026-06-26 — [Day 104 / Flower Day 54: no photo coverage; direct moisture flat near 27.2% after a notable lower step, hand-check media/probe and keep airflow checks active](../../../daily/2026-06-26.md)
+- 2026-06-27 — [Day 105 / Flower Day 55: no photo coverage; direct moisture flat near 27.4% after yesterday's lower-step context, hand-check media/probe and keep airflow checks active](../../../daily/2026-06-27.md)
+- 2026-06-28 — [Day 106 / Flower Day 56: no photo coverage; direct moisture flat near 27.3% after the recent lower-step context, hand-check media/probe and keep airflow checks active](../../../daily/2026-06-28.md)
+- 2026-06-29 — [Day 107 / Flower Day 57: no photo coverage; direct moisture flat near 27.4% after the recent lower-step context, hand-check media/probe and keep airflow checks active](../../../daily/2026-06-29.md)
+- 2026-06-30 — [Day 108 / Flower Day 58: no photo coverage; direct moisture flat/slightly down to 27.2% after the recent lower-step context, hand-check media/probe and keep airflow checks active](../../../daily/2026-06-30.md)
+- 2026-07-01 — [Day 109 / Flower Day 59: no photo coverage; direct moisture flat near 27.3% after the recent lower-step context, hand-check media/probe and keep airflow checks active](../../../daily/2026-07-01.md)
+- 2026-07-02 — [Day 110 / Flower Day 60: no photo coverage; direct moisture flat near 27.3% after the recent lower-step context, hand-check media/probe and keep airflow checks active](../../../daily/2026-07-02.md)
+- 2026-07-03 — [Day 111 / Flower Day 61: no photo coverage; direct moisture flat near 27.2% after the recent lower-step context, hand-check media/probe and keep airflow checks active](../../../daily/2026-07-03.md)
+- 2026-07-04 — [Day 112 / Flower Day 62: no photo; trusted direct moisture moved sharply wetter to 58.7%, verify probe/media/tray before action](../../../daily/2026-07-04.md)
+- 2026-07-05 — [Day 113 / Flower Day 63: no photo; trusted direct moisture remains elevated at 66.9%, verify probe/media/tray before action](../../../daily/2026-07-05.md)
+- 2026-07-06 — [Day 114 / Flower Day 64: no photo; trusted direct moisture stepped down to 57.9%, verify probe/media/tray before action](../../../daily/2026-07-06.md)
+- 2026-07-07 — [Day 115 / Flower Day 65: no photo; trusted direct moisture rebounded modestly to 58.7%, verify probe/media/tray before action](../../../daily/2026-07-07.md)
+- 2026-07-08 — [Day 116 / Flower Day 66: no photo; trusted direct moisture is lower at 52.5%, verify probe/media/tray before action](../../../daily/2026-07-08.md)
+- 2026-07-09 — [Day 117 / Flower Day 67: no photo; trusted direct moisture is lower at 50.5%, verify probe/media/tray before action](../../../daily/2026-07-09.md)
+- 2026-07-10 — [Day 118 / Flower Day 68: no photo; trusted direct moisture is lower at 45.5%, verify probe/media/tray before action](../../../daily/2026-07-10.md)
+- 2026-07-11 — [Day 119 / Flower Day 69: no photo; trusted direct moisture missing after recent lower readings, verify tag/probe/media/tray before action](../../../daily/2026-07-11.md)
+- 2026-07-12 — [Day 120 / Flower Day 70: no photo; trusted direct moisture missing again after recent lower readings, verify tag/probe/media/tray before action](../../../daily/2026-07-12.md)
+- 2026-07-13 — [Day 121 / Flower Day 71: no photo; trusted direct moisture missing for a third report after recent lower readings, verify tag/probe/media/tray before action](../../../daily/2026-07-13.md)
+- 2026-07-14 — [Day 122 / Flower Day 72: no photo; trusted direct moisture missing for a fourth report after recent lower readings, verify tag/probe/media/tray before action](../../../daily/2026-07-14.md)
+- 2026-07-15 — [Day 123 / Flower Day 73: no photo; trusted direct moisture missing for a fifth report after recent lower readings, verify tag/probe/media/tray before action](../../../daily/2026-07-15.md)
+- 2026-07-16 — [Day 124 / Flower Day 74: no photo; trusted direct moisture missing for a sixth report after recent lower readings, verify tag/probe/media/tray before action](../../../daily/2026-07-16.md)
+- 2026-07-17 — [Day 125 / Flower Day 75: no photo; trusted direct moisture missing for a seventh report after recent lower readings, verify tag/probe/media/tray before action](../../../daily/2026-07-17.md)
+- 2026-07-18 — [Day 126 / Flower Day 76: no photo; trusted direct moisture missing for an eighth report after recent lower readings, verify tag/probe/media/tray before action](../../../daily/2026-07-18.md)
+- 2026-07-19 — [Day 127 / Flower Day 77: no photo; trusted direct moisture missing for a ninth report after recent lower readings, verify tag/probe/media/tray before action](../../../daily/2026-07-19.md)
+- 2026-07-20 — [Day 128 / Flower Day 78: no photo; trusted direct moisture missing for a tenth report after recent lower readings, verify tag/probe/media/tray before action](../../../daily/2026-07-20.md)
+- 2026-07-21 — [Day 129 / Flower Day 79: no photo; trusted direct moisture missing for an eleventh report after earlier lower readings, verify tag/probe/media/tray before action](../../../daily/2026-07-21.md)
+- 2026-07-22 — [Day 130 / Flower Day 80: no photo; trusted direct moisture missing for a twelfth report after earlier lower readings, verify tag/probe/media/tray before action](../../../daily/2026-07-22.md)
+- 2026-07-23 — [Day 131 / Flower Day 81: no photo; trusted direct moisture missing for a thirteenth report, verify retained tag, probe/feed, media, tray, and posture](../../../daily/2026-07-23.md)
+- 2026-07-24 — [Day 132 / Flower Day 82: no photo; trusted direct moisture missing for a fourteenth report, verify retained tag, probe/feed, media, tray, and posture](../../../daily/2026-07-24.md)
+- 2026-07-25 — [Day 133 / Flower Day 83: no photo; trusted direct moisture missing for a fifteenth report, verify retained tag, probe/feed, media, tray, and posture](../../../daily/2026-07-25.md)
+- 2026-07-26 — [Day 134 / Flower Day 84: no photo; trusted direct moisture missing for a sixteenth report, verify retained tag, probe/feed, media, tray, and posture](../../../daily/2026-07-26.md)
+- 2026-07-27 — [Day 135 / Flower Day 85: `SBBS-R1-003` has no photo; trusted direct moisture missing for a seventeenth report, verify retained tag, probe/feed, media, tray, posture, and wet-pocket risk](../../../daily/2026-07-27.md)
+- 2026-07-28 — [Day 136 / Flower Day 86: `SBBS-R1-003` has no photo; trusted direct moisture missing for an eighteenth report, verify retained tag, probe/feed, media, tray, posture, and wet-pocket risk](../../../daily/2026-07-28.md)
+- 2026-07-29 — [Day 137 / Flower Day 87: `SBBS-R1-003` has no photo; trusted direct moisture missing for a nineteenth report, verify retained tag, probe/feed, media, tray, posture, and wet-pocket risk](../../../daily/2026-07-29.md)
+- 2026-07-30 — [Day 138 / Flower Day 88: `SBBS-R1-003` has no photo; trusted direct moisture missing for a twentieth report, verify retained tag, probe/feed, media, tray, and posture](../../../daily/2026-07-30.md)
+- 2026-07-31 — [Day 139 / Flower Day 89: `SBBS-R1-003` has no photo; trusted direct moisture missing for a twenty-first report, verify retained tag, probe/feed, media, tray, and posture](../../../daily/2026-07-31.md)

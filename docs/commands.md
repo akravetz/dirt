@@ -67,6 +67,36 @@ uv run ruff format --check apps/hwd/src/dirt_hwd/tools/substrate_calibration app
 
 Do not run the controller `POST /calibration/start` or `POST /calibration/stop` curl commands unless you are intentionally operating the physical bench and the controller has been flashed with the calibration-mode firmware.
 
+## RS485 substrate probe assignment
+
+Use the repository CLI whenever a DFRobot SEN0604 probe is moved to a different
+plant. This is the supported path for requests phrased as moving, assigning,
+reassigning, associating, or mapping a soil-moisture/substrate sensor or probe
+to a plant. Do not edit `plant_metric_stream` or hosted mapping rows directly.
+
+Show each enabled RS485 probe and its active plant assignment:
+
+```bash
+scripts/substrate list
+```
+
+Assign all four product streams (moisture, substrate temperature, EC, and pH)
+from one probe to a current plant:
+
+```bash
+scripts/substrate assign 0x02 ESP-R1-002
+```
+
+The bus ID accepts hexadecimal (`0x02`) or decimal (`2`) input. The plant key
+is matched case-insensitively and the command prints the canonical stored key.
+The command fails before committing when the probe is unknown, the plant has no
+current location, or any required capability is missing. Repeating the same
+assignment is safe. Assignment also moves the logical probe device to the
+plant's current tent and clears any stale zone, keeping latest metrics and
+rollups in the same scope as the plant. The local database is authoritative; `dirt-gateway`
+projects active and inactive mappings and the hosted control plane deactivates
+stream identities omitted from the authoritative catalog snapshot.
+
 ## Remote boxes
 
 - **dirt2 SSH**: `ssh dirt2` uses the local `akcom` SSH key and logs in as `akcom` on `dirt2` (`192.168.1.123` on the LAN). Do not print or copy private keys.

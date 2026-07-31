@@ -38,6 +38,7 @@ To add/remove a language, edit the `langs` list in the workflow.
 - [`docs/commands.md`](docs/commands.md) — exact local service, hosted deploy, test, lint, web-ui, PTZ, and voice commands
 - [`docs/hosted-control-plane.md`](docs/hosted-control-plane.md) — Railway deploy, gateway operations, monitoring, rollback, and secret rotation
 - [`wiki/AGENTS.md`](wiki/AGENTS.md) — wiki conventions and daily update workflow
+- [Latest grow daily: 2026-07-31](wiki/daily/2026-07-31.md) — no photo coverage; main VPD in range while RH remains above guide; breeding wet-sensor repeat requires verification
 
 ## Project
 

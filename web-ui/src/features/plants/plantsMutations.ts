@@ -75,6 +75,16 @@ const PLANT_PATCH_FIELDS = [
   "selectedForBreedingReason",
   "lastNote",
 ] as const satisfies readonly (keyof PlantRow)[];
+const PLANT_TIMESTAMP_PATCH_FIELDS = new Set<PlantPatchField>([
+  "takenAt",
+  "rootedAt",
+  "germinatedAt",
+  "vegStartedAt",
+  "flowerStartedAt",
+  "culledAt",
+  "harvestedAt",
+  "selectedForBreedingAt",
+]);
 const STAGE_FACT_PATCH_FIELDS = [
   "culledAt",
   "harvestedAt",
@@ -980,6 +990,21 @@ function updatePendingCommand(
   );
 }
 
+export function removeProjectedPendingCommands(
+  queryClient: QueryClient,
+  commandIds: readonly string[],
+): void {
+  if (commandIds.length === 0) return;
+  const commandIdSet = new Set(commandIds);
+  queryClient.setQueryData<readonly PlantsPendingCommand[]>(
+    pendingCommandsQueryKey,
+    (current = []) => {
+      const next = current.filter((pending) => !commandIdSet.has(pending.commandId));
+      return next.length === current.length ? current : next;
+    },
+  );
+}
+
 function getPendingCommands(queryClient: QueryClient): readonly PlantsPendingCommand[] {
   return queryClient.getQueryData(pendingCommandsQueryKey) ?? [];
 }
@@ -1185,7 +1210,11 @@ function isPatchFieldProjected<TKey extends PlantPatchField>(
   field: TKey,
 ): boolean {
   const expected = patch[field];
-  return expected === undefined || Object.is(plant[field], expected);
+  if (expected === undefined) return true;
+  if (PLANT_TIMESTAMP_PATCH_FIELDS.has(field)) {
+    return timestampPatchValueProjected(plant[field], expected);
+  }
+  return Object.is(plant[field], expected);
 }
 
 function applySexTestPatches(
@@ -1311,6 +1340,11 @@ const SEX_TEST_PATCH_FIELDS = [
   "isInconclusive",
   "notes",
 ] as const satisfies readonly (keyof PlantSexTest)[];
+const SEX_TEST_TIMESTAMP_PATCH_FIELDS = new Set<keyof PlantSexTest>([
+  "sampleCollectedAt",
+  "sampleSentAt",
+  "resultReceivedAt",
+]);
 
 function sexTestPatchMatchesCreatedIdentity(
   sexTest: PlantSexTest,
@@ -1328,7 +1362,24 @@ function sexTestPatchValueProjected<TKey extends keyof PlantSexTest>(
   field: TKey,
 ): boolean {
   const expected = patch[field];
-  return expected === undefined || Object.is(sexTest[field], expected);
+  if (expected === undefined) return true;
+  if (SEX_TEST_TIMESTAMP_PATCH_FIELDS.has(field)) {
+    return timestampPatchValueProjected(sexTest[field], expected);
+  }
+  return Object.is(sexTest[field], expected);
+}
+
+function timestampPatchValueProjected(actual: unknown, expected: unknown): boolean {
+  if (actual === null || expected === null) return Object.is(actual, expected);
+  if (typeof actual !== "string" || typeof expected !== "string") {
+    return Object.is(actual, expected);
+  }
+  const actualMs = Date.parse(actual);
+  const expectedMs = Date.parse(expected);
+  if (Number.isNaN(actualMs) || Number.isNaN(expectedMs)) {
+    return Object.is(actual, expected);
+  }
+  return actualMs === expectedMs;
 }
 
 function findSexTestPatchIndex(

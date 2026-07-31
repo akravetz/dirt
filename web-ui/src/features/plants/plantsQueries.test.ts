@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import type { hostedComponents } from "@/api-client";
 import {
   filterPlantsForSearch,
+  nextPlantTableSortState,
   normalizePlantsSearch,
   plantLifecycleStatus,
+  sortPlantsForTable,
   validatePlantsSearch,
 } from "./PlantsWorkspace";
 import {
@@ -382,6 +384,56 @@ describe("plants list filters", () => {
       ).map((plant) => plant.key),
     ).toEqual(["IC-001"]);
   });
+
+  it("sorts table rows with a three-click header cycle", () => {
+    const plants = [
+      makePlantRow({
+        id: "1",
+        key: "MF-002",
+        name: "MF-002",
+        flowerStartedOn: null,
+      }),
+      makePlantRow({
+        id: "2",
+        key: "MF-010",
+        name: "MF-010",
+        flowerStartedOn: "2026-06-20",
+      }),
+      makePlantRow({
+        id: "3",
+        key: "MF-001",
+        name: "MF-001",
+        flowerStartedOn: "2026-06-10",
+      }),
+    ];
+
+    const plantAsc = nextPlantTableSortState(null, "plant");
+    expect(sortPlantsForTable(plants, plantAsc).map((plant) => plant.key)).toEqual([
+      "MF-001",
+      "MF-002",
+      "MF-010",
+    ]);
+
+    const plantDesc = nextPlantTableSortState(plantAsc, "plant");
+    expect(sortPlantsForTable(plants, plantDesc).map((plant) => plant.key)).toEqual([
+      "MF-010",
+      "MF-002",
+      "MF-001",
+    ]);
+
+    const plantUnsorted = nextPlantTableSortState(plantDesc, "plant");
+    expect(plantUnsorted).toBeNull();
+    expect(sortPlantsForTable(plants, plantUnsorted).map((plant) => plant.key)).toEqual(
+      ["MF-002", "MF-010", "MF-001"],
+    );
+
+    expect(
+      sortPlantsForTable(plants, {
+        key: "flower",
+        direction: "desc",
+      }).map((plant) => plant.key),
+    ).toEqual(["MF-010", "MF-001", "MF-002"]);
+  });
 });
 
 describe("plants mutation request mapping", () => {
@@ -721,15 +773,15 @@ describe("plants pending UX helpers", () => {
         [
           {
             ...plant,
-            takenAt: "2026-06-14T16:45:00.000Z",
+            takenAt: "2026-06-14T16:45:00Z",
             takenOn: "2026-06-14",
-            rootedAt: "2026-06-16T16:45:00.000Z",
+            rootedAt: "2026-06-16T16:45:00Z",
             rootedOn: "2026-06-16",
-            germinatedAt: "2026-06-15T16:45:00.000Z",
+            germinatedAt: "2026-06-15T16:45:00Z",
             germinatedOn: "2026-06-15",
-            vegStartedAt: "2026-06-17T16:45:00.000Z",
+            vegStartedAt: "2026-06-17T16:45:00Z",
             vegStartedOn: "2026-06-17",
-            flowerStartedAt: "2026-06-18T16:45:00.000Z",
+            flowerStartedAt: "2026-06-18T16:45:00Z",
             flowerStartedOn: "2026-06-18",
           },
         ],
@@ -826,7 +878,7 @@ describe("plants pending UX helpers", () => {
                 sourceSexTestId: 31,
                 assayName: "EZ-XY",
                 vendorTestCode: "FF-XY-200",
-                sampleCollectedAt: "2026-06-21T16:45:00.000Z",
+                sampleCollectedAt: "2026-06-21T16:45:00Z",
                 sampleSentAt: null,
                 resultReceivedAt: null,
                 resultSexKey: null,

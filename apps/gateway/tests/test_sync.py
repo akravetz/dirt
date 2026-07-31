@@ -1434,6 +1434,12 @@ async def test_collect_catalog_projects_current_grow_plants(
                     display_order=7,
                     is_active=True,
                 ),
+                PlantMetricStream(
+                    plant_id=plant_x3.id,
+                    capability_id=capability.id,
+                    display_order=7,
+                    is_active=False,
+                ),
             ]
         )
         await session.commit()
@@ -1645,7 +1651,15 @@ async def test_collect_catalog_projects_current_grow_plants(
             metric="soil_moisture_raw",
             display_order=7,
             is_active=True,
-        )
+        ),
+        CatalogPlantMetricStream(
+            source_plant_id=plant_x3_source_id,
+            device_id="test-plant-node",
+            capability_id="soil_moisture_raw",
+            metric="soil_moisture_raw",
+            display_order=7,
+            is_active=False,
+        ),
     ]
 
 

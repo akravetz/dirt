@@ -3,7 +3,7 @@ const LIVE_WINDOW_S = 60;
 const CAPTURE_DURATION_S = 60;
 const CAPTURE_POLL_INTERVAL_S = 2;
 const CALIBRATION_DURATION_S = 900;
-const CALIBRATION_INTERVAL_MS = 2000;
+const CALIBRATION_INTERVAL_MS = 5000;
 
 const state = {
   info: null,

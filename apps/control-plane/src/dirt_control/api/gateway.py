@@ -479,6 +479,15 @@ async def catalog(
             },
             now=now,
         )
+    incoming_stream_identities = {
+        (
+            stream.source_plant_id,
+            stream.device_id,
+            stream.capability_id,
+            stream.metric,
+        )
+        for stream in body.plant_metric_streams
+    }
     for stream in body.plant_metric_streams:
         await _upsert_by_columns(
             session,
@@ -504,6 +513,24 @@ async def catalog(
             },
             now=now,
         )
+    existing_streams = (
+        await session.execute(
+            select(CloudPlantMetricStream).where(
+                CloudPlantMetricStream.site_id == body.site_id
+            )
+        )
+    ).scalars()
+    for stream in existing_streams:
+        identity = (
+            stream.source_plant_id,
+            stream.device_id,
+            stream.capability_id,
+            stream.metric,
+        )
+        if stream.is_active and identity not in incoming_stream_identities:
+            stream.is_active = False
+            stream.synced_at = now
+            stream.updated_at = now
     await session.commit()
     return CatalogResponse(
         sites=1,

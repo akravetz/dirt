@@ -664,28 +664,17 @@ class GatewayLocalServiceBundle:
                     select(
                         PlantMetricStream,
                         Plant.id,
-                        Plant.key,
-                        PlantLocationHistory.grid_position,
-                        Tent.name,
                         Device.device_id,
                         Capability.capability_id,
                         Capability.metric_name,
                     )
                     .join(Plant, Plant.id == PlantMetricStream.plant_id)
-                    .join(
-                        PlantLocationHistory,
-                        PlantLocationHistory.plant_id == Plant.id,
-                    )
-                    .join(Tent, Tent.id == PlantLocationHistory.tent_id)
                     .join(Capability, Capability.id == PlantMetricStream.capability_id)
                     .join(Device, Device.id == Capability.device_id)
-                    .where(PlantLocationHistory.site_id == site_pk)
-                    .where(PlantLocationHistory.end_at.is_(None))
+                    .where(Device.site_id == site_pk)
                     .where(Capability.metric_name.is_not(None))
                     .order_by(
-                        Tent.name,
-                        PlantLocationHistory.grid_position,
-                        Plant.key,
+                        Plant.id,
                         PlantMetricStream.display_order,
                         Capability.capability_id,
                     )
@@ -695,9 +684,6 @@ class GatewayLocalServiceBundle:
         for (
             stream,
             source_plant_id,
-            _plant_key,
-            _grid_position,
-            _tent_id,
             device_id,
             capability_id,
             metric_name,

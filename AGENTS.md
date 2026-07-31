@@ -52,6 +52,21 @@ DIRT_DEV_PUBLIC_HOST=<host-or-ip> make dev-up
 
 Deeper details live in [`docs/commands.md`](docs/commands.md); start there before changing the harness.
 
+## Fast path: moving substrate probes between plants
+
+Use this when a user asks to **move, assign, reassign, associate, or map a soil
+moisture/substrate sensor or probe to a plant**. Read the "RS485 substrate
+probe assignment" section in [`docs/commands.md`](docs/commands.md), then use:
+
+```bash
+scripts/substrate list
+scripts/substrate assign <bus-id> <canonical-plant-key>
+```
+
+The assignment command owns the local `plant_metric_stream` transaction and
+the gateway owns hosted reconciliation. Do not update local or cloud mapping
+rows by hand for routine probe moves.
+
 ## Repository layout
 
 - `apps/{hwd,shared,voice,wake-word,control-plane,gateway,camera-agent}/` — Python services (uv workspace; each has its own `pyproject.toml` + tests). `dirt-hwd` runs on :8000 (production keep-alive — no routine rewrites), and `dirt-gateway` syncs outbound to the hosted control plane.

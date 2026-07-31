@@ -1326,3 +1326,290 @@ Also today: plant-A and plant-D moisture sensors swapped to v2.0; both calibrate
 - **Moisture telemetry:** trusted direct-percent readings show flat/small movement for A/C/D (`SBBS-R1-001` 26.2%, `SBBS-R1-003` 32.9%, `SBBS-R1-004` 32.8%). `SBBS-R1-002` is omitted and remains hand-check-only.
 - **Breeding-tent watch:** Flower Day 32; R2 remains the selected pollen donor. Current-only sensor data again repeats 71.92°F / 83.28% RH / 0.45 kPa, so verify sensor freshness/exposure, airflow, pot weight, and dry pollen-handling conditions directly before collection.
 - Updated: `daily/2026-06-25.md`, `grows/main-2026-03-15/README.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`.
+
+## [2026-06-26] daily | Day 104 / Flower Day 54 - no photos; wet overnight regression, C/D moisture checks
+- No daily photos were available: main overview, Plant A/B/C/D, and breeding overview coverage are all incomplete. Today's visual checks must be done manually.
+- **Main-tent environment:** VPD is 1.05 kPa overnight / 1.20 morning / 1.27 now. Lights-on remains usable, but the overnight window regressed wetter with 57.90% RH despite higher fan output, so keep the action on dark-cycle clearing and flower-pocket airflow.
+- **Moisture telemetry:** trusted direct-percent readings show `SBBS-R1-001` flat near 24.9%, `SBBS-R1-003` flat today near 27.2% after a notable lower step, and `SBBS-R1-004` moving upward to 35.9%. `SBBS-R1-002` is omitted and remains hand-check-only.
+- **Breeding-tent watch:** Flower Day 33; R2 remains the selected pollen donor. Current-only sensor data again repeats 71.92°F / 83.28% RH / 0.45 kPa, so verify sensor freshness/exposure, airflow, pot weight, and dry pollen-handling conditions directly before collection.
+- Updated: `daily/2026-06-26.md`, `grows/main-2026-03-15/README.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`.
+
+## [2026-06-27] daily | Day 105 / Flower Day 55 - no photos; VPD improved, D moisture up
+- No daily photos were available: main overview, Plant A/B/C/D, and breeding overview coverage are all incomplete. Today's visual checks must be done manually.
+- **Main-tent environment:** VPD improved to 1.17 kPa overnight / 1.29 morning / 1.46 now. Lights-on is in range and overnight is only slightly wet/low, but RH remains above the late-flower guide, so keep the action on dark-cycle clearing and flower-pocket airflow.
+- **Moisture telemetry:** trusted direct-percent readings show `SBBS-R1-001` flat near 24.9%, `SBBS-R1-003` flat near 27.4% after yesterday's lower-step context, and `SBBS-R1-004` continuing upward to 36.6%. `SBBS-R1-002` is omitted and remains hand-check-only.
+- **Breeding-tent watch:** Flower Day 34; R2 remains the selected pollen donor. Current-only sensor data again repeats 71.92°F / 83.28% RH / 0.45 kPa, so verify sensor freshness/exposure, airflow, pot weight, and dry pollen-handling conditions directly before collection.
+- Updated: `daily/2026-06-27.md`, `grows/main-2026-03-15/README.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`.
+
+## [2026-06-28] daily | Day 106 / Flower Day 56 - no photos; VPD in range all windows, breeding wet repeat
+- No daily photos were available: main overview, Plant A/B/C/D, and breeding overview coverage are all incomplete. Today's visual checks must be done manually.
+- **Main-tent environment:** VPD is in the late-flower band across all windows at 1.26 kPa overnight / 1.36 morning / 1.41 now. RH remains slightly above the late-flower guide, so hold broad conditions steady and keep the action on dark-cycle clearing and flower-pocket airflow.
+- **Moisture telemetry:** trusted direct-percent readings show `SBBS-R1-001` flat/slightly down near 24.7%, `SBBS-R1-003` flat near 27.3% after the recent lower-step context, and `SBBS-R1-004` nearly flat/slightly up at 36.7%. `SBBS-R1-002` is omitted and remains hand-check-only.
+- **Breeding-tent watch:** Flower Day 35; R2 remains the selected pollen donor. Current-only sensor data again repeats 71.92°F / 83.28% RH / 0.45 kPa, so verify sensor freshness/exposure, airflow, pot weight, and dry pollen-handling conditions directly before collection.
+- Updated: `daily/2026-06-28.md`, `grows/main-2026-03-15/README.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`.
+
+## [2026-06-29] daily | Day 107 / Flower Day 57 - no photos; VPD in range all windows again, breeding wet repeat
+- No daily photos were available: main overview, Plant A/B/C/D, and breeding overview coverage are all incomplete. Today's visual checks must be done manually.
+- **Main-tent environment:** VPD is in the late-flower band across all windows at 1.23 kPa overnight / 1.35 morning / 1.42 now. RH remains above the late-flower guide, so hold broad conditions steady and keep the action on dark-cycle clearing and flower-pocket airflow.
+- **Moisture telemetry:** trusted direct-percent readings show `SBBS-R1-001` flat/slightly down near 24.6%, `SBBS-R1-003` flat near 27.4% after the recent lower-step context, and `SBBS-R1-004` slightly up to 37.1%. `SBBS-R1-002` is omitted and remains hand-check-only.
+- **Breeding-tent watch:** Flower Day 36; R2 remains the selected pollen donor. Current-only sensor data again repeats 71.92°F / 83.28% RH / 0.45 kPa, so verify sensor freshness/exposure, airflow, pot weight, and dry pollen-handling conditions directly before collection.
+- Updated: `daily/2026-06-29.md`, `grows/main-2026-03-15/README.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`.
+
+## [2026-06-30] daily | Day 108 / Flower Day 58 - no photos; VPD in range third report, D moisture up
+- No daily photos were available: main overview, Plant A/B/C/D, and breeding overview coverage are all incomplete. Today's visual checks must be done manually.
+- **Main-tent environment:** VPD is in the late-flower band for a third straight report at 1.28 kPa overnight / 1.46 morning / 1.50 now. RH remains above the guide but current RH is closer at 46.18%, so hold broad conditions steady and keep dark-cycle clearing plus dense flower-pocket airflow active.
+- **Moisture telemetry:** trusted direct-percent readings show `SBBS-R1-001` flat/slightly down to 24.5%, `SBBS-R1-003` flat/slightly down to 27.2% after the recent lower-step context, and `SBBS-R1-004` slightly up to 37.7%. `SBBS-R1-002` is omitted and remains hand-check-only.
+- **Breeding-tent watch:** Flower Day 37; R2 remains the selected pollen donor. Current-only sensor data again repeats 71.92°F / 83.28% RH / 0.45 kPa, so verify sensor freshness/exposure, airflow, pot weight, and dry pollen-handling conditions directly before collection.
+- Updated: `daily/2026-06-30.md`, `grows/main-2026-03-15/README.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`.
+
+## [2026-07-01] daily | Day 109 / Flower Day 59 - no photos; VPD in range fourth report, D high-30s watch
+- No daily photos were available: main overview, Plant A/B/C/D, and breeding overview coverage are all incomplete. Today's visual checks must be done manually.
+- **Main-tent environment:** VPD is in the late-flower band for a fourth straight report at 1.27 kPa overnight / 1.38 morning / 1.46 now. RH is slightly high overnight and morning, but current RH is at the guide ceiling at 44.97%, so hold broad conditions steady and keep dark-cycle clearing plus dense flower-pocket airflow active.
+- **Moisture telemetry:** trusted direct-percent readings show `SBBS-R1-001` flat near 24.7%, `SBBS-R1-003` flat near 27.3% after the recent lower-step context, and `SBBS-R1-004` at 37.7% with a modest intraday rise. `SBBS-R1-002` is omitted and remains hand-check-only.
+- **Breeding-tent watch:** Flower Day 38; R2 remains the selected pollen donor. Current-only sensor data again repeats 71.92°F / 83.28% RH / 0.45 kPa, so verify sensor freshness/exposure, airflow, pot weight, and dry pollen-handling conditions directly before collection.
+- Updated: `daily/2026-07-01.md`, `grows/main-2026-03-15/README.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`.
+
+## [2026-07-02] daily | Day 110 / Flower Day 60 - no photos; VPD in range fifth report, RH/dew point rose
+- No daily photos were available: main overview, Plant A/B/C/D, and breeding overview coverage are all incomplete. Today's visual checks must be done manually.
+- **Main-tent environment:** VPD is in the late-flower band for a fifth straight report at 1.25 kPa overnight / 1.31 morning / 1.35 now, but RH is above the late-flower guide in every window and current dew point rose to 52.78°F. Keep broad VPD control steady while checking dark-cycle clearing, dead material, and dense flower-pocket airflow.
+- **Moisture telemetry:** trusted direct-percent readings show `SBBS-R1-001` flat near 24.6%, `SBBS-R1-003` flat near 27.3% after the recent lower-step context, and `SBBS-R1-004` at 38.0% with a modest intraday rise. `SBBS-R1-002` is omitted and remains hand-check-only.
+- **Breeding-tent watch:** Flower Day 39; R2 remains the selected pollen donor. Current-only sensor data again repeats 71.92°F / 83.28% RH / 0.45 kPa, so verify sensor freshness/exposure, airflow, pot weight, and dry pollen-handling conditions directly before collection.
+- Updated: `daily/2026-07-02.md`, `grows/main-2026-03-15/README.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`.
+
+## [2026-07-03] daily | Day 111 / Flower Day 61 - no photos; VPD in range sixth report, RH/dew point improved
+- No daily photos were available: main overview, Plant A/B/C/D, and breeding overview coverage are all incomplete. Today's visual checks must be done manually.
+- **Main-tent environment:** VPD is in the late-flower band for a sixth straight report at 1.28 kPa overnight / 1.40 morning / 1.44 now. RH remains above the late-flower guide, but lights-on RH and current dew point improved from yesterday; hold broad control steady while checking dark-cycle clearing, dead material, and dense flower-pocket airflow.
+- **Moisture telemetry:** trusted direct-percent readings show `SBBS-R1-001` flat near 24.6%, `SBBS-R1-003` flat near 27.2% after the recent lower-step context, and `SBBS-R1-004` at 38.2% with a modest intraday rise. `SBBS-R1-002` is omitted and remains hand-check-only.
+- **Breeding-tent watch:** Flower Day 40; R2 remains the selected pollen donor. Current-only sensor data again repeats 71.92°F / 83.28% RH / 0.45 kPa, so verify sensor freshness/exposure, airflow, pot weight, and dry pollen-handling conditions directly before collection.
+- Updated: `daily/2026-07-03.md`, `grows/main-2026-03-15/README.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`.
+
+## [2026-07-04] manual note | seeded-flower hold, seedling queue, and DTW transition
+- The main 4x4 flower tent is down to two remaining flower plants. Both have been seeded and are being held only until seeds mature; cull them once mature.
+- After the seeded plants are culled, convert the main 4x4 tent to the planned drip-tray drain-to-waste setup.
+- About 38 seedlings are currently in the 3x3 veg tent under the 3x3 grow light. They are being hand-watered while waiting for the main-tent cull and drain-to-waste setup.
+- The three RS485/TDS substrate probes remain relevant for the next drain-to-waste layout; reconcile their plant-label placement before relying on them after the tent conversion.
+- Updated: `overview.md`, `log.md`.
+
+## [2026-07-04] daily | Day 112 / Flower Day 62 - no photos; VPD in range seventh report, C moisture jump
+- No daily photos were available: main overview, Plant A/B/C/D, and breeding overview coverage are all incomplete. Today's visual checks, seed-maturity checks, and pollen/trichome decisions must be done manually.
+- **Main-tent environment:** VPD is in the late-flower band for a seventh straight report at 1.26 kPa overnight / 1.34 morning / 1.38 now. RH remains above the 40-45% guide, so hold broad control steady and keep checking local seeded flower pockets and dark-cycle clearing.
+- **Moisture telemetry:** trusted direct-percent data reports only `SBBS-R1-003` today, moving sharply wetter from 43.79% overnight to 58.70% now. `SBBS-R1-001`, `SBBS-R1-002`, and `SBBS-R1-004` are omitted; reconcile retained tags and verify C probe/media/tray before acting.
+- **Transition watch:** the earlier July 4 operator note says only two seeded flower plants remain, but retained A-D labels were not specified. Update active plant status once the remaining tags are confirmed.
+- **Breeding-tent watch:** Flower Day 41; R2 remains the selected pollen donor. Current-only sensor data again repeats 71.92°F / 83.28% RH / 0.45 kPa, so verify sensor freshness/exposure, airflow, pot weight, and dry pollen-handling conditions directly before collection.
+- Updated: `daily/2026-07-04.md`, `grows/main-2026-03-15/README.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`.
+
+## [2026-07-05] daily | Day 113 / Flower Day 63 - no photos; VPD in range eighth report, C moisture elevated
+- No daily photos were available: main overview, Plant A/B/C/D, and breeding overview coverage are all incomplete. Today's visual checks, seed-maturity checks, and pollen/trichome decisions must be done manually.
+- **Main-tent environment:** VPD is in the late-flower band for an eighth straight report at 1.29 kPa overnight / 1.38 morning / 1.49 now. RH remains above the 40-45% guide and current VPD is near the upper edge, so hold broad control steady and keep checking local seeded flower pockets and dark-cycle clearing.
+- **Moisture telemetry:** trusted direct-percent data reports only `SBBS-R1-003` today, remaining elevated at 66.90% now after 68.47% overnight and 65.56% morning. `SBBS-R1-001`, `SBBS-R1-002`, and `SBBS-R1-004` are omitted; reconcile retained tags and verify C probe/media/tray before acting.
+- **Transition watch:** the July 4 operator note still says only two seeded flower plants remain, but retained A-D labels were not specified. Update active plant status once the remaining tags are confirmed.
+- **Breeding-tent watch:** Flower Day 42; R2 remains the selected pollen donor. Current-only sensor data again repeats 71.92°F / 83.28% RH / 0.45 kPa, so verify sensor freshness/exposure, airflow, pot weight, and dry pollen-handling conditions directly before collection.
+- Updated: `daily/2026-07-05.md`, `grows/main-2026-03-15/README.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`.
+
+## [2026-07-06] daily | Day 114 / Flower Day 64 - no photos; VPD in range ninth report, C moisture stepped down
+- No daily photos were available: main overview, Plant A/B/C/D, and breeding overview coverage are all incomplete. Today's visual checks, seed-maturity checks, and pollen/trichome decisions must be done manually.
+- **Main-tent environment:** VPD is in the late-flower band for a ninth straight report at 1.33 kPa overnight / 1.42 morning / 1.50 now. RH remains just above the 40-45% guide and current VPD is at the upper edge, so hold broad control steady and keep checking local seeded flower pockets and dark-cycle clearing.
+- **Moisture telemetry:** trusted direct-percent data reports only `SBBS-R1-003` today, stepping down to 57.90% now after 60.13% overnight and 59.55% morning. `SBBS-R1-001`, `SBBS-R1-002`, and `SBBS-R1-004` are omitted; reconcile retained tags and verify C probe/media/tray before acting.
+- **Transition watch:** the July 4 operator note still says only two seeded flower plants remain, but retained A-D labels were not specified. Update active plant status once the remaining tags are confirmed.
+- **Breeding-tent watch:** Flower Day 43; R2 remains the selected pollen donor. Current-only sensor data again repeats 71.92°F / 83.28% RH / 0.45 kPa, so verify sensor freshness/exposure, airflow, pot weight, and dry pollen-handling conditions directly before collection.
+- Updated: `daily/2026-07-06.md`, `grows/main-2026-03-15/README.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`.
+
+## [2026-07-07] daily | Day 115 / Flower Day 65 - no photos; VPD mostly controlled, C moisture rebounded
+- No daily photos were available: main overview, Plant A/B/C/D, and breeding overview coverage are all incomplete. Today's visual checks, seed-maturity checks, and pollen/trichome decisions must be done manually.
+- **Main-tent environment:** VPD stayed in range overnight and morning at 1.32 kPa / 1.42 kPa, then edged just high at 1.52 kPa now. RH is near the 40-45% guide, so hold broad control steady and keep checking local seeded flower pockets and dark-cycle clearing.
+- **Moisture telemetry:** trusted direct-percent data reports only `SBBS-R1-003` today, rebounding modestly to 58.70% now after 57.10% overnight and 56.82% morning. `SBBS-R1-001`, `SBBS-R1-002`, and `SBBS-R1-004` are omitted; reconcile retained tags and verify C probe/media/tray before acting.
+- **Transition watch:** the July 4 operator note still says only two seeded flower plants remain, but retained A-D labels were not specified. Update active plant status once the remaining tags are confirmed.
+- **Breeding-tent watch:** Flower Day 44; R2 remains the selected pollen donor. Current-only sensor data again repeats 71.92°F / 83.28% RH / 0.45 kPa, so verify sensor freshness/exposure, airflow, pot weight, and dry pollen-handling conditions directly before collection.
+- Updated: `daily/2026-07-07.md`, `grows/main-2026-03-15/README.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`.
+
+## [2026-07-08] daily | Day 116 / Flower Day 66 - no photos; VPD in range, C moisture lower
+- No daily photos were available: main overview, Plant A/B/C/D, and breeding overview coverage are all incomplete. Today's visual checks, seed-maturity checks, and pollen/trichome decisions must be done manually.
+- **Main-tent environment:** VPD is controlled across all windows at 1.31 kPa overnight / 1.41 kPa morning / 1.43 kPa now. RH remains slightly above the 40-45% late-flower guide, so hold broad control steady and keep checking seeded flower pockets, dead material, and dark-cycle clearing.
+- **Moisture telemetry:** trusted direct-percent data reports only `SBBS-R1-003` today, lower at 52.50% now after 54.15% overnight and 52.88% morning. `SBBS-R1-001`, `SBBS-R1-002`, and `SBBS-R1-004` are omitted; reconcile retained tags and verify C probe/media/tray before acting.
+- **Transition watch:** the July 4 operator note still says only two seeded flower plants remain, but retained A-D labels were not specified. Update active plant status once the remaining tags are confirmed.
+- **Breeding-tent watch:** Flower Day 45; R2 remains the selected pollen donor. Current-only sensor data again repeats 71.92°F / 83.28% RH / 0.45 kPa, so verify sensor freshness/exposure, airflow, pot weight, and dry pollen-handling conditions directly before collection.
+- Updated: `daily/2026-07-08.md`, `grows/main-2026-03-15/README.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`.
+
+## [2026-07-09] daily | Day 117 / Flower Day 67 - no photos; VPD tiny current dry edge, C moisture lower
+- No daily photos were available: main overview, Plant A/B/C/D, and breeding overview coverage are all incomplete. Today's visual checks, seed-maturity checks, and pollen/trichome decisions must be done manually.
+- **Main-tent environment:** VPD stayed in range overnight and morning at 1.28 kPa / 1.42 kPa, then edged just high at 1.51 kPa now. RH improved into the late-flower guide now at 44.72%, so hold broad control steady and keep direct seeded-flower airflow/dead-material checks active.
+- **Moisture telemetry:** trusted direct-percent data reports only `SBBS-R1-003` today, lower at 50.50% now after 53.37% overnight and 51.75% morning. `SBBS-R1-001`, `SBBS-R1-002`, and `SBBS-R1-004` are omitted; reconcile retained tags and verify C probe/media/tray before acting.
+- **Transition watch:** the July 4 operator note still says only two seeded flower plants remain, but retained A-D labels were not specified. Update active plant status once the remaining tags are confirmed.
+- **Breeding-tent watch:** Flower Day 46; R2 remains the selected pollen donor. Current-only sensor data again repeats 71.92°F / 83.28% RH / 0.45 kPa, so verify sensor freshness/exposure, airflow, pot weight, and dry pollen-handling conditions directly before collection.
+- Updated: `daily/2026-07-09.md`, `grows/main-2026-03-15/README.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`.
+
+## [2026-07-10] daily | Day 118 / Flower Day 68 - no photos; VPD tiny current dry edge, C moisture lower
+- No daily photos were available: main overview, Plant A/B/C/D, and breeding overview coverage are all incomplete. Today's visual checks, seed-maturity checks, and pollen/trichome decisions must be done manually.
+- **Main-tent environment:** VPD stayed in range overnight and morning at 1.31 kPa / 1.47 kPa, then edged just high at 1.53 kPa now. RH is near the 40-45% guide, so hold broad control steady and keep direct seeded-flower airflow/dead-material checks active.
+- **Moisture telemetry:** trusted direct-percent data reports only `SBBS-R1-003` today, lower at 45.50% now after 48.07% overnight and 46.41% morning. `SBBS-R1-001`, `SBBS-R1-002`, and `SBBS-R1-004` are omitted; reconcile retained tags and verify C probe/media/tray before acting.
+- **Transition watch:** the July 4 operator note still says only two seeded flower plants remain, but retained A-D labels were not specified. Update active plant status once the remaining tags are confirmed.
+- **Breeding-tent watch:** Flower Day 47; R2 remains the selected pollen donor. Current-only sensor data again repeats 71.92°F / 83.28% RH / 0.45 kPa, so verify sensor freshness/exposure, airflow, pot weight, and dry pollen-handling conditions directly before collection.
+- Updated: `daily/2026-07-10.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`.
+
+## [2026-07-11] daily | Day 119 / Flower Day 69 - no photos; wet overnight, dry/high current, plant moisture missing
+- No daily photos were available: main overview, Plant A/B/C/D, and breeding overview coverage are all incomplete. Today's visual checks, seed-maturity checks, and pollen/trichome decisions must be done manually.
+- **Main-tent environment:** overnight VPD regressed wet/low at 1.00 kPa with 56.52% RH, morning reached the 1.50 kPa upper edge, and the current reading is dry/high at 1.79 kPa with 75.27°F / 40.27% RH. Improve dark-cycle clearing and direct seeded-flower airflow without adding broad lights-on drying.
+- **Moisture telemetry:** no trusted direct-percent plant readings reported today. `SBBS-R1-001` through `SBBS-R1-004` are all omitted; hand-check retained tags, tray/media/posture, and C's probe/feed after its recent lower-reading run.
+- **Transition watch:** the July 4 operator note still says only two seeded flower plants remain, but retained A-D labels were not specified. Update active plant status once the remaining tags are confirmed.
+- **Breeding-tent watch:** Flower Day 48; R2 remains the selected pollen donor. Current-only sensor data again repeats 71.92°F / 83.28% RH / 0.45 kPa, so verify sensor freshness/exposure, airflow, pot weight, and dry pollen-handling conditions directly before collection.
+- Updated: `daily/2026-07-11.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`.
+
+## [2026-07-12] daily | Day 120 / Flower Day 70 - no photos; dry/high lights-on VPD, plant moisture missing
+- No daily photos were available: main overview, Plant A/B/C/D, and breeding overview coverage are all incomplete. Today's visual checks, seed-maturity checks, and pollen/trichome decisions must be done manually.
+- **Main-tent environment:** overnight VPD recovered into range at 1.44 kPa with 43.76% RH, but morning/current moved dry-high at 1.74/1.94 kPa. Current conditions are 76.46°F / 37.71% RH, so prevent extra broad lights-on drying while preserving direct seeded-flower airflow.
+- **Moisture telemetry:** no trusted direct-percent plant readings reported today. `SBBS-R1-001` through `SBBS-R1-004` are all omitted again; hand-check retained tags, tray/media/posture, and C's probe/feed after its recent lower-reading run and repeated dropout.
+- **Transition watch:** the July 4 operator note still says only two seeded flower plants remain, but retained A-D labels were not specified. Update active plant status once the remaining tags are confirmed.
+- **Breeding-tent watch:** Flower Day 49; R2 remains the selected pollen donor. Current-only sensor data again repeats 71.92°F / 83.28% RH / 0.45 kPa, so verify sensor freshness/exposure, airflow, pot weight, and dry pollen-handling conditions directly before collection.
+- Updated: `daily/2026-07-12.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`.
+
+## [2026-07-13] daily | Day 121 / Flower Day 71 - no photos; dry/high lights-on VPD, plant moisture missing
+- No daily photos were available: main overview, Plant A/B/C/D, and breeding overview coverage are all incomplete. Today's visual checks, seed-maturity checks, and pollen/trichome decisions must be done manually.
+- **Main-tent environment:** overnight VPD sat at the late-flower upper edge at 1.50 kPa with 41.94% RH, then morning/current moved dry-high at 1.77/1.96 kPa. Current conditions are 76.96°F / 38.13% RH, so prevent extra broad lights-on drying while preserving direct seeded-flower airflow.
+- **Moisture telemetry:** no trusted direct-percent plant readings reported today. `SBBS-R1-001` through `SBBS-R1-004` are all omitted again; hand-check retained tags, tray/media/posture, and C's probe/feed after its recent lower-reading run and current dropout sequence.
+- **Transition watch:** the July 4 operator note still says only two seeded flower plants remain, but retained A-D labels were not specified. Update active plant status once the remaining tags are confirmed.
+- **Breeding-tent watch:** Flower Day 50; R2 remains the selected pollen donor. Current-only sensor data again repeats 71.92°F / 83.28% RH / 0.45 kPa, so verify sensor freshness/exposure, airflow, pot weight, and dry pollen-handling conditions directly before collection.
+- Updated: `daily/2026-07-13.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`.
+
+## [2026-07-14] daily | Day 122 / Flower Day 72 - no photos; all-window dry/high VPD, plant moisture missing
+- No daily photos were available: main overview, Plant A/B/C/D, and breeding overview coverage are all incomplete. Today's visual checks, seed-maturity checks, and pollen/trichome decisions must be done manually.
+- **Main-tent environment:** VPD is dry/high across all windows: 1.57 kPa overnight, 1.79 kPa morning, and 1.99 kPa now. Current conditions are 77.02°F / 37.07% RH, so prevent extra broad drying while preserving direct seeded-flower airflow.
+- **Moisture telemetry:** no trusted direct-percent plant readings reported today. `SBBS-R1-001` through `SBBS-R1-004` are all omitted again; hand-check retained tags, tray/media/posture, and C's probe/feed after its recent lower-reading run and fourth-report dropout sequence.
+- **Transition watch:** the July 4 operator note still says only two seeded flower plants remain, but retained A-D labels were not specified. Update active plant status once the remaining tags are confirmed.
+- **Breeding-tent watch:** Flower Day 51; R2 remains the selected pollen donor. Current-only sensor data again repeats 71.92°F / 83.28% RH / 0.45 kPa, so verify sensor freshness/exposure, airflow, pot weight, and dry pollen-handling conditions directly before collection.
+- Updated: `daily/2026-07-14.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`.
+
+## [2026-07-15] daily | Day 123 / Flower Day 73 - no photos; all-window dry/high VPD, plant moisture missing
+- No daily photos were available: main overview, Plant A/B/C/D, and breeding overview coverage are all incomplete. Today's visual checks, seed-maturity checks, and pollen/trichome decisions must be done manually.
+- **Main-tent environment:** VPD remains dry/high across all windows: 1.56 kPa overnight, 1.80 kPa morning, and 2.00 kPa now. Current conditions are 77.09°F / 37.13% RH, so prevent extra broad drying while preserving direct seeded-flower airflow.
+- **Moisture telemetry:** no trusted direct-percent plant readings reported today. `SBBS-R1-001` through `SBBS-R1-004` are all omitted again; hand-check retained tags, tray/media/posture, and C's probe/feed after its recent lower-reading run and fifth-report dropout sequence.
+- **Transition watch:** the July 4 operator note still says only two seeded flower plants remain, but retained A-D labels were not specified. Update active plant status once the remaining tags are confirmed.
+- **Breeding-tent watch:** Flower Day 52; R2 remains the selected pollen donor. Current-only sensor data again repeats 71.92°F / 83.28% RH / 0.45 kPa, so verify sensor freshness/exposure, airflow, pot weight, and dry pollen-handling conditions directly before collection.
+- Updated: `daily/2026-07-15.md`, `grows/main-2026-03-15/README.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`.
+
+## [2026-07-16] daily | Day 124 / Flower Day 74 - no photos; all-window dry/high VPD, plant moisture missing
+- No daily photos were available: main overview, Plant A/B/C/D, and breeding overview coverage are all incomplete. Today's visual checks, seed-maturity checks, and pollen/trichome decisions must be done manually.
+- **Main-tent environment:** VPD remains dry/high across all windows: 1.58 kPa overnight, 1.81 kPa morning, and 2.00 kPa now. Current conditions are 76.91°F / 36.63% RH, so prevent extra broad drying while preserving direct seeded-flower airflow.
+- **Moisture telemetry:** no trusted direct-percent plant readings reported today. `SBBS-R1-001` through `SBBS-R1-004` are all omitted again; hand-check retained tags, tray/media/posture, and C's probe/feed after its recent lower-reading run and sixth-report dropout sequence.
+- **Transition watch:** the July 4 operator note still says only two seeded flower plants remain, but retained A-D labels were not specified. Update active plant status once the remaining tags are confirmed.
+- **Breeding-tent watch:** Flower Day 53; R2 remains the selected pollen donor. Current-only sensor data again repeats 71.92°F / 83.28% RH / 0.45 kPa, so verify sensor freshness/exposure, airflow, pot weight, and dry pollen-handling conditions directly before collection.
+- Updated: `daily/2026-07-16.md`, `grows/main-2026-03-15/README.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`.
+
+## [2026-07-17] daily | Day 125 / Flower Day 75 - no photos; all-window dry/high VPD, plant moisture missing
+- No daily photos were available: main overview, Plant A/B/C/D, and breeding overview coverage are all incomplete. Today's visual checks, seed-maturity checks, and pollen/trichome decisions must be done manually.
+- **Main-tent environment:** VPD remains dry/high across all windows: 1.56 kPa overnight, 1.80 kPa morning, and 2.00 kPa now. Current conditions are 76.64°F / 35.97% RH, so prevent extra broad drying while preserving direct seeded-flower airflow.
+- **Moisture telemetry:** no trusted direct-percent plant readings reported today. `SBBS-R1-001` through `SBBS-R1-004` are all omitted again; hand-check retained tags, tray/media/posture, and C's probe/feed after its recent lower-reading run and seventh-report dropout sequence.
+- **Transition watch:** the July 4 operator note still says only two seeded flower plants remain, but retained A-D labels were not specified. Update active plant status once the remaining tags are confirmed.
+- **Breeding-tent watch:** Flower Day 54; R2 remains the selected pollen donor. Current-only sensor data again repeats 71.92°F / 83.28% RH / 0.45 kPa, so verify sensor freshness/exposure, airflow, pot weight, and dry pollen-handling conditions directly before collection.
+- Updated: `daily/2026-07-17.md`, `grows/main-2026-03-15/README.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`.
+
+## [2026-07-18] daily | Day 126 / Flower Day 76 - no photos; VPD improved, plant moisture missing
+- No daily photos were available: main overview, Plant A/B/C/D, and breeding overview coverage are all incomplete. Today's visual checks, seed-maturity checks, and pollen/trichome decisions must be done manually.
+- **Main-tent environment:** VPD improved sharply from the dry/high streak: 1.31 kPa overnight and 1.44 kPa morning are in range, with the current reading only slightly high at 1.52 kPa. Current conditions are 73.02°F / 45.04% RH, so hold broad control steady and keep direct seeded-flower airflow/dead-material checks active.
+- **Moisture telemetry:** no trusted direct-percent plant readings reported today. `SBBS-R1-001` through `SBBS-R1-004` are all omitted again; hand-check retained tags, tray/media/posture, and C's probe/feed after its recent lower-reading run and eighth-report dropout sequence.
+- **Transition watch:** the July 4 operator note still says only two seeded flower plants remain, but retained A-D labels were not specified. Update active plant status once the remaining tags are confirmed.
+- **Breeding-tent watch:** Flower Day 55; R2 remains the selected pollen donor. Current-only sensor data again repeats 71.92°F / 83.28% RH / 0.45 kPa, so verify sensor freshness/exposure, airflow, pot weight, and dry pollen-handling conditions directly before collection.
+- Updated: `daily/2026-07-18.md`, `grows/main-2026-03-15/README.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`.
+
+## [2026-07-19] daily | Day 127 / Flower Day 77 - no photos; wet/low VPD, plant moisture missing
+- No daily photos were available: main overview, Plant A/B/C/D, and breeding overview coverage are all incomplete. Today's visual checks, seed-maturity checks, flower-pocket checks, and pollen/trichome decisions must be done manually.
+- **Main-tent environment:** VPD regressed wet/low across all windows at 1.12 kPa overnight / 1.11 kPa morning / 1.13 kPa now, with RH 60-63% and current dew point 62.67°F. Verify clearing, exhaust/fan behavior, humidifier/off-gate state, and any dehumidification while keeping direct seeded-flower airflow active.
+- **Moisture telemetry:** no trusted direct-percent plant readings reported today. `SBBS-R1-001` through `SBBS-R1-004` are all omitted again; hand-check retained tags, tray/media/posture, and C's probe/feed after its recent lower-reading run and ninth-report dropout sequence.
+- **Transition watch:** the July 4 operator note still says only two seeded flower plants remain, but retained A-D labels were not specified. Update active plant status once the remaining tags are confirmed.
+- **Breeding-tent watch:** Flower Day 56; R2 remains the selected pollen donor. Current-only sensor data again repeats 71.92°F / 83.28% RH / 0.45 kPa, so verify sensor freshness/exposure, airflow, pot weight, and dry pollen-handling conditions directly before collection.
+- Updated: `daily/2026-07-19.md`, `grows/main-2026-03-15/README.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`.
+
+## [2026-07-20] daily | Day 128 / Flower Day 78 - no photos; VPD recovered, plant moisture missing
+- No daily photos were available: main overview, Plant A/B/C/D, and breeding overview coverage are all incomplete. Today's visual checks, seed-maturity checks, flower-pocket checks, and pollen/trichome decisions must be done manually.
+- **Main-tent environment:** VPD recovered into the late-flower band across all windows at 1.32 kPa overnight / 1.32 kPa morning / 1.36 kPa now, but RH remains above the guide at 55-58% and current dew point is 61.88°F. Hold broad VPD steady while improving moisture clearing and direct seeded-flower airflow.
+- **Moisture telemetry:** no trusted direct-percent plant readings reported today. `SBBS-R1-001` through `SBBS-R1-004` are all omitted again; hand-check retained tags, tray/media/posture, and C's probe/feed after its recent lower-reading run and tenth-report dropout sequence.
+- **Transition watch:** the July 4 operator note still says only two seeded flower plants remain, but retained A-D labels were not specified. Update active plant status once the remaining tags are confirmed.
+- **Breeding-tent watch:** Flower Day 57; R2 remains the selected pollen donor. Current-only sensor data again repeats 71.92°F / 83.28% RH / 0.45 kPa, so verify sensor freshness/exposure, airflow, pot weight, and dry pollen-handling conditions directly before collection.
+- Updated: `daily/2026-07-20.md`, `grows/main-2026-03-15/README.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`.
+
+## [2026-07-21] daily | Day 129 / Flower Day 79 - no photos; VPD slightly high, plant moisture missing
+- No daily photos were available: main overview, Plant A/B/C/D, and breeding overview coverage are all incomplete. Visual seed-maturity, dense-flower, pollen, and trichome checks must be done manually.
+- **Main-tent environment:** temperature and moisture load dropped sharply; VPD is at the upper edge/slightly high at 1.55 kPa overnight / 1.52 morning / 1.53 now. Avoid extra broad drying while preserving direct seeded-flower airflow.
+- **Moisture telemetry:** no trusted direct-percent plant readings reported. `SBBS-R1-001` through `SBBS-R1-004` are omitted; hand-check retained tags, tray/media/posture, and C's probe/feed after its eleventh-report dropout sequence.
+- **Transition watch:** the July 4 note still says only two seeded flower plants remain, but retained A-D labels were not specified. Reconcile them before DTW conversion.
+- **Breeding-tent watch:** Flower Day 58; R2 remains the selected pollen donor. Current-only sensor data again repeats 71.92°F / 83.28% RH / 0.45 kPa, so verify sensor freshness and dry pollen-handling conditions before collection.
+- Updated: `daily/2026-07-21.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`.
+
+## [2026-07-22] daily | Day 130 / Flower Day 80 - no photos; VPD in range, plant moisture missing
+- No daily photos were available: main overview, Plant A/B/C/D, and breeding overview coverage are all incomplete. Visual seed-maturity, dense-flower, pollen, and trichome checks must be done manually.
+- **Main-tent environment:** VPD is in range at 1.50 kPa overnight / 1.48 morning / 1.48 now, with daytime temperature in range and overnight temperature still warm. Hold broad control steady while preserving direct seeded-flower airflow.
+- **Moisture telemetry:** no trusted direct-percent plant readings reported. `SBBS-R1-001` through `SBBS-R1-004` are omitted; hand-check retained tags, tray/media/posture, and C's probe/feed after its twelfth-report dropout sequence.
+- **Transition watch:** the July 4 note still says only two seeded flower plants remain, but retained A-D labels were not specified. Reconcile them before DTW conversion.
+- **Breeding-tent watch:** Flower Day 59; R2 remains the selected pollen donor. Current-only sensor data again repeats 71.92°F / 83.28% RH / 0.45 kPa, so verify sensor freshness and dry pollen-handling conditions before collection.
+- Updated: `daily/2026-07-22.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`, `../README.md`.
+
+## [2026-07-23] daily | Day 131 / Flower Day 81 - no photos; lights-on VPD dry-high, plant moisture missing
+
+- No main overview, Plant A/B/C/D, or breeding overview photos were available; visual seed, flower, trichome, pollen, retained-tag, and canopy checks remain incomplete.
+- Main Tent 1: 72.19/73.11/74.05°F, 46.10/44.78/44.30% RH, and 1.45/1.54/1.60 kPa VPD overnight/morning/now. Avoid additional broad drying while keeping localized seeded-flower airflow.
+- No trusted direct-percent A-D moisture readings; `SBBS-R1-003` is missing for a thirteenth report after the earlier lower-reading run. Reconcile the two retained tags and verify C's probe/feed, media, tray, and posture.
+- Tent 2 again reports the exact current-only 71.92°F / 83.28% RH / 0.45 kPa repeat with no photo; verify freshness and dry handling conditions before R2 pollen work.
+- Updated: `daily/2026-07-23.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`, `../README.md`.
+
+## [2026-07-24] daily | Day 132 / Flower Day 82 - no photos; lights-on VPD dry-high, plant moisture missing
+
+- No main overview, Plant A/B/C/D, or breeding overview photos were available; visual seed, flower, trichome, pollen, retained-tag, and canopy checks remain incomplete.
+- Main Tent 1: 72.03/74.93/75.51°F, 44.89/43.88/45.10% RH, and 1.48/1.66/1.65 kPa VPD overnight/morning/now. Avoid additional broad drying while keeping localized seeded-flower airflow.
+- No trusted direct-percent A-D moisture readings; `SBBS-R1-003` is missing for a fourteenth report after the earlier lower-reading run. Reconcile the two retained tags and verify C's probe/feed, media, tray, and posture.
+- Tent 2 again reports the exact current-only 71.92°F / 83.28% RH / 0.45 kPa repeat with no photo; verify freshness and dry handling conditions before R2 pollen work.
+- Updated: `daily/2026-07-24.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`, `../README.md`.
+
+## [2026-07-25] daily | Day 133 / Flower Day 83 - no photos; lights-on VPD dry-high, plant moisture missing
+
+- No main overview, Plant A/B/C/D, or breeding overview photos were available; visual seed, flower, trichome, pollen, retained-tag, and canopy checks remain incomplete.
+- Main Tent 1: 72.16/74.56/76.24°F, 44.95/45.30/48.09% RH, and 1.49/1.60/1.60 kPa VPD overnight/morning/now. Avoid added broad drying or heat while keeping localized seeded-flower airflow and direct flower-pocket checks.
+- No trusted direct-percent A-D moisture readings; `SBBS-R1-003` is missing for a fifteenth report after the earlier lower-reading run. Reconcile the two retained tags and verify C's probe/feed, media, tray, and posture.
+- Tent 2 again reports the exact current-only 71.92°F / 83.28% RH / 0.45 kPa repeat with no photo; verify freshness and dry handling conditions before R2 pollen work.
+- Updated: `daily/2026-07-25.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`, `../README.md`.
+
+## [2026-07-26] daily | Day 134 / Flower Day 84 - no photos; VPD improved slightly high, plant moisture missing
+
+- No main overview, Plant A/B/C/D, or breeding overview photos were available; visual seed, flower, trichome, pollen, retained-tag, and canopy checks remain incomplete.
+- Main Tent 1: 72.44/73.65/75.54°F, 45.14/45.26/48.89% RH, and 1.49/1.55/1.54 kPa VPD overnight/morning/now. VPD improved versus the prior dry-high readings but remains slightly high through lights-on; hold broad control steady and keep localized seeded-flower airflow plus direct flower-pocket checks.
+- No trusted direct-percent A-D moisture readings; `SBBS-R1-003` is missing for a sixteenth report after the earlier lower-reading run. Reconcile the two retained tags and verify C's probe/feed, media, tray, and posture.
+- Tent 2 again reports the exact current-only 71.92°F / 83.28% RH / 0.45 kPa repeat with no photo; verify freshness and dry handling conditions before R2 pollen work.
+- Updated: `daily/2026-07-26.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`, `../README.md`.
+
+## [2026-07-27] daily | Day 135 / Flower Day 85 - no photos; VPD in range, RH/dew point high
+
+- No main overview, Plant A/B/C/D, or breeding overview photos were available; visual seed, flower, trichome, pollen, retained-tag, and canopy checks remain incomplete.
+- Main Tent 1: 74.59/75.83/76.35°F, 55.45/58.82/57.28% RH, and 1.30/1.25/1.32 kPa VPD overnight/morning/now. VPD is in range, but the profile is warm and high-moisture; hold broad VPD steady, avoid added heat, and keep localized seeded-flower airflow plus direct flower-pocket checks.
+- No trusted direct-percent A-D moisture readings; `SBBS-R1-003` is missing for a seventeenth report after the earlier lower-reading run. Reconcile the two retained tags and verify C's probe/feed, media, tray, and posture.
+- Tent 2 again reports the exact current-only 71.92°F / 83.28% RH / 0.45 kPa repeat with no photo; verify freshness and dry handling conditions before R2 pollen work.
+- Updated: `daily/2026-07-27.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`, `../README.md`.
+
+## [2026-07-28] daily | Day 136 / Flower Day 86 - no photos; VPD in range, RH/dew point climbed
+
+- No main overview, Plant A/B/C/D, or breeding overview photos were available; visual seed, flower, trichome, pollen, retained-tag, and canopy checks remain incomplete.
+- Main Tent 1: 73.29/75.48/76.28°F, 56.49/58.42/60.27% RH, and 1.22/1.25/1.23 kPa VPD overnight/morning/now. VPD is in range, but the profile is warm and high-moisture with current dew point 61.48°F; hold broad VPD steady, avoid added heat, and keep localized seeded-flower airflow plus direct flower-pocket checks.
+- No trusted direct-percent A-D moisture readings; `SBBS-R1-003` is missing for an eighteenth report after the earlier lower-reading run. Reconcile the two retained tags and verify C's probe/feed, media, tray, and posture.
+- Tent 2 again reports the exact current-only 71.92°F / 83.28% RH / 0.45 kPa repeat with no photo; verify freshness and dry handling conditions before R2 pollen work.
+- Updated: `daily/2026-07-28.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`, `../README.md`.
+
+## [2026-07-29] daily | Day 137 / Flower Day 87 - no photos; VPD in range, RH still high
+
+- No main overview, Plant A/B/C/D, or breeding overview photos were available; visual seed, flower, trichome, pollen, retained-tag, and canopy checks remain incomplete.
+- Main Tent 1: 73.03/74.84/75.97°F, 54.51/55.79/55.63% RH, and 1.26/1.30/1.36 kPa VPD overnight/morning/now. VPD is in range and the current dew point eased to 58.94°F, but RH remains above the late-flower guide; hold broad VPD steady and keep localized seeded-flower airflow plus direct flower-pocket checks.
+- No trusted direct-percent A-D moisture readings; `SBBS-R1-003` is missing for a nineteenth report after the earlier lower-reading run. Reconcile the two retained tags and verify C's probe/feed, media, tray, and posture.
+- Tent 2 again reports the exact current-only 71.92°F / 83.28% RH / 0.45 kPa repeat with no photo; verify freshness and dry handling conditions before R2 pollen work.
+- Updated: `daily/2026-07-29.md`, `grows/main-2026-03-15/README.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`, `../README.md`.
+
+## [2026-07-30] daily | Day 138 / Flower Day 88 - no photos; VPD upper-edge, plant moisture missing
+
+- No main overview, Plant A/B/C/D, or breeding overview photos were available; visual seed, flower, trichome, pollen, retained-tag, and canopy checks remain incomplete.
+- Main Tent 1: 72.77/75.20/75.15°F, 47.93/48.51/49.14% RH, and 1.43/1.54/1.51 kPa VPD overnight/morning/now. RH and dew point improved materially, but lights-on VPD is now slightly high; avoid added heat or broad drying while checking retained seeded flowers directly.
+- No trusted direct-percent A-D moisture readings; `SBBS-R1-003` is missing for a twentieth report after the earlier lower-reading run. Reconcile the two retained tags and verify C's probe/feed, media, tray, and posture.
+- Tent 2 again reports the exact current-only 71.92°F / 83.28% RH / 0.45 kPa repeat with no photo; verify freshness and dry handling conditions before R2 pollen work.
+- Updated: `daily/2026-07-30.md`, `grows/main-2026-03-15/README.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`, `../README.md`.
+
+## [2026-07-31] daily | Day 139 / Flower Day 89 - no photos; VPD in range, RH above guide
+
+- No main overview, Plant A/B/C/D, or breeding overview photos were available; visual seed, flower, trichome, pollen, retained-tag, and canopy checks remain incomplete.
+- Main Tent 1: 72.83/74.40/74.98°F, 50.44/48.69/51.87% RH, and 1.37/1.49/1.43 kPa VPD overnight/morning/now. VPD recovered into range, but RH remains above the late-flower guide and current dew point rose to 56.08°F; hold broad control steady and keep localized seeded-flower checks active.
+- No trusted direct-percent A-D moisture readings; `SBBS-R1-003` is missing for a twenty-first report after the earlier lower-reading run. Reconcile the two retained tags and verify C's probe/feed, media, tray, and posture.
+- Tent 2 again reports the exact current-only 71.92°F / 83.28% RH / 0.45 kPa repeat with no photo; verify freshness and dry handling conditions before R2 pollen work.
+- Updated: `daily/2026-07-31.md`, `grows/main-2026-03-15/README.md`, `grows/main-2026-03-15/plants/plant-{a,b,c,d}.md`, `grows/breeding-track-a-2026-04-28/README.md`, `grows/breeding-track-a-2026-04-28/plants/plant-r{1,2,3,4,5}.md`, `environment/temperature.md`, `environment/humidity.md`, `overview.md`, `index.md`, `../README.md`.

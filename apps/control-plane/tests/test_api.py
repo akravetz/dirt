@@ -1046,6 +1046,55 @@ async def test_catalog_upsert_is_idempotent(
     assert plant_a_stream.is_active is True
 
 
+async def test_catalog_snapshot_deactivates_omitted_plant_metric_streams(
+    client: AsyncClient,
+    gateway_headers: dict[str, str],
+    cloud_engine: AsyncEngine,
+) -> None:
+    catalog = {
+        "site_id": "homebox",
+        "site": {"source_site_id": 1, "name": "Home Box"},
+        "sex_tests": [],
+        "plant_metric_streams": [
+            {
+                "source_plant_id": 42,
+                "device_id": "substrate-node",
+                "capability_id": "soil_moisture_pct",
+                "metric": "soil_moisture_pct",
+                "display_order": 1,
+                "is_active": True,
+            }
+        ],
+    }
+    first = await client.put(
+        "/api/gateway/v1/catalog",
+        json=catalog,
+        headers=gateway_headers,
+    )
+    catalog["plant_metric_streams"] = []
+    second = await client.put(
+        "/api/gateway/v1/catalog",
+        json=catalog,
+        headers=gateway_headers,
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    async with create_sessionmaker(cloud_engine)() as session:
+        stream = (
+            await session.execute(
+                select(CloudPlantMetricStream).where(
+                    CloudPlantMetricStream.site_id == "homebox",
+                    CloudPlantMetricStream.source_plant_id == 42,
+                    CloudPlantMetricStream.device_id == "substrate-node",
+                    CloudPlantMetricStream.capability_id == "soil_moisture_pct",
+                    CloudPlantMetricStream.metric == "soil_moisture_pct",
+                )
+            )
+        ).scalar_one()
+    assert stream.is_active is False
+
+
 async def test_catalog_upsert_persists_source_scope_ids(
     client: AsyncClient,
     gateway_headers: dict[str, str],

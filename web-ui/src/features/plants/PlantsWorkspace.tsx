@@ -22,6 +22,7 @@ import {
   type PlantsPendingCommand,
   pendingTimelineNotes,
   readonlyPlantPrefixPreview,
+  removeProjectedPendingCommands,
   type SexTestResultSexKey,
   type UpdateSexTestMutationInput,
   useBulkCreateSexTestsMutation,
@@ -103,6 +104,23 @@ type TableGroup = {
   stageKey: PlantStageKey;
   plants: readonly PlantRow[];
 };
+
+type PlantTableSortKey =
+  | "plant"
+  | "generation"
+  | "parents"
+  | "sex"
+  | "days"
+  | "germinated"
+  | "veg"
+  | "flower"
+  | "sexTest"
+  | "lastNote";
+type PlantTableSortDirection = "asc" | "desc";
+type PlantTableSortState = {
+  key: PlantTableSortKey;
+  direction: PlantTableSortDirection;
+} | null;
 
 type PlantVisibilityFilter = "active" | "all" | "culled" | "harvested";
 type PlantLifecycleStatusFilter = "all" | "started" | "veg" | "flower";
@@ -250,8 +268,26 @@ const DEFAULT_PLANTS_SEARCH = {
   visibility: "active",
 } as const satisfies Required<PlantsSearchState>;
 const PLANT_FILTER_COLLATOR = new Intl.Collator("en", { sensitivity: "base" });
+const PLANT_TABLE_SORT_COLLATOR = new Intl.Collator("en", {
+  numeric: true,
+  sensitivity: "base",
+});
 const DEFAULT_SEX_TEST_VENDOR = "Farmer Freeman";
 const DEFAULT_SEX_TEST_ASSAY = "EZ-XY";
+const PLANT_TABLE_GRID_CLASS =
+  "grid grid-cols-[36px_150px_42px_168px_40px_64px_72px_72px_72px_92px_minmax(150px,1fr)]";
+const PLANT_TABLE_SORT_COLUMNS = [
+  { key: "plant", label: "Plant" },
+  { key: "generation", label: "Gen" },
+  { key: "parents", label: "Parents" },
+  { key: "sex", label: "Sex" },
+  { key: "days", label: "Days" },
+  { key: "germinated", label: "Germ" },
+  { key: "veg", label: "Veg" },
+  { key: "flower", label: "Flwr" },
+  { key: "sexTest", label: "Test" },
+  { key: "lastNote", label: "Last note" },
+] as const satisfies readonly { key: PlantTableSortKey; label: string }[];
 
 type PlantsPageView = "plants" | "add-plants" | "detail";
 type PlantsPageMode = "list" | "new-plant" | "detail";
@@ -451,6 +487,7 @@ function PlantsPage({
   );
   const [noteText, setNoteText] = useState("");
   const [draggingPlantId, setDraggingPlantId] = useState<string | null>(null);
+  const [tableSort, setTableSort] = useState<PlantTableSortState>(null);
 
   useEffect(() => {
     setView(pageViewFromMode(mode));
@@ -504,20 +541,33 @@ function PlantsPage({
   }, [detail.plant, detailFactsDraftPlantKey, detailFactsEditing]);
   const noteTargetPlantKeys = bulkNotePlantKeys ?? [detail.plant.key];
   const loggingBulkNote = bulkNotePlantKeys !== null;
-  const unprojectedSucceededCommands = useMemo(
-    () =>
-      pendingCommands.filter(
-        (pending) =>
-          pending.command.status === "succeeded" &&
-          !isPendingCommandProjected(
-            pending,
-            serverPlants,
-            logbook.detail.events,
-            logbook.detail.plant.key,
-          ),
-      ),
-    [pendingCommands, serverPlants, logbook.detail.events, logbook.detail.plant.key],
-  );
+  const succeededCommandProjectionState = useMemo(() => {
+    const projectedCommandIds: string[] = [];
+    const unprojectedCommands: PlantsPendingCommand[] = [];
+    for (const pending of pendingCommands) {
+      if (pending.command.status !== "succeeded") continue;
+      if (
+        isPendingCommandProjected(
+          pending,
+          serverPlants,
+          logbook.detail.events,
+          logbook.detail.plant.key,
+        )
+      ) {
+        projectedCommandIds.push(pending.commandId);
+      } else {
+        unprojectedCommands.push(pending);
+      }
+    }
+    return { projectedCommandIds, unprojectedCommands };
+  }, [pendingCommands, serverPlants, logbook.detail.events, logbook.detail.plant.key]);
+  const { projectedCommandIds, unprojectedCommands: unprojectedSucceededCommands } =
+    succeededCommandProjectionState;
+
+  useEffect(() => {
+    if (projectedCommandIds.length === 0) return;
+    removeProjectedPendingCommands(queryClient, projectedCommandIds);
+  }, [projectedCommandIds, queryClient]);
 
   useEffect(() => {
     if (unprojectedSucceededCommands.length === 0) return;
@@ -587,6 +637,7 @@ function PlantsPage({
             search={search}
             sexTestCreatePending={bulkCreateSexTestsMutation.isPending}
             sexTestResultPending={bulkResultSexTestsMutation.isPending}
+            tableSort={tableSort}
             selectedLocation={selectedLocation}
             selectedPlantIds={selectedPlantIds}
             selectedPlants={selectedPlants}
@@ -818,6 +869,7 @@ function PlantsPage({
                 replace: true,
               });
             }}
+            onTableSortChange={setTableSort}
             onMoveLocationChange={setMoveLocationKey}
             onOpenBulkNote={() => {
               const firstSelected = selectedPlants[0];
@@ -1120,12 +1172,14 @@ function PlantsSurface({
   onSexTestFilterChange,
   onStatusFilterChange,
   onStrainFilterChange,
+  onTableSortChange,
   onVisibilityChange,
   plants,
   pendingCommands,
   search,
   sexTestCreatePending,
   sexTestResultPending,
+  tableSort,
   selectedLocation,
   selectedPlantIds,
   selectedPlants,
@@ -1155,6 +1209,7 @@ function PlantsSurface({
   search: Required<PlantsSearchState>;
   sexTestCreatePending: boolean;
   sexTestResultPending: boolean;
+  tableSort: PlantTableSortState;
   selectedLocation: LocationOption;
   selectedPlantIds: ReadonlySet<string>;
   selectedPlants: readonly PlantRow[];
@@ -1190,6 +1245,7 @@ function PlantsSurface({
   onSexTestFilterChange: (sexTest: PlantSexTestStateFilter) => void;
   onStatusFilterChange: (status: PlantLifecycleStatusFilter) => void;
   onStrainFilterChange: (strain: string) => void;
+  onTableSortChange: (sort: PlantTableSortState) => void;
   onVisibilityChange: (visibility: PlantVisibilityFilter) => void;
 }): ReactNode {
   const selectedCount = selectedPlantIds.size;
@@ -1307,7 +1363,9 @@ function PlantsSurface({
           pendingCommands={pendingCommands}
           selectedPlantIds={selectedPlantIds}
           someChecked={someVisibleSelected}
+          sortState={tableSort}
           onOpenDetail={onOpenDetail}
+          onSortChange={onTableSortChange}
           onToggleAll={toggleAllVisible}
           onTogglePlant={togglePlant}
         />
@@ -1843,7 +1901,7 @@ function SexTestSamplingPanel({
         />
       </div>
       <div className="overflow-x-auto border border-rule-strong bg-paper">
-        <div className="min-w-180">
+        <div className="min-w-130 md:min-w-0">
           <div className="grid grid-cols-[150px_minmax(150px,0.8fr)_minmax(180px,1fr)] gap-2 border-b border-rule bg-paper-2 px-3 py-2 font-mono text-fs-9 uppercase tracking-caps text-ink-3">
             <span>Plant</span>
             <span>Vendor code</span>
@@ -2195,12 +2253,14 @@ function PlantTable({
   bootstrap,
   groupBy,
   onOpenDetail,
+  onSortChange,
   onToggleAll,
   onTogglePlant,
   pendingCommands,
   plants,
   selectedPlantIds,
   someChecked,
+  sortState,
 }: {
   allChecked: boolean;
   bootstrap: PlantsBootstrap;
@@ -2209,35 +2269,42 @@ function PlantTable({
   plants: readonly PlantRow[];
   selectedPlantIds: ReadonlySet<string>;
   someChecked: boolean;
+  sortState: PlantTableSortState;
   onOpenDetail: (plantId: string) => void;
+  onSortChange: (sort: PlantTableSortState) => void;
   onToggleAll: () => void;
   onTogglePlant: (plantId: string) => void;
 }): ReactNode {
+  const sortedPlants = useMemo(
+    () => sortPlantsForTable(plants, sortState),
+    [plants, sortState],
+  );
   const groups = useMemo(
-    () => groupPlants(plants, bootstrap, groupBy),
-    [plants, bootstrap, groupBy],
+    () => groupPlants(sortedPlants, bootstrap, groupBy),
+    [sortedPlants, bootstrap, groupBy],
   );
 
   return (
     <section className="overflow-x-auto border border-rule-strong bg-paper">
       <div className="min-w-230">
-        <div className="grid grid-cols-[36px_150px_42px_168px_40px_64px_72px_72px_72px_92px_minmax(150px,1fr)] gap-2 border-b border-rule-strong bg-paper-2 px-3 py-2 font-mono text-fs-9 uppercase tracking-caps text-ink-3">
+        <div
+          className={`${PLANT_TABLE_GRID_CLASS} gap-2 border-b border-rule-strong bg-paper-2 px-3 py-2`}
+        >
           <Checkbox
             checked={allChecked}
             indeterminate={someChecked && !allChecked}
             label="Select all visible plants"
             onChange={onToggleAll}
           />
-          <span>Plant</span>
-          <span>Gen</span>
-          <span>Parents</span>
-          <span>Sex</span>
-          <span>Days</span>
-          <span>Germ</span>
-          <span>Veg</span>
-          <span>Flwr</span>
-          <span>Test</span>
-          <span>Last note</span>
+          {PLANT_TABLE_SORT_COLUMNS.map((column) => (
+            <PlantTableSortHeader
+              key={column.key}
+              columnKey={column.key}
+              label={column.label}
+              sortState={sortState}
+              onSortChange={onSortChange}
+            />
+          ))}
         </div>
         {groups.map((group) => (
           <div key={group.key}>
@@ -2281,8 +2348,8 @@ function PlantTableRow({
     <div
       className={
         selected
-          ? "grid grid-cols-[36px_150px_42px_168px_40px_64px_72px_72px_72px_92px_minmax(150px,1fr)] items-center gap-2 border-b border-rule bg-accent-magenta/8 px-3 py-2.5 font-sans text-fs-11 last:border-b-0"
-          : "grid grid-cols-[36px_150px_42px_168px_40px_64px_72px_72px_72px_92px_minmax(150px,1fr)] items-center gap-2 border-b border-rule px-3 py-2.5 font-sans text-fs-11 last:border-b-0 hover:bg-paper-2"
+          ? `${PLANT_TABLE_GRID_CLASS} items-center gap-2 border-b border-rule bg-accent-magenta/8 px-3 py-2.5 font-sans text-fs-11 last:border-b-0`
+          : `${PLANT_TABLE_GRID_CLASS} items-center gap-2 border-b border-rule px-3 py-2.5 font-sans text-fs-11 last:border-b-0 hover:bg-paper-2`
       }
     >
       <Checkbox
@@ -2334,6 +2401,56 @@ function PlantTableRow({
         {plant.lastNote}
       </span>
     </div>
+  );
+}
+
+function PlantTableSortHeader({
+  columnKey,
+  label,
+  onSortChange,
+  sortState,
+}: {
+  columnKey: PlantTableSortKey;
+  label: string;
+  sortState: PlantTableSortState;
+  onSortChange: (sort: PlantTableSortState) => void;
+}): ReactNode {
+  const activeDirection = sortState?.key === columnKey ? sortState.direction : null;
+  const nextAction =
+    activeDirection === "asc"
+      ? "descending"
+      : activeDirection === "desc"
+        ? "original order"
+        : "ascending";
+  const indicator =
+    activeDirection === "asc" ? "↑" : activeDirection === "desc" ? "↓" : "-";
+
+  return (
+    <button
+      type="button"
+      aria-label={`Sort ${label} ${nextAction}`}
+      aria-pressed={activeDirection !== null}
+      onClick={() => {
+        onSortChange(nextPlantTableSortState(sortState, columnKey));
+      }}
+      className={
+        activeDirection === null
+          ? "flex h-5 min-w-0 items-center gap-1 text-left font-mono text-fs-9 uppercase tracking-caps text-ink-3 transition hover:text-ink"
+          : "flex h-5 min-w-0 items-center gap-1 text-left font-mono text-fs-9 uppercase tracking-caps text-ink transition hover:text-accent-magenta"
+      }
+    >
+      <span className="truncate">{label}</span>
+      <span
+        aria-hidden="true"
+        className={
+          activeDirection === null
+            ? "ml-auto w-3 text-right text-transparent"
+            : "ml-auto w-3 text-right text-accent-magenta"
+        }
+      >
+        {indicator}
+      </span>
+    </button>
   );
 }
 
@@ -2828,6 +2945,20 @@ function PlantJournalDetail({
   sexTestMutationPending: boolean;
 }): ReactNode {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const sexTestWorkPanelRef = useRef<HTMLDivElement | null>(null);
+  const [sexTestActionState, setSexTestActionState] = useState<{
+    action: SexTestHistoryAction;
+    plantKey: string;
+  }>({ action: null, plantKey: detail.plant.key });
+  const sexTestAction =
+    sexTestActionState.plantKey === detail.plant.key ? sexTestActionState.action : null;
+  const setSexTestAction = (nextAction: SexTestHistoryAction) => {
+    setSexTestActionState({ action: nextAction, plantKey: detail.plant.key });
+  };
+  useEffect(() => {
+    if (sexTestAction === null) return;
+    sexTestWorkPanelRef.current?.scrollIntoView({ block: "start" });
+  }, [sexTestAction]);
 
   return (
     <>
@@ -2888,15 +3019,12 @@ function PlantJournalDetail({
             onSave={onSaveFacts}
           />
           <PlantSexTestHistory
+            action={sexTestAction}
             disabled={sexTestActionsDisabled}
-            maxEventDateTime={maxEventDateTime}
             mutationError={sexTestMutationError}
             mutationPending={sexTestMutationPending}
-            pendingCommands={pendingCommands}
             plant={detail.plant}
-            onCreateSexTests={onCreateSexTests}
-            onResultSexTests={onResultSexTests}
-            onUpdateSexTest={onUpdateSexTest}
+            onActionChange={setSexTestAction}
           />
           <div className="mt-4 border border-rule bg-paper p-3">
             <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
@@ -2914,7 +3042,32 @@ function PlantJournalDetail({
           </div>
         </aside>
         <section className="bg-paper p-4">
-          <div className="border border-rule bg-paper-2 p-3">
+          {sexTestAction ? (
+            <div ref={sexTestWorkPanelRef}>
+              <SexTestWorkPanel
+                action={sexTestAction}
+                disabled={sexTestActionsDisabled}
+                maxEventDateTime={maxEventDateTime}
+                mutationError={sexTestMutationError}
+                mutationPending={sexTestMutationPending}
+                pendingCommands={pendingCommands}
+                plant={detail.plant}
+                onCancel={() => {
+                  setSexTestAction(null);
+                }}
+                onCreateSexTests={onCreateSexTests}
+                onResultSexTests={onResultSexTests}
+                onUpdateSexTest={onUpdateSexTest}
+              />
+            </div>
+          ) : null}
+          <div
+            className={
+              sexTestAction
+                ? "mt-4 border border-rule bg-paper-2 p-3"
+                : "border border-rule bg-paper-2 p-3"
+            }
+          >
             <textarea
               value={noteText}
               onChange={(event) => {
@@ -3219,6 +3372,7 @@ type SexTestHistoryAction =
   | { kind: "edit"; sexTest: PlantSexTest }
   | { kind: "result"; sexTest: PlantSexTest }
   | null;
+type ActiveSexTestHistoryAction = Exclude<SexTestHistoryAction, null>;
 type SexTestEditDraft = {
   vendorName: string;
   assayName: string;
@@ -3229,34 +3383,21 @@ type SexTestEditDraft = {
 };
 
 function PlantSexTestHistory({
+  action,
   disabled,
-  maxEventDateTime,
   mutationError,
   mutationPending,
-  onCreateSexTests,
-  onResultSexTests,
-  onUpdateSexTest,
-  pendingCommands,
+  onActionChange,
   plant,
 }: {
+  action: SexTestHistoryAction;
   disabled: boolean;
-  maxEventDateTime: string;
   mutationError: string | null;
   mutationPending: boolean;
-  pendingCommands: readonly PlantsPendingCommand[];
   plant: PlantRow;
-  onCreateSexTests: SexTestMutationSubmit<CreateSexTestsInput>;
-  onResultSexTests: SexTestMutationSubmit<ResultSexTestsInput>;
-  onUpdateSexTest: SexTestMutationSubmit<UpdateSexTestInput>;
+  onActionChange: (action: SexTestHistoryAction) => void;
 }): ReactNode {
-  const [actionState, setActionState] = useState<{
-    action: SexTestHistoryAction;
-    plantKey: string;
-  }>({ action: null, plantKey: plant.key });
-  const action = actionState.plantKey === plant.key ? actionState.action : null;
-  const setPlantAction = (nextAction: SexTestHistoryAction) => {
-    setActionState({ action: nextAction, plantKey: plant.key });
-  };
+  const addActive = action?.kind === "add";
 
   return (
     <div className="mt-4 border border-rule bg-paper p-3">
@@ -3268,9 +3409,13 @@ function PlantSexTestHistory({
           type="button"
           disabled={disabled || mutationPending}
           onClick={() => {
-            setPlantAction(action?.kind === "add" ? null : { kind: "add" });
+            onActionChange(addActive ? null : { kind: "add" });
           }}
-          className="border border-rule px-2 py-1 font-mono text-fs-9 uppercase tracking-caps text-ink-3 transition hover:border-rule-strong hover:text-ink disabled:cursor-not-allowed disabled:text-ink-3"
+          className={
+            addActive
+              ? "border border-rule-strong bg-paper-2 px-2 py-1 font-mono text-fs-9 uppercase tracking-caps text-ink transition disabled:cursor-not-allowed disabled:text-ink-3"
+              : "border border-rule px-2 py-1 font-mono text-fs-9 uppercase tracking-caps text-ink-3 transition hover:border-rule-strong hover:text-ink disabled:cursor-not-allowed disabled:text-ink-3"
+          }
         >
           Add
         </button>
@@ -3279,59 +3424,6 @@ function PlantSexTestHistory({
         <div className="mt-2">
           <InlineError text={mutationError} />
         </div>
-      ) : null}
-      {action?.kind === "add" ? (
-        <div className="mt-3 border-t border-rule">
-          <SexTestSamplingPanel
-            maxEventDateTime={maxEventDateTime}
-            mutationPending={mutationPending}
-            pendingCommands={pendingCommands}
-            plants={[plant]}
-            submitLabel="Create test"
-            onCreateSexTests={(input, onSuccess) => {
-              onCreateSexTests(input, () => {
-                onSuccess();
-                setPlantAction(null);
-              });
-            }}
-          />
-        </div>
-      ) : null}
-      {action?.kind === "edit" ? (
-        <SexTestEditForm
-          disabled={disabled || mutationPending}
-          maxEventDateTime={maxEventDateTime}
-          plant={plant}
-          sexTest={action.sexTest}
-          onCancel={() => {
-            setPlantAction(null);
-          }}
-          onUpdateSexTest={(input, onSuccess) => {
-            onUpdateSexTest(input, () => {
-              onSuccess();
-              setPlantAction(null);
-            });
-          }}
-        />
-      ) : null}
-      {action?.kind === "result" ? (
-        <SexTestResultForm
-          disabled={
-            disabled || mutationPending || !hasProjectedSexTestIdentity(action.sexTest)
-          }
-          maxEventDateTime={maxEventDateTime}
-          plant={plant}
-          sexTest={action.sexTest}
-          onCancel={() => {
-            setPlantAction(null);
-          }}
-          onResultSexTests={(input, onSuccess) => {
-            onResultSexTests(input, () => {
-              onSuccess();
-              setPlantAction(null);
-            });
-          }}
-        />
       ) : null}
       <div className="mt-3 grid gap-px bg-rule">
         {plant.sexTests.length === 0 ? (
@@ -3378,7 +3470,7 @@ function PlantSexTestHistory({
                       !hasProjectedSexTestIdentity(sexTest)
                     }
                     onClick={() => {
-                      setPlantAction({ kind: "edit", sexTest });
+                      onActionChange({ kind: "edit", sexTest });
                     }}
                     className="border border-rule bg-paper px-2 py-1 font-mono text-fs-9 uppercase tracking-caps text-ink-3 transition hover:border-rule-strong hover:text-ink disabled:cursor-not-allowed disabled:text-ink-3"
                   >
@@ -3389,7 +3481,7 @@ function PlantSexTestHistory({
                       type="button"
                       disabled={disabled || mutationPending || syncing}
                       onClick={() => {
-                        setPlantAction({ kind: "result", sexTest });
+                        onActionChange({ kind: "result", sexTest });
                       }}
                       className="border border-rule bg-paper px-2 py-1 font-mono text-fs-9 uppercase tracking-caps text-ink-3 transition hover:border-rule-strong hover:text-ink disabled:cursor-not-allowed disabled:text-ink-3"
                     >
@@ -3404,6 +3496,118 @@ function PlantSexTestHistory({
       </div>
       {disabled && !mutationPending ? <PendingBlockMessage /> : null}
     </div>
+  );
+}
+
+function SexTestWorkPanel({
+  action,
+  disabled,
+  maxEventDateTime,
+  mutationError,
+  mutationPending,
+  onCancel,
+  onCreateSexTests,
+  onResultSexTests,
+  onUpdateSexTest,
+  pendingCommands,
+  plant,
+}: {
+  action: ActiveSexTestHistoryAction;
+  disabled: boolean;
+  maxEventDateTime: string;
+  mutationError: string | null;
+  mutationPending: boolean;
+  pendingCommands: readonly PlantsPendingCommand[];
+  plant: PlantRow;
+  onCancel: () => void;
+  onCreateSexTests: SexTestMutationSubmit<CreateSexTestsInput>;
+  onResultSexTests: SexTestMutationSubmit<ResultSexTestsInput>;
+  onUpdateSexTest: SexTestMutationSubmit<UpdateSexTestInput>;
+}): ReactNode {
+  const title =
+    action.kind === "add"
+      ? "Add sex test"
+      : action.kind === "edit"
+        ? "Edit sex test"
+        : "Record sex-test result";
+
+  return (
+    <section className="border border-rule bg-paper-2">
+      <header className="flex flex-wrap items-start justify-between gap-2 px-3 py-3">
+        <div className="min-w-0">
+          <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+            Sex test
+          </p>
+          <h3 className="mt-1 font-sans text-fs-16 font-semibold text-ink">{title}</h3>
+          <p className="mt-1 truncate font-mono text-fs-9 uppercase tracking-caps text-ink-3">
+            {plant.name} / {plant.key}
+          </p>
+        </div>
+        {action.kind === "add" ? (
+          <Button variant="secondary" disabled={mutationPending} onClick={onCancel}>
+            Cancel
+          </Button>
+        ) : null}
+      </header>
+      {mutationError ? (
+        <div className="px-3 pb-3">
+          <InlineError text={mutationError} />
+        </div>
+      ) : null}
+      {action.kind === "add" ? (
+        <SexTestSamplingPanel
+          maxEventDateTime={maxEventDateTime}
+          mutationPending={mutationPending}
+          pendingCommands={pendingCommands}
+          plants={[plant]}
+          submitLabel="Create test"
+          onCreateSexTests={(input, onSuccess) => {
+            onCreateSexTests(input, () => {
+              onSuccess();
+              onCancel();
+            });
+          }}
+        />
+      ) : null}
+      {action.kind === "edit" ? (
+        <div className="bg-paper px-3 pb-3">
+          <SexTestEditForm
+            disabled={disabled || mutationPending}
+            maxEventDateTime={maxEventDateTime}
+            plant={plant}
+            sexTest={action.sexTest}
+            onCancel={onCancel}
+            onUpdateSexTest={(input, onSuccess) => {
+              onUpdateSexTest(input, () => {
+                onSuccess();
+                onCancel();
+              });
+            }}
+          />
+        </div>
+      ) : null}
+      {action.kind === "result" ? (
+        <div className="bg-paper px-3 pb-3">
+          <SexTestResultForm
+            disabled={
+              disabled ||
+              mutationPending ||
+              !hasProjectedSexTestIdentity(action.sexTest)
+            }
+            maxEventDateTime={maxEventDateTime}
+            plant={plant}
+            sexTest={action.sexTest}
+            onCancel={onCancel}
+            onResultSexTests={(input, onSuccess) => {
+              onResultSexTests(input, () => {
+                onSuccess();
+                onCancel();
+              });
+            }}
+          />
+        </div>
+      ) : null}
+    </section>
   );
 }
 
@@ -4415,6 +4619,109 @@ function groupPlants(
       plants: plants.filter((plant) => plant.stageKey === stage.key),
     }))
     .filter((group) => group.plants.length > 0);
+}
+
+export function nextPlantTableSortState(
+  current: PlantTableSortState,
+  key: PlantTableSortKey,
+): PlantTableSortState {
+  if (current?.key !== key) return { key, direction: "asc" };
+  if (current.direction === "asc") return { key, direction: "desc" };
+  return null;
+}
+
+export function sortPlantsForTable(
+  plants: readonly PlantRow[],
+  sortState: PlantTableSortState,
+): readonly PlantRow[] {
+  if (sortState === null) return plants;
+  return plants
+    .map((plant, index) => ({ index, plant }))
+    .toSorted((left, right) => {
+      const comparison = comparePlantsForTable(
+        left.plant,
+        right.plant,
+        sortState.key,
+        sortState.direction,
+      );
+      if (comparison !== 0) return comparison;
+      return left.index - right.index;
+    })
+    .map(({ plant }) => plant);
+}
+
+function comparePlantsForTable(
+  left: PlantRow,
+  right: PlantRow,
+  key: PlantTableSortKey,
+  direction: PlantTableSortDirection,
+): number {
+  switch (key) {
+    case "plant":
+      return applySortDirection(
+        compareText(left.name, right.name) || compareText(left.key, right.key),
+        direction,
+      );
+    case "generation":
+      return applySortDirection(
+        compareText(left.generation, right.generation),
+        direction,
+      );
+    case "parents":
+      return applySortDirection(
+        compareText(left.parentsLabel, right.parentsLabel),
+        direction,
+      );
+    case "sex":
+      return applySortDirection(compareText(left.sexKey, right.sexKey), direction);
+    case "days":
+      return applySortDirection(left.stageDay - right.stageDay, direction);
+    case "germinated":
+      return compareNullableText(left.germinatedOn, right.germinatedOn, direction);
+    case "veg":
+      return compareNullableText(left.vegStartedOn, right.vegStartedOn, direction);
+    case "flower":
+      return compareNullableText(
+        left.flowerStartedOn,
+        right.flowerStartedOn,
+        direction,
+      );
+    case "sexTest":
+      return applySortDirection(
+        compareText(plantSexTestSortText(left), plantSexTestSortText(right)),
+        direction,
+      );
+    case "lastNote":
+      return applySortDirection(compareText(left.lastNote, right.lastNote), direction);
+  }
+}
+
+function applySortDirection(
+  comparison: number,
+  direction: PlantTableSortDirection,
+): number {
+  return direction === "asc" ? comparison : -comparison;
+}
+
+function compareText(left: string, right: string): number {
+  return PLANT_TABLE_SORT_COLLATOR.compare(left.trim(), right.trim());
+}
+
+function compareNullableText(
+  left: string | null,
+  right: string | null,
+  direction: PlantTableSortDirection,
+): number {
+  if (left === null && right === null) return 0;
+  if (left === null) return 1;
+  if (right === null) return -1;
+  return applySortDirection(compareText(left, right), direction);
+}
+
+function plantSexTestSortText(plant: PlantRow): string {
+  const sexTest = latestSexTest(plant);
+  if (sexTest === undefined) return "";
+  return `${sexTestStatusLabel(sexTest)} ${sexTest.vendorTestCode}`;
 }
 
 function plantExactFilterOptions(

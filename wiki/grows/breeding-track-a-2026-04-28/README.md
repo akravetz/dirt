@@ -4,7 +4,7 @@ type: grow
 sources: []
 related: [wiki/breeding/README.md, wiki/breeding/timeline.md, wiki/breeding/male-evaluation.md, wiki/breeding/pollen-handling.md]
 created: 2026-05-30
-updated: 2026-06-25
+updated: 2026-07-31
 ---
 
 # Track A Pollen Run
@@ -28,10 +28,10 @@ Track A is the male sexing and pollen-collection run for the SBxBS01 regular
 seed batch. Seven regular seeds germinated, two died during transplant to coco
 coir, and the R1-R5 survivor pool has now been narrowed to one pollen donor.
 
-As of 2026-06-25, R2 is the only retained Track A plant. R2 was kept because it
+As of 2026-07-31, R2 is the only retained Track A plant. R2 was kept because it
 showed purple coloration on the pollen sacs, and the current plan is to collect
 pollen from R2. R1, R3, R4, and R5 are culled/not retained for pollen. No
-breeding photo was available on 2026-06-25, and the current-only breeding sensor
+breeding photo was available on 2026-07-31, and the current-only breeding sensor
 again repeated 71.92°F / 83.28% RH / 0.45 kPa, so verify sensor freshness,
 air exchange, pot weight, and dry pollen-handling conditions directly.
 
@@ -66,3 +66,24 @@ air exchange, pot weight, and dry pollen-handling conditions directly.
 - 2026-06-23 — No breeding photo; current-only wet sensor repeat again means R2 pollen collection needs sensor freshness, airflow, pot-weight, and dry-handling verification. See [2026-06-23](../../daily/2026-06-23.md).
 - 2026-06-24 — No breeding photo; current-only wet sensor repeat again means R2 pollen collection needs sensor freshness, airflow, pot-weight, and dry-handling verification. See [2026-06-24](../../daily/2026-06-24.md).
 - 2026-06-25 — No breeding photo; current-only wet sensor repeat again means R2 pollen collection needs sensor freshness, airflow, pot-weight, and dry-handling verification. See [2026-06-25](../../daily/2026-06-25.md).
+- 2026-06-26 — No breeding photo; current-only wet sensor repeat again means R2 pollen collection needs sensor freshness, airflow, pot-weight, and dry-handling verification. See [2026-06-26](../../daily/2026-06-26.md).
+- 2026-06-27 — No breeding photo; current-only wet sensor repeat again means R2 pollen collection needs sensor freshness, airflow, pot-weight, and dry-handling verification. See [2026-06-27](../../daily/2026-06-27.md).
+- 2026-06-28 — No breeding photo; current-only wet sensor repeat again means R2 pollen collection needs sensor freshness, airflow, pot-weight, and dry-handling verification. See [2026-06-28](../../daily/2026-06-28.md).
+- 2026-06-29 — No breeding photo; current-only wet sensor repeat again means R2 pollen collection needs sensor freshness, airflow, pot-weight, and dry-handling verification. See [2026-06-29](../../daily/2026-06-29.md).
+- 2026-06-30 — No breeding photo; current-only wet sensor repeat again means R2 pollen collection needs sensor freshness, airflow, pot-weight, and dry-handling verification. See [2026-06-30](../../daily/2026-06-30.md).
+- 2026-07-01 — No breeding photo; current-only wet sensor repeat again means R2 pollen collection needs sensor freshness, airflow, pot-weight, and dry-handling verification. See [2026-07-01](../../daily/2026-07-01.md).
+- 2026-07-02 — No breeding photo; current-only wet sensor repeat again means R2 pollen collection needs sensor freshness, airflow, pot-weight, and dry-handling verification. See [2026-07-02](../../daily/2026-07-02.md).
+- 2026-07-03 — No breeding photo; current-only wet sensor repeat again means R2 pollen collection needs sensor freshness, airflow, pot-weight, and dry-handling verification. See [2026-07-03](../../daily/2026-07-03.md).
+- 2026-07-04 — No breeding photo; current-only wet sensor repeat again means R2 pollen collection needs sensor freshness, airflow, pot-weight, and dry-handling verification. See [2026-07-04](../../daily/2026-07-04.md).
+- 2026-07-05 — No breeding photo; current-only wet sensor repeat again means R2 pollen collection needs sensor freshness, airflow, pot-weight, and dry-handling verification. See [2026-07-05](../../daily/2026-07-05.md).
+- 2026-07-06 — No breeding photo; current-only wet sensor repeat again means R2 pollen collection needs sensor freshness, airflow, pot-weight, and dry-handling verification. See [2026-07-06](../../daily/2026-07-06.md).
+- 2026-07-07 — No breeding photo; current-only wet sensor repeat again means R2 pollen collection needs sensor freshness, airflow, pot-weight, and dry-handling verification. See [2026-07-07](../../daily/2026-07-07.md).
+- 2026-07-08 — No breeding photo; current-only wet sensor repeat again means R2 pollen collection needs sensor freshness, airflow, pot-weight, and dry-handling verification. See [2026-07-08](../../daily/2026-07-08.md).
+- 2026-07-09 — No breeding photo; current-only wet sensor repeat again means R2 pollen collection needs sensor freshness, airflow, pot-weight, and dry-handling verification. See [2026-07-09](../../daily/2026-07-09.md).
+- 2026-07-15 — No breeding photo; current-only wet sensor repeat again means R2 pollen collection needs sensor freshness, airflow, pot-weight, and dry-handling verification. See [2026-07-15](../../daily/2026-07-15.md).
+- 2026-07-16 — No breeding photo; current-only wet sensor repeat again means R2 pollen collection needs sensor freshness, airflow, pot-weight, and dry-handling verification. See [2026-07-16](../../daily/2026-07-16.md).
+- 2026-07-17 — No breeding photo; current-only wet sensor repeat again means R2 pollen collection needs sensor freshness, airflow, pot-weight, and dry-handling verification. See [2026-07-17](../../daily/2026-07-17.md).
+- 2026-07-18 — No breeding photo; current-only wet sensor repeat again means R2 pollen collection needs sensor freshness, airflow, pot-weight, and dry-handling verification. See [2026-07-18](../../daily/2026-07-18.md).
+- 2026-07-19 — No breeding photo; current-only wet sensor repeat again means R2 pollen collection needs sensor freshness, airflow, pot-weight, and dry-handling verification. See [2026-07-19](../../daily/2026-07-19.md).
+- 2026-07-20 — No breeding photo; current-only wet sensor repeat again means R2 pollen collection needs sensor freshness, airflow, pot-weight, and dry-handling verification. See [2026-07-20](../../daily/2026-07-20.md).
+- 2026-07-31 — No breeding photo; current-only wet sensor repeat again means R2 pollen collection needs sensor freshness, airflow, pot-weight, and dry-handling verification. See [2026-07-31](../../daily/2026-07-31.md).

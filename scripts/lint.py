@@ -264,6 +264,42 @@ KNOWN_MISSING_PHOTOS = {
     "2026-06-12",  # manual reservoir burn-recovery plan; no photo taken
     "2026-06-20",  # daily report ran sensor-only; no photos available
     "2026-06-24",  # daily report ran sensor-only; no photos available
+    "2026-06-26",  # daily report ran sensor-only; no photos available
+    "2026-06-27",  # daily report ran sensor-only; no photos available
+    "2026-06-28",  # daily report ran sensor-only; no photos available
+    "2026-06-29",  # daily report ran sensor-only; no photos available
+    "2026-06-30",  # daily report ran sensor-only; no photos available
+    "2026-07-01",  # daily report ran sensor-only; no photos available
+    "2026-07-02",  # daily report ran sensor-only; no photos available
+    "2026-07-03",  # daily report ran sensor-only; no photos available
+    "2026-07-04",  # daily report ran sensor-only; no photos available
+    "2026-07-05",  # daily report ran sensor-only; no photos available
+    "2026-07-06",  # daily report ran sensor-only; no photos available
+    "2026-07-07",  # daily report ran sensor-only; no photos available
+    "2026-07-08",  # daily report ran sensor-only; no photos available
+    "2026-07-09",  # daily report ran sensor-only; no photos available
+    "2026-07-10",  # daily report ran sensor-only; no photos available
+    "2026-07-11",  # daily report ran sensor-only; no photos available
+    "2026-07-12",  # daily report ran sensor-only; no photos available
+    "2026-07-13",  # daily report ran sensor-only; no photos available
+    "2026-07-14",  # daily report ran sensor-only; no photos available
+    "2026-07-15",  # daily report ran sensor-only; no photos available
+    "2026-07-16",  # daily report ran sensor-only; no photos available
+    "2026-07-17",  # daily report ran sensor-only; no photos available
+    "2026-07-18",  # daily report ran sensor-only; no photos available
+    "2026-07-19",  # daily report ran sensor-only; no photos available
+    "2026-07-20",  # daily report ran sensor-only; no photos available
+    "2026-07-21",  # daily report ran sensor-only; no photos available
+    "2026-07-22",  # daily report ran sensor-only; no photos available
+    "2026-07-23",  # daily report ran sensor-only; no photos available
+    "2026-07-24",  # daily report ran sensor-only; no photos available
+    "2026-07-25",  # daily report ran sensor-only; no photos available
+    "2026-07-26",  # daily report ran sensor-only; no photos available
+    "2026-07-27",  # daily report ran sensor-only; no photos available
+    "2026-07-28",  # daily report ran sensor-only; no photos available
+    "2026-07-29",  # daily report ran sensor-only; no photos available
+    "2026-07-30",  # daily report ran sensor-only; no photos available
+    "2026-07-31",  # daily report ran sensor-only; no photos available
 }
 
 

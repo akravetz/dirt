@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-06-25
+updated: 2026-07-31
 ---
 
 # Plant D
@@ -19,7 +19,7 @@ updated: 2026-06-25
 
 ## Current State
 
-Day 103 / Flower Day 53: `SBBS-R1-004` shows upright purple flower tops with late lime/yellow fade, and direct moisture moved modestly up to 32.8% rough context. Keep media/tray and trichome checks active, but hand-confirm before treating the moisture move as irrigation direction. See [2026-06-25 daily](../../../daily/2026-06-25.md).
+Day 139 / Flower Day 89: `SBBS-R1-004` has no photo or trusted direct moisture, and retained A-D labels remain unreconciled. If D remains, inspect seed maturity, flowers, trichomes, root zone, posture, and pocket risk directly while main VPD is in range but RH remains above the late-flower guide. See [2026-07-31 daily](../../../daily/2026-07-31.md).
 
 ## Timeline
 
@@ -96,3 +96,39 @@ Day 103 / Flower Day 53: `SBBS-R1-004` shows upright purple flower tops with lat
 - 2026-06-23 — [Day 101 / Flower Day 51: strongest purple chunky flowers with late-fade foliage; direct moisture slightly up near 31.1%](../../../daily/2026-06-23.md)
 - 2026-06-24 — [Day 102 / Flower Day 52: no photo coverage; direct moisture essentially flat/slightly up near 31.9%, continue media/tray and trichome checks](../../../daily/2026-06-24.md)
 - 2026-06-25 — [Day 103 / Flower Day 53: upright purple flower tops with late lime/yellow fade; direct moisture modestly up to 32.8%, continue media/tray and trichome checks](../../../daily/2026-06-25.md)
+- 2026-06-26 — [Day 104 / Flower Day 54: no photo coverage; direct moisture moved up to 35.9%, hand-confirm media/tray before action](../../../daily/2026-06-26.md)
+- 2026-06-27 — [Day 105 / Flower Day 55: no photo coverage; direct moisture continued up to 36.6%, hand-confirm media/tray before action](../../../daily/2026-06-27.md)
+- 2026-06-28 — [Day 106 / Flower Day 56: no photo coverage; direct moisture nearly flat/slightly up to 36.7%, hand-confirm media/tray before action](../../../daily/2026-06-28.md)
+- 2026-06-29 — [Day 107 / Flower Day 57: no photo coverage; direct moisture slightly up to 37.1%, hand-confirm media/tray before action](../../../daily/2026-06-29.md)
+- 2026-06-30 — [Day 108 / Flower Day 58: no photo coverage; direct moisture slightly up to 37.7%, hand-confirm media/tray/probe before action](../../../daily/2026-06-30.md)
+- 2026-07-01 — [Day 109 / Flower Day 59: no photo coverage; direct moisture 37.7% with modest intraday rise, hand-confirm media/tray/probe before action](../../../daily/2026-07-01.md)
+- 2026-07-02 — [Day 110 / Flower Day 60: no photo coverage; direct moisture 38.0% with modest intraday rise, hand-confirm media/tray/probe before action](../../../daily/2026-07-02.md)
+- 2026-07-03 — [Day 111 / Flower Day 61: no photo coverage; direct moisture 38.2% with modest intraday rise, hand-confirm media/tray/probe before action](../../../daily/2026-07-03.md)
+- 2026-07-04 — [Day 112 / Flower Day 62: no photo or trusted direct moisture; retained-label reconciliation needed after two-plant seeded-flower note](../../../daily/2026-07-04.md)
+- 2026-07-05 — [Day 113 / Flower Day 63: no photo or trusted direct moisture; retained-label reconciliation and direct seed/flower checks still needed](../../../daily/2026-07-05.md)
+- 2026-07-06 — [Day 114 / Flower Day 64: no photo or trusted direct moisture; retained-label reconciliation and direct seed/flower checks still needed](../../../daily/2026-07-06.md)
+- 2026-07-07 — [Day 115 / Flower Day 65: no photo or trusted direct moisture; retained-label reconciliation and direct seed/flower checks still needed](../../../daily/2026-07-07.md)
+- 2026-07-08 — [Day 116 / Flower Day 66: no photo or trusted direct moisture; retained-label reconciliation and direct seed/flower checks still needed](../../../daily/2026-07-08.md)
+- 2026-07-09 — [Day 117 / Flower Day 67: no photo or trusted direct moisture; retained-label reconciliation and direct seed/flower checks still needed](../../../daily/2026-07-09.md)
+- 2026-07-10 — [Day 118 / Flower Day 68: no photo or trusted direct moisture; retained-label reconciliation and direct seed/flower checks still needed](../../../daily/2026-07-10.md)
+- 2026-07-11 — [Day 119 / Flower Day 69: no photo or trusted direct moisture; retained-label reconciliation and direct seed/flower checks still needed](../../../daily/2026-07-11.md)
+- 2026-07-12 — [Day 120 / Flower Day 70: no photo or trusted direct moisture; retained-label reconciliation and direct seed/flower checks still needed](../../../daily/2026-07-12.md)
+- 2026-07-13 — [Day 121 / Flower Day 71: no photo or trusted direct moisture; retained-label reconciliation and direct seed/flower checks still needed](../../../daily/2026-07-13.md)
+- 2026-07-14 — [Day 122 / Flower Day 72: no photo or trusted direct moisture; retained-label reconciliation and direct seed/flower checks still needed](../../../daily/2026-07-14.md)
+- 2026-07-15 — [Day 123 / Flower Day 73: no photo or trusted direct moisture; retained-label reconciliation and direct seed/flower checks still needed](../../../daily/2026-07-15.md)
+- 2026-07-16 — [Day 124 / Flower Day 74: no photo or trusted direct moisture; retained-label reconciliation and direct seed/flower checks still needed](../../../daily/2026-07-16.md)
+- 2026-07-17 — [Day 125 / Flower Day 75: no photo or trusted direct moisture; retained-label reconciliation and direct seed/flower checks still needed](../../../daily/2026-07-17.md)
+- 2026-07-18 — [Day 126 / Flower Day 76: no photo or trusted direct moisture; retained-label reconciliation and direct seed/flower checks still needed](../../../daily/2026-07-18.md)
+- 2026-07-19 — [Day 127 / Flower Day 77: no photo or trusted direct moisture; retained-label reconciliation and wet/low VPD flower-pocket checks needed](../../../daily/2026-07-19.md)
+- 2026-07-20 — [Day 128 / Flower Day 78: no photo or trusted direct moisture; retained-label reconciliation and warm/humid in-range VPD flower-pocket checks still needed](../../../daily/2026-07-20.md)
+- 2026-07-21 — [Day 129 / Flower Day 79: no photo or trusted direct moisture; retained-label reconciliation and direct seed/flower checks still needed](../../../daily/2026-07-21.md)
+- 2026-07-22 — [Day 130 / Flower Day 80: no photo or trusted direct moisture; retained-label reconciliation and direct seed/flower checks still needed](../../../daily/2026-07-22.md)
+- 2026-07-23 — [Day 131 / Flower Day 81: no photo or trusted direct moisture; reconcile retained labels and check seed, flower, root-zone, and dry-side posture directly](../../../daily/2026-07-23.md)
+- 2026-07-24 — [Day 132 / Flower Day 82: no photo or trusted direct moisture; reconcile retained labels and check seed, flower, root-zone, and dry-side posture directly](../../../daily/2026-07-24.md)
+- 2026-07-25 — [Day 133 / Flower Day 83: no photo or trusted direct moisture; reconcile retained labels and check seed, flower, root-zone, and dry-side posture directly](../../../daily/2026-07-25.md)
+- 2026-07-26 — [Day 134 / Flower Day 84: no photo or trusted direct moisture; reconcile retained labels and inspect seed, flower, root-zone, and posture directly](../../../daily/2026-07-26.md)
+- 2026-07-27 — [Day 135 / Flower Day 85: `SBBS-R1-004` has no photo or trusted direct moisture; reconcile retained labels and check seed, flower, root-zone, posture, and wet-pocket risk directly](../../../daily/2026-07-27.md)
+- 2026-07-28 — [Day 136 / Flower Day 86: `SBBS-R1-004` has no photo or trusted direct moisture; reconcile retained labels and inspect seed, flower, root-zone, posture, and high-moisture wet-pocket risk directly](../../../daily/2026-07-28.md)
+- 2026-07-29 — [Day 137 / Flower Day 87: `SBBS-R1-004` has no photo or trusted direct moisture; reconcile retained labels and inspect seed, flower, root-zone, posture, and wet-pocket risk directly](../../../daily/2026-07-29.md)
+- 2026-07-30 — [Day 138 / Flower Day 88: `SBBS-R1-004` has no photo or trusted direct moisture; reconcile retained labels and inspect seed, flower, root-zone, posture, and pocket risk directly](../../../daily/2026-07-30.md)
+- 2026-07-31 — [Day 139 / Flower Day 89: `SBBS-R1-004` has no photo or trusted direct moisture; reconcile retained labels and inspect seed, flower, root-zone, posture, and pocket risk directly](../../../daily/2026-07-31.md)
