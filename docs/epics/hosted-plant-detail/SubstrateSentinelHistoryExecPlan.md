@@ -19,7 +19,7 @@ The behavior is observable through focused API and React tests, the local hosted
 - [x] (2026-08-18 08:04Z) Audited the existing metric presentation, rollup, mapped-plant history, tent UI, plant UI, and Sparkline paths.
 - [x] (2026-08-18 08:09Z) Milestone 1: encoded the repository-owned service-consumer rule in root `AGENTS.md` and its operational/data-safety boundary in `docs/rules/simple-clean-architecture.md`; focused sanity validation and simplify review passed.
 - [x] (2026-08-18 09:28Z) Milestone 2: completed the atomic backend/frontend contract cutover, including invariant correction, timestamped multi-series Sparkline, mapped sentinel panel, plant-detail history cleanup, focused UI coverage, simplify review, frontend typecheck/lint/tests/build, and one rollback commit.
-- [ ] Milestone 3: perform final simplification review, full validation, local browser acceptance, hosted deployment, final worktree commit, and push to `main`. Completed: integrated review and cleanup, full backend/frontend gates, responsive browser acceptance across all five ranges, isolated deploy-artifact validation, cloud migration, and successful API/UI deployment with public smoke checks. Remaining: final all-worktree commit and push.
+- [x] (2026-08-18 10:21Z) Milestone 3: completed integrated review and cleanup, full backend/frontend gates, responsive browser acceptance across all five ranges, isolated deploy-artifact validation, cloud migration, successful API/UI deployment with public smoke checks, the operator-authorized all-worktree commit, and push to `main`.
 
 
 ## Surprises & Discoveries
@@ -128,6 +128,8 @@ The integrated simplify review removed the remaining dead plant metric-summary c
 Milestone 3 validated the complete repository with 806 Python tests passing (one skipped), 27 frontend tests, frontend lint, dead-code analysis, production build, generated-contract regeneration, and sequential affected-service reruns after the packaging correction. Browser acceptance at 390px and 1440px widths exercised `1h`, `24h`, `7d`, `30d`, and `90d`; every selection produced one `200` collection request and no runtime errors.
 
 The first hosted API candidate exposed the isolated packaging gap before promotion. The correction kept the shared history policy canonical, made the cloud bucket type part of the wire contract, and added a pre-mutation isolated artifact import to the supported deploy script. The cloud migration then applied successfully, the final API and web UI deployments both reached `SUCCESS`, the gateway immediately resumed healthy heartbeat/catalog/latest-metric traffic, and both public smoke checks passed.
+
+The operator-authorized remaining README, lint, wiki, and August daily-report work passed deterministic and manual wiki consistency checks alongside the feature release. Commit `54134c4` contains that complete all-worktree batch and was pushed to `origin/main`; the only subsequent change is this plan completion record.
 
 
 ## Context and Orientation
@@ -331,3 +333,4 @@ No new external dependency is required. Existing PostgreSQL/Atlas, FastAPI/Pydan
 - 2026-08-18: Initial plan written from the operator-approved architecture and read-only cleanup audit.
 - 2026-08-18: Combined the backend and frontend phases into one atomic milestone after pre-commit proved that the generated direct contract intentionally makes the old owned frontend uncompilable; no compatibility shim will be introduced to preserve an artificial intermediate commit.
 - 2026-08-18: Added the hosted artifact-boundary discovery, canonical shared-policy decision, isolated preflight, full browser/test evidence, and successful deployment result.
+- 2026-08-18: Recorded the completed all-worktree release commit and push; all milestones are complete.
