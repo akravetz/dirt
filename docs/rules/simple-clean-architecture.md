@@ -27,9 +27,18 @@ Prefer explicit data over derived magic. If a user may reasonably tune a value i
 
 Choose direct cutover for source-owned code. When the right abstraction is clear, replace misleading names, update owned call sites and tests, and remove obsolete paths in the same change. Do not keep durable wrappers, aliases, compatibility classes, duplicated implementations, feature flags, or transitional branches merely to reduce implementation churn.
 
-Use compatibility only for a real boundary. Compatibility and migration safety are exceptional. Add compatibility glue only when there is a concrete external contract, live data migration, staged deploy requirement, or user-stated rollback need. If a short-lived wrapper or transition path is necessary, it must be removed before the same PR or ExecPlan is complete.
+## Compatibility Boundary
 
-Move tests to the canonical contract. Agent-owned tests should validate the new source of truth. Do not preserve old names or old shapes in tests unless they are public contracts that still exist.
+Dirt has no external consumers of its application-service or browser-API contracts. Every caller of those contracts is repository-owned, including the web UI, gateway, generated clients, tests, scripts, and other Dirt services. Compatibility for a hypothetical external consumer is therefore never needed. Change the canonical contract directly, update or delete every owned caller and generated artifact in the same change, and remove the obsolete path instead of preserving a shim.
+
+This does not relax operational or data safety:
+
+- Persisted data still requires explicit migrations or backfills, validation, and a safe recovery strategy when its shape or meaning changes.
+- Deploy ordering still matters when old and new binaries can overlap or a schema change must precede application code. Any temporary transition must serve that concrete deployment constraint and be removed before the same PR or ExecPlan is complete.
+- Rollback and data-preservation requirements still apply, as do explicit operator requests for staged behavior.
+- Third-party APIs, device protocols, and other contracts owned outside this repository remain real external boundaries and must follow their actual compatibility requirements.
+
+Move tests to the canonical contract. Agent-owned tests should validate the new source of truth. Do not preserve old names or old shapes in tests unless an outside-owned contract still requires them.
 
 ## Test Value Rule
 
