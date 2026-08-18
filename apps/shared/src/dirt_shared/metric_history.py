@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from typing import Final, Literal
+from typing import Final, Literal, assert_never
+
+from dirt_shared.cloud_contract import MetricHistoryBucket
 
 MetricHistoryRange = Literal["1h", "24h", "7d", "30d", "90d"]
-MetricHistoryBucket = Literal["5m", "1h", "4h", "1d"]
-
 
 _FIVE_MINUTE_RETENTION: Final = timedelta(hours=24)
 _HOURLY_RETENTION: Final = timedelta(days=7)
@@ -31,4 +31,6 @@ def metric_history_range_spec(
         return "1h", _HOURLY_RETENTION
     if range_key == "30d":
         return "4h", _FOUR_HOUR_RETENTION
-    return "1d", _DAILY_RETENTION
+    if range_key == "90d":
+        return "1d", _DAILY_RETENTION
+    assert_never(range_key)

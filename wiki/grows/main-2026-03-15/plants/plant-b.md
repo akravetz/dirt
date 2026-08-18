@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/lst.md]
 created: 2026-04-06
-updated: 2026-07-31
+updated: 2026-08-17
 ---
 
 # Plant B
@@ -19,7 +19,7 @@ updated: 2026-07-31
 
 ## Current State
 
-Day 139 / Flower Day 89: `SBBS-R1-002` has no photo or trusted direct moisture, and retained A-D labels remain unreconciled. If B remains, use direct tray, float, media, smell/weight, posture, seed, flower, and pocket checks while main VPD is in range but RH remains above the late-flower guide. See [2026-07-31 daily](../../../daily/2026-07-31.md).
+Day 156 / Flower Day 106: `SBBS-R1-002` still has unresolved retained status, no photo, and no trusted direct moisture. If retained, use direct tray, media, posture, seed, flower, and pocket checks despite today's partial RH/VPD improvement; see the [2026-08-17 daily](../../../daily/2026-08-17.md).
 
 ## Timeline
 
@@ -132,3 +132,20 @@ Day 139 / Flower Day 89: `SBBS-R1-002` has no photo or trusted direct moisture, 
 - 2026-07-29 — [Day 137 / Flower Day 87: `SBBS-R1-002` has no photo or trusted direct moisture; hand-check only if retained and verify flower-pocket/posture under nominal VPD with elevated RH](../../../daily/2026-07-29.md)
 - 2026-07-30 — [Day 138 / Flower Day 88: `SBBS-R1-002` has no photo or trusted direct moisture; hand-check only if retained and verify flower/posture under upper-edge VPD](../../../daily/2026-07-30.md)
 - 2026-07-31 — [Day 139 / Flower Day 89: `SBBS-R1-002` has no photo or trusted direct moisture; hand-check only if retained and verify flower/posture under in-range VPD with RH above guide](../../../daily/2026-07-31.md)
+- 2026-08-01 — [Day 140 / Flower Day 90: `SBBS-R1-002` has no photo or trusted direct moisture; hand-check only if retained and verify flower/posture under in-range VPD with RH above guide](../../../daily/2026-08-01.md)
+- 2026-08-02 — [Day 141 / Flower Day 91: `SBBS-R1-002` has no photo or trusted direct moisture; hand-check only if retained and verify flower/posture under upper-edge VPD](../../../daily/2026-08-02.md)
+- 2026-08-03 — [Day 142 / Flower Day 92: `SBBS-R1-002` has no photo or trusted direct moisture; hand-check only if retained and verify flower/posture under slightly high VPD](../../../daily/2026-08-03.md)
+- 2026-08-04 — [Day 143 / Flower Day 93: `SBBS-R1-002` has no photo or trusted direct moisture; hand-check only if retained and verify flower/posture under in-range VPD with high RH](../../../daily/2026-08-04.md)
+- 2026-08-05 — [Day 144 / Flower Day 94: `SBBS-R1-002` has no photo or trusted direct moisture; hand-check only if retained and verify flower/posture under usable VPD with high RH](../../../daily/2026-08-05.md)
+- 2026-08-06 — [Day 145 / Flower Day 95: `SBBS-R1-002` has no photo or trusted direct moisture; hand-check only if retained and verify flower/posture under low overnight VPD with high RH](../../../daily/2026-08-06.md)
+- 2026-08-07 — [Day 146 / Flower Day 96: `SBBS-R1-002` has no photo or trusted direct moisture; hand-check only if retained and verify flower/posture while RH remains above guide](../../../daily/2026-08-07.md)
+- 2026-08-08 — [Day 147 / Flower Day 97: `SBBS-R1-002` has no photo or trusted direct moisture; hand-check only if retained and verify flower/posture as RH/dew point rebound](../../../daily/2026-08-08.md)
+- 2026-08-09 — [Day 148 / Flower Day 98: `SBBS-R1-002` has no photo or trusted direct moisture; hand-check only if retained and verify flower/posture under high current RH](../../../daily/2026-08-09.md)
+- 2026-08-10 — [Day 149 / Flower Day 99: `SBBS-R1-002` has no photo or trusted direct moisture; hand-check only if retained and verify flower/posture while RH remains above guide](../../../daily/2026-08-10.md)
+- 2026-08-11 — [Day 150 / Flower Day 100: `SBBS-R1-002` has no photo or trusted direct moisture; hand-check only if retained and verify flower/posture while RH remains above guide](../../../daily/2026-08-11.md)
+- 2026-08-12 — [Day 151 / Flower Day 101: `SBBS-R1-002` has no photo or trusted direct moisture; hand-check only if retained and verify flower/posture under low overnight VPD](../../../daily/2026-08-12.md)
+- 2026-08-13 — [Day 152 / Flower Day 102: `SBBS-R1-002` has no photo or trusted direct moisture; hand-check only if retained and verify flower/posture under high morning RH](../../../daily/2026-08-13.md)
+- 2026-08-14 — [Day 153 / Flower Day 103: `SBBS-R1-002` has no photo or trusted direct moisture; hand-check only if retained and verify flower/posture under low VPD](../../../daily/2026-08-14.md)
+- 2026-08-15 — [Day 154 / Flower Day 104: `SBBS-R1-002` has no photo or trusted direct moisture; hand-check only if retained and verify flower/posture under high RH and low VPD](../../../daily/2026-08-15.md)
+- 2026-08-16 — [Day 155 / Flower Day 105: `SBBS-R1-002` has no photo or trusted direct moisture; hand-check only if retained and verify flower/posture under worsening high RH and low VPD](../../../daily/2026-08-16.md)
+- 2026-08-17 — [Day 156 / Flower Day 106: `SBBS-R1-002` has no photo or trusted direct moisture; hand-check only if retained and verify flower/posture under continuing high RH and low VPD](../../../daily/2026-08-17.md)

@@ -300,6 +300,23 @@ KNOWN_MISSING_PHOTOS = {
     "2026-07-29",  # daily report ran sensor-only; no photos available
     "2026-07-30",  # daily report ran sensor-only; no photos available
     "2026-07-31",  # daily report ran sensor-only; no photos available
+    "2026-08-01",  # daily report ran sensor-only; no photos available
+    "2026-08-02",  # daily report ran sensor-only; no photos available
+    "2026-08-03",  # daily report ran sensor-only; no photos available
+    "2026-08-04",  # daily report ran sensor-only; no photos available
+    "2026-08-05",  # daily report ran sensor-only; no photos available
+    "2026-08-06",  # daily report ran sensor-only; no photos available
+    "2026-08-07",  # daily report ran sensor-only; no photos available
+    "2026-08-08",  # daily report ran sensor-only; no photos available
+    "2026-08-09",  # daily report ran sensor-only; no photos available
+    "2026-08-10",  # daily report ran sensor-only; no photos available
+    "2026-08-11",  # daily report ran sensor-only; no photos available
+    "2026-08-12",  # daily report ran sensor-only; no photos available
+    "2026-08-13",  # daily report ran sensor-only; no photos available
+    "2026-08-14",  # daily report ran sensor-only; no photos available
+    "2026-08-15",  # daily report ran sensor-only; no photos available
+    "2026-08-16",  # daily report ran sensor-only; no photos available
+    "2026-08-17",  # daily report ran sensor-only; no photos available
 }
 
 

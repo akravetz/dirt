@@ -4,7 +4,7 @@ type: plant
 sources: [raw/chat-history/all-chat-summary.md, raw/chat-history/memory.md]
 related: [wiki/concepts/anthocyanin.md, wiki/concepts/coco-coir.md, wiki/concepts/lst.md, wiki/environment/nutrients.md]
 created: 2026-04-06
-updated: 2026-07-31
+updated: 2026-08-17
 ---
 
 # Plant C
@@ -19,7 +19,7 @@ updated: 2026-07-31
 
 ## Current State
 
-Day 139 / Flower Day 89: `SBBS-R1-003` has no photo and no trusted direct moisture for a twenty-first report after the earlier lower-reading run. Confirm retained status and verify probe/feed, media, tray behavior, posture, and pocket risk before using older moisture trends. See [2026-07-31 daily](../../../daily/2026-07-31.md).
+Day 156 / Flower Day 106: `SBBS-R1-003` has no photo or trusted direct moisture for a thirty-eighth report, and its retained status remains unresolved. Verify probe/feed, media, tray behavior, and posture before using older trends; see the [2026-08-17 daily](../../../daily/2026-08-17.md).
 
 ## Timeline
 
@@ -132,3 +132,20 @@ Day 139 / Flower Day 89: `SBBS-R1-003` has no photo and no trusted direct moistu
 - 2026-07-29 — [Day 137 / Flower Day 87: `SBBS-R1-003` has no photo; trusted direct moisture missing for a nineteenth report, verify retained tag, probe/feed, media, tray, posture, and wet-pocket risk](../../../daily/2026-07-29.md)
 - 2026-07-30 — [Day 138 / Flower Day 88: `SBBS-R1-003` has no photo; trusted direct moisture missing for a twentieth report, verify retained tag, probe/feed, media, tray, and posture](../../../daily/2026-07-30.md)
 - 2026-07-31 — [Day 139 / Flower Day 89: `SBBS-R1-003` has no photo; trusted direct moisture missing for a twenty-first report, verify retained tag, probe/feed, media, tray, and posture](../../../daily/2026-07-31.md)
+- 2026-08-01 — [Day 140 / Flower Day 90: `SBBS-R1-003` has no photo; trusted direct moisture missing for a twenty-second report, verify retained tag, probe/feed, media, tray, and posture](../../../daily/2026-08-01.md)
+- 2026-08-02 — [Day 141 / Flower Day 91: `SBBS-R1-003` has no photo; trusted direct moisture missing for a twenty-third report, verify retained tag, probe/feed, media, tray, and posture](../../../daily/2026-08-02.md)
+- 2026-08-03 — [Day 142 / Flower Day 92: `SBBS-R1-003` has no photo; trusted direct moisture missing for a twenty-fourth report, verify retained tag, probe/feed, media, tray, and posture](../../../daily/2026-08-03.md)
+- 2026-08-04 — [Day 143 / Flower Day 93: `SBBS-R1-003` has no photo; trusted direct moisture missing for a twenty-fifth report, verify retained tag, probe/feed, media, tray, and posture](../../../daily/2026-08-04.md)
+- 2026-08-05 — [Day 144 / Flower Day 94: `SBBS-R1-003` has no photo; trusted direct moisture missing for a twenty-sixth report, verify retained tag, probe/feed, media, tray, and posture](../../../daily/2026-08-05.md)
+- 2026-08-06 — [Day 145 / Flower Day 95: `SBBS-R1-003` has no photo; trusted direct moisture missing for a twenty-seventh report, verify retained tag, probe/feed, media, tray, and posture](../../../daily/2026-08-06.md)
+- 2026-08-07 — [Day 146 / Flower Day 96: `SBBS-R1-003` has no photo; trusted direct moisture missing for a twenty-eighth report, verify retained tag, probe/feed, media, tray, and posture](../../../daily/2026-08-07.md)
+- 2026-08-08 — [Day 147 / Flower Day 97: `SBBS-R1-003` has no photo; trusted direct moisture missing for a twenty-ninth report, verify retained tag, probe/feed, media, tray, and posture](../../../daily/2026-08-08.md)
+- 2026-08-09 — [Day 148 / Flower Day 98: `SBBS-R1-003` has no photo; trusted direct moisture missing for a thirtieth report, verify retained tag, probe/feed, media, tray, and posture](../../../daily/2026-08-09.md)
+- 2026-08-10 — [Day 149 / Flower Day 99: `SBBS-R1-003` has no photo; trusted direct moisture missing for a thirty-first report, verify retained tag, probe/feed, media, tray, and posture](../../../daily/2026-08-10.md)
+- 2026-08-11 — [Day 150 / Flower Day 100: `SBBS-R1-003` has no photo; trusted direct moisture missing for a thirty-second report, verify retained tag, probe/feed, media, tray, and posture](../../../daily/2026-08-11.md)
+- 2026-08-12 — [Day 151 / Flower Day 101: `SBBS-R1-003` has no photo; trusted direct moisture missing for a thirty-third report, verify retained tag, probe/feed, media, tray, and posture](../../../daily/2026-08-12.md)
+- 2026-08-13 — [Day 152 / Flower Day 102: `SBBS-R1-003` has no photo; trusted direct moisture missing for a thirty-fourth report, verify retained tag, probe/feed, media, tray, and posture](../../../daily/2026-08-13.md)
+- 2026-08-14 — [Day 153 / Flower Day 103: `SBBS-R1-003` has no photo; trusted direct moisture missing for a thirty-fifth report, verify retained tag, probe/feed, media, tray, and posture](../../../daily/2026-08-14.md)
+- 2026-08-15 — [Day 154 / Flower Day 104: `SBBS-R1-003` has no photo; trusted direct moisture missing for a thirty-sixth report, verify retained tag, probe/feed, media, tray, and posture](../../../daily/2026-08-15.md)
+- 2026-08-16 — [Day 155 / Flower Day 105: `SBBS-R1-003` has no photo; trusted direct moisture missing for a thirty-seventh report, verify retained tag, probe/feed, media, tray, and posture](../../../daily/2026-08-16.md)
+- 2026-08-17 — [Day 156 / Flower Day 106: `SBBS-R1-003` has no photo; trusted direct moisture missing for a thirty-eighth report, verify retained tag, probe/feed, media, tray, and posture](../../../daily/2026-08-17.md)

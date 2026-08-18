@@ -1,7 +1,7 @@
 ---
 title: Index
 type: index
-updated: 2026-07-31
+updated: 2026-08-17
 ---
 
 # Grow Wiki Index
@@ -17,14 +17,14 @@ updated: 2026-07-31
 
 ## Grow Runs
 - [Grow Runs](grows/README.md) — Historical grow folders; current plant identity is `plant.id` plus durable `plant.key`
-- [Main grow 2026-03-15](grows/main-2026-03-15/README.md) — Seeded-flower hold; Day 139 / Flower Day 89 as of 2026-07-31; two remaining tags need reconciliation before DTW conversion
-- [Track A pollen run](grows/breeding-track-a-2026-04-28/README.md) — Current breeding tent pollen-collection run; Flower Day 68; R2 is the selected donor after purple pollen-sac expression
+- [Main grow 2026-03-15](grows/main-2026-03-15/README.md) — Seeded-flower hold; Day 156 / Flower Day 106 as of 2026-08-17; two remaining tags need reconciliation before DTW conversion
+- [Track A pollen run](grows/breeding-track-a-2026-04-28/README.md) — Current breeding tent pollen-collection run; Flower Day 85; R2 is the selected donor after purple pollen-sac expression
 
 ## Current Plants
-- [Plant A](grows/main-2026-03-15/plants/plant-a.md) — Historical primary; Flower Day 89; no photo or trusted direct moisture today, retained status unresolved after two-plant seed-hold note
-- [Plant B](grows/main-2026-03-15/plants/plant-b.md) — Historical secondary; Flower Day 89; no photo or trusted direct moisture today, hand-check only if retained
-- [Plant C](grows/main-2026-03-15/plants/plant-c.md) — Historical secondary; Flower Day 89; no photo, trusted direct moisture missing for a twenty-first report, verify tag/probe/media/tray/posture
-- [Plant D](grows/main-2026-03-15/plants/plant-d.md) — Historical primary; Flower Day 89; no photo or trusted direct moisture today, retained status unresolved after two-plant seed-hold note
+- [Plant A](grows/main-2026-03-15/plants/plant-a.md) — Historical primary; Flower Day 106; no photo or trusted direct moisture today, retained status unresolved after two-plant seed-hold note
+- [Plant B](grows/main-2026-03-15/plants/plant-b.md) — Historical secondary; Flower Day 106; no photo or trusted direct moisture today, hand-check only if retained
+- [Plant C](grows/main-2026-03-15/plants/plant-c.md) — Historical secondary; Flower Day 106; no photo, trusted direct moisture missing for a thirty-eighth report, verify tag/probe/media/tray/posture
+- [Plant D](grows/main-2026-03-15/plants/plant-d.md) — Historical primary; Flower Day 106; no photo or trusted direct moisture today, retained status unresolved after two-plant seed-hold note
 - [R1](grows/breeding-track-a-2026-04-28/plants/plant-r1.md) — Track A pollen run; confirmed male; culled/not retained for pollen 2026-06-14
 - [R2](grows/breeding-track-a-2026-04-28/plants/plant-r2.md) — Track A pollen run; selected pollen donor after purple pollen-sac expression; wet current-only sensor repeat keeps dry-handling checks active
 - [R3](grows/breeding-track-a-2026-04-28/plants/plant-r3.md) — Track A pollen run; confirmed female and culled 2026-06-04
@@ -141,10 +141,27 @@ updated: 2026-07-31
 - [2026-07-29](daily/2026-07-29.md) — Day 137 / Flower Day 87: no photos available; main VPD in range at 1.26/1.30/1.36 kPa with RH still above guide but drier than yesterday; no trusted plant moisture readings; retained seeded tags still need reconciliation; breeding wet current-only sensor repeat persists
 - [2026-07-30](daily/2026-07-30.md) — Day 138 / Flower Day 88: no photos available; main VPD upper-edge/slightly high at 1.43/1.54/1.51 kPa after RH/dew point dropped; no trusted plant moisture readings; retained seeded tags still need reconciliation; breeding wet current-only sensor repeat persists
 - [2026-07-31](daily/2026-07-31.md) — Day 139 / Flower Day 89: no photos available; main VPD in range at 1.37/1.49/1.43 kPa while RH remains above guide; no trusted plant moisture readings; retained seeded tags still need reconciliation; breeding wet current-only sensor repeat persists
+- [2026-08-01](daily/2026-08-01.md) — Day 140 / Flower Day 90: no photos available; main VPD in range at 1.37/1.40/1.41 kPa with cooler/lower-dew current conditions; no trusted plant moisture readings; retained seeded tags still need reconciliation; breeding wet current-only sensor repeat persists
+- [2026-08-02](daily/2026-08-02.md) — Day 141 / Flower Day 91: no photos available; main VPD upper-edge/slightly high at 1.42/1.53/1.50 kPa after warming; no trusted plant moisture readings; retained seeded tags still need reconciliation; breeding wet current-only sensor repeat persists
+- [2026-08-03](daily/2026-08-03.md) — Day 142 / Flower Day 92: no photos available; main VPD slightly high across all windows at 1.60/1.51/1.52 kPa; no trusted plant moisture readings; retained seeded tags still need reconciliation; breeding wet current-only sensor repeat persists
+- [2026-08-04](daily/2026-08-04.md) — Day 143 / Flower Day 93: no photos available; main VPD recovered into range at 1.20/1.29/1.30 kPa but RH/dew point remain high; no trusted plant moisture readings; retained seeded tags still need reconciliation; breeding wet current-only sensor repeat persists
+- [2026-08-05](daily/2026-08-05.md) — Day 144 / Flower Day 94: no photos available; main VPD slightly low overnight then usable lights-on at 1.18/1.22/1.26 kPa with high RH/dew point; no trusted plant moisture readings; retained seeded tags still need reconciliation; breeding wet current-only sensor repeat persists
+- [2026-08-06](daily/2026-08-06.md) — Day 145 / Flower Day 95: no photos available; main VPD low overnight then usable lights-on at 1.15/1.29/1.27 kPa with high RH/dew point; no trusted plant moisture readings; retained seeded tags still need reconciliation; breeding wet current-only sensor repeat appears stale
+- [2026-08-07](daily/2026-08-07.md) — Day 146 / Flower Day 96: no photos available; main VPD recovered in range at 1.33/1.37/1.36 kPa as RH/dew point improved; no trusted plant moisture readings; retained seeded tags still need reconciliation; breeding wet current-only sensor repeat appears stale
+- [2026-08-08](daily/2026-08-08.md) — Day 147 / Flower Day 97: no photos available; main RH/dew point rebounded while VPD remained in range at 1.25/1.32/1.39 kPa and current temperature reached 76.17°F; no trusted plant moisture readings; retained seeded tags still need reconciliation; breeding wet current-only sensor repeat appears stale
+- [2026-08-09](daily/2026-08-09.md) — Day 148 / Flower Day 98: no photos available; current main RH rose to 58.42% while VPD remained in range near the lower edge at 1.23 kPa; no trusted plant moisture readings; retained seeded tags still need reconciliation; breeding wet current-only sensor repeat appears stale
+- [2026-08-10](daily/2026-08-10.md) — Day 149 / Flower Day 99: no photos available; main VPD remained in range at 1.25/1.30/1.27 kPa while RH stayed above guide; no trusted plant moisture readings; retained seeded tags still need reconciliation; breeding wet current-only sensor repeat appears stale
+- [2026-08-11](daily/2026-08-11.md) — Day 150 / Flower Day 100: no photos available; main VPD remained in range at 1.21/1.24/1.28 kPa while RH stayed above guide; no trusted plant moisture readings; retained seeded tags still need reconciliation; breeding wet current-only sensor repeat appears stale
+- [2026-08-12](daily/2026-08-12.md) — Day 151 / Flower Day 101: no photos available; main overnight VPD slipped low to 1.17 kPa while lights-on recovered to 1.27/1.29 kPa and RH stayed above guide; no trusted plant moisture readings; retained seeded tags still need reconciliation; breeding wet current-only sensor repeat appears stale
+- [2026-08-13](daily/2026-08-13.md) — Day 152 / Flower Day 102: no photos available; main overnight VPD recovered to 1.23 kPa but morning RH rose to 58.34% with VPD at 1.21 kPa; no trusted plant moisture readings; retained seeded tags still need reconciliation; breeding wet current-only sensor repeat appears stale
+- [2026-08-14](daily/2026-08-14.md) — Day 153 / Flower Day 103: no photos available; main VPD is low throughout at 1.07/1.13/1.18 kPa with RH near 60%; no trusted plant moisture readings; retained seeded tags still need reconciliation; breeding wet current-only sensor repeat appears stale
+- [2026-08-15](daily/2026-08-15.md) — Day 154 / Flower Day 104: no photos available; main RH rose to 63-65% and VPD fell to 0.97/0.98/1.01 kPa; no trusted plant moisture readings; retained seeded tags still need reconciliation; breeding wet current-only sensor repeat appears stale
+- [2026-08-16](daily/2026-08-16.md) — Day 155 / Flower Day 105: no photos available; main morning/current RH climbed to 67.08%/66.32% and VPD fell to 0.90/0.93 kPa; no trusted plant moisture readings; retained seeded tags still need reconciliation; breeding wet current-only sensor repeat appears stale
+- [2026-08-17](daily/2026-08-17.md) — Day 156 / Flower Day 106: no photos available; main RH improved to 60.89-61.65% and VPD recovered to 1.01-1.04 kPa but remains out of band; no trusted plant moisture readings; retained seeded tags still need reconciliation; breeding wet current-only sensor repeat appears stale
 
 ## Environment
-- [Temperature](environment/temperature.md) — Trend log; targets by phase; 2026-07-31 main temperature is warm overnight and lights-on is at the late-flower ceiling
-- [Humidity](environment/humidity.md) — Trend log; Denver humidification notes; 2026-07-31 main VPD recovered into range while RH remains above guide and the breeding wet sensor repeat persists
+- [Temperature](environment/temperature.md) — Trend log; targets by phase; 2026-08-17 main lights-on temperature is in range while overnight remains warm
+- [Humidity](environment/humidity.md) — Trend log; Denver humidification notes; 2026-08-17 main RH improved to 61-62% but VPD remains low, and the breeding wet sensor repeat remains unverified
 - [Nutrients & pH](environment/nutrients.md) — Canna A+B protocol; pH management; incident log; 2026-06-16 pH 5.8 / EC 1.1 stable after high-EC recovery
 
 ## Hardware

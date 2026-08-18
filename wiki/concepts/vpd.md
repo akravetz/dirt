@@ -4,7 +4,7 @@ type: concept
 sources: [raw/chat-history/bible.md]
 related: [wiki/environment/temperature.md, wiki/environment/humidity.md, wiki/concepts/coco-coir.md, wiki/concepts/dli-light-management.md]
 created: 2026-04-06
-updated: 2026-04-07
+updated: 2026-08-18
 ---
 
 # VPD — Vapor Pressure Deficit
@@ -26,14 +26,14 @@ Example at 25°C / 75% RH: SVP ≈ 3.17 kPa, AVP ≈ 2.38 kPa → VPD ≈ **0.79
 |-------|-----------|
 | Seedling / Clone | 0.4–0.8 kPa |
 | Vegetative | 0.8–1.2 kPa |
-| Flowering | 1.2–1.6 kPa |
-| Late Flower / Ripening | 1.0–1.3 kPa |
+| Early Flower (days 0–20) | 1.0–1.3 kPa |
+| Late Flower (day 21+) | 1.2–1.5 kPa |
 
 ## Our Current Situation
 
 RH is running **73–76%**, temps around **77°F (25°C)**. At 25°C / 75% RH, VPD ≈ **0.79 kPa** — just barely in range for veg, but on the low end.
 
-As we move toward flower we'll need to get RH down significantly to reach the 1.2–1.6 kPa flowering window. At 25°C, hitting 1.2 kPa requires RH ≈ 62%; hitting 1.6 kPa requires RH ≈ 49%.
+As plants move into flower, RH must come down enough to enter the stage-specific VPD window. At 25°C, hitting 1.2 kPa requires RH ≈ 62%; hitting the 1.5 kPa late-flower upper edge requires RH ≈ 53%.
 
 ## Why Low VPD Is a Problem
 

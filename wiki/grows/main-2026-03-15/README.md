@@ -2,9 +2,9 @@
 title: Main Grow 2026-03-15
 type: grow
 sources: []
-related: [wiki/overview.md, wiki/breeding/README.md, wiki/daily/2026-07-31.md, wiki/environment/humidity.md, wiki/environment/temperature.md, wiki/environment/nutrients.md]
+related: [wiki/overview.md, wiki/breeding/README.md, wiki/daily/2026-08-06.md, wiki/environment/humidity.md, wiki/environment/temperature.md, wiki/environment/nutrients.md]
 created: 2026-05-30
-updated: 2026-07-31
+updated: 2026-08-18
 ---
 
 # Main Grow 2026-03-15
@@ -19,7 +19,7 @@ updated: 2026-07-31
 | Tent | `tent.id = 1`, `tent.name = Main Tent`, `tent.role = flower` |
 | Current occupancy source | `plant_location_history.end_at IS NULL` |
 | Current lifecycle source | `plant.germinated_at`, `plant.flower_started_at` |
-| Line | Sirius Black x BS01 / SBxBS01 regular |
+| Line | Serious Black feminized |
 | Current plant count | 2 remaining seeded flower plants by 2026-07-04 operator note; retained A-D labels pending reconciliation |
 
 ## Plants
@@ -35,7 +35,7 @@ This is the original four-plant SBxBS01 flower run. Plants A and D are the
 primary purple keeper candidates; B and C remain secondary references. See the
 current operational summary in [overview.md](../../overview.md).
 
-As of 2026-07-31, the run is Day 139 / Flower Day 89, but it is now a
+As of 2026-08-06, the run is Day 145 / Flower Day 95, but it is now a
 seeded-flower hold rather than an active four-plant flower table. The main 4x4
 is down to two remaining seeded plants; hold them until seeds mature, then cull
 and convert the tent to the planned drip-tray drain-to-waste setup. The retained
@@ -43,8 +43,9 @@ A-D labels still need reconciliation.
 
 No daily photos are available, so seed maturity, harvest timing, dense
 flower-pocket condition, and plant posture need direct visual and trichome
-checks. Main VPD is in range at 1.37 overnight / 1.49 morning / 1.43 now, with
-current conditions 74.98°F / 51.87% RH and fan output fixed at 20%. Today's
-trusted direct-percent moisture set is empty again; hand-check
-retained tags, tray/media/posture, and C's probe/feed before treating older
-moisture trends as irrigation direction.
+checks. Main VPD is low overnight and usable lights-on at 1.15 overnight /
+1.29 morning / 1.27 now, with current conditions 74.64°F / 56.57% RH and fan
+output fixed at 20%. RH/dew point remain high for late flower, and today's trusted
+direct-percent moisture set is empty again; hand-check retained tags,
+tray/media/posture, and C's probe/feed before treating older moisture trends as
+irrigation direction.

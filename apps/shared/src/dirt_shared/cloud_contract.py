@@ -7,14 +7,13 @@ from typing import Any, Literal, TypeAlias
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from dirt_shared.metric_history import MetricHistoryBucket
-
 
 class CloudContractModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
 CommandRequestStatus = Literal["running", "succeeded", "failed", "rejected", "expired"]
+MetricHistoryBucket = Literal["5m", "1h", "4h", "1d"]
 CommandResponseStatus = Literal[
     "queued",
     "claimed",

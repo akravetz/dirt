@@ -4,7 +4,7 @@ type: plant
 sources: []
 related: [wiki/grows/breeding-track-a-2026-04-28/README.md, wiki/breeding/male-evaluation.md, wiki/breeding/pollen-handling.md]
 created: 2026-05-30
-updated: 2026-07-31
+updated: 2026-08-17
 ---
 
 # R2
@@ -17,7 +17,7 @@ updated: 2026-07-31
 
 ## Current State
 
-`SBBS-R1-006` remains the selected Track A pollen donor for purple pollen-sac coloration. With no photo and the exact current-only 83.28% RH / 0.45 kPa repeat, verify sensor freshness and dry handling conditions before collection. See [2026-07-31 daily](../../../daily/2026-07-31.md).
+`SBBS-R1-006` remains the selected Track A pollen donor for purple pollen-sac coloration on Flower Day 85. With no photo and the exact 83.28% RH / 0.45 kPa current-only repeat, verify sensor freshness and dry handling conditions before collection; see the [2026-08-17 daily](../../../daily/2026-08-17.md).
 
 ## Timeline
 
@@ -79,3 +79,20 @@ updated: 2026-07-31
 - 2026-07-29 — No breeding photo; `SBBS-R1-006` remains selected donor, but the exact 83.28% RH / 0.45 kPa repeat keeps sensor freshness and dry pollen-handling checks active. See [2026-07-29](../../../daily/2026-07-29.md).
 - 2026-07-30 — No breeding photo; `SBBS-R1-006` remains selected donor, but the exact 83.28% RH / 0.45 kPa repeat keeps sensor freshness and dry pollen-handling checks active. See [2026-07-30](../../../daily/2026-07-30.md).
 - 2026-07-31 — No breeding photo; `SBBS-R1-006` remains selected donor, but the exact 83.28% RH / 0.45 kPa repeat keeps sensor freshness and dry pollen-handling checks active. See [2026-07-31](../../../daily/2026-07-31.md).
+- 2026-08-01 — No breeding photo; `SBBS-R1-006` remains selected donor, but the exact 83.28% RH / 0.45 kPa repeat keeps sensor freshness and dry pollen-handling checks active. See [2026-08-01](../../../daily/2026-08-01.md).
+- 2026-08-02 — No breeding photo; `SBBS-R1-006` remains selected donor, but the exact 83.28% RH / 0.45 kPa repeat keeps sensor freshness and dry pollen-handling checks active. See [2026-08-02](../../../daily/2026-08-02.md).
+- 2026-08-03 — No breeding photo; `SBBS-R1-006` remains selected donor, but the exact 83.28% RH / 0.45 kPa repeat keeps sensor freshness and dry pollen-handling checks active. See [2026-08-03](../../../daily/2026-08-03.md).
+- 2026-08-04 — No breeding photo; `SBBS-R1-006` remains selected donor, but the exact 83.28% RH / 0.45 kPa repeat keeps sensor freshness and dry pollen-handling checks active. See [2026-08-04](../../../daily/2026-08-04.md).
+- 2026-08-05 — No breeding photo; `SBBS-R1-006` remains selected donor, but the exact 83.28% RH / 0.45 kPa repeat keeps sensor freshness and dry pollen-handling checks active. See [2026-08-05](../../../daily/2026-08-05.md).
+- 2026-08-06 — No breeding photo; `SBBS-R1-006` remains selected donor, but the exact 83.28% RH / 0.45 kPa repeat keeps sensor freshness and dry pollen-handling checks active. See [2026-08-06](../../../daily/2026-08-06.md).
+- 2026-08-07 — No breeding photo; `SBBS-R1-006` remains selected donor, but the exact 83.28% RH / 0.45 kPa repeat keeps sensor freshness and dry pollen-handling checks active. See [2026-08-07](../../../daily/2026-08-07.md).
+- 2026-08-08 — No breeding photo; `SBBS-R1-006` remains selected donor, but the exact 83.28% RH / 0.45 kPa repeat keeps sensor freshness and dry pollen-handling checks active. See [2026-08-08](../../../daily/2026-08-08.md).
+- 2026-08-09 — No breeding photo; `SBBS-R1-006` remains selected donor, but the exact 83.28% RH / 0.45 kPa repeat keeps sensor freshness and dry pollen-handling checks active. See [2026-08-09](../../../daily/2026-08-09.md).
+- 2026-08-10 — No breeding photo; `SBBS-R1-006` remains selected donor, but the exact 83.28% RH / 0.45 kPa repeat keeps sensor freshness and dry pollen-handling checks active. See [2026-08-10](../../../daily/2026-08-10.md).
+- 2026-08-11 — No breeding photo; `SBBS-R1-006` remains selected donor, but the exact 83.28% RH / 0.45 kPa repeat keeps sensor freshness and dry pollen-handling checks active. See [2026-08-11](../../../daily/2026-08-11.md).
+- 2026-08-12 — No breeding photo; `SBBS-R1-006` remains selected donor, but the exact 83.28% RH / 0.45 kPa repeat keeps sensor freshness and dry pollen-handling checks active. See [2026-08-12](../../../daily/2026-08-12.md).
+- 2026-08-13 — No breeding photo; `SBBS-R1-006` remains selected donor, but the exact 83.28% RH / 0.45 kPa repeat keeps sensor freshness and dry pollen-handling checks active. See [2026-08-13](../../../daily/2026-08-13.md).
+- 2026-08-14 — No breeding photo; `SBBS-R1-006` remains selected donor, but the exact 83.28% RH / 0.45 kPa repeat keeps sensor freshness and dry pollen-handling checks active. See [2026-08-14](../../../daily/2026-08-14.md).
+- 2026-08-15 — No breeding photo; `SBBS-R1-006` remains selected donor, but the exact 83.28% RH / 0.45 kPa repeat keeps sensor freshness and dry pollen-handling checks active. See [2026-08-15](../../../daily/2026-08-15.md).
+- 2026-08-16 — No breeding photo; `SBBS-R1-006` remains selected donor, but the exact 83.28% RH / 0.45 kPa repeat keeps sensor freshness and dry pollen-handling checks active. See [2026-08-16](../../../daily/2026-08-16.md).
+- 2026-08-17 — No breeding photo; `SBBS-R1-006` remains selected donor, but the exact 83.28% RH / 0.45 kPa repeat keeps sensor freshness and dry pollen-handling checks active. See [2026-08-17](../../../daily/2026-08-17.md).
