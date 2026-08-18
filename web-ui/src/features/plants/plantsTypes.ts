@@ -88,23 +88,14 @@ export type PlantRow = {
 };
 
 export type PlantTelemetryReading = {
-  receivedAt: string;
   value: number;
 };
 
 export type PlantTelemetryStream = {
-  accent: string;
   capabilityId: string;
   deviceId: string;
-  displayName: string;
-  displayUnit: string;
-  historyEnabled: boolean;
-  key: string;
   latestReading: PlantTelemetryReading | null;
   metric: string;
-  valuePrecision: number;
-  yMax: number | null;
-  yMin: number | null;
 };
 
 export type PlantWikiContent = {

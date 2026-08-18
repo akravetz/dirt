@@ -1934,6 +1934,7 @@ async def test_metric_history_filters_bucket_and_window_by_range(
             start=FIXED_NOW - timedelta(minutes=30),
             avg=2.0,
         ),
+        _rollup(bucket="5m", start=FIXED_NOW + timedelta(days=365), avg=99.0),
         _rollup(bucket="1h", start=FIXED_NOW - timedelta(days=2), avg=5.0),
         _rollup(bucket="1h", start=FIXED_NOW - timedelta(days=8), avg=6.0),
         _rollup(bucket="4h", start=FIXED_NOW - timedelta(days=2), avg=10.0),
@@ -2782,9 +2783,6 @@ async def test_breeding_logbook_plant_detail_and_history_reuse_cloud_projection(
         "parents": ("Plant B (SBBS-R1-002) x Plant C (SBBS-R1-003) (reversed)"),
         "offspring": "Cross #43: SBBS R1 #3 (1 plant)",
     }
-    assert detail_body["metrics"] == [
-        {"label": "Substrate Temp", "value": "69.8°F", "tone": "ok"}
-    ]
     assert [
         (event["id"], event["tag"], event["body"]) for event in detail_body["events"]
     ] == [
@@ -3613,24 +3611,10 @@ async def test_browser_plant_detail_exposes_mapped_latest_with_display_conversio
     assert response.status_code == 200
     telemetry = {stream["metric"]: stream for stream in response.json()["telemetry"]}
     assert list(telemetry) == ["substrate_temp_c", "substrate_ec_us_cm", "substrate_ph"]
-    assert telemetry["substrate_temp_c"]["display_name"] == "Substrate Temp"
-    assert telemetry["substrate_temp_c"]["display_unit"] == "°F"
-    assert telemetry["substrate_temp_c"]["source_unit"] == "degC"
     assert telemetry["substrate_temp_c"]["latest_reading"] == {
         "value": 69.8,
-        "source_value": 21.0,
-        "source_unit": "degC",
-        "display_unit": "°F",
-        "device_id": "plant-a-substrate-node",
-        "capability_id": "substrate-temp",
-        "source_updated_at": "2026-05-05T03:44:00Z",
-        "received_at": "2026-05-05T03:45:00Z",
-        "stale_after_s": 600,
     }
-    assert telemetry["substrate_ec_us_cm"]["display_unit"] == "mS/cm"
-    assert telemetry["substrate_ec_us_cm"]["source_unit"] == "us/cm"
     assert telemetry["substrate_ec_us_cm"]["latest_reading"]["value"] == 1.234
-    assert telemetry["substrate_ec_us_cm"]["latest_reading"]["source_value"] == 1234.0
     assert telemetry["substrate_ph"]["latest_reading"]["value"] == 6.4
 
 
@@ -3707,6 +3691,15 @@ async def test_tent_plant_metric_history_batches_exact_active_mapped_streams(
                     bucket="5m",
                     start=FIXED_NOW - timedelta(hours=2),
                     avg=11.0,
+                    device_id="plant-a-node",
+                    capability_id="moisture-a",
+                    metric="soil_moisture_pct",
+                    unit="%",
+                ),
+                _rollup(
+                    bucket="5m",
+                    start=FIXED_NOW + timedelta(days=365),
+                    avg=77.0,
                     device_id="plant-a-node",
                     capability_id="moisture-a",
                     metric="soil_moisture_pct",

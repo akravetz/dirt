@@ -106,13 +106,13 @@ describe("Sparkline", () => {
       svg?.dispatchEvent(
         new MouseEvent("pointermove", {
           bubbles: true,
-          clientX: 25,
+          clientX: 50,
           clientY: 20,
         }),
       );
     });
 
-    expect(onHoverTimestamp).toHaveBeenCalledWith("2026-05-01T04:00:00Z");
+    expect(onHoverTimestamp).toHaveBeenCalledWith("2026-05-01T08:00:00Z");
   });
 
   it("renders independently identified series and preserves zero in the tooltip", () => {

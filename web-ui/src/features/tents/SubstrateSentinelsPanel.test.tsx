@@ -44,7 +44,7 @@ describe("SubstrateSentinelsPanel", () => {
       plants: [
         {
           grid_position: "B2",
-          id: 2,
+          id: 5,
           key: "plant-b",
           name: "Plant B",
           streams: [moistureStream("probe-b", 0)],
@@ -64,11 +64,6 @@ describe("SubstrateSentinelsPanel", () => {
     expect(container?.querySelectorAll("article")).toHaveLength(3);
     expect(container?.textContent).toContain("No mapped substrate EC stream");
     expect(container?.textContent).toContain("No mapped substrate pH stream");
-    expect(
-      container
-        ?.querySelector("[aria-label='Soil moisture sparkline']")
-        ?.querySelectorAll("svg path"),
-    ).toHaveLength(8);
     const legendItems = [
       ...(container?.querySelectorAll("[aria-label='Series legend'] li") ?? []),
     ];

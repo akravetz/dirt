@@ -19,7 +19,7 @@ The behavior is observable through focused API and React tests, the local hosted
 - [x] (2026-08-18 08:04Z) Audited the existing metric presentation, rollup, mapped-plant history, tent UI, plant UI, and Sparkline paths.
 - [x] (2026-08-18 08:09Z) Milestone 1: encoded the repository-owned service-consumer rule in root `AGENTS.md` and its operational/data-safety boundary in `docs/rules/simple-clean-architecture.md`; focused sanity validation and simplify review passed.
 - [x] (2026-08-18 09:28Z) Milestone 2: completed the atomic backend/frontend contract cutover, including invariant correction, timestamped multi-series Sparkline, mapped sentinel panel, plant-detail history cleanup, focused UI coverage, simplify review, frontend typecheck/lint/tests/build, and one rollback commit.
-- [ ] Milestone 3: perform final simplification review, full validation, local browser acceptance, hosted deployment, final worktree commit, and push to `main`.
+- [ ] Milestone 3: perform final simplification review, full validation, local browser acceptance, hosted deployment, final worktree commit, and push to `main`. Completed: integrated reuse/quality/efficiency review, dead contract removal, bounded history queries, slimmer current telemetry, focused query-options test, regenerated contract, and focused validation. Remaining: full gate, local browser acceptance, deployment, final all-worktree commit, and push.
 
 
 ## Surprises & Discoveries
@@ -62,6 +62,12 @@ The behavior is observable through focused API and React tests, the local hosted
 
 - Observation: plant history previously began only after suspense detail resolved, and plant command convergence invalidated all history ranges even though those commands cannot change sensor history.
   Evidence: detail-route history now starts in parallel from the route plant key, remains disabled on non-detail surfaces, and command convergence invalidates only detail/list data.
+
+- Observation: browser history queries had a lower cutoff but no upper bound, while the frontend expands every bucket between the earliest and latest timestamp.
+  Evidence: a corrupt future-dated rollup could cause effectively unbounded browser allocation. Generic and mapped rollup queries now require `cutoff <= bucket_start_at <= request clock`, with regression fixtures one year in the future.
+
+- Observation: plant detail still emitted a dead parallel metric-summary response with constant `tone="ok"`, and current telemetry repeated presentation metadata already owned by the history stream contract.
+  Evidence: the owned frontend ignored the summary response and used only exact stream identity plus latest display value from current telemetry. The DTOs, builder, fixtures, generated fields, and frontend adapters are now deleted.
 
 
 ## Decision Log
@@ -106,6 +112,8 @@ Milestone 1 established the compatibility preference through progressive disclos
 Milestone 2 established one mapped-plant metric service for current readings and timestamped history, with exact composite stream identities and bounded batched queries. Generic tent history now aggregates physical streams intentionally in SQL. Substrate metrics remain rollup-enabled but are excluded from generic groups by matching local/cloud migrations. The old tent detail/history routes, false tent-scoped presentation route, optional physical-stream selectors, duplicate orchestration, verbose point contract, and unreachable gateway branch are gone.
 
 The frontend half completed the direct generated-contract cutover without aliases or adapters. `Sparkline` has one timestamped `series[]` contract, full-cadence gaps, memoized geometry, timestamp hover, and stable plant-identity colors. The tent page fetches one mapped collection per tent/range and renders soil moisture, EC, and pH sentinel charts with honest loading/error/empty states. Plant detail fetches history independently, preserves generated stream metadata, polls active history every 30 seconds, and uses exact live telemetry for current summaries. Fake timestamps, fixed moisture presentation, custom metric whitelists, duplicate accents, overbroad history invalidation, and the inert probe button are removed.
+
+The integrated simplify review removed the remaining dead plant metric-summary contract and slimmed current telemetry to exact identity plus latest display value. It replaced the heavyweight breeding projection used only to resolve history, bounded future rollups, prevented redundant pointer state writes, kept sentinel colors distinct for the displayed set, validates hover against the current axis, and extracted a feature-local query-options boundary. Its test executes a real QueryClient with mocked HTTP and proves one GET plus a key containing tent 17 and range `7d`.
 
 
 ## Context and Orientation

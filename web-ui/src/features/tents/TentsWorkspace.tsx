@@ -14,10 +14,10 @@ import { formatEmptyHistoryLabel } from "@/ui/historyRangeLabels";
 import { RangeSwitch, type SparklineRange } from "@/ui/RangeSwitch";
 import { Sparkline } from "@/ui/Sparkline";
 import { SubstrateSentinelsPanel } from "./SubstrateSentinelsPanel";
+import { TENTS_REFETCH_MS, tentPlantMetricHistoryQueryOptions } from "./tentsQueries";
 
 const hostedApi = createHostedApiClient();
 const PLANT_DETAIL_ROUTE = "/plants/$plantKey" as const;
-const TENTS_REFETCH_MS = 30_000;
 
 type MetricStatus = "ok" | "warn" | "crit";
 type HostedAsset = hostedComponents["schemas"]["AssetResponse"];
@@ -206,21 +206,8 @@ export function TentsWorkspace({ sourceTentId }: { sourceTentId: string }): Reac
   });
 
   const plantHistoryQuery = useQuery({
-    queryKey: ["cloud.plants.metrics.history", sourceTentIdNumber, { range }],
-    queryFn: async () => {
-      const { data } = await hostedApi.GET(
-        "/api/tents/{source_tent_id}/plants/metrics/history",
-        {
-          params: {
-            path: { source_tent_id: sourceTentPathId },
-            query: { range },
-          },
-        },
-      );
-      return hostedData(data, "/api/tents/{source_tent_id}/plants/metrics/history");
-    },
+    ...tentPlantMetricHistoryQueryOptions(sourceTentPathId, range),
     enabled: sourceTentIdNumber !== null,
-    refetchInterval: TENTS_REFETCH_MS,
   });
 
   const historyGroups = presentationQuery.data?.history_groups ?? [];

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from collections.abc import Collection
+from collections.abc import Iterable
 
 from fastapi import HTTPException, status
 
 
 def require_consistent_metric_unit(
-    units: Collection[str | None],
+    units: Iterable[str | None],
     *,
     metric: str,
 ) -> str | None:

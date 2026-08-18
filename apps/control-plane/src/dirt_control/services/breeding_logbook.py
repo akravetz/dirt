@@ -28,7 +28,6 @@ from dirt_control.api.browser_schemas.breeding_logbook import (
     BreedingLogbookPlantDetailResponse,
     BreedingLogbookPlantJournalEventResponse,
     BreedingLogbookPlantListResponse,
-    BreedingLogbookPlantMetricSummaryResponse,
     BreedingLogbookPlantRowResponse,
     BreedingLogbookPlantStageKey,
     BreedingLogbookSeedLotCrossContextResponse,
@@ -44,7 +43,6 @@ from dirt_control.api.browser_schemas.breeding_logbook import (
 from dirt_control.api.browser_schemas.commands import CommandResponse
 from dirt_control.api.browser_schemas.plants import (
     PlantMetricHistoryResponse,
-    PlantMetricStreamResponse,
 )
 from dirt_control.models import (
     CloudCrossEvent,
@@ -75,7 +73,7 @@ from dirt_control.services.plant_metrics import (
     active_plant_metric_streams,
     latest_metrics_by_stream,
     load_mapped_plant_histories,
-    mapped_plant_history_target,
+    mapped_plant_history_target_by_key,
     plant_metric_history_response,
     plant_metric_stream_responses,
 )
@@ -303,7 +301,7 @@ async def plant_metric_history(
     range_key: MetricHistoryRange,
     now: datetime,
 ) -> PlantMetricHistoryResponse:
-    plant = await get_breeding_logbook_plant(
+    target = await mapped_plant_history_target_by_key(
         session,
         site_id=site_id,
         plant_key=plant_key,
@@ -311,13 +309,13 @@ async def plant_metric_history(
     result = await load_mapped_plant_histories(
         session,
         site_id=site_id,
-        plants=[mapped_plant_history_target(plant.plant, plant.location)],
+        plants=[target],
         range_key=range_key,
         now=now,
     )
     return plant_metric_history_response(
         result,
-        source_plant_id=plant.plant.source_plant_id,
+        source_plant_id=target.source_plant_id,
     )
 
 
@@ -369,7 +367,6 @@ async def plant_detail(
             today=today,
         ),
         lineage=lineage,
-        metrics=breeding_logbook_metric_summaries(telemetry),
         events=breeding_logbook_journal_events(notes=notes, events=events),
         telemetry=telemetry,
         wiki_content=None,
@@ -1671,25 +1668,6 @@ def telemetry_summary(stream_count: int) -> str:
     if stream_count == 1:
         return "1 plant stream"
     return f"{stream_count} plant streams"
-
-
-def breeding_logbook_metric_summaries(
-    telemetry: list[PlantMetricStreamResponse],
-) -> list[BreedingLogbookPlantMetricSummaryResponse]:
-    summaries: list[BreedingLogbookPlantMetricSummaryResponse] = []
-    for stream in telemetry:
-        reading = stream.latest_reading
-        value = "no reading"
-        if reading is not None:
-            value = f"{reading.value:g}{stream.display_unit}"
-        summaries.append(
-            BreedingLogbookPlantMetricSummaryResponse(
-                label=stream.display_name,
-                value=value,
-                tone="ok",
-            )
-        )
-    return summaries
 
 
 def date_or_none(value: datetime | None) -> date | None:

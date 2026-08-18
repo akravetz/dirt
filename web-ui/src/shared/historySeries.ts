@@ -5,14 +5,14 @@ export type HistoryPoint = {
 
 export type HistoryBucket = "5m" | "1h" | "4h" | "1d";
 
-export type PlantSeriesColor = "plant-a" | "plant-b" | "plant-c" | "plant-d";
-
 export const PLANT_SERIES_COLORS = [
   "plant-a",
   "plant-b",
   "plant-c",
   "plant-d",
-] as const satisfies readonly PlantSeriesColor[];
+] as const;
+
+export type PlantSeriesColor = (typeof PLANT_SERIES_COLORS)[number];
 
 export function historyTimestampAxis(
   pointGroups: readonly (readonly HistoryPoint[])[],

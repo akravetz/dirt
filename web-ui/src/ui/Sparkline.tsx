@@ -256,12 +256,13 @@ function SparklinePlot({
   const setHoverFromPointer = (event: PointerEvent<SVGSVGElement>): void => {
     const rect = event.currentTarget.getBoundingClientRect();
     if (rect.width <= 0) {
-      onHoverTimestamp(null);
+      if (hoverTimestamp !== null) onHoverTimestamp(null);
       return;
     }
     const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
     const index = Math.round(ratio * (axis.length - 1));
-    onHoverTimestamp(axis[index] ?? null);
+    const nextTimestamp = axis[index] ?? null;
+    if (nextTimestamp !== hoverTimestamp) onHoverTimestamp(nextTimestamp);
   };
 
   const handlePointerDown = (event: PointerEvent<SVGSVGElement>): void => {
@@ -289,7 +290,9 @@ function SparklinePlot({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         onPointerLeave={(event) => {
-          if (event.pointerType !== "touch") onHoverTimestamp(null);
+          if (event.pointerType !== "touch" && hoverTimestamp !== null) {
+            onHoverTimestamp(null);
+          }
         }}
       >
         <title>{`${name} — ${series.length} series, ${axis.length} timestamps`}</title>

@@ -4,7 +4,6 @@ import {
   alignHistoryPoints,
   historyTimestampAxis,
   PLANT_SERIES_COLORS,
-  type PlantSeriesColor,
 } from "@/shared/historySeries";
 import { HoverTimestamp } from "@/ui/HoverTimestamp";
 import { formatEmptyHistoryLabel } from "@/ui/historyRangeLabels";
@@ -55,8 +54,14 @@ export function SubstrateSentinelsPanel({
     range: SparklineRange;
     timestamp: string | null;
   }>({ range, timestamp: null });
-  const hoverTimestamp = hoverState.range === range ? hoverState.timestamp : null;
   const model = useMemo(() => buildPanelModel(history), [history]);
+  const requestedHoverTimestamp =
+    hoverState.range === range ? hoverState.timestamp : null;
+  const hoverTimestamp =
+    requestedHoverTimestamp !== null &&
+    model.historyAxis.includes(requestedHoverTimestamp)
+      ? requestedHoverTimestamp
+      : null;
 
   return (
     <section aria-label="Substrate sentinels" className="mb-4 flex flex-col">
@@ -103,7 +108,7 @@ export function SubstrateSentinelsPanel({
 
 function buildPanelModel(history: PlantMetricHistoryCollection | undefined) {
   if (history === undefined) {
-    return { bucket: "5m" as const, charts: [], streamCount: 0 };
+    return { bucket: "5m" as const, charts: [], historyAxis: [], streamCount: 0 };
   }
 
   const orderedPlants = [...history.plants].sort(compareSentinelPlants);
@@ -118,13 +123,19 @@ function buildPanelModel(history: PlantMetricHistoryCollection | undefined) {
     substrateStreams.map(({ stream }) => stream.points),
     history.bucket,
   );
+  const plantColors = new Map(
+    orderedPlants.map((plant, index) => [
+      plant.id,
+      PLANT_SERIES_COLORS[index % PLANT_SERIES_COLORS.length] ?? "plant-a",
+    ]),
+  );
   const charts = SUBSTRATE_HISTORY_METRICS.map((metric) => {
     const mappedStreams = substrateStreams.filter(
       ({ stream }) => stream.metric === metric.metric,
     );
     const firstStream = mappedStreams[0]?.stream;
     const series = mappedStreams.map(({ plant, stream }) => ({
-      color: plantSeriesColor(plant.id),
+      color: plantColors.get(plant.id) ?? "plant-a",
       id: `${plant.id}:${stream.device_id}:${stream.capability_id}:${stream.metric}`,
       label: sentinelLabel(plant.name, plant.grid_position),
       points: alignHistoryPoints(stream.points, historyAxis),
@@ -148,7 +159,12 @@ function buildPanelModel(history: PlantMetricHistoryCollection | undefined) {
     };
   });
 
-  return { bucket: history.bucket, charts, streamCount: substrateStreams.length };
+  return {
+    bucket: history.bucket,
+    charts,
+    historyAxis,
+    streamCount: substrateStreams.length,
+  };
 }
 
 function PanelStatus({
@@ -182,11 +198,6 @@ function compareSentinelPlants(
       right.grid_position ?? right.name,
     ) || left.key.localeCompare(right.key)
   );
-}
-
-function plantSeriesColor(plantId: number): PlantSeriesColor {
-  const paletteIndex = Math.max(0, Math.abs(plantId) - 1) % PLANT_SERIES_COLORS.length;
-  return PLANT_SERIES_COLORS[paletteIndex] ?? "plant-a";
 }
 
 function sentinelLabel(name: string, gridPosition: string | null): string {

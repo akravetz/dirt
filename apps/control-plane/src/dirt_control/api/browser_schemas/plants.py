@@ -51,27 +51,10 @@ class PlantWikiContentResponse(BrowserResponse):
 
 class PlantMetricReadingResponse(BrowserResponse):
     value: float
-    source_value: float
-    source_unit: str | None
-    display_unit: str
-    device_id: str
-    capability_id: str
-    source_updated_at: datetime
-    received_at: datetime
-    stale_after_s: int
 
 
 class PlantMetricStreamResponse(BrowserResponse):
     metric: str
-    display_name: str
-    display_unit: str
-    source_unit: str | None
-    value_precision: int
-    accent: MetricAccent
-    y_min: float | None
-    y_max: float | None
-    display_order: int
-    history_enabled: bool
     device_id: str
     capability_id: str
     latest_reading: PlantMetricReadingResponse | None

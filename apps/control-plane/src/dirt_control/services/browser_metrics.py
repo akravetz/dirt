@@ -143,6 +143,7 @@ async def metric_history(  # noqa: PLR0913
                 CloudMetricRollup.metric == metric,
                 CloudMetricRollup.bucket == bucket,
                 CloudMetricRollup.bucket_start_at >= cutoff,
+                CloudMetricRollup.bucket_start_at <= now,
             )
             .group_by(
                 CloudMetricRollup.bucket,

@@ -14,9 +14,9 @@
 // API client.
 import type { ReactNode } from "react";
 
-export type SparklineRange = "1h" | "24h" | "7d" | "30d" | "90d";
+const RANGES = ["1h", "24h", "7d", "30d", "90d"] as const;
 
-const RANGES: readonly SparklineRange[] = ["1h", "24h", "7d", "30d", "90d"] as const;
+export type SparklineRange = (typeof RANGES)[number];
 
 interface RangeSwitchProps {
   value: SparklineRange;

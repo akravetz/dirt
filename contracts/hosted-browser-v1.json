@@ -1623,13 +1623,6 @@
           "lineage": {
             "$ref": "#/components/schemas/BreedingLogbookLineageResponse"
           },
-          "metrics": {
-            "items": {
-              "$ref": "#/components/schemas/BreedingLogbookPlantMetricSummaryResponse"
-            },
-            "title": "Metrics",
-            "type": "array"
-          },
           "plant": {
             "$ref": "#/components/schemas/BreedingLogbookPlantRowResponse"
           },
@@ -1654,7 +1647,6 @@
         "required": [
           "plant",
           "lineage",
-          "metrics",
           "events",
           "telemetry",
           "wiki_content"
@@ -1747,34 +1739,6 @@
           "plants"
         ],
         "title": "BreedingLogbookPlantListResponse",
-        "type": "object"
-      },
-      "BreedingLogbookPlantMetricSummaryResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "label": {
-            "title": "Label",
-            "type": "string"
-          },
-          "tone": {
-            "enum": [
-              "ok",
-              "warn"
-            ],
-            "title": "Tone",
-            "type": "string"
-          },
-          "value": {
-            "title": "Value",
-            "type": "string"
-          }
-        },
-        "required": [
-          "label",
-          "value",
-          "tone"
-        ],
-        "title": "BreedingLogbookPlantMetricSummaryResponse",
         "type": "object"
       },
       "BreedingLogbookPlantRowResponse": {
@@ -6400,62 +6364,13 @@
       "PlantMetricReadingResponse": {
         "additionalProperties": false,
         "properties": {
-          "capability_id": {
-            "title": "Capability Id",
-            "type": "string"
-          },
-          "device_id": {
-            "title": "Device Id",
-            "type": "string"
-          },
-          "display_unit": {
-            "title": "Display Unit",
-            "type": "string"
-          },
-          "received_at": {
-            "format": "date-time",
-            "title": "Received At",
-            "type": "string"
-          },
-          "source_unit": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Unit"
-          },
-          "source_updated_at": {
-            "format": "date-time",
-            "title": "Source Updated At",
-            "type": "string"
-          },
-          "source_value": {
-            "title": "Source Value",
-            "type": "number"
-          },
-          "stale_after_s": {
-            "title": "Stale After S",
-            "type": "integer"
-          },
           "value": {
             "title": "Value",
             "type": "number"
           }
         },
         "required": [
-          "value",
-          "source_value",
-          "source_unit",
-          "display_unit",
-          "device_id",
-          "capability_id",
-          "source_updated_at",
-          "received_at",
-          "stale_after_s"
+          "value"
         ],
         "title": "PlantMetricReadingResponse",
         "type": "object"
@@ -6463,18 +6378,6 @@
       "PlantMetricStreamResponse": {
         "additionalProperties": false,
         "properties": {
-          "accent": {
-            "enum": [
-              "temp",
-              "humidity",
-              "vpd",
-              "neutral",
-              "reservoir",
-              "moisture"
-            ],
-            "title": "Accent",
-            "type": "string"
-          },
           "capability_id": {
             "title": "Capability Id",
             "type": "string"
@@ -6482,22 +6385,6 @@
           "device_id": {
             "title": "Device Id",
             "type": "string"
-          },
-          "display_name": {
-            "title": "Display Name",
-            "type": "string"
-          },
-          "display_order": {
-            "title": "Display Order",
-            "type": "integer"
-          },
-          "display_unit": {
-            "title": "Display Unit",
-            "type": "string"
-          },
-          "history_enabled": {
-            "title": "History Enabled",
-            "type": "boolean"
           },
           "latest_reading": {
             "anyOf": [
@@ -6512,56 +6399,10 @@
           "metric": {
             "title": "Metric",
             "type": "string"
-          },
-          "source_unit": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Unit"
-          },
-          "value_precision": {
-            "title": "Value Precision",
-            "type": "integer"
-          },
-          "y_max": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Y Max"
-          },
-          "y_min": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Y Min"
           }
         },
         "required": [
           "metric",
-          "display_name",
-          "display_unit",
-          "source_unit",
-          "value_precision",
-          "accent",
-          "y_min",
-          "y_max",
-          "display_order",
-          "history_enabled",
           "device_id",
           "capability_id",
           "latest_reading"

@@ -1196,8 +1196,6 @@ export interface components {
       /** Events */
       events: components["schemas"]["BreedingLogbookPlantJournalEventResponse"][];
       lineage: components["schemas"]["BreedingLogbookLineageResponse"];
-      /** Metrics */
-      metrics: components["schemas"]["BreedingLogbookPlantMetricSummaryResponse"][];
       plant: components["schemas"]["BreedingLogbookPlantRowResponse"];
       /** Telemetry */
       telemetry: components["schemas"]["PlantMetricStreamResponse"][];
@@ -1234,18 +1232,6 @@ export interface components {
       group_by: "stage";
       /** Plants */
       plants: components["schemas"]["BreedingLogbookPlantRowResponse"][];
-    };
-    /** BreedingLogbookPlantMetricSummaryResponse */
-    BreedingLogbookPlantMetricSummaryResponse: {
-      /** Label */
-      label: string;
-      /**
-       * Tone
-       * @enum {string}
-       */
-      tone: "ok" | "warn";
-      /** Value */
-      value: string;
     };
     /** BreedingLogbookPlantRowResponse */
     BreedingLogbookPlantRowResponse: {
@@ -2719,61 +2705,18 @@ export interface components {
     };
     /** PlantMetricReadingResponse */
     PlantMetricReadingResponse: {
-      /** Capability Id */
-      capability_id: string;
-      /** Device Id */
-      device_id: string;
-      /** Display Unit */
-      display_unit: string;
-      /**
-       * Received At
-       * Format: date-time
-       */
-      received_at: string;
-      /** Source Unit */
-      source_unit: string | null;
-      /**
-       * Source Updated At
-       * Format: date-time
-       */
-      source_updated_at: string;
-      /** Source Value */
-      source_value: number;
-      /** Stale After S */
-      stale_after_s: number;
       /** Value */
       value: number;
     };
     /** PlantMetricStreamResponse */
     PlantMetricStreamResponse: {
-      /**
-       * Accent
-       * @enum {string}
-       */
-      accent: "temp" | "humidity" | "vpd" | "neutral" | "reservoir" | "moisture";
       /** Capability Id */
       capability_id: string;
       /** Device Id */
       device_id: string;
-      /** Display Name */
-      display_name: string;
-      /** Display Order */
-      display_order: number;
-      /** Display Unit */
-      display_unit: string;
-      /** History Enabled */
-      history_enabled: boolean;
       latest_reading: components["schemas"]["PlantMetricReadingResponse"] | null;
       /** Metric */
       metric: string;
-      /** Source Unit */
-      source_unit: string | null;
-      /** Value Precision */
-      value_precision: number;
-      /** Y Max */
-      y_max: number | null;
-      /** Y Min */
-      y_min: number | null;
     };
     /** PlantSummaryResponse */
     PlantSummaryResponse: {

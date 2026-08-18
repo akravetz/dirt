@@ -133,7 +133,6 @@ describe("plants hosted response mapping", () => {
         parents: "Plant B x Plant C",
         offspring: "Cross #43: SBBS R1 #3 (1 plant)",
       },
-      metrics: [{ label: "Substrate Temp", value: "69.8°F", tone: "ok" }],
       events: [
         {
           id: "event-201",

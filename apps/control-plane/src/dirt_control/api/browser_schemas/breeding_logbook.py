@@ -285,12 +285,6 @@ class BreedingLogbookPlantListResponse(BrowserResponse):
     plants: list[BreedingLogbookPlantRowResponse]
 
 
-class BreedingLogbookPlantMetricSummaryResponse(BrowserResponse):
-    label: str
-    value: str
-    tone: Literal["ok", "warn"]
-
-
 class BreedingLogbookLineageResponse(BrowserResponse):
     parents: str
     offspring: str
@@ -308,7 +302,6 @@ class BreedingLogbookPlantJournalEventResponse(BrowserResponse):
 class BreedingLogbookPlantDetailResponse(BrowserResponse):
     plant: BreedingLogbookPlantRowResponse
     lineage: BreedingLogbookLineageResponse
-    metrics: list[BreedingLogbookPlantMetricSummaryResponse]
     events: list[BreedingLogbookPlantJournalEventResponse]
     telemetry: list[PlantMetricStreamResponse]
     wiki_content: PlantWikiContentResponse | None

@@ -244,24 +244,15 @@ function mapTelemetryStream(
   stream: HostedPlantsPlantDetail["telemetry"][number],
 ): PlantTelemetryStream {
   return {
-    accent: stream.accent,
     capabilityId: stream.capability_id,
     deviceId: stream.device_id,
-    displayName: stream.display_name,
-    displayUnit: stream.display_unit,
-    historyEnabled: stream.history_enabled,
-    key: `${stream.device_id}:${stream.capability_id}:${stream.metric}`,
     latestReading:
       stream.latest_reading === null
         ? null
         : {
-            receivedAt: stream.latest_reading.received_at,
             value: stream.latest_reading.value,
           },
     metric: stream.metric,
-    valuePrecision: stream.value_precision,
-    yMax: stream.y_max,
-    yMin: stream.y_min,
   };
 }
 

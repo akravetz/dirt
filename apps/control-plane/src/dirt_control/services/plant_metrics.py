@@ -5,7 +5,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import cast
 
-from sqlalchemy import and_, select, tuple_
+from fastapi import HTTPException, status
+from sqlalchemy import and_, desc, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirt_control.api.browser_schemas.metrics import MetricAccent
@@ -91,6 +92,40 @@ def mapped_plant_history_target(
         grid_position=location.grid_position,
         source_tent_id=required_location_source_tent_id(location),
     )
+
+
+async def mapped_plant_history_target_by_key(
+    session: AsyncSession,
+    *,
+    site_id: str,
+    plant_key: str,
+) -> MappedPlantHistoryTarget:
+    row = (
+        await session.execute(
+            select(CloudPlant, CloudPlantLocation)
+            .join(
+                CloudPlantLocation,
+                and_(
+                    CloudPlantLocation.site_id == CloudPlant.site_id,
+                    CloudPlantLocation.source_plant_id == CloudPlant.source_plant_id,
+                ),
+            )
+            .where(
+                CloudPlant.site_id == site_id,
+                CloudPlant.key == plant_key,
+                CloudPlantLocation.site_id == site_id,
+            )
+            .order_by(
+                CloudPlantLocation.end_at.is_(None).desc(),
+                desc(CloudPlantLocation.start_at),
+            )
+            .limit(1)
+        )
+    ).one_or_none()
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "plant not found")
+    plant, location = row
+    return mapped_plant_history_target(plant, location)
 
 
 async def active_current_plant_history_targets(
@@ -214,7 +249,7 @@ async def load_mapped_plant_histories(
     range_key: MetricHistoryRange,
     now: datetime,
 ) -> MappedPlantHistoryResult:
-    bucket, window = metric_history_range_spec(range_key)
+    bucket, history_window = metric_history_range_spec(range_key)
     stream_rows = [
         row
         for row in await active_plant_metric_streams(
@@ -240,7 +275,7 @@ async def load_mapped_plant_histories(
         session,
         site_id=site_id,
         bucket=bucket,
-        cutoff=now - window,
+        time_window=(now - history_window, now),
         stream_keys=stream_keys,
     )
     return MappedPlantHistoryResult(
@@ -270,11 +305,12 @@ async def metric_rollups_by_stream(
     *,
     site_id: str,
     bucket: MetricHistoryBucket,
-    cutoff: datetime,
+    time_window: tuple[datetime, datetime],
     stream_keys: Collection[ScopedMetricStreamKey],
 ) -> dict[ScopedMetricStreamKey, list[CloudMetricRollup]]:
     if not stream_keys:
         return {}
+    cutoff, until = time_window
     rows = (
         (
             await session.execute(
@@ -283,6 +319,7 @@ async def metric_rollups_by_stream(
                     CloudMetricRollup.site_id == site_id,
                     CloudMetricRollup.bucket == bucket,
                     CloudMetricRollup.bucket_start_at >= cutoff,
+                    CloudMetricRollup.bucket_start_at <= until,
                     tuple_(
                         CloudMetricRollup.source_tent_id,
                         CloudMetricRollup.device_id,
@@ -398,19 +435,8 @@ def plant_metric_stream_response(
     latest: CloudLatestMetric | None,
 ) -> PlantMetricStreamResponse:
     stream = row.stream
-    source_unit = source_unit_for_metric(stream.metric, latest.unit if latest else None)
-    display_unit = display_unit_for_metric(stream.metric, row.presentation, source_unit)
     return PlantMetricStreamResponse(
         metric=stream.metric,
-        display_name=display_name_for_metric(stream.metric, row.presentation),
-        display_unit=display_unit,
-        source_unit=source_unit,
-        value_precision=value_precision_for_metric(row.presentation),
-        accent=accent_for_metric(row.presentation),
-        y_min=row.presentation.y_min if row.presentation else None,
-        y_max=row.presentation.y_max if row.presentation else None,
-        display_order=stream.display_order,
-        history_enabled=bool(row.presentation and row.presentation.history_enabled),
         device_id=stream.device_id,
         capability_id=stream.capability_id,
         latest_reading=(
@@ -418,14 +444,6 @@ def plant_metric_stream_response(
             if latest is None
             else PlantMetricReadingResponse(
                 value=display_metric_value(stream.metric, latest.value),
-                source_value=latest.value,
-                source_unit=source_unit,
-                display_unit=display_unit,
-                device_id=latest.device_id,
-                capability_id=latest.capability_id,
-                source_updated_at=latest.source_updated_at,
-                received_at=latest.received_at,
-                stale_after_s=latest.stale_after_s,
             )
         ),
     )
