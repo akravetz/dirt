@@ -719,6 +719,53 @@ async def _seed_command_plants(
         return plant_keys
 
 
+async def _seed_active_metric_stream(
+    engine: AsyncEngine,
+    *,
+    plant_key: str,
+) -> int:
+    async with AsyncSession(engine) as session:
+        plant = (await session.exec(select(Plant).where(Plant.key == plant_key))).one()
+        location = (
+            await session.exec(
+                select(PlantLocationHistory)
+                .where(PlantLocationHistory.plant_id == plant.id)
+                .where(PlantLocationHistory.end_at.is_(None))
+            )
+        ).one()
+        device = Device(
+            site_id=location.site_id,
+            tent_id=location.tent_id,
+            device_id=f"{plant_key.lower()}-substrate-node",
+            name=f"{plant_key} Substrate Node",
+            kind="substrate_node",
+            controller="test",
+        )
+        session.add(device)
+        await session.flush()
+        capability = Capability(
+            device_id=device.id,
+            capability_id="soil_moisture_pct",
+            name="Soil Moisture",
+            kind="measurement",
+            metric_name="soil_moisture_pct",
+            unit="pct",
+            source="test",
+        )
+        session.add(capability)
+        await session.flush()
+        stream = PlantMetricStream(
+            plant_id=plant.id,
+            capability_id=capability.id,
+        )
+        session.add(stream)
+        await session.flush()
+        assert stream.id is not None
+        stream_id = stream.id
+        await session.commit()
+        return stream_id
+
+
 async def _seed_command_sex_test(
     engine: AsyncEngine,
     *,
@@ -3315,6 +3362,10 @@ async def test_command_loop_bulk_cull_closes_current_location(
         count=1,
         current_start=FIXED_NOW - timedelta(days=2),
     )
+    stream_id = await _seed_active_metric_stream(
+        app_engine,
+        plant_key=plant_key,
+    )
     cloud = RecordingCloudClient()
     cloud.claimed_commands = [
         _cloud_command(
@@ -3354,12 +3405,65 @@ async def test_command_loop_bulk_cull_closes_current_location(
                 )
             )
         ).one()
+        stream = await session.get(PlantMetricStream, stream_id)
 
     assert plant.culled_at == FIXED_NOW - timedelta(hours=6)
     assert plant.culled_reason == "failed vigor check"
     assert current_locations == []
     assert closed_location.end_at == FIXED_NOW - timedelta(hours=6)
+    assert stream is not None
+    assert stream.is_active is False
+    assert stream.updated_at == FIXED_NOW - timedelta(hours=6)
     assert command.tent_id is None
+
+
+async def test_command_loop_harvest_fact_ends_plant_lifecycle(
+    app_engine: AsyncEngine,
+):
+    [plant_key] = await _seed_command_plants(
+        app_engine,
+        prefix="HARVEST",
+        count=1,
+        current_start=FIXED_NOW - timedelta(days=2),
+    )
+    stream_id = await _seed_active_metric_stream(
+        app_engine,
+        plant_key=plant_key,
+    )
+    harvested_at = FIXED_NOW - timedelta(hours=4)
+    cloud = RecordingCloudClient()
+    cloud.claimed_commands = [
+        _cloud_command(
+            "cloud-harvest",
+            command_type="breeding_plants_update_facts",
+            payload={
+                "plant_keys": [plant_key],
+                "updates": [
+                    {"field": "harvested_at", "value": harvested_at.isoformat()}
+                ],
+            },
+        )
+    ]
+
+    result = await _command_service(app_engine, cloud, RecordingPTZ()).run_once()
+
+    assert result.executed == 1
+    async with AsyncSession(app_engine) as session:
+        plant = (await session.exec(select(Plant).where(Plant.key == plant_key))).one()
+        current_locations = (
+            await session.exec(
+                select(PlantLocationHistory)
+                .where(PlantLocationHistory.plant_id == plant.id)
+                .where(PlantLocationHistory.end_at.is_(None))
+            )
+        ).all()
+        stream = await session.get(PlantMetricStream, stream_id)
+
+    assert plant.harvested_at == harvested_at
+    assert current_locations == []
+    assert stream is not None
+    assert stream.is_active is False
+    assert stream.updated_at == harvested_at
 
 
 async def test_command_loop_creates_plant_note_with_cloud_requester(

@@ -40,6 +40,7 @@ from dirt_shared.models import (
     PlantLine,
     PlantLkuSex,
     PlantLocationHistory,
+    PlantMetricStream,
     PlantNote,
     PlantSexTest,
     SeedLot,
@@ -594,7 +595,7 @@ class BreedingCommandExecutor:
             plant.culled_reason = payload.reason
             plant.updated_at = occurred_at
             session.add(plant)
-            await _end_current_location(session, plant, occurred_at)
+            await _end_plant_lifecycle(session, plant, occurred_at)
         await session.flush()
         return {
             "culled_plant_ids": [_pk(plant) for plant in plants],
@@ -842,7 +843,7 @@ async def _apply_plant_fact_update(
                 raise BreedingCommandError(
                     f"expected datetime value for {update.field}, got {value_type}"
                 )
-            await _end_current_location(session, plant, update.value)
+            await _end_plant_lifecycle(session, plant, update.value)
         return
     if update.field in BREEDING_PLANT_TEXT_FACT_FIELDS:
         text_value = None if update.value is None else str(update.value)
@@ -926,7 +927,7 @@ async def _current_location(
     ).first()
 
 
-async def _end_current_location(
+async def _end_plant_lifecycle(
     session: AsyncSession,
     plant: Plant,
     ended_at: datetime,
@@ -935,6 +936,18 @@ async def _end_current_location(
     if current is not None:
         current.end_at = ended_at
         session.add(current)
+
+    active_streams = (
+        await session.exec(
+            select(PlantMetricStream)
+            .where(PlantMetricStream.plant_id == _pk(plant))
+            .where(PlantMetricStream.is_active.is_(True))
+        )
+    ).all()
+    for stream in active_streams:
+        stream.is_active = False
+        stream.updated_at = ended_at
+        session.add(stream)
 
 
 def _plant_prefix(line: PlantLine) -> str:
